@@ -4,11 +4,12 @@ public class MagicObjectHelper
 {
     #region 系統層面用到神奇字串
     public const string DefaultSQLiteConnectionStringKey = "SQLiteDefaultConnection";
-    public const string SystemSettings = "SystemSettings";
     public const string SQLiteDatabaseFilename = "BackendDB.db";
     public static string GetSQLiteConnectionString(string databasePath)
     {
         return $"Data Source={Path.Combine(databasePath, SQLiteDatabaseFilename)}";
     }
+    public const string 開發者帳號 = "support";
+    public const string 預設角色 = "預設角色";
     #endregion
 }

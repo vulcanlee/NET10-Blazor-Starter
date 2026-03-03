@@ -1,3 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using MyProject.AccessDatas;
+using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components;
@@ -49,13 +53,13 @@ namespace MyProject.Web
 
                 #region 加入設定強型別注入宣告
                 builder.Services.Configure<SystemSettings>(builder.Configuration
-                    .GetSection(MagicObjectHelper.SystemSettings));
+                    .GetSection(nameof(SystemSettings)));
                 #endregion
 
                 #region 系統使用的目錄準備
                 // 取得 系統設定物件 SystemSettings
-                var systemSettings = builder.Configuration.GetSection(MagicObjectHelper.SystemSettings).Get<SystemSettings>();
-                if (string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DownloadPath) == false)
+                var systemSettings = builder.Configuration.GetSection(nameof(SystemSettings)).Get<SystemSettings>();
+                if (string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DatabasePath) == false)
                 {
                     if(!Directory.Exists(systemSettings.ExternalFileSystem.DatabasePath))
                     {
@@ -76,7 +80,17 @@ namespace MyProject.Web
                         Directory.CreateDirectory(systemSettings.ExternalFileSystem.UploadPath);
                     }
                 }
-                var sqliteConnectionString = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
+                #endregion
+
+                #region EF Core 宣告
+                var ctmsSettings = builder.Configuration
+                    .GetSection(nameof(SystemSettings))
+                    .Get<SystemSettings>();
+                var SQLiteDefaultConnection = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
+
+                builder.Services.AddDbContext<BackendDBContext>(options =>
+                    options.UseSqlite(SQLiteDefaultConnection),
+                    ServiceLifetime.Scoped);
                 #endregion
 
                 #region 客製服務註冊
@@ -84,6 +98,81 @@ namespace MyProject.Web
                 #endregion
 
                 var app = builder.Build();
+
+                #region 資料庫的 Migration
+                //if (!app.Environment.IsDevelopment())
+                {
+                    using var scope = app.Services.CreateScope();
+                    using var dbContext = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+                    if (dbContext.Database.GetMigrations().Any())
+                    {
+                        dbContext.Database.Migrate();
+                    }
+                    else
+                    {
+                        dbContext.Database.EnsureCreated();
+                    }
+
+                    RoleView roleViewItemNew = null;
+
+                    #region 是否有存在的角色檢視定義
+                    var roleViewItem = dbContext.RoleView
+                        .FirstOrDefault(x => x.Name == MagicObjectHelper.預設角色);
+                    var allPermissionJson = "{}";
+                    if (roleViewItem == null)
+                    {
+                        roleViewItemNew = new RoleView()
+                        {
+                            Name = MagicObjectHelper.預設角色,
+                            TabViewJson = allPermissionJson
+                        };
+                        dbContext.RoleView.Add(roleViewItemNew);
+                        dbContext.SaveChanges();
+                    }
+                    else
+                    {
+                        roleViewItem.TabViewJson = allPermissionJson;
+                        dbContext.SaveChanges();
+                    }
+                    #endregion
+
+                    #region 產生預設帳號
+                    var support = dbContext.MyUser
+                        .FirstOrDefault(x => x.Account == MagicObjectHelper.開發者帳號);
+
+                    if (support == null)
+                    {
+                        support = new MyUser()
+                        {
+                            Account = MagicObjectHelper.開發者帳號,
+                            Name = MagicObjectHelper.開發者帳號,
+                            Email = MagicObjectHelper.開發者帳號,
+                            IsAdmin = true,
+                            Salt = Guid.NewGuid().ToString(),
+                            Status = true,
+                            RoleViewId = roleViewItemNew.Id,
+                            RoleJson = "[]",
+                        };
+                        support.Password =
+                            PasswordHelper.GetPasswordSHA(support.Salt, MagicObjectHelper.開發者帳號);
+
+                        dbContext.MyUser.Add(support);
+                        dbContext.SaveChanges();
+                    }
+                    else
+                    {
+                        support.Password =
+                            PasswordHelper.GetPasswordSHA(support.Salt, MagicObjectHelper.開發者帳號);
+                        support.IsAdmin = true;
+                        if (roleViewItemNew != null)
+                            support.RoleViewId = roleViewItemNew.Id;
+                        else
+                            support.RoleViewId = roleViewItem.Id;
+                        dbContext.SaveChanges();
+                    }
+                    #endregion
+                }
+                #endregion
 
                 #region 註冊中介軟體
                 // Configure the HTTP request pipeline.
