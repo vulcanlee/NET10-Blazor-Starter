@@ -1,3 +1,5 @@
+using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 using MyProject.Web.Components;
 using NLog;
 using NLog.Web;
@@ -8,69 +10,101 @@ namespace MyProject.Web
     {
         public static void Main(string[] args)
         {
-            try { 
-            var builder = WebApplication.CreateBuilder(args);
-
-
-            #region NLog 相關設定
-            var nlogBasePrefixPath = builder.Configuration.GetValue<string>("NLog:BasePath");
-            var baseNamespace = typeof(Program).Namespace;
-
-            string nlogBasePath = null;
-            if (!string.IsNullOrWhiteSpace(nlogBasePrefixPath))
+            try
             {
-                nlogBasePath = Path.Combine(nlogBasePrefixPath, baseNamespace);
-                Directory.CreateDirectory(nlogBasePath);
+                var builder = WebApplication.CreateBuilder(args);
 
-                // 設置內部日誌記錄器
-                NLog.Common.InternalLogger.LogLevel = NLog.LogLevel.Info;
-                NLog.Common.InternalLogger.LogFile = Path.Combine(nlogBasePath, $"{baseNamespace}-nlog-internal.log");
+                #region NLog 相關設定
+                var nlogBasePrefixPath = builder.Configuration.GetValue<string>("NLog:BasePath");
+                var baseNamespace = typeof(Program).Namespace;
 
-                // 設置變量到當前配置
-                LogManager.Configuration.Variables["BasePath"] = nlogBasePath;
-                LogManager.Configuration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
+                string nlogBasePath = null;
+                if (!string.IsNullOrWhiteSpace(nlogBasePrefixPath))
+                {
+                    nlogBasePath = Path.Combine(nlogBasePrefixPath, baseNamespace);
+                    Directory.CreateDirectory(nlogBasePath);
 
-                //LogManager.GetCurrentClassLogger().Info("NLog configured with BasePath: {BasePath}", nlogBasePath);
-            }
+                    // 設置內部日誌記錄器
+                    NLog.Common.InternalLogger.LogLevel = NLog.LogLevel.Info;
+                    NLog.Common.InternalLogger.LogFile = Path.Combine(nlogBasePath, $"{baseNamespace}-nlog-internal.log");
 
-            builder.Logging.ClearProviders();
-            builder.Host.UseNLog();
-            #endregion
+                    // 設置變量到當前配置
+                    LogManager.Configuration.Variables["BasePath"] = nlogBasePath;
+                    LogManager.Configuration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
 
+                    //LogManager.GetCurrentClassLogger().Info("NLog configured with BasePath: {BasePath}", nlogBasePath);
+                }
+
+                builder.Logging.ClearProviders();
+                builder.Host.UseNLog();
+                #endregion
+
+                #region 系統使用服務
                 // Add services to the container.
                 builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
-            #region 系統使用服務
-            builder.Services.AddAntDesign();
-            #endregion
+                builder.Services.AddAntDesign();
+                #endregion
 
-            #region 客製服務註冊
+                #region 加入設定強型別注入宣告
+                builder.Services.Configure<SystemSettings>(builder.Configuration
+                    .GetSection(MagicObjectHelper.SystemSettings));
+                #endregion
 
-            #endregion
+                #region 系統使用的目錄準備
+                // 取得 系統設定物件 SystemSettings
+                var systemSettings = builder.Configuration.GetSection(MagicObjectHelper.SystemSettings).Get<SystemSettings>();
+                if (string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DownloadPath) == false)
+                {
+                    if(!Directory.Exists(systemSettings.ExternalFileSystem.DatabasePath))
+                    {
+                        Directory.CreateDirectory(systemSettings.ExternalFileSystem.DatabasePath);
+                    }
+                }
+                if(string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DownloadPath) == false)
+                {
+                    if (!Directory.Exists(systemSettings.ExternalFileSystem.DownloadPath))
+                    {
+                        Directory.CreateDirectory(systemSettings.ExternalFileSystem.DownloadPath);
+                    }
+                }
+                if(string.IsNullOrEmpty(systemSettings.ExternalFileSystem.UploadPath) == false)
+                {
+                    if (!Directory.Exists(systemSettings.ExternalFileSystem.UploadPath))
+                    {
+                        Directory.CreateDirectory(systemSettings.ExternalFileSystem.UploadPath);
+                    }
+                }
+                var sqliteConnectionString = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
+                #endregion
 
-            var app = builder.Build();
+                #region 客製服務註冊
 
-            #region 註冊中介軟體
-            // Configure the HTTP request pipeline.
-            if (!app.Environment.IsDevelopment())
-            {
-                app.UseExceptionHandler("/Error");
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-                app.UseHsts();
-            }
+                #endregion
 
-            app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-            app.UseHttpsRedirection();
+                var app = builder.Build();
 
-            app.UseAntiforgery();
+                #region 註冊中介軟體
+                // Configure the HTTP request pipeline.
+                if (!app.Environment.IsDevelopment())
+                {
+                    app.UseExceptionHandler("/Error");
+                    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+                    app.UseHsts();
+                }
 
-            app.MapStaticAssets();
-            app.MapRazorComponents<App>()
-                .AddInteractiveServerRenderMode();
-            #endregion
+                app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+                app.UseHttpsRedirection();
 
-            app.Run();
+                app.UseAntiforgery();
+
+                app.MapStaticAssets();
+                app.MapRazorComponents<App>()
+                    .AddInteractiveServerRenderMode();
+                #endregion
+
+                app.Run();
             }
             catch (Exception ex)
             {
