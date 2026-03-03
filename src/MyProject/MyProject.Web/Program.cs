@@ -48,6 +48,7 @@ namespace MyProject.Web
                 builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
+                builder.Services.AddControllers();
                 builder.Services.AddAntDesign();
                 #endregion
 
@@ -189,6 +190,11 @@ namespace MyProject.Web
                 app.UseAntiforgery();
 
                 app.MapStaticAssets();
+
+                app.UseAuthentication();
+                app.UseAuthorization();
+
+                app.MapControllers();
                 app.MapRazorComponents<App>()
                     .AddInteractiveServerRenderMode();
                 #endregion
