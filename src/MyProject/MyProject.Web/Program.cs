@@ -1,9 +1,10 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components;
@@ -75,6 +76,10 @@ namespace MyProject.Web
                 builder.Services.AddAuthorization();
                 #endregion
 
+                #region AutoMapper 使用的宣告
+                builder.Services.AddAutoMapper(c => c.AddProfile<AutoMapping>());
+                #endregion
+
                 #endregion
 
                 #region 加入設定強型別注入宣告
@@ -120,7 +125,7 @@ namespace MyProject.Web
                 #endregion
 
                 #region 客製服務註冊
-
+                builder.Services.AddScoped<RolePermissionService>();
                 #endregion
 
                 var app = builder.Build();
