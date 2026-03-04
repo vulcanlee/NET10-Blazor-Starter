@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.FileProviders;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
@@ -14,6 +16,7 @@ namespace MyProject.Web
     {
         public static void Main(string[] args)
         {
+            ILogger<Program> logger = null;
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
@@ -41,6 +44,7 @@ namespace MyProject.Web
 
                 builder.Logging.ClearProviders();
                 builder.Host.UseNLog();
+                logger = builder.Services.BuildServiceProvider().GetRequiredService<ILogger<Program>>();
                 #endregion
 
                 #region 系統使用服務
@@ -49,7 +53,28 @@ namespace MyProject.Web
                 .AddInteractiveServerComponents();
 
                 builder.Services.AddControllers();
+                //builder.Services.AddOpenApi();
+                builder.Services.AddEndpointsApiExplorer();
+                builder.Services.AddSwaggerGen();
                 builder.Services.AddAntDesign();
+
+                #region 加入使用 Cookie & JWT 認證需要的宣告
+                builder.Services.Configure<CookiePolicyOptions>(options =>
+                {
+                    options.CheckConsentNeeded = context => true;
+                    options.MinimumSameSitePolicy = Microsoft.AspNetCore.Http.SameSiteMode.None;
+                });
+
+                builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
+                    .AddCookie(MagicObjectHelper.CookieScheme, options =>
+                    {
+                        options.LoginPath = "/Auths/Login";
+                        options.LogoutPath = "/Auths/Logout";
+                        options.AccessDeniedPath = "/Auths/Login";
+                    });
+                builder.Services.AddAuthorization();
+                #endregion
+
                 #endregion
 
                 #region 加入設定強型別注入宣告
@@ -184,12 +209,27 @@ namespace MyProject.Web
                     app.UseHsts();
                 }
 
+                if (app.Environment.IsDevelopment())
+                {
+                    //app.MapOpenApi();
+                    app.UseSwagger();
+                    app.UseSwaggerUI();
+                }
+
                 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
                 app.UseHttpsRedirection();
 
                 app.UseAntiforgery();
 
                 app.MapStaticAssets();
+
+                #region 綁定靜態資源
+                app.UseStaticFiles(new StaticFileOptions
+                {
+                    FileProvider = new PhysicalFileProvider(systemSettings.ExternalFileSystem.DownloadPath),
+                    RequestPath = "/UploadFiles"
+                });
+                #endregion
 
                 app.UseAuthentication();
                 app.UseAuthorization();
@@ -203,11 +243,14 @@ namespace MyProject.Web
             }
             catch (Exception ex)
             {
-                LogManager.GetCurrentClassLogger().Error(ex, "Stopped program because of an exception");
+                if (logger != null)
+                    logger.LogError(ex, "Stopped program because of an exception");
                 throw;
             }
             finally
             {
+                if(logger!=null)
+                    logger.LogInformation("Application is shutting down.");
                 LogManager.Shutdown();
             }
         }

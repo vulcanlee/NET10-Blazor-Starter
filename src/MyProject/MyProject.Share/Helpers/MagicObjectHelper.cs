@@ -9,6 +9,7 @@ public class MagicObjectHelper
     {
         return $"Data Source={Path.Combine(databasePath, SQLiteDatabaseFilename)}";
     }
+    public const string CookieScheme = "CookieAuthenticationScheme";
     public const string 開發者帳號 = "support";
     public const string 預設角色 = "預設角色";
     #endregion
