@@ -22,4 +22,9 @@
     <ProjectReference Include="..\MyProject.Business\MyProject.Business.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Components\Dialogs\" />
+    <Folder Include="Components\Pages\Admins\" />
+  </ItemGroup>
+
 </Project>

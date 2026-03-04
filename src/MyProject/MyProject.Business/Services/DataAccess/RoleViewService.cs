@@ -56,10 +56,10 @@ public class RoleViewService
         #region 進行分頁
         // 取得記錄總數量，將要用於分頁元件面板使用
         result.Count = DataSource.Cast<RoleView>().Count();
-        DataSource = DataSource.Skip(dataRequest.Skip);
+        DataSource = DataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
         if (dataRequest.Take != 0)
         {
-            DataSource = DataSource.Take(dataRequest.Take);
+            DataSource = DataSource.Take(dataRequest.PageSize);
         }
         #endregion
 
@@ -229,11 +229,17 @@ public class RoleViewService
     Task OhterDependencyData(RoleViewAdapterModel data)
     {
         RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
-        List<string> permissions = JsonSerializer.Deserialize<List<string>>(data.TabViewJson);
-        rolePermissionService
-            .SetPermissionInput(rolePermission, permissions);
-        data.RolePermission = rolePermission;
-
+        try
+        {
+            List<string> permissions = JsonSerializer.Deserialize<List<string>>(data.TabViewJson);
+            rolePermissionService
+                .SetPermissionInput(rolePermission, permissions);
+            data.RolePermission = rolePermission;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "在進行其他依賴資料處理時發生例外異常");
+        }
         return Task.FromResult(0);
     }
 

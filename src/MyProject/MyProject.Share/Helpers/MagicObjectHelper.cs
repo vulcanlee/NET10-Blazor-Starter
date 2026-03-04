@@ -12,6 +12,8 @@ public class MagicObjectHelper
     public const string CookieScheme = "CookieAuthenticationScheme";
     public const string 開發者帳號 = "support";
     public const string 預設角色 = "預設角色";
+
+    public static readonly int PageSize = 8;
     #endregion
 
     #region 角色
