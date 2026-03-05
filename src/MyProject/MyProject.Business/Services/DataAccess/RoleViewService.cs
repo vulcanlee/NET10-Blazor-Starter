@@ -238,7 +238,7 @@ public class RoleViewService
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "在進行其他依賴資料處理時發生例外異常");
+            Logger.LogWarning(ex, "在進行其他依賴資料處理時發生例外異常");
         }
         return Task.FromResult(0);
     }

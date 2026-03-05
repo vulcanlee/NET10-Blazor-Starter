@@ -20,7 +20,7 @@ public class RecordVm
     public string Department { get; set; } = "OPD";
 
     [Range(0, 10)]
-    public int PainScore { get; set; } = 0;     // 拉霸常用 0~10
+    public double PainScore { get; set; } = 0;     // 拉霸常用 0~10
 
     [StringLength(500)]
     public string Notes { get; set; } = "";

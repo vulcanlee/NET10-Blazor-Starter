@@ -32,11 +32,12 @@
     </Table>
 </div>
 
-<Modal Title="modalTitle"
+<Modal Title="@modalTitle"
+       Class="role-view-modal"
        @bind-Visible="@modalVisible"
        OnOk="OnModalOKHandleAsync"
        OnCancel="OnModalCancelHandleAsync">
-    <div>
+    <div class="role-view-modal-body">
         <EditForm Model="@CurrentRecord" Context="editContext">
             <DataAnnotationsValidator />
             <ValidationSummary />

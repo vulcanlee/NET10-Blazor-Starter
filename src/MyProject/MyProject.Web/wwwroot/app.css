@@ -58,3 +58,34 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* role-view-modal: 90% viewport size with scrollable body */
+.role-view-modal {
+    width: 90vw !important;
+    max-width: 90vw !important;
+    top: 5vh !important;
+    padding-bottom: 0 !important;
+    margin: 0 auto !important;
+}
+
+.role-view-modal .ant-modal-content {
+    height: 90vh !important;
+    max-height: 90vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+.role-view-modal .ant-modal-header {
+    flex-shrink: 0;
+}
+
+.role-view-modal .ant-modal-body {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+}
+
+.role-view-modal .ant-modal-footer {
+    flex-shrink: 0;
+}
