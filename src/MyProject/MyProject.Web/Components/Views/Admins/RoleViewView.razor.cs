@@ -1,6 +1,7 @@
 ﻿using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http.HttpResults;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
@@ -21,6 +22,7 @@ namespace MyProject.Web.Components.Views.Admins
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
         int _total = 0;
+        string searchText = string.Empty;
 
         List<RoleViewAdapterModel> roleViewAdapterModels = new();
 
@@ -45,7 +47,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             DataRequestResult<RoleViewAdapterModel> dataRequestResult = await roleViewService.GetAsync(new DataRequest
             {
-                Search = string.Empty,
+                Search = searchText,
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
@@ -61,6 +63,26 @@ namespace MyProject.Web.Components.Views.Admins
         {
             _pageIndex = args.PageIndex;
             await ReloadAsync();
+        }
+
+        async Task OnSearchAsync()
+        {
+            _pageIndex = 1;
+            await ReloadAsync();
+        }
+
+        async Task OnRefreshAsync()
+        {
+            await ReloadAsync();
+
+            _ = notificationService.Open(new NotificationConfig()
+            {
+                Message = "系統訊息",
+                Description = "已經更新到最新資料庫紀錄",
+                NotificationType = NotificationType.Warning,
+                Placement = NotificationPlacement.BottomRight
+            });
+
         }
 
         async Task OnEditAsync(RoleViewAdapterModel roleViewAdapterModel)
@@ -195,6 +217,18 @@ namespace MyProject.Web.Components.Views.Admins
         private async Task OnModalCancelHandleAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs args)
         {
             modalVisible = false;
+        }
+
+        private async Task OnModalKeyDownAsync(KeyboardEventArgs args)
+        {
+            if (args.Key == "Enter")
+            {
+                await OnModalOKHandleAsync(new MouseEventArgs());
+            }
+            else if (args.Key == "Escape" || args.Key == "Esc")
+            {
+                await OnModalCancelHandleAsync(new MouseEventArgs());
+            }
         }
 
         public void OnEditContestChanged(EditContext context)

@@ -1,9 +1,35 @@
 ﻿<div>
-    <div>
-        <Button Type="ButtonType.Primary" Size="ButtonSize.Large"
-                OnClick="@(async()=>await OnAddAsync(true))">
-            新增
-        </Button>
+    <div class="role-view-toolbar">
+        <div class="role-view-toolbar-left">
+            <Tooltip Title="新增">
+                <Button Type="ButtonType.Default" Class="role-view-icon-button"
+                        OnClick="@(async()=>await OnAddAsync(true))">
+                    ➕
+                </Button>
+            </Tooltip>
+            <Tooltip Title="重新整理">
+                <Button Type="ButtonType.Default" Class="role-view-icon-button"
+                        OnClick="@(async () => await OnRefreshAsync())">
+                    🔄
+                </Button>
+            </Tooltip>
+        </div>
+        <div class="role-view-toolbar-right">
+            <Input class="role-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+            @if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                <Tooltip Title="清空搜尋">
+                    <Button Type="ButtonType.Default" Class="role-view-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
+                        ❌
+                    </Button>
+                </Tooltip>
+            }
+            <Tooltip Title="搜尋">
+                <Button Type="ButtonType.Default" Class="role-view-icon-button" OnClick="@(async () => await OnSearchAsync())">
+                    🔍
+                </Button>
+            </Tooltip>
+        </div>
     </div>
     <Table @ref="table"
            TItem="RoleViewAdapterModel"
@@ -18,13 +44,13 @@
                 <SpaceItem>
                     <button class="btn-edit" title="修改"
                             @onclick="@(async () => await OnEditAsync(@context))">
-                        <span class="icon-edit">✏️</span> 修改
+                        <span class="icon-edit">✏️</span>
                     </button>
                 </SpaceItem>
                 <SpaceItem>
                     <button class="btn-edit" title="刪除"
                             @onclick="@(async () => await OnDeleteAsync(@context))">
-                        <span class="icon-edit">✏️</span> 刪除
+                        <span class="icon-edit">🗑️</span>
                     </button>
                 </SpaceItem>
             </Space>
@@ -35,10 +61,11 @@
 <Modal Title="@modalTitle"
        Class="role-view-modal"
        @bind-Visible="@modalVisible"
+       Keyboard="true"
        OnOk="OnModalOKHandleAsync"
        OnCancel="OnModalCancelHandleAsync">
     <div class="">
-        <EditForm Model="@CurrentRecord" Context="editContext">
+        <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
             <DataAnnotationsValidator />
             <ValidationSummary />
             <InputWatcher EditContextActionChanged="OnEditContestChanged" />
