@@ -90,8 +90,7 @@
 
                 <!-- Checkbox -->
                 <FormItem>
-                    <Checkbox Checked="CurrentRecord.IsActive"
-                              CheckedChanged="@(value => CurrentRecord.IsActive = value)">
+                    <Checkbox @bind-Checked="CurrentRecord.IsActive">
                         啟用
                     </Checkbox>
                 </FormItem>

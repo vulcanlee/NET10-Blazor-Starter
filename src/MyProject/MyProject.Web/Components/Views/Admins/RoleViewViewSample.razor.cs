@@ -10,7 +10,7 @@ using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Components.Views.Admins
 {
-    public partial class RoleViewView
+    public partial class RoleViewViewSample
     {
         private readonly ILogger<RoleViewView> logger;
         private readonly RoleViewService roleViewService;
