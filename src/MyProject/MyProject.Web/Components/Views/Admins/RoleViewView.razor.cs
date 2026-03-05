@@ -26,8 +26,9 @@ namespace MyProject.Web.Components.Views.Admins
 
         string modalTitle = "角色列表";
         bool modalVisible = false;
-        RecordVm CurrentRecord = new();
+        RoleViewAdapterModel CurrentRecord = new();
         public EditContext LocalEditContext { get; set; }
+        bool isNewRecordMode;
 
         public RoleViewView(ILogger<RoleViewView> logger,
             RoleViewService roleViewService,
@@ -64,6 +65,9 @@ namespace MyProject.Web.Components.Views.Admins
 
         async Task OnEditAsync(RoleViewAdapterModel roleViewAdapterModel)
         {
+            isNewRecordMode = false;
+            CurrentRecord = roleViewAdapterModel.Clone();
+            modalVisible = true;
         }
 
         async Task OnDeleteAsync(RoleViewAdapterModel roleViewAdapterModel)
@@ -96,76 +100,12 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 // 使用者按「取消」或關閉
             }
-            //patientData.FromJson(patientAdapterModel.JsonData);
-            //string subjectNo = patientData.臨床資訊.SubjectNo;
-            //string FIGO = patientData.臨床資訊.FIGOStaging;
-            //// 使用 ConfirmMessageBox 來確認刪除操作
-            //var task = ConfirmMessageBox.ShowAsync("400px", "200px",
-            //"刪除受測者資料", $"確定要刪除受測者 {patientData.臨床資訊.SubjectNo} 的資料嗎？",
-            //ConfirmMessageBox.HiddenAsync);
-            //StateHasChanged(); // 更新 UI
-            //var confirmDelete = await task;
-            //if (confirmDelete == true)
-            //{
-            //    // 刪除受測者資料的邏輯
-            //    var deleteResult = await PatientService.DeleteAsync(patientAdapterModel.Id);
-            //    if (deleteResult.Success)
-            //    {
-
-            //        RandomParameterMode randomParameterModeAfter = new RandomParameterMode()
-            //        {
-            //            SubjectNo = subjectNo,
-            //            FIGO = FIGO,
-            //        };
-            //        randomParameterModeAfter.Parse();
-            //        await RandomListService.RemoveAsync(randomParameterModeAfter);
-
-
-            //        // 刪除成功，顯示提示訊息
-            //        // await MessageBox.ShowAsync("400px", "200px", "成功", "受測者資料已成功刪除。", MessageBox.HiddenAsync);
-            //        await ReloadAsync();
-            //    }
-            //    else
-            //    {
-            //        // 刪除失敗，顯示錯誤訊息
-            //        var task3 = MessageBox.ShowAsync("400px", "200px", "錯誤", deleteResult.Message, MessageBox.HiddenAsync);
-            //        StateHasChanged(); // 更新 UI
-            //        await task3;
-            //    }
-            //    StateHasChanged(); // 更新 UI
-            //}
-            //else
-            //{
-            //    // 使用者取消刪除操作
-            //}
         }
 
         async Task OnAddAsync(bool continueOnCapturedContext)
         {
-            await roleViewService.AddAsync(new RoleViewAdapterModel
-            {
-                Name = "新角色 " + Guid.NewGuid(),
-                RolePermission = new()
-            });
-
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "新增成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
-
-            _ = messageService.SuccessAsync("新增成功");
-
-            await modalService.InfoAsync(new ConfirmOptions()
-            {
-                Title = "系統訊息",
-                Content = "新增成功",
-            });
-
-            await ReloadAsync();
-
+            isNewRecordMode = true;
+            CurrentRecord = new();
             modalVisible = true;
         }
 
@@ -197,6 +137,55 @@ namespace MyProject.Web.Components.Views.Admins
 
                 modalVisible = true;
                 return;
+            }
+            #endregion
+
+            #region 新增與修改儲存紀錄
+            if (isNewRecordMode == true)
+            {
+                #region 新增紀錄
+
+                await roleViewService.AddAsync(CurrentRecord);
+
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "新增成功",
+                    NotificationType = NotificationType.Warning,
+                    Placement = NotificationPlacement.BottomRight
+                });
+
+                _ = messageService.SuccessAsync("新增成功");
+
+                //await modalService.InfoAsync(new ConfirmOptions()
+                //{
+                //    Title = "系統訊息",
+                //    Content = "新增成功",
+                //});
+
+                await ReloadAsync();
+
+                modalVisible = false;
+
+                #endregion
+            }
+            else
+            {
+                #region 修改紀錄
+                await roleViewService.UpdateAsync(CurrentRecord);
+
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "新增成功",
+                    NotificationType = NotificationType.Warning,
+                    Placement = NotificationPlacement.BottomRight
+                });
+
+                await ReloadAsync();
+
+                modalVisible = false;
+                #endregion
             }
             #endregion
 

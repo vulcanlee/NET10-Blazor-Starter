@@ -29,7 +29,7 @@ namespace MyProject.Web.Components.Views.Admins
         RecordVm CurrentRecord = new();
         public EditContext LocalEditContext { get; set; }
 
-        public RoleViewView(ILogger<RoleViewView> logger,
+        public RoleViewViewSample(ILogger<RoleViewView> logger,
             RoleViewService roleViewService,
             ModalService modalService, MessageService messageService, NotificationService notificationService)
         {

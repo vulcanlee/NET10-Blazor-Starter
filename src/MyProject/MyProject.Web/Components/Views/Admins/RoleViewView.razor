@@ -37,80 +37,18 @@
        @bind-Visible="@modalVisible"
        OnOk="OnModalOKHandleAsync"
        OnCancel="OnModalCancelHandleAsync">
-    <div class="role-view-modal-body">
+    <div class="">
         <EditForm Model="@CurrentRecord" Context="editContext">
             <DataAnnotationsValidator />
             <ValidationSummary />
             <InputWatcher EditContextActionChanged="OnEditContestChanged" />
 
-            <AntDesign.Form TModel="MyProject.Models.Others.RecordVm" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+            <AntDesign.Form TModel="RoleViewAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
 
-                <!-- 文字 -->
-                <FormItem Label="姓名" Required>
-                    <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入姓名" />
+                <FormItem Label="名稱" Required>
+                    <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
                     <ValidationMessage For="() => CurrentRecord.Name" />
                 </FormItem>
-
-                <!-- 數值 -->
-                <FormItem Label="年齡" Required>
-                    <AntDesign.InputNumber TValue="int" @bind-Value="CurrentRecord.Age" Min="0" Max="150" Style="width: 100%;" />
-                    <ValidationMessage For="() => CurrentRecord.Age" />
-                </FormItem>
-
-                <!-- 日期 -->
-                <FormItem Label="就診日期" Required>
-                    <DatePicker @bind-Value="CurrentRecord.VisitDate" Style="width: 100%;" />
-                    <ValidationMessage For="() => CurrentRecord.VisitDate" />
-                </FormItem>
-
-                <!-- 下拉選單 -->
-                <FormItem Label="科別" Required>
-                    <Select TItem="string" TItemValue="string" @bind-Value="CurrentRecord.Department" Style="width: 100%;">
-                        <SelectOption Value="@("OPD")">門診</SelectOption>
-                        <SelectOption Value="@("ER")">急診</SelectOption>
-                        <SelectOption Value="@("IPD")">住院</SelectOption>
-                    </Select>
-                    <ValidationMessage For="() => CurrentRecord.Department" />
-                </FormItem>
-
-                <!-- 拉霸 Slider -->
-                <FormItem Label="疼痛分數 (0~10)">
-                    <Slider @bind-Value="CurrentRecord.PainScore" Min="0" Max="10" />
-                    <div>目前：@CurrentRecord.PainScore</div>
-                    <ValidationMessage For="() => CurrentRecord.PainScore" />
-                </FormItem>
-
-                <!-- 多行文字 -->
-                <FormItem Label="備註">
-                    <TextArea @bind-Value="CurrentRecord.Notes"
-                              Rows="4"
-                              Placeholder="可輸入 500 字以內" />
-                    <ValidationMessage For="() => CurrentRecord.Notes" />
-                </FormItem>
-
-                <!-- Checkbox -->
-                <FormItem>
-                    <Checkbox Checked="CurrentRecord.IsActive"
-                              CheckedChanged="@(value => CurrentRecord.IsActive = value)">
-                        啟用
-                    </Checkbox>
-                </FormItem>
-
-                <!-- RadioButton -->
-                <FormItem Label="性別" Required>
-                    <RadioGroup @bind-Value="CurrentRecord.Gender">
-                        <Radio Value="@("M")">男</Radio>
-                        <Radio Value="@("F")">女</Radio>
-                        <Radio Value="@("O")">其他</Radio>
-                    </RadioGroup>
-                    <ValidationMessage For="() => CurrentRecord.Gender" />
-                </FormItem>
-
-                <Space>
-                    <Button Type="ButtonType.Primary" HtmlType="submit">儲存</Button>
-                    <Button OnClick="OnModalCancelHandleAsync">取消</Button>
-                </Space>
-
             </AntDesign.Form>
         </EditForm>
     </div>
