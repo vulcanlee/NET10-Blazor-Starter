@@ -23,6 +23,8 @@ namespace MyProject.Web.Components.Views.Admins
         int _pageSize = MagicObjectHelper.PageSize;
         int _total = 0;
         string searchText = string.Empty;
+        string sortField = string.Empty;
+        string sortDirection = "None";
 
         List<RoleViewAdapterModel> roleViewAdapterModels = new();
 
@@ -48,6 +50,8 @@ namespace MyProject.Web.Components.Views.Admins
             DataRequestResult<RoleViewAdapterModel> dataRequestResult = await roleViewService.GetAsync(new DataRequest
             {
                 Search = searchText,
+                SortField = sortField,
+                SortDescending = sortDirection == "Descending",
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
@@ -62,6 +66,40 @@ namespace MyProject.Web.Components.Views.Admins
         async Task OnTableChange(AntDesign.TableModels.QueryModel<RoleViewAdapterModel> args)
         {
             _pageIndex = args.PageIndex;
+
+            if (args.SortModel?.Any() == true)
+            {
+                var tableSortModel = args.SortModel.First();
+                string sortValue = tableSortModel.Sort?.ToString() ?? string.Empty;
+                bool isDesc = sortValue.Equals("descend", StringComparison.OrdinalIgnoreCase)
+                    || sortValue.Equals("descending", StringComparison.OrdinalIgnoreCase)
+                    || sortValue.Equals("desc", StringComparison.OrdinalIgnoreCase);
+                bool isAsc = sortValue.Equals("ascend", StringComparison.OrdinalIgnoreCase)
+                    || sortValue.Equals("ascending", StringComparison.OrdinalIgnoreCase)
+                    || sortValue.Equals("asc", StringComparison.OrdinalIgnoreCase);
+
+                if (isDesc)
+                {
+                    sortDirection = "Descending";
+                    sortField = tableSortModel.FieldName ?? string.Empty;
+                }
+                else if (isAsc)
+                {
+                    sortDirection = "Ascending";
+                    sortField = tableSortModel.FieldName ?? string.Empty;
+                }
+                else
+                {
+                    sortDirection = "None";
+                    sortField = string.Empty;
+                }
+            }
+            else
+            {
+                sortField = string.Empty;
+                sortDirection = "None";
+            }
+
             await ReloadAsync();
         }
 

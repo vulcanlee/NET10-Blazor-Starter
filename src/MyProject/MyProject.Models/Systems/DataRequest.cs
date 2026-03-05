@@ -23,4 +23,10 @@ public class DataRequest
 
     //     Specifies the search criteria.
     public string Search { get; set; }
+
+    //     指定排序欄位名稱
+    public string SortField { get; set; } = string.Empty;
+
+    //     指定是否為遞減排序
+    public bool SortDescending { get; set; }
 }

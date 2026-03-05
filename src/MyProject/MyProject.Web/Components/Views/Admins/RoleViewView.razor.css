@@ -17,6 +17,14 @@
     width: 260px;
 }
 
+.role-view-sort-field {
+    width: 120px;
+}
+
+.role-view-sort-direction {
+    width: 120px;
+}
+
 .role-view-icon-button {
     width: 36px;
     padding: 0;

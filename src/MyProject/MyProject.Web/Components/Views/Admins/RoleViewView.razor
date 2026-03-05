@@ -31,31 +31,35 @@
             </Tooltip>
         </div>
     </div>
-    <Table @ref="table"
-           TItem="RoleViewAdapterModel"
-           DataSource="@roleViewAdapterModels"
-           OnChange=OnTableChange
-           @bind-PageIndex="_pageIndex"
-           @bind-PageSize="_pageSize"
-           @bind-Total=_total>
-        <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" />
-        <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
-            <Space>
-                <SpaceItem>
-                    <button class="btn-edit" title="修改"
-                            @onclick="@(async () => await OnEditAsync(@context))">
-                        <span class="icon-edit">✏️</span>
-                    </button>
-                </SpaceItem>
-                <SpaceItem>
-                    <button class="btn-edit" title="刪除"
-                            @onclick="@(async () => await OnDeleteAsync(@context))">
-                        <span class="icon-edit">🗑️</span>
-                    </button>
-                </SpaceItem>
-            </Space>
-        </ActionColumn>
-    </Table>
+    <div class="role-view-table-wrap">
+        <Table @ref="table"
+               TItem="RoleViewAdapterModel"
+               Class="role-view-table"
+               RemoteDataSource="true"
+               DataSource="@roleViewAdapterModels"
+               OnChange=OnTableChange
+               @bind-PageIndex="_pageIndex"
+               @bind-PageSize="_pageSize"
+               @bind-Total=_total>
+            <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable="true" DefaultSortOrder="SortDirection.Ascending" />
+            <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                <Space>
+                    <SpaceItem>
+                        <button class="btn-edit" title="修改"
+                                @onclick="@(async () => await OnEditAsync(@context))">
+                            <span class="icon-edit">✏️</span>
+                        </button>
+                    </SpaceItem>
+                    <SpaceItem>
+                        <button class="btn-edit" title="刪除"
+                                @onclick="@(async () => await OnDeleteAsync(@context))">
+                            <span class="icon-edit">🗑️</span>
+                        </button>
+                    </SpaceItem>
+                </Space>
+            </ActionColumn>
+        </Table>
+    </div>
 </div>
 
 <Modal Title="@modalTitle"

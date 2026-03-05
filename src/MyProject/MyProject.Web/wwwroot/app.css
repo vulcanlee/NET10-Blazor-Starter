@@ -89,3 +89,20 @@ h1:focus {
 .role-view-modal .ant-modal-footer {
     flex-shrink: 0;
 }
+
+.role-view-table-wrap .ant-table-tbody > tr.ant-table-row:hover > td {
+    background-color: #e6f4ff !important;
+}
+
+.role-view-table-wrap .ant-table-tbody > tr.ant-table-row:nth-child(odd) > td {
+    background-color: #ffffff;
+}
+
+.role-view-table-wrap .ant-table-tbody > tr.ant-table-row:nth-child(even) > td {
+    background-color: #f8fafc;
+}
+
+.role-view-table-wrap .ant-table-tbody > tr.ant-table-row:hover,
+.role-view-table-wrap .ant-table-tbody > tr.ant-table-row:hover > td {
+    /*cursor: pointer;*/
+}

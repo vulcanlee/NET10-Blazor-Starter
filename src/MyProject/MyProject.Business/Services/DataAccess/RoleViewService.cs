@@ -51,6 +51,33 @@ public class RoleViewService
         #endregion
 
         #region 進行排序動作
+        if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
+        {
+            if (dataRequest.SortField == nameof(RoleViewAdapterModel.Name))
+            {
+                //DataSource = dataRequest.SortDescending
+                //    ? DataSource.OrderByDescending(x => x.Name)
+                //    : DataSource.OrderBy(x => x.Name);
+                if(dataRequest.SortDescending)
+                {
+                    DataSource = DataSource
+                        .OrderByDescending(x => x.Name)
+                        .ThenByDescending(x => x.Id);
+                }
+                else
+                {
+                    DataSource = DataSource
+                        .OrderBy(x => x.Name)
+                        .ThenBy(x => x.Id);
+                }
+            }
+            else if (dataRequest.SortField == nameof(RoleViewAdapterModel.Id))
+            {
+                DataSource = dataRequest.SortDescending
+                    ? DataSource.OrderByDescending(x => x.Id)
+                    : DataSource.OrderBy(x => x.Id);
+            }
+        }
         #endregion
 
         #region 進行分頁
@@ -238,7 +265,7 @@ public class RoleViewService
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "在進行其他依賴資料處理時發生例外異常");
+            //Logger.LogWarning(ex, "在進行其他依賴資料處理時發生例外異常");
         }
         return Task.FromResult(0);
     }
