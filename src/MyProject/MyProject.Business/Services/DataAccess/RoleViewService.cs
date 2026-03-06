@@ -58,7 +58,7 @@ public class RoleViewService
                 //DataSource = dataRequest.SortDescending
                 //    ? DataSource.OrderByDescending(x => x.Name)
                 //    : DataSource.OrderBy(x => x.Name);
-                if(dataRequest.SortDescending)
+                if (dataRequest.SortDescending)
                 {
                     DataSource = DataSource
                         .OrderByDescending(x => x.Name)
@@ -256,17 +256,19 @@ public class RoleViewService
     Task OhterDependencyData(RoleViewAdapterModel data)
     {
         RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
+        List<string> permissions = new();
         try
         {
-            List<string> permissions = JsonSerializer.Deserialize<List<string>>(data.TabViewJson);
-            rolePermissionService
-                .SetPermissionInput(rolePermission, permissions);
-            data.RolePermission = rolePermission;
+            permissions = JsonSerializer.Deserialize<List<string>>(data.TabViewJson);
         }
         catch (Exception ex)
         {
             //Logger.LogWarning(ex, "在進行其他依賴資料處理時發生例外異常");
+            permissions = new();
         }
+        rolePermissionService
+            .SetPermissionInput(rolePermission, permissions);
+        data.RolePermission = rolePermission;
         return Task.FromResult(0);
     }
 

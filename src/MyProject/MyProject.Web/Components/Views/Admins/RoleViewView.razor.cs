@@ -1,11 +1,9 @@
 ﻿using AntDesign;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Http.HttpResults;
+using MyProject.Business.Services;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
-using MyProject.Models.Others;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
@@ -18,6 +16,7 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly ModalService modalService;
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
+        private readonly RolePermissionService rolePermissionService;
         ITable table;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
@@ -36,13 +35,15 @@ namespace MyProject.Web.Components.Views.Admins
 
         public RoleViewView(ILogger<RoleViewView> logger,
             RoleViewService roleViewService,
-            ModalService modalService, MessageService messageService, NotificationService notificationService)
+            ModalService modalService, MessageService messageService, NotificationService notificationService,
+            RolePermissionService rolePermissionService)
         {
             this.logger = logger;
             this.roleViewService = roleViewService;
             this.modalService = modalService;
             this.messageService = messageService;
             this.notificationService = notificationService;
+            this.rolePermissionService = rolePermissionService;
         }
 
         public async Task ReloadAsync()
@@ -164,8 +165,14 @@ namespace MyProject.Web.Components.Views.Admins
 
         async Task OnAddAsync(bool continueOnCapturedContext)
         {
-            isNewRecordMode = true;
             CurrentRecord = new();
+
+            #region 針對新增的紀錄所要做的初始值設定商業邏輯
+            CurrentRecord.RolePermission = rolePermissionService
+                .InitializePermissionSetting();
+            #endregion
+
+            isNewRecordMode = true;
             modalVisible = true;
         }
 

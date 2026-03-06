@@ -80,6 +80,17 @@
                     <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
                     <ValidationMessage For="() => CurrentRecord.Name" />
                 </FormItem>
+
+                <FormItem Label="角色項目">
+                    <FormItem>
+                        @foreach (var role in CurrentRecord.RolePermission.Permissions)
+                        {
+                            <Checkbox Checked="@role.Enable" CheckedChanged="@(value => role.Enable = value)">
+                                @role.Name
+                            </Checkbox>
+                        }
+                    </FormItem>
+                </FormItem>
             </AntDesign.Form>
         </EditForm>
     </div>
