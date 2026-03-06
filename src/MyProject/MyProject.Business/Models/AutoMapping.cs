@@ -15,6 +15,11 @@ public class AutoMapping : Profile
         CreateMap<RoleView, RoleViewAdapterModel>();
         CreateMap<RoleViewAdapterModel, RoleView>();
         #endregion
+
+        #region MyUser
+        CreateMap<MyUser, MyUserAdapterModel>();
+        CreateMap<MyUserAdapterModel, MyUser>();
+        #endregion
         #endregion
     }
 }
