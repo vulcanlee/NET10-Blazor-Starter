@@ -41,7 +41,9 @@
                @bind-PageIndex="_pageIndex"
                @bind-PageSize="_pageSize"
                @bind-Total=_total>
-            <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable="true" DefaultSortOrder="SortDirection.Ascending" />
+            <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
+            <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
+            <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
             <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
                 <Space>
                     <SpaceItem>

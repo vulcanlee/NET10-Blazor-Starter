@@ -1,11 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace MyProject.AccessDatas.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class Init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -17,7 +18,9 @@ namespace MyProject.AccessDatas.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
-                    TabViewJson = table.Column<string>(type: "TEXT", nullable: false)
+                    TabViewJson = table.Column<string>(type: "TEXT", nullable: false),
+                    CreateAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdateAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -38,7 +41,9 @@ namespace MyProject.AccessDatas.Migrations
                     Email = table.Column<string>(type: "TEXT", nullable: true),
                     IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false),
                     RoleJson = table.Column<string>(type: "TEXT", nullable: false),
-                    RoleViewId = table.Column<int>(type: "INTEGER", nullable: true)
+                    RoleViewId = table.Column<int>(type: "INTEGER", nullable: true),
+                    CreateAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdateAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {

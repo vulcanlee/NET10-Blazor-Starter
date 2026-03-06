@@ -9,6 +9,8 @@ public class RoleViewAdapterModel : ICloneable
     [Required(ErrorMessage = "名稱 不可為空白")]
     public string Name { get; set; } = String.Empty;
     public string TabViewJson { get; set; }
+    public DateTime CreateAt { get; set; } = DateTime.Now;
+    public DateTime UpdateAt { get; set; } = DateTime.Now;
     public RolePermission RolePermission { get; set; } = new();
 
     public RoleViewAdapterModel Clone()

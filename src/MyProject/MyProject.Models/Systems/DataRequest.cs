@@ -28,5 +28,5 @@ public class DataRequest
     public string SortField { get; set; } = string.Empty;
 
     //     指定是否為遞減排序
-    public bool SortDescending { get; set; }
+    public bool? SortDescending { get; set; }
 }

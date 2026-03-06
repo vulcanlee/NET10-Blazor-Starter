@@ -1,4 +1,5 @@
 ﻿using AntDesign;
+using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using MyProject.Business.Services;
@@ -52,7 +53,7 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 Search = searchText,
                 SortField = sortField,
-                SortDescending = sortDirection == "Descending",
+                SortDescending = sortDirection == "Descending"? true : sortDirection == "Ascending" ? false : (bool?)null ,
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
@@ -70,30 +71,34 @@ namespace MyProject.Web.Components.Views.Admins
 
             if (args.SortModel?.Any() == true)
             {
-                var tableSortModel = args.SortModel.First();
-                string sortValue = tableSortModel.Sort?.ToString() ?? string.Empty;
-                bool isDesc = sortValue.Equals("descend", StringComparison.OrdinalIgnoreCase)
-                    || sortValue.Equals("descending", StringComparison.OrdinalIgnoreCase)
-                    || sortValue.Equals("desc", StringComparison.OrdinalIgnoreCase);
-                bool isAsc = sortValue.Equals("ascend", StringComparison.OrdinalIgnoreCase)
-                    || sortValue.Equals("ascending", StringComparison.OrdinalIgnoreCase)
-                    || sortValue.Equals("asc", StringComparison.OrdinalIgnoreCase);
+                var tableSortModel = GetCurrentSortModel(args.SortModel);
+                string sortValue = tableSortModel.SortDirection.ToString() ?? string.Empty;
+                string resolvedSortField = ResolveSortFieldName(tableSortModel);
+                sortDirection = sortValue;
+                sortField = resolvedSortField;
 
-                if (isDesc)
-                {
-                    sortDirection = "Descending";
-                    sortField = tableSortModel.FieldName ?? string.Empty;
-                }
-                else if (isAsc)
-                {
-                    sortDirection = "Ascending";
-                    sortField = tableSortModel.FieldName ?? string.Empty;
-                }
-                else
-                {
-                    sortDirection = "None";
-                    sortField = string.Empty;
-                }
+                //bool isDesc = sortValue.Equals("descend", StringComparison.OrdinalIgnoreCase)
+                //      || sortValue.Equals("descending", StringComparison.OrdinalIgnoreCase)
+                //      || sortValue.Equals("desc", StringComparison.OrdinalIgnoreCase);
+                //bool isAsc = sortValue.Equals("ascend", StringComparison.OrdinalIgnoreCase)
+                //    || sortValue.Equals("ascending", StringComparison.OrdinalIgnoreCase)
+                //    || sortValue.Equals("asc", StringComparison.OrdinalIgnoreCase);
+
+                //if (isDesc)
+                //{
+                //    sortDirection = "Descending";
+                //    sortField = resolvedSortField;
+                //}
+                //else if (isAsc)
+                //{
+                //    sortDirection = "Ascending";
+                //    sortField = resolvedSortField;
+                //}
+                //else
+                //{
+                //    sortDirection = "None";
+                //    sortField = resolvedSortField;
+                //}
             }
             else
             {
@@ -102,6 +107,40 @@ namespace MyProject.Web.Components.Views.Admins
             }
 
             await ReloadAsync();
+        }
+
+        private static ITableSortModel GetCurrentSortModel(IEnumerable<ITableSortModel> sortModels)
+        {
+            return sortModels.FirstOrDefault(model => HasSortDirection(model.SortDirection))
+                ?? sortModels.Last();
+        }
+
+        private static bool HasSortDirection(SortDirection sortDirection)
+        {
+            return sortDirection == SortDirection.Ascending || sortDirection == SortDirection.Descending;
+        }
+
+        private static string ResolveSortFieldName(ITableSortModel sortModel)
+        {
+            if (string.IsNullOrWhiteSpace(sortModel.FieldName) == false)
+            {
+                return sortModel.FieldName;
+            }
+
+            object? column = sortModel.GetType().GetProperty("Column")?.GetValue(sortModel);
+            if (column is null)
+            {
+                return string.Empty;
+            }
+
+            string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
+            if (string.IsNullOrWhiteSpace(columnFieldName) == false)
+            {
+                return columnFieldName;
+            }
+
+            object? dataIndex = column.GetType().GetProperty("DataIndex")?.GetValue(column);
+            return dataIndex?.ToString() ?? string.Empty;
         }
 
         async Task OnSearchAsync()
@@ -212,6 +251,9 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 #region 新增紀錄
 
+                CurrentRecord.CreateAt = DateTime.Now;
+                CurrentRecord.UpdateAt = DateTime.Now;
+
                 await roleViewService.AddAsync(CurrentRecord);
 
                 _ = notificationService.Open(new NotificationConfig()
@@ -239,6 +281,8 @@ namespace MyProject.Web.Components.Views.Admins
             else
             {
                 #region 修改紀錄
+                CurrentRecord.UpdateAt = DateTime.Now;
+
                 await roleViewService.UpdateAsync(CurrentRecord);
 
                 _ = notificationService.Open(new NotificationConfig()

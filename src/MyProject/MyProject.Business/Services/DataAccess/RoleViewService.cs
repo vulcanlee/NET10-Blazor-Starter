@@ -51,31 +51,53 @@ public class RoleViewService
         #endregion
 
         #region 進行排序動作
+        Console.WriteLine($"排序 : {dataRequest.SortField}, 方向 : {dataRequest.SortDescending}");
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
         {
             if (dataRequest.SortField == nameof(RoleViewAdapterModel.Name))
             {
-                //DataSource = dataRequest.SortDescending
-                //    ? DataSource.OrderByDescending(x => x.Name)
-                //    : DataSource.OrderBy(x => x.Name);
-                if (dataRequest.SortDescending)
+                if (dataRequest.SortDescending == true)
                 {
                     DataSource = DataSource
                         .OrderByDescending(x => x.Name)
                         .ThenByDescending(x => x.Id);
                 }
-                else
+                else if (dataRequest.SortDescending == false)
                 {
                     DataSource = DataSource
                         .OrderBy(x => x.Name)
                         .ThenBy(x => x.Id);
                 }
             }
-            else if (dataRequest.SortField == nameof(RoleViewAdapterModel.Id))
+            else if (dataRequest.SortField == nameof(RoleViewAdapterModel.CreateAt))
             {
-                DataSource = dataRequest.SortDescending
-                    ? DataSource.OrderByDescending(x => x.Id)
-                    : DataSource.OrderBy(x => x.Id);
+                if (dataRequest.SortDescending == true)
+                {
+                    DataSource = DataSource
+                        .OrderByDescending(x => x.CreateAt)
+                        .ThenByDescending(x => x.Id);
+                }
+                else if (dataRequest.SortDescending == false)
+                {
+                    DataSource = DataSource
+                        .OrderBy(x => x.CreateAt)
+                        .ThenBy(x => x.Id);
+                }
+            }
+            else if (dataRequest.SortField == nameof(RoleViewAdapterModel.UpdateAt))
+            {
+                if (dataRequest.SortDescending == true)
+                {
+                    DataSource = DataSource
+                        .OrderByDescending(x => x.UpdateAt)
+                        .ThenByDescending(x => x.Id);
+                }
+                else if (dataRequest.SortDescending == false)
+                {
+                    DataSource = DataSource
+                        .OrderBy(x => x.UpdateAt)
+                        .ThenBy(x => x.Id);
+                }
             }
         }
         #endregion
