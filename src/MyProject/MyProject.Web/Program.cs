@@ -184,7 +184,6 @@ namespace MyProject.Web
                             Salt = Guid.NewGuid().ToString(),
                             Status = true,
                             RoleViewId = roleViewItemNew.Id,
-                            RoleJson = "[]",
                         };
                         support.Password =
                             PasswordHelper.GetPasswordSHA(support.Salt, MagicObjectHelper.開發者帳號);

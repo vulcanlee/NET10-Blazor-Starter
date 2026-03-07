@@ -40,9 +40,8 @@ namespace MyProject.AccessDatas.Migrations
                     Status = table.Column<bool>(type: "INTEGER", nullable: false),
                     Email = table.Column<string>(type: "TEXT", nullable: true),
                     IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false),
-                    RoleJson = table.Column<string>(type: "TEXT", nullable: false),
-                    RoleViewId = table.Column<int>(type: "INTEGER", nullable: true),
                     CreateAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    RoleViewId = table.Column<int>(type: "INTEGER", nullable: true),
                     UpdateAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>

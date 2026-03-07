@@ -312,6 +312,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             if (args.Key == "Enter")
             {
+                await Task.Delay(200);
                 await OnModalOKHandleAsync(new MouseEventArgs());
             }
             else if (args.Key == "Escape" || args.Key == "Esc")

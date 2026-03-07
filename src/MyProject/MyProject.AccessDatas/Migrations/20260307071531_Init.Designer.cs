@@ -11,7 +11,7 @@ using MyProject.AccessDatas;
 namespace MyProject.AccessDatas.Migrations
 {
     [DbContext(typeof(BackendDBContext))]
-    [Migration("20260306153731_Init")]
+    [Migration("20260307071531_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -46,10 +46,6 @@ namespace MyProject.AccessDatas.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Password")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RoleJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

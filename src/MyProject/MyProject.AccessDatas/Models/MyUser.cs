@@ -21,9 +21,8 @@ public class MyUser
     public bool Status { get; set; } = true;
     public string? Email { get; set; }
     public bool IsAdmin { get; set; } = false;
-    public string RoleJson { get; set; }
-    public int? RoleViewId { get; set; }
     public DateTime CreateAt { get; set; }= DateTime.Now;
+    public int? RoleViewId { get; set; }
     public DateTime UpdateAt { get; set; }=DateTime.Now;
     public RoleView? RoleView { get; set; }
 }

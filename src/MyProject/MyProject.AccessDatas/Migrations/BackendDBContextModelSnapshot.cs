@@ -46,10 +46,6 @@ namespace MyProject.AccessDatas.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("RoleJson")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("RoleViewId")
                         .HasColumnType("INTEGER");
 

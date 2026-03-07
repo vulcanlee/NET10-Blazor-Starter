@@ -16,7 +16,6 @@ public class MyUserAdapterModel : ICloneable
     public bool Status { get; set; } = true;
     public string? Email { get; set; }
     public bool IsAdmin { get; set; } = false;
-    public string RoleJson { get; set; }
     public DateTime CreateAt { get; set; } = DateTime.Now;
     public DateTime UpdateAt { get; set; } = DateTime.Now;
     public int? RoleViewId { get; set; }
