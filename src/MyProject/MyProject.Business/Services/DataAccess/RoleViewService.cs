@@ -298,7 +298,7 @@ public class RoleViewService
     {
         RoleView item = await context.RoleView
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Name == MagicObjectHelper.預設新建帳號角色);
+            .FirstOrDefaultAsync(x => x.Name == MagicObjectHelper.預設角色);
         RoleViewAdapterModel result = Mapper.Map<RoleViewAdapterModel>(item);
         await OhterDependencyData(result);
         return result;

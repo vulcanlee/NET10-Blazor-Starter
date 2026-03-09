@@ -152,7 +152,7 @@ namespace MyProject.Web
                     #region 是否有存在的角色檢視定義
                     var roleViewItem = dbContext.RoleView
                         .FirstOrDefault(x => x.Name == MagicObjectHelper.預設角色);
-                    var allPermissionJson = "{}";
+                    var allPermissionJson = "[]";
                     if (roleViewItem == null)
                     {
                         roleViewItemNew = new RoleView()

@@ -18,7 +18,6 @@ public class MagicObjectHelper
 
     #region 角色
     public const string 使用者角色 = "使用者角色";
-    public const string 預設新建帳號角色 = "預設新建帳號角色";
 
     #endregion
 }

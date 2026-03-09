@@ -119,16 +119,19 @@
                 </FormItem>
 
                 <FormItem>
-                    <Checkbox @bind-Checked="CurrentRecord.Status">
+                    <Checkbox Checked="@CurrentRecord.Status"
+                              CheckedChanged="@(value => CurrentRecord.Status = value)">
                         啟用
                     </Checkbox>
                 </FormItem>
 
                 <FormItem>
-                    <Checkbox @bind-Checked="CurrentRecord.IsAdmin">
+                    <Checkbox Checked="@CurrentRecord.IsAdmin"
+                              CheckedChanged="@(value => CurrentRecord.IsAdmin = value)">
                         管理員
                     </Checkbox>
                 </FormItem>
+
             </AntDesign.Form>
         </EditForm>
     </div>
