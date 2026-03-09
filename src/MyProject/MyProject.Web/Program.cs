@@ -4,8 +4,8 @@ using Microsoft.Extensions.FileProviders;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
-using MyProject.Business.Services;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components;
@@ -135,6 +135,7 @@ namespace MyProject.Web
                 #endregion
 
                 #region 客製服務註冊
+                builder.Services.AddScoped<MyUserServiceLogin>();
                 builder.Services.AddScoped<RolePermissionService>();
                 builder.Services.AddScoped<RoleViewService>();
                 builder.Services.AddScoped<MyUserService>();
