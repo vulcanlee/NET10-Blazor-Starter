@@ -128,6 +128,7 @@ namespace MyProject.Web
                 #region 客製服務註冊
                 builder.Services.AddScoped<RolePermissionService>();
                 builder.Services.AddScoped<RoleViewService>();
+                builder.Services.AddScoped<MyUserService>();
                 #endregion
 
                 var app = builder.Build();
