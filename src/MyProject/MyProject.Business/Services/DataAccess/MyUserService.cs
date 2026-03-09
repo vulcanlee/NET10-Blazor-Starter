@@ -7,6 +7,7 @@ using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -297,4 +298,28 @@ public class MyUserService
 
         return Task.FromResult(0);
     }
+
+    public async Task<bool> NeedChangePasswordAsync(MyUserAdapterModel myUser)
+    {
+        bool result = false;
+        CleanTrackingHelper.Clean<MyUser>(context);
+
+        var user = await context.MyUser
+             .AsNoTracking()
+             .FirstOrDefaultAsync(x => x.Id == myUser.Id);
+
+        if (user == null)
+        {
+            return result;
+        }
+
+        string hashPassword =
+            PasswordHelper.GetPasswordSHA(user.Salt, MagicObjectHelper.NeedChangePassword);
+
+        if (user.Password == hashPassword)
+            result = true;
+
+        return result;
+    }
+
 }

@@ -135,6 +135,8 @@ namespace MyProject.Web
                 #endregion
 
                 #region 客製服務註冊
+                builder.Services.AddScoped<AuthenticationStateHelper>();
+                builder.Services.AddScoped<CurrentUserService>();
                 builder.Services.AddScoped<MyUserServiceLogin>();
                 builder.Services.AddScoped<RolePermissionService>();
                 builder.Services.AddScoped<RoleViewService>();
