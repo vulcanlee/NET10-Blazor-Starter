@@ -1,5 +1,7 @@
 ﻿using AntDesign;
 using AntDesign.TableModels;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using MyProject.Business.Services.DataAccess;
@@ -33,6 +35,14 @@ namespace MyProject.Web.Components.Views.Admins
         RoleViewAdapterModel CurrentRecord = new();
         public EditContext LocalEditContext { get; set; }
         bool isNewRecordMode;
+        string RoleMessage = string.Empty;
+
+        [Inject]
+        public AuthenticationStateHelper AuthenticationStateHelper { get; set; }
+        [Inject]
+        public AuthenticationStateProvider authStateProvider { get; set; }
+        [Inject]
+        public NavigationManager NavigationManager { get; set; }
 
         public RoleViewView(ILogger<RoleViewView> logger,
             RoleViewService roleViewService,
@@ -46,6 +56,23 @@ namespace MyProject.Web.Components.Views.Admins
             this.notificationService = notificationService;
             this.rolePermissionService = rolePermissionService;
         }
+
+        protected override async Task OnInitializedAsync()
+        {
+            var checkResult = await AuthenticationStateHelper
+                .Check(authStateProvider, NavigationManager);
+            if (checkResult == true)
+            {
+                if (AuthenticationStateHelper.CheckIsAdmin() == false)
+                {
+                    RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                }
+                else
+                {
+                }
+            }
+        }
+
 
         public async Task ReloadAsync()
         {

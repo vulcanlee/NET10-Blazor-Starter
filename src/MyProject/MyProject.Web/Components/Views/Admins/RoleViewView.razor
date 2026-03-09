@@ -1,101 +1,111 @@
-﻿<div>
-    <div class="role-view-toolbar">
-        <div class="role-view-toolbar-left">
-            <Tooltip Title="新增">
-                <Button Type="ButtonType.Default" Class="role-view-icon-button"
-                        OnClick="@(async()=>await OnAddAsync(true))">
-                    ➕
-                </Button>
-            </Tooltip>
-            <Tooltip Title="重新整理">
-                <Button Type="ButtonType.Default" Class="role-view-icon-button"
-                        OnClick="@(async () => await OnRefreshAsync())">
-                    🔄
-                </Button>
-            </Tooltip>
-        </div>
-        <div class="role-view-toolbar-right">
-            <Input class="role-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
-            @if (!string.IsNullOrWhiteSpace(searchText))
-            {
-                <Tooltip Title="清空搜尋">
-                    <Button Type="ButtonType.Default" Class="role-view-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
-                        ❌
+﻿@if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+
+    <div>
+        <div class="role-view-toolbar">
+            <div class="role-view-toolbar-left">
+                <Tooltip Title="新增">
+                    <Button Type="ButtonType.Default" Class="role-view-icon-button"
+                    OnClick="@(async()=>await OnAddAsync(true))">
+                        ➕
                     </Button>
                 </Tooltip>
-            }
-            <Tooltip Title="搜尋">
-                <Button Type="ButtonType.Default" Class="role-view-icon-button" OnClick="@(async () => await OnSearchAsync())">
-                    🔍
-                </Button>
-            </Tooltip>
+                <Tooltip Title="重新整理">
+                    <Button Type="ButtonType.Default" Class="role-view-icon-button"
+                    OnClick="@(async () => await OnRefreshAsync())">
+                        🔄
+                    </Button>
+                </Tooltip>
+            </div>
+            <div class="role-view-toolbar-right">
+                <Input class="role-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                @if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    <Tooltip Title="清空搜尋">
+                        <Button Type="ButtonType.Default" Class="role-view-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
+                            ❌
+                        </Button>
+                    </Tooltip>
+                }
+                <Tooltip Title="搜尋">
+                    <Button Type="ButtonType.Default" Class="role-view-icon-button" OnClick="@(async () => await OnSearchAsync())">
+                        🔍
+                    </Button>
+                </Tooltip>
+            </div>
+        </div>
+        <div class="role-view-table-wrap">
+            <Table @ref="table"
+            TItem="RoleViewAdapterModel"
+            Class="role-view-table"
+            RemoteDataSource="true"
+            DataSource="@roleViewAdapterModels"
+            OnChange=OnTableChange
+            @bind-PageIndex="_pageIndex"
+            @bind-PageSize="_pageSize"
+            @bind-Total=_total>
+                <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                    <Space>
+                        <SpaceItem>
+                            <button class="btn-edit" title="修改"
+                            @onclick="@(async () => await OnEditAsync(@context))">
+                                <span class="icon-edit">✏️</span>
+                            </button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <button class="btn-edit" title="刪除"
+                            @onclick="@(async () => await OnDeleteAsync(@context))">
+                                <span class="icon-edit">🗑️</span>
+                            </button>
+                        </SpaceItem>
+                    </Space>
+                </ActionColumn>
+            </Table>
         </div>
     </div>
-    <div class="role-view-table-wrap">
-        <Table @ref="table"
-               TItem="RoleViewAdapterModel"
-               Class="role-view-table"
-               RemoteDataSource="true"
-               DataSource="@roleViewAdapterModels"
-               OnChange=OnTableChange
-               @bind-PageIndex="_pageIndex"
-               @bind-PageSize="_pageSize"
-               @bind-Total=_total>
-            <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
-            <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
-            <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
-            <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
-                <Space>
-                    <SpaceItem>
-                        <button class="btn-edit" title="修改"
-                                @onclick="@(async () => await OnEditAsync(@context))">
-                            <span class="icon-edit">✏️</span>
-                        </button>
-                    </SpaceItem>
-                    <SpaceItem>
-                        <button class="btn-edit" title="刪除"
-                                @onclick="@(async () => await OnDeleteAsync(@context))">
-                            <span class="icon-edit">🗑️</span>
-                        </button>
-                    </SpaceItem>
-                </Space>
-            </ActionColumn>
-        </Table>
-    </div>
-</div>
 
-<Modal Title="@modalTitle"
-       Class="role-view-modal"
-       @bind-Visible="@modalVisible"
-       Keyboard="true"
-       OnOk="OnModalOKHandleAsync"
-       OnCancel="OnModalCancelHandleAsync">
-    <div class="">
-        <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
-            <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+    <Modal Title="@modalTitle"
+    Class="role-view-modal"
+    @bind-Visible="@modalVisible"
+    Keyboard="true"
+    OnOk="OnModalOKHandleAsync"
+    OnCancel="OnModalCancelHandleAsync">
+        <div class="">
+            <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <InputWatcher EditContextActionChanged="OnEditContestChanged" />
 
-            <AntDesign.Form TModel="RoleViewAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+                <AntDesign.Form TModel="RoleViewAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
 
-                <FormItem Label="名稱" Required>
-                    <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
-                    <ValidationMessage For="() => CurrentRecord.Name" />
-                </FormItem>
-
-                <FormItem Label="角色項目">
-                    <FormItem>
-                        @foreach (var role in CurrentRecord.RolePermission.Permissions)
-                        {
-                            <Checkbox Checked="@role.Enable" CheckedChanged="@(value => role.Enable = value)">
-                                @role.Name
-                            </Checkbox>
-                        }
+                    <FormItem Label="名稱" Required>
+                        <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
+                        <ValidationMessage For="() => CurrentRecord.Name" />
                     </FormItem>
-                </FormItem>
-            </AntDesign.Form>
-        </EditForm>
-    </div>
-</Modal>
+
+                    <FormItem Label="角色項目">
+                        <FormItem>
+                            @foreach (var role in CurrentRecord.RolePermission.Permissions)
+                            {
+                                <Checkbox Checked="@role.Enable" CheckedChanged="@(value => role.Enable = value)">
+                                    @role.Name
+                                </Checkbox>
+                            }
+                        </FormItem>
+                    </FormItem>
+                </AntDesign.Form>
+            </EditForm>
+        </div>
+    </Modal>
+}
 
 <FormModalHelper />

@@ -21,4 +21,9 @@ public class MagicObjectHelper
     public const string 使用者角色 = "使用者角色";
 
     #endregion
+
+    #region 認證與授權
+    public const string 你沒有權限存取此頁面 = "你沒有權限存取此頁面";
+
+    #endregion
 }
