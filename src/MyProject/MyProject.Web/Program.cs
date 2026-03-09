@@ -78,7 +78,16 @@ namespace MyProject.Web
                 #endregion
 
                 #region AutoMapper 使用的宣告
-                builder.Services.AddAutoMapper(c => c.AddProfile<AutoMapping>());
+                builder.Services.AddAutoMapper(c =>
+                {
+                    var autoMapperLicenseKey = builder.Configuration["AutoMapper:LicenseKey"];
+                    if (string.IsNullOrWhiteSpace(autoMapperLicenseKey) == false)
+                    {
+                        c.LicenseKey = autoMapperLicenseKey;
+                    }
+
+                    c.AddProfile<AutoMapping>();
+                });
                 #endregion
 
                 #endregion
