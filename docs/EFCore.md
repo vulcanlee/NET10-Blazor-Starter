@@ -1,7 +1,7 @@
 # 第一次 Migration 
 
 ```
-Add-Migration Init -Project MyProject.AccessDatas -StartupProject MyProject.Web 
+Add-Migration add-meeting -Project MyProject.AccessDatas -StartupProject MyProject.Web 
 Add-Migration Add-Status -Project MyProject.AccessDatas -StartupProject MyProject.Web 
 ```
 

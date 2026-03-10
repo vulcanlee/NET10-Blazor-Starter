@@ -142,6 +142,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<RoleViewService>();
                 builder.Services.AddScoped<MyUserService>();
                 builder.Services.AddScoped<ProjectService>();
+                builder.Services.AddScoped<MyTasService>();
                 #endregion
 
                 var app = builder.Build();
@@ -174,6 +175,26 @@ namespace MyProject.Web
                             "Owner" TEXT NOT NULL,
                             "CreatedAt" TEXT NOT NULL,
                             "UpdatedAt" TEXT NOT NULL
+                        );
+                        """);
+
+                    dbContext.Database.ExecuteSqlRaw(
+                        """
+                        CREATE TABLE IF NOT EXISTS "MyTas" (
+                            "Id" INTEGER NOT NULL CONSTRAINT "PK_MyTas" PRIMARY KEY AUTOINCREMENT,
+                            "Title" TEXT NOT NULL,
+                            "Description" TEXT NULL,
+                            "StartDate" TEXT NULL,
+                            "EndDate" TEXT NULL,
+                            "Category" TEXT NOT NULL,
+                            "Status" TEXT NOT NULL,
+                            "Priority" TEXT NOT NULL,
+                            "CompletionPercentage" INTEGER NOT NULL,
+                            "Owner" TEXT NOT NULL,
+                            "CreatedAt" TEXT NOT NULL,
+                            "UpdatedAt" TEXT NOT NULL,
+                            "ProjectId" INTEGER NOT NULL,
+                            CONSTRAINT "FK_MyTas_Project_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Project" ("Id") ON DELETE RESTRICT
                         );
                         """);
 

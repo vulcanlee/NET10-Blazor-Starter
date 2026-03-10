@@ -1,0 +1,26 @@
+.my-tas-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.my-tas-toolbar-left,
+.my-tas-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.my-tas-search-input {
+    width: 260px;
+}
+
+.my-tas-icon-button {
+    width: 36px;
+    padding: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}

@@ -1,0 +1,168 @@
+@if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="my-tas-toolbar">
+            <div class="my-tas-toolbar-left">
+                <Tooltip Title="新增">
+                    <Button Type="ButtonType.Default" Class="my-tas-icon-button"
+                            OnClick="@(async () => await OnAddAsync(true))">
+                        ➕
+                    </Button>
+                </Tooltip>
+                <Tooltip Title="重新整理">
+                    <Button Type="ButtonType.Default" Class="my-tas-icon-button"
+                            OnClick="@(async () => await OnRefreshAsync())">
+                        🔄
+                    </Button>
+                </Tooltip>
+            </div>
+            <div class="my-tas-toolbar-right">
+                <Input class="my-tas-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                @if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    <Tooltip Title="清空搜尋">
+                        <Button Type="ButtonType.Default" Class="my-tas-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
+                            ❌
+                        </Button>
+                    </Tooltip>
+                }
+                <Tooltip Title="搜尋">
+                    <Button Type="ButtonType.Default" Class="my-tas-icon-button" OnClick="@(async () => await OnSearchAsync())">
+                        🔍
+                    </Button>
+                </Tooltip>
+            </div>
+        </div>
+        <div class="my-tas-table-wrap">
+            <Table @ref="table"
+                   TItem="MyTasAdapterModel"
+                   Class="my-tas-table"
+                   RemoteDataSource="true"
+                   DataSource="@myTasAdapterModels"
+                   OnChange="OnTableChange"
+                   @bind-PageIndex="_pageIndex"
+                   @bind-PageSize="_pageSize"
+                   @bind-Total="_total">
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Title)" Title="標題" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Description)" Title="描述" />
+                <Column TData="DateTime?" DataIndex="@nameof(MyTasAdapterModel.StartDate)" Title="開始日期" Sortable />
+                <Column TData="DateTime?" DataIndex="@nameof(MyTasAdapterModel.EndDate)" Title="結束日期" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Category)" Title="分類" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Status)" Title="狀態" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Priority)" Title="優先級" Sortable />
+                <Column TData="int" DataIndex="@nameof(MyTasAdapterModel.CompletionPercentage)" Title="完成百分比" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Owner)" Title="負責人" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.ProjectTitle)" Title="所屬專案" Sortable />
+                <Column TData="DateTime" DataIndex="@nameof(MyTasAdapterModel.CreatedAt)" Title="建立時間" Sortable />
+                <Column TData="DateTime" DataIndex="@nameof(MyTasAdapterModel.UpdatedAt)" Title="更新時間" Sortable />
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                    <Space>
+                        <SpaceItem>
+                            <button class="btn-edit" title="修改"
+                                    @onclick="@(async () => await OnEditAsync(context))">
+                                <span class="icon-edit">✏️</span>
+                            </button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <button class="btn-edit" title="刪除"
+                                    @onclick="@(async () => await OnDeleteAsync(context))">
+                                <span class="icon-edit">🗑️</span>
+                            </button>
+                        </SpaceItem>
+                    </Space>
+                </ActionColumn>
+            </Table>
+        </div>
+    </div>
+
+    <Modal Title="@modalTitle"
+           Class="my-tas-modal"
+           @bind-Visible="@modalVisible"
+           Keyboard="true"
+           OnOk="OnModalOKHandleAsync"
+           OnCancel="OnModalCancelHandleAsync">
+        <div>
+            <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+
+                <AntDesign.Form TModel="MyTasAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+                    <FormItem Label="標題" Required>
+                        <Input @bind-Value="CurrentRecord.Title" Placeholder="請輸入工作標題" />
+                        <ValidationMessage For="() => CurrentRecord.Title" />
+                    </FormItem>
+
+                    <FormItem Label="描述">
+                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入工作描述" />
+                        <ValidationMessage For="() => CurrentRecord.Description" />
+                    </FormItem>
+
+                    <FormItem Label="開始日期">
+                        <DatePicker TValue="DateTime?" @bind-Value="CurrentRecord.StartDate" AllowClear="true" Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.StartDate" />
+                    </FormItem>
+
+                    <FormItem Label="結束日期">
+                        <DatePicker TValue="DateTime?" @bind-Value="CurrentRecord.EndDate" AllowClear="true" Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.EndDate" />
+                    </FormItem>
+
+                    <FormItem Label="分類" Required>
+                        <Input @bind-Value="CurrentRecord.Category" Placeholder="請輸入工作分類" />
+                        <ValidationMessage For="() => CurrentRecord.Category" />
+                    </FormItem>
+
+                    <FormItem Label="狀態" Required>
+                        <Select TItem="string" TItemValue="string" @bind-Value="CurrentRecord.Status" Style="width: 100%;">
+                            @foreach (var status in StatusOptions)
+                            {
+                                <SelectOption Value="@status">@status</SelectOption>
+                            }
+                        </Select>
+                        <ValidationMessage For="() => CurrentRecord.Status" />
+                    </FormItem>
+
+                    <FormItem Label="優先級" Required>
+                        <Select TItem="string" TItemValue="string" @bind-Value="CurrentRecord.Priority" Style="width: 100%;">
+                            @foreach (var priority in PriorityOptions)
+                            {
+                                <SelectOption Value="@priority">@priority</SelectOption>
+                            }
+                        </Select>
+                        <ValidationMessage For="() => CurrentRecord.Priority" />
+                    </FormItem>
+
+                    <FormItem Label="完成百分比" Required>
+                        <AntDesign.InputNumber TValue="int" @bind-Value="CurrentRecord.CompletionPercentage" Min="0" Max="100" Step="1" Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.CompletionPercentage" />
+                    </FormItem>
+
+                    <FormItem Label="負責人" Required>
+                        <Input @bind-Value="CurrentRecord.Owner" Placeholder="請輸入負責人名稱" />
+                        <ValidationMessage For="() => CurrentRecord.Owner" />
+                    </FormItem>
+
+                    <FormItem Label="所屬專案" Required>
+                        <Select TItem="ProjectAdapterModel" TItemValue="int?"
+                                DataSource="@projectAdapterModels"
+                                @bind-Value="CurrentRecord.ProjectId"
+                                LabelName="@nameof(ProjectAdapterModel.Title)"
+                                ValueName="@nameof(ProjectAdapterModel.Id)"
+                                Placeholder="請選擇專案"
+                                Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.ProjectId" />
+                    </FormItem>
+                </AntDesign.Form>
+            </EditForm>
+        </div>
+    </Modal>
+}
+
+<FormModalHelper />
