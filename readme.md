@@ -4,6 +4,17 @@
 
 * 採用伺服器端渲染，且是全域性而不是採用元件為主
 
+Icon 部分將會使用 BlazorMaterialIcons Nuget 套件 https://github.com/dimohy/BlazorMaterialIcons
+圖示來源 : https://fonts.google.com/icons
+使用範例為
+```html
+<MaterialIcon Kind="face" />
+
+<MaterialIcon>face</MaterialIcon>
+
+<MaterialIcon Theme="@MaterialIcon.Themes.Filled" Size="12">cast_connected</MaterialIcon>
+```
+
 以下是整理完成後的版本，可直接放到 `README` 或專案說明文件中：
 
 ## 專案目的
