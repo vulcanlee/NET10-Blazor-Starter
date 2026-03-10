@@ -12,6 +12,11 @@ public class AutoMapping : Profile
     {
         #region Blazor AdapterModel
 
+        #region Meeting
+        CreateMap<Meeting, MeetingAdapterModel>();
+        CreateMap<MeetingAdapterModel, Meeting>();
+        #endregion
+
         #region MyTas
         CreateMap<MyTas, MyTasAdapterModel>();
         CreateMap<MyTasAdapterModel, MyTas>();

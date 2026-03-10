@@ -143,6 +143,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<MyUserService>();
                 builder.Services.AddScoped<ProjectService>();
                 builder.Services.AddScoped<MyTasService>();
+                builder.Services.AddScoped<MeetingService>();
                 #endregion
 
                 var app = builder.Build();
@@ -195,6 +196,23 @@ namespace MyProject.Web
                             "UpdatedAt" TEXT NOT NULL,
                             "ProjectId" INTEGER NOT NULL,
                             CONSTRAINT "FK_MyTas_Project_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Project" ("Id") ON DELETE RESTRICT
+                        );
+                        """);
+
+                    dbContext.Database.ExecuteSqlRaw(
+                        """
+                        CREATE TABLE IF NOT EXISTS "Meeting" (
+                            "Id" INTEGER NOT NULL CONSTRAINT "PK_Meeting" PRIMARY KEY AUTOINCREMENT,
+                            "Title" TEXT NOT NULL,
+                            "Description" TEXT NULL,
+                            "Summary" TEXT NULL,
+                            "Participants" TEXT NULL,
+                            "StartDate" TEXT NULL,
+                            "EndDate" TEXT NULL,
+                            "CreatedAt" TEXT NOT NULL,
+                            "UpdatedAt" TEXT NOT NULL,
+                            "ProjectId" INTEGER NOT NULL,
+                            CONSTRAINT "FK_Meeting_Project_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Project" ("Id") ON DELETE RESTRICT
                         );
                         """);
 

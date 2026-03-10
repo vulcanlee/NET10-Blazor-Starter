@@ -1,0 +1,140 @@
+@if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="meeting-view-toolbar">
+            <div class="meeting-view-toolbar-left">
+                <Tooltip Title="新增">
+                    <Button Type="ButtonType.Default" Class="meeting-view-icon-button"
+                            OnClick="@(async () => await OnAddAsync(true))">
+                        ➕
+                    </Button>
+                </Tooltip>
+                <Tooltip Title="重新整理">
+                    <Button Type="ButtonType.Default" Class="meeting-view-icon-button"
+                            OnClick="@(async () => await OnRefreshAsync())">
+                        🔄
+                    </Button>
+                </Tooltip>
+            </div>
+            <div class="meeting-view-toolbar-right">
+                <Input class="meeting-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                @if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    <Tooltip Title="清空搜尋">
+                        <Button Type="ButtonType.Default" Class="meeting-view-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
+                            ❌
+                        </Button>
+                    </Tooltip>
+                }
+                <Tooltip Title="搜尋">
+                    <Button Type="ButtonType.Default" Class="meeting-view-icon-button" OnClick="@(async () => await OnSearchAsync())">
+                        🔍
+                    </Button>
+                </Tooltip>
+            </div>
+        </div>
+        <div class="meeting-view-table-wrap">
+            <Table @ref="table"
+                   TItem="MeetingAdapterModel"
+                   Class="meeting-view-table"
+                   RemoteDataSource="true"
+                   DataSource="@meetingAdapterModels"
+                   OnChange="OnTableChange"
+                   @bind-PageIndex="_pageIndex"
+                   @bind-PageSize="_pageSize"
+                   @bind-Total="_total">
+                <Column TData="string" DataIndex="@nameof(MeetingAdapterModel.Title)" Title="標題" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(MeetingAdapterModel.Description)" Title="描述" />
+                <Column TData="string" DataIndex="@nameof(MeetingAdapterModel.Summary)" Title="摘要" />
+                <Column TData="string" DataIndex="@nameof(MeetingAdapterModel.Participants)" Title="參與者" />
+                <Column TData="DateTime?" DataIndex="@nameof(MeetingAdapterModel.StartDate)" Title="開始日期" Sortable />
+                <Column TData="DateTime?" DataIndex="@nameof(MeetingAdapterModel.EndDate)" Title="結束日期" Sortable />
+                <Column TData="string" DataIndex="@nameof(MeetingAdapterModel.ProjectTitle)" Title="所屬專案" Sortable />
+                <Column TData="DateTime" DataIndex="@nameof(MeetingAdapterModel.CreatedAt)" Title="建立時間" Sortable />
+                <Column TData="DateTime" DataIndex="@nameof(MeetingAdapterModel.UpdatedAt)" Title="更新時間" Sortable />
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                    <Space>
+                        <SpaceItem>
+                            <button class="btn-edit" title="修改"
+                                    @onclick="@(async () => await OnEditAsync(context))">
+                                <span class="icon-edit">✏️</span>
+                            </button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <button class="btn-edit" title="刪除"
+                                    @onclick="@(async () => await OnDeleteAsync(context))">
+                                <span class="icon-edit">🗑️</span>
+                            </button>
+                        </SpaceItem>
+                    </Space>
+                </ActionColumn>
+            </Table>
+        </div>
+    </div>
+
+    <Modal Title="@modalTitle"
+           Class="meeting-view-modal"
+           @bind-Visible="@modalVisible"
+           Keyboard="true"
+           OnOk="OnModalOKHandleAsync"
+           OnCancel="OnModalCancelHandleAsync">
+        <div>
+            <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+
+                <AntDesign.Form TModel="MeetingAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+                    <FormItem Label="標題" Required>
+                        <Input @bind-Value="CurrentRecord.Title" Placeholder="請輸入會議標題" />
+                        <ValidationMessage For="() => CurrentRecord.Title" />
+                    </FormItem>
+
+                    <FormItem Label="描述">
+                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入會議描述" />
+                        <ValidationMessage For="() => CurrentRecord.Description" />
+                    </FormItem>
+
+                    <FormItem Label="摘要">
+                        <TextArea @bind-Value="CurrentRecord.Summary" Rows="4" Placeholder="請輸入會議摘要" />
+                        <ValidationMessage For="() => CurrentRecord.Summary" />
+                    </FormItem>
+
+                    <FormItem Label="參與者">
+                        <TextArea @bind-Value="CurrentRecord.Participants" Rows="4" Placeholder="請輸入參與者名單" />
+                        <ValidationMessage For="() => CurrentRecord.Participants" />
+                    </FormItem>
+
+                    <FormItem Label="開始日期">
+                        <DatePicker TValue="DateTime?" @bind-Value="CurrentRecord.StartDate" AllowClear="true" Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.StartDate" />
+                    </FormItem>
+
+                    <FormItem Label="結束日期">
+                        <DatePicker TValue="DateTime?" @bind-Value="CurrentRecord.EndDate" AllowClear="true" Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.EndDate" />
+                    </FormItem>
+
+                    <FormItem Label="所屬專案" Required>
+                        <Select TItem="ProjectAdapterModel" TItemValue="int?"
+                                DataSource="@projectAdapterModels"
+                                @bind-Value="CurrentRecord.ProjectId"
+                                LabelName="@nameof(ProjectAdapterModel.Title)"
+                                ValueName="@nameof(ProjectAdapterModel.Id)"
+                                Placeholder="請選擇專案"
+                                Style="width: 100%;" />
+                        <ValidationMessage For="() => CurrentRecord.ProjectId" />
+                    </FormItem>
+                </AntDesign.Form>
+            </EditForm>
+        </div>
+    </Modal>
+}
+
+<FormModalHelper />

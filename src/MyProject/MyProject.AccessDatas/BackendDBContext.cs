@@ -16,6 +16,7 @@ public partial class BackendDBContext : DbContext
 
     public virtual DbSet<MyUser> MyUser { get; set; }
     public virtual DbSet<MyTas> MyTas { get; set; }
+    public virtual DbSet<Meeting> Meeting { get; set; }
     public virtual DbSet<Project> Project { get; set; }
     public virtual DbSet<RoleView> RoleView { get; set; }
 
