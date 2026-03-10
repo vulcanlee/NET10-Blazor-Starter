@@ -49,18 +49,18 @@ public partial class SidebarMenuNode : ComponentBase
         _isExpanded = !_isExpanded;
     }
 
-    private string GetIconType()
+    private string GetMaterialIconKind()
     {
         return Item.Icon switch
         {
             "home" => "home",
             "dashboard" => "dashboard",
-            "admin" => "appstore",
-            "users" => "team",
-            "roles" => "safety-certificate",
-            "setting" => "setting",
-            _ when Item.HasChildren => "folder-open",
-            _ => "file-text"
+            "admin" => "admin_panel_settings",
+            "users" => "group",
+            "roles" => "verified_user",
+            "setting" => "settings",
+            _ when Item.HasChildren => "folder_open",
+            _ => "article"
         };
     }
 

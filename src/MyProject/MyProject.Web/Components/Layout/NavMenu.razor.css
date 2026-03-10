@@ -43,6 +43,14 @@
     width: 3rem;
 }
 
+.sidebar-brand-icon ::deep .material-icons,
+.sidebar-brand-icon ::deep .material-icons-outlined,
+.sidebar-brand-icon ::deep .material-icons-round,
+.sidebar-brand-icon ::deep .material-icons-sharp,
+.sidebar-brand-icon ::deep .material-icons-two-tone {
+    font-size: 1.3rem;
+}
+
 .sidebar-brand-text {
     display: flex;
     flex-direction: column;
@@ -131,15 +139,35 @@
     color: #0f172a !important;
 }
 
-.sidebar-menu-shell ::deep .ant-menu-item .anticon,
-.sidebar-menu-shell ::deep .ant-menu-submenu-title .anticon {
+.sidebar-menu-shell ::deep .ant-menu-item .material-icons,
+.sidebar-menu-shell ::deep .ant-menu-item .material-icons-outlined,
+.sidebar-menu-shell ::deep .ant-menu-item .material-icons-round,
+.sidebar-menu-shell ::deep .ant-menu-item .material-icons-sharp,
+.sidebar-menu-shell ::deep .ant-menu-item .material-icons-two-tone,
+.sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons,
+.sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons-outlined,
+.sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons-round,
+.sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons-sharp,
+.sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons-two-tone {
     color: #475569;
     font-size: 1rem;
 }
 
-.sidebar-menu-shell ::deep .ant-menu-item-selected .anticon,
-.sidebar-menu-shell ::deep .ant-menu-submenu-open > .ant-menu-submenu-title .anticon,
-.sidebar-menu-shell ::deep .ant-menu-submenu-selected > .ant-menu-submenu-title .anticon {
+.sidebar-menu-shell ::deep .ant-menu-item-selected .material-icons,
+.sidebar-menu-shell ::deep .ant-menu-item-selected .material-icons-outlined,
+.sidebar-menu-shell ::deep .ant-menu-item-selected .material-icons-round,
+.sidebar-menu-shell ::deep .ant-menu-item-selected .material-icons-sharp,
+.sidebar-menu-shell ::deep .ant-menu-item-selected .material-icons-two-tone,
+.sidebar-menu-shell ::deep .ant-menu-submenu-open > .ant-menu-submenu-title .material-icons,
+.sidebar-menu-shell ::deep .ant-menu-submenu-open > .ant-menu-submenu-title .material-icons-outlined,
+.sidebar-menu-shell ::deep .ant-menu-submenu-open > .ant-menu-submenu-title .material-icons-round,
+.sidebar-menu-shell ::deep .ant-menu-submenu-open > .ant-menu-submenu-title .material-icons-sharp,
+.sidebar-menu-shell ::deep .ant-menu-submenu-open > .ant-menu-submenu-title .material-icons-two-tone,
+.sidebar-menu-shell ::deep .ant-menu-submenu-selected > .ant-menu-submenu-title .material-icons,
+.sidebar-menu-shell ::deep .ant-menu-submenu-selected > .ant-menu-submenu-title .material-icons-outlined,
+.sidebar-menu-shell ::deep .ant-menu-submenu-selected > .ant-menu-submenu-title .material-icons-round,
+.sidebar-menu-shell ::deep .ant-menu-submenu-selected > .ant-menu-submenu-title .material-icons-sharp,
+.sidebar-menu-shell ::deep .ant-menu-submenu-selected > .ant-menu-submenu-title .material-icons-two-tone {
     color: #0f172a;
 }
 
