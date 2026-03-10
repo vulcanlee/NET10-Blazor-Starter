@@ -141,6 +141,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<RolePermissionService>();
                 builder.Services.AddScoped<RoleViewService>();
                 builder.Services.AddScoped<MyUserService>();
+                builder.Services.AddScoped<ProjectService>();
                 #endregion
 
                 var app = builder.Build();
@@ -158,6 +159,23 @@ namespace MyProject.Web
                     {
                         dbContext.Database.EnsureCreated();
                     }
+
+                    dbContext.Database.ExecuteSqlRaw(
+                        """
+                        CREATE TABLE IF NOT EXISTS "Project" (
+                            "Id" INTEGER NOT NULL CONSTRAINT "PK_Project" PRIMARY KEY AUTOINCREMENT,
+                            "Title" TEXT NOT NULL,
+                            "Description" TEXT NULL,
+                            "StartDate" TEXT NULL,
+                            "EndDate" TEXT NULL,
+                            "Status" TEXT NOT NULL,
+                            "Priority" TEXT NOT NULL,
+                            "CompletionPercentage" INTEGER NOT NULL,
+                            "Owner" TEXT NOT NULL,
+                            "CreatedAt" TEXT NOT NULL,
+                            "UpdatedAt" TEXT NOT NULL
+                        );
+                        """);
 
                     RoleView roleViewItemNew = null;
 

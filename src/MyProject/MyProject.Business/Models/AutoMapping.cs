@@ -12,6 +12,11 @@ public class AutoMapping : Profile
     {
         #region Blazor AdapterModel
 
+        #region Project
+        CreateMap<Project, ProjectAdapterModel>();
+        CreateMap<ProjectAdapterModel, Project>();
+        #endregion
+
         #region RoleView
         CreateMap<RoleView, RoleViewAdapterModel>();
         CreateMap<RoleViewAdapterModel, RoleView>();
