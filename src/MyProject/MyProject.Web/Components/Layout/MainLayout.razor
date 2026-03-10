@@ -1,13 +1,17 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
+<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <button type="button" class="sidebar-visibility-toggle" @onclick="ToggleSidebar">
+                <Icon Type="@(isSidebarCollapsed ? "menu-unfold" : "menu-fold")" />
+                <span>@(isSidebarCollapsed ? "顯示功能清單" : "收合功能清單")</span>
+            </button>
+            <div class="top-row-status">系統管理介面</div>
         </div>
 
         <article class="content px-4">
@@ -21,3 +25,12 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool isSidebarCollapsed;
+
+    private void ToggleSidebar()
+    {
+        isSidebarCollapsed = !isSidebarCollapsed;
+    }
+}

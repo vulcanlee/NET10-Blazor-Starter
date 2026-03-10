@@ -1,33 +1,27 @@
 @if (Item.HasChildren)
 {
-    <div class="nav-group @GetExpandedCssClass()">
-        <button type="button" class="nav-group-toggle" style="@GetIndentStyle()" @onclick="ToggleExpand">
-            <span class="menu-icon" aria-hidden="true">
+    <SubMenu Key="@GetMenuKey()" IsOpen="@_isExpanded" OnTitleClick="ToggleExpand">
+        <TitleTemplate>
+            <span class="submenu-title-content">
                 <Icon Type="@GetIconType()" />
+                <span class="submenu-title-text">@Item.Name</span>
             </span>
-            <span class="nav-group-text">@Item.Name</span>
-            <span class="expand-icon" aria-hidden="true">
-                <Icon Type="caret-right" />
-            </span>
-        </button>
-        <div class="nav-group-children @GetExpandedCssClass()">
-            <div class="nav-group-children-inner">
-                @foreach (var child in Item.SubMenu)
-                {
-                    <SidebarMenuNode Item="child" Level="@(Level + 1)" />
-                }
-            </div>
-        </div>
-    </div>
+        </TitleTemplate>
+        <ChildContent>
+            @for (var index = 0; index < Item.SubMenu.Count; index++)
+            {
+                <SidebarMenuNode Item="Item.SubMenu[index]"
+                                 Level="@(Level + 1)"
+                                 ItemKey="@($"{ItemKey}-{index}")"
+                                 ActiveMenuPath="@ActiveMenuPath"
+                                 RouteVersion="@RouteVersion" />
+            }
+        </ChildContent>
+    </SubMenu>
 }
 else if (!string.IsNullOrWhiteSpace(Item.Url))
 {
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="@Item.Url" Match="@GetMatchMode()" style="@GetIndentStyle()">
-            <span class="menu-icon" aria-hidden="true">
-                <Icon Type="@GetIconType()" />
-            </span>
-            <span class="nav-link-text">@Item.Name</span>
-        </NavLink>
-    </div>
+    <MenuItem Key="@GetMenuKey()" RouterLink="@Item.Url" RouterMatch="@GetMatchMode()" Icon="@GetIconType()">
+        <span class="menu-item-text">@Item.Name</span>
+    </MenuItem>
 }

@@ -3,37 +3,40 @@ using Microsoft.AspNetCore.Components.Routing;
 
 namespace MyProject.Web.Components.Layout;
 
-public partial class SidebarMenuNode : ComponentBase, IDisposable
+public partial class SidebarMenuNode : ComponentBase
 {
-    [Inject]
-    private NavigationManager NavigationManager { get; set; } = default!;
-
     [Parameter, EditorRequired]
     public SidebarMenuItemModel Item { get; set; } = default!;
 
     [Parameter]
     public int Level { get; set; }
 
-    private bool _isExpanded;
+    [Parameter, EditorRequired]
+    public string ItemKey { get; set; } = default!;
 
-    protected override void OnInitialized()
-    {
-        NavigationManager.LocationChanged += OnLocationChanged;
-        _isExpanded = ShouldAutoExpand();
-    }
+    [Parameter]
+    public string? ActiveMenuPath { get; set; }
+
+    [Parameter]
+    public int RouteVersion { get; set; }
+
+    private bool _isExpanded;
+    private int _lastAppliedRouteVersion;
 
     protected override void OnParametersSet()
     {
-        if (ShouldAutoExpand())
+        if (_lastAppliedRouteVersion == RouteVersion)
         {
-            _isExpanded = true;
+            return;
         }
+
+        _lastAppliedRouteVersion = RouteVersion;
+        _isExpanded = ShouldAutoExpand();
     }
 
-    private string GetIndentStyle()
+    private string GetMenuKey()
     {
-        var paddingLeft = 1 + (Level * 1.25m);
-        return $"padding-left: {paddingLeft}rem;";
+        return ItemKey;
     }
 
     private NavLinkMatch GetMatchMode()
@@ -44,11 +47,6 @@ public partial class SidebarMenuNode : ComponentBase, IDisposable
     private void ToggleExpand()
     {
         _isExpanded = !_isExpanded;
-    }
-
-    private string GetExpandedCssClass()
-    {
-        return _isExpanded ? "expanded" : string.Empty;
     }
 
     private string GetIconType()
@@ -68,49 +66,8 @@ public partial class SidebarMenuNode : ComponentBase, IDisposable
 
     private bool ShouldAutoExpand()
     {
-        return Item.HasChildren && HasActiveDescendant(Item);
-    }
-
-    private bool HasActiveDescendant(SidebarMenuItemModel menuItem)
-    {
-        foreach (var child in menuItem.SubMenu)
-        {
-            if (IsCurrentUrl(child.Url) || (child.HasChildren && HasActiveDescendant(child)))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool IsCurrentUrl(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return false;
-        }
-
-        var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Trim('/');
-        var targetPath = NavigationManager.ToBaseRelativePath(NavigationManager.ToAbsoluteUri(url).ToString()).Trim('/');
-
-        if (string.IsNullOrEmpty(targetPath))
-        {
-            return string.IsNullOrEmpty(currentPath);
-        }
-
-        return string.Equals(currentPath, targetPath, StringComparison.OrdinalIgnoreCase)
-            || currentPath.StartsWith($"{targetPath}/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        _isExpanded = ShouldAutoExpand();
-        InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        NavigationManager.LocationChanged -= OnLocationChanged;
+        return Item.HasChildren
+            && !string.IsNullOrWhiteSpace(ActiveMenuPath)
+            && ActiveMenuPath.StartsWith($"{ItemKey}-", StringComparison.Ordinal);
     }
 }

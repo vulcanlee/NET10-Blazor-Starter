@@ -4,18 +4,33 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    --sidebar-width: 100%;
 }
 
 main {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 100vh;
+    min-width: 0;
+    transition: width 0.28s ease, margin 0.28s ease;
 }
 
 .sidebar {
     background:
-        radial-gradient(circle at top, rgba(120, 119, 198, 0.18), transparent 35%),
-        linear-gradient(180deg, #0f172a 0%, #16203f 42%, #21184a 100%);
-    box-shadow: 18px 0 48px rgba(15, 23, 42, 0.2);
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.85), transparent 38%),
+        linear-gradient(180deg, #f5f6f8 0%, #eef1f4 50%, #e7ebf0 100%);
+    border-right: 1px solid rgba(203, 213, 225, 0.85);
+    box-shadow: 14px 0 34px rgba(148, 163, 184, 0.16);
+    flex-shrink: 0;
+    max-height: 100vh;
+    overflow: hidden;
+    transition: width 0.28s ease, opacity 0.28s ease, transform 0.28s ease, max-height 0.28s ease;
+    width: var(--sidebar-width);
+}
+
+.page.sidebar-collapsed .sidebar {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-10px);
 }
 
 .top-row {
@@ -26,6 +41,32 @@ main {
     display: flex;
     align-items: center;
     backdrop-filter: blur(14px);
+}
+
+.sidebar-visibility-toggle {
+    align-items: center;
+    background: linear-gradient(135deg, #ffffff 0%, #eef4ff 100%);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px;
+    box-shadow: 0 10px 26px rgba(148, 163, 184, 0.12);
+    color: #1e293b;
+    display: inline-flex;
+    gap: 0.65rem;
+    height: 2.9rem;
+    padding: 0 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.sidebar-visibility-toggle:hover {
+    border-color: rgba(59, 130, 246, 0.28);
+    box-shadow: 0 14px 30px rgba(59, 130, 246, 0.12);
+    transform: translateY(-1px);
+}
+
+.top-row-status {
+    color: #475569;
+    font-size: 0.92rem;
+    font-weight: 600;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
@@ -48,6 +89,10 @@ main {
         justify-content: space-between;
     }
 
+    .top-row-status {
+        display: none;
+    }
+
     .top-row ::deep a, .top-row ::deep .btn-link {
         margin-left: 0;
     }
@@ -56,13 +101,25 @@ main {
 @media (min-width: 641px) {
     .page {
         flex-direction: row;
+        --sidebar-width: 300px;
     }
 
     .sidebar {
-        width: 300px;
         height: 100vh;
         position: sticky;
         top: 0;
+        transform: translateX(0);
+        width: var(--sidebar-width);
+    }
+
+    .page.sidebar-collapsed {
+        --sidebar-width: 0px;
+    }
+
+    .page.sidebar-collapsed .sidebar {
+        box-shadow: none;
+        max-height: 100vh;
+        transform: translateX(-18px);
     }
 
     .top-row {

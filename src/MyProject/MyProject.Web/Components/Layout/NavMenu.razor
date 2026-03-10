@@ -13,7 +13,7 @@
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
+    <div class="sidebar-menu-shell">
         <div class="nav-section-title">功能選單</div>
         @if (MenuItems.Count == 0)
         {
@@ -23,11 +23,13 @@
         }
         else
         {
-            @foreach (var item in MenuItems)
-            {
-                <SidebarMenuNode Item="item" />
-            }
+            <Menu Class="sidebar-menu" Mode="MenuMode.Inline" Theme="MenuTheme.Light">
+                @for (var index = 0; index < MenuItems.Count; index++)
+                {
+                    <SidebarMenuNode Item="MenuItems[index]" ItemKey="@($"root-{index}")" ActiveMenuPath="@ActiveMenuPath" RouteVersion="@RouteVersion" />
+                }
+            </Menu>
         }
-    </nav>
+    </div>
 </div>
 
