@@ -1,0 +1,33 @@
+@if (Item.HasChildren)
+{
+    <div class="nav-group @GetExpandedCssClass()">
+        <button type="button" class="nav-group-toggle" style="@GetIndentStyle()" @onclick="ToggleExpand">
+            <span class="menu-icon" aria-hidden="true">
+                <Icon Type="@GetIconType()" />
+            </span>
+            <span class="nav-group-text">@Item.Name</span>
+            <span class="expand-icon" aria-hidden="true">
+                <Icon Type="caret-right" />
+            </span>
+        </button>
+        <div class="nav-group-children @GetExpandedCssClass()">
+            <div class="nav-group-children-inner">
+                @foreach (var child in Item.SubMenu)
+                {
+                    <SidebarMenuNode Item="child" Level="@(Level + 1)" />
+                }
+            </div>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(Item.Url))
+{
+    <div class="nav-item px-3">
+        <NavLink class="nav-link" href="@Item.Url" Match="@GetMatchMode()" style="@GetIndentStyle()">
+            <span class="menu-icon" aria-hidden="true">
+                <Icon Type="@GetIconType()" />
+            </span>
+            <span class="nav-link-text">@Item.Name</span>
+        </NavLink>
+    </div>
+}

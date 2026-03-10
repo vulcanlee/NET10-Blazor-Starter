@@ -15,6 +15,8 @@ public class MagicObjectHelper
     public const string NeedChangePassword = "123456";
 
     public static readonly int PageSize = 8;
+
+    public const string Menu結構定義 = "Datas/Menu.json";
     #endregion
 
     #region 角色

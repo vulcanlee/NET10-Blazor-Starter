@@ -1,6 +1,12 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">MyProject.Web</a>
+﻿<div class="top-row navbar-dark">
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">
+            <Icon Type="appstore" />
+        </div>
+        <div class="sidebar-brand-text">
+            <a class="navbar-brand" href="">MyProject.Web</a>
+            <div class="navbar-subtitle">管理後台功能清單</div>
+        </div>
     </div>
 </div>
 
@@ -8,23 +14,20 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
+        <div class="nav-section-title">功能選單</div>
+        @if (MenuItems.Count == 0)
+        {
+            <div class="nav-item px-3">
+                <span class="nav-link nav-link-disabled">尚無可用選單</span>
+            </div>
+        }
+        else
+        {
+            @foreach (var item in MenuItems)
+            {
+                <SidebarMenuNode Item="item" />
+            }
+        }
     </nav>
 </div>
 

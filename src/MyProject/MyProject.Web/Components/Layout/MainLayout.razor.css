@@ -1,4 +1,6 @@
 .page {
+    background: linear-gradient(180deg, #f3f6ff 0%, #eef2ff 52%, #f8faff 100%);
+    min-height: 100vh;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -6,29 +8,34 @@
 
 main {
     flex: 1;
+    min-height: 100vh;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background:
+        radial-gradient(circle at top, rgba(120, 119, 198, 0.18), transparent 35%),
+        linear-gradient(180deg, #0f172a 0%, #16203f 42%, #21184a 100%);
+    box-shadow: 18px 0 48px rgba(15, 23, 42, 0.2);
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
+    background: rgba(255, 255, 255, 0.72);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    justify-content: space-between;
+    height: 4.5rem;
     display: flex;
     align-items: center;
+    backdrop-filter: blur(14px);
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
+        color: #334155;
         text-decoration: none;
+        white-space: nowrap;
     }
 
     .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
+        color: #1d4ed8;
     }
 
     .top-row ::deep a:first-child {
@@ -52,7 +59,7 @@ main {
     }
 
     .sidebar {
-        width: 250px;
+        width: 300px;
         height: 100vh;
         position: sticky;
         top: 0;
@@ -72,8 +79,18 @@ main {
 
     .top-row, article {
         padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
+        padding-right: 2rem !important;
     }
+}
+
+article {
+    margin: 1.5rem;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(148, 163, 184, 0.16);
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
 }
 
 #blazor-error-ui {

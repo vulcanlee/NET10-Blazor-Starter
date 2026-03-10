@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <Folder Include="Components\Dialogs\" />
+    <Folder Include="Datas\" />
   </ItemGroup>
 
 </Project>
