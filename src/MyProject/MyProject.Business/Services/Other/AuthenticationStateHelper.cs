@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
@@ -20,8 +20,10 @@ public class AuthenticationStateHelper
     private readonly CurrentUserService currentUserService;
     private readonly RolePermissionService rolePermissionService;
 
-    public AuthenticationStateHelper(ILogger<AuthenticationStateHelper> logger,
-        IMapper mapper, MyUserService myUserService,
+    public AuthenticationStateHelper(
+        ILogger<AuthenticationStateHelper> logger,
+        IMapper mapper,
+        MyUserService myUserService,
         CurrentUserService currentUserService,
         RolePermissionService rolePermissionService)
     {
@@ -32,109 +34,124 @@ public class AuthenticationStateHelper
         this.rolePermissionService = rolePermissionService;
     }
 
-    /// <summary>
-    /// Verifies the authentication state of the current user and initializes user-specific settings if authenticated.
-    /// </summary>
-    /// <remarks>This method checks the authentication state of the current user and retrieves their
-    /// associated settings and permissions. If the user is not authenticated or their role information is missing, the
-    /// method redirects to the logout page.</remarks>
-    /// <param name="authStateProvider">The <see cref="AuthenticationStateProvider"/> used to retrieve the current authentication state.</param>
-    /// <param name="NavigationManager">The <see cref="NavigationManager"/> used to navigate to specific routes if authentication fails.</param>
-    /// <returns><see langword="true"/> if the user is authenticated and their settings are successfully initialized;  otherwise,
-    /// <see langword="false"/>.</returns>
-    public async Task<bool> Check(AuthenticationStateProvider authStateProvider,
-        NavigationManager NavigationManager)
+    public async Task<bool> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
     {
+        logger.LogDebug("Checking authentication state for current request.");
+
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
-        if (user.Identity is not null && user.Identity.IsAuthenticated)
+        if (user.Identity is null || !user.Identity.IsAuthenticated)
         {
-            var id = user.Claims
-                .FirstOrDefault(c => c.Type == ClaimTypes.Sid)?.Value.ToInt();
-            if (id is not null)
-            {
-                var myuser = await myUserService.GetAsync(id.Value);
-
-                #region 檢查是否需要強制變更密碼
-                bool needChangePassword = await myUserService.NeedChangePasswordAsync(myuser);
-                if (needChangePassword)
-                {
-                    // 延遲導航，避免在初始化過程中立即導航
-                    await Task.Delay(200);
-                    NavigationManager.NavigateTo("/ChangePassword", true);
-                    return false;
-                }
-                #endregion
-
-                CurrentUser currentUser = mapper.Map<CurrentUser>(myuser);
-
-                RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
-                if (myuser.RoleView == null)
-                {
-                    // 延遲導航，避免在初始化過程中立即導航
-                    await Task.Delay(200);
-                    NavigationManager.NavigateTo("/Auths/Logout", true, true);
-                    return false;
-                }
-                List<string> permissions = JsonSerializer
-                    .Deserialize<List<string>>(myuser.RoleView.TabViewJson);
-                rolePermissionService
-                    .SetPermissionInput(rolePermission, permissions);
-                currentUser.RoleJson = myuser.RoleView.TabViewJson;
-
-
-                currentUserService.CurrentUser.CopyFrom(currentUser);
-                currentUser.IsAuthenticated = true;
-                return true;
-            }
-            else
-            {
-                // 延遲導航，避免在初始化過程中立即導航
-                await Task.Delay(200);
-                NavigationManager.NavigateTo("/Auths/Logout", true, true);
-                return false;
-            }
-        }
-        else
-        {
-            // 延遲導航，避免在初始化過程中立即導航
+            logger.LogWarning("Authentication check failed because the current principal is not authenticated.");
             await Task.Delay(200);
-            NavigationManager.NavigateTo("/Auths/Logout", true, true);
+            navigationManager.NavigateTo("/Auths/Logout", true, true);
+            return false;
+        }
+
+        var id = user.Claims
+            .FirstOrDefault(c => c.Type == ClaimTypes.Sid)?
+            .Value
+            .ToInt();
+
+        if (id is null)
+        {
+            logger.LogWarning("Authentication check failed because claim {ClaimType} is missing.", ClaimTypes.Sid);
+            await Task.Delay(200);
+            navigationManager.NavigateTo("/Auths/Logout", true, true);
+            return false;
+        }
+
+        var myUser = await myUserService.GetAsync(id.Value);
+        logger.LogDebug("Resolved authenticated user information for UserId={UserId}.", id.Value);
+
+        bool needChangePassword = await myUserService.NeedChangePasswordAsync(myUser);
+        if (needChangePassword)
+        {
+            logger.LogWarning("User {UserId} is required to change password before continuing.", id.Value);
+            await Task.Delay(200);
+            navigationManager.NavigateTo("/ChangePassword", true);
+            return false;
+        }
+
+        CurrentUser currentUser = mapper.Map<CurrentUser>(myUser);
+        RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
+
+        if (myUser.RoleView == null)
+        {
+            logger.LogWarning("User {UserId} does not have a role view assigned. Redirecting to logout.", id.Value);
+            await Task.Delay(200);
+            navigationManager.NavigateTo("/Auths/Logout", true, true);
+            return false;
+        }
+
+        try
+        {
+            List<string> permissions = JsonSerializer.Deserialize<List<string>>(myUser.RoleView.TabViewJson) ?? [];
+            rolePermissionService.SetPermissionInput(rolePermission, permissions);
+            currentUser.RoleJson = myUser.RoleView.TabViewJson;
+            currentUserService.CurrentUser.CopyFrom(currentUser);
+            currentUser.IsAuthenticated = true;
+
+            logger.LogInformation(
+                "Authentication state initialized for UserId={UserId}, Account={Account}, IsAdmin={IsAdmin}.",
+                myUser.Id,
+                myUser.Account,
+                myUser.IsAdmin);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to initialize permission data for UserId={UserId}.", id.Value);
+            await Task.Delay(200);
+            navigationManager.NavigateTo("/Auths/Logout", true, true);
             return false;
         }
     }
 
     public async Task<MyUserAdapterModel> GetUserInformation(AuthenticationStateProvider authStateProvider)
     {
-        MyUserAdapterModel result = new();
+        logger.LogDebug("Loading current user information from authentication state.");
+
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
-        if (user.Identity is not null && user.Identity.IsAuthenticated)
+        if (user.Identity is null || !user.Identity.IsAuthenticated)
         {
-            var id = user.Claims
-                .FirstOrDefault(c => c.Type == ClaimTypes.Sid)?.Value.ToInt();
-            if (id is not null)
-            {
-                result = await myUserService.GetAsync(id.Value);
-            }
-            else
-                return null;
-        }
-        else
+            logger.LogWarning("Cannot load current user information because the principal is not authenticated.");
             return null;
-        return result;
+        }
+
+        var id = user.Claims
+            .FirstOrDefault(c => c.Type == ClaimTypes.Sid)?
+            .Value
+            .ToInt();
+
+        if (id is null)
+        {
+            logger.LogWarning("Cannot load current user information because claim {ClaimType} is missing.", ClaimTypes.Sid);
+            return null;
+        }
+
+        return await myUserService.GetAsync(id.Value);
     }
 
     public bool CheckIsAdmin()
     {
-        return currentUserService.CurrentUser.IsAdmin;
+        var isAdmin = currentUserService.CurrentUser.IsAdmin;
+        logger.LogDebug("Checked admin permission for UserId={UserId}. IsAdmin={IsAdmin}", currentUserService.CurrentUser.Id, isAdmin);
+        return isAdmin;
     }
 
     public bool CheckAccessPage(string name)
     {
         var result = currentUserService.CurrentUser.RoleList.Contains(name);
+        logger.LogDebug(
+            "Checked page access for UserId={UserId}, Page={PageName}, Allowed={Allowed}.",
+            currentUserService.CurrentUser.Id,
+            name,
+            result);
         return result;
     }
 }

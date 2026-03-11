@@ -20,7 +20,7 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly ModalService modalService;
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
-        ITable table;
+        ITable? table;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
         int _total = 0;
@@ -31,24 +31,27 @@ namespace MyProject.Web.Components.Views.Admins
         List<MyUserAdapterModel> myUserAdapterModels = new();
         List<RoleViewAdapterModel> roleViewAdapterModels = new();
 
-        string modalTitle = "使用者列表";
+        string modalTitle = "使用者維護";
         bool modalVisible = false;
         MyUserAdapterModel CurrentRecord = new();
-        public EditContext LocalEditContext { get; set; }
+        public EditContext? LocalEditContext { get; set; }
         bool isNewRecordMode;
         string RoleMessage = string.Empty;
 
         [Inject]
-        public AuthenticationStateHelper AuthenticationStateHelper { get; set; }
+        public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
         [Inject]
-        public AuthenticationStateProvider authStateProvider { get; set; }
+        public AuthenticationStateProvider authStateProvider { get; set; } = default!;
         [Inject]
-        public NavigationManager NavigationManager { get; set; }
+        public NavigationManager NavigationManager { get; set; } = default!;
 
-        public MyUserView(ILogger<MyUserView> logger,
+        public MyUserView(
+            ILogger<MyUserView> logger,
             MyUserService myUserService,
             RoleViewService roleViewService,
-            ModalService modalService, MessageService messageService, NotificationService notificationService)
+            ModalService modalService,
+            MessageService messageService,
+            NotificationService notificationService)
         {
             this.logger = logger;
             this.myUserService = myUserService;
@@ -60,22 +63,34 @@ namespace MyProject.Web.Components.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            var checkResult = await AuthenticationStateHelper
-                .Check(authStateProvider, NavigationManager);
-            if (checkResult == true)
+            logger.LogInformation("Initializing user management view.");
+            var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
+            if (!checkResult)
             {
-                if (AuthenticationStateHelper.CheckIsAdmin() == false)
-                {
-                    RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
-                }
-                else
-                {
-                }
+                logger.LogWarning("User management view initialization stopped because authentication check failed.");
+                return;
             }
+
+            if (!AuthenticationStateHelper.CheckIsAdmin())
+            {
+                RoleMessage = "你沒有權限存取此頁面";
+                logger.LogWarning("User management view denied because current user is not an administrator.");
+                return;
+            }
+
+            await ReloadAsync();
         }
 
         public async Task ReloadAsync()
         {
+            logger.LogDebug(
+                "Reloading users. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+                searchText,
+                sortField,
+                sortDirection,
+                _pageIndex,
+                _pageSize);
+
             DataRequestResult<MyUserAdapterModel> dataRequestResult = await myUserService.GetAsync(new DataRequest
             {
                 Search = searchText,
@@ -88,7 +103,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             myUserAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
-
+            logger.LogInformation("User list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
 
@@ -110,6 +125,7 @@ namespace MyProject.Web.Components.Views.Admins
                 sortDirection = "None";
             }
 
+            logger.LogDebug("User table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
             await ReloadAsync();
         }
 
@@ -126,7 +142,7 @@ namespace MyProject.Web.Components.Views.Admins
 
         private static string ResolveSortFieldName(ITableSortModel sortModel)
         {
-            if (string.IsNullOrWhiteSpace(sortModel.FieldName) == false)
+            if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
             {
                 return sortModel.FieldName;
             }
@@ -138,7 +154,7 @@ namespace MyProject.Web.Components.Views.Admins
             }
 
             string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-            if (string.IsNullOrWhiteSpace(columnFieldName) == false)
+            if (!string.IsNullOrWhiteSpace(columnFieldName))
             {
                 return columnFieldName;
             }
@@ -150,17 +166,19 @@ namespace MyProject.Web.Components.Views.Admins
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
+            logger.LogInformation("User search triggered. Search={Search}", searchText);
             await ReloadAsync();
         }
 
         async Task OnRefreshAsync()
         {
+            logger.LogInformation("User refresh triggered.");
             await ReloadAsync();
 
             _ = notificationService.Open(new NotificationConfig()
             {
                 Message = "系統訊息",
-                Description = "已經更新到最新資料庫紀錄",
+                Description = "已更新最新資料",
                 NotificationType = NotificationType.Warning,
                 Placement = NotificationPlacement.BottomRight
             });
@@ -171,12 +189,16 @@ namespace MyProject.Web.Components.Views.Admins
             await LoadRoleViewsAsync();
 
             isNewRecordMode = false;
+            modalTitle = "修改使用者";
             CurrentRecord = (await myUserService.GetAsync(myUserAdapterModel.Id)).Clone();
             modalVisible = true;
+            logger.LogInformation("Opened edit modal for user. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
         }
 
         async Task OnDeleteAsync(MyUserAdapterModel myUserAdapterModel)
         {
+            logger.LogInformation("Delete user requested. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
+
             var ok = await modalService.ConfirmAsync(new ConfirmOptions()
             {
                 Title = "確認刪除",
@@ -187,20 +209,24 @@ namespace MyProject.Web.Components.Views.Admins
                 MaskClosable = false
             });
 
-            if (ok)
+            if (!ok)
             {
-                await myUserService.DeleteAsync(myUserAdapterModel.Id);
-
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "刪除成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
-
-                await ReloadAsync();
+                logger.LogDebug("User delete cancelled by user. UserId={UserId}", myUserAdapterModel.Id);
+                return;
             }
+
+            await myUserService.DeleteAsync(myUserAdapterModel.Id);
+            logger.LogInformation("User delete completed. UserId={UserId}", myUserAdapterModel.Id);
+
+            _ = notificationService.Open(new NotificationConfig()
+            {
+                Message = "系統訊息",
+                Description = "刪除成功",
+                NotificationType = NotificationType.Warning,
+                Placement = NotificationPlacement.BottomRight
+            });
+
+            await ReloadAsync();
         }
 
         async Task OnAddAsync(bool continueOnCapturedContext)
@@ -215,7 +241,7 @@ namespace MyProject.Web.Components.Views.Admins
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "取得預設角色時發生例外異常");
+                logger.LogWarning(ex, "Failed to load default role for new user creation.");
             }
 
             if (defaultRole is not null && defaultRole.Id != 0)
@@ -228,20 +254,23 @@ namespace MyProject.Web.Components.Views.Admins
             }
 
             isNewRecordMode = true;
+            modalTitle = "新增使用者";
             modalVisible = true;
+            logger.LogInformation("Opened create modal for user.");
         }
 
         private async Task OnModalOKHandleAsync(MouseEventArgs args)
         {
-            if (LocalEditContext.Validate() == false)
+            if (LocalEditContext?.Validate() == false)
             {
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
 
                 foreach (var error in allErrors)
                 {
+                    logger.LogWarning("User form validation failed. Error={Error}", error);
                     _ = notificationService.Open(new NotificationConfig()
                     {
-                        Message = "驗證失敗，請修正以下錯誤",
+                        Message = "驗證失敗",
                         Description = error,
                         NotificationType = NotificationType.Error,
                         Placement = NotificationPlacement.BottomRight,
@@ -255,10 +284,11 @@ namespace MyProject.Web.Components.Views.Admins
 
             if (isNewRecordMode && string.IsNullOrWhiteSpace(CurrentRecord.Password))
             {
+                logger.LogWarning("User create validation failed because password is empty. Account={Account}", CurrentRecord.Account);
                 _ = notificationService.Open(new NotificationConfig()
                 {
-                    Message = "驗證失敗，請修正以下錯誤",
-                    Description = "新增使用者時密碼不可為空白",
+                    Message = "驗證失敗",
+                    Description = "新增使用者時必須輸入密碼。",
                     NotificationType = NotificationType.Error,
                     Placement = NotificationPlacement.BottomRight,
                     Duration = 5
@@ -268,11 +298,12 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            if (isNewRecordMode == true)
+            if (isNewRecordMode)
             {
                 var beforeAddCheckResult = await myUserService.BeforeAddCheckAsync(CurrentRecord);
-                if (beforeAddCheckResult.Success == false)
+                if (!beforeAddCheckResult.Success)
                 {
+                    logger.LogWarning("User create pre-check failed. Account={Account}, Message={Message}", CurrentRecord.Account, beforeAddCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",
@@ -289,6 +320,7 @@ namespace MyProject.Web.Components.Views.Admins
                 CurrentRecord.UpdateAt = DateTime.Now;
 
                 await myUserService.AddAsync(CurrentRecord);
+                logger.LogInformation("User create submitted. Account={Account}", CurrentRecord.Account);
 
                 _ = notificationService.Open(new NotificationConfig()
                 {
@@ -299,16 +331,13 @@ namespace MyProject.Web.Components.Views.Admins
                 });
 
                 _ = messageService.SuccessAsync("新增成功");
-
-                await ReloadAsync();
-
-                modalVisible = false;
             }
             else
             {
                 var beforeUpdateCheckResult = await myUserService.BeforeUpdateCheckAsync(CurrentRecord);
-                if (beforeUpdateCheckResult.Success == false)
+                if (!beforeUpdateCheckResult.Success)
                 {
+                    logger.LogWarning("User update pre-check failed. UserId={UserId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",
@@ -324,26 +353,26 @@ namespace MyProject.Web.Components.Views.Admins
                 CurrentRecord.UpdateAt = DateTime.Now;
 
                 await myUserService.UpdateAsync(CurrentRecord);
+                logger.LogInformation("User update submitted. UserId={UserId}, Account={Account}", CurrentRecord.Id, CurrentRecord.Account);
 
                 _ = notificationService.Open(new NotificationConfig()
                 {
                     Message = "系統訊息",
-                    Description = "新增成功",
+                    Description = "修改成功",
                     NotificationType = NotificationType.Warning,
                     Placement = NotificationPlacement.BottomRight
                 });
-
-                await ReloadAsync();
-
-                modalVisible = false;
             }
 
+            await ReloadAsync();
             modalVisible = false;
         }
 
-        private async Task OnModalCancelHandleAsync(MouseEventArgs args)
+        private Task OnModalCancelHandleAsync(MouseEventArgs args)
         {
             modalVisible = false;
+            logger.LogDebug("User modal cancelled.");
+            return Task.CompletedTask;
         }
 
         private async Task OnModalKeyDownAsync(KeyboardEventArgs args)
@@ -367,6 +396,7 @@ namespace MyProject.Web.Components.Views.Admins
         private async Task LoadRoleViewsAsync()
         {
             roleViewAdapterModels = await myUserService.GetRoleViewsAsync();
+            logger.LogDebug("Loaded role views for user view. Count={Count}", roleViewAdapterModels.Count);
         }
     }
 }

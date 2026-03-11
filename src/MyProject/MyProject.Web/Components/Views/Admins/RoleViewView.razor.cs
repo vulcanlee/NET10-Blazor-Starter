@@ -1,4 +1,4 @@
-﻿using AntDesign;
+using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -20,7 +20,7 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
         private readonly RolePermissionService rolePermissionService;
-        ITable table;
+        ITable? table;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
         int _total = 0;
@@ -30,23 +30,26 @@ namespace MyProject.Web.Components.Views.Admins
 
         List<RoleViewAdapterModel> roleViewAdapterModels = new();
 
-        string modalTitle = "角色列表";
+        string modalTitle = "角色維護";
         bool modalVisible = false;
         RoleViewAdapterModel CurrentRecord = new();
-        public EditContext LocalEditContext { get; set; }
+        public EditContext? LocalEditContext { get; set; }
         bool isNewRecordMode;
         string RoleMessage = string.Empty;
 
         [Inject]
-        public AuthenticationStateHelper AuthenticationStateHelper { get; set; }
+        public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
         [Inject]
-        public AuthenticationStateProvider authStateProvider { get; set; }
+        public AuthenticationStateProvider authStateProvider { get; set; } = default!;
         [Inject]
-        public NavigationManager NavigationManager { get; set; }
+        public NavigationManager NavigationManager { get; set; } = default!;
 
-        public RoleViewView(ILogger<RoleViewView> logger,
+        public RoleViewView(
+            ILogger<RoleViewView> logger,
             RoleViewService roleViewService,
-            ModalService modalService, MessageService messageService, NotificationService notificationService,
+            ModalService modalService,
+            MessageService messageService,
+            NotificationService notificationService,
             RolePermissionService rolePermissionService)
         {
             this.logger = logger;
@@ -59,28 +62,39 @@ namespace MyProject.Web.Components.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            var checkResult = await AuthenticationStateHelper
-                .Check(authStateProvider, NavigationManager);
-            if (checkResult == true)
+            logger.LogInformation("Initializing role view management.");
+            var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
+            if (!checkResult)
             {
-                if (AuthenticationStateHelper.CheckIsAdmin() == false)
-                {
-                    RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
-                }
-                else
-                {
-                }
+                logger.LogWarning("Role view initialization stopped because authentication check failed.");
+                return;
             }
-        }
 
+            if (!AuthenticationStateHelper.CheckIsAdmin())
+            {
+                RoleMessage = "你沒有權限存取此頁面";
+                logger.LogWarning("Role view denied because current user is not an administrator.");
+                return;
+            }
+
+            await ReloadAsync();
+        }
 
         public async Task ReloadAsync()
         {
+            logger.LogDebug(
+                "Reloading role views. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+                searchText,
+                sortField,
+                sortDirection,
+                _pageIndex,
+                _pageSize);
+
             DataRequestResult<RoleViewAdapterModel> dataRequestResult = await roleViewService.GetAsync(new DataRequest
             {
                 Search = searchText,
                 SortField = sortField,
-                SortDescending = sortDirection == "Descending"? true : sortDirection == "Ascending" ? false : (bool?)null ,
+                SortDescending = sortDirection == "Descending" ? true : sortDirection == "Ascending" ? false : (bool?)null,
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
@@ -88,11 +102,11 @@ namespace MyProject.Web.Components.Views.Admins
 
             roleViewAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
-
+            logger.LogInformation("Role view list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
 
-        async Task OnTableChange(AntDesign.TableModels.QueryModel<RoleViewAdapterModel> args)
+        async Task OnTableChange(QueryModel<RoleViewAdapterModel> args)
         {
             _pageIndex = args.PageIndex;
 
@@ -103,29 +117,6 @@ namespace MyProject.Web.Components.Views.Admins
                 string resolvedSortField = ResolveSortFieldName(tableSortModel);
                 sortDirection = sortValue;
                 sortField = resolvedSortField;
-
-                //bool isDesc = sortValue.Equals("descend", StringComparison.OrdinalIgnoreCase)
-                //      || sortValue.Equals("descending", StringComparison.OrdinalIgnoreCase)
-                //      || sortValue.Equals("desc", StringComparison.OrdinalIgnoreCase);
-                //bool isAsc = sortValue.Equals("ascend", StringComparison.OrdinalIgnoreCase)
-                //    || sortValue.Equals("ascending", StringComparison.OrdinalIgnoreCase)
-                //    || sortValue.Equals("asc", StringComparison.OrdinalIgnoreCase);
-
-                //if (isDesc)
-                //{
-                //    sortDirection = "Descending";
-                //    sortField = resolvedSortField;
-                //}
-                //else if (isAsc)
-                //{
-                //    sortDirection = "Ascending";
-                //    sortField = resolvedSortField;
-                //}
-                //else
-                //{
-                //    sortDirection = "None";
-                //    sortField = resolvedSortField;
-                //}
             }
             else
             {
@@ -133,6 +124,7 @@ namespace MyProject.Web.Components.Views.Admins
                 sortDirection = "None";
             }
 
+            logger.LogDebug("Role view table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
             await ReloadAsync();
         }
 
@@ -149,7 +141,7 @@ namespace MyProject.Web.Components.Views.Admins
 
         private static string ResolveSortFieldName(ITableSortModel sortModel)
         {
-            if (string.IsNullOrWhiteSpace(sortModel.FieldName) == false)
+            if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
             {
                 return sortModel.FieldName;
             }
@@ -161,7 +153,7 @@ namespace MyProject.Web.Components.Views.Admins
             }
 
             string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-            if (string.IsNullOrWhiteSpace(columnFieldName) == false)
+            if (!string.IsNullOrWhiteSpace(columnFieldName))
             {
                 return columnFieldName;
             }
@@ -173,32 +165,37 @@ namespace MyProject.Web.Components.Views.Admins
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
+            logger.LogInformation("Role view search triggered. Search={Search}", searchText);
             await ReloadAsync();
         }
 
         async Task OnRefreshAsync()
         {
+            logger.LogInformation("Role view refresh triggered.");
             await ReloadAsync();
 
             _ = notificationService.Open(new NotificationConfig()
             {
                 Message = "系統訊息",
-                Description = "已經更新到最新資料庫紀錄",
+                Description = "已更新最新資料",
                 NotificationType = NotificationType.Warning,
                 Placement = NotificationPlacement.BottomRight
             });
-
         }
 
         async Task OnEditAsync(RoleViewAdapterModel roleViewAdapterModel)
         {
             isNewRecordMode = false;
+            modalTitle = "修改角色";
             CurrentRecord = roleViewAdapterModel.Clone();
             modalVisible = true;
+            logger.LogInformation("Opened edit modal for role view. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
         }
 
         async Task OnDeleteAsync(RoleViewAdapterModel roleViewAdapterModel)
         {
+            logger.LogInformation("Delete role view requested. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
+
             var ok = await modalService.ConfirmAsync(new ConfirmOptions()
             {
                 Title = "確認刪除",
@@ -209,58 +206,48 @@ namespace MyProject.Web.Components.Views.Admins
                 MaskClosable = false
             });
 
-            if (ok)
+            if (!ok)
             {
-                await roleViewService.DeleteAsync(roleViewAdapterModel.Id);
-
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "刪除成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
-
-                await ReloadAsync();
+                logger.LogDebug("Role view delete cancelled by user. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
+                return;
             }
-            else
+
+            await roleViewService.DeleteAsync(roleViewAdapterModel.Id);
+            logger.LogInformation("Role view delete completed. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
+
+            _ = notificationService.Open(new NotificationConfig()
             {
-                // 使用者按「取消」或關閉
-            }
+                Message = "系統訊息",
+                Description = "刪除成功",
+                NotificationType = NotificationType.Warning,
+                Placement = NotificationPlacement.BottomRight
+            });
+
+            await ReloadAsync();
         }
 
         async Task OnAddAsync(bool continueOnCapturedContext)
         {
             CurrentRecord = new();
-
-            #region 針對新增的紀錄所要做的初始值設定商業邏輯
-            CurrentRecord.RolePermission = rolePermissionService
-                .InitializePermissionSetting();
-            #endregion
+            CurrentRecord.RolePermission = rolePermissionService.InitializePermissionSetting();
 
             isNewRecordMode = true;
+            modalTitle = "新增角色";
             modalVisible = true;
+            logger.LogInformation("Opened create modal for role view.");
         }
 
-        private async Task OnModalOKHandleAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs args)
+        private async Task OnModalOKHandleAsync(MouseEventArgs args)
         {
-            #region 進行 Form Validation 檢查驗證作業
-            if (LocalEditContext.Validate() == false)
+            if (LocalEditContext?.Validate() == false)
             {
-                // 取得所有驗證失敗的錯誤訊息
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
-
-                // 取得指定欄位的錯誤訊息
-                // IEnumerable<string> fieldErrors = LocalEditContext
-                //     .GetValidationMessages(LocalEditContext.Field(nameof(CurrentRecord.Name)));
-
-                //string errorDescription = string.Join(Environment.NewLine, allErrors);
-
                 foreach (var error in allErrors)
                 {
+                    logger.LogWarning("Role view form validation failed. Error={Error}", error);
                     _ = notificationService.Open(new NotificationConfig()
                     {
-                        Message = "驗證失敗，請修正以下錯誤",
+                        Message = "驗證失敗",
                         Description = error,
                         NotificationType = NotificationType.Error,
                         Placement = NotificationPlacement.BottomRight,
@@ -271,17 +258,30 @@ namespace MyProject.Web.Components.Views.Admins
                 modalVisible = true;
                 return;
             }
-            #endregion
 
-            #region 新增與修改儲存紀錄
-            if (isNewRecordMode == true)
+            if (isNewRecordMode)
             {
-                #region 新增紀錄
+                var beforeAddCheckResult = await roleViewService.BeforeAddCheckAsync(CurrentRecord);
+                if (!beforeAddCheckResult.Success)
+                {
+                    logger.LogWarning("Role view create pre-check failed. Name={RoleName}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
+                    _ = notificationService.Open(new NotificationConfig()
+                    {
+                        Message = "系統訊息",
+                        Description = beforeAddCheckResult.Message,
+                        NotificationType = NotificationType.Error,
+                        Placement = NotificationPlacement.BottomRight
+                    });
+
+                    modalVisible = true;
+                    return;
+                }
 
                 CurrentRecord.CreateAt = DateTime.Now;
                 CurrentRecord.UpdateAt = DateTime.Now;
 
                 await roleViewService.AddAsync(CurrentRecord);
+                logger.LogInformation("Role view create submitted. Name={RoleName}", CurrentRecord.Name);
 
                 _ = notificationService.Open(new NotificationConfig()
                 {
@@ -292,47 +292,47 @@ namespace MyProject.Web.Components.Views.Admins
                 });
 
                 _ = messageService.SuccessAsync("新增成功");
-
-                //await modalService.InfoAsync(new ConfirmOptions()
-                //{
-                //    Title = "系統訊息",
-                //    Content = "新增成功",
-                //});
-
-                await ReloadAsync();
-
-                modalVisible = false;
-
-                #endregion
             }
             else
             {
-                #region 修改紀錄
-                CurrentRecord.UpdateAt = DateTime.Now;
+                var beforeUpdateCheckResult = await roleViewService.BeforeUpdateCheckAsync(CurrentRecord);
+                if (!beforeUpdateCheckResult.Success)
+                {
+                    logger.LogWarning("Role view update pre-check failed. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    _ = notificationService.Open(new NotificationConfig()
+                    {
+                        Message = "系統訊息",
+                        Description = beforeUpdateCheckResult.Message,
+                        NotificationType = NotificationType.Error,
+                        Placement = NotificationPlacement.BottomRight
+                    });
 
+                    modalVisible = true;
+                    return;
+                }
+
+                CurrentRecord.UpdateAt = DateTime.Now;
                 await roleViewService.UpdateAsync(CurrentRecord);
+                logger.LogInformation("Role view update submitted. RoleViewId={RoleViewId}, Name={RoleName}", CurrentRecord.Id, CurrentRecord.Name);
 
                 _ = notificationService.Open(new NotificationConfig()
                 {
                     Message = "系統訊息",
-                    Description = "新增成功",
+                    Description = "修改成功",
                     NotificationType = NotificationType.Warning,
                     Placement = NotificationPlacement.BottomRight
                 });
-
-                await ReloadAsync();
-
-                modalVisible = false;
-                #endregion
             }
-            #endregion
 
+            await ReloadAsync();
             modalVisible = false;
         }
 
-        private async Task OnModalCancelHandleAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs args)
+        private Task OnModalCancelHandleAsync(MouseEventArgs args)
         {
             modalVisible = false;
+            logger.LogDebug("Role view modal cancelled.");
+            return Task.CompletedTask;
         }
 
         private async Task OnModalKeyDownAsync(KeyboardEventArgs args)

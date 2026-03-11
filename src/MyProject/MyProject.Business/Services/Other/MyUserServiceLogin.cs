@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -10,18 +10,18 @@ namespace MyProject.Business.Services.Other;
 
 public class MyUserServiceLogin
 {
-    #region 欄位與屬性
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
 
     public IMapper Mapper { get; }
     public IConfiguration Configuration { get; }
     public ILogger<MyUserServiceLogin> Logger { get; }
-    #endregion
 
-    #region 建構式
-    public MyUserServiceLogin(BackendDBContext context, IMapper mapper,
-        IConfiguration configuration, ILogger<MyUserServiceLogin> logger,
+    public MyUserServiceLogin(
+        BackendDBContext context,
+        IMapper mapper,
+        IConfiguration configuration,
+        ILogger<MyUserServiceLogin> logger,
         RolePermissionService rolePermissionService)
     {
         this.context = context;
@@ -30,32 +30,37 @@ public class MyUserServiceLogin
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
     }
-    #endregion
 
-    #region CRUD 服務
     public async Task<(string, MyUser)> LoginAsync(string username, string password)
-
     {
-        MyUser item = await context.MyUser
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Account == username);
+        Logger.LogInformation("Login attempt started for Account={Account}.", username);
 
-        if (item != null)
+        try
         {
+            MyUser item = await context.MyUser
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Account == username);
+
+            if (item is null)
+            {
+                Logger.LogWarning("Login failed because account was not found. Account={Account}", username);
+                return ("帳號或者密碼不正確", null);
+            }
+
             string hashPassword = PasswordHelper.GetPasswordSHA(item.Salt, password);
             if (item.Password != hashPassword)
             {
-                Logger.LogWarning($"使用者 {username} 嘗試登入，但密碼錯誤");
-                return ($"帳號或者密碼不正確", null);
+                Logger.LogWarning("Login failed because password validation failed. Account={Account}, UserId={UserId}", username, item.Id);
+                return ("帳號或者密碼不正確", null);
             }
 
+            Logger.LogInformation("Login validation succeeded for Account={Account}, UserId={UserId}.", username, item.Id);
             return (string.Empty, item);
         }
-        else
+        catch (Exception ex)
         {
-            Logger.LogWarning($"使用者 {username} 嘗試登入，但查無此帳號");
-            return ($"帳號或者密碼不正確", item);
+            Logger.LogError(ex, "Login attempt failed unexpectedly for Account={Account}.", username);
+            throw;
         }
     }
-    #endregion
 }

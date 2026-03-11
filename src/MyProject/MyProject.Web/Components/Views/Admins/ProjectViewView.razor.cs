@@ -29,7 +29,7 @@ public partial class ProjectViewView
 
     private List<ProjectAdapterModel> projectAdapterModels = [];
 
-    private string modalTitle = "專案列表";
+    private string modalTitle = "專案維護";
     private bool modalVisible;
     private ProjectAdapterModel CurrentRecord = new();
     public EditContext? LocalEditContext { get; set; }
@@ -64,22 +64,34 @@ public partial class ProjectViewView
 
     protected override async Task OnInitializedAsync()
     {
+        logger.LogInformation("Initializing project management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-        if (checkResult == true)
+        if (!checkResult)
         {
-            if (AuthenticationStateHelper.CheckIsAdmin() == false)
-            {
-                RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
-            }
-            else
-            {
-                await ReloadAsync();
-            }
+            logger.LogWarning("Project management view initialization stopped because authentication check failed.");
+            return;
         }
+
+        if (!AuthenticationStateHelper.CheckIsAdmin())
+        {
+            RoleMessage = "你沒有權限存取此頁面";
+            logger.LogWarning("Project management view denied because current user is not an administrator.");
+            return;
+        }
+
+        await ReloadAsync();
     }
 
     public async Task ReloadAsync()
     {
+        logger.LogDebug(
+            "Reloading projects. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+            searchText,
+            sortField,
+            sortDirection,
+            _pageIndex,
+            _pageSize);
+
         DataRequestResult<ProjectAdapterModel> dataRequestResult = await projectService.GetAsync(new DataRequest
         {
             Search = searchText,
@@ -92,7 +104,7 @@ public partial class ProjectViewView
 
         projectAdapterModels = dataRequestResult.Result.ToList();
         _total = dataRequestResult.Count;
-
+        logger.LogInformation("Project list reloaded successfully. Count={Count}", _total);
         StateHasChanged();
     }
 
@@ -112,6 +124,7 @@ public partial class ProjectViewView
             sortDirection = "None";
         }
 
+        logger.LogDebug("Project table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
         await ReloadAsync();
     }
 
@@ -128,7 +141,7 @@ public partial class ProjectViewView
 
     private static string ResolveSortFieldName(ITableSortModel sortModel)
     {
-        if (string.IsNullOrWhiteSpace(sortModel.FieldName) == false)
+        if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
         {
             return sortModel.FieldName;
         }
@@ -140,7 +153,7 @@ public partial class ProjectViewView
         }
 
         string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-        if (string.IsNullOrWhiteSpace(columnFieldName) == false)
+        if (!string.IsNullOrWhiteSpace(columnFieldName))
         {
             return columnFieldName;
         }
@@ -152,17 +165,19 @@ public partial class ProjectViewView
     private async Task OnSearchAsync()
     {
         _pageIndex = 1;
+        logger.LogInformation("Project search triggered. Search={Search}", searchText);
         await ReloadAsync();
     }
 
     private async Task OnRefreshAsync()
     {
+        logger.LogInformation("Project refresh triggered.");
         await ReloadAsync();
 
         _ = notificationService.Open(new NotificationConfig
         {
             Message = "系統訊息",
-            Description = "已經更新到最新資料庫紀錄",
+            Description = "已更新最新資料",
             NotificationType = NotificationType.Warning,
             Placement = NotificationPlacement.BottomRight
         });
@@ -174,14 +189,18 @@ public partial class ProjectViewView
         modalTitle = "修改專案";
         CurrentRecord = projectAdapterModel.Clone();
         modalVisible = true;
+        logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
         return Task.CompletedTask;
     }
 
     private async Task OnDeleteAsync(ProjectAdapterModel projectAdapterModel)
     {
+        logger.LogInformation("Delete project requested. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
+
         var beforeDeleteCheckResult = await projectService.BeforeDeleteCheckAsync(projectAdapterModel);
-        if (beforeDeleteCheckResult.Success == false)
+        if (!beforeDeleteCheckResult.Success)
         {
+            logger.LogWarning("Project delete pre-check failed. ProjectId={ProjectId}, Message={Message}", projectAdapterModel.Id, beforeDeleteCheckResult.Message);
             _ = notificationService.Open(new NotificationConfig
             {
                 Message = "系統訊息",
@@ -202,20 +221,24 @@ public partial class ProjectViewView
             MaskClosable = false
         });
 
-        if (ok)
+        if (!ok)
         {
-            await projectService.DeleteAsync(projectAdapterModel.Id);
-
-            _ = notificationService.Open(new NotificationConfig
-            {
-                Message = "系統訊息",
-                Description = "刪除成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
-
-            await ReloadAsync();
+            logger.LogDebug("Project delete cancelled by user. ProjectId={ProjectId}", projectAdapterModel.Id);
+            return;
         }
+
+        await projectService.DeleteAsync(projectAdapterModel.Id);
+        logger.LogInformation("Project delete completed. ProjectId={ProjectId}", projectAdapterModel.Id);
+
+        _ = notificationService.Open(new NotificationConfig
+        {
+            Message = "系統訊息",
+            Description = "刪除成功",
+            NotificationType = NotificationType.Warning,
+            Placement = NotificationPlacement.BottomRight
+        });
+
+        await ReloadAsync();
     }
 
     private Task OnAddAsync(bool continueOnCapturedContext)
@@ -230,6 +253,7 @@ public partial class ProjectViewView
         isNewRecordMode = true;
         modalTitle = "新增專案";
         modalVisible = true;
+        logger.LogInformation("Opened create modal for project.");
         return Task.CompletedTask;
     }
 
@@ -238,12 +262,12 @@ public partial class ProjectViewView
         if (LocalEditContext?.Validate() == false)
         {
             IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
-
             foreach (var error in allErrors)
             {
+                logger.LogWarning("Project form validation failed. Error={Error}", error);
                 _ = notificationService.Open(new NotificationConfig
                 {
-                    Message = "驗證失敗，請修正以下錯誤",
+                    Message = "驗證失敗",
                     Description = error,
                     NotificationType = NotificationType.Error,
                     Placement = NotificationPlacement.BottomRight,
@@ -258,8 +282,9 @@ public partial class ProjectViewView
         if (isNewRecordMode)
         {
             var beforeAddCheckResult = await projectService.BeforeAddCheckAsync(CurrentRecord);
-            if (beforeAddCheckResult.Success == false)
+            if (!beforeAddCheckResult.Success)
             {
+                logger.LogWarning("Project create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
@@ -276,6 +301,7 @@ public partial class ProjectViewView
             CurrentRecord.UpdatedAt = DateTime.Now;
 
             await projectService.AddAsync(CurrentRecord);
+            logger.LogInformation("Project create submitted. Title={Title}", CurrentRecord.Title);
 
             _ = notificationService.Open(new NotificationConfig
             {
@@ -290,8 +316,9 @@ public partial class ProjectViewView
         else
         {
             var beforeUpdateCheckResult = await projectService.BeforeUpdateCheckAsync(CurrentRecord);
-            if (beforeUpdateCheckResult.Success == false)
+            if (!beforeUpdateCheckResult.Success)
             {
+                logger.LogWarning("Project update pre-check failed. ProjectId={ProjectId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
@@ -305,8 +332,8 @@ public partial class ProjectViewView
             }
 
             CurrentRecord.UpdatedAt = DateTime.Now;
-
             await projectService.UpdateAsync(CurrentRecord);
+            logger.LogInformation("Project update submitted. ProjectId={ProjectId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
 
             _ = notificationService.Open(new NotificationConfig
             {
@@ -324,6 +351,7 @@ public partial class ProjectViewView
     private Task OnModalCancelHandleAsync(MouseEventArgs args)
     {
         modalVisible = false;
+        logger.LogDebug("Project modal cancelled.");
         return Task.CompletedTask;
     }
 

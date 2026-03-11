@@ -30,7 +30,7 @@ public partial class MeetingViewView
     private List<MeetingAdapterModel> meetingAdapterModels = [];
     private List<ProjectAdapterModel> projectAdapterModels = [];
 
-    private string modalTitle = "會議列表";
+    private string modalTitle = "會議維護";
     private bool modalVisible;
     private MeetingAdapterModel CurrentRecord = new();
     public EditContext? LocalEditContext { get; set; }
@@ -62,22 +62,34 @@ public partial class MeetingViewView
 
     protected override async Task OnInitializedAsync()
     {
+        logger.LogInformation("Initializing meeting management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-        if (checkResult == true)
+        if (!checkResult)
         {
-            if (AuthenticationStateHelper.CheckIsAdmin() == false)
-            {
-                RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
-            }
-            else
-            {
-                await ReloadAsync();
-            }
+            logger.LogWarning("Meeting management view initialization stopped because authentication check failed.");
+            return;
         }
+
+        if (!AuthenticationStateHelper.CheckIsAdmin())
+        {
+            RoleMessage = "你沒有權限存取此頁面";
+            logger.LogWarning("Meeting management view denied because current user is not an administrator.");
+            return;
+        }
+
+        await ReloadAsync();
     }
 
     public async Task ReloadAsync()
     {
+        logger.LogDebug(
+            "Reloading meetings. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+            searchText,
+            sortField,
+            sortDirection,
+            _pageIndex,
+            _pageSize);
+
         DataRequestResult<MeetingAdapterModel> dataRequestResult = await meetingService.GetAsync(new DataRequest
         {
             Search = searchText,
@@ -90,7 +102,7 @@ public partial class MeetingViewView
 
         meetingAdapterModels = dataRequestResult.Result.ToList();
         _total = dataRequestResult.Count;
-
+        logger.LogInformation("Meeting list reloaded successfully. Count={Count}", _total);
         StateHasChanged();
     }
 
@@ -110,6 +122,7 @@ public partial class MeetingViewView
             sortDirection = "None";
         }
 
+        logger.LogDebug("Meeting table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
         await ReloadAsync();
     }
 
@@ -126,7 +139,7 @@ public partial class MeetingViewView
 
     private static string ResolveSortFieldName(ITableSortModel sortModel)
     {
-        if (string.IsNullOrWhiteSpace(sortModel.FieldName) == false)
+        if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
         {
             return sortModel.FieldName;
         }
@@ -138,7 +151,7 @@ public partial class MeetingViewView
         }
 
         string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-        if (string.IsNullOrWhiteSpace(columnFieldName) == false)
+        if (!string.IsNullOrWhiteSpace(columnFieldName))
         {
             return columnFieldName;
         }
@@ -150,17 +163,19 @@ public partial class MeetingViewView
     private async Task OnSearchAsync()
     {
         _pageIndex = 1;
+        logger.LogInformation("Meeting search triggered. Search={Search}", searchText);
         await ReloadAsync();
     }
 
     private async Task OnRefreshAsync()
     {
+        logger.LogInformation("Meeting refresh triggered.");
         await ReloadAsync();
 
         _ = notificationService.Open(new NotificationConfig
         {
             Message = "系統訊息",
-            Description = "已經更新到最新資料庫紀錄",
+            Description = "已更新最新資料",
             NotificationType = NotificationType.Warning,
             Placement = NotificationPlacement.BottomRight
         });
@@ -169,18 +184,21 @@ public partial class MeetingViewView
     private async Task OnEditAsync(MeetingAdapterModel meetingAdapterModel)
     {
         await LoadProjectsAsync();
-
         isNewRecordMode = false;
         modalTitle = "修改會議";
         CurrentRecord = (await meetingService.GetAsync(meetingAdapterModel.Id)).Clone();
         modalVisible = true;
+        logger.LogInformation("Opened edit modal for meeting. MeetingId={MeetingId}, Title={Title}", meetingAdapterModel.Id, meetingAdapterModel.Title);
     }
 
     private async Task OnDeleteAsync(MeetingAdapterModel meetingAdapterModel)
     {
+        logger.LogInformation("Delete meeting requested. MeetingId={MeetingId}, Title={Title}", meetingAdapterModel.Id, meetingAdapterModel.Title);
+
         var beforeDeleteCheckResult = await meetingService.BeforeDeleteCheckAsync(meetingAdapterModel);
-        if (beforeDeleteCheckResult.Success == false)
+        if (!beforeDeleteCheckResult.Success)
         {
+            logger.LogWarning("Meeting delete pre-check failed. MeetingId={MeetingId}, Message={Message}", meetingAdapterModel.Id, beforeDeleteCheckResult.Message);
             _ = notificationService.Open(new NotificationConfig
             {
                 Message = "系統訊息",
@@ -201,27 +219,31 @@ public partial class MeetingViewView
             MaskClosable = false
         });
 
-        if (ok)
+        if (!ok)
         {
-            await meetingService.DeleteAsync(meetingAdapterModel.Id);
-
-            _ = notificationService.Open(new NotificationConfig
-            {
-                Message = "系統訊息",
-                Description = "刪除成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
-
-            await ReloadAsync();
+            logger.LogDebug("Meeting delete cancelled by user. MeetingId={MeetingId}", meetingAdapterModel.Id);
+            return;
         }
+
+        await meetingService.DeleteAsync(meetingAdapterModel.Id);
+        logger.LogInformation("Meeting delete completed. MeetingId={MeetingId}", meetingAdapterModel.Id);
+
+        _ = notificationService.Open(new NotificationConfig
+        {
+            Message = "系統訊息",
+            Description = "刪除成功",
+            NotificationType = NotificationType.Warning,
+            Placement = NotificationPlacement.BottomRight
+        });
+
+        await ReloadAsync();
     }
 
     private async Task OnAddAsync(bool continueOnCapturedContext)
     {
         await LoadProjectsAsync();
-
         CurrentRecord = new MeetingAdapterModel();
+
         if (projectAdapterModels.Any())
         {
             CurrentRecord.ProjectId = projectAdapterModels.First().Id;
@@ -230,6 +252,7 @@ public partial class MeetingViewView
         isNewRecordMode = true;
         modalTitle = "新增會議";
         modalVisible = true;
+        logger.LogInformation("Opened create modal for meeting.");
     }
 
     private async Task OnModalOKHandleAsync(MouseEventArgs args)
@@ -237,12 +260,12 @@ public partial class MeetingViewView
         if (LocalEditContext?.Validate() == false)
         {
             IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
-
             foreach (var error in allErrors)
             {
+                logger.LogWarning("Meeting form validation failed. Error={Error}", error);
                 _ = notificationService.Open(new NotificationConfig
                 {
-                    Message = "驗證失敗，請修正以下錯誤",
+                    Message = "驗證失敗",
                     Description = error,
                     NotificationType = NotificationType.Error,
                     Placement = NotificationPlacement.BottomRight,
@@ -257,8 +280,9 @@ public partial class MeetingViewView
         if (isNewRecordMode)
         {
             var beforeAddCheckResult = await meetingService.BeforeAddCheckAsync(CurrentRecord);
-            if (beforeAddCheckResult.Success == false)
+            if (!beforeAddCheckResult.Success)
             {
+                logger.LogWarning("Meeting create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
@@ -275,6 +299,7 @@ public partial class MeetingViewView
             CurrentRecord.UpdatedAt = DateTime.Now;
 
             await meetingService.AddAsync(CurrentRecord);
+            logger.LogInformation("Meeting create submitted. Title={Title}", CurrentRecord.Title);
 
             _ = notificationService.Open(new NotificationConfig
             {
@@ -289,8 +314,9 @@ public partial class MeetingViewView
         else
         {
             var beforeUpdateCheckResult = await meetingService.BeforeUpdateCheckAsync(CurrentRecord);
-            if (beforeUpdateCheckResult.Success == false)
+            if (!beforeUpdateCheckResult.Success)
             {
+                logger.LogWarning("Meeting update pre-check failed. MeetingId={MeetingId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
@@ -304,8 +330,8 @@ public partial class MeetingViewView
             }
 
             CurrentRecord.UpdatedAt = DateTime.Now;
-
             await meetingService.UpdateAsync(CurrentRecord);
+            logger.LogInformation("Meeting update submitted. MeetingId={MeetingId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
 
             _ = notificationService.Open(new NotificationConfig
             {
@@ -323,6 +349,7 @@ public partial class MeetingViewView
     private Task OnModalCancelHandleAsync(MouseEventArgs args)
     {
         modalVisible = false;
+        logger.LogDebug("Meeting modal cancelled.");
         return Task.CompletedTask;
     }
 
@@ -347,5 +374,6 @@ public partial class MeetingViewView
     private async Task LoadProjectsAsync()
     {
         projectAdapterModels = await meetingService.GetProjectsAsync();
+        logger.LogDebug("Loaded projects for meeting view. Count={Count}", projectAdapterModels.Count);
     }
 }

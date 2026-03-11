@@ -22,6 +22,7 @@ public partial class NavMenu : ComponentBase, IDisposable
 
     protected override void OnInitialized()
     {
+        Logger.LogDebug("Initializing navigation menu.");
         MenuItems = LoadMenuItems();
         RouteVersion = 1;
         UpdateActiveMenuPath();
@@ -40,10 +41,13 @@ public partial class NavMenu : ComponentBase, IDisposable
         try
         {
             using var stream = File.OpenRead(menuFilePath);
-            return JsonSerializer.Deserialize<List<SidebarMenuItemModel>>(stream, new JsonSerializerOptions
+            var items = JsonSerializer.Deserialize<List<SidebarMenuItemModel>>(stream, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? [];
+
+            Logger.LogInformation("Loaded sidebar menu successfully. ItemCount={ItemCount}", items.Count);
+            return items;
         }
         catch (Exception ex)
         {
@@ -60,6 +64,8 @@ public partial class NavMenu : ComponentBase, IDisposable
         ActiveMenuPath = TryFindActiveMenuPath(MenuItems, normalizedCurrentPath, "root", out var activePath)
             ? activePath
             : null;
+
+        Logger.LogDebug("Updated active menu path. Path={Path}, ActiveMenuPath={ActiveMenuPath}", normalizedCurrentPath, ActiveMenuPath);
     }
 
     private static bool TryFindActiveMenuPath(IReadOnlyList<SidebarMenuItemModel> items, string currentPath, string parentKey, out string? activePath)
@@ -106,12 +112,14 @@ public partial class NavMenu : ComponentBase, IDisposable
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         RouteVersion++;
+        Logger.LogDebug("Navigation menu location changed. Uri={Uri}, RouteVersion={RouteVersion}", e.Location, RouteVersion);
         UpdateActiveMenuPath();
         InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
+        Logger.LogDebug("Disposing navigation menu.");
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }

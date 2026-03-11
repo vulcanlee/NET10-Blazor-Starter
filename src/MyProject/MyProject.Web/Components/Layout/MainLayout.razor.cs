@@ -16,12 +16,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private ILogger<MainLayout> Logger { get; set; } = default!;
 
-    private const string DefaultPageTitle = "系統管理介面";
+    private const string DefaultPageTitle = "系統首頁";
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
 
     protected override void OnInitialized()
     {
+        Logger.LogDebug("Initializing main layout.");
         MenuItems = LoadMenuItems();
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
@@ -39,10 +40,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         try
         {
             using var stream = File.OpenRead(menuFilePath);
-            return JsonSerializer.Deserialize<List<SidebarMenuItemModel>>(stream, new JsonSerializerOptions
+            var items = JsonSerializer.Deserialize<List<SidebarMenuItemModel>>(stream, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? [];
+
+            Logger.LogInformation("Loaded layout menu successfully. ItemCount={ItemCount}", items.Count);
+            return items;
         }
         catch (Exception ex)
         {
@@ -59,6 +63,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         CurrentPageTitle = TryFindMenuTitle(MenuItems, normalizedCurrentPath, out var pageTitle)
             ? pageTitle
             : DefaultPageTitle;
+
+        Logger.LogDebug("Updated page title. Path={Path}, Title={Title}", normalizedCurrentPath, CurrentPageTitle);
     }
 
     private static bool TryFindMenuTitle(IEnumerable<SidebarMenuItemModel> items, string currentPath, out string pageTitle)
@@ -101,12 +107,14 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        Logger.LogDebug("Location changed in main layout. Uri={Uri}", e.Location);
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
+        Logger.LogDebug("Disposing main layout.");
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }

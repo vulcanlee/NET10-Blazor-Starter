@@ -12,3 +12,4 @@ RoleViewView.razor 是一個標準的 CRUD 元件(可以做到新增、查詢、
 
 這個方案名稱為 MyProject ，在此方案內的所有專案都會有 MyProject 的前綴名稱，例如 MyProject.Web、MyProject.Business 等等。我想要將這個 .NET Blazor 方案/專案，改成都使用 SmartTask 的命名規則，所有之前有用到 MyProject 的地方都改成 SmartTask，例如 方案名稱、各種檔案名稱、命名空間等等，當變更檔案名稱之後，原有的專案參考規則也需要保留下來，確保專案之間的引用不會出現問題。
 
+我需要全面將寫入 Log 訊息需求，全面套用到這個專案內，哪些地方需要寫日誌，該寫甚麼內容，要能夠區分 Error, Warning, Info, Debug 等層級，方便日後維護與除錯，除了後端相關程式碼，也評估關於 Blazor 元件那裏的程式碼，是否也要做 Log 訊息的寫入，並且列出具體的實作計畫與步驟。

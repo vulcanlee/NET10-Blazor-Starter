@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -16,16 +16,15 @@ namespace MyProject.Business.Services.DataAccess;
 
 public class RoleViewService
 {
-    #region 欄位與屬性
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
 
     public IMapper Mapper { get; }
     public ILogger<RoleViewService> Logger { get; }
-    #endregion
 
-    #region 建構式
-    public RoleViewService(BackendDBContext context, IMapper mapper,
+    public RoleViewService(
+        BackendDBContext context,
+        IMapper mapper,
         ILogger<RoleViewService> logger,
         RolePermissionService rolePermissionService)
     {
@@ -34,276 +33,270 @@ public class RoleViewService
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
     }
-    #endregion
 
-    #region CRUD 服務
     public async Task<DataRequestResult<RoleViewAdapterModel>> GetAsync(DataRequest dataRequest)
     {
-        List<RoleViewAdapterModel> data = new();
+        Logger.LogDebug(
+            "Loading role views. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
+            dataRequest.Search,
+            dataRequest.SortField,
+            dataRequest.SortDescending,
+            dataRequest.CurrentPage,
+            dataRequest.PageSize,
+            dataRequest.Take);
+
         DataRequestResult<RoleViewAdapterModel> result = new();
-        var DataSource = context.RoleView
-            .AsNoTracking();
-        #region 進行搜尋動作
+        IQueryable<RoleView> dataSource = context.RoleView.AsNoTracking();
+
         if (!string.IsNullOrWhiteSpace(dataRequest.Search))
         {
-            DataSource = DataSource
-            .Where(x => x.Name.Contains(dataRequest.Search));
+            dataSource = dataSource.Where(x => x.Name.Contains(dataRequest.Search));
         }
-        #endregion
 
-        #region 進行排序動作
-        Console.WriteLine($"排序 : {dataRequest.SortField}, 方向 : {dataRequest.SortDescending}");
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
         {
             if (dataRequest.SortField == nameof(RoleViewAdapterModel.Name))
             {
-                if (dataRequest.SortDescending == true)
-                {
-                    DataSource = DataSource
-                        .OrderByDescending(x => x.Name)
-                        .ThenByDescending(x => x.Id);
-                }
-                else if (dataRequest.SortDescending == false)
-                {
-                    DataSource = DataSource
-                        .OrderBy(x => x.Name)
-                        .ThenBy(x => x.Id);
-                }
+                dataSource = dataRequest.SortDescending == true
+                    ? dataSource.OrderByDescending(x => x.Name).ThenByDescending(x => x.Id)
+                    : dataRequest.SortDescending == false
+                        ? dataSource.OrderBy(x => x.Name).ThenBy(x => x.Id)
+                        : dataSource;
             }
             else if (dataRequest.SortField == nameof(RoleViewAdapterModel.CreateAt))
             {
-                if (dataRequest.SortDescending == true)
-                {
-                    DataSource = DataSource
-                        .OrderByDescending(x => x.CreateAt)
-                        .ThenByDescending(x => x.Id);
-                }
-                else if (dataRequest.SortDescending == false)
-                {
-                    DataSource = DataSource
-                        .OrderBy(x => x.CreateAt)
-                        .ThenBy(x => x.Id);
-                }
+                dataSource = dataRequest.SortDescending == true
+                    ? dataSource.OrderByDescending(x => x.CreateAt).ThenByDescending(x => x.Id)
+                    : dataRequest.SortDescending == false
+                        ? dataSource.OrderBy(x => x.CreateAt).ThenBy(x => x.Id)
+                        : dataSource;
             }
             else if (dataRequest.SortField == nameof(RoleViewAdapterModel.UpdateAt))
             {
-                if (dataRequest.SortDescending == true)
-                {
-                    DataSource = DataSource
-                        .OrderByDescending(x => x.UpdateAt)
-                        .ThenByDescending(x => x.Id);
-                }
-                else if (dataRequest.SortDescending == false)
-                {
-                    DataSource = DataSource
-                        .OrderBy(x => x.UpdateAt)
-                        .ThenBy(x => x.Id);
-                }
+                dataSource = dataRequest.SortDescending == true
+                    ? dataSource.OrderByDescending(x => x.UpdateAt).ThenByDescending(x => x.Id)
+                    : dataRequest.SortDescending == false
+                        ? dataSource.OrderBy(x => x.UpdateAt).ThenBy(x => x.Id)
+                        : dataSource;
             }
         }
-        #endregion
 
-        #region 進行分頁
-        // 取得記錄總數量，將要用於分頁元件面板使用
-        result.Count = DataSource.Cast<RoleView>().Count();
-        DataSource = DataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
+        result.Count = await dataSource.CountAsync();
+        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
         if (dataRequest.Take != 0)
         {
-            DataSource = DataSource.Take(dataRequest.PageSize);
+            dataSource = dataSource.Take(dataRequest.PageSize);
         }
-        #endregion
 
-        #region 在這裡進行取得資料與與額外屬性初始化
-        List<RoleViewAdapterModel> adapterModelObjects =
-            Mapper.Map<List<RoleViewAdapterModel>>(DataSource);
-
+        List<RoleView> records = await dataSource.ToListAsync();
+        List<RoleViewAdapterModel> adapterModelObjects = Mapper.Map<List<RoleViewAdapterModel>>(records);
         foreach (var adapterModelItem in adapterModelObjects)
         {
-            await OhterDependencyData(adapterModelItem);
+            await OtherDependencyData(adapterModelItem);
         }
-        #endregion
 
         result.Result = adapterModelObjects;
-        await Task.Yield();
+        Logger.LogDebug("Loaded role views successfully. Count={Count}", result.Count);
         return result;
     }
 
     public async Task<RoleViewAdapterModel> GetAsync(int id)
     {
-        RoleView item = await context.RoleView
+        Logger.LogDebug("Loading role view by id. RoleViewId={RoleViewId}", id);
+
+        RoleView? item = await context.RoleView
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (item is null)
+        {
+            Logger.LogWarning("Role view not found. RoleViewId={RoleViewId}", id);
+            return new RoleViewAdapterModel();
+        }
+
         RoleViewAdapterModel result = Mapper.Map<RoleViewAdapterModel>(item);
-        await OhterDependencyData(result);
+        await OtherDependencyData(result);
         return result;
     }
 
     public async Task<VerifyRecordResult> AddAsync(RoleViewAdapterModel paraObject)
     {
+        Logger.LogInformation("Creating role view. Name={RoleName}", paraObject.Name);
+
         try
         {
             CleanTrackingHelper.Clean<RoleView>(context);
             RoleView itemParameter = Mapper.Map<RoleView>(paraObject);
+            itemParameter.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
-            #region 對使用者權限做處理
-            var permissions = paraObject.RolePermission;
-            itemParameter.TabViewJson = rolePermissionService.GetPermissionInputToJson(permissions);
-            #endregion
-
-            await context.RoleView
-                .AddAsync(itemParameter);
+            await context.RoleView.AddAsync(itemParameter);
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<RoleView>(context);
+
+            Logger.LogInformation("Role view created successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "新增記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "新增記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to create role view. Name={RoleName}", paraObject.Name);
+            return VerifyRecordResultFactory.Build(false, "新增角色失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> UpdateAsync(RoleViewAdapterModel paraObject)
     {
+        Logger.LogInformation("Updating role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
+
         try
         {
             CleanTrackingHelper.Clean<RoleView>(context);
             RoleView itemData = Mapper.Map<RoleView>(paraObject);
+            itemData.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
-            #region 對使用者權限做處理
-            var permissions = paraObject.RolePermission;
-            itemData.TabViewJson = rolePermissionService.GetPermissionInputToJson(permissions);
-            #endregion
-
-            RoleView item = await context.RoleView
+            RoleView? item = await context.RoleView
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "無法修改紀錄");
+                Logger.LogWarning("Role view update rejected because record was not found. RoleViewId={RoleViewId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, "找不到要修改的角色資料。");
             }
-            else
-            {
-                CleanTrackingHelper.Clean<RoleView>(context);
-                context.Entry(itemData).State = EntityState.Modified;
-                await context.SaveChangesAsync();
-                CleanTrackingHelper.Clean<RoleView>(context);
-                return VerifyRecordResultFactory.Build(true);
-            }
+
+            CleanTrackingHelper.Clean<RoleView>(context);
+            context.Entry(itemData).State = EntityState.Modified;
+            await context.SaveChangesAsync();
+            CleanTrackingHelper.Clean<RoleView>(context);
+
+            Logger.LogInformation("Role view updated successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemData.Id, itemData.Name);
+            return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "修改記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "修改記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to update role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
+            return VerifyRecordResultFactory.Build(false, "修改角色失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        Logger.LogInformation("Deleting role view. RoleViewId={RoleViewId}", id);
+
         try
         {
             CleanTrackingHelper.Clean<RoleView>(context);
-            RoleView item = await context.RoleView
+            RoleView? item = await context.RoleView
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
+
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "無法刪除紀錄");
+                Logger.LogWarning("Role view deletion rejected because record was not found. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要刪除的角色資料。");
             }
-            else
-            {
-                CleanTrackingHelper.Clean<RoleView>(context);
-                context.Entry(item).State = EntityState.Deleted;
-                await context.SaveChangesAsync();
-                CleanTrackingHelper.Clean<RoleView>(context);
-                return VerifyRecordResultFactory.Build(true);
-            }
+
+            CleanTrackingHelper.Clean<RoleView>(context);
+            context.Entry(item).State = EntityState.Deleted;
+            await context.SaveChangesAsync();
+            CleanTrackingHelper.Clean<RoleView>(context);
+
+            Logger.LogInformation("Role view deleted successfully. RoleViewId={RoleViewId}, Name={RoleName}", id, item.Name);
+            return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "刪除記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "刪除記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to delete role view. RoleViewId={RoleViewId}", id);
+            return VerifyRecordResultFactory.Build(false, "刪除角色失敗。", ex);
         }
     }
-    #endregion
 
-    #region CRUD 的限制條件檢查
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(RoleViewAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-create validation for role view. Name={RoleName}", paraObject.Name);
+
         var searchItem = await context.RoleView
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name == paraObject.Name);
+
         if (searchItem != null)
         {
-            return VerifyRecordResultFactory.Build(false, "要新增的紀錄已經存在無法新增");
+            Logger.LogWarning("Pre-create validation failed because role name already exists. Name={RoleName}", paraObject.Name);
+            return VerifyRecordResultFactory.Build(false, "角色名稱已存在，無法新增。");
         }
+
         return VerifyRecordResultFactory.Build(true);
     }
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(RoleViewAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-update validation for role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
+
         CleanTrackingHelper.Clean<RoleView>(context);
         var searchItem = await context.RoleView
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+
         if (searchItem == null)
         {
-            return VerifyRecordResultFactory.Build(false, "要更新的紀錄_發生同時存取衝突_已經不存在資料庫上");
+            Logger.LogWarning("Pre-update validation failed because role view was not found. RoleViewId={RoleViewId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, "要修改的角色資料不存在。");
         }
 
         searchItem = await context.RoleView
-           .AsNoTracking()
-           .FirstOrDefaultAsync(x => x.Name == paraObject.Name &&
-           x.Id != paraObject.Id);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Name == paraObject.Name && x.Id != paraObject.Id);
+
         if (searchItem != null)
         {
-            return VerifyRecordResultFactory.Build(false, "要修改的紀錄已經存在無法修改");
+            Logger.LogWarning("Pre-update validation failed because role name already exists. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
+            return VerifyRecordResultFactory.Build(false, "角色名稱已存在，無法修改。");
         }
+
         return VerifyRecordResultFactory.Build(true);
     }
 
-    public async Task<VerifyRecordResult> BeforeDeleteCheckAsync(RoleViewAdapterModel paraObject)
+    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(RoleViewAdapterModel paraObject)
     {
-        try
-        {
-            return VerifyRecordResultFactory.Build(true);
-        }
-        catch (Exception ex)
-        {
-            return VerifyRecordResultFactory.Build(false, "刪除記錄發生例外異常", ex);
-        }
+        Logger.LogDebug("Running pre-delete validation for role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
+        return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
-    #endregion
 
-    #region 其他服務方法
-    Task OhterDependencyData(RoleViewAdapterModel data)
+    private Task OtherDependencyData(RoleViewAdapterModel data)
     {
         RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
-        List<string> permissions = new();
+        List<string> permissions;
+
         try
         {
-            permissions = JsonSerializer.Deserialize<List<string>>(data.TabViewJson);
+            permissions = JsonSerializer.Deserialize<List<string>>(data.TabViewJson) ?? [];
         }
         catch (Exception ex)
         {
-            //Logger.LogWarning(ex, "在進行其他依賴資料處理時發生例外異常");
-            permissions = new();
+            Logger.LogWarning(ex, "Failed to deserialize role permissions. RoleViewId={RoleViewId}", data.Id);
+            permissions = [];
         }
-        rolePermissionService
-            .SetPermissionInput(rolePermission, permissions);
+
+        rolePermissionService.SetPermissionInput(rolePermission, permissions);
         data.RolePermission = rolePermission;
-        return Task.FromResult(0);
+        return Task.CompletedTask;
     }
 
     public async Task<RoleViewAdapterModel> Get預設新建帳號角色Async()
     {
-        RoleView item = await context.RoleView
+        Logger.LogDebug("Loading default role view for new user creation.");
+
+        RoleView? item = await context.RoleView
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name == MagicObjectHelper.預設角色);
+
+        if (item is null)
+        {
+            Logger.LogWarning("Default role view was not found. RoleName={RoleName}", MagicObjectHelper.預設角色);
+            return new RoleViewAdapterModel();
+        }
+
         RoleViewAdapterModel result = Mapper.Map<RoleViewAdapterModel>(item);
-        await OhterDependencyData(result);
+        await OtherDependencyData(result);
         return result;
     }
-
-    #endregion
 }

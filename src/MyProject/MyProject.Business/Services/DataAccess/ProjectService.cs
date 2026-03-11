@@ -26,6 +26,15 @@ public class ProjectService
 
     public async Task<DataRequestResult<ProjectAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        Logger.LogDebug(
+            "Loading projects. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
+            dataRequest.Search,
+            dataRequest.SortField,
+            dataRequest.SortDescending,
+            dataRequest.CurrentPage,
+            dataRequest.PageSize,
+            dataRequest.Take);
+
         DataRequestResult<ProjectAdapterModel> result = new();
         IQueryable<Project> dataSource = context.Project.AsNoTracking();
 
@@ -116,31 +125,40 @@ public class ProjectService
             }
         }
 
-        result.Count = dataSource.Count();
+        result.Count = await dataSource.CountAsync();
         dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
         if (dataRequest.Take != 0)
         {
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        result.Result = Mapper.Map<List<ProjectAdapterModel>>(dataSource);
-        await Task.Yield();
+        var records = await dataSource.ToListAsync();
+        result.Result = Mapper.Map<List<ProjectAdapterModel>>(records);
+        Logger.LogDebug("Loaded projects successfully. Count={Count}", result.Count);
         return result;
     }
 
     public async Task<ProjectAdapterModel> GetAsync(int id)
     {
+        Logger.LogDebug("Loading project by id. ProjectId={ProjectId}", id);
+
         Project? item = await context.Project
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id);
 
-        return item is null
-            ? new ProjectAdapterModel()
-            : Mapper.Map<ProjectAdapterModel>(item);
+        if (item is null)
+        {
+            Logger.LogWarning("Project not found. ProjectId={ProjectId}", id);
+            return new ProjectAdapterModel();
+        }
+
+        return Mapper.Map<ProjectAdapterModel>(item);
     }
 
     public async Task<VerifyRecordResult> AddAsync(ProjectAdapterModel paraObject)
     {
+        Logger.LogInformation("Creating project. Title={Title}, Owner={Owner}", paraObject.Title, paraObject.Owner);
+
         try
         {
             CleanTrackingHelper.Clean<Project>(context);
@@ -149,83 +167,101 @@ public class ProjectService
             await context.Project.AddAsync(itemParameter);
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<Project>(context);
+
+            Logger.LogInformation("Project created successfully. ProjectId={ProjectId}, Title={Title}", itemParameter.Id, itemParameter.Title);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "新增專案記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "新增專案記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to create project. Title={Title}", paraObject.Title);
+            return VerifyRecordResultFactory.Build(false, "新增專案失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> UpdateAsync(ProjectAdapterModel paraObject)
     {
+        Logger.LogInformation("Updating project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
+
         try
         {
             CleanTrackingHelper.Clean<Project>(context);
             Project? currentItem = await context.Project
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+
             if (currentItem == null)
             {
-                return VerifyRecordResultFactory.Build(false, "無法修改專案記錄");
+                Logger.LogWarning("Project update rejected because record was not found. ProjectId={ProjectId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, "找不到要修改的專案資料。");
             }
 
             Project itemData = Mapper.Map<Project>(paraObject);
-
             CleanTrackingHelper.Clean<Project>(context);
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<Project>(context);
+
+            Logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", itemData.Id, itemData.Title);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "修改專案記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "修改專案記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to update project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
+            return VerifyRecordResultFactory.Build(false, "修改專案失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        Logger.LogInformation("Deleting project. ProjectId={ProjectId}", id);
+
         try
         {
             CleanTrackingHelper.Clean<Project>(context);
             Project? item = await context.Project
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
+
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "無法刪除專案記錄");
+                Logger.LogWarning("Project deletion rejected because record was not found. ProjectId={ProjectId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要刪除的專案資料。");
             }
 
             CleanTrackingHelper.Clean<Project>(context);
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<Project>(context);
+
+            Logger.LogInformation("Project deleted successfully. ProjectId={ProjectId}, Title={Title}", id, item.Title);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "刪除專案記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "刪除專案記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to delete project. ProjectId={ProjectId}", id);
+            return VerifyRecordResultFactory.Build(false, "刪除專案失敗。", ex);
         }
     }
 
     public Task<VerifyRecordResult> BeforeAddCheckAsync(ProjectAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-create validation for project. Title={Title}", paraObject.Title);
         return ValidateBusinessRulesAsync(paraObject);
     }
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(ProjectAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-update validation for project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
+
         CleanTrackingHelper.Clean<Project>(context);
         Project? searchItem = await context.Project
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+
         if (searchItem == null)
         {
-            return VerifyRecordResultFactory.Build(false, "要更新的專案記錄已不存在資料庫");
+            Logger.LogWarning("Pre-update validation failed because project was not found. ProjectId={ProjectId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, "要修改的專案資料不存在。");
         }
 
         return await ValidateBusinessRulesAsync(paraObject);
@@ -233,6 +269,7 @@ public class ProjectService
 
     public Task<VerifyRecordResult> BeforeDeleteCheckAsync(ProjectAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-delete validation for project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
 
@@ -240,22 +277,26 @@ public class ProjectService
     {
         if (paraObject.StartDate.HasValue && paraObject.EndDate.HasValue && paraObject.EndDate.Value < paraObject.StartDate.Value)
         {
-            return Task.FromResult(VerifyRecordResultFactory.Build(false, "結束日期不可早於開始日期"));
+            Logger.LogWarning("Project validation failed because end date is earlier than start date. Title={Title}", paraObject.Title);
+            return Task.FromResult(VerifyRecordResultFactory.Build(false, "結束日期不可早於開始日期。"));
         }
 
         if (ProjectAdapterModel.StatusOptions.Contains(paraObject.Status) == false)
         {
-            return Task.FromResult(VerifyRecordResultFactory.Build(false, "專案狀態不在允許清單內"));
+            Logger.LogWarning("Project validation failed because status is invalid. Title={Title}, Status={Status}", paraObject.Title, paraObject.Status);
+            return Task.FromResult(VerifyRecordResultFactory.Build(false, "專案狀態不合法。"));
         }
 
         if (ProjectAdapterModel.PriorityOptions.Contains(paraObject.Priority) == false)
         {
-            return Task.FromResult(VerifyRecordResultFactory.Build(false, "專案優先級不在允許清單內"));
+            Logger.LogWarning("Project validation failed because priority is invalid. Title={Title}, Priority={Priority}", paraObject.Title, paraObject.Priority);
+            return Task.FromResult(VerifyRecordResultFactory.Build(false, "專案優先順序不合法。"));
         }
 
         if (paraObject.CompletionPercentage < 0 || paraObject.CompletionPercentage > 100)
         {
-            return Task.FromResult(VerifyRecordResultFactory.Build(false, "完成百分比必須介於 0 到 100"));
+            Logger.LogWarning("Project validation failed because completion percentage is out of range. Title={Title}, CompletionPercentage={CompletionPercentage}", paraObject.Title, paraObject.CompletionPercentage);
+            return Task.FromResult(VerifyRecordResultFactory.Build(false, "完成百分比必須介於 0 到 100。"));
         }
 
         return Task.FromResult(VerifyRecordResultFactory.Build(true));

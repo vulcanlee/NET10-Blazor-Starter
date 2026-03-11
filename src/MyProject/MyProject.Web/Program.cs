@@ -11,6 +11,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Components;
 using NLog;
 using NLog.Web;
+using System.Diagnostics;
 
 namespace MyProject.Web
 {
@@ -47,6 +48,7 @@ namespace MyProject.Web
                 builder.Logging.ClearProviders();
                 builder.Host.UseNLog();
                 logger = builder.Services.BuildServiceProvider().GetRequiredService<ILogger<Program>>();
+                logger.LogInformation("Starting application bootstrap. Environment={EnvironmentName}", builder.Environment.EnvironmentName);
                 #endregion
 
                 #region 系統使用服務
@@ -105,6 +107,7 @@ namespace MyProject.Web
                     if(!Directory.Exists(systemSettings.ExternalFileSystem.DatabasePath))
                     {
                         Directory.CreateDirectory(systemSettings.ExternalFileSystem.DatabasePath);
+                        logger.LogInformation("Created database directory at {DirectoryPath}", systemSettings.ExternalFileSystem.DatabasePath);
                     }
                 }
                 if(string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DownloadPath) == false)
@@ -112,6 +115,7 @@ namespace MyProject.Web
                     if (!Directory.Exists(systemSettings.ExternalFileSystem.DownloadPath))
                     {
                         Directory.CreateDirectory(systemSettings.ExternalFileSystem.DownloadPath);
+                        logger.LogInformation("Created download directory at {DirectoryPath}", systemSettings.ExternalFileSystem.DownloadPath);
                     }
                 }
                 if(string.IsNullOrEmpty(systemSettings.ExternalFileSystem.UploadPath) == false)
@@ -119,6 +123,7 @@ namespace MyProject.Web
                     if (!Directory.Exists(systemSettings.ExternalFileSystem.UploadPath))
                     {
                         Directory.CreateDirectory(systemSettings.ExternalFileSystem.UploadPath);
+                        logger.LogInformation("Created upload directory at {DirectoryPath}", systemSettings.ExternalFileSystem.UploadPath);
                     }
                 }
                 #endregion
@@ -128,6 +133,7 @@ namespace MyProject.Web
                     .GetSection(nameof(SystemSettings))
                     .Get<SystemSettings>();
                 var SQLiteDefaultConnection = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
+                logger.LogDebug("Configured SQLite connection string for database path {DatabasePath}", systemSettings.ExternalFileSystem.DatabasePath);
 
                 builder.Services.AddDbContext<BackendDBContext>(options =>
                     options.UseSqlite(SQLiteDefaultConnection),
@@ -147,74 +153,25 @@ namespace MyProject.Web
                 #endregion
 
                 var app = builder.Build();
+                logger = app.Services.GetRequiredService<ILogger<Program>>();
+                logger.LogInformation("Application host built successfully.");
 
                 #region 資料庫的 Migration
                 //if (!app.Environment.IsDevelopment())
                 {
                     using var scope = app.Services.CreateScope();
                     using var dbContext = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+                    logger.LogInformation("Ensuring database is ready.");
                     if (dbContext.Database.GetMigrations().Any())
                     {
                         dbContext.Database.Migrate();
+                        logger.LogInformation("Database migrations applied successfully.");
                     }
                     else
                     {
                         dbContext.Database.EnsureCreated();
+                        logger.LogInformation("Database created because no migrations were found.");
                     }
-
-                    dbContext.Database.ExecuteSqlRaw(
-                        """
-                        CREATE TABLE IF NOT EXISTS "Project" (
-                            "Id" INTEGER NOT NULL CONSTRAINT "PK_Project" PRIMARY KEY AUTOINCREMENT,
-                            "Title" TEXT NOT NULL,
-                            "Description" TEXT NULL,
-                            "StartDate" TEXT NULL,
-                            "EndDate" TEXT NULL,
-                            "Status" TEXT NOT NULL,
-                            "Priority" TEXT NOT NULL,
-                            "CompletionPercentage" INTEGER NOT NULL,
-                            "Owner" TEXT NOT NULL,
-                            "CreatedAt" TEXT NOT NULL,
-                            "UpdatedAt" TEXT NOT NULL
-                        );
-                        """);
-
-                    dbContext.Database.ExecuteSqlRaw(
-                        """
-                        CREATE TABLE IF NOT EXISTS "MyTas" (
-                            "Id" INTEGER NOT NULL CONSTRAINT "PK_MyTas" PRIMARY KEY AUTOINCREMENT,
-                            "Title" TEXT NOT NULL,
-                            "Description" TEXT NULL,
-                            "StartDate" TEXT NULL,
-                            "EndDate" TEXT NULL,
-                            "Category" TEXT NOT NULL,
-                            "Status" TEXT NOT NULL,
-                            "Priority" TEXT NOT NULL,
-                            "CompletionPercentage" INTEGER NOT NULL,
-                            "Owner" TEXT NOT NULL,
-                            "CreatedAt" TEXT NOT NULL,
-                            "UpdatedAt" TEXT NOT NULL,
-                            "ProjectId" INTEGER NOT NULL,
-                            CONSTRAINT "FK_MyTas_Project_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Project" ("Id") ON DELETE RESTRICT
-                        );
-                        """);
-
-                    dbContext.Database.ExecuteSqlRaw(
-                        """
-                        CREATE TABLE IF NOT EXISTS "Meeting" (
-                            "Id" INTEGER NOT NULL CONSTRAINT "PK_Meeting" PRIMARY KEY AUTOINCREMENT,
-                            "Title" TEXT NOT NULL,
-                            "Description" TEXT NULL,
-                            "Summary" TEXT NULL,
-                            "Participants" TEXT NULL,
-                            "StartDate" TEXT NULL,
-                            "EndDate" TEXT NULL,
-                            "CreatedAt" TEXT NOT NULL,
-                            "UpdatedAt" TEXT NOT NULL,
-                            "ProjectId" INTEGER NOT NULL,
-                            CONSTRAINT "FK_Meeting_Project_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Project" ("Id") ON DELETE RESTRICT
-                        );
-                        """);
 
                     RoleView roleViewItemNew = null;
 
@@ -231,11 +188,13 @@ namespace MyProject.Web
                         };
                         dbContext.RoleView.Add(roleViewItemNew);
                         dbContext.SaveChanges();
+                        logger.LogInformation("Seeded default role view.");
                     }
                     else
                     {
                         roleViewItem.TabViewJson = allPermissionJson;
                         dbContext.SaveChanges();
+                        logger.LogDebug("Updated existing default role view.");
                     }
                     #endregion
 
@@ -260,6 +219,7 @@ namespace MyProject.Web
 
                         dbContext.MyUser.Add(support);
                         dbContext.SaveChanges();
+                        logger.LogInformation("Seeded default support user.");
                     }
                     else
                     {
@@ -271,6 +231,7 @@ namespace MyProject.Web
                         else
                             support.RoleViewId = roleViewItem.Id;
                         dbContext.SaveChanges();
+                        logger.LogDebug("Updated existing support user seed data.");
                     }
                     #endregion
                 }
@@ -290,7 +251,38 @@ namespace MyProject.Web
                     //app.MapOpenApi();
                     app.UseSwagger();
                     app.UseSwaggerUI();
+                    logger.LogInformation("Swagger UI enabled for development environment.");
                 }
+
+                app.Use(async (context, next) =>
+                {
+                    var requestLogger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+                    var stopwatch = Stopwatch.StartNew();
+
+                    try
+                    {
+                        await next();
+                        stopwatch.Stop();
+
+                        requestLogger.LogInformation(
+                            "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms",
+                            context.Request.Method,
+                            context.Request.Path.Value,
+                            context.Response.StatusCode,
+                            stopwatch.ElapsedMilliseconds);
+                    }
+                    catch (Exception ex)
+                    {
+                        stopwatch.Stop();
+                        requestLogger.LogError(
+                            ex,
+                            "HTTP {Method} {Path} failed after {ElapsedMilliseconds} ms",
+                            context.Request.Method,
+                            context.Request.Path.Value,
+                            stopwatch.ElapsedMilliseconds);
+                        throw;
+                    }
+                });
 
                 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
                 app.UseHttpsRedirection();
@@ -315,6 +307,7 @@ namespace MyProject.Web
                     .AddInteractiveServerRenderMode();
                 #endregion
 
+                logger.LogInformation("Application startup completed. Listening for requests.");
                 app.Run();
             }
             catch (Exception ex)

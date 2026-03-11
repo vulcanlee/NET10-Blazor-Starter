@@ -1,6 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using NLog;
 
 namespace MyProject.Web.Components
 {
@@ -18,11 +17,13 @@ namespace MyProject.Web.Components
 
         public IComponentRenderMode? RenderModeForPage()
         {
-            var foo = HttpContext.Request.Path.StartsWithSegments("/Auths")
-          ? null : new InteractiveServerRenderMode(prerender: false);
+            var path = HttpContext.Request.Path.Value ?? "/";
+            var renderMode = HttpContext.Request.Path.StartsWithSegments("/Auths")
+                ? null
+                : new InteractiveServerRenderMode(prerender: false);
 
-            logger.LogInformation($"使用渲染模式 : RenderModeForPage: {foo}");
-            return foo;
+            logger.LogDebug("Resolved render mode for Path={Path}. InteractiveServer={IsInteractiveServer}", path, renderMode is not null);
+            return renderMode;
         }
     }
 }

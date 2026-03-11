@@ -27,6 +27,15 @@ public class MyUserService
 
     public async Task<DataRequestResult<MyUserAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        Logger.LogDebug(
+            "Loading users. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
+            dataRequest.Search,
+            dataRequest.SortField,
+            dataRequest.SortDescending,
+            dataRequest.CurrentPage,
+            dataRequest.PageSize,
+            dataRequest.Take);
+
         DataRequestResult<MyUserAdapterModel> result = new();
         IQueryable<MyUser> dataSource = context.MyUser
             .AsNoTracking()
@@ -109,30 +118,40 @@ public class MyUserService
             }
         }
 
-        result.Count = dataSource.Count();
+        result.Count = await dataSource.CountAsync();
         dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
         if (dataRequest.Take != 0)
         {
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        List<MyUserAdapterModel> adapterModelObjects = Mapper.Map<List<MyUserAdapterModel>>(dataSource);
+        List<MyUser> records = await dataSource.ToListAsync();
+        List<MyUserAdapterModel> adapterModelObjects = Mapper.Map<List<MyUserAdapterModel>>(records);
         foreach (var adapterModelItem in adapterModelObjects)
         {
             await OtherDependencyData(adapterModelItem);
         }
 
         result.Result = adapterModelObjects;
-        await Task.Yield();
+        Logger.LogDebug("Loaded users successfully. Count={Count}", result.Count);
         return result;
     }
 
     public async Task<MyUserAdapterModel> GetAsync(int id)
     {
+        Logger.LogDebug("Loading user by id. Id={UserId}", id);
+
         MyUser? item = await context.MyUser
             .AsNoTracking()
             .Include(x => x.RoleView)
             .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (item is null)
+        {
+            Logger.LogWarning("User not found. Id={UserId}", id);
+            return new MyUserAdapterModel();
+        }
+
         MyUserAdapterModel result = Mapper.Map<MyUserAdapterModel>(item);
         await OtherDependencyData(result);
         return result;
@@ -140,20 +159,27 @@ public class MyUserService
 
     public async Task<List<RoleViewAdapterModel>> GetRoleViewsAsync()
     {
+        Logger.LogDebug("Loading role views for user maintenance.");
+
         List<RoleView> roleViews = await context.RoleView
             .AsNoTracking()
             .OrderBy(x => x.Name)
             .ToListAsync();
+
+        Logger.LogDebug("Loaded role views successfully. Count={Count}", roleViews.Count);
         return Mapper.Map<List<RoleViewAdapterModel>>(roleViews);
     }
 
     public async Task<VerifyRecordResult> AddAsync(MyUserAdapterModel paraObject)
     {
+        Logger.LogInformation("Creating user. Account={Account}, RoleViewId={RoleViewId}", paraObject.Account, paraObject.RoleViewId);
+
         try
         {
             if (string.IsNullOrWhiteSpace(paraObject.Password))
             {
-                return VerifyRecordResultFactory.Build(false, "新增使用者時密碼不可為空白");
+                Logger.LogWarning("User creation rejected because password is empty. Account={Account}", paraObject.Account);
+                return VerifyRecordResultFactory.Build(false, "新增使用者時必須輸入密碼。");
             }
 
             CleanTrackingHelper.Clean<MyUser>(context);
@@ -165,26 +191,32 @@ public class MyUserService
             await context.MyUser.AddAsync(itemParameter);
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
+
+            Logger.LogInformation("User created successfully. UserId={UserId}, Account={Account}", itemParameter.Id, itemParameter.Account);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "新增記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "新增記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to create user. Account={Account}", paraObject.Account);
+            return VerifyRecordResultFactory.Build(false, "新增使用者失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> UpdateAsync(MyUserAdapterModel paraObject)
     {
+        Logger.LogInformation("Updating user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
+
         try
         {
             CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? currentItem = await context.MyUser
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+
             if (currentItem == null)
             {
-                return VerifyRecordResultFactory.Build(false, "無法修改紀錄");
+                Logger.LogWarning("User update rejected because record was not found. UserId={UserId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, "找不到要修改的使用者資料。");
             }
 
             MyUser itemData = Mapper.Map<MyUser>(paraObject);
@@ -205,49 +237,61 @@ public class MyUserService
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
+
+            Logger.LogInformation("User updated successfully. UserId={UserId}, Account={Account}", itemData.Id, itemData.Account);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "修改記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "修改記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to update user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
+            return VerifyRecordResultFactory.Build(false, "修改使用者失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        Logger.LogInformation("Deleting user. UserId={UserId}", id);
+
         try
         {
             CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? item = await context.MyUser
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
+
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "無法刪除紀錄");
+                Logger.LogWarning("User deletion rejected because record was not found. UserId={UserId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要刪除的使用者資料。");
             }
 
             CleanTrackingHelper.Clean<MyUser>(context);
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
+
+            Logger.LogInformation("User deleted successfully. UserId={UserId}, Account={Account}", id, item.Account);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "刪除記錄發生例外異常");
-            return VerifyRecordResultFactory.Build(false, "刪除記錄發生例外異常", ex);
+            Logger.LogError(ex, "Failed to delete user. UserId={UserId}", id);
+            return VerifyRecordResultFactory.Build(false, "刪除使用者失敗。", ex);
         }
     }
 
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(MyUserAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-create validation for Account={Account}", paraObject.Account);
+
         MyUser? searchItem = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Account == paraObject.Account);
+
         if (searchItem != null)
         {
-            return VerifyRecordResultFactory.Build(false, "要新增的帳號已經存在無法新增");
+            Logger.LogWarning("Pre-create validation failed because account already exists. Account={Account}", paraObject.Account);
+            return VerifyRecordResultFactory.Build(false, "帳號已存在，無法新增。");
         }
 
         return VerifyRecordResultFactory.Build(true);
@@ -255,37 +299,36 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(MyUserAdapterModel paraObject)
     {
+        Logger.LogDebug("Running pre-update validation for UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
+
         CleanTrackingHelper.Clean<MyUser>(context);
         MyUser? searchItem = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+
         if (searchItem == null)
         {
-            return VerifyRecordResultFactory.Build(false, "要更新的紀錄_發生同時存取衝突_已經不存在資料庫上");
+            Logger.LogWarning("Pre-update validation failed because record was not found. UserId={UserId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, "要修改的使用者資料不存在。");
         }
 
         searchItem = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Account == paraObject.Account && x.Id != paraObject.Id);
+
         if (searchItem != null)
         {
-            return VerifyRecordResultFactory.Build(false, "要修改的帳號已經存在無法修改");
+            Logger.LogWarning("Pre-update validation failed because account already exists. Account={Account}, UserId={UserId}", paraObject.Account, paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, "帳號已存在，無法修改。");
         }
 
         return VerifyRecordResultFactory.Build(true);
     }
 
-    public async Task<VerifyRecordResult> BeforeDeleteCheckAsync(MyUserAdapterModel paraObject)
+    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(MyUserAdapterModel paraObject)
     {
-        try
-        {
-            await Task.Yield();
-            return VerifyRecordResultFactory.Build(true);
-        }
-        catch (Exception ex)
-        {
-            return VerifyRecordResultFactory.Build(false, "刪除記錄發生例外異常", ex);
-        }
+        Logger.LogDebug("Running pre-delete validation for UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
+        return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
 
     private Task OtherDependencyData(MyUserAdapterModel data)
@@ -296,30 +339,28 @@ public class MyUserService
             data.RoleViewId = data.RoleView.Id;
         }
 
-        return Task.FromResult(0);
+        return Task.CompletedTask;
     }
 
     public async Task<bool> NeedChangePasswordAsync(MyUserAdapterModel myUser)
     {
-        bool result = false;
-        CleanTrackingHelper.Clean<MyUser>(context);
+        Logger.LogDebug("Checking whether user must change password. UserId={UserId}", myUser.Id);
 
+        CleanTrackingHelper.Clean<MyUser>(context);
         var user = await context.MyUser
-             .AsNoTracking()
-             .FirstOrDefaultAsync(x => x.Id == myUser.Id);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == myUser.Id);
 
         if (user == null)
         {
-            return result;
+            Logger.LogWarning("Cannot check password-change requirement because user was not found. UserId={UserId}", myUser.Id);
+            return false;
         }
 
-        string hashPassword =
-            PasswordHelper.GetPasswordSHA(user.Salt, MagicObjectHelper.NeedChangePassword);
+        string hashPassword = PasswordHelper.GetPasswordSHA(user.Salt, MagicObjectHelper.NeedChangePassword);
+        bool result = user.Password == hashPassword;
 
-        if (user.Password == hashPassword)
-            result = true;
-
+        Logger.LogDebug("Password-change requirement check completed. UserId={UserId}, NeedChangePassword={NeedChangePassword}", myUser.Id, result);
         return result;
     }
-
 }
