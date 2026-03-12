@@ -27,4 +27,6 @@ public class Meeting
     public int? ProjectId { get; set; }
 
     public Project? Project { get; set; }
+
+    public ICollection<MeetingFile> Files { get; set; } = [];
 }

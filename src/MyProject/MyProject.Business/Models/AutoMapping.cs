@@ -15,6 +15,8 @@ public class AutoMapping : Profile
         #region Meeting
         CreateMap<Meeting, MeetingAdapterModel>();
         CreateMap<MeetingAdapterModel, Meeting>();
+        CreateMap<MeetingFile, MeetingFileAdapterModel>();
+        CreateMap<MeetingFileAdapterModel, MeetingFile>();
         #endregion
 
         #region MyTas

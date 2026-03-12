@@ -30,6 +30,8 @@ public class MeetingAdapterModel : ICloneable, IValidatableObject
 
     public string ProjectTitle => Project?.Title ?? string.Empty;
 
+    public List<MeetingFileAdapterModel> Files { get; set; } = [];
+
     public MeetingAdapterModel Clone()
     {
         return ((ICloneable)this).Clone() as MeetingAdapterModel ?? new MeetingAdapterModel();

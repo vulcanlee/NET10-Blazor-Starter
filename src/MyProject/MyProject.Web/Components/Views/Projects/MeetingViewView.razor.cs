@@ -29,6 +29,8 @@ public partial class MeetingViewView
 
     private List<MeetingAdapterModel> meetingAdapterModels = [];
     private List<ProjectAdapterModel> projectAdapterModels = [];
+    private readonly List<PendingUploadFileItem> pendingUploadFiles = [];
+    private readonly HashSet<int> removedFileIds = [];
 
     private string modalTitle = "會議維護";
     private bool modalVisible;
@@ -186,7 +188,9 @@ public partial class MeetingViewView
         await LoadProjectsAsync();
         isNewRecordMode = false;
         modalTitle = "修改會議";
-        CurrentRecord = (await meetingService.GetAsync(meetingAdapterModel.Id)).Clone();
+        CurrentRecord = await meetingService.GetAsync(meetingAdapterModel.Id);
+        pendingUploadFiles.Clear();
+        removedFileIds.Clear();
         modalVisible = true;
         logger.LogInformation("Opened edit modal for meeting. MeetingId={MeetingId}, Title={Title}", meetingAdapterModel.Id, meetingAdapterModel.Title);
     }
@@ -242,17 +246,48 @@ public partial class MeetingViewView
     private async Task OnAddAsync(bool continueOnCapturedContext)
     {
         await LoadProjectsAsync();
-        CurrentRecord = new MeetingAdapterModel();
+        CurrentRecord = new MeetingAdapterModel
+        {
+            Files = []
+        };
 
         if (projectAdapterModels.Any())
         {
             CurrentRecord.ProjectId = projectAdapterModels.First().Id;
         }
 
+        pendingUploadFiles.Clear();
+        removedFileIds.Clear();
         isNewRecordMode = true;
         modalTitle = "新增會議";
         modalVisible = true;
         logger.LogInformation("Opened create modal for meeting.");
+    }
+
+    private async Task OnMeetingFilesSelectedAsync(InputFileChangeEventArgs args)
+    {
+        foreach (var file in args.GetMultipleFiles(1000))
+        {
+            if (file.Size > MeetingService.MaxUploadFileSize)
+            {
+                _ = notificationService.Open(new NotificationConfig
+                {
+                    Message = "檔案過大",
+                    Description = $"{file.Name} 超過 1GB 限制",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+                continue;
+            }
+
+            pendingUploadFiles.Add(new PendingUploadFileItem
+            {
+                Id = Guid.NewGuid(),
+                File = file
+            });
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnModalOKHandleAsync(MouseEventArgs args)
@@ -277,16 +312,79 @@ public partial class MeetingViewView
             return;
         }
 
-        if (isNewRecordMode)
+        var uploadInputs = new List<MeetingUploadFileInput>();
+        var uploadStreams = new List<Stream>();
+
+        try
         {
-            var beforeAddCheckResult = await meetingService.BeforeAddCheckAsync(CurrentRecord);
-            if (!beforeAddCheckResult.Success)
+            foreach (var pendingUploadFile in pendingUploadFiles)
             {
-                logger.LogWarning("Meeting create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
+                var stream = pendingUploadFile.File.OpenReadStream(MeetingService.MaxUploadFileSize);
+                uploadStreams.Add(stream);
+                uploadInputs.Add(new MeetingUploadFileInput
+                {
+                    FileName = pendingUploadFile.File.Name,
+                    ContentType = pendingUploadFile.File.ContentType,
+                    FileSize = pendingUploadFile.File.Size,
+                    Content = stream
+                });
+            }
+
+            VerifyRecordResult actionResult;
+
+            if (isNewRecordMode)
+            {
+                var beforeAddCheckResult = await meetingService.BeforeAddCheckAsync(CurrentRecord, uploadInputs);
+                if (!beforeAddCheckResult.Success)
+                {
+                    logger.LogWarning("Meeting create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
+                    _ = notificationService.Open(new NotificationConfig
+                    {
+                        Message = "系統訊息",
+                        Description = beforeAddCheckResult.Message,
+                        NotificationType = NotificationType.Error,
+                        Placement = NotificationPlacement.BottomRight
+                    });
+
+                    modalVisible = true;
+                    return;
+                }
+
+                CurrentRecord.CreatedAt = DateTime.Now;
+                CurrentRecord.UpdatedAt = DateTime.Now;
+
+                actionResult = await meetingService.AddAsync(CurrentRecord, uploadInputs);
+                logger.LogInformation("Meeting create submitted. Title={Title}", CurrentRecord.Title);
+            }
+            else
+            {
+                var beforeUpdateCheckResult = await meetingService.BeforeUpdateCheckAsync(CurrentRecord, uploadInputs);
+                if (!beforeUpdateCheckResult.Success)
+                {
+                    logger.LogWarning("Meeting update pre-check failed. MeetingId={MeetingId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    _ = notificationService.Open(new NotificationConfig
+                    {
+                        Message = "系統訊息",
+                        Description = beforeUpdateCheckResult.Message,
+                        NotificationType = NotificationType.Error,
+                        Placement = NotificationPlacement.BottomRight
+                    });
+
+                    modalVisible = true;
+                    return;
+                }
+
+                CurrentRecord.UpdatedAt = DateTime.Now;
+                actionResult = await meetingService.UpdateAsync(CurrentRecord, uploadInputs, removedFileIds);
+                logger.LogInformation("Meeting update submitted. MeetingId={MeetingId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
+            }
+
+            if (!actionResult.Success)
+            {
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
-                    Description = beforeAddCheckResult.Message,
+                    Description = actionResult.Message,
                     NotificationType = NotificationType.Error,
                     Placement = NotificationPlacement.BottomRight
                 });
@@ -295,60 +393,39 @@ public partial class MeetingViewView
                 return;
             }
 
-            CurrentRecord.CreatedAt = DateTime.Now;
-            CurrentRecord.UpdatedAt = DateTime.Now;
-
-            await meetingService.AddAsync(CurrentRecord);
-            logger.LogInformation("Meeting create submitted. Title={Title}", CurrentRecord.Title);
+            pendingUploadFiles.Clear();
+            removedFileIds.Clear();
 
             _ = notificationService.Open(new NotificationConfig
             {
                 Message = "系統訊息",
-                Description = "新增成功",
+                Description = isNewRecordMode ? "新增成功" : "修改成功",
                 NotificationType = NotificationType.Warning,
                 Placement = NotificationPlacement.BottomRight
             });
 
-            _ = messageService.SuccessAsync("新增成功");
-        }
-        else
-        {
-            var beforeUpdateCheckResult = await meetingService.BeforeUpdateCheckAsync(CurrentRecord);
-            if (!beforeUpdateCheckResult.Success)
+            if (isNewRecordMode)
             {
-                logger.LogWarning("Meeting update pre-check failed. MeetingId={MeetingId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                _ = notificationService.Open(new NotificationConfig
-                {
-                    Message = "系統訊息",
-                    Description = beforeUpdateCheckResult.Message,
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
-
-                modalVisible = true;
-                return;
+                _ = messageService.SuccessAsync("新增成功");
             }
 
-            CurrentRecord.UpdatedAt = DateTime.Now;
-            await meetingService.UpdateAsync(CurrentRecord);
-            logger.LogInformation("Meeting update submitted. MeetingId={MeetingId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
-
-            _ = notificationService.Open(new NotificationConfig
-            {
-                Message = "系統訊息",
-                Description = "修改成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            await ReloadAsync();
+            modalVisible = false;
         }
-
-        await ReloadAsync();
-        modalVisible = false;
+        finally
+        {
+            foreach (var uploadStream in uploadStreams)
+            {
+                uploadStream.Dispose();
+            }
+        }
     }
 
     private Task OnModalCancelHandleAsync(MouseEventArgs args)
     {
         modalVisible = false;
+        pendingUploadFiles.Clear();
+        removedFileIds.Clear();
         logger.LogDebug("Meeting modal cancelled.");
         return Task.CompletedTask;
     }
@@ -375,5 +452,53 @@ public partial class MeetingViewView
     {
         projectAdapterModels = await meetingService.GetProjectsAsync();
         logger.LogDebug("Loaded projects for meeting view. Count={Count}", projectAdapterModels.Count);
+    }
+
+    private void RemovePendingFile(Guid fileId)
+    {
+        var file = pendingUploadFiles.FirstOrDefault(x => x.Id == fileId);
+        if (file is not null)
+        {
+            pendingUploadFiles.Remove(file);
+        }
+    }
+
+    private void RemoveExistingFile(int fileId)
+    {
+        var file = CurrentRecord.Files.FirstOrDefault(x => x.Id == fileId);
+        if (file is null)
+        {
+            return;
+        }
+
+        removedFileIds.Add(fileId);
+        CurrentRecord.Files.Remove(file);
+    }
+
+    private static string GetMeetingFileDownloadUrl(int fileId)
+    {
+        return $"/api/meeting-files/{fileId}/download";
+    }
+
+    private static string FormatFileSize(long fileSize)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = fileSize;
+        var unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return $"{size:0.##} {units[unitIndex]}";
+    }
+
+    private sealed class PendingUploadFileItem
+    {
+        public Guid Id { get; set; }
+
+        public IBrowserFile File { get; set; } = default!;
     }
 }
