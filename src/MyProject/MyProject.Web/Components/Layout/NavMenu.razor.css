@@ -1,33 +1,51 @@
-.navbar-toggler {
-    appearance: none;
-    cursor: pointer;
-    width: 3.5rem;
-    height: 2.5rem;
-    color: #334155;
-    position: absolute;
-    top: 1.15rem;
-    right: 1rem;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 14px;
-    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%2851, 65, 85, 0.88%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(10px);
-}
-
-.navbar-toggler:checked {
-    background-color: rgba(148, 163, 184, 0.18);
-}
-
 .top-row {
     min-height: 5rem;
-    padding: 1.1rem 1rem 1rem 1rem;
+    padding: 1.1rem 1rem 1rem;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(244, 246, 248, 0.88) 100%);
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.sidebar-hamburger {
+    align-items: center;
+    background: linear-gradient(135deg, #4ea8ff 0%, #2f80ed 100%);
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 12px 24px rgba(47, 128, 237, 0.28);
+    color: #fff;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 2.75rem;
+    justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    width: 2.75rem;
+}
+
+.sidebar-hamburger:hover {
+    box-shadow: 0 16px 30px rgba(47, 128, 237, 0.35);
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+}
+
+.sidebar-hamburger:focus-visible {
+    outline: 3px solid rgba(96, 165, 250, 0.35);
+    outline-offset: 3px;
+}
+
+.sidebar-hamburger ::deep .material-icons,
+.sidebar-hamburger ::deep .material-icons-outlined,
+.sidebar-hamburger ::deep .material-icons-round,
+.sidebar-hamburger ::deep .material-icons-sharp,
+.sidebar-hamburger ::deep .material-icons-two-tone {
+    font-size: 1.1rem;
 }
 
 .sidebar-brand {
     align-items: center;
     display: flex;
     gap: 0.9rem;
-    padding-right: 4rem;
+    min-width: 0;
 }
 
 .sidebar-brand-icon {
@@ -55,6 +73,15 @@
     display: flex;
     flex-direction: column;
     gap: 0.18rem;
+    min-width: 0;
+    opacity: 1;
+    transition: opacity 0.2s ease, width 0.2s ease;
+}
+
+.sidebar-brand-collapsed .sidebar-brand-text {
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
 }
 
 .navbar-brand {
@@ -76,8 +103,9 @@
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.12em;
-    padding: 0.25rem 1.5rem 1rem 1.5rem;
+    padding: 0.25rem 1.5rem 1rem;
     text-transform: uppercase;
+    transition: opacity 0.2s ease;
 }
 
 .nav-item ::deep .nav-link-disabled {
@@ -91,12 +119,13 @@
 }
 
 .nav-scrollable {
-    display: none;
+    display: block;
+    overflow-y: auto;
     padding-bottom: 1.2rem;
 }
 
 .sidebar-menu-shell {
-    padding: 0 1rem 1rem 1rem;
+    padding: 0 1rem 1rem;
 }
 
 .sidebar-menu-shell ::deep .sidebar-menu,
@@ -179,19 +208,25 @@
     color: #64748b !important;
 }
 
-.navbar-toggler:checked ~ .nav-scrollable {
-    display: block;
+@media (max-width: 640.98px) {
+    .nav-scrollable-collapsed {
+        display: none;
+    }
 }
 
 @media (min-width: 641px) {
-    .navbar-toggler {
+    .top-row-collapsed {
+        justify-content: center;
+        min-height: auto;
+        padding: 0.7rem 0.5rem 0.4rem;
+    }
+
+    .top-row-collapsed .sidebar-brand {
         display: none;
     }
 
     .nav-scrollable {
-        display: block;
         height: calc(100vh - 5rem);
-        overflow-y: auto;
     }
 
     .nav-scrollable::-webkit-scrollbar {
@@ -201,5 +236,19 @@
     .nav-scrollable::-webkit-scrollbar-thumb {
         background: rgba(148, 163, 184, 0.35);
         border-radius: 999px;
+    }
+
+    .sidebar-menu-shell-collapsed {
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+    }
+
+    .sidebar-menu-shell-collapsed .nav-section-title {
+        display: none;
+    }
+
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-item,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title {
+        justify-content: center;
     }
 }

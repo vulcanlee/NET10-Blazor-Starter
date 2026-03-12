@@ -22,7 +22,7 @@ public partial class SplashView
             if (checkResult == true)
             {
                 await Task.Delay(500); // Simulate a delay for splash screen
-                NavigationManager.NavigateTo("/myusers", true, true);
+                NavigationManager.NavigateTo("/projects", true, true);
             }
             else
             {

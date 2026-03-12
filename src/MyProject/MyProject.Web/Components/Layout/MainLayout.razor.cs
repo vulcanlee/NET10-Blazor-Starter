@@ -19,6 +19,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private const string DefaultPageTitle = "系統首頁";
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
+    private bool isSidebarCollapsed;
 
     protected override void OnInitialized()
     {
@@ -110,6 +111,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         Logger.LogDebug("Location changed in main layout. Uri={Uri}", e.Location);
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleSidebar()
+    {
+        isSidebarCollapsed = !isSidebarCollapsed;
     }
 
     public void Dispose()

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
-
 namespace MyProject.Web.Components.Layout;
 
 public partial class SidebarMenuNode : ComponentBase
@@ -14,26 +13,6 @@ public partial class SidebarMenuNode : ComponentBase
     [Parameter, EditorRequired]
     public string ItemKey { get; set; } = default!;
 
-    [Parameter]
-    public string? ActiveMenuPath { get; set; }
-
-    [Parameter]
-    public int RouteVersion { get; set; }
-
-    private bool _isExpanded;
-    private int _lastAppliedRouteVersion;
-
-    protected override void OnParametersSet()
-    {
-        if (_lastAppliedRouteVersion == RouteVersion)
-        {
-            return;
-        }
-
-        _lastAppliedRouteVersion = RouteVersion;
-        _isExpanded = ShouldAutoExpand();
-    }
-
     private string GetMenuKey()
     {
         return ItemKey;
@@ -42,11 +21,6 @@ public partial class SidebarMenuNode : ComponentBase
     private NavLinkMatch GetMatchMode()
     {
         return string.Equals(Item.Url, "/", StringComparison.Ordinal) ? NavLinkMatch.All : NavLinkMatch.Prefix;
-    }
-
-    private void ToggleExpand()
-    {
-        _isExpanded = !_isExpanded;
     }
 
     private string GetMaterialIconKind()
@@ -62,12 +36,5 @@ public partial class SidebarMenuNode : ComponentBase
             _ when Item.HasChildren => "folder_open",
             _ => "article"
         };
-    }
-
-    private bool ShouldAutoExpand()
-    {
-        return Item.HasChildren
-            && !string.IsNullOrWhiteSpace(ActiveMenuPath)
-            && ActiveMenuPath.StartsWith($"{ItemKey}-", StringComparison.Ordinal);
     }
 }

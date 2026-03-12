@@ -1,5 +1,15 @@
-﻿<div class="top-row navbar-dark">
-    <div class="sidebar-brand">
+<div class="top-row navbar-dark @(IsSidebarCollapsed ? "top-row-collapsed" : string.Empty)">
+    <button type="button"
+            class="sidebar-hamburger"
+            @onclick="ToggleSidebar"
+            aria-label="切換側邊欄"
+            aria-expanded="@(!IsSidebarCollapsed)"
+            title="@(IsSidebarCollapsed ? "展開側邊欄" : "收起側邊欄")">
+        <MaterialIcon Theme="@MaterialIcon.Themes.Outlined"
+                      Kind="@(IsSidebarCollapsed ? "menu_open" : "menu")" />
+    </button>
+
+    <div class="sidebar-brand @(IsSidebarCollapsed ? "sidebar-brand-collapsed" : string.Empty)">
         <div class="sidebar-brand-icon">
             <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="dashboard_customize" />
         </div>
@@ -10,10 +20,8 @@
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <div class="sidebar-menu-shell">
+<div class="nav-scrollable @(IsSidebarCollapsed ? "nav-scrollable-collapsed" : string.Empty)">
+    <div class="sidebar-menu-shell @(IsSidebarCollapsed ? "sidebar-menu-shell-collapsed" : string.Empty)">
         <div class="nav-section-title">功能選單</div>
         @if (MenuItems.Count == 0)
         {
@@ -23,13 +31,19 @@
         }
         else
         {
-            <Menu Class="sidebar-menu" Mode="MenuMode.Inline" Theme="MenuTheme.Light">
+            <Menu Class="sidebar-menu"
+                  Mode="MenuMode.Inline"
+                  Theme="MenuTheme.Light"
+                  InlineCollapsed="IsSidebarCollapsed"
+                  SelectedKeys="SelectedKeys"
+                  OpenKeys="OpenKeys"
+                  OpenKeysChanged="HandleOpenKeysChanged">
                 @for (var index = 0; index < MenuItems.Count; index++)
                 {
-                    <SidebarMenuNode Item="MenuItems[index]" ItemKey="@($"root-{index}")" ActiveMenuPath="@ActiveMenuPath" RouteVersion="@RouteVersion" />
+                    <SidebarMenuNode Item="MenuItems[index]"
+                                     ItemKey="@($"root-{index}")" />
                 }
             </Menu>
         }
     </div>
 </div>
-

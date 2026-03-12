@@ -7,6 +7,12 @@ namespace MyProject.Web.Components.Layout;
 
 public partial class NavMenu : ComponentBase, IDisposable
 {
+    [Parameter]
+    public bool IsSidebarCollapsed { get; set; }
+
+    [Parameter]
+    public EventCallback OnSidebarToggle { get; set; }
+
     [Inject]
     private IWebHostEnvironment Environment { get; set; } = default!;
 
@@ -18,15 +24,28 @@ public partial class NavMenu : ComponentBase, IDisposable
 
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string? ActiveMenuPath { get; set; }
-    private int RouteVersion { get; set; }
+    private string[] OpenKeys { get; set; } = [];
+    private string[] SelectedKeys { get; set; } = [];
+    private bool previousSidebarCollapsed;
 
     protected override void OnInitialized()
     {
         Logger.LogDebug("Initializing navigation menu.");
         MenuItems = LoadMenuItems();
-        RouteVersion = 1;
         UpdateActiveMenuPath();
+        SyncMenuStateFromRoute();
         NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (previousSidebarCollapsed == IsSidebarCollapsed)
+        {
+            return;
+        }
+
+        previousSidebarCollapsed = IsSidebarCollapsed;
+        SyncOpenKeysForSidebarState();
     }
 
     private IReadOnlyList<SidebarMenuItemModel> LoadMenuItems()
@@ -66,6 +85,44 @@ public partial class NavMenu : ComponentBase, IDisposable
             : null;
 
         Logger.LogDebug("Updated active menu path. Path={Path}, ActiveMenuPath={ActiveMenuPath}", normalizedCurrentPath, ActiveMenuPath);
+    }
+
+    private void SyncMenuStateFromRoute()
+    {
+        SelectedKeys = string.IsNullOrWhiteSpace(ActiveMenuPath)
+            ? []
+            : [ActiveMenuPath];
+
+        SyncOpenKeysForSidebarState();
+    }
+
+    private void SyncOpenKeysForSidebarState()
+    {
+        OpenKeys = IsSidebarCollapsed
+            ? []
+            : GetAncestorKeys(ActiveMenuPath);
+    }
+
+    private static string[] GetAncestorKeys(string? activeMenuPath)
+    {
+        if (string.IsNullOrWhiteSpace(activeMenuPath))
+        {
+            return [];
+        }
+
+        var segments = activeMenuPath.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length <= 2)
+        {
+            return [];
+        }
+
+        var ancestors = new List<string>(segments.Length - 2);
+        for (var index = 2; index < segments.Length; index++)
+        {
+            ancestors.Add(string.Join('-', segments[..index]));
+        }
+
+        return [.. ancestors];
     }
 
     private static bool TryFindActiveMenuPath(IReadOnlyList<SidebarMenuItemModel> items, string currentPath, string parentKey, out string? activePath)
@@ -111,10 +168,20 @@ public partial class NavMenu : ComponentBase, IDisposable
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        RouteVersion++;
-        Logger.LogDebug("Navigation menu location changed. Uri={Uri}, RouteVersion={RouteVersion}", e.Location, RouteVersion);
+        Logger.LogDebug("Navigation menu location changed. Uri={Uri}", e.Location);
         UpdateActiveMenuPath();
+        SyncMenuStateFromRoute();
         InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleOpenKeysChanged(string[] openKeys)
+    {
+        OpenKeys = openKeys;
+    }
+
+    private Task ToggleSidebar()
+    {
+        return OnSidebarToggle.InvokeAsync();
     }
 
     public void Dispose()

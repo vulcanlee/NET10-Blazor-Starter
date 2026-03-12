@@ -1,8 +1,8 @@
 @if (Item.HasChildren)
 {
-    <SubMenu Key="@GetMenuKey()" IsOpen="@_isExpanded" OnTitleClick="ToggleExpand">
+    <SubMenu Key="@GetMenuKey()">
         <TitleTemplate>
-            <span class="submenu-title-content">
+            <span class="submenu-title-content" title="@Item.Name">
                 <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind()" />
                 <span class="submenu-title-text">@Item.Name</span>
             </span>
@@ -12,17 +12,17 @@
             {
                 <SidebarMenuNode Item="Item.SubMenu[index]"
                                  Level="@(Level + 1)"
-                                 ItemKey="@($"{ItemKey}-{index}")"
-                                 ActiveMenuPath="@ActiveMenuPath"
-                                 RouteVersion="@RouteVersion" />
+                                 ItemKey="@($"{ItemKey}-{index}")" />
             }
         </ChildContent>
     </SubMenu>
 }
 else if (!string.IsNullOrWhiteSpace(Item.Url))
 {
-    <MenuItem Key="@GetMenuKey()" RouterLink="@Item.Url" RouterMatch="@GetMatchMode()">
-        <span class="menu-item-content">
+    <MenuItem Key="@GetMenuKey()"
+              RouterLink="@Item.Url"
+              RouterMatch="@GetMatchMode()">
+        <span class="menu-item-content" title="@Item.Name">
             <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind()" />
             <span class="menu-item-text">@Item.Name</span>
         </span>

@@ -10,12 +10,12 @@ using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
-namespace MyProject.Web.Components.Views.Admins;
+namespace MyProject.Web.Components.Views.Projects;
 
-public partial class MyTasViewView
+public partial class ProjectViewView
 {
-    private readonly ILogger<MyTasViewView> logger;
-    private readonly MyTasService myTasService;
+    private readonly ILogger<ProjectViewView> logger;
+    private readonly ProjectService projectService;
     private readonly ModalService modalService;
     private readonly MessageService messageService;
     private readonly NotificationService notificationService;
@@ -27,18 +27,17 @@ public partial class MyTasViewView
     private string sortField = string.Empty;
     private string sortDirection = "None";
 
-    private List<MyTasAdapterModel> myTasAdapterModels = [];
     private List<ProjectAdapterModel> projectAdapterModels = [];
 
-    private string modalTitle = "工作維護";
+    private string modalTitle = "專案維護";
     private bool modalVisible;
-    private MyTasAdapterModel CurrentRecord = new();
+    private ProjectAdapterModel CurrentRecord = new();
     public EditContext? LocalEditContext { get; set; }
     private bool isNewRecordMode;
     private string RoleMessage = string.Empty;
 
-    private IReadOnlyList<string> StatusOptions => MyTasAdapterModel.StatusOptions;
-    private IReadOnlyList<string> PriorityOptions => MyTasAdapterModel.PriorityOptions;
+    private IReadOnlyList<string> StatusOptions => ProjectAdapterModel.StatusOptions;
+    private IReadOnlyList<string> PriorityOptions => ProjectAdapterModel.PriorityOptions;
 
     [Inject]
     public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -49,15 +48,15 @@ public partial class MyTasViewView
     [Inject]
     public NavigationManager NavigationManager { get; set; } = default!;
 
-    public MyTasViewView(
-        ILogger<MyTasViewView> logger,
-        MyTasService myTasService,
+    public ProjectViewView(
+        ILogger<ProjectViewView> logger,
+        ProjectService projectService,
         ModalService modalService,
         MessageService messageService,
         NotificationService notificationService)
     {
         this.logger = logger;
-        this.myTasService = myTasService;
+        this.projectService = projectService;
         this.modalService = modalService;
         this.messageService = messageService;
         this.notificationService = notificationService;
@@ -65,18 +64,18 @@ public partial class MyTasViewView
 
     protected override async Task OnInitializedAsync()
     {
-        logger.LogInformation("Initializing task management view.");
+        logger.LogInformation("Initializing project management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
         if (!checkResult)
         {
-            logger.LogWarning("Task management view initialization stopped because authentication check failed.");
+            logger.LogWarning("Project management view initialization stopped because authentication check failed.");
             return;
         }
 
         if (!AuthenticationStateHelper.CheckIsAdmin())
         {
             RoleMessage = "你沒有權限存取此頁面";
-            logger.LogWarning("Task management view denied because current user is not an administrator.");
+            logger.LogWarning("Project management view denied because current user is not an administrator.");
             return;
         }
 
@@ -86,14 +85,14 @@ public partial class MyTasViewView
     public async Task ReloadAsync()
     {
         logger.LogDebug(
-            "Reloading tasks. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+            "Reloading projects. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
             searchText,
             sortField,
             sortDirection,
             _pageIndex,
             _pageSize);
 
-        DataRequestResult<MyTasAdapterModel> dataRequestResult = await myTasService.GetAsync(new DataRequest
+        DataRequestResult<ProjectAdapterModel> dataRequestResult = await projectService.GetAsync(new DataRequest
         {
             Search = searchText,
             SortField = sortField,
@@ -103,13 +102,13 @@ public partial class MyTasViewView
             Take = 0,
         });
 
-        myTasAdapterModels = dataRequestResult.Result.ToList();
+        projectAdapterModels = dataRequestResult.Result.ToList();
         _total = dataRequestResult.Count;
-        logger.LogInformation("Task list reloaded successfully. Count={Count}", _total);
+        logger.LogInformation("Project list reloaded successfully. Count={Count}", _total);
         StateHasChanged();
     }
 
-    private async Task OnTableChange(QueryModel<MyTasAdapterModel> args)
+    private async Task OnTableChange(QueryModel<ProjectAdapterModel> args)
     {
         _pageIndex = args.PageIndex;
 
@@ -125,7 +124,7 @@ public partial class MyTasViewView
             sortDirection = "None";
         }
 
-        logger.LogDebug("Task table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
+        logger.LogDebug("Project table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
         await ReloadAsync();
     }
 
@@ -166,13 +165,13 @@ public partial class MyTasViewView
     private async Task OnSearchAsync()
     {
         _pageIndex = 1;
-        logger.LogInformation("Task search triggered. Search={Search}", searchText);
+        logger.LogInformation("Project search triggered. Search={Search}", searchText);
         await ReloadAsync();
     }
 
     private async Task OnRefreshAsync()
     {
-        logger.LogInformation("Task refresh triggered.");
+        logger.LogInformation("Project refresh triggered.");
         await ReloadAsync();
 
         _ = notificationService.Open(new NotificationConfig
@@ -184,24 +183,24 @@ public partial class MyTasViewView
         });
     }
 
-    private async Task OnEditAsync(MyTasAdapterModel myTasAdapterModel)
+    private Task OnEditAsync(ProjectAdapterModel projectAdapterModel)
     {
-        await LoadProjectsAsync();
         isNewRecordMode = false;
-        modalTitle = "修改工作";
-        CurrentRecord = (await myTasService.GetAsync(myTasAdapterModel.Id)).Clone();
+        modalTitle = "修改專案";
+        CurrentRecord = projectAdapterModel.Clone();
         modalVisible = true;
-        logger.LogInformation("Opened edit modal for task. TaskId={TaskId}, Title={Title}", myTasAdapterModel.Id, myTasAdapterModel.Title);
+        logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
+        return Task.CompletedTask;
     }
 
-    private async Task OnDeleteAsync(MyTasAdapterModel myTasAdapterModel)
+    private async Task OnDeleteAsync(ProjectAdapterModel projectAdapterModel)
     {
-        logger.LogInformation("Delete task requested. TaskId={TaskId}, Title={Title}", myTasAdapterModel.Id, myTasAdapterModel.Title);
+        logger.LogInformation("Delete project requested. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
 
-        var beforeDeleteCheckResult = await myTasService.BeforeDeleteCheckAsync(myTasAdapterModel);
+        var beforeDeleteCheckResult = await projectService.BeforeDeleteCheckAsync(projectAdapterModel);
         if (!beforeDeleteCheckResult.Success)
         {
-            logger.LogWarning("Task delete pre-check failed. TaskId={TaskId}, Message={Message}", myTasAdapterModel.Id, beforeDeleteCheckResult.Message);
+            logger.LogWarning("Project delete pre-check failed. ProjectId={ProjectId}, Message={Message}", projectAdapterModel.Id, beforeDeleteCheckResult.Message);
             _ = notificationService.Open(new NotificationConfig
             {
                 Message = "系統訊息",
@@ -224,12 +223,12 @@ public partial class MyTasViewView
 
         if (!ok)
         {
-            logger.LogDebug("Task delete cancelled by user. TaskId={TaskId}", myTasAdapterModel.Id);
+            logger.LogDebug("Project delete cancelled by user. ProjectId={ProjectId}", projectAdapterModel.Id);
             return;
         }
 
-        await myTasService.DeleteAsync(myTasAdapterModel.Id);
-        logger.LogInformation("Task delete completed. TaskId={TaskId}", myTasAdapterModel.Id);
+        await projectService.DeleteAsync(projectAdapterModel.Id);
+        logger.LogInformation("Project delete completed. ProjectId={ProjectId}", projectAdapterModel.Id);
 
         _ = notificationService.Open(new NotificationConfig
         {
@@ -242,26 +241,20 @@ public partial class MyTasViewView
         await ReloadAsync();
     }
 
-    private async Task OnAddAsync(bool continueOnCapturedContext)
+    private Task OnAddAsync(bool continueOnCapturedContext)
     {
-        await LoadProjectsAsync();
-
-        CurrentRecord = new MyTasAdapterModel
+        CurrentRecord = new ProjectAdapterModel
         {
             Status = StatusOptions.First(),
             Priority = PriorityOptions[1],
             CompletionPercentage = 0
         };
 
-        if (projectAdapterModels.Any())
-        {
-            CurrentRecord.ProjectId = projectAdapterModels.First().Id;
-        }
-
         isNewRecordMode = true;
-        modalTitle = "新增工作";
+        modalTitle = "新增專案";
         modalVisible = true;
-        logger.LogInformation("Opened create modal for task.");
+        logger.LogInformation("Opened create modal for project.");
+        return Task.CompletedTask;
     }
 
     private async Task OnModalOKHandleAsync(MouseEventArgs args)
@@ -271,7 +264,7 @@ public partial class MyTasViewView
             IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
             foreach (var error in allErrors)
             {
-                logger.LogWarning("Task form validation failed. Error={Error}", error);
+                logger.LogWarning("Project form validation failed. Error={Error}", error);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "驗證失敗",
@@ -288,10 +281,10 @@ public partial class MyTasViewView
 
         if (isNewRecordMode)
         {
-            var beforeAddCheckResult = await myTasService.BeforeAddCheckAsync(CurrentRecord);
+            var beforeAddCheckResult = await projectService.BeforeAddCheckAsync(CurrentRecord);
             if (!beforeAddCheckResult.Success)
             {
-                logger.LogWarning("Task create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
+                logger.LogWarning("Project create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
@@ -307,8 +300,8 @@ public partial class MyTasViewView
             CurrentRecord.CreatedAt = DateTime.Now;
             CurrentRecord.UpdatedAt = DateTime.Now;
 
-            await myTasService.AddAsync(CurrentRecord);
-            logger.LogInformation("Task create submitted. Title={Title}", CurrentRecord.Title);
+            await projectService.AddAsync(CurrentRecord);
+            logger.LogInformation("Project create submitted. Title={Title}", CurrentRecord.Title);
 
             _ = notificationService.Open(new NotificationConfig
             {
@@ -322,10 +315,10 @@ public partial class MyTasViewView
         }
         else
         {
-            var beforeUpdateCheckResult = await myTasService.BeforeUpdateCheckAsync(CurrentRecord);
+            var beforeUpdateCheckResult = await projectService.BeforeUpdateCheckAsync(CurrentRecord);
             if (!beforeUpdateCheckResult.Success)
             {
-                logger.LogWarning("Task update pre-check failed. TaskId={TaskId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                logger.LogWarning("Project update pre-check failed. ProjectId={ProjectId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
@@ -339,8 +332,8 @@ public partial class MyTasViewView
             }
 
             CurrentRecord.UpdatedAt = DateTime.Now;
-            await myTasService.UpdateAsync(CurrentRecord);
-            logger.LogInformation("Task update submitted. TaskId={TaskId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
+            await projectService.UpdateAsync(CurrentRecord);
+            logger.LogInformation("Project update submitted. ProjectId={ProjectId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
 
             _ = notificationService.Open(new NotificationConfig
             {
@@ -358,7 +351,7 @@ public partial class MyTasViewView
     private Task OnModalCancelHandleAsync(MouseEventArgs args)
     {
         modalVisible = false;
-        logger.LogDebug("Task modal cancelled.");
+        logger.LogDebug("Project modal cancelled.");
         return Task.CompletedTask;
     }
 
@@ -378,11 +371,5 @@ public partial class MyTasViewView
     public void OnEditContestChanged(EditContext context)
     {
         LocalEditContext = context;
-    }
-
-    private async Task LoadProjectsAsync()
-    {
-        projectAdapterModels = await myTasService.GetProjectsAsync();
-        logger.LogDebug("Loaded projects for task view. Count={Count}", projectAdapterModels.Count);
     }
 }

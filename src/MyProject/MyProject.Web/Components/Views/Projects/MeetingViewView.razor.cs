@@ -10,7 +10,7 @@ using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
-namespace MyProject.Web.Components.Views.Admins;
+namespace MyProject.Web.Components.Views.Projects;
 
 public partial class MeetingViewView
 {
