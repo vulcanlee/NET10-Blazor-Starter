@@ -23,4 +23,7 @@ public class ExternalFileSystem
     public string DatabasePath { get; set; }
     public string DownloadPath { get; set; }
     public string UploadPath { get; set; }
+    public string ProjectFilePath { get; set; }
+    public string TaskFilePath { get; set; }
+    public string MeetingFilePath { get; set; }
 }

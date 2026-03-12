@@ -41,8 +41,6 @@ namespace MyProject.Web
                     // 設置變量到當前配置
                     LogManager.Configuration.Variables["BasePath"] = nlogBasePath;
                     LogManager.Configuration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
-
-                    //LogManager.GetCurrentClassLogger().Info("NLog configured with BasePath: {BasePath}", nlogBasePath);
                 }
 
                 builder.Logging.ClearProviders();
