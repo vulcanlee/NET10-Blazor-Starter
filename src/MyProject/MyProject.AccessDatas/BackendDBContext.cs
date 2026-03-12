@@ -16,6 +16,7 @@ public partial class BackendDBContext : DbContext
 
     public virtual DbSet<MyUser> MyUser { get; set; }
     public virtual DbSet<MyTas> MyTas { get; set; }
+    public virtual DbSet<MyTasFile> MyTasFile { get; set; }
     public virtual DbSet<Meeting> Meeting { get; set; }
     public virtual DbSet<Project> Project { get; set; }
     public virtual DbSet<ProjectFile> ProjectFile { get; set; }
@@ -46,6 +47,14 @@ public partial class BackendDBContext : DbContext
             entity.HasMany(x => x.Files)
                 .WithOne(x => x.Project)
                 .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MyTas>(entity =>
+        {
+            entity.HasMany(x => x.Files)
+                .WithOne(x => x.MyTas)
+                .HasForeignKey(x => x.MyTasId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -20,6 +20,8 @@ public class AutoMapping : Profile
         #region MyTas
         CreateMap<MyTas, MyTasAdapterModel>();
         CreateMap<MyTasAdapterModel, MyTas>();
+        CreateMap<MyTasFile, MyTasFileAdapterModel>();
+        CreateMap<MyTasFileAdapterModel, MyTasFile>();
         #endregion
 
         #region Project

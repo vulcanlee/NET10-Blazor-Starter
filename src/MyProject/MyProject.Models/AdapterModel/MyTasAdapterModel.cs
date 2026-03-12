@@ -57,6 +57,8 @@ public class MyTasAdapterModel : ICloneable, IValidatableObject
 
     public string ProjectTitle => Project?.Title ?? string.Empty;
 
+    public List<MyTasFileAdapterModel> Files { get; set; } = [];
+
     public MyTasAdapterModel Clone()
     {
         return ((ICloneable)this).Clone() as MyTasAdapterModel ?? new MyTasAdapterModel();

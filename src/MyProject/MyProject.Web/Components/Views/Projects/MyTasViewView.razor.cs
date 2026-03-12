@@ -29,8 +29,10 @@ public partial class MyTasViewView
 
     private List<MyTasAdapterModel> myTasAdapterModels = [];
     private List<ProjectAdapterModel> projectAdapterModels = [];
+    private readonly List<PendingUploadFileItem> pendingUploadFiles = [];
+    private readonly HashSet<int> removedFileIds = [];
 
-    private string modalTitle = "工作維護";
+    private string modalTitle = "工作項目維護";
     private bool modalVisible;
     private MyTasAdapterModel CurrentRecord = new();
     public EditContext? LocalEditContext { get; set; }
@@ -188,8 +190,10 @@ public partial class MyTasViewView
     {
         await LoadProjectsAsync();
         isNewRecordMode = false;
-        modalTitle = "修改工作";
-        CurrentRecord = (await myTasService.GetAsync(myTasAdapterModel.Id)).Clone();
+        modalTitle = "修改工作項目";
+        CurrentRecord = await myTasService.GetAsync(myTasAdapterModel.Id);
+        pendingUploadFiles.Clear();
+        removedFileIds.Clear();
         modalVisible = true;
         logger.LogInformation("Opened edit modal for task. TaskId={TaskId}, Title={Title}", myTasAdapterModel.Id, myTasAdapterModel.Title);
     }
@@ -250,7 +254,8 @@ public partial class MyTasViewView
         {
             Status = StatusOptions.First(),
             Priority = PriorityOptions[1],
-            CompletionPercentage = 0
+            CompletionPercentage = 0,
+            Files = []
         };
 
         if (projectAdapterModels.Any())
@@ -258,10 +263,38 @@ public partial class MyTasViewView
             CurrentRecord.ProjectId = projectAdapterModels.First().Id;
         }
 
+        pendingUploadFiles.Clear();
+        removedFileIds.Clear();
         isNewRecordMode = true;
-        modalTitle = "新增工作";
+        modalTitle = "新增工作項目";
         modalVisible = true;
         logger.LogInformation("Opened create modal for task.");
+    }
+
+    private async Task OnTaskFilesSelectedAsync(InputFileChangeEventArgs args)
+    {
+        foreach (var file in args.GetMultipleFiles(1000))
+        {
+            if (file.Size > MyTasService.MaxUploadFileSize)
+            {
+                _ = notificationService.Open(new NotificationConfig
+                {
+                    Message = "檔案過大",
+                    Description = $"{file.Name} 超過 1GB 限制",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+                continue;
+            }
+
+            pendingUploadFiles.Add(new PendingUploadFileItem
+            {
+                Id = Guid.NewGuid(),
+                File = file
+            });
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnModalOKHandleAsync(MouseEventArgs args)
@@ -286,16 +319,79 @@ public partial class MyTasViewView
             return;
         }
 
-        if (isNewRecordMode)
+        var uploadInputs = new List<MyTasUploadFileInput>();
+        var uploadStreams = new List<Stream>();
+
+        try
         {
-            var beforeAddCheckResult = await myTasService.BeforeAddCheckAsync(CurrentRecord);
-            if (!beforeAddCheckResult.Success)
+            foreach (var pendingUploadFile in pendingUploadFiles)
             {
-                logger.LogWarning("Task create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
+                var stream = pendingUploadFile.File.OpenReadStream(MyTasService.MaxUploadFileSize);
+                uploadStreams.Add(stream);
+                uploadInputs.Add(new MyTasUploadFileInput
+                {
+                    FileName = pendingUploadFile.File.Name,
+                    ContentType = pendingUploadFile.File.ContentType,
+                    FileSize = pendingUploadFile.File.Size,
+                    Content = stream
+                });
+            }
+
+            VerifyRecordResult actionResult;
+
+            if (isNewRecordMode)
+            {
+                var beforeAddCheckResult = await myTasService.BeforeAddCheckAsync(CurrentRecord, uploadInputs);
+                if (!beforeAddCheckResult.Success)
+                {
+                    logger.LogWarning("Task create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
+                    _ = notificationService.Open(new NotificationConfig
+                    {
+                        Message = "系統訊息",
+                        Description = beforeAddCheckResult.Message,
+                        NotificationType = NotificationType.Error,
+                        Placement = NotificationPlacement.BottomRight
+                    });
+
+                    modalVisible = true;
+                    return;
+                }
+
+                CurrentRecord.CreatedAt = DateTime.Now;
+                CurrentRecord.UpdatedAt = DateTime.Now;
+
+                actionResult = await myTasService.AddAsync(CurrentRecord, uploadInputs);
+                logger.LogInformation("Task create submitted. Title={Title}", CurrentRecord.Title);
+            }
+            else
+            {
+                var beforeUpdateCheckResult = await myTasService.BeforeUpdateCheckAsync(CurrentRecord, uploadInputs);
+                if (!beforeUpdateCheckResult.Success)
+                {
+                    logger.LogWarning("Task update pre-check failed. TaskId={TaskId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    _ = notificationService.Open(new NotificationConfig
+                    {
+                        Message = "系統訊息",
+                        Description = beforeUpdateCheckResult.Message,
+                        NotificationType = NotificationType.Error,
+                        Placement = NotificationPlacement.BottomRight
+                    });
+
+                    modalVisible = true;
+                    return;
+                }
+
+                CurrentRecord.UpdatedAt = DateTime.Now;
+                actionResult = await myTasService.UpdateAsync(CurrentRecord, uploadInputs, removedFileIds);
+                logger.LogInformation("Task update submitted. TaskId={TaskId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
+            }
+
+            if (!actionResult.Success)
+            {
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "系統訊息",
-                    Description = beforeAddCheckResult.Message,
+                    Description = actionResult.Message,
                     NotificationType = NotificationType.Error,
                     Placement = NotificationPlacement.BottomRight
                 });
@@ -304,60 +400,39 @@ public partial class MyTasViewView
                 return;
             }
 
-            CurrentRecord.CreatedAt = DateTime.Now;
-            CurrentRecord.UpdatedAt = DateTime.Now;
-
-            await myTasService.AddAsync(CurrentRecord);
-            logger.LogInformation("Task create submitted. Title={Title}", CurrentRecord.Title);
+            pendingUploadFiles.Clear();
+            removedFileIds.Clear();
 
             _ = notificationService.Open(new NotificationConfig
             {
                 Message = "系統訊息",
-                Description = "新增成功",
+                Description = isNewRecordMode ? "新增成功" : "修改成功",
                 NotificationType = NotificationType.Warning,
                 Placement = NotificationPlacement.BottomRight
             });
 
-            _ = messageService.SuccessAsync("新增成功");
-        }
-        else
-        {
-            var beforeUpdateCheckResult = await myTasService.BeforeUpdateCheckAsync(CurrentRecord);
-            if (!beforeUpdateCheckResult.Success)
+            if (isNewRecordMode)
             {
-                logger.LogWarning("Task update pre-check failed. TaskId={TaskId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                _ = notificationService.Open(new NotificationConfig
-                {
-                    Message = "系統訊息",
-                    Description = beforeUpdateCheckResult.Message,
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
-
-                modalVisible = true;
-                return;
+                _ = messageService.SuccessAsync("新增成功");
             }
 
-            CurrentRecord.UpdatedAt = DateTime.Now;
-            await myTasService.UpdateAsync(CurrentRecord);
-            logger.LogInformation("Task update submitted. TaskId={TaskId}, Title={Title}", CurrentRecord.Id, CurrentRecord.Title);
-
-            _ = notificationService.Open(new NotificationConfig
-            {
-                Message = "系統訊息",
-                Description = "修改成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            await ReloadAsync();
+            modalVisible = false;
         }
-
-        await ReloadAsync();
-        modalVisible = false;
+        finally
+        {
+            foreach (var uploadStream in uploadStreams)
+            {
+                uploadStream.Dispose();
+            }
+        }
     }
 
     private Task OnModalCancelHandleAsync(MouseEventArgs args)
     {
         modalVisible = false;
+        pendingUploadFiles.Clear();
+        removedFileIds.Clear();
         logger.LogDebug("Task modal cancelled.");
         return Task.CompletedTask;
     }
@@ -384,5 +459,53 @@ public partial class MyTasViewView
     {
         projectAdapterModels = await myTasService.GetProjectsAsync();
         logger.LogDebug("Loaded projects for task view. Count={Count}", projectAdapterModels.Count);
+    }
+
+    private void RemovePendingFile(Guid fileId)
+    {
+        var file = pendingUploadFiles.FirstOrDefault(x => x.Id == fileId);
+        if (file is not null)
+        {
+            pendingUploadFiles.Remove(file);
+        }
+    }
+
+    private void RemoveExistingFile(int fileId)
+    {
+        var file = CurrentRecord.Files.FirstOrDefault(x => x.Id == fileId);
+        if (file is null)
+        {
+            return;
+        }
+
+        removedFileIds.Add(fileId);
+        CurrentRecord.Files.Remove(file);
+    }
+
+    private static string GetTaskFileDownloadUrl(int fileId)
+    {
+        return $"/api/task-files/{fileId}/download";
+    }
+
+    private static string FormatFileSize(long fileSize)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = fileSize;
+        var unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return $"{size:0.##} {units[unitIndex]}";
+    }
+
+    private sealed class PendingUploadFileItem
+    {
+        public Guid Id { get; set; }
+
+        public IBrowserFile File { get; set; } = default!;
     }
 }

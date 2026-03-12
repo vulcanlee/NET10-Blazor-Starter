@@ -38,4 +38,6 @@ public class MyTas
     public int? ProjectId { get; set; }
 
     public Project? Project { get; set; }
+
+    public ICollection<MyTasFile> Files { get; set; } = [];
 }

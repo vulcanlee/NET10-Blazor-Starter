@@ -95,12 +95,12 @@ else
 
                 <AntDesign.Form TModel="MyTasAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
                     <FormItem Label="標題" Required>
-                        <Input @bind-Value="CurrentRecord.Title" Placeholder="請輸入工作標題" />
+                        <Input @bind-Value="CurrentRecord.Title" Placeholder="請輸入工作項目標題" />
                         <ValidationMessage For="() => CurrentRecord.Title" />
                     </FormItem>
 
                     <FormItem Label="描述">
-                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入工作描述" />
+                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入工作項目描述" />
                         <ValidationMessage For="() => CurrentRecord.Description" />
                     </FormItem>
 
@@ -115,7 +115,7 @@ else
                     </FormItem>
 
                     <FormItem Label="分類" Required>
-                        <Input @bind-Value="CurrentRecord.Category" Placeholder="請輸入工作分類" />
+                        <Input @bind-Value="CurrentRecord.Category" Placeholder="請輸入分類" />
                         <ValidationMessage For="() => CurrentRecord.Category" />
                     </FormItem>
 
@@ -159,6 +159,44 @@ else
                                 Style="width: 100%;" />
                         <ValidationMessage For="() => CurrentRecord.ProjectId" />
                     </FormItem>
+
+                    <FormItem Label="工作項目附件">
+                        <InputFile OnChange="OnTaskFilesSelectedAsync" multiple />
+                        <div class="mt-2 text-muted">可一次選擇多個檔案，每個檔案上限 1GB。</div>
+                    </FormItem>
+
+                    @if (pendingUploadFiles.Count > 0)
+                    {
+                        <FormItem Label="待上傳檔案">
+                            <ul class="list-group">
+                                @foreach (var file in pendingUploadFiles)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@file.File.Name (@FormatFileSize(file.File.Size))</span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemovePendingFile(file.Id)">移除</button>
+                                    </li>
+                                }
+                            </ul>
+                        </FormItem>
+                    }
+
+                    @if (CurrentRecord.Files.Count > 0)
+                    {
+                        <FormItem Label="已上傳檔案">
+                            <ul class="list-group">
+                                @foreach (var file in CurrentRecord.Files)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <a href="@GetTaskFileDownloadUrl(file.Id)" target="_blank">@file.OriginalFileName</a>
+                                        <span>
+                                            @FormatFileSize(file.FileSize)
+                                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="() => RemoveExistingFile(file.Id)">移除</button>
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        </FormItem>
+                    }
                 </AntDesign.Form>
             </EditForm>
         </div>
