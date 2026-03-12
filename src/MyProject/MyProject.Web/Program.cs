@@ -100,30 +100,12 @@ namespace MyProject.Web
                 #region 系統使用的目錄準備
                 // 取得 系統設定物件 SystemSettings
                 var systemSettings = builder.Configuration.GetSection(nameof(SystemSettings)).Get<SystemSettings>();
-                if (string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DatabasePath) == false)
-                {
-                    if(!Directory.Exists(systemSettings.ExternalFileSystem.DatabasePath))
-                    {
-                        Directory.CreateDirectory(systemSettings.ExternalFileSystem.DatabasePath);
-                        logger.LogInformation("Created database directory at {DirectoryPath}", systemSettings.ExternalFileSystem.DatabasePath);
-                    }
-                }
-                if(string.IsNullOrEmpty(systemSettings.ExternalFileSystem.DownloadPath) == false)
-                {
-                    if (!Directory.Exists(systemSettings.ExternalFileSystem.DownloadPath))
-                    {
-                        Directory.CreateDirectory(systemSettings.ExternalFileSystem.DownloadPath);
-                        logger.LogInformation("Created download directory at {DirectoryPath}", systemSettings.ExternalFileSystem.DownloadPath);
-                    }
-                }
-                if(string.IsNullOrEmpty(systemSettings.ExternalFileSystem.UploadPath) == false)
-                {
-                    if (!Directory.Exists(systemSettings.ExternalFileSystem.UploadPath))
-                    {
-                        Directory.CreateDirectory(systemSettings.ExternalFileSystem.UploadPath);
-                        logger.LogInformation("Created upload directory at {DirectoryPath}", systemSettings.ExternalFileSystem.UploadPath);
-                    }
-                }
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.DatabasePath, "database");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.DownloadPath, "download");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.UploadPath, "upload");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.ProjectFilePath, "project file");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.TaskFilePath, "task file");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.MeetingFilePath, "meeting file");
                 #endregion
 
                 #region EF Core 宣告
@@ -307,6 +289,22 @@ namespace MyProject.Web
 
                 logger.LogInformation("Application startup completed. Listening for requests.");
                 app.Run();
+
+                void EnsureDirectoryExists(string? directoryPath, string directoryName)
+                {
+                    if (string.IsNullOrWhiteSpace(directoryPath))
+                    {
+                        return;
+                    }
+
+                    if (Directory.Exists(directoryPath))
+                    {
+                        return;
+                    }
+
+                    Directory.CreateDirectory(directoryPath);
+                    logger.LogInformation("Created {DirectoryName} directory at {DirectoryPath}", directoryName, directoryPath);
+                }
             }
             catch (Exception ex)
             {

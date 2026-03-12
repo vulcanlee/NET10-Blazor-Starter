@@ -1,4 +1,4 @@
-@if (string.IsNullOrEmpty(RoleMessage) == false)
+﻿@if (string.IsNullOrEmpty(RoleMessage) == false)
 {
     <div class="alert alert-danger" role="alert">
         @RoleMessage
@@ -141,6 +141,44 @@ else
                         <Input @bind-Value="CurrentRecord.Owner" Placeholder="請輸入負責人名稱" />
                         <ValidationMessage For="() => CurrentRecord.Owner" />
                     </FormItem>
+
+                    <FormItem Label="專案附件">
+                        <InputFile OnChange="OnProjectFilesSelectedAsync" multiple />
+                        <div class="mt-2 text-muted">可一次選擇多個檔案，每個檔案上限 1GB。</div>
+                    </FormItem>
+
+                    @if (pendingUploadFiles.Count > 0)
+                    {
+                        <FormItem Label="待上傳檔案">
+                            <ul class="list-group">
+                                @foreach (var file in pendingUploadFiles)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@file.File.Name (@FormatFileSize(file.File.Size))</span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemovePendingFile(file.Id)">移除</button>
+                                    </li>
+                                }
+                            </ul>
+                        </FormItem>
+                    }
+
+                    @if (CurrentRecord.Files.Count > 0)
+                    {
+                        <FormItem Label="已上傳檔案">
+                            <ul class="list-group">
+                                @foreach (var file in CurrentRecord.Files)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <a href="@GetProjectFileDownloadUrl(file.Id)" target="_blank">@file.OriginalFileName</a>
+                                        <span>
+                                            @FormatFileSize(file.FileSize)
+                                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="() => RemoveExistingFile(file.Id)">移除</button>
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        </FormItem>
+                    }
                 </AntDesign.Form>
             </EditForm>
         </div>

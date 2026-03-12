@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace MyProject.Models.AdapterModel;
 
@@ -46,6 +46,8 @@ public class ProjectAdapterModel : ICloneable, IValidatableObject
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
+
+    public List<ProjectFileAdapterModel> Files { get; set; } = [];
 
     public ProjectAdapterModel Clone()
     {

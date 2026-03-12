@@ -18,6 +18,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<MyTas> MyTas { get; set; }
     public virtual DbSet<Meeting> Meeting { get; set; }
     public virtual DbSet<Project> Project { get; set; }
+    public virtual DbSet<ProjectFile> ProjectFile { get; set; }
     public virtual DbSet<RoleView> RoleView { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -39,6 +40,14 @@ public partial class BackendDBContext : DbContext
             relationship.DeleteBehavior = DeleteBehavior.Restrict;
         }
         #endregion
+
+        modelBuilder.Entity<Project>(entity =>
+        {
+            entity.HasMany(x => x.Files)
+                .WithOne(x => x.Project)
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         OnModelCreatingPartial(modelBuilder);
     }

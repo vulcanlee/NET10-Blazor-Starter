@@ -25,6 +25,8 @@ public class AutoMapping : Profile
         #region Project
         CreateMap<Project, ProjectAdapterModel>();
         CreateMap<ProjectAdapterModel, Project>();
+        CreateMap<ProjectFile, ProjectFileAdapterModel>();
+        CreateMap<ProjectFileAdapterModel, ProjectFile>();
         #endregion
 
         #region RoleView

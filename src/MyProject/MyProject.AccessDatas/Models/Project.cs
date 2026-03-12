@@ -30,4 +30,6 @@ public class Project
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
+
+    public ICollection<ProjectFile> Files { get; set; } = [];
 }

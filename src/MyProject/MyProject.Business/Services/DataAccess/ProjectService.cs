@@ -1,6 +1,7 @@
-using AutoMapper;
+﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
@@ -12,16 +13,24 @@ namespace MyProject.Business.Services.DataAccess;
 
 public class ProjectService
 {
+    public const long MaxUploadFileSize = 1024L * 1024L * 1024L;
+
     private readonly BackendDBContext context;
+    private readonly string projectFileRootPath;
 
     public IMapper Mapper { get; }
     public ILogger<ProjectService> Logger { get; }
 
-    public ProjectService(BackendDBContext context, IMapper mapper, ILogger<ProjectService> logger)
+    public ProjectService(
+        BackendDBContext context,
+        IMapper mapper,
+        ILogger<ProjectService> logger,
+        IOptions<SystemSettings> systemSettings)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
+        projectFileRootPath = systemSettings.Value.ExternalFileSystem.ProjectFilePath;
     }
 
     public async Task<DataRequestResult<ProjectAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -144,6 +153,7 @@ public class ProjectService
 
         Project? item = await context.Project
             .AsNoTracking()
+            .Include(x => x.Files)
             .FirstOrDefaultAsync(x => x.Id == id);
 
         if (item is null)
@@ -155,7 +165,7 @@ public class ProjectService
         return Mapper.Map<ProjectAdapterModel>(item);
     }
 
-    public async Task<VerifyRecordResult> AddAsync(ProjectAdapterModel paraObject)
+    public async Task<VerifyRecordResult> AddAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
         Logger.LogInformation("Creating project. Title={Title}, Owner={Owner}", paraObject.Title, paraObject.Owner);
 
@@ -163,10 +173,16 @@ public class ProjectService
         {
             CleanTrackingHelper.Clean<Project>(context);
             Project itemParameter = Mapper.Map<Project>(paraObject);
+            itemParameter.Files = [];
 
             await context.Project.AddAsync(itemParameter);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Project>(context);
+
+            var saveFilesResult = await SaveNewFilesAsync(itemParameter, uploadFiles);
+            if (!saveFilesResult.Success)
+            {
+                return saveFilesResult;
+            }
 
             Logger.LogInformation("Project created successfully. ProjectId={ProjectId}, Title={Title}", itemParameter.Id, itemParameter.Title);
             return VerifyRecordResultFactory.Build(true);
@@ -178,7 +194,10 @@ public class ProjectService
         }
     }
 
-    public async Task<VerifyRecordResult> UpdateAsync(ProjectAdapterModel paraObject)
+    public async Task<VerifyRecordResult> UpdateAsync(
+        ProjectAdapterModel paraObject,
+        IEnumerable<ProjectUploadFileInput>? uploadFiles = null,
+        IEnumerable<int>? removedFileIds = null)
     {
         Logger.LogInformation("Updating project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
 
@@ -186,7 +205,7 @@ public class ProjectService
         {
             CleanTrackingHelper.Clean<Project>(context);
             Project? currentItem = await context.Project
-                .AsNoTracking()
+                .Include(x => x.Files)
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
 
             if (currentItem == null)
@@ -195,13 +214,31 @@ public class ProjectService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的專案資料。");
             }
 
-            Project itemData = Mapper.Map<Project>(paraObject);
-            CleanTrackingHelper.Clean<Project>(context);
-            context.Entry(itemData).State = EntityState.Modified;
-            await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Project>(context);
+            currentItem.Title = paraObject.Title;
+            currentItem.Description = paraObject.Description;
+            currentItem.StartDate = paraObject.StartDate;
+            currentItem.EndDate = paraObject.EndDate;
+            currentItem.Status = paraObject.Status;
+            currentItem.Priority = paraObject.Priority;
+            currentItem.CompletionPercentage = paraObject.CompletionPercentage;
+            currentItem.Owner = paraObject.Owner;
+            currentItem.UpdatedAt = paraObject.UpdatedAt;
 
-            Logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", itemData.Id, itemData.Title);
+            await context.SaveChangesAsync();
+
+            var saveFilesResult = await SaveNewFilesAsync(currentItem, uploadFiles);
+            if (!saveFilesResult.Success)
+            {
+                return saveFilesResult;
+            }
+
+            var removeFilesResult = await RemoveProjectFilesAsync(currentItem, removedFileIds);
+            if (!removeFilesResult.Success)
+            {
+                return removeFilesResult;
+            }
+
+            Logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", currentItem.Id, currentItem.Title);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
@@ -219,7 +256,7 @@ public class ProjectService
         {
             CleanTrackingHelper.Clean<Project>(context);
             Project? item = await context.Project
-                .AsNoTracking()
+                .Include(x => x.Files)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             if (item == null)
@@ -228,8 +265,12 @@ public class ProjectService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的專案資料。");
             }
 
-            CleanTrackingHelper.Clean<Project>(context);
-            context.Entry(item).State = EntityState.Deleted;
+            foreach (var file in item.Files.ToList())
+            {
+                DeletePhysicalFile(file);
+            }
+
+            context.Project.Remove(item);
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<Project>(context);
 
@@ -243,13 +284,15 @@ public class ProjectService
         }
     }
 
-    public Task<VerifyRecordResult> BeforeAddCheckAsync(ProjectAdapterModel paraObject)
+    public Task<VerifyRecordResult> BeforeAddCheckAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
         Logger.LogDebug("Running pre-create validation for project. Title={Title}", paraObject.Title);
-        return ValidateBusinessRulesAsync(paraObject);
+        return ValidateBusinessRulesAsync(paraObject, uploadFiles);
     }
 
-    public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(ProjectAdapterModel paraObject)
+    public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(
+        ProjectAdapterModel paraObject,
+        IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
         Logger.LogDebug("Running pre-update validation for project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
 
@@ -264,7 +307,7 @@ public class ProjectService
             return VerifyRecordResultFactory.Build(false, "要修改的專案資料不存在。");
         }
 
-        return await ValidateBusinessRulesAsync(paraObject);
+        return await ValidateBusinessRulesAsync(paraObject, uploadFiles);
     }
 
     public Task<VerifyRecordResult> BeforeDeleteCheckAsync(ProjectAdapterModel paraObject)
@@ -273,7 +316,33 @@ public class ProjectService
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
 
-    private Task<VerifyRecordResult> ValidateBusinessRulesAsync(ProjectAdapterModel paraObject)
+    public async Task<ProjectFileDownloadResult?> GetFileDownloadAsync(int projectFileId)
+    {
+        var file = await context.ProjectFile
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == projectFileId);
+
+        if (file is null)
+        {
+            return null;
+        }
+
+        var fullPath = GetFullPath(file.RelativePath);
+        if (!File.Exists(fullPath))
+        {
+            Logger.LogWarning("Project file metadata exists but physical file was not found. ProjectFileId={ProjectFileId}, FullPath={FullPath}", projectFileId, fullPath);
+            return null;
+        }
+
+        return new ProjectFileDownloadResult
+        {
+            Content = File.OpenRead(fullPath),
+            ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+            DownloadFileName = file.OriginalFileName
+        };
+    }
+
+    private Task<VerifyRecordResult> ValidateBusinessRulesAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles)
     {
         if (paraObject.StartDate.HasValue && paraObject.EndDate.HasValue && paraObject.EndDate.Value < paraObject.StartDate.Value)
         {
@@ -299,6 +368,176 @@ public class ProjectService
             return Task.FromResult(VerifyRecordResultFactory.Build(false, "完成百分比必須介於 0 到 100。"));
         }
 
+        if (uploadFiles is not null)
+        {
+            foreach (var uploadFile in uploadFiles)
+            {
+                if (uploadFile.FileSize > MaxUploadFileSize)
+                {
+                    Logger.LogWarning("Project upload validation failed because file exceeded the size limit. FileName={FileName}, FileSize={FileSize}", uploadFile.FileName, uploadFile.FileSize);
+                    return Task.FromResult(VerifyRecordResultFactory.Build(false, $"檔案 {uploadFile.FileName} 超過 1GB 限制"));
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(projectFileRootPath))
+        {
+            Logger.LogWarning("Project upload validation failed because ProjectFilePath is not configured.");
+            return Task.FromResult(VerifyRecordResultFactory.Build(false, "尚未設定專案附件儲存目錄"));
+        }
+
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
+    }
+
+    private async Task<VerifyRecordResult> SaveNewFilesAsync(Project project, IEnumerable<ProjectUploadFileInput>? uploadFiles)
+    {
+        if (uploadFiles is null)
+        {
+            return VerifyRecordResultFactory.Build(true);
+        }
+
+        List<ProjectFile> newFiles = [];
+        List<string> createdFullPaths = [];
+
+        try
+        {
+            foreach (var uploadFile in uploadFiles)
+            {
+                if (uploadFile.Content == Stream.Null)
+                {
+                    continue;
+                }
+
+                var fileMetadata = await SavePhysicalFileAsync(project, uploadFile);
+                newFiles.Add(fileMetadata.File);
+                createdFullPaths.Add(fileMetadata.FullPath);
+            }
+
+            if (newFiles.Count > 0)
+            {
+                await context.ProjectFile.AddRangeAsync(newFiles);
+                await context.SaveChangesAsync();
+            }
+
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (Exception ex)
+        {
+            foreach (var fullPath in createdFullPaths)
+            {
+                TryDeleteFile(fullPath);
+            }
+
+            Logger.LogError(ex, "Failed to save project files. ProjectId={ProjectId}", project.Id);
+            return VerifyRecordResultFactory.Build(false, "專案附件儲存失敗", ex);
+        }
+    }
+
+    private async Task<VerifyRecordResult> RemoveProjectFilesAsync(Project project, IEnumerable<int>? removedFileIds)
+    {
+        if (removedFileIds is null)
+        {
+            return VerifyRecordResultFactory.Build(true);
+        }
+
+        var removedFileIdSet = removedFileIds.Distinct().ToHashSet();
+        if (removedFileIdSet.Count == 0)
+        {
+            return VerifyRecordResultFactory.Build(true);
+        }
+
+        var filesToRemove = project.Files
+            .Where(x => removedFileIdSet.Contains(x.Id))
+            .ToList();
+
+        foreach (var file in filesToRemove)
+        {
+            DeletePhysicalFile(file);
+            context.ProjectFile.Remove(file);
+        }
+
+        if (filesToRemove.Count > 0)
+        {
+            await context.SaveChangesAsync();
+        }
+
+        return VerifyRecordResultFactory.Build(true);
+    }
+
+    private async Task<(ProjectFile File, string FullPath)> SavePhysicalFileAsync(Project project, ProjectUploadFileInput uploadFile)
+    {
+        var originalFileName = Path.GetFileName(uploadFile.FileName);
+        var extension = Path.GetExtension(originalFileName);
+        var year = project.CreatedAt.Year.ToString("0000");
+        var month = project.CreatedAt.Month.ToString("00");
+        var relativePath = Path.Combine(year, month, $"{Guid.NewGuid():N}{extension}");
+        var fullPath = GetFullPath(relativePath);
+        var directoryPath = Path.GetDirectoryName(fullPath);
+
+        if (!string.IsNullOrWhiteSpace(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        if (uploadFile.Content.CanSeek)
+        {
+            uploadFile.Content.Position = 0;
+        }
+
+        await using (var targetStream = File.Create(fullPath))
+        {
+            await uploadFile.Content.CopyToAsync(targetStream);
+        }
+
+        var contentType = string.IsNullOrWhiteSpace(uploadFile.ContentType)
+            ? "application/octet-stream"
+            : uploadFile.ContentType;
+
+        return (
+            new ProjectFile
+            {
+                ProjectId = project.Id,
+                OriginalFileName = originalFileName,
+                StoredFileName = Path.GetFileName(fullPath),
+                RelativePath = relativePath.Replace('\\', '/'),
+                ContentType = contentType,
+                FileSize = uploadFile.FileSize,
+                CreatedAt = DateTime.Now
+            },
+            fullPath);
+    }
+
+    private void DeletePhysicalFile(ProjectFile file)
+    {
+        var fullPath = GetFullPath(file.RelativePath);
+        TryDeleteFile(fullPath);
+    }
+
+    private void TryDeleteFile(string fullPath)
+    {
+        if (!File.Exists(fullPath))
+        {
+            return;
+        }
+
+        File.Delete(fullPath);
+    }
+
+    private string GetFullPath(string relativePath)
+    {
+        var normalizedRelativePath = relativePath
+            .Replace('/', Path.DirectorySeparatorChar)
+            .Replace('\\', Path.DirectorySeparatorChar);
+
+        return Path.Combine(projectFileRootPath, normalizedRelativePath);
+    }
+
+    public class ProjectFileDownloadResult
+    {
+        public Stream Content { get; set; } = Stream.Null;
+
+        public string ContentType { get; set; } = "application/octet-stream";
+
+        public string DownloadFileName { get; set; } = string.Empty;
     }
 }
