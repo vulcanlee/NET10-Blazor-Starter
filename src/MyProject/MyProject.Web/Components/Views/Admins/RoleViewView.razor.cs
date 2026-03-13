@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Components.Web;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
+using MyProject.Models.Admins;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
@@ -351,6 +352,31 @@ namespace MyProject.Web.Components.Views.Admins
         public void OnEditContestChanged(EditContext context)
         {
             LocalEditContext = context;
+        }
+
+        private void OnPermissionGroupChanged(RolePermissionGroup group, bool value)
+        {
+            group.Enable = value;
+
+            if (value)
+            {
+                return;
+            }
+
+            foreach (var permission in group.Permissions)
+            {
+                permission.Enable = false;
+            }
+        }
+
+        private void OnPermissionItemChanged(RolePermissionGroup group, RolePermissionNode role, bool value)
+        {
+            role.Enable = value;
+
+            if (value)
+            {
+                group.Enable = true;
+            }
         }
     }
 }

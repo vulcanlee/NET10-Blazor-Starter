@@ -94,11 +94,25 @@ else
 
                     <FormItem Label="角色項目">
                         <FormItem>
-                            @foreach (var role in CurrentRecord.RolePermission.Permissions)
+                            @foreach (var group in CurrentRecord.RolePermission.Groups)
                             {
-                                <Checkbox Checked="@role.Enable" CheckedChanged="@(value => role.Enable = value)">
-                                    @role.Name
-                                </Checkbox>
+                                <div class="role-permission-group">
+                                    <Checkbox Checked="@group.Enable" CheckedChanged="@(value => OnPermissionGroupChanged(group, value))">
+                                        @group.Name
+                                    </Checkbox>
+
+                                    @if (group.Permissions.Count > 0)
+                                    {
+                                        <div class="role-permission-children">
+                                            @foreach (var role in group.Permissions)
+                                            {
+                                                <Checkbox Checked="@role.Enable" CheckedChanged="@(value => OnPermissionItemChanged(group, role, value))">
+                                                    @role.Name
+                                                </Checkbox>
+                                            }
+                                        </div>
+                                    }
+                                </div>
                             }
                         </FormItem>
                     </FormItem>
