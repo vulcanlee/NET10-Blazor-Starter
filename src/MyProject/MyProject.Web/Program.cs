@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components;
+using MyProject.Web.Components.Layout;
 using NLog;
 using NLog.Web;
 using System.Diagnostics;
@@ -124,6 +125,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<AuthenticationStateHelper>();
                 builder.Services.AddScoped<CurrentUserService>();
                 builder.Services.AddScoped<MyUserServiceLogin>();
+                builder.Services.AddScoped<SidebarMenuService>();
                 builder.Services.AddScoped<RolePermissionService>();
                 builder.Services.AddScoped<RoleViewService>();
                 builder.Services.AddScoped<MyUserService>();
@@ -158,7 +160,11 @@ namespace MyProject.Web
                     #region 是否有存在的角色檢視定義
                     var roleViewItem = dbContext.RoleView
                         .FirstOrDefault(x => x.Name == MagicObjectHelper.預設角色);
-                    var allPermissionJson = "[]";
+                    RolePermissionService RolePermissionService = scope
+                        .ServiceProvider
+                        .GetRequiredService<RolePermissionService>();
+                    var allPermissionJson = RolePermissionService
+                        .GetRolePermissionAllNameToJson();
                     if (roleViewItem == null)
                     {
                         roleViewItemNew = new RoleView()

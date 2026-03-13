@@ -25,6 +25,22 @@ public class RolePermissionService
         ];
     }
 
+    public List<string> GetRolePermissionAllName()
+    {
+        var result = GetRoleListPermissionAllName()
+            .SelectMany(x => x)
+            .ToList();
+
+        return result;
+    }
+
+    public string GetRolePermissionAllNameToJson()
+    {
+        var items = GetRolePermissionAllName();
+        var json = Newtonsoft.Json.JsonConvert.SerializeObject(items);
+        return json;
+    }
+
     public RolePermission InitializePermissionSetting()
     {
         var result = new RolePermission();

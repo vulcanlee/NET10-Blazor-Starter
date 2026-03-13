@@ -17,6 +17,7 @@ public class MagicObjectHelper
     public static readonly int PageSize = 8;
 
     public const string Menu結構定義 = "Datas/Menu.json";
+    public const string SignoutUrl = "/auths/logout";
     #endregion
 
     #region 角色

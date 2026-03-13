@@ -38,6 +38,12 @@ public class AuthenticationStateHelper
     {
         logger.LogDebug("Checking authentication state for current request.");
 
+        if (currentUserService.CurrentUser.IsAuthenticated)
+        {
+            logger.LogDebug("Authentication state already initialized for UserId={UserId}.", currentUserService.CurrentUser.Id);
+            return true;
+        }
+
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
@@ -90,8 +96,8 @@ public class AuthenticationStateHelper
             List<string> permissions = JsonSerializer.Deserialize<List<string>>(myUser.RoleView.TabViewJson) ?? [];
             rolePermissionService.SetPermissionInput(rolePermission, permissions);
             currentUser.RoleJson = myUser.RoleView.TabViewJson;
-            currentUserService.CurrentUser.CopyFrom(currentUser);
             currentUser.IsAuthenticated = true;
+            currentUserService.CurrentUser.CopyFrom(currentUser);
 
             logger.LogInformation(
                 "Authentication state initialized for UserId={UserId}, Account={Account}, IsAdmin={IsAdmin}.",

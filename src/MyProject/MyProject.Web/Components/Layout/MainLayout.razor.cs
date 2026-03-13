@@ -1,7 +1,7 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
-using MyProject.Share.Helpers;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Web.Components.Layout;
 
@@ -11,49 +11,36 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private NavigationManager NavigationManager { get; set; } = default!;
 
     [Inject]
-    private IWebHostEnvironment Environment { get; set; } = default!;
+    private AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     [Inject]
     private ILogger<MainLayout> Logger { get; set; } = default!;
 
-    private const string DefaultPageTitle = "系統首頁";
+    [Inject]
+    private SidebarMenuService SidebarMenuService { get; set; } = default!;
+
+    private const string DefaultPageTitle = "蝟餌絞擐?";
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
     private bool isSidebarCollapsed;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Logger.LogDebug("Initializing main layout.");
-        MenuItems = LoadMenuItems();
+
+        var checkResult = await AuthenticationStateHelper.Check(AuthenticationStateProvider, NavigationManager);
+        if (!checkResult)
+        {
+            MenuItems = [];
+            return;
+        }
+
+        MenuItems = SidebarMenuService.LoadAuthorizedMenuItems(AuthenticationStateHelper);
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
-    }
-
-    private IReadOnlyList<SidebarMenuItemModel> LoadMenuItems()
-    {
-        var menuFilePath = Path.Combine(Environment.ContentRootPath, MagicObjectHelper.Menu結構定義);
-        if (!File.Exists(menuFilePath))
-        {
-            Logger.LogWarning("Layout menu file not found: {MenuFilePath}", menuFilePath);
-            return [];
-        }
-
-        try
-        {
-            using var stream = File.OpenRead(menuFilePath);
-            var items = JsonSerializer.Deserialize<List<SidebarMenuItemModel>>(stream, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? [];
-
-            Logger.LogInformation("Loaded layout menu successfully. ItemCount={ItemCount}", items.Count);
-            return items;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to load layout menu from {MenuFilePath}", menuFilePath);
-            return [];
-        }
     }
 
     private void UpdateCurrentPageTitle()

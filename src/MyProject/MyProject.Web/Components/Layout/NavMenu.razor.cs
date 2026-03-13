@@ -1,7 +1,7 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
-using MyProject.Share.Helpers;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Web.Components.Layout;
 
@@ -14,7 +14,10 @@ public partial class NavMenu : ComponentBase, IDisposable
     public EventCallback OnSidebarToggle { get; set; }
 
     [Inject]
-    private IWebHostEnvironment Environment { get; set; } = default!;
+    private AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     [Inject]
     private ILogger<NavMenu> Logger { get; set; } = default!;
@@ -22,16 +25,27 @@ public partial class NavMenu : ComponentBase, IDisposable
     [Inject]
     private NavigationManager NavigationManager { get; set; } = default!;
 
+    [Inject]
+    private SidebarMenuService SidebarMenuService { get; set; } = default!;
+
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string? ActiveMenuPath { get; set; }
     private string[] OpenKeys { get; set; } = [];
     private string[] SelectedKeys { get; set; } = [];
     private bool previousSidebarCollapsed;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Logger.LogDebug("Initializing navigation menu.");
-        MenuItems = LoadMenuItems();
+
+        var checkResult = await AuthenticationStateHelper.Check(AuthenticationStateProvider, NavigationManager);
+        if (!checkResult)
+        {
+            MenuItems = [];
+            return;
+        }
+
+        MenuItems = SidebarMenuService.LoadAuthorizedMenuItems(AuthenticationStateHelper);
         UpdateActiveMenuPath();
         SyncMenuStateFromRoute();
         NavigationManager.LocationChanged += OnLocationChanged;
@@ -46,33 +60,6 @@ public partial class NavMenu : ComponentBase, IDisposable
 
         previousSidebarCollapsed = IsSidebarCollapsed;
         SyncOpenKeysForSidebarState();
-    }
-
-    private IReadOnlyList<SidebarMenuItemModel> LoadMenuItems()
-    {
-        var menuFilePath = Path.Combine(Environment.ContentRootPath, MagicObjectHelper.Menu結構定義);
-        if (!File.Exists(menuFilePath))
-        {
-            Logger.LogWarning("Sidebar menu file not found: {MenuFilePath}", menuFilePath);
-            return [];
-        }
-
-        try
-        {
-            using var stream = File.OpenRead(menuFilePath);
-            var items = JsonSerializer.Deserialize<List<SidebarMenuItemModel>>(stream, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? [];
-
-            Logger.LogInformation("Loaded sidebar menu successfully. ItemCount={ItemCount}", items.Count);
-            return items;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to load sidebar menu from {MenuFilePath}", menuFilePath);
-            return [];
-        }
     }
 
     private void UpdateActiveMenuPath()
