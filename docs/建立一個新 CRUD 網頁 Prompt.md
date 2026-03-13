@@ -22,5 +22,17 @@ RoleViewView.razor 是一個標準的 CRUD 元件(可以做到新增、查詢、
 
 當要新增或者修改會議項目時，可以進行檔案的上傳，並且依據 appsetting.json 內的 MeetingFilePath 定義的路徑，將上傳檔案儲存到這個目錄下。上傳可以傳送多個檔案，檔案最多可以為 1GB，儲存該紀錄後，新上傳的檔案將會儲存到指定目錄下，並且，會依據該紀錄的建立時間，在該目錄下建立該時間的年度目錄，接著是月份目錄，檔案將會儲存在此目錄下。資料庫也要記錄下該會議項目紀錄有上傳那些檔案，以便日後可以進行下載。在修改的時候，可以將已經上傳的檔案移除，若該紀錄儲存後，資料庫內的上傳檔案紀錄將會移除，並且原始檔案也需要刪除
 
-
-
+原先的在建立新的 Role 紀錄時，將會建立一個一維陣列字串 List<string> 的 RolePermission 資料，這裡將會表示所有可用的角色清單，在儲存時候，將會把有勾選的角色項目經過 JSON 序列化寫入到 TabViewJson 欄位內，當下次要進行編輯的該角色時候，將會透過這些清單資料，知道有該選過哪些角色。原先設計 在 RolePermissionService 類別內，加入了一個新方法 GetRolePermissionAllName ，其回傳型別為 List<string>，將無法與 sidebar 功能表清單(定義在 Menu.json內) 相呼應的結構。為了要能夠對應功能表清單的二維定義結構，這裡加入新方法 GetRoleListPermissionAllName()，其回傳型別為 List<List<string>>，每個 List<string> 的第一個 member 將會對應到功能表清單中的第一層級名稱，也就是子功能表明稱，接下來的其他 member，將會對應到該功能表內的其他頁面需要用到的角色，對於像是首頁或者登出這樣的項目，沒有其他子功能表項目，因為，將只會有一個 member。現在需要針對這樣的需求進行修正，將原先的 GetRolePermissionAllName 方法改為 GetRoleListPermissionAllName 方法，並且修正相關程式碼可以使用這樣的需求，這也包含了建立角色的 UI (RoleViewView.razor)，在 RoleViewView.razor 元件內，對於角色的顯示方式為。
+```
+<FormItem Label="角色項目">
+    <FormItem>
+        @foreach (var role in CurrentRecord.RolePermission.Permissions)
+        {
+            <Checkbox Checked="@role.Enable" CheckedChanged="@(value => role.Enable = value)">
+                @role.Name
+            </Checkbox>
+        }
+    </FormItem>
+</FormItem>
+```
+這裡也需要改成二維的方式來表示，第一層級為功能表名稱，第二層級為該功能表內的頁面需要用到的角色名稱，並且在儲存時候，將會把有勾選的角色項目經過 JSON 序列化寫入到 TabViewJson 欄位內，當下次要進行編輯的該角色時候，將會透過這些清單資料，知道有該選過哪些角色。

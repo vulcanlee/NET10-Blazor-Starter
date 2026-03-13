@@ -20,6 +20,15 @@ public class MagicObjectHelper
     #endregion
 
     #region 角色
+    public const string 角色_首頁 = "角色_首頁";
+    public const string 角色_專案管理 = "角色_專案管理";
+    public const string 角色_專案項目 = "角色_專案項目";
+    public const string 角色_工作項目 = "角色_工作項目";
+    public const string 角色_會議項目 = "角色_會議項目";
+    public const string 角色_系統管理 = "角色_系統管理";
+    public const string 角色_使用者管理 = "角色_使用者管理";
+    public const string 角色_角色管理 = "角色_角色管理 ";
+    public const string 角色_登出 = "角色_登出 ";
     public const string 使用者角色 = "使用者角色";
 
     #endregion
