@@ -72,10 +72,10 @@ public partial class MeetingViewView
             return;
         }
 
-        if (!AuthenticationStateHelper.CheckIsAdmin())
+        if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_會議項目) == false)
         {
-            RoleMessage = "你沒有權限存取此頁面";
-            logger.LogWarning("Meeting management view denied because current user is not an administrator.");
+            RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+            logger.LogWarning("meeting management view denied because current user has not this role permission.");
             return;
         }
 

@@ -74,10 +74,10 @@ public partial class ProjectViewView
             return;
         }
 
-        if (!AuthenticationStateHelper.CheckIsAdmin())
+        if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_專案管理) == false)
         {
-            RoleMessage = "你沒有權限存取此頁面";
-            logger.LogWarning("Project management view denied because current user is not an administrator.");
+            RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+            logger.LogWarning("Project management view denied because current user has not this role permission.");
             return;
         }
 

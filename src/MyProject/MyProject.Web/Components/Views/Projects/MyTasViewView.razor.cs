@@ -75,10 +75,10 @@ public partial class MyTasViewView
             return;
         }
 
-        if (!AuthenticationStateHelper.CheckIsAdmin())
+        if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_工作項目) == false)
         {
-            RoleMessage = "你沒有權限存取此頁面";
-            logger.LogWarning("Task management view denied because current user is not an administrator.");
+            RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+            logger.LogWarning("tak management view denied because current user has not this role permission.");
             return;
         }
 
