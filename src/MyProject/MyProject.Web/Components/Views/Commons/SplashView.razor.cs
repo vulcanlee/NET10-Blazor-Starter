@@ -21,8 +21,6 @@ public partial class SplashView
             .Check(authStateProvider, NavigationManager);
             if (checkResult == true)
             {
-                await Task.Delay(500); // Simulate a delay for splash screen
-                NavigationManager.NavigateTo("/projects", true, true);
             }
             else
             {

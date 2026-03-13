@@ -2,30 +2,30 @@
   {
     "id": 1,
     "name": "首頁",
-    "icon": "dashboard",
+    "icon": "space_dashboard",
     "url": "/"
   },
   {
     "id": 2,
     "name": "專案管理",
-    "icon": "admin",
+    "icon": "folder_managed",
     "subMenu": [
       {
         "id": 21,
         "name": "專案項目",
-        "icon": "ProjectFilled",
+        "icon": "workspaces",
         "url": "/projects"
       },
       {
         "id": 22,
         "name": "工作項目",
-        "icon": "CarryOutFilled",
+        "icon": "checklist",
         "url": "/Task"
       },
       {
         "id": 23,
         "name": "會議記錄",
-        "icon": "EnterOutlined",
+        "icon": "event",
         "url": "/meeting"
       }
     ]
@@ -33,18 +33,18 @@
   {
     "id": 3,
     "name": "系統管理",
-    "icon": "admin",
+    "icon": "manage_accounts",
     "subMenu": [
       {
         "id": 31,
         "name": "使用者管理",
-        "icon": "users",
+        "icon": "group",
         "url": "/myusers"
       },
       {
         "id": 32,
         "name": "角色管理",
-        "icon": "roles",
+        "icon": "shield_person",
         "url": "/roleviews"
       }
     ]

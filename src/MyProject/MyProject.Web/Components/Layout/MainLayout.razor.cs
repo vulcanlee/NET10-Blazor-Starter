@@ -17,14 +17,21 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     [Inject]
+    private CurrentUserService CurrentUserService { get; set; } = default!;
+
+    [Inject]
     private ILogger<MainLayout> Logger { get; set; } = default!;
 
     [Inject]
     private SidebarMenuService SidebarMenuService { get; set; } = default!;
 
-    private const string DefaultPageTitle = "蝟餌絞擐?";
+    private const string DefaultPageTitle = "系統首頁";
+    private const string DefaultUserDisplayName = "使用者";
+
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
+    private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
+    private bool CurrentUserIsAdmin { get; set; }
     private bool isSidebarCollapsed;
 
     protected override async Task OnInitializedAsync()
@@ -39,8 +46,22 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         }
 
         MenuItems = SidebarMenuService.LoadAuthorizedMenuItems(AuthenticationStateHelper);
+        UpdateCurrentUserStatus();
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void UpdateCurrentUserStatus()
+    {
+        var currentUser = CurrentUserService.CurrentUser;
+
+        CurrentUserDisplayName = !string.IsNullOrWhiteSpace(currentUser.Name)
+            ? currentUser.Name
+            : !string.IsNullOrWhiteSpace(currentUser.Account)
+                ? currentUser.Account
+                : DefaultUserDisplayName;
+
+        CurrentUserIsAdmin = currentUser.IsAdmin;
     }
 
     private void UpdateCurrentPageTitle()

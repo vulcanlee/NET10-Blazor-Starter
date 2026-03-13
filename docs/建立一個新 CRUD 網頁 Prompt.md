@@ -40,10 +40,14 @@ RoleViewView.razor 是一個標準的 CRUD 元件(可以做到新增、查詢、
 Menu.json 內的 name 名稱，將會定義在使用者角色內，透過 `AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_會議項目)` 方法可以判斷出這個使用者當時是否具有使用此功能的權限(子功能表或者功能項目)，如果沒有權限，則會在 sidebar 功能表內隱藏該功能項目，這裡需要修正程式碼符合這樣的需要，確保看到的功能表清單 Sidebar，符合當前使用者被授予的角色權限
 ```
 
+將這個檔案 Menu.json ，在這個網址中 https://fonts.google.com/icons 找到合適的圖示，取代掉 "icon" 欄位內的圖示名稱，確保在 sidebar 功能表內顯示的圖示符合功能項目的意義與風格。
 
-
-
-
+在 MainLayout.razor 中，對於 top-row-status 區域的內容，在左方顯示該使用名稱與一個代表使用者的圖示，若為管理者，也要標示為管理者，當游標移到使用者名稱或者圖示上時，會顯示一個下拉選單，下拉選單內有「登出」，點擊後會執行登出操作，並且導向到登入頁面。這裡需要修正程式碼符合這樣的需要，確保在 top-row-status 區域內顯示使用者名稱與圖示，並且實現下拉選單的功能。
+```
+        <div class="top-row px-4">
+            <div class="top-row-status">@CurrentPageTitle</div>
+        </div>
+```
 
 
 

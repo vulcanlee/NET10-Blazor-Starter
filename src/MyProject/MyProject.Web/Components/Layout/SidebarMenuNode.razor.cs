@@ -25,16 +25,26 @@ public partial class SidebarMenuNode : ComponentBase
 
     private string GetMaterialIconKind()
     {
-        return Item.Icon switch
+        var icon = Item.Icon?.Trim();
+
+        if (string.IsNullOrWhiteSpace(icon))
+        {
+            return Item.HasChildren ? "folder_open" : "article";
+        }
+
+        return icon switch
         {
             "home" => "home",
-            "dashboard" => "dashboard",
+            "dashboard" => "space_dashboard",
             "admin" => "admin_panel_settings",
             "users" => "group",
-            "roles" => "verified_user",
+            "roles" => "shield_person",
             "setting" => "settings",
+            "ProjectFilled" => "workspaces",
+            "CarryOutFilled" => "checklist",
+            "EnterOutlined" => "event",
             _ when Item.HasChildren => "folder_open",
-            _ => "article"
+            _ => icon
         };
     }
 }
