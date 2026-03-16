@@ -23,6 +23,11 @@ public class AutoMapping : Profile
         #region MyTas
         CreateMap<MyTas, MyTasAdapterModel>();
         CreateMap<MyTasAdapterModel, MyTas>();
+        CreateMap<MyTas, MyTaskDto>()
+            .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
+        CreateMap<MyTaskDto, MyTas>();
+        CreateMap<MyTas, MyTaskCreateUpdateDto>();
+        CreateMap<MyTaskCreateUpdateDto, MyTas>();
         CreateMap<MyTasFile, MyTasFileAdapterModel>();
         CreateMap<MyTasFileAdapterModel, MyTasFile>();
         #endregion
