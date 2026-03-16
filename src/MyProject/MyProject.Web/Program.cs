@@ -133,6 +133,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<ProjectService>();
                 builder.Services.AddScoped<ProjectRepository>();
                 builder.Services.AddScoped<MyTaskRepository>();
+                builder.Services.AddScoped<MeetingRepository>();
                 builder.Services.AddScoped<MyTasService>();
                 builder.Services.AddScoped<MeetingService>();
                 #endregion

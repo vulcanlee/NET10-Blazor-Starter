@@ -16,6 +16,11 @@ public class AutoMapping : Profile
         #region Meeting
         CreateMap<Meeting, MeetingAdapterModel>();
         CreateMap<MeetingAdapterModel, Meeting>();
+        CreateMap<Meeting, MeetingDto>()
+            .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
+        CreateMap<MeetingDto, Meeting>();
+        CreateMap<Meeting, MeetingCreateUpdateDto>();
+        CreateMap<MeetingCreateUpdateDto, Meeting>();
         CreateMap<MeetingFile, MeetingFileAdapterModel>();
         CreateMap<MeetingFileAdapterModel, MeetingFile>();
         #endregion
