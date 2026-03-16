@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
+using MyProject.Business.Repositories;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
@@ -130,6 +131,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<RoleViewService>();
                 builder.Services.AddScoped<MyUserService>();
                 builder.Services.AddScoped<ProjectService>();
+                builder.Services.AddScoped<ProjectRepository>();
                 builder.Services.AddScoped<MyTasService>();
                 builder.Services.AddScoped<MeetingService>();
                 #endregion

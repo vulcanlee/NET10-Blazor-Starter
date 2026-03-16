@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using MyProject.AccessDatas.Models;
+using MyProject.Dtos.Models;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Others;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -29,6 +30,10 @@ public class AutoMapping : Profile
         #region Project
         CreateMap<Project, ProjectAdapterModel>();
         CreateMap<ProjectAdapterModel, Project>();
+        CreateMap<Project, ProjectDto>();
+        CreateMap<ProjectDto, Project>();
+        CreateMap<Project, ProjectCreateUpdateDto>();
+        CreateMap<ProjectCreateUpdateDto, Project>();
         CreateMap<ProjectFile, ProjectFileAdapterModel>();
         CreateMap<ProjectFileAdapterModel, ProjectFile>();
         #endregion

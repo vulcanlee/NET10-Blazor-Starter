@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyProject.AccessDatas\MyProject.AccessDatas.csproj" />
+    <ProjectReference Include="..\MyProject.Dtos\MyProject.Dtos.csproj" />
     <ProjectReference Include="..\MyProject.Models\MyProject.Models.csproj" />
   </ItemGroup>
 
