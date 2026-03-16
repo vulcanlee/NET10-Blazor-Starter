@@ -45,7 +45,7 @@ public class MyTasService
             dataRequest.Take);
 
         DataRequestResult<MyTasAdapterModel> result = new();
-        IQueryable<MyTas> dataSource = context.MyTas
+        IQueryable<MyTask> dataSource = context.MyTas
             .AsNoTracking()
             .Include(x => x.Project);
 
@@ -171,7 +171,7 @@ public class MyTasService
     {
         Logger.LogDebug("Loading task by id. TaskId={TaskId}", id);
 
-        MyTas? item = await context.MyTas
+        MyTask? item = await context.MyTas
             .AsNoTracking()
             .Include(x => x.Project)
             .Include(x => x.Files)
@@ -205,8 +205,8 @@ public class MyTasService
 
         try
         {
-            CleanTrackingHelper.Clean<MyTas>(context);
-            MyTas itemParameter = Mapper.Map<MyTas>(paraObject);
+            CleanTrackingHelper.Clean<MyTask>(context);
+            MyTask itemParameter = Mapper.Map<MyTask>(paraObject);
             itemParameter.Project = null;
             itemParameter.Files = [];
 
@@ -238,8 +238,8 @@ public class MyTasService
 
         try
         {
-            CleanTrackingHelper.Clean<MyTas>(context);
-            MyTas? currentItem = await context.MyTas
+            CleanTrackingHelper.Clean<MyTask>(context);
+            MyTask? currentItem = await context.MyTas
                 .Include(x => x.Files)
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
 
@@ -291,8 +291,8 @@ public class MyTasService
 
         try
         {
-            CleanTrackingHelper.Clean<MyTas>(context);
-            MyTas? item = await context.MyTas
+            CleanTrackingHelper.Clean<MyTask>(context);
+            MyTask? item = await context.MyTas
                 .Include(x => x.Files)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
@@ -309,7 +309,7 @@ public class MyTasService
 
             context.MyTas.Remove(item);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<MyTas>(context);
+            CleanTrackingHelper.Clean<MyTask>(context);
 
             Logger.LogInformation("Task deleted successfully. TaskId={TaskId}, Title={Title}", id, item.Title);
             return VerifyRecordResultFactory.Build(true);
@@ -333,8 +333,8 @@ public class MyTasService
     {
         Logger.LogDebug("Running pre-update validation for task. TaskId={TaskId}, Title={Title}", paraObject.Id, paraObject.Title);
 
-        CleanTrackingHelper.Clean<MyTas>(context);
-        MyTas? searchItem = await context.MyTas
+        CleanTrackingHelper.Clean<MyTask>(context);
+        MyTask? searchItem = await context.MyTas
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
 
@@ -442,7 +442,7 @@ public class MyTasService
         return VerifyRecordResultFactory.Build(true);
     }
 
-    private async Task<VerifyRecordResult> SaveNewFilesAsync(MyTas task, IEnumerable<MyTasUploadFileInput>? uploadFiles)
+    private async Task<VerifyRecordResult> SaveNewFilesAsync(MyTask task, IEnumerable<MyTasUploadFileInput>? uploadFiles)
     {
         if (uploadFiles is null)
         {
@@ -486,7 +486,7 @@ public class MyTasService
         }
     }
 
-    private async Task<VerifyRecordResult> RemoveTaskFilesAsync(MyTas task, IEnumerable<int>? removedFileIds)
+    private async Task<VerifyRecordResult> RemoveTaskFilesAsync(MyTask task, IEnumerable<int>? removedFileIds)
     {
         if (removedFileIds is null)
         {
@@ -517,7 +517,7 @@ public class MyTasService
         return VerifyRecordResultFactory.Build(true);
     }
 
-    private async Task<(MyTasFile File, string FullPath)> SavePhysicalFileAsync(MyTas task, MyTasUploadFileInput uploadFile)
+    private async Task<(MyTasFile File, string FullPath)> SavePhysicalFileAsync(MyTask task, MyTasUploadFileInput uploadFile)
     {
         var originalFileName = Path.GetFileName(uploadFile.FileName);
         var extension = Path.GetExtension(originalFileName);

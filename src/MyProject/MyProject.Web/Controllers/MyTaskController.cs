@@ -124,7 +124,7 @@ public class MyTaskController : ControllerBase
                 return Conflict(ApiResult<MyTaskDto>.ConflictResult($"任務名稱 '{myTaskDto.Title}' 已存在"));
             }
 
-            var task = mapper.Map<MyTas>(myTaskDto);
+            var task = mapper.Map<MyTask>(myTaskDto);
             var createdTask = await myTaskRepository.AddAsync(task);
             var createdTaskDto = mapper.Map<MyTaskDto>(createdTask);
 
@@ -171,7 +171,7 @@ public class MyTaskController : ControllerBase
                 return Conflict(ApiResult.ConflictResult($"任務名稱 '{myTaskDto.Title}' 已被其他任務使用"));
             }
 
-            var task = mapper.Map<MyTas>(myTaskDto);
+            var task = mapper.Map<MyTask>(myTaskDto);
             var success = await myTaskRepository.UpdateAsync(task);
             if (!success)
             {

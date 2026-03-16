@@ -26,13 +26,13 @@ public class AutoMapping : Profile
         #endregion
 
         #region MyTas
-        CreateMap<MyTas, MyTasAdapterModel>();
-        CreateMap<MyTasAdapterModel, MyTas>();
-        CreateMap<MyTas, MyTaskDto>()
+        CreateMap<MyTask, MyTasAdapterModel>();
+        CreateMap<MyTasAdapterModel, MyTask>();
+        CreateMap<MyTask, MyTaskDto>()
             .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
-        CreateMap<MyTaskDto, MyTas>();
-        CreateMap<MyTas, MyTaskCreateUpdateDto>();
-        CreateMap<MyTaskCreateUpdateDto, MyTas>();
+        CreateMap<MyTaskDto, MyTask>();
+        CreateMap<MyTask, MyTaskCreateUpdateDto>();
+        CreateMap<MyTaskCreateUpdateDto, MyTask>();
         CreateMap<MyTasFile, MyTasFileAdapterModel>();
         CreateMap<MyTasFileAdapterModel, MyTasFile>();
         #endregion

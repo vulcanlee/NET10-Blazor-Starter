@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MyProject.AccessDatas.Models;
 
-public class MyTas
+public class MyTask
 {
     public int Id { get; set; }
 

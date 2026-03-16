@@ -15,9 +15,9 @@ public class MyTaskRepository
         this.context = context;
     }
 
-    public async Task<MyTas?> GetByIdAsync(int id, bool includeRelatedData = false)
+    public async Task<MyTask?> GetByIdAsync(int id, bool includeRelatedData = false)
     {
-        IQueryable<MyTas> query = context.MyTas.AsNoTracking();
+        IQueryable<MyTask> query = context.MyTas.AsNoTracking();
 
         if (includeRelatedData)
         {
@@ -29,11 +29,11 @@ public class MyTaskRepository
         return await query.FirstOrDefaultAsync(x => x.Id == id);
     }
 
-    public async Task<PagedResult<MyTas>> GetPagedAsync(
+    public async Task<PagedResult<MyTask>> GetPagedAsync(
         MyTaskSearchRequestDto request,
         bool includeRelatedData = false)
     {
-        IQueryable<MyTas> query = context.MyTas.AsNoTracking();
+        IQueryable<MyTask> query = context.MyTas.AsNoTracking();
 
         if (includeRelatedData)
         {
@@ -42,7 +42,7 @@ public class MyTaskRepository
                 .Include(x => x.Files);
         }
 
-        Expression<Func<MyTas, bool>>? predicate = null;
+        Expression<Func<MyTask, bool>>? predicate = null;
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -53,55 +53,55 @@ public class MyTaskRepository
 
         if (!string.IsNullOrWhiteSpace(request.Category))
         {
-            Expression<Func<MyTas, bool>> categoryPredicate = x => x.Category == request.Category;
+            Expression<Func<MyTask, bool>> categoryPredicate = x => x.Category == request.Category;
             predicate = CombinePredicates(predicate, categoryPredicate);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Owner))
         {
-            Expression<Func<MyTas, bool>> ownerPredicate = x => x.Owner == request.Owner;
+            Expression<Func<MyTask, bool>> ownerPredicate = x => x.Owner == request.Owner;
             predicate = CombinePredicates(predicate, ownerPredicate);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Status))
         {
-            Expression<Func<MyTas, bool>> statusPredicate = x => x.Status == request.Status;
+            Expression<Func<MyTask, bool>> statusPredicate = x => x.Status == request.Status;
             predicate = CombinePredicates(predicate, statusPredicate);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Priority))
         {
-            Expression<Func<MyTas, bool>> priorityPredicate = x => x.Priority == request.Priority;
+            Expression<Func<MyTask, bool>> priorityPredicate = x => x.Priority == request.Priority;
             predicate = CombinePredicates(predicate, priorityPredicate);
         }
 
         if (request.ProjectId.HasValue)
         {
-            Expression<Func<MyTas, bool>> projectPredicate = x => x.ProjectId == request.ProjectId.Value;
+            Expression<Func<MyTask, bool>> projectPredicate = x => x.ProjectId == request.ProjectId.Value;
             predicate = CombinePredicates(predicate, projectPredicate);
         }
 
         if (request.StartDateFrom.HasValue)
         {
-            Expression<Func<MyTas, bool>> startDateFromPredicate = x => x.StartDate >= request.StartDateFrom.Value;
+            Expression<Func<MyTask, bool>> startDateFromPredicate = x => x.StartDate >= request.StartDateFrom.Value;
             predicate = CombinePredicates(predicate, startDateFromPredicate);
         }
 
         if (request.StartDateTo.HasValue)
         {
-            Expression<Func<MyTas, bool>> startDateToPredicate = x => x.StartDate <= request.StartDateTo.Value;
+            Expression<Func<MyTask, bool>> startDateToPredicate = x => x.StartDate <= request.StartDateTo.Value;
             predicate = CombinePredicates(predicate, startDateToPredicate);
         }
 
         if (request.CompletionPercentageMin.HasValue)
         {
-            Expression<Func<MyTas, bool>> completionMinPredicate = x => x.CompletionPercentage >= request.CompletionPercentageMin.Value;
+            Expression<Func<MyTask, bool>> completionMinPredicate = x => x.CompletionPercentage >= request.CompletionPercentageMin.Value;
             predicate = CombinePredicates(predicate, completionMinPredicate);
         }
 
         if (request.CompletionPercentageMax.HasValue)
         {
-            Expression<Func<MyTas, bool>> completionMaxPredicate = x => x.CompletionPercentage <= request.CompletionPercentageMax.Value;
+            Expression<Func<MyTask, bool>> completionMaxPredicate = x => x.CompletionPercentage <= request.CompletionPercentageMax.Value;
             predicate = CombinePredicates(predicate, completionMaxPredicate);
         }
 
@@ -141,7 +141,7 @@ public class MyTaskRepository
             .Take(request.PageSize)
             .ToListAsync();
 
-        return new PagedResult<MyTas>
+        return new PagedResult<MyTask>
         {
             Items = items,
             PageIndex = request.PageIndex,
@@ -162,7 +162,7 @@ public class MyTaskRepository
         return await query.AnyAsync();
     }
 
-    public async Task<MyTas> AddAsync(MyTas task)
+    public async Task<MyTask> AddAsync(MyTask task)
     {
         task.CreatedAt = DateTime.Now;
         task.UpdatedAt = DateTime.Now;
@@ -173,7 +173,7 @@ public class MyTaskRepository
         return task;
     }
 
-    public async Task<bool> UpdateAsync(MyTas task)
+    public async Task<bool> UpdateAsync(MyTask task)
     {
         var existingTask = await context.MyTas.FindAsync(task.Id);
         if (existingTask == null)
@@ -203,20 +203,20 @@ public class MyTaskRepository
         return true;
     }
 
-    private static Expression<Func<MyTas, bool>> CombinePredicates(
-        Expression<Func<MyTas, bool>>? current,
-        Expression<Func<MyTas, bool>> next)
+    private static Expression<Func<MyTask, bool>> CombinePredicates(
+        Expression<Func<MyTask, bool>>? current,
+        Expression<Func<MyTask, bool>> next)
     {
         if (current == null)
         {
             return next;
         }
 
-        var parameter = Expression.Parameter(typeof(MyTas), "x");
+        var parameter = Expression.Parameter(typeof(MyTask), "x");
         var leftBody = new ReplaceExpressionVisitor(current.Parameters[0], parameter).Visit(current.Body)!;
         var rightBody = new ReplaceExpressionVisitor(next.Parameters[0], parameter).Visit(next.Body)!;
 
-        return Expression.Lambda<Func<MyTas, bool>>(Expression.AndAlso(leftBody, rightBody), parameter);
+        return Expression.Lambda<Func<MyTask, bool>>(Expression.AndAlso(leftBody, rightBody), parameter);
     }
 
     private sealed class ReplaceExpressionVisitor : ExpressionVisitor

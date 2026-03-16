@@ -11,8 +11,8 @@ using MyProject.AccessDatas;
 namespace MyProject.AccessDatas.Migrations
 {
     [DbContext(typeof(BackendDBContext))]
-    [Migration("20260312062708_AddMeetingFile")]
-    partial class AddMeetingFile
+    [Migration("20260316083639_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -20,7 +20,7 @@ namespace MyProject.AccessDatas.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .UseCollation("Chinese_Taiwan_Stroke_CI_AS")
-                .HasAnnotation("ProductVersion", "10.0.3");
+                .HasAnnotation("ProductVersion", "10.0.5");
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.Meeting", b =>
                 {
@@ -101,7 +101,45 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("MeetingFile");
                 });
 
-            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTas", b =>
+            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTasFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MyTasId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MyTasId");
+
+                    b.ToTable("MyTasFile");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTask", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -153,44 +191,6 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("MyTas");
-                });
-
-            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTasFile", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("MyTasId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RelativePath")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StoredFileName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MyTasId");
-
-                    b.ToTable("MyTasFile");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.MyUser", b =>
@@ -369,7 +369,18 @@ namespace MyProject.AccessDatas.Migrations
                     b.Navigation("Meeting");
                 });
 
-            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTas", b =>
+            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTasFile", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.MyTask", "MyTas")
+                        .WithMany("Files")
+                        .HasForeignKey("MyTasId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MyTas");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTask", b =>
                 {
                     b.HasOne("MyProject.AccessDatas.Models.Project", "Project")
                         .WithMany()
@@ -378,17 +389,6 @@ namespace MyProject.AccessDatas.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
-                });
-
-            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTasFile", b =>
-                {
-                    b.HasOne("MyProject.AccessDatas.Models.MyTas", "MyTas")
-                        .WithMany("Files")
-                        .HasForeignKey("MyTasId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("MyTas");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.MyUser", b =>
@@ -417,7 +417,7 @@ namespace MyProject.AccessDatas.Migrations
                     b.Navigation("Files");
                 });
 
-            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTas", b =>
+            modelBuilder.Entity("MyProject.AccessDatas.Models.MyTask", b =>
                 {
                     b.Navigation("Files");
                 });
