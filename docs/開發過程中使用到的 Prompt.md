@@ -49,5 +49,7 @@ Menu.json 內的 name 名稱，將會定義在使用者角色內，透過 `Authe
         </div>
 ```
 
+參考 ProjectController API 的設計，完成 MyTask 這個資料模型的 MyTaskController API 設計，這裡需要加入MyTaskDto模型與註冊相關服務
+
 
 
