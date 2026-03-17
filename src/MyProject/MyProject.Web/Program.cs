@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using AntDesign;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
@@ -11,9 +13,11 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
+using MyProject.Web.Localization;
 using NLog;
 using NLog.Web;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace MyProject.Web
 {
@@ -60,7 +64,32 @@ namespace MyProject.Web
                 //builder.Services.AddOpenApi();
                 builder.Services.AddEndpointsApiExplorer();
                 builder.Services.AddSwaggerGen();
+                builder.Services.AddLocalization();
                 builder.Services.AddAntDesign();
+
+                var supportedCultures = new[]
+                {
+                    new CultureInfo("zh-TW"),
+                    new CultureInfo("en-US")
+                };
+
+                var defaultCulture = supportedCultures[0];
+
+                builder.Services.Configure<RequestLocalizationOptions>(options =>
+                {
+                    options.DefaultRequestCulture = new RequestCulture(defaultCulture);
+                    options.SupportedCultures = supportedCultures;
+                    options.SupportedUICultures = supportedCultures;
+
+                    // Use the browser language to choose between the supported cultures.
+                    options.RequestCultureProviders = new List<IRequestCultureProvider>
+                    {
+                        new AcceptLanguageHeaderRequestCultureProvider()
+                    };
+                });
+
+                LocaleProvider.SetLocale("zh-TW", AntDesignLocaleFactory.Create("zh-TW"));
+                LocaleProvider.DefaultLanguage = defaultCulture.Name;
 
                 #region 加入使用 Cookie & JWT 認證需要的宣告
                 builder.Services.Configure<CookiePolicyOptions>(options =>
@@ -276,6 +305,11 @@ namespace MyProject.Web
 
                 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
                 app.UseHttpsRedirection();
+
+                var localizationOptions = app.Services
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<RequestLocalizationOptions>>()
+                    .Value;
+                app.UseRequestLocalization(localizationOptions);
 
                 app.UseAntiforgery();
 

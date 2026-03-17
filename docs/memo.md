@@ -41,4 +41,12 @@ Icon 部分將會使用 BlazorMaterialIcons Nuget 套件 https://github.com/dimo
 - [x] 靜態檔案對應機制
 - [x] 加入 Cookie 身分驗證的宣告
 - 加入 JWT 身分驗證的宣告
-- [x]Sidebar 導覽列與清單定義JSON檔案
+- [x] Sidebar 導覽列與清單定義JSON檔案
+- [x] 使用 BlazorMaterialIcons Nuget 套件提供圖示支援，圖示來源為 Google Fonts Icons。
+- [x] Ant Design 元件庫的多國語系設定
+- 
+
+
+
+
+
