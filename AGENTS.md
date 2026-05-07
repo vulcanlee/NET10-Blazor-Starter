@@ -1,4 +1,4 @@
-# copilot-instructions.md
+# AGENTS.md
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
@@ -63,8 +63,3 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
-## 專案指導方針
-- 在此 Blazor 專案的 UI 元件中，優先採用 Ant Design icons。
-- 此 Blazor 專案的 sidebar 視覺偏好使用亮灰色底與深色字體，並優先使用 Google Material Design Icons（BlazorMaterialIcons）。
-- 專案的變更記錄與文件應寫入 docs 目錄，不使用 docx 目錄。當使用者指定變更記錄目錄時，將其寫入 docs 目錄，不要寫入 docx 目錄。

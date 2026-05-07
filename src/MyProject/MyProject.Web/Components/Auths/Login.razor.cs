@@ -9,7 +9,10 @@ namespace MyProject.Web.Components.Auths
 {
     public partial class Login
     {
+        private const int CaptchaLength = 4;
+
         string errorMessage = string.Empty;
+        string captchaCode = string.Empty;
 
         [CascadingParameter]
         private HttpContext HttpContext { get; set; } = default!;
@@ -31,6 +34,16 @@ namespace MyProject.Web.Components.Auths
         protected override Task OnInitializedAsync()
         {
             Input ??= new();
+
+            if (string.IsNullOrWhiteSpace(Input.CaptchaCode))
+            {
+                RefreshCaptcha();
+            }
+            else
+            {
+                captchaCode = Input.CaptchaCode;
+            }
+
             Logger.LogDebug("Login component initialized. ReturnUrl={ReturnUrl}", ReturnUrl);
             return Task.CompletedTask;
         }
@@ -56,11 +69,31 @@ namespace MyProject.Web.Components.Auths
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(Input.CaptchaInput))
+            {
+                message = "請輸入驗證碼";
+                errorMessage = "alert-danger";
+                Logger.LogWarning("Login submission rejected because captcha is empty. Account={Account}", Input.Account);
+                return;
+            }
+
+            if (!string.Equals(Input.CaptchaInput.Trim(), Input.CaptchaCode, StringComparison.Ordinal))
+            {
+                message = "驗證碼錯誤";
+                errorMessage = "alert-danger";
+                RefreshCaptcha();
+                Input.CaptchaInput = string.Empty;
+                Logger.LogWarning("Login submission rejected because captcha is invalid. Account={Account}", Input.Account);
+                return;
+            }
+
             (string result, MyUser myUser) = await MyUserServiceLogin.LoginAsync(Input.Account, Input.Password);
             if (!string.IsNullOrEmpty(result))
             {
                 Logger.LogWarning("Login failed for Account={Account}. Reason={Reason}", Input.Account, result);
                 message = result;
+                RefreshCaptcha();
+                Input.CaptchaInput = string.Empty;
             }
             else
             {
@@ -74,10 +107,10 @@ namespace MyProject.Web.Components.Auths
 
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
-                string returnUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : ReturnUrl;
+                string returnUrl = string.IsNullOrEmpty(ReturnUrl) ? "/App" : ReturnUrl;
                 var authProperties = new AuthenticationProperties
                 {
-                    IsPersistent = true,
+                    IsPersistent = Input.RememberMe,
                     RedirectUri = returnUrl,
                 };
 
@@ -97,6 +130,8 @@ namespace MyProject.Web.Components.Auths
                 catch (Exception ex)
                 {
                     message = ex.Message;
+                    RefreshCaptcha();
+                    Input.CaptchaInput = string.Empty;
                     Logger.LogError(ex, "Sign-in failed for Account={Account}.", Input.Account);
                 }
             }
@@ -109,6 +144,23 @@ namespace MyProject.Web.Components.Auths
             public string Account { get; set; } = string.Empty;
 
             public string Password { get; set; } = string.Empty;
+
+            public bool RememberMe { get; set; }
+
+            public string CaptchaInput { get; set; } = string.Empty;
+
+            public string CaptchaCode { get; set; } = string.Empty;
+        }
+
+        private void RefreshCaptcha()
+        {
+            captchaCode = GenerateCaptcha();
+            Input.CaptchaCode = captchaCode;
+        }
+
+        private static string GenerateCaptcha()
+        {
+            return Random.Shared.Next(0, (int)Math.Pow(10, CaptchaLength)).ToString($"D{CaptchaLength}");
         }
     }
 }

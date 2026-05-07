@@ -101,6 +101,7 @@ namespace MyProject.Web
                 builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
                     .AddCookie(MagicObjectHelper.CookieScheme, options =>
                     {
+                        options.Cookie.IsEssential = true;
                         options.LoginPath = "/Auths/Login";
                         options.LogoutPath = "/Auths/Logout";
                         options.AccessDeniedPath = "/Auths/Login";

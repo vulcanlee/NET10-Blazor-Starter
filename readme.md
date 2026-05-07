@@ -40,5 +40,12 @@ Icon 部分將會使用 BlazorMaterialIcons Nuget 套件 https://github.com/dimo
 - [x] Swagger UI 
 - [x] 靜態檔案對應機制
 - [x] 加入 Cookie 身分驗證的宣告
+- [x] 華麗登入頁面（Glassmorphism + 漸層動畫 + 驗證碼 + 記住我）
 - 加入 JWT 身分驗證的宣告
 - [x]Sidebar 導覽列與清單定義JSON檔案
+
+## 文件與編碼說明
+
+- 本次 `/Auths/Login` 改版內容已同步記錄於 `docs/login-redesign.md`。
+- 近期已針對登入頁進行第二輪可視性優化，包含移除左側多餘說明卡片、強化輸入框與驗證碼辨識度。
+- 專案內本次新增與修改檔案皆應採用 UTF-8 編碼保存，避免繁體中文內容出現亂碼
