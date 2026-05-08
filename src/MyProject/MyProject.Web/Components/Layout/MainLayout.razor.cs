@@ -32,7 +32,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
     private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
     private bool CurrentUserIsAdmin { get; set; }
-    private bool isSidebarCollapsed;
+    private bool isSidebarCollapsed = true;
 
     protected override async Task OnInitializedAsync()
     {
