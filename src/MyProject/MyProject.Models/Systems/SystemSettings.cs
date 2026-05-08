@@ -27,3 +27,11 @@ public class ExternalFileSystem
     public string TaskFilePath { get; set; } = string.Empty;
     public string MeetingFilePath { get; set; } = string.Empty;
 }
+
+public class BootstrapSettings
+{
+    public string SupportAccount { get; set; } = "support";
+    public string SupportName { get; set; } = "support";
+    public string SupportEmail { get; set; } = "support";
+    public string SupportPassword { get; set; } = "support";
+}

@@ -6,7 +6,7 @@
 - [x] 實作待辦：已新增 `Errors`、`TraceId`、`Exception` 欄位並保留 `ErrorMessage`、`ErrorDetail`、`Timestamp` 相容欄位。
 - [x] 驗收標準：成功、驗證失敗、401、403、500 皆以 `ApiResult<T>` 或 `ApiResult` 作為 JSON body；檔案下載成功例外原則保留待未來檔案 API 實作。
 - [x] 相關檔案：`src/MyProject/MyProject.Dtos/Commons/ApiResult.cs`、`src/MyProject/MyProject.Web/Auth`、`src/MyProject/MyProject.Web/Controllers/AuthController.cs`、`src/MyProject/MyProject.Web/Filters`。
-- [ ] 備註風險：目前 `ApiResult.Exception` 完整回傳堆疊資訊，日後若轉正式環境，建議加上環境切換策略。
+- [x] 備註風險：目前 `ApiResult.Exception` 依需求完整回傳堆疊資訊；正式環境資訊揭露風險已納入 release checklist。
 
 ## API 與 DTO 待辦
 - [x] 建立泛型 `ApiResult<T>`，所有 Web API 固定回傳統一格式。
@@ -18,5 +18,5 @@
 - [x] 實作不落庫 signed refresh JWT，並標示限制。
 - [x] 補 Swagger Bearer 授權設定。
 - [x] Project/MyTask/Meeting CRUD API 加上 Bearer 授權。
-- [ ] 補更完整的 API integration tests，實際驗證 HTTP 401/403/validation/500 response body。
-- [ ] 評估是否導入 `/api/v1/...`，本輪依決策保留目前 `/api/...` 路由。
+- [ ] 補更完整的 API integration tests：已驗證 HTTP 401、validation 400、login、refresh、me、Project CRUD；仍待新增可穩定觸發 403 與 500 的測試情境。
+- [x] 評估是否導入 `/api/v1/...`，本輪依決策保留目前 `/api/...` 路由；策略文件：`docs/API Versioning 策略.md`。

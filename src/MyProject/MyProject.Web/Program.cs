@@ -215,6 +215,9 @@ namespace MyProject.Web
                 var app = builder.Build();
                 logger = app.Services.GetRequiredService<ILogger<Program>>();
                 logger.LogInformation("Application host built successfully.");
+                var bootstrapSettings = app.Configuration
+                    .GetSection(nameof(BootstrapSettings))
+                    .Get<BootstrapSettings>() ?? new BootstrapSettings();
 
                 #region 資料庫的 Migration
                 //if (!app.Environment.IsDevelopment())
@@ -264,22 +267,22 @@ namespace MyProject.Web
 
                     #region 產生預設帳號
                     var support = dbContext.MyUser
-                        .FirstOrDefault(x => x.Account == MagicObjectHelper.開發者帳號);
+                        .FirstOrDefault(x => x.Account == bootstrapSettings.SupportAccount);
 
                     if (support == null)
                     {
                         support = new MyUser()
                         {
-                            Account = MagicObjectHelper.開發者帳號,
-                            Name = MagicObjectHelper.開發者帳號,
-                            Email = MagicObjectHelper.開發者帳號,
+                            Account = bootstrapSettings.SupportAccount,
+                            Name = bootstrapSettings.SupportName,
+                            Email = bootstrapSettings.SupportEmail,
                             IsAdmin = true,
                             Salt = Guid.NewGuid().ToString(),
                             Status = true,
                             RoleViewId = (roleViewItemNew ?? roleViewItem)!.Id,
                         };
                         support.Password =
-                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, MagicObjectHelper.開發者帳號);
+                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, bootstrapSettings.SupportPassword);
 
                         dbContext.MyUser.Add(support);
                         dbContext.SaveChanges();
@@ -288,7 +291,7 @@ namespace MyProject.Web
                     else
                     {
                         support.Password =
-                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, MagicObjectHelper.開發者帳號);
+                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, bootstrapSettings.SupportPassword);
                         support.IsAdmin = true;
                         if (roleViewItemNew != null)
                             support.RoleViewId = roleViewItemNew.Id;

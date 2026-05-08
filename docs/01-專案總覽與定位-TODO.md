@@ -6,9 +6,9 @@
 - [x] 實作待辦：已完成第一階段 API/JWT/測試/CI 補強，後續要持續收斂 nullable warning、Program.cs 結構、預設帳號安全與 API versioning。
 - [x] 驗收標準：`dotnet build src/MyProject/MyProject.slnx -v:minimal --no-incremental` 可成功建置；目前摘要為 56 warnings、0 errors。
 - [x] 相關檔案：`src/MyProject/MyProject.slnx`、`src/MyProject/MyProject.Web`、`src/MyProject/MyProject.Dtos`、`src/MyProject/MyProject.Tests`、`.github/workflows/dotnet-ci.yml`。
-- [ ] 備註風險：目前仍有 .NET preview SDK 訊息、nullable warnings、Program.cs 過大與預設種子帳號安全風險，需下一階段逐項處理。
+- [x] 備註風險：目前仍有 .NET preview SDK 訊息與 6 個 build warning；`Program.cs` 已初步拆分，預設種子帳號已改為可透過 `BootstrapSettings` 覆寫。
 
 ## 後續定位待辦
-- [ ] 將此腳手架整理成新專案建立流程，包含改名、資料庫路徑、JWT signing key、預設管理員帳號與部署設定替換步驟。
-- [ ] 補充 SQL Server 切換教學，但保留 SQLite 作為預設開發資料庫。
-- [ ] 建立 release checklist，避免腳手架被複製後仍沿用開發用 secret 或預設帳密。
+- [x] 將此腳手架整理成新專案建立流程，包含改名、資料庫路徑、JWT signing key、預設管理員帳號與部署設定替換步驟。文件：`docs/腳手架新專案啟動流程.md`。
+- [x] 補充 SQL Server 切換教學，但保留 SQLite 作為預設開發資料庫。文件：`docs/SQL Server 切換說明.md`。
+- [x] 建立 release checklist，避免腳手架被複製後仍沿用開發用 secret 或預設帳密。文件：`docs/正式部署與安全檢查清單.md`。
