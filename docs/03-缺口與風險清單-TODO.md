@@ -9,7 +9,7 @@
 - [x] 備註風險：`ApiResult.Exception` 依需求完整回傳例外，正式環境可能揭露堆疊與內部資訊；已納入 `docs/正式部署與安全檢查清單.md`。
 
 ## 尚待處理風險
-- [x] 將 build warning 從 56 個收斂到 6 個；剩餘為 EF migration 命名、AntDesign 產生碼 obsolete、Blazor 表單 analyzer。
+- [x] 將 build warning 從 56 個收斂到 0 個；剩餘僅有 .NET preview SDK 提示訊息，非程式碼 warning。
 - [x] 將 `appsettings.json` 內開發用 JWT signing key 改成部署環境 secret 的要求已納入 release checklist；實際正式 secret 需由部署環境提供。
 - [x] 強化預設帳號與密碼策略：新增 `BootstrapSettings`，可用設定或環境變數覆寫預設 support 帳號與密碼；正式部署替換流程已寫入 checklist。
 - [x] 補 refresh token 不落庫限制說明：目前無法可靠撤銷單一 refresh token，只能靠 signing key 輪替或縮短有效期。

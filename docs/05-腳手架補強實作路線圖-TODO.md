@@ -9,7 +9,7 @@
 - [x] 備註風險：目前 refresh token stateless，不支援單顆 token 撤銷；限制已寫入正式部署安全清單。
 
 ## 第二階段：品質收斂
-- [x] 修正 56 個 build warnings 中的高價值項目，目前剩 6 個低風險 warning，已記錄於文件。
+- [x] 修正 50 個 build warnings 中的高價值項目，目前剩 0 個 compiler/analyzer warning，已記錄於文件。
 - [x] 拆分 `Program.cs`，已先抽出 localization/application services 與 middleware/static files extension；database/seed 深度拆分保留為後續低風險重構。
 - [x] 加入 Web API integration tests，覆蓋 401、login、refresh、me、Project CRUD Bearer 授權與 validation 400；solution 已修正為會實際建置並執行測試專案。
 - [x] 補正式部署設定範本，說明 JWT key、資料庫路徑、NLog 路徑、Swagger UI 暴露策略。文件：`docs/正式部署與安全檢查清單.md`。

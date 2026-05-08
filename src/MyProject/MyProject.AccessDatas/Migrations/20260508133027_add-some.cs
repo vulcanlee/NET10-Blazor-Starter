@@ -5,7 +5,7 @@
 namespace MyProject.AccessDatas.Migrations
 {
     /// <inheritdoc />
-    public partial class addsome : Migration
+    public partial class AddSome : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

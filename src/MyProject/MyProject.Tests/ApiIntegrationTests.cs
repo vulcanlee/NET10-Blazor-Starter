@@ -1,6 +1,11 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
@@ -119,6 +124,38 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Equal(createDto.Title, getResult.Data?.Title);
     }
 
+    [Fact]
+    public async Task ForbiddenApi_ShouldReturnApiResult403()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        var response = await client.GetAsync("/api/ContractProbe/forbidden");
+        var result = await ReadApiResultAsync<object>(response);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(result.Success);
+        Assert.Equal(403, result.StatusCode);
+        Assert.NotNull(result.TraceId);
+    }
+
+    [Fact]
+    public async Task UnhandledApiException_ShouldReturnApiResult500()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        var response = await client.GetAsync("/api/ContractProbe/throw");
+        var result = await ReadApiResultAsync<object>(response);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.False(result.Success);
+        Assert.Equal(500, result.StatusCode);
+        Assert.NotNull(result.Exception);
+        Assert.Equal(typeof(InvalidOperationException).FullName, result.Exception.Type);
+        Assert.NotNull(result.TraceId);
+    }
+
     private static async Task AuthorizeAsync(HttpClient client)
     {
         var loginResult = await LoginAsync(client);
@@ -179,6 +216,20 @@ public sealed class ApiTestApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(CreateSettings());
         });
+        builder.ConfigureServices(services =>
+        {
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("IntegrationForbidden", policy =>
+                    policy.RequireClaim("integration_forbidden", "true"));
+            });
+
+            services
+                .AddControllers()
+                .PartManager
+                .ApplicationParts
+                .Add(new AssemblyPart(typeof(ContractProbeController).Assembly));
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -229,5 +280,26 @@ public sealed class ApiTestApplicationFactory : WebApplicationFactory<Program>
             ["SystemSettings:ExternalFileSystem:TaskFilePath"] = Path.Combine(rootPath, "TaskFile"),
             ["SystemSettings:ExternalFileSystem:MeetingFilePath"] = Path.Combine(rootPath, "MeetingFile")
         };
+    }
+}
+
+[ApiController]
+[Route("api/[controller]")]
+public sealed class ContractProbeController : ControllerBase
+{
+    [HttpGet("forbidden")]
+    [Authorize(
+        AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme,
+        Policy = "IntegrationForbidden")]
+    public IActionResult ForbiddenProbe()
+    {
+        return Ok();
+    }
+
+    [HttpGet("throw")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    public IActionResult ThrowProbe()
+    {
+        throw new InvalidOperationException("Integration probe exception.");
     }
 }

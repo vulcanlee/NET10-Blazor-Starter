@@ -18,5 +18,5 @@
 - [x] 實作不落庫 signed refresh JWT，並標示限制。
 - [x] 補 Swagger Bearer 授權設定。
 - [x] Project/MyTask/Meeting CRUD API 加上 Bearer 授權。
-- [ ] 補更完整的 API integration tests：已驗證 HTTP 401、validation 400、login、refresh、me、Project CRUD；仍待新增可穩定觸發 403 與 500 的測試情境。
+- [x] 補更完整的 API integration tests：已驗證 HTTP 401、403、validation 400、500、login、refresh、me、Project CRUD；403/500 透過測試專案 probe controller 觸發，不新增正式 API contract。
 - [x] 評估是否導入 `/api/v1/...`，本輪依決策保留目前 `/api/...` 路由；策略文件：`docs/API Versioning 策略.md`。

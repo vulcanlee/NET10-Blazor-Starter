@@ -6,7 +6,7 @@
 - [x] 實作待辦：已新增測試專案並加入 solution；Web API 已使用 DTO 作為 request/response，不直接暴露 Entity。
 - [x] 驗收標準：`ProjectController`、`MyTaskController`、`MeetingController` 使用 Create/Update/Search/Dto 類別作為 API 邊界。
 - [x] 相關檔案：`src/MyProject/MyProject.Dtos`、`src/MyProject/MyProject.Web/Controllers`、`src/MyProject/MyProject.Tests`。
-- [ ] 備註風險：Controller 仍有部分手動 try/catch 與商業訊息，下一階段可抽出共用 API response helper，降低重複碼。
+- [x] 備註風險：已新增 `ControllerApiResponseExtensions`，Project/MyTask/Meeting controller 的 500 `ApiResult` 封裝已改用共用 helper；後續仍可再深化為 action pipeline 或 service result pattern。
 
 ## 架構整理待辦
 - [x] 拆分 `Program.cs`，建立 service registration extension 與 middleware extension。已新增 `Extensions/ServiceCollectionExtensions.cs` 與 `Extensions/ApplicationBuilderExtensions.cs`。

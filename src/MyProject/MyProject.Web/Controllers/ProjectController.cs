@@ -56,7 +56,7 @@ public class ProjectController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to get project. ProjectId={ProjectId}", id);
-            return StatusCode(500, ApiResult<ProjectDto>.ServerErrorResult("取得專案失敗", ex));
+            return this.ApiServerError<ProjectDto>("取得專案失敗", ex);
         }
     }
 
@@ -101,7 +101,7 @@ public class ProjectController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to search projects");
-            return StatusCode(500, ApiResult<PagedResult<ProjectDto>>.ServerErrorResult("搜尋專案失敗", ex));
+            return this.ApiServerError<PagedResult<ProjectDto>>("搜尋專案失敗", ex);
         }
     }
 
@@ -139,7 +139,7 @@ public class ProjectController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to create project. Title={Title}", projectDto.Title);
-            return StatusCode(500, ApiResult<ProjectDto>.ServerErrorResult("新增專案失敗", ex));
+            return this.ApiServerError<ProjectDto>("新增專案失敗", ex);
         }
     }
 
@@ -187,7 +187,7 @@ public class ProjectController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to update project. ProjectId={ProjectId}", id);
-            return StatusCode(500, ApiResult.ServerErrorResult("更新專案失敗", ex));
+            return this.ApiServerError("更新專案失敗", ex);
         }
     }
 
@@ -221,7 +221,7 @@ public class ProjectController : ControllerBase
                 return BadRequest(ApiResult.FailureResult("此專案仍有關聯資料，無法刪除"));
             }
 
-            return StatusCode(500, ApiResult.ServerErrorResult("刪除專案失敗", ex));
+            return this.ApiServerError("刪除專案失敗", ex);
         }
     }
 }

@@ -54,7 +54,7 @@ public class MeetingController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to get meeting. MeetingId={MeetingId}", id);
-            return StatusCode(500, ApiResult<MeetingDto>.ServerErrorResult("取得會議失敗", ex));
+            return this.ApiServerError<MeetingDto>("取得會議失敗", ex);
         }
     }
 
@@ -98,7 +98,7 @@ public class MeetingController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to search meetings");
-            return StatusCode(500, ApiResult<PagedResult<MeetingDto>>.ServerErrorResult("搜尋會議失敗", ex));
+            return this.ApiServerError<PagedResult<MeetingDto>>("搜尋會議失敗", ex);
         }
     }
 
@@ -134,7 +134,7 @@ public class MeetingController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to create meeting. Title={Title}", meetingDto.Title);
-            return StatusCode(500, ApiResult<MeetingDto>.ServerErrorResult("新增會議失敗", ex));
+            return this.ApiServerError<MeetingDto>("新增會議失敗", ex);
         }
     }
 
@@ -181,7 +181,7 @@ public class MeetingController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to update meeting. MeetingId={MeetingId}", id);
-            return StatusCode(500, ApiResult.ServerErrorResult("更新會議失敗", ex));
+            return this.ApiServerError("更新會議失敗", ex);
         }
     }
 
@@ -214,7 +214,7 @@ public class MeetingController : ControllerBase
                 return BadRequest(ApiResult.FailureResult("此會議仍有關聯資料，無法刪除"));
             }
 
-            return StatusCode(500, ApiResult.ServerErrorResult("刪除會議失敗", ex));
+            return this.ApiServerError("刪除會議失敗", ex);
         }
     }
 }

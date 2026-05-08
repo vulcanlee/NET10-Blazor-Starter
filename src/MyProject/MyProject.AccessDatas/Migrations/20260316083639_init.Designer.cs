@@ -12,7 +12,7 @@ namespace MyProject.AccessDatas.Migrations
 {
     [DbContext(typeof(BackendDBContext))]
     [Migration("20260316083639_init")]
-    partial class init
+    partial class Init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

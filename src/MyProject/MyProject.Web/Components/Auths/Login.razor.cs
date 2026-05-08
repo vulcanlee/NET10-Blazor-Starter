@@ -18,7 +18,7 @@ namespace MyProject.Web.Components.Auths
         private HttpContext HttpContext { get; set; } = default!;
 
         [SupplyParameterFromForm]
-        private InputModel Input { get; set; } = new();
+        private InputModel Input { get; set; } = default!;
 
         [SupplyParameterFromQuery]
         private string? ReturnUrl { get; set; }
