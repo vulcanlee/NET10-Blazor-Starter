@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyProject.AccessDatas\MyProject.AccessDatas.csproj" />
+    <ProjectReference Include="..\MyProject.Dtos\MyProject.Dtos.csproj" />
     <ProjectReference Include="..\MyProject.Models\MyProject.Models.csproj" />
   </ItemGroup>
 
@@ -16,8 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoMapper" Version="16.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.3" />
+    <PackageReference Include="AutoMapper" Version="16.1.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.5" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 

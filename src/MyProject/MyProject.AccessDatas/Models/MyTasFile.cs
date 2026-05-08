@@ -24,5 +24,5 @@ public class MyTasFile
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-    public MyTas? MyTas { get; set; }
+    public MyTask? MyTas { get; set; }
 }

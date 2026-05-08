@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using MyProject.AccessDatas.Models;
+using MyProject.Dtos.Models;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Others;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -15,13 +16,23 @@ public class AutoMapping : Profile
         #region Meeting
         CreateMap<Meeting, MeetingAdapterModel>();
         CreateMap<MeetingAdapterModel, Meeting>();
+        CreateMap<Meeting, MeetingDto>()
+            .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
+        CreateMap<MeetingDto, Meeting>();
+        CreateMap<Meeting, MeetingCreateUpdateDto>();
+        CreateMap<MeetingCreateUpdateDto, Meeting>();
         CreateMap<MeetingFile, MeetingFileAdapterModel>();
         CreateMap<MeetingFileAdapterModel, MeetingFile>();
         #endregion
 
         #region MyTas
-        CreateMap<MyTas, MyTasAdapterModel>();
-        CreateMap<MyTasAdapterModel, MyTas>();
+        CreateMap<MyTask, MyTasAdapterModel>();
+        CreateMap<MyTasAdapterModel, MyTask>();
+        CreateMap<MyTask, MyTaskDto>()
+            .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
+        CreateMap<MyTaskDto, MyTask>();
+        CreateMap<MyTask, MyTaskCreateUpdateDto>();
+        CreateMap<MyTaskCreateUpdateDto, MyTask>();
         CreateMap<MyTasFile, MyTasFileAdapterModel>();
         CreateMap<MyTasFileAdapterModel, MyTasFile>();
         #endregion
@@ -29,6 +40,10 @@ public class AutoMapping : Profile
         #region Project
         CreateMap<Project, ProjectAdapterModel>();
         CreateMap<ProjectAdapterModel, Project>();
+        CreateMap<Project, ProjectDto>();
+        CreateMap<ProjectDto, Project>();
+        CreateMap<Project, ProjectCreateUpdateDto>();
+        CreateMap<ProjectCreateUpdateDto, Project>();
         CreateMap<ProjectFile, ProjectFileAdapterModel>();
         CreateMap<ProjectFileAdapterModel, ProjectFile>();
         #endregion

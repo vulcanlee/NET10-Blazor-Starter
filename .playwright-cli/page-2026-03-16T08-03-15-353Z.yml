@@ -1,0 +1,177 @@
+- generic [ref=e3]:
+  - generic [ref=e6]:
+    - img [ref=e8]
+    - generic [ref=e44]:
+      - generic [ref=e45]: Select a definition
+      - combobox "Select a definition" [ref=e46]:
+        - option "MyProject.Web v1" [selected]
+  - generic [ref=e47]:
+    - generic:
+      - img
+    - generic [ref=e48]:
+      - generic [ref=e53]:
+        - heading "MyProject.Web 1.0 OAS 3.0" [level=1] [ref=e54]:
+          - text: MyProject.Web
+          - generic [ref=e55]:
+            - generic [ref=e57]: "1.0"
+            - generic [ref=e59]: OAS 3.0
+        - link "https://localhost:7044/swagger/v1/swagger.json" [ref=e60] [cursor=pointer]:
+          - /url: https://localhost:7044/swagger/v1/swagger.json
+          - generic [ref=e61]: https://localhost:7044/swagger/v1/swagger.json
+      - generic [ref=e64]:
+        - generic [ref=e66]:
+          - heading "MyTask Collapse operation" [level=3] [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]: MyTask
+            - button "Collapse operation" [expanded] [ref=e69]:
+              - img [ref=e70]
+          - generic [ref=e73]:
+            - generic [ref=e76] [cursor=pointer]:
+              - 'button "GET /api/MyTask/{id}" [ref=e77]':
+                - generic [ref=e78]: GET
+                - generic [ref=e82]:
+                  - text: /api
+                  - text: /MyTask
+                  - text: "/{id}"
+              - generic "Copy to clipboard"
+              - 'button "get /api/MyTask/{id}" [ref=e85]':
+                - img [ref=e86]
+            - generic [ref=e90] [cursor=pointer]:
+              - 'button "PUT /api/MyTask/{id}" [ref=e91]':
+                - generic [ref=e92]: PUT
+                - generic [ref=e96]:
+                  - text: /api
+                  - text: /MyTask
+                  - text: "/{id}"
+              - generic "Copy to clipboard"
+              - 'button "put /api/MyTask/{id}" [ref=e99]':
+                - img [ref=e100]
+            - generic [ref=e104] [cursor=pointer]:
+              - 'button "DELETE /api/MyTask/{id}" [ref=e105]':
+                - generic [ref=e106]: DELETE
+                - generic [ref=e110]:
+                  - text: /api
+                  - text: /MyTask
+                  - text: "/{id}"
+              - generic "Copy to clipboard"
+              - 'button "delete /api/MyTask/{id}" [ref=e113]':
+                - img [ref=e114]
+            - generic [ref=e118] [cursor=pointer]:
+              - button "POST /api/MyTask/search" [ref=e119]:
+                - generic [ref=e120]: POST
+                - generic [ref=e124]:
+                  - text: /api
+                  - text: /MyTask
+                  - text: /search
+              - generic "Copy to clipboard"
+              - button "post /api/MyTask/search" [ref=e127]:
+                - img [ref=e128]
+            - generic [ref=e132] [cursor=pointer]:
+              - button "POST /api/MyTask" [ref=e133]:
+                - generic [ref=e134]: POST
+                - generic [ref=e138]:
+                  - text: /api
+                  - text: /MyTask
+              - generic "Copy to clipboard"
+              - button "post /api/MyTask" [ref=e141]:
+                - img [ref=e142]
+        - generic [ref=e145]:
+          - heading "Project Collapse operation" [level=3] [ref=e146] [cursor=pointer]:
+            - generic [ref=e147]: Project
+            - button "Collapse operation" [expanded] [ref=e148]:
+              - img [ref=e149]
+          - generic [ref=e152]:
+            - generic [ref=e155] [cursor=pointer]:
+              - 'button "GET /api/Project/{id}" [ref=e156]':
+                - generic [ref=e157]: GET
+                - generic [ref=e161]:
+                  - text: /api
+                  - text: /Project
+                  - text: "/{id}"
+              - generic "Copy to clipboard"
+              - 'button "get /api/Project/{id}" [ref=e164]':
+                - img [ref=e165]
+            - generic [ref=e169] [cursor=pointer]:
+              - 'button "PUT /api/Project/{id}" [ref=e170]':
+                - generic [ref=e171]: PUT
+                - generic [ref=e175]:
+                  - text: /api
+                  - text: /Project
+                  - text: "/{id}"
+              - generic "Copy to clipboard"
+              - 'button "put /api/Project/{id}" [ref=e178]':
+                - img [ref=e179]
+            - generic [ref=e183] [cursor=pointer]:
+              - 'button "DELETE /api/Project/{id}" [ref=e184]':
+                - generic [ref=e185]: DELETE
+                - generic [ref=e189]:
+                  - text: /api
+                  - text: /Project
+                  - text: "/{id}"
+              - generic "Copy to clipboard"
+              - 'button "delete /api/Project/{id}" [ref=e192]':
+                - img [ref=e193]
+            - generic [ref=e197] [cursor=pointer]:
+              - button "POST /api/Project/search" [ref=e198]:
+                - generic [ref=e199]: POST
+                - generic [ref=e203]:
+                  - text: /api
+                  - text: /Project
+                  - text: /search
+              - generic "Copy to clipboard"
+              - button "post /api/Project/search" [ref=e206]:
+                - img [ref=e207]
+            - generic [ref=e211] [cursor=pointer]:
+              - button "POST /api/Project" [ref=e212]:
+                - generic [ref=e213]: POST
+                - generic [ref=e217]:
+                  - text: /api
+                  - text: /Project
+              - generic "Copy to clipboard"
+              - button "post /api/Project" [ref=e220]:
+                - img [ref=e221]
+        - generic [ref=e224]:
+          - heading "WeatherForecast Collapse operation" [level=3] [ref=e225] [cursor=pointer]:
+            - generic [ref=e226]: WeatherForecast
+            - button "Collapse operation" [expanded] [ref=e227]:
+              - img [ref=e228]
+          - generic [ref=e234] [cursor=pointer]:
+            - button "GET /WeatherForecast" [ref=e235]:
+              - generic [ref=e236]: GET
+              - generic [ref=e239]: /WeatherForecast
+            - generic "Copy to clipboard"
+            - button "get /WeatherForecast" [ref=e242]:
+              - img [ref=e243]
+      - generic [ref=e247]:
+        - heading "Schemas" [level=4] [ref=e248] [cursor=pointer]:
+          - button "Schemas" [expanded] [ref=e249]:
+            - generic [ref=e250]: Schemas
+            - img [ref=e251]
+        - generic [ref=e253]:
+          - button "ApiResult" [ref=e256] [cursor=pointer]:
+            - generic [ref=e258]: ApiResult
+          - button "MyTaskCreateUpdateDto" [ref=e262] [cursor=pointer]:
+            - generic [ref=e264]: MyTaskCreateUpdateDto
+          - button "MyTaskDto" [ref=e268] [cursor=pointer]:
+            - generic [ref=e270]: MyTaskDto
+          - button "MyTaskDtoApiResult" [ref=e274] [cursor=pointer]:
+            - generic [ref=e276]: MyTaskDtoApiResult
+          - button "MyTaskDtoPagedResult" [ref=e280] [cursor=pointer]:
+            - generic [ref=e282]: MyTaskDtoPagedResult
+          - button "MyTaskDtoPagedResultApiResult" [ref=e286] [cursor=pointer]:
+            - generic [ref=e288]: MyTaskDtoPagedResultApiResult
+          - button "MyTaskSearchRequestDto" [ref=e292] [cursor=pointer]:
+            - generic [ref=e294]: MyTaskSearchRequestDto
+          - button "ProjectCreateUpdateDto" [ref=e298] [cursor=pointer]:
+            - generic [ref=e300]: ProjectCreateUpdateDto
+          - button "ProjectDto" [ref=e304] [cursor=pointer]:
+            - generic [ref=e306]: ProjectDto
+          - button "ProjectDtoApiResult" [ref=e310] [cursor=pointer]:
+            - generic [ref=e312]: ProjectDtoApiResult
+          - button "ProjectDtoPagedResult" [ref=e316] [cursor=pointer]:
+            - generic [ref=e318]: ProjectDtoPagedResult
+          - button "ProjectDtoPagedResultApiResult" [ref=e322] [cursor=pointer]:
+            - generic [ref=e324]: ProjectDtoPagedResultApiResult
+          - button "ProjectSearchRequestDto" [ref=e328] [cursor=pointer]:
+            - generic [ref=e330]: ProjectSearchRequestDto
+          - button "WeatherForecast" [ref=e334] [cursor=pointer]:
+            - generic [ref=e336]: WeatherForecast

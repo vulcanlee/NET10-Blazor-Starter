@@ -218,7 +218,21 @@
     .top-row-collapsed {
         justify-content: center;
         min-height: auto;
-        padding: 0.7rem 0.5rem 0.4rem;
+        padding: 0.45rem 0.35rem 0.25rem;
+    }
+
+    .top-row-collapsed .sidebar-hamburger {
+        border-radius: 12px;
+        height: 2.2rem;
+        width: 2.2rem;
+    }
+
+    .top-row-collapsed .sidebar-hamburger ::deep .material-icons,
+    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-outlined,
+    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-round,
+    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-sharp,
+    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-two-tone {
+        font-size: 0.95rem;
     }
 
     .top-row-collapsed .sidebar-brand {
@@ -239,8 +253,8 @@
     }
 
     .sidebar-menu-shell-collapsed {
-        padding-left: 0.65rem;
-        padding-right: 0.65rem;
+        padding-left: 0.3rem;
+        padding-right: 0.3rem;
     }
 
     .sidebar-menu-shell-collapsed .nav-section-title {
@@ -250,5 +264,31 @@
     .sidebar-menu-shell-collapsed ::deep .ant-menu-item,
     .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title {
         justify-content: center;
+        padding-inline: 0 !important;
+    }
+
+    .sidebar-menu-shell-collapsed ::deep .menu-item-content,
+    .sidebar-menu-shell-collapsed ::deep .submenu-title-content {
+        gap: 0;
+        justify-content: center;
+        padding-left: 0;
+    }
+
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-item .material-icons,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-item .material-icons-outlined,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-item .material-icons-round,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-item .material-icons-sharp,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-item .material-icons-two-tone,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title .material-icons,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title .material-icons-outlined,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title .material-icons-round,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title .material-icons-sharp,
+    .sidebar-menu-shell-collapsed ::deep .ant-menu-submenu-title .material-icons-two-tone {
+        transform: translateX(-4px);
+    }
+
+    .sidebar-menu-shell-collapsed ::deep .menu-item-text,
+    .sidebar-menu-shell-collapsed ::deep .submenu-title-text {
+        display: none;
     }
 }

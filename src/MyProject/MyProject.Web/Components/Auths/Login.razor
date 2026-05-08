@@ -7,37 +7,77 @@
 <PageTitle>身分驗證</PageTitle>
 
 <div class="login-container">
-    <div class="app-title">Blazor專案範本</div>
-    <div class="login-card">
-        <div class="login-header">
-            使用者登入
-        </div>
+    <div class="login-shell">
+        <section class="brand-panel">
+            <div class="brand-badge">ENTERPRISE ACCESS</div>
+            <div class="brand-logo" aria-hidden="true">
+                <svg viewBox="0 0 120 120" role="img">
+                    <defs>
+                        <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#37c871" />
+                            <stop offset="100%" stop-color="#118a4d" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="10" y="10" width="100" height="100" rx="28" fill="url(#brandGradient)" />
+                    <path d="M34 66c10-2 18-11 23-24 7 13 16 22 29 24-10 4-18 13-23 26-6-13-15-22-29-26z" fill="#ffffff" opacity="0.95" />
+                </svg>
+            </div>
+            <h1 class="app-title">Blazor 專案範本</h1>
+            <p class="brand-description">以現代化企業風格打造的安全登入入口，結合玻璃擬態、動態漸層與清晰的登入流程。</p>
+        </section>
 
-        <EditForm Model="@Input" method="post" OnValidSubmit="LoginUser" FormName="login">
-            <div class="form-group">
-                <label class="form-label">帳號</label>
-                <input name="Input.Account" class="form-input" placeholder="請輸入帳號"
-                       @bind="Input.Account" autocomplete="username" />
+        <section class="login-card">
+            <div class="login-header">
+                <span class="login-header-kicker">Welcome Back</span>
+                <h2>使用者登入</h2>
+                <p>請輸入您的帳號資訊以存取系統。</p>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">密碼</label>
-                <input name="Input.Password" type="password" class="form-input" placeholder="請輸入密碼"
-                       @bind="Input.Password" autocomplete="current-password" />
-            </div>
+            <EditForm Model="@Input" method="post" OnValidSubmit="LoginUser" FormName="login">
+                <input type="hidden" name="Input.CaptchaCode" value="@Input.CaptchaCode" />
 
-            <div class="login">
-                <button class="login-button" type="submit">
-                    登入
-                </button>
+                <div class="form-group">
+                    <label class="form-label" for="account">帳號</label>
+                    <input id="account" name="Input.Account" class="form-input" placeholder="請輸入帳號"
+                           @bind="Input.Account" autocomplete="username" />
+                </div>
 
-            </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">密碼</label>
+                    <input id="password" name="Input.Password" type="password" class="form-input" placeholder="請輸入密碼"
+                           @bind="Input.Password" autocomplete="current-password" />
+                </div>
 
-            <div class="@errorMessage error-message">
-                @message
-            </div>
-        </EditForm>
+                <div class="form-group captcha-layout">
+                    <label class="form-label" for="captcha">驗證碼</label>
+                    <div class="captcha-group">
+                        <input id="captcha" name="Input.CaptchaInput" class="form-input captcha-input" placeholder="請輸入右側驗證碼"
+                               @bind="Input.CaptchaInput" autocomplete="off" />
+                        <div class="captcha-display" aria-label="驗證碼">
+                            @captchaCode
+                        </div>
+                    </div>
+                </div>
 
+                <div class="form-options">
+                    <label class="remember-me">
+                        <InputCheckbox id="rememberMe" name="Input.RememberMe" @bind-Value="Input.RememberMe" />
+                        <span>記住我</span>
+                    </label>
+                    <span class="security-note">企業級安全登入</span>
+                </div>
+
+                <div class="login-actions">
+                    <button class="login-button" type="submit">
+                        登入系統
+                    </button>
+                </div>
+
+                <div class="@errorMessage error-message">
+                    @message
+                </div>
+            </EditForm>
+        </section>
     </div>
 </div>
 

@@ -21,6 +21,7 @@ public partial class SplashView
             .Check(authStateProvider, NavigationManager);
             if (checkResult == true)
             {
+                NavigationManager.NavigateTo("/app", true, true);
             }
             else
             {
