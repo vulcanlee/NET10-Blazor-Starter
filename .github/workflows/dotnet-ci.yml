@@ -36,4 +36,6 @@ jobs:
         run: ./scripts/Test-DocsEncoding.ps1
 
       - name: Vulnerability scan
+        env:
+          NUGET_HTTP_TIMEOUT_SECONDS: "180"
         run: dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive
