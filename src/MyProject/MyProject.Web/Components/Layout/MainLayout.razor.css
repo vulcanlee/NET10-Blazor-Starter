@@ -244,7 +244,7 @@ main {
     }
 
     .page.sidebar-collapsed {
-        --sidebar-width: 88px;
+        --sidebar-width: 64px;
     }
 
     .sidebar {
