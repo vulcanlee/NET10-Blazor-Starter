@@ -4,5 +4,6 @@
   <Project Path="MyProject.Dtos/MyProject.Dtos.csproj" Id="c1f74a59-fdc3-4674-b3cb-7a77c8854f15" />
   <Project Path="MyProject.Models/MyProject.Models.csproj" Id="e433e6ff-816c-4b7a-b3b2-e0adf521f243" />
   <Project Path="MyProject.Share/MyProject.Share.csproj" Id="910209cd-aa86-4120-82a5-755e5d61c837" />
+  <Project Path="MyProject.Tests/MyProject.Tests.csproj" />
   <Project Path="MyProject.Web/MyProject.Web.csproj" />
 </Solution>

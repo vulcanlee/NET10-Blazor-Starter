@@ -21,9 +21,15 @@ public class ApiValidationFilterAttribute : ActionFilterAttribute
             return;
         }
 
-        var errors = string.Join("; ", modelState.Values
-            .SelectMany(v => v.Errors)
-            .Select(e => e.ErrorMessage));
+        var errors = modelState
+            .Where(x => x.Value?.Errors.Count > 0)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Value!.Errors
+                    .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage)
+                        ? "欄位驗證失敗。"
+                        : e.ErrorMessage)
+                    .ToArray());
 
         // 根據回傳型別決定 ApiResult 泛型
         // 這裡假設 Create 回傳 ApiResult<ProjectDto>、Update 回傳 ApiResult
@@ -52,7 +58,7 @@ public class ApiValidationFilterAttribute : ActionFilterAttribute
         context.Result = new BadRequestObjectResult(ApiResult.ValidationError(errors));
     }
 
-    private static IActionResult CreateGenericValidationResult<T>(string errors)
+    private static IActionResult CreateGenericValidationResult<T>(Dictionary<string, string[]> errors)
     {
         return new BadRequestObjectResult(ApiResult<T>.ValidationError(errors));
     }

@@ -1,4 +1,6 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Repositories;
@@ -11,6 +13,7 @@ namespace MyProject.Web.Controllers;
 [Route("api/[controller]")]
 [ApiController]
 [ApiValidationFilter]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class MyTaskController : ControllerBase
 {
     private readonly ILogger<MyTaskController> logger;
@@ -52,7 +55,7 @@ public class MyTaskController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to get task. TaskId={TaskId}", id);
-            return StatusCode(500, ApiResult<MyTaskDto>.ServerErrorResult("取得任務失敗", ex.Message));
+            return StatusCode(500, ApiResult<MyTaskDto>.ServerErrorResult("取得任務失敗", ex));
         }
     }
 
@@ -99,7 +102,7 @@ public class MyTaskController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to search tasks");
-            return StatusCode(500, ApiResult<PagedResult<MyTaskDto>>.ServerErrorResult("搜尋任務失敗", ex.Message));
+            return StatusCode(500, ApiResult<PagedResult<MyTaskDto>>.ServerErrorResult("搜尋任務失敗", ex));
         }
     }
 
@@ -138,7 +141,7 @@ public class MyTaskController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to create task. Title={Title}", myTaskDto.Title);
-            return StatusCode(500, ApiResult<MyTaskDto>.ServerErrorResult("新增任務失敗", ex.Message));
+            return StatusCode(500, ApiResult<MyTaskDto>.ServerErrorResult("新增任務失敗", ex));
         }
     }
 
@@ -185,7 +188,7 @@ public class MyTaskController : ControllerBase
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to update task. TaskId={TaskId}", id);
-            return StatusCode(500, ApiResult.ServerErrorResult("更新任務失敗", ex.Message));
+            return StatusCode(500, ApiResult.ServerErrorResult("更新任務失敗", ex));
         }
     }
 
@@ -218,7 +221,7 @@ public class MyTaskController : ControllerBase
                 return BadRequest(ApiResult.FailureResult("此任務仍有關聯資料，無法刪除"));
             }
 
-            return StatusCode(500, ApiResult.ServerErrorResult("刪除任務失敗", ex.Message));
+            return StatusCode(500, ApiResult.ServerErrorResult("刪除任務失敗", ex));
         }
     }
 }

@@ -1,73 +1,21 @@
 ﻿# 腳手架補強實作路線圖 TODO
 
-## 目標說明
+## 第一階段：API 與 JWT 基礎
+- [x] 目標說明：先補齊日後所有系統都會需要的 API contract、JWT、Swagger、測試與 CI。
+- [x] 現況盤點：第一階段已完成，並保留既有 API 路由相容性。
+- [x] 實作待辦：已新增 Auth DTO、JWT service、AuthController、ApiExceptionFilter、ApiValidationFilter 結構化錯誤、測試專案與 CI。
+- [x] 驗收標準：build 成功、測試通過、弱點掃描未列出風險套件。
+- [x] 相關檔案：`src/MyProject/MyProject.Web/Auth`、`src/MyProject/MyProject.Web/Controllers`、`src/MyProject/MyProject.Tests`、`.github/workflows/dotnet-ci.yml`。
+- [ ] 備註風險：目前 refresh token stateless，不支援單顆 token 撤銷。
 
-- [ ] 將腳手架補強工作依優先順序整理成可逐項執行的待辦清單。
-- [ ] 讓日後實作時可以依階段開 branch、寫測試、驗收、更新文件。
-- [ ] 先處理會被所有未來系統繼承的基礎問題，再處理可選增強項。
+## 第二階段：品質收斂
+- [ ] 修正 56 個 build warnings，先處理本輪新增以外但會影響腳手架品質的 nullable 與 analyzer warning。
+- [ ] 拆分 `Program.cs`，把 authentication、Swagger、localization、database、seed、middleware 註冊拆成 extension。
+- [ ] 加入 Web API integration tests，覆蓋未登入、登入、refresh、CRUD 授權與 validation body。
+- [ ] 補正式部署設定範本，說明 JWT key、資料庫路徑、NLog 路徑、Swagger UI 暴露策略。
 
-## 現況盤點
-
-- [ ] 專案目前可建置成功，但仍有套件弱點警告。
-- [ ] 文件已有 EF Core 與 CRUD 複刻說明，但尚未形成完整腳手架 backlog。
-- [ ] Web API 與 JWT 是目前最重要的未完成核心機制。
-- [ ] 測試與 CI 尚未建立，導致後續重構風險較高。
-- [ ] Program.cs、檔案上傳、權限定義等區塊需要逐步整理。
-
-## 實作待辦
-
-- [ ] 第一階段：文件與安全基準。
-- [ ] 建立本 TODO 文件組。
-- [ ] 升級或替換有弱點的 AutoMapper 套件。
-- [ ] 補上套件弱點掃描與過期套件清單。
-- [ ] 補上正式環境安全注意事項。
-- [ ] 第二階段：API 標準化。
-- [ ] 建立 `ApiResult<T>` 與 `ApiExceptionInfo`。
-- [ ] 建立 API 統一例外封裝機制。
-- [ ] 建立 CRUD API 樣板。
-- [ ] 建立檔案下載錯誤時的 `ApiResult<T>` 回應。
-- [ ] 第三階段：JWT 認證。
-- [ ] 建立 `JwtSettings` 與 Options validation。
-- [ ] 加入 JWT Bearer authentication scheme。
-- [ ] 建立 login、refresh、me API。
-- [ ] 加入 Swagger Bearer 授權。
-- [ ] 第四階段：測試與 CI。
-- [ ] 新增測試專案。
-- [ ] 補 Business service 測試。
-- [ ] 補 API controller 或 integration test。
-- [ ] 補 JWT token service 測試。
-- [ ] 新增 GitHub Actions workflow。
-- [ ] 第五階段：架構整理。
-- [ ] 拆分 `Program.cs`。
-- [ ] 抽象化檔案儲存服務。
-- [ ] 整理權限定義與 Menu 對應。
-- [ ] 修正 nullable warning。
-- [ ] 第六階段：維運能力。
-- [ ] 新增 health checks。
-- [ ] 新增 rate limiting。
-- [ ] 補 CORS 設定策略。
-- [ ] 補 SQL Server 切換指南。
-- [ ] 補部署與環境變數設定指南。
-
-## 驗收標準
-
-- [ ] 每一階段都可以獨立建立 PR。
-- [ ] 每一階段完成後都更新相關 TODO checkbox。
-- [ ] API、JWT、測試、CI 完成後，腳手架可作為新系統開發起點。
-- [ ] 重要安全風險都有文件、設定或測試保護。
-
-## 相關檔案
-
-- [ ] `docs/`
-- [ ] `src/MyProject/MyProject.Web/`
-- [ ] `src/MyProject/MyProject.Business/`
-- [ ] `src/MyProject/MyProject.Models/`
-- [ ] `src/MyProject/MyProject.AccessDatas/`
-- [ ] `.github/workflows/`
-
-## 備註風險
-
-- [ ] 若先做大量重構再補測試，可能難以確認行為沒有改壞。
-- [ ] 若 JWT 與 ApiResult 同時大改但沒有 integration test，外部 API 使用者容易遇到破壞性變更。
-- [ ] 若文件 checkbox 完成後未同步驗收證據，TODO 文件會失去可信度。
-
+## 第三階段：腳手架產品化
+- [ ] 建立新專案改名與替換清單。
+- [ ] 建立 SQL Server 切換與 migration 操作文件。
+- [ ] 建立預設帳號初始化與強制改密碼流程。
+- [ ] 建立 API versioning 策略，但不破壞目前 `/api/...`。

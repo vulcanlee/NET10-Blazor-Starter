@@ -27,6 +27,21 @@ public class ApiResult<T>
     public T? Data { get; set; }
 
     /// <summary>
+    /// 欄位或規則驗證錯誤。
+    /// </summary>
+    public Dictionary<string, string[]>? Errors { get; set; }
+
+    /// <summary>
+    /// 本次請求追蹤識別碼。
+    /// </summary>
+    public string? TraceId { get; set; }
+
+    /// <summary>
+    /// 例外資訊。此腳手架依需求完整回傳，正式環境請評估資訊揭露風險。
+    /// </summary>
+    public ApiExceptionInfo? Exception { get; set; }
+
+    /// <summary>
     /// 錯誤訊息 (當失敗時)
     /// </summary>
     public string? ErrorMessage { get; set; }
@@ -40,6 +55,20 @@ public class ApiResult<T>
     /// 時間戳記
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.Now;
+
+    public static ApiResult<T> FromException(Exception exception, string message = "伺服器發生錯誤", int statusCode = 500, string? traceId = null)
+    {
+        return new ApiResult<T>
+        {
+            Success = false,
+            StatusCode = statusCode,
+            Message = "伺服器錯誤",
+            ErrorMessage = message,
+            ErrorDetail = exception.ToString(),
+            TraceId = traceId,
+            Exception = ApiExceptionInfo.FromException(exception)
+        };
+    }
 
     #region 靜態工廠方法
 
@@ -75,7 +104,11 @@ public class ApiResult<T>
             StatusCode = statusCode,
             Message = "操作失敗",
             ErrorMessage = message,
-            ErrorDetail = errorDetail
+            ErrorDetail = errorDetail,
+            Errors = new Dictionary<string, string[]>
+            {
+                ["General"] = new[] { message }
+            }
         };
     }
 
@@ -86,12 +119,26 @@ public class ApiResult<T>
     /// <returns></returns>
     public static ApiResult<T> ValidationError(string message)
     {
+        return ValidationError(new Dictionary<string, string[]>
+        {
+            ["Validation"] = new[] { message }
+        });
+    }
+
+    /// <summary>
+    /// 建立驗證失敗的回應
+    /// </summary>
+    /// <param name="errors">欄位驗證錯誤</param>
+    /// <returns></returns>
+    public static ApiResult<T> ValidationError(Dictionary<string, string[]> errors)
+    {
         return new ApiResult<T>
         {
             Success = false,
             StatusCode = 400,
             Message = "驗證失敗",
-            ErrorMessage = message
+            ErrorMessage = string.Join("; ", errors.SelectMany(x => x.Value)),
+            Errors = errors
         };
     }
 
@@ -107,7 +154,11 @@ public class ApiResult<T>
             Success = false,
             StatusCode = 404,
             Message = "資源不存在",
-            ErrorMessage = message
+            ErrorMessage = message,
+            Errors = new Dictionary<string, string[]>
+            {
+                ["NotFound"] = new[] { message }
+            }
         };
     }
 
@@ -123,7 +174,11 @@ public class ApiResult<T>
             Success = false,
             StatusCode = 401,
             Message = "未授權",
-            ErrorMessage = message
+            ErrorMessage = message,
+            Errors = new Dictionary<string, string[]>
+            {
+                ["Unauthorized"] = new[] { message }
+            }
         };
     }
 
@@ -139,7 +194,11 @@ public class ApiResult<T>
             Success = false,
             StatusCode = 403,
             Message = "禁止存取",
-            ErrorMessage = message
+            ErrorMessage = message,
+            Errors = new Dictionary<string, string[]>
+            {
+                ["Forbidden"] = new[] { message }
+            }
         };
     }
 
@@ -155,7 +214,11 @@ public class ApiResult<T>
             Success = false,
             StatusCode = 409,
             Message = "資料衝突",
-            ErrorMessage = message
+            ErrorMessage = message,
+            Errors = new Dictionary<string, string[]>
+            {
+                ["Conflict"] = new[] { message }
+            }
         };
     }
 
@@ -177,7 +240,45 @@ public class ApiResult<T>
         };
     }
 
+    /// <summary>
+    /// 建立伺服器錯誤的回應
+    /// </summary>
+    /// <param name="message">錯誤訊息</param>
+    /// <param name="exception">例外資訊</param>
+    /// <returns></returns>
+    public static ApiResult<T> ServerErrorResult(string message, Exception exception)
+    {
+        return FromException(exception, message);
+    }
+
     #endregion
+}
+
+public class ApiExceptionInfo
+{
+    public string Type { get; set; } = string.Empty;
+
+    public string Message { get; set; } = string.Empty;
+
+    public string? StackTrace { get; set; }
+
+    public string? Source { get; set; }
+
+    public ApiExceptionInfo? InnerException { get; set; }
+
+    public static ApiExceptionInfo FromException(Exception exception)
+    {
+        return new ApiExceptionInfo
+        {
+            Type = exception.GetType().FullName ?? exception.GetType().Name,
+            Message = exception.Message,
+            StackTrace = exception.StackTrace,
+            Source = exception.Source,
+            InnerException = exception.InnerException == null
+                ? null
+                : FromException(exception.InnerException)
+        };
+    }
 }
 
 /// <summary>
@@ -192,7 +293,7 @@ public class ApiResult : ApiResult<object>
     /// </summary>
     /// <param name="message">訊息</param>
     /// <returns></returns>
-    public static new ApiResult SuccessResult(string message = "操作成功")
+    public static ApiResult SuccessResult(string message = "操作成功")
     {
         return new ApiResult
         {
@@ -228,12 +329,26 @@ public class ApiResult : ApiResult<object>
     /// <returns></returns>
     public static new ApiResult ValidationError(string message)
     {
+        return ValidationError(new Dictionary<string, string[]>
+        {
+            ["Validation"] = new[] { message }
+        });
+    }
+
+    /// <summary>
+    /// 建立驗證失敗的回應 (無資料)
+    /// </summary>
+    /// <param name="errors">欄位驗證錯誤</param>
+    /// <returns></returns>
+    public static new ApiResult ValidationError(Dictionary<string, string[]> errors)
+    {
         return new ApiResult
         {
             Success = false,
             StatusCode = 400,
             Message = "驗證失敗",
-            ErrorMessage = message
+            ErrorMessage = string.Join("; ", errors.SelectMany(x => x.Value)),
+            Errors = errors
         };
     }
 
@@ -268,6 +383,25 @@ public class ApiResult : ApiResult<object>
             Message = "伺服器錯誤",
             ErrorMessage = message,
             ErrorDetail = errorDetail
+        };
+    }
+
+    /// <summary>
+    /// 建立伺服器錯誤的回應 (無資料)
+    /// </summary>
+    /// <param name="message">錯誤訊息</param>
+    /// <param name="exception">例外資訊</param>
+    /// <returns></returns>
+    public static new ApiResult ServerErrorResult(string message, Exception exception)
+    {
+        return new ApiResult
+        {
+            Success = false,
+            StatusCode = 500,
+            Message = "伺服器錯誤",
+            ErrorMessage = message,
+            ErrorDetail = exception.ToString(),
+            Exception = ApiExceptionInfo.FromException(exception)
         };
     }
 

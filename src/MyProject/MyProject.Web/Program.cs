@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using AntDesign;
+using MyProject.Dtos.Commons;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
@@ -11,13 +15,17 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
+using MyProject.Web.Filters;
 using MyProject.Web.Localization;
 using NLog;
 using NLog.Web;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 
 namespace MyProject.Web
 {
@@ -60,10 +68,32 @@ namespace MyProject.Web
                 builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
-                builder.Services.AddControllers();
+                builder.Services.AddControllers(options =>
+                {
+                    options.Filters.Add<ApiExceptionFilterAttribute>();
+                });
                 //builder.Services.AddOpenApi();
                 builder.Services.AddEndpointsApiExplorer();
-                builder.Services.AddSwaggerGen();
+                builder.Services.AddSwaggerGen(options =>
+                {
+                    options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
+                    {
+                        Name = "Authorization",
+                        Type = SecuritySchemeType.Http,
+                        Scheme = JwtBearerDefaults.AuthenticationScheme,
+                        BearerFormat = "JWT",
+                        In = ParameterLocation.Header,
+                        Description = "請輸入 JWT Bearer token。"
+                    });
+
+                    options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+                    {
+                        {
+                            new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, null, null),
+                            new List<string>()
+                        }
+                    });
+                });
                 builder.Services.AddLocalization();
                 builder.Services.AddAntDesign();
 
@@ -98,6 +128,15 @@ namespace MyProject.Web
                     options.MinimumSameSitePolicy = Microsoft.AspNetCore.Http.SameSiteMode.None;
                 });
 
+                var jwtSettings = builder.Configuration
+                    .GetSection(JwtSettings.SectionName)
+                    .Get<JwtSettings>() ?? new JwtSettings();
+                builder.Services
+                    .AddOptions<JwtSettings>()
+                    .Bind(builder.Configuration.GetSection(JwtSettings.SectionName))
+                    .ValidateDataAnnotations()
+                    .ValidateOnStart();
+
                 builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
                     .AddCookie(MagicObjectHelper.CookieScheme, options =>
                     {
@@ -105,6 +144,44 @@ namespace MyProject.Web
                         options.LoginPath = "/Auths/Login";
                         options.LogoutPath = "/Auths/Logout";
                         options.AccessDeniedPath = "/Auths/Login";
+                    })
+                    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+                    {
+                        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                        options.SaveToken = false;
+                        options.TokenValidationParameters = new TokenValidationParameters
+                        {
+                            ValidateIssuer = true,
+                            ValidIssuer = jwtSettings.Issuer,
+                            ValidateAudience = true,
+                            ValidAudience = jwtSettings.Audience,
+                            ValidateIssuerSigningKey = true,
+                            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SigningKey)),
+                            ValidateLifetime = true,
+                            ClockSkew = TimeSpan.FromMinutes(jwtSettings.ClockSkewMinutes)
+                        };
+                        options.Events = new JwtBearerEvents
+                        {
+                            OnChallenge = async context =>
+                            {
+                                context.HandleResponse();
+                                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                                context.Response.ContentType = "application/json; charset=utf-8";
+
+                                var result = ApiResult.UnauthorizedResult("未提供有效的 Bearer token。");
+                                result.TraceId = context.HttpContext.TraceIdentifier;
+                                await context.Response.WriteAsync(JsonSerializer.Serialize(result));
+                            },
+                            OnForbidden = async context =>
+                            {
+                                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                                context.Response.ContentType = "application/json; charset=utf-8";
+
+                                var result = ApiResult.ForbiddenResult("目前使用者沒有權限存取此 API。");
+                                result.TraceId = context.HttpContext.TraceIdentifier;
+                                await context.Response.WriteAsync(JsonSerializer.Serialize(result));
+                            }
+                        };
                     });
                 builder.Services.AddAuthorization();
                 #endregion
@@ -160,6 +237,7 @@ namespace MyProject.Web
                 builder.Services.AddScoped<RolePermissionService>();
                 builder.Services.AddScoped<RoleViewService>();
                 builder.Services.AddScoped<MyUserService>();
+                builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
                 builder.Services.AddScoped<ProjectService>();
                 builder.Services.AddScoped<ProjectRepository>();
                 builder.Services.AddScoped<MyTaskRepository>();
