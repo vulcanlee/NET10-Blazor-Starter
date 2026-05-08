@@ -1,4 +1,4 @@
-# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
+﻿# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
 
 > 目標：完整複刻 `RoleViewView` 的「新增、查詢、更新、刪除、過濾、排序、分頁、驗證、通知」行為，並保留同等結構（Page + View + Service + AdapterModel + Entity + 註冊 + 樣式）。
 

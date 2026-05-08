@@ -2,28 +2,28 @@
 
 public class SystemSettings
 {
-    public ConnectionStrings ConnectionStrings { get; set; }
-    public SystemInformation SystemInformation { get; set; }
-    public ExternalFileSystem ExternalFileSystem { get; set; }
+    public ConnectionStrings ConnectionStrings { get; set; } = new();
+    public SystemInformation SystemInformation { get; set; } = new();
+    public ExternalFileSystem ExternalFileSystem { get; set; } = new();
 }
 public class ConnectionStrings
 {
-    public string DefaultConnection { get; set; }
-    public string SQLiteDefaultConnection { get; set; }
+    public string DefaultConnection { get; set; } = string.Empty;
+    public string SQLiteDefaultConnection { get; set; } = string.Empty;
 
 }
 public class SystemInformation
 {
-    public string SystemVersion { get; set; }
-    public string SystemName { get; set; }
-    public string SystemDescription { get; set; }
+    public string SystemVersion { get; set; } = string.Empty;
+    public string SystemName { get; set; } = string.Empty;
+    public string SystemDescription { get; set; } = string.Empty;
 }
 public class ExternalFileSystem
 {
-    public string DatabasePath { get; set; }
-    public string DownloadPath { get; set; }
-    public string UploadPath { get; set; }
-    public string ProjectFilePath { get; set; }
-    public string TaskFilePath { get; set; }
-    public string MeetingFilePath { get; set; }
+    public string DatabasePath { get; set; } = string.Empty;
+    public string DownloadPath { get; set; } = string.Empty;
+    public string UploadPath { get; set; } = string.Empty;
+    public string ProjectFilePath { get; set; } = string.Empty;
+    public string TaskFilePath { get; set; } = string.Empty;
+    public string MeetingFilePath { get; set; } = string.Empty;
 }

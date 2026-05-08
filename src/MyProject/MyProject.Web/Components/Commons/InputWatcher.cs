@@ -5,12 +5,12 @@ namespace MyProject.Web.Components.Commons;
 
 public class InputWatcher : ComponentBase
 {
-    private EditContext editContext;
+    private EditContext? editContext;
 
     [CascadingParameter]
     protected EditContext EditContext
     {
-        get => editContext;
+        get => editContext!;
         set
         {
             editContext = value;
@@ -19,5 +19,5 @@ public class InputWatcher : ComponentBase
     }
 
     [Parameter]
-    public Action<EditContext> EditContextActionChanged { get; set; }
+    public Action<EditContext>? EditContextActionChanged { get; set; }
 }

@@ -357,7 +357,7 @@ public class MyUserService
             return false;
         }
 
-        string hashPassword = PasswordHelper.GetPasswordSHA(user.Salt, MagicObjectHelper.NeedChangePassword);
+        string hashPassword = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, MagicObjectHelper.NeedChangePassword);
         bool result = user.Password == hashPassword;
 
         Logger.LogDebug("Password-change requirement check completed. UserId={UserId}, NeedChangePassword={NeedChangePassword}", myUser.Id, result);

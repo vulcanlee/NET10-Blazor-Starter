@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -18,12 +19,11 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
+using MyProject.Web.Extensions;
 using MyProject.Web.Filters;
 using MyProject.Web.Localization;
 using NLog;
 using NLog.Web;
-using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -33,16 +33,16 @@ namespace MyProject.Web
     {
         public static void Main(string[] args)
         {
-            ILogger<Program> logger = null;
+            ILogger<Program>? logger = null;
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
 
                 #region NLog 相關設定
                 var nlogBasePrefixPath = builder.Configuration.GetValue<string>("NLog:BasePath");
-                var baseNamespace = typeof(Program).Namespace;
+                var baseNamespace = typeof(Program).Namespace ?? nameof(MyProject.Web);
 
-                string nlogBasePath = null;
+                string? nlogBasePath = null;
                 if (!string.IsNullOrWhiteSpace(nlogBasePrefixPath))
                 {
                     nlogBasePath = Path.Combine(nlogBasePrefixPath, baseNamespace);
@@ -53,14 +53,15 @@ namespace MyProject.Web
                     NLog.Common.InternalLogger.LogFile = Path.Combine(nlogBasePath, $"{baseNamespace}-nlog-internal.log");
 
                     // 設置變量到當前配置
-                    LogManager.Configuration.Variables["BasePath"] = nlogBasePath;
-                    LogManager.Configuration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
+                    if (LogManager.Configuration is not null)
+                    {
+                        LogManager.Configuration.Variables["BasePath"] = nlogBasePath;
+                        LogManager.Configuration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
+                    }
                 }
 
                 builder.Logging.ClearProviders();
                 builder.Host.UseNLog();
-                logger = builder.Services.BuildServiceProvider().GetRequiredService<ILogger<Program>>();
-                logger.LogInformation("Starting application bootstrap. Environment={EnvironmentName}", builder.Environment.EnvironmentName);
                 #endregion
 
                 #region 系統使用服務
@@ -71,6 +72,10 @@ namespace MyProject.Web
                 builder.Services.AddControllers(options =>
                 {
                     options.Filters.Add<ApiExceptionFilterAttribute>();
+                });
+                builder.Services.Configure<ApiBehaviorOptions>(options =>
+                {
+                    options.SuppressModelStateInvalidFilter = true;
                 });
                 //builder.Services.AddOpenApi();
                 builder.Services.AddEndpointsApiExplorer();
@@ -94,32 +99,8 @@ namespace MyProject.Web
                         }
                     });
                 });
-                builder.Services.AddLocalization();
                 builder.Services.AddAntDesign();
-
-                var supportedCultures = new[]
-                {
-                    new CultureInfo("zh-TW"),
-                    new CultureInfo("en-US")
-                };
-
-                var defaultCulture = supportedCultures[0];
-
-                builder.Services.Configure<RequestLocalizationOptions>(options =>
-                {
-                    options.DefaultRequestCulture = new RequestCulture(defaultCulture);
-                    options.SupportedCultures = supportedCultures;
-                    options.SupportedUICultures = supportedCultures;
-
-                    // Use the browser language to choose between the supported cultures.
-                    options.RequestCultureProviders = new List<IRequestCultureProvider>
-                    {
-                        new AcceptLanguageHeaderRequestCultureProvider()
-                    };
-                });
-
-                LocaleProvider.SetLocale("zh-TW", AntDesignLocaleFactory.Create("zh-TW"));
-                LocaleProvider.DefaultLanguage = defaultCulture.Name;
+                builder.Services.AddConfiguredLocalization();
 
                 #region 加入使用 Cookie & JWT 認證需要的宣告
                 builder.Services.Configure<CookiePolicyOptions>(options =>
@@ -208,7 +189,8 @@ namespace MyProject.Web
 
                 #region 系統使用的目錄準備
                 // 取得 系統設定物件 SystemSettings
-                var systemSettings = builder.Configuration.GetSection(nameof(SystemSettings)).Get<SystemSettings>();
+                var systemSettings = builder.Configuration.GetSection(nameof(SystemSettings)).Get<SystemSettings>()
+                    ?? new SystemSettings();
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.DatabasePath, "database");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.DownloadPath, "download");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.UploadPath, "upload");
@@ -218,11 +200,8 @@ namespace MyProject.Web
                 #endregion
 
                 #region EF Core 宣告
-                var ctmsSettings = builder.Configuration
-                    .GetSection(nameof(SystemSettings))
-                    .Get<SystemSettings>();
                 var SQLiteDefaultConnection = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
-                logger.LogDebug("Configured SQLite connection string for database path {DatabasePath}", systemSettings.ExternalFileSystem.DatabasePath);
+                LogManager.GetCurrentClassLogger().Debug("Configured SQLite connection string for database path {DatabasePath}", systemSettings.ExternalFileSystem.DatabasePath);
 
                 builder.Services.AddDbContext<BackendDBContext>(options =>
                     options.UseSqlite(SQLiteDefaultConnection),
@@ -230,20 +209,7 @@ namespace MyProject.Web
                 #endregion
 
                 #region 客製服務註冊
-                builder.Services.AddScoped<AuthenticationStateHelper>();
-                builder.Services.AddScoped<CurrentUserService>();
-                builder.Services.AddScoped<MyUserServiceLogin>();
-                builder.Services.AddScoped<SidebarMenuService>();
-                builder.Services.AddScoped<RolePermissionService>();
-                builder.Services.AddScoped<RoleViewService>();
-                builder.Services.AddScoped<MyUserService>();
-                builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-                builder.Services.AddScoped<ProjectService>();
-                builder.Services.AddScoped<ProjectRepository>();
-                builder.Services.AddScoped<MyTaskRepository>();
-                builder.Services.AddScoped<MeetingRepository>();
-                builder.Services.AddScoped<MyTasService>();
-                builder.Services.AddScoped<MeetingService>();
+                builder.Services.AddApplicationServices();
                 #endregion
 
                 var app = builder.Build();
@@ -267,7 +233,7 @@ namespace MyProject.Web
                         logger.LogInformation("Database created because no migrations were found.");
                     }
 
-                    RoleView roleViewItemNew = null;
+                    RoleView? roleViewItemNew = null;
 
                     #region 是否有存在的角色檢視定義
                     var roleViewItem = dbContext.RoleView
@@ -310,10 +276,10 @@ namespace MyProject.Web
                             IsAdmin = true,
                             Salt = Guid.NewGuid().ToString(),
                             Status = true,
-                            RoleViewId = roleViewItemNew.Id,
+                            RoleViewId = (roleViewItemNew ?? roleViewItem)!.Id,
                         };
                         support.Password =
-                            PasswordHelper.GetPasswordSHA(support.Salt, MagicObjectHelper.開發者帳號);
+                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, MagicObjectHelper.開發者帳號);
 
                         dbContext.MyUser.Add(support);
                         dbContext.SaveChanges();
@@ -322,12 +288,12 @@ namespace MyProject.Web
                     else
                     {
                         support.Password =
-                            PasswordHelper.GetPasswordSHA(support.Salt, MagicObjectHelper.開發者帳號);
+                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, MagicObjectHelper.開發者帳號);
                         support.IsAdmin = true;
                         if (roleViewItemNew != null)
                             support.RoleViewId = roleViewItemNew.Id;
                         else
-                            support.RoleViewId = roleViewItem.Id;
+                            support.RoleViewId = roleViewItem!.Id;
                         dbContext.SaveChanges();
                         logger.LogDebug("Updated existing support user seed data.");
                     }
@@ -344,62 +310,20 @@ namespace MyProject.Web
                     app.UseHsts();
                 }
 
-                if (app.Environment.IsDevelopment())
-                {
-                    //app.MapOpenApi();
-                    app.UseSwagger();
-                    app.UseSwaggerUI();
-                    logger.LogInformation("Swagger UI enabled for development environment.");
-                }
-
-                app.Use(async (context, next) =>
-                {
-                    var requestLogger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-                    var stopwatch = Stopwatch.StartNew();
-
-                    try
-                    {
-                        await next();
-                        stopwatch.Stop();
-
-                        requestLogger.LogInformation(
-                            "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms",
-                            context.Request.Method,
-                            context.Request.Path.Value,
-                            context.Response.StatusCode,
-                            stopwatch.ElapsedMilliseconds);
-                    }
-                    catch (Exception ex)
-                    {
-                        stopwatch.Stop();
-                        requestLogger.LogError(
-                            ex,
-                            "HTTP {Method} {Path} failed after {ElapsedMilliseconds} ms",
-                            context.Request.Method,
-                            context.Request.Path.Value,
-                            stopwatch.ElapsedMilliseconds);
-                        throw;
-                    }
-                });
+                app.UseDevelopmentSwagger(logger);
+                app.UseHttpRequestLogging<Program>();
 
                 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
                 app.UseHttpsRedirection();
 
-                var localizationOptions = app.Services
-                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<RequestLocalizationOptions>>()
-                    .Value;
-                app.UseRequestLocalization(localizationOptions);
+                app.UseConfiguredLocalization();
 
                 app.UseAntiforgery();
 
                 app.MapStaticAssets();
 
                 #region 綁定靜態資源
-                app.UseStaticFiles(new StaticFileOptions
-                {
-                    FileProvider = new PhysicalFileProvider(systemSettings.ExternalFileSystem.DownloadPath),
-                    RequestPath = "/UploadFiles"
-                });
+                app.UseConfiguredDownloadStaticFiles(systemSettings);
                 #endregion
 
                 app.UseAuthentication();
@@ -426,7 +350,7 @@ namespace MyProject.Web
                     }
 
                     Directory.CreateDirectory(directoryPath);
-                    logger.LogInformation("Created {DirectoryName} directory at {DirectoryPath}", directoryName, directoryPath);
+                    logger?.LogInformation("Created {DirectoryName} directory at {DirectoryPath}", directoryName, directoryPath);
                 }
             }
             catch (Exception ex)

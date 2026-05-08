@@ -87,11 +87,11 @@ namespace MyProject.Web.Components.Auths
                 return;
             }
 
-            (string result, MyUser myUser) = await MyUserServiceLogin.LoginAsync(Input.Account, Input.Password);
-            if (!string.IsNullOrEmpty(result))
+            (string result, MyUser? myUser) = await MyUserServiceLogin.LoginAsync(Input.Account, Input.Password);
+            if (!string.IsNullOrEmpty(result) || myUser is null)
             {
                 Logger.LogWarning("Login failed for Account={Account}. Reason={Reason}", Input.Account, result);
-                message = result;
+                message = string.IsNullOrEmpty(result) ? "登入失敗，請重新確認帳號與密碼。" : result;
                 RefreshCaptcha();
                 Input.CaptchaInput = string.Empty;
             }

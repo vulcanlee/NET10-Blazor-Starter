@@ -17,7 +17,7 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly ModalService modalService;
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
-        ITable table;
+        ITable? table;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
         int _total = 0;
@@ -27,7 +27,7 @@ namespace MyProject.Web.Components.Views.Admins
         string modalTitle = "角色列表";
         bool modalVisible = false;
         RecordVm CurrentRecord = new();
-        public EditContext LocalEditContext { get; set; }
+        public EditContext? LocalEditContext { get; set; }
 
         public RoleViewViewSample(ILogger<RoleViewView> logger,
             RoleViewService roleViewService,
@@ -172,7 +172,7 @@ namespace MyProject.Web.Components.Views.Admins
         private async Task OnModalOKHandleAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs args)
         {
             #region 進行 Form Validation 檢查驗證作業
-            if (LocalEditContext.Validate() == false)
+            if (LocalEditContext?.Validate() == false)
             {
                 // 取得所有驗證失敗的錯誤訊息
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();

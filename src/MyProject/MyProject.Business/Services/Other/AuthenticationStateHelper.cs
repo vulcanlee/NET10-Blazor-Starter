@@ -116,7 +116,7 @@ public class AuthenticationStateHelper
         }
     }
 
-    public async Task<MyUserAdapterModel> GetUserInformation(AuthenticationStateProvider authStateProvider)
+    public async Task<MyUserAdapterModel?> GetUserInformation(AuthenticationStateProvider authStateProvider)
     {
         logger.LogDebug("Loading current user information from authentication state.");
 

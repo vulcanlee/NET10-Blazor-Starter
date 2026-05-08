@@ -1,4 +1,4 @@
-# 第一次 Migration 
+﻿# 第一次 Migration 
 
 ```
 Add-Migration add-meeting -Project MyProject.AccessDatas -StartupProject MyProject.Web 

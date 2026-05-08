@@ -31,5 +31,9 @@ jobs:
       - name: Test
         run: dotnet test src/MyProject/MyProject.slnx --configuration Release --no-build --verbosity normal
 
+      - name: Documentation encoding check
+        shell: pwsh
+        run: ./scripts/Test-DocsEncoding.ps1
+
       - name: Vulnerability scan
         run: dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive

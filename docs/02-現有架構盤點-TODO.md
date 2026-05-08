@@ -9,7 +9,7 @@
 - [ ] 備註風險：Controller 仍有部分手動 try/catch 與商業訊息，下一階段可抽出共用 API response helper，降低重複碼。
 
 ## 架構整理待辦
-- [ ] 拆分 `Program.cs`，建立 service registration extension 與 middleware extension。
-- [ ] 修正 `Program.cs` 內 ASP0000 `BuildServiceProvider` warning，改用更符合 ASP.NET Core DI 生命週期的寫法。
-- [ ] 清理 `ProjectRepository` 的 self-assignment warning。
+- [x] 拆分 `Program.cs`，建立 service registration extension 與 middleware extension。已新增 `Extensions/ServiceCollectionExtensions.cs` 與 `Extensions/ApplicationBuilderExtensions.cs`。
+- [x] 修正 `Program.cs` 內 ASP0000 `BuildServiceProvider` warning，改由 `app.Services.GetRequiredService<ILogger<Program>>()` 取得 logger。
+- [x] 清理 `ProjectRepository` 的 self-assignment warning，保留目前 API shape 無 related include 的註解。
 - [ ] 評估 `Models` 與 `Dtos` 專案責任邊界，避免 AdapterModel 與 API DTO 混用。

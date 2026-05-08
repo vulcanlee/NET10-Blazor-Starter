@@ -30,7 +30,8 @@ public class ProjectRepository
 
         if (includeRelatedData)
         {
-            query = query;        }
+            // Project currently has no related data included by this API shape.
+        }
 
         return await query.FirstOrDefaultAsync(p => p.Id == id);
     }
@@ -136,7 +137,7 @@ public class ProjectRepository
 
         if (includeRelatedData)
         {
-            query = query;
+            // Project currently has no related data included by this API shape.
         }
 
         var items = await query

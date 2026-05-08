@@ -20,10 +20,12 @@ public class CombinedSearchHelper
         var parameter = Expression.Parameter(typeof(Project), "p");
 
         var leftVisitor = new ReplaceExpressionVisitor(first.Parameters[0], parameter);
-        var left = leftVisitor.Visit(first.Body);
+        var left = leftVisitor.Visit(first.Body)
+            ?? throw new InvalidOperationException("Unable to compose the left search expression.");
 
         var rightVisitor = new ReplaceExpressionVisitor(second.Parameters[0], parameter);
-        var right = rightVisitor.Visit(second.Body);
+        var right = rightVisitor.Visit(second.Body)
+            ?? throw new InvalidOperationException("Unable to compose the right search expression.");
 
         return Expression.Lambda<Func<Project, bool>>(
             Expression.AndAlso(left, right), parameter);

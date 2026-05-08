@@ -31,13 +31,13 @@ public class MyUserServiceLogin
         this.rolePermissionService = rolePermissionService;
     }
 
-    public async Task<(string, MyUser)> LoginAsync(string username, string password)
+    public async Task<(string, MyUser?)> LoginAsync(string username, string password)
     {
         Logger.LogInformation("Login attempt started for Account={Account}.", username);
 
         try
         {
-            MyUser item = await context.MyUser
+            MyUser? item = await context.MyUser
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Account == username);
 
@@ -47,7 +47,7 @@ public class MyUserServiceLogin
                 return ("帳號或者密碼不正確", null);
             }
 
-            string hashPassword = PasswordHelper.GetPasswordSHA(item.Salt, password);
+            string hashPassword = PasswordHelper.GetPasswordSHA(item.Salt ?? string.Empty, password);
             if (item.Password != hashPassword)
             {
                 Logger.LogWarning("Login failed because password validation failed. Account={Account}, UserId={UserId}", username, item.Id);

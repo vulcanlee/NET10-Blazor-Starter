@@ -22,7 +22,7 @@ public class DataRequest
     public bool RequiresCounts { get; set; }
 
     //     Specifies the search criteria.
-    public string Search { get; set; }
+    public string Search { get; set; } = string.Empty;
 
     //     指定排序欄位名稱
     public string SortField { get; set; } = string.Empty;

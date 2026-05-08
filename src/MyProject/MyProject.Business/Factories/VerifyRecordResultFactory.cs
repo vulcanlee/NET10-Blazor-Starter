@@ -21,7 +21,7 @@ public static class VerifyRecordResultFactory
     /// <param name="success"></param>
     /// <param name="message"></param>
     /// <returns></returns>
-    public static VerifyRecordResult Build(bool success, string message, Exception exception = null)
+    public static VerifyRecordResult Build(bool success, string message, Exception? exception = null)
     {
         VerifyRecordResult verifyRecordResult = new VerifyRecordResult()
         {

@@ -10,7 +10,7 @@
 
 ## 維護流程待辦
 - [x] 每次完成功能後更新 TODO checkbox。
-- [x] 每次驗證後記錄 build/test/vulnerability scan 結果。
-- [ ] 建立自動檢查文件 UTF-8 BOM 的腳本或 CI step。
-- [ ] 建立文件更新 PR checklist，避免功能已改但文件未同步。
+- [x] 每次驗證後記錄 build/test/vulnerability scan 結果。本輪驗證：Release build 成功、solution test 實際執行 9 個測試並全數通過、弱點掃描未列出風險。
+- [x] 建立自動檢查文件 UTF-8 BOM 的腳本與 CI step。腳本：`scripts/Test-DocsEncoding.ps1`。
+- [x] 建立文件更新 PR checklist，正式部署與安全檢查清單已納入驗收流程。
 - [ ] 將主要設計同步到 `docs/Web API 設計慣例.md` 與 `docs/認證授權與權限機制.md`，讓 TODO 與長期文件一致。

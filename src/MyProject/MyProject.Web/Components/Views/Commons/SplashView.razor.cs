@@ -7,11 +7,11 @@ namespace MyProject.Web.Components.Views.Commons;
 public partial class SplashView
 {
     [Inject]
-    public AuthenticationStateProvider authStateProvider { get; set; }
+    public AuthenticationStateProvider authStateProvider { get; set; } = default!;
     [Inject]
-    public AuthenticationStateHelper AuthenticationStateHelper { get; set; }
+    public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
     [Inject]
-    public NavigationManager NavigationManager { get; set; }
+    public NavigationManager NavigationManager { get; set; } = default!;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

@@ -26,7 +26,7 @@ public class MyUserAdapterModel : ICloneable
 
     public MyUserAdapterModel Clone()
     {
-        return ((ICloneable)this).Clone() as MyUserAdapterModel;
+        return (MyUserAdapterModel)((ICloneable)this).Clone();
     }
     object ICloneable.Clone()
     {

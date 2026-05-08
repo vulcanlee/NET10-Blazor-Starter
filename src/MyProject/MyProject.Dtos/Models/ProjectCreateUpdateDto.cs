@@ -55,14 +55,14 @@ public class ProjectCreateUpdateDto
     /// </summary>
     [Required(ErrorMessage = "狀態 不可為空白")]
     [JsonPropertyName("status")]
-    public string Status { get; set; }
+    public string Status { get; set; } = string.Empty;
 
     /// <summary>
     /// 優先順序 (低/中/高/緊急)
     /// </summary>
     [Required(ErrorMessage = "優先順序 不可為空白")]
     [JsonPropertyName("priority")]
-    public string Priority { get; set; }
+    public string Priority { get; set; } = string.Empty;
 
     /// <summary>
     /// 完成百分比 (0-100)

@@ -14,7 +14,7 @@ public class CurrentUser
     public bool Status { get; set; } = true;
     public string? Email { get; set; }
     public bool IsAdmin { get; set; } = false;
-    public string RoleJson { get; set; }
+    public string RoleJson { get; set; } = string.Empty;
     public bool IsAuthenticated { get; set; } = false;
     public List<string> RoleList { get; set; } = new();
 
@@ -28,6 +28,6 @@ public class CurrentUser
             }
         }
 
-        RoleList = JsonSerializer.Deserialize<List<string>>(this.RoleJson);
+        RoleList = JsonSerializer.Deserialize<List<string>>(this.RoleJson) ?? new List<string>();
     }
 }
