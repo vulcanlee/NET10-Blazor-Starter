@@ -32,9 +32,10 @@
         else
         {
             <Menu Class="sidebar-menu"
-                  Mode="MenuMode.Inline"
+                  @key="GetMenuRenderKey()"
+                  Mode="GetMenuMode()"
                   Theme="MenuTheme.Light"
-                  InlineCollapsed="IsSidebarCollapsed"
+                  InlineCollapsed="false"
                   SelectedKeys="SelectedKeys"
                   OpenKeys="OpenKeys"
                   OpenKeysChanged="HandleOpenKeysChanged">

@@ -1,3 +1,4 @@
+using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
@@ -110,6 +111,16 @@ public partial class NavMenu : ComponentBase, IDisposable
         }
 
         return [.. ancestors];
+    }
+
+    private MenuMode GetMenuMode()
+    {
+        return IsSidebarCollapsed ? MenuMode.Vertical : MenuMode.Inline;
+    }
+
+    private string GetMenuRenderKey()
+    {
+        return IsSidebarCollapsed ? "sidebar-menu-collapsed" : "sidebar-menu-expanded";
     }
 
     private static bool TryFindActiveMenuPath(IReadOnlyList<SidebarMenuItemModel> items, string currentPath, string parentKey, out string? activePath)

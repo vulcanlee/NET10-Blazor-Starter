@@ -255,6 +255,8 @@ main {
 
     .page.sidebar-collapsed .sidebar {
         box-shadow: 10px 0 26px rgba(148, 163, 184, 0.12);
+        overflow: visible;
+        z-index: 3;
     }
 
     .top-row {
