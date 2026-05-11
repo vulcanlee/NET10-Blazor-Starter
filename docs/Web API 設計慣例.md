@@ -5,7 +5,7 @@
 
 ## Controller 規範
 - API Controller 放在 `src/MyProject/MyProject.Web/Controllers/`。
-- 路由保留目前慣例：`[Route("api/[controller]")]`，本階段不導入 `/api/v1/...`。
+- 路由需同時提供 `[Route("api/[controller]")]` 與 `[Route("api/v1/[controller]")]`；新用戶端優先使用 `/api/v1/...`。
 - Controller 必須使用 `[ApiController]` 與 `[ApiValidationFilter]`。
 - 需要保護的 CRUD API 必須加上 `[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
@@ -21,7 +21,7 @@
 - `Data`：成功時的回傳資料。
 - `Errors`：欄位或規則錯誤集合。
 - `TraceId`：請求追蹤識別碼。
-- `Exception`：例外資訊。此腳手架依需求完整回傳，正式環境需評估資訊揭露風險。
+- `Exception`：例外資訊。Development 或 `Security:ReturnExceptionDetails=true` 時回傳；Production 預設不回傳。
 
 相容欄位：
 - `ErrorMessage`：舊版錯誤訊息欄位，暫時保留。
@@ -48,13 +48,16 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 - `POST /api/Auth/login`
 - `POST /api/Auth/refresh`
 - `GET /api/Auth/me`
+- `POST /api/v1/Auth/login`
+- `POST /api/v1/Auth/refresh`
+- `GET /api/v1/Auth/me`
 
 ## 例外與驗證
 - `ApiValidationFilter` 會將 ModelState 錯誤轉成 `ApiResult<T>.Errors`。
-- `ApiExceptionFilter` 會攔截未處理 API 例外，轉成 `ApiResult.Exception`。
+- `ApiExceptionFilter` 會攔截未處理 API 例外，依 `Security:ReturnExceptionDetails` 決定是否填入 `ApiResult.Exception`。
 - 既有 Controller 內手動 catch 的例外也應呼叫 `ApiResult.ServerErrorResult(message, exception)`，保留完整 exception。
 
 ## 待辦
-- [ ] 補完整 integration tests，實際驗證 400、401、403、404、409、500 的 HTTP body。
-- [ ] 評估正式環境是否隱藏 `Exception.StackTrace`。
-- [ ] 評估導入 API versioning 的時間點，目前先保留 `/api/...`。
+- [x] 補完整 integration tests，實際驗證 400、401、403、404、409、500 的 HTTP body。
+- [x] 正式環境預設隱藏 `Exception.StackTrace`。
+- [x] 已導入 `/api/v1/...` 平行路由，目前保留 `/api/...` 相容路由。

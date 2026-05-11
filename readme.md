@@ -24,7 +24,7 @@
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
 | 資料存取 | Entity Framework Core | 10.0.5 |
 | 預設資料庫 | SQLite（檔案位置由 `appsettings.json` 控制） | — |
-| 替代資料庫 | SQL Server LocalDB（連線字串已預留） | — |
+| 正式資料庫 | SQL Server（可透過 `SystemSettings.DatabaseProvider` 切換） | — |
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
 | 授權 | RoleView + Menu.json 二維權限樹 | — |
 | 多語系 | `RequestLocalization` + `AntDesignLocaleFactory` | zh-TW / en-US |
@@ -63,6 +63,9 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 專案 / 工作 / 會議三大領域實體 CRUD
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
+- 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
+- Health checks：`/health/live`、`/health/ready`
+- Production 啟動安全檢查：JWT key、預設密碼與 Swagger 暴露策略需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
 - 全站請求耗時 / 例外統一寫入 NLog
@@ -131,7 +134,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 |------|------|
 | `Logging` | .NET 預設記錄等級設定（NLog 啟動後會接管實際輸出）。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
-| `SystemSettings.ConnectionStrings.DefaultConnection` | 保留的 SQL Server LocalDB 連線（目前未啟用）。 |
+| `SystemSettings.DatabaseProvider` | 資料庫 provider，支援 `Sqlite` 與 `SqlServer`，預設 `Sqlite`。 |
+| `SystemSettings.ConnectionStrings.DefaultConnection` | SQL Server 連線字串；`DatabaseProvider=SqlServer` 時使用。 |
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
 | `SystemSettings.SystemInformation.SystemName` | 顯示用系統名稱。 |
 | `SystemSettings.SystemInformation.SystemDescription` | 顯示用系統描述。 |
@@ -156,7 +160,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    將 `appsettings.json` 之 `SystemSettings.SystemInformation.SystemVersion` 的 patch 編號加 1，並把括號內日期更新為當天。
 
    ```json
-   "SystemVersion": "0.1.39 (2026/05/08)"
+   "SystemVersion": "0.1.69 (2026/05/11)"
    ```
 
    `SystemVersion` 為任何提交都應 bump 的最小單位。版號格式為 `Major.Minor.Patch (YYYY/MM/DD)`。
@@ -187,6 +191,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 操作與規範
 
 - [維護規範](docs/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
+- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
+- `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組所需檔案骨架。
 - [EFCore 指令備忘](docs/EFCore.md) — Migration 指令範本。
 - [建立一個新 CRUD 操作網頁說明](docs/建立一個新%20CRUD%20操作網頁說明.md) — 以 `RoleViewView` 為藍本複刻新 CRUD 頁面。
 

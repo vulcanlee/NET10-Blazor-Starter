@@ -1,16 +1,25 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Options;
 using MyProject.Dtos.Commons;
+using MyProject.Web.Configuration;
 
 namespace MyProject.Web.Filters;
 
 public class ApiExceptionFilterAttribute : ExceptionFilterAttribute
 {
     private readonly ILogger<ApiExceptionFilterAttribute> logger;
+    private readonly SecuritySettings securitySettings;
+    private readonly IWebHostEnvironment environment;
 
-    public ApiExceptionFilterAttribute(ILogger<ApiExceptionFilterAttribute> logger)
+    public ApiExceptionFilterAttribute(
+        ILogger<ApiExceptionFilterAttribute> logger,
+        IOptions<SecuritySettings> securityOptions,
+        IWebHostEnvironment environment)
     {
         this.logger = logger;
+        securitySettings = securityOptions.Value;
+        this.environment = environment;
     }
 
     public override void OnException(ExceptionContext context)
@@ -26,16 +35,30 @@ public class ApiExceptionFilterAttribute : ExceptionFilterAttribute
             context.HttpContext.TraceIdentifier,
             context.HttpContext.Request.Path.Value);
 
-        var result = ApiResult.FromException(
-            context.Exception,
-            "API 呼叫過程發生例外。",
-            StatusCodes.Status500InternalServerError,
-            context.HttpContext.TraceIdentifier);
+        var result = ShouldReturnExceptionDetails()
+            ? ApiResult.FromException(
+                context.Exception,
+                "API 呼叫過程發生例外。",
+                StatusCodes.Status500InternalServerError,
+                context.HttpContext.TraceIdentifier)
+            : new ApiResult
+            {
+                Success = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = "伺服器錯誤",
+                ErrorMessage = "API 呼叫過程發生例外。",
+                TraceId = context.HttpContext.TraceIdentifier
+            };
 
         context.Result = new ObjectResult(result)
         {
             StatusCode = StatusCodes.Status500InternalServerError
         };
         context.ExceptionHandled = true;
+    }
+
+    private bool ShouldReturnExceptionDetails()
+    {
+        return securitySettings.ReturnExceptionDetails ?? environment.IsDevelopment();
     }
 }

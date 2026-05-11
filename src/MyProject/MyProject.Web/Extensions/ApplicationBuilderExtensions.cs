@@ -1,22 +1,48 @@
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 using MyProject.Models.Systems;
+using MyProject.Web.Configuration;
 using System.Diagnostics;
 
 namespace MyProject.Web.Extensions;
 
 public static class ApplicationBuilderExtensions
 {
-    public static WebApplication UseDevelopmentSwagger(this WebApplication app, ILogger logger)
+    public static WebApplication UseConfiguredSwagger(this WebApplication app, ILogger logger)
     {
-        if (!app.Environment.IsDevelopment())
+        var swaggerSettings = app.Configuration
+            .GetSection(SwaggerSettings.SectionName)
+            .Get<SwaggerSettings>() ?? new SwaggerSettings();
+
+        if (!app.Environment.IsDevelopment()
+            && !(app.Environment.IsProduction() && swaggerSettings.EnabledInProduction))
         {
             return app;
         }
 
         app.UseSwagger();
-        app.UseSwaggerUI();
-        logger.LogInformation("Swagger UI enabled for development environment.");
+        app.UseSwaggerUI(options =>
+        {
+            options.SwaggerEndpoint("/swagger/v1/swagger.json", "MyProject API v1");
+        });
+        logger.LogInformation("Swagger UI enabled.");
+        return app;
+    }
+
+    public static WebApplication UseConfiguredForwardedHeaders(this WebApplication app)
+    {
+        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+        });
+
+        return app;
+    }
+
+    public static WebApplication UseConfiguredCors(this WebApplication app)
+    {
+        app.UseCors("ConfiguredCors");
         return app;
     }
 

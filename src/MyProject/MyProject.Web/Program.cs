@@ -19,6 +19,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
+using MyProject.Web.Configuration;
 using MyProject.Web.Extensions;
 using MyProject.Web.Filters;
 using MyProject.Web.Localization;
@@ -37,6 +38,7 @@ namespace MyProject.Web
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
+                StartupSafetyValidator.Validate(builder.Configuration, builder.Environment.EnvironmentName);
 
                 #region NLog 相關設定
                 var nlogBasePrefixPath = builder.Configuration.GetValue<string>("NLog:BasePath");
@@ -81,6 +83,12 @@ namespace MyProject.Web
                 builder.Services.AddEndpointsApiExplorer();
                 builder.Services.AddSwaggerGen(options =>
                 {
+                    options.SwaggerDoc("v1", new OpenApiInfo
+                    {
+                        Title = "MyProject API",
+                        Version = "v1",
+                        Description = "內部管理系統腳手架 API v1"
+                    });
                     options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
                     {
                         Name = "Authorization",
@@ -101,6 +109,10 @@ namespace MyProject.Web
                 });
                 builder.Services.AddAntDesign();
                 builder.Services.AddConfiguredLocalization();
+                builder.Services.AddConfiguredOptions(builder.Configuration);
+                builder.Services.AddConfiguredCors(builder.Configuration);
+                builder.Services.AddConfiguredRateLimiting();
+                builder.Services.AddConfiguredHealthChecks();
 
                 #region 加入使用 Cookie & JWT 認證需要的宣告
                 builder.Services.Configure<CookiePolicyOptions>(options =>
@@ -183,8 +195,6 @@ namespace MyProject.Web
                 #endregion
 
                 #region 加入設定強型別注入宣告
-                builder.Services.Configure<SystemSettings>(builder.Configuration
-                    .GetSection(nameof(SystemSettings)));
                 #endregion
 
                 #region 系統使用的目錄準備
@@ -200,12 +210,7 @@ namespace MyProject.Web
                 #endregion
 
                 #region EF Core 宣告
-                var SQLiteDefaultConnection = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
-                LogManager.GetCurrentClassLogger().Debug("Configured SQLite connection string for database path {DatabasePath}", systemSettings.ExternalFileSystem.DatabasePath);
-
-                builder.Services.AddDbContext<BackendDBContext>(options =>
-                    options.UseSqlite(SQLiteDefaultConnection),
-                    ServiceLifetime.Scoped);
+                builder.Services.AddConfiguredDatabase(systemSettings);
                 #endregion
 
                 #region 客製服務註冊
@@ -313,13 +318,16 @@ namespace MyProject.Web
                     app.UseHsts();
                 }
 
-                app.UseDevelopmentSwagger(logger);
+                app.UseConfiguredForwardedHeaders();
+                app.UseConfiguredSwagger(logger);
                 app.UseHttpRequestLogging<Program>();
 
                 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
                 app.UseHttpsRedirection();
 
                 app.UseConfiguredLocalization();
+                app.UseConfiguredCors();
+                app.UseRateLimiter();
 
                 app.UseAntiforgery();
 
@@ -332,7 +340,16 @@ namespace MyProject.Web
                 app.UseAuthentication();
                 app.UseAuthorization();
 
-                app.MapControllers();
+                app.MapControllers()
+                    .RequireRateLimiting("api");
+                app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+                {
+                    Predicate = check => check.Tags.Contains("live")
+                });
+                app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+                {
+                    Predicate = check => check.Tags.Contains("ready")
+                });
                 app.MapRazorComponents<App>()
                     .AddInteractiveServerRenderMode();
                 #endregion

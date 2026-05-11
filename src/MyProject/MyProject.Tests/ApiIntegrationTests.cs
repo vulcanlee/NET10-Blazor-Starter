@@ -6,10 +6,12 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MyProject.Models.Systems;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
 using MyProject.Web;
+using MyProject.Web.Configuration;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -71,6 +73,23 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
         Assert.True(meResult.Success);
         Assert.Equal("support", meResult.Data?.Account);
+    }
+
+    [Fact]
+    public async Task VersionedAuthEndpoints_ShouldKeepApiResultContract()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto
+        {
+            Account = "support",
+            Password = "support"
+        });
+        var result = await ReadApiResultAsync<TokenResponseDto>(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.Data?.AccessToken));
     }
 
     [Fact]
@@ -154,6 +173,53 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.NotNull(result.Exception);
         Assert.Equal(typeof(InvalidOperationException).FullName, result.Exception.Type);
         Assert.NotNull(result.TraceId);
+    }
+
+    [Fact]
+    public async Task HealthReadiness_ShouldReturnHealthy()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public void ProductionSafetyValidation_WithDevelopmentDefaults_ShouldFailFast()
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["JwtSettings:SigningKey"] = "DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars",
+            ["BootstrapSettings:SupportAccount"] = "support",
+            ["BootstrapSettings:SupportPassword"] = "support",
+            ["Swagger:EnabledInProduction"] = ""
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings)
+            .Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("JwtSettings:SigningKey", exception.Message);
+        Assert.Contains("BootstrapSettings:SupportPassword", exception.Message);
+        Assert.Contains("Swagger:EnabledInProduction", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(null, DatabaseProvider.Sqlite)]
+    [InlineData("", DatabaseProvider.Sqlite)]
+    [InlineData("Sqlite", DatabaseProvider.Sqlite)]
+    [InlineData("SqlServer", DatabaseProvider.SqlServer)]
+    public void SystemSettings_ShouldResolveDatabaseProvider(string? value, DatabaseProvider expected)
+    {
+        var settings = new SystemSettings
+        {
+            DatabaseProvider = value ?? string.Empty
+        };
+
+        Assert.Equal(expected, settings.GetDatabaseProvider());
     }
 
     private static async Task AuthorizeAsync(HttpClient client)
@@ -263,6 +329,7 @@ public sealed class ApiTestApplicationFactory : WebApplicationFactory<Program>
         return new Dictionary<string, string?>
         {
             ["NLog:BasePath"] = Path.Combine(rootPath, "Logs"),
+            ["Security:ReturnExceptionDetails"] = "true",
             ["JwtSettings:Issuer"] = "MyProject.Tests",
             ["JwtSettings:Audience"] = "MyProject.Tests.Api",
             ["JwtSettings:SigningKey"] = "IntegrationTests-ChangeThisJwtSigningKey-AtLeast32Chars",

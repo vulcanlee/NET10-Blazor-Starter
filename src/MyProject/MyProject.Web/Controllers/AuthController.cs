@@ -11,6 +11,7 @@ using MyProject.Web.Filters;
 namespace MyProject.Web.Controllers;
 
 [Route("api/[controller]")]
+[Route("api/v1/[controller]")]
 [ApiController]
 [ApiValidationFilter]
 public class AuthController : ControllerBase

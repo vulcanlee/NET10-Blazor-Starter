@@ -19,3 +19,5 @@
 - [x] 建立 SQL Server 切換與 migration 操作文件。文件：`docs/SQL Server 切換說明.md`。
 - [x] 建立預設帳號初始化設定流程：新增 `BootstrapSettings` 支援覆寫 support 帳號與密碼；強制改密碼功能化仍可依正式需求另開任務。
 - [x] 建立 API versioning 策略，但不破壞目前 `/api/...`。文件：`docs/API Versioning 策略.md`。
+- [x] 建立新專案初始化與 CRUD 模組骨架腳本：`scripts/New-StarterProject.ps1`、`scripts/New-CrudModule.ps1`。
+- [x] 補齊 Production 啟動安全檢查、health checks、CORS、rate limiting 與 `/api/v1/...` 平行路由。
