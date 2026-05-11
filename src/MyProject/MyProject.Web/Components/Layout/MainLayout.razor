@@ -9,10 +9,12 @@
         <div class="top-row px-4">
             <div class="top-row-title">@CurrentPageTitle</div>
             <div class="top-row-status">
-                <div class="user-menu">
+                <div class="user-menu @(isUserMenuOpen ? "user-menu-open" : string.Empty)">
                     <button type="button"
                             class="user-menu-trigger"
-                            aria-label="開啟使用者選單">
+                            aria-label="使用者操作"
+                            aria-expanded="@isUserMenuOpen"
+                            @onclick="ToggleUserMenu">
                         <span class="user-menu-icon" aria-hidden="true">
                             <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="account_circle" />
                         </span>
@@ -20,7 +22,7 @@
                             <span class="user-menu-name">@CurrentUserDisplayName</span>
                             @if (CurrentUserIsAdmin)
                             {
-                                <span class="user-menu-badge">管理者</span>
+                                <span class="user-menu-badge">管理員</span>
                             }
                         </span>
                         <span class="user-menu-caret" aria-hidden="true">
@@ -29,7 +31,16 @@
                     </button>
 
                     <div class="user-menu-dropdown" role="menu" aria-label="使用者操作">
-                        <a class="user-menu-item" href="/Auths/Logout" role="menuitem">登出</a>
+                        <a class="user-menu-item"
+                           href="/ChangePassword"
+                           role="menuitem"
+                           onclick="window.location.assign(this.href); return false;"
+                           data-enhance-nav="false">變更密碼</a>
+                        <a class="user-menu-item user-menu-item-danger"
+                           href="/Auths/Logout"
+                           role="menuitem"
+                           onclick="window.location.assign(this.href); return false;"
+                           data-enhance-nav="false">登出</a>
                     </div>
                 </div>
             </div>
@@ -44,5 +55,5 @@
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    <span class="dismiss">關閉</span>
 </div>

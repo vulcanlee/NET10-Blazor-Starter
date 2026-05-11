@@ -33,6 +33,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
     private bool CurrentUserIsAdmin { get; set; }
     private bool isSidebarCollapsed = true;
+    private bool isUserMenuOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -117,6 +118,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         Logger.LogDebug("Location changed in main layout. Uri={Uri}", e.Location);
+        isUserMenuOpen = false;
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);
     }
@@ -124,6 +126,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private void ToggleSidebar()
     {
         isSidebarCollapsed = !isSidebarCollapsed;
+    }
+
+    private void ToggleUserMenu()
+    {
+        isUserMenuOpen = !isUserMenuOpen;
     }
 
     public void Dispose()
