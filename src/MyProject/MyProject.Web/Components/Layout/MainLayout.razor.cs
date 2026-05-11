@@ -205,6 +205,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         isSidebarCollapsed = !isSidebarCollapsed;
     }
 
+    private void ToggleUserMenu()
+    {
+        isUserMenuOpen = !isUserMenuOpen;
+    }
+
     private sealed class ChangePasswordForm
     {
         public string CurrentPassword { get; set; } = string.Empty;

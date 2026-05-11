@@ -71,7 +71,8 @@ main {
 }
 
 .user-menu:hover .user-menu-trigger,
-.user-menu:focus-within .user-menu-trigger {
+.user-menu:focus-within .user-menu-trigger,
+.user-menu.user-menu-open .user-menu-trigger {
     border-color: rgba(59, 130, 246, 0.45);
     box-shadow: 0 14px 30px rgba(59, 130, 246, 0.16);
     transform: translateY(-1px);

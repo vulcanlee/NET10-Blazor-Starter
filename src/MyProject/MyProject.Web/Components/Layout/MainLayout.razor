@@ -14,6 +14,7 @@
                             class="user-menu-trigger"
                             aria-label="使用者操作"
                             aria-expanded="@isUserMenuOpen"
+                            aria-haspopup="menu"
                             @onclick="ToggleUserMenu">
                         <span class="user-menu-icon" aria-hidden="true">
                             <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="account_circle" />
@@ -30,7 +31,9 @@
                         </span>
                     </button>
 
-                    <div class="user-menu-dropdown" role="menu" aria-label="使用者操作">
+                    <div class="user-menu-dropdown @(isUserMenuOpen ? "user-menu-dropdown-open" : string.Empty)"
+                         role="menu"
+                         aria-label="使用者操作">
                         <button type="button" class="user-menu-item" role="menuitem" @onclick="OnChangePasswordClick">變更密碼</button>
                         <a class="user-menu-item" href="/Auths/Logout" role="menuitem">登出</a>
                     </div>
