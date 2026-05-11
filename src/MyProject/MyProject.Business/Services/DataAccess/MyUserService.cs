@@ -331,6 +331,58 @@ public class MyUserService
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
 
+    public async Task<VerifyRecordResult> ChangeOwnPasswordAsync(
+        int userId,
+        string currentPassword,
+        string newPassword,
+        string confirmPassword)
+    {
+        Logger.LogInformation("Changing own password. UserId={UserId}", userId);
+
+        MyUser? user = await context.MyUser
+            .FirstOrDefaultAsync(x => x.Id == userId);
+
+        if (user is null)
+        {
+            Logger.LogWarning("Own password change rejected because user was not found. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "找不到使用者資料。");
+        }
+
+        if (string.Equals(user.Account, MagicObjectHelper.開發者帳號, StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.LogWarning("Own password change rejected for support account. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "系統預設開發帳號 support 禁止變更密碼。");
+        }
+
+        string currentHashPassword = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, currentPassword);
+        if (user.Password != currentHashPassword)
+        {
+            Logger.LogWarning("Own password change rejected because current password is invalid. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "目前密碼不正確。");
+        }
+
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            Logger.LogWarning("Own password change rejected because new password is empty. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "新密碼不可為空白。");
+        }
+
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+        {
+            Logger.LogWarning("Own password change rejected because confirmation does not match. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "新密碼與確認密碼不一致。");
+        }
+
+        user.Salt = string.IsNullOrWhiteSpace(user.Salt) ? Guid.NewGuid().ToString() : user.Salt;
+        user.Password = PasswordHelper.GetPasswordSHA(user.Salt, newPassword);
+        user.UpdateAt = DateTime.Now;
+
+        await context.SaveChangesAsync();
+
+        Logger.LogInformation("Own password changed successfully. UserId={UserId}", userId);
+        return VerifyRecordResultFactory.Build(true);
+    }
+
     private Task OtherDependencyData(MyUserAdapterModel data)
     {
         data.Password = string.Empty;

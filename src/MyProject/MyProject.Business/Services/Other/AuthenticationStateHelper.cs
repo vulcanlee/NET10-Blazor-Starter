@@ -72,7 +72,7 @@ public class AuthenticationStateHelper
         logger.LogDebug("Resolved authenticated user information for UserId={UserId}.", id.Value);
 
         bool needChangePassword = await myUserService.NeedChangePasswordAsync(myUser);
-        if (needChangePassword)
+        if (needChangePassword && !IsChangePasswordPage(navigationManager))
         {
             logger.LogWarning("User {UserId} is required to change password before continuing.", id.Value);
             await Task.Delay(200);
@@ -114,6 +114,12 @@ public class AuthenticationStateHelper
             navigationManager.NavigateTo("/Auths/Logout", true, true);
             return false;
         }
+    }
+
+    private static bool IsChangePasswordPage(NavigationManager navigationManager)
+    {
+        var currentPath = navigationManager.ToBaseRelativePath(navigationManager.Uri).Trim('/');
+        return string.Equals(currentPath, "ChangePassword", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<MyUserAdapterModel?> GetUserInformation(AuthenticationStateProvider authStateProvider)

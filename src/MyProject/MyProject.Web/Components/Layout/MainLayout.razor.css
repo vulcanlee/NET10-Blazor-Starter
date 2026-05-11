@@ -156,7 +156,8 @@ main {
 }
 
 .user-menu:hover .user-menu-dropdown,
-.user-menu:focus-within .user-menu-dropdown {
+.user-menu:focus-within .user-menu-dropdown,
+.user-menu.user-menu-open .user-menu-dropdown {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
@@ -179,9 +180,19 @@ main {
 
 .user-menu-item:hover,
 .user-menu-item:focus-visible {
+    background: rgba(219, 234, 254, 0.72);
+    color: #1d4ed8;
+    outline: none;
+}
+
+.user-menu-item-danger {
+    color: #b91c1c;
+}
+
+.user-menu-item-danger:hover,
+.user-menu-item-danger:focus-visible {
     background: rgba(254, 226, 226, 0.72);
     color: #991b1b;
-    outline: none;
 }
 
 .top-row ::deep a,

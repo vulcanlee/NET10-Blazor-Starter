@@ -45,6 +45,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
     private bool CurrentUserIsAdmin { get; set; }
     private bool isSidebarCollapsed = true;
+    private bool isUserMenuOpen;
 
     private bool changePasswordVisible = false;
     private bool isSupportAccount = false;
@@ -134,6 +135,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         Logger.LogDebug("Location changed in main layout. Uri={Uri}", e.Location);
+        isUserMenuOpen = false;
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);
     }
