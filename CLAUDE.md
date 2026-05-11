@@ -68,3 +68,5 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 * 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要加 1，並且在 commit message 中說明版本編號的變更。
 
 * 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在
+
+* 每次有異動後，要確認相關文件也要進行更新
