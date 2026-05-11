@@ -40,7 +40,7 @@ public partial class NavMenu : ComponentBase, IDisposable
         Logger.LogDebug("Initializing navigation menu.");
 
         var checkResult = await AuthenticationStateHelper.Check(AuthenticationStateProvider, NavigationManager);
-        if (!checkResult)
+        if (checkResult != AuthenticationCheckResult.Succeeded)
         {
             MenuItems = [];
             return;

@@ -65,7 +65,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             logger.LogInformation("Initializing role view management.");
             var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-            if (!checkResult)
+            if (checkResult != AuthenticationCheckResult.Succeeded)
             {
                 logger.LogWarning("Role view initialization stopped because authentication check failed.");
                 return;

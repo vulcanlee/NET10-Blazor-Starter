@@ -69,7 +69,7 @@ public partial class MyTasViewView
     {
         logger.LogInformation("Initializing task management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-        if (!checkResult)
+        if (checkResult != AuthenticationCheckResult.Succeeded)
         {
             logger.LogWarning("Task management view initialization stopped because authentication check failed.");
             return;

@@ -19,14 +19,9 @@ public partial class SplashView
         {
             var checkResult = await AuthenticationStateHelper
             .Check(authStateProvider, NavigationManager);
-            if (checkResult == true)
+            if (checkResult == AuthenticationCheckResult.Succeeded)
             {
                 NavigationManager.NavigateTo("/app", true, true);
-            }
-            else
-            {
-                NavigationManager.NavigateTo("/auths/logout", true, true);
-
             }
         }
     }

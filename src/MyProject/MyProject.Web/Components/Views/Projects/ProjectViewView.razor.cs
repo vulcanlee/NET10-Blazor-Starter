@@ -68,7 +68,7 @@ public partial class ProjectViewView
     {
         logger.LogInformation("Initializing project management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-        if (!checkResult)
+        if (checkResult != AuthenticationCheckResult.Succeeded)
         {
             logger.LogWarning("Project management view initialization stopped because authentication check failed.");
             return;

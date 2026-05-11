@@ -6,7 +6,6 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Admins;
 using MyProject.Models.Others;
-using MyProject.Share.Extensions;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -34,15 +33,9 @@ public class AuthenticationStateHelper
         this.rolePermissionService = rolePermissionService;
     }
 
-    public async Task<bool> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
+    public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
     {
         logger.LogDebug("Checking authentication state for current request.");
-
-        if (currentUserService.CurrentUser.IsAuthenticated)
-        {
-            logger.LogDebug("Authentication state already initialized for UserId={UserId}.", currentUserService.CurrentUser.Id);
-            return true;
-        }
 
         var authState = await authStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
@@ -52,32 +45,47 @@ public class AuthenticationStateHelper
             logger.LogWarning("Authentication check failed because the current principal is not authenticated.");
             await Task.Delay(200);
             navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return false;
+            return AuthenticationCheckResult.Unauthenticated;
         }
 
-        var id = user.Claims
+        var idClaimValue = user.Claims
             .FirstOrDefault(c => c.Type == ClaimTypes.Sid)?
-            .Value
-            .ToInt();
+            .Value;
 
-        if (id is null)
+        if (!int.TryParse(idClaimValue, out var id) || id <= 0)
         {
-            logger.LogWarning("Authentication check failed because claim {ClaimType} is missing.", ClaimTypes.Sid);
+            logger.LogWarning("Authentication check failed because claim {ClaimType} is missing or invalid.", ClaimTypes.Sid);
             await Task.Delay(200);
             navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return false;
+            return AuthenticationCheckResult.InvalidUser;
         }
 
-        var myUser = await myUserService.GetAsync(id.Value);
-        logger.LogDebug("Resolved authenticated user information for UserId={UserId}.", id.Value);
+        var myUser = await myUserService.GetAsync(id);
+        if (myUser.Id == 0)
+        {
+            logger.LogWarning("Authentication check failed because UserId={UserId} was not found.", id);
+            await Task.Delay(200);
+            navigationManager.NavigateTo("/Auths/Logout", true, true);
+            return AuthenticationCheckResult.InvalidUser;
+        }
+
+        if (!myUser.Status)
+        {
+            logger.LogWarning("Authentication check failed because UserId={UserId} is disabled.", id);
+            await Task.Delay(200);
+            navigationManager.NavigateTo("/Auths/Logout", true, true);
+            return AuthenticationCheckResult.InvalidUser;
+        }
+
+        logger.LogDebug("Resolved authenticated user information for UserId={UserId}.", id);
 
         bool needChangePassword = await myUserService.NeedChangePasswordAsync(myUser);
         if (needChangePassword && !IsChangePasswordPage(navigationManager))
         {
-            logger.LogWarning("User {UserId} is required to change password before continuing.", id.Value);
+            logger.LogWarning("User {UserId} is required to change password before continuing.", id);
             await Task.Delay(200);
             navigationManager.NavigateTo("/ChangePassword", true);
-            return false;
+            return AuthenticationCheckResult.RequiresPasswordChange;
         }
 
         CurrentUser currentUser = mapper.Map<CurrentUser>(myUser);
@@ -85,10 +93,10 @@ public class AuthenticationStateHelper
 
         if (myUser.RoleView == null)
         {
-            logger.LogWarning("User {UserId} does not have a role view assigned. Redirecting to logout.", id.Value);
+            logger.LogWarning("User {UserId} does not have a role view assigned. Redirecting to logout.", id);
             await Task.Delay(200);
             navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return false;
+            return AuthenticationCheckResult.InvalidUser;
         }
 
         try
@@ -105,20 +113,20 @@ public class AuthenticationStateHelper
                 myUser.Account,
                 myUser.IsAdmin);
 
-            return true;
+            return AuthenticationCheckResult.Succeeded;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize permission data for UserId={UserId}.", id.Value);
+            logger.LogError(ex, "Failed to initialize permission data for UserId={UserId}.", id);
             await Task.Delay(200);
             navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return false;
+            return AuthenticationCheckResult.InvalidUser;
         }
     }
 
     private static bool IsChangePasswordPage(NavigationManager navigationManager)
     {
-        var currentPath = navigationManager.ToBaseRelativePath(navigationManager.Uri).Trim('/');
+        var currentPath = new Uri(navigationManager.Uri).AbsolutePath.Trim('/');
         return string.Equals(currentPath, "ChangePassword", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -135,18 +143,17 @@ public class AuthenticationStateHelper
             return null;
         }
 
-        var id = user.Claims
+        var idClaimValue = user.Claims
             .FirstOrDefault(c => c.Type == ClaimTypes.Sid)?
-            .Value
-            .ToInt();
+            .Value;
 
-        if (id is null)
+        if (!int.TryParse(idClaimValue, out var id) || id <= 0)
         {
-            logger.LogWarning("Cannot load current user information because claim {ClaimType} is missing.", ClaimTypes.Sid);
+            logger.LogWarning("Cannot load current user information because claim {ClaimType} is missing or invalid.", ClaimTypes.Sid);
             return null;
         }
 
-        return await myUserService.GetAsync(id.Value);
+        return await myUserService.GetAsync(id);
     }
 
     public bool CheckIsAdmin()

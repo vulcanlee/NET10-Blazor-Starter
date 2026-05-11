@@ -66,7 +66,7 @@ public partial class MeetingViewView
     {
         logger.LogInformation("Initializing meeting management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-        if (!checkResult)
+        if (checkResult != AuthenticationCheckResult.Succeeded)
         {
             logger.LogWarning("Meeting management view initialization stopped because authentication check failed.");
             return;

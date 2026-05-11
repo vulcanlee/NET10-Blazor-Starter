@@ -57,7 +57,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         Logger.LogDebug("Initializing main layout.");
 
         var checkResult = await AuthenticationStateHelper.Check(AuthenticationStateProvider, NavigationManager);
-        if (!checkResult)
+        if (checkResult != AuthenticationCheckResult.Succeeded)
         {
             MenuItems = [];
             return;
