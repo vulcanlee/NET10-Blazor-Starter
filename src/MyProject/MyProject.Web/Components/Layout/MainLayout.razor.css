@@ -163,13 +163,18 @@ main {
 }
 
 .user-menu-item {
+    background: none;
+    border: none;
     border-radius: 12px;
     color: #b91c1c;
+    cursor: pointer;
     display: block;
     font-size: 0.92rem;
     font-weight: 700;
     padding: 0.8rem 0.95rem;
+    text-align: left;
     transition: background-color 0.18s ease, color 0.18s ease;
+    width: 100%;
 }
 
 .user-menu-item:hover,

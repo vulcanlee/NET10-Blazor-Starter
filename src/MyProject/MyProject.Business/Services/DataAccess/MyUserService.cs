@@ -363,4 +363,46 @@ public class MyUserService
         Logger.LogDebug("Password-change requirement check completed. UserId={UserId}, NeedChangePassword={NeedChangePassword}", myUser.Id, result);
         return result;
     }
+
+    public async Task<VerifyRecordResult> ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+    {
+        Logger.LogInformation("Changing password for user. UserId={UserId}", userId);
+
+        try
+        {
+            CleanTrackingHelper.Clean<MyUser>(context);
+            MyUser? user = await context.MyUser
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId);
+
+            if (user == null)
+            {
+                Logger.LogWarning("Change password rejected because user was not found. UserId={UserId}", userId);
+                return VerifyRecordResultFactory.Build(false, "找不到使用者資料。");
+            }
+
+            var currentHash = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, currentPassword);
+            if (currentHash != user.Password)
+            {
+                Logger.LogWarning("Change password rejected because current password is incorrect. UserId={UserId}", userId);
+                return VerifyRecordResultFactory.Build(false, "目前密碼輸入錯誤。");
+            }
+
+            var newHash = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, newPassword);
+
+            CleanTrackingHelper.Clean<MyUser>(context);
+            MyUser? trackedUser = await context.MyUser.FirstOrDefaultAsync(x => x.Id == userId);
+            trackedUser!.Password = newHash;
+            await context.SaveChangesAsync();
+            CleanTrackingHelper.Clean<MyUser>(context);
+
+            Logger.LogInformation("Password changed successfully. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to change password. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "變更密碼失敗。", ex);
+        }
+    }
 }
