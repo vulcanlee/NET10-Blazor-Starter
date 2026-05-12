@@ -65,6 +65,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
+- 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最後 100 筆日誌
 - Production 啟動安全檢查：JWT key、預設密碼與 Swagger 暴露策略需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
@@ -160,7 +161,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    將 `appsettings.json` 之 `SystemSettings.SystemInformation.SystemVersion` 的 patch 編號加 1，並把括號內日期更新為當天。
 
    ```json
-   "SystemVersion": "0.1.69 (2026/05/11)"
+   "SystemVersion": "0.2.0 (2026/05/12)"
    ```
 
    `SystemVersion` 為任何提交都應 bump 的最小單位。版號格式為 `Major.Minor.Patch (YYYY/MM/DD)`。
@@ -187,6 +188,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [多語系與本地化](docs/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/檔案上傳機制.md) — 三類附件、年月目錄、刪除同步、容量上限。
 - [日誌與設定檔說明](docs/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
+- [系統健康監控](docs/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最後 100 筆日誌。
 
 ### 操作與規範
 

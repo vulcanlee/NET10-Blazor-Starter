@@ -186,6 +186,34 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     [Fact]
+    public async Task HealthLiveness_ShouldReturnHealthy()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/live");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SystemHealthPage_WithoutCookieLogin_ShouldNotExposeDetails()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/system-health");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(
+            response.StatusCode == HttpStatusCode.OK
+            || response.StatusCode == HttpStatusCode.Redirect
+            || response.StatusCode == HttpStatusCode.Unauthorized);
+        Assert.DoesNotContain("最後 100 筆日誌紀錄", body);
+    }
+
+    [Fact]
     public void ProductionSafetyValidation_WithDevelopmentDefaults_ShouldFailFast()
     {
         var settings = new Dictionary<string, string?>

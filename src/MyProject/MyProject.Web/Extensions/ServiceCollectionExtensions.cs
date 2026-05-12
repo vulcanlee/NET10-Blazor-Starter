@@ -52,6 +52,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
+        services.AddSingleton<SystemStartupState>();
+        services.AddScoped<IHealthLogReader, HealthLogReader>();
+        services.AddScoped<ISystemHealthService, SystemHealthService>();
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<MyUserServiceLogin>();
