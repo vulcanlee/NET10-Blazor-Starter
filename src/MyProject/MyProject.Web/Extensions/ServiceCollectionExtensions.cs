@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Auth;
+using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
 using MyProject.Web.Health;
@@ -80,6 +81,7 @@ public static class ServiceCollectionExtensions
         services.Configure<SecuritySettings>(configuration.GetSection(SecuritySettings.SectionName));
         services.Configure<CorsSettings>(configuration.GetSection(CorsSettings.SectionName));
         services.Configure<SwaggerSettings>(configuration.GetSection(SwaggerSettings.SectionName));
+        services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SectionName));
 
         return services;
     }
@@ -114,6 +116,38 @@ public static class ServiceCollectionExtensions
                     throw new InvalidOperationException($"不支援的資料庫 provider：{systemSettings.DatabaseProvider}");
             }
         }, ServiceLifetime.Scoped);
+
+        return services;
+    }
+
+    public static IServiceCollection AddConfiguredCache(this IServiceCollection services, IConfiguration configuration)
+    {
+        var settings = configuration.GetSection(CacheSettings.SectionName).Get<CacheSettings>() ?? new CacheSettings();
+
+        switch (settings.GetProvider())
+        {
+            case CacheProvider.Redis:
+                if (string.IsNullOrWhiteSpace(settings.RedisConnection))
+                {
+                    throw new InvalidOperationException("CacheSettings:RedisConnection 不可為空白。");
+                }
+
+                services.AddStackExchangeRedisCache(options =>
+                {
+                    options.Configuration = settings.RedisConnection;
+                    options.InstanceName = settings.InstanceName;
+                });
+                break;
+
+            case CacheProvider.Memory:
+                services.AddDistributedMemoryCache();
+                break;
+
+            default:
+                throw new InvalidOperationException($"不支援的快取 provider：{settings.Provider}");
+        }
+
+        services.AddSingleton<ICacheService, DistributedCacheService>();
 
         return services;
     }

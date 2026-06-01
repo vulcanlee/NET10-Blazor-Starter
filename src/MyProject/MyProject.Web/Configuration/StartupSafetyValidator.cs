@@ -31,6 +31,13 @@ public static class StartupSafetyValidator
             errors.Add("Swagger:EnabledInProduction 必須在 Production 明確設定 true 或 false。");
         }
 
+        var cacheProvider = configuration[$"{CacheSettings.SectionName}:Provider"];
+        if (string.Equals(cacheProvider, nameof(CacheProvider.Redis), StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(configuration[$"{CacheSettings.SectionName}:RedisConnection"]))
+        {
+            errors.Add("CacheSettings:RedisConnection 在 Production 使用 Redis provider 時不可留空。");
+        }
+
         if (errors.Count > 0)
         {
             throw new InvalidOperationException("Production 啟動安全檢查失敗：" + string.Join(" ", errors));

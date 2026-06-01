@@ -114,6 +114,7 @@ namespace MyProject.Web
                 builder.Services.AddConfiguredCors(builder.Configuration);
                 builder.Services.AddConfiguredRateLimiting();
                 builder.Services.AddConfiguredHealthChecks();
+                builder.Services.AddConfiguredCache(builder.Configuration);
 
                 #region 加入使用 Cookie & JWT 認證需要的宣告
                 builder.Services.Configure<CookiePolicyOptions>(options =>

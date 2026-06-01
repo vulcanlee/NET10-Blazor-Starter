@@ -63,7 +63,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             return;
         }
 
-        MenuItems = SidebarMenuService.LoadAuthorizedMenuItems(AuthenticationStateHelper);
+        MenuItems = await SidebarMenuService.LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper);
         UpdateCurrentUserStatus();
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;

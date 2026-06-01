@@ -1,28 +1,34 @@
 using System.Text.Json;
 using MyProject.Business.Services.Other;
 using MyProject.Share.Helpers;
+using MyProject.Web.Caching;
 
 namespace MyProject.Web.Components.Layout;
 
 public sealed class SidebarMenuService
 {
+    private const string MenuCacheKey = "sidebar:menu:raw";
+
     private readonly IWebHostEnvironment environment;
     private readonly ILogger<SidebarMenuService> logger;
     private readonly RolePermissionService rolePermissionService;
+    private readonly ICacheService cacheService;
 
     public SidebarMenuService(
         IWebHostEnvironment environment,
         ILogger<SidebarMenuService> logger,
-        RolePermissionService rolePermissionService)
+        RolePermissionService rolePermissionService,
+        ICacheService cacheService)
     {
         this.environment = environment;
         this.logger = logger;
         this.rolePermissionService = rolePermissionService;
+        this.cacheService = cacheService;
     }
 
-    public IReadOnlyList<SidebarMenuItemModel> LoadAuthorizedMenuItems(AuthenticationStateHelper authenticationStateHelper)
+    public async Task<IReadOnlyList<SidebarMenuItemModel>> LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper authenticationStateHelper)
     {
-        var items = LoadMenuItems();
+        var items = await LoadMenuItemsAsync();
         var permissionMappedItems = ApplyPermissionStructure(items);
         var authorizedItems = FilterAuthorizedMenuItems(permissionMappedItems, authenticationStateHelper);
 
@@ -30,7 +36,12 @@ public sealed class SidebarMenuService
         return authorizedItems;
     }
 
-    private IReadOnlyList<SidebarMenuItemModel> LoadMenuItems()
+    private async Task<IReadOnlyList<SidebarMenuItemModel>> LoadMenuItemsAsync()
+        => await cacheService.GetOrCreateAsync<List<SidebarMenuItemModel>>(
+            MenuCacheKey,
+            () => Task.FromResult(ReadMenuItemsFromDisk().ToList()));
+
+    private IReadOnlyList<SidebarMenuItemModel> ReadMenuItemsFromDisk()
     {
         var menuFilePath = Path.Combine(environment.ContentRootPath, MagicObjectHelper.Menu結構定義);
         if (!File.Exists(menuFilePath))

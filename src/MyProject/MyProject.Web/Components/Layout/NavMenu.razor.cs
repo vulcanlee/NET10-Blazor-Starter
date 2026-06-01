@@ -46,7 +46,7 @@ public partial class NavMenu : ComponentBase, IDisposable
             return;
         }
 
-        MenuItems = SidebarMenuService.LoadAuthorizedMenuItems(AuthenticationStateHelper);
+        MenuItems = await SidebarMenuService.LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper);
         UpdateActiveMenuPath();
         SyncMenuStateFromRoute();
         NavigationManager.LocationChanged += OnLocationChanged;
