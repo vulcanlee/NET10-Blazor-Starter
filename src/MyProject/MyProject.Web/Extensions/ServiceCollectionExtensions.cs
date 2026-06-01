@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<MyUserServiceLogin>();
+        services.AddScoped<ExternalLoginService>();
         services.AddScoped<SidebarMenuService>();
         services.AddScoped<RolePermissionService>();
         services.AddScoped<RoleViewService>();

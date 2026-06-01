@@ -19,10 +19,13 @@ public class MyUserAdapterModel : ICloneable
     public DateTime UpdateAt { get; set; } = DateTime.Now;
     [Required(ErrorMessage = "角色 不可為空白")]
     public int? RoleViewId { get; set; }
+    public string? OAuthProvider { get; set; }
+    public string? GoogleId { get; set; }
     public RoleViewAdapterModel? RoleView { get; set; }
     public string RoleViewName => RoleView?.Name ?? string.Empty;
     public string StatusText => Status ? "啟用" : "停用";
     public string IsAdminText => IsAdmin ? "是" : "否";
+    public bool IsGoogleAccount => string.Equals(OAuthProvider, "Google", StringComparison.OrdinalIgnoreCase);
 
     public MyUserAdapterModel Clone()
     {

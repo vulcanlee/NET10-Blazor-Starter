@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
@@ -130,7 +131,13 @@ namespace MyProject.Web
                     .ValidateDataAnnotations()
                     .ValidateOnStart();
 
-                builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
+                var googleOAuthSettings = builder.Configuration
+                    .GetSection(GoogleOAuthSettings.SectionName)
+                    .Get<GoogleOAuthSettings>() ?? new GoogleOAuthSettings();
+                builder.Services.Configure<GoogleOAuthSettings>(
+                    builder.Configuration.GetSection(GoogleOAuthSettings.SectionName));
+
+                var authenticationBuilder = builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
                     .AddCookie(MagicObjectHelper.CookieScheme, options =>
                     {
                         options.Cookie.IsEssential = true;
@@ -176,6 +183,28 @@ namespace MyProject.Web
                             }
                         };
                     });
+
+                #region Google OAuth2 第三方登入（僅在已設定時註冊）
+                if (googleOAuthSettings.IsConfigured)
+                {
+                    authenticationBuilder
+                        .AddCookie(MagicObjectHelper.ExternalCookieScheme, options =>
+                        {
+                            options.Cookie.Name = ".MyProject.External";
+                            options.Cookie.IsEssential = true;
+                            options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+                        })
+                        .AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
+                        {
+                            options.ClientId = googleOAuthSettings.ClientId;
+                            options.ClientSecret = googleOAuthSettings.ClientSecret;
+                            options.SignInScheme = MagicObjectHelper.ExternalCookieScheme;
+                            options.CallbackPath = "/signin-google";
+                            options.SaveTokens = false;
+                        });
+                }
+                #endregion
+
                 builder.Services.AddAuthorization();
                 #endregion
 

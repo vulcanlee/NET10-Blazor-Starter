@@ -24,5 +24,13 @@ public class MyUser
     public DateTime CreateAt { get; set; }= DateTime.Now;
     public int? RoleViewId { get; set; }
     public DateTime UpdateAt { get; set; }=DateTime.Now;
+    /// <summary>
+    /// 外部身分驗證提供者，例如 "Google"；本地帳號為 null 或 "Local"
+    /// </summary>
+    public string? OAuthProvider { get; set; }
+    /// <summary>
+    /// 外部身分驗證的使用者唯一識別碼（Google 的 sub）
+    /// </summary>
+    public string? GoogleId { get; set; }
     public RoleView? RoleView { get; set; }
 }

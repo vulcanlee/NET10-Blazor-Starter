@@ -10,6 +10,10 @@ public class MagicObjectHelper
         return $"Data Source={Path.Combine(databasePath, SQLiteDatabaseFilename)}";
     }
     public const string CookieScheme = "CookieAuthenticationScheme";
+    /// <summary>
+    /// OAuth 外部登入流程暫存身分用的 Cookie 配置名稱
+    /// </summary>
+    public const string ExternalCookieScheme = "ExternalCookieScheme";
     public const string 開發者帳號 = "support";
     public const string 預設角色 = "預設角色";
     public const string NeedChangePassword = "123456";

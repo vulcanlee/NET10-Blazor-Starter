@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
+using MyProject.Web.Auth;
 using System.Security.Claims;
 
 namespace MyProject.Web.Components.Auths
@@ -29,7 +31,17 @@ namespace MyProject.Web.Components.Auths
         [Inject]
         public MyUserServiceLogin MyUserServiceLogin { get; set; } = default!;
 
+        [Inject]
+        public IOptions<GoogleOAuthSettings> GoogleOptions { get; set; } = default!;
+
         string message = string.Empty;
+
+        private bool ShowGoogleLogin => GoogleOptions.Value.IsConfigured;
+
+        private string GoogleLoginUrl =>
+            string.IsNullOrWhiteSpace(ReturnUrl)
+                ? "/Auths/Google/Login"
+                : $"/Auths/Google/Login?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
 
         protected override Task OnInitializedAsync()
         {

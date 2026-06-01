@@ -383,6 +383,77 @@ public class MyUserService
         return VerifyRecordResultFactory.Build(true);
     }
 
+    /// <summary>
+    /// 查詢使用者目前是否已設定本地密碼（Google 帳號在設定 API 密碼前為 false）。
+    /// </summary>
+    public async Task<bool> HasLocalPasswordAsync(int userId)
+    {
+        CleanTrackingHelper.Clean<MyUser>(context);
+        MyUser? user = await context.MyUser
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId);
+
+        return user is not null && !string.IsNullOrEmpty(user.Password);
+    }
+
+    /// <summary>
+    /// 由使用者自行設定 / 變更 API 密碼。
+    /// 尚未設定本地密碼者（例如 Google 帳號）免驗舊密碼；已設定者需驗證目前密碼。
+    /// </summary>
+    public async Task<VerifyRecordResult> SetOwnApiPasswordAsync(
+        int userId,
+        string? currentPassword,
+        string newPassword,
+        string confirmPassword)
+    {
+        Logger.LogInformation("Setting own API password. UserId={UserId}", userId);
+
+        MyUser? user = await context.MyUser
+            .FirstOrDefaultAsync(x => x.Id == userId);
+
+        if (user is null)
+        {
+            Logger.LogWarning("Set API password rejected because user was not found. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "找不到使用者資料。");
+        }
+
+        if (string.Equals(user.Account, MagicObjectHelper.開發者帳號, StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.LogWarning("Set API password rejected for support account. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "系統預設開發帳號 support 禁止於此變更密碼。");
+        }
+
+        bool hasLocalPassword = !string.IsNullOrEmpty(user.Password);
+        if (hasLocalPassword)
+        {
+            string currentHashPassword = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, currentPassword ?? string.Empty);
+            if (user.Password != currentHashPassword)
+            {
+                Logger.LogWarning("Set API password rejected because current password is invalid. UserId={UserId}", userId);
+                return VerifyRecordResultFactory.Build(false, "目前密碼不正確。");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            return VerifyRecordResultFactory.Build(false, "新密碼不可為空白。");
+        }
+
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+        {
+            return VerifyRecordResultFactory.Build(false, "新密碼與確認密碼不一致。");
+        }
+
+        user.Salt = string.IsNullOrWhiteSpace(user.Salt) ? Guid.NewGuid().ToString() : user.Salt;
+        user.Password = PasswordHelper.GetPasswordSHA(user.Salt, newPassword);
+        user.UpdateAt = DateTime.Now;
+
+        await context.SaveChangesAsync();
+
+        Logger.LogInformation("Own API password set successfully. UserId={UserId}", userId);
+        return VerifyRecordResultFactory.Build(true);
+    }
+
     private Task OtherDependencyData(MyUserAdapterModel data)
     {
         data.Password = string.Empty;

@@ -185,6 +185,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [資料模型與資料庫](docs/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [Web API 設計慣例](docs/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。
 - [認證授權與權限機制](docs/認證授權與權限機制.md) — Cookie scheme、Claims、`RoleView` JSON、`Menu.json` 權限樹。
+- [Google OAuth2 第三方登入](docs/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
 - [多語系與本地化](docs/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/檔案上傳機制.md) — 三類附件、年月目錄、刪除同步、容量上限。
 - [日誌與設定檔說明](docs/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
