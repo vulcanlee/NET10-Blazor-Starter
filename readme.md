@@ -89,7 +89,7 @@ dotnet build
 dotnet run --project MyProject.Web/MyProject.Web.csproj
 ```
 
-預設開發者帳號 / 密碼定義於 `MagicObjectHelper.開發者帳號`（首次啟動會自動建立）。
+預設帳號 / 密碼由 `appsettings.json` 之 `BootstrapSettings`（`SupportAccount` / `SupportPassword`）定義，首次啟動會自動建立 `support` 管理員帳號；`MagicObjectHelper.開發者帳號` 則用於後續識別並保護該開發者帳號。
 
 外部目錄與資料庫檔位置由 `appsettings.json` 之 `SystemSettings.ExternalFileSystem` 控制，預設位於 `C:\temp\MyProject\…`，啟動時若不存在會自動建立。
 
@@ -135,7 +135,17 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | 區段 | 用途 |
 |------|------|
 | `Logging` | .NET 預設記錄等級設定（NLog 啟動後會接管實際輸出）。 |
+| `Swagger.EnabledInProduction` | 是否在 Production 環境暴露 Swagger UI，預設 `false`。 |
+| `Security.ReturnExceptionDetails` | 是否於 `ApiResult.Exception` 回傳例外細節；`null` 時依環境決定。 |
+| `Cors.AllowedOrigins` | CORS 允許來源白名單（陣列）；留空表示不額外開放跨來源。 |
+| `CacheSettings.Provider` | 快取 provider，支援 `Memory` 與 `Redis`，預設 `Memory`（見 [分散式快取機制](docs/分散式快取機制.md)）。 |
+| `CacheSettings.RedisConnection` | `Provider=Redis` 時的 Redis 連線字串；Production 使用 Redis 時必須設定。 |
+| `CacheSettings.InstanceName` | Redis 快取鍵前綴，預設 `MyProject:`。 |
+| `CacheSettings.DefaultExpirationMinutes` | 快取項目預設存活時間（分鐘），預設 `30`。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
+| `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
+| `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
+| `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/Google%20OAuth2%20第三方登入.md)）。 |
 | `SystemSettings.DatabaseProvider` | 資料庫 provider，支援 `Sqlite` 與 `SqlServer`，預設 `Sqlite`。 |
 | `SystemSettings.ConnectionStrings.DefaultConnection` | SQL Server 連線字串；`DatabaseProvider=SqlServer` 時使用。 |
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
@@ -184,7 +194,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [架構總覽](docs/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
 - [資料模型與資料庫](docs/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
+- [SQL Server 切換說明](docs/SQL%20Server%20切換說明.md) — `DatabaseProvider` 切換、`SqlServerMigrations` 專用 migration assembly。
+- [DTO 與模型邊界規範](docs/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
 - [Web API 設計慣例](docs/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。
+- [API Versioning 策略](docs/API%20Versioning%20策略.md) — `/api/...` 與 `/api/v1/...` 平行路由、Swagger v1 分組與後續導入策略。
 - [認證授權與權限機制](docs/認證授權與權限機制.md) — Cookie scheme、Claims、`RoleView` JSON、`Menu.json` 權限樹。
 - [密碼種類與儲存機制](docs/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、API 密碼、種子密碼與機密金鑰。
 - [Google OAuth2 第三方登入](docs/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
@@ -197,6 +210,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 操作與規範
 
 - [維護規範](docs/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
+- [正式部署與安全檢查清單](docs/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目。
+- [腳手架新專案啟動流程](docs/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
 - `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組所需檔案骨架。
 - [EFCore 指令備忘](docs/EFCore.md) — Migration 指令範本。
