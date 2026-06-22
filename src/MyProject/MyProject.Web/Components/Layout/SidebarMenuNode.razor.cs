@@ -44,7 +44,6 @@ public partial class SidebarMenuNode : ComponentBase
             "ProjectFilled" => "workspaces",
             "CarryOutFilled" => "checklist",
             "EnterOutlined" => "event",
-            _ when Item.HasChildren => "folder_open",
             _ => icon
         };
     }

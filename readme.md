@@ -251,6 +251,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [版本號規則調整為每次異動 Patch +1（0.4.1）](docs/changelog/2026-06-22-版本號規則調整.md) — 統一版號遞增規則為最後一碼 +1。
 - [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
 - [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](docs/changelog/2026-06-22-側邊欄收合修正與日誌補缺.md) — 收合飛出改自訂橋接、補 2 處日誌缺口。
+- [側邊欄群組圖示依名稱各自顯示（0.4.4）](docs/changelog/2026-06-22-側邊欄群組圖示.md) — 移除群組強制 folder_open，群組圖示改用 Menu.json 各自有效圖示。
 
 ### 專案規劃（planning）
 

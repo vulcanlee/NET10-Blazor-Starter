@@ -18,14 +18,14 @@ public sealed class MenuIconTests
     private static readonly HashSet<string> AllowedIcons = new(StringComparer.Ordinal)
     {
         "space_dashboard",
-        "folder_managed",
+        "work",
         "workspaces",
         "checklist",
         "event",
-        "manage_accounts",
+        "admin_panel_settings",
         "group",
         "shield_person",
-        "dataset",
+        "storage",
         "category",
         "groups",
         "logout",

@@ -8,7 +8,7 @@
   {
     "id": 2,
     "name": "專案管理",
-    "icon": "folder_managed",
+    "icon": "work",
     "subMenu": [
       {
         "id": 21,
@@ -33,7 +33,7 @@
   {
     "id": 3,
     "name": "系統管理",
-    "icon": "manage_accounts",
+    "icon": "admin_panel_settings",
     "subMenu": [
       {
         "id": 31,
@@ -52,7 +52,7 @@
   {
     "id": 5,
     "name": "資料定義",
-    "icon": "dataset",
+    "icon": "storage",
     "subMenu": [
       {
         "id": 51,

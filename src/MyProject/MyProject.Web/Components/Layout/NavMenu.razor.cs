@@ -164,7 +164,6 @@ public partial class NavMenu : ComponentBase, IDisposable
             "ProjectFilled" => "workspaces",
             "CarryOutFilled" => "checklist",
             "EnterOutlined" => "event",
-            _ when item.HasChildren => "folder_open",
             _ => icon
         };
     }
