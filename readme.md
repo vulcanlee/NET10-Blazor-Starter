@@ -62,6 +62,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、玻璃擬態 UI）
 - 專案 / 工作 / 會議三大領域實體 CRUD
 - 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
+- 紀錄分類/團隊標籤：專案/工作/會議可標記分類與團隊，並支援以角色為基礎的團隊行級權控（非管理員僅見公開或團隊交集紀錄）
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
@@ -178,13 +179,13 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 本專案採用單一版本來源策略。請務必遵守下列規範：
 
 1. **每次更新完成必須 bump 版本**：
-   將 `appsettings.json` 之 `SystemSettings.SystemInformation.SystemVersion` 的 patch 編號加 1，並把括號內日期更新為當天。
+   每次異動一律將 `appsettings.json` 之 `SystemSettings.SystemInformation.SystemVersion` 的**最後一碼（Patch）+1**（例：`0.4.0 → 0.4.1`，不進位、不依異動性質區分），並把括號內日期更新為當天。
 
    ```json
-   "SystemVersion": "0.2.0 (2026/05/12)"
+   "SystemVersion": "0.4.1 (2026/06/22)"
    ```
 
-   `SystemVersion` 為任何提交都應 bump 的最小單位。版號格式為 `Major.Minor.Patch (YYYY/MM/DD)`。
+   `SystemVersion` 為任何提交都應 bump 的最小單位。版號顯示格式為 `Major.Minor.Patch (YYYY/MM/DD)`；遞增規則詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md) 第 1.2 節。
 
 2. **影響到既有文件就必須同步更新**：
    只要本次異動會改變既有功能、模組、API、資料表、設定欄位或 UI 行為，必須同步修訂相關文件。對應表詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md)。
@@ -246,6 +247,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [Login 頁面改版紀錄](docs/changelog/login-redesign.md) — 玻璃擬態登入頁、RememberMe、驗證碼導入紀錄。
 - [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](docs/changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md) — 遞移相依 SQLitePCLRaw 2.1.11 弱點之抑制與理由。
 - [新增「分類清單」與「團隊清單」管理頁面（0.3.0）](docs/changelog/2026-06-22-分類與團隊清單.md) — 以母專案為藍本移植的階段一主資料管理頁面與 API。
+- [紀錄分類/團隊標籤與團隊權控（0.4.0）](docs/changelog/2026-06-22-紀錄分類團隊與權控.md) — 三大紀錄掛上分類/團隊標籤，導入以角色為基礎的團隊行級權控。
+- [版本號規則調整為每次異動 Patch +1（0.4.1）](docs/changelog/2026-06-22-版本號規則調整.md) — 統一版號遞增規則為最後一碼 +1。
 
 ### 專案規劃（planning）
 

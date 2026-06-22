@@ -255,4 +255,17 @@ public class CategoryService
         Logger.LogDebug("Running pre-delete validation for category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
+
+    /// <summary>
+    /// 取得所有啟用中的分類名稱（依名稱排序），供其他頁面下拉選取使用。
+    /// </summary>
+    public async Task<List<string>> GetAllEnabledNamesAsync()
+    {
+        return await context.Category
+            .AsNoTracking()
+            .Where(x => x.IsEnabled)
+            .OrderBy(x => x.Name)
+            .Select(x => x.Name)
+            .ToListAsync();
+    }
 }

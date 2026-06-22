@@ -37,6 +37,14 @@ public class MeetingCreateUpdateDto
     [JsonPropertyName("projectId")]
     public int? ProjectId { get; set; }
 
+    /// <summary>分類標籤（多值，以換行分隔字串儲存，可空）</summary>
+    [JsonPropertyName("categories")]
+    public string? Categories { get; set; }
+
+    /// <summary>團隊標籤（多值，以換行分隔字串儲存，可空）</summary>
+    [JsonPropertyName("teams")]
+    public string? Teams { get; set; }
+
     [JsonPropertyName("createdAt")]
     public DateTime? CreatedAt { get; set; }
 

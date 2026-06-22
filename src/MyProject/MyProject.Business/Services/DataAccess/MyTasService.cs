@@ -6,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -16,6 +17,7 @@ public class MyTasService
     public const long MaxUploadFileSize = 1024L * 1024L * 1024L;
 
     private readonly BackendDBContext context;
+    private readonly IRecordAccessScopeProvider accessScope;
     private readonly string taskFileRootPath;
 
     public IMapper Mapper { get; }
@@ -25,11 +27,13 @@ public class MyTasService
         BackendDBContext context,
         IMapper mapper,
         ILogger<MyTasService> logger,
-        IOptions<SystemSettings> systemSettings)
+        IOptions<SystemSettings> systemSettings,
+        IRecordAccessScopeProvider accessScope)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
+        this.accessScope = accessScope;
         taskFileRootPath = systemSettings.Value.ExternalFileSystem.TaskFilePath;
     }
 
@@ -60,6 +64,22 @@ public class MyTasService
                 x.Priority.Contains(search) ||
                 x.Owner.Contains(search) ||
                 (x.Project != null && x.Project.Title.Contains(search)));
+        }
+
+        if (dataRequest.CategoryFilters.Count > 0)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildContainsAnyPredicate<MyTask>(x => x.Categories, dataRequest.CategoryFilters));
+        }
+
+        if (dataRequest.TeamFilters.Count > 0)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildContainsAnyPredicate<MyTask>(x => x.Teams, dataRequest.TeamFilters));
+        }
+
+        var scope = await accessScope.GetAsync();
+        if (!scope.IsAdmin)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<MyTask>(x => x.Teams, scope.Teams));
         }
 
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
@@ -183,6 +203,13 @@ public class MyTasService
             return new MyTasAdapterModel();
         }
 
+        var scope = await accessScope.GetAsync();
+        if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+        {
+            Logger.LogWarning("Task access denied by team scope. TaskId={TaskId}", id);
+            return new MyTasAdapterModel();
+        }
+
         return Mapper.Map<MyTasAdapterModel>(item);
     }
 
@@ -259,6 +286,8 @@ public class MyTasService
             currentItem.CompletionPercentage = paraObject.CompletionPercentage;
             currentItem.Owner = paraObject.Owner;
             currentItem.ProjectId = paraObject.ProjectId;
+            currentItem.Categories = TagStringHelper.ToStored(paraObject.Categories);
+            currentItem.Teams = TagStringHelper.ToStored(paraObject.Teams);
             currentItem.UpdatedAt = paraObject.UpdatedAt;
 
             await context.SaveChangesAsync();
@@ -361,6 +390,14 @@ public class MyTasService
 
         if (file is null)
         {
+            return null;
+        }
+
+        var parent = await context.MyTas.AsNoTracking().FirstOrDefaultAsync(t => t.Id == file.MyTasId);
+        var scope = await accessScope.GetAsync();
+        if (!TagStringHelper.IsTeamAccessible(parent?.Teams, scope.Teams, scope.IsAdmin))
+        {
+            Logger.LogWarning("Task file download denied by team scope. TaskFileId={TaskFileId}", taskFileId);
             return null;
         }
 

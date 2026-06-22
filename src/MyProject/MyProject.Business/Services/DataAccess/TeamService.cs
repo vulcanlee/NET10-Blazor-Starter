@@ -292,4 +292,17 @@ public class TeamService
         Logger.LogDebug("Running pre-delete validation for team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
+
+    /// <summary>
+    /// 取得所有啟用中的團隊名稱（依名稱排序），供其他頁面下拉選取使用。
+    /// </summary>
+    public async Task<List<string>> GetAllEnabledNamesAsync()
+    {
+        return await context.Team
+            .AsNoTracking()
+            .Where(x => x.IsEnabled)
+            .OrderBy(x => x.Name)
+            .Select(x => x.Name)
+            .ToListAsync();
+    }
 }

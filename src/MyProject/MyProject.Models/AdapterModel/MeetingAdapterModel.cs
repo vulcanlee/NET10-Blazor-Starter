@@ -19,6 +19,14 @@ public class MeetingAdapterModel : ICloneable, IValidatableObject
 
     public DateTime? EndDate { get; set; }
 
+    public List<string> Categories { get; set; } = [];
+
+    public List<string> Teams { get; set; } = [];
+
+    public string CategoriesText => string.Join("、", Categories);
+
+    public string TeamsText => string.Join("、", Teams);
+
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;

@@ -75,6 +75,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CategoryRepository>();
         services.AddScoped<TeamService>();
         services.AddScoped<TeamRepository>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
 
         return services;
     }

@@ -29,4 +29,10 @@ public class DataRequest
 
     //     指定是否為遞減排序
     public bool? SortDescending { get; set; }
+
+    //     依「分類」過濾（選取多個時以 OR 比對，含任一即符合）
+    public List<string> CategoryFilters { get; set; } = [];
+
+    //     依「團隊」過濾（選取多個時以 OR 比對，含任一即符合）
+    public List<string> TeamFilters { get; set; } = [];
 }

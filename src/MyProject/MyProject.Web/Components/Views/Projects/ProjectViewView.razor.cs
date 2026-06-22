@@ -16,10 +16,17 @@ public partial class ProjectViewView
 {
     private readonly ILogger<ProjectViewView> logger;
     private readonly ProjectService projectService;
+    private readonly CategoryService categoryService;
+    private readonly TeamService teamService;
     private readonly ModalService modalService;
     private readonly MessageService messageService;
     private readonly NotificationService notificationService;
     private ITable? table;
+
+    private List<string> availableCategories = [];
+    private List<string> availableTeams = [];
+    private List<string> selectedCategoryFilters = [];
+    private List<string> selectedTeamFilters = [];
     private int _pageIndex = 1;
     private int _pageSize = MagicObjectHelper.PageSize;
     private int _total;
@@ -53,12 +60,16 @@ public partial class ProjectViewView
     public ProjectViewView(
         ILogger<ProjectViewView> logger,
         ProjectService projectService,
+        CategoryService categoryService,
+        TeamService teamService,
         ModalService modalService,
         MessageService messageService,
         NotificationService notificationService)
     {
         this.logger = logger;
         this.projectService = projectService;
+        this.categoryService = categoryService;
+        this.teamService = teamService;
         this.modalService = modalService;
         this.messageService = messageService;
         this.notificationService = notificationService;
@@ -81,6 +92,9 @@ public partial class ProjectViewView
             return;
         }
 
+        availableCategories = await categoryService.GetAllEnabledNamesAsync();
+        availableTeams = await teamService.GetAllEnabledNamesAsync();
+
         await ReloadAsync();
     }
 
@@ -102,12 +116,38 @@ public partial class ProjectViewView
             CurrentPage = _pageIndex,
             PageSize = _pageSize,
             Take = 0,
+            CategoryFilters = selectedCategoryFilters.ToList(),
+            TeamFilters = selectedTeamFilters.ToList(),
         });
 
         projectAdapterModels = dataRequestResult.Result.ToList();
         _total = dataRequestResult.Count;
         logger.LogInformation("Project list reloaded successfully. Count={Count}", _total);
         StateHasChanged();
+    }
+
+    private async Task OnCategoryFilterChanged(IEnumerable<string> values)
+    {
+        selectedCategoryFilters = values?.ToList() ?? [];
+        _pageIndex = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnTeamFilterChanged(IEnumerable<string> values)
+    {
+        selectedTeamFilters = values?.ToList() ?? [];
+        _pageIndex = 1;
+        await ReloadAsync();
+    }
+
+    private void OnRecordCategoriesChanged(IEnumerable<string> values)
+    {
+        CurrentRecord.Categories = values?.ToList() ?? [];
+    }
+
+    private void OnRecordTeamsChanged(IEnumerable<string> values)
+    {
+        CurrentRecord.Teams = values?.ToList() ?? [];
     }
 
     private async Task OnTableChange(QueryModel<ProjectAdapterModel> args)

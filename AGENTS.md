@@ -64,7 +64,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
-* 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要加 1，並且在 commit message 中說明版本編號的變更。
+* 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要把**最後一碼（Patch）加 1**（例：`0.4.0 → 0.4.1`，不進位、不分異動性質），並且在 commit message 中說明版本編號的變更。
 
 * 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下 `.md` 須**含 BOM**，CI 以 `scripts/Test-DocsEncoding.ps1` 遞迴強制）
 
@@ -83,6 +83,6 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Blazor 檢視編輯前 `Clone()`、Update/Delete 前以 `CleanTrackingHelper` 清除追蹤。
 - 新增頁面權限三處同步：`Menu.json`、`RolePermissionService`、`MagicObjectHelper`（以位置索引對應）。
 - DbSet 名稱 `MyTas` ≠ Entity `MyTask`（早期命名），新增 migration 時留意。
-- 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（每次異動 bump，格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
+- 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（每次異動一律 Patch +1，例：`0.4.0 → 0.4.1`；格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
 - `docs/*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 遞迴檢查）。
 

@@ -92,6 +92,18 @@ else
                         <ValidationMessage For="() => CurrentRecord.Name" />
                     </FormItem>
 
+                    <FormItem Label="預設團隊">
+                        <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                                Values="CurrentRecord.DefaultTeams" OnSelectedItemsChanged="OnRoleTeamsChanged"
+                                Placeholder="選擇此角色可瀏覽的團隊（不設定表示僅能看到無團隊的公開紀錄）"
+                                AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var t in availableTeams)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                            }
+                        </Select>
+                    </FormItem>
+
                     <FormItem Label="角色項目">
                         <FormItem>
                             @foreach (var group in CurrentRecord.RolePermission.Groups)

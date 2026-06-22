@@ -6,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -16,6 +17,7 @@ public class ProjectService
     public const long MaxUploadFileSize = 1024L * 1024L * 1024L;
 
     private readonly BackendDBContext context;
+    private readonly IRecordAccessScopeProvider accessScope;
     private readonly string projectFileRootPath;
 
     public IMapper Mapper { get; }
@@ -25,11 +27,13 @@ public class ProjectService
         BackendDBContext context,
         IMapper mapper,
         ILogger<ProjectService> logger,
-        IOptions<SystemSettings> systemSettings)
+        IOptions<SystemSettings> systemSettings,
+        IRecordAccessScopeProvider accessScope)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
+        this.accessScope = accessScope;
         projectFileRootPath = systemSettings.Value.ExternalFileSystem.ProjectFilePath;
     }
 
@@ -56,6 +60,22 @@ public class ProjectService
                 x.Status.Contains(search) ||
                 x.Priority.Contains(search) ||
                 x.Owner.Contains(search));
+        }
+
+        if (dataRequest.CategoryFilters.Count > 0)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildContainsAnyPredicate<Project>(x => x.Categories, dataRequest.CategoryFilters));
+        }
+
+        if (dataRequest.TeamFilters.Count > 0)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildContainsAnyPredicate<Project>(x => x.Teams, dataRequest.TeamFilters));
+        }
+
+        var scope = await accessScope.GetAsync();
+        if (!scope.IsAdmin)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<Project>(x => x.Teams, scope.Teams));
         }
 
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
@@ -162,6 +182,13 @@ public class ProjectService
             return new ProjectAdapterModel();
         }
 
+        var scope = await accessScope.GetAsync();
+        if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+        {
+            Logger.LogWarning("Project access denied by team scope. ProjectId={ProjectId}", id);
+            return new ProjectAdapterModel();
+        }
+
         return Mapper.Map<ProjectAdapterModel>(item);
     }
 
@@ -222,6 +249,8 @@ public class ProjectService
             currentItem.Priority = paraObject.Priority;
             currentItem.CompletionPercentage = paraObject.CompletionPercentage;
             currentItem.Owner = paraObject.Owner;
+            currentItem.Categories = TagStringHelper.ToStored(paraObject.Categories);
+            currentItem.Teams = TagStringHelper.ToStored(paraObject.Teams);
             currentItem.UpdatedAt = paraObject.UpdatedAt;
 
             await context.SaveChangesAsync();
@@ -324,6 +353,14 @@ public class ProjectService
 
         if (file is null)
         {
+            return null;
+        }
+
+        var parent = await context.Project.AsNoTracking().FirstOrDefaultAsync(p => p.Id == file.ProjectId);
+        var scope = await accessScope.GetAsync();
+        if (!TagStringHelper.IsTeamAccessible(parent?.Teams, scope.Teams, scope.IsAdmin))
+        {
+            Logger.LogWarning("Project file download denied by team scope. ProjectFileId={ProjectFileId}", projectFileId);
             return null;
         }
 

@@ -12,6 +12,8 @@ public class RoleViewAdapterModel : ICloneable
     public DateTime CreateAt { get; set; } = DateTime.Now;
     public DateTime UpdateAt { get; set; } = DateTime.Now;
     public RolePermission RolePermission { get; set; } = new();
+    /// <summary>角色預設團隊（UI 綁定用）</summary>
+    public List<string> DefaultTeams { get; set; } = [];
 
     public RoleViewAdapterModel Clone()
     {
@@ -26,7 +28,8 @@ public class RoleViewAdapterModel : ICloneable
             TabViewJson = TabViewJson,
             CreateAt = CreateAt,
             UpdateAt = UpdateAt,
-            RolePermission = RolePermission.Clone()
+            RolePermission = RolePermission.Clone(),
+            DefaultTeams = new List<string>(DefaultTeams)
         };
     }
 }

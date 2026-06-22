@@ -104,6 +104,7 @@ public class AuthenticationStateHelper
             List<string> permissions = JsonSerializer.Deserialize<List<string>>(myUser.RoleView.TabViewJson) ?? [];
             rolePermissionService.SetPermissionInput(rolePermission, permissions);
             currentUser.RoleJson = myUser.RoleView.TabViewJson;
+            currentUser.TeamList = myUser.RoleView.DefaultTeams ?? [];
             currentUser.IsAuthenticated = true;
             currentUserService.CurrentUser.CopyFrom(currentUser);
 

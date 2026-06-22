@@ -23,6 +23,22 @@ else
                 </Tooltip>
             </div>
             <div class="my-tas-toolbar-right">
+                <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                        Values="selectedCategoryFilters" OnSelectedItemsChanged="OnCategoryFilterChanged"
+                        Placeholder="分類過濾" AllowClear EnableSearch Style="min-width: 160px;">
+                    @foreach (var c in availableCategories)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@c">@c</SelectOption>
+                    }
+                </Select>
+                <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                        Values="selectedTeamFilters" OnSelectedItemsChanged="OnTeamFilterChanged"
+                        Placeholder="團隊過濾" AllowClear EnableSearch Style="min-width: 160px;">
+                    @foreach (var t in availableTeams)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                    }
+                </Select>
                 <Input class="my-tas-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
                 @if (!string.IsNullOrWhiteSpace(searchText))
                 {
@@ -59,6 +75,8 @@ else
                 <Column TData="int" DataIndex="@nameof(MyTasAdapterModel.CompletionPercentage)" Title="完成百分比" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.Owner)" Title="負責人" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.ProjectTitle)" Title="所屬專案" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.CategoriesText)" Title="標籤分類" />
+                <Column TData="string" DataIndex="@nameof(MyTasAdapterModel.TeamsText)" Title="團隊" />
                 <Column TData="DateTime" DataIndex="@nameof(MyTasAdapterModel.CreatedAt)" Title="建立時間" Sortable />
                 <Column TData="DateTime" DataIndex="@nameof(MyTasAdapterModel.UpdatedAt)" Title="更新時間" Sortable />
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
@@ -158,6 +176,28 @@ else
                                 Placeholder="請選擇專案"
                                 Style="width: 100%;" />
                         <ValidationMessage For="() => CurrentRecord.ProjectId" />
+                    </FormItem>
+
+                    <FormItem Label="標籤分類">
+                        <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                                Values="CurrentRecord.Categories" OnSelectedItemsChanged="OnRecordCategoriesChanged"
+                                Placeholder="選擇分類" AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var c in availableCategories)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@c">@c</SelectOption>
+                            }
+                        </Select>
+                    </FormItem>
+
+                    <FormItem Label="團隊">
+                        <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                                Values="CurrentRecord.Teams" OnSelectedItemsChanged="OnRecordTeamsChanged"
+                                Placeholder="選擇團隊（不設定表示公開）" AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var t in availableTeams)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                            }
+                        </Select>
                     </FormItem>
 
                     <FormItem Label="工作項目附件">

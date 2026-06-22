@@ -46,6 +46,14 @@ public class MyTasAdapterModel : ICloneable, IValidatableObject
     [Required(ErrorMessage = "負責人 不可為空白")]
     public string Owner { get; set; } = string.Empty;
 
+    public List<string> Categories { get; set; } = [];
+
+    public List<string> Teams { get; set; } = [];
+
+    public string CategoriesText => string.Join("、", Categories);
+
+    public string TeamsText => string.Join("、", Teams);
+
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;

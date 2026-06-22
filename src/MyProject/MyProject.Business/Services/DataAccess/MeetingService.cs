@@ -6,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -16,6 +17,7 @@ public class MeetingService
     public const long MaxUploadFileSize = 1024L * 1024L * 1024L;
 
     private readonly BackendDBContext context;
+    private readonly IRecordAccessScopeProvider accessScope;
     private readonly string meetingFileRootPath;
 
     public IMapper Mapper { get; }
@@ -25,11 +27,13 @@ public class MeetingService
         BackendDBContext context,
         IMapper mapper,
         ILogger<MeetingService> logger,
-        IOptions<SystemSettings> systemSettings)
+        IOptions<SystemSettings> systemSettings,
+        IRecordAccessScopeProvider accessScope)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
+        this.accessScope = accessScope;
         meetingFileRootPath = systemSettings.Value.ExternalFileSystem.MeetingFilePath;
     }
 
@@ -58,6 +62,22 @@ public class MeetingService
                 (x.Summary ?? string.Empty).Contains(search) ||
                 (x.Participants ?? string.Empty).Contains(search) ||
                 (x.Project != null && x.Project.Title.Contains(search)));
+        }
+
+        if (dataRequest.CategoryFilters.Count > 0)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildContainsAnyPredicate<Meeting>(x => x.Categories, dataRequest.CategoryFilters));
+        }
+
+        if (dataRequest.TeamFilters.Count > 0)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildContainsAnyPredicate<Meeting>(x => x.Teams, dataRequest.TeamFilters));
+        }
+
+        var scope = await accessScope.GetAsync();
+        if (!scope.IsAdmin)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<Meeting>(x => x.Teams, scope.Teams));
         }
 
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
@@ -141,6 +161,13 @@ public class MeetingService
             return new MeetingAdapterModel();
         }
 
+        var scope = await accessScope.GetAsync();
+        if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+        {
+            Logger.LogWarning("Meeting access denied by team scope. MeetingId={MeetingId}", id);
+            return new MeetingAdapterModel();
+        }
+
         return Mapper.Map<MeetingAdapterModel>(item);
     }
 
@@ -214,6 +241,8 @@ public class MeetingService
             currentItem.StartDate = paraObject.StartDate;
             currentItem.EndDate = paraObject.EndDate;
             currentItem.ProjectId = paraObject.ProjectId;
+            currentItem.Categories = TagStringHelper.ToStored(paraObject.Categories);
+            currentItem.Teams = TagStringHelper.ToStored(paraObject.Teams);
             currentItem.UpdatedAt = paraObject.UpdatedAt;
 
             await context.SaveChangesAsync();
@@ -316,6 +345,14 @@ public class MeetingService
 
         if (file is null)
         {
+            return null;
+        }
+
+        var parent = await context.Meeting.AsNoTracking().FirstOrDefaultAsync(m => m.Id == file.MeetingId);
+        var scope = await accessScope.GetAsync();
+        if (!TagStringHelper.IsTeamAccessible(parent?.Teams, scope.Teams, scope.IsAdmin))
+        {
+            Logger.LogWarning("Meeting file download denied by team scope. MeetingFileId={MeetingFileId}", meetingFileId);
             return null;
         }
 

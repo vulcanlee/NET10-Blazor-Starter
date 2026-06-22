@@ -27,6 +27,12 @@ public class Project
     [Required(ErrorMessage = "負責人 不可為空白")]
     public string Owner { get; set; } = string.Empty;
 
+    /// <summary>分類標籤（多值，以分隔字串儲存，可空）</summary>
+    public string? Categories { get; set; }
+
+    /// <summary>團隊標籤（多值，以分隔字串儲存，可空）</summary>
+    public string? Teams { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;

@@ -21,6 +21,8 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
         private readonly RolePermissionService rolePermissionService;
+        private readonly TeamService teamService;
+        List<string> availableTeams = new();
         ITable? table;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
@@ -51,7 +53,8 @@ namespace MyProject.Web.Components.Views.Admins
             ModalService modalService,
             MessageService messageService,
             NotificationService notificationService,
-            RolePermissionService rolePermissionService)
+            RolePermissionService rolePermissionService,
+            TeamService teamService)
         {
             this.logger = logger;
             this.roleViewService = roleViewService;
@@ -59,6 +62,7 @@ namespace MyProject.Web.Components.Views.Admins
             this.messageService = messageService;
             this.notificationService = notificationService;
             this.rolePermissionService = rolePermissionService;
+            this.teamService = teamService;
         }
 
         protected override async Task OnInitializedAsync()
@@ -77,6 +81,8 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogWarning("Role view denied because current user is not an administrator.");
                 return;
             }
+
+            availableTeams = await teamService.GetAllEnabledNamesAsync();
 
             await ReloadAsync();
         }
@@ -352,6 +358,11 @@ namespace MyProject.Web.Components.Views.Admins
         public void OnEditContestChanged(EditContext context)
         {
             LocalEditContext = context;
+        }
+
+        private void OnRoleTeamsChanged(IEnumerable<string> values)
+        {
+            CurrentRecord.DefaultTeams = values?.ToList() ?? [];
         }
 
         private void OnPermissionGroupChanged(RolePermissionGroup group, bool value)
