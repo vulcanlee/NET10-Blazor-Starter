@@ -19,4 +19,4 @@
 - [x] 補 Swagger Bearer 授權設定。
 - [x] Project/MyTask/Meeting CRUD API 加上 Bearer 授權。
 - [x] 補更完整的 API integration tests：已驗證 HTTP 401、403、validation 400、500、login、refresh、me、Project CRUD；403/500 透過測試專案 probe controller 觸發，不新增正式 API contract。
-- [x] 評估是否導入 `/api/v1/...`，本輪依決策保留目前 `/api/...` 路由；策略文件：`docs/API Versioning 策略.md`。
+- [x] 評估是否導入 `/api/v1/...`，本輪依決策保留目前 `/api/...` 路由；策略文件：`docs/architecture/API Versioning 策略.md`。

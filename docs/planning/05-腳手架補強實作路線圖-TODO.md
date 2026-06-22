@@ -12,12 +12,12 @@
 - [x] 修正 50 個 build warnings 中的高價值項目，目前剩 0 個 compiler/analyzer warning，已記錄於文件。
 - [x] 拆分 `Program.cs`，已先抽出 localization/application services 與 middleware/static files extension；database/seed 深度拆分保留為後續低風險重構。
 - [x] 加入 Web API integration tests，覆蓋 401、login、refresh、me、Project CRUD Bearer 授權與 validation 400；solution 已修正為會實際建置並執行測試專案。
-- [x] 補正式部署設定範本，說明 JWT key、資料庫路徑、NLog 路徑、Swagger UI 暴露策略。文件：`docs/正式部署與安全檢查清單.md`。
+- [x] 補正式部署設定範本，說明 JWT key、資料庫路徑、NLog 路徑、Swagger UI 暴露策略。文件：`docs/operations/正式部署與安全檢查清單.md`。
 
 ## 第三階段：腳手架產品化
-- [x] 建立新專案改名與替換清單。文件：`docs/腳手架新專案啟動流程.md`。
-- [x] 建立 SQL Server 切換與 migration 操作文件。文件：`docs/SQL Server 切換說明.md`。
+- [x] 建立新專案改名與替換清單。文件：`docs/guides/腳手架新專案啟動流程.md`。
+- [x] 建立 SQL Server 切換與 migration 操作文件。文件：`docs/guides/SQL Server 切換說明.md`。
 - [x] 建立預設帳號初始化設定流程：新增 `BootstrapSettings` 支援覆寫 support 帳號與密碼；強制改密碼功能化仍可依正式需求另開任務。
-- [x] 建立 API versioning 策略，但不破壞目前 `/api/...`。文件：`docs/API Versioning 策略.md`。
+- [x] 建立 API versioning 策略，但不破壞目前 `/api/...`。文件：`docs/architecture/API Versioning 策略.md`。
 - [x] 建立新專案初始化與 CRUD 模組骨架腳本：`scripts/New-StarterProject.ps1`、`scripts/New-CrudModule.ps1`。
 - [x] 補齊 Production 啟動安全檢查、health checks、CORS、rate limiting 與 `/api/v1/...` 平行路由。

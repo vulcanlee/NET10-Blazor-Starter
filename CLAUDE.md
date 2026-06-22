@@ -67,6 +67,22 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 * 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要加 1，並且在 commit message 中說明版本編號的變更。
 
-* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在
+* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下 `.md` 須**含 BOM**，CI 以 `scripts/Test-DocsEncoding.ps1` 遞迴強制）
 
 * 每次有異動後，要確認相關文件也要進行更新
+
+---
+
+## 專案速查與文件入口（NET10-Blazor-Starter）
+
+動手改本專案前，請先讀 **`docs/architecture/開發慣例與限制速查.md`**（相對 repo 根目錄）—— 集中列出設計慣例、不變量與踩雷點；完整文件索引見 `docs/README.md`。
+
+最關鍵的不變量（違反會改壞功能或留下隱患）：
+- 模型變更要產生**雙資料庫 migration**（`MyProject.AccessDatas` 的 SQLite 與 `MyProject.AccessDatas.SqlServerMigrations` 各一）。
+- 分層依賴一律向上：Web → Business → AccessDatas；`Share`/`Models`/`Dtos` 不相依其他專案；UI 不直接 `using BackendDBContext`。
+- Web API 一律回傳 `ApiResult<T>`，分頁包 `PagedResult<T>`；UI 用 Cookie 驗證、API 用 JWT Bearer。
+- Blazor 檢視編輯前 `Clone()`、Update/Delete 前以 `CleanTrackingHelper` 清除追蹤。
+- 新增頁面權限三處同步：`Menu.json`、`RolePermissionService`、`MagicObjectHelper`（以位置索引對應）。
+- DbSet 名稱 `MyTas` ≠ Entity `MyTask`（早期命名），新增 migration 時留意。
+- 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（每次異動 bump，格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
+- `docs/*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 遞迴檢查）。

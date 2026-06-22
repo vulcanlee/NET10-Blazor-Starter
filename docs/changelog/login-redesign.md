@@ -8,7 +8,7 @@
 - `src/MyProject/MyProject.Web/Components/Auths/Login.razor.cs`
 - `src/MyProject/MyProject.Web/Components/Auths/Login.razor.css`
 - `readme.md`
-- `docs/login-redesign.md`
+- `docs/changelog/login-redesign.md`
 
 ## UI 調整
 - 重新設計登入頁整體版面，加入品牌展示區與登入卡片雙欄配置。

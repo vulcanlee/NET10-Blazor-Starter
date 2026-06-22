@@ -51,7 +51,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 | `MyProject.Dtos` | API 對外傳輸物件：`ApiResult<T>`、`PagedResult<T>`、各模組 DTO。 |
 | `MyProject.Share` | 跨層共用：Helpers、Extensions（無外部相依）。 |
 
-啟動流程詳見 [docs/架構總覽.md](docs/架構總覽.md)。
+啟動流程詳見 [docs/architecture/架構總覽.md](docs/architecture/架構總覽.md)。
 
 ---
 
@@ -93,7 +93,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 外部目錄與資料庫檔位置由 `appsettings.json` 之 `SystemSettings.ExternalFileSystem` 控制，預設位於 `C:\temp\MyProject\…`，啟動時若不存在會自動建立。
 
-關於 EF Core Migration 指令請見 [docs/EFCore.md](docs/EFCore.md)。
+關於 EF Core Migration 指令請見 [docs/guides/EFCore.md](docs/guides/EFCore.md)。
 
 ---
 
@@ -102,8 +102,16 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ```
 .
 ├── readme.md                       ← 本檔（系統入口說明）
-├── AGENTS.md                       ← LLM 協作行為準則
-├── docs/                           ← 系統設計與規範文件（見第 9 節）
+├── AGENTS.md / CLAUDE.md           ← LLM 協作行為準則與專案速查入口
+├── docs/                           ← 系統設計與規範文件（依特性分類，見第 9 節）
+│   ├── README.md                   ← 文件目錄索引與分類規則
+│   ├── planning/                   ← 專案規劃、TODO、路線圖
+│   ├── architecture/               ← 架構、資料模型、API/DTO 規範、開發慣例速查
+│   ├── security/                   ← 認證、授權、密碼與機密金鑰
+│   ├── features/                   ← 個別功能機制（快取、多語系、上傳、健康監控）
+│   ├── guides/                     ← 開發/操作教學（CRUD、EFCore、SQL Server、測試）
+│   ├── operations/                 ← 維護、部署、設定檔、CI/CD
+│   └── changelog/                  ← 變更紀錄
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── MyProject.Web/              ← Blazor Server 宿主
@@ -138,14 +146,14 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `Swagger.EnabledInProduction` | 是否在 Production 環境暴露 Swagger UI，預設 `false`。 |
 | `Security.ReturnExceptionDetails` | 是否於 `ApiResult.Exception` 回傳例外細節；`null` 時依環境決定。 |
 | `Cors.AllowedOrigins` | CORS 允許來源白名單（陣列）；留空表示不額外開放跨來源。 |
-| `CacheSettings.Provider` | 快取 provider，支援 `Memory` 與 `Redis`，預設 `Memory`（見 [分散式快取機制](docs/分散式快取機制.md)）。 |
+| `CacheSettings.Provider` | 快取 provider，支援 `Memory` 與 `Redis`，預設 `Memory`（見 [分散式快取機制](docs/features/分散式快取機制.md)）。 |
 | `CacheSettings.RedisConnection` | `Provider=Redis` 時的 Redis 連線字串；Production 使用 Redis 時必須設定。 |
 | `CacheSettings.InstanceName` | Redis 快取鍵前綴，預設 `MyProject:`。 |
 | `CacheSettings.DefaultExpirationMinutes` | 快取項目預設存活時間（分鐘），預設 `30`。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
 | `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
-| `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/Google%20OAuth2%20第三方登入.md)）。 |
+| `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md)）。 |
 | `SystemSettings.DatabaseProvider` | 資料庫 provider，支援 `Sqlite` 與 `SqlServer`，預設 `Sqlite`。 |
 | `SystemSettings.ConnectionStrings.DefaultConnection` | SQL Server 連線字串；`DatabaseProvider=SqlServer` 時使用。 |
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
@@ -160,7 +168,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.MeetingFilePath` | 會議附件根目錄。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
-各區段詳解見 [docs/日誌與設定檔說明.md](docs/日誌與設定檔說明.md)。
+各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
 
 ---
 
@@ -178,10 +186,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    `SystemVersion` 為任何提交都應 bump 的最小單位。版號格式為 `Major.Minor.Patch (YYYY/MM/DD)`。
 
 2. **影響到既有文件就必須同步更新**：
-   只要本次異動會改變既有功能、模組、API、資料表、設定欄位或 UI 行為，必須同步修訂相關文件。對應表詳見 [docs/維護規範.md](docs/維護規範.md)。
+   只要本次異動會改變既有功能、模組、API、資料表、設定欄位或 UI 行為，必須同步修訂相關文件。對應表詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md)。
 
 3. **檔案編碼**：
-   所有原始碼、設定、`.md` 文件一律使用 UTF-8 編碼（建議無 BOM）。提交前需自行確認繁體中文無亂碼。
+   `docs/` 下所有 `.md` 一律使用 **UTF-8 含 BOM**（CI 以 [`scripts/Test-DocsEncoding.ps1`](scripts/Test-DocsEncoding.ps1) 遞迴強制，缺 BOM 或含亂碼即失敗）；其餘原始碼、設定檔採 UTF-8 即可。提交前需自行確認繁體中文無亂碼。
 
 4. **撰寫文件時請對應實際 codebase**：
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
@@ -190,37 +198,55 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ## 9. 文件索引
 
-### 系統設計
+完整分類規則與清單見 [docs/README.md](docs/README.md)；新增文件請先依特性歸入既有子目錄，無適用分類時自動新增英文小寫目錄並同步該索引與本節。
 
-- [架構總覽](docs/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
-- [資料模型與資料庫](docs/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
-- [SQL Server 切換說明](docs/SQL%20Server%20切換說明.md) — `DatabaseProvider` 切換、`SqlServerMigrations` 專用 migration assembly。
-- [DTO 與模型邊界規範](docs/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
-- [Web API 設計慣例](docs/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。
-- [API Versioning 策略](docs/API%20Versioning%20策略.md) — `/api/...` 與 `/api/v1/...` 平行路由、Swagger v1 分組與後續導入策略。
-- [認證授權與權限機制](docs/認證授權與權限機制.md) — Cookie scheme、Claims、`RoleView` JSON、`Menu.json` 權限樹。
-- [密碼種類與儲存機制](docs/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、API 密碼、種子密碼與機密金鑰。
-- [Google OAuth2 第三方登入](docs/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
-- [多語系與本地化](docs/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
-- [檔案上傳機制](docs/檔案上傳機制.md) — 三類附件、年月目錄、刪除同步、容量上限。
-- [日誌與設定檔說明](docs/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
-- [分散式快取機制](docs/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
-- [系統健康監控](docs/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最後 100 筆日誌。
+### 架構與設計（architecture）
 
-### 操作與規範
+- [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、雙資料庫 migration、追蹤清理、權限同步等不變量速查。
+- [架構總覽](docs/architecture/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
+- [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
+- [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
+- [Web API 設計慣例](docs/architecture/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。
+- [API Versioning 策略](docs/architecture/API%20Versioning%20策略.md) — `/api/...` 與 `/api/v1/...` 平行路由、Swagger v1 分組與後續導入策略。
 
-- [維護規範](docs/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
-- [正式部署與安全檢查清單](docs/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目。
-- [腳手架新專案啟動流程](docs/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單。
+### 認證與安全（security）
+
+- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie scheme、Claims、`RoleView` JSON、`Menu.json` 權限樹。
+- [密碼種類與儲存機制](docs/security/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、API 密碼、種子密碼與機密金鑰。
+- [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
+- [記住我登入原理說明](docs/security/記住我登入原理說明.md) — Cookie + RememberMe 完整原理。
+
+### 功能機制（features）
+
+- [分散式快取機制](docs/features/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
+- [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
+- [檔案上傳機制](docs/features/檔案上傳機制.md) — 三類附件、年月目錄、刪除同步、容量上限。
+- [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最後 100 筆日誌。
+
+### 開發與操作指南（guides）
+
+- [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 以 `RoleViewView` 為藍本複刻新 CRUD 頁面。
+- [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單。
+- [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
+- [SQL Server 切換說明](docs/guides/SQL%20Server%20切換說明.md) — `DatabaseProvider` 切換、`SqlServerMigrations` 專用 migration assembly。
+- [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
 - `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組所需檔案骨架。
-- [EFCore 指令備忘](docs/EFCore.md) — Migration 指令範本。
-- [建立一個新 CRUD 操作網頁說明](docs/建立一個新%20CRUD%20操作網頁說明.md) — 以 `RoleViewView` 為藍本複刻新 CRUD 頁面。
 
-### 變更紀錄
+### 維運與部署（operations）
 
-- [Login 頁面改版紀錄](docs/login-redesign.md) — 玻璃擬態登入頁、RememberMe、驗證碼導入紀錄。
-- [記住我登入原理說明](docs/記住我登入原理說明.md) — Cookie + RememberMe 完整原理。
+- [維護規範](docs/operations/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
+- [正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目。
+- [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
+- [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — GitHub Actions 流程、文件編碼檢查、弱點掃描。
+
+### 變更紀錄（changelog）
+
+- [Login 頁面改版紀錄](docs/changelog/login-redesign.md) — 玻璃擬態登入頁、RememberMe、驗證碼導入紀錄。
+
+### 專案規劃（planning）
+
+- [docs/planning/](docs/planning/) — 專案總覽、架構盤點、缺口與風險、補強路線圖等 TODO 與進度追蹤文件。
 
 ---
 
