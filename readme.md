@@ -243,6 +243,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 變更紀錄（changelog）
 
 - [Login 頁面改版紀錄](docs/changelog/login-redesign.md) — 玻璃擬態登入頁、RememberMe、驗證碼導入紀錄。
+- [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](docs/changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md) — 遞移相依 SQLitePCLRaw 2.1.11 弱點之抑制與理由。
 
 ### 專案規劃（planning）
 

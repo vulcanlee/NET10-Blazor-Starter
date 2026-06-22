@@ -50,6 +50,23 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 `dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。為避免大型還原逾時，步驟設定環境變數 `NUGET_HTTP_TIMEOUT_SECONDS=180`。發現弱點時應升級對應套件版本。
 
+> 此步驟僅「列出」弱點，指令回傳 0、**不會讓 CI 失敗**；它與 restore/build 階段的 `NU1903` 稽核警告是兩條獨立路徑。
+
+### 4.1 已知並已抑制的弱點：CVE-2025-6965
+
+| 項目 | 內容 |
+|------|------|
+| 套件 | `SQLitePCLRaw.lib.e_sqlite3` 2.1.11（bundled SQLite < 3.50.2） |
+| Advisory | [GHSA-2m69-gcr7-jv3q](https://github.com/advisories/GHSA-2m69-gcr7-jv3q) / CVE-2025-6965（High，CVSS 7.2） |
+| 引入來源 | 由 `Microsoft.EntityFrameworkCore.Sqlite 10.0.5` **遞移**引入（EF Core Sqlite → Microsoft.Data.Sqlite.Core → SQLitePCLRaw.bundle_e_sqlite3 → lib.e_sqlite3） |
+| 為何不升級 | NuGet 上 `SQLitePCLRaw.*` 最新即 2.1.11，**尚無修補版**（無 2.1.12 / 2.2.x），EF Core 亦未帶入新版，目前無從升級 |
+| 風險評估 | 低：Production 使用 SQL Server（`appsettings.Production.json` 之 `DatabaseProvider=SqlServer`），SQLite 僅為開發/預設資料庫；EF Core 採參數化查詢，無未受信任的原始 SQL 進入 SQLite |
+| 處置 | 於 [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) 以 `NuGetAuditSuppress` 抑制該 advisory，消除 restore/build 的 `NU1903` 警告 |
+
+**重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；上方的 `dotnet list package --vulnerable` 步驟為獨立查詢，**仍會列出**此 advisory（屬資訊性輸出，指令仍回傳 0、不阻斷 CI）。
+
+**移除條件**：待 `SQLitePCLRaw`（或 `Microsoft.EntityFrameworkCore.Sqlite`）釋出 bundled SQLite ≥ 3.50.2 的版本後，升級套件、移除 `Directory.Build.props` 內的 `NuGetAuditSuppress`、並刪除本小節。
+
 ---
 
 ## 5. 延伸閱讀
