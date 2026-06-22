@@ -66,16 +66,12 @@ else
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
                     <Space>
                         <SpaceItem>
-                            <button class="btn-edit" title="修改"
-                                    @onclick="@(async () => await OnEditAsync(@context))">
-                                <span class="icon-edit">✏️</span>
-                            </button>
+                            <CrudActionButton Title="修改" Icon="edit"
+                                              OnClick="@(async () => await OnEditAsync(@context))" />
                         </SpaceItem>
                         <SpaceItem>
-                            <button class="btn-edit" title="刪除"
-                                    @onclick="@(async () => await OnDeleteAsync(@context))">
-                                <span class="icon-edit">🗑️</span>
-                            </button>
+                            <CrudActionButton Title="刪除" Icon="delete" Danger
+                                              OnClick="@(async () => await OnDeleteAsync(@context))" />
                         </SpaceItem>
                     </Space>
                 </ActionColumn>

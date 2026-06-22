@@ -70,7 +70,14 @@ namespace MyProject.Web
                 #region 系統使用服務
                 // Add services to the container.
                 builder.Services.AddRazorComponents()
-                .AddInteractiveServerComponents();
+                .AddInteractiveServerComponents()
+                .AddHubOptions(hubOptions =>
+                {
+                    // Blazor Server SignalR 預設 MaximumReceiveMessageSize 為 32KB；長文字（如大段
+                    // 描述/摘要）由 AntDesign TextArea 同步回伺服器時會超過上限 → circuit 中斷 →
+                    // 反覆重連（畫面閃爍）。提高至 10MB 以容納長內容。
+                    hubOptions.MaximumReceiveMessageSize = 10 * 1024 * 1024;
+                });
 
                 builder.Services.AddControllers(options =>
                 {

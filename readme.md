@@ -249,6 +249,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [新增「分類清單」與「團隊清單」管理頁面（0.3.0）](docs/changelog/2026-06-22-分類與團隊清單.md) — 以母專案為藍本移植的階段一主資料管理頁面與 API。
 - [紀錄分類/團隊標籤與團隊權控（0.4.0）](docs/changelog/2026-06-22-紀錄分類團隊與權控.md) — 三大紀錄掛上分類/團隊標籤，導入以角色為基礎的團隊行級權控。
 - [版本號規則調整為每次異動 Patch +1（0.4.1）](docs/changelog/2026-06-22-版本號規則調整.md) — 統一版號遞增規則為最後一碼 +1。
+- [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
 
 ### 專案規劃（planning）
 

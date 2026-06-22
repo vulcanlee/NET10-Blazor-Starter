@@ -77,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TeamRepository>();
         services.AddHttpContextAccessor();
         services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
+        services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, MyProject.Web.Components.ApplicationCircuitHandler>();
 
         return services;
     }

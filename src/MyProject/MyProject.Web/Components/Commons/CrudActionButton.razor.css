@@ -1,0 +1,61 @@
+.crud-action-button {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    border-color: transparent;
+    border-radius: 4px;
+    color: #4b5563;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: none;
+}
+
+.crud-action-button:hover,
+.crud-action-button:focus {
+    color: #1677ff;
+    border-color: #d6e4ff;
+    background: #eef5ff;
+    text-decoration: none;
+}
+
+.crud-action-button-danger {
+    color: #b42318;
+}
+
+.crud-action-button-danger:hover,
+.crud-action-button-danger:focus {
+    color: #cf1322;
+    border-color: #ffccc7;
+    background: #fff1f0;
+}
+
+.crud-action-button[disabled],
+.crud-action-button.ant-btn[disabled] {
+    color: #9ca3af;
+    border-color: transparent;
+    background: transparent;
+    cursor: not-allowed;
+}
+
+.crud-action-button ::deep .material-icons,
+.crud-action-button ::deep .material-icons-outlined {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.crud-action-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
