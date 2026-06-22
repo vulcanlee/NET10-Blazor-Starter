@@ -12,16 +12,24 @@ public partial class SplashView
     public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
     [Inject]
     public NavigationManager NavigationManager { get; set; } = default!;
+    [Inject]
+    public ILogger<SplashView> Logger { get; set; } = default!;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            Logger.LogDebug("Splash view running authentication check.");
             var checkResult = await AuthenticationStateHelper
             .Check(authStateProvider, NavigationManager);
             if (checkResult == AuthenticationCheckResult.Succeeded)
             {
+                Logger.LogInformation("Splash view authentication succeeded. Redirecting to /app.");
                 NavigationManager.NavigateTo("/app", true, true);
+            }
+            else
+            {
+                Logger.LogWarning("Splash view authentication check did not succeed. Result={CheckResult}", checkResult);
             }
         }
     }

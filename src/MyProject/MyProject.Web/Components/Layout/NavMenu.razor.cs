@@ -113,14 +113,60 @@ public partial class NavMenu : ComponentBase, IDisposable
         return [.. ancestors];
     }
 
-    private MenuMode GetMenuMode()
+    private string GetCollapsedItemClass(string itemKey)
     {
-        return IsSidebarCollapsed ? MenuMode.Vertical : MenuMode.Inline;
+        var className = "collapsed-menu-item";
+
+        if (IsMenuKeyActive(itemKey))
+        {
+            className += " collapsed-menu-item-active";
+        }
+
+        return className;
     }
 
-    private string GetMenuRenderKey()
+    private string GetCollapsedFlyoutItemClass(string itemKey)
     {
-        return IsSidebarCollapsed ? "sidebar-menu-collapsed" : "sidebar-menu-expanded";
+        var className = "collapsed-flyout-item";
+
+        if (string.Equals(ActiveMenuPath, itemKey, StringComparison.Ordinal))
+        {
+            className += " collapsed-flyout-item-active";
+        }
+
+        return className;
+    }
+
+    private bool IsMenuKeyActive(string itemKey)
+    {
+        return string.Equals(ActiveMenuPath, itemKey, StringComparison.Ordinal)
+            || (ActiveMenuPath?.StartsWith($"{itemKey}-", StringComparison.Ordinal) ?? false);
+    }
+
+    private static string GetMaterialIconKind(SidebarMenuItemModel item)
+    {
+        var icon = item.Icon?.Trim();
+
+        if (string.IsNullOrWhiteSpace(icon))
+        {
+            return item.HasChildren ? "folder_open" : "article";
+        }
+
+        return icon switch
+        {
+            "home" => "home",
+            "dashboard" => "space_dashboard",
+            "admin" => "admin_panel_settings",
+            "users" => "group",
+            "roles" => "security",
+            "shield_person" => "security",
+            "setting" => "settings",
+            "ProjectFilled" => "workspaces",
+            "CarryOutFilled" => "checklist",
+            "EnterOutlined" => "event",
+            _ when item.HasChildren => "folder_open",
+            _ => icon
+        };
     }
 
     private static bool TryFindActiveMenuPath(IReadOnlyList<SidebarMenuItemModel> items, string currentPath, string parentKey, out string? activePath)

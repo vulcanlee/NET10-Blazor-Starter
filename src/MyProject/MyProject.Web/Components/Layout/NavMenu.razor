@@ -29,11 +29,62 @@
                 <span class="nav-link nav-link-disabled">尚無可用選單</span>
             </div>
         }
+        else if (IsSidebarCollapsed)
+        {
+            <nav class="collapsed-sidebar-menu" aria-label="收合功能選單">
+                <ul class="collapsed-menu-list">
+                    @for (var index = 0; index < MenuItems.Count; index++)
+                    {
+                        var item = MenuItems[index];
+                        var itemKey = $"root-{index}";
+
+                        <li class="@GetCollapsedItemClass(itemKey)">
+                            @if (item.HasChildren)
+                            {
+                                <button type="button"
+                                        class="collapsed-menu-trigger"
+                                        aria-label="@item.Name"
+                                        aria-haspopup="menu"
+                                        title="@item.Name">
+                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind(item)" />
+                                </button>
+
+                                <div class="collapsed-menu-flyout" role="menu" aria-label="@item.Name">
+                                    @for (var childIndex = 0; childIndex < item.SubMenu.Count; childIndex++)
+                                    {
+                                        var child = item.SubMenu[childIndex];
+                                        var childKey = $"{itemKey}-{childIndex}";
+
+                                        @if (!string.IsNullOrWhiteSpace(child.Url))
+                                        {
+                                            <a class="@GetCollapsedFlyoutItemClass(childKey)"
+                                               href="@child.Url"
+                                               role="menuitem">
+                                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind(child)" />
+                                                <span>@child.Name</span>
+                                            </a>
+                                        }
+                                    }
+                                </div>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(item.Url))
+                            {
+                                <a class="collapsed-menu-trigger collapsed-menu-link"
+                                   href="@item.Url"
+                                   aria-label="@item.Name"
+                                   title="@item.Name">
+                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind(item)" />
+                                </a>
+                            }
+                        </li>
+                    }
+                </ul>
+            </nav>
+        }
         else
         {
             <Menu Class="sidebar-menu"
-                  @key="GetMenuRenderKey()"
-                  Mode="GetMenuMode()"
+                  Mode="MenuMode.Inline"
                   Theme="MenuTheme.Light"
                   InlineCollapsed="false"
                   SelectedKeys="SelectedKeys"

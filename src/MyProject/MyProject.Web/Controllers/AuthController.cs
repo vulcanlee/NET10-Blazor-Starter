@@ -42,6 +42,7 @@ public class AuthController : ControllerBase
         }
 
         var tokenResponse = jwtTokenService.CreateTokenResponse(user);
+        logger.LogInformation("API login succeeded. Account={Account}, UserId={UserId}", user.Account, user.Id);
         return Ok(ApiResult<TokenResponseDto>.SuccessResult(tokenResponse, "登入成功"));
     }
 
