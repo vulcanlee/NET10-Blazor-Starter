@@ -1,0 +1,117 @@
+@if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="category-view-toolbar">
+            <div class="category-view-toolbar-left">
+                <Tooltip Title="新增">
+                    <Button Type="ButtonType.Default" Class="category-view-icon-button"
+                            OnClick="@(async () => await OnAddAsync())">
+                        ➕
+                    </Button>
+                </Tooltip>
+                <Tooltip Title="重新整理">
+                    <Button Type="ButtonType.Default" Class="category-view-icon-button"
+                            OnClick="@(async () => await OnRefreshAsync())">
+                        🔄
+                    </Button>
+                </Tooltip>
+            </div>
+            <div class="category-view-toolbar-right">
+                <Input class="category-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                @if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    <Tooltip Title="清空搜尋">
+                        <Button Type="ButtonType.Default" Class="category-view-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
+                            ❌
+                        </Button>
+                    </Tooltip>
+                }
+                <Tooltip Title="搜尋">
+                    <Button Type="ButtonType.Default" Class="category-view-icon-button" OnClick="@(async () => await OnSearchAsync())">
+                        🔍
+                    </Button>
+                </Tooltip>
+            </div>
+        </div>
+        <div class="category-view-table-wrap">
+            <Table @ref="table"
+                   TItem="CategoryAdapterModel"
+                   Class="category-view-table"
+                   RemoteDataSource="true"
+                   DataSource="@categoryAdapterModels"
+                   OnChange="OnTableChange"
+                   @bind-PageIndex="_pageIndex"
+                   @bind-PageSize="_pageSize"
+                   @bind-Total="_total">
+                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Name)" Title="名稱" Sortable />
+                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Description)" Title="描述" />
+                <Column TData="bool" DataIndex="@nameof(CategoryAdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
+                    @if (context.IsEnabled)
+                    {
+                        <span class="category-status category-status-enabled">啟用</span>
+                    }
+                    else
+                    {
+                        <span class="category-status category-status-disabled">停用</span>
+                    }
+                </Column>
+                <Column TData="DateTime" DataIndex="@nameof(CategoryAdapterModel.UpdatedAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Descending" />
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                    <Space>
+                        <SpaceItem>
+                            <button class="btn-edit" title="修改"
+                                    @onclick="@(async () => await OnEditAsync(@context))">
+                                <span class="icon-edit">✏️</span>
+                            </button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <button class="btn-edit" title="刪除"
+                                    @onclick="@(async () => await OnDeleteAsync(@context))">
+                                <span class="icon-edit">🗑️</span>
+                            </button>
+                        </SpaceItem>
+                    </Space>
+                </ActionColumn>
+            </Table>
+        </div>
+    </div>
+
+    <Modal Title="@modalTitle"
+           Class="category-view-modal"
+           @bind-Visible="@modalVisible"
+           Keyboard="true"
+           OnOk="OnModalOKHandleAsync"
+           OnCancel="OnModalCancelHandleAsync">
+        <div>
+            <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+
+                <AntDesign.Form TModel="CategoryAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+                    <FormItem Label="名稱" Required>
+                        <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入分類名稱" />
+                        <ValidationMessage For="() => CurrentRecord.Name" />
+                    </FormItem>
+
+                    <FormItem Label="描述">
+                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入分類描述" />
+                        <ValidationMessage For="() => CurrentRecord.Description" />
+                    </FormItem>
+
+                    <FormItem Label="啟用狀態">
+                        <Switch @bind-Value="CurrentRecord.IsEnabled" CheckedChildren="啟用" UnCheckedChildren="停用" />
+                    </FormItem>
+                </AntDesign.Form>
+            </EditForm>
+        </div>
+    </Modal>
+}
+
+<FormModalHelper />

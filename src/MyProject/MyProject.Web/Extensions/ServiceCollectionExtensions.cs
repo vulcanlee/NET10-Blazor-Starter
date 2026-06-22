@@ -71,6 +71,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MeetingRepository>();
         services.AddScoped<MyTasService>();
         services.AddScoped<MeetingService>();
+        services.AddScoped<CategoryService>();
+        services.AddScoped<CategoryRepository>();
+        services.AddScoped<TeamService>();
+        services.AddScoped<TeamRepository>();
 
         return services;
     }

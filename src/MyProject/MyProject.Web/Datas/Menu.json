@@ -50,6 +50,25 @@
     ]
   },
   {
+    "id": 5,
+    "name": "資料定義",
+    "icon": "dataset",
+    "subMenu": [
+      {
+        "id": 51,
+        "name": "分類清單",
+        "icon": "category",
+        "url": "/categories"
+      },
+      {
+        "id": 52,
+        "name": "團隊清單",
+        "icon": "groups",
+        "url": "/teams"
+      }
+    ]
+  },
+  {
     "id": 4,
     "name": "登出",
     "icon": "logout",

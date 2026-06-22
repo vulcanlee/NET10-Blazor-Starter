@@ -61,6 +61,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 角色管理（`RoleView`）與二維權限樹（對應 `Menu.json`）
 - 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、玻璃擬態 UI）
 - 專案 / 工作 / 會議三大領域實體 CRUD
+- 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
@@ -244,6 +245,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [Login 頁面改版紀錄](docs/changelog/login-redesign.md) — 玻璃擬態登入頁、RememberMe、驗證碼導入紀錄。
 - [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](docs/changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md) — 遞移相依 SQLitePCLRaw 2.1.11 弱點之抑制與理由。
+- [新增「分類清單」與「團隊清單」管理頁面（0.3.0）](docs/changelog/2026-06-22-分類與團隊清單.md) — 以母專案為藍本移植的階段一主資料管理頁面與 API。
 
 ### 專案規劃（planning）
 

@@ -21,6 +21,11 @@ public class RolePermissionService
                 MagicObjectHelper.角色_使用者管理,
                 MagicObjectHelper.角色_角色管理,
             ],
+            [
+                MagicObjectHelper.角色_資料定義,
+                MagicObjectHelper.角色_分類清單,
+                MagicObjectHelper.角色_團隊清單,
+            ],
             [MagicObjectHelper.角色_登出],
         ];
     }

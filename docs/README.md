@@ -64,3 +64,4 @@
 ### changelog — 變更紀錄
 - [Login 頁面改版紀錄](changelog/login-redesign.md)
 - [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md)
+- [新增「分類清單」與「團隊清單」管理頁面（0.3.0）](changelog/2026-06-22-分類與團隊清單.md)

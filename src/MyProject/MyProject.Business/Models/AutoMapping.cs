@@ -53,6 +53,24 @@ public class AutoMapping : Profile
         CreateMap<RoleViewAdapterModel, RoleView>();
         #endregion
 
+        #region Category
+        CreateMap<Category, CategoryAdapterModel>();
+        CreateMap<CategoryAdapterModel, Category>();
+        CreateMap<Category, CategoryDto>();
+        CreateMap<CategoryDto, Category>();
+        CreateMap<Category, CategoryCreateUpdateDto>();
+        CreateMap<CategoryCreateUpdateDto, Category>();
+        #endregion
+
+        #region Team
+        CreateMap<Team, TeamAdapterModel>();
+        CreateMap<TeamAdapterModel, Team>();
+        CreateMap<Team, TeamDto>();
+        CreateMap<TeamDto, Team>();
+        CreateMap<Team, TeamCreateUpdateDto>();
+        CreateMap<TeamCreateUpdateDto, Team>();
+        #endregion
+
         #region MyUser
         CreateMap<MyUser, MyUserAdapterModel>();
         CreateMap<MyUserAdapterModel, MyUser>();
