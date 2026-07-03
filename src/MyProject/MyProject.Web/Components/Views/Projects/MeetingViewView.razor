@@ -1,3 +1,4 @@
+@using MyProject.Share.Helpers
 @if (string.IsNullOrEmpty(RoleMessage) == false)
 {
     <div class="alert alert-danger" role="alert">
@@ -9,12 +10,15 @@ else
     <div>
         <div class="meeting-view-toolbar">
             <div class="meeting-view-toolbar-left">
-                <Tooltip Title="新增">
-                    <Button Type="ButtonType.Default" Class="meeting-view-icon-button"
-                            OnClick="@(async () => await OnAddAsync(true))">
-                        ➕
-                    </Button>
-                </Tooltip>
+                @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_會議項目, PermissionActions.Create))
+                {
+                    <Tooltip Title="新增">
+                        <Button Type="ButtonType.Default" Class="meeting-view-icon-button"
+                                OnClick="@(async () => await OnAddAsync(true))">
+                            ➕
+                        </Button>
+                    </Tooltip>
+                }
                 <Tooltip Title="重新整理">
                     <Button Type="ButtonType.Default" Class="meeting-view-icon-button"
                             OnClick="@(async () => await OnRefreshAsync())">
@@ -78,14 +82,20 @@ else
                 <Column TData="DateTime" DataIndex="@nameof(MeetingAdapterModel.UpdatedAt)" Title="更新時間" Sortable />
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
                     <Space>
-                        <SpaceItem>
-                            <CrudActionButton Title="修改" Icon="edit"
-                                              OnClick="@(async () => await OnEditAsync(context))" />
-                        </SpaceItem>
-                        <SpaceItem>
-                            <CrudActionButton Title="刪除" Icon="delete" Danger
-                                              OnClick="@(async () => await OnDeleteAsync(context))" />
-                        </SpaceItem>
+                        @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_會議項目, PermissionActions.Edit))
+                        {
+                            <SpaceItem>
+                                <CrudActionButton Title="修改" Icon="edit"
+                                                  OnClick="@(async () => await OnEditAsync(context))" />
+                            </SpaceItem>
+                        }
+                        @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_會議項目, PermissionActions.Delete))
+                        {
+                            <SpaceItem>
+                                <CrudActionButton Title="刪除" Icon="delete" Danger
+                                                  OnClick="@(async () => await OnDeleteAsync(context))" />
+                            </SpaceItem>
+                        }
                     </Space>
                 </ActionColumn>
             </Table>
