@@ -24,6 +24,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<RoleView> RoleView { get; set; }
     public virtual DbSet<Category> Category { get; set; }
     public virtual DbSet<Team> Team { get; set; }
+    public virtual DbSet<AuditLog> AuditLog { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

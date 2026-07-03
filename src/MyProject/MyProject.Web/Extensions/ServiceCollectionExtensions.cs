@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISystemHealthService, SystemHealthService>();
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<SidebarMenuService>();

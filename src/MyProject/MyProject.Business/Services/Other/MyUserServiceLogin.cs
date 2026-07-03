@@ -12,6 +12,7 @@ public class MyUserServiceLogin
 {
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
+    private readonly IAuditLogService auditLogService;
 
     private const int MaxFailedAccessAttempts = 5;
     private const int LockoutMinutes = 15;
@@ -25,13 +26,15 @@ public class MyUserServiceLogin
         IMapper mapper,
         IConfiguration configuration,
         ILogger<MyUserServiceLogin> logger,
-        RolePermissionService rolePermissionService)
+        RolePermissionService rolePermissionService,
+        IAuditLogService auditLogService)
     {
         this.context = context;
         Mapper = mapper;
         Configuration = configuration;
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
+        this.auditLogService = auditLogService;
     }
 
     public async Task<(string, MyUser?)> LoginAsync(string username, string password)
@@ -46,12 +49,14 @@ public class MyUserServiceLogin
             if (item is null)
             {
                 Logger.LogWarning("Login failed because account was not found. Account={Account}", username);
+                await auditLogService.WriteAsync("Login.Failed", success: false, actorAccount: username, detail: "帳號不存在");
                 return ("帳號或者密碼不正確", null);
             }
 
             if (item.LockoutEndUtc.HasValue && item.LockoutEndUtc.Value > DateTime.UtcNow)
             {
                 Logger.LogWarning("Login blocked because account is locked. Account={Account}, UserId={UserId}, LockoutEndUtc={LockoutEndUtc}", username, item.Id, item.LockoutEndUtc);
+                await auditLogService.WriteAsync("Login.LockedOut", success: false, actorUserId: item.Id, actorAccount: username);
                 return ("帳號已鎖定，請稍後再試。", null);
             }
 
@@ -70,6 +75,8 @@ public class MyUserServiceLogin
                 }
 
                 await context.SaveChangesAsync();
+                string failAction = item.LockoutEndUtc is not null ? "Login.LockedOut" : "Login.Failed";
+                await auditLogService.WriteAsync(failAction, success: false, actorUserId: item.Id, actorAccount: username, detail: $"AccessFailedCount={item.AccessFailedCount}");
                 return ("帳號或者密碼不正確", null);
             }
 
@@ -93,6 +100,7 @@ public class MyUserServiceLogin
                 await context.SaveChangesAsync();
             }
 
+            await auditLogService.WriteAsync("Login.Success", success: true, actorUserId: item.Id, actorAccount: item.Account);
             Logger.LogInformation("Login validation succeeded for Account={Account}, UserId={UserId}.", username, item.Id);
             return (string.Empty, item);
         }

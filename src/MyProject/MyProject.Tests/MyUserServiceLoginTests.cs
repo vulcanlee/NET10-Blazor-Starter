@@ -93,6 +93,35 @@ public sealed class MyUserServiceLoginTests
     }
 
     [Fact]
+    public async Task LoginAsync_Success_ShouldWriteAuditLog()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        await fixture.AddUserAsync("grace", "secret-password", legacy: false);
+        var service = fixture.CreateService();
+
+        await service.LoginAsync("grace", "secret-password");
+
+        var audit = await fixture.Context.AuditLog.AsNoTracking().SingleAsync();
+        Assert.Equal("Login.Success", audit.Action);
+        Assert.True(audit.Success);
+        Assert.Equal("grace", audit.ActorAccount);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WrongPassword_ShouldWriteFailedAuditLog()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        await fixture.AddUserAsync("heidi", "secret-password", legacy: false);
+        var service = fixture.CreateService();
+
+        await service.LoginAsync("heidi", "wrong-password");
+
+        var audit = await fixture.Context.AuditLog.AsNoTracking().SingleAsync();
+        Assert.Equal("Login.Failed", audit.Action);
+        Assert.False(audit.Success);
+    }
+
+    [Fact]
     public async Task LoginAsync_WithExpiredLockout_ShouldAllowLogin()
     {
         await using var fixture = await LoginFixture.CreateAsync();
@@ -144,7 +173,8 @@ public sealed class MyUserServiceLoginTests
                 mapper,
                 new ConfigurationBuilder().Build(),
                 loggerFactory.CreateLogger<MyUserServiceLogin>(),
-                new RolePermissionService());
+                new RolePermissionService(),
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()));
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password, bool legacy)
