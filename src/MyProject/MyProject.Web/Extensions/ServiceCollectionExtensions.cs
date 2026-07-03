@@ -60,6 +60,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<ITotpService, TotpService>();
+        services.AddScoped<IRbacBackfillService, RbacBackfillService>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<SidebarMenuService>();

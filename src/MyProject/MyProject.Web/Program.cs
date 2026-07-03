@@ -347,6 +347,18 @@ namespace MyProject.Web
                         logger.LogDebug("Updated existing support user seed data.");
                     }
                     #endregion
+
+                    #region RBAC 回填（將既有權限資料填入新關聯表，冪等；失敗不中止啟動）
+                    try
+                    {
+                        var rbacBackfill = scope.ServiceProvider.GetRequiredService<IRbacBackfillService>();
+                        rbacBackfill.RunAsync().GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "RBAC backfill failed at startup.");
+                    }
+                    #endregion
                 }
                 #endregion
 
