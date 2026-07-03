@@ -35,6 +35,7 @@
 - [API Versioning 策略](architecture/API%20Versioning%20策略.md)
 
 ### security — 認證、授權與安全
+- [權限授權現況評估與改善路線](security/權限授權現況評估與改善路線.md)
 - [認證授權與權限機制](security/認證授權與權限機制.md)
 - [Google OAuth2 第三方登入](security/Google%20OAuth2%20第三方登入.md)
 - [記住我登入原理說明](security/記住我登入原理說明.md)
