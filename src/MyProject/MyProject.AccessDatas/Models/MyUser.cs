@@ -32,5 +32,13 @@ public class MyUser
     /// 外部身分驗證的使用者唯一識別碼（Google 的 sub）
     /// </summary>
     public string? GoogleId { get; set; }
+    /// <summary>
+    /// 連續登入失敗次數；成功登入後歸零。
+    /// </summary>
+    public int AccessFailedCount { get; set; } = 0;
+    /// <summary>
+    /// 帳號鎖定截止時間（UTC）；為 null 或已過期表示未鎖定。
+    /// </summary>
+    public DateTime? LockoutEndUtc { get; set; }
     public RoleView? RoleView { get; set; }
 }

@@ -13,6 +13,9 @@ public class MyUserServiceLogin
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
 
+    private const int MaxFailedAccessAttempts = 5;
+    private const int LockoutMinutes = 15;
+
     public IMapper Mapper { get; }
     public IConfiguration Configuration { get; }
     public ILogger<MyUserServiceLogin> Logger { get; }
@@ -38,7 +41,6 @@ public class MyUserServiceLogin
         try
         {
             MyUser? item = await context.MyUser
-                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Account == username);
 
             if (item is null)
@@ -47,16 +49,48 @@ public class MyUserServiceLogin
                 return ("帳號或者密碼不正確", null);
             }
 
+            if (item.LockoutEndUtc.HasValue && item.LockoutEndUtc.Value > DateTime.UtcNow)
+            {
+                Logger.LogWarning("Login blocked because account is locked. Account={Account}, UserId={UserId}, LockoutEndUtc={LockoutEndUtc}", username, item.Id, item.LockoutEndUtc);
+                return ("帳號已鎖定，請稍後再試。", null);
+            }
+
             PasswordVerificationOutcome outcome = SecurePasswordHasher.VerifyPassword(password, item.Password, item.Salt);
             if (outcome == PasswordVerificationOutcome.Failed)
             {
-                Logger.LogWarning("Login failed because password validation failed. Account={Account}, UserId={UserId}", username, item.Id);
+                item.AccessFailedCount++;
+                if (item.AccessFailedCount >= MaxFailedAccessAttempts)
+                {
+                    item.LockoutEndUtc = DateTime.UtcNow.AddMinutes(LockoutMinutes);
+                    Logger.LogWarning("Account locked after too many failed attempts. Account={Account}, UserId={UserId}, LockoutEndUtc={LockoutEndUtc}", username, item.Id, item.LockoutEndUtc);
+                }
+                else
+                {
+                    Logger.LogWarning("Login failed because password validation failed. Account={Account}, UserId={UserId}, AccessFailedCount={AccessFailedCount}", username, item.Id, item.AccessFailedCount);
+                }
+
+                await context.SaveChangesAsync();
                 return ("帳號或者密碼不正確", null);
             }
 
+            bool changed = false;
             if (outcome == PasswordVerificationOutcome.SuccessRehashNeeded)
             {
-                await UpgradePasswordHashAsync(item.Id, password);
+                item.Password = SecurePasswordHasher.HashPassword(password);
+                changed = true;
+                Logger.LogInformation("Password hash upgraded to PBKDF2 for UserId={UserId}.", item.Id);
+            }
+
+            if (item.AccessFailedCount != 0 || item.LockoutEndUtc is not null)
+            {
+                item.AccessFailedCount = 0;
+                item.LockoutEndUtc = null;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await context.SaveChangesAsync();
             }
 
             Logger.LogInformation("Login validation succeeded for Account={Account}, UserId={UserId}.", username, item.Id);
@@ -66,29 +100,6 @@ public class MyUserServiceLogin
         {
             Logger.LogError(ex, "Login attempt failed unexpectedly for Account={Account}.", username);
             throw;
-        }
-    }
-
-    /// <summary>
-    /// 將舊 SHA256 格式的密碼在成功登入後自動升級為 PBKDF2；升級失敗不影響登入結果。
-    /// </summary>
-    private async Task UpgradePasswordHashAsync(int userId, string password)
-    {
-        try
-        {
-            MyUser? tracked = await context.MyUser.FirstOrDefaultAsync(x => x.Id == userId);
-            if (tracked is null)
-            {
-                return;
-            }
-
-            tracked.Password = SecurePasswordHasher.HashPassword(password);
-            await context.SaveChangesAsync();
-            Logger.LogInformation("Password hash upgraded to PBKDF2 for UserId={UserId}.", userId);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Password hash upgrade failed for UserId={UserId}; login still allowed.", userId);
         }
     }
 }

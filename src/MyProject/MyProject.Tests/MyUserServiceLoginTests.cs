@@ -58,6 +58,54 @@ public sealed class MyUserServiceLoginTests
         Assert.Null(user);
     }
 
+    [Fact]
+    public async Task LoginAsync_AfterFiveWrongPasswords_ShouldLockAccount_AndRejectCorrectPassword()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        await fixture.AddUserAsync("dave", "secret-password", legacy: false);
+        var service = fixture.CreateService();
+
+        for (int i = 0; i < 5; i++)
+        {
+            await service.LoginAsync("dave", "wrong-password");
+        }
+
+        var (error, user) = await service.LoginAsync("dave", "secret-password");
+
+        Assert.Null(user);
+        Assert.Contains("鎖定", error);
+    }
+
+    [Fact]
+    public async Task LoginAsync_SuccessfulLogin_ShouldResetFailedCount()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        var created = await fixture.AddUserAsync("erin", "secret-password", legacy: false);
+        var service = fixture.CreateService();
+
+        await service.LoginAsync("erin", "wrong-password");
+        await service.LoginAsync("erin", "wrong-password");
+        await service.LoginAsync("erin", "secret-password");
+
+        var saved = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Id == created.Id);
+        Assert.Equal(0, saved.AccessFailedCount);
+        Assert.Null(saved.LockoutEndUtc);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithExpiredLockout_ShouldAllowLogin()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        var created = await fixture.AddUserAsync("frank", "secret-password", legacy: false);
+        await fixture.SetLockoutAsync(created.Id, DateTime.UtcNow.AddMinutes(-1), failedCount: 5);
+        var service = fixture.CreateService();
+
+        var (error, user) = await service.LoginAsync("frank", "secret-password");
+
+        Assert.Equal(string.Empty, error);
+        Assert.NotNull(user);
+    }
+
     private sealed class LoginFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -117,6 +165,15 @@ public sealed class MyUserServiceLoginTests
             await Context.SaveChangesAsync();
             Context.ChangeTracker.Clear();
             return user;
+        }
+
+        public async Task SetLockoutAsync(int userId, DateTime lockoutEndUtc, int failedCount)
+        {
+            var user = await Context.MyUser.SingleAsync(x => x.Id == userId);
+            user.LockoutEndUtc = lockoutEndUtc;
+            user.AccessFailedCount = failedCount;
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
         }
 
         public async ValueTask DisposeAsync()
