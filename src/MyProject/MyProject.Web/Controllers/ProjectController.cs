@@ -16,7 +16,6 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [ApiValidationFilter]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-[HasPermission(MagicObjectHelper.角色_專案項目)]
 public class ProjectController : ControllerBase
 {
     private readonly ILogger<ProjectController> logger;
@@ -34,6 +33,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [HasPermission(MagicObjectHelper.角色_專案項目, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<ProjectDto>>> GetById(int id, [FromQuery] bool includeRelatedData = false)
     {
         try
@@ -64,6 +64,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpPost("search")]
+    [HasPermission(MagicObjectHelper.角色_專案項目, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<PagedResult<ProjectDto>>>> Search([FromBody] ProjectSearchRequestDto request)
     {
         try
@@ -109,6 +110,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(MagicObjectHelper.角色_專案項目, PermissionActions.Create)]
     public async Task<ActionResult<ApiResult<ProjectDto>>> Create([FromBody] ProjectCreateUpdateDto projectDto)
     {
         try
@@ -147,6 +149,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(MagicObjectHelper.角色_專案項目, PermissionActions.Edit)]
     public async Task<ActionResult<ApiResult>> Update(int id, [FromBody] ProjectCreateUpdateDto projectDto)
     {
         try
@@ -195,6 +198,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(MagicObjectHelper.角色_專案項目, PermissionActions.Delete)]
     public async Task<ActionResult<ApiResult>> Delete(int id)
     {
         try

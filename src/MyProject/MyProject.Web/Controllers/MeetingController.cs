@@ -16,7 +16,6 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [ApiValidationFilter]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-[HasPermission(MagicObjectHelper.角色_會議項目)]
 public class MeetingController : ControllerBase
 {
     private readonly ILogger<MeetingController> logger;
@@ -34,6 +33,7 @@ public class MeetingController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [HasPermission(MagicObjectHelper.角色_會議項目, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<MeetingDto>>> GetById(int id, [FromQuery] bool includeRelatedData = false)
     {
         try
@@ -62,6 +62,7 @@ public class MeetingController : ControllerBase
     }
 
     [HttpPost("search")]
+    [HasPermission(MagicObjectHelper.角色_會議項目, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<PagedResult<MeetingDto>>>> Search([FromBody] MeetingSearchRequestDto request)
     {
         try
@@ -106,6 +107,7 @@ public class MeetingController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(MagicObjectHelper.角色_會議項目, PermissionActions.Create)]
     public async Task<ActionResult<ApiResult<MeetingDto>>> Create([FromBody] MeetingCreateUpdateDto meetingDto)
     {
         try
@@ -142,6 +144,7 @@ public class MeetingController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(MagicObjectHelper.角色_會議項目, PermissionActions.Edit)]
     public async Task<ActionResult<ApiResult>> Update(int id, [FromBody] MeetingCreateUpdateDto meetingDto)
     {
         try
@@ -189,6 +192,7 @@ public class MeetingController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(MagicObjectHelper.角色_會議項目, PermissionActions.Delete)]
     public async Task<ActionResult<ApiResult>> Delete(int id)
     {
         try

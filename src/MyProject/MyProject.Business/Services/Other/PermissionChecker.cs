@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -29,7 +30,14 @@ public sealed class PermissionChecker : IPermissionChecker
         }
 
         var keys = await GetKeysForRolesAsync(await GetRoleIdsAsync(user.Id, user.RoleViewId));
-        return keys.Contains(permissionKey);
+        if (keys.Contains(permissionKey))
+        {
+            return true;
+        }
+
+        // 舊制相容：擁有裸頁面鍵者，視為具備該頁全部動作。
+        var page = PermissionKey.PageOf(permissionKey);
+        return page is not null && keys.Contains(page);
     }
 
     public async Task<IReadOnlyCollection<string>> GetEffectivePermissionKeysAsync(int userId)

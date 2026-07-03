@@ -98,6 +98,61 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     [Fact]
+    public async Task ViewOnlyRole_CanRead_ButCannotCreate()
+    {
+        var account = $"viewer-{Guid.NewGuid():N}";
+        const string password = "viewer-pass";
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+            var writer = scope.ServiceProvider.GetRequiredService<MyProject.Business.Services.Other.IRbacWriteService>();
+
+            var role = new RoleView
+            {
+                Name = $"唯讀-{Guid.NewGuid():N}",
+                TabViewJson = JsonSerializer.Serialize(new[] { "專案項目:view" }),
+            };
+            db.RoleView.Add(role);
+            await db.SaveChangesAsync();
+            await writer.SyncRolePermissionsAsync(role.Id, new[] { "專案項目:view" });
+
+            var user = new MyUser
+            {
+                Account = account,
+                Name = "viewer",
+                Status = true,
+                IsAdmin = false,
+                RoleViewId = role.Id,
+                Password = SecurePasswordHasher.HashPassword(password),
+            };
+            db.MyUser.Add(user);
+            await db.SaveChangesAsync();
+            await writer.SyncUserRolesAsync(user.Id, new[] { role.Id });
+        }
+
+        using var client = factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = password });
+        var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
+
+        // 有 view：讀取被允許（不存在的 id → 404，而非 403）
+        var readResponse = await client.GetAsync("/api/Project/999999");
+        Assert.Equal(HttpStatusCode.NotFound, readResponse.StatusCode);
+
+        // 無 create：新增被拒（403）
+        var createResponse = await client.PostAsJsonAsync("/api/Project", new ProjectCreateUpdateDto
+        {
+            Id = 0,
+            Title = "should be forbidden",
+            Status = "進行中",
+            Priority = "中",
+            Owner = "viewer",
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, createResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task AuthEndpoints_LoginRefreshAndMe_ShouldReturnApiResult()
     {
         using var client = factory.CreateClient();

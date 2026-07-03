@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Filters;
 
@@ -15,9 +16,16 @@ public sealed class HasPermissionAttribute : Attribute, IAsyncAuthorizationFilte
 {
     private readonly string permissionKey;
 
+    /// <summary>頁面級（裸鍵）授權。</summary>
     public HasPermissionAttribute(string permissionKey)
     {
         this.permissionKey = permissionKey;
+    }
+
+    /// <summary>動作級授權，權限鍵為「頁面:動作」。</summary>
+    public HasPermissionAttribute(string page, string action)
+    {
+        this.permissionKey = PermissionKey.For(page, action);
     }
 
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)

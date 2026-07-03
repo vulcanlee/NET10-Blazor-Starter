@@ -16,7 +16,6 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [ApiValidationFilter]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-[HasPermission(MagicObjectHelper.角色_工作項目)]
 public class MyTaskController : ControllerBase
 {
     private readonly ILogger<MyTaskController> logger;
@@ -34,6 +33,7 @@ public class MyTaskController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [HasPermission(MagicObjectHelper.角色_工作項目, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<MyTaskDto>>> GetById(int id, [FromQuery] bool includeRelatedData = false)
     {
         try
@@ -63,6 +63,7 @@ public class MyTaskController : ControllerBase
     }
 
     [HttpPost("search")]
+    [HasPermission(MagicObjectHelper.角色_工作項目, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<PagedResult<MyTaskDto>>>> Search([FromBody] MyTaskSearchRequestDto request)
     {
         try
@@ -110,6 +111,7 @@ public class MyTaskController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(MagicObjectHelper.角色_工作項目, PermissionActions.Create)]
     public async Task<ActionResult<ApiResult<MyTaskDto>>> Create([FromBody] MyTaskCreateUpdateDto myTaskDto)
     {
         try
@@ -149,6 +151,7 @@ public class MyTaskController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(MagicObjectHelper.角色_工作項目, PermissionActions.Edit)]
     public async Task<ActionResult<ApiResult>> Update(int id, [FromBody] MyTaskCreateUpdateDto myTaskDto)
     {
         try
@@ -196,6 +199,7 @@ public class MyTaskController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(MagicObjectHelper.角色_工作項目, PermissionActions.Delete)]
     public async Task<ActionResult<ApiResult>> Delete(int id)
     {
         try

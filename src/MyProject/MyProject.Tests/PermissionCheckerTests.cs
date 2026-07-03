@@ -40,6 +40,30 @@ public sealed class PermissionCheckerTests
     }
 
     [Fact]
+    public async Task HasPermissionAsync_LegacyBarePageKey_ShouldGrantAnyActionOfThatPage()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.AddUserAsync("legacy", isAdmin: false, permissions: new[] { "專案項目" });
+        var checker = new PermissionChecker(fixture.Context);
+
+        Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:edit"));
+        Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:view"));
+        Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:delete"));
+    }
+
+    [Fact]
+    public async Task HasPermissionAsync_GranularViewOnly_ShouldNotGrantEdit()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.AddUserAsync("viewer", isAdmin: false, permissions: new[] { "專案項目:view" });
+        var checker = new PermissionChecker(fixture.Context);
+
+        Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:view"));
+        Assert.False(await checker.HasPermissionAsync(user.Id, "專案項目:edit"));
+        Assert.False(await checker.HasPermissionAsync(user.Id, "專案項目")); // 無裸鍵
+    }
+
+    [Fact]
     public async Task HasPermissionAsync_ForUnknownUser_ShouldReturnFalse()
     {
         await using var fixture = await Fixture.CreateAsync();

@@ -16,7 +16,6 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [ApiValidationFilter]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-[HasPermission(MagicObjectHelper.角色_分類清單)]
 public class CategoryController : ControllerBase
 {
     private readonly ILogger<CategoryController> logger;
@@ -34,6 +33,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<CategoryDto>>> GetById(int id)
     {
         try
@@ -59,6 +59,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpPost("search")]
+    [HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<PagedResult<CategoryDto>>>> Search([FromBody] CategorySearchRequestDto request)
     {
         try
@@ -99,6 +100,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.Create)]
     public async Task<ActionResult<ApiResult<CategoryDto>>> Create([FromBody] CategoryCreateUpdateDto categoryDto)
     {
         try
@@ -126,6 +128,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.Edit)]
     public async Task<ActionResult<ApiResult>> Update(int id, [FromBody] CategoryCreateUpdateDto categoryDto)
     {
         try
@@ -163,6 +166,7 @@ public class CategoryController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.Delete)]
     public async Task<ActionResult<ApiResult>> Delete(int id)
     {
         try

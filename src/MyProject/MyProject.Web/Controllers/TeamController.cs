@@ -16,7 +16,6 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [ApiValidationFilter]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-[HasPermission(MagicObjectHelper.角色_團隊清單)]
 public class TeamController : ControllerBase
 {
     private readonly ILogger<TeamController> logger;
@@ -34,6 +33,7 @@ public class TeamController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<TeamDto>>> GetById(int id)
     {
         try
@@ -59,6 +59,7 @@ public class TeamController : ControllerBase
     }
 
     [HttpPost("search")]
+    [HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.View)]
     public async Task<ActionResult<ApiResult<PagedResult<TeamDto>>>> Search([FromBody] TeamSearchRequestDto request)
     {
         try
@@ -99,6 +100,7 @@ public class TeamController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.Create)]
     public async Task<ActionResult<ApiResult<TeamDto>>> Create([FromBody] TeamCreateUpdateDto teamDto)
     {
         try
@@ -132,6 +134,7 @@ public class TeamController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.Edit)]
     public async Task<ActionResult<ApiResult>> Update(int id, [FromBody] TeamCreateUpdateDto teamDto)
     {
         try
@@ -175,6 +178,7 @@ public class TeamController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.Delete)]
     public async Task<ActionResult<ApiResult>> Delete(int id)
     {
         try
