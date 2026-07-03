@@ -63,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();
+        services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<SidebarMenuService>();

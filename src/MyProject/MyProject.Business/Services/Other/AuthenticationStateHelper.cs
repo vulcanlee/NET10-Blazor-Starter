@@ -18,19 +18,22 @@ public class AuthenticationStateHelper
     private readonly MyUserService myUserService;
     private readonly CurrentUserService currentUserService;
     private readonly RolePermissionService rolePermissionService;
+    private readonly IEffectiveTeamResolver effectiveTeamResolver;
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
         IMapper mapper,
         MyUserService myUserService,
         CurrentUserService currentUserService,
-        RolePermissionService rolePermissionService)
+        RolePermissionService rolePermissionService,
+        IEffectiveTeamResolver effectiveTeamResolver)
     {
         this.logger = logger;
         this.mapper = mapper;
         this.myUserService = myUserService;
         this.currentUserService = currentUserService;
         this.rolePermissionService = rolePermissionService;
+        this.effectiveTeamResolver = effectiveTeamResolver;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -104,7 +107,7 @@ public class AuthenticationStateHelper
             List<string> permissions = JsonSerializer.Deserialize<List<string>>(myUser.RoleView.TabViewJson) ?? [];
             rolePermissionService.SetPermissionInput(rolePermission, permissions);
             currentUser.RoleJson = myUser.RoleView.TabViewJson;
-            currentUser.TeamList = myUser.RoleView.DefaultTeams ?? [];
+            currentUser.TeamList = (await effectiveTeamResolver.GetEffectiveTeamNamesAsync(myUser.Id)).ToList();
             currentUser.IsAuthenticated = true;
             currentUserService.CurrentUser.CopyFrom(currentUser);
 

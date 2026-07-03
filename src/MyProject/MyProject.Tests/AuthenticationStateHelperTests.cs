@@ -215,7 +215,8 @@ public sealed class AuthenticationStateHelperTests
                 mapper,
                 new MyUserService(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context)),
                 CurrentUserService,
-                rolePermissionService);
+                rolePermissionService,
+                new EffectiveTeamResolver(Context));
         }
 
         public async Task<MyUser> AddUserAsync(

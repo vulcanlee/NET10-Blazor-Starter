@@ -17,15 +17,18 @@ public sealed class RecordAccessScopeProvider : IRecordAccessScopeProvider
     private readonly CurrentUserService currentUserService;
     private readonly IHttpContextAccessor httpContextAccessor;
     private readonly BackendDBContext context;
+    private readonly IEffectiveTeamResolver effectiveTeamResolver;
 
     public RecordAccessScopeProvider(
         CurrentUserService currentUserService,
         IHttpContextAccessor httpContextAccessor,
-        BackendDBContext context)
+        BackendDBContext context,
+        IEffectiveTeamResolver effectiveTeamResolver)
     {
         this.currentUserService = currentUserService;
         this.httpContextAccessor = httpContextAccessor;
         this.context = context;
+        this.effectiveTeamResolver = effectiveTeamResolver;
     }
 
     public async Task<RecordAccessScope> GetAsync()
@@ -49,7 +52,7 @@ public sealed class RecordAccessScopeProvider : IRecordAccessScopeProvider
 
                 if (user is not null)
                 {
-                    var teams = TeamJsonHelper.Deserialize(user.RoleView?.DefaultTeamsJson);
+                    var teams = await effectiveTeamResolver.GetEffectiveTeamNamesAsync(id);
                     return new RecordAccessScope(user.IsAdmin, teams);
                 }
             }
