@@ -324,7 +324,7 @@ namespace MyProject.Web
                             RoleViewId = (roleViewItemNew ?? roleViewItem)!.Id,
                         };
                         support.Password =
-                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, bootstrapSettings.SupportPassword);
+                            SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword);
 
                         dbContext.MyUser.Add(support);
                         dbContext.SaveChanges();
@@ -332,8 +332,12 @@ namespace MyProject.Web
                     }
                     else
                     {
-                        support.Password =
-                            PasswordHelper.GetPasswordSHA(support.Salt ?? string.Empty, bootstrapSettings.SupportPassword);
+                        if (SecurePasswordHasher.VerifyPassword(bootstrapSettings.SupportPassword, support.Password, support.Salt)
+                            != PasswordVerificationOutcome.Success)
+                        {
+                            support.Password =
+                                SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword);
+                        }
                         support.IsAdmin = true;
                         if (roleViewItemNew != null)
                             support.RoleViewId = roleViewItemNew.Id;

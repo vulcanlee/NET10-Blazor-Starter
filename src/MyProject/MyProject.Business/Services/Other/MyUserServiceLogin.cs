@@ -47,11 +47,16 @@ public class MyUserServiceLogin
                 return ("帳號或者密碼不正確", null);
             }
 
-            string hashPassword = PasswordHelper.GetPasswordSHA(item.Salt ?? string.Empty, password);
-            if (item.Password != hashPassword)
+            PasswordVerificationOutcome outcome = SecurePasswordHasher.VerifyPassword(password, item.Password, item.Salt);
+            if (outcome == PasswordVerificationOutcome.Failed)
             {
                 Logger.LogWarning("Login failed because password validation failed. Account={Account}, UserId={UserId}", username, item.Id);
                 return ("帳號或者密碼不正確", null);
+            }
+
+            if (outcome == PasswordVerificationOutcome.SuccessRehashNeeded)
+            {
+                await UpgradePasswordHashAsync(item.Id, password);
             }
 
             Logger.LogInformation("Login validation succeeded for Account={Account}, UserId={UserId}.", username, item.Id);
@@ -61,6 +66,29 @@ public class MyUserServiceLogin
         {
             Logger.LogError(ex, "Login attempt failed unexpectedly for Account={Account}.", username);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// 將舊 SHA256 格式的密碼在成功登入後自動升級為 PBKDF2；升級失敗不影響登入結果。
+    /// </summary>
+    private async Task UpgradePasswordHashAsync(int userId, string password)
+    {
+        try
+        {
+            MyUser? tracked = await context.MyUser.FirstOrDefaultAsync(x => x.Id == userId);
+            if (tracked is null)
+            {
+                return;
+            }
+
+            tracked.Password = SecurePasswordHasher.HashPassword(password);
+            await context.SaveChangesAsync();
+            Logger.LogInformation("Password hash upgraded to PBKDF2 for UserId={UserId}.", userId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Password hash upgrade failed for UserId={UserId}; login still allowed.", userId);
         }
     }
 }

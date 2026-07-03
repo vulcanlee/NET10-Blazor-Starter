@@ -186,7 +186,7 @@ public class MyUserService
             MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
             itemParameter.RoleView = null;
             itemParameter.Salt = Guid.NewGuid().ToString();
-            itemParameter.Password = PasswordHelper.GetPasswordSHA(itemParameter.Salt, paraObject.Password);
+            itemParameter.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
 
             await context.MyUser.AddAsync(itemParameter);
             await context.SaveChangesAsync();
@@ -230,7 +230,7 @@ public class MyUserService
             else
             {
                 itemData.Salt = string.IsNullOrWhiteSpace(currentItem.Salt) ? Guid.NewGuid().ToString() : currentItem.Salt;
-                itemData.Password = PasswordHelper.GetPasswordSHA(itemData.Salt, paraObject.Password);
+                itemData.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
             }
 
             CleanTrackingHelper.Clean<MyUser>(context);
@@ -354,8 +354,7 @@ public class MyUserService
             return VerifyRecordResultFactory.Build(false, "系統預設開發帳號 support 禁止變更密碼。");
         }
 
-        string currentHashPassword = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, currentPassword);
-        if (user.Password != currentHashPassword)
+        if (SecurePasswordHasher.VerifyPassword(currentPassword, user.Password, user.Salt) == PasswordVerificationOutcome.Failed)
         {
             Logger.LogWarning("Own password change rejected because current password is invalid. UserId={UserId}", userId);
             return VerifyRecordResultFactory.Build(false, "目前密碼不正確。");
@@ -374,7 +373,7 @@ public class MyUserService
         }
 
         user.Salt = string.IsNullOrWhiteSpace(user.Salt) ? Guid.NewGuid().ToString() : user.Salt;
-        user.Password = PasswordHelper.GetPasswordSHA(user.Salt, newPassword);
+        user.Password = SecurePasswordHasher.HashPassword(newPassword);
         user.UpdateAt = DateTime.Now;
 
         await context.SaveChangesAsync();
@@ -426,8 +425,7 @@ public class MyUserService
         bool hasLocalPassword = !string.IsNullOrEmpty(user.Password);
         if (hasLocalPassword)
         {
-            string currentHashPassword = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, currentPassword ?? string.Empty);
-            if (user.Password != currentHashPassword)
+            if (SecurePasswordHasher.VerifyPassword(currentPassword ?? string.Empty, user.Password, user.Salt) == PasswordVerificationOutcome.Failed)
             {
                 Logger.LogWarning("Set API password rejected because current password is invalid. UserId={UserId}", userId);
                 return VerifyRecordResultFactory.Build(false, "目前密碼不正確。");
@@ -445,7 +443,7 @@ public class MyUserService
         }
 
         user.Salt = string.IsNullOrWhiteSpace(user.Salt) ? Guid.NewGuid().ToString() : user.Salt;
-        user.Password = PasswordHelper.GetPasswordSHA(user.Salt, newPassword);
+        user.Password = SecurePasswordHasher.HashPassword(newPassword);
         user.UpdateAt = DateTime.Now;
 
         await context.SaveChangesAsync();
@@ -480,8 +478,8 @@ public class MyUserService
             return false;
         }
 
-        string hashPassword = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, MagicObjectHelper.NeedChangePassword);
-        bool result = user.Password == hashPassword;
+        bool result = SecurePasswordHasher.VerifyPassword(MagicObjectHelper.NeedChangePassword, user.Password, user.Salt)
+            != PasswordVerificationOutcome.Failed;
 
         Logger.LogDebug("Password-change requirement check completed. UserId={UserId}, NeedChangePassword={NeedChangePassword}", myUser.Id, result);
         return result;
@@ -504,14 +502,13 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "找不到使用者資料。");
             }
 
-            var currentHash = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, currentPassword);
-            if (currentHash != user.Password)
+            if (SecurePasswordHasher.VerifyPassword(currentPassword, user.Password, user.Salt) == PasswordVerificationOutcome.Failed)
             {
                 Logger.LogWarning("Change password rejected because current password is incorrect. UserId={UserId}", userId);
                 return VerifyRecordResultFactory.Build(false, "目前密碼輸入錯誤。");
             }
 
-            var newHash = PasswordHelper.GetPasswordSHA(user.Salt ?? string.Empty, newPassword);
+            var newHash = SecurePasswordHasher.HashPassword(newPassword);
 
             CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? trackedUser = await context.MyUser.FirstOrDefaultAsync(x => x.Id == userId);

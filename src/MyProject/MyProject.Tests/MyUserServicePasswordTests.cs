@@ -24,9 +24,10 @@ public sealed class MyUserServicePasswordTests
 
         Assert.True(result.Success);
         var savedUser = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Id == user.Id);
+        Assert.StartsWith("PBKDF2", savedUser.Password);
         Assert.Equal(
-            PasswordHelper.GetPasswordSHA(savedUser.Salt ?? string.Empty, "new-password"),
-            savedUser.Password);
+            PasswordVerificationOutcome.Success,
+            SecurePasswordHasher.VerifyPassword("new-password", savedUser.Password, savedUser.Salt));
     }
 
     [Fact]
