@@ -6,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
@@ -131,7 +132,8 @@ public sealed class MyUserServicePasswordTests
             return new MyUserService(
                 Context,
                 mapper,
-                loggerFactory.CreateLogger<MyUserService>());
+                loggerFactory.CreateLogger<MyUserService>(),
+                new RbacWriteService(Context));
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password)

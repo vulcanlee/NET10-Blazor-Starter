@@ -5,6 +5,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
@@ -14,15 +15,21 @@ namespace MyProject.Business.Services.DataAccess;
 public class MyUserService
 {
     private readonly BackendDBContext context;
+    private readonly IRbacWriteService rbacWriteService;
 
     public IMapper Mapper { get; }
     public ILogger<MyUserService> Logger { get; }
 
-    public MyUserService(BackendDBContext context, IMapper mapper, ILogger<MyUserService> logger)
+    public MyUserService(
+        BackendDBContext context,
+        IMapper mapper,
+        ILogger<MyUserService> logger,
+        IRbacWriteService rbacWriteService)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
+        this.rbacWriteService = rbacWriteService;
     }
 
     public async Task<DataRequestResult<MyUserAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -192,6 +199,8 @@ public class MyUserService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
 
+            await SyncUserRolesAsync(itemParameter.Id, itemParameter.RoleViewId);
+
             Logger.LogInformation("User created successfully. UserId={UserId}, Account={Account}", itemParameter.Id, itemParameter.Account);
             return VerifyRecordResultFactory.Build(true);
         }
@@ -238,6 +247,8 @@ public class MyUserService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
 
+            await SyncUserRolesAsync(itemData.Id, itemData.RoleViewId);
+
             Logger.LogInformation("User updated successfully. UserId={UserId}, Account={Account}", itemData.Id, itemData.Account);
             return VerifyRecordResultFactory.Build(true);
         }
@@ -246,6 +257,13 @@ public class MyUserService
             Logger.LogError(ex, "Failed to update user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
             return VerifyRecordResultFactory.Build(false, "修改使用者失敗。", ex);
         }
+    }
+
+    /// <summary>雙寫：將使用者的角色同步到 RBAC UserRole 關聯表（單一角色即單筆，支援未來多角色）。</summary>
+    private Task SyncUserRolesAsync(int userId, int? roleViewId)
+    {
+        var roleIds = roleViewId.HasValue ? new[] { roleViewId.Value } : Array.Empty<int>();
+        return rbacWriteService.SyncUserRolesAsync(userId, roleIds);
     }
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)

@@ -18,6 +18,7 @@ public class RoleViewService
 {
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
+    private readonly IRbacWriteService rbacWriteService;
 
     public IMapper Mapper { get; }
     public ILogger<RoleViewService> Logger { get; }
@@ -26,12 +27,31 @@ public class RoleViewService
         BackendDBContext context,
         IMapper mapper,
         ILogger<RoleViewService> logger,
-        RolePermissionService rolePermissionService)
+        RolePermissionService rolePermissionService,
+        IRbacWriteService rbacWriteService)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
+        this.rbacWriteService = rbacWriteService;
+    }
+
+    private static List<string> ParsePermissionKeys(string? tabViewJson)
+    {
+        if (string.IsNullOrWhiteSpace(tabViewJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(tabViewJson) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     public async Task<DataRequestResult<RoleViewAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -133,6 +153,8 @@ public class RoleViewService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<RoleView>(context);
 
+            await rbacWriteService.SyncRolePermissionsAsync(itemParameter.Id, ParsePermissionKeys(itemParameter.TabViewJson));
+
             Logger.LogInformation("Role view created successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
         }
@@ -167,6 +189,8 @@ public class RoleViewService
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<RoleView>(context);
+
+            await rbacWriteService.SyncRolePermissionsAsync(itemData.Id, ParsePermissionKeys(itemData.TabViewJson));
 
             Logger.LogInformation("Role view updated successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);
