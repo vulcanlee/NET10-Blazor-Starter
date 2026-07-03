@@ -9,20 +9,37 @@ public sealed class SidebarMenuService
 {
     private const string MenuCacheKey = "sidebar:menu:raw";
 
+    /// <summary>
+    /// 選單項目 Id → 權限鍵的宣告式對應（取代原本的「位置索引」耦合，重排選單不會錯位）。
+    /// 新增受控頁面時，於此加入 Id→權限鍵即可。
+    /// </summary>
+    private static readonly IReadOnlyDictionary<int, string> MenuPermissionMap = new Dictionary<int, string>
+    {
+        [1] = MagicObjectHelper.角色_首頁,
+        [2] = MagicObjectHelper.角色_專案管理,
+        [21] = MagicObjectHelper.角色_專案項目,
+        [22] = MagicObjectHelper.角色_工作項目,
+        [23] = MagicObjectHelper.角色_會議項目,
+        [3] = MagicObjectHelper.角色_系統管理,
+        [31] = MagicObjectHelper.角色_使用者管理,
+        [32] = MagicObjectHelper.角色_角色管理,
+        [5] = MagicObjectHelper.角色_資料定義,
+        [51] = MagicObjectHelper.角色_分類清單,
+        [52] = MagicObjectHelper.角色_團隊清單,
+        [4] = MagicObjectHelper.角色_登出,
+    };
+
     private readonly IWebHostEnvironment environment;
     private readonly ILogger<SidebarMenuService> logger;
-    private readonly RolePermissionService rolePermissionService;
     private readonly ICacheService cacheService;
 
     public SidebarMenuService(
         IWebHostEnvironment environment,
         ILogger<SidebarMenuService> logger,
-        RolePermissionService rolePermissionService,
         ICacheService cacheService)
     {
         this.environment = environment;
         this.logger = logger;
-        this.rolePermissionService = rolePermissionService;
         this.cacheService = cacheService;
     }
 
@@ -67,35 +84,16 @@ public sealed class SidebarMenuService
 
     private IReadOnlyList<SidebarMenuItemModel> ApplyPermissionStructure(IReadOnlyList<SidebarMenuItemModel> items)
     {
-        var permissionGroups = rolePermissionService.GetRoleListPermissionAllName();
         var result = new List<SidebarMenuItemModel>(items.Count);
 
-        for (var index = 0; index < items.Count; index++)
+        foreach (var item in items)
         {
-            var item = items[index];
-            var permissionGroup = index < permissionGroups.Count ? permissionGroups[index] : [];
-            var permissionName = permissionGroup.FirstOrDefault() ?? item.Name;
-            var childPermissions = permissionGroup.Skip(1).ToList();
-            var subMenu = ApplyChildPermissionStructure(item.SubMenu, childPermissions);
+            var permissionName = MenuPermissionMap.TryGetValue(item.Id, out var mapped) ? mapped : item.Name;
+            var subMenu = item.HasChildren
+                ? ApplyPermissionStructure(item.SubMenu).ToList()
+                : new List<SidebarMenuItemModel>();
 
             result.Add(item.CloneWith(subMenu, permissionName));
-        }
-
-        return result;
-    }
-
-    private List<SidebarMenuItemModel> ApplyChildPermissionStructure(
-        IReadOnlyList<SidebarMenuItemModel> items,
-        IReadOnlyList<string> permissionNames)
-    {
-        var result = new List<SidebarMenuItemModel>(items.Count);
-
-        for (var index = 0; index < items.Count; index++)
-        {
-            var item = items[index];
-            var permissionName = index < permissionNames.Count ? permissionNames[index] : item.Name;
-
-            result.Add(item.CloneWith([], permissionName));
         }
 
         return result;
