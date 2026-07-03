@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MyProject.AccessDatas;
+using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Models.Systems;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
@@ -45,6 +48,53 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.False(result.Success);
         Assert.Equal(401, result.StatusCode);
         Assert.NotNull(result.TraceId);
+    }
+
+    [Fact]
+    public async Task ProtectedCrudApi_WithoutRequiredPermission_ShouldReturnApiResult403()
+    {
+        var account = $"limited-{Guid.NewGuid():N}";
+        const string password = "limited-pass";
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+            var role = new RoleView
+            {
+                Name = $"受限角色-{Guid.NewGuid():N}",
+                TabViewJson = JsonSerializer.Serialize(new[] { "首頁" }),
+            };
+            db.RoleView.Add(role);
+            await db.SaveChangesAsync();
+
+            db.MyUser.Add(new MyUser
+            {
+                Account = account,
+                Name = "limited",
+                Status = true,
+                IsAdmin = false,
+                RoleViewId = role.Id,
+                Password = SecurePasswordHasher.HashPassword(password),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto
+        {
+            Account = account,
+            Password = password,
+        });
+        var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
+
+        var response = await client.GetAsync("/api/Project/1");
+        var result = await ReadApiResultAsync<object>(response);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.False(result.Success);
+        Assert.Equal(403, result.StatusCode);
     }
 
     [Fact]

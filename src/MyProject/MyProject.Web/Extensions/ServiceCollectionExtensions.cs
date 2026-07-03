@@ -61,6 +61,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
+        services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<SidebarMenuService>();

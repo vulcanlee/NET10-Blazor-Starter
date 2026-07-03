@@ -6,6 +6,7 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
+using MyProject.Share.Helpers;
 using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
@@ -15,6 +16,7 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [ApiValidationFilter]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[HasPermission(MagicObjectHelper.角色_工作項目)]
 public class MyTaskController : ControllerBase
 {
     private readonly ILogger<MyTaskController> logger;
