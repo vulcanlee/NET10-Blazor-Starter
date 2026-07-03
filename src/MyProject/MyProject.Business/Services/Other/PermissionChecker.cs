@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 
@@ -17,7 +16,6 @@ public sealed class PermissionChecker : IPermissionChecker
     {
         var user = await context.MyUser
             .AsNoTracking()
-            .Include(x => x.RoleView)
             .FirstOrDefaultAsync(x => x.Id == userId);
 
         if (user is null)
@@ -30,7 +28,7 @@ public sealed class PermissionChecker : IPermissionChecker
             return true;
         }
 
-        var keys = ParsePermissionKeys(user.RoleView?.TabViewJson);
+        var keys = await GetKeysForRolesAsync(await GetRoleIdsAsync(user.Id, user.RoleViewId));
         return keys.Contains(permissionKey);
     }
 
@@ -38,29 +36,44 @@ public sealed class PermissionChecker : IPermissionChecker
     {
         var user = await context.MyUser
             .AsNoTracking()
-            .Include(x => x.RoleView)
             .FirstOrDefaultAsync(x => x.Id == userId);
 
         return user is null
             ? []
-            : ParsePermissionKeys(user.RoleView?.TabViewJson);
+            : await GetKeysForRolesAsync(await GetRoleIdsAsync(user.Id, user.RoleViewId));
     }
 
-    private static HashSet<string> ParsePermissionKeys(string? tabViewJson)
+    /// <summary>使用者的角色來自 UserRole 關聯（多角色）；並容錯併入 legacy RoleViewId。</summary>
+    private async Task<List<int>> GetRoleIdsAsync(int userId, int? legacyRoleViewId)
     {
-        if (string.IsNullOrWhiteSpace(tabViewJson))
+        var roleIds = await context.UserRole
+            .AsNoTracking()
+            .Where(x => x.MyUserId == userId)
+            .Select(x => x.RoleViewId)
+            .ToListAsync();
+
+        if (legacyRoleViewId.HasValue && !roleIds.Contains(legacyRoleViewId.Value))
+        {
+            roleIds.Add(legacyRoleViewId.Value);
+        }
+
+        return roleIds;
+    }
+
+    private async Task<HashSet<string>> GetKeysForRolesAsync(List<int> roleIds)
+    {
+        if (roleIds.Count == 0)
         {
             return new HashSet<string>(StringComparer.Ordinal);
         }
 
-        try
-        {
-            var names = JsonSerializer.Deserialize<List<string>>(tabViewJson) ?? [];
-            return names.ToHashSet(StringComparer.Ordinal);
-        }
-        catch
-        {
-            return new HashSet<string>(StringComparer.Ordinal);
-        }
+        var keys = await context.RolePermissionMap
+            .AsNoTracking()
+            .Where(m => roleIds.Contains(m.RoleViewId))
+            .Join(context.Permission, m => m.PermissionId, p => p.Id, (m, p) => p.Key)
+            .Distinct()
+            .ToListAsync();
+
+        return keys.ToHashSet(StringComparer.Ordinal);
     }
 }

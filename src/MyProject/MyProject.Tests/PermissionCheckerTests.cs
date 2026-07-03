@@ -62,6 +62,24 @@ public sealed class PermissionCheckerTests
         Assert.Equal(2, keys.Count);
     }
 
+    [Fact]
+    public async Task GetEffectivePermissionKeysAsync_WithMultipleRoles_ShouldReturnUnion()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var user = await fixture.AddMultiRoleUserAsync(
+            "dave",
+            new[] { "首頁" },
+            new[] { "專案項目", "首頁" });
+        var checker = new PermissionChecker(fixture.Context);
+
+        var keys = await checker.GetEffectivePermissionKeysAsync(user.Id);
+
+        Assert.Contains("首頁", keys);
+        Assert.Contains("專案項目", keys);
+        Assert.Equal(2, keys.Count);
+        Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目"));
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -88,6 +106,8 @@ public sealed class PermissionCheckerTests
 
         public async Task<MyUser> AddUserAsync(string account, bool isAdmin, string[] permissions)
         {
+            var writer = new RbacWriteService(Context);
+
             var role = new RoleView
             {
                 Name = account + "-role",
@@ -95,6 +115,7 @@ public sealed class PermissionCheckerTests
             };
             Context.RoleView.Add(role);
             await Context.SaveChangesAsync();
+            await writer.SyncRolePermissionsAsync(role.Id, permissions);
 
             var user = new MyUser
             {
@@ -107,6 +128,34 @@ public sealed class PermissionCheckerTests
             };
             Context.MyUser.Add(user);
             await Context.SaveChangesAsync();
+            await writer.SyncUserRolesAsync(user.Id, new[] { role.Id });
+            Context.ChangeTracker.Clear();
+            return user;
+        }
+
+        public async Task<MyUser> AddMultiRoleUserAsync(string account, string[] roleAPermissions, string[] roleBPermissions)
+        {
+            var writer = new RbacWriteService(Context);
+
+            var roleA = new RoleView { Name = account + "-A", TabViewJson = JsonSerializer.Serialize(roleAPermissions) };
+            var roleB = new RoleView { Name = account + "-B", TabViewJson = JsonSerializer.Serialize(roleBPermissions) };
+            Context.RoleView.AddRange(roleA, roleB);
+            await Context.SaveChangesAsync();
+            await writer.SyncRolePermissionsAsync(roleA.Id, roleAPermissions);
+            await writer.SyncRolePermissionsAsync(roleB.Id, roleBPermissions);
+
+            var user = new MyUser
+            {
+                Account = account,
+                Name = account,
+                Password = "x",
+                Status = true,
+                IsAdmin = false,
+                RoleViewId = roleA.Id,
+            };
+            Context.MyUser.Add(user);
+            await Context.SaveChangesAsync();
+            await writer.SyncUserRolesAsync(user.Id, new[] { roleA.Id, roleB.Id });
             Context.ChangeTracker.Clear();
             return user;
         }
