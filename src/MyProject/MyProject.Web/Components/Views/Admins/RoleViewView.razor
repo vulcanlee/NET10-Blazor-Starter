@@ -114,9 +114,21 @@ else
                                         <div class="role-permission-children">
                                             @foreach (var role in group.Permissions)
                                             {
-                                                <Checkbox Checked="@role.Enable" CheckedChanged="@(value => OnPermissionItemChanged(group, role, value))">
-                                                    @role.Name
-                                                </Checkbox>
+                                                <div class="role-permission-node">
+                                                    <Checkbox Checked="@role.Enable" CheckedChanged="@(value => OnPermissionItemChanged(group, role, value))">
+                                                        @role.Name（全部）
+                                                    </Checkbox>
+                                                    <span class="role-permission-actions">
+                                                        @foreach (var action in PermissionActionItems)
+                                                        {
+                                                            <Checkbox Disabled="@role.Enable"
+                                                                      Checked="@GetActionChecked(role, action.Key)"
+                                                                      CheckedChanged="@(value => OnPermissionActionChanged(group, role, action.Key, value))">
+                                                                @action.Label
+                                                            </Checkbox>
+                                                        }
+                                                    </span>
+                                                </div>
                                             }
                                         </div>
                                     }

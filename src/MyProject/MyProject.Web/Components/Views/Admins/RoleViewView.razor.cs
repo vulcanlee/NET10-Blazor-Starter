@@ -389,5 +389,29 @@ namespace MyProject.Web.Components.Views.Admins
                 group.Enable = true;
             }
         }
+
+        /// <summary>權限矩陣的動作欄（代碼 → 顯示名）。</summary>
+        private static readonly (string Key, string Label)[] PermissionActionItems =
+        [
+            (PermissionActions.View, "檢視"),
+            (PermissionActions.Create, "新增"),
+            (PermissionActions.Edit, "編輯"),
+            (PermissionActions.Delete, "刪除"),
+            (PermissionActions.Export, "匯出"),
+        ];
+
+        private static bool GetActionChecked(RolePermissionNode node, string action)
+            => node.Actions is not null && node.Actions.TryGetValue(action, out var enabled) && enabled;
+
+        private void OnPermissionActionChanged(RolePermissionGroup group, RolePermissionNode node, string action, bool value)
+        {
+            node.Actions ??= new Dictionary<string, bool>();
+            node.Actions[action] = value;
+
+            if (value)
+            {
+                group.Enable = true;
+            }
+        }
     }
 }

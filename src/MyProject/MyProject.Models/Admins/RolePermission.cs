@@ -33,14 +33,18 @@ public class RolePermissionGroup
 public class RolePermissionNode
 {
     public string Name { get; set; } = string.Empty;
+    /// <summary>裸頁面鍵＝該頁全部動作（舊制相容；勾選後動作明細停用）。</summary>
     public bool Enable { get; set; } = false;
+    /// <summary>動作明細：動作代碼（view/create/edit/delete/export）→ 是否勾選。</summary>
+    public Dictionary<string, bool> Actions { get; set; } = new();
 
     public RolePermissionNode Clone()
     {
         return new RolePermissionNode
         {
             Name = Name,
-            Enable = Enable
+            Enable = Enable,
+            Actions = new Dictionary<string, bool>(Actions)
         };
     }
 }
