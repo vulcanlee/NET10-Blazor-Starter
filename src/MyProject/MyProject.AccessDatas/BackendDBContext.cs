@@ -25,6 +25,10 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<Category> Category { get; set; }
     public virtual DbSet<Team> Team { get; set; }
     public virtual DbSet<AuditLog> AuditLog { get; set; }
+    public virtual DbSet<Permission> Permission { get; set; }
+    public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
+    public virtual DbSet<UserRole> UserRole { get; set; }
+    public virtual DbSet<UserTeam> UserTeam { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -69,6 +73,34 @@ public partial class BackendDBContext : DbContext
                 .HasForeignKey(x => x.MeetingId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        #region RBAC 關聯（多對多）與唯一鍵
+        modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.HasIndex(x => x.Key).IsUnique();
+        });
+
+        modelBuilder.Entity<RolePermissionMap>(entity =>
+        {
+            entity.HasIndex(x => new { x.RoleViewId, x.PermissionId }).IsUnique();
+            entity.HasOne(x => x.RoleView).WithMany().HasForeignKey(x => x.RoleViewId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserRole>(entity =>
+        {
+            entity.HasIndex(x => new { x.MyUserId, x.RoleViewId }).IsUnique();
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.RoleView).WithMany().HasForeignKey(x => x.RoleViewId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserTeam>(entity =>
+        {
+            entity.HasIndex(x => new { x.MyUserId, x.TeamId }).IsUnique();
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
 
         OnModelCreatingPartial(modelBuilder);
     }
