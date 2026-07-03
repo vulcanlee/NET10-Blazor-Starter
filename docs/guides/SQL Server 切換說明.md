@@ -23,7 +23,7 @@
 
 ## 待補：SQL Server 遷移軌道
 - [ ] `MyProject.AccessDatas.SqlServerMigrations` 目前**尚未產生任何 migration**（只有組件 marker）；所有既有資料表與後續 schema 變更的 SQL Server migration 需在具備 SQL Server 的環境一次補齊並驗證。
-- [ ] 待補清單（截至權限重構階段一）：`AddAccountLockout`（`MyUser.AccessFailedCount`、`MyUser.LockoutEndUtc`）、`AddAuditLog`（`AuditLog` 資料表）等 SQLite 已有、SQL Server 尚缺的變更。
+- [ ] 待補清單（截至權限重構階段一）：`AddAccountLockout`（`MyUser.AccessFailedCount`、`MyUser.LockoutEndUtc`）、`AddAuditLog`（`AuditLog` 資料表）、`AddTwoFactor`（`MyUser.TwoFactorEnabled`、`MyUser.TwoFactorSecret`）等 SQLite 已有、SQL Server 尚缺的變更。
 - 產生指令範式：`dotnet ef migrations add <Name> --project src/MyProject/MyProject.AccessDatas.SqlServerMigrations --startup-project src/MyProject/MyProject.Web`（需先將 `SystemSettings:DatabaseProvider` 設為 `SqlServer` 並提供 `DefaultConnection`）。
 
 ## 備註風險

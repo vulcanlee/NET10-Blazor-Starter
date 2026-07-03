@@ -40,5 +40,13 @@ public class MyUser
     /// 帳號鎖定截止時間（UTC）；為 null 或已過期表示未鎖定。
     /// </summary>
     public DateTime? LockoutEndUtc { get; set; }
+    /// <summary>
+    /// 是否啟用二階段驗證（TOTP）；預設關閉。
+    /// </summary>
+    public bool TwoFactorEnabled { get; set; } = false;
+    /// <summary>
+    /// TOTP Base32 密鑰；未綁定時為 null。
+    /// </summary>
+    public string? TwoFactorSecret { get; set; }
     public RoleView? RoleView { get; set; }
 }
