@@ -22,6 +22,10 @@ public class MyUserAdapterModel : ICloneable
     public string? OAuthProvider { get; set; }
     public string? GoogleId { get; set; }
     public RoleViewAdapterModel? RoleView { get; set; }
+    /// <summary>額外角色（主要角色 RoleViewId 之外）；與主要角色一起寫入 UserRole（多角色）。</summary>
+    public List<int> AdditionalRoleIds { get; set; } = new();
+    /// <summary>直接綁在使用者的團隊名稱；寫入 UserTeam（團隊綁使用者）。</summary>
+    public List<string> TeamNames { get; set; } = new();
     public string RoleViewName => RoleView?.Name ?? string.Empty;
     public string StatusText => Status ? "啟用" : "停用";
     public string IsAdminText => IsAdmin ? "是" : "否";

@@ -123,6 +123,30 @@ else
                         <ValidationMessage For="() => CurrentRecord.RoleViewId" />
                     </FormItem>
 
+                    <FormItem Label="額外角色（多角色，權限取聯集）">
+                        <Select TItem="int" TItemValue="int" Mode="SelectMode.Multiple"
+                                Values="CurrentRecord.AdditionalRoleIds" OnSelectedItemsChanged="OnAdditionalRolesChanged"
+                                Placeholder="可另外指派多個角色（與主要角色權限取聯集）"
+                                AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var r in roleViewAdapterModels)
+                            {
+                                <SelectOption TItemValue="int" TItem="int" Value="@r.Id">@r.Name</SelectOption>
+                            }
+                        </Select>
+                    </FormItem>
+
+                    <FormItem Label="團隊（直接綁定此使用者）">
+                        <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                                Values="CurrentRecord.TeamNames" OnSelectedItemsChanged="OnUserTeamsChanged"
+                                Placeholder="指派此使用者可存取的團隊（不設定則沿用其角色的預設團隊）"
+                                AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var t in availableTeams)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                            }
+                        </Select>
+                    </FormItem>
+
                     <FormItem>
                         <Checkbox Checked="@CurrentRecord.Status"
                                   CheckedChanged="@(value => CurrentRecord.Status = value)">

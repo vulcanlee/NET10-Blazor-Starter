@@ -20,6 +20,8 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly ModalService modalService;
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
+        private readonly TeamService teamService;
+        List<string> availableTeams = new();
         ITable? table;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
@@ -51,7 +53,8 @@ namespace MyProject.Web.Components.Views.Admins
             RoleViewService roleViewService,
             ModalService modalService,
             MessageService messageService,
-            NotificationService notificationService)
+            NotificationService notificationService,
+            TeamService teamService)
         {
             this.logger = logger;
             this.myUserService = myUserService;
@@ -59,6 +62,7 @@ namespace MyProject.Web.Components.Views.Admins
             this.modalService = modalService;
             this.messageService = messageService;
             this.notificationService = notificationService;
+            this.teamService = teamService;
         }
 
         protected override async Task OnInitializedAsync()
@@ -77,6 +81,8 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogWarning("User management view denied because current user is not an administrator.");
                 return;
             }
+
+            availableTeams = await teamService.GetAllEnabledNamesAsync();
 
             await ReloadAsync();
         }
@@ -191,6 +197,9 @@ namespace MyProject.Web.Components.Views.Admins
             isNewRecordMode = false;
             modalTitle = "修改使用者";
             CurrentRecord = (await myUserService.GetAsync(myUserAdapterModel.Id)).Clone();
+            var (additionalRoleIds, teamNames) = await myUserService.GetUserAssignmentsAsync(myUserAdapterModel.Id);
+            CurrentRecord.AdditionalRoleIds = additionalRoleIds;
+            CurrentRecord.TeamNames = teamNames;
             modalVisible = true;
             logger.LogInformation("Opened edit modal for user. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
         }
@@ -391,6 +400,16 @@ namespace MyProject.Web.Components.Views.Admins
         public void OnEditContestChanged(EditContext context)
         {
             LocalEditContext = context;
+        }
+
+        private void OnAdditionalRolesChanged(IEnumerable<int> values)
+        {
+            CurrentRecord.AdditionalRoleIds = values?.ToList() ?? new List<int>();
+        }
+
+        private void OnUserTeamsChanged(IEnumerable<string> values)
+        {
+            CurrentRecord.TeamNames = values?.ToList() ?? new List<string>();
         }
 
         private async Task LoadRoleViewsAsync()

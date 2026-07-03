@@ -199,7 +199,7 @@ public class MyUserService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
 
-            await SyncUserRolesAsync(itemParameter.Id, itemParameter.RoleViewId);
+            await SyncAssignmentsAsync(itemParameter.Id, paraObject);
 
             Logger.LogInformation("User created successfully. UserId={UserId}, Account={Account}", itemParameter.Id, itemParameter.Account);
             return VerifyRecordResultFactory.Build(true);
@@ -247,7 +247,7 @@ public class MyUserService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
 
-            await SyncUserRolesAsync(itemData.Id, itemData.RoleViewId);
+            await SyncAssignmentsAsync(itemData.Id, paraObject);
 
             Logger.LogInformation("User updated successfully. UserId={UserId}, Account={Account}", itemData.Id, itemData.Account);
             return VerifyRecordResultFactory.Build(true);
@@ -259,11 +259,60 @@ public class MyUserService
         }
     }
 
-    /// <summary>雙寫：將使用者的角色同步到 RBAC UserRole 關聯表（單一角色即單筆，支援未來多角色）。</summary>
-    private Task SyncUserRolesAsync(int userId, int? roleViewId)
+    /// <summary>雙寫：同步使用者的角色（主要 + 額外，多角色）與團隊（UserTeam）。</summary>
+    private async Task SyncAssignmentsAsync(int userId, MyUserAdapterModel paraObject)
     {
-        var roleIds = roleViewId.HasValue ? new[] { roleViewId.Value } : Array.Empty<int>();
-        return rbacWriteService.SyncUserRolesAsync(userId, roleIds);
+        var roleIds = new List<int>();
+        if (paraObject.RoleViewId.HasValue)
+        {
+            roleIds.Add(paraObject.RoleViewId.Value);
+        }
+        if (paraObject.AdditionalRoleIds is not null)
+        {
+            roleIds.AddRange(paraObject.AdditionalRoleIds);
+        }
+        await rbacWriteService.SyncUserRolesAsync(userId, roleIds.Distinct());
+
+        var teamNames = (paraObject.TeamNames ?? new List<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct()
+            .ToList();
+        var teamIds = await context.Team
+            .AsNoTracking()
+            .Where(t => teamNames.Contains(t.Name))
+            .Select(t => t.Id)
+            .ToListAsync();
+        await rbacWriteService.SyncUserTeamsAsync(userId, teamIds);
+    }
+
+    /// <summary>載入使用者現有的額外角色（主要角色以外）與團隊名稱，供編輯畫面回填。</summary>
+    public async Task<(List<int> AdditionalRoleIds, List<string> TeamNames)> GetUserAssignmentsAsync(int userId)
+    {
+        var primaryRoleId = await context.MyUser
+            .AsNoTracking()
+            .Where(x => x.Id == userId)
+            .Select(x => x.RoleViewId)
+            .FirstOrDefaultAsync();
+
+        var allRoleIds = await context.UserRole
+            .AsNoTracking()
+            .Where(x => x.MyUserId == userId)
+            .Select(x => x.RoleViewId)
+            .ToListAsync();
+
+        var additional = allRoleIds
+            .Where(id => !primaryRoleId.HasValue || id != primaryRoleId.Value)
+            .Distinct()
+            .ToList();
+
+        var teamNames = await context.UserTeam
+            .AsNoTracking()
+            .Where(x => x.MyUserId == userId)
+            .Join(context.Team, ut => ut.TeamId, t => t.Id, (ut, t) => t.Name)
+            .ToListAsync();
+
+        return (additional, teamNames);
     }
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
