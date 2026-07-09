@@ -16,6 +16,8 @@ public class MyUserService
 {
     private readonly BackendDBContext context;
     private readonly IRbacWriteService rbacWriteService;
+    private readonly IAuditLogService auditLogService;
+    private readonly CurrentUserService currentUserService;
 
     public IMapper Mapper { get; }
     public ILogger<MyUserService> Logger { get; }
@@ -24,12 +26,40 @@ public class MyUserService
         BackendDBContext context,
         IMapper mapper,
         ILogger<MyUserService> logger,
-        IRbacWriteService rbacWriteService)
+        IRbacWriteService rbacWriteService,
+        IAuditLogService auditLogService,
+        CurrentUserService currentUserService)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
         this.rbacWriteService = rbacWriteService;
+        this.auditLogService = auditLogService;
+        this.currentUserService = currentUserService;
+    }
+
+    /// <summary>取得目前操作者作為稽核 actor；未登入（Id==0）時回 null。</summary>
+    private (int? ActorUserId, string? ActorAccount) ResolveActor()
+    {
+        var user = currentUserService.CurrentUser;
+        return user.Id > 0 ? (user.Id, user.Account) : (null, null);
+    }
+
+    /// <summary>彙整使用者指派摘要（帳號、角色 Id、團隊）供稽核 Detail。</summary>
+    private static string BuildAssignmentDetail(string account, MyUserAdapterModel paraObject)
+    {
+        var roleIds = new List<int>();
+        if (paraObject.RoleViewId.HasValue)
+        {
+            roleIds.Add(paraObject.RoleViewId.Value);
+        }
+        if (paraObject.AdditionalRoleIds is not null)
+        {
+            roleIds.AddRange(paraObject.AdditionalRoleIds);
+        }
+        var teams = (paraObject.TeamNames ?? new List<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x));
+        return $"account={account}; roleIds=[{string.Join(",", roleIds.Distinct())}]; teams=[{string.Join(",", teams)}]";
     }
 
     public async Task<DataRequestResult<MyUserAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -201,6 +231,12 @@ public class MyUserService
 
             await SyncAssignmentsAsync(itemParameter.Id, paraObject);
 
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                "User.Create", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(MyUser), targetId: itemParameter.Id.ToString(),
+                detail: BuildAssignmentDetail(itemParameter.Account, paraObject));
+
             Logger.LogInformation("User created successfully. UserId={UserId}, Account={Account}", itemParameter.Id, itemParameter.Account);
             return VerifyRecordResultFactory.Build(true);
         }
@@ -248,6 +284,12 @@ public class MyUserService
             CleanTrackingHelper.Clean<MyUser>(context);
 
             await SyncAssignmentsAsync(itemData.Id, paraObject);
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                "User.Update", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(MyUser), targetId: itemData.Id.ToString(),
+                detail: BuildAssignmentDetail(itemData.Account, paraObject));
 
             Logger.LogInformation("User updated successfully. UserId={UserId}, Account={Account}", itemData.Id, itemData.Account);
             return VerifyRecordResultFactory.Build(true);
@@ -336,6 +378,12 @@ public class MyUserService
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<MyUser>(context);
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                "User.Delete", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(MyUser), targetId: id.ToString(),
+                detail: $"account={item.Account}");
 
             Logger.LogInformation("User deleted successfully. UserId={UserId}, Account={Account}", id, item.Account);
             return VerifyRecordResultFactory.Build(true);

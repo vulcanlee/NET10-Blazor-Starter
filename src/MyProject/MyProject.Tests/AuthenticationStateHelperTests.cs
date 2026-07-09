@@ -229,7 +229,7 @@ public sealed class AuthenticationStateHelperTests
             return new AuthenticationStateHelper(
                 loggerFactory.CreateLogger<AuthenticationStateHelper>(),
                 mapper,
-                new MyUserService(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context)),
+                new MyUserService(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService),
                 CurrentUserService,
                 rolePermissionService,
                 new EffectiveTeamResolver(Context),

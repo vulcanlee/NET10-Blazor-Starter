@@ -133,7 +133,9 @@ public sealed class MyUserServicePasswordTests
                 Context,
                 mapper,
                 loggerFactory.CreateLogger<MyUserService>(),
-                new RbacWriteService(Context));
+                new RbacWriteService(Context),
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
+                new CurrentUserService());
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password)

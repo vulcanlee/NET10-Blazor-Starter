@@ -19,6 +19,8 @@ public class RoleViewService
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
     private readonly IRbacWriteService rbacWriteService;
+    private readonly IAuditLogService auditLogService;
+    private readonly CurrentUserService currentUserService;
 
     public IMapper Mapper { get; }
     public ILogger<RoleViewService> Logger { get; }
@@ -28,13 +30,24 @@ public class RoleViewService
         IMapper mapper,
         ILogger<RoleViewService> logger,
         RolePermissionService rolePermissionService,
-        IRbacWriteService rbacWriteService)
+        IRbacWriteService rbacWriteService,
+        IAuditLogService auditLogService,
+        CurrentUserService currentUserService)
     {
         this.context = context;
         Mapper = mapper;
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
         this.rbacWriteService = rbacWriteService;
+        this.auditLogService = auditLogService;
+        this.currentUserService = currentUserService;
+    }
+
+    /// <summary>取得目前操作者作為稽核 actor；未登入（Id==0）時回 null。</summary>
+    private (int? ActorUserId, string? ActorAccount) ResolveActor()
+    {
+        var user = currentUserService.CurrentUser;
+        return user.Id > 0 ? (user.Id, user.Account) : (null, null);
     }
 
     private static List<string> ParsePermissionKeys(string? tabViewJson)
@@ -153,7 +166,14 @@ public class RoleViewService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<RoleView>(context);
 
-            await rbacWriteService.SyncRolePermissionsAsync(itemParameter.Id, ParsePermissionKeys(itemParameter.TabViewJson));
+            var permissionKeys = ParsePermissionKeys(itemParameter.TabViewJson);
+            await rbacWriteService.SyncRolePermissionsAsync(itemParameter.Id, permissionKeys);
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                "Role.Create", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(RoleView), targetId: itemParameter.Id.ToString(),
+                detail: $"name={itemParameter.Name}; permissionKeyCount={permissionKeys.Count}");
 
             Logger.LogInformation("Role view created successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -190,7 +210,14 @@ public class RoleViewService
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<RoleView>(context);
 
-            await rbacWriteService.SyncRolePermissionsAsync(itemData.Id, ParsePermissionKeys(itemData.TabViewJson));
+            var permissionKeys = ParsePermissionKeys(itemData.TabViewJson);
+            await rbacWriteService.SyncRolePermissionsAsync(itemData.Id, permissionKeys);
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                "Role.Update", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(RoleView), targetId: itemData.Id.ToString(),
+                detail: $"name={itemData.Name}; permissionKeyCount={permissionKeys.Count}");
 
             Logger.LogInformation("Role view updated successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -223,6 +250,12 @@ public class RoleViewService
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
             CleanTrackingHelper.Clean<RoleView>(context);
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                "Role.Delete", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(RoleView), targetId: id.ToString(),
+                detail: $"name={item.Name}");
 
             Logger.LogInformation("Role view deleted successfully. RoleViewId={RoleViewId}, Name={RoleName}", id, item.Name);
             return VerifyRecordResultFactory.Build(true);
