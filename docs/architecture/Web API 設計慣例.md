@@ -8,6 +8,7 @@
 - 路由需同時提供 `[Route("api/[controller]")]` 與 `[Route("api/v1/[controller]")]`；新用戶端優先使用 `/api/v1/...`。
 - Controller 必須使用 `[ApiController]` 與 `[ApiValidationFilter]`。
 - 需要保護的 CRUD API 必須加上 `[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`。
+- 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
 - Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
 
@@ -36,7 +37,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 200 | 查詢、更新、刪除等成功 |
 | 400 | ModelState 或商業規則驗證失敗 |
 | 401 | 未登入、未提供 Bearer token、token 無效 |
-| 403 | 已登入但權限不足 |
+| 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生） |
 | 404 | 找不到指定資源 |
 | 409 | 資料衝突，例如名稱重複 |
 | 500 | 未預期例外 |
@@ -51,6 +52,15 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 - `POST /api/v1/Auth/login`
 - `POST /api/v1/Auth/refresh`
 - `GET /api/v1/Auth/me`
+
+## 功能級／動作級授權
+身分驗證（`[Authorize]`）之外，受保護 CRUD **每個動作方法**再以 `[HasPermission(頁面鍵, 動作)]`（`src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`）強制授權：
+
+- 由 `IPermissionChecker`（`MyProject.Business/Services/Other/PermissionChecker.cs`，UI 與 API 共用的單一 RBAC 權威來源）判權；**管理員短路**一律通過。
+- 動作對應：GET/`search`→`view`、POST→`create`、PUT→`edit`、DELETE→`delete`（動作常數見 `MyProject.Share/Helpers/PermissionKeys.cs`）。
+- **權限鍵兩型**：裸頁面鍵（如 `專案項目`）＝該頁全動作（向後相容）；動作鍵（如 `專案項目:edit`）＝特定動作。「唯讀角色」只給 `專案項目:view`。
+- 無權限一律回 **403**，Body 維持 `ApiResult` 格式並標示缺少的權限鍵。多角色時權限取聯集。
+- 詳見 [認證授權與權限機制](../security/認證授權與權限機制.md)。
 
 ## 例外與驗證
 - `ApiValidationFilter` 會將 ModelState 錯誤轉成 `ApiResult<T>.Errors`。

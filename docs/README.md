@@ -73,3 +73,4 @@
 - [側邊欄群組圖示依名稱各自顯示（0.4.4）](changelog/2026-06-22-側邊欄群組圖示.md)
 - [階段四 UI 實跑驗收（0.4.21，無版本變更）](changelog/2026-07-09-階段四UI實跑驗收.md)
 - [選單/CheckAccessPage 改用 IPermissionChecker（0.4.22）](changelog/2026-07-09-選單改用IPermissionChecker.md)
+- [階段五：文件收尾（RBAC 落地後文件對齊，0.4.22，無版本變更）](changelog/2026-07-09-階段五文件收尾.md)
