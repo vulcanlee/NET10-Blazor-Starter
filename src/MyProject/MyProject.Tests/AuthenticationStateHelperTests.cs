@@ -159,6 +159,22 @@ public sealed class AuthenticationStateHelperTests
         Assert.Null(navigationManager.NavigatedTo);
     }
 
+    [Fact]
+    public async Task Check_WithMultipleRoles_ShouldInitializeRoleListAsUnion()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddMultiRoleUserAsync(primaryKey: "PermissionA", additionalKey: "PermissionB");
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+
+        var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.Succeeded, result);
+        var roleList = fixture.CurrentUserService.CurrentUser.RoleList;
+        Assert.Contains("PermissionA", roleList);
+        Assert.Contains("PermissionB", roleList);
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string sid)
     {
         var identity = new ClaimsIdentity(
@@ -216,7 +232,8 @@ public sealed class AuthenticationStateHelperTests
                 new MyUserService(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context)),
                 CurrentUserService,
                 rolePermissionService,
-                new EffectiveTeamResolver(Context));
+                new EffectiveTeamResolver(Context),
+                new PermissionChecker(Context));
         }
 
         public async Task<MyUser> AddUserAsync(
@@ -236,6 +253,10 @@ public sealed class AuthenticationStateHelperTests
             Context.RoleView.Add(roleView);
             await Context.SaveChangesAsync();
 
+            // UI 權限來源已改讀 RBAC 表（IPermissionChecker），故種子資料需雙寫 RolePermissionMap，
+            // 使登入後 CurrentUser.RoleList 反映此角色的權限鍵。
+            await new RbacWriteService(Context).SyncRolePermissionsAsync(roleView.Id, new[] { permissionName });
+
             var user = new MyUser
             {
                 Account = $"user-{Guid.NewGuid():N}",
@@ -248,6 +269,34 @@ public sealed class AuthenticationStateHelperTests
 
             Context.MyUser.Add(user);
             await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
+
+            return user;
+        }
+
+        public async Task<MyUser> AddMultiRoleUserAsync(string primaryKey, string additionalKey)
+        {
+            var writer = new RbacWriteService(Context);
+
+            var primaryRole = new RoleView { Name = $"role-{Guid.NewGuid():N}", TabViewJson = $"""["{primaryKey}"]""" };
+            var additionalRole = new RoleView { Name = $"role-{Guid.NewGuid():N}", TabViewJson = $"""["{additionalKey}"]""" };
+            Context.RoleView.AddRange(primaryRole, additionalRole);
+            await Context.SaveChangesAsync();
+            await writer.SyncRolePermissionsAsync(primaryRole.Id, new[] { primaryKey });
+            await writer.SyncRolePermissionsAsync(additionalRole.Id, new[] { additionalKey });
+
+            var user = new MyUser
+            {
+                Account = $"user-{Guid.NewGuid():N}",
+                Name = "Test User",
+                Salt = Guid.NewGuid().ToString(),
+                Status = true,
+                RoleViewId = primaryRole.Id
+            };
+            user.Password = PasswordHelper.GetPasswordSHA(user.Salt, "secure-password");
+            Context.MyUser.Add(user);
+            await Context.SaveChangesAsync();
+            await writer.SyncUserRolesAsync(user.Id, new[] { primaryRole.Id, additionalRole.Id });
             Context.ChangeTracker.Clear();
 
             return user;

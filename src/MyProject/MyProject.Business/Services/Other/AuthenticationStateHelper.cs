@@ -20,6 +20,7 @@ public class AuthenticationStateHelper
     private readonly CurrentUserService currentUserService;
     private readonly RolePermissionService rolePermissionService;
     private readonly IEffectiveTeamResolver effectiveTeamResolver;
+    private readonly IPermissionChecker permissionChecker;
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
@@ -27,7 +28,8 @@ public class AuthenticationStateHelper
         MyUserService myUserService,
         CurrentUserService currentUserService,
         RolePermissionService rolePermissionService,
-        IEffectiveTeamResolver effectiveTeamResolver)
+        IEffectiveTeamResolver effectiveTeamResolver,
+        IPermissionChecker permissionChecker)
     {
         this.logger = logger;
         this.mapper = mapper;
@@ -35,6 +37,7 @@ public class AuthenticationStateHelper
         this.currentUserService = currentUserService;
         this.rolePermissionService = rolePermissionService;
         this.effectiveTeamResolver = effectiveTeamResolver;
+        this.permissionChecker = permissionChecker;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -112,6 +115,11 @@ public class AuthenticationStateHelper
             currentUser.IsAuthenticated = true;
             currentUserService.CurrentUser.CopyFrom(currentUser);
 
+            // UI 權限判定改以 RBAC 表為單一權威來源（含多角色聯集），與 API 端 IPermissionChecker 對齊；
+            // 覆寫 CopyFrom 由 TabViewJson 反序列化得到的 RoleList。TabViewJson 僅保留供角色編輯畫面回填。
+            currentUserService.CurrentUser.RoleList =
+                (await permissionChecker.GetEffectivePermissionKeysAsync(myUser.Id)).ToList();
+
             logger.LogInformation(
                 "Authentication state initialized for UserId={UserId}, Account={Account}, IsAdmin={IsAdmin}.",
                 myUser.Id,
@@ -170,6 +178,13 @@ public class AuthenticationStateHelper
 
     public bool CheckAccessPage(string name)
     {
+        // 管理員一律通過：GetEffectivePermissionKeysAsync 不含 admin 隱含全通過（回空集合），
+        // 故此處需比照 CheckAccessAction 短路，否則管理員選單/頁面會全被隱藏。
+        if (currentUserService.CurrentUser.IsAdmin)
+        {
+            return true;
+        }
+
         var result = currentUserService.CurrentUser.RoleList.Contains(name);
         logger.LogDebug(
             "Checked page access for UserId={UserId}, Page={PageName}, Allowed={Allowed}.",

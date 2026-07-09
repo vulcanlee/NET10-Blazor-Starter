@@ -72,3 +72,4 @@
 - [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](changelog/2026-06-22-側邊欄收合修正與日誌補缺.md)
 - [側邊欄群組圖示依名稱各自顯示（0.4.4）](changelog/2026-06-22-側邊欄群組圖示.md)
 - [階段四 UI 實跑驗收（0.4.21，無版本變更）](changelog/2026-07-09-階段四UI實跑驗收.md)
+- [選單/CheckAccessPage 改用 IPermissionChecker（0.4.22）](changelog/2026-07-09-選單改用IPermissionChecker.md)
