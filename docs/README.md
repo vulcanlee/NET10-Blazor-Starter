@@ -75,3 +75,4 @@
 - [選單/CheckAccessPage 改用 IPermissionChecker（0.4.22）](changelog/2026-07-09-選單改用IPermissionChecker.md)
 - [階段五：文件收尾（RBAC 落地後文件對齊，0.4.22，無版本變更）](changelog/2026-07-09-階段五文件收尾.md)
 - [稽核事件擴充：使用者/角色/權限異動（0.4.23）](changelog/2026-07-09-稽核事件擴充.md)
+- [決定紀錄：三項待辦經決定不實作（0.4.23，無版本變更）](changelog/2026-07-09-三項待辦決定不實作.md)

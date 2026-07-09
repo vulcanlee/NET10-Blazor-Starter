@@ -18,13 +18,15 @@
 
 ## 驗收標準
 - [x] SQLite 預設建置與 integration tests 維持通過。
-- [ ] SQL Server provider 需在具備 SQL Server 的本機或 CI integration environment 再做實體資料庫驗證。
+- [~] SQL Server provider 的實體資料庫驗證：**經決定不納入目前範圍**（見下方「SQL Server 遷移軌道」決定），日後如實作再於具 SQL Server 的環境驗證。
 - [x] 文件明確列出 provider 切換、連線字串設定與 migration assembly 邊界。
 
-## 待補：SQL Server 遷移軌道
-- [ ] `MyProject.AccessDatas.SqlServerMigrations` 目前**尚未產生任何 migration**（只有組件 marker）；所有既有資料表與後續 schema 變更的 SQL Server migration 需在具備 SQL Server 的環境一次補齊並驗證。
-- [ ] 待補清單（截至權限重構階段一）：`AddAccountLockout`（`MyUser.AccessFailedCount`、`MyUser.LockoutEndUtc`）、`AddAuditLog`（`AuditLog` 資料表）、`AddTwoFactor`（`MyUser.TwoFactorEnabled`、`MyUser.TwoFactorSecret`）、`AddRbacTables`（`Permission`、`RolePermissionMap`、`UserRole`、`UserTeam`）等 SQLite 已有、SQL Server 尚缺的變更。
-- 產生指令範式：`dotnet ef migrations add <Name> --project src/MyProject/MyProject.AccessDatas.SqlServerMigrations --startup-project src/MyProject/MyProject.Web`（需先將 `SystemSettings:DatabaseProvider` 設為 `SqlServer` 並提供 `DefaultConnection`）。
+## SQL Server 遷移軌道（經決定不納入目前實作範圍）
 
-## 備註風險
-- [ ] SQLite 與 SQL Server 的型別、索引、預設值與交易行為可能不同，正式切換前需做資料庫相容性測試。
+> **決定（2026/07/09）**：腳手架目前以 **SQLite 為預設且唯一受支援的執行資料庫**。SQL Server 遷移軌道的 bootstrap **經決定不納入目前實作範圍**（刻意不做、非遺漏）。`appsettings.Production.json` 雖保留 `DatabaseProvider=SqlServer` 與連線字串範例作為切換入口，但在補齊並驗證 migration 前，SQL Server 部署不受支援。日後如有實際 SQL Server 部署需求，再依下列範圍另案 bootstrap。
+
+如日後實作，範圍與指令如下（保留供參考）：
+- `MyProject.AccessDatas.SqlServerMigrations` 目前只有組件 marker、無任何 migration；需在具備 SQL Server 的環境一次補齊所有既有 schema 並驗證。
+- 涵蓋範圍：`AddAccountLockout`、`AddAuditLog`、`AddTwoFactor`、`AddRbacTables`（`Permission`/`RolePermissionMap`/`UserRole`/`UserTeam`）等 SQLite 已有、SQL Server 尚缺的變更（實際以 `MyProject.AccessDatas/Migrations/` 累積的完整 schema 為準）。
+- 產生指令範式：`dotnet ef migrations add <Name> --project src/MyProject/MyProject.AccessDatas.SqlServerMigrations --startup-project src/MyProject/MyProject.Web`（需先將 `SystemSettings:DatabaseProvider` 設為 `SqlServer` 並提供 `DefaultConnection`）。
+- SQLite 與 SQL Server 的型別、索引、預設值與交易行為可能不同，屆時需做資料庫相容性測試。
