@@ -69,6 +69,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 * 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下 `.md` 須**含 BOM**，CI 以 `scripts/Test-DocsEncoding.ps1` 遞迴強制）
 
+* 需要 commit 的時候，不能自動去做 commit
+
 * 每次有異動後，要確認相關文件也要進行更新
 
 ---
