@@ -20,7 +20,11 @@
 | [`features/`](features/) | 個別功能機制說明 | 分散式快取、多語系、檔案上傳、健康監控 |
 | [`guides/`](guides/) | 開發 / 操作教學、how-to、流程指南 | 新 CRUD 頁面、新專案啟動、EFCore、SQL Server 切換、測試 |
 | [`operations/`](operations/) | 部署、維運、設定檔、上線檢查、CI/CD | 維護規範、部署安全清單、日誌與設定檔、CI-CD |
+| [`prd/`](prd/) | 產品需求文件（功能 PRD）| PRD 主控台、各能力 PRD |
+| [`superpowers/`](superpowers/) | brainstorming 設計流程產出的規格 | 分類/團隊頁面設計、紀錄權控設計 |
 | [`changelog/`](changelog/) | 改版與變更紀錄 | 登入頁改版紀錄 |
+
+> 每個子目錄都有自己的 `README.md` 作為該目錄索引；點上方分類連結即可進入並看到該目錄清單。
 
 ## 各分類文件
 
@@ -38,6 +42,7 @@
 - [資料模型與資料庫](architecture/資料模型與資料庫.md)
 - [DTO 與模型邊界規範](architecture/DTO%20與模型邊界規範.md)
 - [Web API 設計慣例](architecture/Web%20API%20設計慣例.md)
+- [Web API 端點目錄](architecture/Web%20API%20端點目錄.md)
 - [API Versioning 策略](architecture/API%20Versioning%20策略.md)
 
 ### security — 認證、授權與安全
@@ -67,6 +72,24 @@
 - [正式部署與安全檢查清單](operations/正式部署與安全檢查清單.md)
 - [日誌與設定檔說明](operations/日誌與設定檔說明.md)
 - [CI-CD 與品質檢查](operations/CI-CD與品質檢查.md)
+
+### prd — 產品需求文件
+- [PRD 主控台（能力覆蓋矩陣）](prd/README.md)
+- [首頁與導覽 PRD](prd/首頁與導覽-prd.md)
+- [登入與帳號流程 PRD](prd/登入與帳號流程-prd.md)
+- [專案項目 PRD](prd/專案項目-prd.md)
+- [工作項目 PRD](prd/工作項目-prd.md)
+- [會議記錄 PRD](prd/會議記錄-prd.md)
+- [使用者管理 PRD](prd/使用者管理-prd.md)
+- [角色管理 PRD](prd/角色管理-prd.md)
+- [分類清單 PRD](prd/分類清單-prd.md)
+- [團隊清單 PRD](prd/團隊清單-prd.md)
+- [系統健康監控 PRD](prd/系統健康監控-prd.md)
+- [紀錄分類與團隊權控 PRD](prd/紀錄分類與團隊權控-prd.md)
+
+### superpowers — 設計規格
+- [分類清單 / 團隊清單管理頁面（階段一）](superpowers/specs/2026-06-22-category-team-pages-design.md)
+- [紀錄分類/團隊標籤與團隊權控（階段二）](superpowers/specs/2026-06-22-record-tags-team-access-design.md)
 
 ### changelog — 變更紀錄
 - [Login 頁面改版紀錄](changelog/login-redesign.md)
