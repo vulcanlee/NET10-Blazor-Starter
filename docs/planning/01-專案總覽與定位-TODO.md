@@ -1,5 +1,11 @@
 ﻿# 專案總覽與定位 TODO
 
+- 文件版本：1.0
+- 文件狀態：進行中
+- 現行系統版本：0.4.23
+- 首次實作版本：0.1.61
+- 最後核對日期：2026/07/14
+
 ## 腳手架定位
 - [x] 目標說明：本專案定位為未來開發 .NET 10 Blazor + Web API 系統的預設腳手架，提供 UI、資料存取、DTO、API、認證授權、日誌與文件基礎。
 - [x] 現況盤點：目前已有 Blazor Web App、EF Core SQLite 預設、NLog、AutoMapper、DTO 專案、Project/MyTask/Meeting CRUD API、Swagger、Cookie 登入與 JWT Bearer API 認證基礎。

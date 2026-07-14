@@ -1,5 +1,11 @@
 ﻿# WebAPI JWT ApiResult 設計 TODO
 
+- 文件版本：1.0
+- 文件狀態：進行中
+- 現行系統版本：0.4.23
+- 首次實作版本：0.1.61
+- 最後核對日期：2026/07/14
+
 ## 本輪已完成
 - [x] 目標說明：建立 Web API 統一回傳格式、DTO 邊界、JWT Bearer 認證與 Swagger 測試入口。
 - [x] 現況盤點：已有 `ApiResult<T>`、DTO 專案、CRUD API、JWT settings、Auth API、Bearer 驗證與 Swagger security definition。

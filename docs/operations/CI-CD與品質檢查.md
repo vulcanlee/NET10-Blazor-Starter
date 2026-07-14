@@ -1,5 +1,11 @@
 ﻿# CI-CD 與品質檢查
 
+- 文件版本：1.0
+- 文件狀態：已實作
+- 現行系統版本：0.4.23
+- 首次實作版本：0.2.8
+- 最後核對日期：2026/07/14
+
 本專案以 **GitHub Actions** 在每次 push 與 PR 時自動建置、測試與品質檢查。工作流程定義於 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)。
 
 ---

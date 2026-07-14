@@ -1,5 +1,11 @@
 ﻿# 選單/CheckAccessPage 改用 IPermissionChecker（0.4.22）
 
+- 文件版本：1.0
+- 文件狀態：已實作
+- 現行系統版本：0.4.23
+- 首次實作版本：0.4.22
+- 最後核對日期：2026/07/14
+
 ## 目的
 
 階段四權限重構收尾：消除 UI 與 API 的**雙權威來源**。改動前 UI 端（選單、`CheckAccessPage`、`CheckAccessAction`）讀 `CurrentUser.RoleList`，而該清單來自**主要角色的 `TabViewJson`**；API 端（`HasPermissionAttribute`）則讀 `IPermissionChecker`（RBAC 表 `RolePermissionMap`＋`Permission`，且已 honor 多角色）。兩者靠角色存檔時雙寫維持一致，是技術債，且造成 **UI 忽略使用者額外角色（`UserRole`）**——多角色使用者的 UI 與 API 不一致。

@@ -1,5 +1,11 @@
 ﻿# 第一次 Migration 
 
+- 文件版本：1.0
+- 文件狀態：已實作
+- 現行系統版本：0.4.23
+- 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
+- 最後核對日期：2026/07/14
+
 ```
 Add-Migration add-meeting -Project MyProject.AccessDatas -StartupProject MyProject.Web 
 Add-Migration Add-Status -Project MyProject.AccessDatas -StartupProject MyProject.Web 
