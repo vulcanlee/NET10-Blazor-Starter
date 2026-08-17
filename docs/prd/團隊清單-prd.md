@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 ## 一、目標與範圍
 
@@ -48,7 +48,7 @@
 - Entity `Team`（`Id/Name/Code/Description/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Team`。
 - 查詢一律 `AsNoTracking()`；新增前 `CleanTrackingHelper.Clean<Team>` 清追蹤，寫入後再清一次。
 - 編輯前於 UI 以 `Clone()` 複製記錄；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified/Deleted` 提交。
-- 模型變更需產生雙資料庫 migration（SQLite 於 `MyProject.AccessDatas`，SQL Server 於 `MyProject.AccessDatas.SqlServerMigrations`）。
+- 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
 ## 五、權限與安全
 

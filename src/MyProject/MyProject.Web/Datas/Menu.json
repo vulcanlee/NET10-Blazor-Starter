@@ -15,18 +15,6 @@
         "name": "專案項目",
         "icon": "workspaces",
         "url": "/projects"
-      },
-      {
-        "id": 22,
-        "name": "工作項目",
-        "icon": "checklist",
-        "url": "/Task"
-      },
-      {
-        "id": 23,
-        "name": "會議記錄",
-        "icon": "event",
-        "url": "/meeting"
       }
     ]
   },

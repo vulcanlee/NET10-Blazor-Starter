@@ -6,7 +6,7 @@ namespace MyProject.Business.Helpers;
 /// 「分類 / 團隊」等多值標籤欄位的字串儲存輔助。
 ///
 /// 儲存格式：以分隔字元（換行）包夾每個值，例如 "\n分類A\n分類B\n"。
-/// 這樣可用 Field.Contains("\n分類A\n") 在 SQLite 與 SqlServer 皆能做「精確成員」比對，
+/// 這樣可用 Field.Contains("\n分類A\n") 在 SQLite 上做「精確成員」比對，
 /// 避免子字串誤判（例如「團隊」誤中「團隊2」）。
 /// </summary>
 public static class TagStringHelper

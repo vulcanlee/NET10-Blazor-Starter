@@ -36,6 +36,7 @@
                          aria-label="使用者操作">
                         <button type="button" class="user-menu-item" role="menuitem" @onclick="OnChangePasswordClick">變更密碼</button>
                         <a class="user-menu-item" href="/Profile" role="menuitem">設定 API 密碼</a>
+                        <button type="button" class="user-menu-item" role="menuitem" @onclick="OnAboutClick">關於</button>
                         <a class="user-menu-item" href="/Auths/Logout" role="menuitem">登出</a>
                     </div>
                 </div>
@@ -78,6 +79,24 @@
             }
         </AntDesign.Form>
     }
+</Modal>
+
+<Modal Title="關於"
+       Class="about-modal"
+       Width="520"
+       @bind-Visible="@aboutVisible"
+       Keyboard="true"
+       Footer="null"
+       OnCancel="OnAboutCancel">
+    <dl class="about-list">
+        @foreach (var item in aboutItems)
+        {
+            <div class="about-row">
+                <dt class="about-term">@item.Key</dt>
+                <dd class="about-value">@item.Value</dd>
+            </div>
+        }
+    </dl>
 </Modal>
 
 <div id="blazor-error-ui" data-nosnippet>

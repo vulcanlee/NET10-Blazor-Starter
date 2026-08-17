@@ -9,7 +9,7 @@
 ## 1. 專案介紹
 
 - **定位**：可立即啟動、預先配置、易於擴充的 Blazor Server 樣板。
-- **適用情境**：管理後台、內部營運系統、專案/任務/會議追蹤平台。
+- **適用情境**：管理後台、內部營運系統、專案追蹤平台。
 - **設計理念**：分層清晰、慣例優先、模板可複刻（CRUD 模板可直接套用至新實體）。
 
 ---
@@ -23,8 +23,7 @@
 | UI 元件庫 | AntDesign Blazor | 1.6.0 |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
 | 資料存取 | Entity Framework Core | 10.0.5 |
-| 預設資料庫 | SQLite（檔案位置由 `appsettings.json` 控制） | — |
-| 正式資料庫 | SQL Server（可透過 `SystemSettings.DatabaseProvider` 切換） | — |
+| 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
 | 授權 | RoleView + Menu.json 二維權限樹 | — |
 | 多語系 | `RequestLocalization` + `AntDesignLocaleFactory` | zh-TW / en-US |
@@ -60,9 +59,9 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 使用者帳號 CRUD（含預設開發者帳號自動 Seed）
 - 角色管理（`RoleView`）與二維權限樹（對應 `Menu.json`）
 - 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、玻璃擬態 UI）
-- 專案 / 工作 / 會議三大領域實體 CRUD
+- 專案領域實體 CRUD（可作為新增其他領域模組的樣板）
 - 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
-- 紀錄分類/團隊標籤：專案/工作/會議可標記分類與團隊，並支援以角色為基礎的團隊行級權控（非管理員僅見公開或團隊交集紀錄）
+- 紀錄分類/團隊標籤：專案可標記分類與團隊，並支援以角色為基礎的團隊行級權控（非管理員僅見公開或團隊交集紀錄）
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
@@ -71,6 +70,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 分散式快取：`ICacheService` 統一抽象，透過 `appsettings.json` 在 Memory ↔ Redis 間切換（側邊選單已套用）
 - Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略與 Redis 連線字串需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
+- 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、.NET 版本、啟動與已運作時間
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
 - 全站請求耗時 / 例外統一寫入 NLog
 - 靜態資源外部對應（`/UploadFiles` → 實體下載目錄）
@@ -111,14 +111,14 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 │   ├── architecture/               ← 架構、資料模型、API/DTO 規範、開發慣例速查
 │   ├── security/                   ← 認證、授權、密碼與機密金鑰
 │   ├── features/                   ← 個別功能機制（快取、多語系、上傳、健康監控）
-│   ├── guides/                     ← 開發/操作教學（CRUD、EFCore、SQL Server、測試）
+│   ├── guides/                     ← 開發/操作教學（CRUD、EFCore、測試）
 │   ├── operations/                 ← 維護、部署、設定檔、CI/CD
 │   └── changelog/                  ← 變更紀錄
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── MyProject.Web/              ← Blazor Server 宿主
     │   ├── Components/             ← Pages / Views / Layout / Auths / Commons
-    │   ├── Controllers/            ← Web API（Project / MyTask / Meeting）
+    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth …）
     │   ├── Localization/           ← AntDesignLocaleFactory
     │   ├── Datas/Menu.json         ← Sidebar 導覽與權限定義
     │   ├── Filters/                ← ApiValidationFilter 等
@@ -131,7 +131,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   └── Models/AutoMapping.cs   ← AutoMapper Profile
     ├── MyProject.AccessDatas/
     │   ├── BackendDBContext.cs
-    │   ├── Models/                 ← Entity（MyUser、Project、MyTask、Meeting…）
+    │   ├── Models/                 ← Entity（MyUser、Project、Category、Team…）
     │   └── Migrations/
     ├── MyProject.Models/           ← AdapterModel、Systems、AutoMapper 來源
     ├── MyProject.Dtos/             ← API DTO（含 ApiResult/PagedResult）
@@ -156,8 +156,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
 | `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md)）。 |
-| `SystemSettings.DatabaseProvider` | 資料庫 provider，支援 `Sqlite` 與 `SqlServer`，預設 `Sqlite`。 |
-| `SystemSettings.ConnectionStrings.DefaultConnection` | SQL Server 連線字串；`DatabaseProvider=SqlServer` 時使用。 |
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
 | `SystemSettings.SystemInformation.SystemName` | 顯示用系統名稱。 |
 | `SystemSettings.SystemInformation.SystemDescription` | 顯示用系統描述。 |
@@ -166,8 +164,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
-| `SystemSettings.ExternalFileSystem.TaskFilePath` | 工作附件根目錄。 |
-| `SystemSettings.ExternalFileSystem.MeetingFilePath` | 會議附件根目錄。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
 各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
@@ -204,7 +200,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 架構與設計（architecture）
 
-- [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、雙資料庫 migration、追蹤清理、權限同步等不變量速查。
+- [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、追蹤清理、權限同步等不變量速查。
 - [架構總覽](docs/architecture/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
 - [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
@@ -231,7 +227,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 以 `RoleViewView` 為藍本複刻新 CRUD 頁面。
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
-- [SQL Server 切換說明](docs/guides/SQL%20Server%20切換說明.md) — `DatabaseProvider` 切換、`SqlServerMigrations` 專用 migration assembly。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
 - `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組所需檔案骨架。
@@ -246,7 +241,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 產品需求文件（prd）
 
 - [PRD 主控台（能力覆蓋矩陣）](docs/prd/README.md) — 以產品能力為單位的單一入口：能力→入口→程式來源→狀態。
-- 11 份能力 PRD：[首頁與導覽](docs/prd/首頁與導覽-prd.md)、[登入與帳號流程](docs/prd/登入與帳號流程-prd.md)、[專案項目](docs/prd/專案項目-prd.md)、[工作項目](docs/prd/工作項目-prd.md)、[會議記錄](docs/prd/會議記錄-prd.md)、[使用者管理](docs/prd/使用者管理-prd.md)、[角色管理](docs/prd/角色管理-prd.md)、[分類清單](docs/prd/分類清單-prd.md)、[團隊清單](docs/prd/團隊清單-prd.md)、[系統健康監控](docs/prd/系統健康監控-prd.md)、[紀錄分類與團隊權控](docs/prd/紀錄分類與團隊權控-prd.md)。
+- 9 份能力 PRD：[首頁與導覽](docs/prd/首頁與導覽-prd.md)、[登入與帳號流程](docs/prd/登入與帳號流程-prd.md)、[專案項目](docs/prd/專案項目-prd.md)、[使用者管理](docs/prd/使用者管理-prd.md)、[角色管理](docs/prd/角色管理-prd.md)、[分類清單](docs/prd/分類清單-prd.md)、[團隊清單](docs/prd/團隊清單-prd.md)、[系統健康監控](docs/prd/系統健康監控-prd.md)、[紀錄分類與團隊權控](docs/prd/紀錄分類與團隊權控-prd.md)。
 
 ### 設計規格（superpowers）
 
@@ -262,6 +257,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
 - [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](docs/changelog/2026-06-22-側邊欄收合修正與日誌補缺.md) — 收合飛出改自訂橋接、補 2 處日誌缺口。
 - [側邊欄群組圖示依名稱各自顯示（0.4.4）](docs/changelog/2026-06-22-側邊欄群組圖示.md) — 移除群組強制 folder_open，群組圖示改用 Menu.json 各自有效圖示。
+- [移除工作項目、會議記錄與 SQL Server 支援，新增「關於」對話窗（0.4.24）](docs/changelog/2026-08-17-移除工作項目會議記錄與MSSQL支援.md) — 兩項領域作業下架、資料庫收斂為單一 SQLite 軌道、使用者選單新增系統資訊對話窗。
 
 ### 專案規劃（planning）
 

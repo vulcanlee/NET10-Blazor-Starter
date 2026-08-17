@@ -242,8 +242,6 @@ namespace MyProject.Web
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.DownloadPath, "download");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.UploadPath, "upload");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.ProjectFilePath, "project file");
-                EnsureDirectoryExists(systemSettings.ExternalFileSystem.TaskFilePath, "task file");
-                EnsureDirectoryExists(systemSettings.ExternalFileSystem.MeetingFilePath, "meeting file");
                 #endregion
 
                 #region EF Core 宣告

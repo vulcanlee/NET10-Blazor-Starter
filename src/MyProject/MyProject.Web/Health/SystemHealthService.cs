@@ -133,7 +133,7 @@ public sealed class SystemHealthService : ISystemHealthService
                     "Database",
                     25,
                     SystemHealthStatus.Unhealthy,
-                    $"Provider：{systemSettingsOptions.Value.GetDatabaseProvider()}；無法建立資料庫連線。",
+                    "Provider：SQLite；無法建立資料庫連線。",
                     "Database.CanConnectAsync 回傳 false。");
             }
 
@@ -150,7 +150,7 @@ public sealed class SystemHealthService : ISystemHealthService
                 "Database",
                 25,
                 status,
-                $"Provider：{systemSettingsOptions.Value.GetDatabaseProvider()}；可連線；待套用 migration：{pendingMigrations}。",
+                $"Provider：SQLite；可連線；待套用 migration：{pendingMigrations}。",
                 pendingMigrations == 0 ? null : "仍有尚未套用的 EF Core migration。");
         }
         catch (Exception ex)
@@ -160,7 +160,7 @@ public sealed class SystemHealthService : ISystemHealthService
                 "Database",
                 25,
                 SystemHealthStatus.Unhealthy,
-                $"Provider：{systemSettingsOptions.Value.DatabaseProvider}；檢查時發生 {ex.GetType().Name}。",
+                $"Provider：SQLite；檢查時發生 {ex.GetType().Name}。",
                 $"資料庫檢查失敗：{ex.GetType().Name}。");
         }
     }
@@ -225,9 +225,7 @@ public sealed class SystemHealthService : ISystemHealthService
             ["Database"] = systemSettingsOptions.Value.ExternalFileSystem.DatabasePath,
             ["Download"] = systemSettingsOptions.Value.ExternalFileSystem.DownloadPath,
             ["Upload"] = systemSettingsOptions.Value.ExternalFileSystem.UploadPath,
-            ["ProjectFile"] = systemSettingsOptions.Value.ExternalFileSystem.ProjectFilePath,
-            ["TaskFile"] = systemSettingsOptions.Value.ExternalFileSystem.TaskFilePath,
-            ["MeetingFile"] = systemSettingsOptions.Value.ExternalFileSystem.MeetingFilePath
+            ["ProjectFile"] = systemSettingsOptions.Value.ExternalFileSystem.ProjectFilePath
         };
 
         var failures = paths

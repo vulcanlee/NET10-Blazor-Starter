@@ -73,10 +73,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<ProjectService>();
         services.AddScoped<ProjectRepository>();
-        services.AddScoped<MyTaskRepository>();
-        services.AddScoped<MeetingRepository>();
-        services.AddScoped<MyTasService>();
-        services.AddScoped<MeetingService>();
         services.AddScoped<CategoryService>();
         services.AddScoped<CategoryRepository>();
         services.AddScoped<TeamService>();
@@ -103,31 +99,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddDbContext<BackendDBContext>(options =>
         {
-            switch (systemSettings.GetDatabaseProvider())
-            {
-                case DatabaseProvider.SqlServer:
-                    if (string.IsNullOrWhiteSpace(systemSettings.ConnectionStrings.DefaultConnection))
-                    {
-                        throw new InvalidOperationException("SystemSettings:ConnectionStrings:DefaultConnection 不可為空白。");
-                    }
-
-                    options.UseSqlServer(
-                        systemSettings.ConnectionStrings.DefaultConnection,
-                        sqlServer => sqlServer.MigrationsAssembly(
-                            typeof(MyProject.AccessDatas.SqlServerMigrations.SqlServerMigrationAssemblyMarker)
-                                .Assembly
-                                .GetName()
-                                .Name));
-                    break;
-
-                case DatabaseProvider.Sqlite:
-                    var sqliteConnectionString = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
-                    options.UseSqlite(sqliteConnectionString);
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"不支援的資料庫 provider：{systemSettings.DatabaseProvider}");
-            }
+            var sqliteConnectionString = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
+            options.UseSqlite(sqliteConnectionString);
         }, ServiceLifetime.Scoped);
 
         return services;

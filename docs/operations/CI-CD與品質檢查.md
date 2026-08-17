@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 本專案以 **GitHub Actions** 在每次 push 與 PR 時自動建置、測試與品質檢查。工作流程定義於 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)。
 
@@ -66,7 +66,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | Advisory | [GHSA-2m69-gcr7-jv3q](https://github.com/advisories/GHSA-2m69-gcr7-jv3q) / CVE-2025-6965（High，CVSS 7.2） |
 | 引入來源 | 由 `Microsoft.EntityFrameworkCore.Sqlite 10.0.5` **遞移**引入（EF Core Sqlite → Microsoft.Data.Sqlite.Core → SQLitePCLRaw.bundle_e_sqlite3 → lib.e_sqlite3） |
 | 為何不升級 | NuGet 上 `SQLitePCLRaw.*` 最新即 2.1.11，**尚無修補版**（無 2.1.12 / 2.2.x），EF Core 亦未帶入新版，目前無從升級 |
-| 風險評估 | 低：Production 使用 SQL Server（`appsettings.Production.json` 之 `DatabaseProvider=SqlServer`），SQLite 僅為開發/預設資料庫；EF Core 採參數化查詢，無未受信任的原始 SQL 進入 SQLite |
+| 風險評估 | 低：EF Core 採參數化查詢，無未受信任的原始 SQL 進入 SQLite（0.4.24 起 SQLite 為唯一支援的資料庫） |
 | 處置 | 於 [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) 以 `NuGetAuditSuppress` 抑制該 advisory，消除 restore/build 的 `NU1903` 警告 |
 
 **重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；上方的 `dotnet list package --vulnerable` 步驟為獨立查詢，**仍會列出**此 advisory（屬資訊性輸出，指令仍回傳 0、不阻斷 CI）。

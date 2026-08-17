@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -34,8 +34,6 @@
 | `CategoryController` | `api/Category`、`api/v1/Category` | `角色_分類清單` | `Controllers/CategoryController.cs` |
 | `TeamController` | `api/Team`、`api/v1/Team` | `角色_團隊清單` | `Controllers/TeamController.cs` |
 | `ProjectController` | `api/Project`、`api/v1/Project` | `角色_專案項目` | `Controllers/ProjectController.cs` |
-| `MyTaskController` | `api/MyTask`、`api/v1/MyTask` | `角色_工作項目` | `Controllers/MyTaskController.cs` |
-| `MeetingController` | `api/Meeting`、`api/v1/Meeting` | `角色_會議項目` | `Controllers/MeetingController.cs` |
 
 ## 三、認證控制器 `AuthController`
 

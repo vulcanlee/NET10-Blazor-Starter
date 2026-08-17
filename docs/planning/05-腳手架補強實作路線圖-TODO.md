@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：進行中
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 ## 第一階段：API 與 JWT 基礎
 - [x] 目標說明：先補齊日後所有系統都會需要的 API contract、JWT、Swagger、測試與 CI。
@@ -22,7 +22,7 @@
 
 ## 第三階段：腳手架產品化
 - [x] 建立新專案改名與替換清單。文件：`docs/guides/腳手架新專案啟動流程.md`。
-- [x] 建立 SQL Server 切換與 migration 操作文件。文件：`docs/guides/SQL Server 切換說明.md`。
+- [x] ~~建立 SQL Server 切換與 migration 操作文件。~~ **已於 0.4.24 作廢**：SQL Server 支援整體移除，該文件已刪除。
 - [x] 建立預設帳號初始化設定流程：新增 `BootstrapSettings` 支援覆寫 support 帳號與密碼；強制改密碼功能化仍可依正式需求另開任務。
 - [x] 建立 API versioning 策略，但不破壞目前 `/api/...`。文件：`docs/architecture/API Versioning 策略.md`。
 - [x] 建立新專案初始化與 CRUD 模組骨架腳本：`scripts/New-StarterProject.ps1`、`scripts/New-CrudModule.ps1`。

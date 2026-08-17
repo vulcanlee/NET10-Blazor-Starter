@@ -76,13 +76,13 @@ public sealed class PermissionCheckerTests
     public async Task GetEffectivePermissionKeysAsync_ShouldReturnRoleKeys()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var user = await fixture.AddUserAsync("carol", isAdmin: false, permissions: new[] { "首頁", "工作項目" });
+        var user = await fixture.AddUserAsync("carol", isAdmin: false, permissions: new[] { "首頁", "分類清單" });
         var checker = new PermissionChecker(fixture.Context);
 
         var keys = await checker.GetEffectivePermissionKeysAsync(user.Id);
 
         Assert.Contains("首頁", keys);
-        Assert.Contains("工作項目", keys);
+        Assert.Contains("分類清單", keys);
         Assert.Equal(2, keys.Count);
     }
 

@@ -20,8 +20,6 @@ public sealed class MenuIconTests
         "space_dashboard",
         "work",
         "workspaces",
-        "checklist",
-        "event",
         "admin_panel_settings",
         "group",
         "shield_person",

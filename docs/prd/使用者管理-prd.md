@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 ## 一、目標與範圍
 
@@ -20,7 +20,7 @@
 | `/myusers` | 系統管理 → 使用者管理（`Menu.json` id=31）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
 
 - 頁面 `MyUserView` 初始化先執行 `Check`，未通過即導向登出；非管理員顯示「你沒有權限存取此頁面」並停止載入。
-- 本頁為 Blazor 元件、無對應的 `MyUser` API 控制器；動作級 `[HasPermission("resource:action")]` 套用於業務資料 API（分類／團隊／專案／工作／會議），使用者維護僅以管理員身分閘控。
+- 本頁為 Blazor 元件、無對應的 `MyUser` API 控制器；動作級 `[HasPermission("resource:action")]` 套用於業務資料 API（分類／團隊／專案），使用者維護僅以管理員身分閘控。
 
 ## 三、畫面與欄位
 

@@ -1,10 +1,10 @@
 ﻿# 文件目錄索引
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：維護中
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 本目錄收錄 NET10-Blazor-Starter 的所有設計、規範與教學文件。文件依「特性」分類到下列子目錄；新增文件時請先依特性歸入既有分類，**若沒有任何分類適用，請自動新增一個語意明確的英文小寫分類目錄**，並同步更新本檔與主 [`readme.md`](../readme.md) 第 9 節「文件索引」。
 
@@ -18,7 +18,7 @@
 | [`architecture/`](architecture/) | 系統架構、資料模型、API / DTO 設計規範、開發慣例 | 開發慣例速查、架構總覽、資料模型、Web API 設計慣例、API Versioning |
 | [`security/`](security/) | 認證、授權、登入、密碼與機密金鑰機制 | 認證授權、Google OAuth2、記住我、密碼儲存 |
 | [`features/`](features/) | 個別功能機制說明 | 分散式快取、多語系、檔案上傳、健康監控 |
-| [`guides/`](guides/) | 開發 / 操作教學、how-to、流程指南 | 新 CRUD 頁面、新專案啟動、EFCore、SQL Server 切換、測試 |
+| [`guides/`](guides/) | 開發 / 操作教學、how-to、流程指南 | 新 CRUD 頁面、新專案啟動、EFCore、測試 |
 | [`operations/`](operations/) | 部署、維運、設定檔、上線檢查、CI/CD | 維護規範、部署安全清單、日誌與設定檔、CI-CD |
 | [`prd/`](prd/) | 產品需求文件（功能 PRD）| PRD 主控台、各能力 PRD |
 | [`superpowers/`](superpowers/) | brainstorming 設計流程產出的規格 | 分類/團隊頁面設計、紀錄權控設計 |
@@ -62,7 +62,6 @@
 - [建立一個新 CRUD 操作網頁說明](guides/建立一個新%20CRUD%20操作網頁說明.md)
 - [腳手架新專案啟動流程](guides/腳手架新專案啟動流程.md)
 - [EFCore 指令備忘](guides/EFCore.md)
-- [SQL Server 切換說明](guides/SQL%20Server%20切換說明.md)
 - [測試指南](guides/測試指南.md)
 
 > 腳手架腳本：`scripts/New-StarterProject.ps1`（複製新專案並替換 namespace / project 名稱）、`scripts/New-CrudModule.ps1`（產生新 CRUD 模組骨架）。
@@ -78,8 +77,6 @@
 - [首頁與導覽 PRD](prd/首頁與導覽-prd.md)
 - [登入與帳號流程 PRD](prd/登入與帳號流程-prd.md)
 - [專案項目 PRD](prd/專案項目-prd.md)
-- [工作項目 PRD](prd/工作項目-prd.md)
-- [會議記錄 PRD](prd/會議記錄-prd.md)
 - [使用者管理 PRD](prd/使用者管理-prd.md)
 - [角色管理 PRD](prd/角色管理-prd.md)
 - [分類清單 PRD](prd/分類清單-prd.md)
@@ -105,3 +102,4 @@
 - [階段五：文件收尾（RBAC 落地後文件對齊，0.4.22，無版本變更）](changelog/2026-07-09-階段五文件收尾.md)
 - [稽核事件擴充：使用者/角色/權限異動（0.4.23）](changelog/2026-07-09-稽核事件擴充.md)
 - [決定紀錄：三項待辦經決定不實作（0.4.23，無版本變更）](changelog/2026-07-09-三項待辦決定不實作.md)
+- [移除工作項目、會議記錄與 SQL Server 支援，新增「關於」對話窗（0.4.24）](changelog/2026-08-17-移除工作項目會議記錄與MSSQL支援.md)

@@ -340,21 +340,6 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Contains("Swagger:EnabledInProduction", exception.Message);
     }
 
-    [Theory]
-    [InlineData(null, DatabaseProvider.Sqlite)]
-    [InlineData("", DatabaseProvider.Sqlite)]
-    [InlineData("Sqlite", DatabaseProvider.Sqlite)]
-    [InlineData("SqlServer", DatabaseProvider.SqlServer)]
-    public void SystemSettings_ShouldResolveDatabaseProvider(string? value, DatabaseProvider expected)
-    {
-        var settings = new SystemSettings
-        {
-            DatabaseProvider = value ?? string.Empty
-        };
-
-        Assert.Equal(expected, settings.GetDatabaseProvider());
-    }
-
     private static async Task AuthorizeAsync(HttpClient client)
     {
         var loginResult = await LoginAsync(client);
@@ -476,9 +461,7 @@ public sealed class ApiTestApplicationFactory : WebApplicationFactory<Program>
                 ["SystemSettings:ExternalFileSystem:DatabasePath"] = Path.Combine(rootPath, "DB"),
             ["SystemSettings:ExternalFileSystem:DownloadPath"] = Path.Combine(rootPath, "Download"),
             ["SystemSettings:ExternalFileSystem:UploadPath"] = Path.Combine(rootPath, "Upload"),
-            ["SystemSettings:ExternalFileSystem:ProjectFilePath"] = Path.Combine(rootPath, "ProjectFile"),
-            ["SystemSettings:ExternalFileSystem:TaskFilePath"] = Path.Combine(rootPath, "TaskFile"),
-            ["SystemSettings:ExternalFileSystem:MeetingFilePath"] = Path.Combine(rootPath, "MeetingFile")
+            ["SystemSettings:ExternalFileSystem:ProjectFilePath"] = Path.Combine(rootPath, "ProjectFile")
         };
     }
 }

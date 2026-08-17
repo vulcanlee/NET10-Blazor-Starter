@@ -2,35 +2,13 @@
 
 public class SystemSettings
 {
-    public string DatabaseProvider { get; set; } = nameof(MyProject.Models.Systems.DatabaseProvider.Sqlite);
     public ConnectionStrings ConnectionStrings { get; set; } = new();
     public SystemInformation SystemInformation { get; set; } = new();
     public ExternalFileSystem ExternalFileSystem { get; set; } = new();
-
-    public DatabaseProvider GetDatabaseProvider()
-    {
-        if (string.IsNullOrWhiteSpace(DatabaseProvider))
-        {
-            return MyProject.Models.Systems.DatabaseProvider.Sqlite;
-        }
-
-        if (Enum.TryParse<DatabaseProvider>(DatabaseProvider, ignoreCase: true, out var provider))
-        {
-            return provider;
-        }
-
-        throw new InvalidOperationException($"不支援的資料庫 provider：{DatabaseProvider}");
-    }
 }
 
-public enum DatabaseProvider
-{
-    Sqlite,
-    SqlServer
-}
 public class ConnectionStrings
 {
-    public string DefaultConnection { get; set; } = string.Empty;
     public string SQLiteDefaultConnection { get; set; } = string.Empty;
 
 }
@@ -46,8 +24,6 @@ public class ExternalFileSystem
     public string DownloadPath { get; set; } = string.Empty;
     public string UploadPath { get; set; } = string.Empty;
     public string ProjectFilePath { get; set; } = string.Empty;
-    public string TaskFilePath { get; set; } = string.Empty;
-    public string MeetingFilePath { get; set; } = string.Empty;
 }
 
 public class BootstrapSettings

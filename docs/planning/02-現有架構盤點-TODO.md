@@ -2,15 +2,15 @@
 
 - 文件版本：1.0
 - 文件狀態：進行中
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 ## 分層現況
 - [x] 目標說明：盤點腳手架分層，讓後續系統能從清楚的責任邊界開始擴充。
 - [x] 現況盤點：目前包含 `AccessDatas`、`Business`、`Dtos`、`Models`、`Share`、`Web`、`Tests` 七個專案。
 - [x] 實作待辦：已新增測試專案並加入 solution；Web API 已使用 DTO 作為 request/response，不直接暴露 Entity。
-- [x] 驗收標準：`ProjectController`、`MyTaskController`、`MeetingController` 使用 Create/Update/Search/Dto 類別作為 API 邊界。
+- [x] 驗收標準：`ProjectController`、`MyTaskController`、`MeetingController` 使用 Create/Update/Search/Dto 類別作為 API 邊界。（後兩者已於 0.4.24 移除）
 - [x] 相關檔案：`src/MyProject/MyProject.Dtos`、`src/MyProject/MyProject.Web/Controllers`、`src/MyProject/MyProject.Tests`。
 - [x] 備註風險：已新增 `ControllerApiResponseExtensions`，Project/MyTask/Meeting controller 的 500 `ApiResult` 封裝已改用共用 helper；後續仍可再深化為 action pipeline 或 service result pattern。
 

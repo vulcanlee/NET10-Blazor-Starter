@@ -14,38 +14,6 @@ public class AutoMapping : Profile
     {
         #region Blazor AdapterModel
 
-        #region Meeting
-        CreateMap<Meeting, MeetingAdapterModel>()
-            .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToList(s.Categories)))
-            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)));
-        CreateMap<MeetingAdapterModel, Meeting>()
-            .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToStored(s.Categories)))
-            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)));
-        CreateMap<Meeting, MeetingDto>()
-            .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
-        CreateMap<MeetingDto, Meeting>();
-        CreateMap<Meeting, MeetingCreateUpdateDto>();
-        CreateMap<MeetingCreateUpdateDto, Meeting>();
-        CreateMap<MeetingFile, MeetingFileAdapterModel>();
-        CreateMap<MeetingFileAdapterModel, MeetingFile>();
-        #endregion
-
-        #region MyTas
-        CreateMap<MyTask, MyTasAdapterModel>()
-            .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToList(s.Categories)))
-            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)));
-        CreateMap<MyTasAdapterModel, MyTask>()
-            .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToStored(s.Categories)))
-            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)));
-        CreateMap<MyTask, MyTaskDto>()
-            .ForMember(dest => dest.ProjectTitle, opt => opt.MapFrom(src => src.Project != null ? src.Project.Title : null));
-        CreateMap<MyTaskDto, MyTask>();
-        CreateMap<MyTask, MyTaskCreateUpdateDto>();
-        CreateMap<MyTaskCreateUpdateDto, MyTask>();
-        CreateMap<MyTasFile, MyTasFileAdapterModel>();
-        CreateMap<MyTasFileAdapterModel, MyTasFile>();
-        #endregion
-
         #region Project
         CreateMap<Project, ProjectAdapterModel>()
             .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToList(s.Categories)))

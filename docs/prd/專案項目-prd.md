@@ -2,13 +2,13 @@
 
 - 文件版本：1.0
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 ## 一、目標與範圍
 
-提供「專案項目（Project）」的建立、查詢、修改、刪除與附件管理能力，作為工作項目與會議記錄的上層歸屬。
+提供「專案項目（Project）」的建立、查詢、修改、刪除與附件管理能力，同時作為新增其他領域 CRUD 模組時的參考樣板。
 
 - 範圍：清單查詢（關鍵字搜尋、分類／團隊過濾、排序、分頁）、單筆維護（含表單驗證）、多檔附件上傳／下載／刪除、動作級授權與團隊可見範圍控管。
 - 非範圍：專案間的相依關係／甘特圖、工時統計、跨專案報表、附件線上預覽；本腳手架不含 LLM／RAG 能力。
@@ -42,7 +42,7 @@
 - 編輯前處理：開啟修改視窗時以 `ProjectService.GetAsync(id)` 重新取得資料副本（非重用清單物件），並清空待上傳／待移除清單（`ProjectViewView.razor.cs:228-237`）。
 - 寫入前清追蹤：`AddAsync`／`UpdateAsync`／`DeleteAsync` 進入時皆呼叫 `CleanTrackingHelper.Clean<Project>(context)`（`ProjectService.cs:201,233,286`）。
 - 附件 Adapter：UI 以 `ProjectUploadFileInput`（FileName/ContentType/FileSize/Content）傳入；Service 依主表 `CreatedAt` 年／月建立目錄，檔名以 GUID 產生，落地後寫入 `ProjectFile`；刪除主表時先刪實體檔再刪紀錄。
-- 雙資料庫 migration：模型異動需同步 `MyProject.AccessDatas`（SQLite）與 `MyProject.AccessDatas.SqlServerMigrations`。
+- Migration：模型異動需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
 ## 五、權限與安全
 
@@ -71,6 +71,6 @@
 - `src/MyProject/MyProject.Web/Controllers/ProjectController.cs:1`
 - `src/MyProject/MyProject.AccessDatas/Models/Project.cs:1`、`ProjectFile.cs:1`
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:30`
-- 交叉連結：[Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)、[檔案上傳機制](../features/檔案上傳機制.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)、[工作項目](工作項目-prd.md)、[會議記錄](會議記錄-prd.md)
+- 交叉連結：[Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)、[檔案上傳機制](../features/檔案上傳機制.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
 
 > 備註：UI 以 `/api/project-files/{id}/download` 下載附件，Service 端 `GetFileDownloadAsync` 具團隊權控守門；對外端點的實際註冊位置未在現行 Controllers 找到（未確認）。

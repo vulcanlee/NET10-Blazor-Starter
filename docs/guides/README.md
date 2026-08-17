@@ -1,10 +1,10 @@
 ﻿# guides — 開發與操作指南
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：維護中
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 本目錄收納開發／操作教學、how-to 與流程指南。
 
@@ -12,8 +12,7 @@
 |------|------|
 | [建立一個新 CRUD 操作網頁說明](建立一個新%20CRUD%20操作網頁說明.md) | 以 `RoleViewView` 為藍本複刻新 CRUD 頁面 |
 | [腳手架新專案啟動流程](腳手架新專案啟動流程.md) | 從本腳手架複製成新系統的改名與設定檢查清單 |
-| [EFCore 指令備忘](EFCore.md) | Migration 指令範本（含雙資料庫）|
-| [SQL Server 切換說明](SQL%20Server%20切換說明.md) | `DatabaseProvider` 切換、`SqlServerMigrations` 專用 migration assembly |
+| [EFCore 指令備忘](EFCore.md) | SQLite Migration 指令範本 |
 | [測試指南](測試指南.md) | 測試類別、本機執行、整合測試、覆蓋率與測試涵蓋矩陣 |
 
 > 腳手架腳本：`scripts/New-StarterProject.ps1`（複製新專案並替換 namespace／project 名稱）、`scripts/New-CrudModule.ps1`（產生新 CRUD 模組骨架）。

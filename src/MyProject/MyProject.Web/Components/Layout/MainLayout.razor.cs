@@ -1,10 +1,14 @@
+using System.Runtime.InteropServices;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Models.Systems;
+using MyProject.Web.Health;
 
 namespace MyProject.Web.Components.Layout;
 
@@ -37,6 +41,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private MessageService MessageService { get; set; } = default!;
 
+    [Inject]
+    private IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+
+    [Inject]
+    private IWebHostEnvironment WebHostEnvironment { get; set; } = default!;
+
+    [Inject]
+    private SystemStartupState SystemStartupState { get; set; } = default!;
+
     private const string DefaultPageTitle = "系統首頁";
     private const string DefaultUserDisplayName = "使用者";
 
@@ -51,6 +64,9 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private bool isSupportAccount = false;
     private string changePasswordErrorMessage = string.Empty;
     private ChangePasswordForm changePasswordForm = new();
+
+    private bool aboutVisible = false;
+    private IReadOnlyList<KeyValuePair<string, string>> aboutItems = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -198,6 +214,36 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         changePasswordVisible = false;
         changePasswordErrorMessage = string.Empty;
+    }
+
+    /// <summary>
+    /// 開啟「關於」對話窗。已運作時間需在開啟當下計算，Blazor Server 不會自動刷新已渲染的值。
+    /// </summary>
+    private void OnAboutClick()
+    {
+        Logger.LogDebug("Opening about dialog.");
+
+        var systemInformation = SystemSettingsOptions.Value.SystemInformation;
+        var uptime = DateTimeOffset.Now - SystemStartupState.StartedAt;
+
+        aboutItems =
+        [
+            new("系統名稱", systemInformation.SystemName),
+            new("系統描述", systemInformation.SystemDescription),
+            new("系統版本", systemInformation.SystemVersion),
+            new("執行環境", WebHostEnvironment.EnvironmentName),
+            new(".NET 版本", RuntimeInformation.FrameworkDescription),
+            new("啟動時間", SystemStartupState.StartedAt.ToString("yyyy/MM/dd HH:mm:ss")),
+            new("已運作時間", uptime.ToString(@"dd\.hh\:mm\:ss")),
+        ];
+
+        isUserMenuOpen = false;
+        aboutVisible = true;
+    }
+
+    private void OnAboutCancel()
+    {
+        aboutVisible = false;
     }
 
     private void ToggleSidebar()

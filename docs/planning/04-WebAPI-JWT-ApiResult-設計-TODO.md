@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：進行中
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.24
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/17
 
 ## 本輪已完成
 - [x] 目標說明：建立 Web API 統一回傳格式、DTO 邊界、JWT Bearer 認證與 Swagger 測試入口。
@@ -23,6 +23,6 @@
 - [x] 實作 JWT Bearer access token。
 - [x] 實作不落庫 signed refresh JWT，並標示限制。
 - [x] 補 Swagger Bearer 授權設定。
-- [x] Project/MyTask/Meeting CRUD API 加上 Bearer 授權。
+- [x] Project/MyTask/Meeting CRUD API 加上 Bearer 授權。（MyTask/Meeting 已於 0.4.24 移除）
 - [x] 補更完整的 API integration tests：已驗證 HTTP 401、403、validation 400、500、login、refresh、me、Project CRUD；403/500 透過測試專案 probe controller 觸發，不新增正式 API contract。
 - [x] 評估是否導入 `/api/v1/...`，本輪依決策保留目前 `/api/...` 路由；策略文件：`docs/architecture/API Versioning 策略.md`。
