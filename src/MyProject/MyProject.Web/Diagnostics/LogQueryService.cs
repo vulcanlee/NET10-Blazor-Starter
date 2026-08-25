@@ -362,14 +362,7 @@ public sealed class LogQueryService : ILogQueryService
         return entry;
     }
 
-    private static LogLevelRank ToRank(string level) => level switch
-    {
-        "TRACE" => LogLevelRank.Trace,
-        "DEBUG" => LogLevelRank.Debug,
-        "INFO" => LogLevelRank.Info,
-        "WARN" => LogLevelRank.Warn,
-        "ERROR" => LogLevelRank.Error,
-        "FATAL" => LogLevelRank.Fatal,
-        _ => LogLevelRank.Unknown,
-    };
+    // 解析日誌檔時，無法辨識的等級回 Unknown —— 該筆仍保留，不因等級篩選而隱藏。
+    private static LogLevelRank ToRank(string level)
+        => LogLevelRankHelper.FromLevelText(level, LogLevelRank.Unknown);
 }

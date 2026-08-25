@@ -161,16 +161,9 @@ namespace MyProject.Web.Components.Views.Analytics
             }
         }
 
-        private static LogLevelRank ToRank(string level) => level switch
-        {
-            "TRACE" => LogLevelRank.Trace,
-            "DEBUG" => LogLevelRank.Debug,
-            "INFO" => LogLevelRank.Info,
-            "WARN" => LogLevelRank.Warn,
-            "ERROR" => LogLevelRank.Error,
-            "FATAL" => LogLevelRank.Fatal,
-            _ => LogLevelRank.Any,
-        };
+        // 解析使用者的篩選輸入時，空字串代表「不限」，因此 fallback 為 Any。
+        private static LogLevelRank ToRank(string level)
+            => LogLevelRankHelper.FromLevelText(level, LogLevelRank.Any);
 
         private static string GetLevelColor(LogLevelRank rank) => rank switch
         {

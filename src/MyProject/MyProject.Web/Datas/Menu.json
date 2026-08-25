@@ -49,6 +49,12 @@
         "url": "/logs"
       },
       {
+        "id": 63,
+        "name": "日誌等級設定",
+        "icon": "tune",
+        "url": "/log-level-setting"
+      },
+      {
         "id": 62,
         "name": "資料庫用量",
         "icon": "data_usage",

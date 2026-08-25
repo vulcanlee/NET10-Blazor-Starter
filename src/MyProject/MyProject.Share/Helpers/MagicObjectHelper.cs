@@ -49,6 +49,9 @@ public class MagicObjectHelper
 
     /// <inheritdoc cref="角色_統計與分析"/>
     public const string 角色_資料庫用量 = "資料庫用量";
+
+    /// <inheritdoc cref="角色_統計與分析"/>
+    public const string 角色_日誌等級設定 = "日誌等級設定";
     public const string 使用者角色 = "使用者角色";
 
     #endregion

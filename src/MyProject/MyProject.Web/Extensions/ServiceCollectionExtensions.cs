@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<SystemStartupState>();
+        services.AddSingleton<LogLevelRuntimeState>();
         services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
         services.AddScoped<ILogQueryService, LogQueryService>();
         services.AddScoped<IDatabaseUsageService, DatabaseUsageService>();

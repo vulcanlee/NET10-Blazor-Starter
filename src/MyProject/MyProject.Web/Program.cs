@@ -21,6 +21,7 @@ using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
+using MyProject.Web.Diagnostics;
 using MyProject.Web.Extensions;
 using MyProject.Web.Filters;
 using MyProject.Web.Localization;
@@ -255,6 +256,12 @@ namespace MyProject.Web
                 var app = builder.Build();
                 logger = app.Services.GetRequiredService<ILogger<Program>>();
                 logger.LogInformation("Application host built successfully.");
+
+                // 必須在啟動時初始化，不能等到有人開啟「日誌等級設定」頁面才懶載入 ——
+                // 它同時負責訂閱 NLog 的 ConfigurationChanged，在 autoReload 重載後把
+                // BasePath / LogFilenamePrefix 變數補回去，否則日誌會改寫到磁碟根目錄。
+                app.Services.GetRequiredService<LogLevelRuntimeState>().Initialize();
+
                 var bootstrapSettings = app.Configuration
                     .GetSection(nameof(BootstrapSettings))
                     .Get<BootstrapSettings>() ?? new BootstrapSettings();
