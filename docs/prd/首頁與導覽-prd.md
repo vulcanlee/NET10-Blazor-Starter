@@ -1,10 +1,10 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.24
+- 現行系統版本：0.4.25
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/08/17
+- 最後核對日期：2026/08/25
 
 ## 一、目標與範圍
 
@@ -23,7 +23,7 @@
 
 ## 三、畫面與欄位
 
-- Landing（`/` → `Home.razor` → `SplashView`）：品牌圖示、標題「Blazor 開發啟動範本專案」、說明文字與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。
+- Landing（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`，非寫死字串）、說明文字與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。
 - Dashboard（`/App` → `HomeAuthed.razor` → `ProjectViewView`）：登入後首頁即專案清單檢視（工具列、分類／團隊過濾、搜尋、表格與新增／編輯 Modal），套用主版面與側邊選單。
 - 側邊選單（`NavMenu.razor` + `SidebarMenuNode`）：
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。

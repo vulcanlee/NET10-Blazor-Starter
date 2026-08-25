@@ -101,15 +101,17 @@
     height: 108px;
     margin-bottom: 28px;
     border-radius: 30px;
-    padding: 12px;
+    box-sizing: border-box;
+    overflow: hidden;
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-.brand-logo svg {
+.brand-logo-image {
     width: 100%;
     height: 100%;
+    object-fit: cover;
     display: block;
 }
 

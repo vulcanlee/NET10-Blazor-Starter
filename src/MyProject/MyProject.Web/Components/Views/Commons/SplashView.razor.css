@@ -1,4 +1,4 @@
-.splash-shell {
+﻿.splash-shell {
     align-items: center;
     background:
         radial-gradient(circle at top left, rgba(191, 219, 254, 0.65), transparent 34%),
@@ -35,14 +35,14 @@
     flex: 0 0 120px;
     height: 120px;
     justify-content: center;
-    padding: 1rem;
+    overflow: hidden;
 }
 
 .splash-brand-image {
     display: block;
-    height: auto;
-    max-width: 100%;
-    width: 88px;
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
 }
 
 .splash-brand-copy {
@@ -129,10 +129,6 @@
         flex-basis: auto;
         height: 96px;
         width: 96px;
-    }
-
-    .splash-brand-image {
-        width: 64px;
     }
 
     .splash-status {

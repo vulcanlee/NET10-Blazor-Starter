@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
+using MyProject.Models.Systems;
 using MyProject.Web.Auth;
 using System.Security.Claims;
 
@@ -33,6 +34,14 @@ namespace MyProject.Web.Components.Auths
 
         [Inject]
         public IOptions<GoogleOAuthSettings> GoogleOptions { get; set; } = default!;
+
+        [Inject]
+        public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+
+        /// <summary>
+        /// 系統名稱，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemName。
+        /// </summary>
+        private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
 
         string message = string.Empty;
 
