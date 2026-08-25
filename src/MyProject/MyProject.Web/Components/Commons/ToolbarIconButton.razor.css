@@ -1,0 +1,29 @@
+.toolbar-icon-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+}
+
+.toolbar-icon-button ::deep .material-icons,
+.toolbar-icon-button ::deep .material-icons-outlined {
+    font-size: 18px;
+    line-height: 1;
+}
+
+/* 視覺隱藏但保留給螢幕閱讀器，與 CrudActionButton 一致 */
+.toolbar-icon-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

@@ -12,19 +12,11 @@ else
             <div class="project-view-toolbar-left">
                 @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Create))
                 {
-                    <Tooltip Title="新增">
-                        <Button Type="ButtonType.Default" Class="project-view-icon-button"
-                                OnClick="@(async () => await OnAddAsync(true))">
-                            ➕
-                        </Button>
-                    </Tooltip>
+                    <ToolbarIconButton Title="新增" Icon="add"
+                                       OnClick="@(async () => await OnAddAsync(true))" />
                 }
-                <Tooltip Title="重新整理">
-                    <Button Type="ButtonType.Default" Class="project-view-icon-button"
-                            OnClick="@(async () => await OnRefreshAsync())">
-                        🔄
-                    </Button>
-                </Tooltip>
+                <ToolbarIconButton Title="重新整理" Icon="refresh"
+                                   OnClick="@(async () => await OnRefreshAsync())" />
             </div>
             <div class="project-view-toolbar-right">
                 <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
@@ -46,17 +38,11 @@ else
                 <Input class="project-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
                 @if (!string.IsNullOrWhiteSpace(searchText))
                 {
-                    <Tooltip Title="清空搜尋">
-                        <Button Type="ButtonType.Default" Class="project-view-icon-button" OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })">
-                            ❌
-                        </Button>
-                    </Tooltip>
+                    <ToolbarIconButton Title="清空搜尋" Icon="close"
+                                       OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })" />
                 }
-                <Tooltip Title="搜尋">
-                    <Button Type="ButtonType.Default" Class="project-view-icon-button" OnClick="@(async () => await OnSearchAsync())">
-                        🔍
-                    </Button>
-                </Tooltip>
+                <ToolbarIconButton Title="搜尋" Icon="search"
+                                   OnClick="@(async () => await OnSearchAsync())" />
             </div>
         </div>
         <div class="project-view-table-wrap">
@@ -201,7 +187,8 @@ else
                                 {
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <span>@file.File.Name (@FormatFileSize(file.File.Size))</span>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemovePendingFile(file.Id)">移除</button>
+                                        <CrudActionButton Title="移除" Icon="close" Danger
+                                                          OnClick="@(() => RemovePendingFile(file.Id))" />
                                     </li>
                                 }
                             </ul>
@@ -218,7 +205,8 @@ else
                                         <a href="@GetProjectFileDownloadUrl(file.Id)" target="_blank">@file.OriginalFileName</a>
                                         <span>
                                             @FormatFileSize(file.FileSize)
-                                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" @onclick="() => RemoveExistingFile(file.Id)">移除</button>
+                                            <CrudActionButton Title="移除" Icon="close" Danger
+                                                              OnClick="@(() => RemoveExistingFile(file.Id))" />
                                         </span>
                                     </li>
                                 }

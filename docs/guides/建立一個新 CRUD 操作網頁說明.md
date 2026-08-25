@@ -63,11 +63,46 @@
 1. **工具列（Toolbar）**
    - 左側：新增、重新整理。
    - 右側：搜尋輸入框、清空搜尋（有值才顯示）、搜尋按鈕。
+   - **按鈕一律使用 `<ToolbarIconButton>`**，不要自己寫 `<Button>` 加圖示，也**不要用 emoji**（`ButtonIconConventionTests` 會擋下）：
+
+   ```razor
+   <div class="xxx-view-toolbar">
+       <div class="xxx-view-toolbar-left">
+           <ToolbarIconButton Title="新增" Icon="add"
+                              OnClick="@(async () => await OnAddAsync())" />
+           <ToolbarIconButton Title="重新整理" Icon="refresh"
+                              OnClick="@(async () => await OnRefreshAsync())" />
+       </div>
+       <div class="xxx-view-toolbar-right">
+           <Input class="xxx-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+           @if (!string.IsNullOrWhiteSpace(searchText))
+           {
+               <ToolbarIconButton Title="清空搜尋" Icon="close"
+                                  OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })" />
+           }
+           <ToolbarIconButton Title="搜尋" Icon="search"
+                              OnClick="@(async () => await OnSearchAsync())" />
+       </div>
+   </div>
+   ```
+
+   元件自帶 `<Tooltip>` 與無障礙標籤，外層不需再包；也**不需要**在 `.razor.css` 自訂 `*-icon-button` 樣式。
 
 2. **Table（RemoteDataSource=true）**
    - `@bind-PageIndex`、`@bind-PageSize`、`@bind-Total`。
    - `OnChange=OnTableChange` 處理分頁與排序。
-   - 至少一個 `ActionColumn` 放修改/刪除按鈕。
+   - 至少一個 `ActionColumn` 放修改/刪除按鈕，**一律使用 `<CrudActionButton>`**：
+
+   ```razor
+   <ActionColumn Title="操作">
+       <CrudActionButton Title="修改" Icon="edit"
+                         OnClick="@(async () => await OnEditAsync(context))" />
+       <CrudActionButton Title="刪除" Icon="delete" Danger
+                         OnClick="@(async () => await OnDeleteAsync(context))" />
+   </ActionColumn>
+   ```
+
+   > 圖示名稱須為 **classic Material Icons**（非 Material Symbols），否則會渲染成破圖方塊。完整慣例見 `docs/architecture/開發慣例與限制速查.md` §6.1。
 
 3. **Modal + EditForm**
    - `OnOk` 統一走儲存。

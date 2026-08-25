@@ -34,19 +34,11 @@ else
                 <Input class="log-view-search-input" @bind-Value="keyword" Placeholder="關鍵字（比對整筆原始內容）" />
             </div>
             <div class="log-view-toolbar-right">
-                <Tooltip Title="查詢">
-                    <Button Type="ButtonType.Primary" Class="log-view-icon-button"
-                            OnClick="@(async () => await OnQueryAsync())">
-                        🔍
-                    </Button>
-                </Tooltip>
-                <Tooltip Title="匯出本次查詢結果（原始 nlog 格式）">
-                    <Button Type="ButtonType.Default" Class="log-view-icon-button"
-                            Disabled="@(entriesAscending.Count == 0)"
-                            OnClick="@(async () => await OnExportAsync())">
-                        ⬇️
-                    </Button>
-                </Tooltip>
+                <ToolbarIconButton Title="查詢" Icon="search"
+                                   OnClick="@(async () => await OnQueryAsync())" />
+                <ToolbarIconButton Title="匯出本次查詢結果（原始 nlog 格式）" Icon="file_download"
+                                   Disabled="@(entriesAscending.Count == 0)"
+                                   OnClick="@(async () => await OnExportAsync())" />
             </div>
         </div>
 

@@ -23,14 +23,6 @@
     width: 240px;
 }
 
-.log-view-icon-button {
-    width: 36px;
-    padding: 0;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-}
-
 .log-view-alert {
     padding: 8px 12px;
     margin-bottom: 8px;

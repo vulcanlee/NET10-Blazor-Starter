@@ -65,6 +65,11 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 ## 專案指導方針
-- 在此 Blazor 專案的 UI 元件中，優先採用 Ant Design icons。
-- 此 Blazor 專案的 sidebar 視覺偏好使用亮灰色底與深色字體，並優先使用 Google Material Design Icons（BlazorMaterialIcons）。
+- **圖示一律使用 BlazorMaterialIcons（Google Material Icons），不要使用 emoji，也不要使用 Ant Design icons。** 專案載入的是 **classic** Material Icons 字型（非 Material Symbols），使用 Material Symbols 專有名稱會渲染成破圖方塊。
+- **按鈕圖示一律透過共用元件**，不要自己寫 `<Button>` 加圖示：
+  - 工具列（新增／重新整理／搜尋／清空／匯出）→ `<ToolbarIconButton Title="…" Icon="…" OnClick="…" />`
+  - 表格操作欄（修改／刪除／移除）→ `<CrudActionButton Title="…" Icon="…" [Danger] OnClick="…" />`
+  - 兩者皆自帶 `<Tooltip>` 與無障礙隱藏標籤，外層不需再包 `<Tooltip>`。
+  - `MyProject.Tests/ButtonIconConventionTests.cs` 會擋下 emoji 圖示。
+- 此 Blazor 專案的 sidebar 視覺偏好使用亮灰色底與深色字體，圖示同樣使用 BlazorMaterialIcons。
 - 專案的變更記錄與文件應寫入 docs 目錄，不使用 docx 目錄。當使用者指定變更記錄目錄時，將其寫入 docs 目錄，不要寫入 docx 目錄。
