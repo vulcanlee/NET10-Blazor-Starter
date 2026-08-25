@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：已實作
-- 現行系統版本：0.4.24
+- 現行系統版本：0.4.31
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/08/17
+- 最後核對日期：2026/08/25
 
 ## 一、目標與範圍
 
@@ -33,7 +33,7 @@
 - 搜尋比對欄位（`ProjectService.cs:57-62`）：Title、Description、Status、Priority、Owner。
 - 分頁：`RemoteDataSource`，預設每頁 `MagicObjectHelper.PageSize`。
 - 編輯表單欄位（`Project` 實體 / `ProjectCreateUpdateDto`）：標題（必填）、描述、開始日期、結束日期、狀態（必填，`StatusOptions`）、優先級（必填，`PriorityOptions`）、完成百分比（0-100）、負責人（必填）、分類（多值標籤）、團隊（多值標籤，不設定＝公開）。
-- 附件：`專案附件` 一次可多選，單檔上限 1GB；待上傳清單可移除，已上傳檔案可下載（`/api/project-files/{id}/download`）或標記移除。
+- 附件：`專案附件` 一次可多選，單檔上限 1GB；待上傳清單可移除，已上傳檔案可下載（`/api/project-files/{id}/download`，Cookie 驗證）或標記移除。
 
 ## 四、內部系統運作
 
@@ -68,9 +68,9 @@
 - `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor:1`
 - `src/MyProject/MyProject.Web/Components/Views/Projects/ProjectViewView.razor.cs:1`
 - `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs:1`
-- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs:1`
+- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs:1`、`ProjectFileController.cs:1`
 - `src/MyProject/MyProject.AccessDatas/Models/Project.cs:1`、`ProjectFile.cs:1`
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:30`
 - 交叉連結：[Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)、[檔案上傳機制](../features/檔案上傳機制.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
 
-> 備註：UI 以 `/api/project-files/{id}/download` 下載附件，Service 端 `GetFileDownloadAsync` 具團隊權控守門；對外端點的實際註冊位置未在現行 Controllers 找到（未確認）。
+> 附件下載端點為 `ProjectFileController`（`api/project-files` 與 `api/v1/project-files`，`GET {id}/download`）。此端點**只收 Cookie 驗證**，與其他走 JWT 的 Web API 不同 —— 呼叫端是畫面上的一般連結，由瀏覽器直接導覽。0.4.31 之前這個端點並不存在，附件下載一律 404。

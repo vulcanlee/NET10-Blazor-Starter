@@ -365,6 +365,14 @@ public class ProjectService
         }
 
         var fullPath = GetFullPath(file.RelativePath);
+        if (!IsUnderProjectFileRoot(fullPath))
+        {
+            Logger.LogWarning(
+                "Project file download refused because the resolved path escapes the configured root. ProjectFileId={ProjectFileId}, RelativePath={RelativePath}",
+                projectFileId, file.RelativePath);
+            return null;
+        }
+
         if (!File.Exists(fullPath))
         {
             Logger.LogWarning("Project file metadata exists but physical file was not found. ProjectFileId={ProjectFileId}, FullPath={FullPath}", projectFileId, fullPath);
@@ -558,6 +566,27 @@ public class ProjectService
         }
 
         File.Delete(fullPath);
+    }
+
+    /// <summary>
+    /// 解析後的絕對路徑必須確實落在設定的附件根目錄之下。
+    ///
+    /// RelativePath 一律由 <see cref="SavePhysicalFileAsync"/> 寫成「年/月/Guid.副檔名」，
+    /// 正常情況不可能逸出；這裡守的是資料庫被直接改過的情況 —— 下載端點會把伺服器本機的
+    /// 檔案內容送出去，不該把「這個值一定安全」當成前提。
+    ///
+    /// 根目錄未設定時一律拒絕：Path.Combine("", x) 會退化成相對於工作目錄的路徑。
+    /// </summary>
+    private bool IsUnderProjectFileRoot(string fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectFileRootPath))
+        {
+            return false;
+        }
+
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(projectFileRootPath));
+        return Path.GetFullPath(fullPath)
+            .StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private string GetFullPath(string relativePath)

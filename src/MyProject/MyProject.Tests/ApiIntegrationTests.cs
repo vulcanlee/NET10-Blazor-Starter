@@ -340,6 +340,20 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Contains("Swagger:EnabledInProduction", exception.Message);
     }
 
+    [Fact]
+    public async Task ProjectFileDownloadEndpoint_ShouldBeRegistered()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/api/project-files/1/download");
+
+        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     private static async Task AuthorizeAsync(HttpClient client)
     {
         var loginResult = await LoginAsync(client);

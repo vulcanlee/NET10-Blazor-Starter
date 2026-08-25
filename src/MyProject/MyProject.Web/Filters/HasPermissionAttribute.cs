@@ -50,8 +50,8 @@ public sealed class HasPermissionAttribute : Attribute, IAsyncAuthorizationFilte
             return;
         }
 
-        var idValue = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(idValue, out var userId))
+        var (userId, account) = ResolveActor(principal);
+        if (userId <= 0)
         {
             logger.LogWarning(
                 "API request rejected because the user identifier could not be parsed. PermissionKey={PermissionKey}, Path={Path}",
@@ -67,8 +67,6 @@ public sealed class HasPermissionAttribute : Attribute, IAsyncAuthorizationFilte
         var checker = services.GetRequiredService<IPermissionChecker>();
         if (!await checker.HasPermissionAsync(userId, permissionKey))
         {
-            var account = principal.FindFirstValue(ClaimTypes.Name) ?? string.Empty;
-
             // 權限被拒屬於「不尋常」的事件：正常使用者不會去打自己沒有權限的端點。
             logger.LogWarning(
                 "API request denied by permission check. UserId={UserId}, Account={Account}, PermissionKey={PermissionKey}, Path={Path}",
@@ -86,6 +84,32 @@ public sealed class HasPermissionAttribute : Attribute, IAsyncAuthorizationFilte
         logger.LogDebug(
             "API request passed permission check. UserId={UserId}, PermissionKey={PermissionKey}, Path={Path}",
             userId, permissionKey, path);
+    }
+
+    /// <summary>
+    /// 取出「是誰」——本屬性同時掛在 JWT 與 Cookie 兩種端點上，而**兩套 claim 對應是相反的**：
+    ///   JWT   ：NameIdentifier=UserId、Name=帳號、display_name=姓名
+    ///   Cookie：NameIdentifier=帳號、Sid=UserId、Name=**姓名（個資）**
+    ///
+    /// 因此以「NameIdentifier 是不是數字」來判斷來源，並且 <see cref="ClaimTypes.Name"/>
+    /// 只在確定是 JWT 的那一支取用 —— Cookie 這一支永遠不碰它，否則會把使用者姓名寫進
+    /// 日誌與稽核表的 ActorAccount。可記錄的身分資訊只有帳號與 UserId。
+    /// </summary>
+    private static (int UserId, string Account) ResolveActor(ClaimsPrincipal principal)
+    {
+        var nameIdentifier = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (int.TryParse(nameIdentifier, out var jwtUserId) && jwtUserId > 0)
+        {
+            return (jwtUserId, principal.FindFirstValue(ClaimTypes.Name) ?? string.Empty);
+        }
+
+        if (int.TryParse(principal.FindFirstValue(ClaimTypes.Sid), out var cookieUserId) && cookieUserId > 0)
+        {
+            return (cookieUserId, nameIdentifier ?? string.Empty);
+        }
+
+        return (0, string.Empty);
     }
 
     /// <summary>
