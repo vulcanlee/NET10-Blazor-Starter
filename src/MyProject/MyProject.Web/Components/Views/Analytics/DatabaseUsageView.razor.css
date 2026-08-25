@@ -1,0 +1,95 @@
+.db-usage-page {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.db-usage-loading {
+    padding: 16px;
+    border: 1px solid #d9d9d9;
+    background: #fff;
+}
+
+/*
+ * 卡片固定六張，刻意用 repeat(3, ...) 而非系統健康監控頁的 auto-fit：
+ * auto-fit 搭 minmax(280px, 1fr) 在常見寬度下會排成 4 + 2，末列留下孤兒；
+ * 固定三欄永遠是齊整的 3 × 2。
+ */
+.db-usage-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.db-usage-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px;
+    border: 1px solid #d9d9d9;
+    background: #fff;
+}
+
+.db-usage-card-label {
+    color: #666;
+}
+
+.db-usage-card-value {
+    color: #1677ff;
+    font-size: 32px;
+    line-height: 1.1;
+    /* 數字等寬，避免不同位數時跳動 */
+    font-variant-numeric: tabular-nums;
+}
+
+.db-usage-card-caption {
+    color: #666;
+    overflow-wrap: anywhere;
+}
+
+.db-usage-banner {
+    padding: 12px 16px;
+    color: #0958d9;
+    background: #e6f4ff;
+    border: 1px solid #91caff;
+}
+
+.db-usage-note {
+    margin: 0;
+    padding: 12px 16px;
+    color: #444;
+    background: #fafafa;
+    border: 1px solid #d9d9d9;
+}
+
+.db-usage-note code {
+    padding: 1px 4px;
+    background: #f0f0f0;
+    border: 1px solid #e0e0e0;
+    font-family: Consolas, Menlo, monospace;
+}
+
+.db-usage-alert {
+    padding: 8px 12px;
+    margin: 0;
+}
+
+.db-usage-muted {
+    color: #9ca3af;
+}
+
+.db-usage-table-wrap {
+    overflow-x: auto;
+}
+
+@media (max-width: 1100px) {
+    .db-usage-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .db-usage-cards {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

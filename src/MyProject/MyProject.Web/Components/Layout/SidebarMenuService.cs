@@ -28,6 +28,7 @@ public sealed class SidebarMenuService
         // 因此不會種出 Permission 資料列、任何角色都無法被授予，只有管理員短路能通過。詳見 MagicObjectHelper。
         [6] = MagicObjectHelper.角色_統計與分析,
         [61] = MagicObjectHelper.角色_日誌檢視,
+        [62] = MagicObjectHelper.角色_資料庫用量,
         [4] = MagicObjectHelper.角色_登出,
     };
 

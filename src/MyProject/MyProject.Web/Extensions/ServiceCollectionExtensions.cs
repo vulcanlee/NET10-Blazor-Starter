@@ -57,6 +57,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SystemStartupState>();
         services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
         services.AddScoped<ILogQueryService, LogQueryService>();
+        services.AddScoped<IDatabaseUsageService, DatabaseUsageService>();
         services.AddScoped<IHealthLogReader, HealthLogReader>();
         services.AddScoped<ISystemHealthService, SystemHealthService>();
         services.AddScoped<AuthenticationStateHelper>();

@@ -47,6 +47,12 @@
         "name": "日誌檢視",
         "icon": "description",
         "url": "/logs"
+      },
+      {
+        "id": 62,
+        "name": "資料庫用量",
+        "icon": "data_usage",
+        "url": "/database-usage"
       }
     ]
   },

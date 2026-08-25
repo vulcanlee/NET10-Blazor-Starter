@@ -29,6 +29,7 @@ public sealed class MenuIconTests
         "logout",
         "analytics",
         "description",
+        "data_usage",
     };
 
     [Fact]
