@@ -67,7 +67,7 @@ namespace MyProject.Web.Components.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            logger.LogInformation("Initializing user management view.");
+            logger.LogDebug("Initializing user management view.");
             var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
             if (checkResult != AuthenticationCheckResult.Succeeded)
             {
@@ -109,7 +109,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             myUserAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
-            logger.LogInformation("User list reloaded successfully. Count={Count}", _total);
+            logger.LogDebug("User list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
 
@@ -204,7 +204,30 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("Opened edit modal for user. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         async Task OnDeleteAsync(MyUserAdapterModel myUserAdapterModel)
+        {
+            try
+            {
+                await OnDeleteCoreAsync(myUserAdapterModel);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while deleting user.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "刪除使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        async Task OnDeleteCoreAsync(MyUserAdapterModel myUserAdapterModel)
         {
             logger.LogInformation("Delete user requested. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
 
@@ -268,7 +291,30 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("Opened create modal for user.");
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         private async Task OnModalOKHandleAsync(MouseEventArgs args)
+        {
+            try
+            {
+                await OnModalOKHandleCoreAsync(args);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while saving user.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "儲存使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
         {
             if (LocalEditContext?.Validate() == false)
             {
@@ -276,7 +322,7 @@ namespace MyProject.Web.Components.Views.Admins
 
                 foreach (var error in allErrors)
                 {
-                    logger.LogWarning("User form validation failed. Error={Error}", error);
+                    logger.LogInformation("User form validation failed. Error={Error}", error);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "驗證失敗",
@@ -293,7 +339,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             if (isNewRecordMode && string.IsNullOrWhiteSpace(CurrentRecord.Password))
             {
-                logger.LogWarning("User create validation failed because password is empty. Account={Account}", CurrentRecord.Account);
+                logger.LogInformation("User create validation failed because password is empty. Account={Account}", CurrentRecord.Account);
                 _ = notificationService.Open(new NotificationConfig()
                 {
                     Message = "驗證失敗",
@@ -312,7 +358,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var beforeAddCheckResult = await myUserService.BeforeAddCheckAsync(CurrentRecord);
                 if (!beforeAddCheckResult.Success)
                 {
-                    logger.LogWarning("User create pre-check failed. Account={Account}, Message={Message}", CurrentRecord.Account, beforeAddCheckResult.Message);
+                    logger.LogInformation("User create pre-check failed. Account={Account}, Message={Message}", CurrentRecord.Account, beforeAddCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",
@@ -346,7 +392,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var beforeUpdateCheckResult = await myUserService.BeforeUpdateCheckAsync(CurrentRecord);
                 if (!beforeUpdateCheckResult.Success)
                 {
-                    logger.LogWarning("User update pre-check failed. UserId={UserId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    logger.LogInformation("User update pre-check failed. UserId={UserId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",

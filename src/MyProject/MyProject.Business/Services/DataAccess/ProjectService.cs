@@ -178,7 +178,7 @@ public class ProjectService
 
         if (item is null)
         {
-            Logger.LogWarning("Project not found. ProjectId={ProjectId}", id);
+            Logger.LogInformation("Project not found. ProjectId={ProjectId}", id);
             return new ProjectAdapterModel();
         }
 
@@ -332,7 +332,7 @@ public class ProjectService
 
         if (searchItem == null)
         {
-            Logger.LogWarning("Pre-update validation failed because project was not found. ProjectId={ProjectId}", paraObject.Id);
+            Logger.LogInformation("Pre-update validation failed because project was not found. ProjectId={ProjectId}", paraObject.Id);
             return VerifyRecordResultFactory.Build(false, "要修改的專案資料不存在。");
         }
 

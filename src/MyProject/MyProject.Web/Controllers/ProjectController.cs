@@ -47,7 +47,7 @@ public class ProjectController : ControllerBase
 
             if (project == null)
             {
-                logger.LogWarning("Project get request could not find record. ProjectId={ProjectId}", id);
+                logger.LogInformation("Project get request could not find record. ProjectId={ProjectId}", id);
                 return NotFound(ApiResult<ProjectDto>.NotFoundResult($"找不到 ID 為 {id} 的專案"));
             }
 
@@ -124,7 +124,7 @@ public class ProjectController : ControllerBase
 
             if (await projectRepository.ExistsByNameAsync(projectDto.Title))
             {
-                logger.LogWarning(
+                logger.LogInformation(
                     "Project create request rejected because title already exists. Title={Title}",
                     projectDto.Title);
                 return Conflict(ApiResult<ProjectDto>.ConflictResult($"專案名稱 '{projectDto.Title}' 已存在"));
@@ -171,7 +171,7 @@ public class ProjectController : ControllerBase
 
             if (await projectRepository.ExistsByNameAsync(projectDto.Title, id))
             {
-                logger.LogWarning(
+                logger.LogInformation(
                     "Project update request rejected because title is already in use. ProjectId={ProjectId}, Title={Title}",
                     id,
                     projectDto.Title);

@@ -7,16 +7,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace MyProject.Business.Repositories;
 
 public class ProjectRepository
 {
     private readonly BackendDBContext context;
+    private readonly ILogger<ProjectRepository> logger;
 
-    public ProjectRepository(BackendDBContext context)
+    public ProjectRepository(BackendDBContext context, ILogger<ProjectRepository> logger)
     {
         this.context = context;
+        this.logger = logger;
     }
 
     #region 查詢方法
@@ -134,6 +137,13 @@ public class ProjectRepository
         #endregion
 
         var totalCount = await query.CountAsync();
+
+        // 記在 Debug：這是排查「為什麼查不到資料」的第一手線索。
+        // 只記筆數與分頁參數，不記關鍵字內容 —— 使用者的搜尋字串可能包含個資。
+        logger.LogDebug(
+            "Paged project query executed. PageIndex={PageIndex}, PageSize={PageSize}, SortBy={SortBy}, SortDescending={SortDescending}, HasKeyword={HasKeyword}, TotalCount={TotalCount}",
+            request.PageIndex, request.PageSize, request.SortBy, request.SortDescending,
+            string.IsNullOrWhiteSpace(request.Keyword) == false, totalCount);
 
         if (includeRelatedData)
         {

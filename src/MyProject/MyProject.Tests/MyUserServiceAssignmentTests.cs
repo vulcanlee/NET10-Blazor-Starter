@@ -8,6 +8,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -81,7 +82,7 @@ public sealed class MyUserServiceAssignmentTests
         }
 
         public MyUserService CreateService()
-            => new(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context),
+            => new(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService());
 
         public async Task<RoleView> AddRoleAsync(string name)

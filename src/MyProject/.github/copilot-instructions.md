@@ -72,4 +72,13 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   - 兩者皆自帶 `<Tooltip>` 與無障礙隱藏標籤，外層不需再包 `<Tooltip>`。
   - `MyProject.Tests/ButtonIconConventionTests.cs` 會擋下 emoji 圖示。
 - 此 Blazor 專案的 sidebar 視覺偏好使用亮灰色底與深色字體，圖示同樣使用 BlazorMaterialIcons。
+- **日誌是本系統可觀測性的唯一來源，寫程式時一併把日誌寫好**：
+  - 選等級問三個問題：使用者正常操作的後果 → **Information**（純查詢 → Debug）；非預期但已處理（授權被拒、設定異常）→ **Warning**；操作失敗需要介入 → **Error**。
+  - **使用者操作一律 Information**（新增／修改／刪除／匯出／登入登出），記「意圖」與「結果」兩筆。畫面切換由 `ApplicationCircuitHandler` 集中處理，**頁面不要自己寫**。
+  - 排錯細節（查詢條件、分頁、快取命中、權限判定）一律 **Debug**。
+  - 訊息**英文** ＋ PascalCase 佔位（`Account={Account}`），例外放第一個參數。
+  - **絕不記錄**：密碼、token、金鑰、TOTP secret、驗證碼、連線字串、Email、姓名、搜尋關鍵字內容。可記錄的身分只有 `Account` 與 `UserId`。
+  - **不得使用 `{@Model}` 解構整包物件。**
+  - 注意 claim 對應在 Cookie 與 JWT 中相反：Blazor 端 `ClaimTypes.Name` 是**使用者姓名（個資）**，帳號在 `NameIdentifier`。
+  - `MyProject.Tests/LoggingConventionTests.cs` 會擋下違規。完整規範見 `docs/operations/日誌與設定檔說明.md` §2。
 - 專案的變更記錄與文件應寫入 docs 目錄，不使用 docx 目錄。當使用者指定變更記錄目錄時，將其寫入 docs 目錄，不要寫入 docx 目錄。

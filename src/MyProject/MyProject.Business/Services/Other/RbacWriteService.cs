@@ -1,16 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using Microsoft.Extensions.Logging;
 
 namespace MyProject.Business.Services.Other;
 
 public sealed class RbacWriteService : IRbacWriteService
 {
     private readonly BackendDBContext context;
+    private readonly ILogger<RbacWriteService> logger;
 
-    public RbacWriteService(BackendDBContext context)
+    public RbacWriteService(BackendDBContext context, ILogger<RbacWriteService> logger)
     {
         this.context = context;
+        this.logger = logger;
     }
 
     public async Task SyncRolePermissionsAsync(int roleViewId, IEnumerable<string> permissionKeys)
@@ -19,6 +22,11 @@ public sealed class RbacWriteService : IRbacWriteService
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .ToHashSet(StringComparer.Ordinal);
+
+        // 權限異動是安全相關的變更，記在 Info 讓日常巡檢就看得到。
+        logger.LogInformation(
+            "Syncing role permissions. RoleViewId={RoleViewId}, PermissionKeyCount={PermissionKeyCount}",
+            roleViewId, desiredKeys.Count);
 
         var permissionIdByKey = await EnsurePermissionsAsync(desiredKeys);
         var desiredIds = desiredKeys.Select(k => permissionIdByKey[k]).ToHashSet();

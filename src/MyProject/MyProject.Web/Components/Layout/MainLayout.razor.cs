@@ -150,7 +150,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        Logger.LogDebug("Location changed in main layout. Uri={Uri}", e.Location);
         isUserMenuOpen = false;
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);

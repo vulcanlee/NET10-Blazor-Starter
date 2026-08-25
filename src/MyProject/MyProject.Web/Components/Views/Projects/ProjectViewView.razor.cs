@@ -77,7 +77,7 @@ public partial class ProjectViewView
 
     protected override async Task OnInitializedAsync()
     {
-        logger.LogInformation("Initializing project management view.");
+        logger.LogDebug("Initializing project management view.");
         var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
         if (checkResult != AuthenticationCheckResult.Succeeded)
         {
@@ -122,7 +122,7 @@ public partial class ProjectViewView
 
         projectAdapterModels = dataRequestResult.Result.ToList();
         _total = dataRequestResult.Count;
-        logger.LogInformation("Project list reloaded successfully. Count={Count}", _total);
+        logger.LogDebug("Project list reloaded successfully. Count={Count}", _total);
         StateHasChanged();
     }
 
@@ -236,14 +236,37 @@ public partial class ProjectViewView
         logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
     }
 
+    /// <summary>
+    /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+    /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+    /// </summary>
     private async Task OnDeleteAsync(ProjectAdapterModel projectAdapterModel)
+    {
+        try
+        {
+            await OnDeleteCoreAsync(projectAdapterModel);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while deleting project.");
+            _ = notificationService.Open(new NotificationConfig()
+            {
+                Message = "系統訊息",
+                Description = "刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                NotificationType = NotificationType.Error,
+                Placement = NotificationPlacement.BottomRight
+            });
+        }
+    }
+
+    private async Task OnDeleteCoreAsync(ProjectAdapterModel projectAdapterModel)
     {
         logger.LogInformation("Delete project requested. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
 
         var beforeDeleteCheckResult = await projectService.BeforeDeleteCheckAsync(projectAdapterModel);
         if (!beforeDeleteCheckResult.Success)
         {
-            logger.LogWarning("Project delete pre-check failed. ProjectId={ProjectId}, Message={Message}", projectAdapterModel.Id, beforeDeleteCheckResult.Message);
+            logger.LogInformation("Project delete pre-check failed. ProjectId={ProjectId}, Message={Message}", projectAdapterModel.Id, beforeDeleteCheckResult.Message);
             _ = notificationService.Open(new NotificationConfig
             {
                 Message = "系統訊息",
@@ -329,14 +352,37 @@ public partial class ProjectViewView
         await InvokeAsync(StateHasChanged);
     }
 
+    /// <summary>
+    /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+    /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+    /// </summary>
     private async Task OnModalOKHandleAsync(MouseEventArgs args)
+    {
+        try
+        {
+            await OnModalOKHandleCoreAsync(args);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while saving project.");
+            _ = notificationService.Open(new NotificationConfig()
+            {
+                Message = "系統訊息",
+                Description = "儲存專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                NotificationType = NotificationType.Error,
+                Placement = NotificationPlacement.BottomRight
+            });
+        }
+    }
+
+    private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
     {
         if (LocalEditContext?.Validate() == false)
         {
             IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
             foreach (var error in allErrors)
             {
-                logger.LogWarning("Project form validation failed. Error={Error}", error);
+                logger.LogInformation("Project form validation failed. Error={Error}", error);
                 _ = notificationService.Open(new NotificationConfig
                 {
                     Message = "驗證失敗",
@@ -376,7 +422,7 @@ public partial class ProjectViewView
                 var beforeAddCheckResult = await projectService.BeforeAddCheckAsync(CurrentRecord, uploadInputs);
                 if (!beforeAddCheckResult.Success)
                 {
-                    logger.LogWarning("Project create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
+                    logger.LogInformation("Project create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig
                     {
                         Message = "系統訊息",
@@ -400,7 +446,7 @@ public partial class ProjectViewView
                 var beforeUpdateCheckResult = await projectService.BeforeUpdateCheckAsync(CurrentRecord, uploadInputs);
                 if (!beforeUpdateCheckResult.Success)
                 {
-                    logger.LogWarning("Project update pre-check failed. ProjectId={ProjectId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    logger.LogInformation("Project update pre-check failed. ProjectId={ProjectId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig
                     {
                         Message = "系統訊息",

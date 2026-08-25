@@ -43,7 +43,7 @@ public class TeamController : ControllerBase
             var team = await teamRepository.GetByIdAsync(id);
             if (team == null)
             {
-                logger.LogWarning("Team get request could not find record. TeamId={TeamId}", id);
+                logger.LogInformation("Team get request could not find record. TeamId={TeamId}", id);
                 return NotFound(ApiResult<TeamDto>.NotFoundResult($"找不到 ID 為 {id} 的團隊"));
             }
 
@@ -109,13 +109,13 @@ public class TeamController : ControllerBase
 
             if (await teamRepository.ExistsByNameAsync(teamDto.Name))
             {
-                logger.LogWarning("Team create request rejected because name already exists. Name={Name}", teamDto.Name);
+                logger.LogInformation("Team create request rejected because name already exists. Name={Name}", teamDto.Name);
                 return Conflict(ApiResult<TeamDto>.ConflictResult($"團隊名稱 '{teamDto.Name}' 已存在"));
             }
 
             if (!string.IsNullOrWhiteSpace(teamDto.Code) && await teamRepository.ExistsByCodeAsync(teamDto.Code))
             {
-                logger.LogWarning("Team create request rejected because code already exists. Code={Code}", teamDto.Code);
+                logger.LogInformation("Team create request rejected because code already exists. Code={Code}", teamDto.Code);
                 return Conflict(ApiResult<TeamDto>.ConflictResult($"團隊代號 '{teamDto.Code}' 已存在"));
             }
 
@@ -149,13 +149,13 @@ public class TeamController : ControllerBase
 
             if (await teamRepository.ExistsByNameAsync(teamDto.Name, id))
             {
-                logger.LogWarning("Team update request rejected because name is already in use. TeamId={TeamId}, Name={Name}", id, teamDto.Name);
+                logger.LogInformation("Team update request rejected because name is already in use. TeamId={TeamId}, Name={Name}", id, teamDto.Name);
                 return Conflict(ApiResult.ConflictResult($"團隊名稱 '{teamDto.Name}' 已被其他團隊使用"));
             }
 
             if (!string.IsNullOrWhiteSpace(teamDto.Code) && await teamRepository.ExistsByCodeAsync(teamDto.Code, id))
             {
-                logger.LogWarning("Team update request rejected because code is already in use. TeamId={TeamId}, Code={Code}", id, teamDto.Code);
+                logger.LogInformation("Team update request rejected because code is already in use. TeamId={TeamId}, Code={Code}", id, teamDto.Code);
                 return Conflict(ApiResult.ConflictResult($"團隊代號 '{teamDto.Code}' 已被其他團隊使用"));
             }
 

@@ -30,9 +30,8 @@ public class ExternalLoginService
         string displayName,
         string defaultRoleName)
     {
-        logger.LogInformation(
-            "External login resolving user. Provider={Provider}, Subject={Subject}, Email={Email}.",
-            provider, googleSubject, email);
+        // 不記 Email 與 Google subject：前者是個資，後者是穩定的外部識別碼。
+        logger.LogInformation("External login resolving user. Provider={Provider}.", provider);
 
         // 1) 以 GoogleId 比對既有連結
         MyUser? user = await context.MyUser
@@ -85,8 +84,8 @@ public class ExternalLoginService
         await context.SaveChangesAsync();
 
         logger.LogInformation(
-            "External login created new disabled account awaiting approval. UserId={UserId}, Email={Email}.",
-            newUser.Id, email);
+            "External login created new disabled account awaiting approval. UserId={UserId}, Provider={Provider}.",
+            newUser.Id, provider);
         return newUser;
     }
 }

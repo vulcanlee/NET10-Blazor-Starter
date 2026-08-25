@@ -1,16 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.Business.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace MyProject.Business.Services.Other;
 
 public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
 {
     private readonly BackendDBContext context;
+    private readonly ILogger<EffectiveTeamResolver> logger;
 
-    public EffectiveTeamResolver(BackendDBContext context)
+    public EffectiveTeamResolver(BackendDBContext context, ILogger<EffectiveTeamResolver> logger)
     {
         this.context = context;
+        this.logger = logger;
     }
 
     public async Task<IReadOnlyList<string>> GetEffectiveTeamNamesAsync(int userId)
@@ -21,6 +24,8 @@ public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
 
         if (user is null)
         {
+            logger.LogWarning(
+                "Could not resolve effective teams because the user does not exist. UserId={UserId}", userId);
             return [];
         }
 

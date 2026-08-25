@@ -43,7 +43,7 @@ public class CategoryController : ControllerBase
             var category = await categoryRepository.GetByIdAsync(id);
             if (category == null)
             {
-                logger.LogWarning("Category get request could not find record. CategoryId={CategoryId}", id);
+                logger.LogInformation("Category get request could not find record. CategoryId={CategoryId}", id);
                 return NotFound(ApiResult<CategoryDto>.NotFoundResult($"找不到 ID 為 {id} 的分類"));
             }
 
@@ -109,7 +109,7 @@ public class CategoryController : ControllerBase
 
             if (await categoryRepository.ExistsByNameAsync(categoryDto.Name))
             {
-                logger.LogWarning("Category create request rejected because name already exists. Name={Name}", categoryDto.Name);
+                logger.LogInformation("Category create request rejected because name already exists. Name={Name}", categoryDto.Name);
                 return Conflict(ApiResult<CategoryDto>.ConflictResult($"分類名稱 '{categoryDto.Name}' 已存在"));
             }
 
@@ -143,7 +143,7 @@ public class CategoryController : ControllerBase
 
             if (await categoryRepository.ExistsByNameAsync(categoryDto.Name, id))
             {
-                logger.LogWarning("Category update request rejected because name is already in use. CategoryId={CategoryId}, Name={Name}", id, categoryDto.Name);
+                logger.LogInformation("Category update request rejected because name is already in use. CategoryId={CategoryId}, Name={Name}", id, categoryDto.Name);
                 return Conflict(ApiResult.ConflictResult($"分類名稱 '{categoryDto.Name}' 已被其他分類使用"));
             }
 

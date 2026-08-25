@@ -112,7 +112,7 @@ public class TeamService
 
         if (item is null)
         {
-            Logger.LogWarning("Team not found. TeamId={TeamId}", id);
+            Logger.LogInformation("Team not found. TeamId={TeamId}", id);
             return new TeamAdapterModel();
         }
 
@@ -223,7 +223,7 @@ public class TeamService
 
         if (nameItem != null)
         {
-            Logger.LogWarning("Pre-create validation failed because team name already exists. Name={TeamName}", paraObject.Name);
+            Logger.LogInformation("Pre-create validation failed because team name already exists. Name={TeamName}", paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "團隊名稱已存在，無法新增。");
         }
 
@@ -236,7 +236,7 @@ public class TeamService
 
             if (codeItem != null)
             {
-                Logger.LogWarning("Pre-create validation failed because team code already exists. Code={TeamCode}", paraObject.Code);
+                Logger.LogInformation("Pre-create validation failed because team code already exists. Code={TeamCode}", paraObject.Code);
                 return VerifyRecordResultFactory.Build(false, "團隊代號已存在，無法新增。");
             }
         }
@@ -255,7 +255,7 @@ public class TeamService
 
         if (searchItem == null)
         {
-            Logger.LogWarning("Pre-update validation failed because team was not found. TeamId={TeamId}", paraObject.Id);
+            Logger.LogInformation("Pre-update validation failed because team was not found. TeamId={TeamId}", paraObject.Id);
             return VerifyRecordResultFactory.Build(false, "要修改的團隊資料不存在。");
         }
 
@@ -266,7 +266,7 @@ public class TeamService
 
         if (nameItem != null)
         {
-            Logger.LogWarning("Pre-update validation failed because team name already exists. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
+            Logger.LogInformation("Pre-update validation failed because team name already exists. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "團隊名稱已存在，無法修改。");
         }
 
@@ -279,7 +279,7 @@ public class TeamService
 
             if (codeItem != null)
             {
-                Logger.LogWarning("Pre-update validation failed because team code already exists. TeamId={TeamId}, Code={TeamCode}", paraObject.Id, paraObject.Code);
+                Logger.LogInformation("Pre-update validation failed because team code already exists. TeamId={TeamId}, Code={TeamCode}", paraObject.Id, paraObject.Code);
                 return VerifyRecordResultFactory.Build(false, "團隊代號已存在，無法修改。");
             }
         }

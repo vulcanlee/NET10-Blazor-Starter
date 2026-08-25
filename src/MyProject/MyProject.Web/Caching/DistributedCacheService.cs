@@ -8,11 +8,16 @@ namespace MyProject.Web.Caching;
 public sealed class DistributedCacheService : ICacheService
 {
     private readonly IDistributedCache cache;
+    private readonly ILogger<DistributedCacheService> logger;
     private readonly TimeSpan defaultExpiration;
 
-    public DistributedCacheService(IDistributedCache cache, IOptions<CacheSettings> options)
+    public DistributedCacheService(
+        IDistributedCache cache,
+        ILogger<DistributedCacheService> logger,
+        IOptions<CacheSettings> options)
     {
         this.cache = cache;
+        this.logger = logger;
         this.defaultExpiration = TimeSpan.FromMinutes(Math.Max(1, options.Value.DefaultExpirationMinutes));
     }
 
@@ -21,9 +26,12 @@ public sealed class DistributedCacheService : ICacheService
         var bytes = await cache.GetAsync(key, cancellationToken);
         if (bytes is null || bytes.Length == 0)
         {
+            // 只記快取鍵，不記快取內容 —— 內容可能含業務資料。
+            logger.LogDebug("Cache miss. Key={Key}", key);
             return default;
         }
 
+        logger.LogDebug("Cache hit. Key={Key}, Bytes={Bytes}", key, bytes.Length);
         return JsonSerializer.Deserialize<T>(bytes);
     }
 

@@ -59,7 +59,7 @@ namespace MyProject.Web.Components.Views.Teams
 
         protected override async Task OnInitializedAsync()
         {
-            logger.LogInformation("Initializing team management view.");
+            logger.LogDebug("Initializing team management view.");
             var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
             if (checkResult != AuthenticationCheckResult.Succeeded)
             {
@@ -99,7 +99,7 @@ namespace MyProject.Web.Components.Views.Teams
 
             teamAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
-            logger.LogInformation("Team list reloaded successfully. Count={Count}", _total);
+            logger.LogDebug("Team list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
 
@@ -189,7 +189,30 @@ namespace MyProject.Web.Components.Views.Teams
             logger.LogInformation("Opened edit modal for team. TeamId={TeamId}, Name={Name}", teamAdapterModel.Id, teamAdapterModel.Name);
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         async Task OnDeleteAsync(TeamAdapterModel teamAdapterModel)
+        {
+            try
+            {
+                await OnDeleteCoreAsync(teamAdapterModel);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while deleting team.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        async Task OnDeleteCoreAsync(TeamAdapterModel teamAdapterModel)
         {
             logger.LogInformation("Delete team requested. TeamId={TeamId}, Name={Name}", teamAdapterModel.Id, teamAdapterModel.Name);
 
@@ -232,14 +255,37 @@ namespace MyProject.Web.Components.Views.Teams
             logger.LogInformation("Opened create modal for team.");
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         private async Task OnModalOKHandleAsync(MouseEventArgs args)
+        {
+            try
+            {
+                await OnModalOKHandleCoreAsync(args);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while saving team.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "儲存團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
         {
             if (LocalEditContext?.Validate() == false)
             {
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
                 foreach (var error in allErrors)
                 {
-                    logger.LogWarning("Team form validation failed. Error={Error}", error);
+                    logger.LogInformation("Team form validation failed. Error={Error}", error);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "驗證失敗",
@@ -259,7 +305,7 @@ namespace MyProject.Web.Components.Views.Teams
                 var beforeAddCheckResult = await teamService.BeforeAddCheckAsync(CurrentRecord);
                 if (!beforeAddCheckResult.Success)
                 {
-                    logger.LogWarning("Team create pre-check failed. Name={Name}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
+                    logger.LogInformation("Team create pre-check failed. Name={Name}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",
@@ -293,7 +339,7 @@ namespace MyProject.Web.Components.Views.Teams
                 var beforeUpdateCheckResult = await teamService.BeforeUpdateCheckAsync(CurrentRecord);
                 if (!beforeUpdateCheckResult.Success)
                 {
-                    logger.LogWarning("Team update pre-check failed. TeamId={TeamId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    logger.LogInformation("Team update pre-check failed. TeamId={TeamId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",

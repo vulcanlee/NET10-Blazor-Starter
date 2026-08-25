@@ -8,6 +8,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -161,10 +162,10 @@ public sealed class AuditEventsTests
         private AuditLogService Audit() => new(Context, loggerFactory.CreateLogger<AuditLogService>());
 
         public MyUserService CreateUserService()
-            => new(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context), Audit(), currentUserService);
+            => new(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
 
         public RoleViewService CreateRoleService()
-            => new(Context, mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context), Audit(), currentUserService);
+            => new(Context, mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
 
         public async ValueTask DisposeAsync()
         {

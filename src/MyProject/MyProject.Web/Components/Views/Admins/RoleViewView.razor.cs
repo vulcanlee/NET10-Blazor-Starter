@@ -67,7 +67,7 @@ namespace MyProject.Web.Components.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            logger.LogInformation("Initializing role view management.");
+            logger.LogDebug("Initializing role view management.");
             var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
             if (checkResult != AuthenticationCheckResult.Succeeded)
             {
@@ -109,7 +109,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             roleViewAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
-            logger.LogInformation("Role view list reloaded successfully. Count={Count}", _total);
+            logger.LogDebug("Role view list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
 
@@ -199,7 +199,30 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("Opened edit modal for role view. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         async Task OnDeleteAsync(RoleViewAdapterModel roleViewAdapterModel)
+        {
+            try
+            {
+                await OnDeleteCoreAsync(roleViewAdapterModel);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while deleting role.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        async Task OnDeleteCoreAsync(RoleViewAdapterModel roleViewAdapterModel)
         {
             logger.LogInformation("Delete role view requested. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
 
@@ -244,14 +267,37 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("Opened create modal for role view.");
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         private async Task OnModalOKHandleAsync(MouseEventArgs args)
+        {
+            try
+            {
+                await OnModalOKHandleCoreAsync(args);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while saving role.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "儲存角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
         {
             if (LocalEditContext?.Validate() == false)
             {
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
                 foreach (var error in allErrors)
                 {
-                    logger.LogWarning("Role view form validation failed. Error={Error}", error);
+                    logger.LogInformation("Role view form validation failed. Error={Error}", error);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "驗證失敗",
@@ -271,7 +317,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var beforeAddCheckResult = await roleViewService.BeforeAddCheckAsync(CurrentRecord);
                 if (!beforeAddCheckResult.Success)
                 {
-                    logger.LogWarning("Role view create pre-check failed. Name={RoleName}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
+                    logger.LogInformation("Role view create pre-check failed. Name={RoleName}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",
@@ -305,7 +351,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var beforeUpdateCheckResult = await roleViewService.BeforeUpdateCheckAsync(CurrentRecord);
                 if (!beforeUpdateCheckResult.Success)
                 {
-                    logger.LogWarning("Role view update pre-check failed. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    logger.LogInformation("Role view update pre-check failed. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",

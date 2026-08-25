@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using MyProject.Web.Caching;
 using MyProject.Web.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -70,6 +71,9 @@ public class CacheServiceTests
     private static DistributedCacheService CreateService()
     {
         var cache = new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));
-        return new DistributedCacheService(cache, Options.Create(new CacheSettings()));
+        return new DistributedCacheService(
+            cache,
+            NullLogger<DistributedCacheService>.Instance,
+            Options.Create(new CacheSettings()));
     }
 }

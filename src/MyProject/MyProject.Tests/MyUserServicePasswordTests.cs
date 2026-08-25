@@ -9,6 +9,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -133,7 +134,7 @@ public sealed class MyUserServicePasswordTests
                 Context,
                 mapper,
                 loggerFactory.CreateLogger<MyUserService>(),
-                new RbacWriteService(Context),
+                new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
                 new CurrentUserService());
         }

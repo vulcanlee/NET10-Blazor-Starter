@@ -211,7 +211,6 @@ public partial class NavMenu : ComponentBase, IDisposable
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        Logger.LogDebug("Navigation menu location changed. Uri={Uri}", e.Location);
         UpdateActiveMenuPath();
         SyncMenuStateFromRoute();
         InvokeAsync(StateHasChanged);

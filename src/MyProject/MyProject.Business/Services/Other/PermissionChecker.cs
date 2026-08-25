@@ -1,16 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.Share.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace MyProject.Business.Services.Other;
 
 public sealed class PermissionChecker : IPermissionChecker
 {
     private readonly BackendDBContext context;
+    private readonly ILogger<PermissionChecker> logger;
 
-    public PermissionChecker(BackendDBContext context)
+    public PermissionChecker(BackendDBContext context, ILogger<PermissionChecker> logger)
     {
         this.context = context;
+        this.logger = logger;
     }
 
     public async Task<bool> HasPermissionAsync(int userId, string permissionKey)
@@ -21,11 +24,17 @@ public sealed class PermissionChecker : IPermissionChecker
 
         if (user is null)
         {
+            logger.LogWarning(
+                "Permission check failed because the user does not exist. UserId={UserId}, PermissionKey={PermissionKey}",
+                userId, permissionKey);
             return false;
         }
 
         if (user.IsAdmin)
         {
+            logger.LogDebug(
+                "Permission granted by administrator short-circuit. UserId={UserId}, PermissionKey={PermissionKey}",
+                userId, permissionKey);
             return true;
         }
 

@@ -2,16 +2,19 @@ using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Dtos.Commons;
+using Microsoft.Extensions.Logging;
 
 namespace MyProject.Business.Repositories;
 
 public class TeamRepository
 {
     private readonly BackendDBContext context;
+    private readonly ILogger<TeamRepository> logger;
 
-    public TeamRepository(BackendDBContext context)
+    public TeamRepository(BackendDBContext context, ILogger<TeamRepository> logger)
     {
         this.context = context;
+        this.logger = logger;
     }
 
     #region 查詢方法
@@ -49,6 +52,13 @@ public class TeamRepository
         };
 
         var totalCount = await query.CountAsync();
+
+        // 記在 Debug：這是排查「為什麼查不到資料」的第一手線索。
+        // 只記筆數與分頁參數，不記關鍵字內容 —— 使用者的搜尋字串可能包含個資。
+        logger.LogDebug(
+            "Paged team query executed. PageIndex={PageIndex}, PageSize={PageSize}, SortBy={SortBy}, SortDescending={SortDescending}, HasKeyword={HasKeyword}, TotalCount={TotalCount}",
+            request.PageIndex, request.PageSize, request.SortBy, request.SortDescending,
+            string.IsNullOrWhiteSpace(request.Keyword) == false, totalCount);
         var items = await query
             .Skip((request.PageIndex - 1) * request.PageSize)
             .Take(request.PageSize)

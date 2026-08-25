@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -14,7 +15,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("root", isAdmin: true, permissions: Array.Empty<string>());
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         Assert.True(await checker.HasPermissionAsync(user.Id, "任何權限"));
     }
@@ -24,7 +25,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("alice", isAdmin: false, permissions: new[] { "專案項目", "首頁" });
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目"));
     }
@@ -34,7 +35,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("bob", isAdmin: false, permissions: new[] { "首頁" });
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         Assert.False(await checker.HasPermissionAsync(user.Id, "專案項目"));
     }
@@ -44,7 +45,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("legacy", isAdmin: false, permissions: new[] { "專案項目" });
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:edit"));
         Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:view"));
@@ -56,7 +57,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("viewer", isAdmin: false, permissions: new[] { "專案項目:view" });
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         Assert.True(await checker.HasPermissionAsync(user.Id, "專案項目:view"));
         Assert.False(await checker.HasPermissionAsync(user.Id, "專案項目:edit"));
@@ -67,7 +68,7 @@ public sealed class PermissionCheckerTests
     public async Task HasPermissionAsync_ForUnknownUser_ShouldReturnFalse()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         Assert.False(await checker.HasPermissionAsync(999, "首頁"));
     }
@@ -77,7 +78,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("carol", isAdmin: false, permissions: new[] { "首頁", "分類清單" });
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         var keys = await checker.GetEffectivePermissionKeysAsync(user.Id);
 
@@ -94,7 +95,7 @@ public sealed class PermissionCheckerTests
             "dave",
             new[] { "首頁" },
             new[] { "專案項目", "首頁" });
-        var checker = new PermissionChecker(fixture.Context);
+        var checker = new PermissionChecker(fixture.Context, NullLogger<PermissionChecker>.Instance);
 
         var keys = await checker.GetEffectivePermissionKeysAsync(user.Id);
 
@@ -130,7 +131,7 @@ public sealed class PermissionCheckerTests
 
         public async Task<MyUser> AddUserAsync(string account, bool isAdmin, string[] permissions)
         {
-            var writer = new RbacWriteService(Context);
+            var writer = new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance);
 
             var role = new RoleView
             {
@@ -159,7 +160,7 @@ public sealed class PermissionCheckerTests
 
         public async Task<MyUser> AddMultiRoleUserAsync(string account, string[] roleAPermissions, string[] roleBPermissions)
         {
-            var writer = new RbacWriteService(Context);
+            var writer = new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance);
 
             var roleA = new RoleView { Name = account + "-A", TabViewJson = JsonSerializer.Serialize(roleAPermissions) };
             var roleB = new RoleView { Name = account + "-B", TabViewJson = JsonSerializer.Serialize(roleBPermissions) };

@@ -434,7 +434,7 @@ namespace MyProject.Web
             catch (Exception ex)
             {
                 if (logger != null)
-                    logger.LogError(ex, "Stopped program because of an exception");
+                    logger.LogCritical(ex, "Application is stopping because of an unhandled exception.");
                 throw;
             }
             finally

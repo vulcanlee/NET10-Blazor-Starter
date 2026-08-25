@@ -86,7 +86,7 @@ namespace MyProject.Web.Components.Auths
             {
                 message = "請輸入密碼";
                 errorMessage = "alert-danger";
-                Logger.LogWarning("Login submission rejected because password is empty. Account={Account}", Input.Account);
+                Logger.LogInformation("Login submission rejected because password is empty. Account={Account}", Input.Account);
                 return;
             }
 

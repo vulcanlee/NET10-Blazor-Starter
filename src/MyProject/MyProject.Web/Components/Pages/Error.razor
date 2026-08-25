@@ -1,5 +1,6 @@
-﻿@page "/Error"
+@page "/Error"
 @using System.Diagnostics
+@inject ILogger<Error> Logger
 
 <PageTitle>Error</PageTitle>
 
@@ -31,6 +32,15 @@
     private string? RequestId { get; set; }
     private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
 
-    protected override void OnInitialized() =>
+    protected override void OnInitialized()
+    {
         RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+
+        // 這頁先前一行日誌都不寫：使用者看到錯誤畫面，日誌上卻毫無痕跡。
+        // 記在 Warning 而非 Error、且不帶例外物件：真正的例外與堆疊已由請求 middleware
+        // 以 Error 記過，這裡只是標記「使用者確實看到了錯誤畫面」，靠 TraceId 與那筆對上。
+        Logger.LogWarning(
+            "Error page displayed to the user. TraceId={TraceId}",
+            RequestId);
+    }
 }

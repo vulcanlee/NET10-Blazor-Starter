@@ -10,8 +10,19 @@
 <ConfigProvider>
     <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
         <Found Context="routeData">
-            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+            @* 最後一道網：接住並記錄所有元件內未處理的例外，避免使用者只看到空白畫面而日誌毫無痕跡。 *@
+            <LoggingErrorBoundary>
+                <ChildContent>
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+                    <FocusOnNavigate RouteData="routeData" Selector="h1" />
+                </ChildContent>
+                <ErrorContent>
+                    <div class="alert alert-danger" role="alert">
+                        <strong>這個頁面發生未預期的錯誤。</strong>
+                        錯誤已記錄，請重新整理頁面；若持續發生請聯絡系統管理員。
+                    </div>
+                </ErrorContent>
+            </LoggingErrorBoundary>
         </Found>
     </Router>
 

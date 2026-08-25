@@ -12,6 +12,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -229,11 +230,11 @@ public sealed class AuthenticationStateHelperTests
             return new AuthenticationStateHelper(
                 loggerFactory.CreateLogger<AuthenticationStateHelper>(),
                 mapper,
-                new MyUserService(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService),
+                new MyUserService(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService),
                 CurrentUserService,
                 rolePermissionService,
-                new EffectiveTeamResolver(Context),
-                new PermissionChecker(Context));
+                new EffectiveTeamResolver(Context, NullLogger<EffectiveTeamResolver>.Instance),
+                new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance));
         }
 
         public async Task<MyUser> AddUserAsync(
@@ -255,7 +256,7 @@ public sealed class AuthenticationStateHelperTests
 
             // UI 權限來源已改讀 RBAC 表（IPermissionChecker），故種子資料需雙寫 RolePermissionMap，
             // 使登入後 CurrentUser.RoleList 反映此角色的權限鍵。
-            await new RbacWriteService(Context).SyncRolePermissionsAsync(roleView.Id, new[] { permissionName });
+            await new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance).SyncRolePermissionsAsync(roleView.Id, new[] { permissionName });
 
             var user = new MyUser
             {
@@ -276,7 +277,7 @@ public sealed class AuthenticationStateHelperTests
 
         public async Task<MyUser> AddMultiRoleUserAsync(string primaryKey, string additionalKey)
         {
-            var writer = new RbacWriteService(Context);
+            var writer = new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance);
 
             var primaryRole = new RoleView { Name = $"role-{Guid.NewGuid():N}", TabViewJson = $"""["{primaryKey}"]""" };
             var additionalRole = new RoleView { Name = $"role-{Guid.NewGuid():N}", TabViewJson = $"""["{additionalKey}"]""" };

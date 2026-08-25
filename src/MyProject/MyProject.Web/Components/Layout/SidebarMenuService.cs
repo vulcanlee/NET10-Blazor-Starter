@@ -53,7 +53,7 @@ public sealed class SidebarMenuService
         var permissionMappedItems = ApplyPermissionStructure(items);
         var authorizedItems = FilterAuthorizedMenuItems(permissionMappedItems, authenticationStateHelper);
 
-        logger.LogInformation("Loaded authorized sidebar menu successfully. ItemCount={ItemCount}", authorizedItems.Count);
+        logger.LogDebug("Loaded authorized sidebar menu successfully. ItemCount={ItemCount}", authorizedItems.Count);
         return authorizedItems;
     }
 

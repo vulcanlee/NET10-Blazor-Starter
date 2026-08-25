@@ -46,6 +46,55 @@ public static class ApplicationBuilderExtensions
         return app;
     }
 
+    /// <summary>
+    /// 不值得記在 Information 的路徑前綴：靜態資產、框架端點與健康探針。
+    ///
+    /// 這些請求量遠大於使用者真正的操作 —— 光是每 10 秒一次的 /health/live 就是一天
+    /// 8,640 筆，會把「使用者做了什麼」整個淹掉。它們改記在 Debug，需要時仍查得到。
+    /// </summary>
+    private static readonly string[] LowValueRequestPrefixes =
+    [
+        "/_framework", "/_content", "/_blazor", "/css", "/js", "/lib",
+        "/health", "/favicon", "/UploadFiles", "/swagger",
+    ];
+
+    /// <summary>
+    /// 靜態資產的副檔名。單靠路徑前綴不夠 —— 例如 app.css 是掛在網站根目錄
+    /// （/app.css）而非 /css 之下，只比對前綴會漏掉。
+    /// </summary>
+    private static readonly string[] StaticAssetExtensions =
+    [
+        ".css", ".js", ".map", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+        ".ico", ".woff", ".woff2", ".ttf", ".eot",
+    ];
+
+    private static bool IsLowValueRequest(PathString path)
+    {
+        var value = path.Value;
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        foreach (var prefix in LowValueRequestPrefixes)
+        {
+            if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        foreach (var extension in StaticAssetExtensions)
+        {
+            if (value.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static WebApplication UseHttpRequestLogging<TProgram>(this WebApplication app)
     {
         app.Use(async (context, next) =>
@@ -58,7 +107,13 @@ public static class ApplicationBuilderExtensions
                 await next();
                 stopwatch.Stop();
 
-                requestLogger.LogInformation(
+                // 失敗的請求一律記在 Information 以上，即使路徑是低價值的 ——
+                // 靜態資產 404 往往正是「連結壞掉」的線索。
+                var isLowValue = IsLowValueRequest(context.Request.Path)
+                    && context.Response.StatusCode < 400;
+
+                requestLogger.Log(
+                    isLowValue ? LogLevel.Debug : LogLevel.Information,
                     "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms",
                     context.Request.Method,
                     context.Request.Path.Value,

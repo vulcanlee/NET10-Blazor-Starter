@@ -59,7 +59,7 @@ namespace MyProject.Web.Components.Views.Categories
 
         protected override async Task OnInitializedAsync()
         {
-            logger.LogInformation("Initializing category management view.");
+            logger.LogDebug("Initializing category management view.");
             var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
             if (checkResult != AuthenticationCheckResult.Succeeded)
             {
@@ -99,7 +99,7 @@ namespace MyProject.Web.Components.Views.Categories
 
             categoryAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
-            logger.LogInformation("Category list reloaded successfully. Count={Count}", _total);
+            logger.LogDebug("Category list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
 
@@ -189,7 +189,30 @@ namespace MyProject.Web.Components.Views.Categories
             logger.LogInformation("Opened edit modal for category. CategoryId={CategoryId}, Name={Name}", categoryAdapterModel.Id, categoryAdapterModel.Name);
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         async Task OnDeleteAsync(CategoryAdapterModel categoryAdapterModel)
+        {
+            try
+            {
+                await OnDeleteCoreAsync(categoryAdapterModel);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while deleting category.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        async Task OnDeleteCoreAsync(CategoryAdapterModel categoryAdapterModel)
         {
             logger.LogInformation("Delete category requested. CategoryId={CategoryId}, Name={Name}", categoryAdapterModel.Id, categoryAdapterModel.Name);
 
@@ -232,14 +255,37 @@ namespace MyProject.Web.Components.Views.Categories
             logger.LogInformation("Opened create modal for category.");
         }
 
+        /// <summary>
+        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
+        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// </summary>
         private async Task OnModalOKHandleAsync(MouseEventArgs args)
+        {
+            try
+            {
+                await OnModalOKHandleCoreAsync(args);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while saving category.");
+                _ = notificationService.Open(new NotificationConfig()
+                {
+                    Message = "系統訊息",
+                    Description = "儲存分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
+                    NotificationType = NotificationType.Error,
+                    Placement = NotificationPlacement.BottomRight
+                });
+            }
+        }
+
+        private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
         {
             if (LocalEditContext?.Validate() == false)
             {
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
                 foreach (var error in allErrors)
                 {
-                    logger.LogWarning("Category form validation failed. Error={Error}", error);
+                    logger.LogInformation("Category form validation failed. Error={Error}", error);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "驗證失敗",
@@ -259,7 +305,7 @@ namespace MyProject.Web.Components.Views.Categories
                 var beforeAddCheckResult = await categoryService.BeforeAddCheckAsync(CurrentRecord);
                 if (!beforeAddCheckResult.Success)
                 {
-                    logger.LogWarning("Category create pre-check failed. Name={Name}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
+                    logger.LogInformation("Category create pre-check failed. Name={Name}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",
@@ -293,7 +339,7 @@ namespace MyProject.Web.Components.Views.Categories
                 var beforeUpdateCheckResult = await categoryService.BeforeUpdateCheckAsync(CurrentRecord);
                 if (!beforeUpdateCheckResult.Success)
                 {
-                    logger.LogWarning("Category update pre-check failed. CategoryId={CategoryId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
+                    logger.LogInformation("Category update pre-check failed. CategoryId={CategoryId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     _ = notificationService.Open(new NotificationConfig()
                     {
                         Message = "系統訊息",

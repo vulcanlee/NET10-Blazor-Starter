@@ -185,7 +185,7 @@ public class MyUserService
 
         if (item is null)
         {
-            Logger.LogWarning("User not found. Id={UserId}", id);
+            Logger.LogInformation("User not found. Id={UserId}", id);
             return new MyUserAdapterModel();
         }
 
@@ -215,7 +215,7 @@ public class MyUserService
         {
             if (string.IsNullOrWhiteSpace(paraObject.Password))
             {
-                Logger.LogWarning("User creation rejected because password is empty. Account={Account}", paraObject.Account);
+                Logger.LogInformation("User creation rejected because password is empty. Account={Account}", paraObject.Account);
                 return VerifyRecordResultFactory.Build(false, "新增使用者時必須輸入密碼。");
             }
 
@@ -405,7 +405,7 @@ public class MyUserService
 
         if (searchItem != null)
         {
-            Logger.LogWarning("Pre-create validation failed because account already exists. Account={Account}", paraObject.Account);
+            Logger.LogInformation("Pre-create validation failed because account already exists. Account={Account}", paraObject.Account);
             return VerifyRecordResultFactory.Build(false, "帳號已存在，無法新增。");
         }
 
@@ -433,7 +433,7 @@ public class MyUserService
 
         if (searchItem != null)
         {
-            Logger.LogWarning("Pre-update validation failed because account already exists. Account={Account}, UserId={UserId}", paraObject.Account, paraObject.Id);
+            Logger.LogInformation("Pre-update validation failed because account already exists. Account={Account}, UserId={UserId}", paraObject.Account, paraObject.Id);
             return VerifyRecordResultFactory.Build(false, "帳號已存在，無法修改。");
         }
 
@@ -483,7 +483,7 @@ public class MyUserService
 
         if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
         {
-            Logger.LogWarning("Own password change rejected because confirmation does not match. UserId={UserId}", userId);
+            Logger.LogInformation("Own password change rejected because confirmation does not match. UserId={UserId}", userId);
             return VerifyRecordResultFactory.Build(false, "新密碼與確認密碼不一致。");
         }
 

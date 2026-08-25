@@ -103,7 +103,7 @@ public class CategoryService
 
         if (item is null)
         {
-            Logger.LogWarning("Category not found. CategoryId={CategoryId}", id);
+            Logger.LogInformation("Category not found. CategoryId={CategoryId}", id);
             return new CategoryAdapterModel();
         }
 
@@ -214,7 +214,7 @@ public class CategoryService
 
         if (searchItem != null)
         {
-            Logger.LogWarning("Pre-create validation failed because category name already exists. Name={CategoryName}", paraObject.Name);
+            Logger.LogInformation("Pre-create validation failed because category name already exists. Name={CategoryName}", paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "分類名稱已存在，無法新增。");
         }
 
@@ -232,7 +232,7 @@ public class CategoryService
 
         if (searchItem == null)
         {
-            Logger.LogWarning("Pre-update validation failed because category was not found. CategoryId={CategoryId}", paraObject.Id);
+            Logger.LogInformation("Pre-update validation failed because category was not found. CategoryId={CategoryId}", paraObject.Id);
             return VerifyRecordResultFactory.Build(false, "要修改的分類資料不存在。");
         }
 
@@ -243,7 +243,7 @@ public class CategoryService
 
         if (searchItem != null)
         {
-            Logger.LogWarning("Pre-update validation failed because category name already exists. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
+            Logger.LogInformation("Pre-update validation failed because category name already exists. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "分類名稱已存在，無法修改。");
         }
 

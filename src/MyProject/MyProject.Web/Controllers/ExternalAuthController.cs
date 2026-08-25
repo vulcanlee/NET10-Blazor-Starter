@@ -90,8 +90,8 @@ public class ExternalAuthController : Controller
         if (!user.Status)
         {
             logger.LogInformation(
-                "Google login user is disabled and awaiting approval. UserId={UserId}, Email={Email}.",
-                user.Id, email);
+                "Google login user is disabled and awaiting approval. UserId={UserId}.",
+                user.Id);
             return Redirect("/Auths/Pending");
         }
 

@@ -120,7 +120,8 @@ public class AuthenticationStateHelper
             currentUserService.CurrentUser.RoleList =
                 (await permissionChecker.GetEffectivePermissionKeysAsync(myUser.Id)).ToList();
 
-            logger.LogInformation(
+            // 每次導覽都會跑，屬於流程細節而非使用者意圖，因此記在 Debug。
+            logger.LogDebug(
                 "Authentication state initialized for UserId={UserId}, Account={Account}, IsAdmin={IsAdmin}.",
                 myUser.Id,
                 myUser.Account,

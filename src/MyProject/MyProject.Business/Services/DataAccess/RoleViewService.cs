@@ -143,7 +143,7 @@ public class RoleViewService
 
         if (item is null)
         {
-            Logger.LogWarning("Role view not found. RoleViewId={RoleViewId}", id);
+            Logger.LogInformation("Role view not found. RoleViewId={RoleViewId}", id);
             return new RoleViewAdapterModel();
         }
 
@@ -277,7 +277,7 @@ public class RoleViewService
 
         if (searchItem != null)
         {
-            Logger.LogWarning("Pre-create validation failed because role name already exists. Name={RoleName}", paraObject.Name);
+            Logger.LogInformation("Pre-create validation failed because role name already exists. Name={RoleName}", paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "角色名稱已存在，無法新增。");
         }
 
@@ -295,7 +295,7 @@ public class RoleViewService
 
         if (searchItem == null)
         {
-            Logger.LogWarning("Pre-update validation failed because role view was not found. RoleViewId={RoleViewId}", paraObject.Id);
+            Logger.LogInformation("Pre-update validation failed because role view was not found. RoleViewId={RoleViewId}", paraObject.Id);
             return VerifyRecordResultFactory.Build(false, "要修改的角色資料不存在。");
         }
 
@@ -305,7 +305,7 @@ public class RoleViewService
 
         if (searchItem != null)
         {
-            Logger.LogWarning("Pre-update validation failed because role name already exists. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
+            Logger.LogInformation("Pre-update validation failed because role name already exists. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "角色名稱已存在，無法修改。");
         }
 

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MyProject.Tests;
 
@@ -13,7 +14,7 @@ public sealed class RbacWriteServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var role = await fixture.AddRoleAsync("R1");
-        var service = new RbacWriteService(fixture.Context);
+        var service = new RbacWriteService(fixture.Context, NullLogger<RbacWriteService>.Instance);
 
         await service.SyncRolePermissionsAsync(role.Id, new[] { "首頁", "專案項目" });
         await service.SyncRolePermissionsAsync(role.Id, new[] { "首頁", "分類清單" }); // 移除專案項目、加入分類清單
@@ -34,7 +35,7 @@ public sealed class RbacWriteServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var role = await fixture.AddRoleAsync("R1");
-        var service = new RbacWriteService(fixture.Context);
+        var service = new RbacWriteService(fixture.Context, NullLogger<RbacWriteService>.Instance);
 
         await service.SyncRolePermissionsAsync(role.Id, new[] { "全新權限鍵" });
 
@@ -48,7 +49,7 @@ public sealed class RbacWriteServiceTests
         var user = await fixture.AddUserAsync("u1");
         var r1 = await fixture.AddRoleAsync("R1");
         var r2 = await fixture.AddRoleAsync("R2");
-        var service = new RbacWriteService(fixture.Context);
+        var service = new RbacWriteService(fixture.Context, NullLogger<RbacWriteService>.Instance);
 
         await service.SyncUserRolesAsync(user.Id, new[] { r1.Id, r2.Id });
         await service.SyncUserRolesAsync(user.Id, new[] { r2.Id }); // 移除 r1
@@ -67,7 +68,7 @@ public sealed class RbacWriteServiceTests
         var user = await fixture.AddUserAsync("u1");
         var t1 = await fixture.AddTeamAsync("T1");
         var t2 = await fixture.AddTeamAsync("T2");
-        var service = new RbacWriteService(fixture.Context);
+        var service = new RbacWriteService(fixture.Context, NullLogger<RbacWriteService>.Instance);
 
         await service.SyncUserTeamsAsync(user.Id, new[] { t1.Id });
         await service.SyncUserTeamsAsync(user.Id, new[] { t1.Id, t2.Id });
