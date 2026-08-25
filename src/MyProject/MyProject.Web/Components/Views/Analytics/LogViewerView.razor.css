@@ -1,0 +1,59 @@
+.log-view-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.log-view-toolbar-left,
+.log-view-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.log-view-range-separator {
+    color: #94a3b8;
+}
+
+.log-view-search-input {
+    width: 240px;
+}
+
+.log-view-icon-button {
+    width: 36px;
+    padding: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.log-view-alert {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.log-view-table-wrap {
+    overflow-x: auto;
+}
+
+/*
+ * 展開列的內容渲染在 AntDesign 的標記內，落在本元件 scope 屬性之外，因此需要 ::deep。
+ * 限制高度避免超長堆疊追蹤把整個版面撐開。
+ */
+::deep .log-view-raw {
+    margin: 0;
+    padding: 8px 12px;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 12px;
+    line-height: 1.6;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+}

@@ -13,6 +13,7 @@ using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
 using MyProject.Web.Health;
+using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
 using System.Globalization;
 using System.Threading.RateLimiting;
@@ -54,6 +55,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<SystemStartupState>();
+        services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
+        services.AddScoped<ILogQueryService, LogQueryService>();
         services.AddScoped<IHealthLogReader, HealthLogReader>();
         services.AddScoped<ISystemHealthService, SystemHealthService>();
         services.AddScoped<AuthenticationStateHelper>();

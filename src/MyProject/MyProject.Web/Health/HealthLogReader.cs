@@ -1,3 +1,5 @@
+using MyProject.Web.Diagnostics;
+
 namespace MyProject.Web.Health;
 
 public interface IHealthLogReader
@@ -7,13 +9,11 @@ public interface IHealthLogReader
 
 public sealed class HealthLogReader : IHealthLogReader
 {
-    private readonly IConfiguration configuration;
-    private readonly IWebHostEnvironment environment;
+    private readonly INLogFilePathResolver pathResolver;
 
-    public HealthLogReader(IConfiguration configuration, IWebHostEnvironment environment)
+    public HealthLogReader(INLogFilePathResolver pathResolver)
     {
-        this.configuration = configuration;
-        this.environment = environment;
+        this.pathResolver = pathResolver;
     }
 
     public HealthLogTail ReadLatestLines(int lineCount)
@@ -65,17 +65,7 @@ public sealed class HealthLogReader : IHealthLogReader
     }
 
     public string GetTodayLogFilePath()
-    {
-        var nlogBasePrefixPath = configuration.GetValue<string>("NLog:BasePath");
-        if (string.IsNullOrWhiteSpace(nlogBasePrefixPath))
-        {
-            return string.Empty;
-        }
-
-        var baseNamespace = typeof(Program).Namespace ?? environment.ApplicationName;
-        var nlogBasePath = Path.Combine(nlogBasePrefixPath, baseNamespace);
-        return Path.Combine(nlogBasePath, $"{baseNamespace}-logfile-{DateTime.Today:yyyy-MM-dd}.log");
-    }
+        => pathResolver.GetLogFilePath(DateOnly.FromDateTime(DateTime.Today));
 
     private static IReadOnlyList<string> ReadTail(string filePath, int lineCount)
     {

@@ -24,6 +24,10 @@ public sealed class SidebarMenuService
         [5] = MagicObjectHelper.角色_資料定義,
         [51] = MagicObjectHelper.角色_分類清單,
         [52] = MagicObjectHelper.角色_團隊清單,
+        // 統計與分析群組：權限鍵刻意不列入 RolePermissionService.GetRoleListPermissionAllName()，
+        // 因此不會種出 Permission 資料列、任何角色都無法被授予，只有管理員短路能通過。詳見 MagicObjectHelper。
+        [6] = MagicObjectHelper.角色_統計與分析,
+        [61] = MagicObjectHelper.角色_日誌檢視,
         [4] = MagicObjectHelper.角色_登出,
     };
 

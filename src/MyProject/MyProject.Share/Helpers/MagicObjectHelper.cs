@@ -35,6 +35,17 @@ public class MagicObjectHelper
     public const string 角色_分類清單 = "分類清單";
     public const string 角色_團隊清單 = "團隊清單";
     public const string 角色_登出 = "登出 ";
+
+    /// <summary>
+    /// 統計與分析群組。刻意不列入 <c>RolePermissionService.GetRoleListPermissionAllName()</c>：
+    /// 不種 Permission 資料列、角色矩陣不顯示、任何角色都無法被授予；
+    /// 僅由 <c>AuthenticationStateHelper.CheckAccessPage</c> 的管理員短路通過。
+    /// 這是讓「日誌檢視」成為管理員專屬頁面的機制，不是漏掉的步驟，請勿補上。
+    /// </summary>
+    public const string 角色_統計與分析 = "統計與分析功能";
+
+    /// <inheritdoc cref="角色_統計與分析"/>
+    public const string 角色_日誌檢視 = "日誌檢視";
     public const string 使用者角色 = "使用者角色";
 
     #endregion
