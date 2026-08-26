@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Dtos.Commons;
 using Microsoft.Extensions.Logging;
 
@@ -71,9 +72,14 @@ public class CategoryRepository
         };
     }
 
+    /// <summary>
+    /// 名稱是否已被使用。比對語意必須與 Blazor 路徑的 BeforeAddCheckAsync 一致
+    /// （先正規化、再不分大小寫），否則同一份資料會出現「UI 擋得下、API 擋不下」。
+    /// </summary>
     public async Task<bool> ExistsByNameAsync(string name, int? excludeId = null)
     {
-        var query = context.Category.Where(x => x.Name == name);
+        var normalized = NameNormalizer.Normalize(name);
+        var query = context.Category.Where(x => x.Name.ToLower() == normalized.ToLower());
         if (excludeId.HasValue)
         {
             query = query.Where(x => x.Id != excludeId.Value);

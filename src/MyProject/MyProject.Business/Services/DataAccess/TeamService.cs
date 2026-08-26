@@ -141,6 +141,14 @@ public class TeamService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to create team. Name={TeamName}", paraObject.Name);
+
+            // 前置檢查與寫入不在同一個交易裡，唯一索引是最後一道防線；
+            // 命中時要給明確訊息，不要被泛用的「新增團隊失敗。」蓋掉。
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             return VerifyRecordResultFactory.Build(false, "新增團隊失敗。", ex);
         }
     }
@@ -175,6 +183,12 @@ public class TeamService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to update team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
+
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             return VerifyRecordResultFactory.Build(false, "修改團隊失敗。", ex);
         }
     }
@@ -214,7 +228,7 @@ public class TeamService
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for team. Name={TeamName}", paraObject.Name);
 
-        var name = (paraObject.Name ?? string.Empty).Trim();
+        var name = NameNormalizer.Normalize(paraObject.Name);
         var nameItem = await context.Team
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower());
@@ -225,8 +239,9 @@ public class TeamService
             return VerifyRecordResultFactory.Build(false, "團隊名稱已存在，無法新增。");
         }
 
-        var code = (paraObject.Code ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(code))
+        // 用 `is { } code` 取得不可為 null 的 string：外層的 null 檢查流程狀態
+        // 不會延伸到底下的查詢 lambda 內。
+        if (NameNormalizer.NormalizeOptional(paraObject.Code) is { } code)
         {
             var codeItem = await context.Team
                 .AsNoTracking()
@@ -257,7 +272,7 @@ public class TeamService
             return VerifyRecordResultFactory.Build(false, "要修改的團隊資料不存在。");
         }
 
-        var name = (paraObject.Name ?? string.Empty).Trim();
+        var name = NameNormalizer.Normalize(paraObject.Name);
         var nameItem = await context.Team
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower() && x.Id != paraObject.Id);
@@ -268,8 +283,9 @@ public class TeamService
             return VerifyRecordResultFactory.Build(false, "團隊名稱已存在，無法修改。");
         }
 
-        var code = (paraObject.Code ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(code))
+        // 用 `is { } code` 取得不可為 null 的 string：外層的 null 檢查流程狀態
+        // 不會延伸到底下的查詢 lambda 內。
+        if (NameNormalizer.NormalizeOptional(paraObject.Code) is { } code)
         {
             var codeItem = await context.Team
                 .AsNoTracking()

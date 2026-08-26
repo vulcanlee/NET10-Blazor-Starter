@@ -266,6 +266,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
 - [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](docs/changelog/2026-06-22-側邊欄收合修正與日誌補缺.md) — 收合飛出改自訂橋接、補 2 處日誌缺口。
 - [側邊欄群組圖示依名稱各自顯示（0.4.4）](docs/changelog/2026-06-22-側邊欄群組圖示.md) — 移除群組強制 folder_open，群組圖示改用 Menu.json 各自有效圖示。
+- [分類／團隊名稱唯一性補強（0.4.41）](docs/changelog/2026-08-26-名稱唯一性補強.md) — 補上寫入前正規化與資料庫唯一索引：原本「檢查時 Trim、寫入時不 Trim」讓帶空白的同名資料存得進去；一併對齊 API 路徑的判定語意，並讓 UI 不再丟棄寫入結果。
 - [分類綁定團隊與儲存前團隊確認（0.4.40）](docs/changelog/2026-08-26-分類綁定團隊.md) — 分類可指定適用團隊，下拉清單依使用者所屬團隊過濾；團隊欄位留空時儲存前跳警告；順帶修掉「API 更新分類會清空團隊綁定」的資料遺失風險。
 - [修正日誌查詢會跳過「正在寫入」的檔案（0.4.39）](docs/changelog/2026-08-26-日誌查詢跳過當前檔案修正.md) — 移除以 `File.GetLastWriteTime` 做整檔跳過的優化：效益幾乎為零，卻讓查詢結果取決於檔案系統中繼資料，並曾造成 CI 紅燈。
 - [CRUD 樣板收斂與產生器重寫（0.4.38）](docs/changelog/2026-08-26-CRUD樣板收斂與產生器重寫.md) — 抽出 `TableSortHelper` / `ViewNotification`（檢視淨減 452 行），並重寫產生器讓它產出真的能編譯、符合現行慣例的模組。

@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.40
+- 現行系統版本：0.4.41
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/08/26
 
@@ -44,7 +44,7 @@
   - 適用團隊 `Teams`（多選，選填；不設定表示所有團隊皆可使用）
   - 啟用狀態 `IsEnabled`（Switch，預設啟用）
 - 刪除：`ConfirmAsync` 二次確認，提示不可復原。
-- 儲存前團隊確認（0.4.40 起）：驗證通過後、前置檢查之前，`ConfirmTeamBindingAsync` 會在兩種情況擇一提出警告，
+- 儲存前團隊確認（0.4.40 起；0.4.41 起改排在名稱重複檢查之後）：`ConfirmTeamBindingAsync` 會在兩種情況擇一提出警告，
   確認鈕為「仍要儲存」、取消鈕為「回去編輯」（取消時 Modal 保持開啟、表單內容不消失）：
   1. 完全未指定適用團隊 —— 這筆會成為所有人都看得到的公用分類。
   2. 指定的團隊與自己所屬團隊沒有交集 —— 存檔後自己就會在清單上看不到它。
@@ -67,7 +67,9 @@
 
 ## 六、錯誤與邊界
 
-- 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（`ToLower()` 不分大小寫，修改時排除自身），重複回「分類名稱已存在」。API 端另以 `ExistsByNameAsync` 回 409 Conflict。
+- 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（先以 `NameNormalizer` 去除前後空白，再 `ToLower()` 不分大小寫，修改時排除自身），重複回「分類名稱已存在」。API 端另以 `ExistsByNameAsync` 回 409 Conflict，判定語意與 UI 路徑一致。
+- 名稱正規化與唯一索引（0.4.41 起）：寫入前一律 `Trim()`（AutoMapper 的「→ Entity」映射上），資料庫另有 `IX_Category_Name` 唯一索引兜底。前置檢查與寫入不在同一個交易裡，並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「分類名稱已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
+  - ⚠️ 沿革：0.4.41 之前是「檢查時 Trim、寫入時不 Trim」，「技術文件 」（尾隨空白）會原樣入庫，之後「技術文件」再也比不到它，兩筆看起來一模一樣的資料同時存在。
 - 找不到資料：修改／刪除時查無記錄回「找不到要修改／刪除的分類資料」；API 回 404 NotFound。
 - 驗證失敗：`DataAnnotations`（名稱必填、長度上限）由 `EditContext.Validate()` 於 Modal 攔截並逐條通知。
 - 路由 ID 與 Payload ID 不一致：API `Update` 回 400 ValidationError。
@@ -83,6 +85,9 @@
 - `BeforeUpdateCheckAsync_WithSameRecordSameName_ShouldSucceed`：同一筆用原名可通過。
 - `BeforeUpdateCheckAsync_WithNameUsedByOtherRecord_ShouldFail`：名稱被他筆占用被拒。
 - `AddAsync_ShouldPersistCategory`：新增後可查回並保留描述與啟用狀態。
+- `AddAsync_WithUntrimmedName_ShouldPersistTrimmedName` / `AddAsync_WithFullWidthSpace_ShouldPersistTrimmedName`：寫入前正規化（含全形空白 U+3000）。
+- `BeforeAddCheckAsync_AfterAddingUntrimmedName_ShouldRejectTrimmedName`：0.4.41 修正的破口重現。
+- `AddAsync_WithDuplicateName_ShouldReturnFriendlyMessage`：略過前置檢查直接寫，驗證唯一索引兜底與訊息轉譯。
 
 對應測試檔 `src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs`（0.4.40 新增）：
 
@@ -124,5 +129,7 @@
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:37`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs:9`
 - `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs:27`、`src/MyProject/MyProject.Web/Datas/Menu.json:57`
 - `src/MyProject/MyProject.Tests/CategoryServiceTests.cs:1`、`src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs:1`
+- `src/MyProject/MyProject.Tests/CategoryTeamRepositoryUniquenessTests.cs:1`、`src/MyProject/MyProject.Tests/CategoryTeamUniqueIndexMigrationTests.cs:1`
+- `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs:1`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs:1`
 - `src/MyProject/MyProject.Web/Components/Commons/TeamBindingConfirm.cs:1`（儲存前團隊確認對話窗，與專案編輯頁共用）
 - 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../superpowers/specs/2026-06-22-category-team-pages-design.md](../superpowers/specs/2026-06-22-category-team-pages-design.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)

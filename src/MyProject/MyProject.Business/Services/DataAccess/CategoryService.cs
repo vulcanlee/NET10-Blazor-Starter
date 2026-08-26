@@ -171,6 +171,14 @@ public class CategoryService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to create category. Name={CategoryName}", paraObject.Name);
+
+            // 前置檢查與寫入不在同一個交易裡，唯一索引是最後一道防線；
+            // 命中時要給明確訊息，不要被泛用的「新增分類失敗。」蓋掉。
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             return VerifyRecordResultFactory.Build(false, "新增分類失敗。", ex);
         }
     }
@@ -205,6 +213,12 @@ public class CategoryService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to update category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
+
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             return VerifyRecordResultFactory.Build(false, "修改分類失敗。", ex);
         }
     }
@@ -244,7 +258,7 @@ public class CategoryService
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for category. Name={CategoryName}", paraObject.Name);
 
-        var name = (paraObject.Name ?? string.Empty).Trim();
+        var name = NameNormalizer.Normalize(paraObject.Name);
         var searchItem = await context.Category
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower());
@@ -273,7 +287,7 @@ public class CategoryService
             return VerifyRecordResultFactory.Build(false, "要修改的分類資料不存在。");
         }
 
-        var name = (paraObject.Name ?? string.Empty).Trim();
+        var name = NameNormalizer.Normalize(paraObject.Name);
         searchItem = await context.Category
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower() && x.Id != paraObject.Id);

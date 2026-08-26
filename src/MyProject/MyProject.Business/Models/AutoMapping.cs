@@ -36,24 +36,36 @@ public class AutoMapping : Profile
             .ForMember(d => d.DefaultTeamsJson, o => o.MapFrom(s => TeamJsonHelper.Serialize(s.DefaultTeams)));
         #endregion
 
+        // 所有「→ Entity」的映射都以 NameNormalizer 正規化名稱／代號，
+        // 讓不論從 Blazor 或 Web API 進來，寫進資料庫的值都已去除前後空白、
+        // 空白代號歸一成 null。唯一性檢查才不會出現「比對的與儲存的不是同一個字串」。
         #region Category
         CreateMap<Category, CategoryAdapterModel>()
             .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)));
         CreateMap<CategoryAdapterModel, Category>()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
             .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)));
         CreateMap<Category, CategoryDto>();
-        CreateMap<CategoryDto, Category>();
+        CreateMap<CategoryDto, Category>()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)));
         CreateMap<Category, CategoryCreateUpdateDto>();
-        CreateMap<CategoryCreateUpdateDto, Category>();
+        CreateMap<CategoryCreateUpdateDto, Category>()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)));
         #endregion
 
         #region Team
         CreateMap<Team, TeamAdapterModel>();
-        CreateMap<TeamAdapterModel, Team>();
+        CreateMap<TeamAdapterModel, Team>()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
+            .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         CreateMap<Team, TeamDto>();
-        CreateMap<TeamDto, Team>();
+        CreateMap<TeamDto, Team>()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
+            .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         CreateMap<Team, TeamCreateUpdateDto>();
-        CreateMap<TeamCreateUpdateDto, Team>();
+        CreateMap<TeamCreateUpdateDto, Team>()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
+            .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         #endregion
 
         #region MyUser

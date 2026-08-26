@@ -259,15 +259,8 @@ namespace MyProject.Web.Components.Views.Categories
                 return;
             }
 
-            if (await ConfirmTeamBindingAsync() == false)
-            {
-                logger.LogDebug("Category save cancelled at team confirmation. CategoryId={CategoryId}", CurrentRecord.Id);
-
-                // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
-                modalVisible = true;
-                return;
-            }
-
+            // 名稱重複檢查排在團隊確認對話窗之前：這個檢查便宜、且失敗時必定不能儲存，
+            // 沒有理由讓使用者先回答一個對話窗才被告知名稱重複。
             if (isNewRecordMode)
             {
                 var beforeAddCheckResult = await categoryService.BeforeAddCheckAsync(CurrentRecord);
@@ -279,16 +272,6 @@ namespace MyProject.Web.Components.Views.Categories
                     modalVisible = true;
                     return;
                 }
-
-                CurrentRecord.CreatedAt = DateTime.Now;
-                CurrentRecord.UpdatedAt = DateTime.Now;
-
-                await categoryService.AddAsync(CurrentRecord);
-                logger.LogInformation("Category create submitted. Name={Name}", CurrentRecord.Name);
-
-                ViewNotification.Warning(notificationService, "新增成功");
-
-                _ = messageService.SuccessAsync("新增成功");
             }
             else
             {
@@ -301,12 +284,49 @@ namespace MyProject.Web.Components.Views.Categories
                     modalVisible = true;
                     return;
                 }
+            }
 
+            if (await ConfirmTeamBindingAsync() == false)
+            {
+                logger.LogDebug("Category save cancelled at team confirmation. CategoryId={CategoryId}", CurrentRecord.Id);
+
+                // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
+                modalVisible = true;
+                return;
+            }
+
+            VerifyRecordResult actionResult;
+
+            if (isNewRecordMode)
+            {
+                CurrentRecord.CreatedAt = DateTime.Now;
                 CurrentRecord.UpdatedAt = DateTime.Now;
-                await categoryService.UpdateAsync(CurrentRecord);
-                logger.LogInformation("Category update submitted. CategoryId={CategoryId}, Name={Name}", CurrentRecord.Id, CurrentRecord.Name);
 
-                ViewNotification.Warning(notificationService, "修改成功");
+                actionResult = await categoryService.AddAsync(CurrentRecord);
+                logger.LogInformation("Category create submitted. Name={Name}", CurrentRecord.Name);
+            }
+            else
+            {
+                CurrentRecord.UpdatedAt = DateTime.Now;
+                actionResult = await categoryService.UpdateAsync(CurrentRecord);
+                logger.LogInformation("Category update submitted. CategoryId={CategoryId}, Name={Name}", CurrentRecord.Id, CurrentRecord.Name);
+            }
+
+            // 前置檢查通過不代表寫得進去：唯一索引在並發時仍會擋下，
+            // 忽略這個回傳值會讓失敗的儲存顯示成「新增成功」。
+            if (!actionResult.Success)
+            {
+                ViewNotification.Error(notificationService, actionResult.Message);
+
+                modalVisible = true;
+                return;
+            }
+
+            ViewNotification.Warning(notificationService, isNewRecordMode ? "新增成功" : "修改成功");
+
+            if (isNewRecordMode)
+            {
+                _ = messageService.SuccessAsync("新增成功");
             }
 
             await ReloadAsync();
