@@ -76,19 +76,18 @@ public sealed class LogQueryService : ILogQueryService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // 整個檔案都比查詢起點舊，直接跳過。
-            try
-            {
-                if (File.GetLastWriteTime(file) < start)
-                {
-                    continue;
-                }
-            }
-            catch (IOException)
-            {
-                // 取不到寫入時間就照常讀，不因此漏掉資料。
-            }
-
+            // ⚠️ 這裡刻意**不**用 File.GetLastWriteTime 做「整檔跳過」的優化。
+            //
+            // nlog.config 設了 keepFileOpen="true"，NTFS 對持續開啟的檔案會延遲更新目錄項的
+            // last-write time，取到的值可能落後實際寫入近一小時；而日誌檢視頁的預設查詢區間
+            // 正是「最近 1 小時」。一旦誤判，**正在寫入的當天日誌檔會被整個跳過**，
+            // 畫面顯示「查無日誌紀錄」，但檔案裡其實有資料。
+            //
+            // 何況它幾乎沒有效益：GetExistingFilesInRange 已依檔名日期過濾，區間外的檔案
+            // 本來就不會出現在這裡；只有「起始日當天、且已停止寫入」的檔案才省得到一次讀取。
+            //
+            // 逐檔的提前結束改由 ReadFileAsync 依**內容時間戳**判斷（下方的 ReachedEnd），
+            // 那個判斷不受檔案系統中繼資料影響。
             try
             {
                 var readResult = await ReadFileAsync(
