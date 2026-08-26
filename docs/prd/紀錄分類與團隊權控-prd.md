@@ -1,10 +1,10 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.24
+- 現行系統版本：0.4.40
 - 首次實作版本：0.4.0
-- 最後核對日期：2026/08/17
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -31,8 +31,10 @@
 ## 三、畫面與欄位
 
 - 紀錄編輯（如 `ProjectViewView` Modal）：
-  - 「分類」多選，供檢索過濾，不影響可見性。
+  - 「分類」多選，供檢索過濾，不影響本筆紀錄的可見性。選項本身受**分類主檔的適用團隊**過濾（0.4.40 起，見「分類清單 PRD」第八節），依**登入使用者所屬團隊**決定，與這筆紀錄自己填了哪些團隊無關。
+  - 「分類」選項會額外列出「本筆紀錄已貼、但目前使用者看不到」的分類並加註「（已限定其他團隊）」，避免存檔時被靜默清掉。
   - 「團隊」多選，Placeholder「選擇團隊（不設定表示公開）」；決定該筆紀錄的可見範圍。
+  - 儲存前若「團隊」為空，以 `TeamBindingConfirm.AskAsync` 提出警告（0.4.40 起）：說明此紀錄將對所有使用者公開可見，使用者可選「回去編輯」或「仍要儲存」。取消時 Modal 保持開啟。
 - 清單工具列：分類過濾、團隊過濾（多選）與關鍵字搜尋。
 - 表格欄位：分類（`CategoriesText`）、團隊（`TeamsText`）以文字呈現。
 - 可見範圍規則（非管理員）：
@@ -52,7 +54,8 @@
    - Web API／檔案下載（JWT/Cookie）情境由 `HttpContext` 的 Sid claim 載入使用者並解析有效團隊。
    - 兩者皆無法解析時回傳「非管理員、無團隊」，僅能看到公開紀錄。
 4. 查詢範圍套用（如 `ProjectService`）：非管理員時以 `TagStringHelper.BuildTeamAccessPredicate` 於查詢加上「公開或團隊交集」述詞；單筆讀取／子項存取以 `IsTeamAccessible` 判斷；管理員短路看全部。
-5. 動作級授權（`HasPermissionAttribute`）：解析呼叫者 userId 後委由 `IPermissionChecker.HasPermissionAsync` 判定；管理員短路，擁有動作鍵「頁面:動作」或裸頁面鍵（舊制＝全動作）即通過。
+5. 分類主檔的可見性（0.4.40 起）：`Category` 本身也有 `Teams` 標籤欄位，`CategoryService.ApplyTeamVisibility` 會過濾清單、單筆與下拉來源。⚠️ 其「使用者無團隊」的規則**與紀錄相反**——紀錄是「只看得到公開紀錄」，分類是「視為不受限、看得到全部」。分類可見性只是下拉清單的便利性過濾，安全邊界仍為 RBAC。完整規則見「分類清單 PRD」第八節。
+6. 動作級授權（`HasPermissionAttribute`）：解析呼叫者 userId 後委由 `IPermissionChecker.HasPermissionAsync` 判定；管理員短路，擁有動作鍵「頁面:動作」或裸頁面鍵（舊制＝全動作）即通過。
 
 ## 五、權限與安全
 
@@ -65,7 +68,7 @@
 ## 六、錯誤與邊界
 
 - 無分類／團隊：紀錄視為公開（團隊）、無分類標籤（分類）；過濾清單空表示不套用該過濾。
-- 非管理員且無有效團隊：僅見公開紀錄。
+- 非管理員且無有效團隊：僅見公開**紀錄**；但**分類主檔**在同一情況下視為不受限，看得到全部（刻意的規則差異，見第四節第 5 點）。
 - 標籤精確比對避免「團隊」誤命中「團隊2」等子字串問題。
 - API 未登入回 401、越權回 403，維持 `ApiResult`，不洩漏資料。
 - 子項（如附件）存取沿用父紀錄的團隊可見性判斷。
@@ -75,6 +78,7 @@
 - `MyProject.Tests/TagStringHelperTests.cs`：`ToStored_ThenToList_ShouldRoundTrip`、`ToStored_ShouldTrimDeduplicateAndDropBlanks`、`BuildContainsAnyPredicate_ShouldMatchExactMemberOnly`、`IsTeamAccessible_*`（公開／交集／無交集／管理員）。
 - `MyProject.Tests/EffectiveTeamResolverTests.cs`：`ShouldReturnDirectUserTeams`、`ShouldReturnRoleDefaultTeams`、`ShouldUnionAndDeduplicate`、`ShouldReturnEmptyForUnknownUser`。
 - `MyProject.Tests/ProjectServiceTeamAccessTests.cs`：`GetAsync_Admin_ShouldSeeAllRecords`、`GetAsync_NonAdmin_ShouldSeeOnlyPublicOrIntersectingTeamRecords`、`GetAsync_NonAdminWithoutTeams_ShouldSeeOnlyPublicRecords`、`GetAsync_WithTeamFilter_ShouldFilterByTeam`。
+- `MyProject.Tests/CategoryServiceTeamVisibilityTests.cs`（0.4.40）：分類主檔的可見性，特別是 `GetAsync_NonAdminWithoutTeams_ShouldSeeAllCategories` 釘住「與紀錄相反」的那條規則。
 - `MyProject.Tests/PermissionCheckerTests.cs`：`HasPermissionAsync_ForAdmin_ShouldReturnTrueForAnyKey`、`HasPermissionAsync_WhenRoleHasKey_ShouldReturnTrue`、`HasPermissionAsync_LegacyBarePageKey_ShouldGrantAnyActionOfThatPage`、`HasPermissionAsync_GranularViewOnly_ShouldNotGrantEdit`、`GetEffectivePermissionKeysAsync_WithMultipleRoles_ShouldReturnUnion`。
 
 ## 八、相關程式與文件

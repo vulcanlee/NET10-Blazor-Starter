@@ -98,6 +98,99 @@ public sealed class TeamServiceTests
         Assert.True(saved.IsEnabled);
     }
 
+    [Fact]
+    public async Task AddAsync_WithUntrimmedNameAndCode_ShouldPersistTrimmedValues()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.AddAsync(new TeamAdapterModel { Name = " 研發部 ", Code = " RD " });
+
+        var saved = await fixture.Context.Team.AsNoTracking().SingleAsync();
+        Assert.Equal("研發部", saved.Name);
+        Assert.Equal("RD", saved.Code);
+    }
+
+    [Fact]
+    public async Task AddAsync_WithBlankCode_ShouldPersistNull()
+    {
+        // 「未填代號」在資料庫中必須只有 NULL 一種表示法：
+        // SQLite 的唯一索引視 NULL 互不相等，但空字串彼此相同。
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.AddAsync(new TeamAdapterModel { Name = "研發部", Code = "   " });
+
+        var saved = await fixture.Context.Team.AsNoTracking().SingleAsync();
+        Assert.Null(saved.Code);
+    }
+
+    [Fact]
+    public async Task AddAsync_TwoTeamsWithoutCode_ShouldBothSucceed()
+    {
+        // Code 上有唯一索引，但沒填代號的團隊必須能有很多個。
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        var first = await service.AddAsync(new TeamAdapterModel { Name = "研發部", Code = null });
+        var second = await service.AddAsync(new TeamAdapterModel { Name = "業務部", Code = "" });
+
+        Assert.True(first.Success);
+        Assert.True(second.Success);
+        Assert.Equal(2, await fixture.Context.Team.AsNoTracking().CountAsync());
+    }
+
+    [Fact]
+    public async Task BeforeAddCheckAsync_AfterAddingUntrimmedName_ShouldRejectTrimmedName()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        var service = fixture.CreateService();
+        await service.AddAsync(new TeamAdapterModel { Name = "研發部 " });
+
+        var result = await service.BeforeAddCheckAsync(new TeamAdapterModel { Name = "研發部" });
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task BeforeAddCheckAsync_WithDuplicateCodeDifferentCase_ShouldFail()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.AddTeamAsync("研發部", "RD");
+        var service = fixture.CreateService();
+
+        var result = await service.BeforeAddCheckAsync(new TeamAdapterModel { Name = "業務部", Code = "rd" });
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task AddAsync_WithDuplicateName_ShouldReturnFriendlyMessage()
+    {
+        // 略過前置檢查直接寫入，驗證唯一索引兜底與訊息轉譯。
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.AddTeamAsync("研發部", null);
+        var service = fixture.CreateService();
+
+        var result = await service.AddAsync(new TeamAdapterModel { Name = "研發部" });
+
+        Assert.False(result.Success);
+        Assert.Equal("團隊名稱已存在，無法儲存。", result.Message);
+    }
+
+    [Fact]
+    public async Task AddAsync_WithDuplicateCode_ShouldReturnFriendlyMessage()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.AddTeamAsync("研發部", "RD");
+        var service = fixture.CreateService();
+
+        var result = await service.AddAsync(new TeamAdapterModel { Name = "業務部", Code = "RD" });
+
+        Assert.False(result.Success);
+        Assert.Equal("團隊代號已存在，無法儲存。", result.Message);
+    }
+
     private sealed class TeamServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

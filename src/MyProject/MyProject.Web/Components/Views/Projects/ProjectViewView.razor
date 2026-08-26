@@ -156,9 +156,9 @@ else
                         <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
                                 Values="CurrentRecord.Categories" OnSelectedItemsChanged="OnRecordCategoriesChanged"
                                 Placeholder="選擇分類" AllowClear EnableSearch Style="width: 100%;">
-                            @foreach (var c in availableCategories)
+                            @foreach (var c in modalCategoryOptions)
                             {
-                                <SelectOption TItemValue="string" TItem="string" Value="@c">@c</SelectOption>
+                                <SelectOption TItemValue="string" TItem="string" Value="@c">@CategoryOptionLabel(c)</SelectOption>
                             }
                         </Select>
                     </FormItem>

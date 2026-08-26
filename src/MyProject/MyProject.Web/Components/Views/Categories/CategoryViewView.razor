@@ -37,6 +37,7 @@ else
                    @bind-Total="_total">
                 <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Name)" Title="名稱" Sortable />
                 <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Description)" Title="描述" />
+                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.TeamsText)" Title="適用團隊" />
                 <Column TData="bool" DataIndex="@nameof(CategoryAdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
                     @if (context.IsEnabled)
                     {
@@ -85,6 +86,18 @@ else
                     <FormItem Label="描述">
                         <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入分類描述" />
                         <ValidationMessage For="() => CurrentRecord.Description" />
+                    </FormItem>
+
+                    <FormItem Label="適用團隊">
+                        <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
+                                Values="CurrentRecord.Teams" OnSelectedItemsChanged="OnRecordTeamsChanged"
+                                Placeholder="選擇可使用此分類的團隊（不設定表示所有團隊皆可使用）"
+                                AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var t in availableTeams)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                            }
+                        </Select>
                     </FormItem>
 
                     <FormItem Label="啟用狀態">

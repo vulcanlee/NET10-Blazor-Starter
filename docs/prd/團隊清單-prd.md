@@ -1,8 +1,8 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.24
+- 現行系統版本：0.4.41
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/08/17
 
@@ -59,8 +59,11 @@
 
 ## 六、錯誤與邊界
 
-- 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（`ToLower()` 不分大小寫，修改時排除自身），重複回「團隊名稱已存在」。API 端另以 `ExistsByNameAsync` 回 409 Conflict。
+- 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（先以 `NameNormalizer` 去除前後空白，再 `ToLower()` 不分大小寫，修改時排除自身），重複回「團隊名稱已存在」。API 端另以 `ExistsByNameAsync` 回 409 Conflict，判定語意與 UI 路徑一致。
 - 代號重複：僅在 `Code` 非空白時檢查唯一（`ExistsByCodeAsync`），重複回「團隊代號已存在」/409；空白代號可重複（見測試 `WithEmptyCode...`）。
+- 名稱／代號正規化與唯一索引（0.4.41 起）：寫入前一律經 `NameNormalizer` 處理（掛在 AutoMapper 的「→ Entity」映射上），`Name` 去除前後空白、**`Code` 空白一律存為 `null`**。資料庫另有 `IX_Team_Name` 與 `IX_Team_Code` 唯一索引兜底；SQLite 視 NULL 互不相等，因此多筆「未填代號」的團隊仍可共存。並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「團隊名稱／代號已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
+  - ⚠️ 沿革：0.4.41 之前是「檢查時 Trim、寫入時不 Trim」，「研發部 」（尾隨空白）會原樣入庫，之後「研發部」再也比不到它。`Code` 則可能混雜 `NULL`／`""`／`"   "` 三種「未填」表示法。
+  - ⚠️ 團隊名稱的唯一性不只是清單好看：`Category.Teams` 與 `Project.Teams` 以**團隊名稱字串**做精確比對，一旦出現只差空白的兩個團隊，資料可見性會靜默出錯。
 - 找不到資料：修改／刪除時查無記錄回「找不到要修改／刪除的團隊資料」；API 回 404 NotFound。
 - 驗證失敗：`DataAnnotations`（名稱必填、各欄長度上限）由 `EditContext.Validate()` 於 Modal 攔截並逐條通知。
 - 路由 ID 與 Payload ID 不一致：API `Update` 回 400 ValidationError。
@@ -74,6 +77,11 @@
 - `BeforeAddCheckAsync_WithDuplicateName_ShouldFail`：名稱重複被拒。
 - `BeforeAddCheckAsync_WithDuplicateCode_ShouldFail`：代號重複被拒。
 - `BeforeAddCheckAsync_WithEmptyCode_ShouldSucceedEvenIfAnotherEmptyCodeExists`：空代號不觸發唯一檢查。
+- `AddAsync_WithUntrimmedNameAndCode_ShouldPersistTrimmedValues`：寫入前正規化。
+- `AddAsync_WithBlankCode_ShouldPersistNull` / `AddAsync_TwoTeamsWithoutCode_ShouldBothSucceed`：空白代號歸一成 `null`，多筆未填代號可共存。
+- `BeforeAddCheckAsync_AfterAddingUntrimmedName_ShouldRejectTrimmedName`：0.4.41 修正的破口重現。
+- `AddAsync_WithDuplicateName_ShouldReturnFriendlyMessage` / `AddAsync_WithDuplicateCode_ShouldReturnFriendlyMessage`：唯一索引兜底與訊息轉譯。
+- 另見 `CategoryTeamRepositoryUniquenessTests.cs`（API 路徑的判定語意）與 `CategoryTeamUniqueIndexMigrationTests.cs`（migration 資料清理）。
 - `BeforeUpdateCheckAsync_WithSameRecord_ShouldSucceed`：同一筆用原名／原代號可通過。
 - `BeforeUpdateCheckAsync_WithCodeUsedByOtherRecord_ShouldFail`：代號被他筆占用被拒。
 - `AddAsync_ShouldPersistTeam`：新增後可查回並保留代號與啟用狀態。

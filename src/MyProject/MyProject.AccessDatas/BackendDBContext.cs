@@ -53,6 +53,26 @@ public partial class BackendDBContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        #region 標籤主檔的名稱唯一性（最後一道防線）
+        // 服務層的前置檢查與實際寫入各自開一個 DbContext、不在同一個交易裡，
+        // 兩個並發請求可以同時通過檢查，因此需要資料庫層的唯一索引兜底。
+        // 索引採 SQLite 預設的 BINARY 定序（區分大小寫）；服務層的不分大小寫判定更嚴格，
+        // 會先擋下，兩者不衝突。刻意不改欄位 collation，以免影響既有查詢行為。
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Team>(entity =>
+        {
+            entity.HasIndex(x => x.Name).IsUnique();
+
+            // Code 為選填。SQLite 的唯一索引視 NULL 互不相等，所以多筆「未填代號」沒問題；
+            // 但空字串彼此相同，因此寫入前一律由 NameNormalizer.NormalizeOptional 歸一成 null。
+            entity.HasIndex(x => x.Code).IsUnique();
+        });
+        #endregion
+
         #region RBAC 關聯（多對多）與唯一鍵
         modelBuilder.Entity<Permission>(entity =>
         {

@@ -252,8 +252,18 @@ namespace MyProject.Web.Components.Views.Teams
                 CurrentRecord.CreatedAt = DateTime.Now;
                 CurrentRecord.UpdatedAt = DateTime.Now;
 
-                await teamService.AddAsync(CurrentRecord);
+                var actionResult = await teamService.AddAsync(CurrentRecord);
                 logger.LogInformation("Team create submitted. Name={Name}", CurrentRecord.Name);
+
+                // 前置檢查通過不代表寫得進去：唯一索引在並發時仍會擋下，
+                // 忽略這個回傳值會讓失敗的儲存顯示成「新增成功」。
+                if (!actionResult.Success)
+                {
+                    ViewNotification.Error(notificationService, actionResult.Message);
+
+                    modalVisible = true;
+                    return;
+                }
 
                 ViewNotification.Warning(notificationService, "新增成功");
 
@@ -272,8 +282,16 @@ namespace MyProject.Web.Components.Views.Teams
                 }
 
                 CurrentRecord.UpdatedAt = DateTime.Now;
-                await teamService.UpdateAsync(CurrentRecord);
+                var actionResult = await teamService.UpdateAsync(CurrentRecord);
                 logger.LogInformation("Team update submitted. TeamId={TeamId}, Name={Name}", CurrentRecord.Id, CurrentRecord.Name);
+
+                if (!actionResult.Success)
+                {
+                    ViewNotification.Error(notificationService, actionResult.Message);
+
+                    modalVisible = true;
+                    return;
+                }
 
                 ViewNotification.Warning(notificationService, "修改成功");
             }

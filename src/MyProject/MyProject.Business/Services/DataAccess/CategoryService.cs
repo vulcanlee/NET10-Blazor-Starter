@@ -5,6 +5,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -13,6 +14,7 @@ namespace MyProject.Business.Services.DataAccess;
 public class CategoryService
 {
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
+    private readonly IRecordAccessScopeProvider accessScope;
 
     public IMapper Mapper { get; }
     public ILogger<CategoryService> Logger { get; }
@@ -20,11 +22,40 @@ public class CategoryService
     public CategoryService(
         IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
-        ILogger<CategoryService> logger)
+        ILogger<CategoryService> logger,
+        IRecordAccessScopeProvider accessScope)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
+        this.accessScope = accessScope;
+    }
+
+    /// <summary>
+    /// 套用分類的團隊可見性。
+    ///
+    /// 刻意與紀錄（Project）不同：紀錄的規則是「使用者沒有團隊 → 只看得到公開紀錄」，
+    /// 分類則是「使用者沒有團隊 → 視為不受限，可見全部分類」。
+    /// 分類可見性是操作便利性的過濾（避免下拉清單塞滿用不到的項目），不是安全邊界，
+    /// 安全邊界由 RBAC（HasPermission / IPermissionChecker）負責。
+    /// </summary>
+    private static IQueryable<Category> ApplyTeamVisibility(IQueryable<Category> source, RecordAccessScope scope)
+    {
+        if (scope.IsAdmin || scope.Teams.Count == 0)
+        {
+            return source;
+        }
+
+        return source.Where(TagStringHelper.BuildTeamAccessPredicate<Category>(x => x.Teams, scope.Teams));
+    }
+
+    /// <summary>
+    /// 單筆分類的可見性判斷，規則與 <see cref="ApplyTeamVisibility"/> 一致。
+    /// </summary>
+    private static bool IsVisible(Category item, RecordAccessScope scope)
+    {
+        return scope.Teams.Count == 0
+            || TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin);
     }
 
     public async Task<DataRequestResult<CategoryAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -48,6 +79,8 @@ public class CategoryService
                 x.Name.Contains(dataRequest.Search) ||
                 (x.Description != null && x.Description.Contains(dataRequest.Search)));
         }
+
+        dataSource = ApplyTeamVisibility(dataSource, await accessScope.GetAsync());
 
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
         {
@@ -109,6 +142,12 @@ public class CategoryService
             return new CategoryAdapterModel();
         }
 
+        if (!IsVisible(item, await accessScope.GetAsync()))
+        {
+            Logger.LogWarning("Category access denied by team scope. CategoryId={CategoryId}", id);
+            return new CategoryAdapterModel();
+        }
+
         return Mapper.Map<CategoryAdapterModel>(item);
     }
 
@@ -132,6 +171,14 @@ public class CategoryService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to create category. Name={CategoryName}", paraObject.Name);
+
+            // 前置檢查與寫入不在同一個交易裡，唯一索引是最後一道防線；
+            // 命中時要給明確訊息，不要被泛用的「新增分類失敗。」蓋掉。
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             return VerifyRecordResultFactory.Build(false, "新增分類失敗。", ex);
         }
     }
@@ -166,6 +213,12 @@ public class CategoryService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to update category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
+
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             return VerifyRecordResultFactory.Build(false, "修改分類失敗。", ex);
         }
     }
@@ -205,7 +258,7 @@ public class CategoryService
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for category. Name={CategoryName}", paraObject.Name);
 
-        var name = (paraObject.Name ?? string.Empty).Trim();
+        var name = NameNormalizer.Normalize(paraObject.Name);
         var searchItem = await context.Category
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower());
@@ -234,7 +287,7 @@ public class CategoryService
             return VerifyRecordResultFactory.Build(false, "要修改的分類資料不存在。");
         }
 
-        var name = (paraObject.Name ?? string.Empty).Trim();
+        var name = NameNormalizer.Normalize(paraObject.Name);
         searchItem = await context.Category
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower() && x.Id != paraObject.Id);
@@ -255,14 +308,19 @@ public class CategoryService
     }
 
     /// <summary>
-    /// 取得所有啟用中的分類名稱（依名稱排序），供其他頁面下拉選取使用。
+    /// 取得目前使用者可使用、且啟用中的分類名稱（依名稱排序），供其他頁面下拉選取使用。
+    /// 可見性規則見 <see cref="ApplyTeamVisibility"/>。
     /// </summary>
     public async Task<List<string>> GetAllEnabledNamesAsync()
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        return await context.Category
+        IQueryable<Category> dataSource = context.Category
             .AsNoTracking()
-            .Where(x => x.IsEnabled)
+            .Where(x => x.IsEnabled);
+
+        dataSource = ApplyTeamVisibility(dataSource, await accessScope.GetAsync());
+
+        return await dataSource
             .OrderBy(x => x.Name)
             .Select(x => x.Name)
             .ToListAsync();

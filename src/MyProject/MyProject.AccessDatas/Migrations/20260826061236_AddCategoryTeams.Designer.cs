@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MyProject.AccessDatas;
 
@@ -10,9 +11,11 @@ using MyProject.AccessDatas;
 namespace MyProject.AccessDatas.Migrations
 {
     [DbContext(typeof(BackendDBContext))]
-    partial class BackendDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260826061236_AddCategoryTeams")]
+    partial class AddCategoryTeams
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -81,9 +84,6 @@ namespace MyProject.AccessDatas.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
 
                     b.ToTable("Category");
                 });
@@ -345,12 +345,6 @@ namespace MyProject.AccessDatas.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("Name")
-                        .IsUnique();
 
                     b.ToTable("Team");
                 });
