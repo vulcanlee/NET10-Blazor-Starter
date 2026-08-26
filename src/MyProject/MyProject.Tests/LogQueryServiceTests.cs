@@ -248,8 +248,49 @@ public sealed class LogQueryServiceTests : IDisposable
 
         var result = await QueryAsync(request);
 
-        var entry = Assert.Single(result.Entries);
-        Assert.Equal("inside.", entry.Message);
+        // 失敗時要看得出是「沒找到檔案」「被時間篩掉」還是「解析失敗」，
+        // 只有 Assert.Single 的「collection was empty」等於什麼都沒說。
+        Assert.True(
+            result.Entries.Count == 1,
+            $"預期 1 筆，實際 {result.Entries.Count} 筆。"
+            + $" Message={result.Message}, ScannedFiles={result.ScannedFileCount}"
+            + $", Applied={result.AppliedStartTime:yyyy-MM-dd HH:mm}~{result.AppliedEndTime:yyyy-MM-dd HH:mm}");
+        Assert.Equal("inside.", result.Entries[0].Message);
+    }
+
+    /// <summary>
+    /// 檔案的最後寫入時間**不能**用來跳過整個檔案。
+    ///
+    /// nlog.config 設了 keepFileOpen="true"，NTFS 對持續開啟的檔案會延遲更新目錄項的
+    /// last-write time，File.GetLastWriteTime 可能落後實際寫入近一小時；
+    /// 而 /logs 的預設查詢區間是「最近 1 小時」。兩者相乘會讓**正在寫入的當天日誌檔**
+    /// 被整檔跳過，畫面顯示「查無日誌紀錄」，但檔案裡其實有資料。
+    ///
+    /// 本測試直接把 mtime 設成早於查詢起點來重現該情境，因此與執行當下幾點鐘無關。
+    /// </summary>
+    [Fact]
+    public async Task Query_WhenFileTimestampIsStale_ShouldStillReadEntries()
+    {
+        var today = DateTime.Today;
+        var path = WriteLog(today, $"{today:yyyy-MM-dd} 09:30:00.0000||INFO|1|A|fresh entry.|");
+
+        // 模擬 keepFileOpen 造成的 mtime 落後：檔案中繼資料停在查詢起點之前。
+        File.SetLastWriteTime(path, today.AddHours(1));
+
+        var request = new LogQueryRequest
+        {
+            StartTime = today.AddHours(9),
+            EndTime = today.AddHours(10),
+            Take = 100,
+        };
+
+        var result = await QueryAsync(request);
+
+        Assert.True(
+            result.Entries.Count == 1,
+            $"日誌檔的 mtime 早於查詢起點時仍必須被讀取，實際取得 {result.Entries.Count} 筆。"
+            + $" Message={result.Message}, ScannedFiles={result.ScannedFileCount}");
+        Assert.Equal("fresh entry.", result.Entries[0].Message);
     }
 
     [Fact]
@@ -322,10 +363,12 @@ public sealed class LogQueryServiceTests : IDisposable
         Take = 100,
     };
 
-    private void WriteLog(DateTime day, params string[] lines)
+    /// <summary>寫入指定日期的日誌檔，並回傳檔案路徑（供需要調整檔案中繼資料的測試使用）。</summary>
+    private string WriteLog(DateTime day, params string[] lines)
     {
         var path = Path.Combine(logDirectory, $"{Prefix}-{day:yyyy-MM-dd}.log");
         File.AppendAllLines(path, lines);
+        return path;
     }
 
     private Task<LogQueryResult> QueryAsync(LogQueryRequest request)

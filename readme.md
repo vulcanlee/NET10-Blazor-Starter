@@ -266,6 +266,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
 - [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](docs/changelog/2026-06-22-側邊欄收合修正與日誌補缺.md) — 收合飛出改自訂橋接、補 2 處日誌缺口。
 - [側邊欄群組圖示依名稱各自顯示（0.4.4）](docs/changelog/2026-06-22-側邊欄群組圖示.md) — 移除群組強制 folder_open，群組圖示改用 Menu.json 各自有效圖示。
+- [修正日誌查詢會跳過「正在寫入」的檔案（0.4.39）](docs/changelog/2026-08-26-日誌查詢跳過當前檔案修正.md) — 移除以 `File.GetLastWriteTime` 做整檔跳過的優化：效益幾乎為零，卻讓查詢結果取決於檔案系統中繼資料，並曾造成 CI 紅燈。
 - [CRUD 樣板收斂與產生器重寫（0.4.38）](docs/changelog/2026-08-26-CRUD樣板收斂與產生器重寫.md) — 抽出 `TableSortHelper` / `ViewNotification`（檢視淨減 452 行），並重寫產生器讓它產出真的能編譯、符合現行慣例的模組。
 - [限流實跑驗證修正：政策被覆蓋與 429 信封（0.4.37）](docs/changelog/2026-08-26-限流實跑驗證修正.md) — 實跑才發現的三個問題：登入配額被端點慣例蓋掉、429 被錯誤頁重跑成 400 HTML、設定在註冊時被急切讀取。
 - [Blazor 路徑改用 IDbContextFactory，CleanTrackingHelper 退場（0.4.36）](docs/changelog/2026-08-26-DbContextFactory遷移.md) — 解掉 Blazor Server 的長生命週期 DbContext 陷阱，連帶消滅 47 處手動清除追蹤的慣例。
