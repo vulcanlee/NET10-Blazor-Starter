@@ -4,7 +4,7 @@ using MyProject.Share.Helpers;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 「統計與分析」群組的頁面刻意設計為管理員專屬：權限鍵不列入
+/// 「統計與分析」與「系統管理」群組的頁面刻意設計為管理員專屬：權限鍵不列入
 /// <see cref="RolePermissionService.GetRoleListPermissionAllName"/>，因此不會種出
 /// Permission 資料列、角色矩陣不顯示、任何角色都無法被授予，只有
 /// AuthenticationStateHelper.CheckAccessPage 的管理員短路能通過。
@@ -20,6 +20,9 @@ public sealed class AdminOnlyPermissionTests
         MagicObjectHelper.角色_日誌檢視,
         MagicObjectHelper.角色_資料庫用量,
         MagicObjectHelper.角色_日誌等級設定,
+        MagicObjectHelper.角色_系統管理,
+        MagicObjectHelper.角色_使用者管理,
+        MagicObjectHelper.角色_角色管理,
     ];
 
     [Theory]

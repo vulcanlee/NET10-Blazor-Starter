@@ -16,7 +16,7 @@ namespace MyProject.Business.Services.DataAccess;
 
 public class RoleViewService
 {
-    private readonly BackendDBContext context;
+    private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly RolePermissionService rolePermissionService;
     private readonly IRbacWriteService rbacWriteService;
     private readonly IAuditLogService auditLogService;
@@ -26,7 +26,7 @@ public class RoleViewService
     public ILogger<RoleViewService> Logger { get; }
 
     public RoleViewService(
-        BackendDBContext context,
+        IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<RoleViewService> logger,
         RolePermissionService rolePermissionService,
@@ -34,7 +34,7 @@ public class RoleViewService
         IAuditLogService auditLogService,
         CurrentUserService currentUserService)
     {
-        this.context = context;
+        this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
@@ -69,6 +69,7 @@ public class RoleViewService
 
     public async Task<DataRequestResult<RoleViewAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
             "Loading role views. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
             dataRequest.Search,
@@ -135,6 +136,7 @@ public class RoleViewService
 
     public async Task<RoleViewAdapterModel> GetAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading role view by id. RoleViewId={RoleViewId}", id);
 
         RoleView? item = await context.RoleView
@@ -154,17 +156,16 @@ public class RoleViewService
 
     public async Task<VerifyRecordResult> AddAsync(RoleViewAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Creating role view. Name={RoleName}", paraObject.Name);
 
         try
         {
-            CleanTrackingHelper.Clean<RoleView>(context);
             RoleView itemParameter = Mapper.Map<RoleView>(paraObject);
             itemParameter.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
             await context.RoleView.AddAsync(itemParameter);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<RoleView>(context);
 
             var permissionKeys = ParsePermissionKeys(itemParameter.TabViewJson);
             await rbacWriteService.SyncRolePermissionsAsync(itemParameter.Id, permissionKeys);
@@ -187,11 +188,11 @@ public class RoleViewService
 
     public async Task<VerifyRecordResult> UpdateAsync(RoleViewAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Updating role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
 
         try
         {
-            CleanTrackingHelper.Clean<RoleView>(context);
             RoleView itemData = Mapper.Map<RoleView>(paraObject);
             itemData.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
@@ -205,10 +206,8 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的角色資料。");
             }
 
-            CleanTrackingHelper.Clean<RoleView>(context);
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<RoleView>(context);
 
             var permissionKeys = ParsePermissionKeys(itemData.TabViewJson);
             await rbacWriteService.SyncRolePermissionsAsync(itemData.Id, permissionKeys);
@@ -231,11 +230,11 @@ public class RoleViewService
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Deleting role view. RoleViewId={RoleViewId}", id);
 
         try
         {
-            CleanTrackingHelper.Clean<RoleView>(context);
             RoleView? item = await context.RoleView
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
@@ -246,10 +245,8 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的角色資料。");
             }
 
-            CleanTrackingHelper.Clean<RoleView>(context);
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<RoleView>(context);
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -269,6 +266,7 @@ public class RoleViewService
 
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(RoleViewAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for role view. Name={RoleName}", paraObject.Name);
 
         var searchItem = await context.RoleView
@@ -286,9 +284,9 @@ public class RoleViewService
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(RoleViewAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-update validation for role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
 
-        CleanTrackingHelper.Clean<RoleView>(context);
         var searchItem = await context.RoleView
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -340,6 +338,7 @@ public class RoleViewService
 
     public async Task<RoleViewAdapterModel> Get預設新建帳號角色Async()
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading default role view for new user creation.");
 
         RoleView? item = await context.RoleView

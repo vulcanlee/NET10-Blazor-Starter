@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Views.Admins
 {
@@ -119,9 +120,9 @@ namespace MyProject.Web.Components.Views.Admins
 
             if (args.SortModel?.Any() == true)
             {
-                var tableSortModel = GetCurrentSortModel(args.SortModel);
+                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
                 string sortValue = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                string resolvedSortField = ResolveSortFieldName(tableSortModel);
+                string resolvedSortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
                 sortDirection = sortValue;
                 sortField = resolvedSortField;
             }
@@ -135,39 +136,6 @@ namespace MyProject.Web.Components.Views.Admins
             await ReloadAsync();
         }
 
-        private static ITableSortModel GetCurrentSortModel(IEnumerable<ITableSortModel> sortModels)
-        {
-            return sortModels.FirstOrDefault(model => HasSortDirection(model.SortDirection))
-                ?? sortModels.Last();
-        }
-
-        private static bool HasSortDirection(SortDirection sortDirection)
-        {
-            return sortDirection == SortDirection.Ascending || sortDirection == SortDirection.Descending;
-        }
-
-        private static string ResolveSortFieldName(ITableSortModel sortModel)
-        {
-            if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
-            {
-                return sortModel.FieldName;
-            }
-
-            object? column = sortModel.GetType().GetProperty("Column")?.GetValue(sortModel);
-            if (column is null)
-            {
-                return string.Empty;
-            }
-
-            string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-            if (!string.IsNullOrWhiteSpace(columnFieldName))
-            {
-                return columnFieldName;
-            }
-
-            object? dataIndex = column.GetType().GetProperty("DataIndex")?.GetValue(column);
-            return dataIndex?.ToString() ?? string.Empty;
-        }
 
         async Task OnSearchAsync()
         {
@@ -181,13 +149,7 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("User refresh triggered.");
             await ReloadAsync();
 
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "已更新最新資料",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, "已更新最新資料");
         }
 
         async Task OnEditAsync(MyUserAdapterModel myUserAdapterModel)
@@ -217,13 +179,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting user.");
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "刪除使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, "刪除使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 
@@ -250,13 +206,7 @@ namespace MyProject.Web.Components.Views.Admins
             await myUserService.DeleteAsync(myUserAdapterModel.Id);
             logger.LogInformation("User delete completed. UserId={UserId}", myUserAdapterModel.Id);
 
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "刪除成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
         }
@@ -304,13 +254,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while saving user.");
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "儲存使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, "儲存使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 
@@ -323,14 +267,7 @@ namespace MyProject.Web.Components.Views.Admins
                 foreach (var error in allErrors)
                 {
                     logger.LogInformation("User form validation failed. Error={Error}", error);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "驗證失敗",
-                        Description = error,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight,
-                        Duration = 5
-                    });
+                    ViewNotification.ValidationError(notificationService, error);
                 }
 
                 modalVisible = true;
@@ -340,14 +277,7 @@ namespace MyProject.Web.Components.Views.Admins
             if (isNewRecordMode && string.IsNullOrWhiteSpace(CurrentRecord.Password))
             {
                 logger.LogInformation("User create validation failed because password is empty. Account={Account}", CurrentRecord.Account);
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "驗證失敗",
-                    Description = "新增使用者時必須輸入密碼。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight,
-                    Duration = 5
-                });
+                ViewNotification.ValidationError(notificationService, "新增使用者時必須輸入密碼。");
 
                 modalVisible = true;
                 return;
@@ -359,13 +289,7 @@ namespace MyProject.Web.Components.Views.Admins
                 if (!beforeAddCheckResult.Success)
                 {
                     logger.LogInformation("User create pre-check failed. Account={Account}, Message={Message}", CurrentRecord.Account, beforeAddCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "系統訊息",
-                        Description = beforeAddCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -377,13 +301,7 @@ namespace MyProject.Web.Components.Views.Admins
                 await myUserService.AddAsync(CurrentRecord);
                 logger.LogInformation("User create submitted. Account={Account}", CurrentRecord.Account);
 
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "新增成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Warning(notificationService, "新增成功");
 
                 _ = messageService.SuccessAsync("新增成功");
             }
@@ -393,13 +311,7 @@ namespace MyProject.Web.Components.Views.Admins
                 if (!beforeUpdateCheckResult.Success)
                 {
                     logger.LogInformation("User update pre-check failed. UserId={UserId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "系統訊息",
-                        Description = beforeUpdateCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -410,13 +322,7 @@ namespace MyProject.Web.Components.Views.Admins
                 await myUserService.UpdateAsync(CurrentRecord);
                 logger.LogInformation("User update submitted. UserId={UserId}, Account={Account}", CurrentRecord.Id, CurrentRecord.Account);
 
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "修改成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Warning(notificationService, "修改成功");
             }
 
             await ReloadAsync();

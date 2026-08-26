@@ -125,11 +125,9 @@ namespace MyProject.Web
                 builder.Services.AddConfiguredCache(builder.Configuration);
 
                 #region 加入使用 Cookie & JWT 認證需要的宣告
-                builder.Services.Configure<CookiePolicyOptions>(options =>
-                {
-                    options.CheckConsentNeeded = context => true;
-                    options.MinimumSameSitePolicy = Microsoft.AspNetCore.Http.SameSiteMode.None;
-                });
+                // 註：此處原本設定了 CookiePolicyOptions（含 MinimumSameSitePolicy = None），
+                // 但 pipeline 從未呼叫 UseCookiePolicy()，等於死碼；且 SameSite=None 本身
+                // 會削弱 CSRF 姿態，不該啟用。0.4.34 移除。
 
                 var jwtSettings = builder.Configuration
                     .GetSection(JwtSettings.SectionName)
@@ -377,9 +375,16 @@ namespace MyProject.Web
                 }
 
                 app.UseConfiguredForwardedHeaders();
+                app.UseSecurityHeaders();
                 app.UseConfiguredSwagger(logger);
                 app.UseHttpRequestLogging<Program>();
 
+                // ⚠️ 這個中介軟體只會對「沒有 body」的錯誤狀態碼重跑 /not-found。
+                // 對 API 而言那是災難：它會拿原始的 POST + JSON 去執行 Blazor 頁面，
+                // 被 antiforgery 擋下後回給呼叫端 400 HTML，真正的狀態碼就此消失。
+                // 因此**每一條 API 錯誤路徑都必須自己寫入 ApiResult body**
+                // （JWT 的 401/403 事件、ApiExceptionFilter、ApiValidationFilter、
+                // HasPermissionAttribute、限流的 OnRejected 都已如此）。
                 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
                 app.UseHttpsRedirection();
 
@@ -391,15 +396,24 @@ namespace MyProject.Web
 
                 app.MapStaticAssets();
 
-                #region 綁定靜態資源
-                app.UseConfiguredDownloadStaticFiles(systemSettings);
-                #endregion
-
                 app.UseAuthentication();
                 app.UseAuthorization();
 
+                #region 綁定靜態資源
+                // ⚠️ 一定要放在 UseAuthentication/UseAuthorization 之後。
+                // 0.4.34 之前它掛在兩者之前，等於 DownloadPath 目錄匿名可讀 ——
+                // 與 ProjectFileController 費心做的權限 + 團隊守門 + 稽核軌跡方向相反。
+                app.UseConfiguredDownloadStaticFiles(systemSettings);
+                #endregion
+
+                // 預設拒絕：Controller 未明確標註授權就不給進。
+                // 刻意「只」套在 Controller 上，不用 AuthorizationOptions.FallbackPolicy ——
+                // 後者會連 Blazor 的 Razor Components 端點一起納入，而本專案的頁面
+                // 全部沒有 [Authorize]（改在 OnInitializedAsync 內命令式檢查），
+                // 套上去會把登入頁本身也鎖死。
                 app.MapControllers()
-                    .RequireRateLimiting("api");
+                    .RequireRateLimiting("api")
+                    .RequireAuthorization();
                 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
                 {
                     Predicate = check => check.Tags.Contains("live")
@@ -439,7 +453,7 @@ namespace MyProject.Web
             }
             finally
             {
-                if(logger!=null)
+                if (logger != null)
                     logger.LogInformation("Application is shutting down.");
                 LogManager.Shutdown();
             }

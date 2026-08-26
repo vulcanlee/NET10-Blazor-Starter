@@ -12,23 +12,24 @@ namespace MyProject.Business.Services.DataAccess;
 
 public class CategoryService
 {
-    private readonly BackendDBContext context;
+    private readonly IDbContextFactory<BackendDBContext> contextFactory;
 
     public IMapper Mapper { get; }
     public ILogger<CategoryService> Logger { get; }
 
     public CategoryService(
-        BackendDBContext context,
+        IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<CategoryService> logger)
     {
-        this.context = context;
+        this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
     }
 
     public async Task<DataRequestResult<CategoryAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
             "Loading categories. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
             dataRequest.Search,
@@ -95,6 +96,7 @@ public class CategoryService
 
     public async Task<CategoryAdapterModel> GetAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading category by id. CategoryId={CategoryId}", id);
 
         Category? item = await context.Category
@@ -112,18 +114,17 @@ public class CategoryService
 
     public async Task<VerifyRecordResult> AddAsync(CategoryAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Creating category. Name={CategoryName}", paraObject.Name);
 
         try
         {
-            CleanTrackingHelper.Clean<Category>(context);
             Category itemParameter = Mapper.Map<Category>(paraObject);
             itemParameter.CreatedAt = DateTime.Now;
             itemParameter.UpdatedAt = DateTime.Now;
 
             await context.Category.AddAsync(itemParameter);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Category>(context);
 
             Logger.LogInformation("Category created successfully. CategoryId={CategoryId}, Name={CategoryName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -137,11 +138,11 @@ public class CategoryService
 
     public async Task<VerifyRecordResult> UpdateAsync(CategoryAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Updating category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
 
         try
         {
-            CleanTrackingHelper.Clean<Category>(context);
             Category? item = await context.Category
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -156,10 +157,8 @@ public class CategoryService
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
-            CleanTrackingHelper.Clean<Category>(context);
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Category>(context);
 
             Logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={CategoryName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -173,11 +172,11 @@ public class CategoryService
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Deleting category. CategoryId={CategoryId}", id);
 
         try
         {
-            CleanTrackingHelper.Clean<Category>(context);
             Category? item = await context.Category
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
@@ -188,10 +187,8 @@ public class CategoryService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的分類資料。");
             }
 
-            CleanTrackingHelper.Clean<Category>(context);
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Category>(context);
 
             Logger.LogInformation("Category deleted successfully. CategoryId={CategoryId}, Name={CategoryName}", id, item.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -205,6 +202,7 @@ public class CategoryService
 
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(CategoryAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for category. Name={CategoryName}", paraObject.Name);
 
         var name = (paraObject.Name ?? string.Empty).Trim();
@@ -223,9 +221,9 @@ public class CategoryService
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(CategoryAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-update validation for category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
 
-        CleanTrackingHelper.Clean<Category>(context);
         var searchItem = await context.Category
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -261,6 +259,7 @@ public class CategoryService
     /// </summary>
     public async Task<List<string>> GetAllEnabledNamesAsync()
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         return await context.Category
             .AsNoTracking()
             .Where(x => x.IsEnabled)

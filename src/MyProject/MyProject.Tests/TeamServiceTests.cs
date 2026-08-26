@@ -136,7 +136,7 @@ public sealed class TeamServiceTests
         public TeamService CreateService()
         {
             return new TeamService(
-                Context,
+                new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<TeamService>());
         }

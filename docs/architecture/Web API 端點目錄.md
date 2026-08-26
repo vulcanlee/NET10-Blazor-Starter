@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.4.31
+- 現行系統版本：0.4.34
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/08/25
+- 最後核對日期：2026/08/26
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -70,9 +70,16 @@
 | 觸發 Google 驗證 | `GET Auths/Google/Login` | 未設定金鑰時導回 `/Auths/Login`|
 | 驗證回呼 | `GET Auths/Google/Callback` | 查找/建立帳號；停用帳號導向 `/Auths/Pending`，啟用則完成 Cookie 登入 |
 
-## 六、模板遺留
+## 六、Controller 端預設拒絕（0.4.34 起）
 
-`WeatherForecastController`（路由 `[controller]`，即 `/WeatherForecast`）為專案模板遺留範例，非正式能力；新專案啟動時可移除（見《[腳手架新專案啟動流程](../guides/腳手架新專案啟動流程.md)》）。
+`Program.cs` 的 `app.MapControllers().RequireAuthorization()` 讓**未明確標註授權的 Controller 一律拒絕**。
+需要匿名存取的端點必須自己標 `[AllowAnonymous]`（目前為 `AuthController` 的 login/refresh 與整個 `ExternalAuthController`）。
+
+> 刻意**只**套在 Controller 上，不使用 `AuthorizationOptions.FallbackPolicy`：後者會把 Blazor 的
+> Razor Components 端點一起納入，而本專案的頁面全部沒有 `[Authorize]`（改在 `OnInitializedAsync`
+> 內命令式檢查），套上去會連登入頁本身都鎖死。
+
+> 0.4.34 移除了模板遺留的 `WeatherForecastController`（無授權標註、路由不在 `/api` 之下、回傳裸物件）。
 
 ## 七、相關文件
 

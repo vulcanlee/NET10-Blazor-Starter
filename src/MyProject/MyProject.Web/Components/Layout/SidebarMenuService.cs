@@ -12,8 +12,11 @@ public sealed class SidebarMenuService
     /// <summary>
     /// 選單項目 Id → 權限鍵的宣告式對應（取代原本的「位置索引」耦合，重排選單不會錯位）。
     /// 新增受控頁面時，於此加入 Id→權限鍵即可。
+    ///
+    /// 宣告為 internal 是為了讓 MyProject.Tests 的 MenuPermissionConsistencyTests 能直接讀取，
+    /// 驗證它與 Menu.json 的 id 集合、以及各檢視實際使用的權限鍵三者一致。
     /// </summary>
-    private static readonly IReadOnlyDictionary<int, string> MenuPermissionMap = new Dictionary<int, string>
+    internal static readonly IReadOnlyDictionary<int, string> MenuPermissionMap = new Dictionary<int, string>
     {
         [1] = MagicObjectHelper.角色_首頁,
         [2] = MagicObjectHelper.角色_專案管理,

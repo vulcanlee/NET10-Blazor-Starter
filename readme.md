@@ -25,10 +25,10 @@
 | 資料存取 | Entity Framework Core | 10.0.5 |
 | 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
-| 授權 | RoleView + Menu.json 二維權限樹 | — |
+| 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete/export`）| — |
 | 多語系 | `RequestLocalization` + `AntDesignLocaleFactory` | zh-TW / en-US |
 | 物件對映 | AutoMapper | — |
-| API 文件 | Swashbuckle Swagger UI | 10.1.5 |
+| API 文件 | Swashbuckle Swagger UI | 10.2.3 |
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |
 
 ---
@@ -61,7 +61,8 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、玻璃擬態 UI）
 - 專案領域實體 CRUD（可作為新增其他領域模組的樣板）
 - 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
-- 紀錄分類/團隊標籤：專案可標記分類與團隊，並支援以角色為基礎的團隊行級權控（非管理員僅見公開或團隊交集紀錄）
+- 紀錄分類/團隊標籤：專案可標記分類與團隊，並支援團隊行級權控（非管理員僅見公開或團隊交集紀錄）；
+  使用者的有效團隊＝直接綁定的 `UserTeam` ∪ 其角色的 `DefaultTeamsJson`
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
@@ -105,6 +106,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 .
 ├── readme.md                       ← 本檔（系統入口說明）
 ├── AGENTS.md / CLAUDE.md           ← LLM 協作行為準則與專案速查入口
+├── .editorconfig                   ← 程式碼格式規則（CI 以 dotnet format 強制）
+├── global.json                     ← 鎖定 .NET SDK 版本
 ├── docs/                           ← 系統設計與規範文件（依特性分類，見第 9 節）
 │   ├── README.md                   ← 文件目錄索引與分類規則
 │   ├── planning/                   ← 專案規劃、TODO、路線圖
@@ -116,6 +119,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 │   └── changelog/                  ← 變更紀錄
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
+    ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
+    ├── Directory.Packages.props    ← 套件版本單一來源（Central Package Management）
     ├── MyProject.Web/              ← Blazor Server 宿主
     │   ├── Components/             ← Pages / Views / Layout / Auths / Commons
     │   ├── Controllers/            ← Web API（Project / Category / Team / Auth …）
@@ -148,6 +153,9 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `Swagger.EnabledInProduction` | 是否在 Production 環境暴露 Swagger UI，預設 `false`。 |
 | `Security.ReturnExceptionDetails` | 是否於 `ApiResult.Exception` 回傳例外細節；`null` 時依環境決定。 |
 | `Cors.AllowedOrigins` | CORS 允許來源白名單（陣列）；留空表示不額外開放跨來源。 |
+| `RateLimit.ApiRequestsPerMinute` | 一般 API 每分鐘配額，**每個呼叫端各自計算**，預設 `120`。 |
+| `RateLimit.LoginRequestsPerMinute` | 登入端點每分鐘配額，預設 `10`（比一般 API 嚴格）。 |
+| `ForwardedHeaders.KnownProxies` / `KnownNetworks` | 信任的反向代理 IP／網段；走代理時必設，否則來源 IP 會全部變成代理伺服器且 `X-Forwarded-For` 可被偽造。 |
 | `CacheSettings.Provider` | 快取 provider，支援 `Memory` 與 `Redis`，預設 `Memory`（見 [分散式快取機制](docs/features/分散式快取機制.md)）。 |
 | `CacheSettings.RedisConnection` | `Provider=Redis` 時的 Redis 連線字串；Production 使用 Redis 時必須設定。 |
 | `CacheSettings.InstanceName` | Redis 快取鍵前綴，預設 `MyProject:`。 |
@@ -164,6 +172,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
+| `SystemSettings.Upload.AllowedExtensions` | 允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
 各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
@@ -229,7 +238,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
-- `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組所需檔案骨架。
+- `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組（13 個檔案，對齊現行慣例；產出附 README 列出註冊步驟）。
 
 ### 維運與部署（operations）
 
@@ -257,6 +266,13 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
 - [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](docs/changelog/2026-06-22-側邊欄收合修正與日誌補缺.md) — 收合飛出改自訂橋接、補 2 處日誌缺口。
 - [側邊欄群組圖示依名稱各自顯示（0.4.4）](docs/changelog/2026-06-22-側邊欄群組圖示.md) — 移除群組強制 folder_open，群組圖示改用 Menu.json 各自有效圖示。
+- [CRUD 樣板收斂與產生器重寫（0.4.38）](docs/changelog/2026-08-26-CRUD樣板收斂與產生器重寫.md) — 抽出 `TableSortHelper` / `ViewNotification`（檢視淨減 452 行），並重寫產生器讓它產出真的能編譯、符合現行慣例的模組。
+- [限流實跑驗證修正：政策被覆蓋與 429 信封（0.4.37）](docs/changelog/2026-08-26-限流實跑驗證修正.md) — 實跑才發現的三個問題：登入配額被端點慣例蓋掉、429 被錯誤頁重跑成 400 HTML、設定在註冊時被急切讀取。
+- [Blazor 路徑改用 IDbContextFactory，CleanTrackingHelper 退場（0.4.36）](docs/changelog/2026-08-26-DbContextFactory遷移.md) — 解掉 Blazor Server 的長生命週期 DbContext 陷阱，連帶消滅 47 處手動清除追蹤的慣例。
+- [API 安全基礎設施補強：限流分割、安全標頭、上傳白名單（0.4.35）](docs/changelog/2026-08-26-API安全基礎設施補強.md) — 限流改為依呼叫端分割並可設定、新增安全回應標頭、`/UploadFiles` 需登入、上傳副檔名白名單與 ContentType 正規化。
+- [API 安全缺陷修正：例外外洩、停用帳號、預設拒絕（0.4.34）](docs/changelog/2026-08-26-API安全缺陷修正.md) — Production 不再外洩例外堆疊、停用帳號無法取得 JWT、refresh 回查資料庫、移除模板遺留 Controller 並改為預設拒絕。
+- [權限一致性修正與四方守門測試（0.4.33）](docs/changelog/2026-08-26-權限一致性修正.md) — 修正 `/projects` 用錯權限鍵、清掉「使用者管理／角色管理」死權限、權限鍵常數去空白並正規化既有資料，新增四方一致性守門測試。
+- [建立工程品質關卡（0.4.32）](docs/changelog/2026-08-26-工程品質關卡.md) — `.editorconfig`、`TreatWarningsAsErrors`、Central Package Management、`global.json` 與 CI Format check；順帶修掉 Swashbuckle 遞移弱點與測試日期時間炸彈。
 - [移除工作項目、會議記錄與 SQL Server 支援，新增「關於」對話窗（0.4.24）](docs/changelog/2026-08-17-移除工作項目會議記錄與MSSQL支援.md) — 兩項領域作業下架、資料庫收斂為單一 SQLite 軌道、使用者選單新增系統資訊對話窗。
 
 ### 專案規劃（planning）

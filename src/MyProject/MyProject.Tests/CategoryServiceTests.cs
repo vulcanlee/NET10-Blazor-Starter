@@ -124,7 +124,7 @@ public sealed class CategoryServiceTests
         public CategoryService CreateService()
         {
             return new CategoryService(
-                Context,
+                new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<CategoryService>());
         }

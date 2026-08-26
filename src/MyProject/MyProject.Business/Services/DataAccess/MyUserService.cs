@@ -14,7 +14,7 @@ namespace MyProject.Business.Services.DataAccess;
 
 public class MyUserService
 {
-    private readonly BackendDBContext context;
+    private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly IRbacWriteService rbacWriteService;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
@@ -23,14 +23,14 @@ public class MyUserService
     public ILogger<MyUserService> Logger { get; }
 
     public MyUserService(
-        BackendDBContext context,
+        IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<MyUserService> logger,
         IRbacWriteService rbacWriteService,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService)
     {
-        this.context = context;
+        this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.rbacWriteService = rbacWriteService;
@@ -64,6 +64,7 @@ public class MyUserService
 
     public async Task<DataRequestResult<MyUserAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
             "Loading users. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
             dataRequest.Search,
@@ -176,6 +177,7 @@ public class MyUserService
 
     public async Task<MyUserAdapterModel> GetAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading user by id. Id={UserId}", id);
 
         MyUser? item = await context.MyUser
@@ -196,6 +198,7 @@ public class MyUserService
 
     public async Task<List<RoleViewAdapterModel>> GetRoleViewsAsync()
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading role views for user maintenance.");
 
         List<RoleView> roleViews = await context.RoleView
@@ -209,6 +212,7 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> AddAsync(MyUserAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Creating user. Account={Account}, RoleViewId={RoleViewId}", paraObject.Account, paraObject.RoleViewId);
 
         try
@@ -219,7 +223,6 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "新增使用者時必須輸入密碼。");
             }
 
-            CleanTrackingHelper.Clean<MyUser>(context);
             MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
             itemParameter.RoleView = null;
             itemParameter.Salt = Guid.NewGuid().ToString();
@@ -227,9 +230,8 @@ public class MyUserService
 
             await context.MyUser.AddAsync(itemParameter);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<MyUser>(context);
 
-            await SyncAssignmentsAsync(itemParameter.Id, paraObject);
+            await SyncAssignmentsAsync(context, rbacWriteService, itemParameter.Id, paraObject);
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -249,11 +251,11 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> UpdateAsync(MyUserAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Updating user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
 
         try
         {
-            CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? currentItem = await context.MyUser
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -278,12 +280,10 @@ public class MyUserService
                 itemData.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
             }
 
-            CleanTrackingHelper.Clean<MyUser>(context);
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<MyUser>(context);
 
-            await SyncAssignmentsAsync(itemData.Id, paraObject);
+            await SyncAssignmentsAsync(context, rbacWriteService, itemData.Id, paraObject);
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -302,7 +302,15 @@ public class MyUserService
     }
 
     /// <summary>雙寫：同步使用者的角色（主要 + 額外，多角色）與團隊（UserTeam）。</summary>
-    private async Task SyncAssignmentsAsync(int userId, MyUserAdapterModel paraObject)
+    /// <summary>
+    /// 由 Add/Update 呼叫，**必須沿用呼叫端的 context**（同一個工作單元），
+    /// 不可自行 CreateDbContext。
+    /// </summary>
+    private static async Task SyncAssignmentsAsync(
+        BackendDBContext context,
+        IRbacWriteService rbacWriteService,
+        int userId,
+        MyUserAdapterModel paraObject)
     {
         var roleIds = new List<int>();
         if (paraObject.RoleViewId.HasValue)
@@ -331,6 +339,7 @@ public class MyUserService
     /// <summary>載入使用者現有的額外角色（主要角色以外）與團隊名稱，供編輯畫面回填。</summary>
     public async Task<(List<int> AdditionalRoleIds, List<string> TeamNames)> GetUserAssignmentsAsync(int userId)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         var primaryRoleId = await context.MyUser
             .AsNoTracking()
             .Where(x => x.Id == userId)
@@ -359,11 +368,11 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Deleting user. UserId={UserId}", id);
 
         try
         {
-            CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? item = await context.MyUser
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
@@ -374,10 +383,8 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的使用者資料。");
             }
 
-            CleanTrackingHelper.Clean<MyUser>(context);
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<MyUser>(context);
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -397,6 +404,7 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(MyUserAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for Account={Account}", paraObject.Account);
 
         MyUser? searchItem = await context.MyUser
@@ -414,9 +422,9 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(MyUserAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-update validation for UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
 
-        CleanTrackingHelper.Clean<MyUser>(context);
         MyUser? searchItem = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -452,6 +460,7 @@ public class MyUserService
         string newPassword,
         string confirmPassword)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Changing own password. UserId={UserId}", userId);
 
         MyUser? user = await context.MyUser
@@ -502,7 +511,7 @@ public class MyUserService
     /// </summary>
     public async Task<bool> HasLocalPasswordAsync(int userId)
     {
-        CleanTrackingHelper.Clean<MyUser>(context);
+        await using var context = await contextFactory.CreateDbContextAsync();
         MyUser? user = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == userId);
@@ -520,6 +529,7 @@ public class MyUserService
         string newPassword,
         string confirmPassword)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Setting own API password. UserId={UserId}", userId);
 
         MyUser? user = await context.MyUser
@@ -580,9 +590,9 @@ public class MyUserService
 
     public async Task<bool> NeedChangePasswordAsync(MyUserAdapterModel myUser)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Checking whether user must change password. UserId={UserId}", myUser.Id);
 
-        CleanTrackingHelper.Clean<MyUser>(context);
         var user = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == myUser.Id);
@@ -602,11 +612,11 @@ public class MyUserService
 
     public async Task<VerifyRecordResult> ChangePasswordAsync(int userId, string currentPassword, string newPassword)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Changing password for user. UserId={UserId}", userId);
 
         try
         {
-            CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? user = await context.MyUser
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == userId);
@@ -625,11 +635,9 @@ public class MyUserService
 
             var newHash = SecurePasswordHasher.HashPassword(newPassword);
 
-            CleanTrackingHelper.Clean<MyUser>(context);
             MyUser? trackedUser = await context.MyUser.FirstOrDefaultAsync(x => x.Id == userId);
             trackedUser!.Password = newHash;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<MyUser>(context);
 
             Logger.LogInformation("Password changed successfully. UserId={UserId}", userId);
             return VerifyRecordResultFactory.Build(true);

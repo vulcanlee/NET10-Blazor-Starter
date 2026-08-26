@@ -162,10 +162,10 @@ public sealed class AuditEventsTests
         private AuditLogService Audit() => new(Context, loggerFactory.CreateLogger<AuditLogService>());
 
         public MyUserService CreateUserService()
-            => new(Context, mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
+            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
 
         public RoleViewService CreateRoleService()
-            => new(Context, mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
+            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
 
         public async ValueTask DisposeAsync()
         {

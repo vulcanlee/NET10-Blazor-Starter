@@ -59,6 +59,6 @@ public class ApiExceptionFilterAttribute : ExceptionFilterAttribute
 
     private bool ShouldReturnExceptionDetails()
     {
-        return securitySettings.ReturnExceptionDetails ?? environment.IsDevelopment();
+        return ExceptionDetailPolicy.ShouldReturnDetails(securitySettings, environment);
     }
 }

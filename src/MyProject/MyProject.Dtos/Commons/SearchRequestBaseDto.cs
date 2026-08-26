@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 
 namespace MyProject.Dtos.Commons;
@@ -10,13 +11,24 @@ namespace MyProject.Dtos.Commons;
 public class SearchRequestBaseDto
 {
     /// <summary>
+    /// 每頁筆數上限。避免單次請求把整張表撈進記憶體。
+    /// </summary>
+    public const int MaxPageSize = 200;
+
+    /// <summary>
     /// 頁碼 (從 1 開始)
     /// </summary>
+    /// <remarks>
+    /// 下限必須是 1：Repository 以 <c>Skip((PageIndex - 1) * PageSize)</c> 分頁，
+    /// 傳 0 會變成 <c>Skip(-PageSize)</c> 而丟例外。
+    /// </remarks>
+    [Range(1, int.MaxValue, ErrorMessage = "頁碼必須大於或等於 1。")]
     public int PageIndex { get; set; } = 1;
 
     /// <summary>
     /// 每頁筆數
     /// </summary>
+    [Range(1, MaxPageSize, ErrorMessage = "每頁筆數必須介於 1 到 200 之間。")]
     public int PageSize { get; set; } = 10;
 
     /// <summary>

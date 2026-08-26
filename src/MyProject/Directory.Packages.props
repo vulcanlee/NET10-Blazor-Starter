@@ -1,0 +1,43 @@
+<Project>
+
+  <!--
+    Central Package Management：所有套件版本的單一來源。
+    個別 csproj 只寫 <PackageReference Include="..." />，不再帶 Version。
+    升級套件請一律改這裡，避免同一套件在不同專案版本不一致。
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <!-- ASP.NET Core / EF Core（隨 .NET 版本一起升級） -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google"      Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer"   Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization"   Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing"                Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi"                    Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design"            Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite"            Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools"             Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.5" />
+  </ItemGroup>
+
+  <!-- UI 與工具 -->
+  <ItemGroup>
+    <PackageVersion Include="AntDesign"              Version="1.6.0" />
+    <PackageVersion Include="AutoMapper"             Version="16.1.1" />
+    <PackageVersion Include="BlazorMaterialIcons"    Version="0.0.1" />
+    <PackageVersion Include="NLog.Web.AspNetCore"    Version="6.1.2" />
+    <PackageVersion Include="Newtonsoft.Json"        Version="13.0.4" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <!-- 測試 -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk"    Version="17.14.1" />
+    <PackageVersion Include="coverlet.collector"        Version="6.0.4" />
+    <PackageVersion Include="xunit"                     Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>

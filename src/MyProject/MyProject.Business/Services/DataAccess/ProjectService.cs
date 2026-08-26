@@ -16,29 +16,32 @@ public class ProjectService
 {
     public const long MaxUploadFileSize = 1024L * 1024L * 1024L;
 
-    private readonly BackendDBContext context;
+    private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly IRecordAccessScopeProvider accessScope;
     private readonly string projectFileRootPath;
+    private readonly IReadOnlyCollection<string> allowedUploadExtensions;
 
     public IMapper Mapper { get; }
     public ILogger<ProjectService> Logger { get; }
 
     public ProjectService(
-        BackendDBContext context,
+        IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<ProjectService> logger,
         IOptions<SystemSettings> systemSettings,
         IRecordAccessScopeProvider accessScope)
     {
-        this.context = context;
+        this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.accessScope = accessScope;
         projectFileRootPath = systemSettings.Value.ExternalFileSystem.ProjectFilePath;
+        allowedUploadExtensions = systemSettings.Value.Upload.AllowedExtensions;
     }
 
     public async Task<DataRequestResult<ProjectAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
             "Loading projects. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
             dataRequest.Search,
@@ -169,6 +172,7 @@ public class ProjectService
 
     public async Task<ProjectAdapterModel> GetAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading project by id. ProjectId={ProjectId}", id);
 
         Project? item = await context.Project
@@ -194,18 +198,18 @@ public class ProjectService
 
     public async Task<VerifyRecordResult> AddAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Creating project. Title={Title}, Owner={Owner}", paraObject.Title, paraObject.Owner);
 
         try
         {
-            CleanTrackingHelper.Clean<Project>(context);
             Project itemParameter = Mapper.Map<Project>(paraObject);
             itemParameter.Files = [];
 
             await context.Project.AddAsync(itemParameter);
             await context.SaveChangesAsync();
 
-            var saveFilesResult = await SaveNewFilesAsync(itemParameter, uploadFiles);
+            var saveFilesResult = await SaveNewFilesAsync(context, itemParameter, uploadFiles);
             if (!saveFilesResult.Success)
             {
                 return saveFilesResult;
@@ -226,11 +230,11 @@ public class ProjectService
         IEnumerable<ProjectUploadFileInput>? uploadFiles = null,
         IEnumerable<int>? removedFileIds = null)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Updating project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
 
         try
         {
-            CleanTrackingHelper.Clean<Project>(context);
             Project? currentItem = await context.Project
                 .Include(x => x.Files)
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -255,13 +259,13 @@ public class ProjectService
 
             await context.SaveChangesAsync();
 
-            var saveFilesResult = await SaveNewFilesAsync(currentItem, uploadFiles);
+            var saveFilesResult = await SaveNewFilesAsync(context, currentItem, uploadFiles);
             if (!saveFilesResult.Success)
             {
                 return saveFilesResult;
             }
 
-            var removeFilesResult = await RemoveProjectFilesAsync(currentItem, removedFileIds);
+            var removeFilesResult = await RemoveProjectFilesAsync(context, currentItem, removedFileIds);
             if (!removeFilesResult.Success)
             {
                 return removeFilesResult;
@@ -279,11 +283,11 @@ public class ProjectService
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Deleting project. ProjectId={ProjectId}", id);
 
         try
         {
-            CleanTrackingHelper.Clean<Project>(context);
             Project? item = await context.Project
                 .Include(x => x.Files)
                 .FirstOrDefaultAsync(x => x.Id == id);
@@ -301,7 +305,6 @@ public class ProjectService
 
             context.Project.Remove(item);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Project>(context);
 
             Logger.LogInformation("Project deleted successfully. ProjectId={ProjectId}, Title={Title}", id, item.Title);
             return VerifyRecordResultFactory.Build(true);
@@ -323,9 +326,9 @@ public class ProjectService
         ProjectAdapterModel paraObject,
         IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-update validation for project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
 
-        CleanTrackingHelper.Clean<Project>(context);
         Project? searchItem = await context.Project
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -347,6 +350,7 @@ public class ProjectService
 
     public async Task<ProjectFileDownloadResult?> GetFileDownloadAsync(int projectFileId)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         var file = await context.ProjectFile
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == projectFileId);
@@ -422,6 +426,14 @@ public class ProjectService
                     Logger.LogWarning("Project upload validation failed because file exceeded the size limit. FileName={FileName}, FileSize={FileSize}", uploadFile.FileName, uploadFile.FileSize);
                     return Task.FromResult(VerifyRecordResultFactory.Build(false, $"檔案 {uploadFile.FileName} 超過 1GB 限制"));
                 }
+
+                // 副檔名白名單。儲存檔名雖已改為 GUID，但副檔名會保留、下載時也會回吐
+                // ContentType；允許 .html / .svg 等同在自己的網域上開一個 stored XSS。
+                if (!UploadFileTypePolicy.IsAllowed(uploadFile.FileName, allowedUploadExtensions))
+                {
+                    Logger.LogWarning("Project upload validation failed because the file extension is not allowed. FileName={FileName}", uploadFile.FileName);
+                    return Task.FromResult(VerifyRecordResultFactory.Build(false, $"檔案 {uploadFile.FileName} 的類型不在允許清單中。"));
+                }
             }
         }
 
@@ -434,7 +446,11 @@ public class ProjectService
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
 
-    private async Task<VerifyRecordResult> SaveNewFilesAsync(Project project, IEnumerable<ProjectUploadFileInput>? uploadFiles)
+    /// <summary>
+    /// 由 Add/Update 呼叫，**必須沿用呼叫端的 context**（同一個工作單元，
+    /// 實體檔案落地與資料表紀錄要一起成敗），不可自行 CreateDbContext。
+    /// </summary>
+    private async Task<VerifyRecordResult> SaveNewFilesAsync(BackendDBContext context, Project project, IEnumerable<ProjectUploadFileInput>? uploadFiles)
     {
         if (uploadFiles is null)
         {
@@ -478,7 +494,11 @@ public class ProjectService
         }
     }
 
-    private async Task<VerifyRecordResult> RemoveProjectFilesAsync(Project project, IEnumerable<int>? removedFileIds)
+    /// <summary>
+    /// 由 Add/Update 呼叫，**必須沿用呼叫端的 context**（同一個工作單元，
+    /// 實體檔案落地與資料表紀錄要一起成敗），不可自行 CreateDbContext。
+    /// </summary>
+    private async Task<VerifyRecordResult> RemoveProjectFilesAsync(BackendDBContext context, Project project, IEnumerable<int>? removedFileIds)
     {
         if (removedFileIds is null)
         {
@@ -534,9 +554,9 @@ public class ProjectService
             await uploadFile.Content.CopyToAsync(targetStream);
         }
 
-        var contentType = string.IsNullOrWhiteSpace(uploadFile.ContentType)
-            ? "application/octet-stream"
-            : uploadFile.ContentType;
+        // ⚠️ 不使用 uploadFile.ContentType：呼叫端可以上傳 .txt 卻宣稱是 text/html。
+        // 一律依副檔名對應（副檔名本身已通過白名單驗證）。
+        var contentType = UploadFileTypePolicy.ResolveContentType(originalFileName);
 
         return (
             new ProjectFile

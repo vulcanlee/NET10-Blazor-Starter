@@ -45,13 +45,14 @@ public sealed class LogQueryServiceTests : IDisposable
     public async Task Query_SingleLineEntry_ShouldParseAllFields()
     {
         var today = DateTime.Today;
-        // 取自實際日誌檔的真實樣本。
-        WriteLog(today, "2026-08-25 08:53:19.9079||INFO|2|MyProject.Web.Program|Application host built successfully.|");
+        // 取自實際日誌檔的真實樣本，但日期一律以 today 內插產生。
+        // 日期若寫死，測試只在撰寫當天有效：查詢範圍是 today，內容卻停在舊日期。
+        WriteLog(today, $"{today:yyyy-MM-dd} 08:53:19.9079||INFO|2|MyProject.Web.Program|Application host built successfully.|");
 
         var result = await QueryAsync(CreateRequest(today));
 
         var entry = Assert.Single(result.Entries);
-        Assert.Equal(new DateTime(2026, 8, 25, 8, 53, 19, 907).AddTicks(9000), entry.Timestamp);
+        Assert.Equal(new DateTime(today.Year, today.Month, today.Day, 8, 53, 19, 907).AddTicks(9000), entry.Timestamp);
         Assert.Equal(string.Empty, entry.TraceId);
         Assert.Equal("INFO", entry.Level);
         Assert.Equal(LogLevelRank.Info, entry.Rank);
@@ -64,7 +65,7 @@ public sealed class LogQueryServiceTests : IDisposable
     public async Task Query_TraceIdPopulated_ShouldParseTraceId()
     {
         var today = DateTime.Today;
-        WriteLog(today, "2026-08-25 08:56:30.4666|0HNO28D1R7FN2:00000001|WARN|19|MyProject.Business.Services.Other.AuthenticationStateHelper|Authentication check failed.|");
+        WriteLog(today, $"{today:yyyy-MM-dd} 08:56:30.4666|0HNO28D1R7FN2:00000001|WARN|19|MyProject.Business.Services.Other.AuthenticationStateHelper|Authentication check failed.|");
 
         var result = await QueryAsync(CreateRequest(today));
 
@@ -78,12 +79,12 @@ public sealed class LogQueryServiceTests : IDisposable
     {
         var today = DateTime.Today;
         WriteLog(today,
-            "2026-08-25 09:00:00.0000||ERROR|5|MyProject.Web.Boom|Something failed.|System.InvalidOperationException: boom",
+            $"{today:yyyy-MM-dd} 09:00:00.0000||ERROR|5|MyProject.Web.Boom|Something failed.|System.InvalidOperationException: boom",
             "   at MyProject.Web.Boom.Explode()",
             "   at MyProject.Web.Boom.Run()",
             "--- End of stack trace ---",
             "   at MyProject.Web.Caller.Invoke()",
-            "2026-08-25 09:00:01.0000||INFO|5|MyProject.Web.Boom|Recovered.|");
+            $"{today:yyyy-MM-dd} 09:00:01.0000||INFO|5|MyProject.Web.Boom|Recovered.|");
 
         var result = await QueryAsync(CreateRequest(today));
 
@@ -103,7 +104,7 @@ public sealed class LogQueryServiceTests : IDisposable
     public async Task Query_MessageContainingPipe_ShouldStillParseLoggerCorrectly()
     {
         var today = DateTime.Today;
-        WriteLog(today, "2026-08-25 09:00:00.0000||INFO|7|MyProject.Web.Pipes|a|b|c value|");
+        WriteLog(today, $"{today:yyyy-MM-dd} 09:00:00.0000||INFO|7|MyProject.Web.Pipes|a|b|c value|");
 
         var result = await QueryAsync(CreateRequest(today));
 
@@ -119,10 +120,10 @@ public sealed class LogQueryServiceTests : IDisposable
     {
         var today = DateTime.Today;
         WriteLog(today,
-            "2026-08-25 09:00:00.0000||DEBUG|1|A|debug line.|",
-            "2026-08-25 09:00:01.0000||INFO|1|A|info line.|",
-            "2026-08-25 09:00:02.0000||WARN|1|A|warn line.|",
-            "2026-08-25 09:00:03.0000||ERROR|1|A|error line.|");
+            $"{today:yyyy-MM-dd} 09:00:00.0000||DEBUG|1|A|debug line.|",
+            $"{today:yyyy-MM-dd} 09:00:01.0000||INFO|1|A|info line.|",
+            $"{today:yyyy-MM-dd} 09:00:02.0000||WARN|1|A|warn line.|",
+            $"{today:yyyy-MM-dd} 09:00:03.0000||ERROR|1|A|error line.|");
 
         var request = CreateRequest(today);
         request.MinimumLevel = LogLevelRank.Warn;
@@ -138,9 +139,9 @@ public sealed class LogQueryServiceTests : IDisposable
     {
         var today = DateTime.Today;
         WriteLog(today,
-            "2026-08-25 09:00:00.0000||ERROR|1|A|failed.|System.Exception: outer",
+            $"{today:yyyy-MM-dd} 09:00:00.0000||ERROR|1|A|failed.|System.Exception: outer",
             "   at Deep.Hidden.Frame()",
-            "2026-08-25 09:00:01.0000||INFO|1|A|unrelated.|");
+            $"{today:yyyy-MM-dd} 09:00:01.0000||INFO|1|A|unrelated.|");
 
         var request = CreateRequest(today);
         // 大小寫互換，且該字串只存在於續行中。
@@ -157,7 +158,7 @@ public sealed class LogQueryServiceTests : IDisposable
     {
         var today = DateTime.Today;
         var lines = Enumerable.Range(0, 20)
-            .Select(i => $"2026-08-25 09:00:{i:00}.0000||INFO|1|A|line {i}.|")
+            .Select(i => $"{today:yyyy-MM-dd} 09:00:{i:00}.0000||INFO|1|A|line {i}.|")
             .ToArray();
         WriteLog(today, lines);
 

@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Views.Projects;
 
@@ -85,7 +86,7 @@ public partial class ProjectViewView
             return;
         }
 
-        if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_專案管理) == false)
+        if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_專案項目) == false)
         {
             RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
             logger.LogWarning("Project management view denied because current user has not this role permission.");
@@ -156,9 +157,9 @@ public partial class ProjectViewView
 
         if (args.SortModel?.Any() == true)
         {
-            var tableSortModel = GetCurrentSortModel(args.SortModel);
+            var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
             sortDirection = tableSortModel.SortDirection.ToString() ?? string.Empty;
-            sortField = ResolveSortFieldName(tableSortModel);
+            sortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
         }
         else
         {
@@ -170,39 +171,6 @@ public partial class ProjectViewView
         await ReloadAsync();
     }
 
-    private static ITableSortModel GetCurrentSortModel(IEnumerable<ITableSortModel> sortModels)
-    {
-        return sortModels.FirstOrDefault(model => HasSortDirection(model.SortDirection))
-            ?? sortModels.Last();
-    }
-
-    private static bool HasSortDirection(SortDirection sortDirection)
-    {
-        return sortDirection == SortDirection.Ascending || sortDirection == SortDirection.Descending;
-    }
-
-    private static string ResolveSortFieldName(ITableSortModel sortModel)
-    {
-        if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
-        {
-            return sortModel.FieldName;
-        }
-
-        object? column = sortModel.GetType().GetProperty("Column")?.GetValue(sortModel);
-        if (column is null)
-        {
-            return string.Empty;
-        }
-
-        string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-        if (!string.IsNullOrWhiteSpace(columnFieldName))
-        {
-            return columnFieldName;
-        }
-
-        object? dataIndex = column.GetType().GetProperty("DataIndex")?.GetValue(column);
-        return dataIndex?.ToString() ?? string.Empty;
-    }
 
     private async Task OnSearchAsync()
     {
@@ -216,20 +184,16 @@ public partial class ProjectViewView
         logger.LogInformation("Project refresh triggered.");
         await ReloadAsync();
 
-        _ = notificationService.Open(new NotificationConfig
-        {
-            Message = "系統訊息",
-            Description = "已更新最新資料",
-            NotificationType = NotificationType.Warning,
-            Placement = NotificationPlacement.BottomRight
-        });
+        ViewNotification.Warning(notificationService, "已更新最新資料");
     }
 
     private async Task OnEditAsync(ProjectAdapterModel projectAdapterModel)
     {
         isNewRecordMode = false;
         modalTitle = "修改專案";
-        CurrentRecord = await projectService.GetAsync(projectAdapterModel.Id);
+        // 與其他檢視一致：編輯前一律 Clone() 隔離，避免雙向綁定污染來源資料。
+        // 本檢視另有 RemoveExistingFile 會直接 mutate Files 集合，更需要隔離。
+        CurrentRecord = (await projectService.GetAsync(projectAdapterModel.Id)).Clone();
         pendingUploadFiles.Clear();
         removedFileIds.Clear();
         modalVisible = true;
@@ -249,13 +213,7 @@ public partial class ProjectViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while deleting project.");
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                NotificationType = NotificationType.Error,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Error(notificationService, "刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
         }
     }
 
@@ -267,13 +225,7 @@ public partial class ProjectViewView
         if (!beforeDeleteCheckResult.Success)
         {
             logger.LogInformation("Project delete pre-check failed. ProjectId={ProjectId}, Message={Message}", projectAdapterModel.Id, beforeDeleteCheckResult.Message);
-            _ = notificationService.Open(new NotificationConfig
-            {
-                Message = "系統訊息",
-                Description = beforeDeleteCheckResult.Message,
-                NotificationType = NotificationType.Error,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Error(notificationService, beforeDeleteCheckResult.Message);
             return;
         }
 
@@ -296,13 +248,7 @@ public partial class ProjectViewView
         await projectService.DeleteAsync(projectAdapterModel.Id);
         logger.LogInformation("Project delete completed. ProjectId={ProjectId}", projectAdapterModel.Id);
 
-        _ = notificationService.Open(new NotificationConfig
-        {
-            Message = "系統訊息",
-            Description = "刪除成功",
-            NotificationType = NotificationType.Warning,
-            Placement = NotificationPlacement.BottomRight
-        });
+        ViewNotification.Warning(notificationService, "刪除成功");
 
         await ReloadAsync();
     }
@@ -332,13 +278,7 @@ public partial class ProjectViewView
         {
             if (file.Size > ProjectService.MaxUploadFileSize)
             {
-                _ = notificationService.Open(new NotificationConfig
-                {
-                    Message = "檔案過大",
-                    Description = $"{file.Name} 超過 1GB 限制",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, $"{file.Name} 超過 1GB 限制");
                 continue;
             }
 
@@ -365,13 +305,7 @@ public partial class ProjectViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while saving project.");
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "儲存專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                NotificationType = NotificationType.Error,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Error(notificationService, "儲存專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
         }
     }
 
@@ -383,14 +317,7 @@ public partial class ProjectViewView
             foreach (var error in allErrors)
             {
                 logger.LogInformation("Project form validation failed. Error={Error}", error);
-                _ = notificationService.Open(new NotificationConfig
-                {
-                    Message = "驗證失敗",
-                    Description = error,
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight,
-                    Duration = 5
-                });
+                ViewNotification.ValidationError(notificationService, error);
             }
 
             modalVisible = true;
@@ -423,13 +350,7 @@ public partial class ProjectViewView
                 if (!beforeAddCheckResult.Success)
                 {
                     logger.LogInformation("Project create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig
-                    {
-                        Message = "系統訊息",
-                        Description = beforeAddCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -447,13 +368,7 @@ public partial class ProjectViewView
                 if (!beforeUpdateCheckResult.Success)
                 {
                     logger.LogInformation("Project update pre-check failed. ProjectId={ProjectId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig
-                    {
-                        Message = "系統訊息",
-                        Description = beforeUpdateCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -466,13 +381,7 @@ public partial class ProjectViewView
 
             if (!actionResult.Success)
             {
-                _ = notificationService.Open(new NotificationConfig
-                {
-                    Message = "系統訊息",
-                    Description = actionResult.Message,
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, actionResult.Message);
 
                 modalVisible = true;
                 return;
@@ -481,13 +390,7 @@ public partial class ProjectViewView
             pendingUploadFiles.Clear();
             removedFileIds.Clear();
 
-            _ = notificationService.Open(new NotificationConfig
-            {
-                Message = "系統訊息",
-                Description = isNewRecordMode ? "新增成功" : "修改成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, isNewRecordMode ? "新增成功" : "修改成功");
 
             if (isNewRecordMode)
             {

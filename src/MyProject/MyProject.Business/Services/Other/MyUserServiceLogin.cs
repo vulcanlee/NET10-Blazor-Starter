@@ -37,6 +37,19 @@ public class MyUserServiceLogin
         this.auditLogService = auditLogService;
     }
 
+    /// <summary>
+    /// 取回仍可使用的帳號；查無此人或已停用時回 null。
+    /// 供 refresh token 換發時重新確認使用者現況（token claim 內的資料可能已過期）。
+    /// </summary>
+    public async Task<MyUser?> GetActiveUserAsync(int userId)
+    {
+        MyUser? item = await context.MyUser
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId);
+
+        return item is { Status: true } ? item : null;
+    }
+
     public async Task<(string, MyUser?)> LoginAsync(string username, string password)
     {
         Logger.LogInformation("Login attempt started for Account={Account}.", username);
@@ -51,6 +64,18 @@ public class MyUserServiceLogin
                 Logger.LogWarning("Login failed because account was not found. Account={Account}", username);
                 await auditLogService.WriteAsync("Login.Failed", success: false, actorAccount: username, detail: "帳號不存在");
                 return ("帳號或者密碼不正確", null);
+            }
+
+            // 停用帳號一律擋在發證之前。
+            // 沿革：0.4.34 之前這裡沒有檢查 Status —— UI 路徑靠 AuthenticationStateHelper.Check
+            // 在後續每次頁面載入時擋下，但 API 的 /api/Auth/login 會直接發出 JWT，
+            // 而 PermissionChecker 與 HasPermissionAttribute 也都不看 Status，
+            // 等於停用帳號仍可正常呼叫 API。
+            if (!item.Status)
+            {
+                Logger.LogWarning("Login blocked because account is disabled. Account={Account}, UserId={UserId}", username, item.Id);
+                await auditLogService.WriteAsync("Login.Disabled", success: false, actorUserId: item.Id, actorAccount: username);
+                return ("帳號已停用，請聯絡系統管理員。", null);
             }
 
             if (item.LockoutEndUtc.HasValue && item.LockoutEndUtc.Value > DateTime.UtcNow)

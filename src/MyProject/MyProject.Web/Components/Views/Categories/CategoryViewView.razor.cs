@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Views.Categories
 {
@@ -109,9 +110,9 @@ namespace MyProject.Web.Components.Views.Categories
 
             if (args.SortModel?.Any() == true)
             {
-                var tableSortModel = GetCurrentSortModel(args.SortModel);
+                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
                 string sortValue = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                string resolvedSortField = ResolveSortFieldName(tableSortModel);
+                string resolvedSortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
                 sortDirection = sortValue;
                 sortField = resolvedSortField;
             }
@@ -125,39 +126,6 @@ namespace MyProject.Web.Components.Views.Categories
             await ReloadAsync();
         }
 
-        private static ITableSortModel GetCurrentSortModel(IEnumerable<ITableSortModel> sortModels)
-        {
-            return sortModels.FirstOrDefault(model => HasSortDirection(model.SortDirection))
-                ?? sortModels.Last();
-        }
-
-        private static bool HasSortDirection(SortDirection sortDirection)
-        {
-            return sortDirection == SortDirection.Ascending || sortDirection == SortDirection.Descending;
-        }
-
-        private static string ResolveSortFieldName(ITableSortModel sortModel)
-        {
-            if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
-            {
-                return sortModel.FieldName;
-            }
-
-            object? column = sortModel.GetType().GetProperty("Column")?.GetValue(sortModel);
-            if (column is null)
-            {
-                return string.Empty;
-            }
-
-            string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-            if (!string.IsNullOrWhiteSpace(columnFieldName))
-            {
-                return columnFieldName;
-            }
-
-            object? dataIndex = column.GetType().GetProperty("DataIndex")?.GetValue(column);
-            return dataIndex?.ToString() ?? string.Empty;
-        }
 
         async Task OnSearchAsync()
         {
@@ -171,13 +139,7 @@ namespace MyProject.Web.Components.Views.Categories
             logger.LogInformation("Category refresh triggered.");
             await ReloadAsync();
 
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "已更新最新資料",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, "已更新最新資料");
         }
 
         async Task OnEditAsync(CategoryAdapterModel categoryAdapterModel)
@@ -202,13 +164,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting category.");
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, "刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 
@@ -235,13 +191,7 @@ namespace MyProject.Web.Components.Views.Categories
             await categoryService.DeleteAsync(categoryAdapterModel.Id);
             logger.LogInformation("Category delete completed. CategoryId={CategoryId}", categoryAdapterModel.Id);
 
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "刪除成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
         }
@@ -268,13 +218,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while saving category.");
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "儲存分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, "儲存分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 
@@ -286,14 +230,7 @@ namespace MyProject.Web.Components.Views.Categories
                 foreach (var error in allErrors)
                 {
                     logger.LogInformation("Category form validation failed. Error={Error}", error);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "驗證失敗",
-                        Description = error,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight,
-                        Duration = 5
-                    });
+                    ViewNotification.ValidationError(notificationService, error);
                 }
 
                 modalVisible = true;
@@ -306,13 +243,7 @@ namespace MyProject.Web.Components.Views.Categories
                 if (!beforeAddCheckResult.Success)
                 {
                     logger.LogInformation("Category create pre-check failed. Name={Name}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "系統訊息",
-                        Description = beforeAddCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -324,13 +255,7 @@ namespace MyProject.Web.Components.Views.Categories
                 await categoryService.AddAsync(CurrentRecord);
                 logger.LogInformation("Category create submitted. Name={Name}", CurrentRecord.Name);
 
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "新增成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Warning(notificationService, "新增成功");
 
                 _ = messageService.SuccessAsync("新增成功");
             }
@@ -340,13 +265,7 @@ namespace MyProject.Web.Components.Views.Categories
                 if (!beforeUpdateCheckResult.Success)
                 {
                     logger.LogInformation("Category update pre-check failed. CategoryId={CategoryId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "系統訊息",
-                        Description = beforeUpdateCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -356,13 +275,7 @@ namespace MyProject.Web.Components.Views.Categories
                 await categoryService.UpdateAsync(CurrentRecord);
                 logger.LogInformation("Category update submitted. CategoryId={CategoryId}, Name={Name}", CurrentRecord.Id, CurrentRecord.Name);
 
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "修改成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Warning(notificationService, "修改成功");
             }
 
             await ReloadAsync();

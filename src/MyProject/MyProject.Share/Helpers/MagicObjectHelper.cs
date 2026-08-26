@@ -28,13 +28,26 @@ public class MagicObjectHelper
     public const string 角色_首頁 = "首頁";
     public const string 角色_專案管理 = "專案管理功能";
     public const string 角色_專案項目 = "專案項目";
+    /// <summary>
+    /// 系統管理群組。與「統計與分析」相同，刻意不列入
+    /// <c>RolePermissionService.GetRoleListPermissionAllName()</c>：不種 Permission 資料列、
+    /// 角色矩陣不顯示、任何角色都無法被授予，僅由 <c>CheckIsAdmin()</c> 通過。
+    ///
+    /// 沿革：0.4.32 之前這三個鍵有上架角色矩陣，但 MyUserView / RoleViewView 實際是以
+    /// CheckIsAdmin() 守門，形成「勾得到卻永遠無效」的死權限。已由
+    /// <c>AdminOnlyPermissionTests</c> 守住，請勿補上。
+    /// </summary>
     public const string 角色_系統管理 = "系統管理功能";
+
+    /// <inheritdoc cref="角色_系統管理"/>
     public const string 角色_使用者管理 = "使用者管理";
-    public const string 角色_角色管理 = "角色管理 ";
+
+    /// <inheritdoc cref="角色_系統管理"/>
+    public const string 角色_角色管理 = "角色管理";
     public const string 角色_資料定義 = "資料定義管理功能";
     public const string 角色_分類清單 = "分類清單";
     public const string 角色_團隊清單 = "團隊清單";
-    public const string 角色_登出 = "登出 ";
+    public const string 角色_登出 = "登出";
 
     /// <summary>
     /// 統計與分析群組。刻意不列入 <c>RolePermissionService.GetRoleListPermissionAllName()</c>：
