@@ -37,8 +37,10 @@ public class AutoMapping : Profile
         #endregion
 
         #region Category
-        CreateMap<Category, CategoryAdapterModel>();
-        CreateMap<CategoryAdapterModel, Category>();
+        CreateMap<Category, CategoryAdapterModel>()
+            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)));
+        CreateMap<CategoryAdapterModel, Category>()
+            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)));
         CreateMap<Category, CategoryDto>();
         CreateMap<CategoryDto, Category>();
         CreateMap<Category, CategoryCreateUpdateDto>();

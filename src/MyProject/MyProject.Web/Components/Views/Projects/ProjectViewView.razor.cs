@@ -28,6 +28,12 @@ public partial class ProjectViewView
     private List<string> availableTeams = [];
     private List<string> selectedCategoryFilters = [];
     private List<string> selectedTeamFilters = [];
+
+    /// <summary>編輯 Modal 的分類選項；與工具列過濾器不同，會額外帶上這筆紀錄的既有值。</summary>
+    private List<string> modalCategoryOptions = [];
+
+    /// <summary>這筆紀錄已貼、但目前使用者看不到的分類（顯示時加註，避免被誤認為可自由選取）。</summary>
+    private readonly HashSet<string> restrictedCategoryValues = new(StringComparer.OrdinalIgnoreCase);
     private int _pageIndex = 1;
     private int _pageSize = MagicObjectHelper.PageSize;
     private int _total;
@@ -146,6 +152,30 @@ public partial class ProjectViewView
         CurrentRecord.Categories = values?.ToList() ?? [];
     }
 
+    /// <summary>
+    /// 編輯 Modal 的分類選項 = 目前可見分類 ∪ 這筆紀錄已貼但已限定其他團隊的分類。
+    /// 後者若不列出，AntDesign 的多選 Select 會把它視為未知值，使用者一存檔就被靜默清掉。
+    /// </summary>
+    private void BuildModalCategoryOptions()
+    {
+        restrictedCategoryValues.Clear();
+
+        var options = new List<string>(availableCategories);
+        var visible = new HashSet<string>(availableCategories, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var category in CurrentRecord.Categories.Where(x => visible.Contains(x) == false))
+        {
+            options.Add(category);
+            restrictedCategoryValues.Add(category);
+        }
+
+        modalCategoryOptions = options;
+    }
+
+    /// <summary>選項顯示文字；Value 一律維持原始名稱，只有顯示加註。</summary>
+    private string CategoryOptionLabel(string name)
+        => restrictedCategoryValues.Contains(name) ? $"{name}（已限定其他團隊）" : name;
+
     private void OnRecordTeamsChanged(IEnumerable<string> values)
     {
         CurrentRecord.Teams = values?.ToList() ?? [];
@@ -196,6 +226,7 @@ public partial class ProjectViewView
         CurrentRecord = (await projectService.GetAsync(projectAdapterModel.Id)).Clone();
         pendingUploadFiles.Clear();
         removedFileIds.Clear();
+        BuildModalCategoryOptions();
         modalVisible = true;
         logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
     }
@@ -265,6 +296,7 @@ public partial class ProjectViewView
 
         pendingUploadFiles.Clear();
         removedFileIds.Clear();
+        BuildModalCategoryOptions();
         isNewRecordMode = true;
         modalTitle = "新增專案";
         modalVisible = true;
@@ -320,6 +352,18 @@ public partial class ProjectViewView
                 ViewNotification.ValidationError(notificationService, error);
             }
 
+            modalVisible = true;
+            return;
+        }
+
+        if (CurrentRecord.Teams.Count == 0
+            && await TeamBindingConfirm.AskAsync(
+                modalService,
+                "此專案未指定團隊，將對所有使用者公開可見。確定要這樣儲存嗎？") == false)
+        {
+            logger.LogDebug("Project save cancelled at team confirmation. ProjectId={ProjectId}", CurrentRecord.Id);
+
+            // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
             modalVisible = true;
             return;
         }

@@ -13,6 +13,15 @@ public class CategoryAdapterModel : ICloneable
     [StringLength(2000, ErrorMessage = "描述長度不可超過 2000 字元")]
     public string? Description { get; set; }
 
+    /// <summary>
+    /// 適用團隊（未設定表示所有團隊皆可使用）。
+    /// 注意：Clone() 走 MemberwiseClone()，這個清單是淺複製，
+    /// 因此異動時一律「指派新清單」，不可對既有清單 Add/Remove。
+    /// </summary>
+    public List<string> Teams { get; set; } = [];
+
+    public string TeamsText => string.Join("、", Teams);
+
     public bool IsEnabled { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;

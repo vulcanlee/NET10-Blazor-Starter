@@ -17,6 +17,8 @@ namespace MyProject.Web.Components.Views.Categories
     {
         private readonly ILogger<CategoryViewView> logger;
         private readonly CategoryService categoryService;
+        private readonly TeamService teamService;
+        private readonly IRecordAccessScopeProvider accessScope;
         private readonly ModalService modalService;
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
@@ -29,6 +31,10 @@ namespace MyProject.Web.Components.Views.Categories
         string sortDirection = "None";
 
         List<CategoryAdapterModel> categoryAdapterModels = new();
+        List<string> availableTeams = new();
+
+        /// <summary>目前使用者的存取範圍，用於判斷「存檔後自己就看不到這筆」的提醒。</summary>
+        RecordAccessScope currentScope = new(false, []);
 
         string modalTitle = "分類維護";
         bool modalVisible = false;
@@ -47,12 +53,16 @@ namespace MyProject.Web.Components.Views.Categories
         public CategoryViewView(
             ILogger<CategoryViewView> logger,
             CategoryService categoryService,
+            TeamService teamService,
+            IRecordAccessScopeProvider accessScope,
             ModalService modalService,
             MessageService messageService,
             NotificationService notificationService)
         {
             this.logger = logger;
             this.categoryService = categoryService;
+            this.teamService = teamService;
+            this.accessScope = accessScope;
             this.modalService = modalService;
             this.messageService = messageService;
             this.notificationService = notificationService;
@@ -74,6 +84,9 @@ namespace MyProject.Web.Components.Views.Categories
                 logger.LogWarning("Category view denied because current user has not this role permission.");
                 return;
             }
+
+            availableTeams = await teamService.GetAllEnabledNamesAsync();
+            currentScope = await accessScope.GetAsync();
 
             await ReloadAsync();
         }
@@ -140,6 +153,15 @@ namespace MyProject.Web.Components.Views.Categories
             await ReloadAsync();
 
             ViewNotification.Warning(notificationService, "已更新最新資料");
+        }
+
+        /// <summary>
+        /// 一律指派新清單：CurrentRecord 是 MemberwiseClone 出來的，
+        /// 直接異動原清單會連帶改到表格上那一列的資料。
+        /// </summary>
+        void OnRecordTeamsChanged(IEnumerable<string> values)
+        {
+            CurrentRecord.Teams = values?.ToList() ?? new List<string>();
         }
 
         async Task OnEditAsync(CategoryAdapterModel categoryAdapterModel)
@@ -237,6 +259,15 @@ namespace MyProject.Web.Components.Views.Categories
                 return;
             }
 
+            if (await ConfirmTeamBindingAsync() == false)
+            {
+                logger.LogDebug("Category save cancelled at team confirmation. CategoryId={CategoryId}", CurrentRecord.Id);
+
+                // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
+                modalVisible = true;
+                return;
+            }
+
             if (isNewRecordMode)
             {
                 var beforeAddCheckResult = await categoryService.BeforeAddCheckAsync(CurrentRecord);
@@ -280,6 +311,34 @@ namespace MyProject.Web.Components.Views.Categories
 
             await ReloadAsync();
             modalVisible = false;
+        }
+
+        /// <summary>
+        /// 儲存前對「團隊設定」提出警告。兩種情況只會擇一提醒：
+        /// 1. 完全沒指定團隊 —— 這筆會變成所有人都看得到的公用分類。
+        /// 2. 指定的團隊與自己所屬團隊沒有交集 —— 存檔後自己就會在清單上看不到它。
+        /// 回傳 true 表示可以繼續儲存。
+        /// </summary>
+        private async Task<bool> ConfirmTeamBindingAsync()
+        {
+            if (CurrentRecord.Teams.Count == 0)
+            {
+                return await TeamBindingConfirm.AskAsync(
+                    modalService,
+                    "此分類未指定適用團隊，將出現在所有使用者的分類下拉清單中（視同公用分類）。確定要這樣儲存嗎？");
+            }
+
+            if (currentScope.IsAdmin == false
+                && currentScope.Teams.Count > 0
+                && CurrentRecord.Teams.Any(x => currentScope.Teams.Any(
+                    team => string.Equals(x, team, StringComparison.OrdinalIgnoreCase))) == false)
+            {
+                return await TeamBindingConfirm.AskAsync(
+                    modalService,
+                    "此分類指定的團隊不包含你所屬的任何團隊，儲存後你將無法在分類清單中看到這筆資料。確定要這樣儲存嗎？");
+            }
+
+            return true;
         }
 
         private Task OnModalCancelHandleAsync(MouseEventArgs args)

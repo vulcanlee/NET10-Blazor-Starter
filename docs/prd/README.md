@@ -1,10 +1,10 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：維護中
-- 現行系統版本：0.4.29
+- 現行系統版本：0.4.40
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/08/25
+- 最後核對日期：2026/08/26
 
 本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，不含 LLM／RAG 能力；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
@@ -17,13 +17,13 @@
 | 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController` | 已實作 | 0.4.23 |
 | 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作 | 0.4.23 |
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.4.23 |
-| 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作 | 0.4.23 |
+| 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作（0.4.40 起可指定適用團隊） | 0.4.40 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `Pages/Teams/TeamPage.razor`、`TeamService`、`TeamController` | 已實作 | 0.4.23 |
 | 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、Health services | 已實作 | 0.4.23 |
 | 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Pages/Analytics/LogViewerPage.razor`、`LogQueryService`、`NLogFilePathResolver` | 已實作 | 0.4.26 |
 | 資料庫用量 | [資料庫用量](資料庫用量-prd.md) | `/database-usage` | `Pages/Analytics/DatabaseUsagePage.razor`、`DatabaseUsageService` | 已實作 | 0.4.28 |
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.4.29 |
-| 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.4.24 |
+| 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.4.40 |
 
 ## 二、無選單入口的核心能力
 
