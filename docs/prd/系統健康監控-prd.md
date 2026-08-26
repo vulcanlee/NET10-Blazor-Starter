@@ -1,10 +1,10 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.42
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -69,11 +69,11 @@
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/SystemHealthPage.razor:1`（含管理員守門 `:99`、燈號/狀態文字 `:109`）
-- `src/MyProject/MyProject.Web/Health/SystemHealthService.cs:60`（`GetReportAsync` 與 8 項檢查）
-- `src/MyProject/MyProject.Web/Health/SystemHealthScoreCalculator.cs:1`（計分與燈號門檻）
-- `src/MyProject/MyProject.Web/Health/SystemHealthModels.cs:1`（報告與項目模型）
-- `src/MyProject/MyProject.Web/Health/HealthLogReader.cs:1`、`DatabaseHealthCheck.cs:1`
-- `src/MyProject/MyProject.Web/Extensions/ServiceCollectionExtensions.cs:208`（`AddConfiguredHealthChecks`，探針 tag `live`/`ready`）
-- `src/MyProject/MyProject.Web/Program.cs:398`（`MapHealthChecks` `/health/live`、`/health/ready`）
+- `src/MyProject/MyProject.Web/Components/Pages/SystemHealthPage.razor`（含管理員守門 `:99`、燈號/狀態文字 `:109`）
+- `src/MyProject/MyProject.Web/Health/SystemHealthService.cs`（`GetReportAsync` 與 8 項檢查）
+- `src/MyProject/MyProject.Web/Health/SystemHealthScoreCalculator.cs`（計分與燈號門檻）
+- `src/MyProject/MyProject.Web/Health/SystemHealthModels.cs`（報告與項目模型）
+- `src/MyProject/MyProject.Web/Health/HealthLogReader.cs`、`DatabaseHealthCheck.cs`
+- `src/MyProject/MyProject.Web/Extensions/ServiceCollectionExtensions.cs`（`AddConfiguredHealthChecks`，探針 tag `live`/`ready`）
+- `src/MyProject/MyProject.Web/Program.cs`（`MapHealthChecks` `/health/live`、`/health/ready`）
 - 交叉連結：[系統健康監控（機制）](../features/系統健康監控.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)

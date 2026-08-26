@@ -1,10 +1,10 @@
 ﻿# 資料庫用量 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.28
+- 現行系統版本：0.4.42
 - 首次實作版本：0.4.28
-- 最後核對日期：2026/08/25
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -44,6 +44,10 @@
 
 **本頁沒有任何操作按鈕**，純閱讀，不提供會寫入資料庫的動作。
 
+> **降級狀態**：報表尚未載入時顯示「正在讀取資料庫用量...」；
+> `report.ErrorMessage` 非空時顯示紅色錯誤區塊；另有 `report.Message` / `report.Warnings`
+> 以黃色提示區塊呈現（例如 WAL 模式下的估算誤差）。
+
 ## 四、內部系統運作
 
 1. `DatabaseUsageView.OnInitializedAsync`：先 `AuthenticationStateHelper.Check`，再 `CheckIsAdmin`；非管理員設定 `RoleMessage` 並中止，**權限通過前不觸碰資料庫**。
@@ -60,13 +64,21 @@
 - **NULL 欄位必須逐欄 `COALESCE`**：`NULL + 任何值` 仍是 `NULL`，而 `SUM()` 會跳過 `NULL` 列 —— 少了逐欄處理會「悄悄少算」而不是報錯。
 - **數值欄位的估算不精確**：INTEGER／REAL 轉 BLOB 會先經過文字表示，量到的是位數而非實際儲存的 1～8 位元組 varint。這本來就是估算值。不應改用 `CASE typeof(...)` 硬套固定長度 —— 那同樣是猜測，只會讓 SQL 產生邏輯更複雜。
 - **沒有 dbstat**：本專案綁的 SQLite（3.49.1）未編入 `dbstat` 虛擬表（已實測確認回傳 `no such table: dbstat`），而那是取得每表實際頁數的唯一途徑。`sqlite_dbpage` 同樣不可用。
-- **位元組估算是每張表全表掃描**，成本與資料庫總大小成正比且無索引可用。目前資料庫僅 144 KB 故可忽略；服務會記錄每次量測耗時，日後真的變慢才有數據可依據。
+- **位元組估算是每張表全表掃描**，成本與資料庫總大小成正比且無索引可用。目前資料庫為數百 KB 等級 故可忽略；服務會記錄每次量測耗時，日後真的變慢才有數據可依據。
 - **`Microsoft.Data.Sqlite` 的 async 是假的**：`ExecuteScalarAsync` 等方法是同步工作包在已完成的 Task 裡。因此 `CancellationToken` 無法中止已在進行的掃描，以逾時來設限並不會真的生效。
 - **已配置可能大於主檔大小**：`page_count` 回報的是「此連線所見的資料庫大小」，包含仍只存在於 WAL、尚未 checkpoint 回主檔的頁。這正是副標「含尚未併回主檔的頁」的意思，不是錯誤。
 - **無伺服器端路由守衛**：本頁沒有 `[Authorize]` 屬性，唯一防線是 `OnInitializedAsync` 內的 `CheckIsAdmin()`，與既有 `/system-health`、`/logs` 一致。
 - 索引數計入具名索引與 `UNIQUE` 隱含產生的 `sqlite_autoindex_*`；不計 rowid B-tree 與 `INTEGER PRIMARY KEY`（前者就是資料表本身，後者是 rowid 別名，皆不額外占空間）。
 
-## 六、相關文件
+## 六、驗收與測試
+
+對應測試檔 `MyProject.Tests/DatabaseUsageServiceTests.cs`（10 支）：涵蓋各資料表筆數統計、
+用量估算與單位換算，以及 `Estimate_ChineseText_ShouldCountBytesNotCharacters`
+（中文須以**位元組**而非字元計算，否則估算會嚴重偏低）。
+
+---
+
+## 七、相關文件
 
 - 選單與權限機制：`docs/prd/首頁與導覽-prd.md`、`docs/security/認證授權與權限機制.md`
 - 同一子功能表的另一頁：`docs/prd/日誌檢視-prd.md`

@@ -1,4 +1,4 @@
-# NET10-Blazor-Starter
+﻿# NET10-Blazor-Starter
 
 一份基於 **.NET 10** 與 **Blazor Server**（全域 SSR）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Cookie 認證、角色權限、多語系、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
@@ -27,7 +27,7 @@
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
 | 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete/export`）| — |
 | 多語系 | `RequestLocalization` + `AntDesignLocaleFactory` | zh-TW / en-US |
-| 物件對映 | AutoMapper | — |
+| 物件對映 | AutoMapper | 16.1.1 |
 | API 文件 | Swashbuckle Swagger UI | 10.2.3 |
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |
 
@@ -61,6 +61,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、玻璃擬態 UI）
 - 專案領域實體 CRUD（可作為新增其他領域模組的樣板）
 - 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
+  （0.4.40 起分類可指定適用團隊、下拉依使用者所屬團隊過濾；0.4.41 起名稱唯一性由資料庫唯一索引保證）
 - 紀錄分類/團隊標籤：專案可標記分類與團隊，並支援團隊行級權控（非管理員僅見公開或團隊交集紀錄）；
   使用者的有效團隊＝直接綁定的 `UserTeam` ∪ 其角色的 `DefaultTeamsJson`
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
@@ -68,13 +69,17 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
 - 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最後 100 筆日誌
+- 日誌檢視頁：`/logs`，管理員可依等級／關鍵字／時間區間查詢並匯出（0.4.26）
+- 資料庫用量頁：`/database-usage`，管理員可查看各資料表筆數與估算用量（0.4.28）
+- 日誌等級設定頁：`/log-level-setting`，管理員可在執行期調整日誌等級（0.4.29）
+- API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
 - 分散式快取：`ICacheService` 統一抽象，透過 `appsettings.json` 在 Memory ↔ Redis 間切換（側邊選單已套用）
 - Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略與 Redis 連線字串需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
 - 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、.NET 版本、啟動與已運作時間
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
 - 全站請求耗時 / 例外統一寫入 NLog
-- 靜態資源外部對應（`/UploadFiles` → 實體下載目錄）
+- 靜態資源外部對應（`/UploadFiles` → 實體下載目錄；**0.4.35 起需登入**才可取用）
 
 ---
 
@@ -116,14 +121,24 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 │   ├── features/                   ← 個別功能機制（快取、多語系、上傳、健康監控）
 │   ├── guides/                     ← 開發/操作教學（CRUD、EFCore、測試）
 │   ├── operations/                 ← 維護、部署、設定檔、CI/CD
+│   ├── prd/                        ← 產品需求文件（能力覆蓋矩陣 + 各能力 PRD）
+│   ├── superpowers/                ← brainstorming 流程產出的設計規格
 │   └── changelog/                  ← 變更紀錄
+├── scripts/                        ← New-StarterProject.ps1 / New-CrudModule.ps1 / Test-DocsEncoding.ps1
+├── .github/workflows/              ← CI（build / format / test / 文件編碼 / 弱點掃描）
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
     ├── Directory.Packages.props    ← 套件版本單一來源（Central Package Management）
     ├── MyProject.Web/              ← Blazor Server 宿主
-    │   ├── Components/             ← Pages / Views / Layout / Auths / Commons
+    │   ├── Components/             ← Pages / Views / Layout / Auths / Commons / Dialogs
     │   ├── Controllers/            ← Web API（Project / Category / Team / Auth …）
+    │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
+    │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）
+    │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider
+    │   ├── Health/                 ← 健康檢查與計分
+    │   ├── wwwroot/                ← 靜態資源
+    │   ├── nlog.config
     │   ├── Localization/           ← AntDesignLocaleFactory
     │   ├── Datas/Menu.json         ← Sidebar 導覽與權限定義
     │   ├── Filters/                ← ApiValidationFilter 等
@@ -140,7 +155,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   └── Migrations/
     ├── MyProject.Models/           ← AdapterModel、Systems、AutoMapper 來源
     ├── MyProject.Dtos/             ← API DTO（含 ApiResult/PagedResult）
-    └── MyProject.Share/            ← Helpers、Extensions
+    ├── MyProject.Share/            ← Helpers、Extensions
+    └── MyProject.Tests/            ← xUnit 測試（含慣例守門測試）
 ```
 
 ---
@@ -149,13 +165,14 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 | 區段 | 用途 |
 |------|------|
+| `AllowedHosts` | 允許的 Host 標頭白名單，預設 `*`。 |
 | `Logging` | .NET 預設記錄等級設定（NLog 啟動後會接管實際輸出）。 |
 | `Swagger.EnabledInProduction` | 是否在 Production 環境暴露 Swagger UI，預設 `false`。 |
 | `Security.ReturnExceptionDetails` | 是否於 `ApiResult.Exception` 回傳例外細節；`null` 時依環境決定。 |
 | `Cors.AllowedOrigins` | CORS 允許來源白名單（陣列）；留空表示不額外開放跨來源。 |
 | `RateLimit.ApiRequestsPerMinute` | 一般 API 每分鐘配額，**每個呼叫端各自計算**，預設 `120`。 |
 | `RateLimit.LoginRequestsPerMinute` | 登入端點每分鐘配額，預設 `10`（比一般 API 嚴格）。 |
-| `ForwardedHeaders.KnownProxies` / `KnownNetworks` | 信任的反向代理 IP／網段；走代理時必設，否則來源 IP 會全部變成代理伺服器且 `X-Forwarded-For` 可被偽造。 |
+| `ForwardedHeaders.KnownProxies` / `KnownNetworks` | **預設未寫入 `appsettings.json`**（程式面支援，未設定時採空白預設）。信任的反向代理 IP／網段；走代理時必設，否則來源 IP 會全部變成代理伺服器且 `X-Forwarded-For` 可被偽造。 |
 | `CacheSettings.Provider` | 快取 provider，支援 `Memory` 與 `Redis`，預設 `Memory`（見 [分散式快取機制](docs/features/分散式快取機制.md)）。 |
 | `CacheSettings.RedisConnection` | `Provider=Redis` 時的 Redis 連線字串；Production 使用 Redis 時必須設定。 |
 | `CacheSettings.InstanceName` | Redis 快取鍵前綴，預設 `MyProject:`。 |
@@ -172,7 +189,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
-| `SystemSettings.Upload.AllowedExtensions` | 允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
+| `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
 各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
@@ -219,21 +236,22 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 認證與安全（security）
 
-- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie scheme、Claims、`RoleView` JSON、`Menu.json` 權限樹。
+- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie / JWT 雙 scheme、Claims、RBAC 關聯表、動作級授權與稽核事件。
 - [密碼種類與儲存機制](docs/security/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、API 密碼、種子密碼與機密金鑰。
 - [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
 - [記住我登入原理說明](docs/security/記住我登入原理說明.md) — Cookie + RememberMe 完整原理。
+- [權限授權現況評估與改善路線](docs/security/權限授權現況評估與改善路線.md) — RBAC 落地歷程、重構前後對照與尚未納入的項目。
 
 ### 功能機制（features）
 
 - [分散式快取機制](docs/features/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
 - [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
-- [檔案上傳機制](docs/features/檔案上傳機制.md) — 三類附件、年月目錄、刪除同步、容量上限。
+- [檔案上傳機制](docs/features/檔案上傳機制.md) — 專案附件、年月目錄、刪除同步、1GB 上限與副檔名白名單（0.4.35）。
 - [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最後 100 筆日誌。
 
 ### 開發與操作指南（guides）
 
-- [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 以 `RoleViewView` 為藍本複刻新 CRUD 頁面。
+- [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 新模組請先跑 `scripts/New-CrudModule.ps1`；本文為手動微調時的對照說明。
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
@@ -250,7 +268,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 產品需求文件（prd）
 
 - [PRD 主控台（能力覆蓋矩陣）](docs/prd/README.md) — 以產品能力為單位的單一入口：能力→入口→程式來源→狀態。
-- 9 份能力 PRD：[首頁與導覽](docs/prd/首頁與導覽-prd.md)、[登入與帳號流程](docs/prd/登入與帳號流程-prd.md)、[專案項目](docs/prd/專案項目-prd.md)、[使用者管理](docs/prd/使用者管理-prd.md)、[角色管理](docs/prd/角色管理-prd.md)、[分類清單](docs/prd/分類清單-prd.md)、[團隊清單](docs/prd/團隊清單-prd.md)、[系統健康監控](docs/prd/系統健康監控-prd.md)、[紀錄分類與團隊權控](docs/prd/紀錄分類與團隊權控-prd.md)。
+- 各能力 PRD 一律由上方主控台的**能力覆蓋矩陣**索引，避免此處與 `docs/prd/README.md` 長期不同步。
 
 ### 設計規格（superpowers）
 
@@ -258,31 +276,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 變更紀錄（changelog）
 
-- [Login 頁面改版紀錄](docs/changelog/login-redesign.md) — 玻璃擬態登入頁、RememberMe、驗證碼導入紀錄。
-- [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](docs/changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md) — 遞移相依 SQLitePCLRaw 2.1.11 弱點之抑制與理由。
-- [新增「分類清單」與「團隊清單」管理頁面（0.3.0）](docs/changelog/2026-06-22-分類與團隊清單.md) — 以母專案為藍本移植的階段一主資料管理頁面與 API。
-- [紀錄分類/團隊標籤與團隊權控（0.4.0）](docs/changelog/2026-06-22-紀錄分類團隊與權控.md) — 三大紀錄掛上分類/團隊標籤，導入以角色為基礎的團隊行級權控。
-- [版本號規則調整為每次異動 Patch +1（0.4.1）](docs/changelog/2026-06-22-版本號規則調整.md) — 統一版號遞增規則為最後一碼 +1。
-- [移植母專案通用型改善（0.4.2）](docs/changelog/2026-06-22-通用型改善移植.md) — SignalR 上限、Circuit 日誌、CrudActionButton 圖示操作欄、Menu 圖示驗證測試。
-- [側邊欄收合飛出 hover 修正與日誌補缺（0.4.3）](docs/changelog/2026-06-22-側邊欄收合修正與日誌補缺.md) — 收合飛出改自訂橋接、補 2 處日誌缺口。
-- [側邊欄群組圖示依名稱各自顯示（0.4.4）](docs/changelog/2026-06-22-側邊欄群組圖示.md) — 移除群組強制 folder_open，群組圖示改用 Menu.json 各自有效圖示。
-- [分類／團隊名稱唯一性補強（0.4.41）](docs/changelog/2026-08-26-名稱唯一性補強.md) — 補上寫入前正規化與資料庫唯一索引：原本「檢查時 Trim、寫入時不 Trim」讓帶空白的同名資料存得進去；一併對齊 API 路徑的判定語意，並讓 UI 不再丟棄寫入結果。
-- [分類綁定團隊與儲存前團隊確認（0.4.40）](docs/changelog/2026-08-26-分類綁定團隊.md) — 分類可指定適用團隊，下拉清單依使用者所屬團隊過濾；團隊欄位留空時儲存前跳警告；順帶修掉「API 更新分類會清空團隊綁定」的資料遺失風險。
-- [修正日誌查詢會跳過「正在寫入」的檔案（0.4.39）](docs/changelog/2026-08-26-日誌查詢跳過當前檔案修正.md) — 移除以 `File.GetLastWriteTime` 做整檔跳過的優化：效益幾乎為零，卻讓查詢結果取決於檔案系統中繼資料，並曾造成 CI 紅燈。
-- [CRUD 樣板收斂與產生器重寫（0.4.38）](docs/changelog/2026-08-26-CRUD樣板收斂與產生器重寫.md) — 抽出 `TableSortHelper` / `ViewNotification`（檢視淨減 452 行），並重寫產生器讓它產出真的能編譯、符合現行慣例的模組。
-- [限流實跑驗證修正：政策被覆蓋與 429 信封（0.4.37）](docs/changelog/2026-08-26-限流實跑驗證修正.md) — 實跑才發現的三個問題：登入配額被端點慣例蓋掉、429 被錯誤頁重跑成 400 HTML、設定在註冊時被急切讀取。
-- [Blazor 路徑改用 IDbContextFactory，CleanTrackingHelper 退場（0.4.36）](docs/changelog/2026-08-26-DbContextFactory遷移.md) — 解掉 Blazor Server 的長生命週期 DbContext 陷阱，連帶消滅 47 處手動清除追蹤的慣例。
-- [API 安全基礎設施補強：限流分割、安全標頭、上傳白名單（0.4.35）](docs/changelog/2026-08-26-API安全基礎設施補強.md) — 限流改為依呼叫端分割並可設定、新增安全回應標頭、`/UploadFiles` 需登入、上傳副檔名白名單與 ContentType 正規化。
-- [API 安全缺陷修正：例外外洩、停用帳號、預設拒絕（0.4.34）](docs/changelog/2026-08-26-API安全缺陷修正.md) — Production 不再外洩例外堆疊、停用帳號無法取得 JWT、refresh 回查資料庫、移除模板遺留 Controller 並改為預設拒絕。
-- [權限一致性修正與四方守門測試（0.4.33）](docs/changelog/2026-08-26-權限一致性修正.md) — 修正 `/projects` 用錯權限鍵、清掉「使用者管理／角色管理」死權限、權限鍵常數去空白並正規化既有資料，新增四方一致性守門測試。
-- [建立工程品質關卡（0.4.32）](docs/changelog/2026-08-26-工程品質關卡.md) — `.editorconfig`、`TreatWarningsAsErrors`、Central Package Management、`global.json` 與 CI Format check；順帶修掉 Swashbuckle 遞移弱點與測試日期時間炸彈。
-- [移除工作項目、會議記錄與 SQL Server 支援，新增「關於」對話窗（0.4.24）](docs/changelog/2026-08-17-移除工作項目會議記錄與MSSQL支援.md) — 兩項領域作業下架、資料庫收斂為單一 SQLite 軌道、使用者選單新增系統資訊對話窗。
-
-### 專案規劃（planning）
-
-- [docs/planning/](docs/planning/) — 專案總覽、架構盤點、缺口與風險、補強路線圖等 TODO 與進度追蹤文件。
-
----
+- [docs/changelog/](docs/changelog/README.md) — 全部改版紀錄的單一索引（依版本新→舊）。
+  此處刻意不重複列舉，避免三處索引長期不同步。
 
 ## 10. 參考連結
 

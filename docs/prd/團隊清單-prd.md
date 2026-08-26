@@ -1,10 +1,10 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.41
+- 現行系統版本：0.4.42
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/08/17
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -46,7 +46,7 @@
 - UI 路徑：`TeamViewView` →（注入）`TeamService` → `BackendDBContext`（Blazor Server 直接呼叫服務，不經 HTTP）。
 - API 路徑：`TeamController` → `TeamRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
 - Entity `Team`（`Id/Name/Code/Description/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Team`。
-- 查詢一律 `AsNoTracking()`；新增前 `CleanTrackingHelper.Clean<Team>` 清追蹤，寫入後再清一次。
+- 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `Clone()` 複製記錄；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified/Deleted` 提交。
 - 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
@@ -77,6 +77,7 @@
 - `BeforeAddCheckAsync_WithDuplicateName_ShouldFail`：名稱重複被拒。
 - `BeforeAddCheckAsync_WithDuplicateCode_ShouldFail`：代號重複被拒。
 - `BeforeAddCheckAsync_WithEmptyCode_ShouldSucceedEvenIfAnotherEmptyCodeExists`：空代號不觸發唯一檢查。
+- `BeforeAddCheckAsync_WithDuplicateCodeDifferentCase_ShouldFail`：代號比對同樣不分大小寫。
 - `AddAsync_WithUntrimmedNameAndCode_ShouldPersistTrimmedValues`：寫入前正規化。
 - `AddAsync_WithBlankCode_ShouldPersistNull` / `AddAsync_TwoTeamsWithoutCode_ShouldBothSucceed`：空白代號歸一成 `null`，多筆未填代號可共存。
 - `BeforeAddCheckAsync_AfterAddingUntrimmedName_ShouldRejectTrimmedName`：0.4.41 修正的破口重現。
@@ -90,13 +91,13 @@
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Teams/TeamPage.razor:1`
-- `src/MyProject/MyProject.Web/Components/Views/Teams/TeamViewView.razor.cs:70`（頁面權限檢查）
-- `src/MyProject/MyProject.Web/Controllers/TeamController.cs:36`（`[HasPermission]` 動作鍵）
-- `src/MyProject/MyProject.Business/Services/DataAccess/TeamService.cs:122`（AddAsync / 前置檢查含代號唯一）
-- `src/MyProject/MyProject.AccessDatas/Models/Team.cs:8`（Entity 欄位）
-- `src/MyProject/MyProject.Dtos/Models/TeamCreateUpdateDto.cs:9`、`src/MyProject/MyProject.Dtos/Commons/TeamSearchRequestDto.cs:6`
-- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:38`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs:9`
-- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs:28`、`src/MyProject/MyProject.Web/Datas/Menu.json:63`
-- `src/MyProject/MyProject.Tests/TeamServiceTests.cs:1`
+- `src/MyProject/MyProject.Web/Components/Pages/Teams/TeamPage.razor`
+- `src/MyProject/MyProject.Web/Components/Views/Teams/TeamViewView.razor.cs`（頁面權限檢查）
+- `src/MyProject/MyProject.Web/Controllers/TeamController.cs`（`[HasPermission]` 動作鍵）
+- `src/MyProject/MyProject.Business/Services/DataAccess/TeamService.cs`（AddAsync / 前置檢查含代號唯一）
+- `src/MyProject/MyProject.AccessDatas/Models/Team.cs`（Entity 欄位）
+- `src/MyProject/MyProject.Dtos/Models/TeamCreateUpdateDto.cs`、`src/MyProject/MyProject.Dtos/Commons/TeamSearchRequestDto.cs`
+- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`
+- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`、`src/MyProject/MyProject.Web/Datas/Menu.json`
+- `src/MyProject/MyProject.Tests/TeamServiceTests.cs`
 - 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../superpowers/specs/2026-06-22-category-team-pages-design.md](../superpowers/specs/2026-06-22-category-team-pages-design.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)

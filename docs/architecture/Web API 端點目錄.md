@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.4.34
+- 現行系統版本：0.4.42
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/08/26
 
@@ -17,7 +17,7 @@
 
 ## 二、資源 CRUD 控制器
 
-五個資源控制器共用同一組動作樣板（以 `CategoryController` 為代表，`src/MyProject/MyProject.Web/Controllers/CategoryController.cs:35`）：
+三個資源控制器共用同一組動作樣板（以 `CategoryController` 為代表，`src/MyProject/MyProject.Web/Controllers/CategoryController.cs:35`）：
 
 | 動作 | 路由（相對 `api/` 與 `api/v1/`）| 權限（`PermissionActions`）| 回傳 |
 |------|------|------|------|

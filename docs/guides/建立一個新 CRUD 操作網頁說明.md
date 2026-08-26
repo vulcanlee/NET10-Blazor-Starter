@@ -1,8 +1,8 @@
 ﻿# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.36
+- 現行系統版本：0.4.42
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
 - 最後核對日期：2026/08/26
 
@@ -24,7 +24,8 @@
    - 新增 `Entity <-> AdapterModel` 雙向映射。
 
 4. **確認 DI 註冊與路由入口**
-   - 在 `Program.cs` 加入對應 Service。
+   - 在 `Extensions/ServiceCollectionExtensions.cs` 的 `AddApplicationServices` 加入對應 Service
+     （`Program.cs` 已無任何 `AddScoped`，全部收斂到這裡）。
    - 建立對應 `Page.razor` 並放入 `<YourEntityView />`。
 
 ---
@@ -145,16 +146,28 @@
 
 ## 4. 手動開發步驟（建議順序）
 
+> 💡 **先跑產生器**：`./scripts/New-CrudModule.ps1 -Name Xxx -DisplayName 顯示名稱`
+> 會產出 13 個符合現行慣例、可直接編譯的檔案（含 `ToolbarIconButton` / `CrudActionButton` /
+> `TableSortHelper` / `ViewNotification`）。本章是需要手動微調時的對照說明 ——
+> **不要用複製既有檢視的方式建立新模組**，0.4.27 的 emoji 回歸就是這樣來的。
+
+
 1. 建立 `Entity`（AccessDatas/Models）。
 2. 建立 `AdapterModel`（Models/AdapterModel）+ DataAnnotations。
 3. 在 `AutoMapping` 加入雙向映射。
 4. 建立 `YourEntityService`（Business/Services/DataAccess）並完成 CRUD + 查詢排序過濾分頁。
-5. 在 `Program.cs` 註冊 `AddScoped<YourEntityService>()`。
+5. 在 `Extensions/ServiceCollectionExtensions.cs` 的 `AddApplicationServices` 註冊
+   `AddScoped<YourEntityService>()`（DbContext 本身走 `AddDbContextFactory`，不要另外註冊）。
 6. 建立 `YourEntityView.razor`（照 RoleViewView 版型）。
 7. 建立 `YourEntityView.razor.cs`（照 RoleViewView 的狀態與事件流程）。
 8. 建立 `YourEntityView.razor.css`（先複製同命名 class，再微調）。
 9. 建立 `YourEntityPage.razor` 與 `@page` 路由。
-10. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示）。
+10. **註冊權限鍵與選單（四處必須同步）**：`MagicObjectHelper` 權限鍵常數、`Datas/Menu.json`
+    （唯一 `id`）、`SidebarMenuService.MenuPermissionMap`（id→權限鍵）、頁面自己的
+    `CheckAccessPage(同一個葉節點鍵)`；並到 `MyProject.Tests/MenuPermissionConsistencyTests.cs`
+    的 `ViewToMenuId` 登錄。少做任一處，CI 會被該測試擋下。細節見
+    [開發慣例與限制速查](../architecture/開發慣例與限制速查.md) §5。
+11. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示）。
 
 ---
 
@@ -175,8 +188,10 @@
 5. **通知與錯誤體驗一致**
    - 成功/失敗都要有明確通知（`NotificationService`/`MessageService`）。
 
-6. **資料追蹤一致性（EF Core）**
-   - Update/Delete 前先清 tracking，降低同一 DbContext 追蹤衝突。
+6. **DbContext 生命週期（EF Core）**
+   - 每個方法自己 `await using var context = await contextFactory.CreateDbContextAsync();`，用完即棄。
+   - ⚠️ 不要重新引入「清追蹤」helper，也不要改回注入 scoped `BackendDBContext` ——
+     0.4.36 起改用工廠後，該慣例整條退場，`DataAccessServiceLifetimeTests` 會擋下回歸。
 
 7. **初始化商業邏輯收斂**
    - 新增時的預設值（如權限預設）寫在 Add 流程，不要散在 UI 多處。

@@ -1,10 +1,10 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.31
+- 現行系統版本：0.4.42
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/08/25
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -28,27 +28,39 @@
 ## 三、畫面與欄位
 
 - 工具列：新增、重新整理、分類過濾（多選）、團隊過濾（多選）、關鍵字輸入、清空、搜尋。
-- 清單欄位（`ProjectViewView.razor:72-83`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間；標題預設遞增排序。
-- 可排序欄位（`ProjectService.cs:81-155`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt。
-- 搜尋比對欄位（`ProjectService.cs:57-62`）：Title、Description、Status、Priority、Owner。
+- 清單欄位（`ProjectViewView.razor`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間；標題預設遞增排序。
+- 可排序欄位（`ProjectService.cs`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt。
+- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner。
 - 分頁：`RemoteDataSource`，預設每頁 `MagicObjectHelper.PageSize`。
 - 編輯表單欄位（`Project` 實體 / `ProjectCreateUpdateDto`）：標題（必填）、描述、開始日期、結束日期、狀態（必填，`StatusOptions`）、優先級（必填，`PriorityOptions`）、完成百分比（0-100）、負責人（必填）、分類（多值標籤）、團隊（多值標籤，不設定＝公開）。
+- **分類下拉的可選項目（0.4.40 起）**＝「目前使用者可見的分類」∪「本筆專案已貼、但已限定其他團隊的分類」，
+  後者顯示為「分類名稱（已限定其他團隊）」（`ProjectViewView.BuildModalCategoryOptions` / `CategoryOptionLabel`）。
+  若不列出後者，AntDesign 的多選 `Select` 會把它視為未知值，使用者一存檔就被靜默清掉。
+  可見性規則見 [分類清單 PRD](分類清單-prd.md) 第八節。
+- **儲存前團隊確認（0.4.40 起）**：驗證通過後，若「團隊」為空，以 `TeamBindingConfirm.AskAsync` 提出警告
+  「此專案未指定團隊，將對所有使用者公開可見。確定要這樣儲存嗎？」，
+  確認鈕「仍要儲存」、取消鈕「回去編輯」；取消時 Modal 保持開啟、表單內容不消失。
 - 附件：`專案附件` 一次可多選，單檔上限 1GB；待上傳清單可移除，已上傳檔案可下載（`/api/project-files/{id}/download`，Cookie 驗證）或標記移除。
+- **附件副檔名白名單（0.4.35 起）**：不在白名單內的檔案由 `UploadFileTypePolicy.IsAllowed` 直接拒收；
+  儲存的 `ContentType` 一律由 `UploadFileTypePolicy.ResolveContentType` **依副檔名決定**，
+  不採用呼叫端提供的值（避免偽裝）。白名單可經 `SystemSettings.Upload.AllowedExtensions` 覆寫，
+  留空則採內建預設（不含 `.html`／`.svg`／`.exe` 等可執行或可內嵌腳本的型別）。
+  詳見 [檔案上傳機制](../features/檔案上傳機制.md)。
 
 ## 四、內部系統運作
 
 - 資料流：`ProjectPage.razor` → `ProjectViewView`（`.razor.cs`）→ `ProjectService` → `BackendDBContext.Project`。REST API 走 `ProjectController` → `ProjectRepository`（與 UI 的 Service 為兩條路徑，皆回 `ApiResult`）。
 - 讀取：清單 `GetAsync(DataRequest)` 使用 `AsNoTracking`；單筆 `GetAsync(int)` 以 `Include(x => x.Files)` 帶附件。
-- 編輯前處理：開啟修改視窗時以 `ProjectService.GetAsync(id)` 重新取得資料副本（非重用清單物件），並清空待上傳／待移除清單（`ProjectViewView.razor.cs:228-237`）。
-- 寫入前清追蹤：`AddAsync`／`UpdateAsync`／`DeleteAsync` 進入時皆呼叫 `CleanTrackingHelper.Clean<Project>(context)`（`ProjectService.cs:201,233,286`）。
+- 編輯前處理：開啟修改視窗時以 `ProjectService.GetAsync(id)` 重新取得資料副本（非重用清單物件），並清空待上傳／待移除清單（`ProjectViewView.razor.cs`）。
+- DbContext 生命週期：每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 附件 Adapter：UI 以 `ProjectUploadFileInput`（FileName/ContentType/FileSize/Content）傳入；Service 依主表 `CreatedAt` 年／月建立目錄，檔名以 GUID 產生，落地後寫入 `ProjectFile`；刪除主表時先刪實體檔再刪紀錄。
 - Migration：模型異動需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
 ## 五、權限與安全
 
-- 動作級授權：`ProjectController` 各端點標註 `[HasPermission(角色_專案項目, 動作)]`（`ProjectController.cs:36,67,113,152,201`）；無權限回 403 且維持 `ApiResult` 結構；管理員短路。
+- 動作級授權：`ProjectController` 各端點標註 `[HasPermission(角色_專案項目, 動作)]`（`ProjectController.cs`）；無權限回 403 且維持 `ApiResult` 結構；管理員短路。
 - UI 與 API 共用同一 RBAC 權威（`IPermissionChecker`）。
-- 團隊可見範圍：非管理員清單以 `TagStringHelper.BuildTeamAccessPredicate` 只看到公開（無團隊）或與自身團隊交集的專案；單筆／附件下載以 `IsTeamAccessible` 守門，越界回空模型或 `null`（`ProjectService.cs:75-79,185-190,360-365`）。
+- 團隊可見範圍：非管理員清單以 `TagStringHelper.BuildTeamAccessPredicate` 只看到公開（無團隊）或與自身團隊交集的專案；單筆／附件下載以 `IsTeamAccessible` 守門，越界回空模型或 `null`（`ProjectService.cs`）。
 
 ## 六、錯誤與邊界
 
@@ -56,21 +68,29 @@
 - 路由 ID 與 payload ID 不一致：`Update` 回 400。
 - 結束日期早於開始日期、狀態／優先級不合法、完成百分比超出 0-100、未設定附件根目錄：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 回失敗訊息。
 - 附件超過 1GB：前端即時提示並略過，後端再次驗證。
+- 附件副檔名不在白名單：後端直接拒收（`UploadFileTypePolicy`），並回失敗訊息。
 - 刪除時仍有關聯資料（FK 衝突）：回「此專案仍有關聯資料，無法刪除」。
 
 ## 七、驗收與測試
 
 - `MyProject.Tests/ProjectServiceTeamAccessTests.cs`：管理員可見全部（3 筆）、非管理員僅見公開＋交集團隊、無團隊者僅見公開、團隊過濾、單筆越界守門回空模型。
+- `MyProject.Tests/ProjectServiceTeamAccessTests.cs`（附件下載，5 支）：
+  `GetFileDownloadAsync_Admin_ShouldReturnStreamWithOriginalName`、`_UnknownId_ShouldReturnNull`、
+  `_NonAdminOutsideTeam_ShouldReturnNull`、`_WhenPhysicalFileMissing_ShouldReturnNull`、
+  **`_WhenRelativePathEscapesRoot_ShouldReturnNull`**（路徑逃脫防護，屬安全不變量）。
+- `MyProject.Tests/UploadFileTypePolicyTests.cs`：副檔名白名單與 ContentType 對應，
+  含 `DefaultAllowedExtensions_ShouldNotContainScriptableTypes`。
+- `MyProject.Tests/DataAccessServiceLifetimeTests.cs`：`ProjectService` 不得注入 `BackendDBContext`（須走 `IDbContextFactory`）。
 - `MyProject.Tests/PermissionCheckerTests.cs`、`RbacBackfillServiceTests.cs`：動作級授權鍵與 RBAC 回填涵蓋「專案項目」。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor:1`
-- `src/MyProject/MyProject.Web/Components/Views/Projects/ProjectViewView.razor.cs:1`
-- `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs:1`
-- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs:1`、`ProjectFileController.cs:1`
-- `src/MyProject/MyProject.AccessDatas/Models/Project.cs:1`、`ProjectFile.cs:1`
-- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:30`
+- `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor`
+- `src/MyProject/MyProject.Web/Components/Views/Projects/ProjectViewView.razor.cs`
+- `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`
+- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`、`ProjectFileController.cs`
+- `src/MyProject/MyProject.AccessDatas/Models/Project.cs`、`ProjectFile.cs`
+- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`
 - 交叉連結：[Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)、[檔案上傳機制](../features/檔案上傳機制.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
 
 > 附件下載端點為 `ProjectFileController`（`api/project-files` 與 `api/v1/project-files`，`GET {id}/download`）。此端點**只收 Cookie 驗證**，與其他走 JWT 的 Web API 不同 —— 呼叫端是畫面上的一般連結，由瀏覽器直接導覽。0.4.31 之前這個端點並不存在，附件下載一律 404。

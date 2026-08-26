@@ -33,7 +33,7 @@ public class MagicObjectHelper
     /// <c>RolePermissionService.GetRoleListPermissionAllName()</c>：不種 Permission 資料列、
     /// 角色矩陣不顯示、任何角色都無法被授予，僅由 <c>CheckIsAdmin()</c> 通過。
     ///
-    /// 沿革：0.4.32 之前這三個鍵有上架角色矩陣，但 MyUserView / RoleViewView 實際是以
+    /// 沿革：0.4.33 之前這三個鍵有上架角色矩陣，但 MyUserView / RoleViewView 實際是以
     /// CheckIsAdmin() 守門，形成「勾得到卻永遠無效」的死權限。已由
     /// <c>AdminOnlyPermissionTests</c> 守住，請勿補上。
     /// </summary>

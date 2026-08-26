@@ -1,8 +1,8 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.40
+- 現行系統版本：0.4.42
 - 首次實作版本：0.4.0
 - 最後核對日期：2026/08/26
 
@@ -22,7 +22,7 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/projects`、`/Task`、`/meeting` | 專案管理子選單 | 頁面鍵，動作另需 `頁面:動作` | 一般使用者 |
+| `/projects` | 專案管理子選單 | 頁面鍵，動作另需 `頁面:動作` | 一般使用者 |
 | API `Project` Controller | 非選單 | `[HasPermission(頁面, 動作)]` | UI 呼叫端 / 外部（JWT） |
 | `/categories`、`/teams` | 資料定義子選單 | 分類清單／團隊清單頁面鍵 | 管理者 |
 
@@ -44,7 +44,7 @@
 
 ## 四、內部系統運作
 
-1. 標籤字串（`TagStringHelper`）：多值以換行分隔並前後包夾，例 `"\n團隊A\n團隊B\n"`。此格式可用 `Contains("\n團隊A\n")` 在 SQLite 與 SqlServer 做「精確成員」比對，避免子字串誤判（如「團隊」誤中「團隊2」）。
+1. 標籤字串（`TagStringHelper`）：多值以換行分隔並前後包夾，例 `"\n團隊A\n團隊B\n"`。此格式可用 `Contains("\n團隊A\n")` 在 SQLite 上做「精確成員」比對，避免子字串誤判（如「團隊」誤中「團隊2」）。
    - `ToStored` 去空白／去重（忽略大小寫，保留順序）；`ToList` 還原；`Wrap` 包單一名稱。
 2. 使用者有效團隊（`EffectiveTeamResolver.GetEffectiveTeamNamesAsync`）：聯集兩來源並去重——
    - 直接綁定使用者的團隊（`UserTeam`）。
@@ -83,14 +83,14 @@
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Business/Helpers/TagStringHelper.cs:12`（標籤字串、`BuildTeamAccessPredicate:110`、`IsTeamAccessible:142`）
-- `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs:16`（有效團隊解析）
-- `src/MyProject/MyProject.Web/Auth/RecordAccessScopeProvider.cs:34`（存取範圍解析）
-- `src/MyProject/MyProject.Business/Services/Other/IRecordAccessScopeProvider.cs:6`（`RecordAccessScope`）
-- `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs:75`（查詢範圍套用）
-- `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs:16`（`HasPermissionAsync`，管理員短路 `:27`）
-- `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs:31`（401/403 與 `ApiResult`）
-- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs:36`（`[HasPermission]` 動作級標註）
-- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs:202`（`CheckAccessAction`）
-- `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs:18`（`PermissionKey.For`／`PageOf`）
+- `src/MyProject/MyProject.Business/Helpers/TagStringHelper.cs`（標籤字串、`BuildTeamAccessPredicate:110`、`IsTeamAccessible:142`）
+- `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs`（有效團隊解析）
+- `src/MyProject/MyProject.Web/Auth/RecordAccessScopeProvider.cs`（存取範圍解析）
+- `src/MyProject/MyProject.Business/Services/Other/IRecordAccessScopeProvider.cs`（`RecordAccessScope`）
+- `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`（查詢範圍套用）
+- `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（`HasPermissionAsync`，管理員短路 `:27`）
+- `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（401/403 與 `ApiResult`）
+- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`（`[HasPermission]` 動作級標註）
+- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessAction`）
+- `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionKey.For`／`PageOf`）
 - 交叉連結：[認證授權與權限機制](../security/認證授權與權限機制.md)、[權限授權現況評估與改善路線](../security/權限授權現況評估與改善路線.md)、[紀錄標籤與團隊存取設計](../superpowers/specs/2026-06-22-record-tags-team-access-design.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)

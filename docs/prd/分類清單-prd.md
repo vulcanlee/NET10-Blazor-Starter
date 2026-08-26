@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.4.41
+- 現行系統版本：0.4.42
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/08/26
 
@@ -22,13 +22,13 @@
 | 項目 | 內容 |
 | --- | --- |
 | 路由 | `/categories`（`CategoryPage.razor`，`MainLayout`） |
-| 選單路徑 | 資料定義（id=5）> 分類清單（id=52 選單項，`url=/categories`） |
+| 選單路徑 | 資料定義（id=5）> 分類清單（id=51 選單項，`url=/categories`） |
 | 選單→權限對應 | `SidebarMenuService.MenuPermissionMap[51] = 角色_分類清單` |
 | UI 頁面權限 | 頁面鍵「分類清單」（`AuthenticationStateHelper.CheckAccessPage`；管理員短路） |
 | API 動作級權限 | `分類清單:view` / `分類清單:create` / `分類清單:edit` / `分類清單:delete` |
 | 主要使用者 | 具「分類清單」角色權限的後台管理者；系統管理員無條件可存取 |
 
-（選單 `id` 與 `MenuPermissionMap` 索引皆為 51；`Menu.json` 中的顯示項 id 標為 52，url 對應同一頁。）
+（`Menu.json` 的 id 與 `MenuPermissionMap` 的 key 皆為 51，且 `MenuPermissionConsistencyTests` 強制兩邊 id 集合完全相等。）
 
 ## 三、畫面與欄位
 
@@ -54,7 +54,7 @@
 - UI 路徑：`CategoryViewView` →（注入）`CategoryService` → `BackendDBContext`（Blazor Server 直接呼叫服務，不經 HTTP）。
 - API 路徑：`CategoryController` → `CategoryRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
 - Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），AutoMapper 以 `ForMember` 在 `List<string>` 與字串間轉換。
-- 查詢一律 `AsNoTracking()`；新增前 `CleanTrackingHelper.Clean<Category>` 清追蹤，寫入後再清一次。
+- 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `CurrentRecord = model.Clone()` 複製，避免污染清單資料；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified/Deleted` 提交。
 - 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
@@ -95,6 +95,7 @@
 - `GetAsync_NonAdminWithoutTeams_ShouldSeeAllCategories`：**沒有團隊的使用者看到全部**（與紀錄相反的規則）。
 - `GetAsync_NonAdminWithTeams_ShouldSeeOnlyPublicOrIntersectingCategories`：只看到公用分類與有交集的分類。
 - `GetAllEnabledNamesAsync_NonAdminWithTeams_ShouldFilterByTeamAndSkipDisabled`：下拉清單同時受團隊與啟用狀態過濾。
+- `GetAllEnabledNamesAsync_NonAdminWithoutTeams_ShouldReturnAllEnabled`：未綁團隊者在**下拉清單**路徑也看得到全部。
 - `GetById_NonAdmin_ShouldDenyCategoryOutsideTeamScope`：單筆守門回空模型。
 - `BeforeAddCheckAsync_WithNameOfInvisibleCategory_ShouldStillFail`：名稱唯一性仍為全域比對。
 - `AddAsync_ShouldRoundTripTeamsBetweenListAndStoredString` / `UpdateAsync_WithEmptyTeams_ShouldStoreNullAsPublicCategory`：`Teams` 的 List↔字串往返。
@@ -119,17 +120,17 @@
 
 ## 九、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Categories/CategoryPage.razor:1`
-- `src/MyProject/MyProject.Web/Components/Views/Categories/CategoryViewView.razor:1`
-- `src/MyProject/MyProject.Web/Components/Views/Categories/CategoryViewView.razor.cs:70`（頁面權限檢查）
-- `src/MyProject/MyProject.Web/Controllers/CategoryController.cs:36`（`[HasPermission]` 動作鍵）
-- `src/MyProject/MyProject.Business/Services/DataAccess/CategoryService.cs:113`（AddAsync / 前置檢查）
-- `src/MyProject/MyProject.AccessDatas/Models/Category.cs:8`（Entity 欄位）
-- `src/MyProject/MyProject.Dtos/Models/CategoryCreateUpdateDto.cs:9`、`src/MyProject/MyProject.Dtos/Commons/CategorySearchRequestDto.cs:6`
-- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:37`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs:9`
-- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs:27`、`src/MyProject/MyProject.Web/Datas/Menu.json:57`
-- `src/MyProject/MyProject.Tests/CategoryServiceTests.cs:1`、`src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs:1`
-- `src/MyProject/MyProject.Tests/CategoryTeamRepositoryUniquenessTests.cs:1`、`src/MyProject/MyProject.Tests/CategoryTeamUniqueIndexMigrationTests.cs:1`
-- `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs:1`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs:1`
-- `src/MyProject/MyProject.Web/Components/Commons/TeamBindingConfirm.cs:1`（儲存前團隊確認對話窗，與專案編輯頁共用）
+- `src/MyProject/MyProject.Web/Components/Pages/Categories/CategoryPage.razor`
+- `src/MyProject/MyProject.Web/Components/Views/Categories/CategoryViewView.razor`
+- `src/MyProject/MyProject.Web/Components/Views/Categories/CategoryViewView.razor.cs`（頁面權限檢查）
+- `src/MyProject/MyProject.Web/Controllers/CategoryController.cs`（`[HasPermission]` 動作鍵）
+- `src/MyProject/MyProject.Business/Services/DataAccess/CategoryService.cs`（AddAsync / 前置檢查）
+- `src/MyProject/MyProject.AccessDatas/Models/Category.cs`（Entity 欄位）
+- `src/MyProject/MyProject.Dtos/Models/CategoryCreateUpdateDto.cs`、`src/MyProject/MyProject.Dtos/Commons/CategorySearchRequestDto.cs`
+- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`
+- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`、`src/MyProject/MyProject.Web/Datas/Menu.json`
+- `src/MyProject/MyProject.Tests/CategoryServiceTests.cs`、`src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs`
+- `src/MyProject/MyProject.Tests/CategoryTeamRepositoryUniquenessTests.cs`、`src/MyProject/MyProject.Tests/CategoryTeamUniqueIndexMigrationTests.cs`
+- `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs`
+- `src/MyProject/MyProject.Web/Components/Commons/TeamBindingConfirm.cs`（儲存前團隊確認對話窗，與專案編輯頁共用）
 - 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../superpowers/specs/2026-06-22-category-team-pages-design.md](../superpowers/specs/2026-06-22-category-team-pages-design.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)
