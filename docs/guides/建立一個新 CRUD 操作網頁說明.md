@@ -2,9 +2,9 @@
 
 - 文件版本：1.0
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.36
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/26
 
 > 目標：完整複刻 `RoleViewView` 的「新增、查詢、更新、刪除、過濾、排序、分頁、驗證、通知」行為，並保留同等結構（Page + View + Service + AdapterModel + Entity + 註冊 + 樣式）。
 
@@ -43,7 +43,8 @@
    - 以 `AsNoTracking` 取單筆後映射成 AdapterModel。
 
 3. **AddAsync / UpdateAsync / DeleteAsync**
-   - 參照既有流程：清除追蹤（`CleanTrackingHelper.Clean<T>`）→ 寫入 → `SaveChangesAsync()`。
+   - 參照既有流程：方法開頭 `await using var context = await contextFactory.CreateDbContextAsync();` → 寫入 → `SaveChangesAsync()`。
+     （0.4.36 起改用 `IDbContextFactory`，不再需要手動清除 EF 追蹤。）
    - 全部包裝 `try/catch`，失敗時 `Logger.LogError` 並回傳 `VerifyRecordResult`。
 
 4. **BeforeXxxCheckAsync**（新增/修改/刪除前檢查）

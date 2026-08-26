@@ -131,7 +131,7 @@ public sealed class MyUserServicePasswordTests
         public MyUserService CreateService()
         {
             return new MyUserService(
-                Context,
+                new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),

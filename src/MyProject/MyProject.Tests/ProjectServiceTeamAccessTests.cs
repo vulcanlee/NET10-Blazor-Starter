@@ -220,7 +220,7 @@ public sealed class ProjectServiceTeamAccessTests
             settings.ExternalFileSystem.ProjectFilePath = FileRoot;
 
             return new ProjectService(
-                Context,
+                new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<ProjectService>(),
                 Options.Create(settings),

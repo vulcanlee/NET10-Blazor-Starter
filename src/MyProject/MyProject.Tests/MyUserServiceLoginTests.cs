@@ -135,6 +135,57 @@ public sealed class MyUserServiceLoginTests
         Assert.NotNull(user);
     }
 
+    /// <summary>
+    /// 停用帳號必須擋在發證之前。
+    ///
+    /// 0.4.34 之前 LoginAsync 完全沒有檢查 Status：UI 路徑靠
+    /// AuthenticationStateHelper.Check 在後續頁面載入時擋下，但 /api/Auth/login
+    /// 會直接發出 JWT，而 PermissionChecker 與 HasPermissionAttribute 也都不看 Status，
+    /// 等於停用帳號仍可正常呼叫 API。
+    /// </summary>
+    [Fact]
+    public async Task LoginAsync_WithDisabledAccount_ShouldFail()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        var created = await fixture.AddUserAsync("ivan", "secret-password", legacy: false);
+        await fixture.SetStatusAsync(created.Id, enabled: false);
+        var service = fixture.CreateService();
+
+        var (error, user) = await service.LoginAsync("ivan", "secret-password");
+
+        Assert.Null(user);
+        Assert.Contains("停用", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetActiveUserAsync_WithEnabledAccount_ShouldReturnUser()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        var created = await fixture.AddUserAsync("judy", "secret-password", legacy: false);
+        var service = fixture.CreateService();
+
+        var user = await service.GetActiveUserAsync(created.Id);
+
+        Assert.NotNull(user);
+        Assert.Equal("judy", user.Account);
+    }
+
+    /// <summary>
+    /// Refresh token 是 stateless、不落庫、無法撤銷，因此換發時必須回查資料庫。
+    /// 這個方法回 null，就是 AuthController.Refresh 回 401 的依據。
+    /// </summary>
+    [Fact]
+    public async Task GetActiveUserAsync_WithDisabledOrMissingAccount_ShouldReturnNull()
+    {
+        await using var fixture = await LoginFixture.CreateAsync();
+        var created = await fixture.AddUserAsync("mallory", "secret-password", legacy: false);
+        await fixture.SetStatusAsync(created.Id, enabled: false);
+        var service = fixture.CreateService();
+
+        Assert.Null(await service.GetActiveUserAsync(created.Id));
+        Assert.Null(await service.GetActiveUserAsync(created.Id + 9999));
+    }
+
     private sealed class LoginFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -195,6 +246,14 @@ public sealed class MyUserServiceLoginTests
             await Context.SaveChangesAsync();
             Context.ChangeTracker.Clear();
             return user;
+        }
+
+        public async Task SetStatusAsync(int userId, bool enabled)
+        {
+            var user = await Context.MyUser.SingleAsync(x => x.Id == userId);
+            user.Status = enabled;
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
         }
 
         public async Task SetLockoutAsync(int userId, DateTime lockoutEndUtc, int failedCount)

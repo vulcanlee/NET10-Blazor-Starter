@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
@@ -14,6 +15,9 @@ namespace MyProject.Web.Controllers;
 /// 僅負責網頁 Cookie 登入；API 仍使用既有的帳密換 JWT 流程。
 /// </summary>
 [Route("Auths/Google")]
+// Google OAuth 的導向入口，本來就必須匿名可達；明示標註以搭配
+// Program.cs 的 MapControllers().RequireAuthorization()（未標註即拒絕）。
+[AllowAnonymous]
 public class ExternalAuthController : Controller
 {
     private readonly ExternalLoginService externalLoginService;

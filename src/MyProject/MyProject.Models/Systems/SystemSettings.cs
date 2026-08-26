@@ -5,6 +5,16 @@ public class SystemSettings
     public ConnectionStrings ConnectionStrings { get; set; } = new();
     public SystemInformation SystemInformation { get; set; } = new();
     public ExternalFileSystem ExternalFileSystem { get; set; } = new();
+    public UploadSettings Upload { get; set; } = new();
+}
+
+public class UploadSettings
+{
+    /// <summary>
+    /// 允許上傳的副檔名白名單（例如 ".pdf"）。
+    /// 留空表示採用 <c>UploadFileTypePolicy</c> 的內建預設清單。
+    /// </summary>
+    public string[] AllowedExtensions { get; set; } = [];
 }
 
 public class ConnectionStrings

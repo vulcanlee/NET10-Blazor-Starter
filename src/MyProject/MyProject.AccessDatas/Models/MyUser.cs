@@ -21,9 +21,9 @@ public class MyUser
     public bool Status { get; set; } = true;
     public string? Email { get; set; }
     public bool IsAdmin { get; set; } = false;
-    public DateTime CreateAt { get; set; }= DateTime.Now;
+    public DateTime CreateAt { get; set; } = DateTime.Now;
     public int? RoleViewId { get; set; }
-    public DateTime UpdateAt { get; set; }=DateTime.Now;
+    public DateTime UpdateAt { get; set; } = DateTime.Now;
     /// <summary>
     /// 外部身分驗證提供者，例如 "Google"；本地帳號為 null 或 "Local"
     /// </summary>

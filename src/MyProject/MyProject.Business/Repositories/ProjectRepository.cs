@@ -60,7 +60,7 @@ public class ProjectRepository
             predicate = predicate == null ? ownerPredicate : CombinedSearchHelper.ProjectCombinePredicates(predicate, ownerPredicate);
         }
 
-        if (string.IsNullOrEmpty(request.Status)==false)
+        if (string.IsNullOrEmpty(request.Status) == false)
         {
             var statusPredicate = (Expression<Func<Project, bool>>)(p => p.Status == request.Status);
             predicate = predicate == null ? statusPredicate : CombinedSearchHelper.ProjectCombinePredicates(predicate, statusPredicate);

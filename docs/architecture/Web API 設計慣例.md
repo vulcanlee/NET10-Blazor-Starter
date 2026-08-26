@@ -1,10 +1,10 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 現行系統版本：0.4.34
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/26
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
@@ -71,6 +71,15 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 ## 例外與驗證
 - `ApiValidationFilter` 會將 ModelState 錯誤轉成 `ApiResult<T>.Errors`。
 - `ApiExceptionFilter` 會攔截未處理 API 例外，依 `Security:ReturnExceptionDetails` 決定是否填入 `ApiResult.Exception`。
+- Controller 自行 `catch` 後回 500 時，請用 `this.ApiServerError(...)`
+  （`Controllers/ControllerApiResponseExtensions.cs`），它**同樣**遵守該設定。
+  兩條路徑共用 `Configuration/ExceptionDetailPolicy` 這個單一判斷來源。
+  ⚠️ **不要自己組 `ApiResult.ServerErrorResult(message, exception)` 回傳** ——
+  那個多載會無條件塞入 `exception.ToString()` 與堆疊追蹤，Production 會外洩。
+
+> 沿革：0.4.34 之前 `ApiServerError` 正是這樣繞過設定的（Controller 中共 16 處），
+> 導致 Production 設了 `ReturnExceptionDetails: false` 仍回傳完整堆疊。
+> 已由 `ApiExceptionDetailSuppressionTests` 兩條路徑一起守門。
 - 既有 Controller 內手動 catch 的例外也應呼叫 `ApiResult.ServerErrorResult(message, exception)`，保留完整 exception。
 
 ## 待辦

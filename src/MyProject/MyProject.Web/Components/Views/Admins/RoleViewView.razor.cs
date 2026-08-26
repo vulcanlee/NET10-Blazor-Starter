@@ -10,6 +10,7 @@ using MyProject.Models.AdapterModel;
 using MyProject.Models.Admins;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Views.Admins
 {
@@ -119,9 +120,9 @@ namespace MyProject.Web.Components.Views.Admins
 
             if (args.SortModel?.Any() == true)
             {
-                var tableSortModel = GetCurrentSortModel(args.SortModel);
+                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
                 string sortValue = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                string resolvedSortField = ResolveSortFieldName(tableSortModel);
+                string resolvedSortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
                 sortDirection = sortValue;
                 sortField = resolvedSortField;
             }
@@ -135,39 +136,6 @@ namespace MyProject.Web.Components.Views.Admins
             await ReloadAsync();
         }
 
-        private static ITableSortModel GetCurrentSortModel(IEnumerable<ITableSortModel> sortModels)
-        {
-            return sortModels.FirstOrDefault(model => HasSortDirection(model.SortDirection))
-                ?? sortModels.Last();
-        }
-
-        private static bool HasSortDirection(SortDirection sortDirection)
-        {
-            return sortDirection == SortDirection.Ascending || sortDirection == SortDirection.Descending;
-        }
-
-        private static string ResolveSortFieldName(ITableSortModel sortModel)
-        {
-            if (!string.IsNullOrWhiteSpace(sortModel.FieldName))
-            {
-                return sortModel.FieldName;
-            }
-
-            object? column = sortModel.GetType().GetProperty("Column")?.GetValue(sortModel);
-            if (column is null)
-            {
-                return string.Empty;
-            }
-
-            string? columnFieldName = column.GetType().GetProperty("FieldName")?.GetValue(column)?.ToString();
-            if (!string.IsNullOrWhiteSpace(columnFieldName))
-            {
-                return columnFieldName;
-            }
-
-            object? dataIndex = column.GetType().GetProperty("DataIndex")?.GetValue(column);
-            return dataIndex?.ToString() ?? string.Empty;
-        }
 
         async Task OnSearchAsync()
         {
@@ -181,13 +149,7 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("Role view refresh triggered.");
             await ReloadAsync();
 
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "已更新最新資料",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, "已更新最新資料");
         }
 
         async Task OnEditAsync(RoleViewAdapterModel roleViewAdapterModel)
@@ -212,13 +174,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting role.");
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, "刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 
@@ -245,13 +201,7 @@ namespace MyProject.Web.Components.Views.Admins
             await roleViewService.DeleteAsync(roleViewAdapterModel.Id);
             logger.LogInformation("Role view delete completed. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
 
-            _ = notificationService.Open(new NotificationConfig()
-            {
-                Message = "系統訊息",
-                Description = "刪除成功",
-                NotificationType = NotificationType.Warning,
-                Placement = NotificationPlacement.BottomRight
-            });
+            ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
         }
@@ -280,13 +230,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while saving role.");
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "儲存角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。",
-                    NotificationType = NotificationType.Error,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Error(notificationService, "儲存角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 
@@ -298,14 +242,7 @@ namespace MyProject.Web.Components.Views.Admins
                 foreach (var error in allErrors)
                 {
                     logger.LogInformation("Role view form validation failed. Error={Error}", error);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "驗證失敗",
-                        Description = error,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight,
-                        Duration = 5
-                    });
+                    ViewNotification.ValidationError(notificationService, error);
                 }
 
                 modalVisible = true;
@@ -318,13 +255,7 @@ namespace MyProject.Web.Components.Views.Admins
                 if (!beforeAddCheckResult.Success)
                 {
                     logger.LogInformation("Role view create pre-check failed. Name={RoleName}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "系統訊息",
-                        Description = beforeAddCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -336,13 +267,7 @@ namespace MyProject.Web.Components.Views.Admins
                 await roleViewService.AddAsync(CurrentRecord);
                 logger.LogInformation("Role view create submitted. Name={RoleName}", CurrentRecord.Name);
 
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "新增成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Warning(notificationService, "新增成功");
 
                 _ = messageService.SuccessAsync("新增成功");
             }
@@ -352,13 +277,7 @@ namespace MyProject.Web.Components.Views.Admins
                 if (!beforeUpdateCheckResult.Success)
                 {
                     logger.LogInformation("Role view update pre-check failed. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                    _ = notificationService.Open(new NotificationConfig()
-                    {
-                        Message = "系統訊息",
-                        Description = beforeUpdateCheckResult.Message,
-                        NotificationType = NotificationType.Error,
-                        Placement = NotificationPlacement.BottomRight
-                    });
+                    ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
 
                     modalVisible = true;
                     return;
@@ -368,13 +287,7 @@ namespace MyProject.Web.Components.Views.Admins
                 await roleViewService.UpdateAsync(CurrentRecord);
                 logger.LogInformation("Role view update submitted. RoleViewId={RoleViewId}, Name={RoleName}", CurrentRecord.Id, CurrentRecord.Name);
 
-                _ = notificationService.Open(new NotificationConfig()
-                {
-                    Message = "系統訊息",
-                    Description = "修改成功",
-                    NotificationType = NotificationType.Warning,
-                    Placement = NotificationPlacement.BottomRight
-                });
+                ViewNotification.Warning(notificationService, "修改成功");
             }
 
             await ReloadAsync();

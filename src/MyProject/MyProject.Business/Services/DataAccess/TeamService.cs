@@ -12,23 +12,24 @@ namespace MyProject.Business.Services.DataAccess;
 
 public class TeamService
 {
-    private readonly BackendDBContext context;
+    private readonly IDbContextFactory<BackendDBContext> contextFactory;
 
     public IMapper Mapper { get; }
     public ILogger<TeamService> Logger { get; }
 
     public TeamService(
-        BackendDBContext context,
+        IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<TeamService> logger)
     {
-        this.context = context;
+        this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
     }
 
     public async Task<DataRequestResult<TeamAdapterModel>> GetAsync(DataRequest dataRequest)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
             "Loading teams. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
             dataRequest.Search,
@@ -104,6 +105,7 @@ public class TeamService
 
     public async Task<TeamAdapterModel> GetAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Loading team by id. TeamId={TeamId}", id);
 
         Team? item = await context.Team
@@ -121,18 +123,17 @@ public class TeamService
 
     public async Task<VerifyRecordResult> AddAsync(TeamAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Creating team. Name={TeamName}", paraObject.Name);
 
         try
         {
-            CleanTrackingHelper.Clean<Team>(context);
             Team itemParameter = Mapper.Map<Team>(paraObject);
             itemParameter.CreatedAt = DateTime.Now;
             itemParameter.UpdatedAt = DateTime.Now;
 
             await context.Team.AddAsync(itemParameter);
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Team>(context);
 
             Logger.LogInformation("Team created successfully. TeamId={TeamId}, Name={TeamName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -146,11 +147,11 @@ public class TeamService
 
     public async Task<VerifyRecordResult> UpdateAsync(TeamAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Updating team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
 
         try
         {
-            CleanTrackingHelper.Clean<Team>(context);
             Team? item = await context.Team
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -165,10 +166,8 @@ public class TeamService
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
-            CleanTrackingHelper.Clean<Team>(context);
             context.Entry(itemData).State = EntityState.Modified;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Team>(context);
 
             Logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={TeamName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -182,11 +181,11 @@ public class TeamService
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Deleting team. TeamId={TeamId}", id);
 
         try
         {
-            CleanTrackingHelper.Clean<Team>(context);
             Team? item = await context.Team
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == id);
@@ -197,10 +196,8 @@ public class TeamService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的團隊資料。");
             }
 
-            CleanTrackingHelper.Clean<Team>(context);
             context.Entry(item).State = EntityState.Deleted;
             await context.SaveChangesAsync();
-            CleanTrackingHelper.Clean<Team>(context);
 
             Logger.LogInformation("Team deleted successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -214,6 +211,7 @@ public class TeamService
 
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(TeamAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for team. Name={TeamName}", paraObject.Name);
 
         var name = (paraObject.Name ?? string.Empty).Trim();
@@ -246,9 +244,9 @@ public class TeamService
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(TeamAdapterModel paraObject)
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-update validation for team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
 
-        CleanTrackingHelper.Clean<Team>(context);
         var searchItem = await context.Team
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -298,6 +296,7 @@ public class TeamService
     /// </summary>
     public async Task<List<string>> GetAllEnabledNamesAsync()
     {
+        await using var context = await contextFactory.CreateDbContextAsync();
         return await context.Team
             .AsNoTracking()
             .Where(x => x.IsEnabled)
