@@ -1,10 +1,10 @@
 ﻿# 日誌等級設定 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.29
+- 現行系統版本：0.4.42
 - 首次實作版本：0.4.29
-- 最後核對日期：2026/08/25
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -49,6 +49,10 @@
 
 **兩個動作**：「套用」（選擇未變更時停用）與「還原為系統預設等級」（未套用過時停用）。調到 TRACE／DEBUG 時會先跳確認框，其餘等級直接套用。
 
+> **降級狀態**：當 `logLevelState.IsAvailable == false`（讀不到 `nlog.config`，或其中沒有
+> `<logger name="*">` 規則）時，畫面改顯示紅色錯誤區塊並停用所有調整動作，
+> 提示「無法讀取 NLog 設定，日誌等級無法在執行期調整」。
+
 ## 四、內部系統運作
 
 1. `LogLevelSettingView.OnInitializedAsync`：`Check` → `CheckIsAdmin`；非管理員設定 `RoleMessage` 並中止，**權限通過前不讀取任何設定資訊**。
@@ -80,7 +84,18 @@
 
 因為第 3 步的存在，**套用執行期設定後，直接改 `nlog.config` 的 minlevel 不會立即生效**（會被覆寫蓋過）——要回到檔案的值請按「還原為系統預設等級」。畫面上的說明橫幅已載明此行為。
 
-## 七、相關文件
+## 七、驗收與測試
+
+對應測試檔 `MyProject.Tests/LogLevelRuntimeStateTests.cs`（10 支）：涵蓋等級升降、還原預設、
+`IsAvailable` 判定，以及 `LoweringLevel_AgainstRealConfig_ShouldOnlyAffectApplicationLoggers`
+（調低等級只影響應用程式 logger，不會連帶打開框架的雜訊）。
+
+> 該測試檔標記 `[CollectionDefinition(..., DisableParallelization = true)]`——
+> 它會動到真實的 `nlog.config`，不能與其他測試平行執行。
+
+---
+
+## 八、相關文件
 
 - 同一子功能表：`docs/prd/日誌檢視-prd.md`、`docs/prd/資料庫用量-prd.md`
 - 日誌檔位置與 nlog.config 設定：`docs/operations/日誌與設定檔說明.md`

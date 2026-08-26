@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.34
+- 現行系統版本：0.4.42
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/08/26
 
@@ -80,7 +80,9 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 > 沿革：0.4.34 之前 `ApiServerError` 正是這樣繞過設定的（Controller 中共 16 處），
 > 導致 Production 設了 `ReturnExceptionDetails: false` 仍回傳完整堆疊。
 > 已由 `ApiExceptionDetailSuppressionTests` 兩條路徑一起守門。
-- 既有 Controller 內手動 catch 的例外也應呼叫 `ApiResult.ServerErrorResult(message, exception)`，保留完整 exception。
+
+- 例外本身請由呼叫端自行 `logger.LogError(ex, ...)` 留在**伺服器日誌**；
+  要不要回傳給呼叫端，一律交由 `ExceptionDetailPolicy` 決定，不要在 Controller 內自行判斷。
 
 ## 待辦
 - [x] 補完整 integration tests，實際驗證 400、401、403、404、409、500 的 HTTP body。

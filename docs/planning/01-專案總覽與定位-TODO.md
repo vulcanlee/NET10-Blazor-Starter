@@ -1,16 +1,19 @@
 ﻿# 專案總覽與定位 TODO
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：進行中
-- 現行系統版本：0.4.24
+- 現行系統版本：0.4.42
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/08/17
+- 最後核對日期：2026/08/26
+
+> 📌 本文為**規劃階段的快照**，保留當時的判斷脈絡。系統現況請以 [`docs/prd/`](../prd/README.md)
+> 的能力覆蓋矩陣為準；各次異動的落地細節見 [`docs/changelog/`](../changelog/README.md)。
 
 ## 腳手架定位
 - [x] 目標說明：本專案定位為未來開發 .NET 10 Blazor + Web API 系統的預設腳手架，提供 UI、資料存取、DTO、API、認證授權、日誌與文件基礎。
 - [x] 現況盤點：目前已有 Blazor Web App、EF Core SQLite 預設、NLog、AutoMapper、DTO 專案、Project/MyTask/Meeting CRUD API、Swagger、Cookie 登入與 JWT Bearer API 認證基礎。（MyTask/Meeting 已於 0.4.24 移除）
 - [x] 實作待辦：已完成第一階段 API/JWT/測試/CI 補強，後續要持續收斂 nullable warning、Program.cs 結構、預設帳號安全與 API versioning。
-- [x] 驗收標準：`dotnet build src/MyProject/MyProject.slnx -v:minimal --no-incremental` 可成功建置；目前摘要為 56 warnings、0 errors。
+- [x] 驗收標準：`dotnet build src/MyProject/MyProject.slnx -v:minimal --no-incremental` 可成功建置；目前摘要為 0 warnings（0.4.32 起 `TreatWarningsAsErrors`，任何警告即建置失敗）、0 errors。
 - [x] 相關檔案：`src/MyProject/MyProject.slnx`、`src/MyProject/MyProject.Web`、`src/MyProject/MyProject.Dtos`、`src/MyProject/MyProject.Tests`、`.github/workflows/dotnet-ci.yml`。
 - [x] 備註風險：目前仍有 .NET preview SDK 訊息與 0 個 build warning；`Program.cs` 已初步拆分，預設種子帳號已改為可透過 `BootstrapSettings` 覆寫。
 

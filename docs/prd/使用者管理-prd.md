@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.33
+- 現行系統版本：0.4.42
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/08/26
 
@@ -42,8 +42,8 @@
 
 View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
-- **新增**（`AddAsync`）：`CleanTrackingHelper.Clean` 清追蹤；產生 `Salt`、以 `SecurePasswordHasher.HashPassword` 雜湊密碼；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。
-- **修改**（`UpdateAsync`）：清追蹤、以 `Entry(...).State = Modified` 更新；密碼留白時沿用既有 `Password`／`Salt`，否則重新雜湊；再 `SyncAssignmentsAsync`；寫 `User.Update` 稽核。
+- **新增**（`AddAsync`）：產生 `Salt`、以 `SecurePasswordHasher.HashPassword` 雜湊密碼；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。
+- **修改**（`UpdateAsync`）：以 `Entry(...).State = Modified` 更新；密碼留白時沿用既有 `Password`／`Salt`，否則重新雜湊；再 `SyncAssignmentsAsync`；寫 `User.Update` 稽核。
 - **刪除**（`DeleteAsync`）：`Entry(...).State = Deleted`；寫 `User.Delete` 稽核（含帳號）。
 - **RBAC 雙寫**（`SyncAssignmentsAsync` → `RbacWriteService`）：`SyncUserRolesAsync` 以 `UserRole` 反映主要＋額外角色（去重）；團隊名稱先解析為 `Team.Id`，`SyncUserTeamsAsync` 以 `UserTeam` 差異化增刪。
 - **回填**（`GetUserAssignmentsAsync`）：由 `UserRole` 扣除主要角色得額外角色、由 `UserTeam` join `Team` 得團隊名稱。
@@ -51,6 +51,10 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - **有效團隊**：登入後由 `EffectiveTeamResolver` 決定（使用者直綁團隊優先，否則沿用角色預設團隊）。
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查帳號唯一性。
 - **稽核 actor**：`ResolveActor` 取目前登入者；未登入時 actor 為 null。
+
+> ℹ️ `RbacWriteService` 是 0.4.36 `IDbContextFactory` 遷移後**唯一仍直接接收 `BackendDBContext`** 的服務。
+> 這是刻意的 —— 它必須沿用呼叫端的 context 才能與主要寫入處於同一個工作單元（交易一致性），
+> 因此不在 `DataAccessServiceLifetimeTests` 的守門範圍內。
 
 ## 五、權限與安全
 
@@ -77,11 +81,11 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Admins/MyUserPage.razor:1`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor:44`、`MyUserView.razor.cs:193`（編輯回填）、`:405`（多角色／團隊變更）
-- `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs:210`（Add）、`:250`（Update）、`:305`（雙寫）、`:332`（回填）
-- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs:44`（`SyncUserRolesAsync`）、`:64`（`SyncUserTeamsAsync`）
-- `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs:95`、`:123`（啟動回填）
+- `src/MyProject/MyProject.Web/Components/Pages/Admins/MyUserPage.razor`
+- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填）、`:405`（多角色／團隊變更）
+- `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs`（Add）、`:250`（Update）、`:305`（雙寫）、`:332`（回填）
+- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncUserRolesAsync`）、`:64`（`SyncUserTeamsAsync`）
+- `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs`、`:123`（啟動回填）
 - `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs`（有效團隊）
 - RBAC 資料表：`MyUser`、`RoleView`、`UserRole`、`UserTeam`、`RolePermissionMap`、`Permission`（`src/MyProject/MyProject.AccessDatas/Models/`）
 - 交叉連結：[登入與帳號流程](登入與帳號流程-prd.md)、[角色管理](角色管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)

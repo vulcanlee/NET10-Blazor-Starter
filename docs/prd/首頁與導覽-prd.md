@@ -1,10 +1,10 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.4.29
+- 現行系統版本：0.4.42
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/08/25
+- 最後核對日期：2026/08/26
 
 ## 一、目標與範圍
 
@@ -56,8 +56,12 @@
 ## 五、權限與安全
 
 - 頁面權限採宣告式三件組：`Menu.json`（每項唯一 `id`）＋ `SidebarMenuService.MenuPermissionMap`（id→權限鍵）＋ `MagicObjectHelper` 權限鍵常數。
-- id→權限鍵對應（節錄）：1→`角色_首頁`「首頁」、2→`角色_專案管理`「專案管理功能」、21→`角色_專案項目`「專案項目」、3→`角色_系統管理`「系統管理功能」、31→`角色_使用者管理`「使用者管理」、32→`角色_角色管理`「角色管理」、5→`角色_資料定義`「資料定義管理功能」、51→`角色_分類清單`「分類清單」、52→`角色_團隊清單`「團隊清單」、6→`角色_統計與分析`「統計與分析功能」、61→`角色_日誌檢視`「日誌檢視」、62→`角色_資料庫用量`「資料庫用量」、63→`角色_日誌等級設定`「日誌等級設定」、4→`角色_登出`「登出」。
-- **例外：統計與分析（6／61／62／63）為管理員專屬**。兩個權限鍵刻意未列入 `RolePermissionService.GetRoleListPermissionAllName()`，因此不會種出 `Permission` 資料列、角色矩陣不顯示、任何角色都無法被授予，只有 `CheckAccessPage` 的管理員短路能通過。詳見 [日誌檢視 PRD](日誌檢視-prd.md)。
+- id→權限鍵對應（節錄）：1→`角色_首頁`「首頁」、2→`角色_專案管理`「專案管理功能」、21→`角色_專案項目`「專案項目」、3→`角色_系統管理`「系統管理功能」（管理員專屬，不在矩陣）、31→`角色_使用者管理`「使用者管理」（同左）、32→`角色_角色管理`「角色管理」（同左）、5→`角色_資料定義`「資料定義管理功能」、51→`角色_分類清單`「分類清單」、52→`角色_團隊清單`「團隊清單」、6→`角色_統計與分析`「統計與分析功能」、61→`角色_日誌檢視`「日誌檢視」、62→`角色_資料庫用量`「資料庫用量」、63→`角色_日誌等級設定`「日誌等級設定」、4→`角色_登出`「登出」。
+- **例外：統計與分析（6／61／62／63）與系統管理（3／31／32）共 7 個權限鍵為管理員專屬**。
+  這 7 個鍵刻意未列入 `RolePermissionService.GetRoleListPermissionAllName()`，因此不會種出 `Permission` 資料列、
+  角色矩陣不顯示、任何角色都無法被授予，只有 `CheckAccessPage` 的管理員短路能通過
+  （`MyUserView`／`RoleViewView` 另以 `CheckIsAdmin()` 守門）。由 `AdminOnlyPermissionTests` 守住，**請勿補上**。
+  詳見 [日誌檢視 PRD](日誌檢視-prd.md)、[使用者管理 PRD](使用者管理-prd.md)、[角色管理 PRD](角色管理-prd.md)。
 - 選單過濾僅隱藏無權項目，並非授權邊界；實際資料存取由 API 端 `[HasPermission]` 與團隊權控把關（見「紀錄分類與團隊權控 PRD」）。
 - 管理員（`IsAdmin`）於 `CheckAccessPage` 短路，選單全可見。
 - 右上角使用者選單與「關於」對話窗不做權限過濾：任何已登入者皆可開啟；內容僅為系統識別資訊，不含連線字串、金鑰或其他機敏設定。
@@ -77,15 +81,15 @@
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Home.razor:1`（`/` landing）
-- `src/MyProject/MyProject.Web/Components/Pages/HomeAuthed.razor:1`（`/App` dashboard）
-- `src/MyProject/MyProject.Web/Components/Views/Commons/SplashView.razor:1`
-- `src/MyProject/MyProject.Web/Datas/Menu.json:1`
-- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs:16`（`MenuPermissionMap`）、`:46`（載入與過濾）
-- `src/MyProject/MyProject.Web/Components/Layout/NavMenu.razor:1`
-- `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor:1`（使用者選單與「關於」對話窗）
-- `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor.cs:1`（`OnAboutClick`）
-- `src/MyProject/MyProject.Web/Health/SystemStartupState.cs:1`（啟動時間來源）
-- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs:179`（`CheckAccessPage`）
-- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs:28`（角色權限鍵常數）
+- `src/MyProject/MyProject.Web/Components/Pages/Home.razor`（`/` landing）
+- `src/MyProject/MyProject.Web/Components/Pages/HomeAuthed.razor`（`/App` dashboard）
+- `src/MyProject/MyProject.Web/Components/Views/Commons/SplashView.razor`
+- `src/MyProject/MyProject.Web/Datas/Menu.json`
+- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`（`MenuPermissionMap`）、`:46`（載入與過濾）
+- `src/MyProject/MyProject.Web/Components/Layout/NavMenu.razor`
+- `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor`（使用者選單與「關於」對話窗）
+- `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor.cs`（`OnAboutClick`）
+- `src/MyProject/MyProject.Web/Health/SystemStartupState.cs`（啟動時間來源）
+- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessPage`）
+- `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`（角色權限鍵常數）
 - 交叉連結：[紀錄分類與團隊權控 PRD](紀錄分類與團隊權控-prd.md)、[認證授權與權限機制](../security/認證授權與權限機制.md)

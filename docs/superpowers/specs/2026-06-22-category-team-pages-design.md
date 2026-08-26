@@ -1,12 +1,22 @@
 ﻿# 設計規格：分類清單 / 團隊清單管理頁面（階段一）
 
-- 文件版本：1.0
-- 文件狀態：已實作
-- 現行系統版本：0.4.23
+- 文件版本：1.1
+- 文件狀態：已實作（部分內容已被後續版本取代，見文首標註）
+- 現行系統版本：0.4.42
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/07/14
+- 最後核對日期：2026/08/26
 
 > 以 superpowers brainstorming 流程產出。對應實作見 changelog [`2026-06-22-分類與團隊清單.md`](../../changelog/2026-06-22-分類與團隊清單.md)。
+
+> ⚠️ **本文為 0.3.0 當時的設計規格，部分內容已被後續版本取代或擴充**，請勿據此開發：
+> - 選單權限的「位置索引三處同步」已於 0.4.22／0.4.33 改為宣告式 `id → 權限鍵`（`ApplyPermissionStructure` 已移除）。
+> - 階段二提到的 `MyTask`／`Meeting` 兩個模組已於 0.4.24 移除，目前僅存 `Project`。
+> - 「雙資料庫 migration」已收斂為 SQLite 單軌（0.4.24）。
+> - `Category` 已於 0.4.40 加上「適用團隊」，0.4.41 再加上資料庫層唯一索引與寫入前正規化
+>   ——「只靠 Service 層檢查名稱唯一性」正是 0.4.41 修掉的缺陷。
+> - 文中「65 筆測試」為當時數字，現為 286 筆。
+>
+> 系統現況以 [`docs/prd/`](../../prd/README.md) 為準。
 
 ## 背景與目標
 
@@ -41,6 +51,14 @@ Web API Controller (ApiResult, JWT, /api + /api/v1)
 - API 層 Controller 以 `ExistsByNameAsync`／`ExistsByCodeAsync` 回 409 Conflict。
 
 ### 權限（位置索引對應，三處同步）
+
+> ⚠️ **本小節的「位置索引」不變量已於 0.4.22／0.4.33 被取代，請勿據此開發。**
+> `SidebarMenuService.ApplyPermissionStructure` 方法仍在，但**內部早已不是以陣列索引配對** ——
+> 改為查 `MenuPermissionMap` 的**宣告式 `id → 權限鍵`** 對應，因此
+> **重排 `Menu.json` 不會錯位**，`Menu.json` 與 `MenuPermissionMap` 的順序也不需要一致。
+> 由 `MenuPermissionConsistencyTests` 強制四方一致。
+> 現行做法見 [開發慣例與限制速查](../../architecture/開發慣例與限制速查.md) §5。
+> 以下保留當時的設計脈絡。
 - `MagicObjectHelper`：`角色_資料定義`、`角色_分類清單`、`角色_團隊清單`。
 - `RolePermissionService.GetRoleListPermissionAllName()`：在「登出」群組之前插入 `[資料定義, 分類清單, 團隊清單]`。
 - `Menu.json`：對應位置（系統管理後、登出前）新增「資料定義」群組。
