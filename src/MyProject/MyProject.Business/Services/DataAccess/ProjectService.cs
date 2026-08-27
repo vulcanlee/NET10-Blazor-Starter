@@ -81,81 +81,87 @@ public class ProjectService
             dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<Project>(x => x.Teams, scope.Teams));
         }
 
+        IOrderedQueryable<Project>? sorted = null;
+
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
         {
             if (dataRequest.SortField == nameof(ProjectAdapterModel.Title))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Title).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Title).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.StartDate))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.StartDate).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.StartDate).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.EndDate))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.EndDate).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.EndDate).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.Status))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Status).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Status).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.Priority))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Priority).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Priority).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.CompletionPercentage))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.CompletionPercentage).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.CompletionPercentage).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.Owner))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Owner).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Owner).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.CreatedAt))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(ProjectAdapterModel.UpdatedAt))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.UpdatedAt).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
         }
+
+        // Skip/Take 一定要搭配 OrderBy，否則 SQLite 不保證回傳順序，分頁會重複或漏資料。
+        // 未指定欄位、欄位不認得、方向為 null —— 三種情況一律退回預設排序。
+        dataSource = sorted ?? dataSource.OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id);
 
         result.Count = await dataSource.CountAsync();
         dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);

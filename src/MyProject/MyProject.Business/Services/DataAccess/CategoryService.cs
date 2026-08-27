@@ -82,37 +82,39 @@ public class CategoryService
 
         dataSource = ApplyTeamVisibility(dataSource, await accessScope.GetAsync());
 
+        IOrderedQueryable<Category>? sorted = null;
+
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
         {
             if (dataRequest.SortField == nameof(CategoryAdapterModel.Name))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Name).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Name).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(CategoryAdapterModel.IsEnabled))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.IsEnabled).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.IsEnabled).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(CategoryAdapterModel.UpdatedAt))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.UpdatedAt).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
         }
-        else
-        {
-            dataSource = dataSource.OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id);
-        }
+
+        // Skip/Take 一定要搭配 OrderBy，否則 SQLite 不保證回傳順序，分頁會重複或漏資料。
+        // 未指定欄位、欄位不認得、方向為 null —— 三種情況一律退回預設排序。
+        dataSource = sorted ?? dataSource.OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id);
 
         result.Count = await dataSource.CountAsync();
         dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
