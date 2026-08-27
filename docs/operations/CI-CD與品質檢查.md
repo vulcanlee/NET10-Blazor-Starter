@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.4.47
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/08/27
 
 本專案以 **GitHub Actions** 在每次 push 與 PR 時自動建置、測試與品質檢查。工作流程定義於 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)。
 
@@ -21,12 +21,14 @@
 
 ## 2. 工作流程（job：`build-test`）
 
-執行環境：`windows-latest`，.NET SDK `10.0.x`。依序執行下列步驟，任一失敗即中止並讓 PR 無法合併：
+執行環境：`windows-latest`，.NET SDK `10.0.x`。job 層級設有 `NUGET_HTTP_TIMEOUT_SECONDS=180`（見 §4）。
+依序執行下列步驟，任一失敗即中止並讓 PR 無法合併：
 
 | 步驟 | 指令 / 動作 | 目的 |
 |------|-------------|------|
 | Checkout | `actions/checkout@v6` | 取出原始碼 |
 | Setup .NET | `actions/setup-dotnet@v5`（`10.0.x`） | 安裝 SDK |
+| Cache NuGet packages | `actions/cache@v4`（`~/.nuget/packages`） | 快取套件、減少對 nuget.org 的請求（0.4.47 起）|
 | Restore | `dotnet restore src/MyProject/MyProject.slnx` | 還原相依套件 |
 | Build | `dotnet build ... --configuration Release --no-restore` | Release 編譯（`TreatWarningsAsErrors`，任何警告即失敗）|
 | Format check | `dotnet format ... --verify-no-changes --no-restore` | 依 `.editorconfig` 驗證格式，有差異即失敗 |
@@ -51,6 +53,13 @@
 
 - **`TreatWarningsAsErrors` = true**：專案長期維持 0 warning，此設定是為了鎖住這個成果、避免警告悄悄回流。
   需要豁免時請針對**單一規則碼**加 `NoWarn` 並註明原因與解除條件（比照 `NuGetAuditSuppress` 的寫法），**不要整包關閉**。
+  注意它是 MSBuild 屬性，**不只影響編譯** —— NuGet restore 階段的 `NU****` 警告同樣會被升級為 error。
+- **唯一的警告豁免：`WarningsNotAsErrors` = `NU1900`**（0.4.47 起）。
+  `NU1900` 是「**取不到**弱點資料」（NuGet Audit 連不上 nuget.org 弱點索引，逾時／限流／暫時性網路失敗），
+  與「發現弱點」無關；被升級成 error 後，nuget.org 抖一下就會讓整條 CI 失敗（見
+  [changelog 0.4.47](../changelog/2026-08-27-CI還原NU1900失敗修正.md)）。
+  用 `WarningsNotAsErrors` 而非 `NoWarn`，是為了讓警告仍印在 log 上、看得出是否常態性連不到來源。
+  **真正代表發現弱點的 `NU1901`~`NU1904` 不在豁免清單，維持 error。**
 - **各 `.csproj` 不再寫 `Nullable` / `ImplicitUsings` / 套件 `Version`**，只保留自己特有的設定
   （`TargetFramework`、`UserSecretsId`、`IsPackable` 等）。
 - **`.editorconfig` 的定位是「描述現有慣例」**，不是引入新風格重新格式化整個 repo。
@@ -85,7 +94,9 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 ## 4. 弱點掃描
 
-`dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。為避免大型還原逾時，步驟設定環境變數 `NUGET_HTTP_TIMEOUT_SECONDS=180`。發現弱點時應升級對應套件版本。
+`dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。發現弱點時應升級對應套件版本。
+
+為降低 NuGet 來源偶發逾時造成的假失敗，`NUGET_HTTP_TIMEOUT_SECONDS=180` 設在 **job 層級**，涵蓋 Restore／Build／Test／Vulnerability scan 全部步驟（0.4.47 前只掛在本步驟，最需要它的 Restore 反而沒有）。
 
 > 此步驟僅「列出」弱點，指令回傳 0、**不會讓 CI 失敗**；它與 restore/build 階段的 `NU1903` 稽核警告是兩條獨立路徑。
 

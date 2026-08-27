@@ -13,6 +13,16 @@
       需要豁免時請針對「單一規則碼」加 NoWarn 並註明原因與解除條件，不要整包關閉。
     -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      NU1900「取得套件弱點資料時發生錯誤」是 NuGet Audit 連不上 nuget.org 弱點索引
+      （逾時／限流／暫時性網路失敗）時發出的警告，與「發現弱點」無關，屬環境問題。
+      被 TreatWarningsAsErrors 升級成 error 後，nuget.org 抖一下就會讓整條 CI 失敗。
+      這裡只降回警告（仍會印出、看得見），刻意不用 NoWarn 全數隱藏。
+      真正代表發現弱點的 NU1901~NU1904 不在此清單，維持 error。
+      解除條件：無（這是環境噪音的長期處置）。詳見 docs/operations/CI-CD與品質檢查.md。
+    -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
   </PropertyGroup>
 
   <!--

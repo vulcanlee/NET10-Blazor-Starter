@@ -13,6 +13,10 @@ jobs:
   build-test:
     runs-on: windows-latest
 
+    # 提高 NuGet HTTP 逾時，涵蓋 job 內所有步驟（restore 才是最常被 nuget.org 偶發逾時打到的一步）。
+    env:
+      NUGET_HTTP_TIMEOUT_SECONDS: "180"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -21,6 +25,15 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
+
+      # 以 Directory.Packages.props（CPM 的版本單一來源）與各 .csproj 當 key。
+      # 不用 setup-dotnet 的 cache：它預設以 **/packages.lock.json 當 hash 依據，本 repo 沒有 lock 檔。
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('src/MyProject/Directory.Packages.props', 'src/MyProject/**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
 
       - name: Restore
         run: dotnet restore src/MyProject/MyProject.slnx
@@ -39,6 +52,4 @@ jobs:
         run: ./scripts/Test-DocsEncoding.ps1
 
       - name: Vulnerability scan
-        env:
-          NUGET_HTTP_TIMEOUT_SECONDS: "180"
         run: dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive
