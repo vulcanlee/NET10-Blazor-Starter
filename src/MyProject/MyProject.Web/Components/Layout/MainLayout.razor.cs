@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -231,7 +230,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
             new("系統描述", systemInformation.SystemDescription),
             new("系統版本", systemInformation.SystemVersion),
             new("執行環境", WebHostEnvironment.EnvironmentName),
-            new(".NET 版本", RuntimeInformation.FrameworkDescription),
             new("啟動時間", SystemStartupState.StartedAt.ToString("yyyy/MM/dd HH:mm:ss")),
             new("已運作時間", uptime.ToString(@"dd\.hh\:mm\:ss")),
         ];
