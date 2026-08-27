@@ -1,0 +1,65 @@
+{
+  // 四個任務對齊 .github/workflows/dotnet-ci.yml 的品質關卡。
+  // 更名專案時，本檔的 MyProject 路徑必須一併更新。
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "restore",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["restore", "${workspaceFolder}/src/MyProject/MyProject.slnx"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/MyProject/MyProject.slnx",
+        "-v:minimal",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "format-check",
+      "detail": "等同 CI 的 dotnet format --verify-no-changes；失敗時改跑不帶該旗標的 dotnet format 讓它自動修。",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "format",
+        "${workspaceFolder}/src/MyProject/MyProject.slnx",
+        "--verify-no-changes"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "${workspaceFolder}/src/MyProject/MyProject.slnx"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "docs-encoding",
+      "detail": "檢查 docs/**/*.md 是否為 UTF-8 含 BOM 且無亂碼；必須從 repo 根目錄執行。",
+      "command": "pwsh",
+      "type": "process",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/Test-DocsEncoding.ps1"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

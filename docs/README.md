@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：維護中
-- 現行系統版本：0.4.47
+- 現行系統版本：0.9.1
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/08/27
 
@@ -18,7 +18,7 @@
 | [`architecture/`](architecture/) | 系統架構、資料模型、API / DTO 設計規範、開發慣例 | 開發慣例速查、架構總覽、資料模型、Web API 設計慣例、API Versioning |
 | [`security/`](security/) | 認證、授權、登入、密碼與機密金鑰機制 | 認證授權、Google OAuth2、記住我、密碼儲存 |
 | [`features/`](features/) | 個別功能機制說明 | 分散式快取、多語系、檔案上傳、健康監控 |
-| [`guides/`](guides/) | 開發 / 操作教學、how-to、流程指南 | 新 CRUD 頁面、新專案啟動、EFCore、測試 |
+| [`guides/`](guides/) | 開發 / 操作教學、how-to、流程指南 | VS Code 上手指南、新 CRUD 頁面、新專案啟動、EFCore、測試 |
 | [`operations/`](operations/) | 部署、維運、設定檔、上線檢查、CI/CD | 維護規範、部署安全清單、日誌與設定檔、CI-CD |
 | [`prd/`](prd/) | 產品需求文件（功能 PRD）| PRD 主控台、各能力 PRD |
 | [`superpowers/`](superpowers/) | brainstorming 設計流程產出的規格 | 分類/團隊頁面設計、紀錄權控設計 |
@@ -59,6 +59,7 @@
 - [系統健康監控](features/系統健康監控.md)
 
 ### guides — 開發與操作指南
+- [VS Code 開發環境與新專案上手指南](guides/VS%20Code%20開發環境與新專案上手指南.md)
 - [建立一個新 CRUD 操作網頁說明](guides/建立一個新%20CRUD%20操作網頁說明.md)
 - [腳手架新專案啟動流程](guides/腳手架新專案啟動流程.md)
 - [EFCore 指令備忘](guides/EFCore.md)
@@ -129,3 +130,4 @@
 - [「關於」對話窗移除「.NET 版本」（0.4.45）](changelog/2026-08-27-關於對話窗移除NET版本.md)
 - [修正分頁查詢缺少 OrderBy（0.4.46）](changelog/2026-08-27-分頁排序缺失修正.md)
 - [修正 CI 還原被 NU1900 中斷（0.4.47）](changelog/2026-08-27-CI還原NU1900失敗修正.md)
+- [VS Code 開發環境與新專案上手指南、`.vscode` 設定、腳手架腳本修正（0.9.1）](changelog/2026-08-27-VSCode開發環境上手指南.md)

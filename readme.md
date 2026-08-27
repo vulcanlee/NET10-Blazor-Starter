@@ -103,6 +103,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 關於 EF Core Migration 指令請見 [docs/guides/EFCore.md](docs/guides/EFCore.md)。
 
+> **第一次接觸本專案，或要用本腳手架開新系統**，請改讀 [VS Code 開發環境與新專案上手指南](docs/guides/VS%20Code%20開發環境與新專案上手指南.md) —— 涵蓋必備工具、VS Code 啟動與偵錯、User Secrets 機密設定、複製後的完整更名步驟與驗證清單。
+
 ---
 
 ## 6. 專案結構
@@ -113,13 +115,14 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ├── AGENTS.md / CLAUDE.md           ← LLM 協作行為準則與專案速查入口
 ├── .editorconfig                   ← 程式碼格式規則（CI 以 dotnet format 強制）
 ├── global.json                     ← 鎖定 .NET SDK 版本
+├── .vscode/                        ← VS Code 啟動／任務／編輯器設定與建議擴充套件
 ├── docs/                           ← 系統設計與規範文件（依特性分類，見第 9 節）
 │   ├── README.md                   ← 文件目錄索引與分類規則
 │   ├── planning/                   ← 專案規劃、TODO、路線圖
 │   ├── architecture/               ← 架構、資料模型、API/DTO 規範、開發慣例速查
 │   ├── security/                   ← 認證、授權、密碼與機密金鑰
 │   ├── features/                   ← 個別功能機制（快取、多語系、上傳、健康監控）
-│   ├── guides/                     ← 開發/操作教學（CRUD、EFCore、測試）
+│   ├── guides/                     ← 開發/操作教學（VS Code 上手、CRUD、EFCore、測試）
 │   ├── operations/                 ← 維護、部署、設定檔、CI/CD
 │   ├── prd/                        ← 產品需求文件（能力覆蓋矩陣 + 各能力 PRD）
 │   ├── superpowers/                ← brainstorming 流程產出的設計規格
@@ -251,8 +254,9 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 開發與操作指南（guides）
 
+- [VS Code 開發環境與新專案上手指南](docs/guides/VS%20Code%20開發環境與新專案上手指南.md) — **新手入口**：必備工具、VS Code 啟動與偵錯、User Secrets 機密設定、複製腳手架的完整更名步驟、驗證清單與疑難排解。
 - [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 新模組請先跑 `scripts/New-CrudModule.ps1`；本文為手動微調時的對照說明。
-- [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單。
+- [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單（操作細節見上方上手指南）。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
