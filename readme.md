@@ -254,7 +254,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 開發與操作指南（guides）
 
-- [VS Code 開發環境與新專案上手指南](docs/guides/VS%20Code%20開發環境與新專案上手指南.md) — **新手入口**：必備工具、VS Code 啟動與偵錯、User Secrets 機密設定、複製腳手架的完整更名步驟、驗證清單與疑難排解。
+- [VS Code 開發環境與新專案上手指南](docs/guides/VS%20Code%20開發環境與新專案上手指南.md) — **新手入口**：必備工具、VS Code 啟動與偵錯、User Secrets 機密設定、品牌客製化（網頁圖示／品牌圖片／產品名稱與說明）、複製腳手架的完整更名步驟、驗證清單與疑難排解。
 - [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 新模組請先跑 `scripts/New-CrudModule.ps1`；本文為手動微調時的對照說明。
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單（操作細節見上方上手指南）。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。

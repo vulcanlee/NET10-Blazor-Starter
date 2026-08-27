@@ -43,6 +43,11 @@ namespace MyProject.Web.Components.Auths
         /// </summary>
         private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
 
+        /// <summary>
+        /// 系統簡短說明，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemDescription。
+        /// </summary>
+        private string SystemDescription => SystemSettingsOptions.Value.SystemInformation.SystemDescription;
+
         string message = string.Empty;
 
         private bool ShowGoogleLogin => GoogleOptions.Value.IsConfigured;

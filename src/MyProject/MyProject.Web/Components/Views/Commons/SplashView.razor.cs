@@ -24,6 +24,11 @@ public partial class SplashView
     /// </summary>
     private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
 
+    /// <summary>
+    /// 系統簡短說明，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemDescription。
+    /// </summary>
+    private string SystemDescription => SystemSettingsOptions.Value.SystemInformation.SystemDescription;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
