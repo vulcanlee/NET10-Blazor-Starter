@@ -146,4 +146,4 @@ if ($remainingMatches) {
 }
 
 Write-Host "Created starter project at $destinationFullPath"
-Write-Host "Next: see docs/guides/VS Code 開發環境與新專案上手指南.md (sections 7.1 and 7.3) for the manual follow-up items."
+Write-Host "Next: see docs/guides/VS Code 開發環境與新專案上手指南.md - section 7 (branding: favicon, brand image, product name/description) and sections 8.1 / 8.3 for the manual follow-up items."

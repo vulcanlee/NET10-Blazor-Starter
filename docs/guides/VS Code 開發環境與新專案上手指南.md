@@ -1,12 +1,12 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.1
+- 現行系統版本：0.9.2
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/08/27
 
-> 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 複製成新專案並更名 → 驗證**全程。
+> 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
 > 動手改既有程式前，請另讀 [開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（分層、Migration、權限同步等不變量）。
 
@@ -20,10 +20,11 @@
 4. [在 VS Code 啟動與偵錯](#4-在-vs-code-啟動與偵錯)
 5. [機密設定檔（User Secrets）](#5-機密設定檔user-secrets)
 6. [資料庫、Migration 與預設帳號](#6-資料庫migration-與預設帳號)
-7. [從腳手架複製出新專案並更名](#7-從腳手架複製出新專案並更名)
-8. [更名後驗證清單](#8-更名後驗證清單)
-9. [常見疑難排解](#9-常見疑難排解)
-10. [相關文件](#10-相關文件)
+7. [品牌客製化：圖示、圖片、產品名稱與說明](#7-品牌客製化圖示圖片產品名稱與說明)
+8. [從腳手架複製出新專案並更名](#8-從腳手架複製出新專案並更名)
+9. [更名後驗證清單](#9-更名後驗證清單)
+10. [常見疑難排解](#10-常見疑難排解)
+11. [相關文件](#11-相關文件)
 
 ---
 
@@ -33,6 +34,7 @@
 |------|------------|
 | 第一次 clone 本 repo，想把它跑起來 | 2 → 3 → 4 → 6 |
 | 想把機密金鑰從 `appsettings.json` 搬走 | 5 |
+| 要換掉圖示、品牌圖片、產品名稱與說明 | 7 |
 | 要用本腳手架開一個**新系統** | 全部，重點在 7 → 8 |
 
 前置知識：基本的 .NET CLI 與 Git 操作。作業系統以 **Windows 10 / 11** 為準（外部目錄預設值 `C:\temp\...` 為 Windows 路徑）。
@@ -288,7 +290,7 @@ appsettings.json
 | 在 repo 根目錄下 `dotnet user-secrets` | 會找不到專案。請先 `cd` 到 `MyProject.Web`，或加 `--project src/MyProject/MyProject.Web/MyProject.Web.csproj` |
 | 以為正式環境也會讀 | 不會。非 Development 環境完全不載入 User Secrets |
 | 以為 `secrets.json` 在專案資料夾裡 | 不在。它在 `%APPDATA%` 下，故意放在 repo 之外 |
-| 多個專案共用同一個 `UserSecretsId` | 機密會互相污染。從腳手架複製新專案時務必換掉，見 [§7.2 步驟 5](#72-手動更名步驟) |
+| 多個專案共用同一個 `UserSecretsId` | 機密會互相污染。從腳手架複製新專案時務必換掉，見 [§8.2 步驟 5](#82-手動更名步驟) |
 
 ---
 
@@ -345,11 +347,136 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 
 ---
 
-## 7. 從腳手架複製出新專案並更名
+## 7. 品牌客製化：圖示、圖片、產品名稱與說明
+
+把腳手架變成「你的產品」，需要動的是**四樣東西**。本章交代每一樣改哪個檔、規格是什麼、使用者會在哪裡看到。
+
+### 7.1 一次看懂：改哪裡、會在哪裡看到
+
+| 要改的東西 | 檔案 / 設定鍵 | 使用者會在哪看到 |
+|------|------|------|
+| 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
+| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`Login.razor:14`） |
+| 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、「關於」對話窗 |
+| 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、「關於」對話窗 |
+| 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
+| 側邊欄品牌圖示 | `Components/Layout/NavMenu.razor:14` 的 `MaterialIcon Kind="dashboard_customize"` | 側邊欄左上（**不是** `brand-logo.png`，是字型圖示） |
+
+> **沿革**：`0.9.2` 之前，登入頁與啟動頁的兩段說明文字是**寫死在 `.razor` 裡**的，`SystemDescription` 只影響「關於」對話窗 —— 改設定檔那兩頁不會變。0.9.2 起兩頁都改讀設定，`SystemName` 與 `SystemDescription` 都是單一來源。
+
+### 7.2 更換產品代表圖片 `brand-logo.png`
+
+現況規格：**1024×1024 PNG**（約 171 KB），滿版構圖、無透明邊。
+
+兩處都用 `object-fit: cover` 填滿容器，**會裁成正方形**，所以主體務必置中、四周留安全邊距：
+
+| 位置 | 容器（CSS） | 實際顯示尺寸 |
+|------|------|------|
+| 登入頁 | `.brand-logo`（`Login.razor.css:99`），圓角 30px | **108 × 108** |
+| 啟動頁 | `.splash-brand-image-wrap`（`SplashView.razor.css:29`），圓角 24px | **120 × 120**（螢幕寬 ≤640.98px 時為 96 × 96） |
+
+換圖建議：
+
+- 正方形、**至少 512×512**（現況 1024×1024 是為了高 DPI 螢幕）。
+- 兩頁背景都是**淺色**（啟動頁淺藍漸層卡片、登入頁淺色底），圖片本身若也是淺色會糊掉，建議用有對比的深色或彩色主體。
+- **檔名不要改** —— 兩處 `.razor` 都硬編這個路徑。
+- 0.9.2 起兩處改用 `@Assets["images/brand-logo.png"]`，換檔後 URL 會自動帶上新的 fingerprint（形如 `images/brand-logo.854k3jgc1o.png`），**不需要清瀏覽器快取**。
+
+### 7.3 更換網頁圖示 `favicon.png`
+
+現況規格：**64×64 PNG**（約 4.4 KB）。
+
+> ⚠️ 本專案**沒有 `favicon.ico`**，也沒有 apple-touch-icon、`site.webmanifest` 或 PWA 圖示 —— 這是刻意的（Blazor Server，不是 PWA 範本）。整份專案只有 `Components/App.razor:15` 一處宣告圖示。
+
+由 `brand-logo.png` 產生（沿用 0.4.25 的原始作法）：
+
+```bash
+ffmpeg -i images/brand-logo.png \
+  -vf "crop='min(iw,ih)':'min(iw,ih)',scale=64:64:flags=lanczos" \
+  -pix_fmt rgba -y favicon.png
+```
+
+沒有 ffmpeg 就用任何影像工具置中裁成正方形、縮到 64×64、存成 PNG 即可。
+
+> ⚠️ **不要把 `@Assets["favicon.png"]` 改回裸相對路徑**（例如 `href="favicon.png"`）。沒有 fingerprint 的話，你覆蓋了檔案但 URL 沒變，使用者會一直看到快取中的舊圖示。
+
+換完看不到新圖示？先 `Ctrl+F5` 強制重新整理 —— favicon 的瀏覽器快取特別黏，必要時到瀏覽器設定清除該站台資料。
+
+### 7.4 更換產品名稱與簡短說明
+
+0.9.2 起兩者都是單一來源，**只改 `appsettings.json` 一處**，啟動頁、登入頁與「關於」對話窗三處同步生效：
+
+```json
+"SystemSettings": {
+  "SystemInformation": {
+    "SystemName": "你的系統名稱",
+    "SystemDescription": "一句話說明這個系統在做什麼",
+    "SystemVersion": "0.0.1 (2026/01/01)"
+  }
+}
+```
+
+版面提示：
+
+| 欄位 | 建議長度 | 說明 |
+|------|------|------|
+| `SystemName` | 4–10 字 | 兩頁都是最大的標題字（啟動頁 `.splash-title`、登入頁 `.app-title`），過長會換行擠壓版面 |
+| `SystemDescription` | 30–40 字 | 啟動頁單行可容納約 40 字；登入頁面板較窄會折成兩行。超過約 60 字會開始破版 |
+| `SystemVersion` | — | 格式固定為 `Major.Minor.Patch (YYYY/MM/DD)`；**留空**會讓「系統健康監控」頁把應用程式判為 Degraded 並顯示「SystemVersion 未設定。」 |
+
+### 7.5 ⚠️ 瀏覽器分頁標題是另一件事
+
+`Components/App.razor` **沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
+
+全專案 17 個 `<PageTitle>` 中有三處是範本殘留的英文（其餘 14 個都已中文化）：
+
+| 檔案 | 目前標題 |
+|------|------|
+| `Components/Pages/Home.razor:4` | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
+| `Components/Pages/HomeAuthed.razor:3` | `Home` |
+| `Components/Pages/Error.razor:5` | `Error` |
+
+想讓每個分頁都帶產品名（例如「使用者管理 — 你的系統」），需要自行加後綴機制，本專案未提供。
+
+### 7.6 仍然寫死、需要自行決定的文案
+
+以下都是**設計文案**，刻意不參數化。要不要改由你決定，但更名時建議至少掃過一遍：
+
+| 位置 | 目前文字 |
+|------|------|
+| `Components/Auths/Login.razor:12` | `ENTERPRISE ACCESS`（品牌徽章） |
+| `Components/Auths/Login.razor:22` | `Welcome Back` |
+| `Components/Auths/Login.razor:23` / `:24` | `使用者登入` / `請輸入您的帳號資訊以存取系統。` |
+| `Components/Auths/Login.razor:58` | `企業級安全登入` |
+| `Components/Views/Commons/SplashView.razor:11` | `Welcome` |
+| `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
+| `Components/Layout/NavMenu.razor:17` | `MyProject.Web` —— ⚠️ 側邊欄品牌文字，**不走 `SystemName`**。更名腳本會把它換成 `新代號.Web`，當作產品名仍然不對，請自行改成正式名稱 |
+| `Components/Layout/NavMenu.razor:18` / `:25` | `管理後台功能清單` / `功能選單` |
+| `Components/Layout/MainLayout.razor.cs:52` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
+| `Components/Commons/ViewNotification.cs:15` | `系統訊息`（全站通知的標題） |
+| `MainLayout.razor:103`、`EmptyLayout.razor:12`、`NoFooterLayout.razor:10` | `An unhandled error has occurred.`（Blazor 預設，尚未中文化） |
+
+另註：全專案**沒有** footer 或版權文字，`.csproj` 也沒有設定 `<Product>` / `<AssemblyTitle>`，所以組件層級沒有產品名要改。
+
+### 7.7 換完怎麼確認
+
+啟動系統後逐項檢查：
+
+- [ ] 啟動頁（`https://localhost:7044/`）：品牌圖片、大標題（`SystemName`）、副說明（`SystemDescription`）
+      —— 啟動頁只在驗證身分那一瞬間出現，會很快跳走，可先登出再開首頁觀察
+- [ ] 登入頁（`/Auths/Login`）：同樣三項，且說明文字沒有溢出面板
+- [ ] 登入後右上使用者選單 →「關於」：系統名稱／系統描述／系統版本三列正確
+- [ ] 「系統健康監控」頁（`/system-health`）：診斷文字含正確的 `版本：x.y.z`
+- [ ] 瀏覽器分頁圖示已換（先 `Ctrl+F5`）
+- [ ] 檢視網頁原始碼，確認 `brand-logo` 的 URL 帶了 fingerprint（形如 `images/brand-logo.<雜湊>.png`）
+
+---
+
+## 8. 從腳手架複製出新專案並更名
 
 目標：把 `MyProject` 這個代號整套換成你的新系統代號（以下以 **`Acme.Erp`** 為例），包含**資料夾名稱、檔案名稱、命名空間、組件名稱、設定值與文件**。
 
-### 7.1 快速捷徑：`New-StarterProject.ps1`
+### 8.1 快速捷徑：`New-StarterProject.ps1`
 
 repo 已附一支腳本能一次做掉絕大部分工作：
 
@@ -372,15 +499,15 @@ pwsh ./scripts/New-StarterProject.ps1 `
 
 | 項目 | 說明 |
 |------|------|
-| 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 |
-| 系統顯示名稱 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription` / `SystemVersion`） |
+| 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
+| 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription` / `SystemVersion`）—— 見 [§7.4](#74-更換產品名稱與簡短說明) |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
 | 外部目錄路徑 | `ExternalFileSystem` 四個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
 
-即使用了腳本，仍**強烈建議**照 [§7.3 高風險清單](#73-高風險清單) 逐條核對，再跑 [§8 驗證清單](#8-更名後驗證清單)。
+即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
 
-### 7.2 手動更名步驟
+### 8.2 手動更名步驟
 
 想完全掌控過程、或腳本在你的環境出狀況時，照以下步驟做。
 
@@ -463,7 +590,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 #### 步驟 6：逐條核對高風險清單
 
-見 [§7.3](#73-高風險清單)。步驟 4 的全域取代通常已經蓋掉這些，但**務必逐條確認**，因為漏掉其中幾條不會有任何錯誤訊息。
+見 [§8.3](#83-高風險清單)。步驟 4 的全域取代通常已經蓋掉這些，但**務必逐條確認**，因為漏掉其中幾條不會有任何錯誤訊息。
 
 #### 步驟 7：設定值與品牌
 
@@ -471,16 +598,14 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 | 鍵 | 建議值 |
 |----|--------|
-| `SystemSettings:SystemInformation:SystemName` | 你的系統名稱（會顯示在登入頁、啟動畫面、「關於」對話窗） |
-| `SystemSettings:SystemInformation:SystemDescription` | 你的系統描述 |
-| `SystemSettings:SystemInformation:SystemVersion` | 版本歸零，例如 `0.0.1 (2026/01/01)` |
+| `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議歸零為 `0.0.1 (2026/01/01)` |
 | `SystemSettings:ExternalFileSystem:*` | 四個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
 | `JwtSettings:Issuer` / `Audience` | `Acme.Erp` / `Acme.Erp.WebApi` |
 | `JwtSettings:SigningKey` | 換成你自己的值；建議直接搬進 User Secrets |
 | `BootstrapSettings:*` | 改掉預設的 `support` / `support` |
 | `CacheSettings:InstanceName` | `Acme.Erp:`（Redis 鍵前綴，避免與其他系統衝突） |
 
-品牌圖檔（二進位，全域取代不會處理）：
+品牌圖檔（二進位，全域取代不會處理）—— 尺寸規格、裁切行為與 favicon 產生指令見 **[§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明)**：
 
 ```
 src/Acme.Erp/Acme.Erp.Web/wwwroot/images/brand-logo.png   ← 登入頁與啟動畫面
@@ -497,7 +622,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md` | LLM 協作準則裡的專案描述 |
 | `.vscode/launch.json` / `tasks.json` / `settings.json` | 內含 `src/MyProject/...` 路徑，確認已更新 |
 
-### 7.3 高風險清單
+### 8.3 高風險清單
 
 以下是**改資料夾名稱不會自動修好**、且多數**漏改也不會報錯**的字串。請逐條核對：
 
@@ -513,10 +638,12 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
 | `Components/Views/Analytics/LogViewerView.razor.cs:151` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |
-| `MyProject.Tests/*.cs` | 多支守門測試以字串或路徑比對專案名：`LoggingConventionTests`、`ButtonIconConventionTests`、`MenuIconTests`、`MenuPermissionConsistencyTests`、`LogLevelRuntimeStateTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`TotpServiceTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§8](#8-更名後驗證清單) 一定要跑 `dotnet test` |
+| `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` | 二進位圖檔，全域文字取代**完全不會處理** | 新系統掛著舊產品的圖示與品牌圖片。作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
+| `Components/Layout/NavMenu.razor:17` 的產品名 | 側邊欄品牌文字，更名腳本只會換成 `新代號.Web` | 側邊欄顯示的是專案代號而非正式產品名，見 [§7.6](#76-仍然寫死需要自行決定的文案) |
+| `MyProject.Tests/*.cs` | 多支守門測試以字串或路徑比對專案名：`LoggingConventionTests`、`ButtonIconConventionTests`、`MenuIconTests`、`MenuPermissionConsistencyTests`、`LogLevelRuntimeStateTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`TotpServiceTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§9](#9-更名後驗證清單) 一定要跑 `dotnet test` |
 | `.vscode/launch.json`、`tasks.json`、`settings.json` | `src/MyProject/...` 路徑與 `MyProject.Web.dll` | F5 啟動失敗、任務找不到方案檔 |
 
-### 7.4 不需要改的東西
+### 8.4 不需要改的東西
 
 避免過度改名造成不必要的風險：
 
@@ -531,7 +658,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 
 ---
 
-## 8. 更名後驗證清單
+## 9. 更名後驗證清單
 
 四道關卡（與 CI `.github/workflows/dotnet-ci.yml` 完全一致），全部在 repo 根目錄執行：
 
@@ -552,7 +679,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 手動驗收項目：
 
 - [ ] `dotnet run --launch-profile https` 能啟動，`https://localhost:7044` 開得起來
-- [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§7.3](#73-高風險清單)）
+- [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 側邊欄品牌文字已是新系統名（`NavMenu.razor:17` 硬編字串）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
@@ -564,7 +691,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 ---
 
-## 9. 常見疑難排解
+## 10. 常見疑難排解
 
 | 症狀 | 原因 | 解法 |
 |------|------|------|
@@ -585,7 +712,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 ---
 
-## 10. 相關文件
+## 11. 相關文件
 
 | 文件 | 內容 |
 |------|------|

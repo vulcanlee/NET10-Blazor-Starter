@@ -23,7 +23,7 @@
 
 ## 三、畫面與欄位
 
-- Landing（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`，非寫死字串）、說明文字與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。
+- Landing（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。
 - Dashboard（`/App` → `HomeAuthed.razor` → `ProjectViewView`）：登入後首頁即專案清單檢視（工具列、分類／團隊過濾、搜尋、表格與新增／編輯 Modal），套用主版面與側邊選單。
 - 側邊選單（`NavMenu.razor` + `SidebarMenuNode`）：
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。
