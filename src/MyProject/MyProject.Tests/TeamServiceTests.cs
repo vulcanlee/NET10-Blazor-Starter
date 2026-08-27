@@ -191,6 +191,58 @@ public sealed class TeamServiceTests
         Assert.Equal("團隊代號已存在，無法儲存。", result.Message);
     }
 
+
+    // ---- 分頁排序退路（0.4.46）----
+    // 三個測例對應三種「排序落空」的輸入；落空時若沒有退回預設排序，
+    // Skip/Take 就會少了 OrderBy，分頁順序不保證（TestDbContextFactory 會直接擲例外）。
+
+    [Fact]
+    public async Task GetAsync_WithoutSortField_ShouldOrderByUpdatedAtDescending()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.SeedOrderedTeamsAsync();
+        var service = fixture.CreateService();
+
+        var result = await service.GetAsync(NewRequest());
+
+        Assert.Equal(["最新", "中間", "最舊"], result.Result.Select(x => x.Name).ToList());
+    }
+
+    [Fact]
+    public async Task GetAsync_WithUnknownSortField_ShouldFallBackToDefaultOrder()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.SeedOrderedTeamsAsync();
+        var service = fixture.CreateService();
+
+        var result = await service.GetAsync(NewRequest("NotAColumn", sortDescending: true));
+
+        Assert.Equal(["最新", "中間", "最舊"], result.Result.Select(x => x.Name).ToList());
+    }
+
+    [Fact]
+    public async Task GetAsync_WithNullSortDescending_ShouldFallBackToDefaultOrder()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.SeedOrderedTeamsAsync();
+        var service = fixture.CreateService();
+
+        var result = await service.GetAsync(NewRequest(nameof(TeamAdapterModel.Name), sortDescending: null));
+
+        // 依 Name 排會是「中間／最新／最舊」，因此這組斷言足以區分「有沒有退回預設排序」。
+        Assert.Equal(["最新", "中間", "最舊"], result.Result.Select(x => x.Name).ToList());
+    }
+
+    private static DataRequest NewRequest(string sortField = "", bool? sortDescending = null) => new()
+    {
+        Search = string.Empty,
+        SortField = sortField,
+        SortDescending = sortDescending,
+        CurrentPage = 1,
+        PageSize = 50,
+        Take = 0,
+    };
+
     private sealed class TeamServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -241,6 +293,18 @@ public sealed class TeamServiceTests
             await Context.SaveChangesAsync();
             Context.ChangeTracker.Clear();
             return team;
+        }
+
+        /// <summary>建立三筆 UpdatedAt 明確不同的資料，供預設排序斷言使用。</summary>
+        public async Task SeedOrderedTeamsAsync()
+        {
+            var baseTime = new DateTime(2026, 8, 27, 10, 0, 0);
+            Context.Team.AddRange(
+                new Team { Name = "最舊", UpdatedAt = baseTime },
+                new Team { Name = "中間", UpdatedAt = baseTime.AddMinutes(10) },
+                new Team { Name = "最新", UpdatedAt = baseTime.AddMinutes(20) });
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
         }
 
         public async ValueTask DisposeAsync()

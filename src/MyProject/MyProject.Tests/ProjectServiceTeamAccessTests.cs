@@ -8,6 +8,7 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
 namespace MyProject.Tests;
@@ -152,6 +153,43 @@ public sealed class ProjectServiceTeamAccessTests
         Assert.Null(await service.GetFileDownloadAsync(fileId));
     }
 
+
+    // ---- 分頁排序退路（0.4.46）----
+    // ProjectService 原本連預設排序都沒有；這兩個測例補上「欄位不認得」與「方向未指定」兩種落空輸入。
+
+    [Fact]
+    public async Task GetAsync_WithUnknownSortField_ShouldFallBackToDefaultOrder()
+    {
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        await fixture.SeedOrderedProjectsAsync();
+        var service = fixture.CreateService(isAdmin: true);
+
+        var request = NewRequest();
+        request.SortField = "NotAColumn";
+        request.SortDescending = true;
+
+        var result = await service.GetAsync(request);
+
+        Assert.Equal(["最新", "中間", "最舊"], result.Result.Select(x => x.Title).ToList());
+    }
+
+    [Fact]
+    public async Task GetAsync_WithNullSortDescending_ShouldFallBackToDefaultOrder()
+    {
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        await fixture.SeedOrderedProjectsAsync();
+        var service = fixture.CreateService(isAdmin: true);
+
+        var request = NewRequest();
+        request.SortField = nameof(ProjectAdapterModel.Title);
+        request.SortDescending = null;
+
+        var result = await service.GetAsync(request);
+
+        // 依 Title 排會是「中間／最新／最舊」，因此這組斷言足以區分「有沒有退回預設排序」。
+        Assert.Equal(["最新", "中間", "最舊"], result.Result.Select(x => x.Title).ToList());
+    }
+
     private static DataRequest NewRequest() => new()
     {
         Search = string.Empty,
@@ -279,6 +317,22 @@ public sealed class ProjectServiceTeamAccessTests
                 ["團隊A專案"] = teamA.Id,
                 ["團隊B專案"] = teamB.Id,
             };
+        }
+
+        /// <summary>建立三筆 UpdatedAt 明確不同的資料，供預設排序斷言使用。</summary>
+        public async Task SeedOrderedProjectsAsync()
+        {
+            var baseTime = new DateTime(2026, 8, 27, 10, 0, 0);
+            var oldest = NewProject("最舊", null);
+            oldest.UpdatedAt = baseTime;
+            var middle = NewProject("中間", null);
+            middle.UpdatedAt = baseTime.AddMinutes(10);
+            var newest = NewProject("最新", null);
+            newest.UpdatedAt = baseTime.AddMinutes(20);
+
+            Context.Project.AddRange(oldest, middle, newest);
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
         }
 
         private static Project NewProject(string title, IEnumerable<string>? teams) => new()

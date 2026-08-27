@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using MyProject.AccessDatas;
 
 namespace MyProject.Tests;
@@ -27,6 +28,9 @@ public sealed class TestDbContextFactory : IDbContextFactory<BackendDBContext>
     {
         var options = new DbContextOptionsBuilder<BackendDBContext>()
             .UseSqlite(connection)
+            // 測試環境把「Skip/Take 沒有 OrderBy」直接視為錯誤：這個警告代表分頁順序不保證，
+            // 同一筆資料可能重複出現或整批漏掉，必須在測試就擋下，不要留到執行期日誌。
+            .ConfigureWarnings(w => w.Throw(CoreEventId.RowLimitingOperationWithoutOrderByWarning))
             .Options;
 
         return new BackendDBContext(options);

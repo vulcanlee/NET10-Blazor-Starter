@@ -88,73 +88,79 @@ public class MyUserService
                 (x.RoleView != null && x.RoleView.Name.Contains(dataRequest.Search)));
         }
 
+        IOrderedQueryable<MyUser>? sorted = null;
+
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
         {
             if (dataRequest.SortField == nameof(MyUserAdapterModel.Account))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Account).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Account).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.Name))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Name).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Name).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.Email))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Email).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Email).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.RoleViewName))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.RoleView != null ? x.RoleView.Name : string.Empty).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.RoleView != null ? x.RoleView.Name : string.Empty).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.StatusText))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.Status).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.Status).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.IsAdminText))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.IsAdmin).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.IsAdmin).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.CreateAt))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.CreateAt).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.CreateAt).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
             else if (dataRequest.SortField == nameof(MyUserAdapterModel.UpdateAt))
             {
-                dataSource = dataRequest.SortDescending == true
+                sorted = dataRequest.SortDescending == true
                     ? dataSource.OrderByDescending(x => x.UpdateAt).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.UpdateAt).ThenBy(x => x.Id)
-                        : dataSource;
+                        : null;
             }
         }
+
+        // Skip/Take 一定要搭配 OrderBy，否則 SQLite 不保證回傳順序，分頁會重複或漏資料。
+        // 未指定欄位、欄位不認得、方向為 null —— 三種情況一律退回預設排序。
+        dataSource = sorted ?? dataSource.OrderByDescending(x => x.UpdateAt).ThenByDescending(x => x.Id);
 
         result.Count = await dataSource.CountAsync();
         dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
