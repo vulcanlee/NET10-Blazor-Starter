@@ -283,6 +283,15 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
+            if (await ConfirmTeamBindingAsync() == false)
+            {
+                logger.LogDebug("User save cancelled at team confirmation. UserId={UserId}", CurrentRecord.Id);
+
+                // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
+                modalVisible = true;
+                return;
+            }
+
             if (isNewRecordMode)
             {
                 var beforeAddCheckResult = await myUserService.BeforeAddCheckAsync(CurrentRecord);
@@ -327,6 +336,38 @@ namespace MyProject.Web.Components.Views.Admins
 
             await ReloadAsync();
             modalVisible = false;
+        }
+
+        /// <summary>
+        /// 儲存前對「團隊欄位留空」提出警告。使用者的有效團隊＝直接綁定的團隊 ∪ 其所有角色的
+        /// 預設團隊（見 EffectiveTeamResolver），所以留空不等於沒有團隊 —— 訊息依角色實際有沒有
+        /// 預設團隊分成兩種措辭。管理員不受團隊行級過濾，提醒對他沒有意義，直接放行。
+        /// 回傳 true 表示可以繼續儲存。
+        /// </summary>
+        private async Task<bool> ConfirmTeamBindingAsync()
+        {
+            if (CurrentRecord.TeamNames.Count > 0 || CurrentRecord.IsAdmin)
+            {
+                return true;
+            }
+
+            List<int> roleIds = new(CurrentRecord.AdditionalRoleIds);
+            if (CurrentRecord.RoleViewId.HasValue)
+            {
+                roleIds.Add(CurrentRecord.RoleViewId.Value);
+            }
+
+            List<string> inheritedTeams = roleViewAdapterModels
+                .Where(x => roleIds.Contains(x.Id))
+                .SelectMany(x => x.DefaultTeams)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            string content = inheritedTeams.Count > 0
+                ? $"未直接指定團隊，此使用者將沿用其角色的預設團隊（{string.Join("、", inheritedTeams)}）。確定要這樣儲存嗎？"
+                : "未直接指定團隊，且其角色也沒有預設團隊，此使用者將只能看到無團隊標記的公開紀錄。確定要這樣儲存嗎？";
+
+            return await TeamBindingConfirm.AskAsync(modalService, content);
         }
 
         private Task OnModalCancelHandleAsync(MouseEventArgs args)
