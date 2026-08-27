@@ -273,13 +273,17 @@ main {
     .page.sidebar-collapsed .sidebar {
         box-shadow: 10px 0 26px rgba(148, 163, 184, 0.12);
         overflow: visible;
-        z-index: 3;
+        /* 必須高於 .top-row（20），否則收合側邊欄的飛出選單會被頂部列蓋掉。 */
+        z-index: 30;
     }
 
     .top-row {
         position: sticky;
         top: 0;
-        z-index: 1;
+        /* 必須高於 AntDesign 表格的固定欄（2）、sticky 標頭（3）與容器邊框（4）。
+           本層帶 z-index 即建立 stacking context，.user-menu-dropdown 的 20 只在其內部有效，
+           整個頂部列是以這個數值參與根層級堆疊 —— 調小會讓使用者選單被固定「操作」欄蓋住。 */
+        z-index: 20;
     }
 
     .top-row.auth ::deep a:first-child {
