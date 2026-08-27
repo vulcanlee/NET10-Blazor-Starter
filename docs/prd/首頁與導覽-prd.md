@@ -1,8 +1,8 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.4.44
+- 現行系統版本：0.4.45
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/08/27
 
@@ -32,7 +32,7 @@
   - 現有結構（由上而下）：首頁、專案管理（專案項目）、資料定義（分類清單／團隊清單）、統計與分析（日誌檢視／日誌等級設定／資料庫用量）、系統管理（使用者管理／角色管理）、登出。
 - 右上角使用者選單（`MainLayout.razor`）：顯示目前使用者名稱與「管理員」標記，展開後含「變更密碼」「設定 API 密碼」「關於」「登出」四項。
   - ⚠️ **版面層級**（0.4.44 修正）：`.top-row` 帶 `z-index` 即建立 stacking context，選單自己的 `z-index: 20` 只在其內部有效，整個頂部列是以 `.top-row` 的數值參與根層級堆疊。該值必須高於 AntDesign 表格的固定欄／sticky 標頭（2–4），否則「關於」「登出」會被有固定「操作」欄的頁面蓋住。詳見 [開發慣例與限制速查 §6.2](../architecture/開發慣例與限制速查.md)。
-- 「關於」對話窗（`MainLayout.razor` 之 `about-modal`）：以 AntDesign `Modal`（寬 520、無 Footer）呈現七列唯讀系統資訊。
+- 「關於」對話窗（`MainLayout.razor` 之 `about-modal`）：以 AntDesign `Modal`（寬 520、無 Footer）呈現六列唯讀系統資訊。
 
   | 項目 | 來源 |
   | --- | --- |
@@ -40,7 +40,6 @@
   | 系統描述 | `SystemSettings.SystemInformation.SystemDescription` |
   | 系統版本 | `SystemSettings.SystemInformation.SystemVersion`（唯一版本來源） |
   | 執行環境 | `IWebHostEnvironment.EnvironmentName` |
-  | .NET 版本 | `RuntimeInformation.FrameworkDescription` |
   | 啟動時間 | `SystemStartupState.StartedAt`（`yyyy/MM/dd HH:mm:ss`） |
   | 已運作時間 | `DateTimeOffset.Now - StartedAt`（`dd.hh:mm:ss`） |
 
@@ -77,7 +76,7 @@
 
 - `MyProject.Tests/MenuIconTests.cs::MenuJson_AllIcons_ShouldBeNonEmptyAndAllowed`：`Menu.json` 每項圖示非空且屬允許集合。
 - 手動驗收：以不同角色登入，確認選單僅顯示具權限之項目；管理員可見全部；重排 `Menu.json` 順序不影響權限對應。
-- 手動驗收（關於）：點右上角使用者名稱 →「關於」，對話窗顯示七列資訊，系統版本須與 `appsettings.json` 之 `SystemVersion` 一致；關閉後再次開啟，「已運作時間」應有增加。
+- 手動驗收（關於）：點右上角使用者名稱 →「關於」，對話窗顯示六列資訊，系統版本須與 `appsettings.json` 之 `SystemVersion` 一致；關閉後再次開啟，「已運作時間」應有增加。
 - 權限判定來源之測試見 `PermissionCheckerTests.cs`（詳「紀錄分類與團隊權控 PRD」）。
 
 ## 八、相關程式與文件
