@@ -646,6 +646,7 @@ public partial class ${Name}View
         CurrentRecord = new ${Name}AdapterModel();
 
         // TODO: 開啟維護 Modal（參考 Components/Views/Categories/CategoryViewView 的 Modal + EditForm）。
+        // ⚠️ EditForm 上不要加 @onkeydown —— 見下方「尚未產生的部分」。
         return Task.CompletedTask;
     }
 
@@ -835,6 +836,13 @@ MyProject.Web/Extensions/ServiceCollectionExtensions.cs：
 檢視的 OnAddAsync / OnEditAsync 只建立了資料狀態，**維護 Modal 尚未產生**。
 請參考 Components/Views/Categories/CategoryViewView.razor 的 Modal + EditForm 區塊補上，
 並沿用 ViewNotification 顯示結果訊息。
+
+⚠️ **EditForm／form 上絕不可加 @onkeydown**：keydown 會從表單內任何子元素冒泡上來，
+TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔並關窗」。
+存檔的唯一入口是 <Modal OnOk>，Esc 交給 <Modal Keyboard="true">。
+需要捷徑請綁在個別元件上（例如 <Input OnPressEnter="..." />）。
+理由見 docs/architecture/開發慣例與限制速查.md §6.3，
+由 MyProject.Tests/ModalKeyboardConventionTests.cs 守門。
 
 ## 六、驗收
 
