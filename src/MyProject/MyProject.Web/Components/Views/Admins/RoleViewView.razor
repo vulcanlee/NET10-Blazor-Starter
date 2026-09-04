@@ -62,7 +62,7 @@ else
     OnOk="OnModalOKHandleAsync"
     OnCancel="OnModalCancelHandleAsync">
         <div class="">
-            <EditForm Model="@CurrentRecord" Context="editContext" @onkeydown="OnModalKeyDownAsync">
+            <EditForm Model="@CurrentRecord" Context="editContext">
                 <DataAnnotationsValidator />
                 <ValidationSummary />
                 <InputWatcher EditContextActionChanged="OnEditContestChanged" />

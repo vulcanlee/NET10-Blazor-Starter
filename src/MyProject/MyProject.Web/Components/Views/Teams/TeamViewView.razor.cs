@@ -307,19 +307,6 @@ namespace MyProject.Web.Components.Views.Teams
             return Task.CompletedTask;
         }
 
-        private async Task OnModalKeyDownAsync(KeyboardEventArgs args)
-        {
-            if (args.Key == "Enter")
-            {
-                await Task.Delay(200);
-                await OnModalOKHandleAsync(new MouseEventArgs());
-            }
-            else if (args.Key == "Escape" || args.Key == "Esc")
-            {
-                await OnModalCancelHandleAsync(new MouseEventArgs());
-            }
-        }
-
         public void OnEditContestChanged(EditContext context)
         {
             LocalEditContext = context;

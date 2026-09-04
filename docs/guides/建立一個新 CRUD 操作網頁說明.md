@@ -139,8 +139,13 @@
    - 新增/修改分流：補齊 `CreateAt/UpdateAt` 或僅更新 `UpdateAt`。
    - 成功後關閉 Modal 並 Reload。
 
-7. **鍵盤操作**
-   - Enter 觸發儲存、Esc 關閉，提升可用性。
+7. **鍵盤操作** ⚠️
+   - **不要在 `<EditForm>`／`<form>` 上掛 `@onkeydown`**：keydown 會從表單內任何子元素
+     冒泡上來，TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔並關窗」。
+   - 存檔的唯一入口是 `<Modal OnOk>`（「確定」按鈕）；Esc 交給 `<Modal Keyboard="true">`。
+   - 需要捷徑時綁在個別元件上（例如 `<Input OnPressEnter="..." />`），不要綁在表單層。
+   - 細節與理由見 [開發慣例與限制速查 §6.3](../architecture/開發慣例與限制速查.md)，
+     由 `MyProject.Tests/ModalKeyboardConventionTests.cs` 守門。
 
 ---
 
@@ -237,7 +242,11 @@
 7. 刪除：
    - 有二次確認。
    - 刪除成功後列表更新。
-8. 鍵盤操作：Enter 可送出、Esc 可關閉。
+8. 鍵盤操作：
+   - TextArea 內按 Enter／Shift+Enter 可換行，且**對話窗不關閉**。
+   - Select 展開後按 Enter 選取選項，且**對話窗不關閉**。
+   - Select／DatePicker 展開時按 Esc 只收合該面板；面板都收合時 Esc 才關閉對話窗。
+   - 存檔只能按「確定」按鈕，驗證訊息正常顯示。
 9. 例外路徑：服務拋錯時有錯誤紀錄與使用者可理解訊息。
 
 ---
