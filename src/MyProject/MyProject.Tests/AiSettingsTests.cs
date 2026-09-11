@@ -46,7 +46,12 @@ public sealed class AiSettingsTests
     }
 
     /// <summary>
-    /// 預設值必須與 appsettings.json 範本及 docs 的說明一致。
+    /// 預設值必須與 docs 的說明一致。
+    ///
+    /// ⚠️ 0.9.7 起 appsettings.json 只列出 Provider / Endpoint / ApiKey / Model /
+    /// TimeoutSeconds 五個鍵，其餘只存在於此處與文件。改動任何預設值時，
+    /// <b>務必同步</b> docs/operations/日誌與設定檔說明.md §4.8 的欄位表
+    /// 與 docs/features/AI日誌分析.md 的預設值表 —— 那是使用者唯一查得到的地方。
     ///
     /// ApiKey 與 Model 預設留空是刻意的：這兩項就是功能的開關 —— 沒填等於關閉，
     /// 所以腳手架不帶金鑰也能直接跑起來，不需要另一個 Enabled 旗標。
@@ -62,10 +67,10 @@ public sealed class AiSettingsTests
         Assert.Equal(string.Empty, settings.Model);
         Assert.Equal(string.Empty, settings.SystemPrompt);
         Assert.Equal(100, settings.MaxEntries);
-        Assert.Equal(2000, settings.MaxCharactersPerEntry);
-        Assert.Equal(120000, settings.MaxTotalCharacters);
-        Assert.Equal(120, settings.TimeoutSeconds);
-        Assert.Equal(2000, settings.MaxOutputTokens);
+        Assert.Equal(600, settings.TimeoutSeconds);
+        // 預設不送 max_completion_tokens：這個額度同時涵蓋推論模型的思考 token，
+        // 設太小會在產出任何可見文字之前就耗盡，拿到空回應還要付錢。
+        Assert.Null(settings.MaxOutputTokens);
         // 預設不送 temperature：推論模型（o 系列、gpt-5 家族）只接受預設值，
         // 送任何數字都會被回 400 unsupported_value。不送就能相容所有模型。
         Assert.Null(settings.Temperature);

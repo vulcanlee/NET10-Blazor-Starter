@@ -148,14 +148,9 @@ public static class AiReportPdfBuilder
     private static string BuildScopeText(AiPromptBuildResult prompt)
     {
         var text = $"送出 {prompt.IncludedEntryCount} 筆／查詢 {prompt.TotalEntryCount} 筆";
-        if (prompt.DroppedByEntryLimit || prompt.DroppedByTotalLimit)
+        if (prompt.DroppedByEntryLimit)
         {
-            text += "（已依上限取最新資料）";
-        }
-
-        if (prompt.TruncatedEntryCount > 0)
-        {
-            text += $"，其中 {prompt.TruncatedEntryCount} 筆單筆內容已截斷";
+            text += "（已依筆數上限取最新資料）";
         }
 
         return text;

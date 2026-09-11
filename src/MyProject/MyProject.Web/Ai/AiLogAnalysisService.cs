@@ -49,11 +49,7 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
             return AiAnalysisResult.Failure(AiAnalysisFailureReason.NotConfigured, invalid);
         }
 
-        var prompt = AiLogPromptBuilder.Build(
-            entriesAscending,
-            settings.MaxEntries,
-            settings.MaxCharactersPerEntry,
-            settings.MaxTotalCharacters);
+        var prompt = AiLogPromptBuilder.Build(entriesAscending, settings.MaxEntries);
 
         if (prompt.IsEmpty)
         {
@@ -93,9 +89,7 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
             var parsed = AiChatResponseParser.Parse(payload);
             if (string.IsNullOrWhiteSpace(parsed.Content))
             {
-                var message = string.IsNullOrEmpty(parsed.FilterCategory)
-                    ? "AI 沒有回傳任何內容，請稍後再試。"
-                    : $"AI 回應被內容過濾攔下（類別：{parsed.FilterCategory}）。";
+                var message = DescribeEmptyResponse(parsed);
 
                 logger.LogWarning(
                     "AI log analysis returned empty content. FinishReason={FinishReason}, Entries={Entries}",
@@ -128,6 +122,8 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                 ModelName = string.IsNullOrEmpty(parsed.ModelName)
                     ? settings.Model
                     : parsed.ModelName,
+                IsTruncatedByLength =
+                    string.Equals(parsed.FinishReason, "length", StringComparison.OrdinalIgnoreCase),
                 Elapsed = stopwatch.Elapsed,
             };
         }
@@ -163,6 +159,29 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                 prompt,
                 stopwatch.Elapsed);
         }
+    }
+
+    /// <summary>
+    /// 回應成功但沒有內容時，說明是為什麼。
+    ///
+    /// ⚠️ <c>finish_reason</c> 為 <c>length</c> 這一支特別重要：推論模型的思考 token 也算進
+    /// <c>max_completion_tokens</c>，額度太小就會在產出任何可見文字之前耗盡。使用者拿到的是
+    /// 空回應，卻仍要付輸入與思考的費用 —— 只說「請稍後再試」會讓人一再重試、一再付錢。
+    /// </summary>
+    private static string DescribeEmptyResponse(AiChatParseResult parsed)
+    {
+        if (string.IsNullOrEmpty(parsed.FilterCategory) == false)
+        {
+            return $"AI 回應被內容過濾攔下（類別：{parsed.FilterCategory}）。";
+        }
+
+        if (string.Equals(parsed.FinishReason, "length", StringComparison.OrdinalIgnoreCase))
+        {
+            return "回應在產出任何內容之前就達到長度上限。請調高 AiSettings:MaxOutputTokens "
+                + "或將它設為 null（推論模型的思考 token 也算進這個額度）。";
+        }
+
+        return "AI 沒有回傳任何內容，請稍後再試。";
     }
 
     /// <summary>
@@ -222,6 +241,13 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
     /// </summary>
     private static string DescribeBadRequest(AiUpstreamError upstream)
     {
+        // 0.9.7 起送出的日誌不再有字元上限，所以「內容太長」變成主要的失敗模式。
+        // 這個錯誤沒有 param，落到通用分支的話訊息會講不出解法。
+        if (string.Equals(upstream.Code, "context_length_exceeded", StringComparison.OrdinalIgnoreCase))
+        {
+            return "送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。";
+        }
+
         // 推論模型（o 系列、gpt-5 家族）只接受 temperature 的預設值，
         // 這是切換模型時最常撞到的一個，直接告訴使用者怎麼改。
         if (string.Equals(upstream.Param, "temperature", StringComparison.OrdinalIgnoreCase))

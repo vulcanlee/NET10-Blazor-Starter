@@ -4,22 +4,21 @@ using MyProject.Web.Diagnostics;
 namespace MyProject.Tests;
 
 /// <summary>
-/// Prompt 組裝與截斷測試。
+/// Prompt 組裝測試。
 ///
-/// 重點是 <see cref="AiLogPromptBuilder.Build"/> 的三道處理順序：筆數上限 → 單筆截斷 →
-/// 總量上限。<c>Build_ShouldApplyPerEntryTruncationBeforeTotalBudget</c> 專門釘住這個順序，
-/// 因為反過來做會讓實際送出量遠低於設定值。
+/// 0.9.7 起 <see cref="AiLogPromptBuilder.Build"/> 只剩一道處理：取最新 N 筆。
+/// 字元層級的截斷全部移除了，所以這裡最重要的一支是
+/// <c>Build_ShouldSendEveryCharacter_WhenWithinEntryLimit</c> —— 它釘住「有多少字就送多少字」
+/// 這個承諾。
 /// </summary>
 public sealed class AiLogPromptBuilderTests
 {
     private const int DefaultMaxEntries = 100;
-    private const int DefaultPerEntry = 2000;
-    private const int DefaultTotal = 120000;
 
     [Fact]
     public void Build_ShouldReturnEmpty_WhenNoEntries()
     {
-        var result = AiLogPromptBuilder.Build([], DefaultMaxEntries, DefaultPerEntry, DefaultTotal);
+        var result = AiLogPromptBuilder.Build([], DefaultMaxEntries);
 
         Assert.True(result.IsEmpty);
         Assert.Equal(0, result.IncludedEntryCount);
@@ -29,7 +28,7 @@ public sealed class AiLogPromptBuilderTests
     [Fact]
     public void Build_ShouldReturnEmpty_WhenNull()
     {
-        var result = AiLogPromptBuilder.Build(null, DefaultMaxEntries, DefaultPerEntry, DefaultTotal);
+        var result = AiLogPromptBuilder.Build(null, DefaultMaxEntries);
 
         Assert.True(result.IsEmpty);
     }
@@ -39,7 +38,7 @@ public sealed class AiLogPromptBuilderTests
     {
         var entries = CreateEntries(10);
 
-        var result = AiLogPromptBuilder.Build(entries, maxEntries: 3, DefaultPerEntry, DefaultTotal);
+        var result = AiLogPromptBuilder.Build(entries, maxEntries: 3);
 
         Assert.Equal(10, result.TotalEntryCount);
         Assert.Equal(3, result.IncludedEntryCount);
@@ -57,7 +56,7 @@ public sealed class AiLogPromptBuilderTests
     {
         var entries = CreateEntries(5);
 
-        var message = AiLogPromptBuilder.Build(entries, maxEntries: 3, DefaultPerEntry, DefaultTotal).UserMessage;
+        var message = AiLogPromptBuilder.Build(entries, maxEntries: 3).UserMessage;
 
         Assert.True(message.IndexOf("raw-2", StringComparison.Ordinal)
             < message.IndexOf("raw-3", StringComparison.Ordinal));
@@ -65,91 +64,39 @@ public sealed class AiLogPromptBuilderTests
             < message.IndexOf("raw-4", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// ⚠️ 本次決策的核心承諾：有多少字就送多少字。
+    ///
+    /// 0.9.7 移除了兩道字元截斷（每筆固定長度、總量預算），理由是它們會把堆疊的尾巴切掉，
+    /// 而尾巴常常才是根因所在。這支測試用一筆 50000 字元的日誌驗證內容一個字都沒少。
+    /// 若有人日後想加回任何字元上限，這裡會先紅。
+    /// </summary>
     [Fact]
-    public void Build_ShouldTruncateOverlongEntry_AndCountIt()
+    public void Build_ShouldSendEveryCharacter_WhenWithinEntryLimit()
     {
+        var hugeRaw = new string('x', 50000);
         var entries = new List<LogEntry>
         {
-            new() { Sequence = 1, Raw = new string('x', 5000) },
+            new() { Sequence = 1, Raw = hugeRaw },
             new() { Sequence = 2, Raw = "short" },
         };
 
-        var result = AiLogPromptBuilder.Build(entries, DefaultMaxEntries, maxCharactersPerEntry: 500, DefaultTotal);
+        var result = AiLogPromptBuilder.Build(entries, DefaultMaxEntries);
 
         Assert.Equal(2, result.IncludedEntryCount);
-        Assert.Equal(1, result.TruncatedEntryCount);
-        Assert.Contains(AiLogPromptBuilder.TruncationMarker, result.UserMessage);
-    }
-
-    [Fact]
-    public void Build_ShouldNeverExceedTotalCharacterBudget()
-    {
-        var entries = CreateEntries(200, rawLength: 1000);
-
-        var result = AiLogPromptBuilder.Build(entries, maxEntries: 200, maxCharactersPerEntry: 1000, maxTotalCharacters: 10000);
-
-        Assert.True(
-            result.BodyCharacterCount <= 10000,
-            $"日誌本體用了 {result.BodyCharacterCount} 字元，超出 10000 的上限。");
-    }
-
-    [Fact]
-    public void Build_ShouldDropOldestFirst_WhenTotalBudgetExceeded()
-    {
-        var entries = CreateEntries(20, rawLength: 1000);
-
-        var result = AiLogPromptBuilder.Build(entries, maxEntries: 20, maxCharactersPerEntry: 1000, maxTotalCharacters: 5000);
-
-        Assert.True(result.DroppedByTotalLimit);
-        Assert.True(result.IncludedEntryCount < 20);
-
-        // 保留的必須是最新的那幾筆。
-        Assert.Contains("raw-19", result.UserMessage);
-        Assert.DoesNotContain("raw-0 ", result.UserMessage);
-    }
-
-    /// <summary>連一筆都放不下時要硬切，永遠不能出現「有資料卻送出 0 筆」。</summary>
-    [Fact]
-    public void Build_ShouldKeepAtLeastOneEntry_WhenSingleEntryExceedsTotalBudget()
-    {
-        var entries = new List<LogEntry> { new() { Sequence = 1, Raw = new string('y', 9000) } };
-
-        var result = AiLogPromptBuilder.Build(entries, DefaultMaxEntries, maxCharactersPerEntry: 8000, maxTotalCharacters: 1000);
-
-        Assert.False(result.IsEmpty);
-        Assert.Equal(1, result.IncludedEntryCount);
-        Assert.Contains(AiLogPromptBuilder.TruncationMarker, result.UserMessage);
-    }
-
-    /// <summary>
-    /// 順序守門測試。
-    ///
-    /// 十筆各 1000 字，單筆上限 100、總上限 2000。
-    /// 正確順序（先截斷再算總量）：每筆變成 100 字加上截斷標記，預算能塞下多筆。
-    /// 錯誤順序（先算總量再截斷）：預算會用未截斷的 1000 字計算，只塞得下一筆。
-    /// 因此「送出筆數大於 1」就是順序正確的證據。
-    /// </summary>
-    [Fact]
-    public void Build_ShouldApplyPerEntryTruncationBeforeTotalBudget()
-    {
-        var entries = CreateEntries(10, rawLength: 1000);
-
-        var result = AiLogPromptBuilder.Build(entries, maxEntries: 10, maxCharactersPerEntry: 100, maxTotalCharacters: 2000);
-
-        Assert.True(
-            result.IncludedEntryCount > 1,
-            $"只送出 {result.IncludedEntryCount} 筆，看起來是先算總量才截斷（順序錯了）。");
-        Assert.Equal(10, result.TruncatedEntryCount);
+        Assert.False(result.DroppedByEntryLimit);
+        Assert.Contains(hugeRaw, result.UserMessage);
+        Assert.Contains("short", result.UserMessage);
     }
 
     [Theory]
-    [InlineData(0, 0, 0)]
-    [InlineData(-5, -100, -1000)]
-    public void Build_ShouldClampNonPositiveLimits(int maxEntries, int perEntry, int total)
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void Build_ShouldClampNonPositiveEntryLimit(int maxEntries)
     {
         var entries = CreateEntries(5);
 
-        var result = AiLogPromptBuilder.Build(entries, maxEntries, perEntry, total);
+        var result = AiLogPromptBuilder.Build(entries, maxEntries);
 
         // 夾住而非丟例外：設定手誤不該讓整個功能掛掉。
         Assert.False(result.IsEmpty);
@@ -161,23 +108,23 @@ public sealed class AiLogPromptBuilderTests
     {
         var entries = new List<LogEntry> { new() { Sequence = 1, Raw = "第一行\r\n第二行\r第三行" } };
 
-        var message = AiLogPromptBuilder.Build(entries, DefaultMaxEntries, DefaultPerEntry, DefaultTotal).UserMessage;
+        var message = AiLogPromptBuilder.Build(entries, DefaultMaxEntries).UserMessage;
 
         Assert.DoesNotContain("\r", message);
         Assert.Contains("第一行\n第二行\n第三行", message);
     }
 
+    /// <summary>剛好等於筆數上限時不算捨棄，說明行也不該出現。</summary>
     [Fact]
-    public void Build_ShouldReportDroppedFlagsIndependently()
+    public void Build_ShouldNotReportDropped_WhenExactlyAtEntryLimit()
     {
         var entries = CreateEntries(5);
 
-        var result = AiLogPromptBuilder.Build(entries, maxEntries: 5, DefaultPerEntry, DefaultTotal);
+        var result = AiLogPromptBuilder.Build(entries, maxEntries: 5);
 
         Assert.False(result.DroppedByEntryLimit);
-        Assert.False(result.DroppedByTotalLimit);
-        Assert.Equal(0, result.TruncatedEntryCount);
-        Assert.False(result.IsTruncated);
+        Assert.Equal(5, result.IncludedEntryCount);
+        Assert.DoesNotContain("原始查詢共", result.UserMessage);
     }
 
     [Fact]
@@ -185,7 +132,7 @@ public sealed class AiLogPromptBuilderTests
     {
         var entries = CreateEntries(10);
 
-        var message = AiLogPromptBuilder.Build(entries, maxEntries: 3, DefaultPerEntry, DefaultTotal).UserMessage;
+        var message = AiLogPromptBuilder.Build(entries, maxEntries: 3).UserMessage;
 
         Assert.Contains("原始查詢共 10 筆", message);
         Assert.Contains("僅送出最新 3 筆", message);
@@ -196,7 +143,7 @@ public sealed class AiLogPromptBuilderTests
     {
         var entries = CreateEntries(3);
 
-        var message = AiLogPromptBuilder.Build(entries, DefaultMaxEntries, DefaultPerEntry, DefaultTotal).UserMessage;
+        var message = AiLogPromptBuilder.Build(entries, DefaultMaxEntries).UserMessage;
 
         var separatorCount = message.Split('\n').Count(line => line == AiLogPromptBuilder.EntrySeparator);
         Assert.Equal(3, separatorCount);
