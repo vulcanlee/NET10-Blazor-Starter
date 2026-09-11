@@ -139,3 +139,40 @@ public sealed record AiChatParseResult
 /// 請求位址與認證標頭。Azure OpenAI 與 OpenAI 的所有差異都收斂在這個型別裡。
 /// </summary>
 public sealed record AiChatEndpointDescriptor(Uri RequestUri, string AuthHeaderName, string AuthHeaderValue);
+
+/// <summary>
+/// 上游回傳的錯誤細節（<c>{"error":{...}}</c>）。
+///
+/// <para>
+/// <see cref="Param"/> 是出問題的參數名稱（例如 <c>temperature</c>），結構上不可能夾帶
+/// 日誌內容，是排查時最有用也最安全的一欄。
+/// </para>
+/// <para>
+/// ⚠️ <see cref="Message"/> 已截斷至 <see cref="MaxMessageLength"/> 字元。上游對某些錯誤
+/// （例如內容過濾）的說明可能夾帶提示詞片段，而提示詞裡是上百筆日誌 —— 不截斷會把日誌檔
+/// 撐爆，也可能讓同一段內容在日誌裡反覆堆疊。
+/// </para>
+/// </summary>
+public sealed record AiUpstreamError
+{
+    /// <summary>截斷上限。夠一句完整的錯誤說明，又短到不可能塞進有意義的日誌內容。</summary>
+    public const int MaxMessageLength = 300;
+
+    /// <summary><c>error.code</c>，例如 <c>unsupported_value</c>。</summary>
+    public string Code { get; init; } = string.Empty;
+
+    /// <summary><c>error.param</c>，出問題的參數名稱。</summary>
+    public string Param { get; init; } = string.Empty;
+
+    /// <summary><c>error.type</c>，例如 <c>invalid_request_error</c>。</summary>
+    public string Type { get; init; } = string.Empty;
+
+    /// <summary><c>error.message</c>，已截斷。</summary>
+    public string Message { get; init; } = string.Empty;
+
+    public bool HasAny
+        => string.IsNullOrEmpty(Code) == false
+        || string.IsNullOrEmpty(Param) == false
+        || string.IsNullOrEmpty(Type) == false
+        || string.IsNullOrEmpty(Message) == false;
+}

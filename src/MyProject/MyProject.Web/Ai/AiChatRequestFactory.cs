@@ -24,7 +24,8 @@ public static class AiChatRequestFactory
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
-            writer.WriteString("model", AiChatEndpoint.ResolveModelField(settings));
+            // 兩家都放在 body：Azure 填部署名稱、OpenAI 填模型 id，共用同一個設定。
+            writer.WriteString("model", settings.Model);
 
             writer.WriteStartArray("messages");
             WriteMessage(writer, "system", systemPrompt);

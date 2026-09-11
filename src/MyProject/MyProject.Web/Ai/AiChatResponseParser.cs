@@ -52,12 +52,17 @@ public static class AiChatResponseParser
     }
 
     /// <summary>
-    /// 讀取錯誤代碼。兩家的錯誤形狀相同：<c>{"error":{"code":"...","message":"..."}}</c>。
-    /// ⚠️ 刻意只取 code 不取 message：上游的 message 可能夾帶整份 prompt，也就是日誌內容。
+    /// 讀取錯誤細節。兩家的錯誤形狀相同：
+    /// <c>{"error":{"code":"...","message":"...","param":"...","type":"..."}}</c>。
+    ///
+    /// <para>
+    /// <c>message</c> 會截斷至 <see cref="AiUpstreamError.MaxMessageLength"/> 字元 ——
+    /// 上游對某些錯誤的說明可能夾帶提示詞片段，而提示詞裡是上百筆日誌。
+    /// </para>
     /// </summary>
-    public static bool TryGetErrorCode(string json, out string code)
+    public static bool TryGetError(string json, out AiUpstreamError error)
     {
-        code = string.Empty;
+        error = new AiUpstreamError();
         if (string.IsNullOrWhiteSpace(json))
         {
             return false;
@@ -66,21 +71,34 @@ public static class AiChatResponseParser
         try
         {
             using var document = JsonDocument.Parse(json);
-            if (document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("error", out var error)
-                && error.ValueKind == JsonValueKind.Object)
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || document.RootElement.TryGetProperty("error", out var node) == false
+                || node.ValueKind != JsonValueKind.Object)
             {
-                code = ReadString(error, "code");
-                return string.IsNullOrEmpty(code) == false;
+                return false;
             }
+
+            error = new AiUpstreamError
+            {
+                Code = ReadString(node, "code"),
+                Param = ReadString(node, "param"),
+                Type = ReadString(node, "type"),
+                Message = Truncate(ReadString(node, "message")),
+            };
+
+            return error.HasAny;
         }
         catch (JsonException)
         {
             // 上游可能回 HTML（例如閘道錯誤頁），當作無法解析。
+            return false;
         }
-
-        return false;
     }
+
+    private static string Truncate(string value)
+        => value.Length <= AiUpstreamError.MaxMessageLength
+            ? value
+            : string.Concat(value.AsSpan(0, AiUpstreamError.MaxMessageLength), "…");
 
     private static AiTokenUsage? ReadUsage(JsonElement root)
     {

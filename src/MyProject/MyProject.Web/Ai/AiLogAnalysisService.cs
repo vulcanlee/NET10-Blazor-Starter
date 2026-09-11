@@ -126,7 +126,7 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                 Usage = parsed.Usage,
                 Prompt = prompt,
                 ModelName = string.IsNullOrEmpty(parsed.ModelName)
-                    ? AiChatEndpoint.ResolveModelField(settings)
+                    ? settings.Model
                     : parsed.ModelName,
                 Elapsed = stopwatch.Elapsed,
             };
@@ -167,8 +167,10 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
 
     /// <summary>
     /// 把上游的 HTTP 失敗對應成使用者看得懂的中文訊息。
-    /// ⚠️ 只回吐 <c>error.code</c>，絕不回吐上游 body：body 可能夾帶整份 prompt，
-    /// 也就是日誌內容。
+    ///
+    /// ⚠️ 給使用者看的訊息只由固定字串加上 <c>error.code</c> 與 <c>error.param</c> 組成
+    /// （後者是參數名稱，結構上不可能夾帶日誌內容）。上游的 <c>error.message</c> 只寫進
+    /// 日誌，且已在解析時截斷 —— 它可能夾帶提示詞片段，而提示詞裡是上百筆日誌。
     /// </summary>
     private AiAnalysisResult MapHttpFailure(
         HttpStatusCode status,
@@ -176,7 +178,7 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
         AiPromptBuildResult prompt,
         TimeSpan elapsed)
     {
-        AiChatResponseParser.TryGetErrorCode(payload, out var code);
+        AiChatResponseParser.TryGetError(payload, out var upstream);
 
         var (reason, message) = status switch
         {
@@ -185,26 +187,55 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                 "AI 服務拒絕存取，請確認 AiSettings:ApiKey 是否正確或已過期。"),
             HttpStatusCode.NotFound => (
                 AiAnalysisFailureReason.NotConfigured,
-                "找不到指定的 AI 部署或模型，請確認 AiSettings 的 Endpoint、Deployment 與 ApiVersion。"),
+                "找不到指定的 AI 部署或模型，請確認 AiSettings 的 Endpoint 與 Model 設定。"),
             HttpStatusCode.TooManyRequests => (
                 AiAnalysisFailureReason.RateLimited,
                 "AI 服務目前限流，請稍後再試。"),
             HttpStatusCode.BadRequest => (
                 AiAnalysisFailureReason.UpstreamError,
-                string.IsNullOrEmpty(code)
-                    ? "AI 服務拒絕本次請求，請確認模型設定與送出的日誌量。"
-                    : $"AI 服務拒絕本次請求（代碼 {code}），請確認模型設定與送出的日誌量。"),
+                DescribeBadRequest(upstream)),
             _ => (
                 AiAnalysisFailureReason.UpstreamError,
                 $"AI 服務回應失敗（HTTP {(int)status}），請稍後再試。"),
         };
 
+        // ⚠️ ErrorDetail 是已截斷的上游說明。它是排查這類失敗的唯一線索 ——
+        // 只記代碼的話，「哪個參數不被接受」完全看不出來。
         logger.LogError(
-            "AI log analysis upstream failure. StatusCode={StatusCode}, ErrorCode={ErrorCode}, Entries={Entries}",
+            "AI log analysis upstream failure. StatusCode={StatusCode}, ErrorCode={ErrorCode}, "
+            + "ErrorParam={ErrorParam}, ErrorType={ErrorType}, ErrorDetail={ErrorDetail}, Entries={Entries}",
             (int)status,
-            code,
+            upstream.Code,
+            upstream.Param,
+            upstream.Type,
+            upstream.Message,
             prompt.IncludedEntryCount);
 
         return AiAnalysisResult.Failure(reason, message, prompt, elapsed);
+    }
+
+    /// <summary>
+    /// 把 400 的錯誤翻成「使用者知道要改哪裡」的訊息。
+    ///
+    /// 只回代碼是不夠的：實務上最常見的 400 是送了模型不接受的參數，而代碼
+    /// （<c>unsupported_value</c>）本身看不出是哪一個。上游的 <c>param</c> 就是答案。
+    /// </summary>
+    private static string DescribeBadRequest(AiUpstreamError upstream)
+    {
+        // 推論模型（o 系列、gpt-5 家族）只接受 temperature 的預設值，
+        // 這是切換模型時最常撞到的一個，直接告訴使用者怎麼改。
+        if (string.Equals(upstream.Param, "temperature", StringComparison.OrdinalIgnoreCase))
+        {
+            return "此模型不接受 AiSettings:Temperature 的設定值，請將它設為 null（部分推論模型只接受預設值）。";
+        }
+
+        if (string.IsNullOrEmpty(upstream.Param) == false)
+        {
+            return $"AI 服務不接受參數 {upstream.Param} 的設定值（代碼 {upstream.Code}），請調整 AiSettings 後再試。";
+        }
+
+        return string.IsNullOrEmpty(upstream.Code)
+            ? "AI 服務拒絕本次請求，請確認模型設定與送出的日誌量。"
+            : $"AI 服務拒絕本次請求（代碼 {upstream.Code}），請確認模型設定與送出的日誌量。";
     }
 }

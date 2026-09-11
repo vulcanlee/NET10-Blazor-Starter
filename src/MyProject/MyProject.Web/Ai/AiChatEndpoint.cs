@@ -3,21 +3,31 @@ using MyProject.Web.Configuration;
 namespace MyProject.Web.Ai;
 
 /// <summary>
-/// Azure OpenAI 與 OpenAI 的位址、認證與模型欄位差異全部收斂在此，且刻意做成純函式
+/// Azure OpenAI 與 OpenAI 的位址與認證差異全部收斂在此，且刻意做成純函式
 /// —— 這是兩家唯一真正不同的地方，抽出來才測得到（不必真的打 API）。
 ///
-/// <para>Azure：<c>POST {Endpoint}/openai/deployments/{Deployment}/chat/completions?api-version={ApiVersion}</c>
-/// 搭配標頭 <c>api-key: {ApiKey}</c>。</para>
+/// <para>Azure 走的是 <b>v1 API</b>：<c>POST {Endpoint}/chat/completions</c>
+/// 搭配標頭 <c>api-key: {ApiKey}</c>，部署名稱放在請求 body 的 <c>model</c> 欄位。
+/// v1 路徑採隱含版本，<b>不需要 api-version 查詢參數</b>。</para>
 /// <para>OpenAI：<c>POST {Endpoint}/v1/chat/completions</c>
 /// 搭配標頭 <c>Authorization: Bearer {ApiKey}</c>。</para>
+///
+/// <para>
+/// ⚠️ 刻意<b>不</b>支援 Azure 的傳統路徑（網址含 deployments 與 api-version 的那種）。
+/// v1 已是 GA 且微軟建議使用；只支援一條路徑，設定項才能少掉 Deployment 與 ApiVersion
+/// 兩個。手上是舊資源的人請到 Azure 入口網站改用 v1 端點。
+/// </para>
 /// </summary>
 public static class AiChatEndpoint
 {
     /// <summary>OpenAI 的預設位址（<c>AiSettings:Endpoint</c> 留空時使用）。</summary>
     public const string DefaultOpenAiEndpoint = "https://api.openai.com";
 
-    /// <summary>Azure 的 <c>api-version</c> 後備值（設定留空時使用）。</summary>
-    public const string DefaultAzureApiVersion = "2024-10-21";
+    /// <summary>Azure v1 API 的路徑後綴。入口網站給的端點已經帶著它。</summary>
+    public const string AzureV1Suffix = "/openai/v1";
+
+    /// <summary>OpenAI 的路徑後綴。官方文件的 <c>base_url</c> 就是帶著它的形式。</summary>
+    public const string OpenAiV1Suffix = "/v1";
 
     public static AiChatEndpointDescriptor Create(AiSettings settings)
     {
@@ -31,20 +41,31 @@ public static class AiChatEndpoint
         if (provider == AiProvider.OpenAI)
         {
             return new AiChatEndpointDescriptor(
-                new Uri($"{baseUrl}/v1/chat/completions"),
+                new Uri($"{EnsureSuffix(baseUrl, OpenAiV1Suffix)}/chat/completions"),
                 "Authorization",
                 $"Bearer {settings.ApiKey}");
         }
 
-        var apiVersion = string.IsNullOrWhiteSpace(settings.ApiVersion)
-            ? DefaultAzureApiVersion
-            : settings.ApiVersion.Trim();
-
-        var uri = $"{baseUrl}/openai/deployments/{Uri.EscapeDataString(settings.Deployment)}"
-            + $"/chat/completions?api-version={Uri.EscapeDataString(apiVersion)}";
-
-        return new AiChatEndpointDescriptor(new Uri(uri), "api-key", settings.ApiKey);
+        return new AiChatEndpointDescriptor(
+            new Uri($"{EnsureSuffix(baseUrl, AzureV1Suffix)}/chat/completions"),
+            "api-key",
+            settings.ApiKey);
     }
+
+    /// <summary>
+    /// 補上缺少的版本路徑後綴，讓兩種常見的貼法都能用。
+    ///
+    /// <para>Azure：入口網站「Azure OpenAI 端點」給的值已經以 <c>/openai/v1</c> 結尾，
+    /// 但舊文件與舊習慣常常只給到資源根網址（<c>https://xxx.openai.azure.com</c>）。</para>
+    /// <para>OpenAI：官方文件的 <c>base_url</c> 是 <c>https://api.openai.com/v1</c>，
+    /// 但也很多人只填到網域。</para>
+    ///
+    /// 兩種情況少了後綴都會得到 404，而 404 的訊息看不出是路徑不完整，所以這裡補齊。
+    /// </summary>
+    private static string EnsureSuffix(string baseUrl, string suffix)
+        => baseUrl.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+            ? baseUrl
+            : baseUrl + suffix;
 
     /// <summary>
     /// 設定完整性檢查。回傳 <c>null</c> 代表可用，否則回傳給使用者看的中文原因。
@@ -54,9 +75,19 @@ public static class AiChatEndpoint
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        if (settings.Enabled == false)
+        // ⚠️ 這裡必須接住 Provider 解析失敗，不能讓例外往外跑。
+        // Validate 的職責就是把壞掉的設定翻成使用者看得懂的訊息，而呼叫端
+        // AiLogAnalysisService.IsAvailable 是在 LogViewerView.OnInitializedAsync 裡讀的，
+        // 外面沒有 try-catch —— Provider 打錯一個字就會炸掉整個日誌檢視頁，
+        // 而不只是停用 AI 按鈕。
+        AiProvider provider;
+        try
         {
-            return "AI 分析尚未啟用，請將 AiSettings:Enabled 設為 true。";
+            provider = settings.GetProvider();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message;
         }
 
         if (string.IsNullOrWhiteSpace(settings.ApiKey))
@@ -64,34 +95,20 @@ public static class AiChatEndpoint
             return "AI 分析尚未設定 API 金鑰，請於 User Secrets 或環境變數設定 AiSettings:ApiKey。";
         }
 
-        if (settings.GetProvider() == AiProvider.AzureOpenAI)
-        {
-            if (string.IsNullOrWhiteSpace(settings.Endpoint))
-            {
-                return "AI 分析尚未設定 AiSettings:Endpoint（Azure OpenAI 資源網址）。";
-            }
+        var isAzure = provider == AiProvider.AzureOpenAI;
 
-            if (string.IsNullOrWhiteSpace(settings.Deployment))
-            {
-                return "AI 分析尚未設定 AiSettings:Deployment（Azure OpenAI 部署名稱）。";
-            }
-        }
-        else if (string.IsNullOrWhiteSpace(settings.Model))
+        if (isAzure && string.IsNullOrWhiteSpace(settings.Endpoint))
         {
-            return "AI 分析尚未設定 AiSettings:Model（OpenAI 模型名稱）。";
+            return "AI 分析尚未設定 AiSettings:Endpoint（Azure 入口網站的「Azure OpenAI 端點」）。";
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.Model))
+        {
+            return isAzure
+                ? "AI 分析尚未設定 AiSettings:Model（Azure OpenAI 的部署名稱）。"
+                : "AI 分析尚未設定 AiSettings:Model（OpenAI 模型名稱）。";
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// 送進請求 body 的 <c>model</c> 欄位值：Azure 用部署名稱、OpenAI 用模型 id。
-    /// Azure 實際上會忽略 body 的 model（以 URL 的 deployment 為準），照樣帶上是為了讓
-    /// 請求內容可斷言，也讓稽核明細有東西可寫。
-    /// </summary>
-    public static string ResolveModelField(AiSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        return settings.GetProvider() == AiProvider.AzureOpenAI ? settings.Deployment : settings.Model;
     }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MyProject.Web.Configuration;
 
 namespace MyProject.Tests;
@@ -46,32 +47,93 @@ public sealed class AiSettingsTests
 
     /// <summary>
     /// 預設值必須與 appsettings.json 範本及 docs 的說明一致。
-    /// Enabled 預設 false 是刻意的：腳手架不帶金鑰也要能直接跑起來。
+    ///
+    /// ApiKey 與 Model 預設留空是刻意的：這兩項就是功能的開關 —— 沒填等於關閉，
+    /// 所以腳手架不帶金鑰也能直接跑起來，不需要另一個 Enabled 旗標。
     /// </summary>
     [Fact]
     public void Defaults_ShouldMatchDocumentedValues()
     {
         var settings = new AiSettings();
 
-        Assert.False(settings.Enabled);
         Assert.Equal(nameof(AiProvider.AzureOpenAI), settings.Provider);
         Assert.Equal(string.Empty, settings.Endpoint);
         Assert.Equal(string.Empty, settings.ApiKey);
-        Assert.Equal(string.Empty, settings.Deployment);
-        Assert.Equal("gpt-4o-mini", settings.Model);
-        Assert.Equal("2024-10-21", settings.ApiVersion);
+        Assert.Equal(string.Empty, settings.Model);
         Assert.Equal(string.Empty, settings.SystemPrompt);
         Assert.Equal(100, settings.MaxEntries);
         Assert.Equal(2000, settings.MaxCharactersPerEntry);
         Assert.Equal(120000, settings.MaxTotalCharacters);
         Assert.Equal(120, settings.TimeoutSeconds);
         Assert.Equal(2000, settings.MaxOutputTokens);
-        Assert.Equal(0.2, settings.Temperature);
+        // 預設不送 temperature：推論模型（o 系列、gpt-5 家族）只接受預設值，
+        // 送任何數字都會被回 400 unsupported_value。不送就能相容所有模型。
+        Assert.Null(settings.Temperature);
     }
 
     [Fact]
     public void SectionName_ShouldMatchAppSettingsKey()
     {
         Assert.Equal("AiSettings", AiSettings.SectionName);
+    }
+
+    /// <summary>
+    /// appsettings.json 的 AiSettings 區段不得出現對不到 POCO 屬性的鍵。
+    ///
+    /// 為什麼需要這支：組態繫結會<b>靜默忽略</b>未知的鍵，所以移除或改名一個設定之後，
+    /// JSON 裡殘留的死設定不會有任何地方報錯 —— 讀設定檔的人卻會以為它還有作用。
+    ///
+    /// 刻意<b>只做單向</b>（JSON 不得有未知鍵），不反過來要求每個屬性都必須出現在 JSON：
+    /// SystemSettings.Upload 就是刻意不寫進範本、走程式預設的既有先例。
+    /// </summary>
+    [Fact]
+    public void AppSettingsSection_ShouldOnlyContainKnownKeys()
+    {
+        var appSettingsPath = Path.Combine(FindSourceRoot(), "MyProject.Web", "appsettings.json");
+        Assert.True(File.Exists(appSettingsPath), $"找不到 {appSettingsPath}");
+
+        using var document = JsonDocument.Parse(File.ReadAllText(appSettingsPath));
+        Assert.True(
+            document.RootElement.TryGetProperty(AiSettings.SectionName, out var section),
+            $"appsettings.json 缺少 {AiSettings.SectionName} 區段。");
+
+        var knownKeys = typeof(AiSettings)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var unknownKeys = section
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .Where(name => knownKeys.Contains(name) == false)
+            .ToList();
+
+        Assert.True(
+            unknownKeys.Count == 0,
+            $"appsettings.json 的 {AiSettings.SectionName} 有對不到 AiSettings 屬性的鍵："
+            + string.Join("、", unknownKeys));
+    }
+
+    /// <summary>與 LoggingConventionTests 相同的作法，往上找到 src/MyProject。</summary>
+    private static string FindSourceRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (Directory.Exists(Path.Combine(dir.FullName, "MyProject.Web")))
+            {
+                return dir.FullName;
+            }
+
+            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject");
+            if (Directory.Exists(Path.Combine(srcCandidate, "MyProject.Web")))
+            {
+                return srcCandidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new DirectoryNotFoundException("找不到 src/MyProject。");
     }
 }

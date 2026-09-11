@@ -8,6 +8,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
+using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Views.Analytics
@@ -35,7 +36,10 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private readonly ILogger<LogViewerView> logger;
         private readonly ILogQueryService logQueryService;
-        private readonly MessageService messageService;
+
+        // ⚠️ 本頁的提示一律走 ViewNotification（右下角卡片），不用 MessageService（頂部輕量 toast）。
+        // AI 分析的階段提示與失敗原因都偏長，頂部那條會被截斷也容易被忽略。
+        private readonly NotificationService notificationService;
         private readonly IAiLogAnalysisService aiLogAnalysisService;
         private readonly IAuditLogService auditLogService;
         private readonly CurrentUserService currentUserService;
@@ -91,14 +95,14 @@ namespace MyProject.Web.Components.Views.Analytics
         public LogViewerView(
             ILogger<LogViewerView> logger,
             ILogQueryService logQueryService,
-            MessageService messageService,
+            NotificationService notificationService,
             IAiLogAnalysisService aiLogAnalysisService,
             IAuditLogService auditLogService,
             CurrentUserService currentUserService)
         {
             this.logger = logger;
             this.logQueryService = logQueryService;
-            this.messageService = messageService;
+            this.notificationService = notificationService;
             this.aiLogAnalysisService = aiLogAnalysisService;
             this.auditLogService = auditLogService;
             this.currentUserService = currentUserService;
@@ -177,7 +181,7 @@ namespace MyProject.Web.Components.Views.Analytics
         {
             if (entriesAscending.Count == 0)
             {
-                _ = messageService.WarningAsync("目前沒有可匯出的日誌。");
+                ViewNotification.Warning(notificationService, "目前沒有可匯出的日誌。");
                 return;
             }
 
@@ -201,7 +205,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Log export failed.");
-                _ = messageService.ErrorAsync($"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -214,7 +218,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while running AI log analysis.");
-                _ = messageService.ErrorAsync("AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.Error(notificationService, "AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
             finally
             {
@@ -231,7 +235,7 @@ namespace MyProject.Web.Components.Views.Analytics
         {
             if (entriesAscending.Count == 0)
             {
-                _ = messageService.WarningAsync("目前沒有可分析的日誌。");
+                ViewNotification.Warning(notificationService, "目前沒有可分析的日誌。");
                 return;
             }
 
@@ -239,7 +243,7 @@ namespace MyProject.Web.Components.Views.Analytics
             StateHasChanged();
 
             // 呼叫前先告知階段，AI 回應可能要數十秒，不能讓畫面看起來沒反應。
-            _ = messageService.InfoAsync($"正在將 {entriesAscending.Count} 筆日誌送給 AI 分析，可能需要數十秒…");
+            ViewNotification.Info(notificationService, $"正在將 {entriesAscending.Count} 筆日誌送給 AI 分析，可能需要數十秒…");
 
             var result = await aiLogAnalysisService.AnalyzeAsync(entriesAscending);
             await WriteAiAuditAsync("LogViewer.AiAnalyze", result);
@@ -250,7 +254,7 @@ namespace MyProject.Web.Components.Views.Analytics
                     "AI log analysis was not successful. Reason={Reason}, Entries={Entries}",
                     result.Reason,
                     result.Prompt.IncludedEntryCount);
-                _ = messageService.ErrorAsync(result.ErrorMessage);
+                ViewNotification.Error(notificationService, result.ErrorMessage);
                 return;
             }
 
@@ -259,7 +263,7 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 logger.LogWarning(
                     "AI log analysis response was too large to render. Characters={Characters}", html.Length);
-                _ = messageService.ErrorAsync("AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
+                ViewNotification.Error(notificationService, "AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
                 return;
             }
 
@@ -271,11 +275,11 @@ namespace MyProject.Web.Components.Views.Analytics
 
             if (result.Prompt.IsTruncated)
             {
-                _ = messageService.WarningAsync(
+                ViewNotification.Warning(notificationService,
                     $"查詢共 {result.Prompt.TotalEntryCount} 筆，因上限僅分析最新 {result.Prompt.IncludedEntryCount} 筆。");
             }
 
-            _ = messageService.SuccessAsync($"AI 分析完成（分析了 {result.Prompt.IncludedEntryCount} 筆）。");
+            ViewNotification.Info(notificationService, $"AI 分析完成（分析了 {result.Prompt.IncludedEntryCount} 筆）。");
         }
 
         private async Task OnAiCopyAsync()
@@ -287,17 +291,17 @@ namespace MyProject.Web.Components.Views.Analytics
                 var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", aiMarkdown);
                 if (copied)
                 {
-                    _ = messageService.SuccessAsync("已複製分析結果。");
+                    ViewNotification.Info(notificationService, "已複製分析結果。");
                 }
                 else
                 {
-                    _ = messageService.WarningAsync("瀏覽器拒絕存取剪貼簿，請手動選取複製。");
+                    ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy AI analysis result to clipboard.");
-                _ = messageService.ErrorAsync("複製失敗，請手動選取複製。");
+                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
             }
         }
 
@@ -318,7 +322,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "AI analysis PDF export failed because the embedded font is missing.");
-                _ = messageService.ErrorAsync("PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
+                ViewNotification.Error(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
             }
             catch (JSDisconnectedException ex)
             {
@@ -327,7 +331,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI analysis PDF export failed.");
-                _ = messageService.ErrorAsync($"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.Error(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
             }
             finally
             {
@@ -338,7 +342,7 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private async Task OnAiExportPdfCoreAsync(AiAnalysisResult result)
         {
-            _ = messageService.InfoAsync("正在產生 PDF…");
+            ViewNotification.Info(notificationService, "正在產生 PDF…");
 
             var information = SystemSettingsOptions.Value.SystemInformation;
             var currentUser = currentUserService.CurrentUser;
@@ -373,7 +377,7 @@ namespace MyProject.Web.Components.Views.Analytics
 
             await WriteAiAuditAsync("LogViewer.AiAnalyzeExportPdf", result);
 
-            _ = messageService.SuccessAsync("PDF 已產生並開始下載。");
+            ViewNotification.Info(notificationService, "PDF 已產生並開始下載。");
         }
 
         private void OnAiModalCancel()
