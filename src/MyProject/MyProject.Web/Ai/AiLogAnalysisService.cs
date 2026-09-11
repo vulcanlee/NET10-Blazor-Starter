@@ -127,6 +127,21 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                 Elapsed = stopwatch.Elapsed,
             };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 呼叫端主動放棄。這是使用者的決定，不是故障 —— 記 Information 而非 Error，
+            // 也不要落到下面的泛型 catch 被寫成「failed unexpectedly」。
+            stopwatch.Stop();
+            logger.LogInformation(
+                "AI log analysis canceled by the caller. Entries={Entries}, ElapsedMs={ElapsedMs}",
+                prompt.IncludedEntryCount,
+                stopwatch.ElapsedMilliseconds);
+            return AiAnalysisResult.Failure(
+                AiAnalysisFailureReason.Canceled,
+                "已取消本次 AI 分析。",
+                prompt,
+                stopwatch.Elapsed);
+        }
         catch (TaskCanceledException ex) when (cancellationToken.IsCancellationRequested == false)
         {
             // HttpClient 的逾時在 .NET 上表現為 TaskCanceledException（內含 TimeoutException），

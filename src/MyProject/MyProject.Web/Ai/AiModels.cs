@@ -66,6 +66,15 @@ public enum AiAnalysisFailureReason
     UpstreamError,
     EmptyResponse,
     Unexpected,
+
+    /// <summary>
+    /// 呼叫端主動取消（0.9.8 起：使用者在等待中關閉對話窗）。
+    ///
+    /// ⚠️ 與 <see cref="Timeout"/> 刻意分開：兩者在 .NET 上都表現為
+    /// <c>TaskCanceledException</c>，但一個是使用者的決定、一個是系統的失敗。
+    /// 混在一起會讓「使用者放棄」被記成 ERROR，也會讓真正的逾時被稀釋掉。
+    /// </summary>
+    Canceled,
 }
 
 /// <summary>一次 AI 分析的完整結果。失敗也用這個型別表達，服務層不丟例外。</summary>

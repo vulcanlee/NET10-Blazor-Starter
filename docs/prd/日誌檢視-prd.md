@@ -1,8 +1,8 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.7
+- 現行系統版本：0.9.8
 - 首次實作版本：0.4.26
 - 最後核對日期：2026/09/11
 
@@ -44,14 +44,26 @@
 唯讀對話窗。刻意不重新查詢，行為完全可預測；對話窗頁首會標明分析的時間區間、最低等級、
 關鍵字、實際分析筆數與是否被上限截斷，所以不會與畫面上的條件搞混。
 
+**0.9.8 起對話窗在按下按鈕的當下就打開**，先顯示等待畫面，AI 回來之後把結果渲染進同一個窗。
+
 - 送出的是每筆的原始 nlog 行，預設上限 100 筆（`AiSettings:MaxEntries` 可調）。
   超過時取**最新**的 N 筆，並額外發一則 toast 說明只分析了最新幾筆。
   **筆數是唯一的界線**：0.9.7 起沒有任何字元上限，每筆內容原封不動送出。
 - 呼叫前後都以**右下角通知**告知階段：送出中、完成（含實際分析筆數）、失敗原因。
   失敗時的訊息會盡量指名要改哪個設定，而不是只丟一個錯誤代碼。
-- 對話窗內有「複製結果」（複製 Markdown 原文，方便貼進工單或通訊軟體）與
-  「匯出 PDF 報告並下載」兩個按鈕，頁首另列出模型名稱、token 用量明細
+- **等待畫面**（0.9.8）：大字「AI 正在分析 N 筆日誌…」與**每秒更新的「已等待 N 秒」**。
+  轉圈圈只證明瀏覽器還活著，跳動的秒數才證明這次呼叫還在進行中 ——
+  逾時上限是 600 秒，這是使用者願意繼續等下去的唯一依據。
+- **等待中關窗等於放棄**（0.9.8）：按 X 或 Esc 會真的取消 HTTP 請求，並發一則 toast。
+  等待中點遮罩不會關窗（誤點一次就白花一次 AI 費用）。稽核仍會留一筆，
+  因為請求已送出、上游很可能照樣計費。
+- **失敗留在窗內**（0.9.8）：錯誤訊息由使用者自己關閉，不再隨 toast 一起消失 ——
+  那些訊息常常是「請把某個設定改成 null」這種要照著做的內容。
+- 對話窗內有「一般／中／大」三段字級（100%／125%／150%，預設一般，作用於整個窗內容）、
+  「複製結果」（複製 Markdown 原文，方便貼進工單或通訊軟體）與
+  「匯出 PDF 報告並下載」，頁首另列出模型名稱、token 用量明細
   （輸入／輸出／合計／快取輸入／推論，API 有回才顯示）與耗時。
+- 對話窗尺寸為 **96vw × 96vh**（接近滿版）。
 - **未設定時按鈕停用**，游標停留會說明缺哪一項設定。沒有獨立的功能開關 ——
   有沒有填 `AiSettings:ApiKey` 就是開關，而範本出貨時它是空字串，
   所以拿到這份範本的人不會看到一個按下去就報錯的按鈕。
@@ -74,8 +86,8 @@
      ⚠️ **刻意不依 `File.GetLastWriteTime` 做「整檔跳過」**（0.4.39 移除）——
      判斷依據必須是**檔案內容的時間戳**，不能是檔案系統中繼資料。理由見下節。
 4. 匯出時將結果的 `Raw` 以換行串接，加上 BOM 後透過 `DotNetStreamReference` 經 SignalR circuit 串流給瀏覽器，由 `wwwroot/js/file-download.js` 組成 Blob 觸發下載。
-5. AI 分析時 `AiLogPromptBuilder` 依「筆數上限 → 單筆截斷 → 總量上限」三道處理組出提示詞
-   （順序不可調換，理由見 [AI 日誌分析](../features/AI日誌分析.md)），交由
+5. AI 分析時 `AiLogPromptBuilder` 只做一道處理 —— 取最新 N 筆（`MaxEntries`），
+   內容原封不動（0.9.7 起沒有任何字元上限，理由見 [AI 日誌分析](../features/AI日誌分析.md)），交由
    `IAiLogAnalysisService` 以 named `HttpClient` 呼叫 Chat Completions。回傳的 Markdown 經
    `AiMarkdownRenderer` 的安全管線轉成 HTML 後才以 `MarkupString` 呈現。PDF 由
    `AiReportPdfBuilder`（PDFsharp + MigraDoc）產生，走與日誌匯出相同的下載機制，
@@ -101,6 +113,10 @@
 - **送出的日誌沒有字元上限**（0.9.7）：有多少字就送多少字，因為切掉例外堆疊的尾巴
   等於丟掉根因。代價是理論上可能撞到模型的內容視窗上限，屆時會收到 400
   `context_length_exceeded`，訊息會直接請使用者縮小時間區間或減少筆數。
+- **取消不保證不計費**（0.9.8）：關窗會中止 HTTP 連線，但請求早已送達上游，
+  對方是否照樣計費不在本系統的控制範圍。所以取消仍然寫一筆稽核。
+- **字級選擇不保存**（0.9.8）：關窗重開回到「一般」。專案刻意沒有任何前端偏好保存
+  機制（全庫零 `localStorage`），為了一個字級旋鈕引進一套新基礎建設不划算。
 - **PDF 只有一個字重**：內嵌字型只有 Noto Sans TC Regular，而 PDFsharp 沒有粗體模擬，
   因此報告的層級靠字級、顏色與框線表達，Markdown 的 `**粗體**` 在 PDF 裡呈現為深色而非粗體。
   加 Bold 字面會讓 repo 再肥約 7 MB。
@@ -121,16 +137,22 @@
 **`Query_WhenFileTimestampIsStale_ShouldStillReadEntries`** —— 釘住 0.4.39 移除「以檔案 mtime 整檔跳過」
 那個優化的原因（見第五節），該測試與執行時刻無關，修正前必紅。
 
-AI 分析對應七個測試檔（0.9.4 起，共 186 支）：`AiSettingsTests`、`AiChatEndpointTests`、
+AI 分析對應八個測試檔（0.9.4 起，共 113 支）：`AiSettingsTests`、`AiChatEndpointTests`、
 `AiLogPromptBuilderTests`、`AiChatResponseParserTests`、`AiMarkdownRendererTests`、
-`AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`。其中三支是安全與成本的守門測試，
-壞了不要改測試：
+`AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`、`AiModalStyleConventionTests`（0.9.8）。
+其中五支是安全、成本與行為的守門測試，壞了不要改測試：
 
 - `AiMarkdownRendererTests` 釘住 Markdig 管線不得加上會開放 HTML 注入的擴充。
 - `AiLogAnalysisServiceTests.AnalyzeAsync_ShouldNeverEchoApiKeyOrUpstreamBody` 以哨兵字串
   斷言錯誤訊息不含金鑰與上游 body。
 - `AiReportPdfBuilderTests.Font_ShouldBeEmbeddedInWebAssembly` 斷言內嵌字型長度超過一百萬
   位元組 —— 字型缺失時 PDF 不會報錯，只會整片變成空白方框，在 CI 上完全靜默。
+- `AiLogAnalysisServiceTests.AnalyzeAsync_ShouldReportCanceled_WhenCallerCancels`（0.9.8）
+  分辨「使用者放棄」與「逾時」。兩者都是 `TaskCanceledException`，filter 寫反會把使用者的
+  決定記成系統故障。
+- `AiModalStyleConventionTests`（0.9.8）確保對話窗內每一條字級都乘上 `--ai-font-scale`，
+  並擋下在 `<Modal>` 標籤上重複設定 `Width`。漏掉的症狀是「按了放大只有這段沒變」，
+  不會壞、不會紅。
 
 ---
 

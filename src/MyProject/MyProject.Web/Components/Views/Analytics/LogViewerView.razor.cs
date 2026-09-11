@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
@@ -13,8 +14,31 @@ using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
-    public partial class LogViewerView
+    public partial class LogViewerView : IDisposable
     {
+        /// <summary>AI 分析對話窗的三個狀態。</summary>
+        private enum AiModalState
+        {
+            /// <summary>分析進行中，顯示等待畫面。</summary>
+            Running,
+
+            /// <summary>拿到結果，顯示報告。</summary>
+            Succeeded,
+
+            /// <summary>失敗，把原因留在窗內讓使用者讀完再自己關。</summary>
+            Failed,
+        }
+
+        /// <summary>
+        /// 對話窗的字級選項。百分比同時是 CSS 倍率的來源與「哪一顆被選中」的識別值。
+        /// </summary>
+        private static readonly (int Percent, string Label)[] FontScaleOptions =
+        [
+            (100, "一般"),
+            (125, "中"),
+            (150, "大"),
+        ];
+
         private static readonly (string Key, string Label)[] LevelOptions =
         [
             ("", "不限"),
@@ -33,6 +57,9 @@ namespace MyProject.Web.Components.Views.Analytics
         /// 異常龐大的 HTML 會讓單次 render diff 過肥、瀏覽器記憶體升高、對話窗開啟卡頓。
         /// </summary>
         private const int MaxRenderedHtmlLength = 512 * 1024;
+
+        /// <summary>每次開窗都回到這一級。字級選擇刻意不跨工作階段保存，理由見功能文件。</summary>
+        private const int DefaultFontScalePercent = 100;
 
         private readonly ILogger<LogViewerView> logger;
         private readonly ILogQueryService logQueryService;
@@ -73,6 +100,21 @@ namespace MyProject.Web.Components.Views.Analytics
         private AiAnalysisResult? aiResult;
         private List<KeyValuePair<string, string>> aiMetaItems = new();
 
+        // 0.9.8：對話窗改成按下按鈕就開，等待與失敗都在窗內呈現。
+        private AiModalState aiModalState = AiModalState.Succeeded;
+        private string aiErrorMessage = string.Empty;
+        private int aiSubmittedCount;
+        private int aiElapsedSeconds;
+        private int aiFontScalePercent = DefaultFontScalePercent;
+
+        /// <summary>
+        /// 本次分析的取消來源。使用者在等待中關窗即取消，等待計時也綁在同一個 token 上。
+        /// </summary>
+        private CancellationTokenSource? aiCts;
+
+        /// <summary>元件已釋放（使用者導航離開）。之後不可再碰任何 scoped 服務。</summary>
+        private bool isDisposed;
+
         /// <summary>
         /// AI 按鈕的 Tooltip。未設定時直接用服務給的原因當標題，不再包一層「AI 分析（…）」
         /// —— 原因本身就以「AI 分析尚未…」開頭，包起來會變成重複的贅字。
@@ -80,6 +122,24 @@ namespace MyProject.Web.Components.Views.Analytics
         private string AiButtonTitle => aiAvailable
             ? "AI 分析（將本次查詢結果送給 AI 整理）"
             : aiUnavailableReason;
+
+        /// <summary>對話窗標題隨狀態變，讓使用者從標題就看得出現在是哪一段。</summary>
+        private string AiModalTitle => aiModalState switch
+        {
+            AiModalState.Running => "AI 日誌分析（進行中）",
+            AiModalState.Failed => "AI 日誌分析失敗",
+            _ => "AI 日誌分析結果",
+        };
+
+        /// <summary>
+        /// `--ai-font-scale` 的值。
+        ///
+        /// ⚠️ 一定要用 <see cref="CultureInfo.InvariantCulture"/>：本站跑
+        /// RequestLocalizationMiddleware，若當下文化把小數點寫成逗號，
+        /// 產出的會是無效的 CSS 值 <c>1,25</c>，字級靜默失效 —— 開發機上永遠看不到。
+        /// </summary>
+        private string AiFontScaleCss
+            => (aiFontScalePercent / 100.0).ToString("0.##", CultureInfo.InvariantCulture);
 
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -218,10 +278,17 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while running AI log analysis.");
-                ViewNotification.Error(notificationService, "AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+
+                // 對話窗此時還停在「分析中」，不收拾的話會永遠轉下去。
+                ShowAiFailure("AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
             finally
             {
+                // 取消 token 會順便讓等待計時收工。
+                aiCts?.Cancel();
+                aiCts?.Dispose();
+                aiCts = null;
+
                 isAiRunning = false;
                 StateHasChanged();
             }
@@ -239,14 +306,40 @@ namespace MyProject.Web.Components.Views.Analytics
                 return;
             }
 
+            ResetAiModalState();
+
+            // ⚠️ 這幾行就是 0.9.8 的重點：對話窗在**送出之前**就開。
+            // 舊版要等 AI 回來才第一次出現，而 TimeoutSeconds 是 600 秒 ——
+            // 使用者盯著一個毫無變化的畫面好幾分鐘，會以為頁面沒在做事而切走。
+            aiModalState = AiModalState.Running;
             isAiRunning = true;
+            aiModalVisible = true;
             StateHasChanged();
 
-            // 呼叫前先告知階段，AI 回應可能要數十秒，不能讓畫面看起來沒反應。
-            ViewNotification.Info(notificationService, $"正在將 {entriesAscending.Count} 筆日誌送給 AI 分析，可能需要數十秒…");
+            aiCts = new CancellationTokenSource();
+            var token = aiCts.Token;
+            _ = RunAiElapsedTickerAsync(token);
 
-            var result = await aiLogAnalysisService.AnalyzeAsync(entriesAscending);
+            // 呼叫前先告知階段，AI 回應可能要數十秒，不能讓畫面看起來沒反應。
+            ViewNotification.Info(notificationService, $"正在將 {aiSubmittedCount} 筆日誌送給 AI 分析，可能需要數十秒…");
+
+            var result = await aiLogAnalysisService.AnalyzeAsync(entriesAscending, token);
+
+            // ⚠️ 使用者導航離開時 circuit 已經收掉，連 DbContext 都被釋放了 ——
+            // 再去寫稽核只會換來一筆 ObjectDisposedException 的警告。
+            // 取消這件事服務層已經記在應用程式日誌裡了。
+            if (isDisposed)
+            {
+                return;
+            }
+
             await WriteAiAuditAsync("LogViewer.AiAnalyze", result);
+
+            if (result.Reason == AiAnalysisFailureReason.Canceled)
+            {
+                // 使用者關窗放棄。窗已經關了、toast 也發過了，這裡不要再改任何畫面狀態。
+                return;
+            }
 
             if (result.Success == false)
             {
@@ -254,7 +347,7 @@ namespace MyProject.Web.Components.Views.Analytics
                     "AI log analysis was not successful. Reason={Reason}, Entries={Entries}",
                     result.Reason,
                     result.Prompt.IncludedEntryCount);
-                ViewNotification.Error(notificationService, result.ErrorMessage);
+                ShowAiFailure(result.ErrorMessage);
                 return;
             }
 
@@ -263,7 +356,7 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 logger.LogWarning(
                     "AI log analysis response was too large to render. Characters={Characters}", html.Length);
-                ViewNotification.Error(notificationService, "AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
+                ShowAiFailure("AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
                 return;
             }
 
@@ -271,7 +364,7 @@ namespace MyProject.Web.Components.Views.Analytics
             aiMarkdown = result.Markdown;
             aiHtml = html;
             aiMetaItems = BuildAiMetaItems(result);
-            aiModalVisible = true;
+            aiModalState = AiModalState.Succeeded;
 
             if (result.Prompt.DroppedByEntryLimit)
             {
@@ -387,9 +480,98 @@ namespace MyProject.Web.Components.Views.Analytics
             ViewNotification.Info(notificationService, "PDF 已產生並開始下載。");
         }
 
+        /// <summary>
+        /// 使用者關閉對話窗。
+        ///
+        /// ⚠️ 等待中關窗<b>等於放棄這次分析</b>：真的取消 HTTP 請求，不留在背景。
+        /// 這是刻意的 —— 讓一條沒人要的請求繼續佔著連線最多 10 分鐘沒有意義，
+        /// 而「關掉之後結果突然跳出來」對使用者更難理解。等待畫面上有明講這件事。
+        /// </summary>
         private void OnAiModalCancel()
         {
+            if (isAiRunning)
+            {
+                aiCts?.Cancel();
+                ViewNotification.Info(notificationService, "已取消本次 AI 分析。");
+            }
+
             aiModalVisible = false;
+        }
+
+        /// <summary>開新的一輪之前，把上一輪的殘留清乾淨。</summary>
+        private void ResetAiModalState()
+        {
+            aiResult = null;
+            aiMarkdown = string.Empty;
+            aiHtml = string.Empty;
+            aiMetaItems = new();
+            aiErrorMessage = string.Empty;
+            aiFontScalePercent = DefaultFontScalePercent;
+            aiElapsedSeconds = 0;
+            aiSubmittedCount = entriesAscending.Count;
+        }
+
+        /// <summary>
+        /// 失敗時把原因留在窗內，同時照舊發一則 toast。
+        ///
+        /// 0.9.8 起窗不再自動關閉：toast 幾秒就消失，而失敗訊息常常是「要改哪個設定」
+        /// 這種需要照著做的內容，看不完就沒了等於沒說。
+        /// </summary>
+        private void ShowAiFailure(string message)
+        {
+            // ⚠️ 使用者已經放棄的話，什麼都不要做。
+            // 取消與上游回應之間有空隙：取消在傳輸層可能先變成 HttpRequestException 而不是
+            // OperationCanceledException，於是服務層回的是 UpstreamError 而非 Canceled。
+            // 少了這道閘門，使用者關掉的視窗會在一兩秒後自己跳回來 —— 看起來像鬧鬼。
+            if (aiCts?.IsCancellationRequested == true)
+            {
+                return;
+            }
+
+            aiErrorMessage = message;
+            aiModalState = AiModalState.Failed;
+            aiModalVisible = true;
+            ViewNotification.Error(notificationService, message);
+        }
+
+        /// <summary>
+        /// 等待中每秒更新一次「已等待 N 秒」。
+        ///
+        /// 轉圈圈只證明瀏覽器還活著，跳動的秒數才證明**這次呼叫**還在進行中 ——
+        /// 在最長可以等 10 分鐘的情境下，這是使用者願意繼續等下去的唯一依據。
+        ///
+        /// ⚠️ 一定要用 <c>InvokeAsync(StateHasChanged)</c>：計時器回呼不在 renderer
+        /// 的同步內容上，直接呼叫 StateHasChanged 會炸。
+        /// </summary>
+        private async Task RunAiElapsedTickerAsync(CancellationToken token)
+        {
+            try
+            {
+                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    aiElapsedSeconds++;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // 分析結束或使用者放棄，正常收工。
+            }
+            catch (ObjectDisposedException)
+            {
+                // circuit 已經消失，沒有畫面可以更新了。
+            }
+        }
+
+        /// <summary>
+        /// 使用者在等待中直接離開頁面時，取消還在飛的請求。
+        /// 沒有這一段，一條沒人要的呼叫會繼續佔著連線直到 TimeoutSeconds（預設 600 秒）。
+        /// </summary>
+        public void Dispose()
+        {
+            isDisposed = true;
+            aiCts?.Cancel();
         }
 
         /// <summary>
