@@ -84,38 +84,87 @@ else
             </Table>
         </div>
 
-        <Modal Title="AI 日誌分析結果"
+        @*
+            尺寸（96vw／96vh）寫在 Components/Commons/FormModalHelper.razor 的全域 style，
+            刻意不在這裡設 Width —— 那邊是 !important，兩邊都寫只會讓人改錯地方。
+
+            MaskClosable 只在等待中關掉：關窗等於放棄一次已送出、可能已計費的呼叫，
+            誤點遮罩就白花錢；看結果時點外面關掉則是既有的直覺行為，維持不動。
+        *@
+        <Modal Title="@AiModalTitle"
                Class="log-ai-modal"
-               Width="900"
                @bind-Visible="@aiModalVisible"
                Keyboard="true"
+               MaskClosable="@(isAiRunning == false)"
                Footer="null"
                OnCancel="OnAiModalCancel">
-            <div class="log-ai-actions">
-                <ToolbarIconButton Title="複製結果（Markdown 原文）" Icon="content_copy"
-                                   OnClick="@(async () => await OnAiCopyAsync())" />
-                <ToolbarIconButton Title="匯出 PDF 報告並下載" Icon="picture_as_pdf"
-                                   Disabled="@isAiExporting"
-                                   OnClick="@(async () => await OnAiExportPdfAsync())" />
-            </div>
-
-            <dl class="log-ai-meta">
-                @foreach (var item in aiMetaItems)
+            @*
+                --ai-font-scale 由三顆字級按鈕設定，窗內所有 font-size 都是
+                calc(Npx * var(--ai-font-scale, 1))。自訂屬性會沿 DOM 繼承，
+                所以 MarkupString 注入的 HTML 也吃得到。
+            *@
+            <div class="log-ai-body" style="--ai-font-scale: @AiFontScaleCss">
+                @if (aiModalState == AiModalState.Running)
                 {
-                    <div class="log-ai-meta-row">
-                        <dt class="log-ai-meta-term">@item.Key</dt>
-                        <dd class="log-ai-meta-value">@item.Value</dd>
+                    <div class="log-ai-loading">
+                        <Spin Size="@SpinSize.Large" />
+                        <p class="log-ai-loading-title">AI 正在分析 @aiSubmittedCount 筆日誌…</p>
+                        <p class="log-ai-loading-elapsed">已等待 @aiElapsedSeconds 秒</p>
+                        <p class="log-ai-loading-hint">
+                            推論模型可能需要數十秒到數分鐘。關閉本視窗將放棄這次分析。
+                        </p>
                     </div>
                 }
-            </dl>
+                else if (aiModalState == AiModalState.Failed)
+                {
+                    <div class="log-ai-failed">
+                        <p class="log-ai-failed-title">AI 分析未完成</p>
+                        <p class="log-ai-failed-message">@aiErrorMessage</p>
+                        <p class="log-ai-failed-hint">
+                            同一則訊息也已寫入應用程式日誌，可在本頁查詢記錄器
+                            MyProject.Web.Ai.AiLogAnalysisService 的紀錄取得完整細節。
+                        </p>
+                    </div>
+                }
+                else
+                {
+                    <div class="log-ai-actions">
+                        <div class="log-ai-font-scale">
+                            @foreach (var option in FontScaleOptions)
+                            {
+                                <Button Size="@ButtonSize.Small"
+                                        Type="@(aiFontScalePercent == option.Percent ? ButtonType.Primary : ButtonType.Default)"
+                                        OnClick="@(() => aiFontScalePercent = option.Percent)">@option.Label</Button>
+                            }
+                        </div>
+                        <div class="log-ai-actions-right">
+                            <ToolbarIconButton Title="複製結果（Markdown 原文）" Icon="content_copy"
+                                               OnClick="@(async () => await OnAiCopyAsync())" />
+                            <ToolbarIconButton Title="匯出 PDF 報告並下載" Icon="picture_as_pdf"
+                                               Disabled="@isAiExporting"
+                                               OnClick="@(async () => await OnAiExportPdfAsync())" />
+                        </div>
+                    </div>
 
-            @*
-                AI 輸出受日誌內容影響，屬不可信輸入，一律經 AiMarkdownRenderer.ToSafeHtml
-                的安全管線（DisableHtml、連結 scheme 白名單、移除圖片）之後才能用 MarkupString。
-                ⚠️ 不要改成直接把模型回應丟進 MarkupString。
-            *@
-            <div class="log-ai-report">
-                @((MarkupString)aiHtml)
+                    <dl class="log-ai-meta">
+                        @foreach (var item in aiMetaItems)
+                        {
+                            <div class="log-ai-meta-row">
+                                <dt class="log-ai-meta-term">@item.Key</dt>
+                                <dd class="log-ai-meta-value">@item.Value</dd>
+                            </div>
+                        }
+                    </dl>
+
+                    @*
+                        AI 輸出受日誌內容影響，屬不可信輸入，一律經 AiMarkdownRenderer.ToSafeHtml
+                        的安全管線（DisableHtml、連結 scheme 白名單、移除圖片）之後才能用 MarkupString。
+                        ⚠️ 不要改成直接把模型回應丟進 MarkupString。
+                    *@
+                    <div class="log-ai-report">
+                        @((MarkupString)aiHtml)
+                    </div>
+                }
             </div>
         </Modal>
 

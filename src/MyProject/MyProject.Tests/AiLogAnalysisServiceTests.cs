@@ -367,6 +367,31 @@ public sealed class AiLogAnalysisServiceTests
         Assert.Contains("逾時", result.ErrorMessage);
     }
 
+    /// <summary>
+    /// ⚠️ 逾時與「使用者主動取消」在 .NET 上都是 <c>TaskCanceledException</c>，
+    /// 唯一的分辨依據是 <c>cancellationToken.IsCancellationRequested</c>。
+    ///
+    /// 0.9.8 讓使用者可以關窗放棄分析，所以這個分辨必須是對的：filter 寫反會把
+    /// 使用者的決定記成系統故障（ERROR），也會讓真正的逾時被混在一起看不出來。
+    /// </summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldReportCanceled_WhenCallerCancels()
+    {
+        var (service, _) = CreateService(
+            CreateAzureSettings(),
+            StubHttpMessageHandler.Throws(new TaskCanceledException("canceled")));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await service.AnalyzeAsync(CreateEntries(3), cts.Token);
+
+        Assert.False(result.Success);
+        Assert.Equal(AiAnalysisFailureReason.Canceled, result.Reason);
+        Assert.NotEqual(AiAnalysisFailureReason.Timeout, result.Reason);
+        Assert.NotEqual(AiAnalysisFailureReason.Unexpected, result.Reason);
+        Assert.Contains("已取消", result.ErrorMessage);
+    }
+
     [Fact]
     public async Task AnalyzeAsync_ShouldMapTransportFailure()
     {

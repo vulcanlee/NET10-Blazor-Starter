@@ -1,8 +1,8 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.7
+- 現行系統版本：0.9.8
 - 首次實作版本：0.9.4
 - 最後核對日期：2026/09/11
 
@@ -16,15 +16,17 @@
 
 管理員在日誌檢視頁按下工具列的「AI 分析」按鈕後：
 
-1. 系統把**目前畫面上已查詢出來的**日誌組成提示詞（不重新查詢）。
-2. 送到設定的 Azure OpenAI 或 OpenAI 的 Chat Completions 端點。
-3. 回傳的 Markdown 經安全管線轉成 HTML，顯示在唯讀對話窗。
-4. 對話窗可複製 Markdown 原文，或匯出成 PDF 報告下載。
+1. **對話窗立刻打開**，顯示等待畫面（0.9.8 起，見 §10）。
+2. 系統把**目前畫面上已查詢出來的**日誌組成提示詞（不重新查詢）。
+3. 送到設定的 Azure OpenAI 或 OpenAI 的 Chat Completions 端點。
+4. 回傳的 Markdown 經安全管線轉成 HTML，渲染回**同一個**對話窗。
+5. 對話窗可調整字級、複製 Markdown 原文，或匯出成 PDF 報告下載。
 
 呼叫前後都會以**右下角通知**告知階段（送出中、完成、被上限截斷、失敗原因）。
 每次呼叫與每次 PDF 匯出都會寫入 `AuditLog`。
 
-**不做的事**（刻意的取捨）：不支援追問對話、不做串流輸出、不自動重試、不做頻率限制。
+**不做的事**（刻意的取捨）：不支援追問對話、不做串流輸出、不自動重試、不做頻率限制、
+字級選擇不跨工作階段保存。
 
 ## 2. 設定
 
@@ -327,16 +329,86 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 |------|------|
 | `MyProject.Web/Configuration/AiSettings.cs` | 設定 POCO 與 provider 解析 |
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的位址、認證標頭、路徑正規化與設定驗證 |
-| `MyProject.Web/Ai/AiLogPromptBuilder.cs` | 提示詞組裝與三道截斷 |
+| `MyProject.Web/Ai/AiLogPromptBuilder.cs` | 提示詞組裝（只有筆數上限一道） |
 | `MyProject.Web/Ai/AiChatRequestFactory.cs` | 請求 body 組裝 |
 | `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異）|
 | `MyProject.Web/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線 |
 | `MyProject.Web/Ai/AiLogAnalysisService.cs` | HTTP 呼叫與錯誤對應 |
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | Markdown 轉 PDF 的極小渲染器 |
-| `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs)` | 按鈕、對話窗與稽核 |
+| `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗三態、字級與稽核 |
+| `MyProject.Web/Components/Commons/FormModalHelper.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
 
-## 10. 延伸閱讀
+## 10. 對話窗的三個狀態（0.9.8 起）
+
+0.9.7 之前，按下按鈕之後畫面只有一則右下角通知，對話窗要等 AI 回來才第一次出現。
+而 `TimeoutSeconds` 是 600 秒，推論模型對上百筆日誌想上幾分鐘是常態 ——
+使用者盯著一個毫無變化的畫面，很容易以為頁面沒在做事而切走，錯過結果。
+
+現在是**按下按鈕就開窗**，同一個窗依序呈現三種狀態：
+
+| 狀態 | 標題 | 內容 |
+|------|------|------|
+| 分析中 | AI 日誌分析（進行中）| 轉圈圈、大字「AI 正在分析 N 筆日誌…」、**每秒更新的「已等待 N 秒」**、以及一句「關閉本視窗將放棄這次分析」 |
+| 成功 | AI 日誌分析結果 | 字級按鈕、複製／PDF 按鈕、meta 資訊表、Markdown 報告 |
+| 失敗 | AI 日誌分析失敗 | 錯誤訊息留在窗內，使用者自己關閉 |
+
+「已等待 N 秒」不是裝飾：轉圈圈只證明瀏覽器還活著，跳動的秒數才證明**這次呼叫**
+還在進行中。在最長可以等 10 分鐘的情境下，這是使用者願意繼續等下去的唯一依據。
+
+### 10.1 關窗等於放棄 ⚠️
+
+等待中按 X 或 Esc 會**真的取消 HTTP 請求**（`CancellationTokenSource`），不是讓它留在背景。
+
+- 服務層回 `AiAnalysisFailureReason.Canceled`，日誌記 **INFO**（`AI log analysis canceled by the caller`），
+  不是 ERROR —— 使用者的主動決定不該污染 `/logs` 的錯誤篩選。
+- ⚠️ 這一項要與**逾時**分得清清楚楚：兩者在 .NET 上都是 `TaskCanceledException`，
+  唯一的分辨依據是 `cancellationToken.IsCancellationRequested`。守門測試
+  `AnalyzeAsync_ShouldReportCanceled_WhenCallerCancels` 釘住這件事。
+- 仍然寫 `AuditLog`（`success = false`、`Detail` 尾端帶「失敗原因 Canceled」）：
+  請求已經送出去了，上游很可能照樣計費，稽核是成本追查的唯一帳本。
+- **使用者在等待中直接導航離開頁面**也會取消（元件的 `Dispose`）。此時 circuit 已經收掉，
+  稽核寫不進去，所以那條路徑只留應用程式日誌。
+- 等待中**遮罩點不關**（`MaskClosable` 只在非等待狀態為 true）：誤點一次遮罩
+  就白花一次 AI 費用，代價太高。看結果時點外面關掉則維持既有行為。
+
+### 10.2 失敗留在窗內
+
+失敗訊息常常是「請將 AiSettings:Temperature 設為 null」這種**要照著做**的內容，
+而 toast 幾秒就消失。所以 0.9.8 起失敗不再關窗：訊息留在窗內讓使用者讀完再自己關，
+同時照舊發一則 toast，並在應用程式日誌留下 WARN（檢視層）與 ERROR（服務層的上游診斷）。
+
+失敗態**不顯示**複製與 PDF 按鈕 —— 沒有結果可以複製，而按下去只會拿到上一次的殘留。
+
+### 10.3 字級三段
+
+「一般／中／大」對應 **100%／125%／150%**，預設「一般」，作用於**整個窗內容**
+（頁首 meta 資訊表與報告內文都跟著變）。
+
+做法是 CSS 自訂屬性：`--ai-font-scale`（`1`／`1.25`／`1.5`）寫在 `.log-ai-body` 的
+inline style，`LogViewerView.razor.css` 裡每一條字級都是
+`calc(Npx * var(--ai-font-scale, 1))`。
+
+⚠️ **刻意不用 `em`**：`em` 在巢狀清單與 `pre code` 上會**複合相乘**，
+第三層縮排的文字會被放大兩次。乘上同一個比例則每條規則各算各的，不會疊加。
+
+⚠️ 倍率字串必須以 `CultureInfo.InvariantCulture` 格式化。若當下文化把小數點寫成逗號，
+產出的會是無效的 CSS 值 `1,25`，字級**靜默失效** —— 開發機上永遠看不到這個 bug。
+
+守門測試 `AiModalStyleConventionTests` 會檢查 `.log-ai-meta*` 與 `.log-ai-report*`
+底下的每一條 `font-size` 都乘上了這個變數。漏掉一條的症狀是「按了放大只有這段沒變」，
+不會壞、不會紅，只有實際去點才發現。
+
+等待畫面與失敗畫面用**固定**字級，不在守門範圍內：那兩個狀態下三顆按鈕根本不存在。
+
+### 10.4 尺寸
+
+對話窗是 **96vw × 96vh**（`top: 2vh`，上下各留 2vh）。
+尺寸寫在 `Components/Commons/FormModalHelper.razor` 的全域 `<style>`，
+**不要**改用 `<Modal Width>` —— 那邊是 `!important`，兩邊都寫只會讓人改錯地方。
+`AiModalStyleConventionTests` 也擋下在標籤上加 `Width` 的寫法。
+
+## 11. 延伸閱讀
 
 - [日誌檢視 PRD](../prd/日誌檢視-prd.md)
 - [日誌與設定檔說明](../operations/日誌與設定檔說明.md)

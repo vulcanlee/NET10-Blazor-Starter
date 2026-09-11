@@ -52,11 +52,100 @@
 
 /* ===== AI 分析結果對話窗 ===== */
 
+/*
+ * 窗內每一條 font-size 都是 calc(Npx * var(--ai-font-scale, 1))，倍率由三顆
+ * 「一般／中／大」按鈕寫進 .log-ai-body 的 inline style。
+ *
+ * ⚠️ 刻意不用 em：em 在巢狀清單與 pre code 上會複合相乘，第三層縮排會被放大兩次。
+ * 乘上同一個比例則每條規則各算各的，不會疊加。
+ * 新增字級規則時請一併乘上這個變數（AiModalStyleConventionTests 會擋）。
+ */
+.log-ai-body {
+    height: 100%;
+}
+
 .log-ai-actions {
     display: flex;
     gap: 8px;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 12px;
+}
+
+.log-ai-font-scale,
+.log-ai-actions-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ----- 等待中 ----- */
+
+.log-ai-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.log-ai-loading-title {
+    margin: 0;
+    font-size: 24px;
+    color: #1e293b;
+}
+
+.log-ai-loading-elapsed {
+    margin: 0;
+    font-size: 16px;
+    color: #475569;
+}
+
+.log-ai-loading-hint {
+    margin: 0;
+    max-width: 560px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #94a3b8;
+}
+
+/* ----- 失敗 ----- */
+
+.log-ai-failed {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.log-ai-failed-title {
+    margin: 0;
+    font-size: 20px;
+    color: #b4222a;
+}
+
+.log-ai-failed-message {
+    margin: 0;
+    max-width: 720px;
+    font-size: 15px;
+    line-height: 1.9;
+    color: #334155;
+}
+
+.log-ai-failed-hint {
+    margin: 0;
+    max-width: 720px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #94a3b8;
+    word-break: break-all;
 }
 
 .log-ai-meta {
@@ -70,7 +159,7 @@
 .log-ai-meta-row {
     display: flex;
     gap: 8px;
-    font-size: 12px;
+    font-size: calc(12px * var(--ai-font-scale, 1));
     line-height: 1.8;
 }
 
@@ -91,11 +180,15 @@
  * 以下是 Markdown 渲染後的 HTML。它由 MarkupString 注入，落在本元件 scope 屬性之外，
  * 因此子選擇器一律需要 ::deep。
  */
+.log-ai-report {
+    font-size: calc(14px * var(--ai-font-scale, 1));
+}
+
 .log-ai-report ::deep h1,
 .log-ai-report ::deep h2 {
     margin: 20px 0 8px;
     padding-bottom: 4px;
-    font-size: 17px;
+    font-size: calc(17px * var(--ai-font-scale, 1));
     color: #1e293b;
     border-bottom: 1px solid #e2e8f0;
 }
@@ -103,7 +196,7 @@
 .log-ai-report ::deep h3,
 .log-ai-report ::deep h4 {
     margin: 16px 0 6px;
-    font-size: 15px;
+    font-size: calc(15px * var(--ai-font-scale, 1));
     color: #1e293b;
 }
 
@@ -132,7 +225,7 @@
 .log-ai-report ::deep pre {
     margin: 0 0 12px;
     padding: 10px 12px;
-    font-size: 12px;
+    font-size: calc(12px * var(--ai-font-scale, 1));
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-all;
@@ -143,7 +236,7 @@
 }
 
 .log-ai-report ::deep code {
-    font-size: 12px;
+    font-size: calc(12px * var(--ai-font-scale, 1));
     color: #b4222a;
 }
 
