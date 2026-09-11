@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="AntDesign" />
     <PackageReference Include="BlazorMaterialIcons" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
@@ -18,11 +19,22 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
     <PackageReference Include="NLog.Web.AspNetCore" />
+    <PackageReference Include="PDFsharp-MigraDoc" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MyProject.Business\MyProject.Business.csproj" />
+  </ItemGroup>
+
+  <!--
+    PDF 報告的中文字型。用 EmbeddedResource 而非 CopyToOutputDirectory：publish、
+    單檔發行與容器化都不會漏檔，測試專案也能直接由組件讀取。LogicalName 明寫，
+    避免 MSBuild 依資料夾與檔名中的「-」推導出意外的資源名稱。
+    來源、產生方式與「為何只有 Regular」見 Fonts\README.md。
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Fonts\NotoSansTC-Regular.ttf" LogicalName="MyProject.Web.Fonts.NotoSansTC-Regular.ttf" />
   </ItemGroup>
 
   <!-- 慣例守門測試需要讀取 SidebarMenuService.MenuPermissionMap 等宣告式登錄表。 -->

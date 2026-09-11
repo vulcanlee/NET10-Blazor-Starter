@@ -2,9 +2,12 @@ using System.Text;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 using MyProject.Business.Services.Other;
+using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Ai;
 using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Views.Analytics
@@ -22,9 +25,20 @@ namespace MyProject.Web.Components.Views.Analytics
             ("FATAL", "FATAL"),
         ];
 
+        /// <summary>
+        /// AI 回傳內容轉成 HTML 之後的顯示上限。
+        ///
+        /// MaxOutputTokens 預設 2000 已經是天然上限，這是第二道防禦：異常龐大的 HTML 會讓
+        /// 單次 render diff 過肥、瀏覽器記憶體升高、對話窗開啟卡頓。
+        /// </summary>
+        private const int MaxRenderedHtmlLength = 512 * 1024;
+
         private readonly ILogger<LogViewerView> logger;
         private readonly ILogQueryService logQueryService;
         private readonly MessageService messageService;
+        private readonly IAiLogAnalysisService aiLogAnalysisService;
+        private readonly IAuditLogService auditLogService;
+        private readonly CurrentUserService currentUserService;
 
         private DateTime? startTime;
         private DateTime? endTime;
@@ -44,6 +58,25 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private string RoleMessage = string.Empty;
 
+        // AI 分析狀態。
+        private bool aiAvailable;
+        private string aiUnavailableReason = string.Empty;
+        private bool aiModalVisible;
+        private bool isAiRunning;
+        private bool isAiExporting;
+        private string aiMarkdown = string.Empty;
+        private string aiHtml = string.Empty;
+        private AiAnalysisResult? aiResult;
+        private List<KeyValuePair<string, string>> aiMetaItems = new();
+
+        /// <summary>
+        /// AI 按鈕的 Tooltip。未設定時直接用服務給的原因當標題，不再包一層「AI 分析（…）」
+        /// —— 原因本身就以「AI 分析尚未…」開頭，包起來會變成重複的贅字。
+        /// </summary>
+        private string AiButtonTitle => aiAvailable
+            ? "AI 分析（將本次查詢結果送給 AI 整理）"
+            : aiUnavailableReason;
+
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
         [Inject]
@@ -52,15 +85,23 @@ namespace MyProject.Web.Components.Views.Analytics
         public NavigationManager NavigationManager { get; set; } = default!;
         [Inject]
         public IJSRuntime JSRuntime { get; set; } = default!;
+        [Inject]
+        public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
 
         public LogViewerView(
             ILogger<LogViewerView> logger,
             ILogQueryService logQueryService,
-            MessageService messageService)
+            MessageService messageService,
+            IAiLogAnalysisService aiLogAnalysisService,
+            IAuditLogService auditLogService,
+            CurrentUserService currentUserService)
         {
             this.logger = logger;
             this.logQueryService = logQueryService;
             this.messageService = messageService;
+            this.aiLogAnalysisService = aiLogAnalysisService;
+            this.auditLogService = auditLogService;
+            this.currentUserService = currentUserService;
         }
 
         protected override async Task OnInitializedAsync()
@@ -79,6 +120,9 @@ namespace MyProject.Web.Components.Views.Analytics
                 logger.LogWarning("Log viewer access denied because the current user is not an administrator.");
                 return;
             }
+
+            aiAvailable = aiLogAnalysisService.IsAvailable;
+            aiUnavailableReason = aiLogAnalysisService.UnavailableReason;
 
             endTime = DateTime.Now;
             startTime = endTime.Value.AddHours(-1);
@@ -159,6 +203,317 @@ namespace MyProject.Web.Components.Views.Analytics
                 logger.LogError(ex, "Log export failed.");
                 _ = messageService.ErrorAsync($"匯出失敗：{ex.GetType().Name}。");
             }
+        }
+
+        private async Task OnAiAnalyzeAsync()
+        {
+            try
+            {
+                await OnAiAnalyzeCoreAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while running AI log analysis.");
+                _ = messageService.ErrorAsync("AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+            finally
+            {
+                isAiRunning = false;
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// 送出的是畫面上「現有的」查詢結果，刻意不重新查詢：行為完全可預測，
+        /// 而對話窗會標明分析的時間區間、等級、關鍵字與筆數，不會讓人搞混。
+        /// </summary>
+        private async Task OnAiAnalyzeCoreAsync()
+        {
+            if (entriesAscending.Count == 0)
+            {
+                _ = messageService.WarningAsync("目前沒有可分析的日誌。");
+                return;
+            }
+
+            isAiRunning = true;
+            StateHasChanged();
+
+            // 呼叫前先告知階段，AI 回應可能要數十秒，不能讓畫面看起來沒反應。
+            _ = messageService.InfoAsync($"正在將 {entriesAscending.Count} 筆日誌送給 AI 分析，可能需要數十秒…");
+
+            var result = await aiLogAnalysisService.AnalyzeAsync(entriesAscending);
+            await WriteAiAuditAsync("LogViewer.AiAnalyze", result);
+
+            if (result.Success == false)
+            {
+                logger.LogWarning(
+                    "AI log analysis was not successful. Reason={Reason}, Entries={Entries}",
+                    result.Reason,
+                    result.Prompt.IncludedEntryCount);
+                _ = messageService.ErrorAsync(result.ErrorMessage);
+                return;
+            }
+
+            var html = AiMarkdownRenderer.ToSafeHtml(result.Markdown);
+            if (html.Length > MaxRenderedHtmlLength)
+            {
+                logger.LogWarning(
+                    "AI log analysis response was too large to render. Characters={Characters}", html.Length);
+                _ = messageService.ErrorAsync("AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
+                return;
+            }
+
+            aiResult = result;
+            aiMarkdown = result.Markdown;
+            aiHtml = html;
+            aiMetaItems = BuildAiMetaItems(result);
+            aiModalVisible = true;
+
+            if (result.Prompt.IsTruncated)
+            {
+                _ = messageService.WarningAsync(
+                    $"查詢共 {result.Prompt.TotalEntryCount} 筆，因上限僅分析最新 {result.Prompt.IncludedEntryCount} 筆。");
+            }
+
+            _ = messageService.SuccessAsync($"AI 分析完成（分析了 {result.Prompt.IncludedEntryCount} 筆）。");
+        }
+
+        private async Task OnAiCopyAsync()
+        {
+            try
+            {
+                // 複製原始 Markdown 而非渲染後的 HTML：使用者會貼進工單或通訊軟體，
+                // Markdown 才是有用的格式。
+                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", aiMarkdown);
+                if (copied)
+                {
+                    _ = messageService.SuccessAsync("已複製分析結果。");
+                }
+                else
+                {
+                    _ = messageService.WarningAsync("瀏覽器拒絕存取剪貼簿，請手動選取複製。");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to copy AI analysis result to clipboard.");
+                _ = messageService.ErrorAsync("複製失敗，請手動選取複製。");
+            }
+        }
+
+        private async Task OnAiExportPdfAsync()
+        {
+            if (aiResult is null)
+            {
+                return;
+            }
+
+            isAiExporting = true;
+            StateHasChanged();
+
+            try
+            {
+                await OnAiExportPdfCoreAsync(aiResult);
+            }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogError(ex, "AI analysis PDF export failed because the embedded font is missing.");
+                _ = messageService.ErrorAsync("PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
+            }
+            catch (JSDisconnectedException ex)
+            {
+                logger.LogWarning(ex, "AI analysis PDF export aborted because the circuit disconnected.");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "AI analysis PDF export failed.");
+                _ = messageService.ErrorAsync($"PDF 匯出失敗：{ex.GetType().Name}。");
+            }
+            finally
+            {
+                isAiExporting = false;
+                StateHasChanged();
+            }
+        }
+
+        private async Task OnAiExportPdfCoreAsync(AiAnalysisResult result)
+        {
+            _ = messageService.InfoAsync("正在產生 PDF…");
+
+            var information = SystemSettingsOptions.Value.SystemInformation;
+            var currentUser = currentUserService.CurrentUser;
+
+            var bytes = AiReportPdfBuilder.Build(new AiReportPdfRequest
+            {
+                SystemName = information.SystemName,
+                SystemVersion = information.SystemVersion,
+                OperatorAccount = currentUser.Account ?? string.Empty,
+                GeneratedAt = DateTime.Now,
+                QueryStartTime = startTime ?? DateTime.Now.AddHours(-1),
+                QueryEndTime = endTime ?? DateTime.Now,
+                MinimumLevel = minimumLevel,
+                Keyword = keyword,
+                Markdown = result.Markdown,
+                Prompt = result.Prompt,
+                Usage = result.Usage,
+                ModelName = result.ModelName,
+            });
+
+            using var stream = new MemoryStream(bytes);
+            using var streamReference = new DotNetStreamReference(stream);
+
+            var fileName = $"MyProject.Web-ai-log-report-{DateTime.Now:yyyyMMdd-HHmmss}.pdf";
+            await JSRuntime.InvokeVoidAsync(
+                "appFileDownload.downloadFromStream", fileName, streamReference, "application/pdf");
+
+            logger.LogInformation(
+                "AI analysis PDF exported. Bytes={Bytes}, Entries={Entries}",
+                bytes.Length,
+                result.Prompt.IncludedEntryCount);
+
+            await WriteAiAuditAsync("LogViewer.AiAnalyzeExportPdf", result);
+
+            _ = messageService.SuccessAsync("PDF 已產生並開始下載。");
+        }
+
+        private void OnAiModalCancel()
+        {
+            aiModalVisible = false;
+        }
+
+        /// <summary>
+        /// 對話窗頁首的中介資訊。沿用 MainLayout「關於」視窗的 aboutItems 模式：
+        /// 「有值才顯示」等於「不加那一列」，不必在 Razor 裡寫一堆條件判斷。
+        /// </summary>
+        private List<KeyValuePair<string, string>> BuildAiMetaItems(AiAnalysisResult result)
+        {
+            var items = new List<KeyValuePair<string, string>>
+            {
+                new("查詢區間",
+                    $"{startTime:yyyy-MM-dd HH:mm:ss} ～ {endTime:yyyy-MM-dd HH:mm:ss}"),
+                new("最低等級", string.IsNullOrWhiteSpace(minimumLevel) ? "不限" : minimumLevel),
+            };
+
+            if (string.IsNullOrWhiteSpace(keyword) == false)
+            {
+                items.Add(new KeyValuePair<string, string>("關鍵字", keyword));
+            }
+
+            var scope = $"分析 {result.Prompt.IncludedEntryCount} 筆／查詢 {result.Prompt.TotalEntryCount} 筆";
+            if (result.Prompt.DroppedByEntryLimit || result.Prompt.DroppedByTotalLimit)
+            {
+                scope += "（已依上限取最新資料）";
+            }
+
+            if (result.Prompt.TruncatedEntryCount > 0)
+            {
+                scope += $"，其中 {result.Prompt.TruncatedEntryCount} 筆單筆內容已截斷";
+            }
+
+            items.Add(new KeyValuePair<string, string>("分析範圍", scope));
+
+            if (string.IsNullOrWhiteSpace(result.ModelName) == false)
+            {
+                items.Add(new KeyValuePair<string, string>("使用模型", result.ModelName));
+            }
+
+            var usage = BuildUsageText(result.Usage);
+            if (string.IsNullOrEmpty(usage) == false)
+            {
+                items.Add(new KeyValuePair<string, string>("用量", usage));
+            }
+
+            items.Add(new KeyValuePair<string, string>("耗時", $"{result.Elapsed.TotalSeconds:F1} 秒"));
+            return items;
+        }
+
+        /// <summary>只列出 API 真的有回的欄位；全都沒回就回空字串，呼叫端不加這一列。</summary>
+        private static string BuildUsageText(AiTokenUsage? usage)
+        {
+            if (usage is null || usage.HasAny == false)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>(5);
+            Append(parts, "輸入", usage.InputCount);
+            Append(parts, "輸出", usage.OutputCount);
+            Append(parts, "合計", usage.TotalCount);
+            Append(parts, "快取輸入", usage.CachedInputCount);
+            Append(parts, "推論", usage.ReasoningCount);
+            return string.Join("　", parts);
+
+            static void Append(List<string> parts, string label, int? value)
+            {
+                if (value.HasValue)
+                {
+                    parts.Add($"{label} {value.Value:N0}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 稽核寫入失敗不應推翻「分析已經完成」這個事實，因此只記錯誤不向使用者報錯。
+        ///
+        /// ⚠️ detail 只寫數量、模型、用量與耗時，<b>絕不</b>寫入任何日誌內容或 AI 輸出：
+        /// AuditLog 的可視範圍比本頁更廣，把日誌內容複寫進去等於繞過本頁的管理員限制。
+        /// </summary>
+        private async Task WriteAiAuditAsync(string action, AiAnalysisResult? result)
+        {
+            if (result is null)
+            {
+                return;
+            }
+
+            try
+            {
+                var currentUser = currentUserService.CurrentUser;
+                await auditLogService.WriteAsync(
+                    action,
+                    success: result.Success,
+                    actorUserId: currentUser.Id,
+                    actorAccount: currentUser.Account,
+                    targetType: "LogQuery",
+                    targetId: $"{startTime:yyyyMMddHHmmss}-{endTime:yyyyMMddHHmmss}",
+                    detail: BuildAuditDetail(result));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to write audit log for AI log analysis. Action={Action}", action);
+            }
+        }
+
+        private static string BuildAuditDetail(AiAnalysisResult result)
+        {
+            var builder = new StringBuilder();
+            builder.Append("送出 ").Append(result.Prompt.IncludedEntryCount)
+                .Append('/').Append(result.Prompt.TotalEntryCount)
+                .Append(" 筆、").Append(result.Prompt.CharacterCount).Append(" 字元");
+
+            if (result.Prompt.TruncatedEntryCount > 0)
+            {
+                builder.Append("（其中 ").Append(result.Prompt.TruncatedEntryCount).Append(" 筆已截斷）");
+            }
+
+            if (string.IsNullOrWhiteSpace(result.ModelName) == false)
+            {
+                builder.Append("；模型 ").Append(result.ModelName);
+            }
+
+            var usage = BuildUsageText(result.Usage);
+            if (string.IsNullOrEmpty(usage) == false)
+            {
+                builder.Append("；用量 ").Append(usage);
+            }
+
+            builder.Append("；耗時 ").Append(result.Elapsed.TotalMilliseconds.ToString("F0")).Append(" ms");
+
+            if (result.Success == false)
+            {
+                builder.Append("；失敗原因 ").Append(result.Reason);
+            }
+
+            return builder.ToString();
         }
 
         // 解析使用者的篩選輸入時，空字串代表「不限」，因此 fallback 為 Any。

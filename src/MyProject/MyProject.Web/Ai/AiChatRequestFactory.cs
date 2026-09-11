@@ -1,0 +1,59 @@
+using System.Text;
+using System.Text.Json;
+using MyProject.Web.Configuration;
+
+namespace MyProject.Web.Ai;
+
+/// <summary>
+/// 組出 Chat Completions 的請求 body。
+///
+/// 用 <see cref="Utf8JsonWriter"/> 明寫而非 POCO 序列化：欄位很少，而且需要
+/// 「Temperature 為 null 就整個欄位都不出現」這種條件輸出，用 POCO 反而要多帶一組
+/// JsonSerializerOptions 與屬性標註。純函式，測試可直接比對輸出字串。
+/// </summary>
+public static class AiChatRequestFactory
+{
+    /// <summary>回應長度上限的下限值，避免設定被填成極小值時模型只回半句話。</summary>
+    private const int MinimumOutputTokens = 256;
+
+    public static string CreateRequestJson(AiSettings settings, string systemPrompt, string userMessage)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("model", AiChatEndpoint.ResolveModelField(settings));
+
+            writer.WriteStartArray("messages");
+            WriteMessage(writer, "system", systemPrompt);
+            WriteMessage(writer, "user", userMessage);
+            writer.WriteEndArray();
+
+            // 用 max_completion_tokens 而非 max_tokens：後者自 Azure api-version 2024-10-21
+            // 起標示為 deprecated，而且 o 系列推論模型只接受前者。
+            writer.WriteNumber("max_completion_tokens", Math.Max(MinimumOutputTokens, settings.MaxOutputTokens));
+
+            // 推論模型不接受 temperature，所以設定為 null 時整個欄位都不送。
+            if (settings.Temperature is double temperature)
+            {
+                writer.WriteNumber("temperature", temperature);
+            }
+
+            // 唯讀彈出視窗、不做串流。明寫 false 讓意圖清楚。
+            writer.WriteBoolean("stream", false);
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray());
+
+        static void WriteMessage(Utf8JsonWriter writer, string role, string content)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("role", role);
+            writer.WriteString("content", content);
+            writer.WriteEndObject();
+        }
+    }
+}
