@@ -1,10 +1,10 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.4
 - 首次實作版本：0.4.26
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/11
 
 ## 一、目標與範圍
 
@@ -40,6 +40,23 @@
 
 **匯出**：按下匯出後下載 `MyProject.Web-logs-{yyyyMMdd-HHmmss}.log`，內容為**本次查詢結果的全部 N 筆**（不受目前翻到第幾頁影響），**依時間正序（舊→新）**排列，與真實 nlog 檔案的閱讀習慣一致。編碼為 UTF-8 含 BOM，確保以記事本或 Excel 開啟時繁體中文不亂碼。查無資料時匯出按鈕為停用狀態。
 
+**AI 分析**（0.9.4 起）：工具列第三個按鈕，把**目前查詢結果**送給 AI 整理，結果顯示在
+唯讀對話窗。刻意不重新查詢，行為完全可預測；對話窗頁首會標明分析的時間區間、最低等級、
+關鍵字、實際分析筆數與是否被上限截斷，所以不會與畫面上的條件搞混。
+
+- 送出的是每筆的原始 nlog 行，預設上限 100 筆（`AiSettings:MaxEntries` 可調）。
+  超過時取**最新**的 N 筆，並額外發一則 toast 說明已截斷。
+- 呼叫前後都以 toast 告知階段：送出中、完成（含實際分析筆數）、失敗原因。
+- 對話窗內有「複製結果」（複製 Markdown 原文，方便貼進工單或通訊軟體）與
+  「匯出 PDF 報告並下載」兩個按鈕，頁首另列出模型名稱、token 用量明細
+  （輸入／輸出／合計／快取輸入／推論，API 有回才顯示）與耗時。
+- **未設定時按鈕停用**，游標停留會說明缺哪一項設定。`AiSettings:Enabled` 預設為
+  `false`，所以拿到這份範本的人不會看到一個按下去就報錯的按鈕。
+- 權限沿用本頁的管理員判斷，不另設權限鍵。
+
+完整機制（設定、截斷規則、安全管線、PDF 字型）見
+[AI 日誌分析](../features/AI日誌分析.md)。
+
 ## 四、內部系統運作
 
 1. `LogViewerView.OnInitializedAsync`：先 `AuthenticationStateHelper.Check` 驗證登入，再 `CheckIsAdmin`；非管理員設定 `RoleMessage` 並中止，**權限通過前不讀取任何日誌內容**。通過後將時間區段設為最近 1 小時並執行首次查詢。
@@ -54,6 +71,13 @@
      ⚠️ **刻意不依 `File.GetLastWriteTime` 做「整檔跳過」**（0.4.39 移除）——
      判斷依據必須是**檔案內容的時間戳**，不能是檔案系統中繼資料。理由見下節。
 4. 匯出時將結果的 `Raw` 以換行串接，加上 BOM 後透過 `DotNetStreamReference` 經 SignalR circuit 串流給瀏覽器，由 `wwwroot/js/file-download.js` 組成 Blob 觸發下載。
+5. AI 分析時 `AiLogPromptBuilder` 依「筆數上限 → 單筆截斷 → 總量上限」三道處理組出提示詞
+   （順序不可調換，理由見 [AI 日誌分析](../features/AI日誌分析.md)），交由
+   `IAiLogAnalysisService` 以 named `HttpClient` 呼叫 Chat Completions。回傳的 Markdown 經
+   `AiMarkdownRenderer` 的安全管線轉成 HTML 後才以 `MarkupString` 呈現。PDF 由
+   `AiReportPdfBuilder`（PDFsharp + MigraDoc）產生，走與日誌匯出相同的下載機制，
+   只是多帶了 `application/pdf` 這個 content type。每次分析與每次 PDF 匯出各寫一筆
+   `AuditLog`（`LogViewer.AiAnalyze` 與 `LogViewer.AiAnalyzeExportPdf`）。
 
 ## 五、限制與已知取捨
 
@@ -63,6 +87,17 @@
 - **無伺服器端路由守衛**：本頁沒有 `[Authorize]` 屬性，唯一防線是 `OnInitializedAsync` 內的 `CheckIsAdmin()`。與既有 `/system-health` 的作法一致；可接受的理由是權限檢查通過前不會取得任何日誌內容。
 - **無法解析等級的紀錄一律保留**，不因等級篩選而隱藏，避免格式異常的資料在排查時憑空消失。
 - 單一檔案讀取失敗（輪替、鎖定、權限）只會跳過該檔並顯示警告，不會讓整次查詢失敗。
+- **AI 分析不支援追問、不做串流輸出**：一次分析就是一份報告。追問與逐字串流的複雜度
+  換不到對應的價值，需要不同角度時改查詢條件重跑即可。
+- **AI 分析不做自動重試、也不做頻率限制**：這是使用者主動觸發且會計費的動作，
+  失敗讓他再按一次即可；自動重試只會讓成本加倍，還會掩蓋「設定錯誤」這種重試永遠
+  不會好的問題。頻率與成本控管請在 Azure OpenAI 資源的配額層（TPM/RPM）設定，
+  事後追查看 `AuditLog`。
+- **AI 回傳內容過大時會中止顯示**（HTML 超過 512 KB）：避免單次 render diff 過肥
+  讓對話窗開啟卡頓。`AiSettings:MaxOutputTokens` 預設 2000 已是天然上限，這是第二道防禦。
+- **PDF 只有一個字重**：內嵌字型只有 Noto Sans TC Regular，而 PDFsharp 沒有粗體模擬，
+  因此報告的層級靠字級、顏色與框線表達，Markdown 的 `**粗體**` 在 PDF 裡呈現為深色而非粗體。
+  加 Bold 字面會讓 repo 再肥約 7 MB。
 - **不以檔案最後寫入時間做整檔跳過**（0.4.39 移除該優化）：
   - 它幾乎沒有效益 —— `GetExistingFilesInRange` 已依**檔名日期**過濾，區間外的檔案本來就不會出現；
     只有「起始日當天、且已停止寫入」的檔案才省得到一次讀取。預設的「最近 1 小時」查詢完全享受不到
@@ -80,6 +115,17 @@
 **`Query_WhenFileTimestampIsStale_ShouldStillReadEntries`** —— 釘住 0.4.39 移除「以檔案 mtime 整檔跳過」
 那個優化的原因（見第五節），該測試與執行時刻無關，修正前必紅。
 
+AI 分析對應七個測試檔（0.9.4 起，共 159 支）：`AiSettingsTests`、`AiChatEndpointTests`、
+`AiLogPromptBuilderTests`、`AiChatResponseParserTests`、`AiMarkdownRendererTests`、
+`AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`。其中三支是安全與成本的守門測試，
+壞了不要改測試：
+
+- `AiMarkdownRendererTests` 釘住 Markdig 管線不得加上會開放 HTML 注入的擴充。
+- `AiLogAnalysisServiceTests.AnalyzeAsync_ShouldNeverEchoApiKeyOrUpstreamBody` 以哨兵字串
+  斷言錯誤訊息不含金鑰與上游 body。
+- `AiReportPdfBuilderTests.Font_ShouldBeEmbeddedInWebAssembly` 斷言內嵌字型長度超過一百萬
+  位元組 —— 字型缺失時 PDF 不會報錯，只會整片變成空白方框，在 CI 上完全靜默。
+
 ---
 
 ## 七、相關文件
@@ -87,5 +133,6 @@
 - 日誌檔位置、layout 與保存設定：`docs/operations/日誌與設定檔說明.md`
 - 選單與權限機制：`docs/prd/首頁與導覽-prd.md`、`docs/security/認證授權與權限機制.md`
 - 健康監控頁的日誌尾端顯示：`docs/prd/系統健康監控-prd.md`
+- AI 分析的設定、安全管線與 PDF 機制：`docs/features/AI日誌分析.md`
 
 > 返回 [prd 索引](README.md)

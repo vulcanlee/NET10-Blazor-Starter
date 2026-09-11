@@ -17,6 +17,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Ai;
 using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
@@ -41,6 +42,11 @@ namespace MyProject.Web
             {
                 var builder = WebApplication.CreateBuilder(args);
                 StartupSafetyValidator.Validate(builder.Configuration, builder.Environment.EnvironmentName);
+
+                // PDF 報告的中文字型解析器。GlobalFontSettings.FontResolver 是 process 全域且
+                // write-once，必須在建立第一個 XFont 之前註冊，所以擺在啟動最前段。
+                // EnsureRegistered 是冪等的，整合測試重複啟動 host 也不會丟例外。
+                EmbeddedFontResolver.EnsureRegistered();
 
                 #region NLog 相關設定
                 var nlogBasePrefixPath = builder.Configuration.GetValue<string>("NLog:BasePath");

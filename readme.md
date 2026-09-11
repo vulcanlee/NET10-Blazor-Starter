@@ -30,6 +30,8 @@
 | 物件對映 | AutoMapper | 16.1.1 |
 | API 文件 | Swashbuckle Swagger UI | 10.2.3 |
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |
+| Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.3.2 |
+| PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型）| 6.2.4 |
 
 ---
 
@@ -70,6 +72,8 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Health checks：`/health/live`、`/health/ready`
 - 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最後 100 筆日誌
 - 日誌檢視頁：`/logs`，管理員可依等級／關鍵字／時間區間查詢並匯出（0.4.26）
+- 日誌 AI 分析：日誌檢視頁可把查詢結果送 Azure OpenAI 或 OpenAI 整理，結果以唯讀對話窗呈現，
+  可複製或匯出成 PDF 報告；供應商與金鑰在 `appsettings.json` 設定（0.9.4）
 - 資料庫用量頁：`/database-usage`，管理員可查看各資料表筆數與估算用量（0.4.28）
 - 日誌等級設定頁：`/log-level-setting`，管理員可在執行期調整日誌等級（0.4.29）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
@@ -193,6 +197,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
+| `AiSettings` | 日誌 AI 分析：`Enabled`、`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Deployment`、`Model`、送出上限與逾時（見 [AI 日誌分析](docs/features/AI日誌分析.md)）。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
 各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
@@ -251,6 +256,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/features/檔案上傳機制.md) — 專案附件、年月目錄、刪除同步、1GB 上限與副檔名白名單（0.4.35）。
 - [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最後 100 筆日誌。
+- [AI 日誌分析](docs/features/AI日誌分析.md) — 日誌送 Azure OpenAI／OpenAI 整理、Markdown 安全渲染管線、PDF 報告與內嵌中文字型（0.9.4）。
 
 ### 開發與操作指南（guides）
 
@@ -296,3 +302,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ## 11. 授權與貢獻
 
 本專案為內部樣板，請依團隊約定條款使用。提交異動前請確認已遵守第 8 節「版本管理與維護規範」全部要求。
+
+內含的第三方資產：`src/MyProject/MyProject.Web/Fonts/NotoSansTC-Regular.ttf` 為 Google Noto Sans TC，
+以 [SIL Open Font License 1.1](src/MyProject/MyProject.Web/Fonts/OFL.txt) 釋出，明確允許內嵌與重新發行。
+字型的來源與產生方式見 [`Fonts/README.md`](src/MyProject/MyProject.Web/Fonts/README.md)。

@@ -10,6 +10,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Ai;
 using MyProject.Web.Auth;
 using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
@@ -60,6 +61,24 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LogLevelRuntimeState>();
         services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
         services.AddScoped<ILogQueryService, LogQueryService>();
+        services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
+
+        // 全專案第一個 AddHttpClient。刻意用 **named client** 而非 typed client：
+        // 1. AddHttpClient<IAiLogAnalysisService, AiLogAnalysisService>() 會把服務註冊成
+        //    Transient，與本方法「一律 AddScoped」的慣例不一致，讀註冊表的人會被誤導。
+        // 2. 在 Blazor Server，DI scope 等於 SignalR circuit（可存活數小時）。typed client
+        //    會讓同一個 HttpClient 實例活在整個 circuit 上，等於架空 HandlerLifetime 的
+        //    輪替機制（DNS 變更吃不到）。named client 是每次呼叫才 CreateClient，
+        //    handler 仍由工廠池化。
+        // 3. retry 刻意不做：這是使用者主動觸發的單次動作，失敗讓他再按一次即可。
+        //    自動重試只會讓成本加倍，還會掩蓋「設定錯誤」這種重試永遠不會好的問題。
+        services.AddHttpClient(AiLogAnalysisService.HttpClientName, (serviceProvider, client) =>
+        {
+            // 在 CreateClient 時（而非註冊時）讀設定，這樣改 appsettings 不必重啟，
+            // 也不會像急切讀取那樣讓測試的組態覆寫失效。
+            var settings = serviceProvider.GetRequiredService<IOptionsMonitor<AiSettings>>().CurrentValue;
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120);
+        });
         services.AddScoped<IDatabaseUsageService, DatabaseUsageService>();
         services.AddScoped<IHealthLogReader, HealthLogReader>();
         services.AddScoped<ISystemHealthService, SystemHealthService>();
@@ -99,6 +118,7 @@ public static class ServiceCollectionExtensions
         services.Configure<SwaggerSettings>(configuration.GetSection(SwaggerSettings.SectionName));
         services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SectionName));
         services.Configure<RateLimitSettings>(configuration.GetSection(RateLimitSettings.SectionName));
+        services.Configure<AiSettings>(configuration.GetSection(AiSettings.SectionName));
 
         return services;
     }

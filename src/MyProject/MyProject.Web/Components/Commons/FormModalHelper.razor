@@ -41,6 +41,33 @@
             flex-shrink: 0;
         }
 
+    /* AI analysis modal: fixed height with scrollable body (long read-only report) */
+    .log-ai-modal {
+        width: 900px !important;
+        max-width: 92vw !important;
+        top: 5vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+        .log-ai-modal .ant-modal-content {
+            height: 88vh !important;
+            max-height: 88vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        .log-ai-modal .ant-modal-header {
+            flex-shrink: 0;
+        }
+
+        .log-ai-modal .ant-modal-body {
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+        }
+
     /* change password modal: compact, auto height */
     .change-password-modal {
         width: 480px !important;

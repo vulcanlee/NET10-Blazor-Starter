@@ -39,6 +39,13 @@ else
                 <ToolbarIconButton Title="匯出本次查詢結果（原始 nlog 格式）" Icon="file_download"
                                    Disabled="@(entriesAscending.Count == 0)"
                                    OnClick="@(async () => await OnExportAsync())" />
+                @*
+                    圖示用 classic Material Icons 世代的名稱（insights）。
+                    Icon 打錯只會渲染成破圖方塊，而且沒有任何守門測試會抓到，改動時請目視確認。
+                *@
+                <ToolbarIconButton Title="@AiButtonTitle" Icon="insights"
+                                   Disabled="@(entriesAscending.Count == 0 || isAiRunning || aiAvailable == false)"
+                                   OnClick="@(async () => await OnAiAnalyzeAsync())" />
             </div>
         </div>
 
@@ -76,5 +83,42 @@ else
                 </ExpandTemplate>
             </Table>
         </div>
+
+        <Modal Title="AI 日誌分析結果"
+               Class="log-ai-modal"
+               Width="900"
+               @bind-Visible="@aiModalVisible"
+               Keyboard="true"
+               Footer="null"
+               OnCancel="OnAiModalCancel">
+            <div class="log-ai-actions">
+                <ToolbarIconButton Title="複製結果（Markdown 原文）" Icon="content_copy"
+                                   OnClick="@(async () => await OnAiCopyAsync())" />
+                <ToolbarIconButton Title="匯出 PDF 報告並下載" Icon="picture_as_pdf"
+                                   Disabled="@isAiExporting"
+                                   OnClick="@(async () => await OnAiExportPdfAsync())" />
+            </div>
+
+            <dl class="log-ai-meta">
+                @foreach (var item in aiMetaItems)
+                {
+                    <div class="log-ai-meta-row">
+                        <dt class="log-ai-meta-term">@item.Key</dt>
+                        <dd class="log-ai-meta-value">@item.Value</dd>
+                    </div>
+                }
+            </dl>
+
+            @*
+                AI 輸出受日誌內容影響，屬不可信輸入，一律經 AiMarkdownRenderer.ToSafeHtml
+                的安全管線（DisableHtml、連結 scheme 白名單、移除圖片）之後才能用 MarkupString。
+                ⚠️ 不要改成直接把模型回應丟進 MarkupString。
+            *@
+            <div class="log-ai-report">
+                @((MarkupString)aiHtml)
+            </div>
+        </Modal>
+
+        <FormModalHelper />
     </div>
 }

@@ -1,0 +1,142 @@
+using System.Text.Json;
+
+namespace MyProject.Web.Ai;
+
+/// <summary>
+/// Chat Completions 回應的解析。純函式，可用假 JSON 完整測試。
+///
+/// 刻意用 <see cref="JsonDocument"/> 而非 POCO 反序列化：<c>usage</c> 的子物件
+/// （<c>prompt_tokens_details</c> / <c>completion_tokens_details</c>）在不同供應商、
+/// 不同 api-version、不同模型上時有時無，<c>TryGetProperty</c> 直接表達「缺就是 null」，
+/// 不用為每個可選欄位配一顆 nullable POCO。
+/// </summary>
+public static class AiChatResponseParser
+{
+    public static AiChatParseResult Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        var content = string.Empty;
+        var finishReason = string.Empty;
+        var filterCategory = string.Empty;
+
+        // ⚠️ Azure 在 prompt 被內容過濾時會回 choices: []，所以不能直接取 [0]。
+        if (root.TryGetProperty("choices", out var choices)
+            && choices.ValueKind == JsonValueKind.Array
+            && choices.GetArrayLength() > 0)
+        {
+            var choice = choices[0];
+
+            // ⚠️ Azure 在回應被內容過濾時，message.content 會是 JSON null 而不是缺欄位，
+            // 所以必須檢查 ValueKind 而非只看欄位存在。
+            if (choice.TryGetProperty("message", out var message)
+                && message.TryGetProperty("content", out var contentElement)
+                && contentElement.ValueKind == JsonValueKind.String)
+            {
+                content = contentElement.GetString() ?? string.Empty;
+            }
+
+            finishReason = ReadString(choice, "finish_reason");
+            filterCategory = ReadFilterCategory(choice);
+        }
+
+        return new AiChatParseResult
+        {
+            Content = content,
+            FinishReason = finishReason,
+            ModelName = ReadString(root, "model"),
+            Usage = ReadUsage(root),
+            FilterCategory = filterCategory,
+        };
+    }
+
+    /// <summary>
+    /// 讀取錯誤代碼。兩家的錯誤形狀相同：<c>{"error":{"code":"...","message":"..."}}</c>。
+    /// ⚠️ 刻意只取 code 不取 message：上游的 message 可能夾帶整份 prompt，也就是日誌內容。
+    /// </summary>
+    public static bool TryGetErrorCode(string json, out string code)
+    {
+        code = string.Empty;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("error", out var error)
+                && error.ValueKind == JsonValueKind.Object)
+            {
+                code = ReadString(error, "code");
+                return string.IsNullOrEmpty(code) == false;
+            }
+        }
+        catch (JsonException)
+        {
+            // 上游可能回 HTML（例如閘道錯誤頁），當作無法解析。
+        }
+
+        return false;
+    }
+
+    private static AiTokenUsage? ReadUsage(JsonElement root)
+    {
+        if (root.TryGetProperty("usage", out var usage) == false || usage.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var result = new AiTokenUsage
+        {
+            InputCount = ReadInt(usage, "prompt_tokens"),
+            OutputCount = ReadInt(usage, "completion_tokens"),
+            TotalCount = ReadInt(usage, "total_tokens"),
+            CachedInputCount = ReadNestedInt(usage, "prompt_tokens_details", "cached_tokens"),
+            ReasoningCount = ReadNestedInt(usage, "completion_tokens_details", "reasoning_tokens"),
+        };
+
+        return result.HasAny ? result : null;
+    }
+
+    /// <summary>取 content_filter_results 裡第一個 filtered 為 true 的類別名稱。</summary>
+    private static string ReadFilterCategory(JsonElement choice)
+    {
+        if (choice.TryGetProperty("content_filter_results", out var filters) == false
+            || filters.ValueKind != JsonValueKind.Object)
+        {
+            return string.Empty;
+        }
+
+        foreach (var category in filters.EnumerateObject())
+        {
+            if (category.Value.ValueKind == JsonValueKind.Object
+                && category.Value.TryGetProperty("filtered", out var filtered)
+                && filtered.ValueKind == JsonValueKind.True)
+            {
+                return category.Name;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static int? ReadInt(JsonElement parent, string name)
+        => parent.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var number)
+            ? number
+            : null;
+
+    private static int? ReadNestedInt(JsonElement parent, string objectName, string name)
+        => parent.TryGetProperty(objectName, out var child) && child.ValueKind == JsonValueKind.Object
+            ? ReadInt(child, name)
+            : null;
+
+    private static string ReadString(JsonElement parent, string name)
+        => parent.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
+}
