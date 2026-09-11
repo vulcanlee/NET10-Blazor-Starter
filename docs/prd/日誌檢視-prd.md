@@ -1,8 +1,8 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.6
+- 現行系統版本：0.9.7
 - 首次實作版本：0.4.26
 - 最後核對日期：2026/09/11
 
@@ -45,7 +45,8 @@
 關鍵字、實際分析筆數與是否被上限截斷，所以不會與畫面上的條件搞混。
 
 - 送出的是每筆的原始 nlog 行，預設上限 100 筆（`AiSettings:MaxEntries` 可調）。
-  超過時取**最新**的 N 筆，並額外發一則 toast 說明已截斷。
+  超過時取**最新**的 N 筆，並額外發一則 toast 說明只分析了最新幾筆。
+  **筆數是唯一的界線**：0.9.7 起沒有任何字元上限，每筆內容原封不動送出。
 - 呼叫前後都以**右下角通知**告知階段：送出中、完成（含實際分析筆數）、失敗原因。
   失敗時的訊息會盡量指名要改哪個設定，而不是只丟一個錯誤代碼。
 - 對話窗內有「複製結果」（複製 Markdown 原文，方便貼進工單或通訊軟體）與
@@ -96,7 +97,10 @@
   不會好的問題。頻率與成本控管請在 Azure OpenAI 資源的配額層（TPM/RPM）設定，
   事後追查看 `AuditLog`。
 - **AI 回傳內容過大時會中止顯示**（HTML 超過 512 KB）：避免單次 render diff 過肥
-  讓對話窗開啟卡頓。`AiSettings:MaxOutputTokens` 預設 2000 已是天然上限，這是第二道防禦。
+  讓對話窗開啟卡頓。0.9.7 起 `AiSettings:MaxOutputTokens` 預設不送，所以這是**主要**防線。
+- **送出的日誌沒有字元上限**（0.9.7）：有多少字就送多少字，因為切掉例外堆疊的尾巴
+  等於丟掉根因。代價是理論上可能撞到模型的內容視窗上限，屆時會收到 400
+  `context_length_exceeded`，訊息會直接請使用者縮小時間區間或減少筆數。
 - **PDF 只有一個字重**：內嵌字型只有 Noto Sans TC Regular，而 PDFsharp 沒有粗體模擬，
   因此報告的層級靠字級、顏色與框線表達，Markdown 的 `**粗體**` 在 PDF 裡呈現為深色而非粗體。
   加 Bold 字面會讓 repo 再肥約 7 MB。
@@ -117,7 +121,7 @@
 **`Query_WhenFileTimestampIsStale_ShouldStillReadEntries`** —— 釘住 0.4.39 移除「以檔案 mtime 整檔跳過」
 那個優化的原因（見第五節），該測試與執行時刻無關，修正前必紅。
 
-AI 分析對應七個測試檔（0.9.4 起，共 181 支）：`AiSettingsTests`、`AiChatEndpointTests`、
+AI 分析對應七個測試檔（0.9.4 起，共 186 支）：`AiSettingsTests`、`AiChatEndpointTests`、
 `AiLogPromptBuilderTests`、`AiChatResponseParserTests`、`AiMarkdownRendererTests`、
 `AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`。其中三支是安全與成本的守門測試，
 壞了不要改測試：

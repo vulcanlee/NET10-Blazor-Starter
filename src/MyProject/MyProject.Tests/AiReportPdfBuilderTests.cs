@@ -200,7 +200,6 @@ public sealed class AiReportPdfBuilderTests
                 UserMessage = "log",
                 TotalEntryCount = 357,
                 IncludedEntryCount = 100,
-                TruncatedEntryCount = 3,
                 DroppedByEntryLimit = true,
             },
         };
@@ -208,8 +207,7 @@ public sealed class AiReportPdfBuilderTests
         var scope = AiReportPdfBuilder.BuildMetadataLines(request).Single(line => line.Key == "送出範圍").Value;
 
         Assert.Contains("送出 100 筆／查詢 357 筆", scope);
-        Assert.Contains("已依上限取最新資料", scope);
-        Assert.Contains("3 筆單筆內容已截斷", scope);
+        Assert.Contains("已依筆數上限取最新資料", scope);
     }
 
     private static AiReportPdfRequest CreateRequest(string markdown) => new()

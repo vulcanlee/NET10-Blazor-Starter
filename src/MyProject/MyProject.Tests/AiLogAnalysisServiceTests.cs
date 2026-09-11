@@ -144,8 +144,12 @@ public sealed class AiLogAnalysisServiceTests
         Assert.Equal("gpt-4o-mini", document.RootElement.GetProperty("model").GetString());
     }
 
+    /// <summary>
+    /// 預設不送 max_completion_tokens。這個額度同時涵蓋推論模型的思考 token，
+    /// 設太小會在產出任何可見文字之前就耗盡 —— 空回應，費用照付。
+    /// </summary>
     [Fact]
-    public async Task AnalyzeAsync_ShouldSendMaxCompletionTokensAndNoStream()
+    public async Task AnalyzeAsync_ShouldOmitMaxCompletionTokens_ByDefault()
     {
         var (service, handler) = CreateService(
             CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
@@ -154,9 +158,38 @@ public sealed class AiLogAnalysisServiceTests
 
         using var document = JsonDocument.Parse(handler.RequestBodies.Single());
 
-        Assert.Equal(2000, document.RootElement.GetProperty("max_completion_tokens").GetInt32());
+        Assert.False(document.RootElement.TryGetProperty("max_completion_tokens", out _));
         Assert.False(document.RootElement.GetProperty("stream").GetBoolean());
         Assert.False(document.RootElement.TryGetProperty("max_tokens", out _));
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldSendMaxCompletionTokens_WhenExplicitlySet()
+    {
+        var settings = CreateAzureSettings();
+        settings.MaxOutputTokens = 25000;
+        var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        using var document = JsonDocument.Parse(handler.RequestBodies.Single());
+        Assert.Equal(25000, document.RootElement.GetProperty("max_completion_tokens").GetInt32());
+    }
+
+    /// <summary>非正數視同沒設定，不送出去讓上游回 400。</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task AnalyzeAsync_ShouldOmitMaxCompletionTokens_WhenNonPositive(int value)
+    {
+        var settings = CreateAzureSettings();
+        settings.MaxOutputTokens = value;
+        var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        using var document = JsonDocument.Parse(handler.RequestBodies.Single());
+        Assert.False(document.RootElement.TryGetProperty("max_completion_tokens", out _));
     }
 
     /// <summary>
@@ -225,6 +258,10 @@ public sealed class AiLogAnalysisServiceTests
         Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
     }
 
+    /// <summary>
+    /// 沒有具名分支可對應的 400，至少要把上游代碼帶給使用者 ——
+    /// 那是他們唯一能拿去查文件或問客服的線索。
+    /// </summary>
     [Fact]
     public async Task AnalyzeAsync_ShouldIncludeErrorCode_OnBadRequest()
     {
@@ -232,11 +269,39 @@ public sealed class AiLogAnalysisServiceTests
             CreateAzureSettings(),
             StubHttpMessageHandler.Json(
                 HttpStatusCode.BadRequest,
-                """{ "error": { "code": "context_length_exceeded", "message": "too long" } }"""));
+                """{ "error": { "code": "model_not_ready", "message": "detail" } }"""));
 
         var result = await service.AnalyzeAsync(CreateEntries(3));
 
-        Assert.Contains("context_length_exceeded", result.ErrorMessage);
+        Assert.Contains("model_not_ready", result.ErrorMessage);
+    }
+
+    /// <summary>
+    /// 0.9.7 移除所有字元上限之後，「日誌量超過內容視窗」變成主要的失敗模式。
+    ///
+    /// ⚠️ 這個錯誤沒有 <c>param</c>，落到通用分支只會回一句代碼，使用者看不出要做什麼。
+    /// 訊息必須直接指向解法（縮小時間區間或減少筆數）—— 那是拿掉護欄的對價。
+    /// </summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldTellUserHowToFix_WhenContextLengthExceeded()
+    {
+        const string payload = """
+            {
+              "error": {
+                "message": "This model's maximum context length is 272000 tokens.",
+                "type": "invalid_request_error",
+                "code": "context_length_exceeded"
+              }
+            }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Equal(AiAnalysisFailureReason.UpstreamError, result.Reason);
+        Assert.Contains("內容視窗上限", result.ErrorMessage);
+        Assert.Contains("縮小時間區間", result.ErrorMessage);
     }
 
     /// <summary>
@@ -357,6 +422,59 @@ public sealed class AiLogAnalysisServiceTests
 
         Assert.Equal(AiAnalysisFailureReason.EmptyResponse, result.Reason);
         Assert.Contains("violence", result.ErrorMessage);
+    }
+
+    /// <summary>
+    /// 推論模型的思考 token 吃光額度時，content 是空的而 finish_reason 為 length。
+    /// 只說「請稍後再試」會讓人一再重試、一再付錢，訊息必須指名要改哪個設定。
+    /// </summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldTellUserHowToFix_WhenTruncatedByLength()
+    {
+        const string payload = """
+            {
+              "choices": [ { "finish_reason": "length", "message": { "content": null } } ],
+              "usage": { "prompt_tokens": 8000, "completion_tokens": 2000, "total_tokens": 10000 }
+            }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Equal(AiAnalysisFailureReason.EmptyResponse, result.Reason);
+        Assert.Contains("AiSettings:MaxOutputTokens", result.ErrorMessage);
+        Assert.Contains("null", result.ErrorMessage);
+    }
+
+    /// <summary>有內容但被切斷時仍要顯示結果，只是要標記出來讓畫面提醒。</summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldFlagTruncation_WhenContentPresentButCutByLength()
+    {
+        const string payload = """
+            {
+              "choices": [ { "finish_reason": "length", "message": { "content": "## 總結\n寫到一半" } } ]
+            }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.True(result.Success);
+        Assert.True(result.IsTruncatedByLength);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldNotFlagTruncation_WhenFinishReasonIsStop()
+    {
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.True(result.Success);
+        Assert.False(result.IsTruncatedByLength);
     }
 
     [Fact]

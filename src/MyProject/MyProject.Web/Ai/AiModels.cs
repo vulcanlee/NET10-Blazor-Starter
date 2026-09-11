@@ -1,8 +1,11 @@
 namespace MyProject.Web.Ai;
 
 /// <summary>
-/// Prompt 組裝結果。完整表達「送了幾筆」「哪裡被截斷」，
+/// Prompt 組裝結果。表達「送了幾筆、多少字」，
 /// 讓畫面提示、稽核明細與 PDF 報告共用同一份事實。
+///
+/// 0.9.7 起不再有任何字元層級的截斷，所以「哪些內容被切掉」這組概念整個消失了 ——
+/// 唯一會捨棄資料的原因是 <see cref="DroppedByEntryLimit"/>（筆數上限）。
 /// </summary>
 public sealed record AiPromptBuildResult
 {
@@ -15,23 +18,11 @@ public sealed record AiPromptBuildResult
     /// <summary>實際送出的筆數。</summary>
     public int IncludedEntryCount { get; init; }
 
-    /// <summary>因單筆過長而被截斷的筆數。</summary>
-    public int TruncatedEntryCount { get; init; }
-
-    /// <summary>是否因筆數上限而只取最新的 N 筆。</summary>
+    /// <summary>是否因筆數上限而只取最新的 N 筆。這是唯一會少送資料的原因。</summary>
     public bool DroppedByEntryLimit { get; init; }
-
-    /// <summary>是否因總字元上限而再丟掉較舊的資料。</summary>
-    public bool DroppedByTotalLimit { get; init; }
-
-    /// <summary>日誌本體的字元數（不含開頭說明行），必定不超過設定的總字元上限。</summary>
-    public int BodyCharacterCount { get; init; }
 
     /// <summary><see cref="UserMessage"/> 的總字元數。</summary>
     public int CharacterCount { get; init; }
-
-    /// <summary>是否因上限或總量而捨棄了部分資料。</summary>
-    public bool IsTruncated => DroppedByEntryLimit || DroppedByTotalLimit || TruncatedEntryCount > 0;
 
     public bool IsEmpty => IncludedEntryCount == 0;
 }
@@ -100,6 +91,13 @@ public sealed record AiAnalysisResult
 
     /// <summary>實際使用的模型名稱（優先取回應的 model，空的才退回設定值）。</summary>
     public string ModelName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 回應是否因為達到長度上限而被切斷（<c>finish_reason</c> 為 <c>length</c>）。
+    /// 內容非空時仍會照常顯示，但結尾可能不完整，畫面要另外提醒 ——
+    /// 一份看起來完整、實際被切掉結論的分析報告比明講更危險。
+    /// </summary>
+    public bool IsTruncatedByLength { get; init; }
 
     public TimeSpan Elapsed { get; init; }
 

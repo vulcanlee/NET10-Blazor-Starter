@@ -13,9 +13,6 @@ namespace MyProject.Web.Ai;
 /// </summary>
 public static class AiChatRequestFactory
 {
-    /// <summary>回應長度上限的下限值，避免設定被填成極小值時模型只回半句話。</summary>
-    private const int MinimumOutputTokens = 256;
-
     public static string CreateRequestJson(AiSettings settings, string systemPrompt, string userMessage)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -34,7 +31,14 @@ public static class AiChatRequestFactory
 
             // 用 max_completion_tokens 而非 max_tokens：後者自 Azure api-version 2024-10-21
             // 起標示為 deprecated，而且 o 系列推論模型只接受前者。
-            writer.WriteNumber("max_completion_tokens", Math.Max(MinimumOutputTokens, settings.MaxOutputTokens));
+            //
+            // ⚠️ 預設不送，由模型自己決定。這個額度同時涵蓋推論模型的思考 token，
+            // 設太小會在產出任何可見文字之前就耗盡 —— 拿到空回應，費用照付。
+            // 非正數視同沒設定（比夾到某個魔術數字誠實：那個數字對推論模型一樣不夠）。
+            if (settings.MaxOutputTokens is int maxOutputTokens && maxOutputTokens > 0)
+            {
+                writer.WriteNumber("max_completion_tokens", maxOutputTokens);
+            }
 
             // 推論模型不接受 temperature，所以設定為 null 時整個欄位都不送。
             if (settings.Temperature is double temperature)

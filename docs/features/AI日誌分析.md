@@ -1,8 +1,8 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.6
+- 現行系統版本：0.9.7
 - 首次實作版本：0.9.4
 - 最後核對日期：2026/09/11
 
@@ -36,20 +36,38 @@
   "Endpoint": "",
   "ApiKey": "",
   "Model": "",
-  "SystemPrompt": "",
-  "MaxEntries": 100,
-  "MaxCharactersPerEntry": 2000,
-  "MaxTotalCharacters": 120000,
-  "TimeoutSeconds": 120,
-  "MaxOutputTokens": 2000,
-  "Temperature": null
+  "TimeoutSeconds": 600
 }
 ```
+
+**0.9.7 起範本只列出這五個鍵。** 其餘四個刻意不寫進設定檔、走程式預設
+（與 `SystemSettings.Upload` 同一作法），設定檔因此只剩「非填不可」與「最可能現場調整」
+的項目。
+
+### 2.1 程式預設值總表 ⚠️
+
+設定檔看不到的鍵，預設值只存在於程式與文件，所以**這張表就是查詢的地方**。
+要覆寫任何一項，自行在 `appsettings.json` 或 User Secrets 加上該鍵即可。
+
+| 鍵 | 程式預設值 | 在 appsettings | 實際效果 |
+|---|---|---|---|
+| `Provider` | `"AzureOpenAI"` | ✅ | 走 Azure v1 路徑；填 `"OpenAI"` 改走官方 OpenAI |
+| `Endpoint` | `""` | ✅ | Azure 必填；OpenAI 留空即用 `https://api.openai.com` |
+| `ApiKey` | `""` | ✅ | **必填，也是功能的開關** —— 沒填就停用 |
+| `Model` | `""` | ✅ | **必填**。Azure 填部署名稱，OpenAI 填模型 id |
+| `TimeoutSeconds` | `600` | ✅ | HTTP 逾時 10 分鐘。推論模型對上百筆日誌可能想很久 |
+| `SystemPrompt` | `""` | ❌ | 用 `AiPromptDefaults.SystemPrompt` 的內建提示詞 |
+| `MaxEntries` | `100` | ❌ | 送出最新的 100 筆；**這是唯一的送出量防線** |
+| `MaxOutputTokens` | `null` | ❌ | 不送 `max_completion_tokens`，由模型決定 |
+| `Temperature` | `null` | ❌ | 不送 `temperature`，由模型決定 |
+
+這張表由 `AiSettingsTests.Defaults_ShouldMatchDocumentedValues` 逐一斷言 ——
+改了 C# 預設值卻沒同步文件時，測試會先紅。
 
 各欄位的意義與兩家供應商的差異，見
 [日誌與設定檔說明 §4.8](../operations/日誌與設定檔說明.md)。
 
-### 2.0 Azure OpenAI 要填什麼 ⚠️
+### 2.2 Azure OpenAI 要填什麼 ⚠️
 
 `Endpoint` 請填 Azure 入口網站上 **「Azure OpenAI 端點」** 欄位的值，長得像：
 
@@ -67,12 +85,12 @@ Azure 的 v1 API 把部署名稱放在請求 body 的 `model` 欄位，所以與
 
 本系統只支援 Azure 的 **v1 API**，因此**不需要**也**沒有** `Deployment` 與 `ApiVersion`
 兩個設定。傳統路徑（網址含 `deployments` 與 `api-version` 的那種）刻意不支援，
-理由見 §2.2。
+理由見 §2.5。
 
 整個區段只有四個欄位是必須關心的：`Provider`、`Endpoint`、`ApiKey`、`Model`，
 其餘都有合理預設值。
 
-### 2.0.1 OpenAI 要填什麼
+### 2.3 OpenAI 要填什麼
 
 `Provider` 填 `OpenAI`，`Endpoint` **留空**即用官方位址，`Model` 填模型 id（例如 `gpt-4o-mini`）。
 
@@ -84,7 +102,7 @@ https://api.openai.com
 https://api.openai.com/v1     ← OpenAI 官方文件的 base_url 寫法
 ```
 
-### 2.1 金鑰保管 ⚠️
+### 2.4 金鑰保管 ⚠️
 
 `appsettings.json` 的 `ApiKey` **一律留空字串**當範本，實際值請放 User Secrets、
 環境變數或 `appsettings.Development.json`，與 `GoogleOAuthSettings` 的既有作法一致。
@@ -102,7 +120,7 @@ dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:ApiKey
 Production 環境下若**填了**金鑰卻缺 `Model`（Azure 再加 `Endpoint`），
 `StartupSafetyValidator` 會在啟動時直接擋下 —— 那種錯誤等到使用者按下按鈕才發現太晚。
 
-### 2.2 為什麼只支援 v1 路徑
+### 2.5 為什麼只支援 v1 路徑
 
 Azure OpenAI 有兩套呼叫方式：
 
@@ -120,7 +138,7 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 所以貼入口網站的完整值或只貼資源根網址都能用。少了那段路徑會 404，而 404 的訊息看不出
 是路徑不完整，所以這裡刻意補齊而不是讓它失敗。
 
-### 2.3 未設定時的行為
+### 2.6 未設定時的行為
 
 設定不齊時「AI 分析」按鈕會停用，游標停留會顯示缺哪一項，使用者不必翻程式碼就知道要補什麼：
 
@@ -140,22 +158,37 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 沿用日誌檢視頁本身的管理員專屬判斷（`AuthenticationStateHelper.CheckIsAdmin()`），
 **不新增權限鍵**。能進日誌檢視頁就能按 AI 分析。
 
-## 4. 送出的內容與截斷規則
+## 4. 送出的內容
 
-送給模型的是每筆日誌的 `LogEntry.Raw`（原始 nlog 行，含例外堆疊），分三道處理，
-**順序固定不可調換**：
+送給模型的是每筆日誌的 `LogEntry.Raw`（原始 nlog 行，含例外堆疊），只有一道處理：
 
 | 步驟 | 動作 | 相關設定 |
 |------|------|----------|
-| 1 | 從時間正序的查詢結果取**最新** N 筆 | `MaxEntries`（預設 100） |
-| 2 | 對每一筆截斷到指定字元數，尾端接「…（本筆過長已截斷）」 | `MaxCharactersPerEntry`（預設 2000） |
-| 3 | 由新到舊累加「已截斷後」的長度，超出即停，再翻回正序 | `MaxTotalCharacters`（預設 120000） |
+| 1 | 從時間正序的查詢結果取**最新** N 筆，內容原封不動送出 | `MaxEntries`（預設 100） |
 
-順序的理由：若先算總量再截斷，預算會用未截斷的長度計算，截斷後預算就白白浪費，
-實際送出量會遠低於設定值。實作與守門測試在 `AiLogPromptBuilder` 與
-`AiLogPromptBuilderTests.Build_ShouldApplyPerEntryTruncationBeforeTotalBudget`。
+**0.9.7 起完全沒有字元層級的上限。** 原本有兩道（每筆截到固定長度的
+`MaxCharactersPerEntry`、總量預算 `MaxTotalCharacters`），兩道都移除了。
+理由相同：它們會把例外堆疊切掉尾巴，而堆疊尾巴常常才是根因所在。
+**有多少字，就送多少字。**
 
-被上限截掉資料時，對話窗與 PDF 都會標明「已依上限取最新資料」，並額外發一則 toast。
+⚠️ **代價是提示詞大小只剩筆數這一道界線。** 日誌檢視會把續行併成同一筆，
+所以理論上一筆失控的堆疊或一個被記進日誌的大型序列化字串就可能有數 MB。
+真的撞到模型的內容視窗上限時，會收到 400 `context_length_exceeded`，
+使用者看到的訊息是：
+
+> 送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。
+
+這是刻意的取捨：寧可偶爾撞牆並明確告知，也不要每次都默默切掉最有用的內容。
+常撞牆的話，調低 `MaxEntries` 是最直接的辦法。
+
+背景數字：Azure 上 gpt-5 家族的輸入上限是 272,000 token，而 100 筆典型 nlog 行約
+20–30 KB（不到 10,000 token），正常情況根本碰不到。
+
+因筆數上限少送資料時，對話窗與 PDF 都會標明「已依筆數上限取最新資料」，
+並額外發一則通知。
+
+守門測試是 `AiLogPromptBuilderTests.Build_ShouldSendEveryCharacter_WhenWithinEntryLimit`
+—— 一筆 50000 字元的日誌要完整出現在訊息裡。想加回任何字元上限的人，那裡會先紅。
 
 ## 5. 提示詞
 
@@ -226,14 +259,43 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 輸出的 PDF 不會因為字型檔大而變大：PDFsharp 只嵌入實際用到的字符子集
 （實測 7.1 MB 的字型檔在一份七頁報告中只佔約 312 KB）。
 
+## 6.2 回應長度與推論模型 ⚠️
+
+`MaxOutputTokens` 對應送出的 `max_completion_tokens`，**預設不送**，由模型自己決定。
+
+這個額度**同時涵蓋推論模型的思考 token**。微軟文件寫得很直接：
+
+> This condition can occur before the model produces any visible output.
+> You pay for input and reasoning tokens but receive no answer.
+>
+> To avoid running out of room, reserve at least 25,000 tokens for reasoning and output.
+
+所以把它設成一個「看起來夠用」的小數字（例如 2000）在推論模型上會出事：思考還沒結束
+額度就用完，拿到空回應而輸入與思考的費用照付。預設不送就能相容所有模型，要控成本的人
+再自己填，而且值要抓在 25000 以上。
+
+系統會分辨這個情況並給出可行動的訊息：
+
+| 情況 | 使用者看到的 |
+|------|--------------|
+| 額度在產出任何內容前就耗盡 | 回應在產出任何內容之前就達到長度上限。請調高 AiSettings:MaxOutputTokens 或將它設為 `null`。 |
+| 有內容但結尾被切掉 | 結果照常顯示，另發一則警告說結尾可能不完整 |
+
+第二種特別重要：一份看起來完整、實際被切掉結論的分析報告，比明講「可能不完整」更危險。
+
 ## 7.2 呼叫失敗時怎麼查
 
 錯誤訊息會盡量指名「要改哪裡」，而不是只丟一個代碼。最常見的兩種：
 
 | 情況 | 使用者看到的訊息 |
 |------|------------------|
+| 日誌量超過內容視窗（`context_length_exceeded`）| 送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。 |
 | 模型不接受 `temperature` | 此模型不接受 AiSettings:Temperature 的設定值，請將它設為 `null`（部分推論模型只接受預設值）。 |
 | 其他參數被拒 | AI 服務不接受參數 `<參數名>` 的設定值（代碼 `<code>`），請調整 AiSettings 後再試。 |
+
+第一種在 0.9.7 之後變成**主要**的失敗模式（字元上限全部移除了），而它的上游回應
+**沒有 `param` 欄位** —— 落到通用分支只會回一句代碼，看不出要做什麼，
+所以它有自己的具名分支。
 
 日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiLogAnalysisService`）會記下
 `StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
@@ -248,7 +310,9 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 
 ## 8. 成本控管
 
-`MaxEntries` 夾住了單次呼叫的成本（預設最多 100 筆日誌），但**沒有頻率限制**：
+`MaxEntries` 是**唯一**夾住單次呼叫成本的設定（預設最多 100 筆日誌）——
+0.9.7 起字元層級的上限全部移除，所以同一筆數的成本會隨日誌的實際長度浮動，
+例外很多的查詢會明顯更貴。此外也**沒有頻率限制**：
 同一位管理員開兩個分頁、或多位管理員同時按，就是多次計費呼叫。
 
 本功能刻意不做應用層限流。成本控管請在 Azure OpenAI 資源的配額層設定 TPM/RPM，

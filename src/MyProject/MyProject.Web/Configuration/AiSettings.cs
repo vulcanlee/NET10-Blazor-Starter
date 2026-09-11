@@ -48,17 +48,27 @@ public class AiSettings
     /// <summary>送出給 AI 的日誌筆數上限。超過時取最新的 N 筆。</summary>
     public int MaxEntries { get; set; } = 100;
 
-    /// <summary>單筆日誌的字元上限，避免一筆很長的例外堆疊就把預算吃光。</summary>
-    public int MaxCharactersPerEntry { get; set; } = 2000;
+    /// <summary>
+    /// HTTP 逾時秒數。
+    ///
+    /// 預設 10 分鐘，遠高於一般 API：推論模型對上百筆日誌可能想很久，
+    /// 而「要等多久」也是部署環境之間差異最大、最可能需要現場調整的一項，
+    /// 所以它是少數仍寫在 appsettings.json 裡的欄位。
+    ///
+    /// ⚠️ 已知取捨：等待期間 AI 分析按鈕停用且沒有取消機制，上游若卡住，
+    /// 使用者最久會被困滿這個秒數。
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 600;
 
-    /// <summary>所有日誌合計的字元上限，第二道保護。</summary>
-    public int MaxTotalCharacters { get; set; } = 120000;
-
-    /// <summary>HTTP 逾時秒數。AI 回應慢，預設遠高於一般 API。</summary>
-    public int TimeoutSeconds { get; set; } = 120;
-
-    /// <summary>回應長度上限（送出的 <c>max_completion_tokens</c>）。</summary>
-    public int MaxOutputTokens { get; set; } = 2000;
+    /// <summary>
+    /// 回應長度上限（送出的 <c>max_completion_tokens</c>）。
+    /// <c>null</c>（預設）代表整個欄位都不送，由模型自己決定。
+    ///
+    /// ⚠️ 預設不送是刻意的：這個額度<b>同時涵蓋推論模型的思考 token</b>，
+    /// 設太小會在模型產出任何可見文字之前就耗盡 —— 拿到空回應，而輸入與思考的費用照付。
+    /// 微軟建議為推論與輸出至少保留 25000。不送就能相容所有模型，要控成本的人再自己填。
+    /// </summary>
+    public int? MaxOutputTokens { get; set; }
 
     /// <summary>
     /// 取樣溫度。<c>null</c>（預設）代表整個欄位都不送，由模型自己決定。

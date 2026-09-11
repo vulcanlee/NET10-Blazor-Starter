@@ -29,8 +29,8 @@ namespace MyProject.Web.Components.Views.Analytics
         /// <summary>
         /// AI 回傳內容轉成 HTML 之後的顯示上限。
         ///
-        /// MaxOutputTokens 預設 2000 已經是天然上限，這是第二道防禦：異常龐大的 HTML 會讓
-        /// 單次 render diff 過肥、瀏覽器記憶體升高、對話窗開啟卡頓。
+        /// 0.9.7 起 MaxOutputTokens 預設不送（交給模型決定），所以這裡是**主要**防線而非第二道：
+        /// 異常龐大的 HTML 會讓單次 render diff 過肥、瀏覽器記憶體升高、對話窗開啟卡頓。
         /// </summary>
         private const int MaxRenderedHtmlLength = 512 * 1024;
 
@@ -273,10 +273,17 @@ namespace MyProject.Web.Components.Views.Analytics
             aiMetaItems = BuildAiMetaItems(result);
             aiModalVisible = true;
 
-            if (result.Prompt.IsTruncated)
+            if (result.Prompt.DroppedByEntryLimit)
             {
                 ViewNotification.Warning(notificationService,
-                    $"查詢共 {result.Prompt.TotalEntryCount} 筆，因上限僅分析最新 {result.Prompt.IncludedEntryCount} 筆。");
+                    $"查詢共 {result.Prompt.TotalEntryCount} 筆，因筆數上限僅分析最新 {result.Prompt.IncludedEntryCount} 筆。");
+            }
+
+            // 一份看起來完整、實際被切掉結論的分析報告，比明講「可能不完整」更危險。
+            if (result.IsTruncatedByLength)
+            {
+                ViewNotification.Warning(notificationService,
+                    "回應已達長度上限，結尾可能不完整。請調高 AiSettings:MaxOutputTokens 或將它設為 null。");
             }
 
             ViewNotification.Info(notificationService, $"AI 分析完成（分析了 {result.Prompt.IncludedEntryCount} 筆）。");
@@ -404,14 +411,9 @@ namespace MyProject.Web.Components.Views.Analytics
             }
 
             var scope = $"分析 {result.Prompt.IncludedEntryCount} 筆／查詢 {result.Prompt.TotalEntryCount} 筆";
-            if (result.Prompt.DroppedByEntryLimit || result.Prompt.DroppedByTotalLimit)
+            if (result.Prompt.DroppedByEntryLimit)
             {
-                scope += "（已依上限取最新資料）";
-            }
-
-            if (result.Prompt.TruncatedEntryCount > 0)
-            {
-                scope += $"，其中 {result.Prompt.TruncatedEntryCount} 筆單筆內容已截斷";
+                scope += "（已依筆數上限取最新資料）";
             }
 
             items.Add(new KeyValuePair<string, string>("分析範圍", scope));
@@ -493,11 +495,6 @@ namespace MyProject.Web.Components.Views.Analytics
             builder.Append("送出 ").Append(result.Prompt.IncludedEntryCount)
                 .Append('/').Append(result.Prompt.TotalEntryCount)
                 .Append(" 筆、").Append(result.Prompt.CharacterCount).Append(" 字元");
-
-            if (result.Prompt.TruncatedEntryCount > 0)
-            {
-                builder.Append("（其中 ").Append(result.Prompt.TruncatedEntryCount).Append(" 筆已截斷）");
-            }
 
             if (string.IsNullOrWhiteSpace(result.ModelName) == false)
             {
