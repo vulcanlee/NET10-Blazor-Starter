@@ -38,29 +38,23 @@ public static class StartupSafetyValidator
             errors.Add("CacheSettings:RedisConnection 在 Production 使用 Redis provider 時不可留空。");
         }
 
-        // AI 分析是 opt-in：Enabled 為 false 時刻意不檢查，腳手架不帶金鑰也要能在 Production 啟動。
-        if (string.Equals(configuration[$"{AiSettings.SectionName}:Enabled"], bool.TrueString,
-                StringComparison.OrdinalIgnoreCase))
+        // AI 分析是 opt-in，而「有沒有填金鑰」就是那個開關：沒填等於功能關閉，
+        // 腳手架不帶金鑰也能在 Production 正常啟動，所以不必擋。
+        // 反過來，有填金鑰代表操作者打算啟用，此時其餘設定必須完整，否則啟動就擋下 ——
+        // 那種錯誤等到使用者按下按鈕才發現，遠比啟動時就攔住昂貴。
+        if (string.IsNullOrWhiteSpace(configuration[$"{AiSettings.SectionName}:ApiKey"]) == false)
         {
-            if (string.IsNullOrWhiteSpace(configuration[$"{AiSettings.SectionName}:ApiKey"]))
-            {
-                errors.Add("AiSettings:ApiKey 在 Production 啟用 AI 分析時不可留空，請改用 User Secrets 或環境變數。");
-            }
-
             var aiProvider = configuration[$"{AiSettings.SectionName}:Provider"];
             var isAzure = string.IsNullOrWhiteSpace(aiProvider)
                 || string.Equals(aiProvider, nameof(AiProvider.AzureOpenAI), StringComparison.OrdinalIgnoreCase);
-            if (isAzure)
+            if (isAzure && string.IsNullOrWhiteSpace(configuration[$"{AiSettings.SectionName}:Endpoint"]))
             {
-                if (string.IsNullOrWhiteSpace(configuration[$"{AiSettings.SectionName}:Endpoint"]))
-                {
-                    errors.Add("AiSettings:Endpoint 在 Production 使用 Azure OpenAI 時不可留空。");
-                }
+                errors.Add("AiSettings:Endpoint 在 Production 使用 Azure OpenAI 時不可留空。");
+            }
 
-                if (string.IsNullOrWhiteSpace(configuration[$"{AiSettings.SectionName}:Deployment"]))
-                {
-                    errors.Add("AiSettings:Deployment 在 Production 使用 Azure OpenAI 時不可留空。");
-                }
+            if (string.IsNullOrWhiteSpace(configuration[$"{AiSettings.SectionName}:Model"]))
+            {
+                errors.Add("AiSettings:Model 在 Production 設定 AI 金鑰時不可留空（Azure 請填部署名稱）。");
             }
         }
 

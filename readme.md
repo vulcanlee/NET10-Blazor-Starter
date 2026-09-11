@@ -197,7 +197,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
-| `AiSettings` | 日誌 AI 分析：`Enabled`、`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Deployment`、`Model`、送出上限與逾時（見 [AI 日誌分析](docs/features/AI日誌分析.md)）。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
+| `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model`、送出上限與逾時（見 [AI 日誌分析](docs/features/AI日誌分析.md)）。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
 各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。

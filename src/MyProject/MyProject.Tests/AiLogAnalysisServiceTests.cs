@@ -27,11 +27,12 @@ public sealed class AiLogAnalysisServiceTests
         }
         """;
 
+    /// <summary>Provider 打錯字時不得丟例外，也不得真的發出請求。</summary>
     [Fact]
-    public async Task AnalyzeAsync_ShouldReturnNotConfigured_WhenDisabled()
+    public async Task AnalyzeAsync_ShouldReturnNotConfigured_WhenProviderUnsupported()
     {
         var settings = CreateAzureSettings();
-        settings.Enabled = false;
+        settings.Provider = "Anthropic";
         var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
 
         var result = await service.AnalyzeAsync(CreateEntries(3));
@@ -55,10 +56,10 @@ public sealed class AiLogAnalysisServiceTests
     }
 
     [Fact]
-    public async Task AnalyzeAsync_ShouldReturnNotConfigured_WhenAzureDeploymentBlank()
+    public async Task AnalyzeAsync_ShouldReturnNotConfigured_WhenAzureModelBlank()
     {
         var settings = CreateAzureSettings();
-        settings.Deployment = string.Empty;
+        settings.Model = string.Empty;
         var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
 
         var result = await service.AnalyzeAsync(CreateEntries(3));
@@ -80,7 +81,7 @@ public sealed class AiLogAnalysisServiceTests
     }
 
     [Fact]
-    public async Task AnalyzeAsync_ShouldPostToAzureDeploymentUrl_WithApiKeyHeader()
+    public async Task AnalyzeAsync_ShouldPostToAzureV1Url_WithApiKeyHeader()
     {
         var (service, handler) = CreateService(
             CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
@@ -89,9 +90,26 @@ public sealed class AiLogAnalysisServiceTests
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.Contains("/openai/deployments/gpt-4o-mini/chat/completions", request.RequestUri!.ToString());
-        Assert.Contains("api-version=2024-10-21", request.RequestUri.ToString());
+        Assert.Equal(
+            "https://contoso.openai.azure.com/openai/v1/chat/completions",
+            request.RequestUri!.AbsoluteUri);
+        Assert.DoesNotContain("api-version", request.RequestUri.AbsoluteUri);
         Assert.Equal(SentinelApiKey, request.Headers.GetValues("api-key").Single());
+    }
+
+    /// <summary>Azure 的部署名稱要出現在 body 的 model 欄位，不在網址裡。</summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldSendDeploymentNameAsModel_ForAzure()
+    {
+        var settings = CreateAzureSettings();
+        settings.Model = "my-gpt4o-deployment";
+        var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        using var document = JsonDocument.Parse(handler.RequestBodies.Single());
+        Assert.Equal("my-gpt4o-deployment", document.RootElement.GetProperty("model").GetString());
+        Assert.DoesNotContain("my-gpt4o-deployment", handler.Requests.Single().RequestUri!.AbsoluteUri);
     }
 
     [Fact]
@@ -141,18 +159,33 @@ public sealed class AiLogAnalysisServiceTests
         Assert.False(document.RootElement.TryGetProperty("max_tokens", out _));
     }
 
-    /// <summary>推論模型不接受 temperature，設定為 null 時整個欄位都不該出現。</summary>
+    /// <summary>
+    /// 預設不送 temperature。推論模型（o 系列、gpt-5 家族）只接受預設值，
+    /// 送任何數字都會被回 400 unsupported_value —— 這正是 0.9.6 修掉的實際故障。
+    /// </summary>
     [Fact]
-    public async Task AnalyzeAsync_ShouldOmitTemperature_WhenNull()
+    public async Task AnalyzeAsync_ShouldOmitTemperature_ByDefault()
     {
-        var settings = CreateAzureSettings();
-        settings.Temperature = null;
-        var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+        var (service, handler) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
 
         await service.AnalyzeAsync(CreateEntries(3));
 
         using var document = JsonDocument.Parse(handler.RequestBodies.Single());
         Assert.False(document.RootElement.TryGetProperty("temperature", out _));
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldSendTemperature_WhenExplicitlySet()
+    {
+        var settings = CreateAzureSettings();
+        settings.Temperature = 0.7;
+        var (service, handler) = CreateService(settings, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        using var document = JsonDocument.Parse(handler.RequestBodies.Single());
+        Assert.Equal(0.7, document.RootElement.GetProperty("temperature").GetDouble());
     }
 
     [Fact]
@@ -204,6 +237,56 @@ public sealed class AiLogAnalysisServiceTests
         var result = await service.AnalyzeAsync(CreateEntries(3));
 
         Assert.Contains("context_length_exceeded", result.ErrorMessage);
+    }
+
+    /// <summary>
+    /// 實際遇過的故障：推論模型拒絕 temperature，回 400 unsupported_value。
+    /// 只講代碼的話使用者看不出要改哪裡，所以訊息要指名參數與修法。
+    /// </summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldTellUserHowToFix_WhenTemperatureRejected()
+    {
+        const string payload = """
+            {
+              "error": {
+                "message": "Unsupported value: 'temperature' does not support 0.2 with this model.",
+                "type": "invalid_request_error",
+                "param": "temperature",
+                "code": "unsupported_value"
+              }
+            }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Equal(AiAnalysisFailureReason.UpstreamError, result.Reason);
+        Assert.Contains("AiSettings:Temperature", result.ErrorMessage);
+        Assert.Contains("null", result.ErrorMessage);
+    }
+
+    /// <summary>其他參數被拒時，至少要指名是哪一個。</summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldNameRejectedParameter_OnBadRequest()
+    {
+        const string payload = """
+            {
+              "error": {
+                "message": "Unsupported parameter.",
+                "type": "invalid_request_error",
+                "param": "max_completion_tokens",
+                "code": "unsupported_parameter"
+              }
+            }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Contains("max_completion_tokens", result.ErrorMessage);
+        Assert.Contains("unsupported_parameter", result.ErrorMessage);
     }
 
     [Fact]
@@ -321,6 +404,10 @@ public sealed class AiLogAnalysisServiceTests
         }
     }
 
+    /// <summary>
+    /// 可用性完全由「設定填齊了沒」決定，沒有額外的開關。
+    /// 填了金鑰、端點與模型就能用；少了金鑰就等於功能關閉。
+    /// </summary>
     [Fact]
     public void IsAvailable_ShouldFollowSettings()
     {
@@ -329,27 +416,31 @@ public sealed class AiLogAnalysisServiceTests
         Assert.True(configured.IsAvailable);
         Assert.Equal(string.Empty, configured.UnavailableReason);
 
-        var disabled = CreateAzureSettings();
-        disabled.Enabled = false;
+        var noApiKey = CreateAzureSettings();
+        noApiKey.ApiKey = string.Empty;
         var (notConfigured, _) = CreateService(
-            disabled, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+            noApiKey, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
         Assert.False(notConfigured.IsAvailable);
-        Assert.Contains("AiSettings:Enabled", notConfigured.UnavailableReason);
+        Assert.Contains("AiSettings:ApiKey", notConfigured.UnavailableReason);
+
+        var noModel = CreateAzureSettings();
+        noModel.Model = string.Empty;
+        var (missingModel, _) = CreateService(
+            noModel, StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+        Assert.False(missingModel.IsAvailable);
+        Assert.Contains("部署名稱", missingModel.UnavailableReason);
     }
 
     private static AiSettings CreateAzureSettings() => new()
     {
-        Enabled = true,
         Provider = nameof(AiProvider.AzureOpenAI),
-        Endpoint = "https://contoso.openai.azure.com",
+        Endpoint = "https://contoso.openai.azure.com/openai/v1",
         ApiKey = SentinelApiKey,
-        Deployment = "gpt-4o-mini",
-        ApiVersion = "2024-10-21",
+        Model = "gpt-4o-mini",
     };
 
     private static AiSettings CreateOpenAiSettings() => new()
     {
-        Enabled = true,
         Provider = nameof(AiProvider.OpenAI),
         Endpoint = string.Empty,
         ApiKey = SentinelApiKey,

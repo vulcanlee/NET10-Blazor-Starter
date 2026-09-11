@@ -1,8 +1,8 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.4
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.4
+- 現行系統版本：0.9.6
 - 首次實作版本：0.4.26
 - 最後核對日期：2026/09/11
 
@@ -46,12 +46,14 @@
 
 - 送出的是每筆的原始 nlog 行，預設上限 100 筆（`AiSettings:MaxEntries` 可調）。
   超過時取**最新**的 N 筆，並額外發一則 toast 說明已截斷。
-- 呼叫前後都以 toast 告知階段：送出中、完成（含實際分析筆數）、失敗原因。
+- 呼叫前後都以**右下角通知**告知階段：送出中、完成（含實際分析筆數）、失敗原因。
+  失敗時的訊息會盡量指名要改哪個設定，而不是只丟一個錯誤代碼。
 - 對話窗內有「複製結果」（複製 Markdown 原文，方便貼進工單或通訊軟體）與
   「匯出 PDF 報告並下載」兩個按鈕，頁首另列出模型名稱、token 用量明細
   （輸入／輸出／合計／快取輸入／推論，API 有回才顯示）與耗時。
-- **未設定時按鈕停用**，游標停留會說明缺哪一項設定。`AiSettings:Enabled` 預設為
-  `false`，所以拿到這份範本的人不會看到一個按下去就報錯的按鈕。
+- **未設定時按鈕停用**，游標停留會說明缺哪一項設定。沒有獨立的功能開關 ——
+  有沒有填 `AiSettings:ApiKey` 就是開關，而範本出貨時它是空字串，
+  所以拿到這份範本的人不會看到一個按下去就報錯的按鈕。
 - 權限沿用本頁的管理員判斷，不另設權限鍵。
 
 完整機制（設定、截斷規則、安全管線、PDF 字型）見
@@ -115,7 +117,7 @@
 **`Query_WhenFileTimestampIsStale_ShouldStillReadEntries`** —— 釘住 0.4.39 移除「以檔案 mtime 整檔跳過」
 那個優化的原因（見第五節），該測試與執行時刻無關，修正前必紅。
 
-AI 分析對應七個測試檔（0.9.4 起，共 159 支）：`AiSettingsTests`、`AiChatEndpointTests`、
+AI 分析對應七個測試檔（0.9.4 起，共 181 支）：`AiSettingsTests`、`AiChatEndpointTests`、
 `AiLogPromptBuilderTests`、`AiChatResponseParserTests`、`AiMarkdownRendererTests`、
 `AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`。其中三支是安全與成本的守門測試，
 壞了不要改測試：

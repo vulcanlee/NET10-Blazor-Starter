@@ -176,12 +176,65 @@ public sealed class AiChatResponseParserTests
     }
 
     [Fact]
-    public void TryGetErrorCode_ShouldReadErrorCode()
+    public void TryGetError_ShouldReadCode()
     {
         const string json = """{ "error": { "code": "context_length_exceeded", "message": "too long" } }""";
 
-        Assert.True(AiChatResponseParser.TryGetErrorCode(json, out var code));
-        Assert.Equal("context_length_exceeded", code);
+        Assert.True(AiChatResponseParser.TryGetError(json, out var error));
+        Assert.Equal("context_length_exceeded", error.Code);
+        Assert.Equal("too long", error.Message);
+    }
+
+    /// <summary>
+    /// param 是排查 400 的關鍵：代碼只說「值不受支援」，param 才說是哪一個參數。
+    /// 這是實際遇過的形狀（推論模型不接受 temperature）。
+    /// </summary>
+    [Fact]
+    public void TryGetError_ShouldReadParamAndType()
+    {
+        const string json = """
+            {
+              "error": {
+                "message": "Unsupported value: 'temperature' does not support 0.2 with this model. Only the default (1) value is supported.",
+                "type": "invalid_request_error",
+                "param": "temperature",
+                "code": "unsupported_value"
+              }
+            }
+            """;
+
+        Assert.True(AiChatResponseParser.TryGetError(json, out var error));
+        Assert.Equal("unsupported_value", error.Code);
+        Assert.Equal("temperature", error.Param);
+        Assert.Equal("invalid_request_error", error.Type);
+        Assert.Contains("does not support 0.2", error.Message);
+    }
+
+    /// <summary>
+    /// 上游對某些錯誤的說明可能夾帶提示詞片段，而提示詞裡是上百筆日誌。
+    /// 不截斷會把日誌檔撐爆。
+    /// </summary>
+    [Fact]
+    public void TryGetError_ShouldTruncateLongMessage()
+    {
+        var longMessage = new string('x', AiUpstreamError.MaxMessageLength * 3);
+        var json = $$"""{ "error": { "code": "bad", "message": "{{longMessage}}" } }""";
+
+        Assert.True(AiChatResponseParser.TryGetError(json, out var error));
+        Assert.True(
+            error.Message.Length <= AiUpstreamError.MaxMessageLength + 1,
+            $"訊息長度 {error.Message.Length} 超出截斷上限。");
+        Assert.EndsWith("…", error.Message);
+    }
+
+    [Fact]
+    public void TryGetError_ShouldReturnTrue_WhenOnlyMessagePresent()
+    {
+        const string json = """{ "error": { "message": "something went wrong" } }""";
+
+        Assert.True(AiChatResponseParser.TryGetError(json, out var error));
+        Assert.Equal(string.Empty, error.Code);
+        Assert.Equal("something went wrong", error.Message);
     }
 
     [Theory]
@@ -189,9 +242,9 @@ public sealed class AiChatResponseParserTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("{ \"choices\": [] }")]
-    public void TryGetErrorCode_ShouldReturnFalse_WhenNotAnError(string payload)
+    public void TryGetError_ShouldReturnFalse_WhenNotAnError(string payload)
     {
-        Assert.False(AiChatResponseParser.TryGetErrorCode(payload, out var code));
-        Assert.Equal(string.Empty, code);
+        Assert.False(AiChatResponseParser.TryGetError(payload, out var error));
+        Assert.False(error.HasAny);
     }
 }

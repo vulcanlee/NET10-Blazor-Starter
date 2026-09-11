@@ -12,12 +12,6 @@ public class AiSettings
     public const string SectionName = "AiSettings";
 
     /// <summary>
-    /// 功能開關。預設關閉，讓腳手架不帶金鑰也能直接跑起來；
-    /// 關閉時日誌檢視頁的 AI 分析按鈕會停用並以 Tooltip 說明原因。
-    /// </summary>
-    public bool Enabled { get; set; }
-
-    /// <summary>
     /// 服務供應商：<c>AzureOpenAI</c> 或 <c>OpenAI</c>。
     /// 刻意存字串再由 <see cref="GetProvider"/> 解析（照 CacheSettings 的既有慣例），
     /// 這樣值打錯時丟的是可控的中文訊息，而不是組態繫結的框架英文例外。
@@ -25,7 +19,9 @@ public class AiSettings
     public string Provider { get; set; } = nameof(AiProvider.AzureOpenAI);
 
     /// <summary>
-    /// Azure OpenAI：資源網址，例如 <c>https://your-resource.openai.azure.com</c>（必填）。
+    /// Azure OpenAI：Azure 入口網站「Azure OpenAI 端點」欄位的值，例如
+    /// <c>https://your-resource.openai.azure.com/openai/v1</c>（必填）。
+    /// ⚠️ 不要填成 Foundry 的「專案端點」（網址含 <c>/api/projects/</c>），那是給 Agent SDK 用的。
     /// OpenAI：留空即使用 <see cref="Ai.AiChatEndpoint.DefaultOpenAiEndpoint"/>。
     /// </summary>
     public string Endpoint { get; set; } = string.Empty;
@@ -33,14 +29,16 @@ public class AiSettings
     /// <summary>API 金鑰。⚠️ 見類別註解，不要寫進 appsettings.json。</summary>
     public string ApiKey { get; set; } = string.Empty;
 
-    /// <summary>Azure OpenAI 專用：部署名稱。OpenAI 不使用此欄位。</summary>
-    public string Deployment { get; set; } = string.Empty;
-
-    /// <summary>OpenAI 專用：模型 id。Azure OpenAI 以 <see cref="Deployment"/> 為準。</summary>
-    public string Model { get; set; } = "gpt-4o-mini";
-
-    /// <summary>Azure OpenAI 專用：<c>api-version</c> 查詢參數。缺這個參數 Azure 會回 404。</summary>
-    public string ApiVersion { get; set; } = "2024-10-21";
+    /// <summary>
+    /// 要呼叫的模型，<b>必填</b>。
+    /// <b>Azure OpenAI 請填「部署名稱」</b>（Azure 入口網站 Deployments 那一頁看到的名稱），
+    /// 不是模型名稱；OpenAI 則填模型 id（例如 <c>gpt-4o-mini</c>）。
+    /// 兩者都是送進請求 body 的 <c>model</c> 欄位，所以共用同一個設定。
+    ///
+    /// ⚠️ 刻意沒有預設值。預設供應商是 Azure，而任何模型名稱拿去當部署名稱送出去都只會
+    /// 換來 404；留空才能在按下按鈕之前就用 Tooltip 告訴使用者少填了什麼。
+    /// </summary>
+    public string Model { get; set; } = string.Empty;
 
     /// <summary>
     /// 系統提示詞。留空代表沿用 <see cref="Ai.AiPromptDefaults.SystemPrompt"/> 的內建值。
@@ -63,11 +61,15 @@ public class AiSettings
     public int MaxOutputTokens { get; set; } = 2000;
 
     /// <summary>
-    /// 取樣溫度。<c>null</c> 代表整個欄位都不送 —— 推論模型（o 系列）不接受此參數。
+    /// 取樣溫度。<c>null</c>（預設）代表整個欄位都不送，由模型自己決定。
+    ///
+    /// ⚠️ 預設不送是刻意的：推論模型（o 系列、gpt-5 家族）只接受預設值，送任何數字都會
+    /// 被回 400 <c>unsupported_value</c>。不送就能相容所有模型，要調的人再自己填。
+    ///
     /// ⚠️ 要停用請設 <c>null</c>，**不要**設空字串：空字串會讓組態繫結在第一次讀取
     /// 設定時（也就是使用者按下按鈕時）才丟例外，而不是啟動時。
     /// </summary>
-    public double? Temperature { get; set; } = 0.2;
+    public double? Temperature { get; set; }
 
     /// <summary>把 <see cref="Provider"/> 字串解析成列舉。空字串視為 Azure OpenAI。</summary>
     /// <exception cref="InvalidOperationException">值不是支援的供應商名稱。</exception>

@@ -1,8 +1,8 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.0
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.4
+- 現行系統版本：0.9.6
 - 首次實作版本：0.9.4
 - 最後核對日期：2026/09/11
 
@@ -21,7 +21,7 @@
 3. 回傳的 Markdown 經安全管線轉成 HTML，顯示在唯讀對話窗。
 4. 對話窗可複製 Markdown 原文，或匯出成 PDF 報告下載。
 
-呼叫前後都會以 toast 告知階段（送出中、完成、被上限截斷、失敗原因）。
+呼叫前後都會以**右下角通知**告知階段（送出中、完成、被上限截斷、失敗原因）。
 每次呼叫與每次 PDF 匯出都會寫入 `AuditLog`。
 
 **不做的事**（刻意的取捨）：不支援追問對話、不做串流輸出、不自動重試、不做頻率限制。
@@ -32,25 +32,57 @@
 
 ```json
 "AiSettings": {
-  "Enabled": false,
   "Provider": "AzureOpenAI",
   "Endpoint": "",
   "ApiKey": "",
-  "Deployment": "",
-  "Model": "gpt-4o-mini",
-  "ApiVersion": "2024-10-21",
+  "Model": "",
   "SystemPrompt": "",
   "MaxEntries": 100,
   "MaxCharactersPerEntry": 2000,
   "MaxTotalCharacters": 120000,
   "TimeoutSeconds": 120,
   "MaxOutputTokens": 2000,
-  "Temperature": 0.2
+  "Temperature": null
 }
 ```
 
 各欄位的意義與兩家供應商的差異，見
 [日誌與設定檔說明 §4.8](../operations/日誌與設定檔說明.md)。
+
+### 2.0 Azure OpenAI 要填什麼 ⚠️
+
+`Endpoint` 請填 Azure 入口網站上 **「Azure OpenAI 端點」** 欄位的值，長得像：
+
+```
+https://your-resource.openai.azure.com/openai/v1
+```
+
+⚠️ **不要填成「專案端點」**（網址含 `/api/projects/`）。那是 Foundry 給 Agent SDK 用的，
+填了會連不上。兩個欄位在入口網站上是並排的，很容易拿錯。
+
+`Model` 請填 **部署名稱**（入口網站 Deployments 那一頁看到的名稱），不是模型名稱。
+Azure 的 v1 API 把部署名稱放在請求 body 的 `model` 欄位，所以與 OpenAI 共用同一個設定。
+它**沒有預設值**：預設供應商是 Azure，而任何模型名稱拿去當部署名稱送出去都只會換來 404，
+留空才能在按下按鈕之前就用 Tooltip 說清楚少了什麼。
+
+本系統只支援 Azure 的 **v1 API**，因此**不需要**也**沒有** `Deployment` 與 `ApiVersion`
+兩個設定。傳統路徑（網址含 `deployments` 與 `api-version` 的那種）刻意不支援，
+理由見 §2.2。
+
+整個區段只有四個欄位是必須關心的：`Provider`、`Endpoint`、`ApiKey`、`Model`，
+其餘都有合理預設值。
+
+### 2.0.1 OpenAI 要填什麼
+
+`Provider` 填 `OpenAI`，`Endpoint` **留空**即用官方位址，`Model` 填模型 id（例如 `gpt-4o-mini`）。
+
+`Endpoint` 也可以明確填寫，下列三種寫法都會被正規化成同一個網址：
+
+```
+（留空）
+https://api.openai.com
+https://api.openai.com/v1     ← OpenAI 官方文件的 base_url 寫法
+```
 
 ### 2.1 金鑰保管 ⚠️
 
@@ -58,20 +90,50 @@
 環境變數或 `appsettings.Development.json`，與 `GoogleOAuthSettings` 的既有作法一致。
 
 ```powershell
-dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:Enabled" "true"
-dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:Endpoint" "https://your-resource.openai.azure.com"
-dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:Deployment" "gpt-4o-mini"
+dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:Endpoint" "https://your-resource.openai.azure.com/openai/v1"
+dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:Model" "<部署名稱>"
 dotnet user-secrets --project src/MyProject/MyProject.Web set "AiSettings:ApiKey" "<金鑰>"
 ```
 
-環境變數的等價鍵是 `AiSettings__ApiKey`。Production 環境下若 `Enabled` 為 `true` 卻沒有
-填金鑰，`StartupSafetyValidator` 會在啟動時直接擋下。
+環境變數的等價鍵是 `AiSettings__ApiKey`。
 
-### 2.2 未設定時的行為
+**沒有獨立的功能開關** —— 有沒有填金鑰就是開關。`appsettings.json` 出貨時 `ApiKey` 是
+空字串，所以新 clone 下來功能本來就是關的；要關掉也只要清空金鑰即可。反過來，
+Production 環境下若**填了**金鑰卻缺 `Model`（Azure 再加 `Endpoint`），
+`StartupSafetyValidator` 會在啟動時直接擋下 —— 那種錯誤等到使用者按下按鈕才發現太晚。
 
-`Enabled` 預設 `false`，讓腳手架不帶金鑰也能直接跑起來。此時「AI 分析」按鈕會停用，
-游標停留會顯示缺哪一項設定（例如「AI 分析尚未設定 API 金鑰，請於 User Secrets 或
-環境變數設定 AiSettings:ApiKey。」），使用者不必翻程式碼就知道要補什麼。
+### 2.2 為什麼只支援 v1 路徑
+
+Azure OpenAI 有兩套呼叫方式：
+
+| | 傳統路徑 | v1 路徑（本系統採用）|
+|---|---|---|
+| 網址 | `{資源}/openai/deployments/{部署名}/chat/completions` | `{資源}/openai/v1/chat/completions` |
+| `api-version` | 必填，少了回 404 | 不需要，採隱含版本 |
+| 部署名稱放哪 | 網址路徑 | 請求 body 的 `model` 欄位 |
+| 需要的設定項 | `Endpoint`、`Deployment`、`ApiVersion` | `Endpoint`、`Model` |
+
+v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，而且 `Endpoint` 直接貼入口網站
+給的值即可。手上是舊資源的人，請到 Azure 入口網站改用 v1 端點。
+
+程式在組網址時會**補上缺少的 `/openai/v1` 後綴**（`AiChatEndpoint.NormalizeAzureBaseUrl`），
+所以貼入口網站的完整值或只貼資源根網址都能用。少了那段路徑會 404，而 404 的訊息看不出
+是路徑不完整，所以這裡刻意補齊而不是讓它失敗。
+
+### 2.3 未設定時的行為
+
+設定不齊時「AI 分析」按鈕會停用，游標停留會顯示缺哪一項，使用者不必翻程式碼就知道要補什麼：
+
+| 情況 | Tooltip |
+|------|---------|
+| 沒填金鑰 | AI 分析尚未設定 API 金鑰，請於 User Secrets 或環境變數設定 AiSettings:ApiKey。 |
+| Azure 沒填端點 | AI 分析尚未設定 AiSettings:Endpoint（Azure 入口網站的「Azure OpenAI 端點」）。 |
+| 沒填模型 | AI 分析尚未設定 AiSettings:Model（Azure OpenAI 的部署名稱）。 |
+| `Provider` 打錯字 | 不支援的 AI provider：`<你填的值>` |
+
+⚠️ 最後一項特別重要：`Validate` 必須把 Provider 解析失敗**接住並回傳訊息**，不能往外丟。
+`IsAvailable` 是在 `LogViewerView.OnInitializedAsync` 裡讀的，外面沒有 try-catch ——
+往外丟會炸掉整個日誌檢視頁，而不只是停用 AI 按鈕。有測試釘住這點。
 
 ## 3. 權限
 
@@ -164,6 +226,26 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 輸出的 PDF 不會因為字型檔大而變大：PDFsharp 只嵌入實際用到的字符子集
 （實測 7.1 MB 的字型檔在一份七頁報告中只佔約 312 KB）。
 
+## 7.2 呼叫失敗時怎麼查
+
+錯誤訊息會盡量指名「要改哪裡」，而不是只丟一個代碼。最常見的兩種：
+
+| 情況 | 使用者看到的訊息 |
+|------|------------------|
+| 模型不接受 `temperature` | 此模型不接受 AiSettings:Temperature 的設定值，請將它設為 `null`（部分推論模型只接受預設值）。 |
+| 其他參數被拒 | AI 服務不接受參數 `<參數名>` 的設定值（代碼 `<code>`），請調整 AiSettings 後再試。 |
+
+日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiLogAnalysisService`）會記下
+`StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
+`ErrorParam` 是出問題的參數名稱，`ErrorDetail` 是上游的說明（已截斷至 300 字元）。
+
+⚠️ `ErrorDetail` 刻意截斷：上游對某些錯誤（例如內容過濾）的說明可能夾帶提示詞片段，
+而提示詞裡是上百筆日誌 —— 不截斷會把日誌檔撐爆，也可能讓同一段內容在日誌裡反覆堆疊。
+`ErrorParam` 則是純參數名稱，結構上不可能夾帶日誌內容，是最安全也最有用的一欄。
+
+> 沿革：0.9.5 以前只記 `ErrorCode`，遇到 400 `unsupported_value` 時完全看不出是哪個
+> 參數出問題。0.9.6 補上 `ErrorParam` 與截斷的 `ErrorDetail`。
+
 ## 8. 成本控管
 
 `MaxEntries` 夾住了單次呼叫的成本（預設最多 100 筆日誌），但**沒有頻率限制**：
@@ -180,7 +262,7 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 | 檔案 | 職責 |
 |------|------|
 | `MyProject.Web/Configuration/AiSettings.cs` | 設定 POCO 與 provider 解析 |
-| `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的位址、認證標頭與設定驗證 |
+| `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的位址、認證標頭、路徑正規化與設定驗證 |
 | `MyProject.Web/Ai/AiLogPromptBuilder.cs` | 提示詞組裝與三道截斷 |
 | `MyProject.Web/Ai/AiChatRequestFactory.cs` | 請求 body 組裝 |
 | `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異）|

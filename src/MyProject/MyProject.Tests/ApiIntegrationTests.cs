@@ -343,6 +343,80 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Contains("Swagger:EnabledInProduction", exception.Message);
     }
 
+    /// <summary>
+    /// 沒填 AI 金鑰等於功能關閉，Production 不該因此擋下啟動 ——
+    /// 腳手架不帶金鑰也要能正常部署。
+    /// </summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithoutAiApiKey_ShouldNotComplainAboutAi()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["AiSettings:ApiKey"] = string.Empty,
+            ["AiSettings:Endpoint"] = string.Empty,
+            ["AiSettings:Model"] = string.Empty,
+        });
+
+        StartupSafetyValidator.Validate(configuration, "Production");
+    }
+
+    /// <summary>
+    /// 反過來，有填金鑰代表操作者打算啟用，此時其餘設定必須完整。
+    /// ⚠️ StartupSafetyValidator 讀的是字串鍵不經 POCO，改欄位名稱不會有編譯錯誤，
+    /// 所以這一段一定要有測試蓋住。
+    /// </summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithAiApiKeyButIncompleteSettings_ShouldFailFast()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["AiSettings:Provider"] = "AzureOpenAI",
+            ["AiSettings:ApiKey"] = "some-key",
+            ["AiSettings:Endpoint"] = string.Empty,
+            ["AiSettings:Model"] = string.Empty,
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("AiSettings:Endpoint", exception.Message);
+        Assert.Contains("AiSettings:Model", exception.Message);
+    }
+
+    /// <summary>OpenAI 不需要 Endpoint，只要有金鑰與模型就算完整。</summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithCompleteOpenAiSettings_ShouldPass()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["AiSettings:Provider"] = "OpenAI",
+            ["AiSettings:ApiKey"] = "some-key",
+            ["AiSettings:Endpoint"] = string.Empty,
+            ["AiSettings:Model"] = "gpt-4o-mini",
+        });
+
+        StartupSafetyValidator.Validate(configuration, "Production");
+    }
+
+    /// <summary>其餘設定都給安全值，讓測試只聚焦在傳入的那幾個鍵上。</summary>
+    private static IConfiguration BuildProductionSafeConfiguration(Dictionary<string, string?> overrides)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["JwtSettings:SigningKey"] = "ProductionSigningKey-AtLeast32CharactersLong-ok",
+            ["BootstrapSettings:SupportAccount"] = "support",
+            ["BootstrapSettings:SupportPassword"] = "a-real-password",
+            ["Swagger:EnabledInProduction"] = "false",
+        };
+
+        foreach (var (key, value) in overrides)
+        {
+            settings[key] = value;
+        }
+
+        return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+    }
+
     [Fact]
     public async Task ProjectFileDownloadEndpoint_ShouldBeRegistered()
     {

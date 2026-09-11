@@ -27,6 +27,16 @@ public static class ViewNotification
         => Open(notificationService, SystemTitle, description, NotificationType.Error);
 
     /// <summary>
+    /// 進行中或純資訊性的訊息（例如「正在送出，請稍候」）。
+    ///
+    /// 之所以與 <see cref="Warning"/> 分開：CRUD 的「新增成功」沿用 Warning 外觀是既有約定，
+    /// 但「正在處理中」配上橘色警告圖示會讓人以為出了問題。0.9.6 起因 AI 分析需要階段提示
+    /// 而新增，其他頁面的既有外觀不受影響。
+    /// </summary>
+    public static void Info(NotificationService notificationService, string description)
+        => Open(notificationService, SystemTitle, description, NotificationType.Info);
+
+    /// <summary>
     /// 表單驗證失敗。標題與一般系統訊息區隔，讓使用者知道是自己的輸入有問題；
     /// 停留時間也拉長到 5 秒（驗證訊息通常較長、需要時間讀完）。
     /// </summary>
