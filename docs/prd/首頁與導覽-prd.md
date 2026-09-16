@@ -1,8 +1,8 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.10
+- 現行系統版本：0.9.13
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/09/16
 
@@ -39,6 +39,8 @@
 
   > 專案清單維持在 `/projects`（`ProjectPage.razor` → `ProjectViewView`）。0.9.9 之前 `/App` 與 `/projects` 渲染同一個檢視，使用者登入後第一眼看到的是資料表格；改版後兩個路由各司其職。
 - 側邊選單（`NavMenu.razor` + `SidebarMenuNode`）：
+  - 左上品牌文字取自 `SystemSettings:SystemInformation:SystemName`（**0.9.13 起**；先前是硬編的 `MyProject.Web`）。
+    過長時以刪節號收尾，完整名稱放在 `title` 屬性。副標「管理後台功能清單」與圖示 `dashboard_customize` 仍為設計文案，刻意不參數化。
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。
   - 每項含 `name`、`icon`（Material 圖示）、`url` 或子選單 `subMenu`。
   - 無任何可用項目時顯示「尚無可用選單」。

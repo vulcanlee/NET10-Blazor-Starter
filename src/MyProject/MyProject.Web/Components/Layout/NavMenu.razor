@@ -1,4 +1,4 @@
-<div class="top-row navbar-dark @(IsSidebarCollapsed ? "top-row-collapsed" : string.Empty)">
+﻿<div class="top-row navbar-dark @(IsSidebarCollapsed ? "top-row-collapsed" : string.Empty)">
     <button type="button"
             class="sidebar-hamburger"
             @onclick="ToggleSidebar"
@@ -14,7 +14,7 @@
             <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="dashboard_customize" />
         </div>
         <div class="sidebar-brand-text">
-            <a class="navbar-brand" href="">MyProject.Web</a>
+            <a class="navbar-brand" href="" title="@SystemName">@SystemName</a>
             <div class="navbar-subtitle">管理後台功能清單</div>
         </div>
     </div>
