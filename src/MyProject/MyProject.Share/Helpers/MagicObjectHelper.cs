@@ -68,6 +68,9 @@ public class MagicObjectHelper
 
     /// <inheritdoc cref="角色_統計與分析"/>
     public const string 角色_日誌等級設定 = "日誌等級設定";
+
+    /// <inheritdoc cref="角色_統計與分析"/>
+    public const string 角色_Token用量 = "Token 用量";
     public const string 使用者角色 = "使用者角色";
 
     #endregion

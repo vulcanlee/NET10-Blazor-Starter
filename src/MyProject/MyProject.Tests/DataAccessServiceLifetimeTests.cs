@@ -27,6 +27,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(ProjectService),
         typeof(MyUserService),
         typeof(ExceptionLogService),
+        typeof(TokenUsageLogService),
     ];
 
     [Theory]

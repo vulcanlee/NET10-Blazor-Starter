@@ -1,7 +1,10 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
+using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
+using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
 
@@ -19,15 +22,61 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
     private readonly ILogger<AiLogAnalysisService> logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
+    private readonly ITokenUsageRecorder tokenUsageRecorder;
+    private readonly CurrentUserService currentUserService;
 
     public AiLogAnalysisService(
         ILogger<AiLogAnalysisService> logger,
         IHttpClientFactory httpClientFactory,
-        IOptionsMonitor<AiSettings> optionsMonitor)
+        IOptionsMonitor<AiSettings> optionsMonitor,
+        ITokenUsageRecorder tokenUsageRecorder,
+        CurrentUserService currentUserService)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
+        this.tokenUsageRecorder = tokenUsageRecorder;
+        this.currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// 把這次呼叫記進「Token 用量」。
+    ///
+    /// ⚠️ 記錄點刻意放在這一層而不是畫面層：原始 usage、實際模型名稱、耗時，
+    /// 回到 LogViewerView 之後就已經丟失了。成功與失敗都記 ——
+    /// 「回應成功但內容為空」那種情況付了錢卻沒拿到東西，最值得被看見。
+    ///
+    /// 記錄失敗絕不影響分析結果（Service 內部已全程吞例外）。
+    /// </summary>
+    private async Task RecordUsageAsync(
+        AiSettings settings,
+        string? modelName,
+        AiTokenUsage? usage,
+        string? rawUsageJson,
+        TimeSpan elapsed,
+        bool success,
+        AiAnalysisFailureReason reason)
+    {
+        var user = currentUserService.CurrentUser;
+
+        await tokenUsageRecorder.RecordAsync(new TokenUsageEntry
+        {
+            Operation = TokenUsageOperations.AiLogAnalysis,
+            CallKind = TokenUsageCallKinds.Chat,
+            Provider = settings.GetProvider().ToString(),
+            Model = string.IsNullOrWhiteSpace(modelName) ? settings.Model : modelName,
+            Account = string.IsNullOrWhiteSpace(user.Account) ? null : user.Account,
+            UserId = user.Id == 0 ? null : user.Id,
+            InputCount = usage?.InputCount,
+            OutputCount = usage?.OutputCount,
+            TotalCount = usage?.TotalCount,
+            CachedInputCount = usage?.CachedInputCount,
+            ReasoningCount = usage?.ReasoningCount,
+            ElapsedMilliseconds = (long)elapsed.TotalMilliseconds,
+            Success = success,
+            FailureReason = reason == AiAnalysisFailureReason.None ? null : reason.ToString(),
+            RawUsageJson = rawUsageJson,
+        });
     }
 
     public bool IsAvailable => AiChatEndpoint.Validate(optionsMonitor.CurrentValue) is null;
@@ -83,7 +132,11 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
 
             if (response.IsSuccessStatusCode == false)
             {
-                return MapHttpFailure(response.StatusCode, payload, prompt, stopwatch.Elapsed);
+                var failure = MapHttpFailure(response.StatusCode, payload, prompt, stopwatch.Elapsed);
+                // 沒有用量可記，但呼叫確實發生過、上游也可能已經計費，至少要留下次數。
+                await RecordUsageAsync(
+                    settings, settings.Model, null, null, stopwatch.Elapsed, false, failure.Reason);
+                return failure;
             }
 
             var parsed = AiChatResponseParser.Parse(payload);
@@ -95,6 +148,11 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                     "AI log analysis returned empty content. FinishReason={FinishReason}, Entries={Entries}",
                     parsed.FinishReason,
                     prompt.IncludedEntryCount);
+
+                // ⚠️ 這一支最值得記：回應成功、上游照常計費，但使用者什麼都沒拿到。
+                await RecordUsageAsync(
+                    settings, parsed.ModelName, parsed.Usage, AiChatResponseParser.ExtractUsageJson(payload),
+                    stopwatch.Elapsed, false, AiAnalysisFailureReason.EmptyResponse);
 
                 return AiAnalysisResult.Failure(
                     AiAnalysisFailureReason.EmptyResponse,
@@ -112,6 +170,10 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                 parsed.Usage?.InputCount,
                 parsed.Usage?.OutputCount,
                 stopwatch.ElapsedMilliseconds);
+
+            await RecordUsageAsync(
+                settings, parsed.ModelName, parsed.Usage, AiChatResponseParser.ExtractUsageJson(payload),
+                stopwatch.Elapsed, true, AiAnalysisFailureReason.None);
 
             return new AiAnalysisResult
             {
@@ -148,6 +210,8 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
             // 所以要用 cancellationToken 是否真的被取消來區分「使用者取消」與「逾時」。
             stopwatch.Stop();
             logger.LogError(ex, "AI log analysis timed out. TimeoutSeconds={TimeoutSeconds}", settings.TimeoutSeconds);
+            await RecordUsageAsync(
+                settings, settings.Model, null, null, stopwatch.Elapsed, false, AiAnalysisFailureReason.Timeout);
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.Timeout,
                 $"AI 分析逾時（超過 {settings.TimeoutSeconds} 秒），請縮小查詢範圍後再試。",
@@ -158,6 +222,8 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
         {
             stopwatch.Stop();
             logger.LogError(ex, "AI log analysis request failed at transport level.");
+            await RecordUsageAsync(
+                settings, settings.Model, null, null, stopwatch.Elapsed, false, AiAnalysisFailureReason.UpstreamError);
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.UpstreamError,
                 "無法連線到 AI 服務，請確認網路連線與 AiSettings:Endpoint 設定。",

@@ -40,6 +40,13 @@ public class ExternalFileSystem
     /// 檔案生命週期一律經由 ExceptionStackFileStore 處理。
     /// </summary>
     public string ExceptionPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Token 用量紀錄的原始 usage JSON 存放目錄。每次 LLM 呼叫一個檔，
+    /// 檔案生命週期一律經由 TokenUsageRawStore 處理。
+    /// ⚠️ 只存 usage 結構，絕不存提示詞或模型回應內文。
+    /// </summary>
+    public string TokenUsagePath { get; set; } = string.Empty;
 }
 
 public class BootstrapSettings

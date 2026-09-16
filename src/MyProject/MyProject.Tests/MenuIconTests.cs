@@ -32,6 +32,7 @@ public sealed class MenuIconTests
         "analytics",
         "description",
         "data_usage",
+        "toll",
         "tune",
     };
 
