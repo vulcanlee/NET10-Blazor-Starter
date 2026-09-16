@@ -1,30 +1,43 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.4.45
+- 現行系統版本：0.9.9
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/08/27
+- 最後核對日期：2026/09/16
 
 ## 一、目標與範圍
 
-提供系統的兩個進入點與整體導覽骨架：未登入者的品牌 landing 畫面（`/`）、登入後的工作首頁（`/App`），以及依權限過濾的側邊功能選單。
+提供系統的兩個進入點與整體導覽骨架：未登入者的品牌啟動畫面（`/`）、登入後的系統介紹首頁（`/App`），以及依權限過濾的側邊功能選單。
 
-- 範圍：landing／dashboard 兩個路由、側邊選單（`Menu.json`）之載入、宣告式權限過濾、收合／展開與圖示呈現，以及右上角使用者選單（含「關於」系統資訊對話窗）。
+- 範圍：啟動頁／介紹頁兩個路由、側邊選單（`Menu.json`）之載入、宣告式權限過濾、收合／展開與圖示呈現，以及右上角使用者選單（含「關於」系統資訊對話窗）。
 - 非範圍：各業務頁面（專案、使用者、角色、分類、團隊）之內容；登入／登出流程本身；權限鍵的授予（屬角色管理）。動作級授權與團隊資料權控見「紀錄分類與團隊權控 PRD」。
 
 ## 二、使用者與入口
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/` | 非選單（landing） | 無（`EmptyLayout`，任何人） | 未登入訪客 |
+| `/` | 非選單（啟動頁） | 無（`EmptyLayout`，任何人） | 尚未完成驗證者 |
 | `/App` | 選單 id=1「首頁」 | 頁面鍵「首頁」（管理員豁免） | 已登入使用者 |
 | 側邊選單 | — | 各項目依 `MenuPermissionMap` 對應之權限鍵過濾 | 已登入使用者 |
 
 ## 三、畫面與欄位
 
-- Landing（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。
-- Dashboard（`/App` → `HomeAuthed.razor` → `ProjectViewView`）：登入後首頁即專案清單檢視（工具列、分類／團隊過濾、搜尋、表格與新增／編輯 Modal），套用主版面與側邊選單。
+- 啟動頁（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未通過則導向 `/Auths/Logout`，故此頁只在切換當下一閃而過。
+- 系統介紹首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**）：登入後的第一個畫面，為**純靜態內容、不讀資料庫**，套用主版面與側邊選單。四個區塊由上而下：
+
+  | 區塊 | 內容 | 來源 |
+  | --- | --- | --- |
+  | Hero | 品牌圖片、`Welcome` 標籤、系統名稱、系統說明 | `wwwroot/images/brand-logo.png`（以 `@Assets[...]` 取 fingerprint URL）＋ `SystemName` / `SystemDescription` |
+  | 系統能力 | 六張卡片（權限與角色控管、專案項目管理、分類與團隊定義、日誌檢視與 AI 分析、健康監控與資料庫用量、檔案上傳與保管），各含 Material 圖示、標題與說明 | 寫死於 `HomeWelcomeView.razor.cs` 的 `FeatureCards`（設計文案，刻意不參數化） |
+  | 快速入口 | 專案項目／分類清單／團隊清單，**依使用者權限過濾**，全數無權限時整區不顯示 | `AllQuickLinks` ＋ `CheckAccessPage(權限鍵)` |
+  | 系統資訊 | 系統版本、執行環境 | `SystemVersion`、`IWebHostEnvironment.EnvironmentName` |
+
+  > ⚠️ 卡片圖示必須是 **classic Material Icons** 名稱。用 Material Symbols 專有名稱會渲染失敗 ——
+  > 除了破圖方塊，也可能被拆成數個子字的圖示（`shield_person` 會畫出「盾」與「人」兩個圖示並撐破容器），
+  > 側邊欄是靠 `NavMenu.GetMaterialIconKind` 把 `shield_person` 映射成 `security` 才正常。本頁直接用 `security`。
+
+  > 專案清單維持在 `/projects`（`ProjectPage.razor` → `ProjectViewView`）。0.9.9 之前 `/App` 與 `/projects` 渲染同一個檢視，使用者登入後第一眼看到的是資料表格；改版後兩個路由各司其職。
 - 側邊選單（`NavMenu.razor` + `SidebarMenuNode`）：
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。
   - 每項含 `name`、`icon`（Material 圖示）、`url` 或子選單 `subMenu`。
@@ -75,14 +88,20 @@
 ## 七、驗收與測試
 
 - `MyProject.Tests/MenuIconTests.cs::MenuJson_AllIcons_ShouldBeNonEmptyAndAllowed`：`Menu.json` 每項圖示非空且屬允許集合。
+- `MyProject.Tests/MenuPermissionConsistencyTests.cs::Views_CheckAccessPageKey_ShouldMatch_MenuPermissionMap`：`ViewToMenuId` 已登錄 `HomeWelcomeView.razor.cs` → 選單 id 1，驗證它檢查的權限鍵確為 `角色_首頁`。
 - 手動驗收：以不同角色登入，確認選單僅顯示具權限之項目；管理員可見全部；重排 `Menu.json` 順序不影響權限對應。
+- 手動驗收（系統介紹首頁）：登入後落在 `/App`，可見品牌圖、系統名稱、系統說明、六張能力卡片（圖示皆為單一圖示，未破圖或溢出容器）、快速入口與系統版本；版本須與 `appsettings.json` 的 `SystemVersion` 一致。
+- 手動驗收（權限）：以**未授予「首頁」權限**的角色登入，直接輸入 `/App` 應顯示「你沒有權限存取此頁面」且不渲染介紹內容，側邊欄亦無「首頁」；以**未授予分類／團隊清單**的角色登入，快速入口只剩「專案項目」。
+- 手動驗收（RWD）：視窗縮至 400px 寬，Hero 改直向、能力卡片改單欄、快速入口滿版，頁面不出現水平捲軸。
 - 手動驗收（關於）：點右上角使用者名稱 →「關於」，對話窗顯示六列資訊，系統版本須與 `appsettings.json` 之 `SystemVersion` 一致；關閉後再次開啟，「已運作時間」應有增加。
 - 權限判定來源之測試見 `PermissionCheckerTests.cs`（詳「紀錄分類與團隊權控 PRD」）。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/Home.razor`（`/` landing）
-- `src/MyProject/MyProject.Web/Components/Pages/HomeAuthed.razor`（`/App` dashboard）
+- `src/MyProject/MyProject.Web/Components/Pages/HomeAuthed.razor`（`/App` 系統介紹首頁）
+- `src/MyProject/MyProject.Web/Components/Views/Commons/HomeWelcomeView.razor`／`.razor.cs`／`.razor.css`（介紹頁內容、能力卡片與快速入口）
+- `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor`（`/projects` 專案清單）
 - `src/MyProject/MyProject.Web/Components/Views/Commons/SplashView.razor`
 - `src/MyProject/MyProject.Web/Datas/Menu.json`
 - `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`（`MenuPermissionMap`）、`:46`（載入與過濾）

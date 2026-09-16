@@ -29,6 +29,7 @@ public sealed class MenuPermissionConsistencyTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, int> ViewToMenuId = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        ["HomeWelcomeView.razor.cs"] = 1,
         ["ProjectViewView.razor.cs"] = 21,
         ["CategoryViewView.razor.cs"] = 51,
         ["TeamViewView.razor.cs"] = 52,
