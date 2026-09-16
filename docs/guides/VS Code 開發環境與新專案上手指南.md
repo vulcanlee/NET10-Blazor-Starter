@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.2
+- 現行系統版本：0.9.9
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/08/27
+- 最後核對日期：2026/09/16
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -356,10 +356,10 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 | 要改的東西 | 檔案 / 設定鍵 | 使用者會在哪看到 |
 |------|------|------|
 | 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
-| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`Login.razor:14`） |
-| 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、「關於」對話窗 |
-| 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、「關於」對話窗 |
-| 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
+| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`Login.razor:14`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
+| 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、「關於」對話窗 |
+| 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
+| 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
 | 側邊欄品牌圖示 | `Components/Layout/NavMenu.razor:14` 的 `MaterialIcon Kind="dashboard_customize"` | 側邊欄左上（**不是** `brand-logo.png`，是字型圖示） |
 
 > **沿革**：`0.9.2` 之前，登入頁與啟動頁的兩段說明文字是**寫死在 `.razor` 裡**的，`SystemDescription` 只影響「關於」對話窗 —— 改設定檔那兩頁不會變。0.9.2 起兩頁都改讀設定，`SystemName` 與 `SystemDescription` 都是單一來源。
@@ -368,19 +368,20 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 
 現況規格：**1024×1024 PNG**（約 171 KB），滿版構圖、無透明邊。
 
-兩處都用 `object-fit: cover` 填滿容器，**會裁成正方形**，所以主體務必置中、四周留安全邊距：
+三處都用 `object-fit: cover` 填滿容器，**會裁成正方形**，所以主體務必置中、四周留安全邊距：
 
 | 位置 | 容器（CSS） | 實際顯示尺寸 |
 |------|------|------|
 | 登入頁 | `.brand-logo`（`Login.razor.css:99`），圓角 30px | **108 × 108** |
 | 啟動頁 | `.splash-brand-image-wrap`（`SplashView.razor.css:29`），圓角 24px | **120 × 120**（螢幕寬 ≤640.98px 時為 96 × 96） |
+| 登入後首頁 | `.home-hero-image-wrap`（`HomeWelcomeView.razor.css`），圓角 24px | **140 × 140**（螢幕寬 ≤640.98px 時為 96 × 96） |
 
 換圖建議：
 
 - 正方形、**至少 512×512**（現況 1024×1024 是為了高 DPI 螢幕）。
-- 兩頁背景都是**淺色**（啟動頁淺藍漸層卡片、登入頁淺色底），圖片本身若也是淺色會糊掉，建議用有對比的深色或彩色主體。
-- **檔名不要改** —— 兩處 `.razor` 都硬編這個路徑。
-- 0.9.2 起兩處改用 `@Assets["images/brand-logo.png"]`，換檔後 URL 會自動帶上新的 fingerprint（形如 `images/brand-logo.854k3jgc1o.png`），**不需要清瀏覽器快取**。
+- 三頁背景都是**淺色**（啟動頁與登入後首頁為淺藍漸層卡片、登入頁淺色底），圖片本身若也是淺色會糊掉，建議用有對比的深色或彩色主體。
+- **檔名不要改** —— 三處 `.razor` 都硬編這個路徑。
+- 0.9.2 起改用 `@Assets["images/brand-logo.png"]`（0.9.9 新增的登入後首頁比照辦理），換檔後 URL 會自動帶上新的 fingerprint（形如 `images/brand-logo.854k3jgc1o.png`），**不需要清瀏覽器快取**。
 
 ### 7.3 更換網頁圖示 `favicon.png`
 
@@ -404,7 +405,7 @@ ffmpeg -i images/brand-logo.png \
 
 ### 7.4 更換產品名稱與簡短說明
 
-0.9.2 起兩者都是單一來源，**只改 `appsettings.json` 一處**，啟動頁、登入頁與「關於」對話窗三處同步生效：
+0.9.2 起兩者都是單一來源，**只改 `appsettings.json` 一處**，啟動頁、登入頁、登入後首頁（0.9.9 起）與「關於」對話窗四處同步生效：
 
 ```json
 "SystemSettings": {
@@ -428,13 +429,14 @@ ffmpeg -i images/brand-logo.png \
 
 `Components/App.razor` **沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
 
-全專案 17 個 `<PageTitle>` 中有三處是範本殘留的英文（其餘 14 個都已中文化）：
+全專案 17 個 `<PageTitle>` 中還有兩處是範本殘留的英文（其餘 15 個都已中文化）：
 
 | 檔案 | 目前標題 |
 |------|------|
 | `Components/Pages/Home.razor:4` | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
-| `Components/Pages/HomeAuthed.razor:3` | `Home` |
 | `Components/Pages/Error.razor:5` | `Error` |
+
+> `Components/Pages/HomeAuthed.razor` 原本也是 `Home`，0.9.9 已改為「首頁」。
 
 想讓每個分頁都帶產品名（例如「使用者管理 — 你的系統」），需要自行加後綴機制，本專案未提供。
 
@@ -449,6 +451,8 @@ ffmpeg -i images/brand-logo.png \
 | `Components/Auths/Login.razor:23` / `:24` | `使用者登入` / `請輸入您的帳號資訊以存取系統。` |
 | `Components/Auths/Login.razor:58` | `企業級安全登入` |
 | `Components/Views/Commons/SplashView.razor:11` | `Welcome` |
+| `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`系統能力`／`快速入口`／`系統版本`／`執行環境` |
+| `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `FeatureCards` | 登入後首頁六張能力卡片的標題與說明：`權限與角色控管`／`專案項目管理`／`分類與團隊定義`／`日誌檢視與 AI 分析`／`健康監控與資料庫用量`／`檔案上傳與保管`。⚠️ 改成自家系統的能力時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
 | `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
 | `Components/Layout/NavMenu.razor:17` | `MyProject.Web` —— ⚠️ 側邊欄品牌文字，**不走 `SystemName`**。更名腳本會把它換成 `新代號.Web`，當作產品名仍然不對，請自行改成正式名稱 |
 | `Components/Layout/NavMenu.razor:18` / `:25` | `管理後台功能清單` / `功能選單` |
@@ -465,6 +469,7 @@ ffmpeg -i images/brand-logo.png \
 - [ ] 啟動頁（`https://localhost:7044/`）：品牌圖片、大標題（`SystemName`）、副說明（`SystemDescription`）
       —— 啟動頁只在驗證身分那一瞬間出現，會很快跳走，可先登出再開首頁觀察
 - [ ] 登入頁（`/Auths/Login`）：同樣三項，且說明文字沒有溢出面板
+- [ ] 登入後首頁（`/App`）：品牌圖片、大標題、副說明、六張能力卡片（圖示皆為單一圖示、未溢出容器）、快速入口與系統版本
 - [ ] 登入後右上使用者選單 →「關於」：系統名稱／系統描述／系統版本三列正確
 - [ ] 「系統健康監控」頁（`/system-health`）：診斷文字含正確的 `版本：x.y.z`
 - [ ] 瀏覽器分頁圖示已換（先 `Ctrl+F5`）

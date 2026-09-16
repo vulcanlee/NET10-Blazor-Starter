@@ -1,0 +1,69 @@
+﻿@if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <section class="home-welcome" aria-label="系統介紹">
+        <div class="home-hero">
+            <div class="home-hero-image-wrap">
+                <img class="home-hero-image"
+                     src="@Assets["images/brand-logo.png"]"
+                     alt="系統品牌圖示" />
+            </div>
+
+            <div class="home-hero-copy">
+                <p class="home-eyebrow">Welcome</p>
+                <h1 class="home-title">@SystemName</h1>
+                <p class="home-description">@SystemDescription</p>
+            </div>
+        </div>
+
+        <div class="home-section">
+            <h2 class="home-section-title">系統能力</h2>
+            <div class="home-feature-grid">
+                @foreach (var feature in FeatureCards)
+                {
+                    <article class="home-feature-card">
+                        <span class="home-feature-icon" aria-hidden="true">
+                            <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@feature.Icon" />
+                        </span>
+                        <h3 class="home-feature-title">@feature.Title</h3>
+                        <p class="home-feature-description">@feature.Description</p>
+                    </article>
+                }
+            </div>
+        </div>
+
+        @if (quickLinks.Count > 0)
+        {
+            <div class="home-section">
+                <h2 class="home-section-title">快速入口</h2>
+                <div class="home-quick-links">
+                    @foreach (var link in quickLinks)
+                    {
+                        <a class="home-quick-link" href="@link.Url">
+                            <span class="home-quick-link-icon" aria-hidden="true">
+                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@link.Icon" />
+                            </span>
+                            <span class="home-quick-link-title">@link.Title</span>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+
+        <dl class="home-meta">
+            <div class="home-meta-item">
+                <dt>系統版本</dt>
+                <dd>@SystemVersion</dd>
+            </div>
+            <div class="home-meta-item">
+                <dt>執行環境</dt>
+                <dd>@WebHostEnvironment.EnvironmentName</dd>
+            </div>
+        </dl>
+    </section>
+}

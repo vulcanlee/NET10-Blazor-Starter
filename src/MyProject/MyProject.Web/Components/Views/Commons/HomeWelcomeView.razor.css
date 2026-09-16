@@ -1,0 +1,211 @@
+﻿/* 視覺語彙沿用 SplashView.razor.css，讓啟動頁、登入頁與登入後首頁看起來是同一套設計。
+   本頁走 MainLayout（有側邊欄與頂部列），故外層不設 min-height: 100vh。 */
+.home-welcome {
+    display: grid;
+    gap: 1.75rem;
+    margin: 0 auto;
+    max-width: 1120px;
+    width: 100%;
+}
+
+.home-hero {
+    align-items: center;
+    background:
+        radial-gradient(circle at top left, rgba(191, 219, 254, 0.65), transparent 40%),
+        linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 28px;
+    box-shadow: 0 24px 60px rgba(148, 163, 184, 0.22);
+    display: flex;
+    gap: 1.75rem;
+    padding: 2rem;
+}
+
+.home-hero-image-wrap {
+    align-items: center;
+    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+    border-radius: 24px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex: 0 0 140px;
+    height: 140px;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.home-hero-image {
+    display: block;
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
+.home-hero-copy {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.home-eyebrow {
+    color: #2563eb;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.home-title {
+    color: #0f172a;
+    font-size: clamp(1.8rem, 2.5vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    margin: 0;
+}
+
+.home-description {
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1.7;
+    margin: 0;
+    max-width: 46rem;
+}
+
+.home-section {
+    display: grid;
+    gap: 1rem;
+}
+
+.home-section-title {
+    color: #0f172a;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+.home-feature-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+}
+
+.home-feature-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(148, 163, 184, 0.14);
+    display: grid;
+    gap: 0.6rem;
+    padding: 1.35rem;
+}
+
+.home-feature-icon {
+    align-items: center;
+    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+    border-radius: 14px;
+    color: #2563eb;
+    display: inline-flex;
+    height: 2.75rem;
+    justify-content: center;
+    width: 2.75rem;
+}
+
+.home-feature-title {
+    color: #0f172a;
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.home-feature-description {
+    color: #475569;
+    font-size: 0.92rem;
+    line-height: 1.7;
+    margin: 0;
+}
+
+.home-quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.home-quick-link {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(203, 213, 225, 0.85);
+    border-radius: 999px;
+    color: #1e293b;
+    display: inline-flex;
+    gap: 0.5rem;
+    font-weight: 600;
+    padding: 0.65rem 1.15rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.home-quick-link:hover,
+.home-quick-link:focus-visible {
+    border-color: #2563eb;
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.16);
+    color: #2563eb;
+}
+
+.home-quick-link-icon {
+    align-items: center;
+    color: #2563eb;
+    display: inline-flex;
+}
+
+.home-meta {
+    background: rgba(248, 250, 252, 0.95);
+    border: 1px solid rgba(203, 213, 225, 0.85);
+    border-radius: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 2.5rem;
+    margin: 0;
+    padding: 1rem 1.35rem;
+}
+
+.home-meta-item {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.home-meta dt {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.home-meta dd {
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+@media (max-width: 640.98px) {
+    .home-hero {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 1.5rem;
+    }
+
+    .home-hero-image-wrap {
+        flex-basis: auto;
+        height: 96px;
+        width: 96px;
+    }
+
+    .home-feature-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .home-quick-link {
+        width: 100%;
+    }
+}
