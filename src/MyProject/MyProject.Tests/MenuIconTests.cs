@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace MyProject.Tests;
 
@@ -24,6 +24,7 @@ public sealed class MenuIconTests
         "admin_panel_settings",
         "group",
         "shield_person",
+        "bug_report",
         "storage",
         "category",
         "groups",

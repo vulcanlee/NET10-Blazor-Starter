@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace MyProject.Tests;
 
@@ -241,6 +241,15 @@ public sealed class LoggingConventionTests
             "DatabaseUsageModels.cs",       // 模型
             "NLogFilePathResolver.cs",      // 純路徑組字串
             "TotpService.cs",               // 純密碼學運算；所有輸入輸出都是機密，加 logger 只會誘使人記錄它
+
+            // ⚠️ 以下四支位在「系統例外紀錄」的記錄管線之內，**刻意不得注入 ILogger**。
+            // 它們一旦用 ILogger 記錄自己的失敗，那筆記錄會再被管線收進來、再嘗試寫入、再失敗 ——
+            // 形成「失敗 → 記錄 → 再失敗」的無限遞迴。需要留話時一律走 NLog 的 InternalLogger。
+            // 這不是漏加 logger，請勿「順手補上」。
+            "ExceptionContextAccessor.cs",  // AsyncLocal 狀態持有者，無行為
+            "ExceptionLogProvider.cs",      // 記錄管線的進入點；用 ILogger 會遞迴
+            "ExceptionLogWriter.cs",        // 記錄管線的出口；用 ILogger 會遞迴
+            "ExceptionStackFileStore.cs",   // 由管線內呼叫的檔案存取；用 ILogger 會遞迴
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

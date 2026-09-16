@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Hosting;
+﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -688,7 +688,11 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             ["SystemSettings:ExternalFileSystem:DatabasePath"] = Path.Combine(rootPath, "DB"),
             ["SystemSettings:ExternalFileSystem:DownloadPath"] = Path.Combine(rootPath, "Download"),
             ["SystemSettings:ExternalFileSystem:UploadPath"] = Path.Combine(rootPath, "Upload"),
-            ["SystemSettings:ExternalFileSystem:ProjectFilePath"] = Path.Combine(rootPath, "ProjectFile")
+            ["SystemSettings:ExternalFileSystem:ProjectFilePath"] = Path.Combine(rootPath, "ProjectFile"),
+            // 一定要跟著改到 rootPath：整合測試會啟動真實 host，例外記錄管線是活的。
+            // 漏掉這一行，測試就會把堆疊檔寫進開發者（或 CI）真正的 ExceptionPath，
+            // 而資料列卻留在測試自己的資料庫裡 —— 留下一堆對不到紀錄的孤兒檔。
+            ["SystemSettings:ExternalFileSystem:ExceptionPath"] = Path.Combine(rootPath, "Exception")
         };
     }
 }
