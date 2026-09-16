@@ -1,4 +1,4 @@
-.crud-action-button {
+﻿.crud-action-button {
     width: 28px;
     height: 28px;
     min-width: 28px;
@@ -42,9 +42,11 @@
     cursor: not-allowed;
 }
 
+/* ⚠️ 圖示大小只能從 MaterialIcon 的 Size 參數改：
+   該元件會輸出行內的 style="font-size:…"，CSS 的 font-size 蓋不過去。
+   0.9.16 已把這裡原本無效的 font-size 宣告移除。 */
 .crud-action-button ::deep .material-icons,
 .crud-action-button ::deep .material-icons-outlined {
-    font-size: 18px;
     line-height: 1;
 }
 

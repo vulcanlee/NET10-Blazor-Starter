@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
@@ -250,8 +250,8 @@ namespace MyProject.Web.Components.Views.Analytics
                 // 服務回傳的即為時間正序，直接沿用，不依賴可能解析失敗的 Timestamp 重新排序。
                 var text = string.Join(Environment.NewLine, entriesAscending.Select(entry => entry.Raw));
 
-                // 加 BOM，避免記事本／Excel 開啟時繁體中文亂碼。
-                var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true).GetBytes(text);
+                // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
+                var bytes = TextDownloadPayload.Utf8WithBom(text);
 
                 using var stream = new MemoryStream(bytes);
                 using var streamReference = new DotNetStreamReference(stream);
