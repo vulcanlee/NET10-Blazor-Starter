@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.Cookies;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
@@ -247,6 +247,7 @@ namespace MyProject.Web
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.DownloadPath, "download");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.UploadPath, "upload");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.ProjectFilePath, "project file");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.ExceptionPath, "exception stack trace");
                 #endregion
 
                 #region EF Core 宣告
@@ -273,6 +274,11 @@ namespace MyProject.Web
                 #region 資料庫的 Migration
                 //if (!app.Environment.IsDevelopment())
                 {
+                    // 啟動流程中拋出的例外（migration、seed、RBAC 回填）都歸類為「系統啟動」。
+                    // 這時還沒有任何使用者，所以帳號與頁面留空。
+                    app.Services.GetRequiredService<ExceptionContextAccessor>()
+                        .Set(new ExceptionContext(ExceptionSources.Startup, null, null, null));
+
                     using var scope = app.Services.CreateScope();
                     using var dbContext = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
                     logger.LogInformation("Ensuring database is ready.");
@@ -370,6 +376,9 @@ namespace MyProject.Web
                     #endregion
                 }
                 #endregion
+
+                // 啟動流程結束，清掉情境；之後每個請求／circuit 互動會自己設定。
+                app.Services.GetRequiredService<ExceptionContextAccessor>().Clear();
 
                 #region 註冊中介軟體
                 // Configure the HTTP request pipeline.

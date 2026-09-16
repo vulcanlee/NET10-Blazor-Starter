@@ -1,4 +1,4 @@
-using MyProject.Business.Services.Other;
+﻿using MyProject.Business.Services.Other;
 using MyProject.Share.Helpers;
 
 namespace MyProject.Tests;
@@ -23,6 +23,7 @@ public sealed class AdminOnlyPermissionTests
         MagicObjectHelper.角色_系統管理,
         MagicObjectHelper.角色_使用者管理,
         MagicObjectHelper.角色_角色管理,
+        MagicObjectHelper.角色_系統例外紀錄,
     ];
 
     [Theory]

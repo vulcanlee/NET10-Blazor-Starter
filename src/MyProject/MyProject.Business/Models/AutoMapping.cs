@@ -68,6 +68,11 @@ public class AutoMapping : Profile
             .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         #endregion
 
+        #region ExceptionLog
+        // 系統例外紀錄為唯讀頁面，只需要 Entity → AdapterModel 單向映射。
+        CreateMap<ExceptionLog, ExceptionLogAdapterModel>();
+        #endregion
+
         #region MyUser
         CreateMap<MyUser, MyUserAdapterModel>();
         CreateMap<MyUserAdapterModel, MyUser>();

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.Business.Services.DataAccess;
 
@@ -26,6 +26,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(RoleViewService),
         typeof(ProjectService),
         typeof(MyUserService),
+        typeof(ExceptionLogService),
     ];
 
     [Theory]

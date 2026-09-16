@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using MyProject.Share.Helpers;
@@ -46,6 +46,7 @@ public sealed class MenuPermissionConsistencyTests
         "LogViewerView.razor.cs",
         "DatabaseUsageView.razor.cs",
         "LogLevelSettingView.razor.cs",
+        "ExceptionLogView.razor.cs",
     };
 
     [Fact]

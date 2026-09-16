@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：2.2
+- 文件版本：2.4
 - 文件狀態：維護中
-- 現行系統版本：0.9.10
+- 現行系統版本：0.9.12
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/09/16
 
@@ -87,11 +87,13 @@
 - [日誌檢視 PRD](prd/日誌檢視-prd.md)
 - [資料庫用量 PRD](prd/資料庫用量-prd.md)
 - [日誌等級設定 PRD](prd/日誌等級設定-prd.md)
+- [系統例外紀錄 PRD](prd/系統例外紀錄-prd.md)
 - [紀錄分類與團隊權控 PRD](prd/紀錄分類與團隊權控-prd.md)
 
 ### superpowers — 設計規格
 - [分類清單 / 團隊清單管理頁面（階段一）](superpowers/specs/2026-06-22-category-team-pages-design.md)
 - [紀錄分類/團隊標籤與團隊權控（階段二）](superpowers/specs/2026-06-22-record-tags-team-access-design.md)
+- [系統例外紀錄（ExceptionLog）](superpowers/specs/2026-09-16-system-exception-log-design.md)
 
 ### changelog — 變更紀錄
 - [Login 頁面改版紀錄](changelog/login-redesign.md)
@@ -141,3 +143,5 @@
 - [AI 分析對話窗的等待體驗、取消、字級與滿版（0.9.8）](changelog/2026-09-11-AI對話窗等待體驗.md)
 - [登入後首頁 `/App` 改為系統品牌介紹頁（0.9.9）](changelog/2026-09-16-登入後首頁改為系統介紹頁.md)
 - [側邊欄「首頁」圖示由 `space_dashboard` 改為 `home`（0.9.10）](changelog/2026-09-16-側邊欄首頁圖示改為home.md)
+- [新增「系統例外紀錄」頁面與例外自動記錄管線（0.9.11）](changelog/2026-09-16-系統例外紀錄.md)
+- [系統例外紀錄：精簡清單欄位並改用「查看」明細窗（0.9.12）](changelog/2026-09-16-系統例外紀錄欄位精簡.md)

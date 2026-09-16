@@ -1,4 +1,4 @@
-using AntDesign;
+﻿using AntDesign;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +19,7 @@ using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
 using System.Globalization;
+using System.Threading.Channels;
 using System.Threading.RateLimiting;
 
 namespace MyProject.Web.Extensions;
@@ -103,6 +104,31 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CategoryRepository>();
         services.AddScoped<TeamService>();
         services.AddScoped<TeamRepository>();
+        #region 系統例外紀錄
+        // 記錄管線：ILoggerProvider（生產）→ 有界 Channel → ExceptionLogWriter（消費）→ ExceptionLogService。
+        // Channel 有界且滿載即丟棄：寧可漏記，也不能讓例外記錄拖垮正在等待的使用者。
+        // 與 nlog.config 的 AsyncWrapper overflowAction="Discard" 同一種取捨。
+        var exceptionChannel = Channel.CreateBounded<ExceptionLogEntry>(
+            new BoundedChannelOptions(1000)
+            {
+                FullMode = BoundedChannelFullMode.DropWrite,
+                SingleReader = true,
+                SingleWriter = false,
+            });
+
+        services.AddSingleton(exceptionChannel.Reader);
+        services.AddSingleton(exceptionChannel.Writer);
+        services.AddSingleton<ExceptionContextAccessor>();
+        services.AddScoped<ExceptionStackFileStore>();
+        services.AddScoped<ExceptionLogService>();
+        services.AddHostedService<ExceptionLogWriter>();
+
+        // 以 DI 註冊 ILoggerProvider，讓它拿得到 Channel 與情境存取器。
+        // ⚠️ 必須晚於 Program.cs 的 builder.Logging.ClearProviders()，否則會被清掉；
+        // 本方法由 AddApplicationServices 呼叫，時序在其後，NLog 與本 provider 並存。
+        services.AddSingleton<ILoggerProvider, ExceptionLogProvider>();
+        #endregion
+
         services.AddHttpContextAccessor();
         services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
         services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, MyProject.Web.Components.ApplicationCircuitHandler>();

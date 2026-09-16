@@ -1,8 +1,10 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using MyProject.Models.Systems;
+using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components;
 
@@ -31,6 +33,7 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
     private readonly ILogger<ApplicationCircuitHandler> logger;
     private readonly NavigationManager navigationManager;
     private readonly AuthenticationStateProvider authenticationStateProvider;
+    private readonly ExceptionContextAccessor exceptionContextAccessor;
 
     private string circuitId = string.Empty;
     private string previousPath = string.Empty;
@@ -41,11 +44,43 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
     public ApplicationCircuitHandler(
         ILogger<ApplicationCircuitHandler> logger,
         NavigationManager navigationManager,
-        AuthenticationStateProvider authenticationStateProvider)
+        AuthenticationStateProvider authenticationStateProvider,
+        ExceptionContextAccessor exceptionContextAccessor)
     {
         this.logger = logger;
         this.navigationManager = navigationManager;
         this.authenticationStateProvider = authenticationStateProvider;
+        this.exceptionContextAccessor = exceptionContextAccessor;
+    }
+
+    /// <summary>
+    /// 在每一次 inbound circuit activity（按鈕點擊、表單送出、元件生命週期回呼）之前，
+    /// 把「誰、在哪一頁」放進 ambient context，好讓該次活動中任何
+    /// <c>logger.LogError(ex, …)</c> 都能被系統例外紀錄帶上使用者與頁面。
+    ///
+    /// 這是唯一乾淨的掛點：服務層那 75 個 catch 只知道自己是哪個模組，
+    /// 不可能知道呼叫者是誰。在這裡設定一次，整條呼叫鏈都讀得到。
+    ///
+    /// ⚠️ <b>全站每一次互動都會經過這裡。</b>因此內部全程 try/catch ——
+    /// 記錄用的情境設定失敗，絕不可以連帶弄壞使用者正在做的事。
+    /// </summary>
+    public override Func<CircuitInboundActivityContext, Task> CreateInboundActivityHandler(
+        Func<CircuitInboundActivityContext, Task> next)
+    {
+        return async context =>
+        {
+            try
+            {
+                exceptionContextAccessor.Set(
+                    new ExceptionContext(ExceptionSources.Ui, previousPath, account, userId));
+            }
+            catch (Exception)
+            {
+                // 情境只是診斷用的加值資訊，設定失敗就讓它空著，不影響使用者操作。
+            }
+
+            await next(context);
+        };
     }
 
     public override async Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)

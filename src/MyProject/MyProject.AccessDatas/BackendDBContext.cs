@@ -21,6 +21,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<Category> Category { get; set; }
     public virtual DbSet<Team> Team { get; set; }
     public virtual DbSet<AuditLog> AuditLog { get; set; }
+    public virtual DbSet<ExceptionLog> ExceptionLog { get; set; }
     public virtual DbSet<Permission> Permission { get; set; }
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
@@ -70,6 +71,17 @@ public partial class BackendDBContext : DbContext
             // Code 為選填。SQLite 的唯一索引視 NULL 互不相等，所以多筆「未填代號」沒問題；
             // 但空字串彼此相同，因此寫入前一律由 NameNormalizer.NormalizeOptional 歸一成 null。
             entity.HasIndex(x => x.Code).IsUnique();
+        });
+        #endregion
+
+        #region 系統例外紀錄
+        modelBuilder.Entity<ExceptionLog>(entity =>
+        {
+            // 合併的唯一依據。寫入已由單一消費者序列化，這個索引是第二道防線。
+            entity.HasIndex(x => x.Signature).IsUnique();
+
+            // 預設排序（最後發生 desc）與「清除 N 天未再發生」都吃這個索引。
+            entity.HasIndex(x => x.LastOccurredAt);
         });
         #endregion
 

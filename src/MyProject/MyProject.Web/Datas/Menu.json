@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "id": 1,
     "name": "首頁",
@@ -78,6 +78,12 @@
         "name": "角色管理",
         "icon": "shield_person",
         "url": "/roleviews"
+      },
+      {
+        "id": 33,
+        "name": "系統例外紀錄",
+        "icon": "bug_report",
+        "url": "/system-exceptions"
       }
     ]
   },

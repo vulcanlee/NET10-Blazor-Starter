@@ -34,6 +34,12 @@ public class ExternalFileSystem
     public string DownloadPath { get; set; } = string.Empty;
     public string UploadPath { get; set; } = string.Empty;
     public string ProjectFilePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 系統例外紀錄的堆疊檔案存放目錄。每一種例外只在首次發生時寫一個檔，
+    /// 檔案生命週期一律經由 ExceptionStackFileStore 處理。
+    /// </summary>
+    public string ExceptionPath { get; set; } = string.Empty;
 }
 
 public class BootstrapSettings

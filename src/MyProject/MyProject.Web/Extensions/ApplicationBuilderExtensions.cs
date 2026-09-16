@@ -1,10 +1,12 @@
-using Microsoft.AspNetCore.Localization;
+﻿using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.FileProviders;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using System.Diagnostics;
 using System.Net;
+using System.Security.Claims;
+using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Extensions;
 
@@ -155,6 +157,27 @@ public static class ApplicationBuilderExtensions
             var requestLogger = context.RequestServices.GetRequiredService<ILogger<TProgram>>();
             var stopwatch = Stopwatch.StartNew();
 
+            // 供系統例外紀錄使用：這個請求內任何 LogError 都會帶上來源、路徑與帳號。
+            // 設定失敗只損失診斷資訊，不得影響請求本身，所以整段包 try/catch。
+            try
+            {
+                var path = context.Request.Path.Value;
+                var source = path is not null && path.StartsWith("/api", StringComparison.OrdinalIgnoreCase)
+                    ? ExceptionSources.WebApi
+                    : ExceptionSources.Ui;
+
+                // ⚠️ claim 對應在兩套機制中相反：Cookie 是 NameIdentifier=帳號、Sid=UserId；
+                // JWT 是 NameIdentifier=UserId、Name=帳號。API 走 JWT，其餘走 Cookie。
+                var (account, userId) = ResolveRequestUser(context, source);
+
+                context.RequestServices.GetRequiredService<ExceptionContextAccessor>()
+                    .Set(new ExceptionContext(source, path, account, userId));
+            }
+            catch (Exception)
+            {
+                // 診斷加值資訊，取不到就算了。
+            }
+
             try
             {
                 await next();
@@ -187,6 +210,31 @@ public static class ApplicationBuilderExtensions
         });
 
         return app;
+    }
+
+    /// <summary>
+    /// 取出請求的身分。只取帳號與 UserId —— 姓名、Email 屬個資，絕不進入紀錄。
+    /// </summary>
+    private static (string? Account, int? UserId) ResolveRequestUser(HttpContext context, string source)
+    {
+        var principal = context.User;
+        if (principal?.Identity?.IsAuthenticated != true)
+        {
+            return (null, null);
+        }
+
+        var nameIdentifier = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (source == ExceptionSources.WebApi)
+        {
+            // JWT：NameIdentifier=UserId、Name=帳號。
+            var account = principal.FindFirst(ClaimTypes.Name)?.Value;
+            return (account, int.TryParse(nameIdentifier, out var jwtUserId) ? jwtUserId : null);
+        }
+
+        // Cookie：NameIdentifier=帳號、Sid=UserId。
+        var sid = principal.FindFirst(ClaimTypes.Sid)?.Value;
+        return (nameIdentifier, int.TryParse(sid, out var cookieUserId) ? cookieUserId : null);
     }
 
     public static WebApplication UseConfiguredLocalization(this WebApplication app)

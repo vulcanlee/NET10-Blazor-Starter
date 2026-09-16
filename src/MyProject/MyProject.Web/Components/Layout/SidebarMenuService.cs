@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MyProject.Business.Services.Other;
 using MyProject.Share.Helpers;
 using MyProject.Web.Caching;
@@ -24,6 +24,7 @@ public sealed class SidebarMenuService
         [3] = MagicObjectHelper.角色_系統管理,
         [31] = MagicObjectHelper.角色_使用者管理,
         [32] = MagicObjectHelper.角色_角色管理,
+        [33] = MagicObjectHelper.角色_系統例外紀錄,
         [5] = MagicObjectHelper.角色_資料定義,
         [51] = MagicObjectHelper.角色_分類清單,
         [52] = MagicObjectHelper.角色_團隊清單,
