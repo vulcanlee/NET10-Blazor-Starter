@@ -151,6 +151,87 @@
         }
     }
 
+    /* token usage detail modal: large read-only view */
+    .token-usage-modal {
+        width: 90vw !important;
+        max-width: 90vw !important;
+        top: 5vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+        .token-usage-modal .ant-modal-content {
+            height: 90vh !important;
+            max-height: 90vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        .token-usage-modal .ant-modal-header {
+            flex-shrink: 0;
+        }
+
+        .token-usage-modal .ant-modal-body {
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+        }
+
+    /* 同 .exception-log-modal：內容樣式必須寫在這裡（全域），
+       AntDesign 的 Modal 會渲染到元件 DOM 範圍之外，scoped CSS 打不到。 */
+    .token-usage-modal .token-usage-detail-list {
+        display: grid;
+        gap: 0.35rem;
+        margin: 0 0 1rem;
+    }
+
+    .token-usage-modal .token-usage-detail-list > div {
+        border-bottom: 1px solid #f1f5f9;
+        display: grid;
+        gap: 0.25rem 1rem;
+        grid-template-columns: 18rem 1fr;
+        padding-bottom: 0.3rem;
+    }
+
+    .token-usage-modal .token-usage-detail-list dt {
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+
+    .token-usage-modal .token-usage-detail-list dd {
+        color: #0f172a;
+        font-size: 0.9rem;
+        margin: 0;
+        word-break: break-word;
+    }
+
+    .token-usage-modal .token-usage-raw-list dt {
+        color: #b4222a;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 0.82rem;
+    }
+
+    .token-usage-modal .token-usage-detail-title {
+        border-top: 2px solid #e2e8f0;
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 1.25rem 0 0.6rem;
+        padding-top: 0.75rem;
+    }
+
+    .token-usage-modal .token-usage-detail-empty {
+        color: #64748b;
+        font-size: 0.88rem;
+    }
+
+    @@media (max-width: 640.98px) {
+        .token-usage-modal .token-usage-detail-list > div {
+            grid-template-columns: 1fr;
+        }
+    }
+
     /* change password modal: compact, auto height */
     .change-password-modal {
         width: 480px !important;

@@ -22,6 +22,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<Team> Team { get; set; }
     public virtual DbSet<AuditLog> AuditLog { get; set; }
     public virtual DbSet<ExceptionLog> ExceptionLog { get; set; }
+    public virtual DbSet<TokenUsageLog> TokenUsageLog { get; set; }
     public virtual DbSet<Permission> Permission { get; set; }
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
@@ -82,6 +83,14 @@ public partial class BackendDBContext : DbContext
 
             // 預設排序（最後發生 desc）與「清除 N 天未再發生」都吃這個索引。
             entity.HasIndex(x => x.LastOccurredAt);
+        });
+        #endregion
+
+        #region Token 用量紀錄
+        modelBuilder.Entity<TokenUsageLog>(entity =>
+        {
+            // 預設排序（發生時間 desc）與「清除此日之前」都吃這個索引。
+            entity.HasIndex(x => x.OccurredAt);
         });
         #endregion
 

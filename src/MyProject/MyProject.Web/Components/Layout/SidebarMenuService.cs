@@ -34,6 +34,7 @@ public sealed class SidebarMenuService
         [61] = MagicObjectHelper.角色_日誌檢視,
         [62] = MagicObjectHelper.角色_資料庫用量,
         [63] = MagicObjectHelper.角色_日誌等級設定,
+        [64] = MagicObjectHelper.角色_Token用量,
         [4] = MagicObjectHelper.角色_登出,
     };
 

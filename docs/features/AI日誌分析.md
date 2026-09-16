@@ -2,7 +2,7 @@
 
 - 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.8
+- 現行系統版本：0.9.14
 - 首次實作版本：0.9.4
 - 最後核對日期：2026/09/11
 
@@ -23,7 +23,7 @@
 5. 對話窗可調整字級、複製 Markdown 原文，或匯出成 PDF 報告下載。
 
 呼叫前後都會以**右下角通知**告知階段（送出中、完成、被上限截斷、失敗原因）。
-每次呼叫與每次 PDF 匯出都會寫入 `AuditLog`。
+每次呼叫與每次 PDF 匯出都會寫入 `AuditLog`；**0.9.14 起，每次實際發出的 HTTP 呼叫另外記一筆 Token 用量**，見 [Token 用量 PRD](../prd/Token用量-prd.md)。
 
 **不做的事**（刻意的取捨）：不支援追問對話、不做串流輸出、不自動重試、不做頻率限制、
 字級選擇不跨工作階段保存。
@@ -318,7 +318,10 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 同一位管理員開兩個分頁、或多位管理員同時按，就是多次計費呼叫。
 
 本功能刻意不做應用層限流。成本控管請在 Azure OpenAI 資源的配額層設定 TPM/RPM，
-事後追查則看 `AuditLog` 的 `LogViewer.AiAnalyze` 紀錄（含用量與耗時）。
+事後追查請看 **[Token 用量](../prd/Token用量-prd.md)**（`/token-usage`）——
+它可依使用者／作業／模型／型別聚合，是查「錢花到哪去」的正規入口。
+`AuditLog` 的 `LogViewer.AiAnalyze` 紀錄仍然保留，但它是業務稽核軌跡，
+⚠️ **不可拿來做用量加總**：PDF 匯出會用同一份分析結果再寫一筆帶相同數字的紀錄，加總會重複計算。
 
 也刻意不做自動重試：這是使用者主動觸發的單次動作，失敗讓他再按一次即可；
 自動重試只會讓成本加倍，還會掩蓋「設定錯誤」這種重試永遠不會好的問題。
@@ -331,9 +334,9 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的位址、認證標頭、路徑正規化與設定驗證 |
 | `MyProject.Web/Ai/AiLogPromptBuilder.cs` | 提示詞組裝（只有筆數上限一道） |
 | `MyProject.Web/Ai/AiChatRequestFactory.cs` | 請求 body 組裝 |
-| `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異）|
+| `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異）；`ExtractUsageJson` 只切出 `usage` 子物件 |
 | `MyProject.Web/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線 |
-| `MyProject.Web/Ai/AiLogAnalysisService.cs` | HTTP 呼叫與錯誤對應 |
+| `MyProject.Web/Ai/AiLogAnalysisService.cs` | HTTP 呼叫與錯誤對應；**Token 用量的記錄點**（`ITokenUsageRecorder`）|
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | Markdown 轉 PDF 的極小渲染器 |
 | `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗三態、字級與稽核 |
@@ -411,6 +414,7 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 ## 11. 延伸閱讀
 
 - [日誌檢視 PRD](../prd/日誌檢視-prd.md)
+- [Token 用量 PRD](../prd/Token用量-prd.md)
 - [日誌與設定檔說明](../operations/日誌與設定檔說明.md)
 - [開發慣例與限制速查](../architecture/開發慣例與限制速查.md)
 

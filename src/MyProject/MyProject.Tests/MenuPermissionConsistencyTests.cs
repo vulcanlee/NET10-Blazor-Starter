@@ -47,6 +47,7 @@ public sealed class MenuPermissionConsistencyTests
         "DatabaseUsageView.razor.cs",
         "LogLevelSettingView.razor.cs",
         "ExceptionLogView.razor.cs",
+        "TokenUsageView.razor.cs",
     };
 
     [Fact]

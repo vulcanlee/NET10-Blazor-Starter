@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace MyProject.Web.Ai;
 
@@ -99,6 +99,36 @@ public static class AiChatResponseParser
         => value.Length <= AiUpstreamError.MaxMessageLength
             ? value
             : string.Concat(value.AsSpan(0, AiUpstreamError.MaxMessageLength), "…");
+
+    /// <summary>
+    /// 取出回應中 <c>usage</c> 子物件的原始 JSON 文字，供「Token 用量」頁保留完整明細
+    /// （供應商日後新增欄位也不會漏接）。
+    ///
+    /// ⚠️ <b>只取 usage 這一段，絕不回傳整個回應 body</b> —— body 裡有模型產生的內文，
+    /// 而本專案的提示詞就是日誌內容。存進任何可視範圍更廣的地方都等於繞過日誌頁的管理員限制。
+    /// </summary>
+    public static string? ExtractUsageJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("usage", out var usage)
+                && usage.ValueKind == JsonValueKind.Object
+                ? usage.GetRawText()
+                : null;
+        }
+        catch (JsonException)
+        {
+            // 上游可能回 HTML（例如閘道錯誤頁），當作沒有 usage。
+            return null;
+        }
+    }
 
     private static AiTokenUsage? ReadUsage(JsonElement root)
     {

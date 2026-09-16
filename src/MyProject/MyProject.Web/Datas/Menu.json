@@ -59,6 +59,12 @@
         "name": "資料庫用量",
         "icon": "data_usage",
         "url": "/database-usage"
+      },
+      {
+        "id": 64,
+        "name": "Token 用量",
+        "icon": "toll",
+        "url": "/token-usage"
       }
     ]
   },

@@ -1,7 +1,11 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
+using MyProject.Models.Others;
+using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
@@ -590,15 +594,125 @@ public sealed class AiLogAnalysisServiceTests
         Model = "gpt-4o-mini",
     };
 
+    [Fact]
+    public async Task AnalyzeAsync_ShouldRecordUsage_OnSuccess()
+    {
+        var (service, _, recorder) = CreateServiceWithRecorder(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        var entry = Assert.Single(recorder.Entries);
+        Assert.True(entry.Success);
+        Assert.Equal(TokenUsageOperations.AiLogAnalysis, entry.Operation);
+        Assert.Equal(TokenUsageCallKinds.Chat, entry.CallKind);
+        Assert.Equal("gpt-4o-2024-11-20", entry.Model);
+        Assert.Equal("support", entry.Account);
+        Assert.Equal(120, entry.InputCount);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldRecordOnlyUsageJson_NotTheWholeResponseBody()
+    {
+        // ⚠️ 安全紅線：提示詞就是日誌內容，模型回應也不得落地。只能存 usage 那一段。
+        var (service, _, recorder) = CreateServiceWithRecorder(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        var raw = Assert.Single(recorder.Entries).RawUsageJson;
+        Assert.NotNull(raw);
+        Assert.Contains("prompt_tokens", raw);
+        Assert.DoesNotContain("choices", raw);
+        Assert.DoesNotContain("一切正常", raw);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldRecordUsage_WhenResponseIsEmpty()
+    {
+        // 付了錢卻沒拿到東西：回應成功、上游照常計費，但使用者什麼都沒看到。
+        const string emptyPayload = """
+            {
+              "model": "gpt-4o-2024-11-20",
+              "choices": [ { "message": { "content": "" }, "finish_reason": "length" } ],
+              "usage": { "prompt_tokens": 500, "completion_tokens": 900, "total_tokens": 1400 }
+            }
+            """;
+
+        var (service, _, recorder) = CreateServiceWithRecorder(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, emptyPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        var entry = Assert.Single(recorder.Entries);
+        Assert.False(entry.Success);
+        Assert.Equal(nameof(AiAnalysisFailureReason.EmptyResponse), entry.FailureReason);
+        Assert.Equal(1400, entry.TotalCount);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldRecordCall_WhenUpstreamReturnsError()
+    {
+        // 沒有用量可記，但呼叫確實發生過、上游也可能已計費，至少要留下次數。
+        var (service, _, recorder) = CreateServiceWithRecorder(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.TooManyRequests, "{}"));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        var entry = Assert.Single(recorder.Entries);
+        Assert.False(entry.Success);
+        Assert.Equal(nameof(AiAnalysisFailureReason.RateLimited), entry.FailureReason);
+        Assert.Null(entry.TotalCount);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldNotRecord_WhenSettingsAreIncomplete()
+    {
+        // 根本沒發出請求，就沒有任何用量可言。
+        var (service, _, recorder) = CreateServiceWithRecorder(
+            new AiSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Empty(recorder.Entries);
+    }
+
     private static (AiLogAnalysisService Service, StubHttpMessageHandler Handler) CreateService(
         AiSettings settings, StubHttpMessageHandler handler)
     {
+        var (service, _, _) = CreateServiceWithRecorder(settings, handler);
+        return (service, handler);
+    }
+
+    /// <summary>
+    /// 需要驗證「這次呼叫有沒有被記進 Token 用量」時用這個多載，
+    /// 它會把假的記錄器一併回傳。
+    /// </summary>
+    private static (AiLogAnalysisService Service, StubHttpMessageHandler Handler, FakeTokenUsageRecorder Recorder)
+        CreateServiceWithRecorder(AiSettings settings, StubHttpMessageHandler handler)
+    {
+        var recorder = new FakeTokenUsageRecorder();
+
         var service = new AiLogAnalysisService(
             NullLogger<AiLogAnalysisService>.Instance,
             new StubHttpClientFactory(handler),
-            new StaticOptionsMonitor<AiSettings>(settings));
+            new StaticOptionsMonitor<AiSettings>(settings),
+            recorder,
+            new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } });
 
-        return (service, handler);
+        return (service, handler, recorder);
+    }
+
+    /// <summary>只把收到的項目留下來，不碰資料庫也不碰檔案系統。</summary>
+    private sealed class FakeTokenUsageRecorder : ITokenUsageRecorder
+    {
+        public List<TokenUsageEntry> Entries { get; } = [];
+
+        public Task RecordAsync(TokenUsageEntry entry)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
+        }
     }
 
     private static List<LogEntry> CreateEntries(int count)

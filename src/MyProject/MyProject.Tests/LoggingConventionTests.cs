@@ -240,6 +240,7 @@ public sealed class LoggingConventionTests
             "LogModels.cs",                 // 模型與純轉換
             "DatabaseUsageModels.cs",       // 模型
             "NLogFilePathResolver.cs",      // 純路徑組字串
+            "TokenUsageFormat.cs",          // 純數字格式化（K／M 精簡顯示），無任何行為
             "TotpService.cs",               // 純密碼學運算；所有輸入輸出都是機密，加 logger 只會誘使人記錄它
 
             // ⚠️ 以下四支位在「系統例外紀錄」的記錄管線之內，**刻意不得注入 ILogger**。

@@ -129,6 +129,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoggerProvider, ExceptionLogProvider>();
         #endregion
 
+        #region Token 用量紀錄
+        // 不需要佇列與背景寫入器：LLM 呼叫是使用者主動觸發、一次數秒到數分鐘，
+        // 多一次幾毫秒的資料庫寫入可忽略（與例外紀錄「短時間重複數百次」的情境不同）。
+        services.AddScoped<TokenUsageRawStore>();
+        services.AddScoped<TokenUsageLogService>();
+        // 轉發到同一個實例：呼叫端只依賴 ITokenUsageRecorder（只有記錄），
+        // 頁面才用得到完整的 TokenUsageLogService（查詢、統計、刪除）。
+        services.AddScoped<ITokenUsageRecorder>(sp => sp.GetRequiredService<TokenUsageLogService>());
+        #endregion
+
         services.AddHttpContextAccessor();
         services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
         services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, MyProject.Web.Components.ApplicationCircuitHandler>();

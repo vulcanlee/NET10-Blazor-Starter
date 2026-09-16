@@ -1,0 +1,238 @@
+﻿@using MyProject.Models.Systems
+
+@if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="token-usage-intro">
+            <p>
+                記錄每次呼叫大語言模型的 token 用量：是哪個<strong>作業</strong>、哪個 <strong>API 型別</strong>、
+                哪個<strong>模型</strong>、哪個<strong>使用者</strong>，以及供應商回傳的各類 token 數。本頁僅管理員可見。
+            </p>
+            <p>
+                輸入（送出／prompt）與輸出（接收／completion）計價不同；<strong>快取</strong>是輸入的折扣子集、
+                <strong>推理</strong>計入輸出，兩者都只是「其中多少」，不另外加進合計。按每列「詳細」可看到完整分組與原始明細。
+            </p>
+            <p>
+                失敗的呼叫也會記錄。其中<strong>回應成功但內容為空</strong>特別值得注意 ——
+                上游照常計費，使用者卻什麼都沒拿到。依音訊時長計費、不回傳 token 數的模型不計入 token 合計。
+            </p>
+        </div>
+
+        <div class="token-usage-toolbar">
+            <div class="token-usage-toolbar-left">
+                <Input class="token-usage-account-input" @bind-Value="accountFilter" Placeholder="帳號" />
+                <DatePicker TValue="DateTime?" @bind-Value="startDate" Picker="@DatePickerType.Date"
+                            Format="yyyy-MM-dd" Placeholder="@("起始日")" Style="width: 140px;" />
+                <DatePicker TValue="DateTime?" @bind-Value="endDate" Picker="@DatePickerType.Date"
+                            Format="yyyy-MM-dd" Placeholder="@("結束日")" Style="width: 140px;" />
+
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedOperation" Style="width: 150px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="全部作業" />
+                    @foreach (var item in filterOptions.Operations)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@item" Label="@item" />
+                    }
+                </Select>
+
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedCallKind" Style="width: 130px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="全部型別" />
+                    @foreach (var item in filterOptions.CallKinds)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@item" Label="@item" />
+                    }
+                </Select>
+
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedModel" Style="width: 170px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="全部模型" />
+                    @foreach (var item in filterOptions.Models)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@item" Label="@item" />
+                    }
+                </Select>
+            </div>
+            <div class="token-usage-toolbar-right">
+                <ToolbarIconButton Title="查詢" Icon="search"
+                                   OnClick="@(async () => await OnSearchAsync())" />
+                <ToolbarIconButton Title="重新整理" Icon="refresh"
+                                   OnClick="@(async () => await OnRefreshAsync())" />
+                <ToolbarIconButton Title="匯出目前查詢結果（CSV）" Icon="file_download"
+                                   Disabled="@(summary.CallCount == 0)"
+                                   OnClick="@(async () => await OnExportCsvAsync())" />
+                <ToolbarIconButton Title="下載 PDF 報表" Icon="picture_as_pdf"
+                                   Disabled="@(summary.CallCount == 0 || isExportingPdf)"
+                                   OnClick="@(async () => await OnExportPdfAsync())" />
+                <ToolbarIconButton Title="清空全部紀錄" Icon="delete_forever"
+                                   OnClick="@(async () => await OnClearAllAsync())" />
+            </div>
+        </div>
+
+        <div class="token-usage-purge">
+            <DatePicker TValue="DateTime?" @bind-Value="purgeBeforeDate" Picker="@DatePickerType.Date"
+                        Format="yyyy-MM-dd" Placeholder="@("清除此日之前")" Style="width: 160px;" />
+            <Button Danger Disabled="@(purgeBeforeDate is null)"
+                    OnClick="@(async () => await OnPurgeAsync())">批次清除</Button>
+        </div>
+
+        <div class="token-usage-summary">
+            篩選範圍合計 —
+            輸入(送出) <strong>@FormatCompact(summary.InputCount)</strong>、
+            輸出(接收) <strong>@FormatCompact(summary.OutputCount)</strong>、
+            其中快取 <strong>@FormatCompact(summary.CachedInputCount)</strong>、
+            其中推理 <strong>@FormatCompact(summary.ReasoningCount)</strong>、
+            合計 <strong>@FormatCompact(summary.TotalCount)</strong>
+        </div>
+
+        <Tabs @bind-ActiveKey="activeTabKey" OnTabClick="OnTabChangedAsync">
+            <TabPane Key="@TabByAccount" Tab="@($"依使用者（{groupedByAccount.Count}）")">
+                <TokenUsageGroupTable Rows="groupedByAccount" KeyTitle="使用者" />
+            </TabPane>
+            <TabPane Key="@TabByOperation" Tab="@($"依作業（{groupedByOperation.Count}）")">
+                <TokenUsageGroupTable Rows="groupedByOperation" KeyTitle="作業" />
+            </TabPane>
+            <TabPane Key="@TabByModel" Tab="@($"依模型（{groupedByModel.Count}）")">
+                <TokenUsageGroupTable Rows="groupedByModel" KeyTitle="模型" />
+            </TabPane>
+            <TabPane Key="@TabByCallKind" Tab="@($"依型別（{groupedByCallKind.Count}）")">
+                <TokenUsageGroupTable Rows="groupedByCallKind" KeyTitle="型別" />
+            </TabPane>
+            <TabPane Key="@TabDetail" Tab="@($"明細（{_total}）")">
+                <div class="token-usage-table-wrap">
+                    <Table @ref="table"
+                           TItem="TokenUsageLogAdapterModel"
+                           RemoteDataSource="true"
+                           DataSource="@rows"
+                           Loading="@isLoading"
+                           Size="TableSize.Small"
+                           OnChange="OnTableChange"
+                           @bind-PageIndex="_pageIndex"
+                           @bind-PageSize="_pageSize"
+                           @bind-Total="_total">
+                        <Column TData="DateTime" DataIndex="@nameof(TokenUsageLogAdapterModel.OccurredAt)"
+                                Title="時間" Width="160" Sortable DefaultSortOrder="SortDirection.Descending">
+                            @context.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")
+                        </Column>
+                        <Column TData="string" Title="使用者" Width="110" Ellipsis>@(context.Account ?? "（系統自動）")</Column>
+                        <Column TData="string" Title="作業" Width="140" Ellipsis>@context.Operation</Column>
+                        <Column TData="string" Title="型別" Width="90">@context.CallKind</Column>
+                        <Column TData="string" Title="模型" Width="150" Ellipsis>@context.Model</Column>
+                        <Column TData="string" Title="輸入" Width="90" Align="ColumnAlign.Right">@FormatCell(context.InputCount)</Column>
+                        <Column TData="string" Title="輸出" Width="90" Align="ColumnAlign.Right">@FormatCell(context.OutputCount)</Column>
+                        <Column TData="string" Title="推理" Width="80" Align="ColumnAlign.Right">@FormatCell(context.ReasoningCount)</Column>
+                        <Column TData="string" Title="快取" Width="80" Align="ColumnAlign.Right">@FormatCell(context.CachedInputCount)</Column>
+                        <Column TData="string" Title="合計" Width="100" Align="ColumnAlign.Right">
+                            @if (context.Success == false)
+                            {
+                                <Tooltip Title="@context.FailureReason">
+                                    <Tag Color=@("red")>失敗</Tag>
+                                </Tooltip>
+                            }
+                            else if (context.IsDurationBilled)
+                            {
+                                <span>時長 @context.DurationSeconds!.Value.ToString("N0") 秒</span>
+                            }
+                            else
+                            {
+                                <strong>@FormatCell(context.TotalCount)</strong>
+                            }
+                        </Column>
+                        <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                            <Space>
+                                <SpaceItem>
+                                    <CrudActionButton Title="詳細" Icon="visibility"
+                                                      OnClick="@(async () => await OnViewAsync(@context))" />
+                                </SpaceItem>
+                                <SpaceItem>
+                                    <CrudActionButton Title="刪除" Icon="delete" Danger="true"
+                                                      OnClick="@(async () => await OnDeleteAsync(@context))" />
+                                </SpaceItem>
+                            </Space>
+                        </ActionColumn>
+                    </Table>
+                </div>
+            </TabPane>
+        </Tabs>
+
+        @*
+            明細窗：尺寸與內容樣式都寫在 Components/Commons/FormModalHelper.razor 的全域 style
+            （AntDesign 的 Modal 渲染在元件 DOM 之外，scoped CSS 連 ::deep 都打不到）。
+        *@
+        <Modal Title="Token 用量明細"
+               Class="token-usage-modal"
+               @bind-Visible="@detailVisible"
+               Keyboard="true"
+               Footer="null"
+               OnCancel="@(() => detailVisible = false)">
+            @if (detailItem is not null)
+            {
+                <dl class="token-usage-detail-list">
+                    <div><dt>時間</dt><dd>@detailItem.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
+                    <div><dt>使用者</dt><dd>@DetailAccountText</dd></div>
+                    <div><dt>作業</dt><dd>@detailItem.Operation</dd></div>
+                    <div><dt>型別</dt><dd>@detailItem.CallKind</dd></div>
+                    <div><dt>供應商</dt><dd>@detailItem.Provider</dd></div>
+                    <div><dt>模型</dt><dd>@detailItem.Model</dd></div>
+                    <div><dt>耗時</dt><dd>@detailItem.ElapsedMilliseconds.ToString("N0") ms</dd></div>
+                    <div>
+                        <dt>結果</dt>
+                        <dd>
+                            @if (detailItem.Success)
+                            {
+                                <Tag Color=@("green")>成功</Tag>
+                            }
+                            else
+                            {
+                                <Tag Color=@("red")>失敗</Tag>
+                                <span>@detailItem.FailureReason</span>
+                            }
+                        </dd>
+                    </div>
+                    <div><dt>紀錄 Id</dt><dd>@detailItem.Id</dd></div>
+                </dl>
+
+                <h3 class="token-usage-detail-title">輸入 (Input) — 送出／prompt，計價較低（快取更便宜）</h3>
+                <dl class="token-usage-detail-list">
+                    <div><dt>輸入合計（prompt）</dt><dd>@FormatCell(detailItem.InputCount)</dd></div>
+                    <div><dt>快取命中（cached，輸入折扣）</dt><dd>@FormatCell(detailItem.CachedInputCount)</dd></div>
+                </dl>
+
+                <h3 class="token-usage-detail-title">輸出 (Output) — 接收／completion，計價較高（含推理）</h3>
+                <dl class="token-usage-detail-list">
+                    <div><dt>輸出合計（completion）</dt><dd>@FormatCell(detailItem.OutputCount)</dd></div>
+                    <div><dt>推理（reasoning，計入輸出）</dt><dd>@FormatCell(detailItem.ReasoningCount)</dd></div>
+                </dl>
+
+                <h3 class="token-usage-detail-title">其他</h3>
+                <dl class="token-usage-detail-list">
+                    <div>
+                        <dt>音訊時長（秒；依時長計費，未回傳 token）</dt>
+                        <dd>@FormatCell(detailItem.DurationSeconds)</dd>
+                    </div>
+                    <div><dt>合計 (total)</dt><dd><strong>@FormatCell(detailItem.TotalCount)</strong></dd></div>
+                </dl>
+
+                <h3 class="token-usage-detail-title">原始明細（供應商回傳）</h3>
+                @if (detailRawRows.Count == 0)
+                {
+                    <p class="token-usage-detail-empty">@detailRawMessage</p>
+                }
+                else
+                {
+                    <dl class="token-usage-detail-list token-usage-raw-list">
+                        @foreach (var item in detailRawRows)
+                        {
+                            <div><dt>@item.Key</dt><dd>@item.Value</dd></div>
+                        }
+                    </dl>
+                }
+            }
+        </Modal>
+
+        <FormModalHelper />
+    </div>
+}

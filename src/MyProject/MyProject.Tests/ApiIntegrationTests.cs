@@ -692,7 +692,8 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             // 一定要跟著改到 rootPath：整合測試會啟動真實 host，例外記錄管線是活的。
             // 漏掉這一行，測試就會把堆疊檔寫進開發者（或 CI）真正的 ExceptionPath，
             // 而資料列卻留在測試自己的資料庫裡 —— 留下一堆對不到紀錄的孤兒檔。
-            ["SystemSettings:ExternalFileSystem:ExceptionPath"] = Path.Combine(rootPath, "Exception")
+            ["SystemSettings:ExternalFileSystem:ExceptionPath"] = Path.Combine(rootPath, "Exception"),
+            ["SystemSettings:ExternalFileSystem:TokenUsagePath"] = Path.Combine(rootPath, "TokenUsage")
         };
     }
 }

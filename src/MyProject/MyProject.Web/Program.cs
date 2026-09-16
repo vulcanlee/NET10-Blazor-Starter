@@ -248,6 +248,7 @@ namespace MyProject.Web
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.UploadPath, "upload");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.ProjectFilePath, "project file");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.ExceptionPath, "exception stack trace");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.TokenUsagePath, "LLM usage raw payload");
                 #endregion
 
                 #region EF Core 宣告

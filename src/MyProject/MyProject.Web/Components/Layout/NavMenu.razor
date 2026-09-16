@@ -46,7 +46,9 @@
                                         aria-label="@item.Name"
                                         aria-haspopup="menu"
                                         title="@item.Name">
-                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind(item)" />
+                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined"
+                                                  Kind="@GetMaterialIconKind(item)"
+                                                  Size="@MaterialIconOpticalSize.For(GetMaterialIconKind(item))" />
                                 </button>
 
                                 <div class="collapsed-menu-flyout" role="menu" aria-label="@item.Name">
@@ -60,7 +62,9 @@
                                             <a class="@GetCollapsedFlyoutItemClass(childKey)"
                                                href="@child.Url"
                                                role="menuitem">
-                                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind(child)" />
+                                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined"
+                                                              Kind="@GetMaterialIconKind(child)"
+                                                              Size="@MaterialIconOpticalSize.For(GetMaterialIconKind(child))" />
                                                 <span>@child.Name</span>
                                             </a>
                                         }
@@ -73,7 +77,9 @@
                                    href="@item.Url"
                                    aria-label="@item.Name"
                                    title="@item.Name">
-                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@GetMaterialIconKind(item)" />
+                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined"
+                                                  Kind="@GetMaterialIconKind(item)"
+                                                  Size="@MaterialIconOpticalSize.For(GetMaterialIconKind(item))" />
                                 </a>
                             }
                         </li>
