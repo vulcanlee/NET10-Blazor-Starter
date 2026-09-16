@@ -17,6 +17,7 @@ public sealed class MenuIconTests
     /// </summary>
     private static readonly HashSet<string> AllowedIcons = new(StringComparer.Ordinal)
     {
+        "home",
         "space_dashboard",
         "work",
         "workspaces",
