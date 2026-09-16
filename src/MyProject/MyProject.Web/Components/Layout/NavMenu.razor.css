@@ -1,4 +1,4 @@
-.top-row {
+﻿.top-row {
     min-height: 5rem;
     padding: 1.1rem 1rem 1rem;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(244, 246, 248, 0.88) 100%);
@@ -90,6 +90,13 @@
     font-weight: 700;
     line-height: 1.2;
     text-decoration: none;
+    /* 0.9.13 起品牌文字取自 SystemName，長度不再由程式碼控制。
+       超出側邊欄寬度時以刪節號收尾（完整名稱放在 title 屬性），
+       而不是被側邊欄邊界靜靜切掉。 */
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .navbar-subtitle {

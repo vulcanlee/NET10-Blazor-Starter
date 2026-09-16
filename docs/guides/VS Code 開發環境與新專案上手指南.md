@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.9
+- 現行系統版本：0.9.13
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/09/16
 
@@ -357,7 +357,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 |------|------|------|
 | 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
 | 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`Login.razor:14`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
-| 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、「關於」對話窗 |
+| 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
 | 側邊欄品牌圖示 | `Components/Layout/NavMenu.razor:14` 的 `MaterialIcon Kind="dashboard_customize"` | 側邊欄左上（**不是** `brand-logo.png`，是字型圖示） |
@@ -405,7 +405,7 @@ ffmpeg -i images/brand-logo.png \
 
 ### 7.4 更換產品名稱與簡短說明
 
-0.9.2 起兩者都是單一來源，**只改 `appsettings.json` 一處**，啟動頁、登入頁、登入後首頁（0.9.9 起）與「關於」對話窗四處同步生效：
+0.9.2 起兩者都是單一來源，**只改 `appsettings.json` 一處**，啟動頁、登入頁、登入後首頁（0.9.9 起）、側邊欄品牌文字（0.9.13 起）與「關於」對話窗五處同步生效：
 
 ```json
 "SystemSettings": {
@@ -421,7 +421,7 @@ ffmpeg -i images/brand-logo.png \
 
 | 欄位 | 建議長度 | 說明 |
 |------|------|------|
-| `SystemName` | 4–10 字 | 兩頁都是最大的標題字（啟動頁 `.splash-title`、登入頁 `.app-title`），過長會換行擠壓版面 |
+| `SystemName` | 4–10 字 | 兩頁都是最大的標題字（啟動頁 `.splash-title`、登入頁 `.app-title`），過長會換行擠壓版面。側邊欄（展開寬 300px）約可容納 10 字，超出會以刪節號收尾，完整名稱放在 `title` 屬性 |
 | `SystemDescription` | 30–40 字 | 啟動頁單行可容納約 40 字；登入頁面板較窄會折成兩行。超過約 60 字會開始破版 |
 | `SystemVersion` | — | 格式固定為 `Major.Minor.Patch (YYYY/MM/DD)`；**留空**會讓「系統健康監控」頁把應用程式判為 Degraded 並顯示「SystemVersion 未設定。」 |
 
@@ -454,7 +454,6 @@ ffmpeg -i images/brand-logo.png \
 | `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`系統能力`／`快速入口`／`系統版本`／`執行環境` |
 | `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `FeatureCards` | 登入後首頁六張能力卡片的標題與說明：`權限與角色控管`／`專案項目管理`／`分類與團隊定義`／`日誌檢視與 AI 分析`／`健康監控與資料庫用量`／`檔案上傳與保管`。⚠️ 改成自家系統的能力時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
 | `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
-| `Components/Layout/NavMenu.razor:17` | `MyProject.Web` —— ⚠️ 側邊欄品牌文字，**不走 `SystemName`**。更名腳本會把它換成 `新代號.Web`，當作產品名仍然不對，請自行改成正式名稱 |
 | `Components/Layout/NavMenu.razor:18` / `:25` | `管理後台功能清單` / `功能選單` |
 | `Components/Layout/MainLayout.razor.cs:52` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
 | `Components/Commons/ViewNotification.cs:15` | `系統訊息`（全站通知的標題） |
@@ -639,12 +638,10 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Program.cs:97` | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
 | `Extensions/ApplicationBuilderExtensions.cs:28` | `SwaggerEndpoint(..., "MyProject API v1")` | 同上 |
 | `Program.cs:200` | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
-| `Components/Layout/NavMenu.razor:17` | `<a class="navbar-brand" href="">MyProject.Web</a>` | ⚠️ 側邊欄品牌文字是**硬編的，沒有走 `SystemName` 設定** —— 改了 `appsettings.json` 也不會變 |
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
 | `Components/Views/Analytics/LogViewerView.razor.cs:151` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |
 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` | 二進位圖檔，全域文字取代**完全不會處理** | 新系統掛著舊產品的圖示與品牌圖片。作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
-| `Components/Layout/NavMenu.razor:17` 的產品名 | 側邊欄品牌文字，更名腳本只會換成 `新代號.Web` | 側邊欄顯示的是專案代號而非正式產品名，見 [§7.6](#76-仍然寫死需要自行決定的文案) |
 | `MyProject.Tests/*.cs` | 多支守門測試以字串或路徑比對專案名：`LoggingConventionTests`、`ButtonIconConventionTests`、`MenuIconTests`、`MenuPermissionConsistencyTests`、`LogLevelRuntimeStateTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`TotpServiceTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§9](#9-更名後驗證清單) 一定要跑 `dotnet test` |
 | `.vscode/launch.json`、`tasks.json`、`settings.json` | `src/MyProject/...` 路徑與 `MyProject.Web.dll` | F5 啟動失敗、任務找不到方案檔 |
 
@@ -685,7 +682,6 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 - [ ] `dotnet run --launch-profile https` 能啟動，`https://localhost:7044` 開得起來
 - [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
-- [ ] 側邊欄品牌文字已是新系統名（`NavMenu.razor:17` 硬編字串）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
 - [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile}` 已正確產生
