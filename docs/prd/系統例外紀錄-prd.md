@@ -27,6 +27,8 @@
 - 篩選：最後發生時間範圍（兩個 `DatePicker`）、來源下拉、使用者帳號、關鍵字（比對類型／訊息／頁面／操作）。
 - 動作（`ToolbarIconButton`）：查詢 `search`、重新整理 `refresh`、匯出 CSV `file_download`、清除 90 天未再發生 `history`、清空全部 `delete_forever`。
 - 兩個破壞性動作（清除、清空）以 `ModalService.ConfirmAsync` 二次確認。
+- 匯出的 CSV 為 **UTF-8 含 BOM**（0.9.16 起；先前少了 BOM，Excel 開啟繁中會亂碼），
+  位元組由 `Components/Commons/TextDownloadPayload.Utf8WithBom` 產生。
 
 ### 3.2 表格
 

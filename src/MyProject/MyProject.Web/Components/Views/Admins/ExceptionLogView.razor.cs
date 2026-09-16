@@ -322,8 +322,8 @@ namespace MyProject.Web.Components.Views.Admins
                         Csv(item.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss"))));
                 }
 
-                // 加 BOM，否則 Excel 開啟繁體中文會亂碼。
-                var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true).GetBytes(builder.ToString());
+                // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
+                var bytes = TextDownloadPayload.Utf8WithBom(builder.ToString());
 
                 using var stream = new MemoryStream(bytes);
                 using var streamReference = new DotNetStreamReference(stream);

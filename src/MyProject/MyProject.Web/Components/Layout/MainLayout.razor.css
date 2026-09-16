@@ -1,4 +1,4 @@
-.page {
+﻿.page {
     background: linear-gradient(180deg, #f3f6ff 0%, #eef2ff 52%, #f8faff 100%);
     min-height: 100vh;
     position: relative;
@@ -94,18 +94,9 @@ main {
     width: 2rem;
 }
 
-.user-menu-icon ::deep .material-icons,
-.user-menu-icon ::deep .material-icons-outlined,
-.user-menu-icon ::deep .material-icons-round,
-.user-menu-icon ::deep .material-icons-sharp,
-.user-menu-icon ::deep .material-icons-two-tone,
-.user-menu-caret ::deep .material-icons,
-.user-menu-caret ::deep .material-icons-outlined,
-.user-menu-caret ::deep .material-icons-round,
-.user-menu-caret ::deep .material-icons-sharp,
-.user-menu-caret ::deep .material-icons-two-tone {
-    font-size: 1.2rem;
-}
+/* ⚠️ 圖示大小只能從 MaterialIcon 的 Size 參數改：該元件會輸出行內的
+   style="font-size:…"，CSS 的 font-size 蓋不過去。0.9.16 已把本檔原本無效的
+   font-size 宣告全數移除。 */
 
 .user-menu-text {
     align-items: center;

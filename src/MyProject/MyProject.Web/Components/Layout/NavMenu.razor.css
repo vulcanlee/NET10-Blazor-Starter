@@ -33,13 +33,10 @@
     outline-offset: 3px;
 }
 
-.sidebar-hamburger ::deep .material-icons,
-.sidebar-hamburger ::deep .material-icons-outlined,
-.sidebar-hamburger ::deep .material-icons-round,
-.sidebar-hamburger ::deep .material-icons-sharp,
-.sidebar-hamburger ::deep .material-icons-two-tone {
-    font-size: 1.1rem;
-}
+/* ⚠️ 圖示大小只能從 MaterialIcon 的 Size 參數改（側邊欄選單走
+   Components/Layout/MaterialIconOpticalSize.cs）：該元件會輸出行內的
+   style="font-size:…"，CSS 的 font-size 蓋不過去。
+   0.9.16 已把本檔原本無效的 font-size 宣告全數移除。 */
 
 .sidebar-brand {
     align-items: center;
@@ -55,18 +52,9 @@
     box-shadow: 0 12px 28px rgba(148, 163, 184, 0.2);
     color: white;
     display: inline-flex;
-    font-size: 1.15rem;
     height: 3rem;
     justify-content: center;
     width: 3rem;
-}
-
-.sidebar-brand-icon ::deep .material-icons,
-.sidebar-brand-icon ::deep .material-icons-outlined,
-.sidebar-brand-icon ::deep .material-icons-round,
-.sidebar-brand-icon ::deep .material-icons-sharp,
-.sidebar-brand-icon ::deep .material-icons-two-tone {
-    font-size: 1.3rem;
 }
 
 .sidebar-brand-text {
@@ -186,7 +174,6 @@
 .sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons-sharp,
 .sidebar-menu-shell ::deep .ant-menu-submenu-title .material-icons-two-tone {
     color: #475569;
-    font-size: 1rem;
 }
 
 .sidebar-menu-shell ::deep .ant-menu-item-selected .material-icons,
@@ -232,14 +219,6 @@
         border-radius: 12px;
         height: 2.2rem;
         width: 2.2rem;
-    }
-
-    .top-row-collapsed .sidebar-hamburger ::deep .material-icons,
-    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-outlined,
-    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-round,
-    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-sharp,
-    .top-row-collapsed .sidebar-hamburger ::deep .material-icons-two-tone {
-        font-size: 0.95rem;
     }
 
     .top-row-collapsed .sidebar-brand {
@@ -333,7 +312,6 @@
 .collapsed-menu-trigger ::deep .material-icons-round,
 .collapsed-menu-trigger ::deep .material-icons-sharp,
 .collapsed-menu-trigger ::deep .material-icons-two-tone {
-    font-size: 1.25rem;
     line-height: 1;
 }
 
@@ -401,7 +379,6 @@
 .collapsed-flyout-item ::deep .material-icons-sharp,
 .collapsed-flyout-item ::deep .material-icons-two-tone {
     color: #475569;
-    font-size: 1.1rem;
 }
 
 .collapsed-flyout-item:hover ::deep .material-icons,

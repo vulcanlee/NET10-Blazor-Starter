@@ -2,7 +2,7 @@
 
 - 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.15
+- 現行系統版本：0.9.16
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/09/16
 
@@ -45,7 +45,9 @@
   - 每項含 `name`、`icon`（Material 圖示）、`url` 或子選單 `subMenu`。
 
   > ⚠️ **圖示大小只能從 `MaterialIcon` 的 `Size` 參數改**：該元件輸出行內的
-  > `style="font-size:…"`，`NavMenu.razor.css` 裡的 `font-size` 規則全部被壓過（實際一律 24px）。
+  > `style="font-size:…"`，CSS 的 `font-size` 一律被壓過（實際都是 24px）。
+  > 0.9.16 已把 `NavMenu.razor.css`／`MainLayout.razor.css` 與兩個按鈕元件裡
+  > 那些無效的 `font-size` 清掉，**不要再往那裡加**。
   >
   > 0.9.15 起另有**光學尺寸補正**（`Components/Layout/MaterialIconOpticalSize.cs`）：
   > 各字面的墨跡在同一個 em 方框內佔的高度不同，字級一樣不代表看起來一樣大。

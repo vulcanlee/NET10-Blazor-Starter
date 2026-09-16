@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using AntDesign;
 using AntDesign.TableModels;
@@ -414,15 +414,8 @@ namespace MyProject.Web.Components.Views.Analytics
                         Csv(item.FailureReason)));
                 }
 
-                // 加 BOM，否則 Excel 開啟繁體中文會亂碼。
-                // ⚠️ UTF8Encoding.GetBytes 不會輸出前導碼（那個旗標只影響 GetPreamble 與 StreamWriter），
-                // 必須自己把 GetPreamble() 接在前面，否則設了旗標也還是沒有 BOM。
-                var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-                var preamble = encoding.GetPreamble();
-                var body = encoding.GetBytes(builder.ToString());
-                var bytes = new byte[preamble.Length + body.Length];
-                preamble.CopyTo(bytes, 0);
-                body.CopyTo(bytes, preamble.Length);
+                // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
+                var bytes = TextDownloadPayload.Utf8WithBom(builder.ToString());
 
                 using var stream = new MemoryStream(bytes);
                 using var streamReference = new DotNetStreamReference(stream);
