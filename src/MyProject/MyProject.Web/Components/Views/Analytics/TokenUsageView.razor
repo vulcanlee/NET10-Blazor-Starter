@@ -22,6 +22,12 @@ else
                 失敗的呼叫也會記錄。其中<strong>回應成功但內容為空</strong>特別值得注意 ——
                 上游照常計費，使用者卻什麼都沒拿到。依音訊時長計費、不回傳 token 數的模型不計入 token 合計。
             </p>
+            <p>
+                <strong>費用</strong>是呼叫當下依 <code>AiPricingSettings</code> 的單價與匯率算好、連同單價快照一起存下來的，
+                <strong>事後調整設定不會改變已經記錄的帳</strong>。找不到該模型費率設定的呼叫標示為「未定價」，不計入合計；
+                0.9.17 之前的紀錄沒有單價快照，一律未定價。合計的美金與台幣<strong>各自為逐列加總</strong>，
+                區間橫跨匯率調整時兩者彼此推不出來。
+            </p>
         </div>
 
         <div class="token-usage-toolbar">
@@ -85,7 +91,13 @@ else
             輸出(接收) <strong>@FormatCompact(summary.OutputCount)</strong>、
             其中快取 <strong>@FormatCompact(summary.CachedInputCount)</strong>、
             其中推理 <strong>@FormatCompact(summary.ReasoningCount)</strong>、
-            合計 <strong>@FormatCompact(summary.TotalCount)</strong>
+            合計 <strong>@FormatCompact(summary.TotalCount)</strong>、
+            花費 <strong>NT$ @FormatCostTwdTotal(summary.CostTwd)</strong>
+            （US$ @FormatCostUsdTotal(summary.CostUsd)）
+            @if (summary.UnpricedCount > 0)
+            {
+                <span class="token-usage-unpriced">　⚠ 其中 @summary.UnpricedCount 筆未定價未計入</span>
+            }
         </div>
 
         <Tabs @bind-ActiveKey="activeTabKey" OnTabClick="OnTabChangedAsync">
@@ -139,6 +151,29 @@ else
                             else
                             {
                                 <strong>@FormatCell(context.TotalCount)</strong>
+                            }
+                        </Column>
+                        @*
+                            ⚠️ 不要在這一欄加 Fixed="ColumnFixPlacement.Right"。
+                            AntDesign 的 ColumnBase.CalcFixedStyle() 會去讀相鄰釘住欄的寬度，
+                            而隔壁的 ActionColumn 沒有設 Width，會丟 ArgumentNullException 讓整頁掛掉。
+                            要釘就得連 ActionColumn 的寬度一起定，不值得為此改動既有欄位 ——
+                            這張表在加費用欄之前就已經橫向捲動（見 token-usage-table-wrap 的註解）。
+                            不捲動也看得到的金額在上方合計橫幅與四張分組統計表。
+                        *@
+                        <Column TData="double?" DataIndex="@nameof(TokenUsageLogAdapterModel.CostTwd)"
+                                Title="費用" Width="110" Align="ColumnAlign.Right" Sortable>
+                            @if (context.IsUnpriced)
+                            {
+                                <Tooltip Title="@("找不到此模型的費率設定（appsettings.json 的 AiPricingSettings），因此不估算費用。")">
+                                    <span class="token-usage-unpriced">未定價</span>
+                                </Tooltip>
+                            }
+                            else
+                            {
+                                <Tooltip Title="@BuildCostTooltip(context)">
+                                    <span>@FormatCostTwdCell(context.CostTwd)</span>
+                                </Tooltip>
                             }
                         </Column>
                         <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
@@ -199,12 +234,15 @@ else
                 <dl class="token-usage-detail-list">
                     <div><dt>輸入合計（prompt）</dt><dd>@FormatCell(detailItem.InputCount)</dd></div>
                     <div><dt>快取命中（cached，輸入折扣）</dt><dd>@FormatCell(detailItem.CachedInputCount)</dd></div>
+                    <div><dt>圖片輸入（含於上方，不另計）</dt><dd>@FormatCell(detailItem.ImageInputCount)</dd></div>
+                    <div><dt>圖片輸入快取（含於上方，不另計）</dt><dd>@FormatCell(detailItem.ImageCachedInputCount)</dd></div>
                 </dl>
 
                 <h3 class="token-usage-detail-title">輸出 (Output) — 接收／completion，計價較高（含推理）</h3>
                 <dl class="token-usage-detail-list">
                     <div><dt>輸出合計（completion）</dt><dd>@FormatCell(detailItem.OutputCount)</dd></div>
                     <div><dt>推理（reasoning，計入輸出）</dt><dd>@FormatCell(detailItem.ReasoningCount)</dd></div>
+                    <div><dt>圖片輸出（含於上方，不另計）</dt><dd>@FormatCell(detailItem.ImageOutputCount)</dd></div>
                 </dl>
 
                 <h3 class="token-usage-detail-title">其他</h3>
@@ -213,8 +251,37 @@ else
                         <dt>音訊時長（秒；依時長計費，未回傳 token）</dt>
                         <dd>@FormatCell(detailItem.DurationSeconds)</dd>
                     </div>
+                    <div><dt>字元數（語音合成計費單位）</dt><dd>@FormatCell(detailItem.CharacterCount)</dd></div>
                     <div><dt>合計 (total)</dt><dd><strong>@FormatCell(detailItem.TotalCount)</strong></dd></div>
                 </dl>
+
+                <h3 class="token-usage-detail-title">費用 — 呼叫當下的快照，事後改設定不影響這一列</h3>
+                @if (detailItem.IsUnpriced)
+                {
+                    <p class="token-usage-detail-empty">
+                        未定價 —— 找不到模型「@detailItem.Model」的費率設定（appsettings.json 的 AiPricingSettings）。
+                    </p>
+                }
+                else
+                {
+                    <dl class="token-usage-detail-list">
+                        <div><dt>費用 (TWD)</dt><dd><strong>NT$ @FormatCostTwdCell(detailItem.CostTwd)</strong></dd></div>
+                        <div><dt>費用 (USD)</dt><dd>US$ @FormatCostUsdCell(detailItem.CostUsd)</dd></div>
+                        <div><dt>當時匯率</dt><dd>@FormatExchangeRate(detailItem.CostExchangeRate)</dd></div>
+                        <div><dt>計價依據</dt><dd>@DetailPriceKeyText</dd></div>
+                        <div><dt>長脈絡費率</dt><dd>@(detailItem.CostLongContext ? "是" : "否")</dd></div>
+                    </dl>
+
+                    @if (detailCostRateRows.Count > 0)
+                    {
+                        <dl class="token-usage-detail-list token-usage-raw-list">
+                            @foreach (var item in detailCostRateRows)
+                            {
+                                <div><dt>套用費率 @item.Key</dt><dd>@item.Value</dd></div>
+                            }
+                        </dl>
+                    }
+                }
 
                 <h3 class="token-usage-detail-title">原始明細（供應商回傳）</h3>
                 @if (detailRawRows.Count == 0)

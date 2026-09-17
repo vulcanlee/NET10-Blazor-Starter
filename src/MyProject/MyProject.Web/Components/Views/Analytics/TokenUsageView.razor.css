@@ -69,3 +69,12 @@
         width: 100%;
     }
 }
+
+/*
+    未定價標記。刻意用橘色而不是紅色：那不是錯誤，只是「這筆算不出費用」。
+    ⚠️ TokenUsageGroupTable.razor.css 也有一份同名規則 —— Blazor 的 CSS 隔離以元件為界，
+    這份套不到子元件的 DOM 上，兩邊都要各自宣告。
+*/
+.token-usage-unpriced {
+    color: #d46b08;
+}

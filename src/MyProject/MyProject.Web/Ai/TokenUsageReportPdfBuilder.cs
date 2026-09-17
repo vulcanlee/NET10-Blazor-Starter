@@ -172,12 +172,25 @@ public static class TokenUsageReportPdfBuilder
             + $"其中快取 {TokenUsageFormat.Compact(summary.CachedInputCount)}　"
             + $"其中推理 {TokenUsageFormat.Compact(summary.ReasoningCount)}　"
             + $"合計 {TokenUsageFormat.Compact(summary.TotalCount)}　"
-            + $"呼叫次數 {summary.CallCount:N0}");
+            + $"呼叫次數 {summary.CallCount:N0}　"
+            + $"花費 NT$ {TokenUsageFormat.CostTwdTotal(summary.CostTwd)}"
+            + $"（US$ {TokenUsageFormat.CostUsdTotal(summary.CostUsd)}）");
         paragraph.Format.Font.Size = Unit.FromPoint(11);
 
-        var note = section.AddParagraph("註：快取是輸入的折扣子集、推理計入輸出，兩者皆不另計入合計。");
+        var note = section.AddParagraph(
+            "註：快取是輸入的折扣子集、推理計入輸出，兩者皆不另計入合計。"
+            + "費用為呼叫當下以設定單價與匯率算好的快照，事後調整設定不影響已記錄的帳；"
+            + "美金與台幣各自為逐列加總，區間橫跨匯率調整時兩者彼此推不出來。");
         note.Format.Font.Size = Unit.FromPoint(9);
         note.Format.Font.Color = MutedColor;
+
+        if (summary.UnpricedCount > 0)
+        {
+            var unpriced = section.AddParagraph(
+                $"　其中 {summary.UnpricedCount:N0} 筆未定價（找不到該模型的費率設定）未計入上列金額。");
+            unpriced.Format.Font.Size = Unit.FromPoint(9);
+            unpriced.Format.Font.Color = MutedColor;
+        }
     }
 
     private static void AddGroupTable(
@@ -191,14 +204,15 @@ public static class TokenUsageReportPdfBuilder
             return;
         }
 
+        // 欄寬：7 + 7×2.6 = 25.2 cm，A4 橫式可用寬約 26.5 cm（29.7 減左右各 1.6）。
         var table = CreateTable(section);
         table.AddColumn(Unit.FromCentimeter(7));
-        for (var index = 0; index < 6; index++)
+        for (var index = 0; index < 7; index++)
         {
             table.AddColumn(Unit.FromCentimeter(2.6));
         }
 
-        AddHeaderRow(table, [keyTitle, "輸入", "輸出", "快取", "推理", "合計", "次數"]);
+        AddHeaderRow(table, [keyTitle, "輸入", "輸出", "快取", "推理", "合計", "費用(TWD)", "次數"]);
 
         foreach (var row in rows)
         {
@@ -209,7 +223,8 @@ public static class TokenUsageReportPdfBuilder
             SetCell(cells, 3, TokenUsageFormat.Compact(row.CachedInputCount));
             SetCell(cells, 4, TokenUsageFormat.Compact(row.ReasoningCount));
             SetCell(cells, 5, TokenUsageFormat.Compact(row.TotalCount));
-            SetCell(cells, 6, row.CallCount.ToString("N0"));
+            SetCell(cells, 6, TokenUsageFormat.CostTwdTotal(row.CostTwd));
+            SetCell(cells, 7, row.CallCount.ToString("N0"));
         }
     }
 
@@ -234,7 +249,10 @@ public static class TokenUsageReportPdfBuilder
             table.AddColumn(Unit.FromCentimeter(2.0));
         }
 
-        AddHeaderRow(table, ["時間", "使用者", "作業", "型別", "模型", "輸入", "輸出", "合計", "結果"]);
+        // 費用欄。欄寬合計 3.4+2.4+3.4+2.2+3.6+4×2.0+2.2 = 25.2 cm，A4 橫式放得下。
+        table.AddColumn(Unit.FromCentimeter(2.2));
+
+        AddHeaderRow(table, ["時間", "使用者", "作業", "型別", "模型", "輸入", "輸出", "合計", "費用(TWD)", "結果"]);
 
         foreach (var item in details.Take(MaxDetailRows))
         {
@@ -249,7 +267,8 @@ public static class TokenUsageReportPdfBuilder
             SetCell(cells, 7, item.IsDurationBilled
                 ? $"時長 {item.DurationSeconds:N0} 秒"
                 : TokenUsageFormat.Cell(item.TotalCount));
-            SetCell(cells, 8, item.Success ? "成功" : item.FailureReason ?? "失敗");
+            SetCell(cells, 8, item.IsUnpriced ? "未定價" : TokenUsageFormat.CostTwdCell(item.CostTwd));
+            SetCell(cells, 9, item.Success ? "成功" : item.FailureReason ?? "失敗");
         }
 
         if (details.Count > MaxDetailRows)

@@ -7,3 +7,10 @@
 .token-usage-table-wrap {
     overflow-x: auto;
 }
+
+/* ⚠️ 同 .token-usage-table-wrap 的理由：TokenUsageView.razor.css 那份套不到這裡。 */
+.token-usage-unpriced {
+    color: #d46b08;
+    font-size: 0.85em;
+    margin-left: 0.25rem;
+}

@@ -32,7 +32,24 @@ public sealed class TokenUsageEntry
 
     public int? ReasoningCount { get; init; }
 
+    /// <summary>
+    /// usage.prompt_tokens_details.image_tokens。圖片輸入<b>是 InputCount 的子集</b>，
+    /// 不另外加總 —— 供應商把圖片 token 算在 prompt_tokens 裡面。定成加項會重複計費。
+    /// </summary>
+    public int? ImageInputCount { get; init; }
+
+    /// <summary>圖片輸入中的快取命中，<b>是 ImageInputCount 與 CachedInputCount 的交集子集</b>。</summary>
+    public int? ImageCachedInputCount { get; init; }
+
+    /// <summary>圖片輸出 token，<b>是 OutputCount 的子集</b>，不另外加總。</summary>
+    public int? ImageOutputCount { get; init; }
+
     public int? DurationSeconds { get; init; }
+
+    /// <summary>
+    /// 語音合成的計費字元數。與 token 無關的獨立計費單位，目前專案沒有這類呼叫。
+    /// </summary>
+    public int? CharacterCount { get; init; }
 
     public long ElapsedMilliseconds { get; init; }
 
@@ -110,6 +127,18 @@ public sealed class TokenUsageSummary
 
     public long TotalCount { get; set; }
 
+    /// <summary>估算費用（美金）。未定價的列不計入。</summary>
+    public double CostUsd { get; set; }
+
+    /// <summary>
+    /// 估算費用（台幣）。<b>逐列加總而來</b>，不是由 CostUsd 乘上某個匯率換算的。
+    /// 篩選區間橫跨匯率調整時，這兩個數字彼此推不出來，那是正確的。
+    /// </summary>
+    public double CostTwd { get; set; }
+
+    /// <summary>未定價（算不出費用）的呼叫次數，不含在上面兩個金額裡。</summary>
+    public int UnpricedCount { get; set; }
+
     /// <summary>納入統計的呼叫次數。</summary>
     public int CallCount { get; set; }
 }
@@ -128,6 +157,18 @@ public sealed class TokenUsageGroupRow
     public long ReasoningCount { get; set; }
 
     public long TotalCount { get; set; }
+
+    /// <summary>估算費用（美金）。未定價的列不計入。</summary>
+    public double CostUsd { get; set; }
+
+    /// <summary>
+    /// 估算費用（台幣）。<b>逐列加總而來</b>，不是由 CostUsd 乘上某個匯率換算的。
+    /// 篩選區間橫跨匯率調整時，這兩個數字彼此推不出來，那是正確的。
+    /// </summary>
+    public double CostTwd { get; set; }
+
+    /// <summary>未定價（算不出費用）的呼叫次數，不含在上面兩個金額裡。</summary>
+    public int UnpricedCount { get; set; }
 
     public int CallCount { get; set; }
 }
