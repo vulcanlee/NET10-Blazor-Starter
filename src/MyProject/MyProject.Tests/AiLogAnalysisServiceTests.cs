@@ -725,26 +725,4 @@ public sealed class AiLogAnalysisServiceTests
                 Raw = $"raw-{index} something happened",
             })
             .ToList();
-
-    /// <summary>永遠回傳同一個設定實例的 IOptionsMonitor。</summary>
-    private sealed class StaticOptionsMonitor<T> : IOptionsMonitor<T>
-    {
-        public StaticOptionsMonitor(T value)
-        {
-            CurrentValue = value;
-        }
-
-        public T CurrentValue { get; }
-
-        public T Get(string? name) => CurrentValue;
-
-        public IDisposable OnChange(Action<T, string?> listener) => new NoopDisposable();
-
-        private sealed class NoopDisposable : IDisposable
-        {
-            public void Dispose()
-            {
-            }
-        }
-    }
 }

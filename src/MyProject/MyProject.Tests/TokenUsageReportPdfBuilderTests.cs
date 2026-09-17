@@ -129,6 +129,23 @@ public sealed class TokenUsageReportPdfBuilderTests
         Assert.Throws<ArgumentNullException>(() => TokenUsageReportPdfBuilder.Build(null!));
     }
 
+    [Fact]
+    public void Build_ShouldSucceed_WhenEveryDetailIsUnpriced()
+    {
+        // 0.9.17 之前的紀錄沒有單價快照，整份報表的費用欄都會是 null ——
+        // 那是常態，不是例外，不能讓匯出炸掉。
+        var request = CreateRequest();
+        request = request with
+        {
+            Summary = new TokenUsageSummary { CallCount = 12, UnpricedCount = 12 },
+            Details = CreateDetails(12, priced: false),
+        };
+
+        var bytes = TokenUsageReportPdfBuilder.Build(request);
+
+        Assert.NotEmpty(bytes);
+    }
+
     private static TokenUsageReportRequest CreateRequest() => new()
     {
         SystemName = "企業管理平台",
@@ -145,6 +162,9 @@ public sealed class TokenUsageReportPdfBuilderTests
             CachedInputCount = 9648,
             ReasoningCount = 1609,
             TotalCount = 39029,
+            CostUsd = 1.234567,
+            CostTwd = 38.888,
+            UnpricedCount = 1,
             CallCount = 7,
         },
         ByAccount = [Group("support", 5), Group("vulcan", 2)],
@@ -162,10 +182,12 @@ public sealed class TokenUsageReportPdfBuilderTests
         CachedInputCount = 300 * callCount,
         ReasoningCount = 50 * callCount,
         TotalCount = 1200 * callCount,
+        CostUsd = 0.05 * callCount,
+        CostTwd = 1.575 * callCount,
         CallCount = callCount,
     };
 
-    private static List<TokenUsageLogAdapterModel> CreateDetails(int count) =>
+    private static List<TokenUsageLogAdapterModel> CreateDetails(int count, bool priced = true) =>
         [.. Enumerable.Range(1, count).Select(index => new TokenUsageLogAdapterModel
         {
             Id = index,
@@ -182,5 +204,9 @@ public sealed class TokenUsageReportPdfBuilderTests
             ReasoningCount = 20,
             ElapsedMilliseconds = 12000 + index,
             Success = true,
+            CostUsd = priced ? 0.001 * index : null,
+            CostTwd = priced ? 0.0315 * index : null,
+            CostExchangeRate = priced ? 31.5 : null,
+            CostPriceKey = priced ? "gpt-5.6-sol" : null,
         })];
 }

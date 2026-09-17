@@ -34,4 +34,30 @@ public static class TokenUsageFormat
     /// </summary>
     public static string Cell(int? value)
         => value.HasValue ? Compact(value.Value) : "—";
+
+    /// <summary>
+    /// 明細列的台幣費用。單筆呼叫常常小於 0.01 元，位數不夠會全部顯示成 0。
+    /// null 代表未定價（不是免費），顯示破折號。
+    /// </summary>
+    public static string CostTwdCell(double? value)
+        => value.HasValue ? value.Value.ToString("N4", CultureInfo.InvariantCulture) : "—";
+
+    /// <summary>明細列的美金費用，位數再多兩位（單價本身就是每百萬 token 計的）。</summary>
+    public static string CostUsdCell(double? value)
+        => value.HasValue ? value.Value.ToString("N6", CultureInfo.InvariantCulture) : "—";
+
+    /// <summary>合計與分組統計的台幣費用。金額量級大，不需要明細那麼細。</summary>
+    public static string CostTwdTotal(double value)
+        => value.ToString("N2", CultureInfo.InvariantCulture);
+
+    /// <summary>合計與分組統計的美金費用。</summary>
+    public static string CostUsdTotal(double value)
+        => value.ToString("N4", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// 匯率。用「有幾位顯示幾位」而不是固定小數位 —— 匯率是 31.5 就顯示 31.5，
+    /// 套用金額那種 6 位小數格式會變成 31.500000，讀起來像雜訊。
+    /// </summary>
+    public static string ExchangeRate(double? value)
+        => value.HasValue ? value.Value.ToString("0.####", CultureInfo.InvariantCulture) : "—";
 }

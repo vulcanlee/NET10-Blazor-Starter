@@ -22,20 +22,24 @@ public class TokenUsageLogService : ITokenUsageRecorder
 {
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly TokenUsageRawStore rawStore;
+    private readonly IAiUsageCostCalculator costCalculator;
 
     public IMapper Mapper { get; }
     public ILogger<TokenUsageLogService> Logger { get; }
 
+    // ⚠️ 只能有一個建構式：DataAccessServiceLifetimeTests 用 GetConstructors().Single()。
     public TokenUsageLogService(
         IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<TokenUsageLogService> logger,
-        TokenUsageRawStore rawStore)
+        TokenUsageRawStore rawStore,
+        IAiUsageCostCalculator costCalculator)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.rawStore = rawStore;
+        this.costCalculator = costCalculator;
     }
 
     /// <summary>
@@ -52,6 +56,18 @@ public class TokenUsageLogService : ITokenUsageRecorder
 
             var rawFile = await rawStore.WriteAsync(entry.OccurredAt, entry.RawUsageJson);
 
+            // ⚠️ 這層 try/catch 不能省。外層那個雖然也會吞例外，但它會在 AddAsync 之前就中止 ——
+            // 計算器有 bug 會讓每一列用量都靜默消失，那比丟掉費用嚴重得多。用量比費用重要。
+            AiUsageCost? cost = null;
+            try
+            {
+                cost = costCalculator.Calculate(entry);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to estimate call cost. Operation={Operation}", entry.Operation);
+            }
+
             var item = new TokenUsageLog
             {
                 OccurredAt = entry.OccurredAt,
@@ -66,10 +82,20 @@ public class TokenUsageLogService : ITokenUsageRecorder
                 TotalCount = entry.TotalCount,
                 CachedInputCount = entry.CachedInputCount,
                 ReasoningCount = entry.ReasoningCount,
+                ImageInputCount = entry.ImageInputCount,
+                ImageCachedInputCount = entry.ImageCachedInputCount,
+                ImageOutputCount = entry.ImageOutputCount,
                 DurationSeconds = entry.DurationSeconds,
+                CharacterCount = entry.CharacterCount,
                 ElapsedMilliseconds = entry.ElapsedMilliseconds,
                 Success = entry.Success,
                 FailureReason = entry.FailureReason,
+                CostUsd = cost?.CostUsd,
+                CostTwd = cost?.CostTwd,
+                CostExchangeRate = cost?.ExchangeRate,
+                CostPriceKey = cost?.PriceKey,
+                CostLongContext = cost?.LongContext ?? false,
+                CostRateSnapshot = cost?.RateSnapshot,
                 RawUsageFile = rawFile,
             };
 
@@ -120,6 +146,16 @@ public class TokenUsageLogService : ITokenUsageRecorder
                         ? dataSource.OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
                         : null;
             }
+            else if (query.SortField == nameof(TokenUsageLogAdapterModel.CostTwd))
+            {
+                // 排序鍵用台幣而非美金，與畫面上顯示的欄位一致。
+                // 未定價（NULL）在 SQLite 升冪時排最前面，效果上等於把它們聚在一起。
+                sorted = query.SortDescending == true
+                    ? dataSource.OrderByDescending(x => x.CostTwd).ThenByDescending(x => x.Id)
+                    : query.SortDescending == false
+                        ? dataSource.OrderBy(x => x.CostTwd).ThenBy(x => x.Id)
+                        : null;
+            }
         }
 
         // Skip/Take 之前一定要有 OrderBy，否則 SQLite 不保證回傳順序，分頁會重複或漏資料。
@@ -153,6 +189,11 @@ public class TokenUsageLogService : ITokenUsageRecorder
             CachedInputCount = await dataSource.SumAsync(x => (long?)x.CachedInputCount) ?? 0,
             ReasoningCount = await dataSource.SumAsync(x => (long?)x.ReasoningCount) ?? 0,
             TotalCount = await dataSource.SumAsync(x => (long?)x.TotalCount) ?? 0,
+            // 費用逐列加總。台幣不能由美金總額乘上「目前匯率」換算 —— 區間橫跨匯率調整時，
+            // 每一列的匯率快照都不同，只有逐列相加才是正確的台幣帳。
+            CostUsd = await dataSource.SumAsync(x => x.CostUsd) ?? 0,
+            CostTwd = await dataSource.SumAsync(x => x.CostTwd) ?? 0,
+            UnpricedCount = await dataSource.CountAsync(x => x.CostUsd == null),
             CallCount = await dataSource.CountAsync(),
         };
     }
@@ -182,6 +223,9 @@ public class TokenUsageLogService : ITokenUsageRecorder
                 CachedInputCount = g.Sum(x => (long?)x.Row.CachedInputCount) ?? 0,
                 ReasoningCount = g.Sum(x => (long?)x.Row.ReasoningCount) ?? 0,
                 TotalCount = g.Sum(x => (long?)x.Row.TotalCount) ?? 0,
+                CostUsd = g.Sum(x => x.Row.CostUsd) ?? 0,
+                CostTwd = g.Sum(x => x.Row.CostTwd) ?? 0,
+                UnpricedCount = g.Count(x => x.Row.CostUsd == null),
                 CallCount = g.Count(),
             })
             .ToListAsync();

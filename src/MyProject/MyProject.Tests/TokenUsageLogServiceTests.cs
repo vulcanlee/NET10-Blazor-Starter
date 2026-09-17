@@ -7,6 +7,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
 namespace MyProject.Tests;
@@ -269,6 +270,134 @@ public sealed class TokenUsageLogServiceTests
         Assert.Null(await service.GetRawUsageAsync(row.Id));
     }
 
+    [Fact]
+    public async Task RecordAsync_ShouldStoreCostAndRateSnapshot()
+    {
+        // 輸入 120 其中快取 64、輸出 45；費率設成 1 / 0.1 / 2 美金一顆，匯率 10。
+        // 56×1 + 64×0.1 + 45×2 = 152.4 美金 → 1524 台幣。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.RecordAsync(NewEntry(model: "priced-model"));
+
+        var row = Assert.Single(await fixture.ListAsync());
+        Assert.Equal(152.4, row.CostUsd!.Value, 6);
+        Assert.Equal(1524, row.CostTwd!.Value, 6);
+        Assert.Equal(10, row.CostExchangeRate);
+        Assert.Equal("priced-model", row.CostPriceKey);
+        Assert.False(row.CostLongContext);
+        Assert.Contains("TextInput", row.CostRateSnapshot);
+    }
+
+    [Fact]
+    public async Task RecordAsync_ShouldLeaveCostNull_WhenModelIsUnpriced()
+    {
+        // 未定價與「費用為 0」是兩件事：前者要在畫面上看得見，而不是被當成免費。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.RecordAsync(NewEntry(model: "model-without-price"));
+
+        var row = Assert.Single(await fixture.ListAsync());
+        Assert.Null(row.CostUsd);
+        Assert.Null(row.CostTwd);
+        Assert.Null(row.CostPriceKey);
+    }
+
+    [Fact]
+    public async Task RecordAsync_ShouldStillInsertRow_WhenCostCalculatorThrows()
+    {
+        // 用量比費用重要：計算器壞掉只能丟掉金額，絕不能連帶讓整列用量消失。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService(new ThrowingCostCalculator());
+
+        var exception = await Record.ExceptionAsync(() => service.RecordAsync(NewEntry(model: "priced-model")));
+
+        Assert.Null(exception);
+        var row = Assert.Single(await fixture.ListAsync());
+        Assert.Equal(165, row.TotalCount);
+        Assert.Null(row.CostUsd);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_ShouldSumCostAndCountUnpriced()
+    {
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.RecordAsync(NewEntry(model: "priced-model"));
+        await service.RecordAsync(NewEntry(model: "priced-model"));
+        await service.RecordAsync(NewEntry(model: "model-without-price"));
+
+        var summary = await service.GetSummaryAsync(new TokenUsageQuery());
+
+        Assert.Equal(304.8, summary.CostUsd, 6);
+        Assert.Equal(3048, summary.CostTwd, 6);
+        Assert.Equal(1, summary.UnpricedCount);
+        Assert.Equal(3, summary.CallCount);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_ShouldReturnZeroCost_WhenNoRows()
+    {
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        var summary = await service.GetSummaryAsync(new TokenUsageQuery());
+
+        Assert.Equal(0, summary.CostUsd);
+        Assert.Equal(0, summary.CostTwd);
+        Assert.Equal(0, summary.UnpricedCount);
+    }
+
+    [Fact]
+    public async Task GetGroupedAsync_ShouldSumCostPerGroup()
+    {
+        // 分組的費用小計加起來要等於總計，否則「誰花最多錢」這個問題就答錯了。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.RecordAsync(NewEntry(account: "alice", model: "priced-model"));
+        await service.RecordAsync(NewEntry(account: "bob", model: "priced-model"));
+        await service.RecordAsync(NewEntry(account: "bob", model: "model-without-price"));
+
+        var rows = await service.GetGroupedAsync(new TokenUsageQuery(), TokenUsageGroupBy.Account);
+        var summary = await service.GetSummaryAsync(new TokenUsageQuery());
+
+        Assert.Equal(summary.CostUsd, rows.Sum(x => x.CostUsd), 6);
+        Assert.Equal(1, rows.Single(x => x.Key == "bob").UnpricedCount);
+        Assert.Equal(0, rows.Single(x => x.Key == "alice").UnpricedCount);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetAsync_ShouldSortByCost(bool descending)
+    {
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        await service.RecordAsync(NewEntry(account: "cheap", model: "model-without-price"));
+        await service.RecordAsync(NewEntry(account: "paid", model: "priced-model"));
+
+        var page = await service.GetAsync(new TokenUsageQuery
+        {
+            SortField = nameof(TokenUsageLogAdapterModel.CostTwd),
+            SortDescending = descending,
+        });
+
+        // 未定價是 NULL，SQLite 升冪時排最前面、降冪時排最後面。
+        var first = page.Result.First();
+        Assert.Equal(descending ? "paid" : "cheap", first.Account);
+    }
+
+    /// <summary>驗證「計算器丟例外也不能吃掉整列用量」。</summary>
+    private sealed class ThrowingCostCalculator : IAiUsageCostCalculator
+    {
+        public AiUsageCost? Calculate(TokenUsageEntry entry)
+            => throw new InvalidOperationException("boom");
+    }
+
     private static TokenUsageEntry NewEntry(
         string? account = "support",
         string model = "gpt-4o-mini",
@@ -337,7 +466,7 @@ public sealed class TokenUsageLogServiceTests
             return new TokenUsageFixture(connection, path);
         }
 
-        public TokenUsageLogService CreateService()
+        public TokenUsageLogService CreateService(IAiUsageCostCalculator? costCalculator = null)
         {
             var settings = new SystemSettings();
             settings.ExternalFileSystem.TokenUsagePath = TokenUsagePath;
@@ -346,7 +475,34 @@ public sealed class TokenUsageLogServiceTests
                 new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<TokenUsageLogService>(),
-                new TokenUsageRawStore(Options.Create(settings), loggerFactory.CreateLogger<TokenUsageRawStore>()));
+                new TokenUsageRawStore(Options.Create(settings), loggerFactory.CreateLogger<TokenUsageRawStore>()),
+                costCalculator ?? CreateCostCalculator());
+        }
+
+        /// <summary>
+        /// 測試用的計價設定：只有 priced-model 有費率，其他模型一律未定價。
+        /// 匯率取 10 是為了讓「台幣 = 美金 × 10」一眼就看得出來。
+        /// </summary>
+        public static IAiUsageCostCalculator CreateCostCalculator()
+        {
+            var pricing = new AiPricingSettings
+            {
+                UsdToTwd = 10,
+                Models =
+                {
+                    ["priced-model"] = new AiModelPricing
+                    {
+                        Rates = new AiModelRates
+                        {
+                            TextInputPerMillion = 1_000_000,
+                            TextCachedInputPerMillion = 100_000,
+                            TextOutputPerMillion = 2_000_000,
+                        },
+                    },
+                },
+            };
+
+            return new AiUsageCostCalculator(new StaticOptionsMonitor<AiPricingSettings>(pricing));
         }
 
         public async Task<List<TokenUsageLog>> ListAsync()

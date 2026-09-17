@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using AntDesign;
 using AntDesign.TableModels;
@@ -64,6 +65,7 @@ namespace MyProject.Web.Components.Views.Analytics
         private TokenUsageLogAdapterModel? detailItem;
         private List<KeyValuePair<string, string>> detailRawRows = [];
         private string detailRawMessage = string.Empty;
+        private List<KeyValuePair<string, string>> detailCostRateRows = [];
 
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -99,6 +101,49 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private static string FormatCell(int? value) => TokenUsageFormat.Cell(value);
 
+        private static string FormatCostTwdCell(double? value) => TokenUsageFormat.CostTwdCell(value);
+
+        private static string FormatCostUsdCell(double? value) => TokenUsageFormat.CostUsdCell(value);
+
+        private static string FormatCostTwdTotal(double value) => TokenUsageFormat.CostTwdTotal(value);
+
+        private static string FormatCostUsdTotal(double value) => TokenUsageFormat.CostUsdTotal(value);
+
+        private static string FormatExchangeRate(double? value) => TokenUsageFormat.ExchangeRate(value);
+
+        /// <summary>
+        /// 明細列「費用」欄的 Tooltip：美金原價、當時匯率、實際套用的費率鍵。
+        ///
+        /// ⚠️ 標示「前綴比對」是刻意的，而且是對「套錯兄弟模型費率」唯一的實務防線 ——
+        /// 費率若是從別的模型名稱推來的，使用者必須看得見。
+        /// </summary>
+        private static string BuildCostTooltip(TokenUsageLogAdapterModel item)
+        {
+            var parts = new List<string>
+            {
+                $"US$ {FormatCostUsdCell(item.CostUsd)}",
+            };
+
+            if (item.CostExchangeRate.HasValue)
+            {
+                parts.Add($"匯率 {FormatExchangeRate(item.CostExchangeRate)}");
+            }
+
+            if (string.IsNullOrEmpty(item.CostPriceKey) == false)
+            {
+                parts.Add(item.IsPrefixMatched
+                    ? $"費率 {item.CostPriceKey}（前綴比對）"
+                    : $"費率 {item.CostPriceKey}");
+            }
+
+            if (item.CostLongContext)
+            {
+                parts.Add("長脈絡費率");
+            }
+
+            return string.Join("　", parts);
+        }
+
         private string DetailAccountText
         {
             get
@@ -110,6 +155,22 @@ namespace MyProject.Web.Components.Views.Analytics
 
                 var account = string.IsNullOrWhiteSpace(detailItem.Account) ? "（系統自動）" : detailItem.Account;
                 return detailItem.UserId is null ? account : $"{account}（UserId={detailItem.UserId}）";
+            }
+        }
+
+        /// <summary>計價依據。費率若是前綴比對來的，必須在這裡說清楚是從哪個鍵套來的。</summary>
+        private string DetailPriceKeyText
+        {
+            get
+            {
+                if (detailItem is null || string.IsNullOrEmpty(detailItem.CostPriceKey))
+                {
+                    return "—";
+                }
+
+                return detailItem.IsPrefixMatched
+                    ? $"{detailItem.CostPriceKey}（以前綴比對自 {detailItem.Model}）"
+                    : detailItem.CostPriceKey;
             }
         }
 
@@ -233,6 +294,10 @@ namespace MyProject.Web.Components.Views.Analytics
             detailItem = item;
             detailRawRows = [];
             detailRawMessage = "讀取中…";
+            // 費率快照就在資料列上，不必再讀檔；沿用同一支平攤器讓呈現與原始明細一致。
+            detailCostRateRows = string.IsNullOrWhiteSpace(item.CostRateSnapshot)
+                ? []
+                : FlattenJson(item.CostRateSnapshot);
             detailVisible = true;
             StateHasChanged();
 
@@ -393,7 +458,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 var all = await tokenUsageLogService.GetAsync(query);
 
                 var builder = new StringBuilder();
-                builder.AppendLine("時間,使用者,作業,型別,供應商,模型,輸入,輸出,推理,快取,合計,音訊時長秒,耗時ms,結果,失敗原因");
+                builder.AppendLine("時間,使用者,作業,型別,供應商,模型,輸入,輸出,推理,快取,圖片輸入,圖片快取,圖片輸出,合計,費用USD,費用TWD,匯率,計價依據,長脈絡,字元數,音訊時長秒,耗時ms,結果,失敗原因");
                 foreach (var item in all.Result)
                 {
                     builder.AppendLine(string.Join(',',
@@ -407,7 +472,16 @@ namespace MyProject.Web.Components.Views.Analytics
                         Csv(item.OutputCount?.ToString()),
                         Csv(item.ReasoningCount?.ToString()),
                         Csv(item.CachedInputCount?.ToString()),
+                        Csv(item.ImageInputCount?.ToString()),
+                        Csv(item.ImageCachedInputCount?.ToString()),
+                        Csv(item.ImageOutputCount?.ToString()),
                         Csv(item.TotalCount?.ToString()),
+                        Csv(CsvCost(item.CostUsd, "F6")),
+                        Csv(CsvCost(item.CostTwd, "F4")),
+                        Csv(CsvCost(item.CostExchangeRate, "F4")),
+                        Csv(item.CostPriceKey),
+                        Csv(item.IsUnpriced ? null : (item.CostLongContext ? "是" : "否")),
+                        Csv(item.CharacterCount?.ToString()),
                         Csv(item.DurationSeconds?.ToString()),
                         Csv(item.ElapsedMilliseconds.ToString()),
                         Csv(item.Success ? "成功" : "失敗"),
@@ -493,6 +567,17 @@ namespace MyProject.Web.Components.Views.Analytics
                 StateHasChanged();
             }
         }
+
+        /// <summary>
+        /// CSV 的金額欄。
+        ///
+        /// ⚠️ 一律用 F 格式 + InvariantCulture，<b>不能用 N</b>：N 會插千分位逗號，
+        /// Excel 會把 "1,234.5678" 當文字匯入，使用者做 SUM 得到 0。
+        ///
+        /// ⚠️ 未定價輸出空字串而不是 0，否則試算表加總會靜默少算。
+        /// </summary>
+        private static string? CsvCost(double? value, string format)
+            => value?.ToString(format, CultureInfo.InvariantCulture);
 
         /// <summary>CSV 欄位跳脫：雙引號加倍、整欄以雙引號包住，換行才不會把一列拆成兩列。</summary>
         private static string Csv(string? value)

@@ -1,4 +1,4 @@
-﻿@using MyProject.Models.Systems
+﻿@using MyProject.Models.Systems
 @using MyProject.Web.Diagnostics
 
 @*
@@ -26,6 +26,19 @@
         </Column>
         <Column TData="string" Title="合計" Width="130" Align="ColumnAlign.Right">
             <strong>@TokenUsageFormat.Compact(context.TotalCount)</strong>
+        </Column>
+        @*
+            這裡的 Tooltip 刻意不顯示匯率：一個分組可能橫跨多次匯率調整，
+            沒有單一匯率能代表整組。要看匯率請到明細列或明細窗。
+        *@
+        <Column TData="string" Title="費用" Width="140" Align="ColumnAlign.Right">
+            <Tooltip Title="@($"US$ {TokenUsageFormat.CostUsdTotal(context.CostUsd)}")">
+                <span>NT$ @TokenUsageFormat.CostTwdTotal(context.CostTwd)</span>
+            </Tooltip>
+            @if (context.UnpricedCount > 0)
+            {
+                <span class="token-usage-unpriced">（@context.UnpricedCount 未計）</span>
+            }
         </Column>
         <Column TData="string" Title="次數" Width="100" Align="ColumnAlign.Right">
             @context.CallCount.ToString("N0")

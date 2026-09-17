@@ -57,10 +57,34 @@ public class TokenUsageLog
     public int? ReasoningCount { get; set; }
 
     /// <summary>
+    /// usage.prompt_tokens_details.image_tokens。圖片輸入<b>是 <see cref="InputCount"/> 的子集</b>，
+    /// 不另外加總。
+    ///
+    /// ⚠️ 這個「子集」定義是刻意的，不可改成加項：供應商把圖片 token 算在 prompt_tokens 裡面，
+    /// 若定成額外加項，第一個照抄供應商語意填值的人就會讓每筆圖片呼叫<b>重複計費</b>，
+    /// 而費用已經是寫死的快照，回頭沒得修。
+    ///
+    /// 目前專案沒有圖片類呼叫，欄位先預留。
+    /// </summary>
+    public int? ImageInputCount { get; set; }
+
+    /// <summary>圖片輸入中的快取命中，<b>是 <see cref="ImageInputCount"/> 與 <see cref="CachedInputCount"/> 的交集子集</b>。</summary>
+    public int? ImageCachedInputCount { get; set; }
+
+    /// <summary>圖片輸出 token，<b>是 <see cref="OutputCount"/> 的子集</b>，不另外加總。</summary>
+    public int? ImageOutputCount { get; set; }
+
+    /// <summary>
     /// 音訊時長（秒）。部分語音模型依時長計費、不回傳 token 數。
     /// 目前專案沒有這類呼叫，欄位先預留，這類列不計入 token 合計。
     /// </summary>
     public int? DurationSeconds { get; set; }
+
+    /// <summary>
+    /// 語音合成的計費字元數。與 token 無關的獨立計費單位。
+    /// 目前專案沒有這類呼叫，欄位先預留。
+    /// </summary>
+    public int? CharacterCount { get; set; }
 
     /// <summary>本次呼叫耗時。</summary>
     public long ElapsedMilliseconds { get; set; }
@@ -75,10 +99,39 @@ public class TokenUsageLog
     public string? FailureReason { get; set; }
 
     /// <summary>
-    /// 估算費用。<b>目前不計算</b>，欄位先預留。
-    /// 真要實作時還需要把當下的單價一併存下來（單價會隨時間變動，否則金額無法重現）。
+    /// 估算費用（美金）。<b>null 就是「未定價」</b> —— 找不到該模型的費率設定，或匯率未設定。
+    /// 有比到費率但這次用量是 0 時存 0，兩者意義不同。
+    ///
+    /// 型別是 double 而非 decimal：SQLite 把 decimal 存成 TEXT，無法在 SQL 端可靠彙總，
+    /// 而「篩選範圍的總花費」正是這個功能的核心。帳目可重現性不靠這個數字，
+    /// 而靠下面的單價與匯率快照 —— 有快照與 token 數，任何時候都能重算驗證。
     /// </summary>
-    public decimal? EstimatedCost { get; set; }
+    public double? CostUsd { get; set; }
+
+    /// <summary>估算費用（台幣）＝ <see cref="CostUsd"/> × <see cref="CostExchangeRate"/>。</summary>
+    public double? CostTwd { get; set; }
+
+    /// <summary>計算當下的美金兌台幣匯率快照。日後調整設定不影響這一列。</summary>
+    public double? CostExchangeRate { get; set; }
+
+    /// <summary>
+    /// 實際套用的費率設定鍵。與 <see cref="Model"/> 不同時，代表是前綴比對來的
+    /// （例如回應的 gpt-4o-2024-08-06 套用了 gpt-4o 的費率）。
+    /// </summary>
+    public string? CostPriceKey { get; set; }
+
+    /// <summary>本次是否套用長脈絡費率。</summary>
+    public bool CostLongContext { get; set; }
+
+    /// <summary>
+    /// 生效費率組的精簡 JSON（只含非零項），例如 {"TextInput":4,"TextCachedInput":0.4,"TextOutput":20}。
+    ///
+    /// ⚠️ 這是本表「只留可聚合的數值欄位」原則的<b>刻意例外</b>。它是設定衍生資料，
+    /// 不含任何使用者輸入或模型輸出，所以不踩上面那條安全紅線。
+    /// 不能改寫進 <see cref="RawUsageFile"/> 那個檔：那個檔可能是 null，
+    /// 而且會被「清除此日之前」獨立刪掉，帳就沒了。
+    /// </summary>
+    public string? CostRateSnapshot { get; set; }
 
     /// <summary>原始 usage JSON 的相對路徑，例如 202609/ab12….json。寫檔失敗時為 null。</summary>
     public string? RawUsageFile { get; set; }
