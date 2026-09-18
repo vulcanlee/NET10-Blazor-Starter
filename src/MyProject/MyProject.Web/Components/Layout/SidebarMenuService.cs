@@ -21,20 +21,23 @@ public sealed class SidebarMenuService
         [1] = MagicObjectHelper.角色_首頁,
         [2] = MagicObjectHelper.角色_專案管理,
         [21] = MagicObjectHelper.角色_專案項目,
+        // 系統管理群組與其下兩個子群組（統計與分析、權限管理）的權限鍵，刻意不列入
+        // RolePermissionService.GetRoleListPermissionAllName()，因此不會種出 Permission 資料列、
+        // 任何角色都無法被授予，只有管理員短路能通過。詳見 MagicObjectHelper。
         [3] = MagicObjectHelper.角色_系統管理,
+        [6] = MagicObjectHelper.角色_統計與分析,
+        [65] = MagicObjectHelper.角色_系統健康監控,
+        [61] = MagicObjectHelper.角色_日誌檢視,
+        [63] = MagicObjectHelper.角色_日誌等級設定,
+        [33] = MagicObjectHelper.角色_系統例外紀錄,
+        [62] = MagicObjectHelper.角色_資料庫用量,
+        [64] = MagicObjectHelper.角色_Token用量,
+        [34] = MagicObjectHelper.角色_權限管理,
         [31] = MagicObjectHelper.角色_使用者管理,
         [32] = MagicObjectHelper.角色_角色管理,
-        [33] = MagicObjectHelper.角色_系統例外紀錄,
         [5] = MagicObjectHelper.角色_資料定義,
         [51] = MagicObjectHelper.角色_分類清單,
         [52] = MagicObjectHelper.角色_團隊清單,
-        // 統計與分析群組：權限鍵刻意不列入 RolePermissionService.GetRoleListPermissionAllName()，
-        // 因此不會種出 Permission 資料列、任何角色都無法被授予，只有管理員短路能通過。詳見 MagicObjectHelper。
-        [6] = MagicObjectHelper.角色_統計與分析,
-        [61] = MagicObjectHelper.角色_日誌檢視,
-        [62] = MagicObjectHelper.角色_資料庫用量,
-        [63] = MagicObjectHelper.角色_日誌等級設定,
-        [64] = MagicObjectHelper.角色_Token用量,
         [4] = MagicObjectHelper.角色_登出,
     };
 

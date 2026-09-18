@@ -24,6 +24,7 @@ public sealed class MenuIconTests
         "admin_panel_settings",
         "group",
         "shield_person",
+        "manage_accounts",
         "bug_report",
         "storage",
         "category",
@@ -34,6 +35,7 @@ public sealed class MenuIconTests
         "data_usage",
         "toll",
         "tune",
+        "monitor_heart",
     };
 
     [Fact]

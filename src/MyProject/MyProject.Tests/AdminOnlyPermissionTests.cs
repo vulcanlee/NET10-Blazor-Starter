@@ -17,11 +17,13 @@ public sealed class AdminOnlyPermissionTests
     public static TheoryData<string> AdminOnlyPermissionKeys =>
     [
         MagicObjectHelper.角色_統計與分析,
+        MagicObjectHelper.角色_系統健康監控,
         MagicObjectHelper.角色_日誌檢視,
         MagicObjectHelper.角色_資料庫用量,
         MagicObjectHelper.角色_日誌等級設定,
         MagicObjectHelper.角色_Token用量,
         MagicObjectHelper.角色_系統管理,
+        MagicObjectHelper.角色_權限管理,
         MagicObjectHelper.角色_使用者管理,
         MagicObjectHelper.角色_角色管理,
         MagicObjectHelper.角色_系統例外紀錄,
