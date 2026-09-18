@@ -1,4 +1,4 @@
-@if (string.IsNullOrEmpty(RoleMessage) == false)
+﻿@if (string.IsNullOrEmpty(RoleMessage) == false)
 {
     <div class="alert alert-danger" role="alert">
         @RoleMessage
@@ -65,19 +65,26 @@ else
         </div>
     </div>
 
+    @*
+        大量資料輸入對話窗，規範見 docs/architecture/對話窗 UI 設計規範.md。
+        ⚠️ EditForm 上絕不可掛鍵盤事件（§6.3，ModalKeyboardConventionTests 守門）。
+    *@
     <Modal Title="@modalTitle"
-           Class="team-view-modal"
+           Class="form-modal"
            @bind-Visible="@modalVisible"
            Keyboard="true"
+           MaskClosable="false"
+           OkText="@("儲存")"
+           CancelText="@("取消")"
            OnOk="OnModalOKHandleAsync"
            OnCancel="OnModalCancelHandleAsync">
-        <div>
-            <EditForm Model="@CurrentRecord" Context="editContext">
-                <DataAnnotationsValidator />
-                <ValidationSummary />
-                <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+        <EditForm Model="@CurrentRecord" Context="editContext">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <InputWatcher EditContextActionChanged="OnEditContestChanged" />
 
-                <AntDesign.Form TModel="TeamAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+            <AntDesign.Form TModel="TeamAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+                <FormSection Title="團隊資料">
                     <FormItem Label="名稱" Required>
                         <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入團隊名稱" />
                         <ValidationMessage For="() => CurrentRecord.Name" />
@@ -88,7 +95,8 @@ else
                         <ValidationMessage For="() => CurrentRecord.Code" />
                     </FormItem>
 
-                    <FormItem Label="描述">
+                    @* 多行文字獨占整行：擠在半欄裡會逼使用者在窄框裡讀長句。 *@
+                    <FormItem Label="描述" Class="form-field-full">
                         <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入團隊描述" />
                         <ValidationMessage For="() => CurrentRecord.Description" />
                     </FormItem>
@@ -96,10 +104,8 @@ else
                     <FormItem Label="啟用狀態">
                         <Switch @bind-Value="CurrentRecord.IsEnabled" CheckedChildren="啟用" UnCheckedChildren="停用" />
                     </FormItem>
-                </AntDesign.Form>
-            </EditForm>
-        </div>
+                </FormSection>
+            </AntDesign.Form>
+        </EditForm>
     </Modal>
 }
-
-<FormModalHelper />

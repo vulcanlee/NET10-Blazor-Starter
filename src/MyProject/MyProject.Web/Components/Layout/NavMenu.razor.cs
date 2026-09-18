@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Layout;
 
@@ -30,6 +31,25 @@ public partial class NavMenu : ComponentBase, IDisposable
 
     [Inject]
     private SidebarMenuService SidebarMenuService { get; set; } = default!;
+
+    [Inject]
+    private ModalService ModalService { get; set; } = default!;
+
+    /// <summary>側邊欄收合狀態的登出入口。行為與使用者選單、展開側邊欄一致。</summary>
+    private Task OnLogoutClickAsync()
+        => LogoutConfirm.RequestAsync(ModalService, NavigationManager);
+
+    /// <summary>
+    /// 使用者取消登出後，把選中狀態拉回目前路由。
+    ///
+    /// ⚠️ AntDesign 的 Menu 預設 Selectable=true，點下登出項它會立刻標成選中；
+    /// 取消登出不會產生 LocationChanged，所以那個選中樣式會一直留著不消失。
+    /// </summary>
+    private void RestoreMenuSelection()
+    {
+        SyncMenuStateFromRoute();
+        StateHasChanged();
+    }
 
     [Inject]
     private IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;

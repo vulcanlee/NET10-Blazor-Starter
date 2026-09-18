@@ -1,4 +1,4 @@
-@using MyProject.Web.Diagnostics
+﻿@using MyProject.Web.Diagnostics
 
 @if (string.IsNullOrEmpty(RoleMessage) == false)
 {
@@ -85,7 +85,7 @@ else
         </div>
 
         @*
-            尺寸（96vw／96vh）寫在 Components/Commons/FormModalHelper.razor 的全域 style，
+            尺寸（96vw／96vh）寫在 Components/Commons/OverlayStyles.razor 的全域 style，
             刻意不在這裡設 Width —— 那邊是 !important，兩邊都寫只會讓人改錯地方。
 
             MaskClosable 只在等待中關掉：關窗等於放棄一次已送出、可能已計費的呼叫，
@@ -167,7 +167,5 @@ else
                 }
             </div>
         </Modal>
-
-        <FormModalHelper />
     </div>
 }

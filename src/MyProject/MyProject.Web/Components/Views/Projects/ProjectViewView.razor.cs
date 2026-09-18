@@ -52,6 +52,12 @@ public partial class ProjectViewView
     private bool isNewRecordMode;
     private string RoleMessage = string.Empty;
 
+    /// <summary>
+    /// 未儲存變更偵測。開窗時 Capture、按取消／儲存時比對，
+    /// 「改了又改回原值」視為無變更，不會白問使用者一次。
+    /// </summary>
+    private readonly FormDirtyTracker dirtyTracker = new();
+
     private IReadOnlyList<string> StatusOptions => ProjectAdapterModel.StatusOptions;
     private IReadOnlyList<string> PriorityOptions => ProjectAdapterModel.PriorityOptions;
 
@@ -227,6 +233,12 @@ public partial class ProjectViewView
         pendingUploadFiles.Clear();
         removedFileIds.Clear();
         BuildModalCategoryOptions();
+
+        // ⚠️ 必須是開窗前的最後一步：任何預設值與關聯資料都要先塞完。
+        //    第二個參數是檔案指紋 —— 待上傳與待刪除的檔案不在 ProjectAdapterModel 裡，
+        //    不納入比對的話，「只加了檔案、沒動欄位」會被判定為無變更而直接關窗。
+        dirtyTracker.Capture(CurrentRecord, UploadStateFingerprint);
+
         modalVisible = true;
         logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
     }
@@ -260,15 +272,7 @@ public partial class ProjectViewView
             return;
         }
 
-        var ok = await modalService.ConfirmAsync(new ConfirmOptions
-        {
-            Title = "確認刪除",
-            Content = "確定要刪除這筆紀錄嗎？此操作無法復原。",
-            OkText = "刪除",
-            CancelText = "取消",
-            OkButtonProps = new ButtonProps { Danger = true },
-            MaskClosable = false
-        });
+        var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
 
         if (!ok)
         {
@@ -299,6 +303,10 @@ public partial class ProjectViewView
         BuildModalCategoryOptions();
         isNewRecordMode = true;
         modalTitle = "新增專案";
+
+        // ⚠️ 必須是開窗前的最後一步；第二個參數見 OnEditAsync 的說明。
+        dirtyTracker.Capture(CurrentRecord, UploadStateFingerprint);
+
         modalVisible = true;
         logger.LogInformation("Opened create modal for project.");
         return Task.CompletedTask;
@@ -328,20 +336,30 @@ public partial class ProjectViewView
     /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
     /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
     /// </summary>
+    /// <summary>
+    /// 「儲存」按鈕。
+    ///
+    /// ⚠️ 第一行的 modalVisible = true 不可移動，也不可在它之前 await：
+    /// AntDesign 在呼叫本方法**之前**就已送出 VisibleChanged(false)，這一行是在同一個
+    /// render batch 內把它搶回來（那個 false 從來不會被畫出來，所以不會閃爍）。
+    /// 之後的開關一律由 FormModalFlow 的回傳值決定 —— 失敗路徑只要 return false。
+    /// ⚠️ args 可能是 null，不要解參考它。
+    /// </summary>
     private async Task OnModalOKHandleAsync(MouseEventArgs args)
     {
-        try
-        {
-            await OnModalOKHandleCoreAsync(args);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Unhandled exception while saving project.");
-            ViewNotification.Error(notificationService, "儲存專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
-        }
+        modalVisible = true;
+        modalVisible = await FormModalFlow.RunOkAsync(
+            SaveAsync,
+            logger,
+            notificationService,
+            "儲存專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
     }
 
-    private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
+    /// <summary>
+    /// 實際存檔。回傳 true 表示已完成、可以關窗；
+    /// 任何驗證失敗或使用者中止都 return false，不必再碰 modalVisible。
+    /// </summary>
+    private async Task<bool> SaveAsync()
     {
         if (LocalEditContext?.Validate() == false)
         {
@@ -352,8 +370,24 @@ public partial class ProjectViewView
                 ViewNotification.ValidationError(notificationService, error);
             }
 
-            modalVisible = true;
-            return;
+            return false;
+        }
+
+        // 一個字都沒改就按儲存：不值得白寫一筆，也不該白跳一次確認窗。
+        if (isNewRecordMode == false && dirtyTracker.IsDirty(CurrentRecord) == false)
+        {
+            logger.LogDebug("Project save skipped because nothing changed. ProjectId={ProjectId}", CurrentRecord.Id);
+            ViewNotification.Info(notificationService, "沒有任何變更，未進行儲存。");
+
+            return true;
+        }
+
+        // 儲存前的二次確認。排在檔案讀取與資料庫前置檢查之前：
+        // 使用者若選「再檢查」，就不必白讀一次檔案、白跑一次資料庫來回。
+        if (await FormEditConfirm.AskSaveAsync(modalService) == false)
+        {
+            logger.LogDebug("Project save cancelled at save confirmation. ProjectId={ProjectId}", CurrentRecord.Id);
+            return false;
         }
 
         if (CurrentRecord.Teams.Count == 0
@@ -364,8 +398,7 @@ public partial class ProjectViewView
             logger.LogDebug("Project save cancelled at team confirmation. ProjectId={ProjectId}", CurrentRecord.Id);
 
             // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
-            modalVisible = true;
-            return;
+            return false;
         }
 
         var uploadInputs = new List<ProjectUploadFileInput>();
@@ -396,8 +429,7 @@ public partial class ProjectViewView
                     logger.LogInformation("Project create pre-check failed. Title={Title}, Message={Message}", CurrentRecord.Title, beforeAddCheckResult.Message);
                     ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
 
-                    modalVisible = true;
-                    return;
+                    return false;
                 }
 
                 CurrentRecord.CreatedAt = DateTime.Now;
@@ -414,8 +446,7 @@ public partial class ProjectViewView
                     logger.LogInformation("Project update pre-check failed. ProjectId={ProjectId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
 
-                    modalVisible = true;
-                    return;
+                    return false;
                 }
 
                 CurrentRecord.UpdatedAt = DateTime.Now;
@@ -427,8 +458,7 @@ public partial class ProjectViewView
             {
                 ViewNotification.Error(notificationService, actionResult.Message);
 
-                modalVisible = true;
-                return;
+                return false;
             }
 
             pendingUploadFiles.Clear();
@@ -442,7 +472,9 @@ public partial class ProjectViewView
             }
 
             await ReloadAsync();
-            modalVisible = false;
+            dirtyTracker.Clear();
+
+            return true;
         }
         finally
         {
@@ -453,14 +485,41 @@ public partial class ProjectViewView
         }
     }
 
-    private Task OnModalCancelHandleAsync(MouseEventArgs args)
+    /// <summary>
+    /// 取消／✕／ESC 的共用出口（遮罩已由 MaskClosable="false" 擋掉，不會走到這裡）。
+    /// 有未儲存變更時先問過使用者；無變更直接關閉，不打擾。
+    ///
+    /// ⚠️ 第一行的 modalVisible = true 不可移動：AntDesign 呼叫本方法前已送出
+    /// VisibleChanged(false)，要讓「繼續編輯」留住整窗輸入就得在這裡搶回來。
+    /// ⚠️ args 可能是 null（ESC／✕ 走 Config.OnCancel.Invoke(null)），不要解參考它。
+    /// ⚠️ 待上傳／待刪除的檔案只能在**確定要關窗之後**才清掉，
+    ///    否則使用者選「繼續編輯」會發現選好的檔案不見了。
+    /// </summary>
+    private async Task OnModalCancelHandleAsync(MouseEventArgs args)
     {
-        modalVisible = false;
+        modalVisible = true;
+        modalVisible = await FormModalFlow.ConfirmCloseAsync(modalService, dirtyTracker.IsDirty(CurrentRecord));
+
+        if (modalVisible)
+        {
+            return;
+        }
+
         pendingUploadFiles.Clear();
         removedFileIds.Clear();
+        dirtyTracker.Clear();
         logger.LogDebug("Project modal cancelled.");
-        return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// 待上傳與待刪除檔案的指紋。這些狀態不在 ProjectAdapterModel 裡，
+    /// 但使用者會認為「我剛加了一個檔案」就是變更，因此一併納入比對。
+    /// ⚠️ 不能直接把 IBrowserFile 丟給 FormDirtyTracker —— 它不可序列化。
+    /// </summary>
+    private string UploadStateFingerprint()
+        => string.Join('|', pendingUploadFiles.Select(x => $"{x.File.Name}:{x.File.Size}"))
+           + "#"
+           + string.Join(',', removedFileIds.OrderBy(x => x));
 
     public void OnEditContestChanged(EditContext context)
     {

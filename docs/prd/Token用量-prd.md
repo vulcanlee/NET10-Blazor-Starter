@@ -74,7 +74,7 @@
 不必再讀檔。這一區是「帳目可重現」的實際入口：有快照與 token 數就能手算驗證 ——
 欄位與驗證方式見 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) §4.6。
 
-⚠️ 明細窗的**尺寸與內容樣式都寫在 `Components/Commons/FormModalHelper.razor` 的全域 `<style>`**：
+⚠️ 明細窗的**尺寸與內容樣式都寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`**：
 AntDesign 的 Modal 渲染在元件 DOM 之外，scoped CSS（連 `::deep`）打不到。
 該檔 `<style>` 內的 `@media` 必須寫成 `@@media`，否則 Razor 編譯失敗。
 

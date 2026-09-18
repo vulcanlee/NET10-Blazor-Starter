@@ -347,7 +347,7 @@ PDFsharp 會靜默掉字（PDF 整片變成空白方框），而那種問題在 
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | Markdown 轉 PDF 的極小渲染器 |
 | `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗三態、字級與稽核 |
-| `MyProject.Web/Components/Commons/FormModalHelper.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
+| `MyProject.Web/Components/Commons/OverlayStyles.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
 
 ## 10. 對話窗的三個狀態（0.9.8 起）
 
@@ -414,7 +414,7 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 ### 10.4 尺寸
 
 對話窗是 **96vw × 96vh**（`top: 2vh`，上下各留 2vh）。
-尺寸寫在 `Components/Commons/FormModalHelper.razor` 的全域 `<style>`，
+尺寸寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`，
 **不要**改用 `<Modal Width>` —— 那邊是 `!important`，兩邊都寫只會讓人改錯地方。
 `AiModalStyleConventionTests` 也擋下在標籤上加 `Width` 的寫法。
 

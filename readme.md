@@ -240,6 +240,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
 - [Web API 設計慣例](docs/architecture/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。
 - [Web API 端點目錄](docs/architecture/Web%20API%20端點目錄.md) — 全部 controller 的實際路由、授權與回傳型別對照表。
+- [對話窗 UI 設計規範](docs/architecture/對話窗%20UI%20設計規範.md) — 表單窗的滿版 2 欄版型與未儲存保護、小型確認窗、通知與消息條的果凍視覺。
 - [API Versioning 策略](docs/architecture/API%20Versioning%20策略.md) — `/api/...` 與 `/api/v1/...` 平行路由、Swagger v1 分組與後續導入策略。
 
 ### 認證與安全（security）
