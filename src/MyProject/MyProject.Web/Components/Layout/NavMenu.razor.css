@@ -45,18 +45,6 @@
     min-width: 0;
 }
 
-.sidebar-brand-icon {
-    align-items: center;
-    background: linear-gradient(135deg, #64748b 0%, #334155 100%);
-    border-radius: 18px;
-    box-shadow: 0 12px 28px rgba(148, 163, 184, 0.2);
-    color: white;
-    display: inline-flex;
-    height: 3rem;
-    justify-content: center;
-    width: 3rem;
-}
-
 .sidebar-brand-text {
     display: flex;
     flex-direction: column;
