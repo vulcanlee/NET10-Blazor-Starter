@@ -1,4 +1,4 @@
-using AntDesign;
+﻿using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Web.Components.Commons;
 using MyProject.Web.Health;
 
 namespace MyProject.Web.Components.Layout;
@@ -39,6 +40,9 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     [Inject]
     private MessageService MessageService { get; set; } = default!;
+
+    [Inject]
+    private ModalService ModalService { get; set; } = default!;
 
     [Inject]
     private IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
@@ -152,6 +156,17 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         isUserMenuOpen = false;
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// 使用者主動按下登出。先收起選單再問，否則確認窗後面還浮著一個展開的下拉。
+    /// ⚠️ 只有這裡（與側邊欄的兩個登出入口）走確認；
+    /// AuthenticationStateHelper 的強制登出不經過這條路。
+    /// </summary>
+    private async Task OnLogoutClickAsync()
+    {
+        isUserMenuOpen = false;
+        await LogoutConfirm.RequestAsync(ModalService, NavigationManager);
     }
 
     private void OnChangePasswordClick()

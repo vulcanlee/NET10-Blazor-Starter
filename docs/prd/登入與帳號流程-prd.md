@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.29
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/18
 
 ## 一、目標與範圍
 
@@ -40,6 +40,14 @@
 - **Cookie 簽發**（Login.razor.cs）：建立 `ClaimTypes.Role=User`、`Name`、`NameIdentifier=Account`、`Sid=Id`，以 `CookieAuthenticationScheme` `SignInAsync`；`IsPersistent = RememberMe`（記住我 → 持久性 Cookie），`RedirectUri` 取 `ReturnUrl` 或 `/App`。
 - **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「GoogleId 比對 → Email 連結既有帳號 → 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。`!Status` 導向 `/Auths/Pending`，否則簽發 Cookie 並導回本地安全的 `returnUrl`。
 - **登出**：`SignOutAsync(CookieScheme)` 後 `NavigateTo("/Auths/Login", forceLoad: true)`。
+  - **使用者主動登出**（0.9.29 起）先經二次確認：三個 UI 入口都走
+    `Components/Commons/LogoutConfirm.cs`，確認後才導向 `/Auths/Logout`。
+  - ⚠️ **系統強制登出不確認**：`AuthenticationStateHelper` 的六處
+    `NavigateTo("/Auths/Logout", true, true)`（未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson）
+    是系統行為，直接登出 —— 對 session 已經失效的人跳「確定要登出嗎？」只會讓他卡住。
+    這兩條路徑在分層上就分開：`LogoutConfirm` 在 Web 層，`AuthenticationStateHelper` 在 Business 層，
+    後者參照不到前者。
+  - 直接在網址列輸入 `/Auths/Logout` 維持立即登出，刻意不擋（刻意輸入網址不是誤觸）。
 - **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`NeedChangePasswordAsync`（密碼等於 `123456`）為真且不在改密碼頁時強制導向 `/ChangePassword`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
 - **API 登入**（`AuthController`）：`login` 以帳密換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）。

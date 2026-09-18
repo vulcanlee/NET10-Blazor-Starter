@@ -109,6 +109,22 @@
                                     }
                                 </div>
                             }
+                            else if (LogoutConfirm.IsLogoutUrl(item.Url))
+                            {
+                                @*
+                                    登出不直接連過去 —— 先問過使用者。沿用 collapsed-menu-link
+                                    的 class，外觀與其他收合項一致（有子選單的項目本來就是 button）。
+                                *@
+                                <button type="button"
+                                        class="collapsed-menu-trigger collapsed-menu-link"
+                                        aria-label="@item.Name"
+                                        title="@item.Name"
+                                        @onclick="OnLogoutClickAsync">
+                                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined"
+                                                  Kind="@GetMaterialIconKind(item)"
+                                                  Size="@MaterialIconOpticalSize.For(GetMaterialIconKind(item))" />
+                                </button>
+                            }
                             else if (!string.IsNullOrWhiteSpace(item.Url))
                             {
                                 <a class="collapsed-menu-trigger collapsed-menu-link"
@@ -137,7 +153,8 @@
                 @for (var index = 0; index < MenuItems.Count; index++)
                 {
                     <SidebarMenuNode Item="MenuItems[index]"
-                                     ItemKey="@($"root-{index}")" />
+                                     ItemKey="@($"root-{index}")"
+                                     OnLogoutCancelled="RestoreMenuSelection" />
                 }
             </Menu>
         }
