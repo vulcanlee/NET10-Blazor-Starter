@@ -2,7 +2,7 @@
 
 - 文件版本：2.6
 - 文件狀態：維護中
-- 現行系統版本：0.9.22
+- 現行系統版本：0.9.23
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/09/18
 
@@ -98,7 +98,7 @@
 - [系統例外紀錄（ExceptionLog）](superpowers/specs/2026-09-16-system-exception-log-design.md)
 
 ### changelog — 變更紀錄
-- [Login 頁面改版紀錄](changelog/login-redesign.md)
+- [登入頁改版紀錄：粉梅暖雪、RWD 與果凍動畫（0.9.23）](changelog/login-redesign.md)
 - [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md)
 - [新增「分類清單」與「團隊清單」管理頁面（0.3.0）](changelog/2026-06-22-分類與團隊清單.md)
 - [紀錄分類/團隊標籤與團隊權控（0.4.0）](changelog/2026-06-22-紀錄分類團隊與權控.md)

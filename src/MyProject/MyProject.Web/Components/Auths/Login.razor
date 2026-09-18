@@ -7,9 +7,16 @@
 <PageTitle>身分驗證</PageTitle>
 
 <div class="login-container">
+    <picture class="winter-scene" aria-hidden="true">
+        <source media="(max-width: 767px)" srcset="@Assets["images/login-winter-mobile.png"]" />
+        <img src="@Assets["images/login-winter-desktop.png"]" alt="" fetchpriority="high" />
+    </picture>
+    <div class="snowfall" aria-hidden="true" style="--snow-image: url('@Assets["images/login-snow.png"]')">
+        <div class="snow-layer snow-layer-near"></div>
+        <div class="snow-layer snow-layer-far"></div>
+    </div>
     <div class="login-shell">
         <section class="brand-panel">
-            <div class="brand-badge">ENTERPRISE ACCESS</div>
             <div class="brand-logo">
                 <img class="brand-logo-image" src="@Assets["images/brand-logo.png"]" alt="系統品牌圖示" />
             </div>
@@ -19,7 +26,6 @@
 
         <section class="login-card">
             <div class="login-header">
-                <span class="login-header-kicker">Welcome Back</span>
                 <h2>使用者登入</h2>
                 <p>請輸入您的帳號資訊以存取系統。</p>
             </div>
@@ -42,8 +48,8 @@
                 <div class="form-group captcha-layout">
                     <label class="form-label" for="captcha">驗證碼</label>
                     <div class="captcha-group">
-                        <input id="captcha" name="Input.CaptchaInput" class="form-input captcha-input" placeholder="請輸入右側驗證碼"
-                               @bind="Input.CaptchaInput" autocomplete="off" />
+                        <input id="captcha" name="Input.CaptchaInput" class="form-input captcha-input" placeholder="請輸入驗證碼"
+                               @bind="Input.CaptchaInput" autocomplete="off" inputmode="numeric" />
                         <div class="captcha-display" aria-label="驗證碼">
                             @captchaCode
                         </div>
@@ -64,9 +70,12 @@
                     </button>
                 </div>
 
-                <div class="@errorMessage error-message">
-                    @message
-                </div>
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="@errorMessage error-message" role="alert">
+                        @message
+                    </div>
+                }
             </EditForm>
 
             @if (ShowGoogleLogin)
