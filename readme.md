@@ -60,7 +60,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 
 - 使用者帳號 CRUD（含預設開發者帳號自動 Seed）
 - 角色管理（`RoleView`）與二維權限樹（對應 `Menu.json`）
-- 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、玻璃擬態 UI）
+- 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、粉梅暖雪 RWD 果凍 UI 與柔和飄雪動畫）
 - 專案領域實體 CRUD（可作為新增其他領域模組的樣板）
 - 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
   （0.4.40 起分類可指定適用團隊、下拉依使用者所屬團隊過濾；0.4.41 起名稱唯一性由資料庫唯一索引保證）
