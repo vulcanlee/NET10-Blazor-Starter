@@ -151,6 +151,24 @@ public partial class NavMenu : ComponentBase, IDisposable
         return className;
     }
 
+    /// <summary>
+    /// 收合 flyout 內「群組列」的樣式：以前綴比對標示目前頁面所屬的群組。
+    ///
+    /// 第三層改為巢狀 flyout 後預設是收著的，若群組列不標示，使用者會完全失去
+    /// 「現在這頁屬於哪個群組」的線索（展平版本因七項同時可見而沒有這個問題）。
+    /// </summary>
+    private string GetCollapsedFlyoutGroupClass(string itemKey)
+    {
+        var className = "collapsed-flyout-item collapsed-flyout-group-trigger";
+
+        if (IsMenuKeyActive(itemKey))
+        {
+            className += " collapsed-flyout-item-active";
+        }
+
+        return className;
+    }
+
     private bool IsMenuKeyActive(string itemKey)
     {
         return string.Equals(ActiveMenuPath, itemKey, StringComparison.Ordinal)

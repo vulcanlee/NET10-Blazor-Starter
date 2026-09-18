@@ -38,58 +38,71 @@
     ]
   },
   {
-    "id": 6,
-    "name": "統計與分析",
-    "icon": "analytics",
-    "subMenu": [
-      {
-        "id": 61,
-        "name": "日誌檢視",
-        "icon": "description",
-        "url": "/logs"
-      },
-      {
-        "id": 63,
-        "name": "日誌等級設定",
-        "icon": "tune",
-        "url": "/log-level-setting"
-      },
-      {
-        "id": 62,
-        "name": "資料庫用量",
-        "icon": "data_usage",
-        "url": "/database-usage"
-      },
-      {
-        "id": 64,
-        "name": "Token 用量",
-        "icon": "toll",
-        "url": "/token-usage"
-      }
-    ]
-  },
-  {
     "id": 3,
     "name": "系統管理",
     "icon": "admin_panel_settings",
     "subMenu": [
       {
-        "id": 31,
-        "name": "使用者管理",
-        "icon": "group",
-        "url": "/myusers"
+        "id": 6,
+        "name": "統計與分析",
+        "icon": "analytics",
+        "subMenu": [
+          {
+            "id": 65,
+            "name": "系統健康監控",
+            "icon": "monitor_heart",
+            "url": "/system-health"
+          },
+          {
+            "id": 61,
+            "name": "日誌檢視",
+            "icon": "description",
+            "url": "/logs"
+          },
+          {
+            "id": 63,
+            "name": "日誌等級設定",
+            "icon": "tune",
+            "url": "/log-level-setting"
+          },
+          {
+            "id": 33,
+            "name": "系統例外紀錄",
+            "icon": "bug_report",
+            "url": "/system-exceptions"
+          },
+          {
+            "id": 62,
+            "name": "資料庫用量",
+            "icon": "data_usage",
+            "url": "/database-usage"
+          },
+          {
+            "id": 64,
+            "name": "Token 用量",
+            "icon": "toll",
+            "url": "/token-usage"
+          }
+        ]
       },
       {
-        "id": 32,
-        "name": "角色管理",
-        "icon": "shield_person",
-        "url": "/roleviews"
-      },
-      {
-        "id": 33,
-        "name": "系統例外紀錄",
-        "icon": "bug_report",
-        "url": "/system-exceptions"
+        "id": 34,
+        "name": "權限管理",
+        "icon": "manage_accounts",
+        "subMenu": [
+          {
+            "id": 31,
+            "name": "使用者管理",
+            "icon": "group",
+            "url": "/myusers"
+          },
+          {
+            "id": 32,
+            "name": "角色管理",
+            "icon": "shield_person",
+            "url": "/roleviews"
+          }
+        ]
       }
     ]
   },

@@ -40,6 +40,9 @@ public class MagicObjectHelper
     public const string 角色_系統管理 = "系統管理功能";
 
     /// <inheritdoc cref="角色_系統管理"/>
+    public const string 角色_權限管理 = "權限管理";
+
+    /// <inheritdoc cref="角色_系統管理"/>
     public const string 角色_使用者管理 = "使用者管理";
 
     /// <inheritdoc cref="角色_系統管理"/>
@@ -60,6 +63,8 @@ public class MagicObjectHelper
     /// </summary>
     public const string 角色_統計與分析 = "統計與分析功能";
 
+    /// <inheritdoc cref="角色_統計與分析"/>
+    public const string 角色_系統健康監控 = "系統健康監控";
     /// <inheritdoc cref="角色_統計與分析"/>
     public const string 角色_日誌檢視 = "日誌檢視";
 
