@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Hosting;
+﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using MyProject.Web.Health;
@@ -111,6 +111,78 @@ public sealed class SystemHealthTests
         {
             Directory.Delete(rootPath, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// 守住健康檢查的權重總和。
+    ///
+    /// SystemHealthService 本身沒有任何測試，權重是寫死在各 Check 方法裡的字面值 ——
+    /// 改錯或漏改不會有任何紅燈，但整份報告的百分比意義會悄悄變掉。
+    /// 這個測試用反射把字面值撈出來核對，讓「改了權重卻忘了更新文件」至少會被擋一次。
+    ///
+    /// ⚠️ 資料庫那項的權重 25 在原始碼裡出現三次（三個 return 分支），改動時特別容易漏。
+    /// </summary>
+    [Fact]
+    public void CheckWeights_ShouldSumTo125()
+    {
+        var expected = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["網站 / 應用程式"] = 10,
+            ["API"] = 10,
+            ["資料庫"] = 25,
+            ["日誌"] = 15,
+            ["身分驗證"] = 15,
+            ["檔案系統"] = 10,
+            ["主機資源"] = 5,
+            ["安全設定"] = 10,
+            ["LLM API"] = 10,
+            ["快取服務"] = 10,
+            ["AI 計費表"] = 5,
+        };
+
+        Assert.Equal(11, expected.Count);
+        Assert.Equal(125, expected.Values.Sum());
+
+        var source = File.ReadAllText(FindHealthServicePath());
+
+        foreach (var (name, weight) in expected)
+        {
+            // 每個項目都以 CreateItem("名稱", "分類", 權重, ...) 的形式呼叫，
+            // 名稱與權重之間只隔一個分類參數，因此在名稱之後的一小段文字裡找權重即可。
+            var nameToken = "\"" + name + "\",";
+            var index = source.IndexOf(nameToken, StringComparison.Ordinal);
+            Assert.True(index >= 0, $"SystemHealthService 找不到檢查項目「{name}」。");
+
+            var window = source.Substring(index, Math.Min(160, source.Length - index));
+            Assert.True(
+                window.Contains($"{weight},", StringComparison.Ordinal),
+                $"SystemHealthService 的項目「{name}」權重不是 {weight}。"
+                + "若確實調整了權重，請一併更新本測試與 docs/features/系統健康監控.md 的權重表。");
+        }
+    }
+
+    private static string FindHealthServicePath()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            foreach (var relative in new[]
+            {
+                Path.Combine("MyProject.Web", "Health", "SystemHealthService.cs"),
+                Path.Combine("src", "MyProject", "MyProject.Web", "Health", "SystemHealthService.cs"),
+            })
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new FileNotFoundException("找不到 SystemHealthService.cs。");
     }
 
     private static SystemHealthItem CreateItem(string name, int weight, SystemHealthStatus status)
