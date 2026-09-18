@@ -24,12 +24,10 @@ public sealed class FormModalConventionTests
     /// 這份清單只能縮短，不能加長：新的表單對話窗一律要照規範寫。
     /// 名單上的檢視一旦遷移完成，<see cref="MigrationAllowList_ShouldNotContainAlreadyMigratedViews"/>
     /// 會要求你把它從這裡刪掉，避免名單放著爛掉、變成永久豁免。
+    ///
+    /// 0.9.27 起全部遷移完成，清單已清空 —— 新增項目前請先確認那真的是暫時的例外。
     /// </summary>
-    private static readonly string[] PendingMigrationViews =
-    [
-        "RoleViewView.razor",
-        "ProjectViewView.razor",
-    ];
+    private static readonly string[] PendingMigrationViews = [];
 
     private static readonly Regex ModalOpenTag = new(@"<Modal\b[^>]*>", RegexOptions.Compiled);
     private static readonly Regex ClassAttribute = new(@"Class=""(?<value>[^""]*)""", RegexOptions.Compiled);

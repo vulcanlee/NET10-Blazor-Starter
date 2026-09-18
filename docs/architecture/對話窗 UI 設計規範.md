@@ -1,8 +1,8 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.26
+- 現行系統版本：0.9.27
 - 首次實作版本：0.9.25
 - 最後核對日期：2026/09/18
 
@@ -55,10 +55,15 @@
 欄位多到一個畫面看不完時，**分組**而不是縮小字級：每個 `<FormSection>` 一個語意群
 （例如「帳號與登入」「基本資料」「角色與團隊」「狀態」）。
 
-> ⚠️ 對話窗內容的樣式**不能**寫在 `XxxView.razor.css`。
-> AntDesign 會把 Modal 內容渲染到元件 DOM 範圍之外，scoped CSS（連 `::deep`）都打不到，
-> 規則會整組靜默失效。全部寫在 `OverlayStyles.razor` 的全域 `<style>`。
-> `FormSection.razor` 刻意不附 `.razor.css`，就是這個原因。
+> ⚠️ **哪些樣式不能寫在 `XxxView.razor.css`：**
+> AntDesign 自己渲染的元素（`.ant-modal-content`、`.ant-form-item`、`.ant-btn`…）
+> **不會**帶上檢視的 scope 屬性，因此檢視的 `.razor.css` 永遠打不到它們；`::deep` 也無效
+> （它編成 `[b-hash] 後代`，而 modal 的外框是 AntDesign 渲染的，沒有那個屬性）。
+> 這類樣式一律寫在 `OverlayStyles.razor` 的全域 `<style>`。
+>
+> 反過來說，**檢視自己在 `.razor` 裡寫的元素仍然會拿到 scope 屬性**（即使位於 `<Modal>` 內容中），
+> 所以像角色權限矩陣那種純自有 markup 的樣式，留在該檢視的 `.razor.css` 是正確的。
+> `FormSection.razor` 刻意不附 `.razor.css`，是因為它產生的 class 要被上面那份全域樣式命中。
 
 ## 4. 未儲存保護
 
@@ -96,6 +101,11 @@ private string UploadStateFingerprint()
 ```
 
 ⚠️ 快照字串含 `Password` 等敏感欄位，**絕不可寫進 log**。
+
+實例見 `ProjectViewView.UploadStateFingerprint()`：待上傳與待刪除的檔案不在
+`ProjectAdapterModel` 裡，不納入比對的話，「只加了檔案、沒動欄位」會被判定為無變更而直接關窗。
+同一個檢視的取消流程也要注意 —— 檔案清單只能在**確定要關窗之後**才清掉，
+否則使用者選「繼續編輯」會發現選好的檔案不見了。
 
 ### 4.2 確認窗的文案由樣板決定
 
@@ -159,7 +169,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 | 陷阱 | 症狀 | 正解 |
 |------|------|------|
-| 樣式寫在 `XxxView.razor.css` | 規則靜默失效，畫面像沒套樣式 | 寫在 `OverlayStyles.razor` 的全域 style |
+| 在 `XxxView.razor.css` 裡寫 `.ant-*` 或用 `::deep` | 規則靜默失效 | AntDesign 渲染的元素不帶檢視的 scope 屬性，這類樣式寫在 `OverlayStyles.razor` 的全域 style |
 | `OverlayStyles.razor` 裡寫 `@media` | 建置錯誤 RZ1003 | 該檔是 `.razor`，要寫 `@@media` / `@@supports` / `@@keyframes` |
 | CSS 註解裡寫 `<Modal Width>` | 建置錯誤 RZ1034（Razor 把它當標籤） | 註解裡不要放角括號標籤 |
 | `Class` 掛了卻沒補樣式規則 | 窗退回 AntDesign 預設 520px，只有打開那頁才看得出來 | `FormModalConventionTests` 守門 |
@@ -188,14 +198,14 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 | 檢視 | 狀態 |
 |------|------|
-| `MyUserView`（使用者管理） | ✅ 0.9.25 已套用（示範頁） |
-| `CategoryViewView`（分類清單） | ✅ 0.9.25 已套用 |
-| `TeamViewView`（團隊清單） | ✅ 0.9.25 已套用 |
-| `RoleViewView`（角色管理） | ⬜ 待遷移（權限矩陣要改成 `SingleColumn` 區塊） |
-| `ProjectViewView`（專案項目） | ⬜ 待遷移（需要 `UploadStateFingerprint`） |
+| `MyUserView`（使用者管理） | ✅ 0.9.25（示範頁） |
+| `CategoryViewView`（分類清單） | ✅ 0.9.25 |
+| `TeamViewView`（團隊清單） | ✅ 0.9.25 |
+| `RoleViewView`（角色管理） | ✅ 0.9.27，權限矩陣走 `SingleColumn` 區塊 |
+| `ProjectViewView`（專案項目） | ✅ 0.9.27，含 `UploadStateFingerprint` |
 
-待遷移的兩個檢視登錄在 `FormModalConventionTests.PendingMigrationViews`，
-遷移完成後要從名單移除，否則第 4 條守門測試會提醒你。
+**五個 CRUD 檢視全部遷移完成**，`FormModalConventionTests.PendingMigrationViews` 已清空，
+守門規則現在涵蓋所有表單對話窗。
 
 小型浮層（確認窗、通知、消息條）是全域選擇器，**0.9.26 起全部一次到位**，沒有待遷移項目。
 

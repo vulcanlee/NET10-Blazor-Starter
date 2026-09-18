@@ -1,11 +1,10 @@
 ﻿@*
     表單對話窗的區塊容器：一個小標題 + 一個 2 欄 grid。
 
-    ⚠️ 本元件刻意**不附** FormSection.razor.css ——
-    AntDesign 的 Modal 會把內容渲染到元件 DOM 範圍之外，
-    scoped CSS（連 ::deep）都打不到，樣式會整組失效；
-    而且 .ant-form-item 是 AntD 自己渲染的，根本不帶 scope 屬性。
-    所有樣式一律寫在 Components/Commons/OverlayStyles.razor 的全域 <style>。
+    ⚠️ 本元件刻意**不附** FormSection.razor.css。
+    它產生的 class 要與 .ant-form-item（AntDesign 自己渲染、不帶本元件 scope 屬性的元素）
+    一起被同一組規則命中，scoped CSS 做不到這件事。
+    所有樣式一律寫在 Components/Commons/OverlayStyles.razor 的全域 <style>；
     本元件只負責產生固定的 class 名稱，讓那份全域樣式有東西可以命中。
 
     用法：在 FormSection 內依序放 FormItem，預設 2 欄由左而右排下來；

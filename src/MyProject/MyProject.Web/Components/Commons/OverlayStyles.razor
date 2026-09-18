@@ -505,44 +505,8 @@
     }
 
     /* ══════════════════════════════════════════════════════════════════
-       以下為尚未套用 .form-modal 的既有版型（唯讀明細窗、AI 分析窗等）
+       唯讀明細窗與 AI 分析窗的既有版型（不適用 .form-modal 的表單規範）
        ══════════════════════════════════════════════════════════════════ */
-
-    /* form modals: 90% viewport size with scrollable body */
-    .role-view-modal,
-    .project-view-modal {
-        width: 90vw !important;
-        max-width: 90vw !important;
-        top: 5vh !important;
-        padding-bottom: 0 !important;
-        margin: 0 auto !important;
-    }
-
-        .role-view-modal .ant-modal-content,
-        .project-view-modal .ant-modal-content {
-            height: 90vh !important;
-            max-height: 90vh !important;
-            display: flex !important;
-            flex-direction: column !important;
-            overflow: hidden !important;
-        }
-
-        .role-view-modal .ant-modal-header,
-        .project-view-modal .ant-modal-header {
-            flex-shrink: 0;
-        }
-
-        .role-view-modal .ant-modal-body,
-        .project-view-modal .ant-modal-body {
-            flex: 1 !important;
-            min-height: 0 !important;
-            overflow-y: auto !important;
-        }
-
-        .role-view-modal .ant-modal-footer,
-        .project-view-modal .ant-modal-footer {
-            flex-shrink: 0;
-        }
 
     /* AI analysis modal: near full screen with scrollable body (long read-only report) */
     .log-ai-modal {
@@ -598,10 +562,10 @@
             overflow-y: auto !important;
         }
 
-    /*
-       明細窗的「內容」樣式必須寫在這裡（全域），不能放 ExceptionLogView.razor.css ——
-       AntDesign 的 Modal 會把內容渲染到元件 DOM 範圍之外的容器，
-       scoped CSS（連 ::deep）都打不到，樣式會整組失效。
+/*
+       明細窗的內容樣式寫在這裡（全域）而非 ExceptionLogView.razor.css：
+       這些規則與 AntDesign 自己渲染的 .ant-modal-* 搭配使用，
+       而那些元素不帶檢視的 scope 屬性，scoped CSS（含 ::deep）打不到。
     */
     .exception-log-modal .exception-log-detail-list {
         display: grid;
@@ -681,8 +645,7 @@
             overflow-y: auto !important;
         }
 
-    /* 同 .exception-log-modal：內容樣式必須寫在這裡（全域），
-       AntDesign 的 Modal 會渲染到元件 DOM 範圍之外，scoped CSS 打不到。 */
+    /* 同 .exception-log-modal：與 .ant-modal-* 搭配的樣式一律寫在這裡（全域）。 */
     .token-usage-modal .token-usage-detail-list {
         display: grid;
         gap: 0.35rem;
