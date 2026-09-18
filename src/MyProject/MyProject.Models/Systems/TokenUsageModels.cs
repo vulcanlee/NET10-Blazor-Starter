@@ -74,6 +74,14 @@ public sealed class TokenUsageEntry
 public static class TokenUsageOperations
 {
     public const string AiLogAnalysis = "AI 日誌分析";
+
+    /// <summary>
+    /// 系統健康監控頁的 LLM 連線探測（送一句 hello 確認 API 可用）。
+    ///
+    /// ⚠️ 每開一次 /system-health 就會產生一筆。次數會比 AI 日誌分析多得多，
+    /// 但每筆只有幾十個 token。要單獨檢視請用頁面的「作業」篩選器。
+    /// </summary>
+    public const string SystemHealthCheck = "系統健康檢測";
 }
 
 /// <summary>

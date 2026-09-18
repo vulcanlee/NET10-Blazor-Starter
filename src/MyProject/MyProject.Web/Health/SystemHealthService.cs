@@ -5,7 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.Models.Systems;
+using MyProject.Business.Services.Other;
+using MyProject.Web.Ai;
 using MyProject.Web.Auth;
+using MyProject.Web.Caching;
 using MyProject.Web.Configuration;
 using MyProject.Share.Helpers;
 
@@ -30,6 +33,11 @@ public sealed class SystemHealthService : ISystemHealthService
     private readonly IOptions<CorsSettings> corsOptions;
     private readonly IHealthLogReader logReader;
     private readonly SystemStartupState startupState;
+    private readonly IAiHealthProbe aiHealthProbe;
+    private readonly ICacheService cacheService;
+    private readonly IOptionsMonitor<AiSettings> aiOptions;
+    private readonly IOptionsMonitor<AiPricingSettings> aiPricingOptions;
+    private readonly IOptions<CacheSettings> cacheOptions;
 
     public SystemHealthService(
         BackendDBContext context,
@@ -42,7 +50,12 @@ public sealed class SystemHealthService : ISystemHealthService
         IOptions<SwaggerSettings> swaggerOptions,
         IOptions<CorsSettings> corsOptions,
         IHealthLogReader logReader,
-        SystemStartupState startupState)
+        SystemStartupState startupState,
+        IAiHealthProbe aiHealthProbe,
+        ICacheService cacheService,
+        IOptionsMonitor<AiSettings> aiOptions,
+        IOptionsMonitor<AiPricingSettings> aiPricingOptions,
+        IOptions<CacheSettings> cacheOptions)
     {
         this.context = context;
         this.configuration = configuration;
@@ -55,6 +68,11 @@ public sealed class SystemHealthService : ISystemHealthService
         this.corsOptions = corsOptions;
         this.logReader = logReader;
         this.startupState = startupState;
+        this.aiHealthProbe = aiHealthProbe;
+        this.cacheService = cacheService;
+        this.aiOptions = aiOptions;
+        this.aiPricingOptions = aiPricingOptions;
+        this.cacheOptions = cacheOptions;
     }
 
     public async Task<SystemHealthReport> GetReportAsync(CancellationToken cancellationToken = default)
@@ -68,7 +86,10 @@ public sealed class SystemHealthService : ISystemHealthService
             CheckAuthentication(),
             CheckFileSystem(),
             CheckHostResources(),
-            CheckSecuritySettings()
+            CheckSecuritySettings(),
+            await CheckAiAsync(cancellationToken),
+            await CheckCacheAsync(cancellationToken),
+            CheckAiPricing()
         };
 
         var score = SystemHealthScoreCalculator.CalculateScore(items);
@@ -280,6 +301,176 @@ public sealed class SystemHealthService : ISystemHealthService
             status,
             $"Swagger.EnabledInProduction：{swaggerSettings.EnabledInProduction}；CORS origins：{corsSettings.AllowedOrigins.Length}；ReturnExceptionDetails：{returnExceptionDetails?.ToString() ?? "null"}。",
             status == SystemHealthStatus.Healthy ? null : "Production 開啟了診斷或 Swagger 設定，請確認是否符合部署政策。");
+    }
+
+    /// <summary>
+    /// LLM API 檢測（權重 10）：實際送一句 hello，確認 API 真的有回應。
+    ///
+    /// ⚠️ 這是唯一一項<b>每次開頁面都會產生費用</b>的檢查，且會記進「Token 用量」
+    /// （作業名稱「系統健康檢測」）。逾時由 AiHealthProbe 自己控制在 30 秒，
+    /// 刻意不沿用 AiSettings.TimeoutSeconds（預設 600 秒）。
+    ///
+    /// AI 是選配功能：未設定時回黃燈而非紅燈，否則沒接 AI 的部署會永遠是紅的。
+    /// </summary>
+    private async Task<SystemHealthItem> CheckAiAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var probe = await aiHealthProbe.ProbeAsync(cancellationToken);
+
+            if (probe.IsConfigured == false)
+            {
+                return CreateItem(
+                    "LLM API",
+                    "Ai",
+                    10,
+                    SystemHealthStatus.Degraded,
+                    "AI 未設定（選配功能），未發出任何請求。",
+                    probe.Message);
+            }
+
+            var status = probe.Success ? SystemHealthStatus.Healthy : SystemHealthStatus.Unhealthy;
+
+            return CreateItem(
+                "LLM API",
+                "Ai",
+                10,
+                status,
+                $"端點：{probe.EndpointHost}；模型：{probe.ModelName}；耗時：{probe.ElapsedMilliseconds} ms。",
+                status == SystemHealthStatus.Healthy ? null : probe.Message);
+        }
+        catch (Exception ex)
+        {
+            // AiHealthProbe 內部已全程吞例外，這裡是最後一道保險 ——
+            // 單一項目絕不能讓整份報告掛掉（其餘 7 項檢查都沒有保護）。
+            return CreateItem(
+                "LLM API",
+                "Ai",
+                10,
+                SystemHealthStatus.Unhealthy,
+                $"檢查時發生 {ex.GetType().Name}。",
+                $"LLM 檢查失敗：{ex.GetType().Name}。");
+        }
+    }
+
+    /// <summary>
+    /// 快取服務實測（權重 10）：寫一筆 sentinel 再讀回比對，確認快取真的能用。
+    ///
+    /// 只看設定不夠 —— Provider 設成 Redis 但連不上時，設定看起來完全正常。
+    /// ⚠️ DistributedCacheService 不吞例外，Redis 掛掉會直接往外拋，所以整段必須包住。
+    /// </summary>
+    private async Task<SystemHealthItem> CheckCacheAsync(CancellationToken cancellationToken)
+    {
+        var settings = cacheOptions.Value;
+
+        // GetProvider() 在 provider 打錯字時會拋例外，先擋下來翻成可讀訊息。
+        string providerName;
+        try
+        {
+            providerName = settings.GetProvider().ToString();
+        }
+        catch (Exception ex)
+        {
+            return CreateItem(
+                "快取服務",
+                "Cache",
+                10,
+                SystemHealthStatus.Unhealthy,
+                $"Provider 設定值無法解析：{settings.Provider}。",
+                $"快取 provider 設定錯誤：{ex.GetType().Name}。");
+        }
+
+        var evidence =
+            $"Provider：{providerName}；InstanceName：{settings.InstanceName}；"
+            + $"Redis 連線字串：{MaskPresence(settings.RedisConnection)}";
+
+        try
+        {
+            using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutSource.CancelAfter(TimeSpan.FromSeconds(5));
+
+            var key = $"health:probe:{Guid.NewGuid():N}";
+            var expected = Guid.NewGuid().ToString("N");
+
+            var stopwatch = Stopwatch.StartNew();
+            await cacheService.SetAsync(key, expected, TimeSpan.FromMinutes(1), timeoutSource.Token);
+            var actual = await cacheService.GetAsync<string>(key, timeoutSource.Token);
+            stopwatch.Stop();
+
+            await cacheService.RemoveAsync(key, timeoutSource.Token);
+
+            var matched = string.Equals(actual, expected, StringComparison.Ordinal);
+            var status = matched ? SystemHealthStatus.Healthy : SystemHealthStatus.Degraded;
+
+            return CreateItem(
+                "快取服務",
+                "Cache",
+                10,
+                status,
+                $"{evidence}；往返耗時：{stopwatch.ElapsedMilliseconds} ms。",
+                matched ? null : "寫入後讀回的值與寫入值不符，快取可能未真正生效。");
+        }
+        catch (Exception ex)
+        {
+            return CreateItem(
+                "快取服務",
+                "Cache",
+                10,
+                SystemHealthStatus.Unhealthy,
+                $"{evidence}；讀寫測試發生 {ex.GetType().Name}。",
+                $"快取讀寫失敗：{ex.GetType().Name}。");
+        }
+    }
+
+    /// <summary>
+    /// AI 計費表涵蓋率（權重 5）：確認目前使用的模型在 AiPricingSettings 裡查得到價格。
+    ///
+    /// 查不到不影響系統運作，但「Token 用量」頁的費用會靜默記成未定價（估算為 0），
+    /// 對帳時才會發現少算 —— 所以值得一個黃燈。
+    ///
+    /// 比對邏輯直接重用 AiUsageCostCalculator.Resolve，不自己實作：
+    /// 它是完全比對優先、再取後綴合法的最長前綴，自己寫一份必然會和實際計費行為不一致。
+    /// </summary>
+    private SystemHealthItem CheckAiPricing()
+    {
+        var aiSettings = aiOptions.CurrentValue;
+        var pricing = aiPricingOptions.CurrentValue;
+
+        if (AiChatEndpoint.Validate(aiSettings) is not null)
+        {
+            return CreateItem(
+                "AI 計費表",
+                "AiPricing",
+                5,
+                SystemHealthStatus.Healthy,
+                "AI 未啟用，無需計費表。",
+                null);
+        }
+
+        if (pricing.UsdToTwd <= 0)
+        {
+            return CreateItem(
+                "AI 計費表",
+                "AiPricing",
+                5,
+                SystemHealthStatus.Degraded,
+                $"模型：{aiSettings.Model}；匯率 UsdToTwd：{pricing.UsdToTwd}。",
+                "UsdToTwd 未設定（小於等於 0），所有呼叫都會記為未定價。");
+        }
+
+        var resolved = AiUsageCostCalculator.Resolve(pricing, aiSettings.Model);
+        var status = resolved is null ? SystemHealthStatus.Degraded : SystemHealthStatus.Healthy;
+
+        return CreateItem(
+            "AI 計費表",
+            "AiPricing",
+            5,
+            status,
+            $"模型：{aiSettings.Model}；計費表筆數：{pricing.Models.Count}；"
+            + $"命中價格鍵：{resolved?.Key ?? "無"}；匯率：{pricing.UsdToTwd}。",
+            resolved is null
+                ? "目前模型在 AiPricingSettings.Models 查無對應價格，費用會估算為 0（記為未定價）。"
+                : null);
     }
 
     private static SystemHealthItem CreateItem(

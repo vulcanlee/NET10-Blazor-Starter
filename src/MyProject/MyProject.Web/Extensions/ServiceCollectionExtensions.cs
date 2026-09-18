@@ -63,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
         services.AddScoped<ILogQueryService, LogQueryService>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
+        services.AddScoped<IAiHealthProbe, AiHealthProbe>();
 
         // 全專案第一個 AddHttpClient。刻意用 **named client** 而非 typed client：
         // 1. AddHttpClient<IAiLogAnalysisService, AiLogAnalysisService>() 會把服務註冊成
