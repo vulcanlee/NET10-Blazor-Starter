@@ -364,13 +364,11 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private async Task OnDeleteAsync(TokenUsageLogAdapterModel item)
         {
-            var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-            {
-                Title = "刪除用量紀錄",
-                Content = "確定要刪除這一筆嗎？原始明細檔也會一併移除。",
-                OkText = "刪除",
-                CancelText = "取消",
-            });
+            var confirmed = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                "刪除用量紀錄",
+                "確定要刪除這一筆嗎？原始明細檔也會一併移除。",
+                "刪除");
 
             if (confirmed == false)
             {
@@ -396,13 +394,11 @@ namespace MyProject.Web.Components.Views.Analytics
                 return;
             }
 
-            var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-            {
-                Title = "批次清除",
-                Content = $"將刪除 {purgeBeforeDate.Value:yyyy-MM-dd} 之前的所有用量紀錄與原始明細檔。此動作無法復原。",
-                OkText = "清除",
-                CancelText = "取消",
-            });
+            var confirmed = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                "批次清除",
+                $"將刪除 {purgeBeforeDate.Value:yyyy-MM-dd} 之前的所有用量紀錄與原始明細檔。此動作無法復原。",
+                "清除");
 
             if (confirmed == false)
             {
@@ -423,13 +419,11 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private async Task OnClearAllAsync()
         {
-            var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-            {
-                Title = "清空全部用量紀錄",
-                Content = "將刪除所有紀錄與整個原始明細目錄。此動作無法復原。",
-                OkText = "清空",
-                CancelText = "取消",
-            });
+            var confirmed = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                "清空全部用量紀錄",
+                "將刪除所有紀錄與整個原始明細目錄。此動作無法復原。",
+                "清空");
 
             if (confirmed == false)
             {

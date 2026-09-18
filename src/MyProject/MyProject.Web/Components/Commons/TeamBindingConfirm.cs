@@ -1,4 +1,4 @@
-using AntDesign;
+﻿using AntDesign;
 
 namespace MyProject.Web.Components.Commons;
 
@@ -9,10 +9,7 @@ namespace MyProject.Web.Components.Commons;
 /// 一個是變成公開紀錄），但提醒的時機、按鈕文案與取消後的行為必須一致，
 /// 因此把對話窗設定收斂在這裡，呼叫端只負責提供「會有什麼影響」這句話。
 ///
-/// 沿用非破壞性確認的既有慣例：不加 OkButtonProps.Danger、MaskClosable 一律 false。
-///
-/// ⚠️ ZIndex 與 <see cref="FormEditConfirm"/> 一致：0.9.25 起表單對話窗在等待確認期間
-/// 會維持開啟，確認窗若沿用預設的 1000 就只剩 DOM 先後可以決定疊放順序。
+/// 這是提醒而非破壞性動作，走 <see cref="ConfirmDialog.AskAsync"/>（不加 Danger）。
 /// </summary>
 public static class TeamBindingConfirm
 {
@@ -21,15 +18,10 @@ public static class TeamBindingConfirm
     /// 回傳 true 表示使用者選擇「仍要儲存」，false 表示要「回去編輯」。
     /// </summary>
     public static Task<bool> AskAsync(ModalService modalService, string content)
-    {
-        return modalService.ConfirmAsync(new ConfirmOptions
-        {
-            Title = "確認團隊設定",
-            Content = content,
-            OkText = "仍要儲存",
-            CancelText = "回去編輯",
-            MaskClosable = false,
-            ZIndex = FormEditConfirm.AboveFormModal
-        });
-    }
+        => ConfirmDialog.AskAsync(
+            modalService,
+            "確認團隊設定",
+            content,
+            "仍要儲存",
+            "回去編輯");
 }

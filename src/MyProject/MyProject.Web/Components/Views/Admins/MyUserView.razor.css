@@ -1,4 +1,4 @@
-.my-user-toolbar {
+﻿.my-user-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -21,5 +21,5 @@
    原本這裡有 .my-user-password-hint，但那行提示是渲染在 Modal 裡的，
    AntDesign 會把 Modal 內容搬到元件 DOM 範圍之外，scoped CSS 根本打不到 ——
    規則從來沒有生效過。0.9.25 起改用全域的 .form-field-hint
-   （寫在 Components/Commons/FormModalHelper.razor）。
+   （寫在 Components/Commons/OverlayStyles.razor）。
 */

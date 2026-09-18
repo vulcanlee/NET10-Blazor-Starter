@@ -54,7 +54,7 @@
 最後接**完整堆疊**（開窗當下才讀檔；檔案不存在時顯示
 「堆疊檔案不存在（可能已被清除，或當初寫檔失敗）」）。
 
-⚠️ **明細窗的尺寸與內容樣式都寫在 `Components/Commons/FormModalHelper.razor` 的全域 `<style>`**。
+⚠️ **明細窗的尺寸與內容樣式都寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`**。
 AntDesign 的 `Modal` 會把內容渲染到元件 DOM 範圍之外，`ExceptionLogView.razor.css`
 的 scoped CSS（連 `::deep`）都打不到。另注意 `.razor` 檔的 `<style>` 裡 `@media` 必須寫成 `@@media`，
 否則 Razor 會當成程式碼轉換而編譯失敗。

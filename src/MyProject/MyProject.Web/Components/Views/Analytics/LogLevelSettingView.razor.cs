@@ -1,8 +1,9 @@
-using AntDesign;
+﻿using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using MyProject.Business.Services.Other;
 using MyProject.Share.Helpers;
+using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Views.Analytics
@@ -92,15 +93,12 @@ namespace MyProject.Web.Components.Views.Analytics
             // 只有調低到會暴增日誌量的等級才需要確認；調高不會有這個風險。
             if (target is LogLevelRank.Trace or LogLevelRank.Debug)
             {
-                var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-                {
-                    Title = "確認調整日誌等級",
-                    Content = $"調整為 {LogLevelRankHelper.ToLevelText(target)} 會大幅增加日誌量，"
+                var confirmed = await ConfirmDialog.AskAsync(
+                    modalService,
+                    "確認調整日誌等級",
+                    $"調整為 {LogLevelRankHelper.ToLevelText(target)} 會大幅增加日誌量，"
                         + "請在排查完問題後記得調回來。確定要套用嗎？",
-                    OkText = "套用",
-                    CancelText = "取消",
-                    MaskClosable = false,
-                });
+                    "套用");
 
                 if (confirmed == false)
                 {

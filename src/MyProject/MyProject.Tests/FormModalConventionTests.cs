@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace MyProject.Tests;
 
@@ -10,7 +10,7 @@ namespace MyProject.Tests;
 ///
 /// - 少了 <c>form-modal</c>：窗退回 AntDesign 預設的 520px 小窗、body 不捲動。
 ///   0.9.24 之前 <c>category-view-modal</c> 與 <c>team-view-modal</c> 就是這樣漏掉尺寸規則的
-///   —— class 掛在 razor 上，但 FormModalHelper 裡從來沒有對應規則。
+///   —— class 掛在 razor 上，但 OverlayStyles 裡從來沒有對應規則。
 /// - 少了 <c>MaskClosable="false"</c>：使用者誤點遮罩，整份輸入無聲蒸發。
 /// - 用了 <c>Width</c>：尺寸有兩個來源，下一個人必定改錯地方（見速查表 §6.4）。
 ///
@@ -63,7 +63,7 @@ public sealed class FormModalConventionTests
 
             if (openTag.Contains("Width=", StringComparison.Ordinal))
             {
-                violations.Add($"{name}：尺寸一律寫在 FormModalHelper.razor，不得使用 <Modal Width>（速查表 §6.4）。");
+                violations.Add($"{name}：尺寸一律寫在 OverlayStyles.razor，不得使用 <Modal Width>（速查表 §6.4）。");
             }
 
             if (openTag.Contains(@"MaskClosable=""false""", StringComparison.Ordinal) == false)
@@ -90,13 +90,13 @@ public sealed class FormModalConventionTests
     }
 
     /// <summary>
-    /// 每個用到的 <c>*-modal</c> class，FormModalHelper.razor 裡都要有對應規則，
+    /// 每個用到的 <c>*-modal</c> class，OverlayStyles.razor 裡都要有對應規則，
     /// 否則那個窗會安靜地退回 AntDesign 預設尺寸。
     /// </summary>
     [Fact]
-    public void EveryModalClass_ShouldHaveRulesInFormModalHelper()
+    public void EveryModalClass_ShouldHaveRulesInOverlayStyles()
     {
-        var helper = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Commons", "FormModalHelper.razor"));
+        var helper = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Commons", "OverlayStyles.razor"));
         var violations = new List<string>();
 
         foreach (var (file, openTag, _) in EnumerateModals())
@@ -119,14 +119,14 @@ public sealed class FormModalConventionTests
 
                 if (helper.Contains("." + token, StringComparison.Ordinal) == false)
                 {
-                    violations.Add($"{name}：.{token} 在 FormModalHelper.razor 找不到任何規則。");
+                    violations.Add($"{name}：.{token} 在 OverlayStyles.razor 找不到任何規則。");
                 }
             }
         }
 
         Assert.True(
             violations.Count == 0,
-            "對話窗的 class 在 FormModalHelper.razor 沒有對應規則："
+            "對話窗的 class 在 OverlayStyles.razor 沒有對應規則："
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
     }
@@ -170,6 +170,96 @@ public sealed class FormModalConventionTests
                 + "（見 Components/Commons/FormModalFlow.cs）。"
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 確認窗一律走 <c>Components/Commons/ConfirmDialog.cs</c> 樣板，各檢視不得自己寫
+    /// <c>ConfirmAsync</c>。
+    ///
+    /// 這不只是文案一致的問題：自己寫必定會漏參數。0.9.25 之前，例外紀錄與 Token 用量
+    /// 的六個「刪除／清空」全都少了 <c>OkButtonProps.Danger</c> 與 <c>MaskClosable = false</c>
+    /// —— 長得像一般提醒，而且**誤點遮罩就直接執行了不可復原的動作**。
+    /// 視覺上的紅調也是靠 Danger 當 CSS hook，少設一次那個窗就不會轉紅。
+    /// </summary>
+    [Fact]
+    public void ConfirmDialogs_ShouldOnlyBeCreatedByTheSharedTemplate()
+    {
+        var componentsRoot = FindComponentsRoot();
+        var commonsRoot = Path.Combine(componentsRoot, "Commons") + Path.DirectorySeparatorChar;
+        var files = Directory
+            .EnumerateFiles(componentsRoot, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories))
+            .ToList();
+
+        Assert.NotEmpty(files);
+
+        var violations = new List<string>();
+
+        foreach (var file in files)
+        {
+            if (file.StartsWith(commonsRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (File.ReadAllText(file).Contains("ConfirmAsync(", StringComparison.Ordinal))
+            {
+                violations.Add(Path.GetFileName(file));
+            }
+        }
+
+        Assert.True(
+            violations.Count == 0,
+            "確認窗請走 ConfirmDialog.AskDestructiveAsync／AskAsync／AskDeleteRecordAsync，"
+                + "不要自己寫 ConfirmAsync —— 自己寫必定會漏掉 Danger／MaskClosable／ZIndex。"
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 浮層的全域樣式只能在 <c>Routes.razor</c> 渲染一次。
+    ///
+    /// AntDesign 把對話窗、確認窗、通知與消息條全部渲染在 <c>AntContainer</c> 底下，與 layout 無關。
+    /// 0.9.25 之前這支元件散在九個檢視與 MainLayout 裡，結果用別的 layout 的頁面
+    /// （登入頁的 NoFooterLayout、首頁的 EmptyLayout）整組吃不到樣式，
+    /// 而那種缺失只有打開那一頁才看得出來。
+    /// </summary>
+    [Fact]
+    public void OverlayStyles_ShouldBeRenderedExactlyOnceInRoutes()
+    {
+        var componentsRoot = FindComponentsRoot();
+        var razorFiles = Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories).ToList();
+
+        Assert.NotEmpty(razorFiles);
+
+        var renderSites = new List<string>();
+
+        foreach (var file in razorFiles)
+        {
+            var name = Path.GetFileName(file);
+
+            // 元件自己的定義檔不算渲染點。
+            if (string.Equals(name, "OverlayStyles.razor", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var text = File.ReadAllText(file);
+            for (var index = text.IndexOf("<OverlayStyles", StringComparison.Ordinal);
+                 index >= 0;
+                 index = text.IndexOf("<OverlayStyles", index + 1, StringComparison.Ordinal))
+            {
+                renderSites.Add(name);
+            }
+        }
+
+        Assert.True(
+            renderSites.Count == 1 && renderSites[0] == "Routes.razor",
+            "OverlayStyles 只能在 Routes.razor 渲染一次（AntContainer 旁邊）——"
+                + "掛在 layout 或各檢視裡，只要有頁面用了別的 layout 就會吃不到樣式。"
+                + Environment.NewLine
+                + "實際渲染點："
+                + (renderSites.Count == 0 ? "（無）" : string.Join("、", renderSites)));
     }
 
     /// <summary>

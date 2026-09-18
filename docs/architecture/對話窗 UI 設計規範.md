@@ -1,15 +1,16 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.25
+- 現行系統版本：0.9.26
 - 首次實作版本：0.9.25
 - 最後核對日期：2026/09/18
 
 ## 目的
 
-本文件是「大量資料輸入對話窗」（記錄的新增與修改窗）的固定設計模式。
-日後有同類需求一律照本文辦理，不要各自發明版型與確認行為。
+本文件是後台所有浮層的固定設計模式：大量資料輸入對話窗（記錄的新增與修改窗）、
+小型確認窗，以及通知與消息條。日後有同類需求一律照本文辦理，
+不要各自發明版型、確認行為或視覺。
 
 速查表 [§6.3](開發慣例與限制速查.md)（鍵盤事件）與 §6.4（尺寸來源）仍是硬性紅線，
 本文件是它們的展開版。
@@ -20,7 +21,8 @@
 |------|------|------|
 | **表單對話窗** | 內含 `<EditForm>`，使用者要輸入或修改記錄 | `Class="form-modal"`，本文件全部適用 |
 | 唯讀明細窗 | 只是把一筆記錄攤開來看（例外紀錄、Token 用量、AI 分析） | 各自的 `*-modal` class，不適用本文件 |
-| 小型確認窗 | `ModalService.ConfirmAsync`，只有一句話與兩個按鈕 | 由靜態樣板決定，見第 5 節 |
+| **小型確認窗** | `ModalService.ConfirmAsync`，只有一句話與兩個按鈕 | 全域 `.ant-modal-confirm`，**不滿版**，見第 9 節 |
+| 通知／消息條 | `NotificationService`（右下角）、`MessageService`（頂部） | 全域選擇器，見第 10 節 |
 
 ## 2. 版型
 
@@ -33,7 +35,7 @@
 | 分組 | `<FormSection Title="...">`，每組一個小標題 |
 | 窄螢幕 | ≤ 767.98px 塌成單欄，窗擴成 `100vw` × `100svh`、無圓角無邊框 |
 
-尺寸與版型**只寫在** `src/MyProject/MyProject.Web/Components/Commons/FormModalHelper.razor` 的
+尺寸與版型**只寫在** `src/MyProject/MyProject.Web/Components/Commons/OverlayStyles.razor` 的
 `.form-modal` 區塊。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
 
 ## 3. 欄位排版規則
@@ -55,7 +57,7 @@
 
 > ⚠️ 對話窗內容的樣式**不能**寫在 `XxxView.razor.css`。
 > AntDesign 會把 Modal 內容渲染到元件 DOM 範圍之外，scoped CSS（連 `::deep`）都打不到，
-> 規則會整組靜默失效。全部寫在 `FormModalHelper.razor` 的全域 `<style>`。
+> 規則會整組靜默失效。全部寫在 `OverlayStyles.razor` 的全域 `<style>`。
 > `FormSection.razor` 刻意不附 `.razor.css`，就是這個原因。
 
 ## 4. 未儲存保護
@@ -157,22 +159,28 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 | 陷阱 | 症狀 | 正解 |
 |------|------|------|
-| 樣式寫在 `XxxView.razor.css` | 規則靜默失效，畫面像沒套樣式 | 寫在 `FormModalHelper.razor` 的全域 style |
-| `FormModalHelper.razor` 裡寫 `@media` | 建置錯誤 RZ1003 | 該檔是 `.razor`，要寫 `@@media` / `@@supports` / `@@keyframes` |
+| 樣式寫在 `XxxView.razor.css` | 規則靜默失效，畫面像沒套樣式 | 寫在 `OverlayStyles.razor` 的全域 style |
+| `OverlayStyles.razor` 裡寫 `@media` | 建置錯誤 RZ1003 | 該檔是 `.razor`，要寫 `@@media` / `@@supports` / `@@keyframes` |
 | CSS 註解裡寫 `<Modal Width>` | 建置錯誤 RZ1034（Razor 把它當標籤） | 註解裡不要放角括號標籤 |
 | `Class` 掛了卻沒補樣式規則 | 窗退回 AntDesign 預設 520px，只有打開那頁才看得出來 | `FormModalConventionTests` 守門 |
 | `Clone()` 是淺複製 | 改多選欄位會連帶改到表格那一列 | List 欄位一律「指派新清單」，多選用 `Values` + `OnSelectedItemsChanged` |
 | scoped CSS 裡用 `:root` | 變數完全不生效 | 掛在最外層容器 class 上 |
-| 佈局層的窗沒有 `<FormModalHelper />` | 只有某些頁面開窗時尺寸才對 | `MainLayout.razor` 已渲染一次 |
+| 把 `OverlayStyles` 掛在 layout 或檢視裡 | 用別的 layout 的頁面整組吃不到樣式，只有打開那一頁才看得出來 | 只在 `Routes.razor` 的 `AntContainer` 旁渲染一次，守門測試會擋 |
+| 想給個別確認窗掛 class | `ConfirmOptions.ClassName` 被 AntDesign 內部**無條件覆寫**，完全無效 | 只能吃全域 `.ant-modal-confirm`；要分辨輕重用 `OkButtonProps.Danger` 當 CSS hook |
+| 確認窗改寬度沒加 `!important` | 無效 —— 416px 是 AntDesign 寫在 `.ant-modal` 上的 inline style | `width: ... !important` |
+| 忘了中和 AntDesign 的 `antZoomIn` | 果凍動畫與它疊加，彈跳幅度比設計時選定的更誇張 | `.ant-modal.ant-zoom-enter { animation: none !important; transform: none !important; }` |
+| 各檢視自己寫 `ConfirmAsync` | 必定漏掉 `Danger`／`MaskClosable`，破壞性動作會長得像提醒、誤點遮罩就執行 | 一律走 `ConfirmDialog` 樣板，守門測試會擋 |
 
 ## 7. 守門測試
 
 `src/MyProject/MyProject.Tests/FormModalConventionTests.cs`：
 
 1. 含 `<EditForm>` 的 Modal 必須有 `form-modal`、`MaskClosable="false"`、`Keyboard="true"`、`OnCancel`，且不得用 `Width`。
-2. 每個用到的 `*-modal` class，`FormModalHelper.razor` 裡都要有對應規則。
+2. 每個用到的 `*-modal` class，`OverlayStyles.razor` 裡都要有對應規則。
 3. code-behind 不得出現「失敗路徑各補一次 `modalVisible = true;`」的舊寫法。
 4. 待遷移清單（`PendingMigrationViews`）不得放著爛掉：名單上的檢視一旦遷移完成就要移除。
+5. `Components/Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板。
+6. `<OverlayStyles />` 只能在 `Routes.razor` 出現，且恰好一次。
 
 搭配既有的 `ModalKeyboardConventionTests.cs`（表單層不得攔截鍵盤事件）。
 
@@ -188,6 +196,59 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 待遷移的兩個檢視登錄在 `FormModalConventionTests.PendingMigrationViews`，
 遷移完成後要從名單移除，否則第 4 條守門測試會提醒你。
+
+小型浮層（確認窗、通知、消息條）是全域選擇器，**0.9.26 起全部一次到位**，沒有待遷移項目。
+
+## 9. 小型確認窗
+
+`ModalService.ConfirmAsync` 產生的窗。**不滿版**：它只有一句話與兩個按鈕，撐大只會讓游標跑更遠。
+
+| 項目 | 規格 |
+|------|------|
+| 寬度 | `440px`，`max-width: 90vw` |
+| 圓角／邊框 | 24px／2px |
+| 毛玻璃 | `blur(20px)`，包在 `@supports` 裡 |
+| 進場 | `cfm-arrive` 380ms 短版擠壓回彈（出現頻率高，動作太大或太久都是干擾） |
+| 一般提醒 | 粉梅調 |
+| 破壞性動作 | 紅調（邊框、光暈、圖示） |
+
+### 9.1 一律走 `ConfirmDialog` 樣板 ⚠️
+
+`Components/Commons/ConfirmDialog.cs`：
+
+| 方法 | 用途 | 自動帶入 |
+|------|------|----------|
+| `AskDestructiveAsync` | 刪除、清空、放棄變更 | `Danger`、`MaskClosable = false`、`ZIndex = 1100` |
+| `AskAsync` | 一般確認與提醒 | `MaskClosable = false`、`ZIndex = 1100` |
+| `AskDeleteRecordAsync` | 五個 CRUD 檢視共用的「刪除這一筆」 | 同 `AskDestructiveAsync` |
+
+具體文案仍由呼叫端提供 ——「清除 30 天未再發生的紀錄」這種訊息有資訊價值，
+不該為了收斂被壓成罐頭句子。樣板只負責統一參數與按鈕行為。
+
+⚠️ **不要自己寫 `ConfirmAsync`。** 不只是文案會漂移 —— 自己寫必定漏參數。
+0.9.26 之前，例外紀錄與 Token 用量的六個「刪除／清空」全都少了 `Danger` 與 `MaskClosable = false`：
+長得像一般提醒，而且**誤點遮罩就直接執行了不可復原的動作**。
+
+### 9.2 紅調是怎麼來的
+
+`ConfirmOptions.ClassName` 會被 AntDesign 的 `Confirm::BuildDialogOptions` 無條件覆寫成
+`"ant-modal-confirm ant-modal-confirm-" + ConfirmType`，呼叫端給的 class 會被丟掉。
+因此輕重之分改用 `.ant-modal-confirm:has(.ant-btn-dangerous)` —— 以「確定鈕是 Danger」當 hook。
+`:has()` 不支援時只是退回粉梅（按鈕本身仍是紅的），屬漸進增強。
+
+**少設一次 `Danger`，那個窗就不會轉紅調**，這也是為什麼它必須由樣板決定。
+
+## 10. 通知與消息條
+
+| 浮層 | 選擇器 | 規格 |
+|------|--------|------|
+| 右下角通知 | `.ant-notification-notice` | 384px 卡片、圓角 18px、`blur(14px)`、`notice-arrive` 右側滑入＋回彈 420ms |
+| 頂部消息條 | `.ant-message-notice-content` | 膠囊（圓角 999px）、`blur(14px)`、`msg-arrive` 由上落下＋回彈 400ms |
+
+離場動畫沿用 AntDesign 原本的 `NotificationFadeOut` / `MessageMoveOut`，不覆寫。
+
+⚠️ **圖示的語意色（成功綠／錯誤紅／警告橘／資訊藍）刻意不動。**
+為了視覺統一把錯誤訊息染成粉紅，等於拿掉使用者最先讀到的那個訊號。
 
 ## 延伸閱讀
 

@@ -1,17 +1,35 @@
-<style>
+﻿<style>
 
     /* ══════════════════════════════════════════════════════════════════
-       表單型對話窗（大量資料輸入）—— 粉梅暖雪果凍版型
+       AntDesign 浮層的全域樣式 —— 粉梅暖雪果凍
        規範全文見 docs/architecture/對話窗 UI 設計規範.md
 
-       用法：Modal 標籤加上 Class="form-modal"。
-       頁面若真的需要專屬微調，寫成 Class="form-modal xxx-modal" 並在本檔補 .xxx-modal 規則。
+       涵蓋：表單對話窗（.form-modal）、確認窗（.ant-modal-confirm）、
+       右下角通知（.ant-notification-notice）、頂部消息條（.ant-message-notice-content）、
+       以及尚未遷移的既有版型（唯讀明細窗、AI 分析窗）。
 
-       ⚠️ AntDesign 的 CSS 在 App.razor 最後載入，覆蓋 .ant-modal-* 一律要 !important。
+       ⚠️ 本元件只能在 Components/Routes.razor 渲染一次（AntContainer 旁邊）。
+          AntDesign 把這些浮層全部渲染在 AntContainer 底下，與 layout 無關；
+          掛在 layout 或各檢視裡，只要有頁面用了別的 layout 就會吃不到樣式。
+          由 FormModalConventionTests 守門。
+       ⚠️ AntDesign 的 CSS 在 App.razor 最後載入，覆蓋 .ant-* 一律要 !important。
        ⚠️ 尺寸不可改用 Modal 的 Width 參數（見速查表 §6.4）：兩邊都寫只會讓下一個人改錯地方。
+          確認窗更是完全沒得選 —— ConfirmOptions.ClassName 會被 AntDesign 內部覆寫掉，
+          個別確認窗無法掛自訂 class，只能吃這裡的全域 .ant-modal-confirm。
        ⚠️ 本檔是 .razor，CSS 裡的單一 at 符號一律要寫兩次（@@media / @@supports / @@keyframes）。
        ⚠️ scoped CSS 裡 :root 無效，CSS 變數掛在最外層容器 class 上（同 Login.razor.css 手法）。
        ══════════════════════════════════════════════════════════════════ */
+
+    /* ── 中和 AntDesign 自己的進場動畫 ──
+       AntD 把 antZoomIn 掛在 .ant-modal 上（.ant-zoom-enter 基底還有 transform: scale(0)），
+       不關掉的話會與我們掛在 .ant-modal-content 上的果凍動畫疊加，
+       實際彈跳幅度會比設計時選定的更誇張。離場動畫（antZoomOut）保留不動。 */
+    .ant-modal.ant-zoom-enter,
+    .ant-modal.ant-zoom-appear {
+        animation: none !important;
+        transform: none !important;
+        opacity: 1 !important;
+    }
 
     .form-modal {
         --fm-text: #51132f;
@@ -230,13 +248,15 @@
         animation: fm-jelly-check 220ms ease-out;
     }
 
-    .form-modal .ant-modal-footer .ant-btn {
+    .form-modal .ant-modal-footer .ant-btn,
+    .ant-modal-confirm .ant-modal-confirm-btns .ant-btn {
         border-radius: 999px !important;
         font-weight: 700;
         transition: transform 220ms cubic-bezier(0.2, 0.8, 0.3, 1.3), box-shadow 220ms ease;
     }
 
-    .form-modal .ant-modal-footer .ant-btn-primary {
+    .form-modal .ant-modal-footer .ant-btn-primary,
+    .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary {
         border-color: transparent !important;
         background: linear-gradient(165deg, #ea88ad 0%, #c43970 58%, #b52a60 100%) !important;
         text-shadow: 0 1px 2px rgba(93, 15, 48, 0.3);
@@ -244,13 +264,15 @@
     }
 
     @@media (hover: hover) and (pointer: fine) {
-        .form-modal .ant-modal-footer .ant-btn:hover {
+        .form-modal .ant-modal-footer .ant-btn:hover,
+        .ant-modal-confirm .ant-modal-confirm-btns .ant-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 12px 26px rgba(173, 45, 93, 0.26) !important;
         }
     }
 
-    .form-modal .ant-modal-footer .ant-btn:active {
+    .form-modal .ant-modal-footer .ant-btn:active,
+    .ant-modal-confirm .ant-modal-confirm-btns .ant-btn:active {
         transform: scale(0.97);
     }
 
@@ -307,6 +329,177 @@
 
         .form-modal .ant-modal-footer .ant-btn:hover,
         .form-modal .ant-modal-footer .ant-btn:active {
+            transform: none !important;
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       小型確認窗（ModalService.ConfirmAsync）—— 不滿版
+       文案與參數一律由 Components/Commons/ConfirmDialog.cs 樣板決定。
+
+       ⚠️ 這裡的選擇器只能是全域的 .ant-modal-confirm：
+          AntDesign 的 Confirm 在內部把 ConfirmOptions.ClassName 無條件覆寫成
+          "ant-modal-confirm ant-modal-confirm-" + ConfirmType，
+          呼叫端給的 class 會被丟掉，所有確認窗只能一起變。
+       ⚠️ 預設寬度 416px 是 AntDesign 寫在 .ant-modal 上的 inline style，覆寫必須 !important。
+       ══════════════════════════════════════════════════════════════════ */
+
+    .ant-modal-confirm {
+        --cf-text: #51132f;
+        --cf-muted: #704054;
+        --cf-accent: #a52b59;
+        --cf-edge: rgba(255, 255, 255, 0.92);
+        --cf-glow: rgba(255, 224, 236, 0.45);
+        --cf-inner: rgba(232, 139, 169, 0.42);
+        --cf-tint: rgba(255, 237, 244, 0.96);
+        --cf-tint-glass: rgba(255, 234, 243, 0.70);
+        width: 440px !important;
+        max-width: 90vw !important;
+    }
+
+    /* 破壞性確認（刪除／清空／放棄變更）轉紅調。
+       ConfirmOptions.ClassName 既然無效，改以「確定鈕是 Danger」當 hook ——
+       ConfirmDialog.AskDestructiveAsync 一律會設 OkButtonProps.Danger。
+       :has() 不支援時只是退回粉梅（按鈕本身仍是紅的），屬漸進增強。 */
+    .ant-modal-confirm:has(.ant-btn-dangerous) {
+        --cf-accent: #b42318;
+        --cf-glow: rgba(255, 214, 214, 0.5);
+        --cf-inner: rgba(214, 120, 120, 0.4);
+        --cf-tint: rgba(255, 238, 238, 0.96);
+        --cf-tint-glass: rgba(255, 236, 236, 0.72);
+    }
+
+    .ant-modal-confirm .ant-modal-content {
+        border: 2px solid var(--cf-edge) !important;
+        border-radius: 24px !important;
+        background: var(--cf-tint) !important;
+        box-shadow: inset 0 2px 4px #fff, inset 0 -4px 10px var(--cf-inner),
+                    0 0 0 4px var(--cf-glow), 0 20px 48px rgba(107, 39, 69, 0.24) !important;
+        animation: cfm-arrive 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .ant-modal-confirm .ant-modal-content {
+            background: var(--cf-tint-glass) !important;
+            backdrop-filter: blur(20px) saturate(1.15);
+            -webkit-backdrop-filter: blur(20px) saturate(1.15);
+        }
+    }
+
+    /* 短版果凍：380ms、起始縮放不像大表單窗那麼極端。
+       確認窗出現頻率高（每刪一筆就跳一次），動作太大或太久都會變成干擾。 */
+    @@keyframes cfm-arrive {
+        0% { opacity: 0; transform: scale(0.86, 0.94); }
+        50% { opacity: 1; transform: scale(1.02, 0.985); }
+        78% { transform: scale(0.995, 1.006); }
+        100% { transform: scale(1, 1); }
+    }
+
+    .ant-modal-confirm .ant-modal-body {
+        padding: 24px 26px 18px !important;
+    }
+
+    .ant-modal-confirm-body .ant-modal-confirm-title {
+        color: var(--cf-text) !important;
+        font-weight: 700 !important;
+    }
+
+    .ant-modal-confirm-body .ant-modal-confirm-content {
+        color: var(--cf-muted) !important;
+        line-height: 1.6;
+    }
+
+    .ant-modal-confirm-body > .anticon {
+        color: var(--cf-accent) !important;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       右下角通知（NotificationService）與頂部消息條（MessageService）
+
+       ⚠️ 圖示的語意色（成功綠／錯誤紅／警告橘／資訊藍）刻意**不動**：
+          為了視覺統一把錯誤訊息染成粉紅，等於拿掉使用者最先讀到的那個訊號。
+       ══════════════════════════════════════════════════════════════════ */
+
+    .ant-notification-notice {
+        border: 2px solid rgba(255, 255, 255, 0.9) !important;
+        border-radius: 18px !important;
+        background: rgba(255, 240, 246, 0.96) !important;
+        box-shadow: inset 0 2px 3px #fff, inset 0 -3px 8px rgba(232, 139, 169, 0.32),
+                    0 14px 34px rgba(107, 39, 69, 0.22) !important;
+    }
+
+    .ant-notification-notice-message {
+        color: #51132f !important;
+    }
+
+    .ant-notification-notice-description {
+        color: #704054 !important;
+    }
+
+    .ant-message-notice-content {
+        border: 2px solid rgba(255, 255, 255, 0.92) !important;
+        border-radius: 999px !important;
+        background: rgba(255, 240, 246, 0.96) !important;
+        color: #51132f !important;
+        box-shadow: inset 0 2px 3px #fff, inset 0 -3px 7px rgba(232, 139, 169, 0.3),
+                    0 10px 26px rgba(107, 39, 69, 0.2) !important;
+        padding: 9px 20px !important;
+    }
+
+    @@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .ant-notification-notice,
+        .ant-message-notice-content {
+            background: rgba(255, 238, 245, 0.80) !important;
+            backdrop-filter: blur(14px) saturate(1.12);
+            -webkit-backdrop-filter: blur(14px) saturate(1.12);
+        }
+    }
+
+    /* 進場改成自家 keyframes：AntD 的 NotificationFadeIn 是用 left 位移，
+       換成 transform 才能加上回彈，也不會干擾版面計算。離場維持 AntD 原本的。 */
+    .ant-notification-fade-enter.ant-notification-fade-enter-active,
+    .ant-notification-fade-appear.ant-notification-fade-appear-active {
+        animation-name: notice-arrive !important;
+        animation-duration: 420ms !important;
+        animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+    }
+
+    @@keyframes notice-arrive {
+        0% { opacity: 0; transform: translateX(36px) scale(0.96); }
+        62% { opacity: 1; transform: translateX(-4px) scale(1.012); }
+        100% { opacity: 1; transform: translateX(0) scale(1); }
+    }
+
+    .ant-message-notice {
+        animation: msg-arrive 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @@keyframes msg-arrive {
+        0% { opacity: 0; transform: translateY(-18px) scale(0.94, 1.04); }
+        58% { opacity: 1; transform: translateY(3px) scale(1.02, 0.98); }
+        100% { opacity: 1; transform: translateY(0) scale(1, 1); }
+    }
+
+    /* 離場時不要讓進場動畫再跑一次（AntD 的 MessageMoveOut 掛在同一個元素上） */
+    .ant-message-notice.ant-move-up-leave {
+        animation-name: MessageMoveOut;
+    }
+
+    /* ── 小浮層的無障礙降級 ── */
+    @@media (prefers-reduced-motion: reduce) {
+        .ant-modal-confirm .ant-modal-content,
+        .ant-message-notice,
+        .ant-notification-fade-enter.ant-notification-fade-enter-active,
+        .ant-notification-fade-appear.ant-notification-fade-appear-active {
+            animation: none !important;
+        }
+
+        .ant-modal-confirm .ant-modal-confirm-btns .ant-btn {
+            transition: none !important;
+        }
+
+        .ant-modal-confirm .ant-modal-confirm-btns .ant-btn:hover,
+        .ant-modal-confirm .ant-modal-confirm-btns .ant-btn:active {
             transform: none !important;
         }
     }

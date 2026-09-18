@@ -206,13 +206,11 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task OnDeleteAsync(ExceptionLogAdapterModel item)
         {
-            var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-            {
-                Title = "刪除例外紀錄",
-                Content = "確定要刪除這一列嗎？相同的例外若再次發生，會重新出現並從 1 次開始計算。",
-                OkText = "刪除",
-                CancelText = "取消",
-            });
+            var confirmed = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                "刪除例外紀錄",
+                "確定要刪除這一列嗎？相同的例外若再次發生，會重新出現並從 1 次開始計算。",
+                "刪除");
 
             if (confirmed == false)
             {
@@ -233,13 +231,11 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task OnPurgeAsync()
         {
-            var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-            {
-                Title = $"清除 {PurgeDays} 天未再發生的紀錄",
-                Content = $"將刪除「最後發生」早於 {PurgeDays} 天前的所有紀錄與其堆疊檔案。此動作無法復原。",
-                OkText = "清除",
-                CancelText = "取消",
-            });
+            var confirmed = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                $"清除 {PurgeDays} 天未再發生的紀錄",
+                $"將刪除「最後發生」早於 {PurgeDays} 天前的所有紀錄與其堆疊檔案。此動作無法復原。",
+                "清除");
 
             if (confirmed == false)
             {
@@ -260,13 +256,11 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task OnClearAllAsync()
         {
-            var confirmed = await modalService.ConfirmAsync(new ConfirmOptions
-            {
-                Title = "清空全部例外紀錄",
-                Content = "將刪除所有紀錄與整個堆疊檔案目錄。此動作無法復原。",
-                OkText = "清空",
-                CancelText = "取消",
-            });
+            var confirmed = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                "清空全部例外紀錄",
+                "將刪除所有紀錄與整個堆疊檔案目錄。此動作無法復原。",
+                "清空");
 
             if (confirmed == false)
             {

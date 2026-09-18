@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace MyProject.Tests;
 
@@ -76,7 +76,7 @@ public sealed class AiModalStyleConventionTests
                 + string.Join(Environment.NewLine, violations));
     }
 
-    /// <summary>對話窗尺寸的唯一真相來源是 FormModalHelper，不是 &lt;Modal Width&gt;。</summary>
+    /// <summary>對話窗尺寸的唯一真相來源是 OverlayStyles，不是 &lt;Modal Width&gt;。</summary>
     [Fact]
     public void AiModal_ShouldNotSetWidthOnTheModalTag()
     {

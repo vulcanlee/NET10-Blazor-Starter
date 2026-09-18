@@ -203,15 +203,7 @@ namespace MyProject.Web.Components.Views.Categories
         {
             logger.LogInformation("Delete category requested. CategoryId={CategoryId}, Name={Name}", categoryAdapterModel.Id, categoryAdapterModel.Name);
 
-            var ok = await modalService.ConfirmAsync(new ConfirmOptions()
-            {
-                Title = "確認刪除",
-                Content = "確定要刪除這筆紀錄嗎？此操作無法復原。",
-                OkText = "刪除",
-                CancelText = "取消",
-                OkButtonProps = new ButtonProps { Danger = true },
-                MaskClosable = false
-            });
+            var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
 
             if (!ok)
             {

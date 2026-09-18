@@ -194,7 +194,7 @@ else
         </Tabs>
 
         @*
-            明細窗：尺寸與內容樣式都寫在 Components/Commons/FormModalHelper.razor 的全域 style
+            明細窗：尺寸與內容樣式都寫在 Components/Commons/OverlayStyles.razor 的全域 style
             （AntDesign 的 Modal 渲染在元件 DOM 之外，scoped CSS 連 ::deep 都打不到）。
         *@
         <Modal Title="Token 用量明細"
@@ -299,7 +299,5 @@ else
                 }
             }
         </Modal>
-
-        <FormModalHelper />
     </div>
 }

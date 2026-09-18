@@ -108,7 +108,7 @@ else
 
         @*
             明細窗：清單放不下的欄位與完整堆疊都在這裡。
-            尺寸寫在 Components/Commons/FormModalHelper.razor 的全域 style（.exception-log-modal），
+            尺寸寫在 Components/Commons/OverlayStyles.razor 的全域 style（.exception-log-modal），
             刻意不設 Width —— 那邊是 !important，兩邊都寫只會讓下一個人改錯地方（見速查 §6.4）。
             純唯讀、不含 EditForm，所以 Esc 直接交給 Modal 的 Keyboard 處理（見速查 §6.3）。
         *@
@@ -140,7 +140,5 @@ else
                 <pre class="exception-log-stack">@detailStackTrace</pre>
             }
         </Modal>
-
-        <FormModalHelper />
     </div>
 }

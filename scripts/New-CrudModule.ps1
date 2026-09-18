@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     產生一個符合本專案現行慣例的 CRUD 模組骨架。
 
@@ -576,8 +576,6 @@ else
         </EditForm>
     </Modal>
 }
-
-<FormModalHelper />
 "@
 
 New-ScaffoldFile "Web/Components/Views/${Name}s/${Name}View.razor.cs" @"
