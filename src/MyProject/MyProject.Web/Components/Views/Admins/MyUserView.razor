@@ -60,20 +60,28 @@ else
         </div>
     </div>
 
+    @*
+        大量資料輸入對話窗：接近滿版、欄位 2 欄、區塊分組。
+        規範見 docs/architecture/對話窗 UI 設計規範.md，樣式在 Components/Commons/FormModalHelper.razor。
+        ⚠️ EditForm 上絕不可掛 @@onkeydown（§6.3，ModalKeyboardConventionTests 守門）。
+    *@
     <Modal Title="@modalTitle"
-           Class="my-user-modal"
+           Class="form-modal"
            @bind-Visible="@modalVisible"
            Keyboard="true"
+           MaskClosable="false"
+           OkText="@("儲存")"
+           CancelText="@("取消")"
            OnOk="OnModalOKHandleAsync"
            OnCancel="OnModalCancelHandleAsync">
-        <div class="">
-            <EditForm Model="@CurrentRecord" Context="editContext">
-                <DataAnnotationsValidator />
-                <ValidationSummary />
-                <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+        <EditForm Model="@CurrentRecord" Context="editContext">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <InputWatcher EditContextActionChanged="OnEditContestChanged" />
 
-                <AntDesign.Form TModel="MyUserAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+            <AntDesign.Form TModel="MyUserAdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
 
+                <FormSection Title="帳號與登入">
                     <FormItem Label="帳號" Required>
                         <Input @bind-Value="CurrentRecord.Account" Placeholder="請輸入帳號" />
                         <ValidationMessage For="() => CurrentRecord.Account" />
@@ -83,11 +91,13 @@ else
                         <Input Password @bind-Value="CurrentRecord.Password" Placeholder="新增時請輸入密碼，編輯時留白表示不變更" />
                         @if (!isNewRecordMode)
                         {
-                            <div class="my-user-password-hint">編輯模式留白表示沿用既有密碼</div>
+                            <div class="form-field-hint">編輯模式留白表示沿用既有密碼</div>
                         }
                         <ValidationMessage For="() => CurrentRecord.Password" />
                     </FormItem>
+                </FormSection>
 
+                <FormSection Title="基本資料">
                     <FormItem Label="名稱" Required>
                         <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
                         <ValidationMessage For="() => CurrentRecord.Name" />
@@ -97,7 +107,9 @@ else
                         <Input @bind-Value="CurrentRecord.Email" Placeholder="請輸入 Email" />
                         <ValidationMessage For="() => CurrentRecord.Email" />
                     </FormItem>
+                </FormSection>
 
+                <FormSection Title="角色與團隊" Hint="多選欄位獨占整行">
                     <FormItem Label="角色" Required>
                         <Select TItem="RoleViewAdapterModel" TItemValue="int?"
                                 DataSource="@roleViewAdapterModels"
@@ -109,7 +121,8 @@ else
                         <ValidationMessage For="() => CurrentRecord.RoleViewId" />
                     </FormItem>
 
-                    <FormItem Label="額外角色（多角色，權限取聯集）">
+                    @* 多選：選項一多就換行，半欄寬度會讓它一直長高、把右邊欄位擠歪，因此獨占整行。 *@
+                    <FormItem Label="額外角色（多角色，權限取聯集）" Class="form-field-full">
                         <Select TItem="int" TItemValue="int" Mode="SelectMode.Multiple"
                                 Values="CurrentRecord.AdditionalRoleIds" OnSelectedItemsChanged="OnAdditionalRolesChanged"
                                 Placeholder="可另外指派多個角色（與主要角色權限取聯集）"
@@ -121,7 +134,7 @@ else
                         </Select>
                     </FormItem>
 
-                    <FormItem Label="團隊（直接綁定此使用者）">
+                    <FormItem Label="團隊（直接綁定此使用者）" Class="form-field-full">
                         <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
                                 Values="CurrentRecord.TeamNames" OnSelectedItemsChanged="OnUserTeamsChanged"
                                 Placeholder="指派此使用者可存取的團隊（不設定則沿用其角色的預設團隊）"
@@ -132,12 +145,15 @@ else
                             }
                         </Select>
                     </FormItem>
+                </FormSection>
 
+                <FormSection Title="狀態">
                     <FormItem>
                         <Checkbox Checked="@CurrentRecord.Status"
                                   CheckedChanged="@(value => CurrentRecord.Status = value)">
                             啟用
                         </Checkbox>
+                        <div class="form-field-hint">停用後無法登入，但保留歷史紀錄。</div>
                     </FormItem>
 
                     <FormItem>
@@ -145,11 +161,12 @@ else
                                   CheckedChanged="@(value => CurrentRecord.IsAdmin = value)">
                             管理員
                         </Checkbox>
+                        <div class="form-field-hint">管理員會短路所有動作級授權檢查。</div>
                     </FormItem>
+                </FormSection>
 
-                </AntDesign.Form>
-            </EditForm>
-        </div>
+            </AntDesign.Form>
+        </EditForm>
     </Modal>
 }
 

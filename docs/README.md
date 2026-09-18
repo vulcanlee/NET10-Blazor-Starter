@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：2.6
+- 文件版本：2.7
 - 文件狀態：維護中
-- 現行系統版本：0.9.24
+- 現行系統版本：0.9.25
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/09/18
 
@@ -43,6 +43,7 @@
 - [DTO 與模型邊界規範](architecture/DTO%20與模型邊界規範.md)
 - [Web API 設計慣例](architecture/Web%20API%20設計慣例.md)
 - [Web API 端點目錄](architecture/Web%20API%20端點目錄.md)
+- [對話窗 UI 設計規範](architecture/對話窗%20UI%20設計規範.md)
 - [API Versioning 策略](architecture/API%20Versioning%20策略.md)
 
 ### security — 認證、授權與安全

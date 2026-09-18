@@ -1,0 +1,258 @@
+using System.Text.RegularExpressions;
+
+namespace MyProject.Tests;
+
+/// <summary>
+/// 驗證「大量資料輸入對話窗」的共用骨架沒有被繞過。
+///
+/// 這幾條規範的失敗症狀都是**靜默的** —— 不會壞、不會紅、只有打開那一頁才看得出來，
+/// 所以文件擋不住漂移，只有測試會擋下 PR：
+///
+/// - 少了 <c>form-modal</c>：窗退回 AntDesign 預設的 520px 小窗、body 不捲動。
+///   0.9.24 之前 <c>category-view-modal</c> 與 <c>team-view-modal</c> 就是這樣漏掉尺寸規則的
+///   —— class 掛在 razor 上，但 FormModalHelper 裡從來沒有對應規則。
+/// - 少了 <c>MaskClosable="false"</c>：使用者誤點遮罩，整份輸入無聲蒸發。
+/// - 用了 <c>Width</c>：尺寸有兩個來源，下一個人必定改錯地方（見速查表 §6.4）。
+///
+/// 規範全文見 docs/architecture/對話窗 UI 設計規範.md。
+/// </summary>
+public sealed class FormModalConventionTests
+{
+    /// <summary>
+    /// 尚未遷移到共用骨架的既有檢視。
+    ///
+    /// 這份清單只能縮短，不能加長：新的表單對話窗一律要照規範寫。
+    /// 名單上的檢視一旦遷移完成，<see cref="MigrationAllowList_ShouldNotContainAlreadyMigratedViews"/>
+    /// 會要求你把它從這裡刪掉，避免名單放著爛掉、變成永久豁免。
+    /// </summary>
+    private static readonly string[] PendingMigrationViews =
+    [
+        "RoleViewView.razor",
+        "ProjectViewView.razor",
+    ];
+
+    private static readonly Regex ModalOpenTag = new(@"<Modal\b[^>]*>", RegexOptions.Compiled);
+    private static readonly Regex ClassAttribute = new(@"Class=""(?<value>[^""]*)""", RegexOptions.Compiled);
+
+    /// <summary>
+    /// 含 <c>&lt;EditForm&gt;</c> 的對話窗＝表單型對話窗，必須套用共用骨架。
+    /// 唯讀明細窗（例外紀錄、Token 用量、AI 分析）不在此限。
+    /// </summary>
+    [Fact]
+    public void FormModals_ShouldUseTheSharedSkeleton()
+    {
+        var violations = new List<string>();
+
+        foreach (var (file, openTag, body) in EnumerateModals())
+        {
+            if (body.Contains("<EditForm", StringComparison.Ordinal) == false)
+            {
+                continue;
+            }
+
+            var name = Path.GetFileName(file);
+            if (PendingMigrationViews.Contains(name))
+            {
+                continue;
+            }
+
+            if (openTag.Contains("form-modal", StringComparison.Ordinal) == false)
+            {
+                violations.Add($"{name}：<Modal Class> 必須包含 form-modal —— 尺寸與 2 欄版型的唯一來源。");
+            }
+
+            if (openTag.Contains("Width=", StringComparison.Ordinal))
+            {
+                violations.Add($"{name}：尺寸一律寫在 FormModalHelper.razor，不得使用 <Modal Width>（速查表 §6.4）。");
+            }
+
+            if (openTag.Contains(@"MaskClosable=""false""", StringComparison.Ordinal) == false)
+            {
+                violations.Add($"{name}：必須明寫 MaskClosable=\"false\" —— 大量輸入的窗，誤點遮罩會無聲丟掉整份輸入。");
+            }
+
+            if (openTag.Contains("OnCancel=", StringComparison.Ordinal) == false)
+            {
+                violations.Add($"{name}：必須掛 OnCancel —— ✕、取消鈕與 ESC 三個入口都由它接住未儲存確認。");
+            }
+
+            if (openTag.Contains(@"Keyboard=""true""", StringComparison.Ordinal) == false)
+            {
+                violations.Add($"{name}：必須明寫 Keyboard=\"true\"，Escape 交給 Modal 處理（速查表 §6.3）。");
+            }
+        }
+
+        Assert.True(
+            violations.Count == 0,
+            "表單對話窗未套用共用骨架，詳見 docs/architecture/對話窗 UI 設計規範.md："
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 每個用到的 <c>*-modal</c> class，FormModalHelper.razor 裡都要有對應規則，
+    /// 否則那個窗會安靜地退回 AntDesign 預設尺寸。
+    /// </summary>
+    [Fact]
+    public void EveryModalClass_ShouldHaveRulesInFormModalHelper()
+    {
+        var helper = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Commons", "FormModalHelper.razor"));
+        var violations = new List<string>();
+
+        foreach (var (file, openTag, _) in EnumerateModals())
+        {
+            var name = Path.GetFileName(file);
+            var match = ClassAttribute.Match(openTag);
+
+            if (match.Success == false)
+            {
+                violations.Add($"{name}：<Modal> 沒有 Class，尺寸規則無處可掛。");
+                continue;
+            }
+
+            foreach (var token in match.Groups["value"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (token.EndsWith("-modal", StringComparison.Ordinal) == false)
+                {
+                    continue;
+                }
+
+                if (helper.Contains("." + token, StringComparison.Ordinal) == false)
+                {
+                    violations.Add($"{name}：.{token} 在 FormModalHelper.razor 找不到任何規則。");
+                }
+            }
+        }
+
+        Assert.True(
+            violations.Count == 0,
+            "對話窗的 class 在 FormModalHelper.razor 沒有對應規則："
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 禁止舊寫法「每條失敗路徑各補一次 <c>modalVisible = true;</c>」。
+    ///
+    /// AntDesign 在呼叫 OnOk／OnCancel 之前就已送出 VisibleChanged(false)，
+    /// 舊作法是在每個早退分支各補一次把窗撐回去（一個檢視重複四次）；
+    /// 只要新增一條早退路徑而忘了補，症狀就是「按儲存 → 驗證失敗 → 窗關了 → 輸入全丟」。
+    /// 正確作法是 handler 第一行搶回 Visible，失敗路徑只要 return false（見 FormModalFlow）。
+    /// </summary>
+    [Fact]
+    public void ViewCodeBehind_ShouldNotReopenModalOnEachFailurePath()
+    {
+        var componentsRoot = FindComponentsRoot();
+        var files = Directory.EnumerateFiles(componentsRoot, "*.razor.cs", SearchOption.AllDirectories).ToList();
+
+        Assert.NotEmpty(files);
+
+        var pattern = new Regex(@"modalVisible\s*=\s*true;\s*(?://[^\n]*\n\s*)*return;", RegexOptions.Compiled);
+        var violations = new List<string>();
+
+        foreach (var file in files)
+        {
+            var name = Path.GetFileName(file);
+            if (PendingMigrationViews.Any(view => name == view + ".cs"))
+            {
+                continue;
+            }
+
+            if (pattern.IsMatch(File.ReadAllText(file)))
+            {
+                violations.Add(name);
+            }
+        }
+
+        Assert.True(
+            violations.Count == 0,
+            "失敗路徑不要各自把 Modal 撐回去：handler 第一行搶回 Visible，失敗路徑 return false 即可"
+                + "（見 Components/Commons/FormModalFlow.cs）。"
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 待遷移清單不得放著爛掉：名單上的檢視若已經套用共用骨架，就要把它從名單刪掉。
+    /// </summary>
+    [Fact]
+    public void MigrationAllowList_ShouldNotContainAlreadyMigratedViews()
+    {
+        var stale = new List<string>();
+
+        foreach (var (file, openTag, body) in EnumerateModals())
+        {
+            var name = Path.GetFileName(file);
+
+            if (PendingMigrationViews.Contains(name) == false)
+            {
+                continue;
+            }
+
+            if (body.Contains("<EditForm", StringComparison.Ordinal)
+                && openTag.Contains("form-modal", StringComparison.Ordinal))
+            {
+                stale.Add(name);
+            }
+        }
+
+        Assert.True(
+            stale.Count == 0,
+            "這些檢視已經遷移完成，請從 PendingMigrationViews 移除，讓守門規則開始涵蓋它們："
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, stale));
+    }
+
+    /// <summary>掃出所有 &lt;Modal&gt;，回傳（檔案、開始標籤、標籤到 &lt;/Modal&gt; 之間的內容）。</summary>
+    private static IEnumerable<(string File, string OpenTag, string Body)> EnumerateModals()
+    {
+        var componentsRoot = FindComponentsRoot();
+        var razorFiles = Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories).ToList();
+
+        // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
+        Assert.NotEmpty(razorFiles);
+
+        var results = new List<(string, string, string)>();
+
+        foreach (var file in razorFiles)
+        {
+            var text = File.ReadAllText(file);
+
+            foreach (Match match in ModalOpenTag.Matches(text))
+            {
+                var bodyStart = match.Index + match.Length;
+                var bodyEnd = text.IndexOf("</Modal>", bodyStart, StringComparison.Ordinal);
+                var body = bodyEnd < 0 ? string.Empty : text[bodyStart..bodyEnd];
+
+                results.Add((file, match.Value, body));
+            }
+        }
+
+        Assert.NotEmpty(results);
+
+        return results;
+    }
+
+    private static string FindComponentsRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, "MyProject.Web", "Components");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "Components");
+            if (Directory.Exists(srcCandidate))
+            {
+                return srcCandidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new DirectoryNotFoundException("找不到 MyProject.Web/Components。");
+    }
+}

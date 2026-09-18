@@ -81,9 +81,9 @@
     }
 </Modal>
 
+@* 尺寸寫在 Components/Commons/FormModalHelper.razor 的 .about-modal，不用 Width 參數（速查表 §6.4）。 *@
 <Modal Title="關於"
        Class="about-modal"
-       Width="520"
        @bind-Visible="@aboutVisible"
        Keyboard="true"
        Footer="null"
@@ -98,6 +98,13 @@
         }
     </dl>
 </Modal>
+
+@*
+    佈局層也要渲染一次：本檔的「變更密碼」與「關於」兩個窗都靠 FormModalHelper 提供尺寸，
+    但先前只有各 View 自己渲染它 —— 在不含那些 View 的頁面（例如首頁）開這兩個窗，
+    尺寸規則整組不存在，會退回 AntDesign 預設的 520px。
+*@
+<FormModalHelper />
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

@@ -533,7 +533,51 @@ else
             }
         </ActionColumn>
     </Table>
+
+    @*
+        大量資料輸入對話窗骨架。規範見 docs/architecture/對話窗 UI 設計規範.md：
+        接近滿版、欄位 2 欄、區塊分組、未儲存二次確認、粉梅暖雪果凍視覺。
+
+        ⚠️ Class 一定要有 form-modal（尺寸與版型的唯一來源），不要改用 Modal 的 Width 參數。
+        ⚠️ EditForm／form 上絕不可掛鍵盤事件 —— keydown 會從 TextArea／Select／DatePicker
+           冒泡上來，變成「輸入還沒完成就存檔關窗」。存檔唯一入口是 Modal 的 OnOk。
+        ⚠️ 不適合 2 欄的欄位（多行文字、檔案上傳、清單、權限矩陣）加 Class="form-field-full"。
+        以上三點都由 MyProject.Tests/FormModalConventionTests.cs 與 ModalKeyboardConventionTests.cs 守門。
+    *@
+    <Modal Title="@modalTitle"
+           Class="form-modal"
+           @bind-Visible="@modalVisible"
+           Keyboard="true"
+           MaskClosable="false"
+           OkText="@("儲存")"
+           CancelText="@("取消")"
+           OnOk="OnModalOKHandleAsync"
+           OnCancel="OnModalCancelHandleAsync">
+        <EditForm Model="@CurrentRecord" Context="editContext">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <InputWatcher EditContextActionChanged="OnEditContestChanged" />
+
+            <AntDesign.Form TModel="${Name}AdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
+                <FormSection Title="基本資料">
+                    <FormItem Label="名稱" Required>
+                        <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
+                        <ValidationMessage For="() => CurrentRecord.Name" />
+                    </FormItem>
+
+                    @* TODO: 其餘欄位依實際模型補上；短欄位放這裡即可自動 2 欄排列。 *@
+
+                    <FormItem Label="說明" Class="form-field-full">
+                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入說明" />
+                        <ValidationMessage For="() => CurrentRecord.Description" />
+                    </FormItem>
+                </FormSection>
+            </AntDesign.Form>
+        </EditForm>
+    </Modal>
 }
+
+<FormModalHelper />
 "@
 
 New-ScaffoldFile "Web/Components/Views/${Name}s/${Name}View.razor.cs" @"
@@ -541,6 +585,8 @@ using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
@@ -555,6 +601,7 @@ public partial class ${Name}View
     private readonly ILogger<${Name}View> logger;
     private readonly ${Name}Service ${lower}Service;
     private readonly NotificationService notificationService;
+    private readonly ModalService modalService;
 
     List<${Name}AdapterModel> records = new();
 
@@ -568,6 +615,19 @@ public partial class ${Name}View
 
     ${Name}AdapterModel CurrentRecord = new();
 
+    string modalTitle = "$DisplayName維護";
+    bool modalVisible = false;
+    bool isNewRecordMode;
+    public EditContext? LocalEditContext { get; set; }
+
+    /// <summary>
+    /// 未儲存變更偵測。開窗時 Capture、按取消／儲存時比對，
+    /// 「改了又改回原值」視為無變更，不會白問使用者一次。
+    /// ⚠️ 不要改用 EditContext.IsModified()：AntDesign 的輸入元件不會通知外層 EditContext，
+    ///    它會恆為 false，未儲存提示永遠不跳，而且不會有任何徵兆。
+    /// </summary>
+    private readonly FormDirtyTracker dirtyTracker = new();
+
     [Inject]
     public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
 
@@ -580,11 +640,13 @@ public partial class ${Name}View
     public ${Name}View(
         ILogger<${Name}View> logger,
         ${Name}Service ${lower}Service,
-        NotificationService notificationService)
+        NotificationService notificationService,
+        ModalService modalService)
     {
         this.logger = logger;
         this.${lower}Service = ${lower}Service;
         this.notificationService = notificationService;
+        this.modalService = modalService;
     }
 
     protected override async Task OnInitializedAsync()
@@ -644,9 +706,13 @@ public partial class ${Name}View
     Task OnAddAsync()
     {
         CurrentRecord = new ${Name}AdapterModel();
+        isNewRecordMode = true;
+        modalTitle = "新增$DisplayName";
 
-        // TODO: 開啟維護 Modal（參考 Components/Views/Categories/CategoryViewView 的 Modal + EditForm）。
-        // ⚠️ EditForm 上不要加 @onkeydown —— 見下方「尚未產生的部分」。
+        // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
+        dirtyTracker.Capture(CurrentRecord);
+
+        modalVisible = true;
         return Task.CompletedTask;
     }
 
@@ -654,9 +720,107 @@ public partial class ${Name}View
     {
         // ⚠️ 一律 Clone()：直接綁定會讓表單的雙向繫結污染表格來源資料。
         CurrentRecord = record.Clone();
+        isNewRecordMode = false;
+        modalTitle = "修改$DisplayName";
 
-        // TODO: 開啟維護 Modal。
+        // ⚠️ 必須是開窗前的最後一步。
+        dirtyTracker.Capture(CurrentRecord);
+
+        modalVisible = true;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 「儲存」按鈕。
+    ///
+    /// ⚠️ 第一行的 modalVisible = true 不可移動，也不可在它之前 await：
+    /// AntDesign 在呼叫本方法**之前**就已送出 VisibleChanged(false)，這一行是在同一個
+    /// render batch 內把它搶回來（那個 false 從來不會被畫出來，所以不會閃爍）。
+    /// 之後的開關一律由 FormModalFlow 的回傳值決定 —— 失敗路徑只要 return false。
+    /// ⚠️ args 可能是 null，不要解參考它。
+    /// </summary>
+    private async Task OnModalOKHandleAsync(MouseEventArgs args)
+    {
+        modalVisible = true;
+        modalVisible = await FormModalFlow.RunOkAsync(
+            SaveAsync,
+            logger,
+            notificationService,
+            "儲存$DisplayName時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+    }
+
+    /// <summary>
+    /// 實際存檔。回傳 true 表示已完成、可以關窗；
+    /// 任何驗證失敗或使用者中止都 return false，不必再碰 modalVisible。
+    /// </summary>
+    private async Task<bool> SaveAsync()
+    {
+        if (LocalEditContext?.Validate() == false)
+        {
+            foreach (var error in LocalEditContext.GetValidationMessages())
+            {
+                ViewNotification.ValidationError(notificationService, error);
+            }
+
+            return false;
+        }
+
+        // 一個字都沒改就按儲存：不值得白寫一筆，也不該白跳一次確認窗。
+        if (isNewRecordMode == false && dirtyTracker.IsDirty(CurrentRecord) == false)
+        {
+            ViewNotification.Info(notificationService, "沒有任何變更，未進行儲存。");
+            return true;
+        }
+
+        // 儲存前的二次確認。排在資料庫前置檢查之前：使用者若選「再檢查」，
+        // 就不必白跑一次資料庫來回。
+        if (await FormEditConfirm.AskSaveAsync(modalService) == false)
+        {
+            return false;
+        }
+
+        var actionResult = isNewRecordMode
+            ? await ${lower}Service.AddAsync(CurrentRecord)
+            : await ${lower}Service.UpdateAsync(CurrentRecord);
+
+        // 前置檢查通過不代表寫得進去：唯一索引在並發時仍會擋下，
+        // 忽略這個回傳值會讓失敗的儲存顯示成「新增成功」。
+        if (!actionResult.Success)
+        {
+            ViewNotification.Error(notificationService, actionResult.Message);
+            return false;
+        }
+
+        ViewNotification.Warning(notificationService, isNewRecordMode ? "新增成功" : "修改成功");
+
+        await ReloadAsync();
+        dirtyTracker.Clear();
+
+        return true;
+    }
+
+    /// <summary>
+    /// 取消／✕／ESC 的共用出口（遮罩已由 MaskClosable="false" 擋掉，不會走到這裡）。
+    /// 有未儲存變更時先問過使用者；無變更直接關閉，不打擾。
+    ///
+    /// ⚠️ 第一行的 modalVisible = true 不可移動：AntDesign 呼叫本方法前已送出
+    /// VisibleChanged(false)，要讓「繼續編輯」留住整窗輸入就得在這裡搶回來。
+    /// ⚠️ args 可能是 null（ESC／✕ 走 Config.OnCancel.Invoke(null)），不要解參考它。
+    /// </summary>
+    private async Task OnModalCancelHandleAsync(MouseEventArgs args)
+    {
+        modalVisible = true;
+        modalVisible = await FormModalFlow.ConfirmCloseAsync(modalService, dirtyTracker.IsDirty(CurrentRecord));
+
+        if (modalVisible == false)
+        {
+            dirtyTracker.Clear();
+        }
+    }
+
+    public void OnEditContestChanged(EditContext context)
+    {
+        LocalEditContext = context;
     }
 
     async Task OnDeleteAsync(${Name}AdapterModel record)
@@ -833,9 +997,17 @@ MyProject.Web/Extensions/ServiceCollectionExtensions.cs：
 
 ## 五、尚未產生的部分
 
-檢視的 OnAddAsync / OnEditAsync 只建立了資料狀態，**維護 Modal 尚未產生**。
-請參考 Components/Views/Categories/CategoryViewView.razor 的 Modal + EditForm 區塊補上，
-並沿用 ViewNotification 顯示結果訊息。
+維護 Modal 的**骨架已經產生**（接近滿版、2 欄版型、未儲存二次確認、果凍視覺都已接好），
+但裡面只有「名稱」與「說明」兩個示意欄位，請依實際模型補齊其餘欄位：
+
+- 短欄位直接放進 FormSection，會自動 2 欄由左而右排列。
+- 不適合 2 欄的欄位（多行文字、檔案上傳、清單、權限矩陣）加 Class="form-field-full" 獨占整行。
+- 欄位一多就再開一個 FormSection 分組，別讓使用者在一長串欄位裡找東西。
+- 不在模型裡的暫存狀態（待上傳檔案等）要傳指紋給 dirtyTracker.Capture 的第二個參數，
+  否則「只加了檔案、沒動欄位」會被判定為無變更而直接關窗。
+
+規範全文見 docs/architecture/對話窗 UI 設計規範.md，
+由 MyProject.Tests/FormModalConventionTests.cs 守門。
 
 ⚠️ **EditForm／form 上絕不可加 @onkeydown**：keydown 會從表單內任何子元素冒泡上來，
 TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔並關窗」。
@@ -843,6 +1015,9 @@ TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔�
 需要捷徑請綁在個別元件上（例如 <Input OnPressEnter="..." />）。
 理由見 docs/architecture/開發慣例與限制速查.md §6.3，
 由 MyProject.Tests/ModalKeyboardConventionTests.cs 守門。
+
+⚠️ **不要把 modalVisible = true 補在每條失敗路徑**：handler 第一行已經搶回 Visible，
+失敗路徑只要 return false。舊寫法只要漏補一次，症狀就是「驗證失敗 → 窗關了 → 輸入全丟」。
 
 ## 六、驗收
 

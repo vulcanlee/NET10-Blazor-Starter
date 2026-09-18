@@ -1,8 +1,322 @@
-﻿<style>
-    
+<style>
+
+    /* ══════════════════════════════════════════════════════════════════
+       表單型對話窗（大量資料輸入）—— 粉梅暖雪果凍版型
+       規範全文見 docs/architecture/對話窗 UI 設計規範.md
+
+       用法：Modal 標籤加上 Class="form-modal"。
+       頁面若真的需要專屬微調，寫成 Class="form-modal xxx-modal" 並在本檔補 .xxx-modal 規則。
+
+       ⚠️ AntDesign 的 CSS 在 App.razor 最後載入，覆蓋 .ant-modal-* 一律要 !important。
+       ⚠️ 尺寸不可改用 Modal 的 Width 參數（見速查表 §6.4）：兩邊都寫只會讓下一個人改錯地方。
+       ⚠️ 本檔是 .razor，CSS 裡的單一 at 符號一律要寫兩次（@@media / @@supports / @@keyframes）。
+       ⚠️ scoped CSS 裡 :root 無效，CSS 變數掛在最外層容器 class 上（同 Login.razor.css 手法）。
+       ══════════════════════════════════════════════════════════════════ */
+
+    .form-modal {
+        --fm-text: #51132f;
+        --fm-muted: #704054;
+        --fm-accent: #a52b59;
+        --fm-accent-dim: #d37598;
+        --fm-line: rgba(165, 43, 89, 0.18);
+        --fm-error: #9a173a;
+        width: 95vw !important;
+        /* .ant-modal 預設 max-width: calc(100vw - 32px)，這裡必須壓過它 */
+        max-width: 1400px !important;
+        /* 上下各留 2.5vh，讓遮罩透出來，果凍與毛玻璃才看得出來 */
+        top: 2.5vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+    /* 標題列與按鈕列固定、中間捲動 */
+    .form-modal .ant-modal-content {
+        height: 95vh !important;
+        max-height: 95vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        color: var(--fm-text) !important;
+        /* 果凍本體：半透明 + 內外亮邊，手法沿用 Login.razor.css 的 .login-card */
+        border: 3px solid rgba(255, 255, 255, 0.92) !important;
+        border-radius: 34px !important;
+        background: rgba(255, 237, 244, 0.95) !important;
+        box-shadow: inset 0 3px 5px #fff, inset 0 -6px 14px rgba(232, 139, 169, 0.5),
+                    0 0 0 6px rgba(255, 224, 236, 0.5), 0 28px 70px rgba(107, 39, 69, 0.26) !important;
+        animation: fm-arrive 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    /* 毛玻璃只在瀏覽器支援時才降低不透明度，否則維持可讀的實底 */
+    @@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .form-modal .ant-modal-content {
+            background: rgba(255, 234, 243, 0.62) !important;
+            backdrop-filter: blur(26px) saturate(1.15);
+            -webkit-backdrop-filter: blur(26px) saturate(1.15);
+        }
+    }
+
+    /* 果凍進場：擠壓回彈（squash & stretch） */
+    @@keyframes fm-arrive {
+        0% { opacity: 0; transform: scale(0.72, 0.86); }
+        45% { opacity: 1; transform: scale(1.035, 0.965); }
+        70% { transform: scale(0.985, 1.018); }
+        88% { transform: scale(1.006, 0.995); }
+        100% { transform: scale(1, 1); }
+    }
+
+    /* 勾選回彈 */
+    @@keyframes fm-jelly-check {
+        50% { transform: scale(1.14); }
+        100% { transform: scale(1); }
+    }
+
+    .form-modal .ant-modal-header {
+        flex-shrink: 0;
+        padding: 18px 28px !important;
+        border-bottom: 1px solid var(--fm-line) !important;
+        border-radius: 31px 31px 0 0 !important;
+        /* 不透明底會把毛玻璃切掉一整條 */
+        background: transparent !important;
+    }
+
+    .form-modal .ant-modal-title {
+        color: var(--fm-text) !important;
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+    }
+
+    .form-modal .ant-modal-close {
+        color: var(--fm-muted) !important;
+    }
+
+    .form-modal .ant-modal-close:hover {
+        color: var(--fm-accent) !important;
+    }
+
+    .form-modal .ant-modal-body {
+        flex: 1 !important;
+        /* 沒有這行，flex 子項不會縮，捲軸永遠不會出現 */
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        padding: 20px 28px !important;
+        /* 捲軸出現時版面不要橫跳 */
+        scrollbar-gutter: stable;
+    }
+
+    .form-modal .ant-modal-footer {
+        flex-shrink: 0;
+        padding: 14px 28px !important;
+        border-top: 1px solid var(--fm-line) !important;
+        border-radius: 0 0 31px 31px !important;
+        background: transparent !important;
+    }
+
+    /* ── 區塊分組 ── */
+    .form-modal .form-section {
+        margin: 0 0 1.5rem;
+    }
+
+    .form-modal .form-section:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-modal .form-section-title {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        margin: 0 0 0.9rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px dashed var(--fm-line);
+        color: var(--fm-accent);
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+    }
+
+    .form-modal .form-section-hint {
+        color: var(--fm-muted);
+        font-size: 0.78rem;
+        font-weight: 400;
+    }
+
+    /* ── 2 欄 grid ──
+       AntD 的 FormItem 外層就是 .ant-form-item（單純的 block div），
+       直接當 grid item，不需要再包一層，也不要用 AntD 的 Row/Col。 */
+    .form-modal .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 1.75rem;
+        /* 左右兩欄各自量高，長驗證訊息只撐高自己那一格 */
+        align-items: start;
+    }
+
+    .form-modal .form-grid-single {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .form-modal .form-grid > .ant-form-item {
+        /* 不可省：grid item 預設 min-width:auto，多選 Select 的 tag 一多就會撐破欄寬 */
+        min-width: 0;
+        /* AntD 預設 24px，兩欄排列時太鬆 */
+        margin-bottom: 1rem !important;
+    }
+
+    /* 不適合 2 欄的欄位（多行文字、檔案上傳、清單、權限矩陣…）獨占整行 */
+    .form-modal .form-grid > .form-field-full {
+        grid-column: 1 / -1;
+    }
+
+    .form-modal .form-field-hint {
+        margin-top: 0.3rem;
+        color: var(--fm-muted);
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }
+
+    /* ── 驗證訊息（Blazor 的 ValidationMessage / ValidationSummary）── */
+    .form-modal .validation-message {
+        display: block;
+        margin-top: 0.3rem;
+        color: var(--fm-error);
+        font-size: 0.82rem;
+        line-height: 1.5;
+        /* 長訊息換行，不要橫向撐破格子 */
+        overflow-wrap: anywhere;
+    }
+
+    .form-modal .validation-errors {
+        margin: 0 0 1rem;
+        padding: 0.75rem 1rem 0.75rem 2rem;
+        border-radius: 16px;
+        background: rgba(255, 214, 229, 0.75);
+        color: var(--fm-error);
+        font-size: 0.85rem;
+    }
+
+    /* ── 果凍 Q 彈回饋 ── */
+    .form-modal .ant-input,
+    .form-modal .ant-input-affix-wrapper,
+    .form-modal .ant-input-number,
+    .form-modal .ant-picker,
+    .form-modal .ant-select-selector {
+        border-radius: 14px !important;
+        background: rgba(255, 252, 254, 0.72) !important;
+        transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+    }
+
+    .form-modal .ant-input:focus,
+    .form-modal .ant-input-focused,
+    .form-modal .ant-input-affix-wrapper-focused,
+    .form-modal .ant-select-focused .ant-select-selector,
+    .form-modal .ant-picker-focused,
+    .form-modal .ant-input-number-focused {
+        border-color: var(--fm-accent-dim) !important;
+        background: rgba(255, 249, 252, 0.94) !important;
+        box-shadow: 0 0 0 5px rgba(240, 146, 179, 0.2), inset 0 1px 2px #fff !important;
+    }
+
+    .form-modal .ant-form-item-label > label {
+        color: var(--fm-text) !important;
+        font-weight: 500;
+    }
+
+    .form-modal .ant-select-selection-item {
+        border-radius: 999px !important;
+    }
+
+    .form-modal .ant-checkbox-checked .ant-checkbox-inner {
+        background-color: var(--fm-accent) !important;
+        border-color: var(--fm-accent) !important;
+        animation: fm-jelly-check 220ms ease-out;
+    }
+
+    .form-modal .ant-modal-footer .ant-btn {
+        border-radius: 999px !important;
+        font-weight: 700;
+        transition: transform 220ms cubic-bezier(0.2, 0.8, 0.3, 1.3), box-shadow 220ms ease;
+    }
+
+    .form-modal .ant-modal-footer .ant-btn-primary {
+        border-color: transparent !important;
+        background: linear-gradient(165deg, #ea88ad 0%, #c43970 58%, #b52a60 100%) !important;
+        text-shadow: 0 1px 2px rgba(93, 15, 48, 0.3);
+        box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.6), 0 8px 20px rgba(173, 45, 93, 0.2) !important;
+    }
+
+    @@media (hover: hover) and (pointer: fine) {
+        .form-modal .ant-modal-footer .ant-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(173, 45, 93, 0.26) !important;
+        }
+    }
+
+    .form-modal .ant-modal-footer .ant-btn:active {
+        transform: scale(0.97);
+    }
+
+    /* ── 窄螢幕：塌成單欄 + 全螢幕 ── */
+    @@media (max-width: 767.98px) {
+        .form-modal {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            top: 0 !important;
+            margin: 0 !important;
+        }
+
+        .form-modal .ant-modal-content {
+            height: 100vh !important;
+            /* 行動瀏覽器的動態網址列 */
+            height: 100svh !important;
+            max-height: none !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+        }
+
+        .form-modal .ant-modal-header {
+            border-radius: 0 !important;
+            padding: 14px 16px !important;
+        }
+
+        .form-modal .ant-modal-body {
+            padding: 16px !important;
+        }
+
+        .form-modal .ant-modal-footer {
+            border-radius: 0 !important;
+            padding: 12px 16px !important;
+        }
+
+        .form-modal .form-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0;
+        }
+    }
+
+    /* ── 無障礙降級：比照 Login.razor.css 的 prefers-reduced-motion 區段 ── */
+    @@media (prefers-reduced-motion: reduce) {
+        .form-modal .ant-modal-content,
+        .form-modal .ant-checkbox-checked .ant-checkbox-inner {
+            animation: none !important;
+        }
+
+        .form-modal .ant-input,
+        .form-modal .ant-select-selector,
+        .form-modal .ant-modal-footer .ant-btn {
+            transition: none !important;
+        }
+
+        .form-modal .ant-modal-footer .ant-btn:hover,
+        .form-modal .ant-modal-footer .ant-btn:active {
+            transform: none !important;
+        }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       以下為尚未套用 .form-modal 的既有版型（唯讀明細窗、AI 分析窗等）
+       ══════════════════════════════════════════════════════════════════ */
+
     /* form modals: 90% viewport size with scrollable body */
     .role-view-modal,
-    .my-user-modal,
     .project-view-modal {
         width: 90vw !important;
         max-width: 90vw !important;
@@ -12,7 +326,6 @@
     }
 
         .role-view-modal .ant-modal-content,
-        .my-user-modal .ant-modal-content,
         .project-view-modal .ant-modal-content {
             height: 90vh !important;
             max-height: 90vh !important;
@@ -22,13 +335,11 @@
         }
 
         .role-view-modal .ant-modal-header,
-        .my-user-modal .ant-modal-header,
         .project-view-modal .ant-modal-header {
             flex-shrink: 0;
         }
 
         .role-view-modal .ant-modal-body,
-        .my-user-modal .ant-modal-body,
         .project-view-modal .ant-modal-body {
             flex: 1 !important;
             min-height: 0 !important;
@@ -36,7 +347,6 @@
         }
 
         .role-view-modal .ant-modal-footer,
-        .my-user-modal .ant-modal-footer,
         .project-view-modal .ant-modal-footer {
             flex-shrink: 0;
         }
@@ -237,6 +547,16 @@
         width: 480px !important;
         max-width: 90vw !important;
         top: 20vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+    /* about modal: compact, auto height。
+       尺寸寫在這裡而不是 Modal 的 Width 參數，見速查表 §6.4。 */
+    .about-modal {
+        width: 520px !important;
+        max-width: 90vw !important;
+        top: 15vh !important;
         padding-bottom: 0 !important;
         margin: 0 auto !important;
     }

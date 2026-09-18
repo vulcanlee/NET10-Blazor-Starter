@@ -1,0 +1,198 @@
+﻿# 對話窗 UI 設計規範
+
+- 文件版本：1.0
+- 文件狀態：已實作
+- 現行系統版本：0.9.25
+- 首次實作版本：0.9.25
+- 最後核對日期：2026/09/18
+
+## 目的
+
+本文件是「大量資料輸入對話窗」（記錄的新增與修改窗）的固定設計模式。
+日後有同類需求一律照本文辦理，不要各自發明版型與確認行為。
+
+速查表 [§6.3](開發慣例與限制速查.md)（鍵盤事件）與 §6.4（尺寸來源）仍是硬性紅線，
+本文件是它們的展開版。
+
+## 1. 三種對話窗，只有一種適用本規範
+
+| 類型 | 判準 | 版型 |
+|------|------|------|
+| **表單對話窗** | 內含 `<EditForm>`，使用者要輸入或修改記錄 | `Class="form-modal"`，本文件全部適用 |
+| 唯讀明細窗 | 只是把一筆記錄攤開來看（例外紀錄、Token 用量、AI 分析） | 各自的 `*-modal` class，不適用本文件 |
+| 小型確認窗 | `ModalService.ConfirmAsync`，只有一句話與兩個按鈕 | 由靜態樣板決定，見第 5 節 |
+
+## 2. 版型
+
+| 項目 | 規格 |
+|------|------|
+| 寬高 | `95vw` × `95vh`，`max-width: 1400px`，`top: 2.5vh` |
+| 為什麼不是 100% | 上下留 2.5vh 讓遮罩透出來，果凍與毛玻璃才看得出來；`max-width` 避免超寬螢幕把欄位拉成難讀的長條 |
+| 結構 | 標題列固定、**中間內容區是唯一會捲動的地方**、按鈕列固定 |
+| 欄位排列 | 2 欄 CSS Grid（`repeat(2, minmax(0, 1fr))`），由左而右 |
+| 分組 | `<FormSection Title="...">`，每組一個小標題 |
+| 窄螢幕 | ≤ 767.98px 塌成單欄，窗擴成 `100vw` × `100svh`、無圓角無邊框 |
+
+尺寸與版型**只寫在** `src/MyProject/MyProject.Web/Components/Commons/FormModalHelper.razor` 的
+`.form-modal` 區塊。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
+
+## 3. 欄位排版規則
+
+預設兩欄。下列欄位加 `Class="form-field-full"` **獨占整行**：
+
+| 欄位型態 | 為什麼 |
+|----------|--------|
+| 多行文字（`TextArea`） | 擠在半欄裡會逼使用者在窄框裡讀長句 |
+| 多選（`Select Mode="SelectMode.Multiple"`） | 選項一多就換行，半欄寬度會讓它一直長高、把右邊欄位擠歪 |
+| 檔案上傳與待上傳清單 | 清單是縱向的，橫向切一半只會兩邊都不好讀 |
+| 權限矩陣、巢狀勾選群 | 本身就是二維排列，再塞進半欄會變成三層巢狀 |
+| 帶有長說明文字的欄位 | 說明會把那一格撐高，兩欄高度參差 |
+
+其餘短欄位（單行文字、下拉、日期、數字、勾選、開關）一律留在 2 欄裡。
+
+欄位多到一個畫面看不完時，**分組**而不是縮小字級：每個 `<FormSection>` 一個語意群
+（例如「帳號與登入」「基本資料」「角色與團隊」「狀態」）。
+
+> ⚠️ 對話窗內容的樣式**不能**寫在 `XxxView.razor.css`。
+> AntDesign 會把 Modal 內容渲染到元件 DOM 範圍之外，scoped CSS（連 `::deep`）都打不到，
+> 規則會整組靜默失效。全部寫在 `FormModalHelper.razor` 的全域 `<style>`。
+> `FormSection.razor` 刻意不附 `.razor.css`，就是這個原因。
+
+## 4. 未儲存保護
+
+| 入口 | 行為 |
+|------|------|
+| 遮罩點擊 | **完全不關窗**（`MaskClosable="false"`）。大量輸入的窗，點遮罩從來不是「我要關窗」的刻意手勢 |
+| ✕ / 取消鈕 / ESC | 有變更 → 問「尚有未儲存的變更」［繼續編輯／放棄變更］；無變更 → 直接關閉，不打擾 |
+| 儲存鈕 | 有變更 → 問「確認儲存」［再檢查／儲存］；一個字都沒改 → 提示「沒有任何變更，未進行儲存」後直接關窗，不寫入資料庫 |
+
+三個關窗入口（✕、取消鈕、ESC）在 AntDesign 內部都收斂到 `Dialog.CloseAsync()` → `Modal.OnCancel`，
+所以**只掛 `OnCancel` 一處就全涵蓋**。不要自己攔 `@onkeydown`（速查表 §6.3）。
+
+### 4.1 變更偵測：與原始快照做值比對 ⚠️
+
+用 `Components/Commons/FormDirtyTracker.cs`：開窗前 `Capture(CurrentRecord)`，
+按鈕觸發時 `IsDirty(CurrentRecord)`。改了又改回原值視為無變更。
+
+⚠️ **不要改用 `EditContext.IsModified()`。** 只有繼承 `InputBase<T>` 的 Blazor 內建元件才會呼叫
+`EditContext.NotifyFieldChanged`；本專案的欄位全是 AntDesign 元件直接綁模型屬性，
+外層 `EditContext` 一輩子收不到欄位變更通知 —— `IsModified()` 會**恆為 false**，
+未儲存提示永遠不跳，而且不會有任何錯誤或徵兆。
+（`Validate()` 之所以能用，是因為 `DataAnnotationsValidator` 在當下整包重驗，與欄位通知無關。）
+
+`Capture` 必須是**開窗前的最後一步**：預設角色、關聯資料都要先塞完再拍快照，
+否則那些值會被當成「使用者的變更」。
+
+不在模型裡的暫存狀態（待上傳檔案、待刪除檔案 ID）要傳指紋給第二個參數：
+
+```csharp
+dirtyTracker.Capture(CurrentRecord, UploadStateFingerprint);
+
+private string UploadStateFingerprint()
+    => string.Join('|', pendingUploadFiles.Select(x => $"{x.Name}:{x.Size}"))
+       + "#" + string.Join(',', removedFileIds.OrderBy(x => x));
+```
+
+⚠️ 快照字串含 `Password` 等敏感欄位，**絕不可寫進 log**。
+
+### 4.2 確認窗的文案由樣板決定
+
+`Components/Commons/FormEditConfirm.cs` 的 `AskDiscardChangesAsync` / `AskSaveAsync`，
+以及既有的 `TeamBindingConfirm.AskAsync`。**不要各 View 自己寫 `ConfirmAsync`** ——
+文案必定漂移成「這個窗問得很兇、那個窗問得很客氣」。
+
+三者都設 `ZIndex = 1100`：表單窗在等待確認期間會維持開啟（見 4.3），
+確認窗若沿用預設的 1000 就只剩 DOM 先後可以決定疊放順序。
+
+### 4.3 OnOk／OnCancel 的第一行 ⚠️
+
+AntDesign 在呼叫 `OnOk` / `OnCancel` **之前**就已送出 `VisibleChanged(false)`，
+而且宣告式 `<Modal>` 無法否決關窗（`ModalClosingEventArgs.Cancel` 只有 `ModalService` 建的窗才管用）。
+因此 handler 的**第一行**必須把 Visible 搶回來：
+
+```csharp
+private async Task OnModalCancelHandleAsync(MouseEventArgs args)
+{
+    modalVisible = true;
+    modalVisible = await FormModalFlow.ConfirmCloseAsync(modalService, dirtyTracker.IsDirty(CurrentRecord));
+    // ...
+}
+```
+
+這樣不會閃爍：`VisibleChanged(false)` 與 handler 之間沒有任何 await 讓步，
+整段流程都在同一個 render batch 內，那個 `false` 從來不會被畫出來。
+
+⚠️ `args` 可能是 `null`（ESC／✕ 走 `Config.OnCancel.Invoke(null)`），不要解參考它。
+
+⚠️ **不要把 `modalVisible = true;` 補在每條失敗路徑。** 舊寫法一個 View 重複四次，
+只要新增一條早退路徑而忘了補，症狀就是「按儲存 → 驗證失敗 → 窗關了 → 輸入全丟」。
+改用 `Components/Commons/FormModalFlow.cs`：失敗路徑只要 `return false`。
+
+## 5. 果凍視覺規格
+
+色票沿用登入頁（`Components/Auths/Login.razor.css`）的粉梅暖雪：
+
+| 用途 | 值 |
+|------|-----|
+| 文字 | `#51132f` |
+| 次要文字 | `#704054` |
+| 重點色 | `#a52b59`（聚焦邊框 `#d37598`） |
+| 面板底 | `rgba(255, 234, 243, 0.62)` + `backdrop-filter: blur(26px)` |
+| 主要按鈕 | `linear-gradient(165deg, #ea88ad 0%, #c43970 58%, #b52a60 100%)` |
+
+動態：
+
+| 元素 | 效果 |
+|------|------|
+| 開窗 | `fm-arrive` 620ms，`scale(0.72, 0.86)` → 過衝 `scale(1.035, 0.965)` → 收斂到 1（squash & stretch） |
+| 按鈕 | hover 上移 2px、按下 `scale(0.97)`，`cubic-bezier(0.2, 0.8, 0.3, 1.3)` 220ms |
+| 勾選 | `fm-jelly-check` 220ms 小幅回彈 |
+| 輸入框聚焦 | 柔光增亮 + 邊框轉重點色，200ms |
+
+⚠️ 毛玻璃寫在 `@supports` 裡：不支援 `backdrop-filter` 的瀏覽器維持可讀的實底，不要變成半透明糊成一片。
+
+⚠️ 必須帶 `@media (prefers-reduced-motion: reduce)` 降級，做法比照 `Login.razor.css` 的同名區段。
+
+## 6. 陷阱
+
+| 陷阱 | 症狀 | 正解 |
+|------|------|------|
+| 樣式寫在 `XxxView.razor.css` | 規則靜默失效，畫面像沒套樣式 | 寫在 `FormModalHelper.razor` 的全域 style |
+| `FormModalHelper.razor` 裡寫 `@media` | 建置錯誤 RZ1003 | 該檔是 `.razor`，要寫 `@@media` / `@@supports` / `@@keyframes` |
+| CSS 註解裡寫 `<Modal Width>` | 建置錯誤 RZ1034（Razor 把它當標籤） | 註解裡不要放角括號標籤 |
+| `Class` 掛了卻沒補樣式規則 | 窗退回 AntDesign 預設 520px，只有打開那頁才看得出來 | `FormModalConventionTests` 守門 |
+| `Clone()` 是淺複製 | 改多選欄位會連帶改到表格那一列 | List 欄位一律「指派新清單」，多選用 `Values` + `OnSelectedItemsChanged` |
+| scoped CSS 裡用 `:root` | 變數完全不生效 | 掛在最外層容器 class 上 |
+| 佈局層的窗沒有 `<FormModalHelper />` | 只有某些頁面開窗時尺寸才對 | `MainLayout.razor` 已渲染一次 |
+
+## 7. 守門測試
+
+`src/MyProject/MyProject.Tests/FormModalConventionTests.cs`：
+
+1. 含 `<EditForm>` 的 Modal 必須有 `form-modal`、`MaskClosable="false"`、`Keyboard="true"`、`OnCancel`，且不得用 `Width`。
+2. 每個用到的 `*-modal` class，`FormModalHelper.razor` 裡都要有對應規則。
+3. code-behind 不得出現「失敗路徑各補一次 `modalVisible = true;`」的舊寫法。
+4. 待遷移清單（`PendingMigrationViews`）不得放著爛掉：名單上的檢視一旦遷移完成就要移除。
+
+搭配既有的 `ModalKeyboardConventionTests.cs`（表單層不得攔截鍵盤事件）。
+
+## 8. 遷移現況
+
+| 檢視 | 狀態 |
+|------|------|
+| `MyUserView`（使用者管理） | ✅ 0.9.25 已套用（示範頁） |
+| `CategoryViewView`（分類清單） | ✅ 0.9.25 已套用 |
+| `TeamViewView`（團隊清單） | ✅ 0.9.25 已套用 |
+| `RoleViewView`（角色管理） | ⬜ 待遷移（權限矩陣要改成 `SingleColumn` 區塊） |
+| `ProjectViewView`（專案項目） | ⬜ 待遷移（需要 `UploadStateFingerprint`） |
+
+待遷移的兩個檢視登錄在 `FormModalConventionTests.PendingMigrationViews`，
+遷移完成後要從名單移除，否則第 4 條守門測試會提醒你。
+
+## 延伸閱讀
+
+- [開發慣例與限制速查](開發慣例與限制速查.md) §6.3 鍵盤事件、§6.4 對話窗尺寸
+- [建立一個新 CRUD 操作網頁說明](../guides/建立一個新%20CRUD%20操作網頁說明.md)
+- [AI 日誌分析](../features/AI日誌分析.md) §10 —— 唯讀對話窗的三狀態規格（不適用本文件）
+
+> 返回 [文件總索引](../README.md)

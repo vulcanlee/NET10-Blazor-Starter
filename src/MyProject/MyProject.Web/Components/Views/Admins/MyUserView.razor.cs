@@ -41,6 +41,12 @@ namespace MyProject.Web.Components.Views.Admins
         bool isNewRecordMode;
         string RoleMessage = string.Empty;
 
+        /// <summary>
+        /// 未儲存變更偵測。開窗時 Capture、按取消／儲存時比對，
+        /// 「改了又改回原值」視為無變更，不會白問使用者一次。
+        /// </summary>
+        private readonly FormDirtyTracker dirtyTracker = new();
+
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
         [Inject]
@@ -162,6 +168,11 @@ namespace MyProject.Web.Components.Views.Admins
             var (additionalRoleIds, teamNames) = await myUserService.GetUserAssignmentsAsync(myUserAdapterModel.Id);
             CurrentRecord.AdditionalRoleIds = additionalRoleIds;
             CurrentRecord.TeamNames = teamNames;
+
+            // ⚠️ 必須是開窗前的最後一步：任何預設值與關聯資料都要先塞完，
+            //    否則那些值會被當成「使用者的變更」。
+            dirtyTracker.Capture(CurrentRecord);
+
             modalVisible = true;
             logger.LogInformation("Opened edit modal for user. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
         }
@@ -237,28 +248,38 @@ namespace MyProject.Web.Components.Views.Admins
 
             isNewRecordMode = true;
             modalTitle = "新增使用者";
+
+            // ⚠️ 必須是開窗前的最後一步：預設角色已經塞完才拍快照。
+            dirtyTracker.Capture(CurrentRecord);
+
             modalVisible = true;
             logger.LogInformation("Opened create modal for user.");
         }
 
         /// <summary>
-        /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
-        /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
+        /// 「儲存」按鈕。
+        ///
+        /// ⚠️ 第一行的 modalVisible = true 不可移動，也不可在它之前 await：
+        /// AntDesign 在呼叫本方法**之前**就已送出 VisibleChanged(false)，這一行是在同一個
+        /// render batch 內把它搶回來（那個 false 從來不會被畫出來，所以不會閃爍）。
+        /// 之後的開關一律由 FormModalFlow 的回傳值決定 —— 失敗路徑只要 return false。
+        /// ⚠️ args 可能是 null，不要解參考它。
         /// </summary>
         private async Task OnModalOKHandleAsync(MouseEventArgs args)
         {
-            try
-            {
-                await OnModalOKHandleCoreAsync(args);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Unhandled exception while saving user.");
-                ViewNotification.Error(notificationService, "儲存使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
-            }
+            modalVisible = true;
+            modalVisible = await FormModalFlow.RunOkAsync(
+                SaveAsync,
+                logger,
+                notificationService,
+                "儲存使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
         }
 
-        private async Task OnModalOKHandleCoreAsync(MouseEventArgs args)
+        /// <summary>
+        /// 實際存檔。回傳 true 表示已完成、可以關窗；
+        /// 任何驗證失敗或使用者中止都 return false，不必再碰 modalVisible。
+        /// </summary>
+        private async Task<bool> SaveAsync()
         {
             if (LocalEditContext?.Validate() == false)
             {
@@ -270,8 +291,7 @@ namespace MyProject.Web.Components.Views.Admins
                     ViewNotification.ValidationError(notificationService, error);
                 }
 
-                modalVisible = true;
-                return;
+                return false;
             }
 
             if (isNewRecordMode && string.IsNullOrWhiteSpace(CurrentRecord.Password))
@@ -279,17 +299,30 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogInformation("User create validation failed because password is empty. Account={Account}", CurrentRecord.Account);
                 ViewNotification.ValidationError(notificationService, "新增使用者時必須輸入密碼。");
 
-                modalVisible = true;
-                return;
+                return false;
+            }
+
+            // 一個字都沒改就按儲存：不值得白寫一筆，也不該白跳一次確認窗。
+            if (isNewRecordMode == false && dirtyTracker.IsDirty(CurrentRecord) == false)
+            {
+                logger.LogDebug("User save skipped because nothing changed. UserId={UserId}", CurrentRecord.Id);
+                ViewNotification.Info(notificationService, "沒有任何變更，未進行儲存。");
+
+                return true;
+            }
+
+            // 儲存前的二次確認。排在資料庫前置檢查之前：使用者若選「再檢查」，
+            // 就不必白跑一次資料庫來回。
+            if (await FormEditConfirm.AskSaveAsync(modalService) == false)
+            {
+                logger.LogDebug("User save cancelled at save confirmation. UserId={UserId}", CurrentRecord.Id);
+                return false;
             }
 
             if (await ConfirmTeamBindingAsync() == false)
             {
                 logger.LogDebug("User save cancelled at team confirmation. UserId={UserId}", CurrentRecord.Id);
-
-                // 保持 Modal 開啟，讓使用者回到原本的編輯內容重新指定團隊。
-                modalVisible = true;
-                return;
+                return false;
             }
 
             if (isNewRecordMode)
@@ -300,8 +333,7 @@ namespace MyProject.Web.Components.Views.Admins
                     logger.LogInformation("User create pre-check failed. Account={Account}, Message={Message}", CurrentRecord.Account, beforeAddCheckResult.Message);
                     ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
 
-                    modalVisible = true;
-                    return;
+                    return false;
                 }
 
                 CurrentRecord.CreateAt = DateTime.Now;
@@ -322,8 +354,7 @@ namespace MyProject.Web.Components.Views.Admins
                     logger.LogInformation("User update pre-check failed. UserId={UserId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
                     ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
 
-                    modalVisible = true;
-                    return;
+                    return false;
                 }
 
                 CurrentRecord.UpdateAt = DateTime.Now;
@@ -335,7 +366,9 @@ namespace MyProject.Web.Components.Views.Admins
             }
 
             await ReloadAsync();
-            modalVisible = false;
+            dirtyTracker.Clear();
+
+            return true;
         }
 
         /// <summary>
@@ -370,11 +403,24 @@ namespace MyProject.Web.Components.Views.Admins
             return await TeamBindingConfirm.AskAsync(modalService, content);
         }
 
-        private Task OnModalCancelHandleAsync(MouseEventArgs args)
+        /// <summary>
+        /// 取消／✕／ESC 的共用出口（遮罩已由 MaskClosable="false" 擋掉，不會走到這裡）。
+        /// 有未儲存變更時先問過使用者；無變更直接關閉，不打擾。
+        ///
+        /// ⚠️ 第一行的 modalVisible = true 不可移動：AntDesign 呼叫本方法前已送出
+        /// VisibleChanged(false)，要讓「繼續編輯」留住整窗輸入就得在這裡搶回來。
+        /// ⚠️ args 可能是 null（ESC／✕ 走 Config.OnCancel.Invoke(null)），不要解參考它。
+        /// </summary>
+        private async Task OnModalCancelHandleAsync(MouseEventArgs args)
         {
-            modalVisible = false;
-            logger.LogDebug("User modal cancelled.");
-            return Task.CompletedTask;
+            modalVisible = true;
+            modalVisible = await FormModalFlow.ConfirmCloseAsync(modalService, dirtyTracker.IsDirty(CurrentRecord));
+
+            if (modalVisible == false)
+            {
+                dirtyTracker.Clear();
+                logger.LogDebug("User modal cancelled. UserId={UserId}", CurrentRecord.Id);
+            }
         }
 
         public void OnEditContestChanged(EditContext context)

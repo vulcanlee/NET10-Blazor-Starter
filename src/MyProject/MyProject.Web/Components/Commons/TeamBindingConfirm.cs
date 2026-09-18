@@ -10,6 +10,9 @@ namespace MyProject.Web.Components.Commons;
 /// 因此把對話窗設定收斂在這裡，呼叫端只負責提供「會有什麼影響」這句話。
 ///
 /// 沿用非破壞性確認的既有慣例：不加 OkButtonProps.Danger、MaskClosable 一律 false。
+///
+/// ⚠️ ZIndex 與 <see cref="FormEditConfirm"/> 一致：0.9.25 起表單對話窗在等待確認期間
+/// 會維持開啟，確認窗若沿用預設的 1000 就只剩 DOM 先後可以決定疊放順序。
 /// </summary>
 public static class TeamBindingConfirm
 {
@@ -25,7 +28,8 @@ public static class TeamBindingConfirm
             Content = content,
             OkText = "仍要儲存",
             CancelText = "回去編輯",
-            MaskClosable = false
+            MaskClosable = false,
+            ZIndex = FormEditConfirm.AboveFormModal
         });
     }
 }
