@@ -1,8 +1,8 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.27
+- 現行系統版本：0.9.28
 - 首次實作版本：0.9.25
 - 最後核對日期：2026/09/18
 
@@ -17,12 +17,40 @@
 
 ## 1. 三種對話窗，只有一種適用本規範
 
+**所有**對話窗共用同一層果凍基底（`.ant-modal .ant-modal-content`），
+差異只在尺寸與版型 —— 見第 2.1 節。下表是各類型的差異：
+
 | 類型 | 判準 | 版型 |
 |------|------|------|
 | **表單對話窗** | 內含 `<EditForm>`，使用者要輸入或修改記錄 | `Class="form-modal"`，本文件全部適用 |
 | 唯讀明細窗 | 只是把一筆記錄攤開來看（例外紀錄、Token 用量、AI 分析） | 各自的 `*-modal` class，不適用本文件 |
 | **小型確認窗** | `ModalService.ConfirmAsync`，只有一句話與兩個按鈕 | 全域 `.ant-modal-confirm`，**不滿版**，見第 9 節 |
 | 通知／消息條 | `NotificationService`（右下角）、`MessageService`（頂部） | 全域選擇器，見第 10 節 |
+| 其餘對話窗 | 關於、變更密碼、唯讀明細窗、AI 分析窗 | 只寫尺寸，果凍由基底提供 |
+
+## 2.1 果凍是共用基底，不是逐窗複製 ⚠️
+
+`OverlayStyles.razor` 的分層：
+
+```
+.ant-modal                      CSS 變數 --ov-*（色票、圓角、模糊度）
+.ant-modal .ant-modal-content   果凍基底 —— 邊框、圓角、毛玻璃、內外亮邊、ov-arrive 380ms
+.ant-modal .ant-modal-header / -footer / -title / -close
+.ant-modal-footer .ant-btn      膠囊圓角 ＋ Q 彈回饋
+.ant-modal .ant-input …         圓角 ＋ 聚焦柔光
+
+  ├─ .form-modal         --ov-radius: 34px、--ov-blur: 26px、fm-arrive 620ms、95vh flex 版型
+  ├─ .ant-modal-confirm  440px、:has(.ant-btn-dangerous) 轉紅調
+  └─ 其餘                只寫尺寸
+```
+
+⚠️ **新增對話窗時只寫尺寸，不要再複製一份果凍。**
+0.9.25／0.9.26 是用「逐一為 `.form-modal` 與 `.ant-modal-confirm` 各寫一份」的加法做法，
+結果關於、變更密碼與三個唯讀明細窗整組被漏掉 —— 沒被點名的窗自動落空。
+由 `FormModalConventionTests.JellyStyles_ShouldLiveOnTheSharedModalBase` 守門。
+
+要調整單一窗的果凍強度，覆寫 `--ov-radius` / `--ov-blur` / `--ov-tint-glass` 等變數即可，
+不要整段重寫 `.ant-modal-content`。
 
 ## 2. 版型
 
@@ -173,6 +201,8 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 | `OverlayStyles.razor` 裡寫 `@media` | 建置錯誤 RZ1003 | 該檔是 `.razor`，要寫 `@@media` / `@@supports` / `@@keyframes` |
 | CSS 註解裡寫 `<Modal Width>` | 建置錯誤 RZ1034（Razor 把它當標籤） | 註解裡不要放角括號標籤 |
 | `Class` 掛了卻沒補樣式規則 | 窗退回 AntDesign 預設 520px，只有打開那頁才看得出來 | `FormModalConventionTests` 守門 |
+| 用「逐窗加法」寫果凍 | 沒被點名的窗自動落空，下一個新增的窗也會再落空一次 | 果凍寫在 `.ant-modal .ant-modal-content` 共用基底，各 class 只寫尺寸（§2.1）|
+| 沒有按鈕列的窗（`Footer="null"`）下緣被切平 | 圓角落在 footer 上，而那個窗沒有 footer | 基底已用 `.ant-modal-body:last-child` 接住 |
 | `Clone()` 是淺複製 | 改多選欄位會連帶改到表格那一列 | List 欄位一律「指派新清單」，多選用 `Values` + `OnSelectedItemsChanged` |
 | scoped CSS 裡用 `:root` | 變數完全不生效 | 掛在最外層容器 class 上 |
 | 把 `OverlayStyles` 掛在 layout 或檢視裡 | 用別的 layout 的頁面整組吃不到樣式，只有打開那一頁才看得出來 | 只在 `Routes.razor` 的 `AntContainer` 旁渲染一次，守門測試會擋 |
@@ -191,6 +221,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 4. 待遷移清單（`PendingMigrationViews`）不得放著爛掉：名單上的檢視一旦遷移完成就要移除。
 5. `Components/Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板。
 6. `<OverlayStyles />` 只能在 `Routes.razor` 出現，且恰好一次。
+7. 果凍必須寫在 `.ant-modal .ant-modal-content` 共用基底上（§2.1）。
 
 搭配既有的 `ModalKeyboardConventionTests.cs`（表單層不得攔截鍵盤事件）。
 

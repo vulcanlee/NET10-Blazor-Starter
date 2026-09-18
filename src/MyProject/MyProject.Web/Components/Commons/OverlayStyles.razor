@@ -4,9 +4,14 @@
        AntDesign 浮層的全域樣式 —— 粉梅暖雪果凍
        規範全文見 docs/architecture/對話窗 UI 設計規範.md
 
-       涵蓋：表單對話窗（.form-modal）、確認窗（.ant-modal-confirm）、
-       右下角通知（.ant-notification-notice）、頂部消息條（.ant-message-notice-content）、
-       以及尚未遷移的既有版型（唯讀明細窗、AI 分析窗）。
+       分層：
+         .ant-modal .ant-modal-content   果凍基底 —— **所有**對話窗（含未來新增的）自動吃到
+         .form-modal / .ant-modal-confirm / .about-modal / …   只負責尺寸與版型差異
+         .ant-notification-notice / .ant-message-notice-content   通知與消息條
+
+       ⚠️ 不要退回「逐一為每個 *-modal 各寫一份果凍」的加法寫法。
+          0.9.25／0.9.26 就是那樣做的，結果關於、變更密碼與三個明細窗整組被漏掉，
+          而且下一個新增的窗也會再落空一次。由 FormModalConventionTests 守門。
 
        ⚠️ 本元件只能在 Components/Routes.razor 渲染一次（AntContainer 旁邊）。
           AntDesign 把這些浮層全部渲染在 AntContainer 底下，與 layout 無關；
@@ -31,13 +36,187 @@
         opacity: 1 !important;
     }
 
+    /* ══════════════════════════════════════════════════════════════════
+       共用果凍基底 —— 所有對話窗都吃這一層
+       個別的 *-modal class 只覆寫尺寸、版型，以及 --ov-radius / --ov-blur 這類參數。
+       ══════════════════════════════════════════════════════════════════ */
+
+    .ant-modal {
+        --ov-text: #51132f;
+        --ov-muted: #704054;
+        --ov-accent: #a52b59;
+        --ov-accent-dim: #d37598;
+        --ov-line: rgba(165, 43, 89, 0.18);
+        --ov-error: #9a173a;
+        --ov-edge: rgba(255, 255, 255, 0.92);
+        --ov-glow: rgba(255, 224, 236, 0.45);
+        --ov-inner: rgba(232, 139, 169, 0.42);
+        --ov-tint: rgba(255, 237, 244, 0.96);
+        --ov-tint-glass: rgba(255, 234, 243, 0.70);
+        --ov-radius: 24px;
+        --ov-blur: 20px;
+    }
+
+    /* 果凍本體：半透明 + 內外亮邊，手法沿用 Login.razor.css 的 .login-card */
+    .ant-modal .ant-modal-content {
+        color: var(--ov-text) !important;
+        border: 2px solid var(--ov-edge) !important;
+        border-radius: var(--ov-radius) !important;
+        background: var(--ov-tint) !important;
+        box-shadow: inset 0 2px 4px #fff, inset 0 -4px 10px var(--ov-inner),
+                    0 0 0 4px var(--ov-glow), 0 20px 48px rgba(107, 39, 69, 0.24) !important;
+        animation: ov-arrive 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    /* 毛玻璃只在瀏覽器支援時才降低不透明度，否則維持可讀的實底 */
+    @@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+        .ant-modal .ant-modal-content {
+            background: var(--ov-tint-glass) !important;
+            backdrop-filter: blur(var(--ov-blur)) saturate(1.15);
+            -webkit-backdrop-filter: blur(var(--ov-blur)) saturate(1.15);
+        }
+    }
+
+    /* 短版果凍。大表單窗另外覆寫成更誇張的 fm-arrive。 */
+    @@keyframes ov-arrive {
+        0% { opacity: 0; transform: scale(0.86, 0.94); }
+        50% { opacity: 1; transform: scale(1.02, 0.985); }
+        78% { transform: scale(0.995, 1.006); }
+        100% { transform: scale(1, 1); }
+    }
+
+    /* 勾選回彈 */
+    @@keyframes ov-jelly-check {
+        50% { transform: scale(1.14); }
+        100% { transform: scale(1); }
+    }
+
+    /* 標題列與按鈕列：不透明底會把毛玻璃切掉一整條，一律透明。
+       內圓角 = 外圓角扣掉邊框寬度，不然轉角會露出一小塊直角。 */
+    .ant-modal .ant-modal-header {
+        background: transparent !important;
+        border-bottom: 1px solid var(--ov-line) !important;
+        border-radius: calc(var(--ov-radius) - 3px) calc(var(--ov-radius) - 3px) 0 0 !important;
+    }
+
+    .ant-modal .ant-modal-title {
+        color: var(--ov-text) !important;
+        font-weight: 800 !important;
+    }
+
+    .ant-modal .ant-modal-close {
+        color: var(--ov-muted) !important;
+    }
+
+    .ant-modal .ant-modal-close:hover {
+        color: var(--ov-accent) !important;
+    }
+
+    .ant-modal .ant-modal-footer {
+        background: transparent !important;
+        border-top: 1px solid var(--ov-line) !important;
+        border-radius: 0 0 calc(var(--ov-radius) - 3px) calc(var(--ov-radius) - 3px) !important;
+    }
+
+    /* 沒有按鈕列的窗（「關於」用 Footer="null"）：下圓角要落在 body 上，否則會被切平。 */
+    .ant-modal .ant-modal-body:last-child {
+        border-radius: 0 0 calc(var(--ov-radius) - 3px) calc(var(--ov-radius) - 3px);
+    }
+
+    /* ── 輸入元件：圓角 ＋ 聚焦柔光 ── */
+    .ant-modal .ant-input,
+    .ant-modal .ant-input-affix-wrapper,
+    .ant-modal .ant-input-number,
+    .ant-modal .ant-picker,
+    .ant-modal .ant-select-selector {
+        border-radius: 14px !important;
+        background: rgba(255, 252, 254, 0.72) !important;
+        transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+    }
+
+    .ant-modal .ant-input:focus,
+    .ant-modal .ant-input-focused,
+    .ant-modal .ant-input-affix-wrapper-focused,
+    .ant-modal .ant-select-focused .ant-select-selector,
+    .ant-modal .ant-picker-focused,
+    .ant-modal .ant-input-number-focused {
+        border-color: var(--ov-accent-dim) !important;
+        background: rgba(255, 249, 252, 0.94) !important;
+        box-shadow: 0 0 0 5px rgba(240, 146, 179, 0.2), inset 0 1px 2px #fff !important;
+    }
+
+    .ant-modal .ant-form-item-label > label {
+        color: var(--ov-text) !important;
+        font-weight: 500;
+    }
+
+    .ant-modal .ant-select-selection-item {
+        border-radius: 999px !important;
+    }
+
+    .ant-modal .ant-checkbox-checked .ant-checkbox-inner {
+        background-color: var(--ov-accent) !important;
+        border-color: var(--ov-accent) !important;
+        animation: ov-jelly-check 220ms ease-out;
+    }
+
+    /* ── 按鈕：膠囊圓角 ＋ Q 彈回饋 ── */
+    .ant-modal-footer .ant-btn,
+    .ant-modal-confirm-btns .ant-btn {
+        border-radius: 999px !important;
+        font-weight: 700;
+        transition: transform 220ms cubic-bezier(0.2, 0.8, 0.3, 1.3), box-shadow 220ms ease;
+    }
+
+    .ant-modal-footer .ant-btn-primary,
+    .ant-modal-confirm-btns .ant-btn-primary {
+        border-color: transparent !important;
+        background: linear-gradient(165deg, #ea88ad 0%, #c43970 58%, #b52a60 100%) !important;
+        text-shadow: 0 1px 2px rgba(93, 15, 48, 0.3);
+        box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.6), 0 8px 20px rgba(173, 45, 93, 0.2) !important;
+    }
+
+    @@media (hover: hover) and (pointer: fine) {
+        .ant-modal-footer .ant-btn:hover,
+        .ant-modal-confirm-btns .ant-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(173, 45, 93, 0.26) !important;
+        }
+    }
+
+    .ant-modal-footer .ant-btn:active,
+    .ant-modal-confirm-btns .ant-btn:active {
+        transform: scale(0.97);
+    }
+
+    /* ── 無障礙降級：比照 Login.razor.css 的 prefers-reduced-motion 區段 ── */
+    @@media (prefers-reduced-motion: reduce) {
+        .ant-modal .ant-modal-content,
+        .ant-modal .ant-checkbox-checked .ant-checkbox-inner {
+            animation: none !important;
+        }
+
+        .ant-modal .ant-input,
+        .ant-modal .ant-select-selector,
+        .ant-modal-footer .ant-btn,
+        .ant-modal-confirm-btns .ant-btn {
+            transition: none !important;
+        }
+
+        .ant-modal-footer .ant-btn:hover,
+        .ant-modal-footer .ant-btn:active,
+        .ant-modal-confirm-btns .ant-btn:hover,
+        .ant-modal-confirm-btns .ant-btn:active {
+            transform: none !important;
+        }
+    }
+
+    /* ══ 表單對話窗（大量資料輸入）══ 只覆寫尺寸、版型與更重的果凍參數。 */
     .form-modal {
-        --fm-text: #51132f;
-        --fm-muted: #704054;
-        --fm-accent: #a52b59;
-        --fm-accent-dim: #d37598;
-        --fm-line: rgba(165, 43, 89, 0.18);
-        --fm-error: #9a173a;
+        --ov-radius: 34px;
+        --ov-blur: 26px;
+        /* 大面積的窗透一點才不會壓迫，比基底再淡一階 */
+        --ov-tint-glass: rgba(255, 234, 243, 0.62);
         width: 95vw !important;
         /* .ant-modal 預設 max-width: calc(100vw - 32px)，這裡必須壓過它 */
         max-width: 1400px !important;
@@ -47,33 +226,20 @@
         margin: 0 auto !important;
     }
 
-    /* 標題列與按鈕列固定、中間捲動 */
+    /* 標題列與按鈕列固定、中間捲動；果凍本體的邊框與陰影比基底更重一階 */
     .form-modal .ant-modal-content {
         height: 95vh !important;
         max-height: 95vh !important;
         display: flex !important;
         flex-direction: column !important;
         overflow: hidden !important;
-        color: var(--fm-text) !important;
-        /* 果凍本體：半透明 + 內外亮邊，手法沿用 Login.razor.css 的 .login-card */
-        border: 3px solid rgba(255, 255, 255, 0.92) !important;
-        border-radius: 34px !important;
-        background: rgba(255, 237, 244, 0.95) !important;
+        border-width: 3px !important;
         box-shadow: inset 0 3px 5px #fff, inset 0 -6px 14px rgba(232, 139, 169, 0.5),
                     0 0 0 6px rgba(255, 224, 236, 0.5), 0 28px 70px rgba(107, 39, 69, 0.26) !important;
         animation: fm-arrive 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
-    /* 毛玻璃只在瀏覽器支援時才降低不透明度，否則維持可讀的實底 */
-    @@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-        .form-modal .ant-modal-content {
-            background: rgba(255, 234, 243, 0.62) !important;
-            backdrop-filter: blur(26px) saturate(1.15);
-            -webkit-backdrop-filter: blur(26px) saturate(1.15);
-        }
-    }
-
-    /* 果凍進場：擠壓回彈（squash & stretch） */
+    /* 大表單窗的進場：擠壓回彈（squash & stretch），幅度比基底的 ov-arrive 明顯 */
     @@keyframes fm-arrive {
         0% { opacity: 0; transform: scale(0.72, 0.86); }
         45% { opacity: 1; transform: scale(1.035, 0.965); }
@@ -82,33 +248,13 @@
         100% { transform: scale(1, 1); }
     }
 
-    /* 勾選回彈 */
-    @@keyframes fm-jelly-check {
-        50% { transform: scale(1.14); }
-        100% { transform: scale(1); }
-    }
-
     .form-modal .ant-modal-header {
         flex-shrink: 0;
         padding: 18px 28px !important;
-        border-bottom: 1px solid var(--fm-line) !important;
-        border-radius: 31px 31px 0 0 !important;
-        /* 不透明底會把毛玻璃切掉一整條 */
-        background: transparent !important;
     }
 
     .form-modal .ant-modal-title {
-        color: var(--fm-text) !important;
         font-size: 1.15rem !important;
-        font-weight: 800 !important;
-    }
-
-    .form-modal .ant-modal-close {
-        color: var(--fm-muted) !important;
-    }
-
-    .form-modal .ant-modal-close:hover {
-        color: var(--fm-accent) !important;
     }
 
     .form-modal .ant-modal-body {
@@ -124,9 +270,6 @@
     .form-modal .ant-modal-footer {
         flex-shrink: 0;
         padding: 14px 28px !important;
-        border-top: 1px solid var(--fm-line) !important;
-        border-radius: 0 0 31px 31px !important;
-        background: transparent !important;
     }
 
     /* ── 區塊分組 ── */
@@ -144,15 +287,15 @@
         gap: 0.6rem;
         margin: 0 0 0.9rem;
         padding-bottom: 0.4rem;
-        border-bottom: 1px dashed var(--fm-line);
-        color: var(--fm-accent);
+        border-bottom: 1px dashed var(--ov-line);
+        color: var(--ov-accent);
         font-size: 0.95rem;
         font-weight: 800;
         letter-spacing: 0.02em;
     }
 
     .form-modal .form-section-hint {
-        color: var(--fm-muted);
+        color: var(--ov-muted);
         font-size: 0.78rem;
         font-weight: 400;
     }
@@ -186,7 +329,7 @@
 
     .form-modal .form-field-hint {
         margin-top: 0.3rem;
-        color: var(--fm-muted);
+        color: var(--ov-muted);
         font-size: 0.8rem;
         line-height: 1.5;
     }
@@ -195,7 +338,7 @@
     .form-modal .validation-message {
         display: block;
         margin-top: 0.3rem;
-        color: var(--fm-error);
+        color: var(--ov-error);
         font-size: 0.82rem;
         line-height: 1.5;
         /* 長訊息換行，不要橫向撐破格子 */
@@ -207,73 +350,8 @@
         padding: 0.75rem 1rem 0.75rem 2rem;
         border-radius: 16px;
         background: rgba(255, 214, 229, 0.75);
-        color: var(--fm-error);
+        color: var(--ov-error);
         font-size: 0.85rem;
-    }
-
-    /* ── 果凍 Q 彈回饋 ── */
-    .form-modal .ant-input,
-    .form-modal .ant-input-affix-wrapper,
-    .form-modal .ant-input-number,
-    .form-modal .ant-picker,
-    .form-modal .ant-select-selector {
-        border-radius: 14px !important;
-        background: rgba(255, 252, 254, 0.72) !important;
-        transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
-    }
-
-    .form-modal .ant-input:focus,
-    .form-modal .ant-input-focused,
-    .form-modal .ant-input-affix-wrapper-focused,
-    .form-modal .ant-select-focused .ant-select-selector,
-    .form-modal .ant-picker-focused,
-    .form-modal .ant-input-number-focused {
-        border-color: var(--fm-accent-dim) !important;
-        background: rgba(255, 249, 252, 0.94) !important;
-        box-shadow: 0 0 0 5px rgba(240, 146, 179, 0.2), inset 0 1px 2px #fff !important;
-    }
-
-    .form-modal .ant-form-item-label > label {
-        color: var(--fm-text) !important;
-        font-weight: 500;
-    }
-
-    .form-modal .ant-select-selection-item {
-        border-radius: 999px !important;
-    }
-
-    .form-modal .ant-checkbox-checked .ant-checkbox-inner {
-        background-color: var(--fm-accent) !important;
-        border-color: var(--fm-accent) !important;
-        animation: fm-jelly-check 220ms ease-out;
-    }
-
-    .form-modal .ant-modal-footer .ant-btn,
-    .ant-modal-confirm .ant-modal-confirm-btns .ant-btn {
-        border-radius: 999px !important;
-        font-weight: 700;
-        transition: transform 220ms cubic-bezier(0.2, 0.8, 0.3, 1.3), box-shadow 220ms ease;
-    }
-
-    .form-modal .ant-modal-footer .ant-btn-primary,
-    .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary {
-        border-color: transparent !important;
-        background: linear-gradient(165deg, #ea88ad 0%, #c43970 58%, #b52a60 100%) !important;
-        text-shadow: 0 1px 2px rgba(93, 15, 48, 0.3);
-        box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.6), 0 8px 20px rgba(173, 45, 93, 0.2) !important;
-    }
-
-    @@media (hover: hover) and (pointer: fine) {
-        .form-modal .ant-modal-footer .ant-btn:hover,
-        .ant-modal-confirm .ant-modal-confirm-btns .ant-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(173, 45, 93, 0.26) !important;
-        }
-    }
-
-    .form-modal .ant-modal-footer .ant-btn:active,
-    .ant-modal-confirm .ant-modal-confirm-btns .ant-btn:active {
-        transform: scale(0.97);
     }
 
     /* ── 窄螢幕：塌成單欄 + 全螢幕 ── */
@@ -314,25 +392,6 @@
         }
     }
 
-    /* ── 無障礙降級：比照 Login.razor.css 的 prefers-reduced-motion 區段 ── */
-    @@media (prefers-reduced-motion: reduce) {
-        .form-modal .ant-modal-content,
-        .form-modal .ant-checkbox-checked .ant-checkbox-inner {
-            animation: none !important;
-        }
-
-        .form-modal .ant-input,
-        .form-modal .ant-select-selector,
-        .form-modal .ant-modal-footer .ant-btn {
-            transition: none !important;
-        }
-
-        .form-modal .ant-modal-footer .ant-btn:hover,
-        .form-modal .ant-modal-footer .ant-btn:active {
-            transform: none !important;
-        }
-    }
-
     /* ══════════════════════════════════════════════════════════════════
        小型確認窗（ModalService.ConfirmAsync）—— 不滿版
        文案與參數一律由 Components/Commons/ConfirmDialog.cs 樣板決定。
@@ -345,14 +404,6 @@
        ══════════════════════════════════════════════════════════════════ */
 
     .ant-modal-confirm {
-        --cf-text: #51132f;
-        --cf-muted: #704054;
-        --cf-accent: #a52b59;
-        --cf-edge: rgba(255, 255, 255, 0.92);
-        --cf-glow: rgba(255, 224, 236, 0.45);
-        --cf-inner: rgba(232, 139, 169, 0.42);
-        --cf-tint: rgba(255, 237, 244, 0.96);
-        --cf-tint-glass: rgba(255, 234, 243, 0.70);
         width: 440px !important;
         max-width: 90vw !important;
     }
@@ -362,55 +413,32 @@
        ConfirmDialog.AskDestructiveAsync 一律會設 OkButtonProps.Danger。
        :has() 不支援時只是退回粉梅（按鈕本身仍是紅的），屬漸進增強。 */
     .ant-modal-confirm:has(.ant-btn-dangerous) {
-        --cf-accent: #b42318;
-        --cf-glow: rgba(255, 214, 214, 0.5);
-        --cf-inner: rgba(214, 120, 120, 0.4);
-        --cf-tint: rgba(255, 238, 238, 0.96);
-        --cf-tint-glass: rgba(255, 236, 236, 0.72);
+        --ov-accent: #b42318;
+        --ov-glow: rgba(255, 214, 214, 0.5);
+        --ov-inner: rgba(214, 120, 120, 0.4);
+        --ov-tint: rgba(255, 238, 238, 0.96);
+        --ov-tint-glass: rgba(255, 236, 236, 0.72);
     }
 
-    .ant-modal-confirm .ant-modal-content {
-        border: 2px solid var(--cf-edge) !important;
-        border-radius: 24px !important;
-        background: var(--cf-tint) !important;
-        box-shadow: inset 0 2px 4px #fff, inset 0 -4px 10px var(--cf-inner),
-                    0 0 0 4px var(--cf-glow), 0 20px 48px rgba(107, 39, 69, 0.24) !important;
-        animation: cfm-arrive 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-
-    @@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-        .ant-modal-confirm .ant-modal-content {
-            background: var(--cf-tint-glass) !important;
-            backdrop-filter: blur(20px) saturate(1.15);
-            -webkit-backdrop-filter: blur(20px) saturate(1.15);
-        }
-    }
-
-    /* 短版果凍：380ms、起始縮放不像大表單窗那麼極端。
-       確認窗出現頻率高（每刪一筆就跳一次），動作太大或太久都會變成干擾。 */
-    @@keyframes cfm-arrive {
-        0% { opacity: 0; transform: scale(0.86, 0.94); }
-        50% { opacity: 1; transform: scale(1.02, 0.985); }
-        78% { transform: scale(0.995, 1.006); }
-        100% { transform: scale(1, 1); }
-    }
-
+    /* 果凍本體與 380ms 短版進場都由基底提供，這裡不必重寫。
+       確認窗出現頻率高（每刪一筆就跳一次），動作太大或太久都會變成干擾，
+       基底的 ov-arrive 正好就是那個強度。 */
     .ant-modal-confirm .ant-modal-body {
         padding: 24px 26px 18px !important;
     }
 
     .ant-modal-confirm-body .ant-modal-confirm-title {
-        color: var(--cf-text) !important;
+        color: var(--ov-text) !important;
         font-weight: 700 !important;
     }
 
     .ant-modal-confirm-body .ant-modal-confirm-content {
-        color: var(--cf-muted) !important;
+        color: var(--ov-muted) !important;
         line-height: 1.6;
     }
 
     .ant-modal-confirm-body > .anticon {
-        color: var(--cf-accent) !important;
+        color: var(--ov-accent) !important;
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -505,7 +533,11 @@
     }
 
     /* ══════════════════════════════════════════════════════════════════
-       唯讀明細窗與 AI 分析窗的既有版型（不適用 .form-modal 的表單規範）
+       其餘對話窗：唯讀明細窗、AI 分析窗、變更密碼、關於
+
+       這些 class **只負責尺寸與捲動版型** —— 果凍、毛玻璃、圓角、進場動畫、
+       標題列與按鈕列的配色，全部由上面的共用基底提供。
+       新增對話窗時同理：只寫尺寸，不要再複製一份果凍。
        ══════════════════════════════════════════════════════════════════ */
 
     /* AI analysis modal: near full screen with scrollable body (long read-only report) */
@@ -580,28 +612,31 @@
     }
 
     .exception-log-modal .exception-log-detail-list dt {
-        color: #64748b;
+        color: var(--ov-muted);
         font-size: 0.85rem;
         font-weight: 600;
     }
 
     .exception-log-modal .exception-log-detail-list dd {
-        color: #0f172a;
+        color: var(--ov-text);
         font-size: 0.9rem;
         margin: 0;
         word-break: break-word;
     }
 
     .exception-log-modal .exception-log-detail-title {
-        color: #0f172a;
+        color: var(--ov-accent);
         font-size: 0.95rem;
         font-weight: 700;
         margin: 0 0 0.5rem;
     }
 
+    /* ⚠️ 刻意維持深色：堆疊追蹤是程式碼，深色等寬底最好讀。
+       只把圓角與邊框調成與果凍一致，讓它讀起來就是「一塊程式碼」。 */
     .exception-log-modal .exception-log-stack {
         background: #0f172a;
-        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 14px;
         color: #e2e8f0;
         font-size: 0.8rem;
         line-height: 1.6;
@@ -653,7 +688,7 @@
     }
 
     .token-usage-modal .token-usage-detail-list > div {
-        border-bottom: 1px solid #f1f5f9;
+        border-bottom: 1px solid var(--ov-line);
         display: grid;
         gap: 0.25rem 1rem;
         grid-template-columns: 18rem 1fr;
@@ -661,12 +696,12 @@
     }
 
     .token-usage-modal .token-usage-detail-list dt {
-        color: #64748b;
+        color: var(--ov-muted);
         font-size: 0.85rem;
     }
 
     .token-usage-modal .token-usage-detail-list dd {
-        color: #0f172a;
+        color: var(--ov-text);
         font-size: 0.9rem;
         margin: 0;
         word-break: break-word;
@@ -679,8 +714,8 @@
     }
 
     .token-usage-modal .token-usage-detail-title {
-        border-top: 2px solid #e2e8f0;
-        color: #0f172a;
+        border-top: 2px solid var(--ov-line);
+        color: var(--ov-accent);
         font-size: 1rem;
         font-weight: 700;
         margin: 1.25rem 0 0.6rem;
@@ -688,7 +723,7 @@
     }
 
     .token-usage-modal .token-usage-detail-empty {
-        color: #64748b;
+        color: var(--ov-muted);
         font-size: 0.88rem;
     }
 

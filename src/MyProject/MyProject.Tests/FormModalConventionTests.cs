@@ -291,6 +291,26 @@ public sealed class FormModalConventionTests
                 + string.Join(Environment.NewLine, stale));
     }
 
+    /// <summary>
+    /// 果凍樣式必須寫在 <c>.ant-modal .ant-modal-content</c> 這個共用基底上。
+    ///
+    /// 0.9.25／0.9.26 是用「逐一為 .form-modal 與 .ant-modal-confirm 各寫一份」的加法做法，
+    /// 結果關於、變更密碼與三個唯讀明細窗整組被漏掉 —— 沒被點名的窗自動落空，
+    /// 而且下一個新增的窗也會再落空一次。0.9.28 改成共用基底根治。
+    ///
+    /// 這條測試擋的是「有人把基底拆掉、退回逐一加法」。真正防止漏窗的是**結構**，
+    /// 測試只負責不讓結構被拆。
+    /// </summary>
+    [Fact]
+    public void JellyStyles_ShouldLiveOnTheSharedModalBase()
+    {
+        var overlayStyles = File.ReadAllText(
+            Path.Combine(FindComponentsRoot(), "Commons", "OverlayStyles.razor"));
+
+        Assert.Contains(".ant-modal .ant-modal-content", overlayStyles, StringComparison.Ordinal);
+        Assert.Contains("@keyframes ov-arrive", overlayStyles, StringComparison.Ordinal);
+    }
+
     /// <summary>掃出所有 &lt;Modal&gt;，回傳（檔案、開始標籤、標籤到 &lt;/Modal&gt; 之間的內容）。</summary>
     private static IEnumerable<(string File, string OpenTag, string Body)> EnumerateModals()
     {
