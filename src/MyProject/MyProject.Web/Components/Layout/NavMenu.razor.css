@@ -151,6 +151,38 @@
     color: var(--app-on-accent) !important;
 }
 
+/* ⚠️ AntDesign 的 MenuItem 只要有 RouterLink，就會在 <li class="ant-menu-item"> 裡面
+   **再包一層 <a>**，而它出廠自帶 `.ant-menu-item a { color: rgba(0,0,0,.85) }`、
+   `.ant-menu-item-selected a { color: #1890ff }`。color 在子元素被直接指定時不會繼承，
+   所以上面三個區塊打在 <li> 上的顏色**到不了葉節點的文字** ——
+   深梅底上會變成黑字，選中的變藍字，幾乎看不見。
+   「登出」之所以一直正常，是因為它走 OnClick 沒有 <a>；群組標題是 <div> 也沒有 <a>。
+   圖示正常則是因為下面那兩組用的是後代選擇器，本來就穿得過 <a>。
+   ⚠️ 必須 !important：scoped CSS 束在 App.razor 裡排在 AntDesign **之前**。
+   由 SidebarLinkColorConventionTests 守門。 */
+.sidebar-menu-shell ::deep .ant-menu-item a {
+    color: var(--app-rail-text-sub) !important;
+}
+
+.sidebar-menu-shell ::deep .ant-menu-item:hover a,
+.sidebar-menu-shell ::deep .ant-menu-item a:hover {
+    color: var(--app-rail-text-strong) !important;
+}
+
+.sidebar-menu-shell ::deep .ant-menu-item-selected a,
+.sidebar-menu-shell ::deep .ant-menu-item-selected a:hover {
+    color: var(--app-on-accent) !important;
+}
+
+/* 右緣的選中指示條。AntDesign 出廠是 3px 的 #1890ff。
+   實算它對深梅底是 3.48:1，**有**通過非文字元素的 3:1 門檻 —— 換掉純粹是配色一致性，
+   不是無障礙問題（真正不合格的是文字：黑字 1.78:1、選中藍字對莓紅 2.09:1）。
+   改用 --app-accent-light，對底色 6.76:1，與莓紅膠囊同一個色系家族。 */
+.sidebar-menu-shell ::deep .ant-menu-item::after {
+    border-right-color: var(--app-accent-light) !important;
+}
+
+
 .sidebar-menu-shell ::deep .ant-menu-item .material-icons,
 .sidebar-menu-shell ::deep .ant-menu-item .material-icons-outlined,
 .sidebar-menu-shell ::deep .ant-menu-item .material-icons-round,

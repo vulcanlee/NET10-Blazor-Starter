@@ -68,6 +68,9 @@
     /* ── 側邊欄（全站唯一的深色面）── */
     --app-rail: linear-gradient(180deg, #4a1028 0%, #5b1533 52%, #6b1c3d 100%);
     --app-rail-text: rgba(255, 240, 246, 0.90);
+    /* 葉節點（選單最底層）的文字。刻意比群組標題(--app-rail-text)淡一階做出層次，
+       但仍遠高於 AA：對漸層最亮端 #6b1c3d 約 7.1:1。 */
+    --app-rail-text-sub: rgba(255, 240, 246, 0.80);
     --app-rail-text-strong: #fff7fa;
     --app-rail-icon: rgba(255, 240, 246, 0.80);
     --app-rail-faint: rgba(255, 240, 246, 0.62);
