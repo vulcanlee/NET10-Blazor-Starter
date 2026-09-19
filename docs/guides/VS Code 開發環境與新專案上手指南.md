@@ -177,7 +177,7 @@ app.UseHttpsRedirection();
 `src/MyProject/MyProject.Web/MyProject.Web.csproj:6` 宣告了一組識別碼：
 
 ```xml
-<UserSecretsId>83f6d54f-9f34-4cd9-a626-d4c05c996e5d</UserSecretsId>
+<UserSecretsId>83f6d54f-9f33-4cd9-a626-d4c05c996e5d</UserSecretsId>
 ```
 
 這組 Id 決定機密檔案的實體位置：
@@ -190,7 +190,7 @@ app.UseHttpsRedirection();
 以本 repo 現值為例，Windows 上就是：
 
 ```
-C:\Users\<你的帳號>\AppData\Roaming\Microsoft\UserSecrets\83f6d54f-9f34-4cd9-a626-d4c05c996e5d\secrets.json
+C:\Users\<你的帳號>\AppData\Roaming\Microsoft\UserSecrets\83f6d54f-9f33-4cd9-a626-d4c05c996e5d\secrets.json
 ```
 
 > ⚠️ **只在 Development 環境載入**。本專案使用 `WebApplication.CreateBuilder(args)`（`Program.cs:42`）的預設設定來源鏈，全案**沒有**任何明確的 `AddUserSecrets(...)` 呼叫 —— 也就是完全依賴預設行為：`ASPNETCORE_ENVIRONMENT` 不是 `Development` 時，User Secrets **完全不會被讀取**。正式環境請改用環境變數或雲端 secret store，見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)。
@@ -227,7 +227,7 @@ dotnet user-secrets clear                             # 清空整份 secrets.jso
 
 ```powershell
 # 目錄不存在時先建立
-$dir = "$env:APPDATA\Microsoft\UserSecrets\83f6d54f-9f34-4cd9-a626-d4c05c996e5d"
+$dir = "$env:APPDATA\Microsoft\UserSecrets\83f6d54f-9f33-4cd9-a626-d4c05c996e5d"
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 code "$dir\secrets.json"
 ```

@@ -76,11 +76,14 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   可複製或匯出成 PDF 報告；供應商與金鑰在 `appsettings.json` 設定（0.9.4）
 - 資料庫用量頁：`/database-usage`，管理員可查看各資料表筆數與估算用量（0.4.28）
 - 日誌等級設定頁：`/log-level-setting`，管理員可在執行期調整日誌等級（0.4.29）
+- 系統例外紀錄：全專案任何 `logger.LogError(ex, …)` 自動收進 `/system-exceptions`，依簽章聚合並保存堆疊檔（0.9.11）
+- Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
+- 全站視覺系統：粉梅暖雪色票收斂為 `wwwroot/theme.css` 單一來源，浮層果凍化、深梅側邊欄、共用狀態徽章（0.9.25–0.9.31）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
 - 分散式快取：`ICacheService` 統一抽象，透過 `appsettings.json` 在 Memory ↔ Redis 間切換（側邊選單已套用）
 - Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略與 Redis 連線字串需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
-- 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、.NET 版本、啟動與已運作時間
+- 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
 - 全站請求耗時 / 例外統一寫入 NLog
 - 靜態資源外部對應（`/UploadFiles` → 實體下載目錄；**0.4.35 起需登入**才可取用）
@@ -143,7 +146,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider
-    │   ├── Health/                 ← 健康檢查與計分
+    │   ├── Ai/                     ← LLM 分析、安全 Markdown 渲染、PDF 報告、用量與計價
+│   ├── Health/                 ← 健康檢查與計分
     │   ├── wwwroot/                ← 靜態資源
     │   ├── nlog.config
     │   ├── Localization/           ← AntDesignLocaleFactory
@@ -196,11 +200,15 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
+| `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
+| `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
+| `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
-各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
+> 本表是摘要。**完整且具權威性的逐鍵說明在 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md) §4**
+> —— 新增 `appsettings.json` 區段時請以那份為主、本表為輔（見 [維護規範](docs/operations/維護規範.md) §2）。
 
 ---
 

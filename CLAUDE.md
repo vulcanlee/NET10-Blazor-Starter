@@ -87,4 +87,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   改注入 `IDbContextFactory<BackendDBContext>`，每個方法用完即棄，`CleanTrackingHelper` 已移除。
 - 新增頁面權限採**宣告式**：`Menu.json`（每項唯一 `id`）＋ `SidebarMenuService.MenuPermissionMap`（`id→權限鍵`）＋ `MagicObjectHelper` 權限鍵常數；以 id 對應、重排 `Menu.json` 不錯位（舊「位置索引三處同步」已移除）。
 - 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（每次異動一律 Patch +1，例：`0.4.0 → 0.4.1`；格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
+- **全站色票的唯一來源是 `src/MyProject/MyProject.Web/wwwroot/theme.css` 的 `:root`**；`--ov-*`（浮層）與
+  `--login-*`（登入頁）只是別名層。樣式要寫哪裡的判準是 **DOM 位置**不是元件名稱：AntDesign 渲染在
+  `AntContainer` 底下的浮層 → `OverlayStyles.razor`；渲染在頁面內的（Table／Pagination／Input／Tag）→
+  `theme.css`。見速查表 §6.9 與 `docs/architecture/介面視覺設計規範.md`。由 `ThemeConventionTests` 守門。
 - `docs/*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 遞迴檢查）。
