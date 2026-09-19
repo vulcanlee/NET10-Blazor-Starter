@@ -39,14 +39,8 @@ else
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Code)" Title="代號" Sortable />
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Description)" Title="描述" />
                 <Column TData="bool" DataIndex="@nameof(TeamAdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
-                    @if (context.IsEnabled)
-                    {
-                        <span class="team-status team-status-enabled">啟用</span>
-                    }
-                    else
-                    {
-                        <span class="team-status team-status-disabled">停用</span>
-                    }
+                    <StatusPill Text="@(context.IsEnabled ? "啟用" : "停用")"
+                                Tone="@(context.IsEnabled ? StatusTone.Positive : StatusTone.Muted)" />
                 </Column>
                 <Column TData="DateTime" DataIndex="@nameof(TeamAdapterModel.UpdatedAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Descending" />
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">

@@ -555,6 +555,23 @@ public partial class ProjectViewView
     private static string FormatFileSize(long fileSize)
         => SizeFormatHelper.FormatBytes(fileSize);
 
+    /// <summary>
+    /// 清單的狀態徽章語氣。對應表刻意留在呼叫端 ——
+    /// <see cref="StatusPill"/> 不該認得「暫緩」這種只有本模組才懂的字。
+    /// </summary>
+    /// <remarks>
+    /// 合法值由 <see cref="ProjectAdapterModel.StatusOptions"/> 界定、服務層把關，
+    /// 因此預設分支只會接到舊資料，不是正常路徑。
+    /// </remarks>
+    private static StatusTone ResolveStatusTone(string status) => status switch
+    {
+        "已完成" => StatusTone.Positive,
+        "進行中" => StatusTone.Accent,
+        "暫緩" => StatusTone.Warning,
+        "未開始" => StatusTone.Muted,
+        _ => StatusTone.Neutral,
+    };
+
     private sealed class PendingUploadFileItem
     {
         public Guid Id { get; set; }

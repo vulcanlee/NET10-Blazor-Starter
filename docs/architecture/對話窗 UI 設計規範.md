@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.29
+- 現行系統版本：0.9.30
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/09/18
+- 最後核對日期：2026/09/19
 
 ## 目的
 
@@ -170,15 +170,18 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ## 5. 果凍視覺規格
 
-色票沿用登入頁（`Components/Auths/Login.razor.css`）的粉梅暖雪：
+⚠️ **色票的唯一來源是 `src/MyProject/MyProject.Web/wwwroot/theme.css` 的 `:root`**
+（0.9.30 起；完整色票表見 [介面視覺設計規範](介面視覺設計規範.md) §3）。
+`OverlayStyles.razor` 的 `--ov-*` 是**別名層**，一律寫成 `var(--app-*)`，不得寫死色碼
+—— 由 `ThemeConventionTests.PaletteHexes_ShouldOnlyLiveInThemeCss` 守門。
 
-| 用途 | 值 |
+| 用途 | Token |
 |------|-----|
-| 文字 | `#51132f` |
-| 次要文字 | `#704054` |
-| 重點色 | `#a52b59`（聚焦邊框 `#d37598`） |
-| 面板底 | `rgba(255, 234, 243, 0.62)` + `backdrop-filter: blur(26px)` |
-| 主要按鈕 | `linear-gradient(165deg, #ea88ad 0%, #c43970 58%, #b52a60 100%)` |
+| 文字 | `--ov-text` → `--app-text` |
+| 次要文字 | `--ov-muted` → `--app-muted` |
+| 重點色 | `--ov-accent` → `--app-accent`（聚焦邊框 `--ov-accent-dim` → `--app-accent-dim`） |
+| 面板底 | `--ov-tint-glass`（`.form-modal` 覆寫為 0.62）+ `backdrop-filter: blur(26px)` |
+| 主要按鈕 | `--app-primary-grad` |
 
 動態：
 
@@ -186,7 +189,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 |------|------|
 | 開窗 | `fm-arrive` 620ms，`scale(0.72, 0.86)` → 過衝 `scale(1.035, 0.965)` → 收斂到 1（squash & stretch） |
 | 按鈕 | hover 上移 2px、按下 `scale(0.97)`，`cubic-bezier(0.2, 0.8, 0.3, 1.3)` 220ms |
-| 勾選 | `fm-jelly-check` 220ms 小幅回彈 |
+| 勾選 | `ov-jelly-check` 220ms 小幅回彈 |
 | 輸入框聚焦 | 柔光增亮 + 邊框轉重點色，200ms |
 
 ⚠️ 毛玻璃寫在 `@supports` 裡：不支援 `backdrop-filter` 的瀏覽器維持可讀的實底，不要變成半透明糊成一片。
@@ -249,7 +252,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 | 寬度 | `440px`，`max-width: 90vw` |
 | 圓角／邊框 | 24px／2px |
 | 毛玻璃 | `blur(20px)`，包在 `@supports` 裡 |
-| 進場 | `cfm-arrive` 380ms 短版擠壓回彈（出現頻率高，動作太大或太久都是干擾） |
+| 進場 | 共用基底的 `ov-arrive` 380ms 短版擠壓回彈（出現頻率高，動作太大或太久都是干擾） |
 | 一般提醒 | 粉梅調 |
 | 破壞性動作 | 紅調（邊框、光暈、圖示） |
 
@@ -301,7 +304,8 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ## 延伸閱讀
 
-- [開發慣例與限制速查](開發慣例與限制速查.md) §6.3 鍵盤事件、§6.4 對話窗尺寸
+- [介面視覺設計規範](介面視覺設計規範.md) —— 常駐介面那一層（側邊欄、表格、色票單一來源）
+- [開發慣例與限制速查](開發慣例與限制速查.md) §6.3 鍵盤事件、§6.4 對話窗尺寸、§6.9 樣式歸屬
 - [建立一個新 CRUD 操作網頁說明](../guides/建立一個新%20CRUD%20操作網頁說明.md)
 - [AI 日誌分析](../features/AI日誌分析.md) §10 —— 唯讀對話窗的三狀態規格（不適用本文件）
 

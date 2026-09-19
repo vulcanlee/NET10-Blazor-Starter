@@ -1,9 +1,9 @@
 ﻿.splash-shell {
     align-items: center;
     background:
-        radial-gradient(circle at top left, rgba(191, 219, 254, 0.65), transparent 34%),
-        radial-gradient(circle at bottom right, rgba(186, 230, 253, 0.55), transparent 30%),
-        linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+        radial-gradient(circle at top left, rgba(var(--app-inner-rgb), 0.35), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(var(--app-glow-rgb), 0.6), transparent 30%),
+        linear-gradient(180deg, var(--app-tint) 0%, #fffafc 100%);
     display: flex;
     justify-content: center;
     min-height: 100vh;
@@ -12,9 +12,9 @@
 
 .splash-card {
     background: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(226, 232, 240, 0.9);
+    border: 1px solid var(--app-line);
     border-radius: 28px;
-    box-shadow: 0 24px 60px rgba(148, 163, 184, 0.22);
+    box-shadow: 0 24px 60px rgba(var(--app-shadow-rgb), 0.16);
     max-width: 760px;
     padding: 2rem;
     width: min(100%, 760px);
@@ -28,7 +28,7 @@
 
 .splash-brand-image-wrap {
     align-items: center;
-    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+    background: linear-gradient(135deg, rgba(var(--app-inner-rgb), 0.3) 0%, var(--app-tint) 100%);
     border-radius: 24px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
     display: flex;
@@ -51,7 +51,7 @@
 }
 
 .splash-eyebrow {
-    color: #2563eb;
+    color: var(--app-accent);
     font-size: 0.78rem;
     font-weight: 800;
     letter-spacing: 0.16em;
@@ -60,7 +60,7 @@
 }
 
 .splash-title {
-    color: #0f172a;
+    color: var(--app-text);
     font-size: clamp(1.8rem, 2.5vw, 2.6rem);
     font-weight: 800;
     letter-spacing: -0.03em;
@@ -69,7 +69,7 @@
 }
 
 .splash-description {
-    color: #475569;
+    color: var(--app-muted);
     font-size: 1rem;
     line-height: 1.7;
     margin: 0;
@@ -78,13 +78,13 @@
 
 .splash-status {
     align-items: center;
-    color: #334155;
+    color: var(--app-text);
     display: inline-flex;
     gap: 0.7rem;
     margin-top: 1.5rem;
     padding: 0.8rem 1rem;
-    background: rgba(248, 250, 252, 0.95);
-    border: 1px solid rgba(203, 213, 225, 0.85);
+    background: rgba(255, 250, 252, 0.95);
+    border: 1px solid var(--app-line);
     border-radius: 999px;
     font-size: 0.92rem;
     font-weight: 600;
@@ -92,7 +92,7 @@
 
 .splash-status-dot {
     animation: splash-pulse 1.2s ease-in-out infinite;
-    background: #2563eb;
+    background: var(--app-accent);
     border-radius: 999px;
     display: inline-block;
     height: 0.75rem;

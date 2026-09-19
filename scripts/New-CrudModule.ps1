@@ -504,14 +504,22 @@ New-ScaffoldFile "Web/Components/Views/${Name}s/${Name}View.razor" @"
 }
 else
 {
-    <div class="${lower}-view-toolbar">
-        @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.$permissionConst, PermissionActions.Create))
-        {
-            <ToolbarIconButton Title="新增" Icon="add" OnClick="OnAddAsync" />
-        }
-        <ToolbarIconButton Title="重新整理" Icon="refresh" OnClick="OnRefreshAsync" />
+    @*
+        工具列與表格容器用全域共用類別（wwwroot/theme.css），不要再各自寫一份 .razor.css。
+        表格本身的視覺（表頭、斑馬、hover、排序箭頭、分頁）也由 theme.css 全站統一提供。
+        既有的 10 個檢視仍帶自己的 <前綴>-view-toolbar，那是歷史包袱，新模組不要跟進。
+    *@
+    <div class="view-toolbar">
+        <div class="view-toolbar-left">
+            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.$permissionConst, PermissionActions.Create))
+            {
+                <ToolbarIconButton Title="新增" Icon="add" OnClick="OnAddAsync" />
+            }
+            <ToolbarIconButton Title="重新整理" Icon="refresh" OnClick="OnRefreshAsync" />
+        </div>
     </div>
 
+    <div class="view-table-wrap">
     <Table TItem="${Name}AdapterModel"
            DataSource="@records"
            Total="_total"
@@ -533,6 +541,7 @@ else
             }
         </ActionColumn>
     </Table>
+    </div>
 
     @*
         大量資料輸入對話窗骨架。規範見 docs/architecture/對話窗 UI 設計規範.md：
@@ -543,6 +552,11 @@ else
            冒泡上來，變成「輸入還沒完成就存檔關窗」。存檔唯一入口是 Modal 的 OnOk。
         ⚠️ 不適合 2 欄的欄位（多行文字、檔案上傳、清單、權限矩陣）加 Class="form-field-full"。
         以上三點都由 MyProject.Tests/FormModalConventionTests.cs 與 ModalKeyboardConventionTests.cs 守門。
+
+        ⚠️ 樣式要寫哪裡，判準是 DOM 位置，不是元件名稱（速查表 §6.9）：
+           渲染在 AntContainer 底下（Modal／Confirm／Notification／Message）→ OverlayStyles.razor
+           渲染在頁面 DOM 內（Table／Pagination／Input／Select／Tag）→ wwwroot/theme.css
+           顏色一律用 var(--app-*)，不要寫死色碼（ThemeConventionTests 守門）。
     *@
     <Modal Title="@modalTitle"
            Class="form-modal"

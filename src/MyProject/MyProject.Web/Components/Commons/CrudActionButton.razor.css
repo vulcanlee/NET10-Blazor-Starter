@@ -5,7 +5,7 @@
     padding: 0;
     border-color: transparent;
     border-radius: 4px;
-    color: #4b5563;
+    color: var(--app-muted);
     background: transparent;
     display: inline-flex;
     align-items: center;
@@ -17,9 +17,9 @@
 
 .crud-action-button:hover,
 .crud-action-button:focus {
-    color: #1677ff;
-    border-color: #d6e4ff;
-    background: #eef5ff;
+    color: var(--app-accent);
+    border-color: var(--app-line);
+    background: var(--app-tint);
     text-decoration: none;
 }
 

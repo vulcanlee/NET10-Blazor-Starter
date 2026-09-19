@@ -21,7 +21,7 @@
 }
 
 .exception-log-range-separator {
-    color: #64748b;
+    color: var(--app-muted);
 }
 
 .exception-log-account-input {

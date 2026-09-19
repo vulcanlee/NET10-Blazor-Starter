@@ -17,6 +17,10 @@
 
     <link href="_content/AntDesign/css/ant-design-blazor.css" rel="stylesheet">
 
+    <!-- ⚠️ theme.css 必須排在 AntDesign 之後：排在前面的話，對 .ant-* 的覆寫會
+         在同分特異性上輸給 AntDesign 而靜默失效。由 ThemeConventionTests 守門。 -->
+    <link rel="stylesheet" href="@Assets["theme.css"]" />
+
     <link href="https://fonts.googleapis.com/css?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Sharp|Material+Icons+Round|Material+Icons+Two+Tone" rel="stylesheet">
 
 </head>
