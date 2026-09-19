@@ -176,6 +176,36 @@ public sealed class AuthenticationStateHelperTests
         Assert.Contains("PermissionB", roleList);
     }
 
+    /// <summary>
+    /// 角色矩陣只勾「檢視」時產生的是「頁面:view」而不含裸鍵。若 CheckAccessPage 只認裸鍵，
+    /// 唯讀角色會連頁面都打不開、選單也不顯示 —— 「可看不可改」就只剩 API 端生效。
+    /// </summary>
+    [Fact]
+    public async Task CheckAccessPage_WithOnlyViewActionKey_ShouldAllow()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        fixture.CurrentUserService.CurrentUser.IsAdmin = false;
+        fixture.CurrentUserService.CurrentUser.RoleList =
+            [PermissionKey.For(MagicObjectHelper.角色_分類清單, PermissionActions.View)];
+
+        Assert.True(fixture.CreateHelper().CheckAccessPage(MagicObjectHelper.角色_分類清單));
+    }
+
+    /// <summary>
+    /// 放寬的邊界只到 view：只有 create 的角色仍然不得進入頁面，
+    /// 否則「頁面鍵」會退化成「任何動作鍵都能進」。
+    /// </summary>
+    [Fact]
+    public async Task CheckAccessPage_WithOnlyNonViewActionKey_ShouldDeny()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        fixture.CurrentUserService.CurrentUser.IsAdmin = false;
+        fixture.CurrentUserService.CurrentUser.RoleList =
+            [PermissionKey.For(MagicObjectHelper.角色_分類清單, PermissionActions.Create)];
+
+        Assert.False(fixture.CreateHelper().CheckAccessPage(MagicObjectHelper.角色_分類清單));
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string sid)
     {
         var identity = new ClaimsIdentity(

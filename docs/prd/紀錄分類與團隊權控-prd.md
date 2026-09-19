@@ -1,10 +1,10 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.37
 - 首次實作版本：0.4.0
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/19
 
 ## 一、目標與範圍
 
@@ -61,8 +61,9 @@
 
 - 單一權威來源：`IPermissionChecker` 為 UI（`AuthenticationStateHelper.CheckAccessPage`／`CheckAccessAction`）與 API（`[HasPermission]`）共用的權限判定來源，兩端一致。
 - 宣告式頁面權限：`Menu.json` 唯一 `id` ＋ `SidebarMenuService.MenuPermissionMap`（id→權限鍵）＋ `MagicObjectHelper` 權限鍵常數（見「首頁與導覽 PRD」）。
-- 動作級 RBAC：受保護 CRUD 以 `[HasPermission("頁面", "動作")]` 標註（View/Create/Edit/Delete/Export）；未登入回 401、無權限回 403，皆維持 `ApiResult` 格式。
+- 動作級 RBAC：受保護 CRUD 以 `[HasPermission("頁面", "動作")]` 標註（View/Create/Edit/Delete；`Export` 已於 0.9.37 下架）；未登入回 401、無權限回 403，皆維持 `ApiResult` 格式。
 - 團隊權控為資安不變量：列級可見性由伺服器端查詢述詞強制，UI 過濾僅為輔助，不可作為授權邊界。
+- 🔴 **但這條不變量只涵蓋 Blazor 路徑**：列級過濾寫在服務層（`ProjectService`／`CategoryService`），而 **Web API 走的是 Repository 路徑（`ProjectRepository`），完全沒有列級過濾** —— 同一位非管理員在畫面上看不到別團隊的紀錄，持 JWT 呼叫 `POST /api/Project/search` 卻取得**全部**。這是刻意的現況，但交付前必須讓客戶知道；檢查項與後果見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)「已知限制」段，要補的方向見 [腳手架開發指引 §6.5](../guides/腳手架開發指引.md)。
 - 管理員豁免：`IsAdmin` 於 `PermissionChecker`、`CheckAccessPage/Action`、`IsTeamAccessible`、查詢範圍皆短路，一律通行且可見全部。
 
 ## 六、錯誤與邊界

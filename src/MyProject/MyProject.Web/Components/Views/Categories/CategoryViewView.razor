@@ -9,8 +9,11 @@ else
     <div>
         <div class="category-view-toolbar">
             <div class="category-view-toolbar-left">
-                <ToolbarIconButton Title="新增" Icon="add"
-                                   OnClick="@(async () => await OnAddAsync())" />
+                @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_分類清單, PermissionActions.Create))
+                {
+                    <ToolbarIconButton Title="新增" Icon="add"
+                                       OnClick="@(async () => await OnAddAsync())" />
+                }
                 <ToolbarIconButton Title="重新整理" Icon="refresh"
                                    OnClick="@(async () => await OnRefreshAsync())" />
             </div>
@@ -45,14 +48,20 @@ else
                 <Column TData="DateTime" DataIndex="@nameof(CategoryAdapterModel.UpdatedAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Descending" />
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
                     <Space>
-                        <SpaceItem>
-                            <CrudActionButton Title="修改" Icon="edit"
-                                              OnClick="@(async () => await OnEditAsync(@context))" />
-                        </SpaceItem>
-                        <SpaceItem>
-                            <CrudActionButton Title="刪除" Icon="delete" Danger
-                                              OnClick="@(async () => await OnDeleteAsync(@context))" />
-                        </SpaceItem>
+                        @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_分類清單, PermissionActions.Edit))
+                        {
+                            <SpaceItem>
+                                <CrudActionButton Title="修改" Icon="edit"
+                                                  OnClick="@(async () => await OnEditAsync(@context))" />
+                            </SpaceItem>
+                        }
+                        @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_分類清單, PermissionActions.Delete))
+                        {
+                            <SpaceItem>
+                                <CrudActionButton Title="刪除" Icon="delete" Danger
+                                                  OnClick="@(async () => await OnDeleteAsync(@context))" />
+                            </SpaceItem>
+                        }
                     </Space>
                 </ActionColumn>
             </Table>

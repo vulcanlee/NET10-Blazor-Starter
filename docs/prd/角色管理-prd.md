@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.37
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/19
 
 ## 一、目標與範圍
 
@@ -33,7 +33,7 @@
 - **維護表單**（Modal）：
   - 名稱（必填，唯一）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。
-  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「系統管理功能」）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及五個動作核取方塊：檢視、新增、編輯、刪除、匯出（`view/create/edit/delete/export`）。
+  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「系統管理功能」）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
 - **矩陣互動語意**：勾「（全部）」等同該頁裸鍵、代表全部動作，並停用個別動作核取方塊（舊制相容）；勾任一動作或頁面會自動點亮所屬群組；取消群組會連帶清掉其下所有頁面權限。
 
 ## 四、內部系統運作
@@ -55,7 +55,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 ## 五、權限與安全
 
 - RBAC 表（`Permission`／`RolePermissionMap`／`UserRole`）為 UI 與 API 共用的**單一權威**；登入後 `AuthenticationStateHelper` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 載入有效權限鍵（多角色聯集）。
-- 動作級授權：API 控制器以 `[HasPermission(頁面, 動作)]` 判權，無權限回 `ApiResult` 403（`ForbiddenResult`）；未登入回 401；管理員短路一律通過。UI 以 `CheckAccessAction` 依動作顯示／停用按鈕。
+- 動作級授權：API 控制器以 `[HasPermission(頁面, 動作)]` 判權，無權限回 `ApiResult` 403（`ForbiddenResult`）；未登入回 401；管理員短路一律通過。UI 以 `CheckAccessAction` 依動作顯示／停用按鈕（專案項目、分類清單、團隊清單三頁皆有）。⚠️ 頁面進入權由 `CheckAccessPage` 判定，通過條件為「管理員 ∨ 裸頁面鍵 ∨ `頁面鍵:view`」（0.9.37 起）——因此只勾「檢視」的唯讀角色**進得去頁面但按不到任何寫入鈕**。
 - 角色本頁僅管理員可進入；不輸出任何機密欄位。
 
 ## 六、錯誤與邊界

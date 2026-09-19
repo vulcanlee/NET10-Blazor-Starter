@@ -79,7 +79,6 @@ public class RolePermissionService
         PermissionActions.Create,
         PermissionActions.Edit,
         PermissionActions.Delete,
-        PermissionActions.Export,
     ];
 
     private static Dictionary<string, bool> CreateEmptyActions()

@@ -177,6 +177,14 @@ public class AuthenticationStateHelper
         return isAdmin;
     }
 
+    /// <summary>
+    /// 檢查目前使用者能否進入某個頁面（也用於側邊選單過濾）。
+    ///
+    /// 通過條件：管理員、擁有裸頁面鍵、或擁有該頁的 <c>view</c> 動作鍵。
+    /// ⚠️ 第三項不可省略 —— 角色矩陣只勾「檢視」時產生的是「頁面:view」，**不含裸鍵**，
+    /// 少了這一項，唯讀角色會連頁面都打不開、選單也不顯示，「可看不可改」就只剩 API 端生效。
+    /// 這是 <see cref="CheckAccessAction"/>「動作鍵不中則退回裸鍵」的鏡像。
+    /// </summary>
     public bool CheckAccessPage(string name)
     {
         // 管理員一律通過：GetEffectivePermissionKeysAsync 不含 admin 隱含全通過（回空集合），
@@ -186,7 +194,9 @@ public class AuthenticationStateHelper
             return true;
         }
 
-        var result = currentUserService.CurrentUser.RoleList.Contains(name);
+        var keys = currentUserService.CurrentUser.RoleList;
+        var result = keys.Contains(name)
+            || keys.Contains(PermissionKey.For(name, PermissionActions.View));
         logger.LogDebug(
             "Checked page access for UserId={UserId}, Page={PageName}, Allowed={Allowed}.",
             currentUserService.CurrentUser.Id,

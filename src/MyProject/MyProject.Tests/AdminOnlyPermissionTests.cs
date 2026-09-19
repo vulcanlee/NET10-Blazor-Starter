@@ -40,4 +40,17 @@ public sealed class AdminOnlyPermissionTests
 
         Assert.DoesNotContain(permissionKey, allNames);
     }
+
+    /// <summary>
+    /// 0.9.37 起 export 自矩陣下架：它曾經勾得到，但全系統沒有任何檢查點，
+    /// 屬於「勾了等於沒勾」的死權限（與 0.4.33 修掉的使用者管理／角色管理同一類）。
+    ///
+    /// 要重新上架，必須**先**有真正會檢查它的地方（`[HasPermission(頁面, "export")]`
+    /// 或 `CheckAccessAction(頁面, "export")`），否則只是把誤導再放回去。
+    /// </summary>
+    [Fact]
+    public void ExportAction_ShouldNotAppearInRolePermissionMatrix()
+    {
+        Assert.DoesNotContain("export", RolePermissionService.SupportedActions);
+    }
 }

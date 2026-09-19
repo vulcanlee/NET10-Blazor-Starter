@@ -388,7 +388,6 @@ namespace MyProject.Web.Components.Views.Admins
             (PermissionActions.Create, "新增"),
             (PermissionActions.Edit, "編輯"),
             (PermissionActions.Delete, "刪除"),
-            (PermissionActions.Export, "匯出"),
         ];
 
         private static bool GetActionChecked(RolePermissionNode node, string action)
