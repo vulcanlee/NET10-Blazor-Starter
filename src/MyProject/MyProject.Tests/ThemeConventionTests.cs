@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 守住全站色票層（<c>wwwroot/theme.css</c>）的兩個前提。
+/// 守住全站色票層（<c>wwwroot/theme.css</c>）的三個前提。
 ///
-/// 兩條規則的失敗症狀都是**完全靜默的**：建置不會紅、<c>dotnet format</c> 看不到 CSS、
+/// 三條規則的失敗症狀都是**完全靜默的**：建置不會紅、<c>dotnet format</c> 看不到 CSS、
 /// <c>TreatWarningsAsErrors</c> 也管不到樣式表。只有實際開頁面才會發現，
 /// 而發現的時候通常已經過了好幾個 commit。
 ///
@@ -98,17 +98,10 @@ public sealed class ThemeConventionTests
 
         foreach (var file in files)
         {
-            var lines = File.ReadAllLines(file);
+            var lines = StripBlockComments(File.ReadAllText(file)).Split('\n');
             for (var index = 0; index < lines.Length; index++)
             {
                 var line = lines[index];
-
-                // 註解裡提到色碼是說明用途（例如對比度的說明），不算分叉。
-                if (line.TrimStart().StartsWith("/*", StringComparison.Ordinal)
-                    || line.TrimStart().StartsWith('*'))
-                {
-                    continue;
-                }
 
                 foreach (var match in HexColor.Matches(line).Cast<Match>())
                 {
@@ -130,6 +123,57 @@ public sealed class ThemeConventionTests
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
     }
+
+    /// <summary>
+    /// <see cref="PaletteHexes"/> 裡的每一個色碼都必須真的還在 theme.css 裡（註解不算）。
+    ///
+    /// ⚠️ 這條擋的是「清單自己過期」。<see cref="PaletteHexes_ShouldOnlyLiveInThemeCss"/>
+    /// 只會在別的檔案找到清單上的色碼時失敗；一旦整組品牌色被換掉（例如粉梅改成綠色系），
+    /// 舊色碼在**任何地方**都找不到了，那條檢查就會**靜默通過** ——
+    /// 它還是綠燈，但守的是一組已經不存在的顏色，等於完全不再保護任何東西。
+    ///
+    /// 換品牌色時請把清單一起換掉：這一條就是提醒你的地方。
+    /// 做法與 <c>FormModalConventionTests</c> 的待遷移清單、CI 弱點掃描的允許清單相同 ——
+    /// 清單不可以放著爛掉。
+    /// </summary>
+    [Fact]
+    public void PaletteHexes_ShouldStillExistInThemeCss()
+    {
+        var themeCss = Path.Combine(FindWebRoot(), "wwwroot", "theme.css");
+        Assert.True(File.Exists(themeCss), $"找不到色票檔 {themeCss}。");
+
+        var declared = HexColor
+            .Matches(StripBlockComments(File.ReadAllText(themeCss)))
+            .Cast<Match>()
+            .Select(match => match.Value.ToLowerInvariant())
+            .ToHashSet();
+
+        // 掃描失效時（例如檔案被清空）不要空跑綠燈。
+        Assert.NotEmpty(declared);
+
+        var retired = PaletteHexes.Where(hex => declared.Contains(hex) == false).ToList();
+
+        Assert.True(
+            retired.Count == 0,
+            "下列色碼已經不在 wwwroot/theme.css 裡，但仍列在 PaletteHexes 清單中："
+                + string.Join("、", retired)
+                + "。看起來品牌色換過了 —— 請把清單同步換成新的色碼，"
+                + "否則 PaletteHexes_ShouldOnlyLiveInThemeCss 會繼續綠燈，"
+                + "但它守的是一組已經不存在的顏色，實際上不再保護任何東西。");
+    }
+
+    /// <summary>
+    /// 把 CSS 區塊註解（/* … */）整段挖空，只留換行以維持行號。
+    ///
+    /// ⚠️ 不能只判斷「行首是不是 /* 或 *」—— 本專案的註解大量橫跨多行且續行不對齊，
+    /// 那樣寫會讓續行裡的色碼被當成程式碼（誤報），或被當成宣告（漏報）。
+    /// </summary>
+    private static string StripBlockComments(string text)
+        => Regex.Replace(
+            text,
+            @"/\*.*?\*/",
+            match => new string('\n', match.Value.Count(c => c == '\n')),
+            RegexOptions.Singleline);
 
     private static string FindWebRoot()
     {
