@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 using MyProject.Web.Auth;
 using System.Security.Claims;
 
@@ -37,6 +38,9 @@ namespace MyProject.Web.Components.Auths
 
         [Inject]
         public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+
+        [Inject]
+        public IOptions<CookieSettings> CookieOptions { get; set; } = default!;
 
         /// <summary>
         /// 系統名稱，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemName。
@@ -140,10 +144,19 @@ namespace MyProject.Web.Components.Auths
                     RedirectUri = returnUrl,
                 };
 
+                // 勾了「記住我」就走比較長的效期。
+                // ⚠️ 不能靠 AddCookie 的 ExpireTimeSpan —— 那是整個 scheme 共用的，
+                // 做不出兩種效期；明寫 ExpiresUtc 才能只覆蓋這一次登入的票證。
+                if (Input.RememberMe)
+                {
+                    authProperties.ExpiresUtc =
+                        DateTimeOffset.UtcNow.AddDays(CookieOptions.Value.RememberMeDays);
+                }
+
                 try
                 {
                     await HttpContext.SignInAsync(
-                        "CookieAuthenticationScheme",
+                        MagicObjectHelper.CookieScheme,
                         new ClaimsPrincipal(claimsIdentity),
                         authProperties);
 

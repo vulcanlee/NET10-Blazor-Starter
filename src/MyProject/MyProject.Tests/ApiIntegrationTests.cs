@@ -693,7 +693,10 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             // 漏掉這一行，測試就會把堆疊檔寫進開發者（或 CI）真正的 ExceptionPath，
             // 而資料列卻留在測試自己的資料庫裡 —— 留下一堆對不到紀錄的孤兒檔。
             ["SystemSettings:ExternalFileSystem:ExceptionPath"] = Path.Combine(rootPath, "Exception"),
-            ["SystemSettings:ExternalFileSystem:TokenUsagePath"] = Path.Combine(rootPath, "TokenUsage")
+            ["SystemSettings:ExternalFileSystem:TokenUsagePath"] = Path.Combine(rootPath, "TokenUsage"),
+            // 同理：整合測試會啟動真實 host，Data Protection 會真的把金鑰環寫到磁碟。
+            // 漏掉這一行，測試就會把金鑰寫進開發者（或 CI）真正的金鑰目錄。
+            ["SystemSettings:ExternalFileSystem:DataProtectionKeyPath"] = Path.Combine(rootPath, "Keys")
         };
     }
 }

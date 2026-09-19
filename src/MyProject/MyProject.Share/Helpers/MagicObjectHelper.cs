@@ -14,6 +14,17 @@ public class MagicObjectHelper
     /// OAuth 外部登入流程暫存身分用的 Cookie 配置名稱
     /// </summary>
     public const string ExternalCookieScheme = "ExternalCookieScheme";
+
+    /// <summary>
+    /// Data Protection 的應用程式識別名稱，決定金鑰環的「用途」判別子。
+    ///
+    /// ⚠️ **改掉這個值等於讓全站所有既有登入 Cookie 立刻失效**（連同記住我）。
+    /// 不設定的話框架會改用 content root 路徑當判別子，於是**換部署路徑也會失效** ——
+    /// 這正是把它固定成常數的理由。
+    /// ⚠️ 腳手架改名時**不要**跟著改；若真的要改，請安排在可以接受全體重新登入的時機。
+    /// </summary>
+    public const string DataProtectionApplicationName = "MyProject";
+
     public const string 開發者帳號 = "support";
     public const string 預設角色 = "預設角色";
     public const string NeedChangePassword = "123456";

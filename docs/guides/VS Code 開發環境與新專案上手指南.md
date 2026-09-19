@@ -638,6 +638,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Program.cs:97` | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
 | `Extensions/ApplicationBuilderExtensions.cs:28` | `SwaggerEndpoint(..., "MyProject API v1")` | 同上 |
 | `Program.cs:200` | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
+| 🔴 `Share/Helpers/MagicObjectHelper.cs` | `DataProtectionApplicationName = "MyProject"` | **改了會讓全站既有登入 Cookie 立刻失效**（連同記住我）。這是 Data Protection 金鑰環的用途判別子。⚠️ 與上面那些不同，這一條**建議不要跟著改**；真要改請安排在可接受全體重新登入的時機 |
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
 | `Components/Views/Analytics/LogViewerView.razor.cs:151` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |

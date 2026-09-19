@@ -51,7 +51,18 @@ public class AuthenticationStateHelper
         {
             logger.LogWarning("Authentication check failed because the current principal is not authenticated.");
             await Task.Delay(200);
-            navigationManager.NavigateTo("/Auths/Logout", true, true);
+
+            // ⚠️ 這裡導向登入頁而**不是**登出頁（0.9.39 起），其餘分支則維持導向登出。
+            //
+            // 原因：/Auths/Logout 會無條件呼叫 SignOutAsync 刪掉 Cookie。而「未認證」這個
+            // 分支同時涵蓋「Cookie 一時讀不出來」（伺服器重啟、Data Protection 金鑰換掉、
+            // 換連接埠或網域）—— 那種情況下把 Cookie 毀掉，會讓使用者原本還有效的
+            // 「記住我」永久消失，症狀還會自我延續（每次回來都重演一次）。
+            // 真正失效的 Cookie 由 Cookie handler 自己清理，不需要我們動手。
+            //
+            // ⚠️ 不會產生重導迴圈：登入頁用的是 NoFooterLayout，而那個版面不呼叫本方法
+            //（只有 MainLayout 與 NavMenu 會）。**若日後改動登入頁的版面，這個保證就沒了。**
+            navigationManager.NavigateTo("/Auths/Login", true, true);
             return AuthenticationCheckResult.Unauthenticated;
         }
 

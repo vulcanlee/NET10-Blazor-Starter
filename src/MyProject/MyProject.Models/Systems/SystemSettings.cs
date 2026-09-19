@@ -47,6 +47,16 @@ public class ExternalFileSystem
     /// ⚠️ 只存 usage 結構，絕不存提示詞或模型回應內文。
     /// </summary>
     public string TokenUsagePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ASP.NET Core Data Protection 的金鑰環存放目錄。
+    ///
+    /// ⚠️ **這個目錄不見了，等於全站使用者立刻被登出** —— 登入 Cookie 是用這裡的金鑰
+    /// 加密的，金鑰換一批就全部解不開。0.9.39 之前完全沒有設定，金鑰落在使用者設定檔下，
+    /// 在 IIS 應用程式集區未載入使用者設定檔時會退化成「只存在記憶體」，
+    /// 於是每次回收都換一批。詳見正式部署與安全檢查清單。
+    /// </summary>
+    public string DataProtectionKeyPath { get; set; } = string.Empty;
 }
 
 public class BootstrapSettings

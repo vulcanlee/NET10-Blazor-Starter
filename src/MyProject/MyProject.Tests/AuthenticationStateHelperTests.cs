@@ -18,8 +18,19 @@ namespace MyProject.Tests;
 
 public sealed class AuthenticationStateHelperTests
 {
+    /// <summary>
+    /// ⚠️ 「未認證」必須導向**登入頁**，不可導向登出頁（0.9.39 起）。
+    ///
+    /// /Auths/Logout 會無條件 SignOutAsync 刪掉 Cookie，而這個分支同時涵蓋
+    /// 「Cookie 一時讀不出來」（伺服器重啟、Data Protection 金鑰換掉、換連接埠）——
+    /// 導到登出頁會把使用者原本還有效的「記住我」**永久毀掉**，而且症狀會自我延續。
+    ///
+    /// **看到這條測試紅了，請先確認不是把那個缺陷改回去了。**
+    /// 其餘五個分支（Sid 無效／查無使用者／帳號停用／缺 RoleView／例外）
+    /// 仍應導向登出頁，各自有對照測試釘住。
+    /// </summary>
     [Fact]
-    public async Task Check_WithUnauthenticatedPrincipal_ShouldReturnUnauthenticatedAndNavigateLogout()
+    public async Task Check_WithUnauthenticatedPrincipal_ShouldNavigateLoginWithoutClearingCookie()
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var authProvider = new TestAuthenticationStateProvider(new ClaimsPrincipal(new ClaimsIdentity()));
@@ -28,7 +39,8 @@ public sealed class AuthenticationStateHelperTests
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
 
         Assert.Equal(AuthenticationCheckResult.Unauthenticated, result);
-        Assert.Equal("/Auths/Logout", navigationManager.NavigatedTo);
+        Assert.Equal("/Auths/Login", navigationManager.NavigatedTo);
+        Assert.NotEqual("/Auths/Logout", navigationManager.NavigatedTo);
     }
 
     [Fact]
