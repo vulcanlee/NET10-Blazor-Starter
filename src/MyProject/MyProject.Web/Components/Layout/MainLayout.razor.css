@@ -1,5 +1,5 @@
 ﻿.page {
-    background: linear-gradient(180deg, #f3f6ff 0%, #eef2ff 52%, #f8faff 100%);
+    background: var(--app-page);
     min-height: 100vh;
     position: relative;
     display: flex;
@@ -15,11 +15,14 @@ main {
 }
 
 .sidebar {
+    /* ⚠️ 頂端這層白色柔光原本是 0.85 —— 那是給淺色側邊欄用的。
+       深梅底上維持 0.85 會把上緣洗成近白，品牌文字（淺色字）直接看不見。
+       改深色面之後只留一點點光澤。 */
     background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.85), transparent 38%),
-        linear-gradient(180deg, #f5f6f8 0%, #eef1f4 50%, #e7ebf0 100%);
-    border-right: 1px solid rgba(203, 213, 225, 0.85);
-    box-shadow: 14px 0 34px rgba(148, 163, 184, 0.16);
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.10), transparent 42%),
+        var(--app-rail);
+    border-right: 1px solid rgba(var(--app-shadow-rgb), 0.55);
+    box-shadow: 14px 0 34px rgba(var(--app-shadow-rgb), 0.22);
     flex-shrink: 0;
     overflow: hidden;
     transition: width 0.28s ease, box-shadow 0.28s ease;
@@ -27,8 +30,8 @@ main {
 }
 
 .top-row {
-    background: rgba(255, 255, 255, 0.72);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(255, 250, 252, 0.82);
+    border-bottom: 1px solid var(--app-line);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -38,7 +41,7 @@ main {
 }
 
 .top-row-title {
-    color: #334155;
+    color: var(--app-text);
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.01em;
@@ -57,11 +60,11 @@ main {
 
 .user-menu-trigger {
     align-items: center;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.96) 100%);
-    border: 1px solid rgba(203, 213, 225, 0.95);
-    border-radius: 999px;
-    box-shadow: 0 10px 26px rgba(148, 163, 184, 0.12);
-    color: #1e293b;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(var(--app-tint-rgb), 0.9) 100%);
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-pill);
+    box-shadow: 0 10px 26px rgba(var(--app-shadow-rgb), 0.12);
+    color: var(--app-text);
     cursor: pointer;
     display: inline-flex;
     gap: 0.75rem;
@@ -73,21 +76,21 @@ main {
 .user-menu:hover .user-menu-trigger,
 .user-menu:focus-within .user-menu-trigger,
 .user-menu.user-menu-open .user-menu-trigger {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 14px 30px rgba(59, 130, 246, 0.16);
+    border-color: var(--app-accent-dim);
+    box-shadow: 0 14px 30px rgba(var(--app-accent-rgb), 0.18);
     transform: translateY(-1px);
 }
 
 .user-menu-trigger:focus-visible {
-    outline: 2px solid rgba(37, 99, 235, 0.45);
+    outline: 2px solid var(--app-accent);
     outline-offset: 2px;
 }
 
 .user-menu-icon {
     align-items: center;
-    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
-    border-radius: 999px;
-    color: #2563eb;
+    background: linear-gradient(135deg, rgba(var(--app-inner-rgb), 0.35) 0%, var(--app-tint) 100%);
+    border-radius: var(--app-radius-pill);
+    color: var(--app-accent);
     display: inline-flex;
     height: 2rem;
     justify-content: center;
@@ -105,7 +108,7 @@ main {
 }
 
 .user-menu-name {
-    color: #0f172a;
+    color: var(--app-text);
     font-size: 0.95rem;
     font-weight: 700;
     max-width: 13rem;
@@ -114,11 +117,13 @@ main {
     white-space: nowrap;
 }
 
+/* 管理員標記不是警示，是身分 —— 轉為重點色。
+   真正的警示色留給登出（.user-menu-item-danger）。 */
 .user-menu-badge {
-    background: rgba(220, 38, 38, 0.08);
-    border: 1px solid rgba(220, 38, 38, 0.14);
-    border-radius: 999px;
-    color: #b91c1c;
+    background: rgba(var(--app-accent-rgb), 0.08);
+    border: 1px solid rgba(var(--app-accent-rgb), 0.18);
+    border-radius: var(--app-radius-pill);
+    color: var(--app-accent);
     font-size: 0.72rem;
     font-weight: 700;
     line-height: 1;
@@ -126,15 +131,15 @@ main {
 }
 
 .user-menu-caret {
-    color: #64748b;
+    color: var(--app-muted);
     display: inline-flex;
 }
 
 .user-menu-dropdown {
-    background: rgba(255, 255, 255, 0.98);
-    border: 1px solid rgba(226, 232, 240, 0.95);
+    background: rgba(255, 252, 253, 0.98);
+    border: 1px solid var(--app-line);
     border-radius: 16px;
-    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 18px 38px rgba(var(--app-shadow-rgb), 0.18);
     min-width: 11rem;
     opacity: 0;
     padding: 0.4rem;
@@ -159,7 +164,9 @@ main {
     background: none;
     border: none;
     border-radius: 12px;
-    color: #b91c1c;
+    /* 0.9.30 更正：這裡原本也是 #b91c1c，讓「變更密碼」「關於」全都長得像危險動作。
+       危險色由 .user-menu-item-danger 負責。 */
+    color: var(--app-text);
     cursor: pointer;
     display: block;
     font-size: 0.92rem;
@@ -172,8 +179,8 @@ main {
 
 .user-menu-item:hover,
 .user-menu-item:focus-visible {
-    background: rgba(219, 234, 254, 0.72);
-    color: #1d4ed8;
+    background: var(--app-tint);
+    color: var(--app-accent);
     outline: none;
 }
 
@@ -189,14 +196,14 @@ main {
 
 .top-row ::deep a,
 .top-row ::deep .btn-link {
-    color: #334155;
+    color: var(--app-muted);
     text-decoration: none;
     white-space: nowrap;
 }
 
 .top-row ::deep a:hover,
 .top-row ::deep .btn-link:hover {
-    color: #1d4ed8;
+    color: var(--app-accent);
 }
 
 .top-row ::deep a:first-child {
@@ -206,7 +213,7 @@ main {
 
 @media (max-width: 640.98px) {
     .page.sidebar-collapsed .sidebar {
-        box-shadow: 0 10px 24px rgba(148, 163, 184, 0.12);
+        box-shadow: 0 10px 24px rgba(var(--app-shadow-rgb), 0.18);
     }
 
     .top-row {
@@ -262,7 +269,7 @@ main {
     }
 
     .page.sidebar-collapsed .sidebar {
-        box-shadow: 10px 0 26px rgba(148, 163, 184, 0.12);
+        box-shadow: 10px 0 26px rgba(var(--app-shadow-rgb), 0.18);
         overflow: visible;
         /* 必須高於 .top-row（20），否則收合側邊欄的飛出選單會被頂部列蓋掉。 */
         z-index: 30;
@@ -290,12 +297,15 @@ main {
     }
 }
 
+/* 全站唯一的內容卡片：每個頁面的工具列與表格都裝在這裡面。
+   果凍的「外亮邊」手法沿用 OverlayStyles 的 .ant-modal-content，
+   但不加毛玻璃 —— 資料表底下沒有東西需要透出來，模糊只會讓文字變糊。 */
 article {
     margin: 1.5rem;
-    background: rgba(255, 255, 255, 0.82);
-    border: 1px solid rgba(226, 232, 240, 0.8);
-    border-radius: 24px;
-    box-shadow: 0 20px 60px rgba(148, 163, 184, 0.16);
+    background: var(--app-card);
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-card);
+    box-shadow: 0 0 0 4px var(--app-glow), var(--app-shadow);
     padding-top: 1.5rem;
     padding-bottom: 1.5rem;
 }
@@ -334,7 +344,7 @@ article {
     gap: 0.75rem;
     align-items: baseline;
     padding: 0.45rem 0;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--app-line);
 }
 
 .about-row:last-child {
@@ -343,12 +353,12 @@ article {
 
 .about-term {
     margin: 0;
-    color: #6b7280;
+    color: var(--app-muted);
     font-size: 0.875rem;
 }
 
 .about-value {
     margin: 0;
-    color: #111827;
+    color: var(--app-text);
     word-break: break-word;
 }

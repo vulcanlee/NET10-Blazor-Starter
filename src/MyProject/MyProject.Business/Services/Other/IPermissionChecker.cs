@@ -2,7 +2,9 @@ namespace MyProject.Business.Services.Other;
 
 /// <summary>
 /// 判斷使用者的有效權限。作為 UI 與 API 共用的權限判定單一來源。
-/// 目前以權威模型（使用者角色的 TabViewJson）計算；階段三後續改讀 RBAC 關聯表。
+/// 權限鍵讀自 RBAC 關聯表（UserRole → RolePermissionMap → Permission），多角色取聯集；
+/// 角色來源以 UserRole 為主，並容錯併入 legacy 的 MyUser.RoleViewId。
+/// ⚠️ RoleView.TabViewJson 已退為角色編輯畫面的回填欄位，**不參與**權限判定。
 /// </summary>
 public interface IPermissionChecker
 {

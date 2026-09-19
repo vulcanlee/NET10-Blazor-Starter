@@ -4,7 +4,7 @@
     align-items: center;
     justify-content: center;
     padding: 32px;
-    background: linear-gradient(135deg, #0f172a, #123c3a, #1d6b52, #7ad9ab);
+    background: var(--app-dark-grad);
     background-size: 300% 300%;
     animation: pendingGradient 18s ease infinite;
 }
@@ -13,12 +13,12 @@
     width: min(520px, 100%);
     padding: 48px 40px;
     text-align: center;
-    color: #f8fafc;
+    color: var(--app-on-accent);
     border: 1px solid rgba(255, 255, 255, 0.24);
     background: rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+    box-shadow: 0 30px 80px rgba(var(--app-shadow-rgb), 0.45);
     border-radius: 28px;
 }
 
@@ -30,7 +30,7 @@
     height: 84px;
     margin-bottom: 22px;
     border-radius: 24px;
-    color: #6ee7b7;
+    color: var(--app-accent-light);
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -44,11 +44,11 @@
 .pending-card p {
     margin: 0 0 14px;
     line-height: 1.85;
-    color: rgba(248, 250, 252, 0.82);
+    color: rgba(255, 247, 250, 0.82);
 }
 
 .pending-hint {
-    color: #6ee7b7 !important;
+    color: var(--app-accent-light) !important;
     font-weight: 600;
 }
 
@@ -57,17 +57,17 @@
     margin-top: 14px;
     padding: 12px 28px;
     border-radius: 16px;
-    background: linear-gradient(135deg, #34d399, #16a34a);
-    color: #052e16;
+    background: var(--app-primary-grad);
+    color: var(--app-on-accent);
     font-weight: 800;
     text-decoration: none;
-    box-shadow: 0 16px 30px rgba(22, 163, 74, 0.28);
+    box-shadow: 0 16px 30px rgba(var(--app-shadow-rgb), 0.38);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .pending-back:hover {
     transform: translateY(-2px);
-    box-shadow: 0 20px 34px rgba(22, 163, 74, 0.34);
+    box-shadow: 0 20px 34px rgba(var(--app-shadow-rgb), 0.46);
 }
 
 @keyframes pendingGradient {

@@ -1,10 +1,10 @@
 ﻿# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.32
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/19
 
 > 目標：完整複刻 `RoleViewView` 的「新增、查詢、更新、刪除、過濾、排序、分頁、驗證、通知」行為，並保留同等結構（Page + View + Service + AdapterModel + Entity + 註冊 + 樣式）。
 
@@ -107,6 +107,18 @@
    > 圖示名稱須為 **classic Material Icons**（非 Material Symbols），否則會渲染成破圖方塊。完整慣例見 `docs/architecture/開發慣例與限制速查.md` §6.1。
 
 3. **Modal + EditForm**
+   ⚠️ 這一段有守門測試，照舊寫法做會讓 CI 紅掉：
+   - `<Modal>` 上**必須**有 `Class="form-modal"`、`MaskClosable="false"`、`Keyboard="true"`、`OnCancel`，
+     且**不可**使用 `Width` 參數 —— 尺寸的唯一來源是 `Components/Commons/OverlayStyles.razor`。
+     由 `MyProject.Tests/FormModalConventionTests.cs` 守門（六項）。
+   - 欄位以 `<FormSection Title="...">` 分組，2 欄版型；不適合 2 欄的欄位加 `Class="form-field-full"`。
+   - 未儲存保護用 `Components/Commons/FormDirtyTracker.cs`。⚠️ **不可**改用 `EditContext.IsModified()`
+     —— AntDesign 元件不會呼叫 `NotifyFieldChanged`，它會**恆為 false**，提示永遠不跳且毫無徵兆。
+     失敗路徑一律 `return false`，走 `Components/Commons/FormModalFlow.cs`。
+   - `OnOk`／`OnCancel` 的**第一行**必須是 `modalVisible = true;`
+     —— AntDesign 在呼叫它們之前就已經送出關窗，不搶回來就會「驗證失敗 → 窗關了 → 輸入全丟」。
+   - 確認窗一律走 `Components/Commons/ConfirmDialog.cs`，不要自己寫 `ConfirmAsync`（必定漏 `Danger`）。
+   - 完整規範見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)。
    - `OnOk` 統一走儲存。
    - `DataAnnotationsValidator + ValidationSummary + ValidationMessage`。
    - 使用 `InputWatcher` 將 `EditContext` 傳到 code-behind，供 `Validate()` 使用。
@@ -165,7 +177,11 @@
    `AddScoped<YourEntityService>()`（DbContext 本身走 `AddDbContextFactory`，不要另外註冊）。
 6. 建立 `YourEntityView.razor`（照 RoleViewView 版型）。
 7. 建立 `YourEntityView.razor.cs`（照 RoleViewView 的狀態與事件流程）。
-8. 建立 `YourEntityView.razor.css`（先複製同命名 class，再微調）。
+8. 建立 `YourEntityView.razor.css` —— **只放版面（flex／寬度），不要放顏色**。
+   表格、分頁、輸入框、按鈕的視覺由全域的 `wwwroot/theme.css` 統一提供，十張表共用一份；
+   在檢視的 `.razor.css` 裡寫 `.ant-*` 只會對你正在改的那一頁生效，然後被複製到其他九頁。
+   狀態欄請用共用元件 `<StatusPill Text Tone />`，不要自己寫徽章樣式。
+   判準與陷阱見 [介面視覺設計規範](../architecture/介面視覺設計規範.md) 與速查表 §6.9。
 9. 建立 `YourEntityPage.razor` 與 `@page` 路由。
 10. **註冊權限鍵與選單（四處必須同步）**：`MagicObjectHelper` 權限鍵常數、`Datas/Menu.json`
     （唯一 `id`）、`SidebarMenuService.MenuPermissionMap`（id→權限鍵）、頁面自己的

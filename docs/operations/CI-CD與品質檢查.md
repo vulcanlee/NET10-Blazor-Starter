@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.4.47
+- 現行系統版本：0.9.32
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/08/27
+- 最後核對日期：2026/09/19
 
 本專案以 **GitHub Actions** 在每次 push 與 PR 時自動建置、測試與品質檢查。工作流程定義於 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)。
 
@@ -34,7 +34,7 @@
 | Format check | `dotnet format ... --verify-no-changes --no-restore` | 依 `.editorconfig` 驗證格式，有差異即失敗 |
 | Test | `dotnet test ... --configuration Release --no-build --verbosity normal` | 執行 xUnit 測試（見 [測試指南](../guides/測試指南.md)） |
 | Documentation encoding check | `./scripts/Test-DocsEncoding.ps1`（pwsh） | 檢查 `docs/` 文件編碼 |
-| Vulnerability scan | `dotnet list ... package --vulnerable --include-transitive` | 掃描已知弱點套件 |
+| Vulnerability scan | pwsh 解析 `dotnet list ... package --vulnerable --include-transitive` 的輸出 | 掃描已知弱點套件，**未列入允許清單者讓 CI 失敗** |
 
 ---
 
@@ -98,7 +98,20 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 為降低 NuGet 來源偶發逾時造成的假失敗，`NUGET_HTTP_TIMEOUT_SECONDS=180` 設在 **job 層級**，涵蓋 Restore／Build／Test／Vulnerability scan 全部步驟（0.4.47 前只掛在本步驟，最需要它的 Restore 反而沒有）。
 
-> 此步驟僅「列出」弱點，指令回傳 0、**不會讓 CI 失敗**；它與 restore/build 階段的 `NU1903` 稽核警告是兩條獨立路徑。
+⚠️ **這個指令找到弱點時仍然回傳 0。** 0.9.32 之前 CI 直接執行它，因此這道關卡從來沒有擋下過任何東西。
+0.9.32 起改由 pwsh 解析輸出並比對**允許清單**：
+
+| 情況 | 結果 |
+|------|------|
+| 出現不在允許清單中的諮詢 | ❌ CI 失敗 |
+| 只出現允許清單中的諮詢 | ✅ 通過 |
+| 允許清單中某筆**已不再出現**（上游修好了）| ❌ CI 失敗，要求你把它從清單與本文件移除 |
+
+最後一列是刻意的：豁免只能是暫時的。清單寫在 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)
+的 `$allowed`，目前只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。
+比對用諮詢代號而非訊息文字 —— dotnet CLI 的輸出會隨執行環境語系改變。
+
+它與 restore/build 階段的 `NU1903` 稽核警告仍是兩條獨立路徑。
 
 ### 4.1 已知並已抑制的弱點：CVE-2025-6965
 
@@ -111,7 +124,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | 風險評估 | 低：EF Core 採參數化查詢，無未受信任的原始 SQL 進入 SQLite（0.4.24 起 SQLite 為唯一支援的資料庫） |
 | 處置 | 於 [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) 以 `NuGetAuditSuppress` 抑制該 advisory，消除 restore/build 的 `NU1903` 警告 |
 
-**重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；上方的 `dotnet list package --vulnerable` 步驟為獨立查詢，**仍會列出**此 advisory（屬資訊性輸出，指令仍回傳 0、不阻斷 CI）。
+**重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；`dotnet list package --vulnerable` 是獨立查詢，**仍會列出**此 advisory。因此它必須同時出現在 CI 的 `$allowed` 允許清單中，兩處缺一不可。
 
 **移除條件**：待 `SQLitePCLRaw`（或 `Microsoft.EntityFrameworkCore.Sqlite`）釋出 bundled SQLite ≥ 3.50.2 的版本後，升級套件、移除 `Directory.Build.props` 內的 `NuGetAuditSuppress`、並刪除本小節。
 

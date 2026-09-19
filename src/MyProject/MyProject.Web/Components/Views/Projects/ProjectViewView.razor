@@ -59,7 +59,9 @@ else
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Description)" Title="描述" />
                 <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.StartDate)" Title="開始日期" Sortable />
                 <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.EndDate)" Title="結束日期" Sortable />
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Status)" Title="狀態" Sortable />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Status)" Title="狀態" Sortable>
+                    <StatusPill Text="@context.Status" Tone="@ResolveStatusTone(context.Status)" />
+                </Column>
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Priority)" Title="優先級" Sortable />
                 <Column TData="int" DataIndex="@nameof(ProjectAdapterModel.CompletionPercentage)" Title="完成百分比" Sortable />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Owner)" Title="負責人" Sortable />

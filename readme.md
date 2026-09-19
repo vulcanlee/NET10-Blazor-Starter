@@ -76,11 +76,14 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   可複製或匯出成 PDF 報告；供應商與金鑰在 `appsettings.json` 設定（0.9.4）
 - 資料庫用量頁：`/database-usage`，管理員可查看各資料表筆數與估算用量（0.4.28）
 - 日誌等級設定頁：`/log-level-setting`，管理員可在執行期調整日誌等級（0.4.29）
+- 系統例外紀錄：全專案任何 `logger.LogError(ex, …)` 自動收進 `/system-exceptions`，依簽章聚合並保存堆疊檔（0.9.11）
+- Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
+- 全站視覺系統：粉梅暖雪色票收斂為 `wwwroot/theme.css` 單一來源，浮層果凍化、深梅側邊欄、共用狀態徽章（0.9.25–0.9.31）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
 - 分散式快取：`ICacheService` 統一抽象，透過 `appsettings.json` 在 Memory ↔ Redis 間切換（側邊選單已套用）
 - Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略與 Redis 連線字串需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
-- 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、.NET 版本、啟動與已運作時間
+- 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
 - 全站請求耗時 / 例外統一寫入 NLog
 - 靜態資源外部對應（`/UploadFiles` → 實體下載目錄；**0.4.35 起需登入**才可取用）
@@ -143,7 +146,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider
-    │   ├── Health/                 ← 健康檢查與計分
+    │   ├── Ai/                     ← LLM 分析、安全 Markdown 渲染、PDF 報告、用量與計價
+│   ├── Health/                 ← 健康檢查與計分
     │   ├── wwwroot/                ← 靜態資源
     │   ├── nlog.config
     │   ├── Localization/           ← AntDesignLocaleFactory
@@ -196,11 +200,15 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
+| `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
+| `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
+| `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
-各區段詳解見 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md)。
+> 本表是摘要。**完整且具權威性的逐鍵說明在 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md) §4**
+> —— 新增 `appsettings.json` 區段時請以那份為主、本表為輔（見 [維護規範](docs/operations/維護規範.md) §2）。
 
 ---
 
@@ -241,6 +249,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [Web API 設計慣例](docs/architecture/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。
 - [Web API 端點目錄](docs/architecture/Web%20API%20端點目錄.md) — 全部 controller 的實際路由、授權與回傳型別對照表。
 - [對話窗 UI 設計規範](docs/architecture/對話窗%20UI%20設計規範.md) — 表單窗的滿版 2 欄版型與未儲存保護、小型確認窗、通知與消息條的果凍視覺。
+- [介面視覺設計規範](docs/architecture/介面視覺設計規範.md) — 常駐介面的分層強度、全站色票單一來源、樣式歸屬判準、側邊欄與表格規格、狀態徽章。
 - [API Versioning 策略](docs/architecture/API%20Versioning%20策略.md) — `/api/...` 與 `/api/v1/...` 平行路由、Swagger v1 分組與後續導入策略。
 
 ### 認證與安全（security）
@@ -263,6 +272,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [VS Code 開發環境與新專案上手指南](docs/guides/VS%20Code%20開發環境與新專案上手指南.md) — **新手入口**：必備工具、VS Code 啟動與偵錯、User Secrets 機密設定、品牌客製化（網頁圖示／品牌圖片／產品名稱與說明）、複製腳手架的完整更名步驟、驗證清單與疑難排解。
 - [建立一個新 CRUD 操作網頁說明](docs/guides/建立一個新%20CRUD%20操作網頁說明.md) — 新模組請先跑 `scripts/New-CrudModule.ps1`；本文為手動微調時的對照說明。
+- [腳手架開發指引](docs/guides/腳手架開發指引.md) — **總指引兼技術與參數百科**：16 項技術各自在解決什麼問題與怎麼調、設定檔逐鍵、沒寫在設定檔裡的旋鈕、換色與換主題、還缺什麼與還能加什麼、部署維運、AI 協作約束。
+- [畫面與欄位字典](docs/guides/畫面與欄位字典.md) — 每一個畫面與每一個欄位的意思、用途與陷阱。
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單（操作細節見上方上手指南）。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。

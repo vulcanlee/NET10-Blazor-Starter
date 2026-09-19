@@ -119,7 +119,7 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
     }
 
 # 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。
-$sourceUserSecretsId = "83f6d54f-9f34-4cd9-a626-d4c05c996e5d"
+$sourceUserSecretsId = "83f6d54f-9f33-4cd9-a626-d4c05c996e5d"
 $webCsproj = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File -Filter "$ProjectName.Web.csproj" |
     Select-Object -First 1
 

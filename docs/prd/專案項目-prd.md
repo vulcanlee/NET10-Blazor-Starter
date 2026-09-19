@@ -11,7 +11,7 @@
 提供「專案項目（Project）」的建立、查詢、修改、刪除與附件管理能力，同時作為新增其他領域 CRUD 模組時的參考樣板。
 
 - 範圍：清單查詢（關鍵字搜尋、分類／團隊過濾、排序、分頁）、單筆維護（含表單驗證）、多檔附件上傳／下載／刪除、動作級授權與團隊可見範圍控管。
-- 非範圍：專案間的相依關係／甘特圖、工時統計、跨專案報表、附件線上預覽；本腳手架不含 LLM／RAG 能力。
+- 非範圍：專案間的相依關係／甘特圖、工時統計、跨專案報表、附件線上預覽；本模組本身不含 AI 功能（全站的 AI 能力見「AI 日誌分析」與「Token 用量」兩份 PRD）。
 
 ## 二、使用者與入口
 
@@ -28,7 +28,7 @@
 ## 三、畫面與欄位
 
 - 工具列：新增、重新整理、分類過濾（多選）、團隊過濾（多選）、關鍵字輸入、清空、搜尋。
-- 清單欄位（`ProjectViewView.razor`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間；標題預設遞增排序。
+- 清單欄位（`ProjectViewView.razor`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間；標題預設遞增排序。0.9.30 起「狀態」以 `StatusPill` 徽章呈現（已完成＝綠、進行中＝梅、暫緩＝琥珀、未開始＝灰）。
 - 可排序欄位（`ProjectService.cs`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt。
 - 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner。
 - 分頁：`RemoteDataSource`，預設每頁 `MagicObjectHelper.PageSize`。

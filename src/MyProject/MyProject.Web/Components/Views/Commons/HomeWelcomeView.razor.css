@@ -11,11 +11,11 @@
 .home-hero {
     align-items: center;
     background:
-        radial-gradient(circle at top left, rgba(191, 219, 254, 0.65), transparent 40%),
-        linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
-    border: 1px solid rgba(226, 232, 240, 0.9);
+        radial-gradient(circle at top left, rgba(var(--app-inner-rgb), 0.35), transparent 40%),
+        linear-gradient(180deg, var(--app-tint) 0%, #fffafc 100%);
+    border: 1px solid var(--app-line);
     border-radius: 28px;
-    box-shadow: 0 24px 60px rgba(148, 163, 184, 0.22);
+    box-shadow: 0 24px 60px rgba(var(--app-shadow-rgb), 0.16);
     display: flex;
     gap: 1.75rem;
     padding: 2rem;
@@ -23,7 +23,7 @@
 
 .home-hero-image-wrap {
     align-items: center;
-    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+    background: linear-gradient(135deg, rgba(var(--app-inner-rgb), 0.3) 0%, var(--app-tint) 100%);
     border-radius: 24px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
     display: flex;
@@ -46,7 +46,7 @@
 }
 
 .home-eyebrow {
-    color: #2563eb;
+    color: var(--app-accent);
     font-size: 0.78rem;
     font-weight: 800;
     letter-spacing: 0.16em;
@@ -55,7 +55,7 @@
 }
 
 .home-title {
-    color: #0f172a;
+    color: var(--app-text);
     font-size: clamp(1.8rem, 2.5vw, 2.6rem);
     font-weight: 800;
     letter-spacing: -0.03em;
@@ -64,7 +64,7 @@
 }
 
 .home-description {
-    color: #475569;
+    color: var(--app-muted);
     font-size: 1rem;
     line-height: 1.7;
     margin: 0;
@@ -77,7 +77,7 @@
 }
 
 .home-section-title {
-    color: #0f172a;
+    color: var(--app-text);
     font-size: 1.15rem;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -92,9 +92,9 @@
 
 .home-feature-card {
     background: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(226, 232, 240, 0.9);
+    border: 1px solid var(--app-line);
     border-radius: 20px;
-    box-shadow: 0 12px 30px rgba(148, 163, 184, 0.14);
+    box-shadow: 0 12px 30px rgba(var(--app-shadow-rgb), 0.12);
     display: grid;
     gap: 0.6rem;
     padding: 1.35rem;
@@ -102,9 +102,9 @@
 
 .home-feature-icon {
     align-items: center;
-    background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+    background: linear-gradient(135deg, rgba(var(--app-inner-rgb), 0.3) 0%, var(--app-tint) 100%);
     border-radius: 14px;
-    color: #2563eb;
+    color: var(--app-accent);
     display: inline-flex;
     height: 2.75rem;
     justify-content: center;
@@ -112,14 +112,14 @@
 }
 
 .home-feature-title {
-    color: #0f172a;
+    color: var(--app-text);
     font-size: 1.02rem;
     font-weight: 700;
     margin: 0;
 }
 
 .home-feature-description {
-    color: #475569;
+    color: var(--app-muted);
     font-size: 0.92rem;
     line-height: 1.7;
     margin: 0;
@@ -134,9 +134,9 @@
 .home-quick-link {
     align-items: center;
     background: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(203, 213, 225, 0.85);
+    border: 1px solid var(--app-line);
     border-radius: 999px;
-    color: #1e293b;
+    color: var(--app-text);
     display: inline-flex;
     gap: 0.5rem;
     font-weight: 600;
@@ -147,20 +147,20 @@
 
 .home-quick-link:hover,
 .home-quick-link:focus-visible {
-    border-color: #2563eb;
-    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.16);
-    color: #2563eb;
+    border-color: var(--app-accent);
+    box-shadow: 0 8px 20px rgba(var(--app-accent-rgb), 0.18);
+    color: var(--app-accent);
 }
 
 .home-quick-link-icon {
     align-items: center;
-    color: #2563eb;
+    color: var(--app-accent);
     display: inline-flex;
 }
 
 .home-meta {
-    background: rgba(248, 250, 252, 0.95);
-    border: 1px solid rgba(203, 213, 225, 0.85);
+    background: rgba(255, 250, 252, 0.95);
+    border: 1px solid var(--app-line);
     border-radius: 20px;
     display: flex;
     flex-wrap: wrap;
@@ -175,14 +175,14 @@
 }
 
 .home-meta dt {
-    color: #64748b;
+    color: var(--app-muted);
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.08em;
 }
 
 .home-meta dd {
-    color: #0f172a;
+    color: var(--app-text);
     font-size: 0.95rem;
     font-weight: 600;
     margin: 0;

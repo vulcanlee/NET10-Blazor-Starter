@@ -40,8 +40,21 @@ else
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Sortable />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.IsAdminText)" Title="管理員" Sortable />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable>
+                    <StatusPill Text="@context.StatusText"
+                                Tone="@(context.Status ? StatusTone.Positive : StatusTone.Muted)" />
+                </Column>
+                @* 只有「是」值得一個徽章；每一列都掛一顆「否」只會讓這一欄變成雜訊。 *@
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.IsAdminText)" Title="管理員" Sortable>
+                    @if (context.IsAdmin)
+                    {
+                        <StatusPill Text="@context.IsAdminText" Tone="StatusTone.Accent" />
+                    }
+                    else
+                    {
+                        <span>—</span>
+                    }
+                </Column>
                 <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">

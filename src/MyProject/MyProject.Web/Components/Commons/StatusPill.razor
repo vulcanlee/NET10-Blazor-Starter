@@ -1,0 +1,32 @@
+@using Microsoft.AspNetCore.Components
+
+@*
+    表格裡的狀態徽章。
+
+    沿革：0.9.30 之前，分類清單與團隊清單各自帶著一份**逐字相同**的
+    .category-status / .team-status（連 #389e0d 的色碼都一樣），
+    而使用者管理與專案項目的狀態則是純文字。同一個概念三種長相。
+    這個元件把它們收成一份。
+
+    ⚠️ 語氣（Tone）由呼叫端決定，不要在這裡判斷字串內容 ——
+       「等待」在專案是中性、在別的模組可能是警示，元件無從得知。
+*@
+
+<span class="status-pill status-pill-@ToneClass">@Text</span>
+
+@code {
+    [Parameter]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public StatusTone Tone { get; set; } = StatusTone.Neutral;
+
+    private string ToneClass => Tone switch
+    {
+        StatusTone.Positive => "positive",
+        StatusTone.Muted => "muted",
+        StatusTone.Warning => "warning",
+        StatusTone.Accent => "accent",
+        _ => "neutral",
+    };
+}

@@ -16,7 +16,7 @@
 }
 
 .log-view-range-separator {
-    color: #94a3b8;
+    color: var(--app-off);
 }
 
 .log-view-search-input {
@@ -45,8 +45,8 @@
     word-break: break-all;
     font-size: 12px;
     line-height: 1.6;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: #fffafc;
+    border: 1px solid var(--app-line);
     border-radius: 4px;
 }
 
@@ -95,13 +95,13 @@
 .log-ai-loading-title {
     margin: 0;
     font-size: 24px;
-    color: #1e293b;
+    color: var(--app-text);
 }
 
 .log-ai-loading-elapsed {
     margin: 0;
     font-size: 16px;
-    color: #475569;
+    color: var(--app-muted);
 }
 
 .log-ai-loading-hint {
@@ -109,7 +109,7 @@
     max-width: 560px;
     font-size: 13px;
     line-height: 1.8;
-    color: #94a3b8;
+    color: var(--app-off);
 }
 
 /* ----- 失敗 ----- */
@@ -136,7 +136,7 @@
     max-width: 720px;
     font-size: 15px;
     line-height: 1.9;
-    color: #334155;
+    color: var(--app-muted);
 }
 
 .log-ai-failed-hint {
@@ -144,15 +144,15 @@
     max-width: 720px;
     font-size: 12px;
     line-height: 1.8;
-    color: #94a3b8;
+    color: var(--app-off);
     word-break: break-all;
 }
 
 .log-ai-meta {
     margin: 0 0 16px;
     padding: 10px 12px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: #fffafc;
+    border: 1px solid var(--app-line);
     border-radius: 4px;
 }
 
@@ -166,13 +166,13 @@
 .log-ai-meta-term {
     flex: 0 0 88px;
     margin: 0;
-    color: #64748b;
+    color: var(--app-muted);
     font-weight: normal;
 }
 
 .log-ai-meta-value {
     margin: 0;
-    color: #334155;
+    color: var(--app-muted);
     word-break: break-all;
 }
 
@@ -189,15 +189,15 @@
     margin: 20px 0 8px;
     padding-bottom: 4px;
     font-size: calc(17px * var(--ai-font-scale, 1));
-    color: #1e293b;
-    border-bottom: 1px solid #e2e8f0;
+    color: var(--app-text);
+    border-bottom: 1px solid var(--app-line);
 }
 
 .log-ai-report ::deep h3,
 .log-ai-report ::deep h4 {
     margin: 16px 0 6px;
     font-size: calc(15px * var(--ai-font-scale, 1));
-    color: #1e293b;
+    color: var(--app-text);
 }
 
 .log-ai-report ::deep p {
@@ -218,8 +218,8 @@
 .log-ai-report ::deep blockquote {
     margin: 0 0 10px;
     padding: 2px 0 2px 12px;
-    color: #64748b;
-    border-left: 3px solid #e2e8f0;
+    color: var(--app-muted);
+    border-left: 3px solid var(--app-line);
 }
 
 .log-ai-report ::deep pre {
@@ -230,8 +230,8 @@
     white-space: pre-wrap;
     word-break: break-all;
     overflow-x: auto;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: #fffafc;
+    border: 1px solid var(--app-line);
     border-radius: 4px;
 }
 
