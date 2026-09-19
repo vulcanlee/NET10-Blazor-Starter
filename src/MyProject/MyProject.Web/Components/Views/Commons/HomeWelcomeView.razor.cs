@@ -79,6 +79,7 @@ public partial class HomeWelcomeView
     private string SystemVersion => SystemSettingsOptions.Value.SystemInformation.SystemVersion;
 
     private string RoleMessage = string.Empty;
+    private bool isAccessChecked;
 
     private IReadOnlyList<QuickLink> quickLinks = [];
 
@@ -92,6 +93,8 @@ public partial class HomeWelcomeView
             Logger.LogWarning("Home welcome view initialization stopped because authentication check failed.");
             return;
         }
+
+        isAccessChecked = true;
 
         if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_首頁) == false)
         {

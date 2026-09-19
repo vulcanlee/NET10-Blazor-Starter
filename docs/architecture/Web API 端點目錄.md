@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.41
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/19
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -75,9 +75,10 @@
 `Program.cs` 的 `app.MapControllers().RequireAuthorization()` 讓**未明確標註授權的 Controller 一律拒絕**。
 需要匿名存取的端點必須自己標 `[AllowAnonymous]`（目前為 `AuthController` 的 login/refresh 與整個 `ExternalAuthController`）。
 
-> 刻意**只**套在 Controller 上，不使用 `AuthorizationOptions.FallbackPolicy`：後者會把 Blazor 的
-> Razor Components 端點一起納入，而本專案的頁面全部沒有 `[Authorize]`（改在 `OnInitializedAsync`
-> 內命令式檢查），套上去會連登入頁本身都鎖死。
+> 刻意**只**套在 Controller 上，不使用 `AuthorizationOptions.FallbackPolicy`。Blazor 頁面另有自己的
+> 「預設需登入」機制（0.9.41 起）：`Components/Pages/_Imports.razor` 對整個 `Pages/` 標 `[Authorize]`，
+> 登入頁等匿名頁面各自標 `[AllowAnonymous]` 並由 `PageAuthorizationTests` 白名單守門。
+> 詳見 [開發慣例與限制速查 §5.1](開發慣例與限制速查.md)。
 
 > 0.4.34 移除了模板遺留的 `WeatherForecastController`（無授權標註、路由不在 `/api` 之下、回傳裸物件）。
 

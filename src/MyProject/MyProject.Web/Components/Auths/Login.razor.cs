@@ -59,7 +59,7 @@ namespace MyProject.Web.Components.Auths
         private string GoogleLoginUrl =>
             string.IsNullOrWhiteSpace(ReturnUrl)
                 ? "/Auths/Google/Login"
-                : $"/Auths/Google/Login?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+                : $"/Auths/Google/Login?returnUrl={Uri.EscapeDataString(ReturnUrlGuard.Sanitize(ReturnUrl))}";
 
         protected override Task OnInitializedAsync()
         {
@@ -137,7 +137,7 @@ namespace MyProject.Web.Components.Auths
 
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
-                string returnUrl = string.IsNullOrEmpty(ReturnUrl) ? "/App" : ReturnUrl;
+                string returnUrl = ReturnUrlGuard.Sanitize(ReturnUrl);
                 var authProperties = new AuthenticationProperties
                 {
                     IsPersistent = Input.RememberMe,

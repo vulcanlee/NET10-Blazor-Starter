@@ -50,6 +50,7 @@ namespace MyProject.Web.Components.Views.Analytics
         private bool isLoading;
         private bool isExportingPdf;
         private string RoleMessage = string.Empty;
+        private bool isAccessChecked;
         private string activeTabKey = TabByAccount;
 
         private List<TokenUsageLogAdapterModel> rows = [];
@@ -181,6 +182,8 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 return;
             }
+
+            isAccessChecked = true;
 
             // 此頁為管理員專屬：權限鍵刻意未上架角色矩陣，因此以 CheckIsAdmin 直接判斷，
             // 與同子功能表的其他頁面一致。權限未通過前不讀取任何用量資訊。

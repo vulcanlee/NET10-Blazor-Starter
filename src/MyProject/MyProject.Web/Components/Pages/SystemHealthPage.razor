@@ -9,7 +9,11 @@
 
 <PageTitle>系統健康監控</PageTitle>
 
-@if (!string.IsNullOrWhiteSpace(roleMessage))
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (!string.IsNullOrWhiteSpace(roleMessage))
 {
     <div class="alert alert-danger" role="alert">
         @roleMessage
@@ -84,6 +88,7 @@ else
 @code {
     private SystemHealthReport? report;
     private string? roleMessage;
+    private bool isAccessChecked;
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,6 +100,8 @@ else
             Logger.LogWarning("System health page initialization stopped because authentication check failed.");
             return;
         }
+
+        isAccessChecked = true;
 
         if (!AuthenticationStateHelper.CheckIsAdmin())
         {

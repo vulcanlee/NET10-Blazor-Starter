@@ -40,6 +40,7 @@ namespace MyProject.Web.Components.Views.Admins
         public EditContext? LocalEditContext { get; set; }
         bool isNewRecordMode;
         string RoleMessage = string.Empty;
+        bool isAccessChecked;
 
         /// <summary>
         /// 未儲存變更偵測。開窗時 Capture、按取消／儲存時比對，
@@ -81,6 +82,8 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogWarning("User management view initialization stopped because authentication check failed.");
                 return;
             }
+
+            isAccessChecked = true;
 
             if (!AuthenticationStateHelper.CheckIsAdmin())
             {

@@ -42,6 +42,7 @@ namespace MyProject.Web.Components.Views.Teams
         /// </summary>
         private readonly FormDirtyTracker dirtyTracker = new();
         string RoleMessage = string.Empty;
+        bool isAccessChecked;
 
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -73,6 +74,8 @@ namespace MyProject.Web.Components.Views.Teams
                 logger.LogWarning("Team view initialization stopped because authentication check failed.");
                 return;
             }
+
+            isAccessChecked = true;
 
             if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_團隊清單) == false)
             {

@@ -1,10 +1,10 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.29
+- 現行系統版本：0.9.41
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/09/18
+- 最後核對日期：2026/09/19
 
 ## 一、目標與範圍
 
@@ -23,7 +23,7 @@
 
 ## 三、畫面與欄位
 
-- 啟動頁（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未通過則導向 `/Auths/Logout`，故此頁只在切換當下一閃而過。
+- 啟動頁（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未登入則導向 `/Auths/Login`（0.9.39 起；帳號停用等其他失敗仍導向 `/Auths/Logout`）。此頁與 `Error`、`NotFound`、登入相關頁是全系統僅有的匿名頁面（0.9.41 起其餘頁面一律需登入，未登入者直接輸入網址會在 HTTP 層被導去登入頁、看不到任何畫面，見 [開發慣例與限制速查 §5.1](../architecture/開發慣例與限制速查.md)）。
 - 系統介紹首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**）：登入後的第一個畫面，為**純靜態內容、不讀資料庫**，套用主版面與側邊選單。四個區塊由上而下：
 
   | 區塊 | 內容 | 來源 |

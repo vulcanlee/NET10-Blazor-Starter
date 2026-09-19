@@ -1,6 +1,10 @@
 ﻿@using MyProject.Web.Diagnostics
 
-@if (string.IsNullOrEmpty(RoleMessage) == false)
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (string.IsNullOrEmpty(RoleMessage) == false)
 {
     <div class="alert alert-danger" role="alert">
         @RoleMessage

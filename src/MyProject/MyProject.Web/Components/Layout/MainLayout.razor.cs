@@ -60,6 +60,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
     private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
     private bool CurrentUserIsAdmin { get; set; }
+    private bool isAuthenticated;
     private bool isSidebarCollapsed = true;
     private bool isUserMenuOpen;
 
@@ -86,6 +87,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         UpdateCurrentUserStatus();
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
+        isAuthenticated = true;
     }
 
     private void UpdateCurrentUserStatus()

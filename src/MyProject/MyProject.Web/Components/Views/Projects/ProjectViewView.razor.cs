@@ -51,6 +51,7 @@ public partial class ProjectViewView
     public EditContext? LocalEditContext { get; set; }
     private bool isNewRecordMode;
     private string RoleMessage = string.Empty;
+    private bool isAccessChecked;
 
     /// <summary>
     /// 未儲存變更偵測。開窗時 Capture、按取消／儲存時比對，
@@ -97,6 +98,8 @@ public partial class ProjectViewView
             logger.LogWarning("Project management view initialization stopped because authentication check failed.");
             return;
         }
+
+        isAccessChecked = true;
 
         if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_專案項目) == false)
         {

@@ -1,103 +1,112 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
-    <div class="sidebar">
-        <NavMenu IsSidebarCollapsed="isSidebarCollapsed" OnSidebarToggle="ToggleSidebar" />
-    </div>
+@*
+    登入檢查完成前整個版面（側邊欄、頁首、頁面本體、對話窗）都不渲染。
+    未登入的整頁請求早已在 HTTP 層被 [Authorize] 擋掉（Components/Pages/_Imports.razor）；
+    這裡擋的是「Cookie 還在、但帳號已停用／被刪／沒有角色」—— 那些情況會被導去登出，
+    之前會先閃出系統框架。由 PageAuthorizationTests 守門。
+*@
+@if (isAuthenticated)
+{
+    <div class="page @(isSidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
+        <div class="sidebar">
+            <NavMenu IsSidebarCollapsed="isSidebarCollapsed" OnSidebarToggle="ToggleSidebar" />
+        </div>
 
-    <main>
-        <div class="top-row px-4">
-            <div class="top-row-title">@CurrentPageTitle</div>
-            <div class="top-row-status">
-                <div class="user-menu @(isUserMenuOpen ? "user-menu-open" : string.Empty)">
-                    <button type="button"
-                            class="user-menu-trigger"
-                            aria-label="使用者操作"
-                            aria-expanded="@isUserMenuOpen"
-                            aria-haspopup="menu"
-                            @onclick="ToggleUserMenu">
-                        <span class="user-menu-icon" aria-hidden="true">
-                            <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="account_circle" />
-                        </span>
-                        <span class="user-menu-text">
-                            <span class="user-menu-name">@CurrentUserDisplayName</span>
-                            @if (CurrentUserIsAdmin)
-                            {
-                                <span class="user-menu-badge">管理員</span>
-                            }
-                        </span>
-                        <span class="user-menu-caret" aria-hidden="true">
-                            <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="expand_more" />
-                        </span>
-                    </button>
+        <main>
+            <div class="top-row px-4">
+                <div class="top-row-title">@CurrentPageTitle</div>
+                <div class="top-row-status">
+                    <div class="user-menu @(isUserMenuOpen ? "user-menu-open" : string.Empty)">
+                        <button type="button"
+                                class="user-menu-trigger"
+                                aria-label="使用者操作"
+                                aria-expanded="@isUserMenuOpen"
+                                aria-haspopup="menu"
+                                @onclick="ToggleUserMenu">
+                            <span class="user-menu-icon" aria-hidden="true">
+                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="account_circle" />
+                            </span>
+                            <span class="user-menu-text">
+                                <span class="user-menu-name">@CurrentUserDisplayName</span>
+                                @if (CurrentUserIsAdmin)
+                                {
+                                    <span class="user-menu-badge">管理員</span>
+                                }
+                            </span>
+                            <span class="user-menu-caret" aria-hidden="true">
+                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="expand_more" />
+                            </span>
+                        </button>
 
-                    <div class="user-menu-dropdown @(isUserMenuOpen ? "user-menu-dropdown-open" : string.Empty)"
-                         role="menu"
-                         aria-label="使用者操作">
-                        <button type="button" class="user-menu-item" role="menuitem" @onclick="OnChangePasswordClick">變更密碼</button>
-                        <a class="user-menu-item" href="/Profile" role="menuitem">設定 API 密碼</a>
-                        <button type="button" class="user-menu-item" role="menuitem" @onclick="OnAboutClick">關於</button>
-                        <button type="button" class="user-menu-item" role="menuitem" @onclick="OnLogoutClickAsync">登出</button>
+                        <div class="user-menu-dropdown @(isUserMenuOpen ? "user-menu-dropdown-open" : string.Empty)"
+                             role="menu"
+                             aria-label="使用者操作">
+                            <button type="button" class="user-menu-item" role="menuitem" @onclick="OnChangePasswordClick">變更密碼</button>
+                            <a class="user-menu-item" href="/Profile" role="menuitem">設定 API 密碼</a>
+                            <button type="button" class="user-menu-item" role="menuitem" @onclick="OnAboutClick">關於</button>
+                            <button type="button" class="user-menu-item" role="menuitem" @onclick="OnLogoutClickAsync">登出</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    </div>
 
-<Modal Title="變更密碼"
-       Class="change-password-modal"
-       @bind-Visible="@changePasswordVisible"
-       Keyboard="true"
-       OnOk="OnChangePasswordOkAsync"
-       OnCancel="OnChangePasswordCancelAsync"
-       OkText="@("確認變更")"
-       CancelText="@("取消")">
-    @if (isSupportAccount)
-    {
-        <AntDesign.Alert Message="系統預設帳號 support 不允許變更密碼。" Type="@AntDesign.AlertType.Warning" ShowIcon="true" />
-    }
-    else
-    {
-        <AntDesign.Form TModel="ChangePasswordForm" Model="@changePasswordForm" Layout="FormLayout.Vertical">
-            <FormItem Label="目前密碼" Required>
-                <InputPassword @bind-Value="changePasswordForm.CurrentPassword" Placeholder="請輸入目前密碼" />
-            </FormItem>
-            <FormItem Label="新密碼" Required>
-                <InputPassword @bind-Value="changePasswordForm.NewPassword" Placeholder="請輸入新密碼（至少 6 個字元）" />
-            </FormItem>
-            <FormItem Label="確認新密碼" Required>
-                <InputPassword @bind-Value="changePasswordForm.ConfirmPassword" Placeholder="請再次輸入新密碼" />
-            </FormItem>
-            @if (!string.IsNullOrEmpty(changePasswordErrorMessage))
-            {
-                <AntDesign.Alert Message="@changePasswordErrorMessage" Type="@AntDesign.AlertType.Error" ShowIcon="true" />
-            }
-        </AntDesign.Form>
-    }
-</Modal>
-
-@* 尺寸寫在 Components/Commons/OverlayStyles.razor 的 .about-modal，不用 Width 參數（速查表 §6.4）。 *@
-<Modal Title="關於"
-       Class="about-modal"
-       @bind-Visible="@aboutVisible"
-       Keyboard="true"
-       Footer="null"
-       OnCancel="OnAboutCancel">
-    <dl class="about-list">
-        @foreach (var item in aboutItems)
+    <Modal Title="變更密碼"
+           Class="change-password-modal"
+           @bind-Visible="@changePasswordVisible"
+           Keyboard="true"
+           OnOk="OnChangePasswordOkAsync"
+           OnCancel="OnChangePasswordCancelAsync"
+           OkText="@("確認變更")"
+           CancelText="@("取消")">
+        @if (isSupportAccount)
         {
-            <div class="about-row">
-                <dt class="about-term">@item.Key</dt>
-                <dd class="about-value">@item.Value</dd>
-            </div>
+            <AntDesign.Alert Message="系統預設帳號 support 不允許變更密碼。" Type="@AntDesign.AlertType.Warning" ShowIcon="true" />
         }
-    </dl>
-</Modal>
+        else
+        {
+            <AntDesign.Form TModel="ChangePasswordForm" Model="@changePasswordForm" Layout="FormLayout.Vertical">
+                <FormItem Label="目前密碼" Required>
+                    <InputPassword @bind-Value="changePasswordForm.CurrentPassword" Placeholder="請輸入目前密碼" />
+                </FormItem>
+                <FormItem Label="新密碼" Required>
+                    <InputPassword @bind-Value="changePasswordForm.NewPassword" Placeholder="請輸入新密碼（至少 6 個字元）" />
+                </FormItem>
+                <FormItem Label="確認新密碼" Required>
+                    <InputPassword @bind-Value="changePasswordForm.ConfirmPassword" Placeholder="請再次輸入新密碼" />
+                </FormItem>
+                @if (!string.IsNullOrEmpty(changePasswordErrorMessage))
+                {
+                    <AntDesign.Alert Message="@changePasswordErrorMessage" Type="@AntDesign.AlertType.Error" ShowIcon="true" />
+                }
+            </AntDesign.Form>
+        }
+    </Modal>
+
+    @* 尺寸寫在 Components/Commons/OverlayStyles.razor 的 .about-modal，不用 Width 參數（速查表 §6.4）。 *@
+    <Modal Title="關於"
+           Class="about-modal"
+           @bind-Visible="@aboutVisible"
+           Keyboard="true"
+           Footer="null"
+           OnCancel="OnAboutCancel">
+        <dl class="about-list">
+            @foreach (var item in aboutItems)
+            {
+                <div class="about-row">
+                    <dt class="about-term">@item.Key</dt>
+                    <dd class="about-value">@item.Value</dd>
+                </div>
+            }
+        </dl>
+    </Modal>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

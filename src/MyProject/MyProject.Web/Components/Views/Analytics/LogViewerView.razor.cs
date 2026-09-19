@@ -88,6 +88,7 @@ namespace MyProject.Web.Components.Views.Analytics
         private List<LogEntry> entriesDisplay = new();
 
         private string RoleMessage = string.Empty;
+        private bool isAccessChecked;
 
         // AI 分析狀態。
         private bool aiAvailable;
@@ -175,6 +176,8 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 return;
             }
+
+            isAccessChecked = true;
 
             // 此頁為管理員專屬：權限鍵刻意未上架角色矩陣，因此以 CheckIsAdmin 直接判斷，
             // 與既有的系統健康監控頁一致。權限未通過前不讀取任何日誌內容。

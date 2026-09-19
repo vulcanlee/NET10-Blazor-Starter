@@ -1,10 +1,10 @@
 ﻿# 資料庫用量 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.41
 - 首次實作版本：0.4.28
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/19
 
 ## 一、目標與範圍
 
@@ -67,7 +67,7 @@
 - **位元組估算是每張表全表掃描**，成本與資料庫總大小成正比且無索引可用。目前資料庫為數百 KB 等級 故可忽略；服務會記錄每次量測耗時，日後真的變慢才有數據可依據。
 - **`Microsoft.Data.Sqlite` 的 async 是假的**：`ExecuteScalarAsync` 等方法是同步工作包在已完成的 Task 裡。因此 `CancellationToken` 無法中止已在進行的掃描，以逾時來設限並不會真的生效。
 - **已配置可能大於主檔大小**：`page_count` 回報的是「此連線所見的資料庫大小」，包含仍只存在於 WAL、尚未 checkpoint 回主檔的頁。這正是副標「含尚未併回主檔的頁」的意思，不是錯誤。
-- **無伺服器端路由守衛**：本頁沒有 `[Authorize]` 屬性，唯一防線是 `OnInitializedAsync` 內的 `CheckIsAdmin()`，與既有 `/system-health`、`/logs` 一致。
+- **路由守衛只到「已登入」**：0.9.41 起本頁繼承 `Pages/_Imports.razor` 的 `[Authorize]`，未登入者在 HTTP 層就被導去登入頁；「管理員專屬」仍由 `OnInitializedAsync` 內的 `CheckIsAdmin()` 判斷，判定完成前不渲染任何內容，與 `/system-health`、`/logs` 一致。
 - 索引數計入具名索引與 `UNIQUE` 隱含產生的 `sqlite_autoindex_*`；不計 rowid B-tree 與 `INTEGER PRIMARY KEY`（前者就是資料表本身，後者是 rowid 別名，皆不額外占空間）。
 
 ## 六、驗收與測試

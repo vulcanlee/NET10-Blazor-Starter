@@ -46,6 +46,7 @@ namespace MyProject.Web.Components.Views.Admins
         /// </summary>
         private readonly FormDirtyTracker dirtyTracker = new();
         string RoleMessage = string.Empty;
+        bool isAccessChecked;
 
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -81,6 +82,8 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogWarning("Role view initialization stopped because authentication check failed.");
                 return;
             }
+
+            isAccessChecked = true;
 
             if (!AuthenticationStateHelper.CheckIsAdmin())
             {

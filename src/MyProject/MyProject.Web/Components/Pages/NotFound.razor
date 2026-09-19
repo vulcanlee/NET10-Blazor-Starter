@@ -1,5 +1,12 @@
 ﻿@page "/not-found"
 @layout MainLayout
+@*
+    ⚠️ 必須匿名：UseStatusCodePagesWithReExecute 會把「沒有 body 的錯誤狀態碼」（API 的 404、
+    /UploadFiles 的 401…）改寫成 /not-found 再跑一次管線。這頁若要求登入，那些回應全都會被
+    Cookie challenge 換成 302 到登入頁 —— API 呼叫端拿不到真正的狀態碼。
+    未登入者一樣看不到任何東西：MainLayout 在登入檢查通過前不渲染（含這頁的內容），並把人導去登入頁。
+*@
+@attribute [AllowAnonymous]
 @inject ILogger<NotFound> Logger
 @inject NavigationManager NavigationManager
 
