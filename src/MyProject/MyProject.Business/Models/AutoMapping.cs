@@ -78,6 +78,13 @@ public class AutoMapping : Profile
         CreateMap<ExceptionLog, ExceptionLogAdapterModel>();
         #endregion
 
+        #region AuditLog
+        // 稽核紀錄為唯讀頁面，只需要 Entity → AdapterModel 單向映射。
+        // ⚠️ OccurredAt 在資料表是 UTC，映射只做原值搬運；UTC → 本地的換算
+        //    統一由 AuditLogQueryService 在映射之後處理，不要在這裡加 ConvertUsing。
+        CreateMap<AuditLog, AuditLogAdapterModel>();
+        #endregion
+
         #region MyUser
         CreateMap<MyUser, MyUserAdapterModel>();
         CreateMap<MyUserAdapterModel, MyUser>();

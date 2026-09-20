@@ -77,6 +77,8 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 資料庫用量頁：`/database-usage`，管理員可查看各資料表筆數與估算用量（0.4.28）
 - 日誌等級設定頁：`/log-level-setting`，管理員可在執行期調整日誌等級（0.4.29）
 - 系統例外紀錄：全專案任何 `logger.LogError(ex, …)` 自動收進 `/system-exceptions`，依簽章聚合並保存堆疊檔（0.9.11）
+- 稽核紀錄：登入、使用者／角色／權限異動等事件寫入 `AuditLog`，管理員可於 `/audit-logs` 查詢、匯出與清除；
+  清除與清空動作本身也會留下紀錄（0.9.42）
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - 全站視覺系統：粉梅暖雪色票收斂為 `wwwroot/theme.css` 單一來源，浮層果凍化、深梅側邊欄、共用狀態徽章（0.9.25–0.9.31）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）

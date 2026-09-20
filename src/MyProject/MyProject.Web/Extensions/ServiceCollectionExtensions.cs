@@ -106,6 +106,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CategoryRepository>();
         services.AddScoped<TeamService>();
         services.AddScoped<TeamRepository>();
+
+        // 稽核紀錄的「讀」端。寫端是 Services/Other 的 AuditLogService，它注入 scoped
+        // BackendDBContext 以便夾在各業務流程的交易裡；讀端只服務 Blazor 畫面，
+        // 因此另開一支並改注入 IDbContextFactory（見 DataAccessServiceLifetimeTests）。
+        services.AddScoped<AuditLogQueryService>();
+
         #region 系統例外紀錄
         // 記錄管線：ILoggerProvider（生產）→ 有界 Channel → ExceptionLogWriter（消費）→ ExceptionLogService。
         // Channel 有界且滿載即丟棄：寧可漏記，也不能讓例外記錄拖垮正在等待的使用者。

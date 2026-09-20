@@ -653,6 +653,85 @@
         }
     }
 
+    /* audit log detail modal: read-only, no stack trace so it needs less height than the exception one */
+    .audit-log-modal {
+        width: 72vw !important;
+        max-width: 72vw !important;
+        top: 8vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+        .audit-log-modal .ant-modal-content {
+            max-height: 84vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        .audit-log-modal .ant-modal-header {
+            flex-shrink: 0;
+        }
+
+        .audit-log-modal .ant-modal-body {
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+        }
+
+    /*
+       明細窗的內容樣式寫在這裡（全域）而非 AuditLogView.razor.css：
+       這些規則與 AntDesign 自己渲染的 .ant-modal-* 搭配使用，
+       而那些元素不帶檢視的 scope 屬性，scoped CSS（含 ::deep）打不到。
+    */
+    .audit-log-modal .audit-log-detail-list {
+        display: grid;
+        gap: 0.5rem;
+        margin: 0 0 1.25rem;
+    }
+
+    .audit-log-modal .audit-log-detail-list > div {
+        display: grid;
+        gap: 0.25rem 1rem;
+        grid-template-columns: 11rem 1fr;
+    }
+
+    .audit-log-modal .audit-log-detail-list dt {
+        color: var(--ov-muted);
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .audit-log-modal .audit-log-detail-list dd {
+        color: var(--ov-text);
+        font-size: 0.9rem;
+        margin: 0;
+        word-break: break-word;
+    }
+
+    .audit-log-modal .audit-log-detail-title {
+        color: var(--ov-accent);
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem;
+    }
+
+    .audit-log-modal .audit-log-detail-text {
+        color: var(--ov-text);
+        font-size: 0.85rem;
+        line-height: 1.6;
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    @@media (max-width: 640.98px) {
+        /* 窄螢幕沒有 11rem 可以留給標題，改成上下堆疊 */
+        .audit-log-modal .audit-log-detail-list > div {
+            grid-template-columns: 1fr;
+        }
+    }
+
     /* token usage detail modal: large read-only view */
     .token-usage-modal {
         width: 90vw !important;
