@@ -1,10 +1,10 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：維護中
-- 現行系統版本：0.9.18
+- 現行系統版本：0.9.42
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/09/17
+- 最後核對日期：2026/09/20
 
 本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析與 Token 用量／費用計價**（見「AI 日誌分析」「Token 用量」「LLM 呼叫費用估算」三份 PRD），但**不含 RAG／向量檢索／對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
@@ -26,13 +26,14 @@
 | 系統例外紀錄 | [系統例外紀錄](系統例外紀錄-prd.md) | `/system-exceptions` | `Pages/Admins/ExceptionLogPage.razor`、`Diagnostics/ExceptionLogProvider`、`ExceptionLogService` | 已實作 | 0.9.12 |
 | Token 用量 | [Token 用量](Token用量-prd.md) | `/token-usage` | `Pages/Analytics/TokenUsagePage.razor`、`ITokenUsageRecorder`、`TokenUsageLogService`、`TokenUsageRawStore` | 已實作（0.9.17 起每列含費用估算）| 0.9.18 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.4.42 |
+| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面）| 0.9.42 |
 
 ## 二、無選單入口的核心能力
 
 | 能力 | PRD 歸屬 | 現況 |
 |------|----------|------|
 | 動作級授權（`[HasPermission("resource:action")]`）與管理員短路 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)、[角色管理](角色管理-prd.md) | 已實作，UI 與 API 共用單一 RBAC 權威 |
-| 稽核軌跡（`AuditLog`：登入、使用者/角色/權限異動）| [使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md) | 已實作 |
+| 稽核事件的**寫入點**（登入、使用者/角色/權限異動）| [稽核紀錄](稽核紀錄-prd.md)、[使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md) | 已實作；0.9.42 起查詢畫面見 `/audit-logs`，本列只涵蓋散落各流程的寫入點 |
 | 帳號安全（PBKDF2、帳號鎖定、TOTP 骨架）| [登入與帳號流程](登入與帳號流程-prd.md) | 已實作；TOTP 預設關閉 |
 | 檔案上傳（專案附件）| [專案項目](專案項目-prd.md) | 已實作 |
 | LLM 呼叫費用估算（單價／匯率設定、四種計費單位、單價快照）| [LLM 呼叫費用估算](LLM呼叫費用估算-prd.md) | 已實作（0.9.17）；表現在「Token 用量」頁，維護入口是 `appsettings.json` |
