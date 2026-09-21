@@ -21,7 +21,6 @@ public interface ISystemHealthService
 
 public sealed class SystemHealthService : ISystemHealthService
 {
-    private const string DevelopmentSigningKey = "DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars";
     private readonly BackendDBContext context;
     private readonly IConfiguration configuration;
     private readonly IWebHostEnvironment environment;
@@ -224,7 +223,7 @@ public sealed class SystemHealthService : ISystemHealthService
             && !string.IsNullOrWhiteSpace(jwtSettings.SigningKey)
             && jwtSettings.SigningKey.Length >= 32;
         var usesDevelopmentKeyInProduction = environment.IsProduction()
-            && string.Equals(jwtSettings.SigningKey, DevelopmentSigningKey, StringComparison.Ordinal);
+            && JwtSettings.IsPlaceholderSigningKey(jwtSettings.SigningKey);
 
         var status = hasCookie && hasJwt && hasRequiredJwtSettings && !usesDevelopmentKeyInProduction
             ? SystemHealthStatus.Healthy

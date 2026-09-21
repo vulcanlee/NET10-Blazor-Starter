@@ -149,8 +149,11 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         $content = $content.Replace($SourceProjectName, $ProjectName)
         $content = $content.Replace($sourceUserSecretsId, $UserSecretsId)
         if ($_.Name -eq "appsettings.json") {
+            # 註：這裡刻意**不**動 BootstrapSettings:SupportPassword。
+            # 換成另一個固定佔位值並不會比較安全，只是把弱值換成另一個弱值；
+            # 真正的防線是 StartupSafetyValidator —— 本機開發仍可用文件記載的預設帳密登入，
+            # Production 則會因為「仍是範本預設密碼」被擋下啟動。
             $content = $content.Replace("DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars", "$ProjectName-ChangeThisJwtSigningKey-AtLeast32Chars")
-            $content = $content.Replace('"SupportPassword": "support"', '"SupportPassword": "change-me"')
         }
         [System.IO.File]::WriteAllText($_.FullName, $content, (New-Object System.Text.UTF8Encoding($hasBom)))
     }
@@ -299,7 +302,7 @@ else {
 
 $remainingMatches = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
     Where-Object { $textExtensions -contains $_.Extension } |
-    Select-String -Pattern $SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", '"SupportPassword": "support"', $sourceUserSecretsId -SimpleMatch
+    Select-String -Pattern $SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", $sourceUserSecretsId -SimpleMatch
 
 if ($remainingMatches) {
     Write-Warning "Scaffold completed, but safety checks found values that still need review:"

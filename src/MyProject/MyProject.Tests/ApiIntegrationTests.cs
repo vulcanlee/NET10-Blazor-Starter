@@ -344,6 +344,58 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     /// <summary>
+    /// 衍生專案形式的佔位金鑰同樣必須被擋下。
+    /// ⚠️ 這條擋的是 0.9.47 查到的缺陷：原本用字面值精確比對，
+    /// <c>New-StarterProject.ps1</c> 一把前綴換成專案代號，整道防線就靜默失效。
+    /// </summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithDerivedProjectPlaceholderKey_ShouldFailFast()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["JwtSettings:SigningKey"] = "Acme-ChangeThisJwtSigningKey-AtLeast32Chars",
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("JwtSettings:SigningKey", exception.Message);
+    }
+
+    /// <summary>
+    /// <c>SupportPassword</c> 留空不是「不設定」，而是把空字串雜湊成管理員密碼
+    /// （<c>Program.cs</c> 的 seed），且每次重啟都重新套用一次 —— 必須擋下。
+    /// </summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithEmptySupportPassword_ShouldFailFast()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["BootstrapSettings:SupportPassword"] = string.Empty,
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("BootstrapSettings:SupportPassword", exception.Message);
+    }
+
+    /// <summary>範本現行出貨的預設密碼（早期版本是 <c>support</c>）同樣必須被擋下。</summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithTemplateSupportPassword_ShouldFailFast()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["BootstrapSettings:SupportPassword"] = "1qaz@WSX",
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("BootstrapSettings:SupportPassword", exception.Message);
+    }
+
+    /// <summary>
     /// 沒填 AI 金鑰等於功能關閉，Production 不該因此擋下啟動 ——
     /// 腳手架不帶金鑰也要能正常部署。
     /// </summary>
@@ -802,6 +854,22 @@ public sealed class ApiTestApplicationFactoryWithTightLoginLimit : ApiTestApplic
 ///    拿原始的 POST + JSON 去重跑 `/not-found`（Blazor 頁面），被 antiforgery 擋下後
 ///    變成 **400 HTML** —— 呼叫端根本看不出真正發生什麼事。
 /// </summary>
+/// <remarks>
+/// ⚠️ 這裡刻意是**一個測試**，不是兩個 —— 拆開會變成擲骰子。
+///
+/// 登入配額壓到 2，而限流分區鍵是 <c>login:</c> ＋ 使用者／IP／<c>anonymous</c>；
+/// <c>WebApplicationFactory</c> 裡 <c>RemoteIpAddress</c> 是 null，所以同一個 factory 底下的
+/// 每個測試都落在**同一個分區**。拆成兩個測試時，先跑的那個把配額吃光，後跑的必定失敗。
+///
+/// 而 xUnit 依測試案例 UniqueID 的雜湊排序，UniqueID **含組件名稱** ——
+/// 腳手架衍生出的專案叫什麼名字，就決定了誰先跑，也就決定新專案第一天的測試是綠是紅。
+/// 0.9.48 以控制組實驗確認：同樣命名為 PruneApp、但完全不清文件的副本一樣會紅。
+///
+/// 也**不要**改成「每個測試各自 <c>new</c> 一個 factory」：
+/// <see cref="ApiTestApplicationFactory"/> 的 <c>Dispose</c> 會把它設定的環境變數清掉，
+/// 同一個處理程序裡先棄置再建立第二個，NLog 會在重新載入設定時丟
+/// <c>Unrecognized value 'BasePath'</c> 而讓測試爆掉。
+/// </remarks>
 public sealed class LoginRateLimitTests : IClassFixture<ApiTestApplicationFactoryWithTightLoginLimit>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -814,7 +882,7 @@ public sealed class LoginRateLimitTests : IClassFixture<ApiTestApplicationFactor
     }
 
     [Fact]
-    public async Task Login_BeyondQuota_ShouldReturn429_WithApiResultEnvelope()
+    public async Task LoginQuota_ShouldReturn429WithEnvelope_AndNotConsumeGeneralApiQuota()
     {
         using var client = factory.CreateClient();
         var request = new LoginRequestDto { Account = "nobody", Password = "wrong" };
@@ -836,24 +904,11 @@ public sealed class LoginRateLimitTests : IClassFixture<ApiTestApplicationFactor
         var result = JsonSerializer.Deserialize<ApiResult<object>>(body, JsonOptions)!;
         Assert.False(result.Success);
         Assert.Equal(429, result.StatusCode);
-    }
 
-    /// <summary>登入配額不應消耗一般 API 的配額（兩者分開計數）。</summary>
-    [Fact]
-    public async Task GeneralApi_ShouldNotBeAffectedByLoginQuota()
-    {
-        using var client = factory.CreateClient();
-        var request = new LoginRequestDto { Account = "nobody", Password = "wrong" };
-
-        for (var i = 0; i < 5; i++)
-        {
-            await client.PostAsJsonAsync("/api/Auth/login", request);
-        }
-
-        var response = await client.PostAsJsonAsync("/api/Project/search", new { PageIndex = 1, PageSize = 10 });
-
+        // 登入配額已經吃光，但一般 API 是另一個分區（前綴 api:）：
         // 未帶 token 應為 401；若是 429 就代表兩者共用了計數器。
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var generalApi = await client.PostAsJsonAsync("/api/Project/search", new { PageIndex = 1, PageSize = 10 });
+        Assert.Equal(HttpStatusCode.Unauthorized, generalApi.StatusCode);
     }
 }
 
