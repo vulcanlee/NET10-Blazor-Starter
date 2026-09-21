@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[A-Za-z][A-Za-z0-9_.]*$')]
     [string]$ProjectName,
@@ -10,7 +10,11 @@ param(
 
     [string]$UserSecretsId = [guid]::NewGuid().ToString(),
 
-    [switch]$Force
+    [switch]$Force,
+
+    # 預設會清掉腳手架自己的開發史（docs/changelog 內容、docs/planning、docs/superpowers），
+    # 那些對衍生專案沒有用處。要原封不動整份複製時加這個開關。
+    [switch]$KeepStarterHistory
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,6 +77,10 @@ $textExtensions = @(
     ".ps1", ".yml", ".yaml", ".config", ".xml"
 )
 
+# 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。
+# 除了 csproj，文件裡的路徑範例也要一起換掉，否則會把開發者導回原腳手架的 secrets 目錄。
+$sourceUserSecretsId = "83f6d54f-9f33-4cd9-a626-d4c05c996e5d"
+
 function Test-Utf8Bom {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -87,6 +95,49 @@ function Test-Utf8Bom {
     }
 }
 
+function Test-StarterHistoryLink {
+    param(
+        [Parameter(Mandatory = $true)][string]$FileDirectory,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string]$DocsRoot,
+        [Parameter(Mandatory = $true)][string[]]$HistoryDirectories
+    )
+
+    # 只處理指向被清理目錄、而且真的已經不存在的連結；
+    # 其他死連結（若原本就有）不在本次職責範圍，誤改反而難追。
+    if ($Target -match '^[A-Za-z][A-Za-z0-9+.-]*:') {
+        return $false
+    }
+
+    $relativePath = $Target.Split('#')[0]
+    if ([string]::IsNullOrWhiteSpace($relativePath)) {
+        return $false
+    }
+
+    $relativePath = [uri]::UnescapeDataString($relativePath)
+    try {
+        $full = [System.IO.Path]::GetFullPath((Join-Path $FileDirectory $relativePath))
+    }
+    catch {
+        return $false
+    }
+
+    $inHistory = $false
+    foreach ($name in $HistoryDirectories) {
+        $historyPath = [System.IO.Path]::GetFullPath((Join-Path $DocsRoot $name))
+        if ($full -eq $historyPath -or $full.StartsWith($historyPath + [System.IO.Path]::DirectorySeparatorChar)) {
+            $inHistory = $true
+            break
+        }
+    }
+
+    if (-not $inHistory) {
+        return $false
+    }
+
+    return -not (Test-Path -LiteralPath $full)
+}
+
 Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
     Where-Object { $textExtensions -contains $_.Extension } |
     ForEach-Object {
@@ -96,6 +147,7 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         $hasBom = Test-Utf8Bom -Path $_.FullName
         $content = [System.IO.File]::ReadAllText($_.FullName)
         $content = $content.Replace($SourceProjectName, $ProjectName)
+        $content = $content.Replace($sourceUserSecretsId, $UserSecretsId)
         if ($_.Name -eq "appsettings.json") {
             $content = $content.Replace("DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars", "$ProjectName-ChangeThisJwtSigningKey-AtLeast32Chars")
             $content = $content.Replace('"SupportPassword": "support"', '"SupportPassword": "change-me"')
@@ -118,8 +170,8 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         Rename-Item -LiteralPath $_.FullName -NewName $newName
     }
 
-# 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。
-$sourceUserSecretsId = "83f6d54f-9f33-4cd9-a626-d4c05c996e5d"
+# csproj 是 UserSecretsId 的權威來源：即使有人改過腳手架的預設值（上面的字串取代因此沒命中），
+# 這段 regex 也一定會把新的 Id 寫進去。
 $webCsproj = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File -Filter "$ProjectName.Web.csproj" |
     Select-Object -First 1
 
@@ -132,6 +184,117 @@ if ($webCsproj) {
 }
 else {
     Write-Warning "Could not locate $ProjectName.Web.csproj; UserSecretsId was not replaced."
+}
+
+if ($KeepStarterHistory) {
+    Write-Host "Kept the starter's own history docs (-KeepStarterHistory)."
+}
+else {
+    # 整個目錄刪除：腳手架自己的規劃與設計稿，對衍生專案沒有用處。
+    $prunedDocDirectories = @("planning", "superpowers")
+    # 只清內容、保留 README.md：docs/operations/維護規範.md 要求每一次異動寫一篇 changelog，
+    # 新專案要從自己的第一篇開始，所以目錄與索引骨架必須留著。
+    $emptiedDocDirectories = @("changelog")
+    $historyDirectories = $prunedDocDirectories + $emptiedDocDirectories
+
+    $docsRoot = Join-Path $destinationFullPath "docs"
+    $removedFiles = 0
+
+    foreach ($name in $prunedDocDirectories) {
+        $path = Join-Path $docsRoot $name
+        if (Test-Path -LiteralPath $path) {
+            $removedFiles += @(Get-ChildItem -LiteralPath $path -Recurse -File).Count
+            Remove-Item -LiteralPath $path -Recurse -Force
+        }
+    }
+
+    foreach ($name in $emptiedDocDirectories) {
+        $path = Join-Path $docsRoot $name
+        if (Test-Path -LiteralPath $path) {
+            Get-ChildItem -LiteralPath $path -Recurse -File |
+                Where-Object { $_.Name -ne "README.md" } |
+                ForEach-Object {
+                    Remove-Item -LiteralPath $_.FullName -Force
+                    $removedFiles++
+                }
+        }
+    }
+
+    # 清完之後，索引與內文裡會留下指向已刪檔案的連結。一條通則處理三種情況：
+    # 整節被刪的目錄 -> 連標題一起移除；整行只是一條索引項 -> 刪整行；
+    # 夾在敘述句裡 -> 降級為純文字，句子仍然讀得通。
+    $linkPattern = '\[(?<text>[^\]]*)\]\((?<target>[^)\s]+)\)'
+    $removedLines = 0
+    $downgradedLinks = 0
+
+    $markdownFiles = @(Get-ChildItem -LiteralPath $docsRoot -Recurse -File -Filter "*.md")
+    $rootReadme = Join-Path $destinationFullPath "readme.md"
+    if (Test-Path -LiteralPath $rootReadme) {
+        $markdownFiles += Get-Item -LiteralPath $rootReadme
+    }
+
+    foreach ($file in $markdownFiles) {
+        $hasBom = Test-Utf8Bom -Path $file.FullName
+        $original = [System.IO.File]::ReadAllText($file.FullName)
+        $newline = if ($original.Contains("`r`n")) { "`r`n" } else { "`n" }
+
+        $kept = New-Object System.Collections.Generic.List[string]
+        $skipSection = $false
+
+        foreach ($line in ($original -split "`r`n|`n")) {
+            if ($line -match '^#{1,6}\s') {
+                $skipSection = $false
+                foreach ($name in $prunedDocDirectories) {
+                    if ($line -match [regex]::Escape($name)) {
+                        $skipSection = $true
+                        break
+                    }
+                }
+            }
+
+            if ($skipSection) {
+                $removedLines++
+                continue
+            }
+
+            $links = [regex]::Matches($line, $linkPattern)
+            $stale = @($links | Where-Object {
+                Test-StarterHistoryLink -FileDirectory $file.Directory.FullName `
+                    -Target $_.Groups['target'].Value `
+                    -DocsRoot $docsRoot -HistoryDirectories $historyDirectories
+            })
+
+            if ($stale.Count -eq 0) {
+                $kept.Add($line)
+                continue
+            }
+
+            $trimmed = $line.TrimStart()
+            $isIndexRow = $stale.Count -eq $links.Count -and
+                ($trimmed.StartsWith("- ") -or $trimmed.StartsWith("* ") -or $trimmed.StartsWith("|"))
+
+            if ($isIndexRow) {
+                $removedLines++
+                continue
+            }
+
+            $updated = $line
+            foreach ($link in $stale) {
+                $updated = $updated.Replace($link.Value, $link.Groups['text'].Value)
+                $downgradedLinks++
+            }
+
+            $kept.Add($updated)
+        }
+
+        $result = $kept -join $newline
+        if ($result -ne $original) {
+            [System.IO.File]::WriteAllText($file.FullName, $result, (New-Object System.Text.UTF8Encoding($hasBom)))
+        }
+    }
+
+    Write-Host "Pruned $removedFiles starter history doc files (docs/changelog entries, docs/planning, docs/superpowers)."
+    Write-Host "Removed $removedLines stale index lines and downgraded $downgradedLinks stale links. Use -KeepStarterHistory to keep them."
 }
 
 $remainingMatches = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
