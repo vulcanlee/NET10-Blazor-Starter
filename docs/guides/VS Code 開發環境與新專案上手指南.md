@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.47
+- 現行系統版本：0.9.48
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/09/21
 
@@ -332,7 +332,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 | 項目 | 值 | 來源 |
 |------|----|------|
 | 帳號 | `support` | `appsettings.json:40` `BootstrapSettings:SupportAccount` |
-| 密碼 | `support` | `appsettings.json:43` `BootstrapSettings:SupportPassword` |
+| 密碼 | `1qaz@WSX` | `appsettings.json` 的 `BootstrapSettings:SupportPassword` |
 | 權限 | `IsAdmin = true` | `Program.cs:313-352` 強制設定 |
 
 > ⚠️ **重要行為，不是 bug**：每次啟動時，若資料庫內 `support` 的密碼雜湊**驗不過設定檔的值**，程式會把密碼**覆寫回設定檔的值**，並強制 `IsAdmin = true`（`Program.cs:337-345`）。
@@ -501,7 +501,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml`）內的 `MyProject` 全部換成新代號，**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
-- 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，且這個動作會讓 Production 的開發金鑰偵測失效 —— 見開發指引 §2.4）。`SupportPassword` **不會**被換掉：取代規則寫的是 `"support"`，範本出貨的卻是 `1qaz@WSX`，從未命中
+- 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
 - 最後掃一次殘留字串並警告
 
