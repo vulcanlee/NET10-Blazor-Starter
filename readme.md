@@ -279,7 +279,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單（操作細節見上方上手指南）。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
-- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱。
+- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 7 個專案會一起改名。
 - `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組（13 個檔案，對齊現行慣例；產出附 README 列出註冊步驟）。
 
 ### 維運與部署（operations）

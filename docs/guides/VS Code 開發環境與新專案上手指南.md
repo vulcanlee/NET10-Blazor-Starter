@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.3
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.13
+- 現行系統版本：0.9.47
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/09/16
+- 最後核對日期：2026/09/21
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -490,13 +490,19 @@ pwsh ./scripts/New-StarterProject.ps1 `
      -DestinationPath D:\Work\Acme.Erp
 ```
 
+> **整個方案跑這一次就好。** `-ProjectName` 是整份腳手架的代號，不是單一專案名：
+> `.slnx` 內的 7 個專案、方案檔本身，以及外層 `src/MyProject/` 目錄，都在這一次執行中一起改名。
+> 對照 [§8.2 步驟 2](#步驟-2改資料夾名稱由深到淺) 的資料夾對照表 —— **那整張表腳本會一次做完**，
+> 不需要為了七個專案跑七次。
+
 **腳本會做的事：**
 
 - 複製整個 repo 到目標路徑，跳過 `.git` / `bin` / `obj` / `.vs` / `.playwright-cli` / `output`
 - 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml`）內的 `MyProject` 全部換成新代號，**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
 - 由深到淺改資料夾名，再改檔名
-- **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上
-- 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`、`SupportPassword` 換成 `change-me`
+- **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
+- 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，且這個動作會讓 Production 的開發金鑰偵測失效 —— 見開發指引 §2.4）。`SupportPassword` **不會**被換掉：取代規則寫的是 `"support"`，範本出貨的卻是 `1qaz@WSX`，從未命中
+- **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
 - 最後掃一次殘留字串並警告
 
 **腳本做完之後你仍須手動處理：**
@@ -508,6 +514,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
 | 外部目錄路徑 | `ExternalFileSystem` 四個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
+| 殘骸目錄 | `src/<新代號>/<新代號>.AccessDatas.SqlServerMigrations/` 只剩建置產物（0.4.24 起已移除 SQL Server 軌道、不在 `.slnx` 內）；腳本排除 `bin`／`obj` 後會留下一個空殼目錄，可直接刪除 |
 
 即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
 
@@ -622,7 +629,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 |------|----------|
 | `.github/workflows/dotnet-ci.yml` | 6 處硬編路徑（`src/MyProject/...`、`MyProject.slnx`），步驟 4 應已處理，確認一次 |
 | `readme.md` | 系統介紹、架構圖、專案結構樹、快速開始指令 |
-| `docs/**` | 內文敘述（不只代號，還有描述舊系統功能的句子）；`docs/changelog/` 建議整個清空重來 |
+| `docs/**` | 內文敘述（不只代號，還有描述舊系統功能的句子）。`docs/changelog/`、`docs/planning/`、`docs/superpowers/` 腳本已自動清掉，手動更名才需要自己處理 |
 | `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md` | LLM 協作準則裡的專案描述 |
 | `.vscode/launch.json` / `tasks.json` / `settings.json` | 內含 `src/MyProject/...` 路徑，確認已更新 |
 
