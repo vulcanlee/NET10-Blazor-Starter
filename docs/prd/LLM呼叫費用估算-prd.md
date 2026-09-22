@@ -1,10 +1,10 @@
 ﻿# LLM 呼叫費用估算 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.18
+- 現行系統版本：0.9.49
 - 首次實作版本：0.9.17
-- 最後核對日期：2026/09/17
+- 最後核對日期：2026/09/22
 
 ## 一、目標與範圍
 
@@ -101,10 +101,10 @@ LLM 呼叫點 → ITokenUsageRecorder.RecordAsync(TokenUsageEntry)
 "AiPricingSettings": {
   "UsdToTwd": 31.5,
   "Models": {
-    "gpt-5.6-sol": {
+    "gpt-6-astra": {
       "LongContextThresholdTokens": 128000,
-      "Rates":            { "TextInputPerMillion": 4.0, "TextCachedInputPerMillion": 0.4, "TextOutputPerMillion": 20.0 },
-      "LongContextRates": { "TextInputPerMillion": 8.0, "TextCachedInputPerMillion": 0.8, "TextOutputPerMillion": 30.0 }
+      "Rates":            { "TextInputPerMillion": 10.0, "TextCachedInputPerMillion": 1.0, "TextOutputPerMillion": 50.0 },
+      "LongContextRates": { "TextInputPerMillion": 20.0, "TextCachedInputPerMillion": 2.0, "TextOutputPerMillion": 75.0 }
     },
     "gpt-transcribe": { "Rates": { "AudioPerMinute": 0.0045 } }
   }
@@ -127,7 +127,7 @@ LLM 呼叫點 → ITokenUsageRecorder.RecordAsync(TokenUsageEntry)
 - 其餘費率省略 → 該計費單位不計費。
 - 整組費率全省略或全為 0 → 視為未設定，該次呼叫記為「未定價」。
 
-範本帶入八個模型：`gpt-5.6-sol`／`gpt-5.6-terra`／`gpt-5.6-luna`（含長脈絡分級）、
+範本帶入九個模型：`gpt-6-astra`／`gpt-5.6-sol`／`gpt-5.6-terra`／`gpt-5.6-luna`（含長脈絡分級）、
 `gpt-image-2.5-flare`（文字＋圖片雙費率）、`gpt-transcribe`／`gpt-4o-transcribe-diarize`
 （每分鐘，後者另有文字費率）、`tts-1`（每字元）、`text-embedding-3-large`（只有 input）。
 
@@ -295,7 +295,7 @@ twd = usd × UsdToTwd
    回應 body，必然退回部署名稱**，一律變成「未定價」。這不是 bug，但未定價筆數會比預期高。
    解法不需改程式 —— 直接把部署名稱當成 `Models` 的鍵再加一筆即可。
 7. **費率數字由人工抄錄，不會自動更新。** 來源 <https://developers.openai.com/api/docs/pricing>，
-   擷取日期 2026/09/17，請定期與實際帳單核對。範本數字由 `AiPricingSettingsTests` 釘住，
+   擷取日期 2026/09/17（`gpt-6-astra` 為 2026/09/22 補錄），請定期與實際帳單核對。範本數字由 `AiPricingSettingsTests` 釘住，
    改數字時測試會提醒同步更新文件。
 8. **明細表的費用欄需要橫向捲動才看得到**（見第三節「已知的呈現限制」）。
 
@@ -304,7 +304,7 @@ twd = usd × UsdToTwd
 | 測試 | 驗什麼 |
 | --- | --- |
 | `AiUsageCostCalculatorTests` | 子集晶格（快取／推理／圖片都不重複計，四項拆解相加等於輸入總數）、**受限前綴比對拒絕 `gpt-4o-mini` 與 `gpt-4.1`**、最長前綴優先且與設定順序無關、長脈絡門檻上下界、四種計費單位並存、快取費率缺漏退回原價、匯率未設定與全零費率回 `null`、髒資料不產生負數、費率快照序列化、`AiModelRates` 屬性數守門 |
-| `AiPricingSettingsTests` | **遞迴**未知鍵守門（打錯費率鍵名會靜默變 0）、範本八個模型的費率數字釘住、模型鍵唯一且全小寫、匯率為正、用真實 `appsettings.json` 走一次完整比對路徑 |
+| `AiPricingSettingsTests` | **遞迴**未知鍵守門（打錯費率鍵名會靜默變 0）、範本九個模型的費率數字釘住、模型鍵唯一且全小寫、匯率為正、用真實 `appsettings.json` 走一次完整比對路徑 |
 | `TokenUsageLogServiceTests` | 費用與快照寫入、未定價留空、**計算器拋例外時該列仍寫入**、費用加總與未定價計數、分組費用小計、依費用排序 |
 | `TokenUsageReportPdfBuilderTests` | 全部有費用、以及**全部未定價**兩種情境都能產出 PDF |
 

@@ -71,6 +71,7 @@ public sealed class AiPricingSettingsTests
     /// 這支測試是刻意的重複，用來擋住「有人改了數字但沒改文件」。
     /// </summary>
     [Theory]
+    [InlineData("gpt-6-astra", 10.0, 1.0, 50.0)]
     [InlineData("gpt-5.6-sol", 4.0, 0.4, 20.0)]
     [InlineData("gpt-5.6-terra", 2.0, 0.2, 12.0)]
     [InlineData("gpt-5.6-luna", 0.2, 0.02, 1.2)]
@@ -85,6 +86,7 @@ public sealed class AiPricingSettingsTests
     }
 
     [Theory]
+    [InlineData("gpt-6-astra", 20.0, 2.0, 75.0)]
     [InlineData("gpt-5.6-sol", 8.0, 0.8, 30.0)]
     [InlineData("gpt-5.6-terra", 4.0, 0.4, 18.0)]
     [InlineData("gpt-5.6-luna", 0.4, 0.04, 1.8)]
