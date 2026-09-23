@@ -157,6 +157,50 @@ public sealed class TokenUsageReportPdfBuilderTests
         Assert.True(withDaily.Length > withoutDaily.Length);
     }
 
+    /// <summary>趨勢圖那一段真的有畫進報表：同樣只匯出趨勢圖，有資料的一定比沒資料的大。</summary>
+    [Fact]
+    public void Build_ShouldRenderTrendSection()
+    {
+        var withTrend = TokenUsageReportPdfBuilder.Build(CreateRequest() with { Scope = TokenUsageReportScope.Trend });
+        var withoutTrend = TokenUsageReportPdfBuilder.Build(CreateRequest() with
+        {
+            Scope = TokenUsageReportScope.Trend,
+            Daily = [],
+        });
+
+        Assert.True(withTrend.Length > withoutTrend.Length);
+    }
+
+    /// <summary>
+    /// 趨勢圖的邊界：沒資料、只有一個點、全部是 0（Y 軸分母為 0）、180 天（按週）。
+    /// 都要印得出來，不可丟例外。
+    /// </summary>
+    [Theory]
+    [InlineData(0, 1.5)]
+    [InlineData(1, 1.5)]
+    [InlineData(10, 0)]
+    [InlineData(180, 1.5)]
+    public void Build_Trend_ShouldNotThrow_ForEdgeCases(int days, double costPerDay)
+    {
+        var bytes = TokenUsageReportPdfBuilder.Build(CreateRequest() with
+        {
+            Scope = TokenUsageReportScope.Trend,
+            Daily = CreateDaily(days, costPerDay),
+        });
+
+        Assert.True(bytes.Length > 1000);
+    }
+
+    /// <summary>折線圖先畫成一份單頁 PDF 再嵌回報表；這一份本身必須是合法的單頁 PDF。</summary>
+    [Fact]
+    public void RenderTrendChart_ShouldProduceSinglePagePdf()
+    {
+        EmbeddedFontResolver.EnsureRegistered();
+        var bytes = TokenUsageReportPdfBuilder.RenderTrendChart(TokenUsageTrendChart.Bucket(CreateDaily(30)));
+
+        Assert.Equal(1, CountPages(bytes));
+    }
+
     /// <summary>趨勢沒有資料時走「（無資料）」，不可丟例外。</summary>
     [Fact]
     public void Build_ShouldNotThrow_WhenDailyIsEmpty()
@@ -188,6 +232,7 @@ public sealed class TokenUsageReportPdfBuilderTests
 
     /// <summary>每一種單頁籤都產得出報表，而且一定比整份小（只排了其中一個區塊）。</summary>
     [Theory]
+    [InlineData(TokenUsageReportScope.Trend)]
     [InlineData(TokenUsageReportScope.Daily)]
     [InlineData(TokenUsageReportScope.Account)]
     [InlineData(TokenUsageReportScope.Operation)]

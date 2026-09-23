@@ -26,6 +26,7 @@ namespace MyProject.Web.Components.Views.Analytics
         private const string TabByCallKind = "callkind";
         private const string TabDetail = "detail";
         private const string TabDaily = "daily";
+        private const string TabTrend = "trend";
 
         /// <summary>
         /// 趨勢清單沒有分頁，區間太長會讓頁面長到不可用，超過就只保留最後這麼多天。
@@ -68,8 +69,8 @@ namespace MyProject.Web.Components.Views.Analytics
         private bool isExportingPdf;
         private string RoleMessage = string.Empty;
         private bool isAccessChecked;
-        // 本頁的主題是費用走勢，所以預設停在「每日趨勢」。
-        private string activeTabKey = TabDaily;
+        // 本頁的主題是費用走勢，所以預設停在「趨勢圖」。
+        private string activeTabKey = TabTrend;
 
         private List<TokenUsageLogAdapterModel> rows = [];
         private TokenUsageSummary summary = new();
@@ -82,6 +83,10 @@ namespace MyProject.Web.Components.Views.Analytics
 
         /// <summary>「每日趨勢」的資料：已依有效區間補零，由舊到新，可直接照順序畫。</summary>
         private List<TokenUsageDailyRow> dailyRows = [];
+
+        /// <summary>「趨勢圖」的點：由 <see cref="dailyRows"/> 分桶而來，不另查資料庫。</summary>
+        private List<TokenUsageTrendPoint> trendPoints = [];
+        private TokenUsageTrendGrain trendGrain;
 
         /// <summary>
         /// 近 30 天的逐日資料。近 1／7／30 天彼此是巢狀區間，所以三張摘要卡
@@ -353,11 +358,15 @@ namespace MyProject.Web.Components.Views.Analytics
             dailyRows = FillMissingDays(actual, start, end);
             maxDailyCostTwd = dailyRows.Count == 0 ? 0 : dailyRows.Max(x => x.CostTwd);
             maxDailyTotalCount = dailyRows.Count == 0 ? 0 : dailyRows.Max(x => x.TotalCount);
+
+            trendGrain = TokenUsageTrendChart.GrainFor(dailyRows.Count);
+            trendPoints = TokenUsageTrendChart.Bucket(dailyRows);
         }
 
         private void ClearTrend()
         {
             dailyRows = [];
+            trendPoints = [];
             maxDailyCostTwd = 0;
             maxDailyTotalCount = 0;
             isTrendTruncated = false;
@@ -474,6 +483,35 @@ namespace MyProject.Web.Components.Views.Analytics
         /// </summary>
         private static string BarWidth(double value, double max)
             => max <= 0 ? "0%" : string.Create(CultureInfo.InvariantCulture, $"{value / max * 100:F1}%");
+
+        // 趨勢圖的 viewBox 與繪圖區（SVG 使用者座標）。左邊留給 Y 軸刻度、下面留給日期。
+        private const int ChartWidth = 1000;
+        private const int ChartHeight = 200;
+        private const double PlotLeft = 72;
+        private const double PlotRight = ChartWidth - 16;
+        private const double PlotTop = 12;
+        private const double PlotHeight = ChartHeight - PlotTop - 30;
+        private const double PlotWidth = PlotRight - PlotLeft;
+
+        /// <summary>
+        /// 上下兩張圖：費用與合計 token。兩者單位不同，所以各自一張、各自一個 Y 軸，
+        /// 不做雙 Y 軸 —— 雙軸圖上兩條線的交叉與相對高低沒有意義，只會誤導。
+        /// </summary>
+        private IEnumerable<(string Title, string CssClass, IReadOnlyList<double> Values, Func<double, string> FormatTick)> TrendCharts =>
+        [
+            ("費用（NT$）", "token-usage-chart-cost", trendPoints.Select(x => x.CostTwd).ToList(), FormatCostTwdTotal),
+            ("合計 token", "token-usage-chart-count", trendPoints.Select(x => (double)x.TotalCount).ToList(), v => FormatCompact((long)v)),
+        ];
+
+        private static string TrendTooltip(TokenUsageTrendPoint point)
+        {
+            var text = $"{TokenUsageTrendChart.PeriodLabel(point)}\n"
+                + $"費用 NT$ {FormatCostTwdTotal(point.CostTwd)}（US$ {FormatCostUsdTotal(point.CostUsd)}）\n"
+                + $"合計 {FormatCompact(point.TotalCount)} token\n"
+                + $"呼叫 {point.CallCount:N0} 次";
+
+            return point.UnpricedCount > 0 ? $"{text}\n其中 {point.UnpricedCount:N0} 筆未定價，未計入費用" : text;
+        }
 
         private Task OnTabChangedAsync(string key)
         {
@@ -729,6 +767,7 @@ namespace MyProject.Web.Components.Views.Analytics
         /// <summary>目前選中的頁籤對應的報表範圍。</summary>
         private TokenUsageReportScope ActiveScope => activeTabKey switch
         {
+            TabTrend => TokenUsageReportScope.Trend,
             TabDaily => TokenUsageReportScope.Daily,
             TabByAccount => TokenUsageReportScope.Account,
             TabByOperation => TokenUsageReportScope.Operation,
