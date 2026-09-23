@@ -45,20 +45,6 @@
     margin-bottom: 0.6rem;
 }
 
-.token-usage-summary {
-    background: rgba(255, 250, 252, 0.95);
-    border: 1px solid var(--app-line);
-    border-radius: 8px;
-    color: var(--app-muted);
-    font-size: 0.9rem;
-    margin-bottom: 0.75rem;
-    padding: 0.6rem 0.9rem;
-}
-
-.token-usage-summary strong {
-    color: var(--app-text);
-}
-
 /* 明細頁籤欄位較多，讓表格自己橫向捲動而不是把整頁撐寬。 */
 .token-usage-table-wrap {
     overflow-x: auto;
@@ -79,37 +65,58 @@
     color: #d46b08;
 }
 
-/* ── 最近 N 天摘要卡 ──────────────────────────────────────────────────
+/* ── 統計卡片（上排「篩選範圍合計」與下排「最近 N 天」共用）──────────────
+   兩排必須長得像，所以外觀只有一份基底 .token-usage-stat-card；
+   差別只在下排可點（游標、hover、焦點框、選中狀態）。
+
    顏色一律走 var(--app-*)：色碼字面量只能出現在 theme.css，由
    ThemeConventionTests.PaletteHexes_ShouldOnlyLiveInThemeCss 守門。 */
+.token-usage-totals,
 .token-usage-ranges {
     margin-bottom: 0.75rem;
 }
 
-.token-usage-ranges-caption {
+.token-usage-cards-caption {
     color: var(--app-muted);
     font-size: 0.82rem;
     margin-bottom: 0.4rem;
 }
 
+.token-usage-total-cards,
 .token-usage-range-cards {
     display: grid;
     gap: 0.6rem;
+}
+
+/* 上排四張（輸入／輸出／合計／花費），下排三張（近 1／7／30 天）。 */
+.token-usage-total-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.token-usage-range-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* 用 <button> 而不是 <div>：可鍵盤聚焦、Enter/Space 直接觸發，
-   不必自己補 tabindex 與 keydown。這不是 AntDesign Button，與 theme.css 的 .ant-* 覆寫無關。 */
-.token-usage-range-card {
+.token-usage-stat-card {
     background: var(--app-card);
     border: 1px solid var(--app-line);
     border-radius: 10px;
-    cursor: pointer;
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
     padding: 0.7rem 0.9rem;
     text-align: left;
+}
+
+/*
+    下排才可點。用 <button> 而不是 <div>：可鍵盤聚焦、Enter/Space 直接觸發，
+    不必自己補 tabindex 與 keydown。這不是 AntDesign Button，與 theme.css 的 .ant-* 覆寫無關。
+
+    ⚠️ 上排是 <article>，刻意沒有游標與 hover —— 那排沒有東西可套用，
+    給了互動感只會讓人去點然後沒反應。
+*/
+.token-usage-range-card {
+    cursor: pointer;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -128,20 +135,28 @@
     border-color: var(--app-accent);
 }
 
-.token-usage-range-label {
+.token-usage-stat-label {
     color: var(--app-muted);
     font-size: 0.82rem;
 }
 
-.token-usage-range-cost {
+.token-usage-stat-value {
     color: var(--app-text);
     font-size: 1.25rem;
     font-weight: 600;
 }
 
-.token-usage-range-meta {
+.token-usage-stat-meta {
     color: var(--app-muted);
     font-size: 0.78rem;
+}
+
+/* 子集說明（「快取是輸入的折扣子集…」）刻意比 meta 再淡一階：
+   它是註解，不是數據，不該與數字爭視線。 */
+.token-usage-stat-note {
+    color: var(--app-muted);
+    font-size: 0.72rem;
+    opacity: 0.85;
 }
 
 /* ── 每日趨勢 ────────────────────────────────────────────────────────
@@ -234,7 +249,15 @@
     text-align: right;
 }
 
+/* 上排四欄在中等寬度先降成兩欄，數字才不會被擠到換行。 */
+@media (max-width: 1200.98px) {
+    .token-usage-total-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 860.98px) {
+    .token-usage-total-cards,
     .token-usage-range-cards {
         grid-template-columns: 1fr;
     }

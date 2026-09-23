@@ -416,35 +416,54 @@ namespace MyProject.Web.Components.Views.Analytics
             return startDate?.Date == start && endDate?.Date == end;
         }
 
-        /// <summary>卡片上方那行字：目前除了日期以外還套了哪些條件。</summary>
-        private string ActiveFilterText
+        /// <summary>
+        /// 上排「篩選範圍合計」那行字：<b>含日期</b>。
+        ///
+        /// ⚠️ 與 <see cref="ActiveFilterText"/> 的差別就在日期。上排統計的是完整篩選範圍，
+        /// 下排的近 N 天卡則會把日期換成自己的窗 —— 兩排都寫「套用條件」卻指不同範圍會誤導，
+        /// 所以兩份字串必須看得出差別。
+        /// </summary>
+        private string FilterScopeText => BuildFilterText(includeDates: true);
+
+        /// <summary>下排卡片上方那行字：目前<b>除了日期以外</b>還套了哪些條件。</summary>
+        private string ActiveFilterText => BuildFilterText(includeDates: false);
+
+        /// <summary>
+        /// 兩排共用的條件字串組法。抽出來是為了不讓上下排各留一份、日後各自漂移。
+        /// </summary>
+        private string BuildFilterText(bool includeDates)
         {
-            get
+            var parts = new List<string>();
+
+            if (includeDates)
             {
-                var parts = new List<string>();
-
-                if (string.IsNullOrWhiteSpace(accountFilter) == false)
-                {
-                    parts.Add($"帳號含「{accountFilter}」");
-                }
-
-                if (string.IsNullOrEmpty(selectedOperation) == false)
-                {
-                    parts.Add($"作業：{selectedOperation}");
-                }
-
-                if (string.IsNullOrEmpty(selectedCallKind) == false)
-                {
-                    parts.Add($"型別：{selectedCallKind}");
-                }
-
-                if (string.IsNullOrEmpty(selectedModel) == false)
-                {
-                    parts.Add($"模型：{selectedModel}");
-                }
-
-                return parts.Count == 0 ? "全部條件" : string.Join("、", parts);
+                // 兩端都沒設時也要寫出來，否則看不出這排「含日期」而下排不含。
+                var start = startDate?.ToString("yyyy-MM-dd") ?? "不限";
+                var end = endDate?.ToString("yyyy-MM-dd") ?? "不限";
+                parts.Add($"日期 {start} ～ {end}");
             }
+
+            if (string.IsNullOrWhiteSpace(accountFilter) == false)
+            {
+                parts.Add($"帳號含「{accountFilter}」");
+            }
+
+            if (string.IsNullOrEmpty(selectedOperation) == false)
+            {
+                parts.Add($"作業：{selectedOperation}");
+            }
+
+            if (string.IsNullOrEmpty(selectedCallKind) == false)
+            {
+                parts.Add($"型別：{selectedCallKind}");
+            }
+
+            if (string.IsNullOrEmpty(selectedModel) == false)
+            {
+                parts.Add($"模型：{selectedModel}");
+            }
+
+            return parts.Count == 0 ? "全部條件" : string.Join("、", parts);
         }
 
         /// <summary>
