@@ -94,19 +94,49 @@ else
                     OnClick="@(async () => await OnPurgeAsync())">批次清除</Button>
         </div>
 
-        <div class="token-usage-summary">
-            篩選範圍合計 —
-            輸入(送出) <strong>@FormatCompact(summary.InputCount)</strong>、
-            輸出(接收) <strong>@FormatCompact(summary.OutputCount)</strong>、
-            其中快取 <strong>@FormatCompact(summary.CachedInputCount)</strong>、
-            其中推理 <strong>@FormatCompact(summary.ReasoningCount)</strong>、
-            合計 <strong>@FormatCompact(summary.TotalCount)</strong>、
-            花費 <strong>NT$ @FormatCostTwdTotal(summary.CostTwd)</strong>
-            （US$ @FormatCostUsdTotal(summary.CostUsd)）
-            @if (summary.UnpricedCount > 0)
-            {
-                <span class="token-usage-unpriced">　⚠ 其中 @summary.UnpricedCount 筆未定價未計入</span>
-            }
+        @*
+            篩選範圍合計。四張卡而不是六張：快取是輸入的折扣子集、推理計入輸出，
+            兩者都不另計入合計，所以各自寫在【輸入】【輸出】卡裡面 ——
+            若拆成六張對等的卡，讀的人會很自然地把它們相加，那是錯的。
+        *@
+        <div class="token-usage-totals">
+            @* 條件含日期，與下排刻意不同（下排的卡會自己換掉日期）。 *@
+            <div class="token-usage-cards-caption">篩選範圍合計　—　套用條件：@FilterScopeText</div>
+            <div class="token-usage-total-cards">
+                <article class="token-usage-stat-card">
+                    <span class="token-usage-stat-label">輸入（送出／prompt）</span>
+                    <span class="token-usage-stat-value">@FormatCompact(summary.InputCount)</span>
+                    <span class="token-usage-stat-meta">其中快取 @FormatCompact(summary.CachedInputCount)</span>
+                    <span class="token-usage-stat-note">快取是輸入的折扣子集，不另計入合計</span>
+                </article>
+
+                <article class="token-usage-stat-card">
+                    <span class="token-usage-stat-label">輸出（接收／completion）</span>
+                    <span class="token-usage-stat-value">@FormatCompact(summary.OutputCount)</span>
+                    <span class="token-usage-stat-meta">其中推理 @FormatCompact(summary.ReasoningCount)</span>
+                    <span class="token-usage-stat-note">推理計入輸出，不另計入合計</span>
+                </article>
+
+                <article class="token-usage-stat-card">
+                    <span class="token-usage-stat-label">合計</span>
+                    <span class="token-usage-stat-value">@FormatCompact(summary.TotalCount)</span>
+                    <span class="token-usage-stat-note">輸入 ＋ 輸出；子集不重複計入</span>
+                </article>
+
+                <article class="token-usage-stat-card">
+                    <span class="token-usage-stat-label">花費</span>
+                    <span class="token-usage-stat-value">NT$ @FormatCostTwdTotal(summary.CostTwd)</span>
+                    <span class="token-usage-stat-meta">US$ @FormatCostUsdTotal(summary.CostUsd)</span>
+                    @if (summary.UnpricedCount > 0)
+                    {
+                        <span class="token-usage-unpriced">⚠ 其中 @summary.UnpricedCount 筆未定價未計入</span>
+                    }
+                    else
+                    {
+                        <span class="token-usage-stat-note">美金與台幣各自逐列加總</span>
+                    }
+                </article>
+            </div>
         </div>
 
         @*
@@ -115,18 +145,18 @@ else
             近 1／7／30 天彼此是巢狀區間，三張卡都從同一次「近 30 天」查詢切片加總（見 CardOf）。
         *@
         <div class="token-usage-ranges">
-            <div class="token-usage-ranges-caption">最近用量與費用　—　套用條件：@ActiveFilterText</div>
+            <div class="token-usage-cards-caption">最近用量與費用（點卡片可套用該區間）　—　套用條件：@ActiveFilterText</div>
             <div class="token-usage-range-cards">
                 @foreach (var (days, label) in RangeCards)
                 {
                     var card = CardOf(days);
                     <button type="button"
-                            class="token-usage-range-card @(IsRangeActive(days) ? "is-active" : string.Empty)"
+                            class="token-usage-stat-card token-usage-range-card @(IsRangeActive(days) ? "is-active" : string.Empty)"
                             @onclick="@(async () => await OnApplyRangeAsync(days))">
-                        <span class="token-usage-range-label">@label</span>
-                        <span class="token-usage-range-cost">NT$ @FormatCostTwdTotal(card.CostTwd)</span>
-                        <span class="token-usage-range-meta">US$ @FormatCostUsdTotal(card.CostUsd)</span>
-                        <span class="token-usage-range-meta">
+                        <span class="token-usage-stat-label">@label</span>
+                        <span class="token-usage-stat-value">NT$ @FormatCostTwdTotal(card.CostTwd)</span>
+                        <span class="token-usage-stat-meta">US$ @FormatCostUsdTotal(card.CostUsd)</span>
+                        <span class="token-usage-stat-meta">
                             呼叫 @card.CallCount.ToString("N0") 次・合計 @FormatCompact(card.TotalCount)
                         </span>
                         @if (card.UnpricedCount > 0)

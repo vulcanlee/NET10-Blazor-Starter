@@ -1,10 +1,10 @@
 ﻿# LLM 呼叫費用估算 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.49
+- 現行系統版本：0.9.54
 - 首次實作版本：0.9.17
-- 最後核對日期：2026/09/22
+- 最後核對日期：2026/09/23
 
 ## 一、目標與範圍
 
@@ -102,9 +102,19 @@ LLM 呼叫點 → ITokenUsageRecorder.RecordAsync(TokenUsageEntry)
   "UsdToTwd": 31.5,
   "Models": {
     "gpt-6-astra": {
-      "LongContextThresholdTokens": 128000,
+      "LongContextThresholdTokens": 272000,
       "Rates":            { "TextInputPerMillion": 10.0, "TextCachedInputPerMillion": 1.0, "TextOutputPerMillion": 50.0 },
       "LongContextRates": { "TextInputPerMillion": 20.0, "TextCachedInputPerMillion": 2.0, "TextOutputPerMillion": 75.0 }
+    },
+    "gpt-6-sol": {
+      "LongContextThresholdTokens": 272000,
+      "Rates":            { "TextInputPerMillion": 2.0, "TextCachedInputPerMillion": 0.2, "TextOutputPerMillion": 10.0 },
+      "LongContextRates": { "TextInputPerMillion": 4.0, "TextCachedInputPerMillion": 0.4, "TextOutputPerMillion": 15.0 }
+    },
+    "gpt-6-luna": {
+      "LongContextThresholdTokens": 272000,
+      "Rates":            { "TextInputPerMillion": 0.1, "TextCachedInputPerMillion": 0.01, "TextOutputPerMillion": 0.5 },
+      "LongContextRates": { "TextInputPerMillion": 0.2, "TextCachedInputPerMillion": 0.02, "TextOutputPerMillion": 0.75 }
     },
     "gpt-transcribe": { "Rates": { "AudioPerMinute": 0.0045 } }
   }
@@ -127,7 +137,7 @@ LLM 呼叫點 → ITokenUsageRecorder.RecordAsync(TokenUsageEntry)
 - 其餘費率省略 → 該計費單位不計費。
 - 整組費率全省略或全為 0 → 視為未設定，該次呼叫記為「未定價」。
 
-範本帶入九個模型：`gpt-6-astra`／`gpt-5.6-sol`／`gpt-5.6-terra`／`gpt-5.6-luna`（含長脈絡分級）、
+範本帶入十一個模型：`gpt-6-astra`／`gpt-6-sol`／`gpt-6-luna`／`gpt-5.6-sol`／`gpt-5.6-terra`／`gpt-5.6-luna`（含長脈絡分級）、
 `gpt-image-2.5-flare`（文字＋圖片雙費率）、`gpt-transcribe`／`gpt-4o-transcribe-diarize`
 （每分鐘，後者另有文字費率）、`tts-1`（每字元）、`text-embedding-3-large`（只有 input）。
 
@@ -280,9 +290,8 @@ twd = usd × UsdToTwd
 
 1. **圖片 token 數與字元數目前沒有任何寫入端會填。** 系統唯一的 LLM 呼叫點只發 Chat 請求。
    欄位與費率先備齊，等日後接上圖片／TTS／轉錄 API 時就能直接填值。
-2. **長脈絡門檻 `128000` 是本系統自訂的估算值。** 供應商定價頁只列
-   「Short context／Long context」兩組費率欄，**並未公開切換門檻**。請依實際帳單校正；
-   填 `0` 或省略 `LongContextRates` 即停用該模型的分級。
+2. **長脈絡門檻為 `272000` 輸入 token。** 官方規則是嚴格超過門檻後，整筆請求使用
+   長脈絡費率；填 `0` 或省略 `LongContextRates` 即停用該模型的分級。
 3. **不支援 cache-write 費率。** 供應商回傳的 `usage` 沒有 cache-write token 數，
    無法可靠判斷，硬猜只會算錯。
 4. **匯率手動維護。** 沒有自動抓匯率的機制，也刻意不做（新增外部相依、需處理失敗與快取、
@@ -295,7 +304,7 @@ twd = usd × UsdToTwd
    回應 body，必然退回部署名稱**，一律變成「未定價」。這不是 bug，但未定價筆數會比預期高。
    解法不需改程式 —— 直接把部署名稱當成 `Models` 的鍵再加一筆即可。
 7. **費率數字由人工抄錄，不會自動更新。** 來源 <https://developers.openai.com/api/docs/pricing>，
-   擷取日期 2026/09/17（`gpt-6-astra` 為 2026/09/22 補錄），請定期與實際帳單核對。範本數字由 `AiPricingSettingsTests` 釘住，
+   擷取日期 2026/09/17（`gpt-6-astra` 為 2026/09/22 補錄；`gpt-5.6-sol`、`gpt-5.6-terra` 於 2026/09/23 核對，`gpt-6-sol`、`gpt-6-luna` 同日補錄），請定期與實際帳單核對。`gpt-5.6-sol` 優惠價官方標示至少持續至 2026/11/21。範本數字由 `AiPricingSettingsTests` 釘住，
    改數字時測試會提醒同步更新文件。
 8. **明細表的費用欄需要橫向捲動才看得到**（見第三節「已知的呈現限制」）。
 
@@ -304,7 +313,7 @@ twd = usd × UsdToTwd
 | 測試 | 驗什麼 |
 | --- | --- |
 | `AiUsageCostCalculatorTests` | 子集晶格（快取／推理／圖片都不重複計，四項拆解相加等於輸入總數）、**受限前綴比對拒絕 `gpt-4o-mini` 與 `gpt-4.1`**、最長前綴優先且與設定順序無關、長脈絡門檻上下界、四種計費單位並存、快取費率缺漏退回原價、匯率未設定與全零費率回 `null`、髒資料不產生負數、費率快照序列化、`AiModelRates` 屬性數守門 |
-| `AiPricingSettingsTests` | **遞迴**未知鍵守門（打錯費率鍵名會靜默變 0）、範本九個模型的費率數字釘住、模型鍵唯一且全小寫、匯率為正、用真實 `appsettings.json` 走一次完整比對路徑 |
+| `AiPricingSettingsTests` | **遞迴**未知鍵守門（打錯費率鍵名會靜默變 0）、範本十一個模型的費率數字釘住、模型鍵唯一且全小寫、匯率為正、用真實 `appsettings.json` 走一次完整比對路徑 |
 | `TokenUsageLogServiceTests` | 費用與快照寫入、未定價留空、**計算器拋例外時該列仍寫入**、費用加總與未定價計數、分組費用小計、依費用排序 |
 | `TokenUsageReportPdfBuilderTests` | 全部有費用、以及**全部未定價**兩種情境都能產出 PDF |
 

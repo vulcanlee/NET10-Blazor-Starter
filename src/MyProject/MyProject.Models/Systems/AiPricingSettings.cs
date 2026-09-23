@@ -37,8 +37,7 @@ public sealed class AiModelPricing
     /// 超過此輸入 token 數（<b>嚴格大於</b>）改用 <see cref="LongContextRates"/>。
     /// 以本次 InputCount 判斷，也就是扣掉快取之前的數字。
     ///
-    /// ⚠️ 供應商的定價頁只列「短脈絡／長脈絡」兩組費率，<b>並未公開切換門檻</b>。
-    /// 這個值是本系統自訂的估算門檻，請依實際帳單校正。
+    /// OpenAI 官方定價對支援長脈絡分級的模型，以超過 272000 輸入 token 為切換門檻。
     /// </summary>
     public int LongContextThresholdTokens { get; set; }
 
