@@ -159,6 +159,75 @@
     opacity: 0.85;
 }
 
+/* ── 趨勢圖 ────────────────────────────────────────────────────────
+   行內 SVG 折線圖，座標由 TokenUsageTrendChart 算好；本檔只管顏色與線寬。
+   專案刻意不引入任何圖表函式庫。顏色與「每日趨勢」的兩根長條同一組。 */
+.token-usage-chart-caption {
+    color: var(--app-muted);
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.token-usage-chart {
+    border-bottom: 1px solid var(--app-line);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+}
+
+.token-usage-chart-title {
+    color: var(--app-text);
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.token-usage-chart-svg {
+    display: block;
+    height: auto;
+    width: 100%;
+}
+
+.token-usage-chart-grid {
+    stroke: var(--app-line);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.token-usage-chart-tick {
+    fill: var(--app-muted);
+    font-size: 12px;
+}
+
+.token-usage-chart-line {
+    fill: none;
+    stroke-linejoin: round;
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+.token-usage-chart-hit {
+    fill: transparent;
+}
+
+.token-usage-chart-point:hover .token-usage-chart-dot {
+    r: 5;
+}
+
+.token-usage-chart-cost .token-usage-chart-line {
+    stroke: var(--app-accent);
+}
+
+.token-usage-chart-cost .token-usage-chart-dot {
+    fill: var(--app-accent);
+}
+
+.token-usage-chart-count .token-usage-chart-line {
+    stroke: var(--app-accent-dim);
+}
+
+.token-usage-chart-count .token-usage-chart-dot {
+    fill: var(--app-accent-dim);
+}
+
 /* ── 每日趨勢 ────────────────────────────────────────────────────────
    純 CSS 長條：長度由行內 style="width:…" 給（見 BarWidth），
    本檔只管顏色、高度與圓角。專案刻意不引入任何圖表函式庫。 */

@@ -1,6 +1,8 @@
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Web.Diagnostics;
@@ -17,6 +19,7 @@ namespace MyProject.Web.Ai;
 public enum TokenUsageReportScope
 {
     All,
+    Trend,
     Daily,
     Account,
     Operation,
@@ -103,7 +106,12 @@ public static class TokenUsageReportPdfBuilder
         AddMetadata(section, request);
         AddSummary(section, request.Summary);
 
-        // 區塊順序與畫面的頁籤順序一致：每日趨勢、四張分組表、明細。
+        // 區塊順序與畫面的頁籤順序一致：趨勢圖、每日趨勢、四張分組表、明細。
+        if (Include(TokenUsageReportScope.Trend))
+        {
+            AddTrendChart(section, request.Daily);
+        }
+
         if (Include(TokenUsageReportScope.Daily))
         {
             AddDailyTable(section, request.Daily);
@@ -191,6 +199,7 @@ public static class TokenUsageReportPdfBuilder
     /// <summary>單頁籤報表的標題後綴。拿在手上要看得出這份只涵蓋哪一個頁籤。</summary>
     internal static string DescribeScope(TokenUsageReportScope scope) => scope switch
     {
+        TokenUsageReportScope.Trend => "趨勢圖",
         TokenUsageReportScope.Daily => "每日趨勢",
         TokenUsageReportScope.Account => "依使用者",
         TokenUsageReportScope.Operation => "依作業",
@@ -371,6 +380,140 @@ public static class TokenUsageReportPdfBuilder
                 $"　其中 {unpriced:N0} 筆未定價未計入金額，因此那些日子的長條會短於實際用量。");
             note.Format.Font.Size = Unit.FromPoint(9);
             note.Format.Font.Color = MutedColor;
+        }
+    }
+
+    /// <summary>
+    /// 趨勢圖：上下兩張折線圖（費用、合計 token），點與刻度和畫面共用 <see cref="TokenUsageTrendChart"/>。
+    ///
+    /// ⚠️ MigraDoc 沒有圖表，也沒辦法在排版流程中直接拿 XGraphics 畫圖。
+    /// 這裡先用 PDFsharp 把圖畫進一份單頁的 PDF，再以 <c>base64:</c> 圖片來源嵌回報表 ——
+    /// 嵌進去的是向量（Form XObject），放大不會糊，也不必落地暫存檔。
+    /// </summary>
+    private static void AddTrendChart(Section section, IReadOnlyList<TokenUsageDailyRow> rows)
+    {
+        // 圖很高，放不下時會整張換頁；標題與說明要跟著圖走，不能孤零零留在上一頁底部。
+        section.AddParagraph("趨勢圖", StyleNames.Heading2).Format.KeepWithNext = true;
+
+        var points = TokenUsageTrendChart.Bucket(rows);
+        if (points.Count == 0)
+        {
+            section.AddParagraph("（無資料）");
+            return;
+        }
+
+        var caption = AddBreakableParagraph(section,
+            $"{TokenUsageTrendChart.DescribeGrain(TokenUsageTrendChart.GrainFor(rows.Count))}，共 {points.Count} 點。"
+            + "上圖為費用（NT$），下圖為合計 token，兩者各自一個 Y 軸。");
+        caption.Format.Font.Size = Unit.FromPoint(9);
+        caption.Format.Font.Color = MutedColor;
+        caption.Format.KeepWithNext = true;
+
+        var image = section.AddImage("base64:" + Convert.ToBase64String(RenderTrendChart(points)));
+        image.Width = Unit.FromCentimeter(TrendImageWidthCm);
+        image.LockAspectRatio = true;
+
+        if (points.Any(x => x.UnpricedCount > 0))
+        {
+            var note = AddBreakableParagraph(section,
+                "　區間內有未定價的呼叫，未計入費用，因此那些點的費用會低於實際用量。");
+            note.Format.Font.Size = Unit.FromPoint(9);
+            note.Format.Font.Color = MutedColor;
+        }
+    }
+
+    private const double TrendImageWidthCm = 25;
+    private const double TrendChartHeightCm = 5;
+
+    /// <summary>把兩張折線圖畫成一份單頁 PDF 的位元組。</summary>
+    internal static byte[] RenderTrendChart(IReadOnlyList<TokenUsageTrendPoint> points)
+    {
+        using var document = new PdfDocument();
+        var page = document.AddPage();
+        page.Width = XUnit.FromCentimeter(TrendImageWidthCm);
+        page.Height = XUnit.FromCentimeter(TrendChartHeightCm * 2 + 0.6);
+
+        using (var gfx = XGraphics.FromPdfPage(page))
+        {
+            var chartHeight = XUnit.FromCentimeter(TrendChartHeightCm).Point;
+            var width = page.Width.Point;
+            var gap = XUnit.FromCentimeter(0.6).Point;
+
+            DrawTrendLine(gfx, points, "費用（NT$）", x => x.CostTwd, TokenUsageFormat.CostTwdTotal,
+                TrendCostColor, 0, width, chartHeight);
+            DrawTrendLine(gfx, points, "合計 token", x => x.TotalCount, v => TokenUsageFormat.Compact((long)v),
+                TrendCountColor, chartHeight + gap, width, chartHeight);
+        }
+
+        using var stream = new MemoryStream();
+        document.Save(stream, closeStream: false);
+        return stream.ToArray();
+    }
+
+    private static readonly XColor TrendCostColor = XColor.FromArgb(0x33, 0x41, 0x55);
+    private static readonly XColor TrendCountColor = XColor.FromArgb(0x94, 0xA3, 0xB8);
+
+    private static void DrawTrendLine(
+        XGraphics gfx,
+        IReadOnlyList<TokenUsageTrendPoint> points,
+        string title,
+        Func<TokenUsageTrendPoint, double> value,
+        Func<double, string> formatTick,
+        XColor lineColor,
+        double top,
+        double width,
+        double height)
+    {
+        var font = new XFont(EmbeddedFontResolver.FamilyName, 7.5);
+        var titleFont = new XFont(EmbeddedFontResolver.FamilyName, 9);
+        var muted = new XSolidBrush(XColor.FromArgb(0x64, 0x74, 0x8B));
+        var gridPen = new XPen(XColor.FromArgb(0xE2, 0xE8, 0xF0), 0.5);
+
+        // 版面：上方 22pt 標題（要讓出最上面那條刻度的字高）、下方 14pt 日期、左邊 52pt 刻度，
+        // 右邊留 20pt —— 最後一個日期標籤置中在最後一點上，不留白會被切掉半個字。
+        const double left = 52;
+        var plotTop = top + 22;
+        var plotHeight = height - 22 - 14;
+        var plotWidth = width - left - 20;
+
+        gfx.DrawString(title, titleFont, new XSolidBrush(XColor.FromArgb(0x1E, 0x29, 0x3B)),
+            new XPoint(0, top + 10));
+
+        var values = points.Select(value).ToList();
+        var axis = TokenUsageTrendChart.Axis(values.Max());
+
+        foreach (var tick in axis.Ticks())
+        {
+            var y = TokenUsageTrendChart.Y(tick, axis.Max, plotTop, plotHeight);
+            gfx.DrawLine(gridPen, left, y, left + plotWidth, y);
+            gfx.DrawString(formatTick(tick), font, muted,
+                new XRect(0, y - 5, left - 4, 10), XStringFormats.CenterRight);
+        }
+
+        var labelStep = TokenUsageTrendChart.LabelStep(points.Count);
+        for (var index = 0; index < points.Count; index += labelStep)
+        {
+            var x = TokenUsageTrendChart.X(index, points.Count, left, plotWidth);
+            gfx.DrawString(TokenUsageTrendChart.AxisLabel(points[index]), font, muted,
+                new XRect(x - 20, plotTop + plotHeight + 2, 40, 10), XStringFormats.TopCenter);
+        }
+
+        var coordinates = values
+            .Select((v, index) => new XPoint(
+                TokenUsageTrendChart.X(index, values.Count, left, plotWidth),
+                TokenUsageTrendChart.Y(v, axis.Max, plotTop, plotHeight)))
+            .ToArray();
+
+        if (coordinates.Length > 1)
+        {
+            gfx.DrawLines(new XPen(lineColor, 1.4) { LineJoin = XLineJoin.Round }, coordinates);
+        }
+
+        // 點太多時（按週也可能二十幾點）仍然畫點：少了點，零值的日子會和線段中段分不出來。
+        var brush = new XSolidBrush(lineColor);
+        foreach (var point in coordinates)
+        {
+            gfx.DrawEllipse(brush, point.X - 1.6, point.Y - 1.6, 3.2, 3.2);
         }
     }
 
