@@ -1,3 +1,4 @@
+using PdfSharp.Pdf.IO;
 using MyProject.Web.Ai;
 
 namespace MyProject.Tests;
@@ -110,6 +111,10 @@ public sealed class AiReportPdfBuilderTests
         Assert.True(bytes.Length > 1000);
     }
 
+    /// <summary>
+    /// ⚠️ 這 24 個字在 A4 直式一行就放得下，所以本測試<b>只驗「不丟例外」，不覆蓋換行</b>。
+    /// 長中文段落是否真的換行請看 <c>Build_ShouldWrapLongChineseParagraph_AcrossPages</c>。
+    /// </summary>
     [Fact]
     public void Build_ShouldNotThrow_WhenMarkdownIsChineseOnly()
     {
@@ -118,6 +123,10 @@ public sealed class AiReportPdfBuilderTests
         Assert.True(bytes.Length > 1000);
     }
 
+    /// <summary>
+    /// ⚠️ `\n\n` 會切成 400 個<b>各自 15 字的短段落</b>，每一段都放得下，
+    /// 所以本測試<b>不覆蓋長段落換行</b>，只驗內容變多時檔案會變大。
+    /// </summary>
     [Fact]
     public void Build_ShouldGrowWithContent()
     {
@@ -208,6 +217,44 @@ public sealed class AiReportPdfBuilderTests
 
         Assert.Contains("送出 100 筆／查詢 357 筆", scope);
         Assert.Contains("已依筆數上限取最新資料", scope);
+    }
+
+    /// <summary>
+    /// ⭐ <b>一段</b>沒有空格的長中文必須真的換行、把頁數撐多。
+    ///
+    /// MigraDoc 只在空白／減號／零寬空格等固定字元上斷行，中文不在其中，所以修正之前
+    /// 整段會排成<b>一條 1 行、寬達數十公分</b>的字串，超出紙張的部分直接消失 ——
+    /// 也就是「3000 字」與「一句話」占用的<b>垂直空間一樣多</b>。
+    /// 修好之後同樣的字數會排成約 67 行，頁數因此必然增加。
+    ///
+    /// ⚠️ 這裡刻意<b>比較</b>長短兩份的頁數，而不是斷言「頁數 &gt; 1」——
+    /// 報告本身有附錄，光附錄就不只一頁，那樣寫會恆為真、驗不到任何東西。
+    ///
+    /// ⚠️ 既有的 <c>Build_ShouldNotThrow_WhenMarkdownIsChineseOnly</c>（24 字）與
+    /// <c>Build_ShouldGrowWithContent</c>（400 段 × 15 字）<b>都不覆蓋這件事</b>：
+    /// 前者放得下，後者每一段也都放得下。名字看起來像，實際上沒測到。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldWrapLongChineseParagraph_IntoMorePages()
+    {
+        const string sentence = "系統於尖峰時段出現連線逾時並伴隨大量重試";
+
+        // 一段 3000 字、完全沒有空格的中文。A4 直式內文一行約容 45 字 ⇒ 約 67 行。
+        var oneLongParagraph = AiReportPdfBuilder.Build(
+            CreateRequest(string.Concat(Enumerable.Repeat(sentence, 150))));
+        var oneShortParagraph = AiReportPdfBuilder.Build(CreateRequest(sentence));
+
+        Assert.True(
+            CountPages(oneLongParagraph) > CountPages(oneShortParagraph),
+            "長中文段落沒有換行：3000 字與一句話占用了同樣的垂直空間，代表整段仍排成一行並溢出頁面。");
+    }
+
+    /// <summary>用既有的 PDFsharp 相依數頁數，不必為了驗證再引入 PDF 解析套件。</summary>
+    private static int CountPages(byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+        return document.PageCount;
     }
 
     private static AiReportPdfRequest CreateRequest(string markdown) => new()

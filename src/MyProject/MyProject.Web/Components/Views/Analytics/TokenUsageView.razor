@@ -1,4 +1,5 @@
 ﻿@using MyProject.Models.Systems
+@using MyProject.Web.Ai
 
 @* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
@@ -74,9 +75,13 @@ else
                 <ToolbarIconButton Title="匯出目前查詢結果（CSV）" Icon="file_download"
                                    Disabled="@(summary.CallCount == 0)"
                                    OnClick="@(async () => await OnExportCsvAsync())" />
-                <ToolbarIconButton Title="下載 PDF 報表" Icon="picture_as_pdf"
+                <ToolbarIconButton Title="下載全部頁籤的 PDF 報表" Icon="picture_as_pdf"
                                    Disabled="@(summary.CallCount == 0 || isExportingPdf)"
-                                   OnClick="@(async () => await OnExportPdfAsync())" />
+                                   OnClick="@(async () => await OnExportPdfAsync(TokenUsageReportScope.All))" />
+                @* 只匯出目前這一個頁籤。條件區與合計仍然保留，否則報表看不出是在什麼條件下產生的。 *@
+                <ToolbarIconButton Title="@($"只匯出目前頁籤（{ActiveTabLabel}）的 PDF")" Icon="description"
+                                   Disabled="@(summary.CallCount == 0 || isExportingPdf)"
+                                   OnClick="@(async () => await OnExportPdfAsync(ActiveScope))" />
                 <ToolbarIconButton Title="清空全部紀錄" Icon="delete_forever"
                                    OnClick="@(async () => await OnClearAllAsync())" />
             </div>
@@ -104,7 +109,80 @@ else
             }
         </div>
 
+        @*
+            最近 N 天摘要卡。三張卡沿用目前的帳號／作業／型別／模型篩選，只把日期換成自己的窗，
+            所以選了某個模型之後，卡片回答的是「這個模型近 1／7／30 天花了多少」。
+            近 1／7／30 天彼此是巢狀區間，三張卡都從同一次「近 30 天」查詢切片加總（見 CardOf）。
+        *@
+        <div class="token-usage-ranges">
+            <div class="token-usage-ranges-caption">最近用量與費用　—　套用條件：@ActiveFilterText</div>
+            <div class="token-usage-range-cards">
+                @foreach (var (days, label) in RangeCards)
+                {
+                    var card = CardOf(days);
+                    <button type="button"
+                            class="token-usage-range-card @(IsRangeActive(days) ? "is-active" : string.Empty)"
+                            @onclick="@(async () => await OnApplyRangeAsync(days))">
+                        <span class="token-usage-range-label">@label</span>
+                        <span class="token-usage-range-cost">NT$ @FormatCostTwdTotal(card.CostTwd)</span>
+                        <span class="token-usage-range-meta">US$ @FormatCostUsdTotal(card.CostUsd)</span>
+                        <span class="token-usage-range-meta">
+                            呼叫 @card.CallCount.ToString("N0") 次・合計 @FormatCompact(card.TotalCount)
+                        </span>
+                        @if (card.UnpricedCount > 0)
+                        {
+                            <span class="token-usage-unpriced">⚠ 其中 @card.UnpricedCount 筆未定價未計入</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+
         <Tabs @bind-ActiveKey="activeTabKey" OnTabClick="OnTabChangedAsync">
+            <TabPane Key="@TabDaily" Tab="@($"每日趨勢（{dailyRows.Count}）")">
+                @if (isTrendTruncated)
+                {
+                    <div class="token-usage-trend-note">
+                        篩選區間超過 @MaxTrendDays 天，以下只顯示最後 @MaxTrendDays 天。
+                    </div>
+                }
+
+                @if (dailyRows.Count == 0)
+                {
+                    <div class="token-usage-trend-empty">這段期間沒有任何呼叫紀錄。</div>
+                }
+                else
+                {
+                    <div class="token-usage-trend">
+                        <div class="token-usage-trend-legend">
+                            <span class="token-usage-trend-key token-usage-trend-key-cost"></span>費用（NT$）
+                            <span class="token-usage-trend-key token-usage-trend-key-count"></span>合計 token
+                            <span class="token-usage-trend-hint">
+                                兩條長條各自以區間內的最大值歸一化，彼此不可互相比較。
+                            </span>
+                        </div>
+                        @foreach (var day in dailyRows)
+                        {
+                            <div class="token-usage-trend-row">
+                                <span class="token-usage-trend-date">@day.Date.ToString("MM/dd (ddd)")</span>
+                                <span class="token-usage-trend-bars">
+                                    <span class="token-usage-trend-track">
+                                        <span class="token-usage-trend-bar token-usage-trend-bar-cost"
+                                              style="width:@BarWidth(day.CostTwd, maxDailyCostTwd)"></span>
+                                    </span>
+                                    <span class="token-usage-trend-track">
+                                        <span class="token-usage-trend-bar token-usage-trend-bar-count"
+                                              style="width:@BarWidth(day.TotalCount, maxDailyTotalCount)"></span>
+                                    </span>
+                                </span>
+                                <span class="token-usage-trend-cost">NT$ @FormatCostTwdTotal(day.CostTwd)</span>
+                                <span class="token-usage-trend-count">@FormatCompact(day.TotalCount)</span>
+                                <span class="token-usage-trend-calls">@day.CallCount.ToString("N0") 次</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </TabPane>
             <TabPane Key="@TabByAccount" Tab="@($"依使用者（{groupedByAccount.Count}）")">
                 <TokenUsageGroupTable Rows="groupedByAccount" KeyTitle="使用者" />
             </TabPane>

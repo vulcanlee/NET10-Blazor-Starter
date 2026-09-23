@@ -25,6 +25,23 @@ namespace MyProject.Web.Components.Views.Analytics
         private const string TabByModel = "model";
         private const string TabByCallKind = "callkind";
         private const string TabDetail = "detail";
+        private const string TabDaily = "daily";
+
+        /// <summary>
+        /// 趨勢清單沒有分頁，區間太長會讓頁面長到不可用，超過就只保留最後這麼多天。
+        /// </summary>
+        private const int MaxTrendDays = 180;
+
+        /// <summary>
+        /// 三張摘要卡。標題上的天數與 <see cref="TokenUsageRanges"/> 是同一組常數，
+        /// 不可以在這裡另外寫死數字 —— 標題說「近 7 天」就必須真的查 7 天。
+        /// </summary>
+        private static readonly (int Days, string Label)[] RangeCards =
+        [
+            (TokenUsageRanges.RecentDay, "近 1 天（今天）"),
+            (TokenUsageRanges.RecentWeek, "近 7 天"),
+            (TokenUsageRanges.RecentMonth, "近 30 天"),
+        ];
 
         private readonly ILogger<TokenUsageView> logger;
         private readonly TokenUsageLogService tokenUsageLogService;
@@ -51,7 +68,8 @@ namespace MyProject.Web.Components.Views.Analytics
         private bool isExportingPdf;
         private string RoleMessage = string.Empty;
         private bool isAccessChecked;
-        private string activeTabKey = TabByAccount;
+        // 本頁的主題是費用走勢，所以預設停在「每日趨勢」。
+        private string activeTabKey = TabDaily;
 
         private List<TokenUsageLogAdapterModel> rows = [];
         private TokenUsageSummary summary = new();
@@ -61,6 +79,19 @@ namespace MyProject.Web.Components.Views.Analytics
         private List<TokenUsageGroupRow> groupedByOperation = [];
         private List<TokenUsageGroupRow> groupedByModel = [];
         private List<TokenUsageGroupRow> groupedByCallKind = [];
+
+        /// <summary>「每日趨勢」的資料：已依有效區間補零，由舊到新，可直接照順序畫。</summary>
+        private List<TokenUsageDailyRow> dailyRows = [];
+
+        /// <summary>
+        /// 近 30 天的逐日資料。近 1／7／30 天彼此是巢狀區間，所以三張摘要卡
+        /// 全部由這一份切片加總得出，不必為了卡片各查一次資料庫。
+        /// </summary>
+        private List<TokenUsageDailyRow> recentDays = [];
+
+        private double maxDailyCostTwd;
+        private long maxDailyTotalCount;
+        private bool isTrendTruncated;
 
         private bool detailVisible;
         private TokenUsageLogAdapterModel? detailItem;
@@ -236,6 +267,9 @@ namespace MyProject.Web.Components.Views.Analytics
                 groupedByOperation = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.Operation);
                 groupedByModel = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.Model);
                 groupedByCallKind = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.CallKind);
+
+                await LoadRangeCardsAsync();
+                await LoadTrendAsync();
             }
             catch (Exception ex)
             {
@@ -244,6 +278,8 @@ namespace MyProject.Web.Components.Views.Analytics
                 rows = [];
                 _total = 0;
                 summary = new TokenUsageSummary();
+                recentDays = [];
+                ClearTrend();
             }
             finally
             {
@@ -251,6 +287,174 @@ namespace MyProject.Web.Components.Views.Analytics
                 StateHasChanged();
             }
         }
+
+        /// <summary>
+        /// 沿用目前的帳號／作業／型別／模型篩選，只把日期換成指定的窗。
+        /// 「條件照舊、只換日期」是摘要卡與主查詢唯一的差別，所以這裡刻意不碰其他欄位。
+        /// </summary>
+        private TokenUsageQuery BuildQueryForRange(DateTime start, DateTime end) => new()
+        {
+            StartDate = start,
+            EndDate = end,
+            Account = accountFilter,
+            Operation = selectedOperation,
+            CallKind = selectedCallKind,
+            Model = selectedModel,
+        };
+
+        /// <summary>
+        /// 近 1／7／30 天彼此是巢狀區間，因此只查一次「近 30 天」，
+        /// 三張卡再從同一份日列切片加總。這樣一次載入只多一次資料庫往返。
+        /// </summary>
+        private async Task LoadRangeCardsAsync()
+        {
+            var (start, end) = TokenUsageRanges.Recent(DateTime.Today, TokenUsageRanges.RecentMonth);
+            recentDays = await tokenUsageLogService.GetDailyAsync(BuildQueryForRange(start, end));
+        }
+
+        /// <summary>
+        /// 「每日趨勢」。區間跟隨篩選；起訖日都沒填時退回近 30 天 ——
+        /// 不設限的話，資料放久了會一次畫出上百格。
+        /// </summary>
+        private async Task LoadTrendAsync()
+        {
+            var isUnbounded = startDate is null && endDate is null;
+            var (windowStart, windowEnd) = TokenUsageRanges.Recent(DateTime.Today, TokenUsageRanges.RecentMonth);
+
+            var actual = await tokenUsageLogService.GetDailyAsync(
+                isUnbounded ? BuildQueryForRange(windowStart, windowEnd) : BuildQuery(_pageSize));
+
+            DateTime start;
+            DateTime end;
+
+            if (isUnbounded)
+            {
+                (start, end) = (windowStart, windowEnd);
+            }
+            else
+            {
+                // 只填了一端時，另一端交給資料自己決定：沒有資料的日子沒有格子可畫。
+                end = endDate?.Date ?? DateTime.Today;
+                start = startDate?.Date ?? (actual.Count > 0 ? actual[0].Date : end);
+            }
+
+            // 使用者可以把結束日選在起始日之前，這裡夾一下，否則下面的迴圈永遠不會執行。
+            if (end < start)
+            {
+                end = start;
+            }
+
+            isTrendTruncated = (end - start).Days + 1 > MaxTrendDays;
+            if (isTrendTruncated)
+            {
+                start = end.AddDays(-(MaxTrendDays - 1));
+            }
+
+            dailyRows = FillMissingDays(actual, start, end);
+            maxDailyCostTwd = dailyRows.Count == 0 ? 0 : dailyRows.Max(x => x.CostTwd);
+            maxDailyTotalCount = dailyRows.Count == 0 ? 0 : dailyRows.Max(x => x.TotalCount);
+        }
+
+        private void ClearTrend()
+        {
+            dailyRows = [];
+            maxDailyCostTwd = 0;
+            maxDailyTotalCount = 0;
+            isTrendTruncated = false;
+        }
+
+        /// <summary>
+        /// 補上沒有資料的日期。缺口不補的話，長條圖會把「那天沒花錢」畫成「那天不存在」，
+        /// 相鄰的兩根柱子看起來就成了連續的兩天。
+        /// </summary>
+        private static List<TokenUsageDailyRow> FillMissingDays(
+            List<TokenUsageDailyRow> actual,
+            DateTime start,
+            DateTime end)
+        {
+            var byDate = actual.ToDictionary(x => x.Date);
+            var result = new List<TokenUsageDailyRow>();
+
+            for (var day = start; day <= end; day = day.AddDays(1))
+            {
+                result.Add(byDate.TryGetValue(day, out var row) ? row : new TokenUsageDailyRow { Date = day });
+            }
+
+            return result;
+        }
+
+        /// <summary>近 N 天的摘要卡。純記憶體切片，不再查資料庫。</summary>
+        private TokenUsageDailyRow CardOf(int days)
+        {
+            var (start, _) = TokenUsageRanges.Recent(DateTime.Today, days);
+            var slice = recentDays.Where(x => x.Date >= start).ToList();
+
+            return new TokenUsageDailyRow
+            {
+                Date = start,
+                TotalCount = slice.Sum(x => x.TotalCount),
+                CostUsd = slice.Sum(x => x.CostUsd),
+                CostTwd = slice.Sum(x => x.CostTwd),
+                UnpricedCount = slice.Sum(x => x.UnpricedCount),
+                CallCount = slice.Sum(x => x.CallCount),
+            };
+        }
+
+        /// <summary>點卡片＝把該區間套進起訖日再重查，其餘篩選條件維持不動。</summary>
+        private async Task OnApplyRangeAsync(int days)
+        {
+            var (start, end) = TokenUsageRanges.Recent(DateTime.Today, days);
+            startDate = start;
+            endDate = end;
+            _pageIndex = 1;
+            await ReloadAsync();
+        }
+
+        private bool IsRangeActive(int days)
+        {
+            var (start, end) = TokenUsageRanges.Recent(DateTime.Today, days);
+            return startDate?.Date == start && endDate?.Date == end;
+        }
+
+        /// <summary>卡片上方那行字：目前除了日期以外還套了哪些條件。</summary>
+        private string ActiveFilterText
+        {
+            get
+            {
+                var parts = new List<string>();
+
+                if (string.IsNullOrWhiteSpace(accountFilter) == false)
+                {
+                    parts.Add($"帳號含「{accountFilter}」");
+                }
+
+                if (string.IsNullOrEmpty(selectedOperation) == false)
+                {
+                    parts.Add($"作業：{selectedOperation}");
+                }
+
+                if (string.IsNullOrEmpty(selectedCallKind) == false)
+                {
+                    parts.Add($"型別：{selectedCallKind}");
+                }
+
+                if (string.IsNullOrEmpty(selectedModel) == false)
+                {
+                    parts.Add($"模型：{selectedModel}");
+                }
+
+                return parts.Count == 0 ? "全部條件" : string.Join("、", parts);
+            }
+        }
+
+        /// <summary>
+        /// 長條寬度。
+        ///
+        /// ⚠️ 一定要 <see cref="CultureInfo.InvariantCulture"/> —— CSS 的百分比不接受
+        /// 逗號小數點，在以逗號為小數點的地區整條長條會消失（而且不會有任何錯誤訊息）。
+        /// </summary>
+        private static string BarWidth(double value, double max)
+            => max <= 0 ? "0%" : string.Create(CultureInfo.InvariantCulture, $"{value / max * 100:F1}%");
 
         private Task OnTabChangedAsync(string key)
         {
@@ -503,16 +707,45 @@ namespace MyProject.Web.Components.Views.Analytics
             }
         }
 
-        private async Task OnExportPdfAsync()
+        /// <summary>目前選中的頁籤對應的報表範圍。</summary>
+        private TokenUsageReportScope ActiveScope => activeTabKey switch
+        {
+            TabDaily => TokenUsageReportScope.Daily,
+            TabByAccount => TokenUsageReportScope.Account,
+            TabByOperation => TokenUsageReportScope.Operation,
+            TabByModel => TokenUsageReportScope.Model,
+            TabByCallKind => TokenUsageReportScope.CallKind,
+            _ => TokenUsageReportScope.Detail,
+        };
+
+        /// <summary>按鈕提示用的頁籤名稱，與報表標題共用同一份對照表。</summary>
+        private string ActiveTabLabel => TokenUsageReportPdfBuilder.DescribeScope(ActiveScope);
+
+        /// <summary>
+        /// 匯出 PDF。<paramref name="scope"/> 為 <see cref="TokenUsageReportScope.All"/> 時是整份報表，
+        /// 否則只輸出目前這一個頁籤（標題、條件區與合計仍然保留）。
+        ///
+        /// 趨勢與四張分組表直接送畫面上現成的資料，<b>不重新查資料庫</b> ——
+        /// 報表看到的就是畫面當下看到的。
+        /// </summary>
+        private async Task OnExportPdfAsync(TokenUsageReportScope scope)
         {
             isExportingPdf = true;
             StateHasChanged();
 
             try
             {
-                var query = BuildQuery(int.MaxValue);
-                query.CurrentPage = 1;
-                var all = await tokenUsageLogService.GetAsync(query);
+                // 明細是唯一要重查的區塊（畫面上是分頁的）。匯出「依模型」之類的頁籤時
+                // 不該為了一份用不到的明細去掃全表。
+                var needsDetails = scope is TokenUsageReportScope.All or TokenUsageReportScope.Detail;
+                var details = new List<TokenUsageLogAdapterModel>();
+
+                if (needsDetails)
+                {
+                    var query = BuildQuery(int.MaxValue);
+                    query.CurrentPage = 1;
+                    details = [.. (await tokenUsageLogService.GetAsync(query)).Result];
+                }
 
                 var information = SystemSettingsOptions.Value.SystemInformation;
                 var bytes = TokenUsageReportPdfBuilder.Build(new TokenUsageReportRequest
@@ -532,17 +765,26 @@ namespace MyProject.Web.Components.Views.Analytics
                     ByOperation = groupedByOperation,
                     ByModel = groupedByModel,
                     ByCallKind = groupedByCallKind,
-                    Details = all.Result.ToList(),
+                    Details = details,
+                    // 畫面現成的趨勢（已補零、已套 180 天上限），PDF 不重算也不重查。
+                    Daily = dailyRows,
+                    Scope = scope,
                 });
 
                 using var stream = new MemoryStream(bytes);
                 using var streamReference = new DotNetStreamReference(stream);
 
-                var fileName = $"MyProject.Web-llm-usage-{DateTime.Now:yyyyMMdd-HHmmss}.pdf";
+                // 整份維持原本的檔名；單頁籤才加上頁籤代碼，免得一次匯好幾個頁籤時分不出誰是誰。
+                var slug = scope is TokenUsageReportScope.All ? string.Empty : $"{activeTabKey}-";
+                var fileName = $"MyProject.Web-llm-usage-{slug}{DateTime.Now:yyyyMMdd-HHmmss}.pdf";
                 await JSRuntime.InvokeVoidAsync(
                     "appFileDownload.downloadFromStream", fileName, streamReference, "application/pdf");
 
-                logger.LogInformation("Usage PDF exported. Bytes={Bytes}, Rows={Rows}", bytes.Length, all.Count);
+                logger.LogInformation(
+                    "Usage PDF exported. Scope={Scope}, Bytes={Bytes}, Rows={Rows}",
+                    scope,
+                    bytes.Length,
+                    details.Count);
             }
             catch (InvalidOperationException ex)
             {

@@ -236,6 +236,38 @@ public class TokenUsageLogService : ITokenUsageRecorder
             .ToList();
     }
 
+    /// <summary>
+    /// 依日期分組統計，由舊到新。供「最近 N 天」摘要卡與「每日趨勢」使用。
+    ///
+    /// ⚠️ 分組鍵是 <c>OccurredAt.Date</c>，SQLite 譯為 <c>date(OccurredAt)</c>，聚合在資料庫端完成。
+    /// 沒有資料的日期<b>不會</b>出現在結果裡 —— 補零是畫面層的事（畫面才知道有效區間到哪）。
+    ///
+    /// ⚠️ 摘要卡是拿這裡的日列切片相加得出的，與直接 SUM 全部資料列相比，
+    /// double 的最末幾位可能不同。顯示精度是台幣 N2／美金 N4，沒有實質差異，<b>不是 bug</b>。
+    /// </summary>
+    public async Task<List<TokenUsageDailyRow>> GetDailyAsync(TokenUsageQuery query)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var dataSource = ApplyFilters(context.TokenUsageLog.AsNoTracking(), query);
+
+        var rows = await dataSource
+            .GroupBy(x => x.OccurredAt.Date)
+            .Select(g => new TokenUsageDailyRow
+            {
+                Date = g.Key,
+                TotalCount = g.Sum(x => (long?)x.TotalCount) ?? 0,
+                CostUsd = g.Sum(x => x.CostUsd) ?? 0,
+                CostTwd = g.Sum(x => x.CostTwd) ?? 0,
+                UnpricedCount = g.Count(x => x.CostUsd == null),
+                CallCount = g.Count(),
+            })
+            .ToListAsync();
+
+        // 時間軸一律由舊到新。排序放在記憶體做，與 GetGroupedAsync 同風格；
+        // 沒有 Skip/Take，不會觸發 RowLimitingOperationWithoutOrderByWarning。
+        return rows.OrderBy(x => x.Date).ToList();
+    }
+
     /// <summary>三個下拉的可選值，只列出資料庫中實際出現過的。</summary>
     public async Task<TokenUsageFilterOptions> GetFilterOptionsAsync()
     {

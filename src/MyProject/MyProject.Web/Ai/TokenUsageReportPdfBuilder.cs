@@ -7,6 +7,24 @@ using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Ai;
 
+/// <summary>
+/// 報表要輸出哪些區塊。<see cref="All"/> 之外的每一個值都對應畫面上的一個頁籤 ——
+/// 「匯出目前頁籤」就是把目前選中的頁籤鍵轉成這裡的一個值。
+///
+/// ⚠️ 標題、條件區與合計<b>不受本列舉影響，一律輸出</b>：
+/// 一份看不出是在什麼條件下產生的統計沒有意義。
+/// </summary>
+public enum TokenUsageReportScope
+{
+    All,
+    Daily,
+    Account,
+    Operation,
+    Model,
+    CallKind,
+    Detail,
+}
+
 /// <summary>Token 用量 PDF 報表的輸入。全部由 Token 用量頁在按下匯出時組好。</summary>
 public sealed record TokenUsageReportRequest
 {
@@ -28,6 +46,15 @@ public sealed record TokenUsageReportRequest
     public IReadOnlyList<TokenUsageGroupRow> ByModel { get; init; } = [];
     public IReadOnlyList<TokenUsageGroupRow> ByCallKind { get; init; } = [];
     public IReadOnlyList<TokenUsageLogAdapterModel> Details { get; init; } = [];
+
+    /// <summary>
+    /// 每日趨勢。<b>直接來自畫面（已補零、已套上限），PDF 不重新查資料庫</b> ——
+    /// 這樣報表的格數與日期範圍與畫面上看到的必然一致。
+    /// </summary>
+    public IReadOnlyList<TokenUsageDailyRow> Daily { get; init; } = [];
+
+    /// <summary>要輸出哪些區塊。預設整份。</summary>
+    public TokenUsageReportScope Scope { get; init; } = TokenUsageReportScope.All;
 }
 
 /// <summary>
@@ -42,11 +69,20 @@ public static class TokenUsageReportPdfBuilder
     /// <summary>明細最多列印的筆數。PDF 是拿來看趨勢的，逐筆對帳請改用 CSV。</summary>
     private const int MaxDetailRows = 200;
 
+    /// <summary>每日趨勢長條的分段數。MigraDoc 沒有巢狀表格，長條只能由固定格數的網底拼出來。</summary>
+    private const int BarSegments = 30;
+
+    /// <summary>長條最後一格的欄索引（第 0 欄是日期）。</summary>
+    private const int BarColumnEnd = BarSegments;
+
     private static readonly Color TextColor = Color.FromRgb(0x33, 0x41, 0x55);
     private static readonly Color HeadingColor = Color.FromRgb(0x1E, 0x29, 0x3B);
     private static readonly Color MutedColor = Color.FromRgb(0x64, 0x74, 0x8B);
     private static readonly Color BorderColor = Color.FromRgb(0xE2, 0xE8, 0xF0);
     private static readonly Color ShadingColor = Color.FromRgb(0xF1, 0xF5, 0xF9);
+
+    /// <summary>每日趨勢長條的填色。報表自帶一組色，不與網頁端的 theme.css 色票共用。</summary>
+    private static readonly Color BarColor = Color.FromRgb(0x94, 0xA3, 0xB8);
 
     /// <exception cref="InvalidOperationException">內嵌中文字型資源缺失。</exception>
     public static byte[] Build(TokenUsageReportRequest request)
@@ -62,16 +98,44 @@ public static class TokenUsageReportPdfBuilder
         var document = CreateDocument(request);
         var section = document.LastSection;
 
+        // 標題、條件區與合計一律輸出，不受 Scope 影響 —— 見 TokenUsageReportScope 的說明。
         AddTitle(section, request);
         AddMetadata(section, request);
         AddSummary(section, request.Summary);
 
-        AddGroupTable(section, "依使用者", "使用者", request.ByAccount);
-        AddGroupTable(section, "依作業", "作業", request.ByOperation);
-        AddGroupTable(section, "依模型", "模型", request.ByModel);
-        AddGroupTable(section, "依型別", "型別", request.ByCallKind);
+        // 區塊順序與畫面的頁籤順序一致：每日趨勢、四張分組表、明細。
+        if (Include(TokenUsageReportScope.Daily))
+        {
+            AddDailyTable(section, request.Daily);
+        }
 
-        AddDetailTable(section, request.Details);
+        if (Include(TokenUsageReportScope.Account))
+        {
+            AddGroupTable(section, "依使用者", "使用者", request.ByAccount);
+        }
+
+        if (Include(TokenUsageReportScope.Operation))
+        {
+            AddGroupTable(section, "依作業", "作業", request.ByOperation);
+        }
+
+        if (Include(TokenUsageReportScope.Model))
+        {
+            AddGroupTable(section, "依模型", "模型", request.ByModel);
+        }
+
+        if (Include(TokenUsageReportScope.CallKind))
+        {
+            AddGroupTable(section, "依型別", "型別", request.ByCallKind);
+        }
+
+        if (Include(TokenUsageReportScope.Detail))
+        {
+            AddDetailTable(section, request.Details);
+        }
+
+        bool Include(TokenUsageReportScope one)
+            => request.Scope is TokenUsageReportScope.All || request.Scope == one;
 
         var renderer = new PdfDocumentRenderer { Document = document };
         renderer.RenderDocument();
@@ -113,14 +177,39 @@ public static class TokenUsageReportPdfBuilder
         return document;
     }
 
+    /// <summary>
+    /// 加一段自由文字，並在中文的合法斷行點切成多個元素。
+    /// 中文沒有空格，不切就會排成一條衝出頁面的長線（見 <see cref="CjkLineBreak"/>）。
+    /// </summary>
+    private static Paragraph AddBreakableParagraph(Section section, string text)
+    {
+        var paragraph = section.AddParagraph();
+        CjkLineBreak.AddTo(paragraph.Elements, text);
+        return paragraph;
+    }
+
+    /// <summary>單頁籤報表的標題後綴。拿在手上要看得出這份只涵蓋哪一個頁籤。</summary>
+    internal static string DescribeScope(TokenUsageReportScope scope) => scope switch
+    {
+        TokenUsageReportScope.Daily => "每日趨勢",
+        TokenUsageReportScope.Account => "依使用者",
+        TokenUsageReportScope.Operation => "依作業",
+        TokenUsageReportScope.Model => "依模型",
+        TokenUsageReportScope.CallKind => "依型別",
+        TokenUsageReportScope.Detail => "明細",
+        _ => "全部頁籤",
+    };
+
     private static void AddTitle(Section section, TokenUsageReportRequest request)
     {
-        var title = section.AddParagraph("Token 用量報表");
+        var title = section.AddParagraph(request.Scope is TokenUsageReportScope.All
+            ? "Token 用量報表"
+            : $"Token 用量報表 — {DescribeScope(request.Scope)}");
         title.Format.Font.Size = Unit.FromPoint(18);
         title.Format.Font.Color = HeadingColor;
         title.Format.SpaceAfter = Unit.FromPoint(4);
 
-        var subtitle = section.AddParagraph(
+        var subtitle = AddBreakableParagraph(section,
             $"{request.SystemName}　版本 {request.SystemVersion}");
         subtitle.Format.Font.Size = Unit.FromPoint(9.5);
         subtitle.Format.Font.Color = MutedColor;
@@ -145,7 +234,8 @@ public static class TokenUsageReportPdfBuilder
 
         foreach (var line in lines)
         {
-            var paragraph = section.AddParagraph(line);
+            // 「篩選條件」會帶使用者輸入的長作業名／模型名，同樣需要斷行機會。
+            var paragraph = AddBreakableParagraph(section, line);
             paragraph.Format.Font.Size = Unit.FromPoint(9.5);
             paragraph.Format.Font.Color = MutedColor;
             paragraph.Format.SpaceAfter = Unit.FromPoint(2);
@@ -166,18 +256,26 @@ public static class TokenUsageReportPdfBuilder
     {
         section.AddParagraph("合計", StyleNames.Heading2);
 
-        var paragraph = section.AddParagraph(
-            $"輸入(送出) {TokenUsageFormat.Compact(summary.InputCount)}　"
-            + $"輸出(接收) {TokenUsageFormat.Compact(summary.OutputCount)}　"
-            + $"其中快取 {TokenUsageFormat.Compact(summary.CachedInputCount)}　"
-            + $"其中推理 {TokenUsageFormat.Compact(summary.ReasoningCount)}　"
-            + $"合計 {TokenUsageFormat.Compact(summary.TotalCount)}　"
-            + $"呼叫次數 {summary.CallCount:N0}　"
-            + $"花費 NT$ {TokenUsageFormat.CostTwdTotal(summary.CostTwd)}"
-            + $"（US$ {TokenUsageFormat.CostUsdTotal(summary.CostUsd)}）");
+        // ⚠️ 標籤與數字之間用不斷行空格（U+00A0）而不是一般空格：MigraDoc 只把 ASCII ' '
+        // 當斷行機會，用一般空格會讓「輸入(送出)」留在行尾、「17.87K」被推到下一行。
+        // 群組之間的全形空格則由 CjkLineBreak 補上斷行機會。
+        // 標籤與數字之間夾不斷行空格，讓兩者不分家；群組之間的全形空格則由
+        // CjkLineBreak 取得斷行機會。常數走 CjkLineBreak，不在這裡寫字面字元。
+        var glue = CjkLineBreak.NoBreakSpace;
+        var paragraph = AddBreakableParagraph(section,
+            $"輸入(送出){glue}{TokenUsageFormat.Compact(summary.InputCount)}　"
+            + $"輸出(接收){glue}{TokenUsageFormat.Compact(summary.OutputCount)}　"
+            + $"其中快取{glue}{TokenUsageFormat.Compact(summary.CachedInputCount)}　"
+            + $"其中推理{glue}{TokenUsageFormat.Compact(summary.ReasoningCount)}　"
+            + $"合計{glue}{TokenUsageFormat.Compact(summary.TotalCount)}　"
+            + $"呼叫次數{glue}{summary.CallCount:N0}　"
+            + $"花費{glue}NT${glue}{TokenUsageFormat.CostTwdTotal(summary.CostTwd)}"
+            + $"（US${glue}{TokenUsageFormat.CostUsdTotal(summary.CostUsd)}）");
         paragraph.Format.Font.Size = Unit.FromPoint(11);
 
-        var note = section.AddParagraph(
+        // ⚠️ 這一段是 97 個中文字、零個空格。不補斷行機會的話它會排成 30.79cm 寬，
+        // 而 A4 橫式可用寬只有 26.5cm、整張紙也才 29.7cm —— 最後幾個字會直接掉出紙外。
+        var note = AddBreakableParagraph(section,
             "註：快取是輸入的折扣子集、推理計入輸出，兩者皆不另計入合計。"
             + "費用為呼叫當下以設定單價與匯率算好的快照，事後調整設定不影響已記錄的帳；"
             + "美金與台幣各自為逐列加總，區間橫跨匯率調整時兩者彼此推不出來。");
@@ -186,10 +284,93 @@ public static class TokenUsageReportPdfBuilder
 
         if (summary.UnpricedCount > 0)
         {
-            var unpriced = section.AddParagraph(
+            var unpriced = AddBreakableParagraph(section,
                 $"　其中 {summary.UnpricedCount:N0} 筆未定價（找不到該模型的費率設定）未計入上列金額。");
             unpriced.Format.Font.Size = Unit.FromPoint(9);
             unpriced.Format.Font.Color = MutedColor;
+        }
+    }
+
+    /// <summary>
+    /// 每日趨勢：表格加上費用的網底長條。
+    ///
+    /// ⚠️ 長條<b>不能</b>用「巢狀表格＋依比例算欄寬」來做 —— MigraDoc 不支援巢狀表格。
+    /// 這裡改用固定分段：<see cref="BarSegments"/> 個等寬窄欄，依比例把前 k 格上網底。
+    /// 解析度是 1/30，對報表夠用，而且不必冒險。
+    ///
+    /// ⚠️ 只畫費用一條。token 合計仍以數字欄位呈現 —— 兩者單位不同（錢 vs token），
+    /// 共用一個尺規只會誤導。
+    /// </summary>
+    private static void AddDailyTable(Section section, IReadOnlyList<TokenUsageDailyRow> rows)
+    {
+        section.AddParagraph("每日趨勢", StyleNames.Heading2);
+
+        if (rows.Count == 0)
+        {
+            section.AddParagraph("（無資料）");
+            return;
+        }
+
+        // 欄寬：2.6 + 30×0.4 + 2.2 + 2.4 + 2.6 + 2.4 = 24.2 cm，A4 橫式可用寬約 26.5 cm。
+        var table = CreateTable(section);
+        table.AddColumn(Unit.FromCentimeter(2.6));
+        for (var index = 0; index < BarSegments; index++)
+        {
+            table.AddColumn(Unit.FromCentimeter(0.4));
+        }
+
+        table.AddColumn(Unit.FromCentimeter(2.2));
+        table.AddColumn(Unit.FromCentimeter(2.4));
+        table.AddColumn(Unit.FromCentimeter(2.6));
+        table.AddColumn(Unit.FromCentimeter(2.4));
+
+        var header = table.AddRow();
+        header.Shading.Color = ShadingColor;
+        header.HeadingFormat = true;
+        SetCell(header, 0, "日期", left: true);
+        SetCell(header, 1, "費用趨勢（相對於區間內最高的一天）", left: true);
+        // 長條那 30 格在表頭合併成一格，否則標題會被切成 30 段。
+        header.Cells[1].MergeRight = BarSegments - 1;
+        SetCell(header, BarColumnEnd + 1, "次數");
+        SetCell(header, BarColumnEnd + 2, "合計");
+        SetCell(header, BarColumnEnd + 3, "費用(TWD)");
+        SetCell(header, BarColumnEnd + 4, "費用(USD)");
+
+        for (var index = 0; index <= BarColumnEnd + 4; index++)
+        {
+            header.Cells[index].Format.Font.Color = HeadingColor;
+        }
+
+        // ⚠️ max 可能是 0（整段期間都沒花錢，或全部未定價），一律先擋掉再除。
+        var max = rows.Max(x => x.CostTwd);
+
+        foreach (var row in rows)
+        {
+            var cells = table.AddRow();
+            SetCell(cells, 0, row.Date.ToString("MM/dd (ddd)"), left: true);
+
+            var filled = max <= 0 ? 0 : (int)Math.Ceiling(row.CostTwd / max * BarSegments);
+            for (var index = 0; index < BarSegments; index++)
+            {
+                if (index < filled)
+                {
+                    cells.Cells[index + 1].Shading.Color = BarColor;
+                }
+            }
+
+            SetCell(cells, BarColumnEnd + 1, row.CallCount.ToString("N0"));
+            SetCell(cells, BarColumnEnd + 2, TokenUsageFormat.Compact(row.TotalCount));
+            SetCell(cells, BarColumnEnd + 3, TokenUsageFormat.CostTwdTotal(row.CostTwd));
+            SetCell(cells, BarColumnEnd + 4, TokenUsageFormat.CostUsdTotal(row.CostUsd));
+        }
+
+        var unpriced = rows.Sum(x => x.UnpricedCount);
+        if (unpriced > 0)
+        {
+            var note = AddBreakableParagraph(section,
+                $"　其中 {unpriced:N0} 筆未定價未計入金額，因此那些日子的長條會短於實際用量。");
+            note.Format.Font.Size = Unit.FromPoint(9);
+            note.Format.Font.Color = MutedColor;
         }
     }
 
@@ -273,7 +454,7 @@ public static class TokenUsageReportPdfBuilder
 
         if (details.Count > MaxDetailRows)
         {
-            var note = section.AddParagraph(
+            var note = AddBreakableParagraph(section,
                 $"明細僅列出前 {MaxDetailRows} 筆（共 {details.Count:N0} 筆）。完整資料請改用 CSV 匯出。");
             note.Format.Font.Size = Unit.FromPoint(9);
             note.Format.Font.Color = MutedColor;
@@ -307,10 +488,14 @@ public static class TokenUsageReportPdfBuilder
         }
     }
 
+    /// <summary>
+    /// 所有表格儲存格的<b>單一收斂點</b>，因此中文斷行機會統一在這裡補。
+    /// 長作業名／模型名／「（系統自動）」在窄欄裡沒有斷行機會就會溢出欄寬。
+    /// </summary>
     private static void SetCell(Row row, int index, string text, bool left = false)
     {
         var cell = row.Cells[index];
-        cell.AddParagraph(text ?? string.Empty);
+        CjkLineBreak.AddTo(cell.AddParagraph().Elements, text);
         cell.Format.Alignment = left ? ParagraphAlignment.Left : ParagraphAlignment.Right;
         cell.VerticalAlignment = VerticalAlignment.Center;
     }

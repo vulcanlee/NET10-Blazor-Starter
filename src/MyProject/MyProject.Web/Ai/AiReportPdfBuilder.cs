@@ -302,10 +302,12 @@ public static class AiReportPdfBuilder
         {
             var paragraph = section.AddParagraph();
             paragraph.Style = MetaStyleName;
-            paragraph.AddText($"{line.Key}：{line.Value}");
+            // 值可能是操作者輸入的關鍵字，長度不受限，一律先補上中文斷行機會。
+            CjkLineBreak.AddTo(paragraph.Elements, $"{line.Key}：{line.Value}");
         }
 
-        var disclaimer = section.AddParagraph(Disclaimer);
+        var disclaimer = section.AddParagraph();
+        CjkLineBreak.AddTo(disclaimer.Elements, Disclaimer);
         disclaimer.Style = MetaStyleName;
         disclaimer.Format.SpaceBefore = Unit.FromPoint(6);
         disclaimer.Format.SpaceAfter = Unit.FromPoint(12);
@@ -411,7 +413,7 @@ public static class AiReportPdfBuilder
                     {
                         var paragraph = section.AddParagraph();
                         ApplyIndent(paragraph, listDepth, quoteDepth);
-                        paragraph.AddText(text);
+                        CjkLineBreak.AddTo(paragraph.Elements, text);
                     }
 
                     break;
@@ -474,7 +476,9 @@ public static class AiReportPdfBuilder
             switch (inline)
             {
                 case LiteralInline literal:
-                    elements.AddText(literal.Content.ToString());
+                    // ⚠️ 模型輸出的中文段落沒有空格，不補斷行機會的話整段會是一個
+                    // 不可分割的「字」而直接衝出頁面（見 CjkLineBreak）。
+                    CjkLineBreak.AddTo(elements, literal.Content.ToString());
                     break;
 
                 case EmphasisInline emphasis:
@@ -493,16 +497,24 @@ public static class AiReportPdfBuilder
                     break;
 
                 case CodeInline code:
-                    elements.AddFormattedText(code.Content ?? string.Empty, CodeInlineStyleName);
+                    var inlineCode = elements.AddFormattedText(string.Empty, CodeInlineStyleName);
+                    CjkLineBreak.AddTo(inlineCode.Elements, code.Content);
                     break;
 
                 case LineBreakInline lineBreak:
-                    // 中文的 soft break 若補空白會看到多餘空格，所以只處理 hard break。
                     if (lineBreak.IsHard)
                     {
                         elements.AddLineBreak();
+                        break;
                     }
 
+                    // ⚠️ soft break（段落內的單一換行）原本是什麼都不輸出的，理由是
+                    // 「中文補空白會看到多餘空格」。但那個空白正是 MigraDoc 唯一認得的斷行機會 ——
+                    // 丟掉它等於把模型換行過的數行焊成一條不可分割的長串，整段衝出頁面。
+                    // 改用零寬空格：保留「看不到多餘空格」的原意，同時把斷行機會還回去。
+                    // soft break（段落內的單一換行）刻意不輸出任何字元：中文補空白會看到
+                    // 多餘空格。斷行機會不靠它 —— 前後的文字各自被 CjkLineBreak.AddTo
+                    // 切成獨立的 Text 元素，兩者之間本來就斷得開。
                     break;
 
                 case LinkInline link:
@@ -561,7 +573,9 @@ public static class AiReportPdfBuilder
                 paragraph.AddLineBreak();
             }
 
-            paragraph.AddText(lines[index]);
+            // 附錄的原始日誌常有很長的中文單行，同樣需要斷行機會才不會溢出。
+            // 附錄的原始日誌常有很長的中文單行，同樣需要斷行機會。
+            CjkLineBreak.AddTo(paragraph.Elements, lines[index]);
         }
     }
 

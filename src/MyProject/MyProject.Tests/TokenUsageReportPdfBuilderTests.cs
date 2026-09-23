@@ -1,3 +1,4 @@
+using PdfSharp.Pdf.IO;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Web.Ai;
@@ -146,6 +147,135 @@ public sealed class TokenUsageReportPdfBuilderTests
         Assert.NotEmpty(bytes);
     }
 
+    /// <summary>每日趨勢那一段真的有排進報表，而不是被悄悄忽略。</summary>
+    [Fact]
+    public void Build_ShouldRenderDailySection()
+    {
+        var withDaily = TokenUsageReportPdfBuilder.Build(CreateRequest());
+        var withoutDaily = TokenUsageReportPdfBuilder.Build(CreateRequest() with { Daily = [] });
+
+        Assert.True(withDaily.Length > withoutDaily.Length);
+    }
+
+    /// <summary>趨勢沒有資料時走「（無資料）」，不可丟例外。</summary>
+    [Fact]
+    public void Build_ShouldNotThrow_WhenDailyIsEmpty()
+    {
+        var bytes = TokenUsageReportPdfBuilder.Build(CreateRequest() with
+        {
+            Scope = TokenUsageReportScope.Daily,
+            Daily = [],
+        });
+
+        Assert.True(bytes.Length > 1000);
+    }
+
+    /// <summary>
+    /// ⭐ 整段期間都沒花到錢（或全部未定價）時，長條的分母是 0。
+    /// 這支守的就是「不可以除以零」—— 期望整欄留白而不是當掉。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldNotThrow_WhenEveryDailyCostIsZero()
+    {
+        var bytes = TokenUsageReportPdfBuilder.Build(CreateRequest() with
+        {
+            Scope = TokenUsageReportScope.Daily,
+            Daily = CreateDaily(10, costPerDay: 0),
+        });
+
+        Assert.True(bytes.Length > 1000);
+    }
+
+    /// <summary>每一種單頁籤都產得出報表，而且一定比整份小（只排了其中一個區塊）。</summary>
+    [Theory]
+    [InlineData(TokenUsageReportScope.Daily)]
+    [InlineData(TokenUsageReportScope.Account)]
+    [InlineData(TokenUsageReportScope.Operation)]
+    [InlineData(TokenUsageReportScope.Model)]
+    [InlineData(TokenUsageReportScope.CallKind)]
+    [InlineData(TokenUsageReportScope.Detail)]
+    public void Build_WithScope_ShouldBeSmallerThanAll(TokenUsageReportScope scope)
+    {
+        var all = TokenUsageReportPdfBuilder.Build(CreateRequest());
+        var scoped = TokenUsageReportPdfBuilder.Build(CreateRequest() with { Scope = scope });
+
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(scoped, 0, 5));
+        Assert.True(scoped.Length < all.Length);
+    }
+
+    /// <summary>
+    /// ⭐ 單頁籤報表<b>仍然含條件區</b>。需求明說「PDF 內要看得到當時設定的條件」，
+    /// 這一段不能因為只匯出一個頁籤就被切掉。
+    ///
+    /// 驗法沿用本檔既有的「位元組數比較」層級（方案內沒有輕量 PDF 文字抽取相依）：
+    /// 條件區若被 Scope 切掉，有填篩選與沒填篩選的兩份就會一樣大。
+    /// </summary>
+    [Fact]
+    public void Build_WithScope_ShouldStillIncludeFilters()
+    {
+        var scoped = CreateRequest() with { Scope = TokenUsageReportScope.Model };
+
+        var withoutFilters = TokenUsageReportPdfBuilder.Build(scoped with
+        {
+            StartDate = null,
+            EndDate = null,
+            Account = string.Empty,
+            Operation = string.Empty,
+            CallKind = string.Empty,
+            Model = string.Empty,
+        });
+
+        var withFilters = TokenUsageReportPdfBuilder.Build(scoped with
+        {
+            Account = "support",
+            Operation = "AI 日誌分析",
+            CallKind = "Chat",
+            Model = "gpt-5.6-sol",
+        });
+
+        Assert.True(withFilters.Length > withoutFilters.Length);
+    }
+
+    /// <summary>每個 Scope 的標題後綴都不一樣，否則拿到報表看不出涵蓋哪一個頁籤。</summary>
+    [Fact]
+    public void DescribeScope_ShouldGiveEveryScopeItsOwnLabel()
+    {
+        var labels = Enum.GetValues<TokenUsageReportScope>()
+            .Select(TokenUsageReportPdfBuilder.DescribeScope)
+            .ToList();
+
+        Assert.Equal(labels.Count, labels.Distinct().Count());
+        Assert.DoesNotContain(labels, string.IsNullOrWhiteSpace);
+    }
+
+    /// <summary>
+    /// ⭐ 長中文的自由文字必須換行、往下流，而不是排成一條衝出紙外的長線。
+    ///
+    /// 走的是真實路徑：<c>Account</c> 是操作者自己輸入的篩選值，會原樣印進條件區。
+    /// 修正之前整串排成一行（頁數不變、超出紙張的字直接不見），修好之後會換行並撐出頁數差。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldWrapLongChineseFilterValue()
+    {
+        var shortValue = TokenUsageReportPdfBuilder.Build(CreateRequest() with { Account = "support" });
+        var longValue = TokenUsageReportPdfBuilder.Build(CreateRequest() with
+        {
+            Account = string.Concat(Enumerable.Repeat("這是一個很長的中文帳號查詢條件並且完全沒有空格", 150)),
+        });
+
+        Assert.True(
+            CountPages(longValue) > CountPages(shortValue),
+            "長中文篩選值沒有換行，整串仍排成一行並溢出頁面。");
+    }
+
+    /// <summary>用既有的 PDFsharp 相依數頁數，不必為了驗證再引入 PDF 解析套件。</summary>
+    private static int CountPages(byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes);
+        using var document = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+        return document.PageCount;
+    }
+
     private static TokenUsageReportRequest CreateRequest() => new()
     {
         SystemName = "企業管理平台",
@@ -172,7 +302,23 @@ public sealed class TokenUsageReportPdfBuilderTests
         ByModel = [Group("gpt-5.6-sol", 3), Group("gpt-5.4", 3), Group("whisper-2", 1)],
         ByCallKind = [Group("Chat", 6), Group("Transcription", 1)],
         Details = CreateDetails(12),
+        Daily = CreateDaily(14),
     };
+
+    /// <summary>
+    /// 趨勢測試資料。刻意讓其中幾天是 0（<c>index % 3</c>），因為畫面補零之後
+    /// 真的會有整天沒有呼叫的列，那些列的長條必須是空的而不是壞掉。
+    /// </summary>
+    private static List<TokenUsageDailyRow> CreateDaily(int count, double costPerDay = 1.5) =>
+        [.. Enumerable.Range(0, count).Select(index => new TokenUsageDailyRow
+        {
+            Date = new DateTime(2026, 9, 1).AddDays(index),
+            CallCount = index % 3,
+            TotalCount = 1200 * (index % 3),
+            CostUsd = costPerDay * (index % 3) / 31.5,
+            CostTwd = costPerDay * (index % 3),
+            UnpricedCount = index % 5 == 0 ? 1 : 0,
+        })];
 
     private static TokenUsageGroupRow Group(string key, int callCount) => new()
     {
