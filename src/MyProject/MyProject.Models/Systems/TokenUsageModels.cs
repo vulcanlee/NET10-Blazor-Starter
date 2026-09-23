@@ -199,3 +199,50 @@ public sealed class TokenUsageFilterOptions
 
     public IReadOnlyList<string> Models { get; set; } = [];
 }
+
+/// <summary>
+/// 逐日統計的一列。「最近 N 天」的三張卡與「每日趨勢」頁籤共用這個形狀。
+///
+/// 注意加總語意與 <see cref="TokenUsageGroupRow"/> 一致：快取是輸入的折扣子集、
+/// 推理計入輸出，因此這裡只留下可以直接畫在時間軸上的合計與費用。
+/// </summary>
+public sealed class TokenUsageDailyRow
+{
+    /// <summary>該日的零時（以 OccurredAt 的當地日期分組）。</summary>
+    public DateTime Date { get; set; }
+
+    public long TotalCount { get; set; }
+
+    /// <summary>估算費用（美金）。未定價的列不計入。</summary>
+    public double CostUsd { get; set; }
+
+    /// <summary>
+    /// 估算費用（台幣）。<b>逐列加總而來</b>，不是由 CostUsd 乘上某個匯率換算的。
+    /// </summary>
+    public double CostTwd { get; set; }
+
+    /// <summary>未定價（算不出費用）的呼叫次數，不含在上面兩個金額裡。</summary>
+    public int UnpricedCount { get; set; }
+
+    public int CallCount { get; set; }
+}
+
+/// <summary>
+/// 「最近 N 天」的<b>唯一定義</b>：含今天往前數 N 日。
+/// 近 1 天＝今天；近 7 天＝今天往前數 7 日（也就是 today-6 到 today）。
+///
+/// ⚠️ 摘要卡與「每日趨勢」的預設區間都必須走這裡。兩邊各自寫一次日期運算，
+/// 遲早會出現「卡片說近 7 天、趨勢畫了 8 格」這種對不起來的狀況。
+/// </summary>
+public static class TokenUsageRanges
+{
+    public const int RecentDay = 1;
+
+    public const int RecentWeek = 7;
+
+    public const int RecentMonth = 30;
+
+    /// <summary>「近 <paramref name="days"/> 天」的起訖日（皆為日期，含頭含尾）。</summary>
+    public static (DateTime Start, DateTime End) Recent(DateTime today, int days)
+        => (today.Date.AddDays(-(days - 1)), today.Date);
+}

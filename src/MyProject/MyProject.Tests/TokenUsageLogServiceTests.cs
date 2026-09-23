@@ -369,6 +369,82 @@ public sealed class TokenUsageLogServiceTests
         Assert.Equal(0, rows.Single(x => x.Key == "alice").UnpricedCount);
     }
 
+    [Fact]
+    public async Task GetDailyAsync_ShouldGroupByLocalDate()
+    {
+        // 跨午夜的兩筆必須落在不同天。這個測試同時證明 GroupBy(x => x.OccurredAt.Date)
+        // 在 SQLite 上譯得出 SQL —— 譯不出來會在這裡就炸，而不是等到畫面才發現。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        var day = DateTime.Today.AddDays(-2);
+        await service.RecordAsync(NewEntry(occurredAt: day.AddHours(23).AddMinutes(59)));
+        await service.RecordAsync(NewEntry(occurredAt: day.AddDays(1).AddMinutes(1)));
+
+        var rows = await service.GetDailyAsync(new TokenUsageQuery());
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(day, rows[0].Date);
+        Assert.Equal(day.AddDays(1), rows[1].Date);
+        Assert.All(rows, row => Assert.Equal(1, row.CallCount));
+    }
+
+    [Fact]
+    public async Task GetDailyAsync_ShouldSumCostAndCountUnpricedPerDay()
+    {
+        // 未定價要算進 UnpricedCount，不可以當成 0 併進金額 —— 併進去就變成「這天很便宜」。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        var day = DateTime.Today.AddDays(-1);
+        await service.RecordAsync(NewEntry(model: "priced-model", occurredAt: day));
+        await service.RecordAsync(NewEntry(model: "priced-model", occurredAt: day.AddHours(3)));
+        await service.RecordAsync(NewEntry(model: "model-without-price", occurredAt: day.AddHours(6)));
+
+        var row = Assert.Single(await service.GetDailyAsync(new TokenUsageQuery()));
+
+        Assert.Equal(day, row.Date);
+        Assert.Equal(304.8, row.CostUsd, 6);
+        Assert.Equal(3048, row.CostTwd, 6);
+        Assert.Equal(1, row.UnpricedCount);
+        Assert.Equal(3, row.CallCount);
+        Assert.Equal(495, row.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetDailyAsync_ShouldRespectFilters()
+    {
+        // 摘要卡會套用目前的模型／作業／帳號篩選，只把日期換成自己的窗。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        var day = DateTime.Today.AddDays(-1);
+        await service.RecordAsync(NewEntry(model: "priced-model", occurredAt: day));
+        await service.RecordAsync(NewEntry(model: "model-without-price", occurredAt: day));
+
+        var row = Assert.Single(await service.GetDailyAsync(new TokenUsageQuery { Model = "priced-model" }));
+
+        Assert.Equal(1, row.CallCount);
+        Assert.Equal(0, row.UnpricedCount);
+    }
+
+    [Fact]
+    public async Task GetDailyAsync_ShouldReturnAscendingByDate()
+    {
+        // 時間軸一律由舊到新，畫面直接照順序畫，不再自己排一次。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        foreach (var offset in new[] { -1, -5, -3 })
+        {
+            await service.RecordAsync(NewEntry(occurredAt: DateTime.Today.AddDays(offset)));
+        }
+
+        var rows = await service.GetDailyAsync(new TokenUsageQuery());
+
+        Assert.Equal(new[] { -5, -3, -1 }.Select(offset => DateTime.Today.AddDays(offset)), rows.Select(x => x.Date));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

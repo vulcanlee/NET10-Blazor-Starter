@@ -78,3 +78,173 @@
 .token-usage-unpriced {
     color: #d46b08;
 }
+
+/* ── 最近 N 天摘要卡 ──────────────────────────────────────────────────
+   顏色一律走 var(--app-*)：色碼字面量只能出現在 theme.css，由
+   ThemeConventionTests.PaletteHexes_ShouldOnlyLiveInThemeCss 守門。 */
+.token-usage-ranges {
+    margin-bottom: 0.75rem;
+}
+
+.token-usage-ranges-caption {
+    color: var(--app-muted);
+    font-size: 0.82rem;
+    margin-bottom: 0.4rem;
+}
+
+.token-usage-range-cards {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* 用 <button> 而不是 <div>：可鍵盤聚焦、Enter/Space 直接觸發，
+   不必自己補 tabindex 與 keydown。這不是 AntDesign Button，與 theme.css 的 .ant-* 覆寫無關。 */
+.token-usage-range-card {
+    background: var(--app-card);
+    border: 1px solid var(--app-line);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.7rem 0.9rem;
+    text-align: left;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.token-usage-range-card:hover {
+    border-color: var(--app-accent-dim);
+    box-shadow: var(--app-shadow);
+}
+
+.token-usage-range-card:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
+.token-usage-range-card.is-active {
+    background: var(--app-tint);
+    border-color: var(--app-accent);
+}
+
+.token-usage-range-label {
+    color: var(--app-muted);
+    font-size: 0.82rem;
+}
+
+.token-usage-range-cost {
+    color: var(--app-text);
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.token-usage-range-meta {
+    color: var(--app-muted);
+    font-size: 0.78rem;
+}
+
+/* ── 每日趨勢 ────────────────────────────────────────────────────────
+   純 CSS 長條：長度由行內 style="width:…" 給（見 BarWidth），
+   本檔只管顏色、高度與圓角。專案刻意不引入任何圖表函式庫。 */
+.token-usage-trend-note,
+.token-usage-trend-empty {
+    color: var(--app-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.token-usage-trend-legend {
+    align-items: center;
+    color: var(--app-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+}
+
+.token-usage-trend-key {
+    border-radius: 2px;
+    display: inline-block;
+    height: 0.6rem;
+    width: 1.1rem;
+}
+
+.token-usage-trend-key-cost {
+    background: var(--app-accent);
+}
+
+.token-usage-trend-key-count {
+    background: var(--app-accent-dim);
+    margin-left: 0.8rem;
+}
+
+.token-usage-trend-hint {
+    margin-left: auto;
+}
+
+.token-usage-trend-row {
+    align-items: center;
+    border-bottom: 1px solid var(--app-line);
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: 6.5rem 1fr 7rem 5rem 4rem;
+    padding: 0.3rem 0;
+}
+
+.token-usage-trend-date {
+    color: var(--app-muted);
+    font-size: 0.8rem;
+}
+
+.token-usage-trend-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.token-usage-trend-track {
+    background: rgba(var(--app-accent-rgb), 0.08);
+    border-radius: 3px;
+    display: block;
+    height: 0.5rem;
+    overflow: hidden;
+}
+
+.token-usage-trend-bar {
+    border-radius: 3px;
+    display: block;
+    height: 100%;
+}
+
+.token-usage-trend-bar-cost {
+    background: var(--app-accent);
+}
+
+.token-usage-trend-bar-count {
+    background: var(--app-accent-dim);
+}
+
+.token-usage-trend-cost,
+.token-usage-trend-count,
+.token-usage-trend-calls {
+    color: var(--app-text);
+    font-size: 0.82rem;
+    text-align: right;
+}
+
+@media (max-width: 860.98px) {
+    .token-usage-range-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .token-usage-trend-row {
+        grid-template-columns: 5rem 1fr 6.5rem;
+    }
+
+    .token-usage-trend-count,
+    .token-usage-trend-calls {
+        display: none;
+    }
+}
