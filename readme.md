@@ -287,6 +287,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [維護規範](docs/operations/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
 - [正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目。
 - [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
+- [AI 模型計費更新指南](docs/operations/AI模型計費更新指南.md) — 依 OpenAI 官方頁面更新 `AiPricingSettings` 的逐步流程（調價、新模型、Deprecated）。
 - [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — GitHub Actions 流程、文件編碼檢查、弱點掃描。
 
 ### 產品需求文件（prd）
