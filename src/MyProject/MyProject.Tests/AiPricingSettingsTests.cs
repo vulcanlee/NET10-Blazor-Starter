@@ -116,6 +116,10 @@ public sealed class AiPricingSettingsTests
         Assert.Equal(2.0, models["gpt-image-2.5-flare"].Rates.ImageCachedInputPerMillion);
         Assert.Equal(30.0, models["gpt-image-2.5-flare"].Rates.ImageOutputPerMillion);
 
+        Assert.Equal(8.0, models["gpt-image-2.5-sunburst"].Rates.ImageInputPerMillion);
+        Assert.Equal(2.0, models["gpt-image-2.5-sunburst"].Rates.ImageCachedInputPerMillion);
+        Assert.Equal(30.0, models["gpt-image-2.5-sunburst"].Rates.ImageOutputPerMillion);
+
         Assert.Equal(0.0045, models["gpt-transcribe"].Rates.AudioPerMinute);
         Assert.Equal(0.006, models["gpt-4o-transcribe-diarize"].Rates.AudioPerMinute);
         Assert.Equal(15.0, models["tts-1"].Rates.SpeechPerMillionCharacters);
