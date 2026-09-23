@@ -72,6 +72,8 @@ public sealed class AiPricingSettingsTests
     /// </summary>
     [Theory]
     [InlineData("gpt-6-astra", 10.0, 1.0, 50.0)]
+    [InlineData("gpt-6-sol", 2.0, 0.2, 10.0)]
+    [InlineData("gpt-6-luna", 0.1, 0.01, 0.5)]
     [InlineData("gpt-5.6-sol", 4.0, 0.4, 20.0)]
     [InlineData("gpt-5.6-terra", 2.0, 0.2, 12.0)]
     [InlineData("gpt-5.6-luna", 0.2, 0.02, 1.2)]
@@ -87,6 +89,8 @@ public sealed class AiPricingSettingsTests
 
     [Theory]
     [InlineData("gpt-6-astra", 20.0, 2.0, 75.0)]
+    [InlineData("gpt-6-sol", 4.0, 0.4, 15.0)]
+    [InlineData("gpt-6-luna", 0.2, 0.02, 0.75)]
     [InlineData("gpt-5.6-sol", 8.0, 0.8, 30.0)]
     [InlineData("gpt-5.6-terra", 4.0, 0.4, 18.0)]
     [InlineData("gpt-5.6-luna", 0.4, 0.04, 1.8)]
@@ -95,8 +99,8 @@ public sealed class AiPricingSettingsTests
     {
         var pricing = Bind().Models[key];
 
-        // ⚠️ 門檻 128000 是本系統自訂的估算值，供應商定價頁並未公開切換門檻。
-        Assert.Equal(128000, pricing.LongContextThresholdTokens);
+        // 官方定價在輸入 token 嚴格超過 272000 時切換長脈絡費率。
+        Assert.Equal(272000, pricing.LongContextThresholdTokens);
         Assert.NotNull(pricing.LongContextRates);
         Assert.Equal(input, pricing.LongContextRates!.TextInputPerMillion);
         Assert.Equal(cachedInput, pricing.LongContextRates.TextCachedInputPerMillion);
