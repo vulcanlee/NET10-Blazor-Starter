@@ -22,6 +22,21 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $destinationFullPath = [System.IO.Path]::GetFullPath($DestinationPath)
 
+# 衍生專案不帶腳手架的 migration 歷史，最後會清空 Migrations 並以 dotnet ef 重建單一 Init。
+# 先檢查 dotnet-ef 是否可用，避免複製到一半才失敗、留下半成品。
+$dotnetEfAvailable = $false
+try {
+    & dotnet ef --version *> $null
+    $dotnetEfAvailable = ($LASTEXITCODE -eq 0)
+}
+catch {
+    $dotnetEfAvailable = $false
+}
+
+if (-not $dotnetEfAvailable) {
+    throw "dotnet-ef is required to create the initial migration. Install it with: dotnet tool install --global dotnet-ef"
+}
+
 if ((Test-Path -LiteralPath $destinationFullPath) -and -not $Force) {
     throw "Destination already exists. Use -Force to overwrite: $destinationFullPath"
 }
@@ -188,6 +203,40 @@ if ($webCsproj) {
 else {
     Write-Warning "Could not locate $ProjectName.Web.csproj; UserSecretsId was not replaced."
 }
+
+# 清空腳手架的 migration 歷史，改由新專案自己的第一次 migration（Init）起算。
+# 名稱用大寫 Init：全小寫類別名會觸發 CS8981，在 TreatWarningsAsErrors 下直接建置失敗。
+# 目錄本身保留：AccessDatas.csproj 有 <Folder Include="Migrations\" />。
+$projectRoot = Join-Path $destinationFullPath "src/$ProjectName"
+$accessDatasCsproj = Join-Path $projectRoot "$ProjectName.AccessDatas/$ProjectName.AccessDatas.csproj"
+$webCsprojPath = Join-Path $projectRoot "$ProjectName.Web/$ProjectName.Web.csproj"
+$migrationsDirectory = Join-Path $projectRoot "$ProjectName.AccessDatas/Migrations"
+
+if (Test-Path -LiteralPath $migrationsDirectory) {
+    Get-ChildItem -LiteralPath $migrationsDirectory -Force | Remove-Item -Recurse -Force
+}
+
+# 這支測試寫死了腳手架的舊 migration 名稱（驗證腳手架自己的升級路徑），重建後在新專案必定失效。
+$starterMigrationTest = Join-Path $projectRoot "$ProjectName.Tests/CategoryTeamUniqueIndexMigrationTests.cs"
+if (Test-Path -LiteralPath $starterMigrationTest) {
+    Remove-Item -LiteralPath $starterMigrationTest -Force
+}
+
+# dotnet ef 取專案中繼資料前需要 project.assets.json，全新複製的專案必須先還原套件。
+$solutionFile = Join-Path $projectRoot "$ProjectName.slnx"
+& dotnet restore $solutionFile
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to restore packages. Fix the error above, then run manually: dotnet restore `"$solutionFile`""
+}
+
+$migrationCommand = "dotnet ef migrations add Init --project `"$accessDatasCsproj`" --startup-project `"$webCsprojPath`""
+Write-Host "Creating initial migration: $migrationCommand"
+& dotnet ef migrations add Init --project $accessDatasCsproj --startup-project $webCsprojPath
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to create the initial migration. Fix the error above, then run manually: $migrationCommand"
+}
+
+Write-Host "Cleared starter migrations and created the initial migration 'Init'."
 
 if ($KeepStarterHistory) {
     Write-Host "Kept the starter's own history docs (-KeepStarterHistory)."
