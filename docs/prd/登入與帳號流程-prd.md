@@ -1,16 +1,16 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.62
+- 現行系統版本：0.9.63
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/09/24
 
 ## 一、目標與範圍
 
-提供本專案的身分驗證與帳號自助維護能力，涵蓋本地帳密登入、Google OAuth2 第三方登入、登出、待審核導向、個人 API 密碼設定、變更密碼，以及忘記密碼／以 Email 連結重設密碼（0.9.60 起）。網頁採 Cookie 驗證、API 採 JWT Bearer，兩者共用同一份使用者與 RBAC 權威來源。
+提供本專案的身分驗證與帳號自助維護能力，涵蓋本地帳密登入、Google OAuth2 第三方登入、登出、待審核導向、變更密碼，以及忘記密碼／以 Email 連結重設密碼（0.9.60 起）。網頁採 Cookie 驗證、API 採 JWT Bearer，兩者共用同一份使用者與 RBAC 權威來源。
 
-- **範圍**：`/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/Profile`、`/ChangePassword`；Google 導向端點 `/Auths/Google/Login`、`/Auths/Google/Callback`；API 端 `/api/v1/auth/login`、`/refresh`、`/me`。帳號安全（PBKDF2 雜湊、登入失敗鎖定、登入時雜湊自動升級）。
+- **範圍**：`/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword`；Google 導向端點 `/Auths/Google/Login`、`/Auths/Google/Callback`；API 端 `/api/v1/auth/login`、`/refresh`、`/me`。帳號安全（PBKDF2 雜湊、登入失敗鎖定、登入時雜湊自動升級）。
 - **非範圍**：帳號 CRUD 與角色／團隊指派見 [使用者管理](使用者管理-prd.md)；角色與權限矩陣見 [角色管理](角色管理-prd.md)。二階段驗證（TOTP）僅有資料模型與 `TotpService` 骨架，預設關閉、尚未提供強制啟用 UI，不在本次驗收範圍。
 
 ## 二、使用者與入口
@@ -22,7 +22,6 @@
 | `/Auths/Pending` | `NoFooterLayout` | 匿名 | Google 自動建帳待審核者 |
 | `/Auths/ForgotPassword` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名 | 忘記密碼者（0.9.60 起；寄信未啟用時只顯示「未啟用」）|
 | `/Auths/ResetPassword?token=…` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名＋有效 token | 收到重設信的人（0.9.60 起）|
-| `/Profile` | 預設版面 | 已登入（`AuthenticationStateHelper.Check`）| 需設定 API 密碼者 |
 | `/ChangePassword` | 預設版面 | 已登入 | 需變更密碼者 |
 | `/api/v1/auth/login`、`/refresh` | — | 匿名（帳密換 JWT）| API 用戶端 |
 | `/api/v1/auth/me` | — | JWT Bearer | API 用戶端 |
@@ -34,7 +33,6 @@
 - **忘記密碼頁**：帳號或 Email、驗證碼（與登入頁同一套 4 碼）。送出後**一律**顯示「如果帳號存在且登記了有效的 Email，重設密碼的信已經寄出，請在 N 分鐘內點信中的連結…」—— 不論帳號是否存在、有沒有真的寄出。寄信未啟用時整頁只顯示「系統目前未啟用寄信功能…請聯絡系統管理員」。
 - **重設密碼頁**：副標題顯示「為帳號「X」設定新密碼（至少 6 個字元）」；新密碼、確認新密碼。token 無效／過期／已用過一律顯示「重設連結無效或已過期，請重新申請。」並提供「重新申請重設信」連結。成功後導回登入頁。
 - **待審核頁**：靜態說明，告知 Google 帳號已建立但預設停用，須管理者啟用後再登入，提供返回登入頁連結。
-- **個人資料（設定 API 密碼）**：新密碼、確認新密碼；已有本地密碼者另需「目前密碼」。設定後可用「帳號（Email）＋此密碼」呼叫 `/api/v1/auth/login` 取得 JWT。`support` 開發帳號被禁止。
 - **變更密碼**：目前密碼、新密碼、確認新密碼（`[Compare]` 驗證一致）。`support` 開發帳號被禁止。
 
 ## 四、內部系統運作
@@ -78,7 +76,7 @@
 - 驗證碼錯誤／欄位空白：停留登入頁並重新產生驗證碼。
 - 連續 5 次失敗鎖定 15 分鐘；鎖定到期後（`LockoutEndUtc` 過期）可再次登入。
 - Google Callback 缺 `subject`／`email`：登出外部身分並導回登入頁。
-- `support` 帳號於 `/Profile`、`/ChangePassword` 一律被拒；Google 帳號首次設 API 密碼免驗舊密碼。
+- `support` 帳號於 `/ChangePassword` 一律被拒。Google 帳號只用於網頁登入，不支援 API（0.9.63 起移除「設定 API 密碼」`/Profile`）。
 - 使用者無角色、`RoleView` 為 null 或 `TabViewJson` 解析失敗：導向登出。
 - 忘記密碼：輸入空白 →「請輸入帳號或 Email」；驗證碼錯 → 重新產生驗證碼；查無帳號、不符資格、冷卻中 → 畫面與成功時相同；背景佇列滿 → 不寄（稽核 `QueueFull`）；資料庫錯誤 →「系統暫時無法處理您的申請，請稍後再試。」。
 - 重設：連結過期、已用過、偽造、或申請後帳號被停用 → 一律「重設連結無效或已過期」；密碼規則不過 → 顯示原因、連結仍可再用。
@@ -107,7 +105,7 @@
 - `src/MyProject/MyProject.Web/Components/Auths/Login.razor`、`Login.razor.cs`（登入表單與 Cookie 簽發）
 - `src/MyProject/MyProject.Web/Components/Auths/AuthShell.razor`（登入／忘記／重設三頁共用外框）、`ForgotPassword.razor(.cs)`、`ResetPassword.razor(.cs)`、`AuthCaptcha.cs`
 - `src/MyProject/MyProject.Web/Components/Auths/Logout.razor.cs`、`Pending.razor`
-- `src/MyProject/MyProject.Web/Components/Pages/Profile.razor`、`ChangePassword.razor`
+- `src/MyProject/MyProject.Web/Components/Pages/ChangePassword.razor`
 - `src/MyProject/MyProject.Business/Services/Other/MyUserServiceLogin.cs`（鎖定、PBKDF2、升級、稽核）
 - `src/MyProject/MyProject.Business/Services/Other/ExternalLoginService.cs`（Google 查找／建立）
 - `src/MyProject/MyProject.Business/Services/Other/PasswordResetService.cs`（忘記密碼）、`src/MyProject/MyProject.AccessDatas/Models/PasswordResetToken.cs`、`src/MyProject/MyProject.Models/Systems/PasswordResetSettings.cs`

@@ -169,9 +169,9 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
     /// <summary>
     /// 不需要 isAccessChecked 閘門的元件：
     /// - SplashView：匿名的啟動頁，Check() 只用來決定要去 /App 還是登入頁，畫面只有品牌。
-    /// - Profile、ChangePassword：isLoading 初值為 true，檢查期間只顯示 Spin，本身就是閘門。
+    /// - ChangePassword：isLoading 初值為 true，檢查期間只顯示 Spin，本身就是閘門。
     /// </summary>
-    private static readonly string[] CheckWithoutGateAllowList = ["SplashView", "Profile", "ChangePassword"];
+    private static readonly string[] CheckWithoutGateAllowList = ["SplashView", "ChangePassword"];
 
     [Fact]
     public void ComponentsCallingAuthenticationCheck_ShouldRenderNothingUntilTheCheckCompletes()

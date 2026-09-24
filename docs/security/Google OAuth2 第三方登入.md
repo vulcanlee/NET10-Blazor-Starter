@@ -1,16 +1,16 @@
 ﻿# Google OAuth2 第三方登入
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.63
 - 首次實作版本：0.2.6
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/09/24
 
 ## 目的
 
 本文件說明如何在本系統啟用「使用 Google 帳號登入」，並串接既有的權限控管（權控）與 Web API（JWT）機制。
 
-設計核心：**Google OAuth2 只負責「網頁 Cookie 登入」這條路徑**；API 仍維持既有的「帳號＋密碼換 JWT」機制。因此 `AuthController` 與 `JwtTokenService` 完全沒有更動，Google 使用者若要呼叫 API，透過「選用的 API 密碼」接軌即可。詳見「認證授權與權限機制」一文。
+設計核心：**Google OAuth2 只負責「網頁 Cookie 登入」這條路徑**；API 仍維持既有的「帳號＋密碼換 JWT」機制。因此 `AuthController` 與 `JwtTokenService` 完全沒有更動，Google 帳號只用於網頁登入，**不支援 API**（0.9.63 起移除「設定 API 密碼」）；要呼叫 API 請使用本地帳號。詳見「認證授權與權限機制」一文。
 
 ---
 
@@ -24,7 +24,7 @@
 | 資安閘門 | 新帳號預設 `Status = false`（**停用**），需由管理者於「使用者管理」**啟用並確認角色**後才能登入 |
 | Email 連結 | 若已存在相同 Email 的本地帳號，**自動連結**（寫入 GoogleId，不重建、不覆寫狀態與權限） |
 | 網頁登入 | 純 Google 單一登入（SSO），**不需設定密碼** |
-| API / JWT | **選用**：需要呼叫 API 的 Google 使用者，到「設定 API 密碼」頁自行設定密碼，之後用 `Email + 密碼` 呼叫 `/api/v1/auth/login` 取得 JWT |
+| API / JWT | **不支援**（0.9.63 起）：Google 帳號沒有本地密碼，無法呼叫 `/api/v1/auth/login`；要呼叫 API 請使用本地帳號 |
 
 ---
 
@@ -164,24 +164,11 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 
 ---
 
-## 五、Google 使用者呼叫 API（取得 JWT）
+## 五、Google 使用者呼叫 API（0.9.63 起不支援）
 
-Google 使用者預設無本地密碼，因此無法直接用 `/api/v1/auth/login`。若需要呼叫 API：
-
-1. 以 Google 登入系統後，點右上角使用者選單的 **「設定 API 密碼」**（`/Profile`）。
-2. 設定一組 API 密碼（首次設定免輸入舊密碼）。
-3. 之後即可用 **帳號（Email）＋ API 密碼** 呼叫既有端點取得 JWT：
-
-   ```http
-   POST /api/v1/auth/login
-   Content-Type: application/json
-
-   { "account": "user@example.com", "password": "你設定的 API 密碼" }
-   ```
-
-4. 以回傳的 `accessToken` 作為 Bearer token 呼叫其他 API，例如 `GET /api/auth/me`。
-
-> 此密碼僅供 API 存取；網頁登入仍可繼續使用 Google 單一登入。
+Google 使用者預設沒有本地密碼，因此無法用 `/api/v1/auth/login` 取得 JWT。
+0.9.63 之前可從使用者選單的「設定 API 密碼」（`/Profile`）自行設定一組密碼，此功能已移除；
+需要呼叫 API 請改用本地帳號。
 
 ---
 
