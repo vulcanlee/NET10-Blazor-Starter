@@ -5,12 +5,11 @@ namespace MyProject.Web.Configuration;
 public static class StartupSafetyValidator
 {
     /// <summary>
-    /// 範本出貨過的預設管理者密碼。**同樣是「值會變、比對要跟著變」的地方**：
-    /// 早期出貨 <c>support</c>，現行是 <c>1qaz@WSX</c>，只擋前者等於整道防線形同虛設。
+    /// 範本出貨的預設管理者密碼（現行為 <c>support</c>）。**同樣是「值會變、比對要跟著變」的地方**：
     /// <c>StartupSafetyConventionTests</c> 會讀 <c>appsettings.json</c> 實際出貨的值來守門，
     /// 日後換預設值卻忘了加進這份清單，測試就會紅。
     /// </summary>
-    private static readonly string[] TemplateSupportPasswords = ["support", "1qaz@WSX"];
+    private static readonly string[] TemplateSupportPasswords = ["support"];
 
     public static void Validate(IConfiguration configuration, string environmentName)
     {

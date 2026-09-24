@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.48
+- 現行系統版本：0.9.57
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/09/21
+- 最後核對日期：2026/09/24
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -69,7 +69,7 @@ repo 已提供 `.vscode/extensions.json`，開啟工作區時 VS Code 會主動�
 ### 2.3 選用工具
 
 ```powershell
-# EF Core 指令列工具（要自行新增 Migration 時才需要）
+# EF Core 指令列工具（自行新增 Migration，或執行 New-StarterProject.ps1 時需要）
 dotnet tool install --global dotnet-ef
 dotnet ef --version
 
@@ -332,7 +332,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 | 項目 | 值 | 來源 |
 |------|----|------|
 | 帳號 | `support` | `appsettings.json:40` `BootstrapSettings:SupportAccount` |
-| 密碼 | `1qaz@WSX` | `appsettings.json` 的 `BootstrapSettings:SupportPassword` |
+| 密碼 | `support` | `appsettings.json` 的 `BootstrapSettings:SupportPassword` |
 | 權限 | `IsAdmin = true` | `Program.cs:313-352` 強制設定 |
 
 > ⚠️ **重要行為，不是 bug**：每次啟動時，若資料庫內 `support` 的密碼雜湊**驗不過設定檔的值**，程式會把密碼**覆寫回設定檔的值**，並強制 `IsAdmin = true`（`Program.cs:337-345`）。
@@ -495,6 +495,9 @@ pwsh ./scripts/New-StarterProject.ps1 `
 > 對照 [§8.2 步驟 2](#步驟-2改資料夾名稱由深到淺) 的資料夾對照表 —— **那整張表腳本會一次做完**，
 > 不需要為了七個專案跑七次。
 
+> ⚠️ **前置需求**：必須先安裝 `dotnet-ef`（`dotnet tool install --global dotnet-ef`）。
+> 腳本一開始就會檢查，找不到會直接中止，不會留下半成品。
+
 **腳本會做的事：**
 
 - 複製整個 repo 到目標路徑，跳過 `.git` / `bin` / `obj` / `.vs` / `.playwright-cli` / `output`
@@ -502,6 +505,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
+- **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs`，先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
 - 最後掃一次殘留字串並警告
 

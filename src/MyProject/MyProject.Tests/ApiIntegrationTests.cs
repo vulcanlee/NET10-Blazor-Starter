@@ -380,13 +380,13 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Contains("BootstrapSettings:SupportPassword", exception.Message);
     }
 
-    /// <summary>範本現行出貨的預設密碼（早期版本是 <c>support</c>）同樣必須被擋下。</summary>
+    /// <summary>範本現行出貨的預設密碼 <c>support</c> 同樣必須被擋下。</summary>
     [Fact]
     public void ProductionSafetyValidation_WithTemplateSupportPassword_ShouldFailFast()
     {
         var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
         {
-            ["BootstrapSettings:SupportPassword"] = "1qaz@WSX",
+            ["BootstrapSettings:SupportPassword"] = "support",
         });
 
         var exception = Assert.Throws<InvalidOperationException>(() =>

@@ -22,7 +22,11 @@ public partial class ProjectViewView
     private readonly ModalService modalService;
     private readonly MessageService messageService;
     private readonly NotificationService notificationService;
+    private readonly IRecordAccessScopeProvider accessScope;
     private ITable? table;
+
+    /// <summary>目前使用者的有效團隊；新增專案時用來預填團隊欄位。</summary>
+    private RecordAccessScope currentScope = new(false, []);
 
     private List<string> availableCategories = [];
     private List<string> availableTeams = [];
@@ -78,7 +82,8 @@ public partial class ProjectViewView
         TeamService teamService,
         ModalService modalService,
         MessageService messageService,
-        NotificationService notificationService)
+        NotificationService notificationService,
+        IRecordAccessScopeProvider accessScope)
     {
         this.logger = logger;
         this.projectService = projectService;
@@ -87,6 +92,7 @@ public partial class ProjectViewView
         this.modalService = modalService;
         this.messageService = messageService;
         this.notificationService = notificationService;
+        this.accessScope = accessScope;
     }
 
     protected override async Task OnInitializedAsync()
@@ -110,6 +116,7 @@ public partial class ProjectViewView
 
         availableCategories = await categoryService.GetAllEnabledNamesAsync();
         availableTeams = await teamService.GetAllEnabledNamesAsync();
+        currentScope = await accessScope.GetAsync();
 
         await ReloadAsync();
     }
@@ -298,7 +305,11 @@ public partial class ProjectViewView
             Status = StatusOptions.First(),
             Priority = PriorityOptions[1],
             CompletionPercentage = 0,
-            Files = []
+            Files = [],
+            // 預設帶入使用者的有效團隊；已停用（不在選項內）的略過，否則多選 Select 會視為未知值。
+            Teams = currentScope.Teams
+                .Where(t => availableTeams.Contains(t, StringComparer.OrdinalIgnoreCase))
+                .ToList()
         };
 
         pendingUploadFiles.Clear();
