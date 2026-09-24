@@ -123,7 +123,7 @@ public sealed class SystemHealthTests
     /// ⚠️ 資料庫那項的權重 25 在原始碼裡出現三次（三個 return 分支），改動時特別容易漏。
     /// </summary>
     [Fact]
-    public void CheckWeights_ShouldSumTo125()
+    public void CheckWeights_ShouldSumTo135()
     {
         var expected = new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -138,10 +138,11 @@ public sealed class SystemHealthTests
             ["LLM API"] = 10,
             ["快取服務"] = 10,
             ["AI 計費表"] = 5,
+            ["寄信服務"] = 10,
         };
 
-        Assert.Equal(11, expected.Count);
-        Assert.Equal(125, expected.Values.Sum());
+        Assert.Equal(12, expected.Count);
+        Assert.Equal(135, expected.Values.Sum());
 
         var source = File.ReadAllText(FindHealthServicePath());
 

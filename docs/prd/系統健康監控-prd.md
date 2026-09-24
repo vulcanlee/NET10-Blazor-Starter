@@ -1,16 +1,16 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.22
+- 現行系統版本：0.9.59
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/09/18
+- 最後核對日期：2026/09/24
 
 ## 一、目標與範圍
 
-提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務與 AI 計費表是否正常，並附最後 100 筆日誌；另提供部署平台使用的機器可讀探針端點。
+提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表與寄信服務是否正常，並附最後 100 筆日誌與寄信測試；另提供部署平台使用的機器可讀探針端點。
 
-- 範圍：`/system-health` 巡檢頁、11 項健康檢查、加權計分與燈號、日誌尾端顯示、`/health/live` 與 `/health/ready` 探針。
+- 範圍：`/system-health` 巡檢頁、12 項健康檢查、加權計分與燈號、日誌尾端顯示、寄信測試（0.9.59 起）、`/health/live` 與 `/health/ready` 探針。
 - 非範圍：告警通知／歷史趨勢、外部監控整合、自動修復。機制細節不重寫，見 `docs/features/系統健康監控.md`。
 
 ## 二、使用者與入口
@@ -25,9 +25,11 @@
 
 - 摘要區：整體燈號（綠／黃／紅）、健康百分比（`Score%`）、狀態文字（正常／警示／異常）、最後檢查時間。
 - 檢查項目卡片（逐項）：名稱、類別、權重、狀態文字、燈號、佐證（Evidence）；異常時另顯示失敗訊息（FailureMessage）。
-- 11 項檢查與權重（總計 125）：網站/應用程式(10)、API(10)、資料庫(25)、日誌(15)、身分驗證(15)、檔案系統(10)、主機資源(5)、安全設定(10)、LLM API(10)、快取服務(10)、AI 計費表(5)。
+- 12 項檢查與權重（總計 135）：網站/應用程式(10)、API(10)、資料庫(25)、日誌(15)、身分驗證(15)、檔案系統(10)、主機資源(5)、安全設定(10)、LLM API(10)、快取服務(10)、AI 計費表(5)、寄信服務(10，0.9.59 起)。
   分數是「得分／總權重」，總權重由項目自行加總而非固定 100，因此新增項目會等比稀釋既有項目的佔比。
-  權重由 `MyProject.Tests/SystemHealthTests.CheckWeights_ShouldSumTo125` 守住。
+  權重由 `MyProject.Tests/SystemHealthTests.CheckWeights_ShouldSumTo135` 守住。
+- **寄信服務**：`EmailSettings:Provider` 為 `None`（未啟用）或 `Pickup`（開發用）時黃燈；`Smtp` 時實際連線＋加密＋登入（上限 5 秒、不寄信），成功綠燈、失敗紅燈。佐證只顯示主機、埠號、加密方式，帳號與寄件者只顯示「已設定／未設定」，不顯示密碼。
+- **寄信測試區**（0.9.59 起）：收件者輸入框（預填目前登入者的 Email）＋「寄出測試信」按鈕；Provider 為 `None` 時輸入框與按鈕停用並提示如何啟用。同步寄送，結果以綠／紅訊息顯示（失敗只顯示例外型別名稱，細節看日誌）。
 - ⚠️ **LLM API 這項每次載入頁面都會真的呼叫一次 API**，會產生費用並記入「Token 用量」
   （作業名稱「系統健康檢測」，約 27 token／NT$0.005 一次），頁面載入也會因此多等 1～3 秒。
   逾時固定 30 秒，刻意不沿用 `AiSettings.TimeoutSeconds`（預設 600 秒）。
@@ -45,9 +47,11 @@
    - 檔案系統：資料庫／下載／上傳／各附件目錄存在且可寫入。
    - 主機資源：Working set 與磁碟可用空間（<1GB→Degraded）。
    - 安全設定：Production 是否開啟 Swagger 或回傳例外細節（風險→Degraded）。
+   - 寄信服務：依 Provider 判斷；Smtp 走 `IEmailHealthProbe`（連線＋TLS＋登入，5 秒上限，永不拋例外）。
 3. 計分（`SystemHealthScoreCalculator`）：以權重加權，Healthy 計滿分、Degraded 計半、Unhealthy 計 0；`Score = round(earned/totalWeight*100)`。
 4. 燈號門檻：`Score >= 90` 綠、`>= 70` 黃、其餘紅；狀態文字同門檻映射正常／警示／異常。
 5. 日誌：`IHealthLogReader.ReadLatestLines(100)` 讀取當日日誌尾端 100 行。
+5.1 寄信測試：`EmailTestService.SendAsync` 驗證收件者格式後以 `IEmailSender` 同步寄出（不走背景佇列），並寫稽核 `Email.Test`（detail 只有 provider 與成敗／例外型別，**不含收件者**）。
 6. 探針：`/health/live` 對應 tag `live`（`self` 檢查恆 Healthy）；`/health/ready` 對應 tag `ready`（`DatabaseHealthCheck` 檢查資料庫連線）。
 
 ## 五、權限與安全
@@ -56,7 +60,7 @@
 - 0.9.22 起列入側邊選單（`Menu.json` id 65，權限鍵 `角色_系統健康監控`，與整支系統管理同為管理員專屬、不上架角色矩陣）。
   在此之前刻意不列選單、需自行輸入網址；改列選單只改變管理員的「可發現性」，權限判定仍是頁面內的 `CheckIsAdmin()`，非管理員看不到選單項、直接輸入網址也會被擋。
 - 需登入且 `IsAdmin` 才可讀取報告；管理員豁免一如全站 RBAC 慣例。
-- 佐證訊息對敏感值採遮蔽：JWT Issuer／Audience 僅顯示「已設定／未設定」，SigningKey 僅顯示長度。
+- 佐證訊息對敏感值採遮蔽：JWT Issuer／Audience 僅顯示「已設定／未設定」，SigningKey 僅顯示長度；SMTP 帳號與寄件者僅顯示「已設定／未設定」，密碼不出現。
 - 探針端點匿名可存取，僅回傳存活／就緒狀態，不含詳細佐證。
 
 ## 六、錯誤與邊界
@@ -73,6 +77,8 @@
   - `GetLight_ItemStatus_ShouldMapTrafficLight`（狀態→燈號映射）。
   - `HealthLogReader_ReadLatestLines_ShouldReturnLast100Lines`、`HealthLogReader_MissingFile_ShouldReturnDegraded`（日誌尾端讀取與缺檔降級）。
 - `MyProject.Tests/ApiIntegrationTests.cs`：`/health/ready`、`/health/live` 探針回應。
+- `MyProject.Tests/EmailHealthProbeTests.cs`：SMTP 連不上時回報失敗、不拋例外、在上限內結束。
+- `MyProject.Tests/EmailTestServiceTests.cs`：None 拒絕、收件者無效拒絕、成功稽核不含收件者、失敗回型別名並稽核。
 
 ## 八、相關程式與文件
 
@@ -81,6 +87,7 @@
 - `src/MyProject/MyProject.Web/Health/SystemHealthScoreCalculator.cs`（計分與燈號門檻）
 - `src/MyProject/MyProject.Web/Health/SystemHealthModels.cs`（報告與項目模型）
 - `src/MyProject/MyProject.Web/Health/HealthLogReader.cs`、`DatabaseHealthCheck.cs`
+- `src/MyProject/MyProject.Web/Email/EmailHealthProbe.cs`、`EmailTestService.cs`（寄信服務項與寄信測試）
 - `src/MyProject/MyProject.Web/Extensions/ServiceCollectionExtensions.cs`（`AddConfiguredHealthChecks`，探針 tag `live`/`ready`）
 - `src/MyProject/MyProject.Web/Program.cs`（`MapHealthChecks` `/health/live`、`/health/ready`）
-- 交叉連結：[系統健康監控（機制）](../features/系統健康監控.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)
+- 交叉連結：[系統健康監控（機制）](../features/系統健康監控.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)、[寄信服務 PRD](寄信服務-prd.md)

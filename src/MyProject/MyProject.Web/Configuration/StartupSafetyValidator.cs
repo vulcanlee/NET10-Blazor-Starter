@@ -49,6 +49,34 @@ public static class StartupSafetyValidator
             errors.Add("CacheSettings:RedisConnection 在 Production 使用 Redis provider 時不可留空。");
         }
 
+        // 寄信：None（未啟用）不擋；Pickup 會把信（含日後的密碼重設連結）以明文寫進主機磁碟，
+        // 能讀到那個資料夾的人就能重設任何帳號，Production 一律拒絕。
+        // Smtp 的 Host／FromAddress 在所有環境都由 ValidateOnStart 檢查，這裡只補 Production 才需要的公開網址。
+        var emailProvider = configuration[$"{EmailSettings.SectionName}:Provider"];
+        if (string.Equals(emailProvider, nameof(EmailProvider.Pickup), StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("EmailSettings:Provider 不可在 Production 使用 Pickup（信件會以明文寫入主機磁碟）。");
+        }
+        else if (string.Equals(emailProvider, nameof(EmailProvider.Smtp), StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(configuration[$"{EmailSettings.SectionName}:Host"]))
+            {
+                errors.Add("EmailSettings:Host 在 Production 使用 Smtp 時不可留空。");
+            }
+
+            if (string.IsNullOrWhiteSpace(configuration[$"{EmailSettings.SectionName}:FromAddress"]))
+            {
+                errors.Add("EmailSettings:FromAddress 在 Production 使用 Smtp 時不可留空。");
+            }
+
+            var publicBaseUrl = configuration[$"{EmailSettings.SectionName}:PublicBaseUrl"];
+            if (!Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var baseUri)
+                || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp))
+            {
+                errors.Add("EmailSettings:PublicBaseUrl 在 Production 使用 Smtp 時必須是完整的 http(s) 網址（信中連結以它為準，不採用請求的 Host header）。");
+            }
+        }
+
         // AI 分析是 opt-in，而「有沒有填金鑰」就是那個開關：沒填等於功能關閉，
         // 腳手架不帶金鑰也能在 Production 正常啟動，所以不必擋。
         // 反過來，有填金鑰代表操作者打算啟用，此時其餘設定必須完整，否則啟動就擋下 ——

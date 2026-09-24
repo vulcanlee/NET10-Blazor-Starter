@@ -1,10 +1,10 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.0
+- 文件版本：2.1
 - 文件狀態：維護中
-- 現行系統版本：0.9.56
+- 現行系統版本：0.9.59
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/09/23
+- 最後核對日期：2026/09/24
 
 本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析與 Token 用量／費用計價**（見「AI 日誌分析」「Token 用量」「LLM 呼叫費用估算」三份 PRD），但**不含 RAG／向量檢索／對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
@@ -19,7 +19,7 @@
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.4.42 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作（0.4.40 起可指定適用團隊） | 0.4.42 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `Pages/Teams/TeamPage.razor`、`TeamService`、`TeamController` | 已實作 | 0.4.42 |
-| 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、Health services | 已實作 | 0.4.42 |
+| 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、Health services | 已實作（0.9.59 起含寄信服務項與寄信測試）| 0.9.59 |
 | 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Pages/Analytics/LogViewerPage.razor`、`LogQueryService`、`NLogFilePathResolver`、`AiLogAnalysisService` | 已實作 | 0.9.8 |
 | 資料庫用量 | [資料庫用量](資料庫用量-prd.md) | `/database-usage` | `Pages/Analytics/DatabaseUsagePage.razor`、`DatabaseUsageService` | 已實作 | 0.4.42 |
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.4.42 |
@@ -36,6 +36,7 @@
 | 稽核事件的**寫入點**（登入、使用者/角色/權限異動）| [稽核紀錄](稽核紀錄-prd.md)、[使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md) | 已實作；0.9.42 起查詢畫面見 `/audit-logs`，本列只涵蓋散落各流程的寫入點 |
 | 帳號安全（PBKDF2、帳號鎖定、TOTP 骨架）| [登入與帳號流程](登入與帳號流程-prd.md) | 已實作；TOTP 預設關閉 |
 | 檔案上傳（專案附件）| [專案項目](專案項目-prd.md) | 已實作 |
+| 寄信服務（None／Pickup／Smtp、背景佇列、健康監控項與測試寄信）| [寄信服務](寄信服務-prd.md) | 已實作（0.9.59）；設定在 `EmailSettings`，畫面在「系統健康監控」|
 | LLM 呼叫費用估算（單價／匯率設定、四種計費單位、單價快照）| [LLM 呼叫費用估算](LLM呼叫費用估算-prd.md) | 已實作（0.9.17）；表現在「Token 用量」頁，維護入口是 `appsettings.json` |
 
 ## 三、規劃中產品藍圖

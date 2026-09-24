@@ -190,6 +190,51 @@
     border-radius: 10px;
 }
 
+.email-test {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 18px;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-control);
+    background: #fff;
+}
+
+.email-test p {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.email-test-form {
+    display: flex;
+    gap: 10px;
+    max-width: 560px;
+}
+
+.email-test-hint {
+    font-size: 0.85rem;
+    color: var(--app-muted);
+}
+
+/* 成功／失敗沿用本頁號誌的語意色（見檔頭註解），不跟品牌色票走。 */
+.email-test-result {
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+}
+
+.email-test-result.is-success {
+    color: #135c2d;
+    background: #f0faf3;
+    border: 1px solid #9ad3ad;
+}
+
+.email-test-result.is-failure {
+    color: #8a1f18;
+    background: #fff1f0;
+    border: 1px solid #ffa39e;
+}
+
 .log-heading {
     display: flex;
     justify-content: space-between;
@@ -218,7 +263,8 @@
 
 @media (max-width: 720px) {
     .system-health-summary,
-    .log-heading {
+    .log-heading,
+    .email-test-form {
         flex-direction: column;
         align-items: stretch;
     }
