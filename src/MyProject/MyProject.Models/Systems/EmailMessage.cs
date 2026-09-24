@@ -13,4 +13,10 @@ public static class EmailKinds
 {
     /// <summary>管理員在系統健康監控頁寄出的測試信。</summary>
     public const string Test = "Test";
+
+    /// <summary>忘記密碼：含重設連結的信（0.9.60 起）。</summary>
+    public const string PasswordReset = "PasswordReset";
+
+    /// <summary>重設成功後通知帳號主人「密碼已變更」（0.9.60 起）。</summary>
+    public const string PasswordChanged = "PasswordChanged";
 }

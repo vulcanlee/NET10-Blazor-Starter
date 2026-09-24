@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.0
+- 文件版本：2.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.59
+- 現行系統版本：0.9.60
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/09/24
 
@@ -361,7 +361,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 | 要改的東西 | 檔案 / 設定鍵 | 使用者會在哪看到 |
 |------|------|------|
 | 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
-| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`Login.razor:14`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
+| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:23`，0.9.60 起登入／忘記密碼／重設密碼三頁共用）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
 | 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
@@ -377,7 +377,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 
 | 位置 | 容器（CSS） | 實際顯示尺寸 |
 |------|------|------|
-| 登入頁 | `.brand-logo`（`Login.razor.css:99`），圓角 30px | **108 × 108** |
+| 登入頁 | `.brand-logo`（`Login.razor.css:65`），圓角 26px | **104 × 104**（螢幕寬 ≤1023px 時 56 × 56、≤767px 時 44 × 44）|
 | 啟動頁 | `.splash-brand-image-wrap`（`SplashView.razor.css:29`），圓角 24px | **120 × 120**（螢幕寬 ≤640.98px 時為 96 × 96） |
 | 登入後首頁 | `.home-hero-image-wrap`（`HomeWelcomeView.razor.css`），圓角 24px | **140 × 140**（螢幕寬 ≤640.98px 時為 96 × 96） |
 
@@ -451,10 +451,9 @@ ffmpeg -i images/brand-logo.png \
 
 | 位置 | 目前文字 |
 |------|------|
-| `Components/Auths/Login.razor:12` | `ENTERPRISE ACCESS`（品牌徽章） |
-| `Components/Auths/Login.razor:22` | `Welcome Back` |
-| `Components/Auths/Login.razor:23` / `:24` | `使用者登入` / `請輸入您的帳號資訊以存取系統。` |
-| `Components/Auths/Login.razor:58` | `企業級安全登入` |
+| `Components/Auths/Login.razor:10` | `使用者登入` / `請輸入您的帳號資訊以存取系統。`（`AuthShell` 的 `Title`／`Subtitle`）|
+| `Components/Auths/Login.razor:53` | `企業級安全登入`（寄信啟用時此處改為「忘記密碼？」連結）|
+| `Components/Auths/ForgotPassword.razor`、`ResetPassword.razor` | 兩頁的標題、副標題與提示文字（0.9.60 起）|
 | `Components/Views/Commons/SplashView.razor:11` | `Welcome` |
 | `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`系統能力`／`快速入口`／`系統版本`／`執行環境` |
 | `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `FeatureCards` | 登入後首頁六張能力卡片的標題與說明：`權限與角色控管`／`專案項目管理`／`分類與團隊定義`／`日誌檢視與 AI 分析`／`健康監控與資料庫用量`／`檔案上傳與保管`。⚠️ 改成自家系統的能力時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |

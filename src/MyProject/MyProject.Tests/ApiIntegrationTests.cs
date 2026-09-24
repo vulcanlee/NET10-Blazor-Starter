@@ -25,6 +25,7 @@ using System.Text.Json;
 
 namespace MyProject.Tests;
 
+[Collection(nameof(IntegrationHostCollection))]
 public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactory>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -739,6 +740,16 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
 
     public ApiTestApplicationFactory()
     {
+        // Program.cs 結束時呼叫 LogManager.Shutdown()，全行程的 NLog 設定會被清成 null，
+        // 而且不會再自動讀 nlog.config。同一個測試行程裡「前一個 host 已停止、下一個 host 才啟動」時，
+        // NLog.Web 找不到設定就改讀 appsettings 的 NLog 區段，碰到 BasePath 直接丟 NLogConfigurationException。
+        // 在 host 啟動之前把 nlog.config 載回來，讓每個 host 都拿到與正式環境相同的設定。
+        if (NLog.LogManager.Configuration is null)
+        {
+            NLog.LogManager.Configuration = new NLog.Config.XmlLoggingConfiguration(
+                Path.Combine(AppContext.BaseDirectory, "nlog.config"));
+        }
+
         environmentVariables = CreateSettings()
             .ToDictionary(
                 x => x.Key.Replace(":", "__", StringComparison.Ordinal),
@@ -868,6 +879,7 @@ public sealed class ApiTestApplicationFactoryWithoutExceptionDetails : ApiTestAp
 /// 路徑一：未攔截的例外 → ApiExceptionFilter（原本就有判斷）
 /// 路徑二：Controller 自行 catch → ApiServerError（0.4.34 之前完全繞過判斷）
 /// </summary>
+[Collection(nameof(IntegrationHostCollection))]
 public sealed class ApiExceptionDetailSuppressionTests
     : IClassFixture<ApiTestApplicationFactoryWithoutExceptionDetails>
 {
@@ -957,6 +969,7 @@ public sealed class ApiTestApplicationFactoryWithTightLoginLimit : ApiTestApplic
 /// 同一個處理程序裡先棄置再建立第二個，NLog 會在重新載入設定時丟
 /// <c>Unrecognized value 'BasePath'</c> 而讓測試爆掉。
 /// </remarks>
+[Collection(nameof(IntegrationHostCollection))]
 public sealed class LoginRateLimitTests : IClassFixture<ApiTestApplicationFactoryWithTightLoginLimit>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

@@ -71,7 +71,12 @@ namespace MyProject.Web
                 }
 
                 builder.Logging.ClearProviders();
-                builder.Host.UseNLog();
+
+                // ⚠️ LoggingConfigurationSectionName 必須清空：appsettings 的 "NLog" 區段只放本檔讀的 BasePath，
+                // 不是 NLog 設定。預設值 "NLog" 會讓 NLog.Web 在「目前沒有設定」時把該區段當成 NLog 設定解析，
+                // 遇到 BasePath 直接丟 NLogConfigurationException 讓啟動失敗。正式環境一定有 nlog.config，
+                // 但同一行程內前一個 host 結束時的 LogManager.Shutdown() 會把設定清空（整合測試會連續啟動多個 host）。
+                builder.Host.UseNLog(new NLogAspNetCoreOptions { LoggingConfigurationSectionName = string.Empty });
                 #endregion
 
                 #region 系統使用服務

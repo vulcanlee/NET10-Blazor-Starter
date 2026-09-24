@@ -96,6 +96,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
+        services.AddScoped<PasswordResetService>();
         services.AddScoped<SidebarMenuService>();
         services.AddScoped<RolePermissionService>();
         services.AddScoped<RoleViewService>();
@@ -277,6 +278,12 @@ public static class ServiceCollectionExtensions
             .Validate(s => s.TryGetProvider(out _), "EmailSettings:Provider 只接受 None、Pickup 或 Smtp。")
             .Validate(s => s.TryGetSecurity(out _), "EmailSettings:Security 只接受 Auto、None、StartTls 或 SslOnConnect。")
             .Validate(s => s.HasRequiredSmtpFields(), "EmailSettings 使用 Smtp 時，Host 不可留空、FromAddress 必須是有效的 Email。")
+            .ValidateOnStart();
+
+        // 忘記密碼的時效（0.9.60 起）。類別在 Models（Business 要讀），驗證跟著寄信一起註冊。
+        services.AddOptions<PasswordResetSettings>()
+            .Bind(configuration.GetSection(PasswordResetSettings.SectionName))
+            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         services.AddScoped<NullEmailSender>();

@@ -62,6 +62,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 使用者帳號 CRUD（含預設開發者帳號自動 Seed）
 - 角色管理（`RoleView`）與二維權限樹（對應 `Menu.json`）
 - 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、粉梅暖雪 RWD 果凍 UI 與柔和飄雪動畫）
+- 忘記密碼：以帳號或 Email 申請、信中連結重設（30 分鐘、單次使用、防帳號列舉、同帳號冷卻），需啟用寄信（0.9.60）
 - 專案領域實體 CRUD（可作為新增其他領域模組的樣板）
 - 資料定義主資料：分類清單（Category）、團隊清單（Team）管理頁面與 Web API
   （0.4.40 起分類可指定適用團隊、下拉依使用者所屬團隊過濾；0.4.41 起名稱唯一性由資料庫唯一索引保證）
@@ -193,6 +194,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `CacheSettings.InstanceName` | Redis 快取鍵前綴，預設 `MyProject:`。 |
 | `CacheSettings.DefaultExpirationMinutes` | 快取項目預設存活時間（分鐘），預設 `30`。 |
 | `EmailSettings` | 寄信服務（0.9.59 起）：`Provider`（`None` 預設／`Pickup` 開發用／`Smtp`）、`Host`、`Port`、`Security`、`UserName`、`Password`、`FromAddress`、`FromName`、`PickupDirectory`、`PublicBaseUrl`、`TimeoutSeconds`。⚠️ `Password` 一律留空、走 User Secrets 或環境變數；Production 不可用 `Pickup`，用 `Smtp` 時須填 `Host`／`FromAddress`／`PublicBaseUrl`。 |
+| `PasswordResetSettings` | 忘記密碼（0.9.60 起）：`TokenLifetimeMinutes`（重設連結效期，預設 30 分）、`RequestCooldownSeconds`（同帳號申請間隔，預設 60 秒）。只在寄信啟用時有作用。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
 | `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
