@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.2
+- 文件版本：2.3
 - 文件狀態：維護中
-- 現行系統版本：0.9.60
+- 現行系統版本：0.9.63
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/09/24
 
@@ -12,8 +12,8 @@
 
 | 產品能力 | PRD | 入口／路由 | 主要程式來源 | 狀態 | 核對版本 |
 |----------|-----|-----------|--------------|------|----------|
-| 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Pages/HomeAuthed.razor`、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗） | 已實作 | 0.4.42 |
-| 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/Profile`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.60 |
+| 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Pages/HomeAuthed.razor`、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗） | 已實作 | 0.9.63 |
+| 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.63 |
 | 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController` | 已實作 | 0.4.42 |
 | 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作 | 0.4.42 |
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.4.42 |

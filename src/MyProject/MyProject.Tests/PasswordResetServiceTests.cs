@@ -123,7 +123,7 @@ public sealed class PasswordResetServiceTests
         Assert.Equal($"reason={expectedReason}", entry.Detail);
     }
 
-    /// <summary>Google 帳號設過本地密碼（API 密碼）就有密碼可忘，允許重設。</summary>
+    /// <summary>Google 帳號設過本地密碼就有密碼可忘，允許重設。</summary>
     [Fact]
     public async Task RequestAsync_GoogleAccountWithLocalPassword_ShouldBeAllowed()
     {

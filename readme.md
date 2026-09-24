@@ -262,7 +262,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 認證與安全（security）
 
 - [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie / JWT 雙 scheme、Claims、RBAC 關聯表、動作級授權與稽核事件。
-- [密碼種類與儲存機制](docs/security/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、API 密碼、種子密碼與機密金鑰。
+- [密碼種類與儲存機制](docs/security/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、種子密碼與機密金鑰。
 - [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
 - [記住我登入原理說明](docs/security/記住我登入原理說明.md) — Cookie + RememberMe 完整原理。
 - [權限授權現況評估與改善路線](docs/security/權限授權現況評估與改善路線.md) — RBAC 落地歷程、重構前後對照與尚未納入的項目。
