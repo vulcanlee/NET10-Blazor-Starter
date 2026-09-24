@@ -1,8 +1,8 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.60
+- 現行系統版本：0.9.61
 - 首次實作版本：0.9.59
 - 最後核對日期：2026/09/24
 
@@ -42,9 +42,11 @@
 
 | Provider | 行為 | 用途 |
 |---|---|---|
-| `None`（預設）| `NullEmailSender`：不寄信，只記一筆 Information 日誌 | 出貨預設、整合測試、不需要寄信的部署 |
+| `None`（預設）| `NullEmailSender`：不寄信，只記一筆 Information 日誌 | 出貨預設（`appsettings.json`）、整合測試、不需要寄信的部署 |
 | `Pickup` | `PickupEmailSender`：以 MimeKit 寫成 `{時間}-{Guid}.eml` 到 `PickupDirectory`（首次寫信時建立資料夾）| 開發機直接用郵件程式開啟信件 |
 | `Smtp` | `SmtpEmailSender`：MailKit，每封信新建 `SmtpClient`，連線 → 有 `UserName` 才登入 → 寄出 → 中斷 | 正式環境 |
+
+⚠️ **開發環境預設是 `Pickup`**（0.9.61 起，`appsettings.Development.json` 只覆寫 `Provider`），所以本機登入頁有「忘記密碼？」；Production 仍是 `None`。
 
 `IEmailSender` 在**解析時**依 `IOptionsMonitor<EmailSettings>.CurrentValue` 決定實作（scoped factory），
 不是註冊時 switch —— 這樣整合測試的組態覆寫才生效。

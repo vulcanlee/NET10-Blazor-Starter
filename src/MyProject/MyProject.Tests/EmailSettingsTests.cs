@@ -80,6 +80,22 @@ public sealed class EmailSettingsTests
         Assert.Equal(string.Empty, section.GetProperty("UserName").GetString());
     }
 
+    /// <summary>
+    /// 開發環境預設 Pickup（0.9.61 起）：本機一啟動就有忘記密碼可測，信寫成 .eml 檔。
+    /// 只准覆寫 Provider —— 這個檔會進版控，不可以出現任何帳密。
+    /// </summary>
+    [Fact]
+    public void ShippedDevelopmentSettings_ShouldUsePickupWithoutSecrets()
+    {
+        var path = Path.Combine(FindWebRoot(), "appsettings.Development.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var section = document.RootElement.GetProperty(EmailSettings.SectionName);
+
+        Assert.Equal("Pickup", section.GetProperty("Provider").GetString());
+        Assert.False(section.TryGetProperty("Password", out _));
+        Assert.False(section.TryGetProperty("UserName", out _));
+    }
+
     [Fact]
     public void Options_WithSmtpButNoHost_ShouldFailValidation()
     {
