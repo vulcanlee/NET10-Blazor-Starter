@@ -129,6 +129,7 @@ namespace MyProject.Web
                 builder.Services.AddConfiguredRateLimiting();
                 builder.Services.AddConfiguredHealthChecks();
                 builder.Services.AddConfiguredCache(builder.Configuration);
+                builder.Services.AddConfiguredEmail(builder.Configuration);
 
                 #region 加入使用 Cookie & JWT 認證需要的宣告
                 // 註：此處原本設定了 CookiePolicyOptions（含 MinimumSameSitePolicy = None），

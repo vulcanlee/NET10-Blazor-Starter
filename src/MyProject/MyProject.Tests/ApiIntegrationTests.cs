@@ -450,6 +450,89 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         StartupSafetyValidator.Validate(configuration, "Production");
     }
 
+    /// <summary>寄信是選配：沒設定（None）不該擋下 Production 啟動。</summary>
+    [Fact]
+    public void ProductionSafetyValidation_WithEmailProviderNone_ShouldPass()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["EmailSettings:Provider"] = "None",
+        });
+
+        StartupSafetyValidator.Validate(configuration, "Production");
+    }
+
+    /// <summary>Pickup 會把信（含日後的重設連結）以明文寫到磁碟，Production 一律擋下。</summary>
+    [Theory]
+    [InlineData("Pickup")]
+    [InlineData("pickup")]
+    public void ProductionSafetyValidation_WithPickupProvider_ShouldFailFast(string provider)
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["EmailSettings:Provider"] = provider,
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("EmailSettings:Provider", exception.Message);
+    }
+
+    [Fact]
+    public void ProductionSafetyValidation_WithIncompleteSmtpSettings_ShouldFailFast()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["EmailSettings:Provider"] = "Smtp",
+            ["EmailSettings:Host"] = string.Empty,
+            ["EmailSettings:FromAddress"] = string.Empty,
+            ["EmailSettings:PublicBaseUrl"] = string.Empty,
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("EmailSettings:Host", exception.Message);
+        Assert.Contains("EmailSettings:FromAddress", exception.Message);
+        Assert.Contains("EmailSettings:PublicBaseUrl", exception.Message);
+    }
+
+    /// <summary>公開網址必須是完整的 http(s) 網址，相對路徑或其他協定都不算。</summary>
+    [Theory]
+    [InlineData("erp.example.com")]
+    [InlineData("/app")]
+    [InlineData("ftp://erp.example.com")]
+    public void ProductionSafetyValidation_WithSmtpAndInvalidPublicBaseUrl_ShouldFailFast(string publicBaseUrl)
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["EmailSettings:Provider"] = "Smtp",
+            ["EmailSettings:Host"] = "smtp.example.com",
+            ["EmailSettings:FromAddress"] = "noreply@example.com",
+            ["EmailSettings:PublicBaseUrl"] = publicBaseUrl,
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StartupSafetyValidator.Validate(configuration, "Production"));
+
+        Assert.Contains("EmailSettings:PublicBaseUrl", exception.Message);
+    }
+
+    [Fact]
+    public void ProductionSafetyValidation_WithCompleteSmtpSettings_ShouldPass()
+    {
+        var configuration = BuildProductionSafeConfiguration(new Dictionary<string, string?>
+        {
+            ["EmailSettings:Provider"] = "Smtp",
+            ["EmailSettings:Host"] = "smtp.example.com",
+            ["EmailSettings:FromAddress"] = "noreply@example.com",
+            ["EmailSettings:PublicBaseUrl"] = "https://erp.example.com",
+        });
+
+        StartupSafetyValidator.Validate(configuration, "Production");
+    }
+
     /// <summary>其餘設定都給安全值，讓測試只聚焦在傳入的那幾個鍵上。</summary>
     private static IConfiguration BuildProductionSafeConfiguration(Dictionary<string, string?> overrides)
     {
@@ -748,7 +831,11 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             ["SystemSettings:ExternalFileSystem:TokenUsagePath"] = Path.Combine(rootPath, "TokenUsage"),
             // 同理：整合測試會啟動真實 host，Data Protection 會真的把金鑰環寫到磁碟。
             // 漏掉這一行，測試就會把金鑰寫進開發者（或 CI）真正的金鑰目錄。
-            ["SystemSettings:ExternalFileSystem:DataProtectionKeyPath"] = Path.Combine(rootPath, "Keys")
+            ["SystemSettings:ExternalFileSystem:DataProtectionKeyPath"] = Path.Combine(rootPath, "Keys"),
+            // 明寫 None：開發者本機若用 User Secrets／環境變數開了 Smtp，整合測試也不可以真的寄信。
+            // Pickup 資料夾同樣指到 rootPath，切換 provider 的子類才不會寫進真正的信件資料夾。
+            ["EmailSettings:Provider"] = "None",
+            ["EmailSettings:PickupDirectory"] = Path.Combine(rootPath, "Mails")
         };
     }
 }

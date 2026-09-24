@@ -390,6 +390,7 @@ namespace MyProject.Web.Components.Views.Admins
             "Role" => "purple",
             "Permission" => "red",
             "Audit" => "volcano",
+            "Email" => "cyan",
             _ => "default",
         };
     }

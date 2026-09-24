@@ -32,6 +32,7 @@
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.3.2 |
 | PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型）| 6.2.4 |
+| 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.0 |
 
 ---
 
@@ -70,7 +71,8 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
-- 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最後 100 筆日誌
+- 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最後 100 筆日誌；0.9.59 起含「寄信服務」檢查與寄信測試
+- 寄信服務：`IEmailSender`（同步）與 `IEmailQueue`（背景佇列）兩個入口，`EmailSettings` 切換不寄／寫 `.eml` 檔（開發）／MailKit SMTP；出貨預設不寄信（0.9.59）
 - 日誌檢視頁：`/logs`，管理員可依等級／關鍵字／時間區間查詢並匯出（0.4.26）
 - 日誌 AI 分析：日誌檢視頁可把查詢結果送 Azure OpenAI 或 OpenAI 整理，結果以唯讀對話窗呈現，
   可複製或匯出成 PDF 報告；供應商與金鑰在 `appsettings.json` 設定（0.9.4）
@@ -83,7 +85,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 全站視覺系統：粉梅暖雪色票收斂為 `wwwroot/theme.css` 單一來源，浮層果凍化、深梅側邊欄、共用狀態徽章（0.9.25–0.9.31）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
 - 分散式快取：`ICacheService` 統一抽象，透過 `appsettings.json` 在 Memory ↔ Redis 間切換（側邊選單已套用）
-- Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略與 Redis 連線字串需明確設定
+- Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略、Redis 連線字串與寄信設定（不可用 Pickup、Smtp 須填齊）需明確設定
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
 - 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
@@ -190,6 +192,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `CacheSettings.RedisConnection` | `Provider=Redis` 時的 Redis 連線字串；Production 使用 Redis 時必須設定。 |
 | `CacheSettings.InstanceName` | Redis 快取鍵前綴，預設 `MyProject:`。 |
 | `CacheSettings.DefaultExpirationMinutes` | 快取項目預設存活時間（分鐘），預設 `30`。 |
+| `EmailSettings` | 寄信服務（0.9.59 起）：`Provider`（`None` 預設／`Pickup` 開發用／`Smtp`）、`Host`、`Port`、`Security`、`UserName`、`Password`、`FromAddress`、`FromName`、`PickupDirectory`、`PublicBaseUrl`、`TimeoutSeconds`。⚠️ `Password` 一律留空、走 User Secrets 或環境變數；Production 不可用 `Pickup`，用 `Smtp` 時須填 `Host`／`FromAddress`／`PublicBaseUrl`。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
 | `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
@@ -297,7 +300,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 設計規格（superpowers）
 
-- [docs/superpowers/](docs/superpowers/) — 以 brainstorming 流程產出的設計規格（分類/團隊頁面、紀錄權控）。
+- [docs/superpowers/](docs/superpowers/) — 以 brainstorming 流程產出的設計規格（分類/團隊頁面、紀錄權控、系統例外紀錄、寄信服務與忘記密碼）。
 
 ### 變更紀錄（changelog）
 

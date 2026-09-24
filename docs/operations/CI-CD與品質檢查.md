@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.32
+- 現行系統版本：0.9.59
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/09/19
+- 最後核對日期：2026/09/24
 
 本專案以 **GitHub Actions** 在每次 push 與 PR 時自動建置、測試與品質檢查。工作流程定義於 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)。
 
@@ -110,6 +110,10 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 最後一列是刻意的：豁免只能是暫時的。清單寫在 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)
 的 `$allowed`，目前只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。
 比對用諮詢代號而非訊息文字 —— dotnet CLI 的輸出會隨執行環境語系改變。
+
+> 0.9.59 新增 `MailKit` 4.18.0（寄信服務，只加在 `MyProject.Web`），遞移帶入 `MimeKit` 4.18.0 與
+> `BouncyCastle.Cryptography` 2.7.0。加入當下 `--vulnerable --include-transitive` 對這三個套件**沒有任何諮詢**，
+> 允許清單不需變動。
 
 它與 restore/build 階段的 `NU1903` 稽核警告仍是兩條獨立路徑。
 

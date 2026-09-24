@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.42
+- 現行系統版本：0.9.59
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/09/20
+- 最後核對日期：2026/09/24
 
 ## 一、目標與範圍
 
@@ -95,7 +95,7 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 六、資料來源
 
-寫入端共 15 個呼叫點，約 12 種動作代碼：
+寫入端共 17 個呼叫點，約 13 種動作代碼：
 
 | 動作代碼 | 來源 |
 | --- | --- |
@@ -107,6 +107,7 @@ scoped CSS 連 `::deep` 都打不到。
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
 | `Audit.Purge` / `Audit.ClearAll` | `AuditLogView`（0.9.42 起）|
+| `Email.Test` | `EmailTestService`（系統健康監控頁的寄信測試，0.9.59 起；detail 只有 provider 與成敗，不含收件者）|
 
 ## 七、已知限制與規劃中需求
 

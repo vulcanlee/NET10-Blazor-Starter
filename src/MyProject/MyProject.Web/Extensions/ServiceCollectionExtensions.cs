@@ -16,6 +16,7 @@ using MyProject.Web.Auth;
 using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
+using MyProject.Web.Email;
 using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
@@ -257,6 +258,46 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddSingleton<ICacheService, DistributedCacheService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// 寄信服務：None／Pickup／Smtp 三選一，外加背景寄送佇列。
+    ///
+    /// ⚠️ **provider 在解析 <see cref="IEmailSender"/> 時才決定**，不像 <see cref="AddConfiguredCache"/>
+    /// 在註冊當下 switch：註冊時讀設定會讓 <c>WebApplicationFactory</c> 子類的組態覆寫失效
+    /// （它們在 Build 之後才套用），測試就無法切換 provider。
+    /// </summary>
+    public static IServiceCollection AddConfiguredEmail(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<EmailSettings>()
+            .Bind(configuration.GetSection(EmailSettings.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(s => s.TryGetProvider(out _), "EmailSettings:Provider 只接受 None、Pickup 或 Smtp。")
+            .Validate(s => s.TryGetSecurity(out _), "EmailSettings:Security 只接受 Auto、None、StartTls 或 SslOnConnect。")
+            .Validate(s => s.HasRequiredSmtpFields(), "EmailSettings 使用 Smtp 時，Host 不可留空、FromAddress 必須是有效的 Email。")
+            .ValidateOnStart();
+
+        services.AddScoped<NullEmailSender>();
+        services.AddScoped<PickupEmailSender>();
+        services.AddScoped<SmtpEmailSender>();
+        services.AddScoped<IEmailSender>(sp =>
+            sp.GetRequiredService<IOptionsMonitor<EmailSettings>>().CurrentValue.GetProvider() switch
+            {
+                EmailProvider.Pickup => sp.GetRequiredService<PickupEmailSender>(),
+                EmailProvider.Smtp => sp.GetRequiredService<SmtpEmailSender>(),
+                _ => sp.GetRequiredService<NullEmailSender>(),
+            });
+
+        // 佇列是 singleton（全站共用一條），消費端是背景服務；兩者都不持有 scoped 服務，
+        // 寄送時才由 EmailDispatchWorker 逐封建立 scope 解析 IEmailSender。
+        services.AddSingleton<ChannelEmailQueue>();
+        services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<ChannelEmailQueue>());
+        services.AddHostedService<EmailDispatchWorker>();
+
+        services.AddScoped<IEmailHealthProbe, EmailHealthProbe>();
+        services.AddScoped<EmailTestService>();
 
         return services;
     }

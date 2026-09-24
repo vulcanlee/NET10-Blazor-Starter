@@ -1,7 +1,13 @@
 @page "/system-health"
 @layout MainLayout
 @using MyProject.Web.Health
+@using MyProject.Web.Configuration
+@using MyProject.Web.Email
+@using Microsoft.Extensions.Options
 @inject ISystemHealthService SystemHealthService
+@inject EmailTestService EmailTestService
+@inject IOptionsMonitor<EmailSettings> EmailOptions
+@inject MyProject.Business.Services.Other.CurrentUserService CurrentUserService
 @inject MyProject.Business.Services.Other.AuthenticationStateHelper AuthenticationStateHelper
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
@@ -65,6 +71,31 @@ else
         </section>
 
         <section class="system-health-section">
+            <h2>寄信測試</h2>
+            <div class="email-test">
+                <p>寄一封測試信確認寄信設定。目前的寄送方式：<strong>@emailProviderText</strong></p>
+                <div class="email-test-form">
+                    <Input TValue="string" @bind-Value="testEmailTo" Placeholder="收件者 Email"
+                           Disabled="@(!isEmailEnabled || isSendingTestEmail)" />
+                    <Button Type="@ButtonType.Primary" Loading="@isSendingTestEmail" Disabled="@(!isEmailEnabled)"
+                            OnClick="SendTestEmailAsync">
+                        寄出測試信
+                    </Button>
+                </div>
+                @if (!isEmailEnabled)
+                {
+                    <div class="email-test-hint">寄信功能未啟用。請在 EmailSettings 將 Provider 設為 Pickup（開發）或 Smtp。</div>
+                }
+                @if (testEmailResult is { } result)
+                {
+                    <div class="email-test-result @(result.Success ? "is-success" : "is-failure")" role="status">
+                        @result.Message
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="system-health-section">
             <div class="log-heading">
                 <div>
                     <h2>最後 100 筆日誌紀錄</h2>
@@ -89,6 +120,11 @@ else
     private SystemHealthReport? report;
     private string? roleMessage;
     private bool isAccessChecked;
+    private string? testEmailTo;
+    private bool isEmailEnabled;
+    private string emailProviderText = string.Empty;
+    private bool isSendingTestEmail;
+    private MyProject.Models.Systems.VerifyRecordResult? testEmailResult;
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,7 +146,28 @@ else
             return;
         }
 
+        var emailSettings = EmailOptions.CurrentValue;
+        isEmailEnabled = emailSettings.TryGetProvider(out var provider) && provider != EmailProvider.None;
+        emailProviderText = isEmailEnabled ? provider.ToString() : "None（未啟用）";
+        testEmailTo = CurrentUserService.CurrentUser.Email;
+
         report = await SystemHealthService.GetReportAsync();
+    }
+
+    private async Task SendTestEmailAsync()
+    {
+        isSendingTestEmail = true;
+        testEmailResult = null;
+
+        try
+        {
+            var currentUser = CurrentUserService.CurrentUser;
+            testEmailResult = await EmailTestService.SendAsync(testEmailTo, currentUser.Id, currentUser.Account);
+        }
+        finally
+        {
+            isSendingTestEmail = false;
+        }
     }
 
     private static string GetLightClass(SystemHealthLight light)

@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：1.9
+- 文件版本：2.0
 - 文件狀態：已實作
-- 現行系統版本：0.9.57
+- 現行系統版本：0.9.59
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/09/24
 
@@ -246,6 +246,10 @@ code "$dir\secrets.json"
   "CacheSettings": {
     "RedisConnection": ""
   },
+  "EmailSettings": {
+    "UserName": "",
+    "Password": ""
+  },
   "AutoMapper:LicenseKey": ""
 }
 ```
@@ -260,6 +264,7 @@ code "$dir\secrets.json"
 | `GoogleOAuthSettings:ClientId` | `""` | 啟用 Google 登入時必要 | `Enabled` 設 true 但憑證留空會登入失敗。設定細節見 [Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md) |
 | `GoogleOAuthSettings:ClientSecret` | `""` | 同上 | 同上。**這是真正的密鑰，絕不可進版控** |
 | `CacheSettings:RedisConnection` | `""` | `CacheSettings:Provider` 改成 `Redis` 時必要 | 連線字串通常含密碼；Production 下留空會被 `StartupSafetyValidator.cs:34-39` 擋下 |
+| `EmailSettings:UserName` / `EmailSettings:Password` | `""` | `EmailSettings:Provider` 改成 `Smtp` 且 SMTP 需要登入時必要 | 登入失敗、信寄不出去（健康監控「寄信服務」紅燈）。**密碼絕不可進版控**；開發機想看信件內容，改用 `Provider=Pickup` 就不需要任何帳密 |
 | `AutoMapper:LicenseKey` | `""` | 商業授權情境 | 留空不影響開發（`Program.cs:221`），但授權金鑰不應進版控 |
 
 > ⚠️ `BootstrapSettings:SupportPassword`（預設管理者密碼）**不建議**放進 User Secrets —— 它的行為與一般機密不同，改動會反向覆寫資料庫。詳見 [§6.4](#64-預設管理者帳號)。

@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：5.9
+- 文件版本：6.0
 - 文件狀態：維護中
-- 現行系統版本：0.9.58
+- 現行系統版本：0.9.59
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/09/24
 
@@ -99,11 +99,13 @@
 - [LLM 呼叫費用估算 PRD](prd/LLM呼叫費用估算-prd.md)
 - [紀錄分類與團隊權控 PRD](prd/紀錄分類與團隊權控-prd.md)
 - [稽核紀錄 PRD](prd/稽核紀錄-prd.md)
+- [寄信服務 PRD](prd/寄信服務-prd.md)
 
 ### superpowers — 設計規格
 - [分類清單 / 團隊清單管理頁面（階段一）](superpowers/specs/2026-06-22-category-team-pages-design.md)
 - [紀錄分類/團隊標籤與團隊權控（階段二）](superpowers/specs/2026-06-22-record-tags-team-access-design.md)
 - [系統例外紀錄（ExceptionLog）](superpowers/specs/2026-09-16-system-exception-log-design.md)
+- [寄信服務與忘記密碼](superpowers/specs/2026-09-24-email-password-reset-design.md)
 
 ### changelog — 變更紀錄
 - [登入頁改版紀錄：粉梅暖雪、RWD 與果凍動畫（0.9.23）](changelog/login-redesign.md)
@@ -190,3 +192,4 @@
 - [新增「AI 模型計費更新指南」，並依指南完成第一次全面核對（0.9.56）](changelog/2026-09-23-AI模型計費更新指南.md)
 - [預設密碼統一為 support、衍生專案重建 Migration、專案新增預設團隊（0.9.57）](changelog/2026-09-24-support密碼與衍生專案Migration重建.md)
 - [腳手架開發指引新增章節目錄與「權控機制白話導讀」，畫面與欄位字典同步程式現況（0.9.58）](changelog/2026-09-24-權控白話導讀與欄位字典同步.md)
+- [寄信服務基礎設施：MailKit、背景佇列、健康監控項與測試寄信（0.9.59）](changelog/2026-09-24-寄信服務基礎設施.md)

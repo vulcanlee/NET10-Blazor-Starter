@@ -10,6 +10,7 @@ using MyProject.Web.Ai;
 using MyProject.Web.Auth;
 using MyProject.Web.Caching;
 using MyProject.Web.Configuration;
+using MyProject.Web.Email;
 using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Health;
@@ -37,6 +38,8 @@ public sealed class SystemHealthService : ISystemHealthService
     private readonly IOptionsMonitor<AiSettings> aiOptions;
     private readonly IOptionsMonitor<AiPricingSettings> aiPricingOptions;
     private readonly IOptions<CacheSettings> cacheOptions;
+    private readonly IEmailHealthProbe emailHealthProbe;
+    private readonly IOptionsMonitor<EmailSettings> emailOptions;
 
     public SystemHealthService(
         BackendDBContext context,
@@ -54,7 +57,9 @@ public sealed class SystemHealthService : ISystemHealthService
         ICacheService cacheService,
         IOptionsMonitor<AiSettings> aiOptions,
         IOptionsMonitor<AiPricingSettings> aiPricingOptions,
-        IOptions<CacheSettings> cacheOptions)
+        IOptions<CacheSettings> cacheOptions,
+        IEmailHealthProbe emailHealthProbe,
+        IOptionsMonitor<EmailSettings> emailOptions)
     {
         this.context = context;
         this.configuration = configuration;
@@ -72,6 +77,8 @@ public sealed class SystemHealthService : ISystemHealthService
         this.aiOptions = aiOptions;
         this.aiPricingOptions = aiPricingOptions;
         this.cacheOptions = cacheOptions;
+        this.emailHealthProbe = emailHealthProbe;
+        this.emailOptions = emailOptions;
     }
 
     public async Task<SystemHealthReport> GetReportAsync(CancellationToken cancellationToken = default)
@@ -88,7 +95,8 @@ public sealed class SystemHealthService : ISystemHealthService
             CheckSecuritySettings(),
             await CheckAiAsync(cancellationToken),
             await CheckCacheAsync(cancellationToken),
-            CheckAiPricing()
+            CheckAiPricing(),
+            await CheckEmailAsync(cancellationToken)
         };
 
         var score = SystemHealthScoreCalculator.CalculateScore(items);
@@ -470,6 +478,65 @@ public sealed class SystemHealthService : ISystemHealthService
             resolved is null
                 ? "目前模型在 AiPricingSettings.Models 查無對應價格，費用會估算為 0（記為未定價）。"
                 : null);
+    }
+
+    /// <summary>
+    /// 寄信服務（權重 10）。
+    ///
+    /// 寄信是選配功能：None（未啟用）與 Pickup（開發用，信不會真的寄出）回黃燈而非紅燈，
+    /// 比照 LLM 的做法。Smtp 才實測：5 秒內完成連線＋加密＋登入為綠燈，不實際寄信。
+    /// </summary>
+    private async Task<SystemHealthItem> CheckEmailAsync(CancellationToken cancellationToken)
+    {
+        var settings = emailOptions.CurrentValue;
+
+        if (!settings.TryGetProvider(out var provider))
+        {
+            return CreateItem(
+                "寄信服務",
+                "Email",
+                10,
+                SystemHealthStatus.Unhealthy,
+                $"Provider 設定值無法解析：{settings.Provider}。",
+                "寄信 provider 設定錯誤，只接受 None、Pickup 或 Smtp。");
+        }
+
+        if (provider == EmailProvider.None)
+        {
+            return CreateItem(
+                "寄信服務",
+                "Email",
+                10,
+                SystemHealthStatus.Degraded,
+                "Provider：None；寄信功能未啟用（選配功能），系統不會寄出任何信件。",
+                "尚未設定寄信服務。");
+        }
+
+        if (provider == EmailProvider.Pickup)
+        {
+            return CreateItem(
+                "寄信服務",
+                "Email",
+                10,
+                SystemHealthStatus.Degraded,
+                $"Provider：Pickup；信件寫入 {settings.PickupDirectory}，不會真正寄出。",
+                "Pickup 僅供開發使用，正式環境請改用 Smtp。");
+        }
+
+        var evidence =
+            $"Provider：Smtp；主機：{settings.Host}:{settings.Port}；加密：{settings.Security}；"
+            + $"登入帳號：{MaskPresence(settings.UserName)}；寄件者：{MaskPresence(settings.FromAddress)}";
+
+        // EmailHealthProbe 內部已吞下所有例外並自帶 5 秒上限。
+        var probe = await emailHealthProbe.ProbeAsync(cancellationToken);
+
+        return CreateItem(
+            "寄信服務",
+            "Email",
+            10,
+            probe.Success ? SystemHealthStatus.Healthy : SystemHealthStatus.Unhealthy,
+            $"{evidence}；耗時：{probe.ElapsedMilliseconds} ms。",
+            probe.Success ? null : probe.Message);
     }
 
     private static SystemHealthItem CreateItem(
