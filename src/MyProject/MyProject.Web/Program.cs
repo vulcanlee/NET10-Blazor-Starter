@@ -170,6 +170,10 @@ namespace MyProject.Web
                 var authenticationBuilder = builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
                     .AddCookie(MagicObjectHelper.CookieScheme, options =>
                     {
+                        // 名稱必須帶專案名（New-StarterProject.ps1 會一起換掉）。Cookie 不分連接埠，
+                        // 同一主機名稱部署多個衍生系統時，若沿用框架預設名就會互相覆蓋、互相登出。
+                        // ⚠️ 改這個值會讓既有登入（連同記住我）全部失效一次。
+                        options.Cookie.Name = ".MyProject.Auth";
                         options.Cookie.IsEssential = true;
                         options.LoginPath = "/Auths/Login";
                         options.LogoutPath = "/Auths/Logout";

@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.3
+- 文件版本：2.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.62
+- 現行系統版本：0.9.64
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/09/24
 
@@ -652,7 +652,8 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Program.cs:47` | `typeof(Program).Namespace ?? nameof(MyProject.Web)` | 決定 NLog 目錄與檔名前綴。漏改會讓日誌寫到舊名目錄，系統內的「日誌檢視」頁讀不到任何資料 |
 | `Program.cs:97` | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
 | `Extensions/ApplicationBuilderExtensions.cs:28` | `SwaggerEndpoint(..., "MyProject API v1")` | 同上 |
-| `Program.cs:200` | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
+| `Program.cs`（`AddCookie(MagicObjectHelper.CookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.Auth"` | 登入 Cookie 名稱殘留舊名。Cookie 不分連接埠，同一主機名稱部署多個系統時會**互相覆蓋、互相登出**（`ApiIntegrationTests.AuthCookieName_ShouldBeProjectSpecific` 會紅） |
+| `Program.cs`（`AddCookie(MagicObjectHelper.ExternalCookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
 | 🔴 `Share/Helpers/MagicObjectHelper.cs` | `DataProtectionApplicationName = "MyProject"` | **改了會讓全站既有登入 Cookie 立刻失效**（連同記住我）。這是 Data Protection 金鑰環的用途判別子。⚠️ 與上面那些不同，這一條**建議不要跟著改**；真要改請安排在可接受全體重新登入的時機 |
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
 | `Components/Views/Analytics/LogViewerView.razor.cs:151` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
