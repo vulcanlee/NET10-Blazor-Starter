@@ -1,8 +1,8 @@
 ﻿# 寄信服務與忘記密碼 設計規格
 
-- 文件版本：1.0
-- 文件狀態：設計定案（第一階段已實作，第二階段待實作）
-- 現行系統版本：0.9.59
+- 文件版本：1.1
+- 文件狀態：已實作（兩階段皆完成）
+- 現行系統版本：0.9.60
 - 首次實作版本：0.9.59
 - 最後核對日期：2026/09/24
 
@@ -63,7 +63,7 @@ Web/Configuration/EmailSettings、StartupSafetyValidator
 
 日誌只記 `Kind`（信件種類）、`Provider`、`Host`，**不記收件者、主旨、內文**（`LoggingConventionTests` 守門佔位名稱）。
 
-## 五、第二階段設計（待實作）
+## 五、第二階段設計（0.9.60 已實作）
 
 - `PasswordResetToken`（`Id`、`MyUserId`、`TokenHash`、`CreatedAtUtc`、`ExpiresAtUtc`）：`TokenHash` 唯一索引；
   FK 在 `OnModelCreating` 的 Restrict 迴圈**之後**明確設 Cascade，否則刪除有未用 token 的使用者會失敗。
@@ -90,7 +90,8 @@ Web/Configuration/EmailSettings、StartupSafetyValidator
 - 第一階段實測：Pickup 下健康頁黃燈、寄出測試信產生 `.eml`、稽核有 `Email.Test`；None 下按鈕停用。
 - 第二階段實測：Pickup 下完整走一次忘記 → 收信 → 重設 → 登入，並驗證連結單次使用與冷卻。
 
-實作結果見 [寄信服務基礎設施 changelog](../../changelog/2026-09-24-寄信服務基礎設施.md)；
-產品現況以 [寄信服務 PRD](../../prd/寄信服務-prd.md) 為準。
+實作結果見 [寄信服務基礎設施 changelog](../../changelog/2026-09-24-寄信服務基礎設施.md)、
+[忘記密碼與重設密碼 changelog](../../changelog/2026-09-24-忘記密碼與重設密碼.md)；
+產品現況以 [寄信服務 PRD](../../prd/寄信服務-prd.md)、[登入與帳號流程 PRD](../../prd/登入與帳號流程-prd.md) 為準。
 
 > 返回 [specs 索引](README.md)

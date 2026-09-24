@@ -25,4 +25,30 @@ public sealed class EmailTemplatesTests
         Assert.Equal("alice@example.com", message.To);
         Assert.Equal(EmailKinds.Test, message.Kind);
     }
+
+    [Fact]
+    public void BuildPasswordReset_ShouldEncodeAccountAndCarryTheLinkInBothParts()
+    {
+        const string link = "https://erp.example.com/Auths/ResetPassword?token=abc_DEF-123";
+
+        var message = EmailTemplates.BuildPasswordReset("alice@example.com", "企業管理平台", "<alice>", link, 30);
+
+        Assert.Equal(EmailKinds.PasswordReset, message.Kind);
+        Assert.StartsWith("[企業管理平台]", message.Subject);
+        Assert.Contains("&lt;alice&gt;", message.HtmlBody);
+        Assert.DoesNotContain("<alice>", message.HtmlBody);
+        Assert.Contains(link, message.TextBody);
+        Assert.Contains($"href=\"{link}\"", message.HtmlBody);
+        Assert.Contains("30 分鐘", message.TextBody);
+    }
+
+    [Fact]
+    public void BuildPasswordChanged_ShouldNameTheAccount()
+    {
+        var message = EmailTemplates.BuildPasswordChanged("alice@example.com", "企業管理平台", "alice", new DateTime(2026, 9, 24, 14, 0, 0));
+
+        Assert.Equal(EmailKinds.PasswordChanged, message.Kind);
+        Assert.Contains("「alice」", message.TextBody);
+        Assert.Contains("2026/09/24 14:00:00", message.TextBody);
+    }
 }

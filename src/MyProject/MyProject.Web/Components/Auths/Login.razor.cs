@@ -7,14 +7,13 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Auth;
+using MyProject.Web.Configuration;
 using System.Security.Claims;
 
 namespace MyProject.Web.Components.Auths
 {
     public partial class Login
     {
-        private const int CaptchaLength = 4;
-
         string errorMessage = string.Empty;
         string captchaCode = string.Empty;
 
@@ -27,6 +26,10 @@ namespace MyProject.Web.Components.Auths
         [SupplyParameterFromQuery]
         private string? ReturnUrl { get; set; }
 
+        /// <summary>重設密碼成功後導回本頁時帶 <c>?reset=1</c>，用來顯示成功訊息。</summary>
+        [SupplyParameterFromQuery(Name = "reset")]
+        private string? Reset { get; set; }
+
         [Inject]
         public ILogger<Login> Logger { get; set; } = default!;
 
@@ -37,24 +40,20 @@ namespace MyProject.Web.Components.Auths
         public IOptions<GoogleOAuthSettings> GoogleOptions { get; set; } = default!;
 
         [Inject]
-        public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
-
-        [Inject]
         public IOptions<CookieSettings> CookieOptions { get; set; } = default!;
 
-        /// <summary>
-        /// 系統名稱，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemName。
-        /// </summary>
-        private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
-
-        /// <summary>
-        /// 系統簡短說明，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemDescription。
-        /// </summary>
-        private string SystemDescription => SystemSettingsOptions.Value.SystemInformation.SystemDescription;
+        [Inject]
+        public IOptions<EmailSettings> EmailOptions { get; set; } = default!;
 
         string message = string.Empty;
 
         private bool ShowGoogleLogin => GoogleOptions.Value.IsConfigured;
+
+        /// <summary>寄信未啟用（Provider = None）時沒有忘記密碼可用，連結不出現。</summary>
+        private bool ShowForgotPassword => EmailOptions.Value.TryGetProvider(out var provider) && provider != EmailProvider.None;
+
+        /// <summary>只在還沒送出登入表單時顯示；登入失敗的錯誤訊息優先。</summary>
+        private bool ShowResetSucceeded => Reset == "1" && string.IsNullOrEmpty(message);
 
         private string GoogleLoginUrl =>
             string.IsNullOrWhiteSpace(ReturnUrl)
@@ -193,13 +192,8 @@ namespace MyProject.Web.Components.Auths
 
         private void RefreshCaptcha()
         {
-            captchaCode = GenerateCaptcha();
+            captchaCode = AuthCaptcha.Generate();
             Input.CaptchaCode = captchaCode;
-        }
-
-        private static string GenerateCaptcha()
-        {
-            return Random.Shared.Next(0, (int)Math.Pow(10, CaptchaLength)).ToString($"D{CaptchaLength}");
         }
     }
 }

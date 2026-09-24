@@ -20,6 +20,7 @@ namespace MyProject.Tests;
 /// 2. 匿名頁面白名單：新頁面不小心標了 [AllowAnonymous]（或放在 Pages/ 以外又沒標）會被擋下。
 /// 3. 檢查完成前不渲染：呼叫 Check() 的元件必須等 isAccessChecked 為 true 才畫出內容。
 /// </summary>
+[Collection(nameof(IntegrationHostCollection))]
 public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFactory>
 {
     /// <summary>
@@ -33,6 +34,8 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         "Logout",
         "Pending",  // Google 登入後等待審核
         "NotFound", // 狀態碼頁的重跑目標，要求登入會把 API 的 401/404 換成 302；內容靠 MainLayout 的閘門擋住
+        "ForgotPassword", // 忘記密碼（0.9.60）：只有輸入框，送出後一律顯示同一句話
+        "ResetPassword",  // 以信中連結重設密碼（0.9.60）：沒有有效 token 時只顯示「連結無效」
     ];
 
     private readonly ApiTestApplicationFactory factory;
@@ -129,6 +132,8 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
     [InlineData("/")]
     [InlineData("/Auths/Login")]
     [InlineData("/Auths/Pending")]
+    [InlineData("/Auths/ForgotPassword")]
+    [InlineData("/Auths/ResetPassword")]
     public async Task AnonymousPage_WithoutLogin_ShouldBeServed(string route)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

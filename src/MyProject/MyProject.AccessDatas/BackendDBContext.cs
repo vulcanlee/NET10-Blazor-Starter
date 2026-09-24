@@ -27,6 +27,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
     public virtual DbSet<UserTeam> UserTeam { get; set; }
+    public virtual DbSet<PasswordResetToken> PasswordResetToken { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -119,6 +120,18 @@ public partial class BackendDBContext : DbContext
             entity.HasIndex(x => new { x.MyUserId, x.TeamId }).IsUnique();
             entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
+
+        #region 忘記密碼的重設 token
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            // 以雜湊查 token；唯一索引同時是「兩次產生出同一個值」的最後防線。
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+
+            // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：MyUserService.DeleteAsync
+            // 不會先刪相依資料，Restrict 會讓「有未用 token 的使用者」刪除失敗。
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
         });
         #endregion
 

@@ -38,6 +38,19 @@
     <EmbeddedResource Include="Fonts\NotoSansTC-Regular.ttf" LogicalName="MyProject.Web.Fonts.NotoSansTC-Regular.ttf" />
   </ItemGroup>
 
+  <!--
+    登入、忘記密碼、重設密碼三頁與共用外框 AuthShell 共用同一個 scoped CSS 識別碼（0.9.60 起）。
+    外觀規則全部寫在 Login.razor.css；其餘三個 .razor.css 只是讓元件取得同一個 scope 屬性，
+    這樣同一份規則就能套用到四個元件的標記上，不必複製 400 行樣式或改寫成 ::deep。
+    ⚠️ 新增共用外框的頁面時要加進這裡，並附上自己的 .razor.css（可以只有註解）。
+  -->
+  <ItemGroup>
+    <None Update="Components\Auths\Login.razor.css" CssScope="b-auth-shell" />
+    <None Update="Components\Auths\AuthShell.razor.css" CssScope="b-auth-shell" />
+    <None Update="Components\Auths\ForgotPassword.razor.css" CssScope="b-auth-shell" />
+    <None Update="Components\Auths\ResetPassword.razor.css" CssScope="b-auth-shell" />
+  </ItemGroup>
+
   <!-- 慣例守門測試需要讀取 SidebarMenuService.MenuPermissionMap 等宣告式登錄表。 -->
   <ItemGroup>
     <InternalsVisibleTo Include="MyProject.Tests" />

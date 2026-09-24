@@ -338,6 +338,48 @@
     height: 20px;
 }
 
+/* ── 忘記密碼／重設密碼（0.9.60 起）──
+   本檔與 AuthShell、ForgotPassword、ResetPassword 以 CssScope="b-auth-shell" 共用 scope
+   （見 MyProject.Web.csproj），下列規則三頁都吃得到。 */
+
+.auth-link {
+    color: var(--login-accent);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-link:hover,
+.auth-link:focus-visible {
+    text-decoration: underline;
+}
+
+.auth-link:focus-visible {
+    outline: 2px solid var(--login-accent);
+    outline-offset: 4px;
+}
+
+.auth-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 20px;
+    margin-top: 22px;
+}
+
+.success-message {
+    margin-bottom: 18px;
+    padding: 12px 16px;
+    border: 1px solid var(--app-ok-line);
+    border-radius: 18px;
+    background: var(--app-ok-bg);
+    color: var(--app-ok);
+    font-size: 1rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    animation: error-appear 200ms ease-out;
+}
+
 @keyframes snowfall {
     50% { transform: translate3d(20px, 256px, 0); }
     to { transform: translate3d(0, 512px, 0); }
@@ -401,6 +443,7 @@
     .brand-panel,
     .login-card,
     .error-message,
+    .success-message,
     .remember-me ::deep input:checked { animation: none; }
     .form-input,
     .form-label,

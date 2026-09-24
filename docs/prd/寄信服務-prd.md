@@ -1,8 +1,8 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.0
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.59
+- 現行系統版本：0.9.62
 - 首次實作版本：0.9.59
 - 最後核對日期：2026/09/24
 
@@ -13,7 +13,8 @@
 
 - **範圍**：`EmailSettings` 設定區段、三種寄送方式（None／Pickup／Smtp）、同步寄送介面 `IEmailSender`、
   背景佇列 `IEmailQueue`、系統健康監控的「寄信服務」檢查項與「寄信測試」區塊、Production 啟動安全檢查。
-- **非範圍**：忘記密碼流程（另見 [登入與帳號流程](登入與帳號流程-prd.md)，0.9.60 規劃）、
+- **使用者**：忘記密碼／重設密碼（0.9.60 起）是第一個使用 `IEmailQueue` 的功能，流程見 [登入與帳號流程](登入與帳號流程-prd.md)。
+- **非範圍**：
   信件範本管理介面、附件、寄送紀錄查詢、退信處理、重試與持久化佇列。
 
 ## 二、使用者與入口
@@ -41,9 +42,11 @@
 
 | Provider | 行為 | 用途 |
 |---|---|---|
-| `None`（預設）| `NullEmailSender`：不寄信，只記一筆 Information 日誌 | 出貨預設、整合測試、不需要寄信的部署 |
+| `None`（預設）| `NullEmailSender`：不寄信，只記一筆 Information 日誌 | 出貨預設（`appsettings.json`）、整合測試、不需要寄信的部署 |
 | `Pickup` | `PickupEmailSender`：以 MimeKit 寫成 `{時間}-{Guid}.eml` 到 `PickupDirectory`（首次寫信時建立資料夾）| 開發機直接用郵件程式開啟信件 |
 | `Smtp` | `SmtpEmailSender`：MailKit，每封信新建 `SmtpClient`，連線 → 有 `UserName` 才登入 → 寄出 → 中斷 | 正式環境 |
+
+⚠️ **開發環境也是 `None`**（0.9.62 起 `appsettings.Development.json` 不再覆寫 `Provider`；0.9.61 曾預設 `Pickup`），所以本機登入頁預設沒有「忘記密碼？」；要測就用 User Secrets 設 `Provider=Pickup`。
 
 `IEmailSender` 在**解析時**依 `IOptionsMonitor<EmailSettings>.CurrentValue` 決定實作（scoped factory），
 不是註冊時 switch —— 這樣整合測試的組態覆寫才生效。
@@ -96,8 +99,8 @@
 
 **規劃中需求**
 
-- 忘記密碼／重設密碼（0.9.60，第一個使用 `IEmailQueue` 的功能）。設計見
-  [設計文件](../superpowers/specs/2026-09-24-email-password-reset-design.md)。
+- 無。忘記密碼／重設密碼已於 0.9.60 實作（重設信 `PasswordReset`、密碼已變更通知 `PasswordChanged`），
+  設計見 [設計文件](../superpowers/specs/2026-09-24-email-password-reset-design.md)。
 
 ## 八、測試
 

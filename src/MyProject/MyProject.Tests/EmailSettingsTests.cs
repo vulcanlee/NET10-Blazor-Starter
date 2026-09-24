@@ -138,6 +138,33 @@ public sealed class EmailSettingsTests
     }
 
     [Theory]
+    [InlineData("TokenLifetimeMinutes", "4")]
+    [InlineData("TokenLifetimeMinutes", "1441")]
+    [InlineData("RequestCooldownSeconds", "-1")]
+    [InlineData("RequestCooldownSeconds", "3601")]
+    public void PasswordResetOptions_OutOfRange_ShouldFailValidation(string key, string value)
+    {
+        using var provider = BuildProvider(new Dictionary<string, string?>
+        {
+            [$"PasswordResetSettings:{key}"] = value,
+        });
+
+        Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<PasswordResetSettings>>().Value);
+    }
+
+    [Fact]
+    public void PasswordResetOptions_Defaults_ShouldBe30MinutesAnd60Seconds()
+    {
+        using var provider = BuildProvider(new Dictionary<string, string?>());
+
+        var settings = provider.GetRequiredService<IOptions<PasswordResetSettings>>().Value;
+
+        Assert.Equal(30, settings.TokenLifetimeMinutes);
+        Assert.Equal(60, settings.RequestCooldownSeconds);
+    }
+
+    [Theory]
     [InlineData("None", typeof(NullEmailSender))]
     [InlineData("Pickup", typeof(PickupEmailSender))]
     [InlineData("Smtp", typeof(SmtpEmailSender))]

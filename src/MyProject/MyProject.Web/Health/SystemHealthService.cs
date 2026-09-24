@@ -508,7 +508,7 @@ public sealed class SystemHealthService : ISystemHealthService
                 "Email",
                 10,
                 SystemHealthStatus.Degraded,
-                "Provider：None；寄信功能未啟用（選配功能），系統不會寄出任何信件。",
+                "Provider：None；寄信功能未啟用（選配功能），系統不會寄出任何信件，登入頁也不提供忘記密碼。",
                 "尚未設定寄信服務。");
         }
 
