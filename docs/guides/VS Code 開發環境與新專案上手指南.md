@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.4
+- 文件版本：2.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.64
+- 現行系統版本：0.9.65
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/09/24
+- 最後核對日期：2026/09/25
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -132,7 +132,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 
 | 操作 | 快捷鍵 | 結果 |
 |------|--------|------|
-| 啟動偵錯 | `F5` | 建置後啟動，瀏覽器自動開到 `https://localhost:7044` |
+| 啟動偵錯 | `F5` | 建置後啟動，瀏覽器自動開到 `https://localhost:7144` |
 | 不進偵錯器執行 | `Ctrl+F5` | 同上但不附加偵錯器，熱重載較順 |
 | 建置 | `Ctrl+Shift+B` | 執行 `build` 任務 |
 | 執行其他任務 | `Ctrl+Shift+P` → `Tasks: Run Task` | 選 `format-check` / `test` / `docs-encoding` |
@@ -149,8 +149,8 @@ app.UseHttpsRedirection();
 
 | profile | applicationUrl |
 |---------|----------------|
-| `http` | `http://localhost:5189` |
-| `https` | `https://localhost:7044;http://localhost:5189` |
+| `http` | `http://localhost:5109` |
+| `https` | `https://localhost:7144;http://localhost:5109` |
 
 只跑 `http` profile 時，程式會把請求導向 HTTPS，但根本沒有監聽 HTTPS 埠 → 瀏覽器顯示連線失敗或無限重導。**請一律使用 `https` profile**（`.vscode/launch.json` 已預設如此）。
 
@@ -469,7 +469,7 @@ ffmpeg -i images/brand-logo.png \
 
 啟動系統後逐項檢查：
 
-- [ ] 啟動頁（`https://localhost:7044/`）：品牌圖片、大標題（`SystemName`）、副說明（`SystemDescription`）
+- [ ] 啟動頁（`https://localhost:7144/`）：品牌圖片、大標題（`SystemName`）、副說明（`SystemDescription`）
       —— 啟動頁只在驗證身分那一瞬間出現，會很快跳走，可先登出再開首頁觀察
 - [ ] 登入頁（`/Auths/Login`）：同樣三項，且說明文字沒有溢出面板
 - [ ] 登入後首頁（`/App`）：品牌圖片、大標題、副說明、六張能力卡片（圖示皆為單一圖示、未溢出容器）、快速入口與系統版本
@@ -508,6 +508,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml`）內的 `MyProject` 全部換成新代號，**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
+- **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs`，先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
@@ -697,7 +698,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 手動驗收項目：
 
-- [ ] `dotnet run --launch-profile https` 能啟動，`https://localhost:7044` 開得起來
+- [ ] `dotnet run --launch-profile https` 能啟動，`https://localhost:7144` 開得起來
 - [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
@@ -715,7 +716,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 |------|------|------|
 | 瀏覽器連不上或無限重導 | 用了 `http` profile，但 `Program.cs:389` 無條件做 HTTPS 重導 | 改用 `https` profile（`.vscode/launch.json` 已預設） |
 | 瀏覽器顯示憑證不受信任 | 尚未信任本機開發憑證 | `dotnet dev-certs https --trust` |
-| `Address already in use` / 埠被占用 | 5189 或 7044 被其他程式占用 | 改 `launchSettings.json` 的 `applicationUrl`，或 `Get-NetTCPConnection -LocalPort 7044` 找出占用者 |
+| `Address already in use` / 埠被占用 | `launchSettings.json` 的 `applicationUrl` 所用連接埠被其他程式占用 | 改 `launchSettings.json` 的 `applicationUrl`，或 `Get-NetTCPConnection -LocalPort <埠號>` 找出占用者 |
 | **畫面完全沒有樣式** | `App.razor:13` 的 `MyProject.Web.styles.css` 沒跟著改名 | 改成 `<新代號>.Web.styles.css` |
 | User Secrets 設了卻沒生效 | ①`ASPNETCORE_ENVIRONMENT` 不是 `Development` ②`UserSecretsId` 與實際目錄不符 ③改了 csproj 沒重建 | 逐項確認；`dotnet user-secrets list` 應讀得到值 |
 | `dotnet user-secrets` 說找不到專案 | 不在 csproj 目錄下 | `cd src/.../*.Web`，或加 `--project <csproj 路徑>` |
