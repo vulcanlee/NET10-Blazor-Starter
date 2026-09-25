@@ -1,10 +1,10 @@
 ﻿# Google OAuth2 第三方登入
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.63
+- 現行系統版本：0.9.65
 - 首次實作版本：0.2.6
-- 最後核對日期：2026/09/24
+- 最後核對日期：2026/09/25
 
 ## 目的
 
@@ -37,10 +37,10 @@
 3. 前往「憑證」（Credentials）→「建立憑證」→「OAuth 用戶端 ID」：
    - 應用程式類型：**Web application（網頁應用程式）**。
    - **授權重新導向 URI（Authorized redirect URIs）** 必須填入本系統的回呼路徑（網址結尾固定為 `/signin-google`）：
-     - 開發（https）：`https://localhost:7044/signin-google`
-     - 開發（http）：`http://localhost:5189/signin-google`
+     - 開發（https）：`https://localhost:7144/signin-google`
+     - 開發（http）：`http://localhost:5109/signin-google`
      - 正式：`https://<your-domain>/signin-google`
-   - `/signin-google` 是 Google 中介軟體預設的回呼路徑（對應 `CallbackPath`），請務必與系統設定**完全一致**（差一個字 Google 就會拒絕）。本機開發埠以 `Properties/launchSettings.json` 為準。
+   - `/signin-google` 是 Google 中介軟體預設的回呼路徑（對應 `CallbackPath`），請務必與系統設定**完全一致**（差一個字 Google 就會拒絕）。本機開發埠以 `Properties/launchSettings.json` 為準；用 `scripts/New-StarterProject.ps1` 產生的衍生專案會拿到另一組隨機埠，腳本結尾會印出要註冊的 redirect URI。
 4. 建立完成後，畫面會顯示 **用戶端 ID（ClientId）** 與 **用戶端密鑰（ClientSecret）**，複製下來填入下一節的設定。
 
 ---

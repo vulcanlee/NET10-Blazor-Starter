@@ -37,6 +37,44 @@ if (-not $dotnetEfAvailable) {
     throw "dotnet-ef is required to create the initial migration. Install it with: dotnet tool install --global dotnet-ef"
 }
 
+# 每個衍生專案都要有自己的開發連接埠，否則同一台機器同時開兩個專案會搶埠；
+# Google OAuth 的 redirect URI 也是依埠註冊。範圍比照 VS／dotnet new（http 5000–5300、https 7000–7300）。
+$sourceHttpPort = 5109
+$sourceHttpsPort = 7144
+
+function Get-FreeDevPort {
+    param(
+        [Parameter(Mandatory = $true)][int]$Minimum,
+        [Parameter(Mandatory = $true)][int]$Maximum,
+        [Parameter(Mandatory = $true)][int]$Exclude
+    )
+
+    for ($attempt = 0; $attempt -lt 50; $attempt++) {
+        $candidate = Get-Random -Minimum $Minimum -Maximum ($Maximum + 1)
+        if ($candidate -eq $Exclude) {
+            continue
+        }
+
+        # 用實際試綁判斷：同時涵蓋「已被占用」與 Windows（Hyper-V）保留的排除埠範圍。
+        $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $candidate)
+        try {
+            $listener.Start()
+            return $candidate
+        }
+        catch {
+            continue
+        }
+        finally {
+            $listener.Stop()
+        }
+    }
+
+    throw "Could not find a free port between $Minimum and $Maximum."
+}
+
+$httpPort = Get-FreeDevPort -Minimum 5000 -Maximum 5300 -Exclude $sourceHttpPort
+$httpsPort = Get-FreeDevPort -Minimum 7000 -Maximum 7300 -Exclude $sourceHttpsPort
+
 if ((Test-Path -LiteralPath $destinationFullPath) -and -not $Force) {
     throw "Destination already exists. Use -Force to overwrite: $destinationFullPath"
 }
@@ -163,6 +201,9 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         $content = [System.IO.File]::ReadAllText($_.FullName)
         $content = $content.Replace($SourceProjectName, $ProjectName)
         $content = $content.Replace($sourceUserSecretsId, $UserSecretsId)
+        # launchSettings.json 與文件裡的網址一起換；只換帶 localhost: 的形式，避免誤傷其他數字。
+        $content = $content.Replace("localhost:$sourceHttpsPort", "localhost:$httpsPort")
+        $content = $content.Replace("localhost:$sourceHttpPort", "localhost:$httpPort")
         if ($_.Name -eq "appsettings.json") {
             # 註：這裡刻意**不**動 BootstrapSettings:SupportPassword。
             # 換成另一個固定佔位值並不會比較安全，只是把弱值換成另一個弱值；
@@ -351,7 +392,7 @@ else {
 
 $remainingMatches = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
     Where-Object { $textExtensions -contains $_.Extension } |
-    Select-String -Pattern $SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", $sourceUserSecretsId -SimpleMatch
+    Select-String -Pattern $SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", $sourceUserSecretsId, "localhost:$sourceHttpPort", "localhost:$sourceHttpsPort" -SimpleMatch
 
 if ($remainingMatches) {
     Write-Warning "Scaffold completed, but safety checks found values that still need review:"
@@ -361,4 +402,6 @@ if ($remainingMatches) {
 }
 
 Write-Host "Created starter project at $destinationFullPath"
+Write-Host "Dev URLs: https://localhost:$httpsPort / http://localhost:$httpPort (Properties/launchSettings.json)"
+Write-Host "Google OAuth redirect URIs to register: https://localhost:$httpsPort/signin-google , http://localhost:$httpPort/signin-google"
 Write-Host "Next: see docs/guides/VS Code 開發環境與新專案上手指南.md - section 7 (branding: favicon, brand image, product name/description) and sections 8.1 / 8.3 for the manual follow-up items."
