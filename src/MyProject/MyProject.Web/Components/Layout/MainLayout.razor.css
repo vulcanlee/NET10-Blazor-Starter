@@ -40,6 +40,14 @@ main {
     backdrop-filter: blur(14px);
 }
 
+/* 頁名 ＋「使用說明」按鈕。窄視窗只隱藏頁名文字，按鈕保留。 */
+.top-row-heading {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 0.5rem;
+}
+
 .top-row-title {
     color: var(--app-text);
     font-size: 1rem;

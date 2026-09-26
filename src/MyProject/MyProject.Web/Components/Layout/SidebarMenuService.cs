@@ -66,6 +66,30 @@ public sealed class SidebarMenuService
         return authorizedItems;
     }
 
+    /// <summary>
+    /// Menu.json 內所有網址（不過濾權限）。頁面使用說明的「相關頁面」用它區分
+    /// 「受選單權限控管、但此人無權」與「根本不在選單裡」（例如 /ChangePassword）兩種情況。
+    /// </summary>
+    public async Task<IReadOnlySet<string>> LoadAllMenuUrlsAsync()
+    {
+        var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectUrls(await LoadMenuItemsAsync(), urls);
+        return urls;
+    }
+
+    internal static void CollectUrls(IEnumerable<SidebarMenuItemModel> items, ISet<string> urls)
+    {
+        foreach (var item in items)
+        {
+            if (!string.IsNullOrWhiteSpace(item.Url))
+            {
+                urls.Add(PageHelpService.NormalizePath(item.Url));
+            }
+
+            CollectUrls(item.SubMenu, urls);
+        }
+    }
+
     private async Task<IReadOnlyList<SidebarMenuItemModel>> LoadMenuItemsAsync()
         => await cacheService.GetOrCreateAsync<List<SidebarMenuItemModel>>(
             MenuCacheKey,

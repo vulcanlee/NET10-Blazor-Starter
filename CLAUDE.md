@@ -93,4 +93,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   `--login-*`（登入頁）只是別名層。樣式要寫哪裡的判準是 **DOM 位置**不是元件名稱：AntDesign 渲染在
   `AntContainer` 底下的浮層 → `OverlayStyles.razor`；渲染在頁面內的（Table／Pagination／Input／Tag）→
   `theme.css`。見速查表 §6.9 與 `docs/architecture/介面視覺設計規範.md`。由 `ThemeConventionTests` 守門。
+- **每個登入後頁面都有「使用說明」**：新增 `@page` 必須登記 `MyProject.Web/Datas/HelpTopics.json` 並寫
+  `Datas/Help/<路由>.md`（UTF-8 含 BOM、固定七段），或列入 `PageHelpCatalogTests.RoutesWithoutHelp`；
+  改了頁面的按鈕／欄位要同步改說明第三段。見速查表 §6.14。
 - `docs/*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 遞迴檢查）。
