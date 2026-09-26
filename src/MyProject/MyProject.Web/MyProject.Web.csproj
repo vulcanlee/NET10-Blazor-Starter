@@ -51,6 +51,18 @@
     <None Update="Components\Auths\ResetPassword.razor.css" CssScope="b-auth-shell" />
   </ItemGroup>
 
+  <!--
+    頁面使用說明（Datas/Help/*.md，由 Datas/HelpTopics.json 索引）。
+    Web SDK 預設只複製 *.json，.md 必須明寫；漏了不會編譯失敗，只會在 publish 後
+    讓每一頁的說明都變成佔位內容。由 PageHelpCatalogTests 守門。
+  -->
+  <ItemGroup>
+    <Content Include="Datas\Help\**\*.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- 慣例守門測試需要讀取 SidebarMenuService.MenuPermissionMap 等宣告式登錄表。 -->
   <ItemGroup>
     <InternalsVisibleTo Include="MyProject.Tests" />

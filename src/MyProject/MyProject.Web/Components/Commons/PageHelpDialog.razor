@@ -1,0 +1,81 @@
+@*
+    頂欄的「使用說明」按鈕與近滿版說明窗。掛在 MainLayout 的頁名旁，全站一處、依路由自動對應。
+    尺寸與捲動版型寫在 OverlayStyles.razor 的 .page-help-modal；內文樣式寫在本元件的 .razor.css
+    （Markdown 注入的 HTML 沒有 scope 屬性，一律用 ::deep）。
+    內容格式與守門規則見 docs/architecture/開發慣例與限制速查.md「頁面使用說明」一節。
+*@
+
+@if (topic is not null)
+{
+    <ToolbarIconButton Title="使用說明" Icon="help_outline" OnClick="OpenAsync" />
+
+    <Modal Title="@ModalTitle"
+           Class="page-help-modal"
+           Visible="@visible"
+           Keyboard="true"
+           Footer="null"
+           OnCancel="Close">
+        @if (document is not null)
+        {
+            <div class="page-help-layout">
+                <nav class="page-help-nav" aria-label="章節導覽">
+                    <button type="button"
+                            class="@NavCssClass(AllSectionsKey)"
+                            aria-current="@(activeSection == AllSectionsKey ? "true" : null)"
+                            @onclick="@(() => SelectSection(AllSectionsKey))">
+                        全部
+                    </button>
+                    @foreach (var section in document.Sections)
+                    {
+                        var heading = section.Heading;
+                        <button type="button"
+                                class="@NavCssClass(heading)"
+                                aria-current="@(activeSection == heading ? "true" : null)"
+                                @onclick="@(() => SelectSection(heading))">
+                            @heading
+                        </button>
+                    }
+                </nav>
+
+                <div class="page-help-content">
+                    @if (activeSection == AllSectionsKey && !string.IsNullOrWhiteSpace(document.Preamble))
+                    {
+                        @((MarkupString)HelpMarkdownRenderer.ToHtml(document.Preamble))
+                    }
+
+                    @foreach (var section in VisibleSections)
+                    {
+                        <h2>@section.Heading</h2>
+                        @if (section.Heading == PageHelpMarkdownParser.RelatedPagesHeading)
+                        {
+                            @* 相關頁面不用 Markdown 連結渲染：改成結構化卡片，先關窗再導覽，並依權限過濾。 *@
+                            @((MarkupString)HelpMarkdownRenderer.ToHtml(PageHelpMarkdownParser.RelatedPagesIntro(section.Markdown)))
+                            @if (visibleRelatedPages.Count == 0)
+                            {
+                                <p class="page-help-related-empty">目前沒有你可以進入的相關頁面。</p>
+                            }
+                            @foreach (var related in visibleRelatedPages)
+                            {
+                                <div class="page-help-related-item">
+                                    <div class="page-help-related-head">
+                                        <Button Type="ButtonType.Link"
+                                                Class="page-help-related-link"
+                                                OnClick="@(() => NavigateTo(related.Route))">
+                                            @related.Title
+                                        </Button>
+                                        <span class="page-help-related-route">@related.Route</span>
+                                    </div>
+                                    <div class="page-help-related-desc">@related.Description</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            @((MarkupString)HelpMarkdownRenderer.ToHtml(section.Markdown))
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </Modal>
+}

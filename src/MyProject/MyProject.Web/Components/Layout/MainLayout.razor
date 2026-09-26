@@ -15,7 +15,10 @@
 
         <main>
             <div class="top-row px-4">
-                <div class="top-row-title">@CurrentPageTitle</div>
+                <div class="top-row-heading">
+                    <div class="top-row-title">@CurrentPageTitle</div>
+                    <PageHelpDialog MenuItems="MenuItems" />
+                </div>
                 <div class="top-row-status">
                     <div class="user-menu @(isUserMenuOpen ? "user-menu-open" : string.Empty)">
                         <button type="button"

@@ -98,6 +98,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<PasswordResetService>();
         services.AddScoped<SidebarMenuService>();
+        services.AddScoped<PageHelpService>();
         services.AddScoped<RolePermissionService>();
         services.AddScoped<RoleViewService>();
         services.AddScoped<MyUserService>();

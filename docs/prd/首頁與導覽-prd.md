@@ -1,16 +1,16 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.9.63
+- 現行系統版本：0.9.66
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/09/24
+- 最後核對日期：2026/09/26
 
 ## 一、目標與範圍
 
 提供系統的兩個進入點與整體導覽骨架：未登入者的品牌啟動畫面（`/`）、登入後的系統介紹首頁（`/App`），以及依權限過濾的側邊功能選單。
 
-- 範圍：啟動頁／介紹頁兩個路由、側邊選單（`Menu.json`）之載入、宣告式權限過濾、收合／展開與圖示呈現，以及右上角使用者選單（含「關於」系統資訊對話窗）。
+- 範圍：啟動頁／介紹頁兩個路由、側邊選單（`Menu.json`）之載入、宣告式權限過濾、收合／展開與圖示呈現，以及右上角使用者選單（含「關於」系統資訊對話窗）與頂欄的「使用說明」按鈕（0.9.66 起）。
 - 非範圍：各業務頁面（專案、使用者、角色、分類、團隊）之內容；登入／登出流程本身；權限鍵的授予（屬角色管理）。動作級授權與團隊資料權控見「紀錄分類與團隊權控 PRD」。
 
 ## 二、使用者與入口
@@ -70,6 +70,12 @@
   ⚠️ 系統的**強制登出**（session 失效、查無使用者、角色遺失…）刻意**不確認** ——
   那是系統行為不是使用者意圖。詳見 [登入與帳號流程 PRD](登入與帳號流程-prd.md)。
   - ⚠️ **版面層級**（0.4.44 修正）：`.top-row` 帶 `z-index` 即建立 stacking context，選單自己的 `z-index: 20` 只在其內部有效，整個頂部列是以 `.top-row` 的數值參與根層級堆疊。該值必須高於 AntDesign 表格的固定欄／sticky 標頭（2–4），否則「關於」「登出」會被有固定「操作」欄的頁面蓋住。詳見 [開發慣例與限制速查 §6.2](../architecture/開發慣例與限制速查.md)。
+- **頂欄「使用說明」按鈕**（0.9.66 起，`Components/Commons/PageHelpDialog`）：頁名右側一顆 `help_outline` 圖示鈕
+  （滑鼠提示「使用說明」），開啟近滿版的「〈頁名〉　使用說明」對話窗 —— 左側章節導覽（全部／一～七），右側內容。
+  - 點「全部」顯示前言（含「一分鐘看懂這一頁」）與全部章節；點單一章節只顯示該章節（篩選，不是捲動）。每次開啟都回到「全部」。
+  - 「六、相關頁面」以卡片呈現，點名稱會先關窗再導頁；**使用者無權進入的頁面不顯示**。
+  - 目前路由沒有登記說明時不顯示按鈕；切換頁面時對話窗自動關閉。窄視窗（≤640px）只隱藏頁名文字、按鈕保留，對話窗改為滿版、章節導覽改為橫向一排。
+  - 涵蓋登入後的 14 個頁面（13 個選單頁＋`/ChangePassword`）；內容與規則見 [開發慣例與限制速查 §6.14](../architecture/開發慣例與限制速查.md)。
 - 「關於」對話窗（`MainLayout.razor` 之 `about-modal`）：以 AntDesign `Modal`（寬 520、無 Footer）呈現六列唯讀系統資訊。
 
   | 項目 | 來源 |
@@ -89,7 +95,10 @@
    - `FilterAuthorizedMenuItems` 遞迴過濾：項目自身權限（`Name` 或 `PermissionName` 任一）通過，或其子項尚有可見項目時保留。
 2. 權限判定唯一來源為 `AuthenticationStateHelper.CheckAccessPage(name)`：比對 `CurrentUser.RoleList`（由 `IPermissionChecker.GetEffectivePermissionKeysAsync` 供給的 RBAC 有效權限鍵集合）；管理員短路一律通過。
 3. `Menu.json` 以 `id` 對應權限鍵，重排選單順序不會錯位（已移除舊「位置索引三處同步」耦合）。
-4. 「關於」對話窗由 `MainLayout.OnAboutClick` 於**點擊當下**組出資料列：注入 `IOptions<SystemSettings>`、`IWebHostEnvironment` 與 Singleton `SystemStartupState`。已運作時間必須在開啟當下計算並存成欄位，否則 Blazor Server 不會自動刷新而顯示過期值。
+4. 頁面使用說明：`PageHelpService` 讀 `Datas/HelpTopics.json` 與 `Datas/Help/*.md`（經 `ICacheService` 快取），以**精確比對**（非頂欄標題的前綴比對）找出目前路由的說明；
+   `PageHelpMarkdownParser` 以行首 `## ` 切章節，`HelpMarkdownRenderer`（`DisableHtml` ＋ `UsePipeTables`）轉 HTML。
+   相關頁面以 `MainLayout` 傳入的已授權選單過濾，與側邊欄同源。
+5. 「關於」對話窗由 `MainLayout.OnAboutClick` 於**點擊當下**組出資料列：注入 `IOptions<SystemSettings>`、`IWebHostEnvironment` 與 Singleton `SystemStartupState`。已運作時間必須在開啟當下計算並存成欄位，否則 Blazor Server 不會自動刷新而顯示過期值。
 
 ## 五、權限與安全
 
@@ -102,6 +111,7 @@
   詳見 [日誌檢視 PRD](日誌檢視-prd.md)、[使用者管理 PRD](使用者管理-prd.md)、[角色管理 PRD](角色管理-prd.md)。
 - 選單過濾僅隱藏無權項目，並非授權邊界；實際資料存取由 API 端 `[HasPermission]` 與團隊權控把關（見「紀錄分類與團隊權控 PRD」）。
 - 管理員（`IsAdmin`）於 `CheckAccessPage` 短路，選單全可見。
+- 「使用說明」按鈕不另做權限判斷：能進入該頁的人就看得到該頁說明；說明內的「相關頁面」依已授權選單過濾（管理員短路自然成立）。說明內容是隨原始碼進版控的可信檔案，仍以 `DisableHtml()` 防止夾帶 raw HTML。
 - 右上角使用者選單與「關於」對話窗不做權限過濾：任何已登入者皆可開啟；內容僅為系統識別資訊，不含連線字串、金鑰或其他機敏設定。
 
 ## 六、錯誤與邊界
@@ -119,6 +129,8 @@
 - 手動驗收（權限）：以**未授予「首頁」權限**的角色登入，直接輸入 `/App` 應顯示「你沒有權限存取此頁面」且不渲染介紹內容，側邊欄亦無「首頁」；以**未授予分類／團隊清單**的角色登入，快速入口只剩「專案項目」。
 - 手動驗收（RWD）：視窗縮至 400px 寬，Hero 改直向、能力卡片改單欄、快速入口滿版，頁面不出現水平捲軸。
 - 手動驗收（關於）：點右上角使用者名稱 →「關於」，對話窗顯示六列資訊，系統版本須與 `appsettings.json` 之 `SystemVersion` 一致；關閉後再次開啟，「已運作時間」應有增加。
+- `MyProject.Tests/PageHelpCatalogTests.cs`：每個 `@page` 都登記說明或明列排除理由、索引與檔案雙向一致、七段章節與「一分鐘看懂」、相關頁可解析、UTF-8 BOM、csproj 複製規則；`PageHelpParsingTests.cs`、`HelpMarkdownRendererTests.cs` 覆蓋解析、比對、權限過濾與管線。
+- 手動驗收（使用說明）：在各頁按頁名旁的「?」，標題為「〈頁名〉　使用說明」；切換章節、Esc 關窗；以非管理員登入，相關頁面不出現管理頁；開窗後點相關頁卡片會關窗並導頁。
 - 權限判定來源之測試見 `PermissionCheckerTests.cs`（詳「紀錄分類與團隊權控 PRD」）。
 
 ## 八、相關程式與文件
@@ -133,6 +145,8 @@
 - `src/MyProject/MyProject.Web/Components/Layout/NavMenu.razor`
 - `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor`（使用者選單與「關於」對話窗）
 - `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor.cs`（`OnAboutClick`）
+- `src/MyProject/MyProject.Web/Components/Commons/PageHelpDialog.razor`／`.razor.cs`／`.razor.css`、`PageHelpMarkdownParser.cs`、`HelpMarkdownRenderer.cs`（使用說明）
+- `src/MyProject/MyProject.Web/Components/Layout/PageHelpService.cs`、`src/MyProject/MyProject.Web/Datas/HelpTopics.json`、`Datas/Help/*.md`
 - `src/MyProject/MyProject.Web/Health/SystemStartupState.cs`（啟動時間來源）
 - `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessPage`）
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`（角色權限鍵常數）

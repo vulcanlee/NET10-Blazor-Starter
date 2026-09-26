@@ -18,6 +18,7 @@
       - 檢視使用 ToolbarIconButton / CrudActionButton / TableSortHelper / ViewNotification
       - 編輯前 Clone()；權限用 CheckAccessPage + CheckAccessAction
       - Skip/Take 必搭 OrderBy；分頁在資料庫端執行
+      - 附頁面使用說明初稿（Datas/Help，結構符合 PageHelpCatalogTests）
 
 .PARAMETER Name
     模組（實體）名稱，PascalCase，例如 Equipment。
@@ -56,20 +57,23 @@ if (Test-Path -LiteralPath $moduleRoot) {
 New-Item -ItemType Directory -Path $moduleRoot | Out-Null
 
 function New-ScaffoldFile {
-    param([string]$RelativePath, [string]$Content)
+    param([string]$RelativePath, [string]$Content, [switch]$WithBom)
 
     $fullPath = Join-Path $moduleRoot $RelativePath
     $directory = Split-Path -Path $fullPath -Parent
     if (-not (Test-Path -LiteralPath $directory)) {
         New-Item -ItemType Directory -Path $directory | Out-Null
     }
-    # 原始碼採 UTF-8 無 BOM；只有 docs/*.md 需要 BOM。
-    Set-Content -LiteralPath $fullPath -Value $Content -Encoding utf8NoBOM
+    # 原始碼採 UTF-8 無 BOM；docs/*.md 與頁面使用說明（Datas/Help/*.md）需要 BOM。
+    $encoding = if ($WithBom) { "utf8BOM" } else { "utf8NoBOM" }
+    Set-Content -LiteralPath $fullPath -Value $Content -Encoding $encoding
 }
 
 $lower = $Name.Substring(0, 1).ToLowerInvariant() + $Name.Substring(1)
 $permissionConst = "角色_$DisplayName"
 $route = "/$($lower)s"
+# 與 PageHelpService.ToSlugFileName 相同的規則：去頭尾斜線、斜線換成 -、轉小寫。
+$helpFile = "$($route.Trim('/').Replace('/', '-').ToLowerInvariant()).md"
 
 New-ScaffoldFile "AccessDatas/Models/$Name.cs" @"
 namespace MyProject.AccessDatas.Models;
@@ -953,6 +957,82 @@ public sealed class ${Name}ServiceTests
 }
 "@
 
+# 頁面使用說明初稿：結構已符合 PageHelpCatalogTests（七段、一分鐘看懂、相關頁面格式），
+# 內容是通用 CRUD 文字，搬進專案後請依實際欄位修潤。
+# ⚠️ 這段是 PowerShell 的雙引號 here-string，反引號是跳脫字元，所以內文不用 Markdown 行內 code。
+New-ScaffoldFile "Web/Datas/Help/$helpFile" -WithBom @"
+# $DisplayName
+
+在這一頁**新增、修改、刪除**「$DisplayName」的資料，並用清單瀏覽既有紀錄。
+
+### 一分鐘看懂這一頁
+
+- **解決什麼問題**：集中維護「$DisplayName」的資料，不必各自記在不同地方。
+- **誰會用到**：被授予「$DisplayName」權限的使用者；新增、修改、刪除按鈕會依你的權限個別顯示。
+- **它在系統的哪個位置**：從左側選單的「$DisplayName」進入；清單每一列右側有修改與刪除按鈕。
+- **開始前要準備**：先確認要輸入的名稱，名稱是必填欄位，說明可以之後再補。
+- **做完會得到**：一筆會出現在清單中、可以排序與修改的「$DisplayName」紀錄。
+- **它不做什麼**：這一頁不負責權限設定，誰能看到、誰能修改由管理員在角色管理中決定。
+
+## 一、功能摘要
+
+這一頁以清單列出所有「$DisplayName」紀錄，可以依名稱排序、分頁瀏覽。
+有權限時可以新增一筆紀錄、修改既有紀錄的名稱與說明，或刪除不再需要的紀錄。
+
+## 二、這個頁面在做什麼
+
+清單會向伺服器分頁查詢資料，每次只取目前這一頁的紀錄，資料再多也不會拖慢畫面。
+新增與修改都在同一個對話窗裡完成，儲存前會檢查必填欄位；
+如果你改了內容卻按取消，系統會先詢問是否放棄變更，避免不小心遺失輸入。
+
+## 三、畫面上有哪些按鈕、各自做什麼
+
+| 按鈕／欄位 | 做什麼 |
+|---|---|
+| 新增 | 開啟空白的編輯對話窗；只有擁有新增權限時才會出現 |
+| 重新整理 | 重新向伺服器讀取清單，看到其他人剛做的異動 |
+| 名稱（欄位標題） | 點欄位標題可以切換遞增／遞減排序 |
+| 修改 | 每一列右側的按鈕，開啟這筆紀錄的編輯對話窗；需要修改權限 |
+| 刪除 | 每一列右側的紅色按鈕，確認後刪除這筆紀錄；需要刪除權限 |
+| 儲存／取消 | 編輯對話窗下方的按鈕；名稱未填時無法儲存 |
+
+## 四、建議這樣操作，會得到什麼
+
+### 新增一筆紀錄
+
+1. 按工具列的「新增」。
+2. 輸入名稱，視需要補上說明。
+3. 按「儲存」，清單會出現這筆新紀錄。
+
+### 修改既有紀錄
+
+1. 在清單找到要改的那一列，按右側的「修改」。
+2. 調整內容後按「儲存」；不想改了就按「取消」並確認放棄變更。
+
+## 五、名詞解釋
+
+| 名詞 | 白話解釋 |
+|---|---|
+| 名稱 | 這筆紀錄給人辨識用的名字，是必填欄位 |
+| 說明 | 補充這筆紀錄用途的文字，可以留空 |
+| 權限 | 決定你能不能看到這一頁，以及能不能新增、修改、刪除，由管理員在角色管理中設定 |
+
+## 六、相關頁面
+
+以下列出與這一頁搭配使用的頁面；你沒有權限進入的頁面不會顯示。
+
+- [首頁](/App)：登入後的落地頁，可以從快速入口回到常用功能。
+- [角色管理](/roleviews)：管理員在這裡決定哪些角色可以檢視、新增、修改、刪除這一頁的資料。
+
+## 七、常見問題
+
+**為什麼我看不到「新增」按鈕？**
+新增、修改、刪除按鈕會依你的權限個別顯示。需要這些動作時，請洽管理員調整你的角色權限。
+
+**刪除之後可以復原嗎？**
+不行，刪除會直接移除這筆紀錄。不確定時請先改用修改，或向管理員確認後再刪除。
+"@
+
 New-ScaffoldFile "README.md" @"
 # $DisplayName（$Name）模組整合說明
 
@@ -1006,6 +1086,11 @@ MyProject.Web/Extensions/ServiceCollectionExtensions.cs：
 5. MenuPermissionConsistencyTests.ViewToMenuId 加入：["${Name}View.razor.cs"] = 99,
    這條會驗證檢視實際使用的權限鍵與選單對應一致 ——
    對不上就是「看得到選單、點進去被踢」。
+6. **頁面使用說明**：Web/Datas/Help/$helpFile 已隨 Web/ 一起搬入（UTF-8 含 BOM，檔名不可改）。
+   在 Datas/HelpTopics.json 加入：
+   { "route": "$route", "title": "$DisplayName", "file": "$helpFile" }
+   title 要與 Menu.json 的 name 一致。初稿是通用 CRUD 文字，請依實際欄位修潤第三段
+   「畫面上有哪些按鈕、各自做什麼」。漏登記或格式不符，PageHelpCatalogTests 會擋。
 
 ## 五、尚未產生的部分
 

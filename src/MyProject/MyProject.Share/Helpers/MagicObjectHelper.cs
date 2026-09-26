@@ -32,6 +32,8 @@ public class MagicObjectHelper
     public static readonly int PageSize = 8;
 
     public const string Menu結構定義 = "Datas/Menu.json";
+    public const string 頁面說明索引定義 = "Datas/HelpTopics.json";
+    public const string 頁面說明內容目錄 = "Datas/Help";
     public const string SignoutUrl = "/auths/logout";
     #endregion
 
