@@ -33,7 +33,7 @@ public sealed class PageHelpDocument
     public static PageHelpDocument Placeholder() => new()
     {
         Preamble = """
-                   這一頁的使用說明暫時無法載入。
+                   這一頁的操作說明暫時無法載入。
 
                    - 畫面上的按鈕把滑鼠停在上面，會出現提示文字。
                    - 仍有疑問，請洽系統管理員。

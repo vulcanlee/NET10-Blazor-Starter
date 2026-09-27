@@ -67,7 +67,7 @@ public sealed class SidebarMenuService
     }
 
     /// <summary>
-    /// Menu.json 內所有網址（不過濾權限）。頁面使用說明的「相關頁面」用它區分
+    /// Menu.json 內所有網址（不過濾權限）。頁面操作說明的「相關頁面」用它區分
     /// 「受選單權限控管、但此人無權」與「根本不在選單裡」（例如 /ChangePassword）兩種情況。
     /// </summary>
     public async Task<IReadOnlySet<string>> LoadAllMenuUrlsAsync()

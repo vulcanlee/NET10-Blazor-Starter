@@ -40,7 +40,7 @@ main {
     backdrop-filter: blur(14px);
 }
 
-/* 頁名 ＋「使用說明」按鈕。窄視窗只隱藏頁名文字，按鈕保留。 */
+/* 頁名 ＋「操作說明」按鈕。窄視窗整組隱藏（與 ReviewSkills.AI 一致）。 */
 .top-row-heading {
     display: flex;
     align-items: center;
@@ -229,7 +229,7 @@ main {
         padding-top: 0.75rem !important;
     }
 
-    .top-row-title {
+    .top-row-heading {
         display: none;
     }
 

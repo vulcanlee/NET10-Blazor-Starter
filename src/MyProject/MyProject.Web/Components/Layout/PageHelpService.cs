@@ -6,7 +6,7 @@ using MyProject.Web.Components.Commons;
 namespace MyProject.Web.Components.Layout;
 
 /// <summary>
-/// 頁面使用說明的讀取與路由比對。比照 <see cref="SidebarMenuService"/>：同一個 <see cref="ICacheService"/>、
+/// 頁面操作說明的讀取與路由比對。比照 <see cref="SidebarMenuService"/>：同一個 <see cref="ICacheService"/>、
 /// 以 <c>ContentRootPath</c> 組路徑、讀不到就記 warning 回空，絕不拋例外讓 layout 掛掉。
 /// </summary>
 /// <remarks>

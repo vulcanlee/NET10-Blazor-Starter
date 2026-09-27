@@ -567,19 +567,19 @@
             overflow-y: auto !important;
         }
 
-    /* page help modal: near full screen。body 不捲動、padding 歸零 —— 捲軸交給右側內容欄，
+    /* page help modal（操作說明）: near full screen。body 不捲動、padding 歸零 —— 捲軸交給右側內容欄，
        左側章節導覽才固定不動。內文樣式在 PageHelpDialog.razor.css。 */
     .page-help-modal {
-        width: 94vw !important;
-        max-width: 94vw !important;
-        top: 2vh !important;
+        width: 96vw !important;
+        max-width: 96vw !important;
+        top: 3vh !important;
         padding-bottom: 0 !important;
         margin: 0 auto !important;
     }
 
         .page-help-modal .ant-modal-content {
-            height: 96vh !important;
-            max-height: 96vh !important;
+            height: 94vh !important;
+            max-height: 94vh !important;
             display: flex !important;
             flex-direction: column !important;
             overflow: hidden !important;
@@ -596,7 +596,7 @@
             overflow: hidden !important;
         }
 
-    /* 窄視窗：真正滿版 */
+    /* 窄視窗：真正滿版（頂欄在窄視窗隱藏說明鈕，這裡只服務「開著窗縮放視窗」）*/
     @@media (max-width: 640.98px) {
         .page-help-modal {
             width: 100vw !important;

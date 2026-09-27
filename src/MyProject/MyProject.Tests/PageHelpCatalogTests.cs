@@ -7,7 +7,7 @@ using MyProject.Web.Components.Layout;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 守護「實際 <c>@page</c> 路由 ↔ Datas/HelpTopics.json ↔ Datas/Help/*.md ↔ 六大段」四層一致性。
+/// 守護「實際 <c>@page</c> 路由 ↔ Datas/HelpTopics.json ↔ Datas/Help/*.md ↔ 七大段」四層一致性。
 /// </summary>
 /// <remarks>
 /// 這一類落差全部是<b>靜默</b>的：建置成功、畫面不報錯，只有使用者按下說明鈕才看到空白或佔位內容。
@@ -122,9 +122,9 @@ public sealed class PageHelpCatalogTests
     }
 
     [Fact]
-    public void EveryHelpDocument_HasAllSixSections_InOrder_AndNoUnknownHeading()
+    public void EveryHelpDocument_HasAllSevenSections_InOrder_AndNoUnknownHeading()
     {
-        var allowed = PageHelpMarkdownParser.RequiredHeadings.Concat(PageHelpMarkdownParser.OptionalHeadings).ToHashSet(StringComparer.Ordinal);
+        var allowed = PageHelpMarkdownParser.RequiredHeadings.ToHashSet(StringComparer.Ordinal);
         var failures = new List<string>();
 
         foreach (var (name, markdown) in LoadAllDocuments())
@@ -176,16 +176,16 @@ public sealed class PageHelpCatalogTests
 
     /// <summary>
     /// 前言只在選「全部」時渲染，是使用者點開說明後第一眼看到的內容，必須有實質的「一分鐘看懂這一頁」。
-    /// 刻意只釘結構、不釘標籤字面；每項字數下限擋「- **誰會用到**：所有人。」這種敷衍。
+    /// 六個標籤字面與順序固定（<see cref="PageHelpMarkdownParser.QuickLookLabels"/>），
+    /// 每項字數下限擋「- **誰會用到**：所有人。」這種敷衍。
     /// </summary>
     [Fact]
     public void EveryHelpDocument_HasSubstantiveQuickLookPreamble()
     {
-        const int minimumBullets = 5;
         const int minimumBulletLength = 15;
 
         var quickLookHeading = $"### {PageHelpMarkdownParser.QuickLookHeading}";
-        var bulletPattern = new Regex(@"^\s*[-*]\s+(?<text>.+?)\s*$");
+        var bulletPattern = new Regex(@"^- \*\*(?<label>[^*]+)\*\*[：:](?<text>.*)$");
         var failures = new List<string>();
 
         foreach (var (name, markdown) in LoadAllDocuments())
@@ -210,15 +210,18 @@ public sealed class PageHelpCatalogTests
                 .Skip(headingIndex + 1)
                 .Select(line => bulletPattern.Match(line))
                 .Where(match => match.Success)
-                .Select(match => match.Groups["text"].Value)
                 .ToList();
 
-            if (bullets.Count < minimumBullets)
+            var labels = bullets.Select(match => match.Groups["label"].Value.Trim()).ToList();
+            if (!labels.SequenceEqual(PageHelpMarkdownParser.QuickLookLabels))
             {
-                failures.Add($"{name}：「{PageHelpMarkdownParser.QuickLookHeading}」僅 {bullets.Count} 項（至少 {minimumBullets}）");
+                failures.Add($"{name}：「{PageHelpMarkdownParser.QuickLookHeading}」標籤須依序為 [{string.Join('、', PageHelpMarkdownParser.QuickLookLabels)}]，實際為 [{string.Join('、', labels)}]");
             }
 
-            var thin = bullets.Where(text => Regex.Replace(text, @"\s", string.Empty).Length < minimumBulletLength).ToList();
+            var thin = bullets
+                .Where(match => Regex.Replace(match.Groups["text"].Value, @"\s", string.Empty).Length < minimumBulletLength)
+                .Select(match => match.Groups["label"].Value)
+                .ToList();
             if (thin.Count > 0)
             {
                 failures.Add($"{name}：下列項目過短（至少 {minimumBulletLength} 字）：{string.Join('、', thin)}");
@@ -232,6 +235,124 @@ public sealed class PageHelpCatalogTests
         }
 
         Assert.True(failures.Count == 0, $"下列說明檔的前言不符規範：\n{string.Join('\n', failures)}");
+    }
+
+    /// <summary>
+    /// 說明檔的 <c># 頁名</c> 必須等於索引的 title；該路由在 Menu.json 時，也必須等於選單名稱。
+    /// 不然使用者從選單點進來，說明窗標題與內文頁名會對不上。
+    /// </summary>
+    [Fact]
+    public void EveryHelpDocumentTitle_MatchesCatalogTitle_AndMenuName()
+    {
+        var menuNames = LoadMenuNames();
+        var documents = LoadAllDocuments().ToDictionary(doc => doc.Name, doc => doc.Markdown, StringComparer.OrdinalIgnoreCase);
+        var failures = new List<string>();
+
+        foreach (var topic in LoadCatalog())
+        {
+            if (menuNames.TryGetValue(NormalizeRouteKey(topic.Route), out var menuName) && menuName != topic.Title)
+            {
+                failures.Add($"{topic.Route}：索引 title「{topic.Title}」與 Menu.json name「{menuName}」不同");
+            }
+
+            if (!documents.TryGetValue(topic.File, out var markdown))
+            {
+                continue;   // 缺檔由 EveryDeclaredFile_ExistsOnDisk 負責報
+            }
+
+            var firstLine = markdown.Split('\n').Select(x => x.TrimEnd('\r')).FirstOrDefault(x => x.Length > 0) ?? string.Empty;
+            var heading = firstLine.StartsWith("# ", StringComparison.Ordinal) ? firstLine[2..].Trim() : string.Empty;
+            if (heading != topic.Title)
+            {
+                failures.Add($"{topic.File}：# 頁名「{heading}」與索引 title「{topic.Title}」不同");
+            }
+        }
+
+        Assert.True(failures.Count == 0, $"頁名不一致：\n{string.Join('\n', failures)}");
+    }
+
+    /// <summary>
+    /// 「七、常見問題」至少三組 <c>**問：…**</c>，最後一題固定是「還是解決不了怎麼辦？」，
+    /// 讓每一頁都有一條帶著系統版本回報問題的出路。
+    /// </summary>
+    [Fact]
+    public void EveryFaq_HasAtLeastThreeQuestions_AndEndsWithClosingQuestion()
+    {
+        const int minimumQuestions = 3;
+        var questionPattern = new Regex(@"(?m)^\*\*問：(?<q>.+?)\*\*\s*$");
+        var failures = new List<string>();
+
+        foreach (var (name, markdown) in LoadAllDocuments())
+        {
+            var section = PageHelpMarkdownParser.Parse(markdown).Sections
+                .FirstOrDefault(x => x.Heading == PageHelpMarkdownParser.FaqHeading);
+            if (section is null)
+            {
+                continue;   // 缺章節由七大段的測試負責報
+            }
+
+            var questions = questionPattern.Matches(section.Markdown).Select(match => match.Groups["q"].Value.Trim()).ToList();
+            if (questions.Count < minimumQuestions)
+            {
+                failures.Add($"{name}：常見問題僅 {questions.Count} 組「**問：…**」（至少 {minimumQuestions}）");
+            }
+
+            if (questions.LastOrDefault() != PageHelpMarkdownParser.FaqClosingQuestion)
+            {
+                failures.Add($"{name}：常見問題最後一題須為「**問：{PageHelpMarkdownParser.FaqClosingQuestion}**」");
+            }
+        }
+
+        Assert.True(failures.Count == 0, $"常見問題不符規範：\n{string.Join('\n', failures)}");
+    }
+
+    /// <summary>
+    /// 「三、畫面上有哪些按鈕」至少要有一張欄位表或按鈕表，且表頭逐字固定：
+    /// 欄位表必須有「範例」欄，按鈕表必須有「右下角會看到的提示」欄 —— 這兩欄最容易被省略。
+    /// </summary>
+    [Fact]
+    public void EveryButtonsSection_UsesStandardFieldAndButtonTables()
+    {
+        const string heading = "三、畫面上有哪些按鈕、各自做什麼";
+        var failures = new List<string>();
+
+        foreach (var (name, markdown) in LoadAllDocuments())
+        {
+            var section = PageHelpMarkdownParser.Parse(markdown).Sections.FirstOrDefault(x => x.Heading == heading);
+            if (section is null)
+            {
+                continue;   // 缺章節由七大段的測試負責報
+            }
+
+            var standardTables = 0;
+            foreach (var headers in ExtractTableHeaders(section.Markdown))
+            {
+                var expected = headers[0] switch
+                {
+                    "欄位" => PageHelpMarkdownParser.FieldTableHeaders,
+                    "按鈕" => PageHelpMarkdownParser.ButtonTableHeaders,
+                    _ => null,
+                };
+
+                if (expected is null)
+                {
+                    continue;   // 其他表格（例如「你可能看到的訊息」）不限格式
+                }
+
+                standardTables++;
+                if (!headers.SequenceEqual(expected))
+                {
+                    failures.Add($"{name}：表頭 [{string.Join('｜', headers)}] 應為 [{string.Join('｜', expected)}]");
+                }
+            }
+
+            if (standardTables == 0)
+            {
+                failures.Add($"{name}：第三段至少要有一張以「欄位」或「按鈕」開頭的表格");
+            }
+        }
+
+        Assert.True(failures.Count == 0, $"第三段表格不符規範：\n{string.Join('\n', failures)}");
     }
 
     /// <summary>
@@ -251,7 +372,7 @@ public sealed class PageHelpCatalogTests
             var section = document.Sections.FirstOrDefault(x => x.Heading == PageHelpMarkdownParser.RelatedPagesHeading);
             if (section is null)
             {
-                continue;   // 缺章節由六大段的測試負責報
+                continue;   // 缺章節由七大段的測試負責報
             }
 
             var bulletCount = Regex.Matches(section.Markdown, @"(?m)^\s*[-*]\s").Count;
@@ -346,6 +467,50 @@ public sealed class PageHelpCatalogTests
             .EnumerateFiles(LocateHelpDirectory(), "*.md")
             .OrderBy(path => path, StringComparer.Ordinal)
             .Select(path => (Path.GetFileName(path), File.ReadAllText(path)));
+
+    /// <summary>取出 Markdown 中每張表格的表頭儲存格（表頭列＝緊接分隔列 <c>|---|</c> 的上一行）。</summary>
+    private static List<string[]> ExtractTableHeaders(string markdown)
+    {
+        var delimiter = new Regex(@"^\|[-:\s|]+\|\s*$");
+        var lines = markdown.Split('\n').Select(x => x.TrimEnd('\r')).ToList();
+        var result = new List<string[]>();
+
+        for (var i = 1; i < lines.Count; i++)
+        {
+            if (delimiter.IsMatch(lines[i]) && lines[i - 1].TrimStart().StartsWith('|'))
+            {
+                result.Add(lines[i - 1].Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray());
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Menu.json 中所有有 url 的項目：正規化路由 → 選單名稱。</summary>
+    private static Dictionary<string, string> LoadMenuNames()
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        using var json = JsonDocument.Parse(File.ReadAllText(LocateWebPath(Path.Combine("Datas", "Menu.json"))));
+
+        void Walk(JsonElement items)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.TryGetProperty("url", out var url) && item.TryGetProperty("name", out var name))
+                {
+                    result[NormalizeRouteKey(url.GetString())] = name.GetString() ?? string.Empty;
+                }
+
+                if (item.TryGetProperty("subMenu", out var subMenu))
+                {
+                    Walk(subMenu);
+                }
+            }
+        }
+
+        Walk(json.RootElement);
+        return result;
+    }
 
     private static List<string> LoadPageRoutes()
         => Directory
