@@ -5,7 +5,7 @@ using MyProject.Web.Components.Layout;
 namespace MyProject.Web.Components.Commons;
 
 /// <summary>
-/// 頂欄的「使用說明」按鈕與說明窗。自己取路徑、自己載索引、自己訂閱導覽事件，
+/// 頂欄的「操作說明」按鈕與說明窗。自己取路徑、自己載索引、自己訂閱導覽事件，
 /// MainLayout 只負責把已授權的選單傳進來（供「相關頁面」依權限過濾）。
 /// </summary>
 /// <remarks>
@@ -40,7 +40,7 @@ public partial class PageHelpDialog : IDisposable
     private bool visible;
     private string activeSection = AllSectionsKey;
 
-    private string ModalTitle => topic is null ? "使用說明" : $"{topic.Title}　使用說明";
+    private string ModalTitle => topic is null ? "操作說明" : $"{topic.Title}・操作說明";
 
     private IEnumerable<PageHelpSection> VisibleSections
         => document is null

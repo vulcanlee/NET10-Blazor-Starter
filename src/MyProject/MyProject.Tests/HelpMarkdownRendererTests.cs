@@ -3,7 +3,7 @@ using MyProject.Web.Components.Commons;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 頁面使用說明的 Markdown 管線。輸出會進 MarkupString，且說明檔大量使用表格。
+/// 頁面操作說明的 Markdown 管線。輸出會進 MarkupString，且說明檔大量使用表格。
 /// </summary>
 public sealed class HelpMarkdownRendererTests
 {

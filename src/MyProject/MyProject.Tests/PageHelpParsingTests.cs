@@ -4,7 +4,7 @@ using MyProject.Web.Components.Layout;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 頁面使用說明的純函式：檔名規則、路由比對、章節切分、相關頁面解析與權限過濾。
+/// 頁面操作說明的純函式：檔名規則、路由比對、章節切分、相關頁面解析與權限過濾。
 /// 內容層面的守門（每頁都有、六大段齊全、編碼）在 PageHelpCatalogTests。
 /// </summary>
 public sealed class PageHelpParsingTests

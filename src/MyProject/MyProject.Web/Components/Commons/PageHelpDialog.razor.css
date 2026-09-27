@@ -1,7 +1,39 @@
 /*
- * 頁面使用說明窗的內文樣式。窗本身的尺寸與捲動版型在 OverlayStyles.razor 的 .page-help-modal。
+ * 頁面操作說明：頂欄頁名旁的圖示鈕與說明窗內文樣式。窗本身的尺寸與捲動版型在 OverlayStyles.razor 的 .page-help-modal。
  * 色彩一律取 theme.css 的 token（ThemeConventionTests 守門）。
  */
+
+/* 頁名旁的說明圖示：小而不搶眼，滑過轉為重點色。 */
+.page-help-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--app-muted);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.page-help-button:hover,
+.page-help-button:focus-visible {
+    color: var(--app-accent);
+    background: rgba(var(--app-accent-rgb), 0.1);
+}
+
+.page-help-button:focus-visible {
+    outline: 2px solid var(--app-accent-dim);
+    outline-offset: 1px;
+}
+
+.page-help-button ::deep .material-icons,
+.page-help-button ::deep .material-icons-outlined {
+    line-height: 1;
+}
 
 .page-help-layout {
     display: flex;
@@ -83,7 +115,7 @@
 .page-help-content ::deep h3 {
     margin: 1.25rem 0 0.5rem;
     font-size: 1rem;
-    color: var(--app-text);
+    color: var(--app-accent);
 }
 
 .page-help-content ::deep p,
@@ -100,6 +132,11 @@
     color: var(--app-text);
 }
 
+/* 段落開頭的粗體（「會得到什麼」「問：」）用重點色標出 */
+.page-help-content ::deep p strong:first-child {
+    color: var(--app-accent);
+}
+
 .page-help-content ::deep code {
     padding: 1px 5px;
     border-radius: 4px;
@@ -110,7 +147,7 @@
 .page-help-content ::deep blockquote {
     margin: 0.75rem 0;
     padding: 8px 14px;
-    border-left: 3px solid var(--app-accent-dim);
+    border-left: 3px solid var(--app-accent);
     border-radius: 0 var(--app-radius-control) var(--app-radius-control) 0;
     background: rgba(var(--app-tint-rgb), 0.9);
     color: var(--app-muted);
@@ -167,11 +204,6 @@
 
 .page-help-related-head ::deep .page-help-related-link:hover {
     color: var(--app-accent-dim) !important;
-}
-
-.page-help-related-route {
-    color: var(--app-muted);
-    font-size: 0.85rem;
 }
 
 .page-help-related-desc,

@@ -1,13 +1,17 @@
 @*
-    頂欄的「使用說明」按鈕與近滿版說明窗。掛在 MainLayout 的頁名旁，全站一處、依路由自動對應。
+    頂欄的「操作說明」按鈕與近滿版說明窗。掛在 MainLayout 的頁名旁，全站一處、依路由自動對應。
     尺寸與捲動版型寫在 OverlayStyles.razor 的 .page-help-modal；內文樣式寫在本元件的 .razor.css
     （Markdown 注入的 HTML 沒有 scope 屬性，一律用 ::deep）。
-    內容格式與守門規則見 docs/architecture/開發慣例與限制速查.md「頁面使用說明」一節。
+    內容格式與守門規則見 docs/architecture/開發慣例與限制速查.md「頁面操作說明」一節。
 *@
 
 @if (topic is not null)
 {
-    <ToolbarIconButton Title="使用說明" Icon="help_outline" OnClick="OpenAsync" />
+    <Tooltip Title="@("這個畫面怎麼用？")">
+        <button type="button" class="page-help-button" aria-label="@ModalTitle" @onclick="OpenAsync">
+            <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="help_outline" />
+        </button>
+    </Tooltip>
 
     <Modal Title="@ModalTitle"
            Class="page-help-modal"
@@ -18,7 +22,7 @@
         @if (document is not null)
         {
             <div class="page-help-layout">
-                <nav class="page-help-nav" aria-label="章節導覽">
+                <nav class="page-help-nav" aria-label="說明目錄">
                     <button type="button"
                             class="@NavCssClass(AllSectionsKey)"
                             aria-current="@(activeSection == AllSectionsKey ? "true" : null)"
@@ -37,7 +41,8 @@
                     }
                 </nav>
 
-                <div class="page-help-content">
+                @* @key 讓切換章節時整塊重建，捲動位置自然回到頂端。 *@
+                <div class="page-help-content" @key="activeSection">
                     @if (activeSection == AllSectionsKey && !string.IsNullOrWhiteSpace(document.Preamble))
                     {
                         @((MarkupString)HelpMarkdownRenderer.ToHtml(document.Preamble))
@@ -52,7 +57,7 @@
                             @((MarkupString)HelpMarkdownRenderer.ToHtml(PageHelpMarkdownParser.RelatedPagesIntro(section.Markdown)))
                             @if (visibleRelatedPages.Count == 0)
                             {
-                                <p class="page-help-related-empty">目前沒有你可以進入的相關頁面。</p>
+                                <p class="page-help-related-empty">目前沒有你可前往的相關頁面。</p>
                             }
                             @foreach (var related in visibleRelatedPages)
                             {
@@ -63,7 +68,6 @@
                                                 OnClick="@(() => NavigateTo(related.Route))">
                                             @related.Title
                                         </Button>
-                                        <span class="page-help-related-route">@related.Route</span>
                                     </div>
                                     <div class="page-help-related-desc">@related.Description</div>
                                 </div>

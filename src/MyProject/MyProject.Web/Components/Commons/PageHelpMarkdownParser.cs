@@ -9,7 +9,7 @@ namespace MyProject.Web.Components.Commons;
 public static class PageHelpMarkdownParser
 {
     /// <summary>
-    /// 六個<b>必要</b>章節標題（逐字、有序、各一次）。對話窗的章節導覽與 PageHelpCatalogTests 共用這一份定義。
+    /// 七個<b>必要</b>章節標題（逐字、有序、各一次，也是唯一允許的 H2）。對話窗的章節導覽與 PageHelpCatalogTests 共用這一份定義。
     /// </summary>
     public static readonly string[] RequiredHeadings =
     [
@@ -19,20 +19,39 @@ public static class PageHelpMarkdownParser
         "四、建議這樣操作，會得到什麼",
         "五、名詞解釋",
         "六、相關頁面",
+        "七、常見問題",
     ];
-
-    /// <summary>
-    /// 允許的<b>選填</b>章節（白名單）。沒有白名單的話，「## 名詞說明」這種打錯字只會靜默少一段。
-    /// </summary>
-    public static readonly string[] OptionalHeadings = ["七、常見問題"];
 
     /// <summary>「相關頁面」那一段的標題，UI 據此改用結構化卡片渲染。</summary>
     public const string RelatedPagesHeading = "六、相關頁面";
+
+    /// <summary>「常見問題」那一段的標題。</summary>
+    public const string FaqHeading = "七、常見問題";
+
+    /// <summary>常見問題固定的最後一題，引導使用者帶著系統版本回報問題。</summary>
+    public const string FaqClosingQuestion = "還是解決不了怎麼辦？";
 
     /// <summary>
     /// 前言中「一分鐘看懂」區塊的小標題。<b>刻意是 H3</b>：寫成 H2 會被切成章節，章節導覽就多出一項。
     /// </summary>
     public const string QuickLookHeading = "一分鐘看懂這一頁";
+
+    /// <summary>「一分鐘看懂這一頁」的六個固定標籤，順序固定，每條寫成 <c>- **標籤**：內容</c>。</summary>
+    public static readonly string[] QuickLookLabels =
+    [
+        "解決什麼問題",
+        "誰會用到",
+        "它在系統的哪個位置",
+        "開始前要準備",
+        "做完會得到",
+        "它不做什麼",
+    ];
+
+    /// <summary>第三段欄位表的固定表頭。</summary>
+    public static readonly string[] FieldTableHeaders = ["欄位", "意思", "範例", "怎麼填或怎麼用"];
+
+    /// <summary>第三段按鈕表的固定表頭。</summary>
+    public static readonly string[] ButtonTableHeaders = ["按鈕", "按下後會做什麼", "右下角會看到的提示", "注意事項"];
 
     /// <summary>相關頁面的唯一合法行格式：<c>- [顯示標題](/route)：說明</c>。全形與半形冒號都接受。</summary>
     private static readonly Regex RelatedPagePattern = new(

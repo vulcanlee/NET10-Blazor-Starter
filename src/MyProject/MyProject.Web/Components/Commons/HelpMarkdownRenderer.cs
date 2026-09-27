@@ -3,7 +3,7 @@ using Markdig;
 namespace MyProject.Web.Components.Commons;
 
 /// <summary>
-/// 頁面使用說明（<c>Datas/Help/*.md</c>）專用的 Markdown 轉 HTML。
+/// 頁面操作說明（<c>Datas/Help/*.md</c>）專用的 Markdown 轉 HTML。
 /// </summary>
 /// <remarks>
 /// <para>
