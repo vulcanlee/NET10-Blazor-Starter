@@ -82,6 +82,12 @@ public static class TokenUsageOperations
     /// 但每筆只有幾十個 token。要單獨檢視請用頁面的「作業」篩選器。
     /// </summary>
     public const string SystemHealthCheck = "系統健康檢測";
+
+    /// <summary>
+    /// 系統例外紀錄明細窗的 AI 例外分析（0.9.68 起）。初始分析與每一輪追問都記在這個名稱下；
+    /// 追問會帶上前文，所以輪數越多、單筆輸入量越大。
+    /// </summary>
+    public const string AiExceptionAnalysis = "AI 例外分析";
 }
 
 /// <summary>

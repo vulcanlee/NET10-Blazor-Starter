@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Views.Admins
@@ -25,6 +26,7 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly ExceptionLogService exceptionLogService;
         private readonly ModalService modalService;
         private readonly NotificationService notificationService;
+        private readonly IAiExceptionAnalysisService aiExceptionAnalysisService;
 
         private ITable? table;
 
@@ -52,6 +54,13 @@ namespace MyProject.Web.Components.Views.Admins
         private ExceptionLogAdapterModel? detailItem;
         private string detailStackTrace = string.Empty;
 
+        // 原始堆疊（null 代表堆疊檔不存在）。detailStackTrace 是給人看的文字，
+        // 堆疊缺失時是一段說明，不能拿去當堆疊送給 AI。
+        private string? detailRawStackTrace;
+        private bool isStackTraceLoading;
+
+        private ExceptionAiAnalysisModal? aiAnalysisModal;
+
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
 
@@ -68,12 +77,14 @@ namespace MyProject.Web.Components.Views.Admins
             ILogger<ExceptionLogView> logger,
             ExceptionLogService exceptionLogService,
             ModalService modalService,
-            NotificationService notificationService)
+            NotificationService notificationService,
+            IAiExceptionAnalysisService aiExceptionAnalysisService)
         {
             this.logger = logger;
             this.exceptionLogService = exceptionLogService;
             this.modalService = modalService;
             this.notificationService = notificationService;
+            this.aiExceptionAnalysisService = aiExceptionAnalysisService;
         }
 
         protected override async Task OnInitializedAsync()
@@ -181,15 +192,35 @@ namespace MyProject.Web.Components.Views.Admins
         {
             detailItem = item;
             detailStackTrace = "讀取中…";
+            detailRawStackTrace = null;
+            isStackTraceLoading = true;
             detailVisible = true;
             StateHasChanged();
 
             var stackTrace = await exceptionLogService.GetStackTraceAsync(item.Id);
+            detailRawStackTrace = string.IsNullOrWhiteSpace(stackTrace) ? null : stackTrace;
             detailStackTrace = string.IsNullOrWhiteSpace(stackTrace)
                 ? "堆疊檔案不存在（可能已被清除，或當初寫檔失敗）。完整日誌請改由「日誌檢視」查詢。"
                 : stackTrace;
+            isStackTraceLoading = false;
 
             StateHasChanged();
+        }
+
+        /// <summary>AI 按鈕的 Tooltip。未設定時直接用服務給的原因當標題，讓人知道少填了什麼。</summary>
+        private string AiButtonTitle
+            => aiExceptionAnalysisService.IsAvailable
+                ? "AI 分析（產生分析報告，可再追問）"
+                : aiExceptionAnalysisService.UnavailableReason;
+
+        private async Task OnAiAnalyzeAsync()
+        {
+            if (detailItem is null || aiAnalysisModal is null || isStackTraceLoading)
+            {
+                return;
+            }
+
+            await aiAnalysisModal.OpenAsync(detailItem, detailRawStackTrace);
         }
 
         /// <summary>明細窗的「使用者」顯示文字；只有帳號與 UserId，不含姓名／Email。</summary>

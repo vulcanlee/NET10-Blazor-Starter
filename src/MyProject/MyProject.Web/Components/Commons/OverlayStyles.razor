@@ -540,8 +540,10 @@
        新增對話窗時同理：只寫尺寸，不要再複製一份果凍。
        ══════════════════════════════════════════════════════════════════ */
 
-    /* AI analysis modal: near full screen with scrollable body (long read-only report) */
-    .log-ai-modal {
+    /* AI analysis modal: near full screen with scrollable body (long read-only report)
+       .exception-ai-modal（AI 例外分析，0.9.68 起）共用同一組尺寸。 */
+    .log-ai-modal,
+    .exception-ai-modal {
         width: 96vw !important;
         max-width: 96vw !important;
         top: 2vh !important;
@@ -549,7 +551,8 @@
         margin: 0 auto !important;
     }
 
-        .log-ai-modal .ant-modal-content {
+        .log-ai-modal .ant-modal-content,
+        .exception-ai-modal .ant-modal-content {
             height: 96vh !important;
             max-height: 96vh !important;
             display: flex !important;
@@ -557,11 +560,13 @@
             overflow: hidden !important;
         }
 
-        .log-ai-modal .ant-modal-header {
+        .log-ai-modal .ant-modal-header,
+        .exception-ai-modal .ant-modal-header {
             flex-shrink: 0;
         }
 
-        .log-ai-modal .ant-modal-body {
+        .log-ai-modal .ant-modal-body,
+        .exception-ai-modal .ant-modal-body {
             flex: 1 !important;
             min-height: 0 !important;
             overflow-y: auto !important;
@@ -643,6 +648,14 @@
        這些規則與 AntDesign 自己渲染的 .ant-modal-* 搭配使用，
        而那些元素不帶檢視的 scope 屬性，scoped CSS（含 ::deep）打不到。
     */
+    /* 明細窗上方的動作列（AI 分析按鈕，0.9.68 起） */
+    .exception-log-modal .exception-log-detail-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin: 0 0 0.75rem;
+    }
+
     .exception-log-modal .exception-log-detail-list {
         display: grid;
         gap: 0.5rem;

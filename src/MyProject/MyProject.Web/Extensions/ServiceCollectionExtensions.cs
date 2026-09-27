@@ -64,7 +64,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LogLevelRuntimeState>();
         services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
         services.AddScoped<ILogQueryService, LogQueryService>();
+        services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
+        services.AddScoped<IAiExceptionAnalysisService, AiExceptionAnalysisService>();
         services.AddScoped<IAiHealthProbe, AiHealthProbe>();
 
         // 全專案第一個 AddHttpClient。刻意用 **named client** 而非 typed client：
@@ -76,7 +78,7 @@ public static class ServiceCollectionExtensions
         //    handler 仍由工廠池化。
         // 3. retry 刻意不做：這是使用者主動觸發的單次動作，失敗讓他再按一次即可。
         //    自動重試只會讓成本加倍，還會掩蓋「設定錯誤」這種重試永遠不會好的問題。
-        services.AddHttpClient(AiLogAnalysisService.HttpClientName, (serviceProvider, client) =>
+        services.AddHttpClient(AiChatCompletionClient.HttpClientName, (serviceProvider, client) =>
         {
             // 在 CreateClient 時（而非註冊時）讀設定，這樣改 appsettings 不必重啟，
             // 也不會像急切讀取那樣讓測試的組態覆寫失效。

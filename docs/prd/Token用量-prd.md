@@ -1,10 +1,10 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.55
+- 現行系統版本：0.9.68
 - 首次實作版本：0.9.14
-- 最後核對日期：2026/09/23
+- 最後核對日期：2026/09/27
 
 ## 一、目標與範圍
 
@@ -17,10 +17,11 @@
   它在本頁上的呈現。
 - 非範圍：不提供 Web API。費用相關的非範圍見該 PRD。
 
-> **現況提醒**：本腳手架目前有**兩個** LLM 呼叫點：
-> 「AI 日誌分析」（日誌檢視頁，使用者主動觸發）與
+> **現況提醒**：本腳手架目前有**三種**作業會記入本頁：
+> 「AI 日誌分析」（日誌檢視頁，使用者主動觸發）、
+> 「AI 例外分析」（0.9.68 起，系統例外紀錄明細窗，使用者主動觸發；初始分析與每一輪追問各記一筆）與
 > 「系統健康檢測」（0.9.24 起，系統健康監控頁每次載入自動發出一句 hello）。
-> 兩者都會記入本頁，可用「作業」篩選器分開檢視。
+> 可用「作業」篩選器分開檢視。
 >
 > ⚠️ 健康檢測的**次數**會遠多於日誌分析（每開一次 `/system-health` 就一筆），
 > 但每筆只有幾十個 token、費用約 NT$0.005。未套用作業篩選時，
@@ -207,7 +208,8 @@ LLM 呼叫點（發出 HTTP 的那一層）
 ```
 
 **⚠️ 記錄點必須放在發出 HTTP 的那一層，不可放畫面層** —— 原始 usage、實際模型名稱與耗時，
-回到畫面之前就已經丟失了。目前的呼叫點是 `AiLogAnalysisService.AnalyzeAsync` 與 `AiHealthProbe.ProbeAsync`。
+回到畫面之前就已經丟失了。目前的呼叫點是 `AiChatCompletionClient.CompleteAsync`（0.9.68 起由 AI 日誌分析與
+AI 例外分析共用）與 `AiHealthProbe.ProbeAsync`。
 
 **不需要佇列與背景寫入器**（與系統例外紀錄不同）：LLM 呼叫是使用者主動觸發、一次數秒到數分鐘，
 多一次幾毫秒的資料庫寫入可忽略。
@@ -314,7 +316,7 @@ LLM 呼叫點（發出 HTTP 的那一層）
 - `MyProject.Models/Systems/TokenUsageModels.cs`、`AdapterModel/TokenUsageLogAdapterModel.cs`
 - `MyProject.Business/Services/DataAccess/ITokenUsageRecorder.cs`、`TokenUsageLogService.cs`
 - `MyProject.Business/Services/Other/TokenUsageRawStore.cs`
-- `MyProject.Web/Ai/AiLogAnalysisService.cs`（記錄點）、`AiChatResponseParser.ExtractUsageJson`
+- `MyProject.Web/Ai/AiChatCompletionClient.cs`（記錄點，0.9.68 起）、`AiChatResponseParser.ExtractUsageJson`
 - `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs`、`Diagnostics/TokenUsageFormat.cs`
 - `MyProject.Web/Components/Pages/Analytics/TokenUsagePage.razor`、
   `Components/Views/Analytics/TokenUsageView.razor`、`TokenUsageGroupTable.razor(.css)`

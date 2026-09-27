@@ -67,6 +67,7 @@ public sealed class AiSettingsTests
         Assert.Equal(string.Empty, settings.Model);
         Assert.Equal(string.Empty, settings.SystemPrompt);
         Assert.Equal(100, settings.MaxEntries);
+        Assert.Equal(10, settings.MaxFollowUpRounds);
         Assert.Equal(600, settings.TimeoutSeconds);
         // 預設不送 max_completion_tokens：這個額度同時涵蓋推論模型的思考 token，
         // 設太小會在產出任何可見文字之前就耗盡，拿到空回應還要付錢。

@@ -49,6 +49,13 @@ public class AiSettings
     public int MaxEntries { get; set; } = 100;
 
     /// <summary>
+    /// AI 例外分析的追問輪數上限（0.9.68 起；不含第一次的分析報告）。0 或負數代表不開放追問。
+    ///
+    /// 每一輪追問都會帶上整段前文，輸入量與費用隨輪數累加 —— 這個上限就是單次對話的費用天花板。
+    /// </summary>
+    public int MaxFollowUpRounds { get; set; } = 10;
+
+    /// <summary>
     /// HTTP 逾時秒數。
     ///
     /// 預設 10 分鐘，遠高於一般 API：推論模型對上百筆日誌可能想很久，

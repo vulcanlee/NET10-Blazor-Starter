@@ -693,12 +693,18 @@ public sealed class AiLogAnalysisServiceTests
     {
         var recorder = new FakeTokenUsageRecorder();
 
+        var optionsMonitor = new StaticOptionsMonitor<AiSettings>(settings);
+
+        // 0.9.68 起 HTTP 與用量記錄在共用的 AiChatCompletionClient，這裡接上真的那一支，
+        // 讓本檔的斷言照舊守住日誌分析的端到端行為。
         var service = new AiLogAnalysisService(
-            NullLogger<AiLogAnalysisService>.Instance,
-            new StubHttpClientFactory(handler),
-            new StaticOptionsMonitor<AiSettings>(settings),
-            recorder,
-            new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } });
+            optionsMonitor,
+            new AiChatCompletionClient(
+                NullLogger<AiChatCompletionClient>.Instance,
+                new StubHttpClientFactory(handler),
+                optionsMonitor,
+                recorder,
+                new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } }));
 
         return (service, handler, recorder);
     }

@@ -66,7 +66,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var client = httpClientFactory.CreateClient(AiLogAnalysisService.HttpClientName);
+            var client = httpClientFactory.CreateClient(AiChatCompletionClient.HttpClientName);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, descriptor.RequestUri)
             {

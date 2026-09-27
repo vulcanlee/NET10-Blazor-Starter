@@ -14,8 +14,15 @@ namespace MyProject.Web.Ai;
 public static class AiChatRequestFactory
 {
     public static string CreateRequestJson(AiSettings settings, string systemPrompt, string userMessage)
+        => CreateRequestJson(
+            settings,
+            [new AiChatMessage(AiChatRoles.System, systemPrompt), new AiChatMessage(AiChatRoles.User, userMessage)]);
+
+    /// <summary>整段對話的多載（0.9.68 起，AI 例外分析的多輪追問用）。訊息依原順序輸出。</summary>
+    public static string CreateRequestJson(AiSettings settings, IReadOnlyList<AiChatMessage> messages)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(messages);
 
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer))
@@ -25,8 +32,11 @@ public static class AiChatRequestFactory
             writer.WriteString("model", settings.Model);
 
             writer.WriteStartArray("messages");
-            WriteMessage(writer, "system", systemPrompt);
-            WriteMessage(writer, "user", userMessage);
+            foreach (var message in messages)
+            {
+                WriteMessage(writer, message.Role, message.Content);
+            }
+
             writer.WriteEndArray();
 
             // 用 max_completion_tokens 而非 max_tokens：後者自 Azure api-version 2024-10-21

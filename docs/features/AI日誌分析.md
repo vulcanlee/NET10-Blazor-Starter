@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.52
+- 現行系統版本：0.9.68
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/09/23
+- 最後核對日期：2026/09/27
 
 ## 文件目的
 
@@ -325,8 +325,8 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 **沒有 `param` 欄位** —— 落到通用分支只會回一句代碼，看不出要做什麼，
 所以它有自己的具名分支。
 
-日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiLogAnalysisService`）會記下
-`StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
+日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiChatCompletionClient`，0.9.68 前為 `AiLogAnalysisService`；
+訊息帶 `Operation=AI 日誌分析`）會記下 `StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
 `ErrorParam` 是出問題的參數名稱，`ErrorDetail` 是上游的說明（已截斷至 300 字元）。
 
 ⚠️ `ErrorDetail` 刻意截斷：上游對某些錯誤（例如內容過濾）的說明可能夾帶提示詞片段，
@@ -362,9 +362,11 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 | `MyProject.Web/Ai/AiChatRequestFactory.cs` | 請求 body 組裝 |
 | `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異）；`ExtractUsageJson` 只切出 `usage` 子物件 |
 | `MyProject.Web/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線 |
-| `MyProject.Web/Ai/AiLogAnalysisService.cs` | HTTP 呼叫與錯誤對應；**Token 用量的記錄點**（`ITokenUsageRecorder`）|
+| `MyProject.Web/Ai/AiLogAnalysisService.cs` | 組日誌提示詞與日誌分析專屬的錯誤提示文字，交給共用核心 |
+| `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 0.9.68 起的共用核心（與 [AI 例外分析](AI例外分析.md) 共用）：HTTP 呼叫與錯誤對應；**Token 用量的記錄點**（`ITokenUsageRecorder`）|
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
-| `MyProject.Web/Ai/AiReportPdfBuilder.cs` | Markdown 轉 PDF 的極小渲染器 |
+| `MyProject.Web/Ai/AiReportPdfBuilder.cs` | 日誌分析 PDF 的標題、中介資訊與附錄 |
+| `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 轉 PDF 的極小渲染器（0.9.68 從上一列抽出）|
 | `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗三態、字級與稽核 |
 | `MyProject.Web/Components/Commons/OverlayStyles.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
 
