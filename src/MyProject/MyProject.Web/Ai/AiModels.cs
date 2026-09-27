@@ -53,6 +53,28 @@ public sealed record AiTokenUsage
     public bool HasAny
         => InputCount.HasValue || OutputCount.HasValue || TotalCount.HasValue
         || CachedInputCount.HasValue || ReasoningCount.HasValue;
+
+    /// <summary>
+    /// 多次呼叫的累計（0.9.68 起，AI 例外分析的多輪對話用）。
+    /// 每個欄位只加「有回報的」；全部都沒回報的欄位維持 null，全部為 null 時回 null。
+    /// </summary>
+    public static AiTokenUsage? Sum(IEnumerable<AiTokenUsage?> usages)
+    {
+        var items = usages.OfType<AiTokenUsage>().ToList();
+        var total = new AiTokenUsage
+        {
+            InputCount = SumField(items, usage => usage.InputCount),
+            OutputCount = SumField(items, usage => usage.OutputCount),
+            TotalCount = SumField(items, usage => usage.TotalCount),
+            CachedInputCount = SumField(items, usage => usage.CachedInputCount),
+            ReasoningCount = SumField(items, usage => usage.ReasoningCount),
+        };
+
+        return total.HasAny ? total : null;
+
+        static int? SumField(List<AiTokenUsage> items, Func<AiTokenUsage, int?> selector)
+            => items.Any(item => selector(item).HasValue) ? items.Sum(item => selector(item) ?? 0) : null;
+    }
 }
 
 public enum AiAnalysisFailureReason
@@ -75,6 +97,47 @@ public enum AiAnalysisFailureReason
     /// 混在一起會讓「使用者放棄」被記成 ERROR，也會讓真正的逾時被稀釋掉。
     /// </summary>
     Canceled,
+
+    /// <summary>
+    /// AI 例外分析的追問輪數已達 <c>AiSettings:MaxFollowUpRounds</c>（0.9.68 起）。
+    /// 在發出 HTTP 之前就擋下，所以不會計費、也不記用量。
+    /// </summary>
+    FollowUpLimitReached,
+}
+
+/// <summary>Chat Completions 的 <c>role</c> 值。</summary>
+public static class AiChatRoles
+{
+    public const string System = "system";
+    public const string User = "user";
+    public const string Assistant = "assistant";
+}
+
+/// <summary>對話中的一則訊息（0.9.68 起支援多輪追問）。</summary>
+public sealed record AiChatMessage(string Role, string Content);
+
+/// <summary>
+/// 一次 Chat Completions 呼叫的輸入，交給 <see cref="IAiChatCompletionClient"/>。
+///
+/// 後三個屬性是「給使用者看的建議」：同一種上游錯誤，日誌分析要說「縮小時間區間」，
+/// 例外分析則沒有範圍可縮，所以由呼叫端決定措辭，共用核心不寫死任何一方的畫面用語。
+/// </summary>
+public sealed record AiChatCompletionRequest
+{
+    /// <summary>Token 用量的作業名稱（<c>TokenUsageOperations</c> 的常數）。</summary>
+    public string Operation { get; init; } = string.Empty;
+
+    /// <summary>完整訊息序列（含 system）。</summary>
+    public IReadOnlyList<AiChatMessage> Messages { get; init; } = [];
+
+    /// <summary>上游回 <c>context_length_exceeded</c> 時給使用者看的完整訊息。</summary>
+    public string ContextLengthExceededMessage { get; init; } = string.Empty;
+
+    /// <summary>逾時訊息的後半句建議，例如「請縮小查詢範圍後再試。」</summary>
+    public string TimeoutHint { get; init; } = string.Empty;
+
+    /// <summary>通用 400 訊息裡指稱送出內容的詞，例如「送出的日誌量」。</summary>
+    public string SubmittedContentLabel { get; init; } = string.Empty;
 }
 
 /// <summary>一次 AI 分析的完整結果。失敗也用這個型別表達，服務層不丟例外。</summary>

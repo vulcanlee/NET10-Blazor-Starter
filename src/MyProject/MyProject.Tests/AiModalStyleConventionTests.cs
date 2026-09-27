@@ -17,21 +17,31 @@ namespace MyProject.Tests;
 /// </summary>
 public sealed class AiModalStyleConventionTests
 {
-    /// <summary>字級會被三顆按鈕縮放的選擇器前綴。</summary>
-    private static readonly string[] ScalableSelectorPrefixes =
-    [
-        ".log-ai-meta",
-        ".log-ai-report",
-    ];
+    /// <summary>
+    /// 各 AI 對話窗的 CSS 檔（相對 MyProject.Web）與其字級會被三顆按鈕縮放的選擇器前綴。
+    /// 0.9.68 起多了 AI 例外分析對話窗（meta、報告內文，以及對話泡泡）。
+    /// </summary>
+    public static TheoryData<string, string[]> ScalableRules => new()
+    {
+        {
+            Path.Combine("Components", "Views", "Analytics", "LogViewerView.razor.css"),
+            [".log-ai-meta", ".log-ai-report"]
+        },
+        {
+            Path.Combine("Components", "Views", "Admins", "ExceptionAiAnalysisModal.razor.css"),
+            [".exception-ai-meta", ".exception-ai-report", ".exception-ai-entry", ".exception-ai-question", ".exception-ai-error"]
+        },
+    };
 
     private static readonly Regex FontSizeDeclaration = new(
         @"font-size\s*:",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    [Fact]
-    public void AiModalScalableRules_ShouldMultiplyByFontScaleVariable()
+    [Theory]
+    [MemberData(nameof(ScalableRules))]
+    public void AiModalScalableRules_ShouldMultiplyByFontScaleVariable(string relativeCssPath, string[] scalableSelectorPrefixes)
     {
-        var cssPath = FindLogViewerCss();
+        var cssPath = Path.Combine(FindWebProjectDirectory(), relativeCssPath);
         var lines = File.ReadAllLines(cssPath);
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
@@ -51,7 +61,7 @@ public sealed class AiModalStyleConventionTests
                 continue;
             }
 
-            if (ScalableSelectorPrefixes.Any(prefix => trimmed.StartsWith(prefix, StringComparison.Ordinal)))
+            if (scalableSelectorPrefixes.Any(prefix => trimmed.StartsWith(prefix, StringComparison.Ordinal)))
             {
                 insideScalableRule = true;
                 continue;
@@ -77,11 +87,12 @@ public sealed class AiModalStyleConventionTests
     }
 
     /// <summary>對話窗尺寸的唯一真相來源是 OverlayStyles，不是 &lt;Modal Width&gt;。</summary>
-    [Fact]
-    public void AiModal_ShouldNotSetWidthOnTheModalTag()
+    [Theory]
+    [InlineData("Analytics", "LogViewerView.razor")]
+    [InlineData("Admins", "ExceptionAiAnalysisModal.razor")]
+    public void AiModal_ShouldNotSetWidthOnTheModalTag(string folder, string fileName)
     {
-        var razorPath = Path.Combine(
-            Path.GetDirectoryName(FindLogViewerCss())!, "LogViewerView.razor");
+        var razorPath = Path.Combine(FindWebProjectDirectory(), "Components", "Views", folder, fileName);
         var content = File.ReadAllText(razorPath);
 
         var modalStart = content.IndexOf("<Modal", StringComparison.Ordinal);
@@ -95,18 +106,15 @@ public sealed class AiModalStyleConventionTests
             modalTag);
     }
 
-    private static string FindLogViewerCss()
+    private static string FindWebProjectDirectory()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
             foreach (var prefix in new[] { "", Path.Combine("src", "MyProject") })
             {
-                var candidate = Path.Combine(
-                    dir.FullName,
-                    prefix,
-                    "MyProject.Web", "Components", "Views", "Analytics", "LogViewerView.razor.css");
-                if (File.Exists(candidate))
+                var candidate = Path.Combine(dir.FullName, prefix, "MyProject.Web");
+                if (File.Exists(Path.Combine(candidate, "MyProject.Web.csproj")))
                 {
                     return candidate;
                 }
@@ -115,6 +123,6 @@ public sealed class AiModalStyleConventionTests
             dir = dir.Parent;
         }
 
-        throw new FileNotFoundException("找不到 LogViewerView.razor.css。");
+        throw new DirectoryNotFoundException("找不到 MyProject.Web 專案目錄。");
     }
 }

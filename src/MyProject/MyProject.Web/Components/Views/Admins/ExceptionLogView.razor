@@ -124,6 +124,16 @@ else
                OnCancel="@(() => detailVisible = false)">
             @if (detailItem is not null)
             {
+                @*
+                    AI 例外分析（0.9.68 起）：把本窗的內容送給 AI 產生分析報告，可再多輪追問。
+                    堆疊還在讀取時停用，否則送出去的是「讀取中…」這幾個字。
+                *@
+                <div class="exception-log-detail-actions">
+                    <ToolbarIconButton Title="@AiButtonTitle" Icon="insights"
+                                       Disabled="@(isStackTraceLoading || aiExceptionAnalysisService.IsAvailable == false)"
+                                       OnClick="@(async () => await OnAiAnalyzeAsync())" />
+                </div>
+
                 <dl class="exception-log-detail-list">
                     <div><dt>例外類型</dt><dd>@detailItem.ExceptionType</dd></div>
                     <div><dt>訊息</dt><dd>@detailItem.Message</dd></div>
@@ -144,5 +154,7 @@ else
                 <pre class="exception-log-stack">@detailStackTrace</pre>
             }
         </Modal>
+
+        <ExceptionAiAnalysisModal @ref="aiAnalysisModal" />
     </div>
 }

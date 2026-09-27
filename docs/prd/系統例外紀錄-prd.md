@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.12
+- 現行系統版本：0.9.68
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/09/16
+- 最後核對日期：2026/09/27
 
 ## 一、目標與範圍
 
@@ -53,6 +53,12 @@
 **操作（日誌訊息樣板）**、記錄器、使用者與 UserId、累計次數、**首次發生**、最後發生，
 最後接**完整堆疊**（開窗當下才讀檔；檔案不存在時顯示
 「堆疊檔案不存在（可能已被清除，或當初寫檔失敗）」）。
+
+明細窗上方有「**AI 分析**」按鈕（0.9.68 起）：把明細窗內容（**不含帳號與 UserId**，只給「有／無登入使用者」）
+送給 AI 產生分析報告（管理者摘要、根本原因、修正建議、排查步驟、需要確認的問題），在疊在上面的
+`.exception-ai-modal` 對話窗內顯示，可多輪追問（上限 `AiSettings:MaxFollowUpRounds`，預設 10）、
+複製整段對話或下載 PDF；報告不保存，關窗即丟棄。堆疊讀取中或 AI 未設定時按鈕停用。
+細節見 [AI 例外分析](../features/AI例外分析.md)。
 
 ⚠️ **明細窗的尺寸與內容樣式都寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`**。
 AntDesign 的 `Modal` 會把內容渲染到元件 DOM 範圍之外，`ExceptionLogView.razor.css`
@@ -128,6 +134,8 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
   任何角色都無法被授予。由 `AdminOnlyPermissionTests` 守門，**請勿補上**。
 - 例外訊息可能含使用者輸入，**刻意不做遮罩**：本頁與「日誌檢視」同級（皆管理員專屬、皆看得到原始內容）。
 - 記錄的身分只有 `Account` 與 `UserId`，**不記姓名／Email**，與全站日誌規範一致。
+- **AI 分析送往外部 AI 的內容不含 `Account`／`UserId`**（0.9.68 起），由 `AiExceptionPromptBuilderTests` 以哨兵字串守門；
+  稽核（`ExceptionLog.AiAnalyze`／`AiFollowUp`／`AiExportPdf`）只記數量、模型、用量與耗時，不記內容。
 
 ## 六、錯誤與邊界
 
@@ -149,6 +157,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | `MenuPermissionConsistencyTests` | `AdminOnlyViews` 含 `ExceptionLogView.razor.cs` |
 | `MenuIconTests` | `bug_report` 在允許清單 |
 | `LoggingConventionTests` | 管線內四支類別列於 ILogger 豁免清單（**刻意不注入，請勿補上**） |
+| `AiExceptionPromptBuilderTests`／`AiExceptionAnalysisServiceTests`／`AiExceptionReportPdfBuilderTests` | AI 例外分析（0.9.68）：送出內容不含帳號、追問上限不發請求、PDF 產生 |
 
 手動驗收（0.9.11 實跑結果）：
 
@@ -172,4 +181,5 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/ExceptionLogPage.razor`、`Components/Views/Admins/ExceptionLogView.razor`
 - `src/MyProject/MyProject.Web/Components/ApplicationCircuitHandler.cs`（情境設定）
-- 交叉連結：[設計規格](../superpowers/specs/2026-09-16-system-exception-log-design.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)
+- `src/MyProject/MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor`、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
+- 交叉連結：[設計規格](../superpowers/specs/2026-09-16-system-exception-log-design.md)、[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.8
+- 文件版本：6.9
 - 文件狀態：維護中
-- 現行系統版本：0.9.67
+- 現行系統版本：0.9.68
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/09/27
 
@@ -62,6 +62,7 @@
 - [檔案上傳機制](features/檔案上傳機制.md)
 - [系統健康監控](features/系統健康監控.md)
 - [AI 日誌分析](features/AI日誌分析.md)
+- [AI 例外分析](features/AI例外分析.md)
 
 ### guides — 開發與操作指南
 - [VS Code 開發環境與新專案上手指南](guides/VS%20Code%20開發環境與新專案上手指南.md)
@@ -106,6 +107,7 @@
 - [紀錄分類/團隊標籤與團隊權控（階段二）](superpowers/specs/2026-06-22-record-tags-team-access-design.md)
 - [系統例外紀錄（ExceptionLog）](superpowers/specs/2026-09-16-system-exception-log-design.md)
 - [寄信服務與忘記密碼](superpowers/specs/2026-09-24-email-password-reset-design.md)
+- [AI 例外分析](superpowers/specs/2026-09-27-exception-ai-analysis-design.md)
 
 ### changelog — 變更紀錄
 - [登入頁改版紀錄：粉梅暖雪、RWD 與果凍動畫（0.9.23）](changelog/login-redesign.md)
@@ -201,3 +203,4 @@
 - [衍生專案自動產生開發連接埠：同機多專案不再搶埠（0.9.65）](changelog/2026-09-25-衍生專案自動產生開發連接埠.md)
 - [頁面使用說明對話窗：每頁一份白話說明（0.9.66）](changelog/2026-09-26-頁面使用說明對話窗.md)
 - [頁面操作說明對齊 ReviewSkills.AI：外觀與內容寫法一致（0.9.67）](changelog/2026-09-27-操作說明對齊ReviewSkills.md)
+- [系統例外紀錄新增「AI 例外分析」：分析報告、多輪追問與 PDF（0.9.68）](changelog/2026-09-27-AI例外分析.md)
