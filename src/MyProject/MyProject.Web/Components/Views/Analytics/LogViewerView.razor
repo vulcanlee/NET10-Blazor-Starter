@@ -40,6 +40,15 @@ else
             <div class="log-view-toolbar-right">
                 <ToolbarIconButton Title="查詢" Icon="search"
                                    OnClick="@(async () => await OnQueryAsync())" />
+                <ToolbarIconButton Title="全部展開" Icon="unfold_more"
+                                   Disabled="@(entriesAscending.Count == 0)"
+                                   OnClick="OnExpandAll" />
+                <ToolbarIconButton Title="全部收合" Icon="unfold_less"
+                                   Disabled="@(entriesAscending.Count == 0)"
+                                   OnClick="OnCollapseAll" />
+                <ToolbarIconButton Title="複製本次查詢結果（原始 nlog 格式）" Icon="content_copy"
+                                   Disabled="@(entriesAscending.Count == 0)"
+                                   OnClick="@(async () => await OnCopyAllAsync())" />
                 <ToolbarIconButton Title="匯出本次查詢結果（原始 nlog 格式）" Icon="file_download"
                                    Disabled="@(entriesAscending.Count == 0)"
                                    OnClick="@(async () => await OnExportAsync())" />
@@ -64,12 +73,16 @@ else
         }
 
         <div class="log-view-table-wrap">
-            <Table TItem="LogEntry"
+            <Table @ref="logTable"
+                   TItem="LogEntry"
                    Class="log-view-table"
                    DataSource="@entriesDisplay"
                    Loading="@isLoading"
                    Size="TableSize.Small"
                    RowKey="@(entry => entry.Sequence)"
+                   RowClassName="@(_ => "log-view-row-copyable")"
+                   DefaultExpandAllRows="@isExpandAll"
+                   OnRowClick="OnRowClickAsync"
                    PageSize="20">
                 <ColumnDefinitions>
                     <Column TData="DateTime" Title="時間" Width="180">

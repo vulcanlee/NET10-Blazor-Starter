@@ -32,6 +32,11 @@
     overflow-x: auto;
 }
 
+/* 點一下任一列即複製該筆原始內容；列由 AntDesign 渲染，需要 ::deep。只改游標，顏色沿用 theme.css 的列 hover。 */
+::deep .log-view-row-copyable {
+    cursor: pointer;
+}
+
 /*
  * 展開列的內容渲染在 AntDesign 的標記內，落在本元件 scope 屬性之外，因此需要 ::deep。
  * 限制高度避免超長堆疊追蹤把整個版面撐開。
@@ -48,6 +53,7 @@
     background: #fffafc;
     border: 1px solid var(--app-line);
     border-radius: 4px;
+    cursor: text;
 }
 
 /* ===== AI 分析結果對話窗 ===== */
