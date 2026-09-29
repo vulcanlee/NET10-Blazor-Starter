@@ -29,6 +29,7 @@ public sealed class ThemeConventionTests
         "#4a1028", // rail 起點
         "#6b1c3d", // rail 終點
         "#8d2049", // rail active 暗端
+        "#2a0f1d", // code-bg（原文區塊）
     ];
 
     private static readonly Regex HexColor = new(@"#[0-9a-fA-F]{6}\b", RegexOptions.Compiled);

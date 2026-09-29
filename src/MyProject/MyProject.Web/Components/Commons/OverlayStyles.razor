@@ -689,12 +689,15 @@
     }
 
     /* ⚠️ 刻意維持深色：堆疊追蹤是程式碼，深色等寬底最好讀。
-       只把圓角與邊框調成與果凍一致，讓它讀起來就是「一塊程式碼」。 */
+       配色與字型走 theme.css 的 --app-code-*，與日誌檢視展開列、健康監控日誌尾端同一組（0.9.70 起）；
+       圓角維持與果凍一致，讓它讀起來就是「一塊程式碼」。 */
     .exception-log-modal .exception-log-stack {
-        background: #0f172a;
-        border: 1px solid rgba(255, 255, 255, 0.5);
+        background: var(--app-code-bg);
+        border: 1px solid var(--app-code-line);
         border-radius: 14px;
-        color: #e2e8f0;
+        color: var(--app-code-text);
+        color-scheme: dark;
+        font-family: var(--app-code-font);
         font-size: 0.8rem;
         line-height: 1.6;
         margin: 0;
