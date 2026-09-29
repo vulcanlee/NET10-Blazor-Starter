@@ -134,6 +134,13 @@ $textExtensions = @(
 # 除了 csproj，文件裡的路徑範例也要一起換掉，否則會把開發者導回原腳手架的 secrets 目錄。
 $sourceUserSecretsId = "83f6d54f-9f33-4cd9-a626-d4c05c996e5d"
 
+# 衍生專案有自己的版本線：沿用腳手架的 0.9.x 會讓「關於」視窗與文件頭都指向別人的歷史。
+# 日期一定要用 InvariantCulture —— 版本格式固定為 Major.Minor.Patch (YYYY/MM/DD)，
+# 某些文化的日期分隔符不是 /。
+$initialVersion = "1.0.0"
+$initialVersionDate = (Get-Date).ToString('yyyy/MM/dd', [System.Globalization.CultureInfo]::InvariantCulture)
+$systemVersionPattern = '"SystemVersion"\s*:\s*"[^"]*"'
+
 function Test-Utf8Bom {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -210,6 +217,12 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
             # 真正的防線是 StartupSafetyValidator —— 本機開發仍可用文件記載的預設帳密登入，
             # Production 則會因為「仍是範本預設密碼」被擋下啟動。
             $content = $content.Replace("DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars", "$ProjectName-ChangeThisJwtSigningKey-AtLeast32Chars")
+            $content = [regex]::Replace($content, $systemVersionPattern, "`"SystemVersion`": `"$initialVersion ($initialVersionDate)`"")
+        }
+        if ($_.Extension -eq ".md") {
+            # 文件頭的「現行系統版本」跟著新版本線走；「首次實作版本」是功能的歷史，保留原值。
+            # ⚠️ 用 [^\r\n]* 而非 .*$：.NET 的 . 會吃掉 CRLF 的 \r，把行尾弄壞。
+            $content = [regex]::Replace($content, '(?m)^- 現行系統版本：[^\r\n]*', "- 現行系統版本：$initialVersion")
         }
         [System.IO.File]::WriteAllText($_.FullName, $content, (New-Object System.Text.UTF8Encoding($hasBom)))
     }
@@ -243,6 +256,14 @@ if ($webCsproj) {
 }
 else {
     Write-Warning "Could not locate $ProjectName.Web.csproj; UserSecretsId was not replaced."
+}
+
+$webAppSettings = Join-Path $destinationFullPath "src/$ProjectName/$ProjectName.Web/appsettings.json"
+if ((Test-Path -LiteralPath $webAppSettings) -and ([System.IO.File]::ReadAllText($webAppSettings).Contains("`"$initialVersion ($initialVersionDate)`""))) {
+    Write-Host "SystemVersion reset to $initialVersion ($initialVersionDate) in $ProjectName.Web/appsettings.json"
+}
+else {
+    Write-Warning "Could not locate SystemVersion in $ProjectName.Web/appsettings.json; set SystemSettings:SystemInformation:SystemVersion manually."
 }
 
 # 清空腳手架的 migration 歷史，改由新專案自己的第一次 migration（Init）起算。

@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.5
+- 文件版本：2.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.65
+- 現行系統版本：0.9.71
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/09/25
+- 最後核對日期：2026/09/29
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -417,7 +417,7 @@ ffmpeg -i images/brand-logo.png \
   "SystemInformation": {
     "SystemName": "你的系統名稱",
     "SystemDescription": "一句話說明這個系統在做什麼",
-    "SystemVersion": "0.0.1 (2026/01/01)"
+    "SystemVersion": "1.0.0 (2026/01/01)"
   }
 }
 ```
@@ -428,7 +428,7 @@ ffmpeg -i images/brand-logo.png \
 |------|------|------|
 | `SystemName` | 4–10 字 | 兩頁都是最大的標題字（啟動頁 `.splash-title`、登入頁 `.app-title`），過長會換行擠壓版面。側邊欄（展開寬 300px）約可容納 10 字，超出會以刪節號收尾，完整名稱放在 `title` 屬性 |
 | `SystemDescription` | 30–40 字 | 啟動頁單行可容納約 40 字；登入頁面板較窄會折成兩行。超過約 60 字會開始破版 |
-| `SystemVersion` | — | 格式固定為 `Major.Minor.Patch (YYYY/MM/DD)`；**留空**會讓「系統健康監控」頁把應用程式判為 Degraded 並顯示「SystemVersion 未設定。」 |
+| `SystemVersion` | — | 格式固定為 `Major.Minor.Patch (YYYY/MM/DD)`。用 `New-StarterProject.ps1` 複製時已自動重設為 `1.0.0 (執行當天)`，之後每次異動 Patch +1；**留空**會讓「系統健康監控」頁把應用程式判為 Degraded 並顯示「SystemVersion 未設定。」 |
 
 ### 7.5 ⚠️ 瀏覽器分頁標題是另一件事
 
@@ -499,6 +499,8 @@ pwsh ./scripts/New-StarterProject.ps1 `
 > 對照 [§8.2 步驟 2](#步驟-2改資料夾名稱由深到淺) 的資料夾對照表 —— **那整張表腳本會一次做完**，
 > 不需要為了七個專案跑七次。
 
+> 完整參數（`-Force`、`-SourceProjectName`、`-UserSecretsId`、`-KeepStarterHistory`）見 [腳手架開發指引 §2.1](腳手架開發指引.md#21-建議順序)。
+
 > ⚠️ **前置需求**：必須先安裝 `dotnet-ef`（`dotnet tool install --global dotnet-ef`）。
 > 腳本一開始就會檢查，找不到會直接中止，不會留下半成品。
 
@@ -509,6 +511,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
 - **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
+- **把 `SystemVersion` 重設為 `1.0.0 (執行當天)`**（0.9.71 起），文件開頭的「現行系統版本」也一併改為 `1.0.0`；「首次實作版本」保留原值（那是功能的歷史）
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs`，先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
@@ -519,7 +522,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 項目 | 說明 |
 |------|------|
 | 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
-| 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription` / `SystemVersion`）—— 見 [§7.4](#74-更換產品名稱與簡短說明) |
+| 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
 | 外部目錄路徑 | `ExternalFileSystem` 四個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
