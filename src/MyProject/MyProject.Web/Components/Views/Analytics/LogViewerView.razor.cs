@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Text;
 using AntDesign;
+using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Options;
@@ -61,6 +62,12 @@ namespace MyProject.Web.Components.Views.Analytics
         /// <summary>每次開窗都回到這一級。字級選擇刻意不跨工作階段保存，理由見功能文件。</summary>
         private const int DefaultFontScalePercent = 100;
 
+        /// <summary>
+        /// 「複製查詢結果」超過這個筆數先確認。上限 10,000 筆可能是數 MB 的文字，
+        /// 貼上時目標程式會卡一下；這種量改用匯出比較合適，但仍讓使用者自己決定。
+        /// </summary>
+        private const int CopyAllConfirmThreshold = 1000;
+
         private readonly ILogger<LogViewerView> logger;
         private readonly ILogQueryService logQueryService;
 
@@ -70,6 +77,15 @@ namespace MyProject.Web.Components.Views.Analytics
         private readonly IAiLogAnalysisService aiLogAnalysisService;
         private readonly IAuditLogService auditLogService;
         private readonly CurrentUserService currentUserService;
+        private readonly ModalService modalService;
+
+        private Table<LogEntry>? logTable;
+
+        /// <summary>
+        /// 「全部展開」的狀態。綁在 DefaultExpandAllRows 上，換頁後新渲染的列也跟著展開；
+        /// 按「全部收合」或重新查詢才回到收合。
+        /// </summary>
+        private bool isExpandAll;
 
         private DateTime? startTime;
         private DateTime? endTime;
@@ -159,7 +175,8 @@ namespace MyProject.Web.Components.Views.Analytics
             NotificationService notificationService,
             IAiLogAnalysisService aiLogAnalysisService,
             IAuditLogService auditLogService,
-            CurrentUserService currentUserService)
+            CurrentUserService currentUserService,
+            ModalService modalService)
         {
             this.logger = logger;
             this.logQueryService = logQueryService;
@@ -167,6 +184,7 @@ namespace MyProject.Web.Components.Views.Analytics
             this.aiLogAnalysisService = aiLogAnalysisService;
             this.auditLogService = auditLogService;
             this.currentUserService = currentUserService;
+            this.modalService = modalService;
         }
 
         protected override async Task OnInitializedAsync()
@@ -200,6 +218,11 @@ namespace MyProject.Web.Components.Views.Analytics
         private async Task OnQueryAsync()
         {
             isLoading = true;
+
+            // 重新查詢一律回到收合。⚠️ 只把 isExpandAll 設回 false 不夠：AntDesign 依 RowKey 記住每列的展開狀態，
+            // 新結果的 Sequence 與舊結果重疊時，那些列會沿用舊的展開狀態。
+            isExpandAll = false;
+            logTable?.CollapseAll();
             statusMessage = string.Empty;
             warnings = new();
             StateHasChanged();
@@ -250,8 +273,7 @@ namespace MyProject.Web.Components.Views.Analytics
 
             try
             {
-                // 服務回傳的即為時間正序，直接沿用，不依賴可能解析失敗的 Timestamp 重新排序。
-                var text = string.Join(Environment.NewLine, entriesAscending.Select(entry => entry.Raw));
+                var text = BuildRawText();
 
                 // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
                 var bytes = TextDownloadPayload.Utf8WithBom(text);
@@ -269,6 +291,81 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 logger.LogError(ex, "Log export failed.");
                 ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+            }
+        }
+
+        /// <summary>
+        /// 匯出與「複製查詢結果」共用：兩者內容必須完全一致，使用者才能把貼上的文字當成那份 .log 檔。
+        /// 服務回傳的即為時間正序，直接沿用，不依賴可能解析失敗的 Timestamp 重新排序。
+        /// </summary>
+        private string BuildRawText()
+            => string.Join(Environment.NewLine, entriesAscending.Select(entry => entry.Raw));
+
+        private void OnExpandAll()
+        {
+            isExpandAll = true;
+            logTable?.ExpandAll();
+        }
+
+        private void OnCollapseAll()
+        {
+            isExpandAll = false;
+            logTable?.CollapseAll();
+        }
+
+        /// <summary>
+        /// 點一下任一列即複製該筆原始內容。只複製、不切換展開 —— 展開仍靠左邊的展開圖示。
+        /// 展開圖示與展開後的原文區塊不會進到這裡（前者 AntDesign 自己擋掉冒泡，後者是另一個 tr）。
+        /// </summary>
+        private Task OnRowClickAsync(RowData<LogEntry> row)
+            => CopyToClipboardAsync(row.Data.Raw, 1);
+
+        private async Task OnCopyAllAsync()
+        {
+            if (entriesAscending.Count == 0)
+            {
+                ViewNotification.Warning(notificationService, "目前沒有可複製的日誌。");
+                return;
+            }
+
+            if (entriesAscending.Count > CopyAllConfirmThreshold)
+            {
+                var confirmed = await ConfirmDialog.AskAsync(
+                    modalService,
+                    "確認複製",
+                    $"本次查詢共 {entriesAscending.Count:N0} 筆，內容較大，貼上時可能較慢；大量資料建議改用匯出。",
+                    "仍要複製");
+                if (confirmed == false)
+                {
+                    return;
+                }
+            }
+
+            await CopyToClipboardAsync(BuildRawText(), entriesAscending.Count);
+        }
+
+        /// <summary>
+        /// 走 appClipboard.copyText：https 用 navigator.clipboard，http 內網退回 execCommand，兩種部署都能用。
+        /// </summary>
+        private async Task CopyToClipboardAsync(string text, int rows)
+        {
+            try
+            {
+                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", text);
+                if (copied)
+                {
+                    logger.LogInformation("Log entries copied to clipboard. Rows={Rows}, Characters={Characters}", rows, text.Length);
+                    ViewNotification.Info(notificationService, $"已複製 {rows:N0} 筆日誌到剪貼簿。");
+                }
+                else
+                {
+                    ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to copy log entries to clipboard. Rows={Rows}", rows);
+                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
             }
         }
 
