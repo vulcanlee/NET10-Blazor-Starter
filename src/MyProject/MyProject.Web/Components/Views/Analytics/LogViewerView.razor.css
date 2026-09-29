@@ -40,6 +40,8 @@
 /*
  * 展開列的內容渲染在 AntDesign 的標記內，落在本元件 scope 屬性之外，因此需要 ::deep。
  * 限制高度避免超長堆疊追蹤把整個版面撐開。
+ * 配色與字型走 theme.css 的 --app-code-*，與健康監控日誌尾端、例外堆疊同一組；
+ * color-scheme: dark 讓超出高度時的捲軸也是深色。
  */
 ::deep .log-view-raw {
     margin: 0;
@@ -48,11 +50,14 @@
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-all;
+    font-family: var(--app-code-font);
     font-size: 12px;
     line-height: 1.6;
-    background: #fffafc;
-    border: 1px solid var(--app-line);
+    color: var(--app-code-text);
+    background: var(--app-code-bg);
+    border: 1px solid var(--app-code-line);
     border-radius: 4px;
+    color-scheme: dark;
     cursor: text;
 }
 

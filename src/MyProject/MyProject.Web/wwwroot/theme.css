@@ -85,6 +85,14 @@
     /* 整片深色背景（帳號待審核頁的動態漸層）。 */
     --app-dark-grad: linear-gradient(135deg, #3b0c20, #6b1c3d, #a52b59, #ea88ad);
 
+    /* ── 原文區塊（日誌原文、堆疊追蹤）──
+       深梅黑，與側邊欄同色相；淡粉白字對底色約 15:1。換品牌色時要一起換。
+       使用處：日誌檢視展開列、系統健康監控日誌尾端、系統例外紀錄明細堆疊。 */
+    --app-code-bg: #2a0f1d;
+    --app-code-text: rgba(255, 240, 246, 0.92);
+    --app-code-line: rgba(var(--app-edge-rgb), 0.10);
+    --app-code-font: Consolas, Menlo, "Courier New", monospace;
+
     /* ── 表格列（一律用不透明色）──
        ⚠️ 固定欄（.ant-table-cell-fix-left/right）要蓋住捲到它底下的內容，
           半透明會透出殘影，所以這四個值不可改成 rgba。 */

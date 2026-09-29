@@ -250,14 +250,17 @@
     text-align: right;
 }
 
+/* 配色與字型走 theme.css 的 --app-code-*，與日誌檢視展開列、例外堆疊同一組（0.9.70 起）。 */
 .log-tail {
     max-height: 520px;
     overflow: auto;
     padding: 12px;
-    color: #f5f5f5;
-    background: #1f1f1f;
-    border: 1px solid #333;
+    font-family: var(--app-code-font);
+    color: var(--app-code-text);
+    background: var(--app-code-bg);
+    border: 1px solid var(--app-code-line);
     border-radius: var(--app-radius-control);
+    color-scheme: dark;
     white-space: pre-wrap;
 }
 
