@@ -32,6 +32,7 @@ public sealed class SidebarMenuService
         [33] = MagicObjectHelper.角色_系統例外紀錄,
         [62] = MagicObjectHelper.角色_資料庫用量,
         [64] = MagicObjectHelper.角色_Token用量,
+        [66] = MagicObjectHelper.角色_AI對話紀錄,
         [34] = MagicObjectHelper.角色_權限管理,
         [31] = MagicObjectHelper.角色_使用者管理,
         [32] = MagicObjectHelper.角色_角色管理,

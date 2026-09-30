@@ -34,6 +34,7 @@ public sealed class MenuIconTests
         "description",
         "data_usage",
         "toll",
+        "forum",
         "tune",
         "monitor_heart",
         "fact_check",

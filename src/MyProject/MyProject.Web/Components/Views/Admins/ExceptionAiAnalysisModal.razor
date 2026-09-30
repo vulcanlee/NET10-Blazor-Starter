@@ -6,7 +6,8 @@
     尺寸寫在 Components/Commons/OverlayStyles.razor 的全域 style（.exception-ai-modal），
     刻意不設 Width —— 那邊是 !important，兩邊都寫只會讓下一個人改錯地方（見速查 §6.4）。
     MaskClosable 只在等待中關掉：關窗等於放棄一次已送出、可能已計費的呼叫，誤點遮罩就白花錢。
-    關窗一律丟棄整段對話（本功能不保存報告，要留存請下載 PDF 或複製）。
+    關窗一律丟棄窗內的整段對話（窗內不保存報告，要留存請下載 PDF 或複製）；
+    每一次送出的呼叫另記於「AI 對話紀錄」（0.9.72 起，同一窗的分析與追問共用一個 ConversationId）。
 *@
 <Modal Title="AI 例外分析"
        Class="exception-ai-modal"

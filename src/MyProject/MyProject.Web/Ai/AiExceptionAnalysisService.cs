@@ -20,10 +20,13 @@ public interface IAiExceptionAnalysisService
     /// 送出整段對話並取得 AI 的下一則回覆。
     /// <paramref name="conversation"/> 不含 system 訊息，第一則是 <see cref="AiExceptionPromptBuilder.Build"/>
     /// 組出的例外明細，最後一則必須是使用者訊息。
+    /// <paramref name="callContext"/>（0.9.72 起）只用於 AI 對話紀錄：關聯說明與同一段對話的串接；
+    /// 不送交 AI，也不影響分析內容。
     /// ⚠️ 這個方法<b>不丟例外</b>，所有失敗都以 <see cref="AiAnalysisResult"/> 回報。
     /// </summary>
     Task<AiAnalysisResult> AskAsync(
         IReadOnlyList<AiChatMessage> conversation,
+        AiExceptionCallContext? callContext = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -49,6 +52,7 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
 
     public async Task<AiAnalysisResult> AskAsync(
         IReadOnlyList<AiChatMessage> conversation,
+        AiExceptionCallContext? callContext = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(conversation);
@@ -78,7 +82,22 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
                     : "這筆例外的內容（多半是堆疊）超過模型的內容視窗上限，無法送交 AI 分析。",
                 TimeoutHint = "請稍後再試。",
                 SubmittedContentLabel = "送出的例外內容",
+                RelatedInfo = BuildRelatedInfo(callContext, followUps),
+                ConversationId = callContext?.ConversationId,
             },
             cancellationToken);
+    }
+
+    /// <summary>AI 對話紀錄的關聯說明：第一次分析帶例外型別，追問帶輪數（0.9.72 起）。</summary>
+    internal static string? BuildRelatedInfo(AiExceptionCallContext? callContext, int followUps)
+    {
+        if (callContext is null)
+        {
+            return null;
+        }
+
+        return followUps == 0
+            ? $"例外紀錄 #{callContext.ExceptionLogId}（{callContext.ExceptionType}）"
+            : $"例外紀錄 #{callContext.ExceptionLogId}，追問第 {followUps} 輪";
     }
 }

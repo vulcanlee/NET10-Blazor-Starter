@@ -1,10 +1,10 @@
 ﻿# superpowers/specs — 設計規格
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：維護中
-- 現行系統版本：0.9.68
+- 現行系統版本：0.9.72
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/09/27
+- 最後核對日期：2026/09/30
 
 以 brainstorming 流程產出的設計規格；每份對應一次功能實作，實作結果見 [changelog/](../../changelog/README.md)。
 
@@ -17,5 +17,6 @@
 | [系統例外紀錄（ExceptionLog）](2026-09-16-system-exception-log-design.md) | 例外自動記錄管線（ILoggerProvider＋佇列＋背景寫入器）、相同例外合併累加、堆疊存檔案系統、管理員專屬頁面設計 |
 | [寄信服務與忘記密碼](2026-09-24-email-password-reset-design.md) | MailKit 寄信（None／Pickup／Smtp）、背景佇列防時間差列舉、健康監控項與測試寄信；忘記密碼的 token 表、防列舉、單次使用與共用登入外觀（兩階段：0.9.59／0.9.60）|
 | [AI 例外分析](2026-09-27-exception-ai-analysis-design.md) | 例外明細窗的 AI 分析報告、多輪追問（上限可設）、不送帳號、PDF 下載；抽出 `AiChatCompletionClient` 共用核心（0.9.68）|
+| [AI 對話紀錄](2026-09-30-ai-call-log-design.md) | 複刻 ReviewSkills.AI 的 `/ai-call-logs`：內文紅線的有條件放寬、CallId／ConversationId、五種檢視、自動過期、本專案設計規範的套用方式（0.9.72）|
 
 > 返回 [文件總索引](../../README.md)

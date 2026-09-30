@@ -27,19 +27,22 @@ public sealed class AiHealthProbe : IAiHealthProbe
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
     private readonly ITokenUsageRecorder tokenUsageRecorder;
     private readonly CurrentUserService currentUserService;
+    private readonly IAiCallLogRecorder aiCallLogRecorder;
 
     public AiHealthProbe(
         ILogger<AiHealthProbe> logger,
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<AiSettings> optionsMonitor,
         ITokenUsageRecorder tokenUsageRecorder,
-        CurrentUserService currentUserService)
+        CurrentUserService currentUserService,
+        IAiCallLogRecorder aiCallLogRecorder)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
         this.tokenUsageRecorder = tokenUsageRecorder;
         this.currentUserService = currentUserService;
+        this.aiCallLogRecorder = aiCallLogRecorder;
     }
 
     public async Task<AiHealthProbeResult> ProbeAsync(CancellationToken cancellationToken = default)
@@ -59,6 +62,18 @@ public sealed class AiHealthProbe : IAiHealthProbe
         var endpointHost = descriptor.RequestUri.Host;
         var body = AiChatRequestFactory.CreateRequestJson(settings, ProbeSystemPrompt, ProbeUserMessage);
 
+        var user = currentUserService.CurrentUser;
+        var capture = new AiCallCapture(
+            TokenUsageOperations.SystemHealthCheck,
+            settings.GetProvider().ToString(),
+            settings.Model,
+            user.Account,
+            user.Id,
+            descriptor.RequestUri,
+            body,
+            "系統健康監控 AI 連線探測",
+            conversationId: null);
+
         // 自己的逾時。linked source 讓呼叫端的取消仍然有效。
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(ProbeTimeout);
@@ -77,8 +92,11 @@ public sealed class AiHealthProbe : IAiHealthProbe
             // named client 是從池子拿的，設在上面會把金鑰留給後續所有請求。
             request.Headers.TryAddWithoutValidation(descriptor.AuthHeaderName, descriptor.AuthHeaderValue);
 
+            capture.MarkSent();
             using var response = await client.SendAsync(request, timeoutSource.Token);
+            capture.HttpStatus = (int)response.StatusCode;
             var payload = await response.Content.ReadAsStringAsync(timeoutSource.Token);
+            capture.ResponseBody = payload;
             stopwatch.Stop();
 
             if (response.IsSuccessStatusCode == false)
@@ -94,7 +112,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
                     (int)response.StatusCode,
                     stopwatch.ElapsedMilliseconds);
 
-                await RecordAsync(settings, settings.Model, null, null, stopwatch, false, "UpstreamError");
+                await RecordAsync(capture, settings, settings.Model, null, null, stopwatch, false, "UpstreamError");
 
                 return new AiHealthProbeResult
                 {
@@ -108,6 +126,9 @@ public sealed class AiHealthProbe : IAiHealthProbe
             }
 
             var parsed = AiChatResponseParser.Parse(payload);
+            capture.ResponseText = parsed.Content ?? string.Empty;
+            capture.FinishReason = parsed.FinishReason;
+            capture.ResponseModel = parsed.ModelName;
             var modelName = string.IsNullOrEmpty(parsed.ModelName) ? settings.Model : parsed.ModelName;
             var hasContent = string.IsNullOrWhiteSpace(parsed.Content) == false;
 
@@ -117,6 +138,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
                 stopwatch.ElapsedMilliseconds);
 
             await RecordAsync(
+                capture,
                 settings,
                 parsed.ModelName,
                 parsed.Usage,
@@ -137,8 +159,10 @@ public sealed class AiHealthProbe : IAiHealthProbe
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // 呼叫端主動放棄（例如使用者離開頁面）。不是故障，比照既有慣例不記帳。
+            // 呼叫端主動放棄（例如使用者離開頁面）。不是故障，比照既有慣例不記帳；
+            // 但請求可能已經送出，AI 對話紀錄照記（沒送出的由 capture.Sent 擋掉）。
             stopwatch.Stop();
+            capture.SetOutcome(false, AiAnalysisFailureReason.Canceled.ToString());
             return new AiHealthProbeResult
             {
                 IsConfigured = true,
@@ -155,6 +179,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
             // 一律收斂在這裡：健康檢查的單一項目絕不能讓整份報告掛掉。
             stopwatch.Stop();
             var timedOut = ex is OperationCanceledException;
+            capture.ExceptionType = ex.GetType().Name;
 
             logger.LogError(
                 ex,
@@ -163,7 +188,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
                 stopwatch.ElapsedMilliseconds);
 
             await RecordAsync(
-                settings, settings.Model, null, null, stopwatch, false, timedOut ? "Timeout" : "TransportError");
+                capture, settings, settings.Model, null, null, stopwatch, false, timedOut ? "Timeout" : "TransportError");
 
             return new AiHealthProbeResult
             {
@@ -177,6 +202,10 @@ public sealed class AiHealthProbe : IAiHealthProbe
                 ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
             };
         }
+        finally
+        {
+            await AiCallCapture.RecordSafelyAsync(aiCallLogRecorder, capture, stopwatch.Elapsed, logger);
+        }
     }
 
     /// <summary>
@@ -185,8 +214,10 @@ public sealed class AiHealthProbe : IAiHealthProbe
     /// 專案慣例（開發慣例與限制速查 §6.6）：每一個發出 LLM API 呼叫的地方都必須記一筆，
     /// 成功與失敗都要記，否則 Token 用量頁會漏帳。只有「未設定」與「呼叫端取消」免記。
     /// 記錄本身絕不影響探測結果（TokenUsageLogService 內部已全程吞例外）。
+    /// 同時把結果寫到 <paramref name="capture"/>，兩邊以同一個 CallId 關聯。
     /// </summary>
     private async Task RecordAsync(
+        AiCallCapture capture,
         AiSettings settings,
         string? modelName,
         AiTokenUsage? usage,
@@ -196,6 +227,8 @@ public sealed class AiHealthProbe : IAiHealthProbe
         string? failureReason)
     {
         var user = currentUserService.CurrentUser;
+
+        capture.SetOutcome(success, failureReason);
 
         await tokenUsageRecorder.RecordAsync(new TokenUsageEntry
         {
@@ -214,6 +247,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
             Success = success,
             FailureReason = failureReason,
             RawUsageJson = rawUsageJson,
+            CallId = capture.CallId,
         });
     }
 }

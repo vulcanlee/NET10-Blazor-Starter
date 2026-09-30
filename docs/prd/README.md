@@ -1,12 +1,12 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.4
+- 文件版本：2.5
 - 文件狀態：維護中
-- 現行系統版本：0.9.68
+- 現行系統版本：0.9.72
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/09/27
+- 最後核對日期：2026/09/30
 
-本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）與 Token 用量／費用計價**（見「AI 日誌分析」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」PRD），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
+本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）、Token 用量／費用計價與 AI 對話紀錄（0.9.72 起，管理員專屬、保存完整 Prompt／Response）**（見「AI 日誌分析」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」「AI 對話紀錄」PRD），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
 ## 一、能力覆蓋矩陣
 
@@ -25,6 +25,7 @@
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.4.42 |
 | 系統例外紀錄 | [系統例外紀錄](系統例外紀錄-prd.md) | `/system-exceptions` | `Pages/Admins/ExceptionLogPage.razor`、`Diagnostics/ExceptionLogProvider`、`ExceptionLogService`、`AiExceptionAnalysisService` | 已實作 | 0.9.68 |
 | Token 用量 | [Token 用量](Token用量-prd.md) | `/token-usage` | `Pages/Analytics/TokenUsagePage.razor`、`ITokenUsageRecorder`、`TokenUsageLogService`、`TokenUsageRawStore` | 已實作（0.9.17 起每列含費用估算；0.9.50 起有「最近 1／7／30 天」摘要卡與每日費用趨勢；0.9.51 起 PDF 可只匯出目前頁籤且含趨勢；0.9.55 起有折線趨勢圖頁籤，PDF 同步輸出）| 0.9.55 |
+| AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionWorker` | 已實作（0.9.72）| 0.9.72 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.4.42 |
 | 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面）| 0.9.42 |
 

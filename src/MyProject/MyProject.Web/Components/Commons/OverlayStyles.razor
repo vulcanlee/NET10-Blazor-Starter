@@ -792,6 +792,34 @@
         }
     }
 
+    /* AI call log detail modal (0.9.72): large read-only view, prompt/response blocks scroll inside the body.
+       Content styles live in AiCallLogDetailModal.razor.css (they are rendered by the component itself). */
+    .ai-call-log-modal {
+        width: 90vw !important;
+        max-width: 90vw !important;
+        top: 5vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+        .ai-call-log-modal .ant-modal-content {
+            height: 90vh !important;
+            max-height: 90vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        .ai-call-log-modal .ant-modal-header {
+            flex-shrink: 0;
+        }
+
+        .ai-call-log-modal .ant-modal-body {
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+        }
+
     /* token usage detail modal: large read-only view */
     .token-usage-modal {
         width: 90vw !important;

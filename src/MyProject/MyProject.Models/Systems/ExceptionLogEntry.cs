@@ -53,7 +53,7 @@ public static class ExceptionSources
     /// <summary>系統啟動流程（migration、RBAC 回填等）。</summary>
     public const string Startup = "系統啟動";
 
-    /// <summary>背景作業。目前專案只有例外寫入器本身，保留給日後使用。</summary>
+    /// <summary>背景作業（Email 派送、AI 對話紀錄自動過期等 BackgroundService）。</summary>
     public const string Background = "背景作業";
 
     /// <summary>沒有任何情境資訊可用時的預設值。</summary>

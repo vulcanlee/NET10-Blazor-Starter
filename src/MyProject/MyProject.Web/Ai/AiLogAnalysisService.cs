@@ -63,9 +63,22 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
                     "送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。",
                 TimeoutHint = "請縮小查詢範圍後再試。",
                 SubmittedContentLabel = "送出的日誌量",
+                RelatedInfo = BuildRelatedInfo(entriesAscending, prompt),
             },
             cancellationToken);
 
         return result with { Prompt = prompt };
+    }
+
+    /// <summary>
+    /// AI 對話紀錄的關聯說明：實際送出的日誌時間區間與筆數（0.9.72 起）。
+    /// 提示詞只保留最新的 N 筆，所以第一筆是倒數第 <c>IncludedEntryCount</c> 筆。
+    /// </summary>
+    internal static string BuildRelatedInfo(IReadOnlyList<LogEntry> entriesAscending, AiPromptBuildResult prompt)
+    {
+        var first = entriesAscending[entriesAscending.Count - prompt.IncludedEntryCount];
+        var last = entriesAscending[^1];
+        return $"日誌 {first.Timestamp:yyyy-MM-dd HH:mm:ss}～{last.Timestamp:yyyy-MM-dd HH:mm:ss}，"
+            + $"送出 {prompt.IncludedEntryCount}／{prompt.TotalEntryCount} 筆";
     }
 }

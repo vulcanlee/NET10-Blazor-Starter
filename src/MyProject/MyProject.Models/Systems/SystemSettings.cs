@@ -44,9 +44,17 @@ public class ExternalFileSystem
     /// <summary>
     /// Token 用量紀錄的原始 usage JSON 存放目錄。每次 LLM 呼叫一個檔，
     /// 檔案生命週期一律經由 TokenUsageRawStore 處理。
-    /// ⚠️ 只存 usage 結構，絕不存提示詞或模型回應內文。
+    /// ⚠️ 只存 usage 結構，絕不存提示詞或模型回應內文（完整內容只存在 <see cref="AiCallLogPath"/>）。
     /// </summary>
     public string TokenUsagePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// AI 對話紀錄的內容檔存放目錄（0.9.72 起）：每次 AI 呼叫一個檔，內含完整請求與回應。
+    /// 結構為 <c>{root}/{yyyyMM}/{CallId}.json</c>；檔案生命週期一律經由 AiCallLogFileStore 處理。
+    /// ⚠️ 內容含日誌、例外堆疊與使用者帳號，只供管理員查閱；
+    /// <b>絕不可放在 DownloadPath 底下</b>（那裡以靜態檔案對外提供）。
+    /// </summary>
+    public string AiCallLogPath { get; set; } = string.Empty;
 
     /// <summary>
     /// ASP.NET Core Data Protection 的金鑰環存放目錄。

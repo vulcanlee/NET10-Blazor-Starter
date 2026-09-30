@@ -62,6 +62,53 @@ public sealed class AiHealthProbeTests
     }
 
     [Fact]
+    public async Task ProbeAsync_Success_ShouldRecordCallLog_WithSameCallIdAsUsage()
+    {
+        var callLog = new FakeAiCallLogRecorder();
+        var (probe, recorder) = CreateProbe(
+            CreateConfiguredSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload), callLog);
+
+        await probe.ProbeAsync();
+
+        var usage = Assert.Single(recorder.Entries);
+        var logged = Assert.Single(callLog.Entries);
+        Assert.Equal(usage.CallId, logged.CallId);
+        Assert.Equal(TokenUsageOperations.SystemHealthCheck, logged.Operation);
+        Assert.Equal("系統健康監控 AI 連線探測", logged.RelatedInfo);
+        Assert.True(logged.Success);
+        Assert.Contains("hello", logged.RequestBody, StringComparison.Ordinal);
+        Assert.Equal(SuccessPayload, logged.ResponseBody);
+        Assert.Equal("hello", logged.ResponseText);
+    }
+
+    [Fact]
+    public async Task ProbeAsync_TransportFailure_ShouldRecordCallLogWithExceptionType()
+    {
+        var callLog = new FakeAiCallLogRecorder();
+        var (probe, _) = CreateProbe(
+            CreateConfiguredSettings(), StubHttpMessageHandler.Throws(new HttpRequestException("down")), callLog);
+
+        await probe.ProbeAsync();
+
+        var logged = Assert.Single(callLog.Entries);
+        Assert.False(logged.Success);
+        Assert.Equal("TransportError", logged.FailureReason);
+        Assert.Equal(nameof(HttpRequestException), logged.ExceptionType);
+    }
+
+    [Fact]
+    public async Task ProbeAsync_NotConfigured_ShouldNotRecordCallLog()
+    {
+        var callLog = new FakeAiCallLogRecorder();
+        var (probe, _) = CreateProbe(
+            new AiSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload), callLog);
+
+        await probe.ProbeAsync();
+
+        Assert.Empty(callLog.Entries);
+    }
+
+    [Fact]
     public async Task ProbeAsync_UpstreamError_ShouldRecordFailureAndNotThrow()
     {
         var handler = StubHttpMessageHandler.Json(
@@ -118,7 +165,7 @@ public sealed class AiHealthProbeTests
         };
 
     private static (AiHealthProbe Probe, FakeRecorder Recorder) CreateProbe(
-        AiSettings settings, StubHttpMessageHandler handler)
+        AiSettings settings, StubHttpMessageHandler handler, IAiCallLogRecorder? callLogRecorder = null)
     {
         var recorder = new FakeRecorder();
 
@@ -127,7 +174,8 @@ public sealed class AiHealthProbeTests
             new StubHttpClientFactory(handler),
             new StaticOptionsMonitor<AiSettings>(settings),
             recorder,
-            new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } });
+            new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } },
+            callLogRecorder ?? new FakeAiCallLogRecorder());
 
         return (probe, recorder);
     }

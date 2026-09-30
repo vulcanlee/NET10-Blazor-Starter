@@ -19,7 +19,8 @@ public sealed class AiModalStyleConventionTests
 {
     /// <summary>
     /// 各 AI 對話窗的 CSS 檔（相對 MyProject.Web）與其字級會被三顆按鈕縮放的選擇器前綴。
-    /// 0.9.68 起多了 AI 例外分析對話窗（meta、報告內文，以及對話泡泡）。
+    /// 0.9.68 起多了 AI 例外分析對話窗（meta、報告內文，以及對話泡泡）；
+    /// 0.9.72 起多了 AI 對話紀錄明細窗（整窗內容）。
     /// </summary>
     public static TheoryData<string, string[]> ScalableRules => new()
     {
@@ -30,6 +31,11 @@ public sealed class AiModalStyleConventionTests
         {
             Path.Combine("Components", "Views", "Admins", "ExceptionAiAnalysisModal.razor.css"),
             [".exception-ai-meta", ".exception-ai-report", ".exception-ai-entry", ".exception-ai-question", ".exception-ai-error"]
+        },
+        // 0.9.72 起的 AI 對話紀錄明細窗：窗內每一條 font-size 都要跟著縮放，所以前綴取整個命名空間。
+        {
+            Path.Combine("Components", "Views", "Analytics", "AiCallLogDetailModal.razor.css"),
+            [".ai-call-log-"]
         },
     };
 
@@ -90,6 +96,7 @@ public sealed class AiModalStyleConventionTests
     [Theory]
     [InlineData("Analytics", "LogViewerView.razor")]
     [InlineData("Admins", "ExceptionAiAnalysisModal.razor")]
+    [InlineData("Analytics", "AiCallLogDetailModal.razor")]
     public void AiModal_ShouldNotSetWidthOnTheModalTag(string folder, string fileName)
     {
         var razorPath = Path.Combine(FindWebProjectDirectory(), "Components", "Views", folder, fileName);

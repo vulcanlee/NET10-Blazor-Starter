@@ -62,6 +62,27 @@ public sealed class TokenUsageLogServiceTests
     }
 
     [Fact]
+    public async Task RecordAsync_ShouldPersistCallId()
+    {
+        // 0.9.72 起與 AI 對話紀錄以 CallId 關聯；用量明細的「查看對話」靠的就是這一欄。
+        await using var fixture = await TokenUsageFixture.CreateAsync();
+        var service = fixture.CreateService();
+        var callId = Guid.NewGuid();
+
+        await service.RecordAsync(new TokenUsageEntry
+        {
+            Operation = TokenUsageOperations.AiLogAnalysis,
+            CallKind = TokenUsageCallKinds.Chat,
+            Provider = "AzureOpenAI",
+            Model = "gpt-4o-mini",
+            Success = true,
+            CallId = callId,
+        });
+
+        Assert.Equal(callId, Assert.Single(await fixture.ListAsync()).CallId);
+    }
+
+    [Fact]
     public async Task RecordAsync_WithoutRawJson_ShouldStillInsertRow()
     {
         await using var fixture = await TokenUsageFixture.CreateAsync();

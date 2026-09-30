@@ -61,11 +61,17 @@ public sealed class TokenUsageEntry
     /// 供應商回傳的原始 usage JSON（只有 usage 那一段）。會寫進檔案系統。
     ///
     /// ⚠️ <b>呼叫端絕不可把整個回應 body 塞進來</b> —— 那裡面有模型產生的內文，
-    /// 而本專案的提示詞就是日誌內容。只取 usage 子物件。
+    /// 而本專案的提示詞就是日誌內容。只取 usage 子物件（完整內容只進 AI 對話紀錄）。
     /// </summary>
     public string? RawUsageJson { get; init; }
 
     public DateTime OccurredAt { get; init; } = DateTime.Now;
+
+    /// <summary>
+    /// 本次呼叫的識別碼，與 AI 對話紀錄（AiCallLog.CallId）相同，用來從用量明細找到完整對話。
+    /// 0.9.72 之前的紀錄為 null。
+    /// </summary>
+    public Guid? CallId { get; init; }
 }
 
 /// <summary>

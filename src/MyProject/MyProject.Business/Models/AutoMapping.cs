@@ -73,6 +73,12 @@ public class AutoMapping : Profile
         CreateMap<TokenUsageLog, TokenUsageLogAdapterModel>();
         #endregion
 
+        #region AiCallLog
+        // AI 對話紀錄為唯讀頁面，只需要 Entity → AdapterModel 單向映射；內文在內容檔，不在這裡。
+        CreateMap<AiCallLog, AiCallLogAdapterModel>()
+            .ForMember(d => d.HasContent, o => o.MapFrom(s => s.ContentFile != null));
+        #endregion
+
         #region ExceptionLog
         // 系統例外紀錄為唯讀頁面，只需要 Entity → AdapterModel 單向映射。
         CreateMap<ExceptionLog, ExceptionLogAdapterModel>();
