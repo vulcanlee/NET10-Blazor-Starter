@@ -39,6 +39,9 @@ else
                                    OnClick="@(async () => await OnSearchAsync())" />
                 <ToolbarIconButton Title="重新整理" Icon="refresh"
                                    OnClick="@(async () => await OnRefreshAsync())" />
+                <ToolbarIconButton Title="複製目前查詢結果（含完整堆疊）" Icon="content_copy"
+                                   Disabled="@(_total == 0)"
+                                   OnClick="@(async () => await OnCopyAllAsync())" />
                 <ToolbarIconButton Title="匯出目前查詢結果（CSV）" Icon="file_download"
                                    Disabled="@(_total == 0)"
                                    OnClick="@(async () => await OnExportAsync())" />
@@ -67,6 +70,8 @@ else
                    DataSource="@exceptionLogAdapterModels"
                    Loading="@isLoading"
                    Size="TableSize.Small"
+                   RowClassName="@(_ => "exception-log-row-copyable")"
+                   OnRowClick="OnRowClickAsync"
                    OnChange="OnTableChange"
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
@@ -95,16 +100,19 @@ else
                     <Column TData="string" Title="頁面" Width="150" Ellipsis>@(context.Page ?? "—")</Column>
                     <Column TData="string" Title="使用者" Width="110" Ellipsis>@(context.Account ?? "—")</Column>
                     <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
-                        <Space>
-                            <SpaceItem>
-                                <CrudActionButton Title="查看" Icon="visibility"
-                                                  OnClick="@(async () => await OnViewAsync(@context))" />
-                            </SpaceItem>
-                            <SpaceItem>
-                                <CrudActionButton Title="刪除" Icon="delete" Danger="true"
-                                                  OnClick="@(async () => await OnDeleteAsync(@context))" />
-                            </SpaceItem>
-                        </Space>
+                        @* 點列會複製該筆；按鈕的點擊在這裡擋掉冒泡，否則按「查看」「刪除」也會順便複製一次。 *@
+                        <div @onclick:stopPropagation="true">
+                            <Space>
+                                <SpaceItem>
+                                    <CrudActionButton Title="查看" Icon="visibility"
+                                                      OnClick="@(async () => await OnViewAsync(@context))" />
+                                </SpaceItem>
+                                <SpaceItem>
+                                    <CrudActionButton Title="刪除" Icon="delete" Danger="true"
+                                                      OnClick="@(async () => await OnDeleteAsync(@context))" />
+                                </SpaceItem>
+                            </Space>
+                        </div>
                     </ActionColumn>
                 </ColumnDefinitions>
             </Table>

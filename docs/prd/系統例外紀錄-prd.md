@@ -1,8 +1,8 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.72
+- 現行系統版本：0.9.73
 - 首次實作版本：0.9.11
 - 最後核對日期：2026/09/30
 
@@ -25,10 +25,15 @@
 ### 3.1 工具列
 
 - 篩選：最後發生時間範圍（兩個 `DatePicker`）、來源下拉、使用者帳號、關鍵字（比對類型／訊息／頁面／操作）。
-- 動作（`ToolbarIconButton`）：查詢 `search`、重新整理 `refresh`、匯出 CSV `file_download`、清除 90 天未再發生 `history`、清空全部 `delete_forever`。
+- 動作（`ToolbarIconButton`）：查詢 `search`、重新整理 `refresh`、複製目前查詢結果 `content_copy`（0.9.73）、匯出 CSV `file_download`、清除 90 天未再發生 `history`、清空全部 `delete_forever`。
 - 兩個破壞性動作（清除、清空）以 `ModalService.ConfirmAsync` 二次確認。
 - 匯出的 CSV 為 **UTF-8 含 BOM**（0.9.16 起；先前少了 BOM，Excel 開啟繁中會亂碼），
   位元組由 `Components/Commons/TextDownloadPayload.Utf8WithBom` 產生。
+- **複製目前查詢結果**（0.9.73）：與匯出同範圍（目前條件下的全部、依目前排序，最多 5,000 列，
+  兩者共用 `BuildFullQuery()`），每列內容與點列複製相同、以一行 50 個 `=` 分隔；堆疊以
+  `ExceptionLogService.GetStackTracesAsync` 一次查出檔名再逐檔讀取。超過 **100 列**先以
+  `ConfirmDialog.AskAsync` 確認（「仍要複製」）—— 每列含完整堆疊，比日誌檢視的單行大得多，門檻因此低於其 1,000。
+  查無資料時按鈕停用。
 
 ### 3.2 表格
 
@@ -46,6 +51,13 @@
 | 頁面 | 150 | 發生當下的路徑 |
 | 使用者 | 110 | 首次遇到的帳號 |
 | 操作 | 自動 | **查看**（`visibility`）＋**刪除**（`delete`），以 `<Space><SpaceItem>` 並排 |
+
+**點列複製**（0.9.73）：`Table.OnRowClick` → 讀該列堆疊 → 以 `ExceptionLogClipboardText.Build` 組出
+明細窗的 10 個欄位（**含帳號與 UserId**，與明細窗同一個 `FormatAccount`）＋以
+「----- 完整堆疊開始／結束 -----」包住的堆疊，經 `appClipboard.copyText` 寫入剪貼簿，右下角提示
+「已複製 1 筆例外紀錄到剪貼簿。」。只複製、不開明細窗；列游標為手指（`.exception-log-row-copyable`）。
+操作欄外層 `<div @onclick:stopPropagation="true">` 擋掉冒泡，按「查看」「刪除」不會順便複製。
+行尾固定 LF。與 AI 例外分析的 `AiExceptionPromptBuilder` 刻意分開：那邊送外部服務須去識別化，這邊是管理員自己貼給開發人員。
 
 ### 3.3 明細窗
 
@@ -152,13 +164,14 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | 測試 | 驗什麼 |
 | --- | --- |
 | `ExceptionSignatureTests` | 合併鍵組成；**樣板與算好的訊息必須產生不同簽章** |
-| `ExceptionLogServiceTests` | 合併累加、堆疊只寫一次、刪列同時刪檔、清空、`PurgeAsync`、5000 列上限、`RecordAsync` 絕不拋出 |
+| `ExceptionLogServiceTests` | 合併累加、堆疊只寫一次、刪列同時刪檔、清空、`PurgeAsync`、5000 列上限、`RecordAsync` 絕不拋出、`GetStackTracesAsync` 批次讀堆疊（缺檔與未知 id 回 null） |
 | `ExceptionLogProviderTests` | Warning／無例外／取消例外／自身記錄器／抑制旗標皆不收；佇列滿載丟棄不拋例外 |
 | `DataAccessServiceLifetimeTests` | `ExceptionLogService` 注入 `IDbContextFactory` 而非 scoped context |
 | `AdminOnlyPermissionTests` | 權限鍵不在角色矩陣 |
 | `MenuPermissionConsistencyTests` | `AdminOnlyViews` 含 `ExceptionLogView.razor.cs` |
 | `MenuIconTests` | `bug_report` 在允許清單 |
 | `LoggingConventionTests` | 管線內四支類別列於 ILogger 豁免清單（**刻意不注入，請勿補上**） |
+| `ExceptionLogClipboardTextTests` | 點列／批次複製文字：欄位順序、空值「—」、帳號＋UserId、堆疊標記與缺檔說明、LF 行尾、分隔線（0.9.73） |
 | `AiExceptionPromptBuilderTests`／`AiExceptionAnalysisServiceTests`／`AiExceptionReportPdfBuilderTests` | AI 例外分析（0.9.68）：送出內容不含帳號、追問上限不發請求、PDF 產生 |
 
 手動驗收（0.9.11 實跑結果）：
@@ -181,7 +194,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Business/Services/Other/ExceptionStackFileStore.cs`
 - `src/MyProject/MyProject.Models/Systems/ExceptionLogEntry.cs`、`ExceptionLogQuery.cs`
 - `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`
-- `src/MyProject/MyProject.Web/Components/Pages/Admins/ExceptionLogPage.razor`、`Components/Views/Admins/ExceptionLogView.razor`
+- `src/MyProject/MyProject.Web/Components/Pages/Admins/ExceptionLogPage.razor`、`Components/Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73）
 - `src/MyProject/MyProject.Web/Components/ApplicationCircuitHandler.cs`（情境設定）
 - `src/MyProject/MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor`、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
 - 交叉連結：[設計規格](../superpowers/specs/2026-09-16-system-exception-log-design.md)、[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)
