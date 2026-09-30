@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
+using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Others;
 using MyProject.Models.Systems;
@@ -53,6 +54,48 @@ public sealed class AiExceptionAnalysisServiceTests
         await service.AskAsync([new AiChatMessage(AiChatRoles.User, "detail")]);
 
         Assert.Equal(TokenUsageOperations.AiExceptionAnalysis, Assert.Single(recorder.Entries).Operation);
+    }
+
+    [Fact]
+    public async Task AskAsync_ShouldThreadAnalysisAndFollowUps_InOneConversation()
+    {
+        var callLog = new FakeAiCallLogRecorder();
+        var (service, _, _) = CreateService(
+            StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload), callLogRecorder: callLog);
+        var context = new AiExceptionCallContext(42, "NullReferenceException", Guid.NewGuid());
+
+        await service.AskAsync([new AiChatMessage(AiChatRoles.User, "detail")], context);
+        await service.AskAsync(
+        [
+            new AiChatMessage(AiChatRoles.User, "detail"),
+            new AiChatMessage(AiChatRoles.Assistant, "report"),
+            new AiChatMessage(AiChatRoles.User, "follow-up"),
+        ],
+            context);
+
+        Assert.Equal(2, callLog.Entries.Count);
+        Assert.All(callLog.Entries, entry =>
+        {
+            Assert.Equal(context.ConversationId, entry.ConversationId);
+            Assert.Equal(TokenUsageOperations.AiExceptionAnalysis, entry.Operation);
+        });
+        Assert.Equal("例外紀錄 #42（NullReferenceException）", callLog.Entries[0].RelatedInfo);
+        Assert.Equal("例外紀錄 #42，追問第 1 輪", callLog.Entries[1].RelatedInfo);
+        Assert.NotEqual(callLog.Entries[0].CallId, callLog.Entries[1].CallId);
+    }
+
+    [Fact]
+    public async Task AskAsync_ShouldLeaveCallLogUnthreaded_WithoutContext()
+    {
+        var callLog = new FakeAiCallLogRecorder();
+        var (service, _, _) = CreateService(
+            StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload), callLogRecorder: callLog);
+
+        await service.AskAsync([new AiChatMessage(AiChatRoles.User, "detail")]);
+
+        var entry = Assert.Single(callLog.Entries);
+        Assert.Null(entry.ConversationId);
+        Assert.Null(entry.RelatedInfo);
     }
 
     [Fact]
@@ -132,7 +175,11 @@ public sealed class AiExceptionAnalysisServiceTests
     }
 
     private static (AiExceptionAnalysisService Service, StubHttpMessageHandler Handler, RecordingTokenUsageRecorder Recorder)
-        CreateService(StubHttpMessageHandler handler, int maxFollowUpRounds = 10, AiSettings? settings = null)
+        CreateService(
+            StubHttpMessageHandler handler,
+            int maxFollowUpRounds = 10,
+            AiSettings? settings = null,
+            IAiCallLogRecorder? callLogRecorder = null)
     {
         settings ??= new AiSettings
         {
@@ -152,7 +199,8 @@ public sealed class AiExceptionAnalysisServiceTests
                 new StubHttpClientFactory(handler),
                 optionsMonitor,
                 recorder,
-                new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "admin" } }));
+                new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "admin" } },
+                callLogRecorder ?? new FakeAiCallLogRecorder()));
 
         return (service, handler, recorder);
     }

@@ -23,6 +23,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<AuditLog> AuditLog { get; set; }
     public virtual DbSet<ExceptionLog> ExceptionLog { get; set; }
     public virtual DbSet<TokenUsageLog> TokenUsageLog { get; set; }
+    public virtual DbSet<AiCallLog> AiCallLog { get; set; }
     public virtual DbSet<Permission> Permission { get; set; }
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
@@ -92,6 +93,19 @@ public partial class BackendDBContext : DbContext
         {
             // 預設排序（發生時間 desc）與「清除此日之前」都吃這個索引。
             entity.HasIndex(x => x.OccurredAt);
+
+            // 從用量明細找對應的 AI 對話紀錄。
+            entity.HasIndex(x => x.CallId);
+        });
+        #endregion
+
+        #region AI 對話紀錄
+        modelBuilder.Entity<AiCallLog>(entity =>
+        {
+            // 預設排序（送出時間 desc）、「清除此日之前」與自動過期都吃這個索引。
+            entity.HasIndex(x => x.OccurredAt);
+            entity.HasIndex(x => x.CallId).IsUnique();
+            entity.HasIndex(x => x.ConversationId);
         });
         #endregion
 

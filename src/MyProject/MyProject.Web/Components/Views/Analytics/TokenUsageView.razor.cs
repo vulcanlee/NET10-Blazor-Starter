@@ -46,6 +46,7 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private readonly ILogger<TokenUsageView> logger;
         private readonly TokenUsageLogService tokenUsageLogService;
+        private readonly AiCallLogService aiCallLogService;
         private readonly ModalService modalService;
         private readonly NotificationService notificationService;
 
@@ -99,6 +100,9 @@ namespace MyProject.Web.Components.Views.Analytics
         private bool isTrendTruncated;
 
         private bool detailVisible;
+
+        /// <summary>這筆用量是否還有對應的 AI 對話紀錄（保留天數不同，舊的用量通常已沒有對話可看）。</summary>
+        private bool detailHasConversation;
         private TokenUsageLogAdapterModel? detailItem;
         private List<KeyValuePair<string, string>> detailRawRows = [];
         private string detailRawMessage = string.Empty;
@@ -125,11 +129,13 @@ namespace MyProject.Web.Components.Views.Analytics
         public TokenUsageView(
             ILogger<TokenUsageView> logger,
             TokenUsageLogService tokenUsageLogService,
+            AiCallLogService aiCallLogService,
             ModalService modalService,
             NotificationService notificationService)
         {
             this.logger = logger;
             this.tokenUsageLogService = tokenUsageLogService;
+            this.aiCallLogService = aiCallLogService;
             this.modalService = modalService;
             this.notificationService = notificationService;
         }
@@ -562,8 +568,20 @@ namespace MyProject.Web.Components.Views.Analytics
             detailCostRateRows = string.IsNullOrWhiteSpace(item.CostRateSnapshot)
                 ? []
                 : FlattenJson(item.CostRateSnapshot);
+            detailHasConversation = false;
             detailVisible = true;
             StateHasChanged();
+
+            try
+            {
+                detailHasConversation = item.CallId is { } callId && await aiCallLogService.ExistsAsync(callId);
+            }
+            catch (Exception ex)
+            {
+                // 查不到對話只是少一顆按鈕，不可以讓整個用量明細打不開。
+                logger.LogError(ex, "Failed to check AI call log for LLM usage record. UsageId={UsageId}", item.Id);
+                detailHasConversation = false;
+            }
 
             var raw = await tokenUsageLogService.GetRawUsageAsync(item.Id);
             if (string.IsNullOrWhiteSpace(raw))
@@ -577,6 +595,15 @@ namespace MyProject.Web.Components.Views.Analytics
             }
 
             StateHasChanged();
+        }
+
+        /// <summary>到 AI 對話紀錄頁開啟這次呼叫的完整對話（0.9.72 起，以 CallId 關聯）。</summary>
+        private void OnViewConversation()
+        {
+            if (detailItem?.CallId is { } callId)
+            {
+                NavigationManager.NavigateTo($"/ai-call-logs?callId={callId:D}");
+            }
         }
 
         /// <summary>

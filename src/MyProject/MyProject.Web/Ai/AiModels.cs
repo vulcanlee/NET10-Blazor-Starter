@@ -138,7 +138,19 @@ public sealed record AiChatCompletionRequest
 
     /// <summary>通用 400 訊息裡指稱送出內容的詞，例如「送出的日誌量」。</summary>
     public string SubmittedContentLabel { get; init; } = string.Empty;
+
+    /// <summary>記進 AI 對話紀錄的可讀關聯說明（例如「例外紀錄 #42（…）」），0.9.72 起。</summary>
+    public string? RelatedInfo { get; init; }
+
+    /// <summary>同一段對話的識別碼（例外分析與其追問共用），0.9.72 起；其他作業為 null。</summary>
+    public Guid? ConversationId { get; init; }
 }
+
+/// <summary>
+/// AI 例外分析的呼叫情境（0.9.72 起），只用來組 AI 對話紀錄的關聯說明與對話串。
+/// <see cref="ConversationId"/> 由明細窗在開窗時產生：服務本身無狀態，對話是窗內持有的。
+/// </summary>
+public sealed record AiExceptionCallContext(int ExceptionLogId, string ExceptionType, Guid ConversationId);
 
 /// <summary>一次 AI 分析的完整結果。失敗也用這個型別表達，服務層不丟例外。</summary>
 public sealed record AiAnalysisResult

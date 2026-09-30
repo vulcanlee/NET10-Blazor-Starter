@@ -416,6 +416,20 @@ else
                         </dd>
                     </div>
                     <div><dt>紀錄 Id</dt><dd>@detailItem.Id</dd></div>
+                    <div>
+                        <dt>AI 對話紀錄</dt>
+                        <dd>
+                            @if (detailHasConversation)
+                            {
+                                <ToolbarIconButton Title="查看這次呼叫送出的 Prompt 與取得的 Response" Icon="forum"
+                                                   OnClick="@OnViewConversation" />
+                            }
+                            else
+                            {
+                                <span>@(detailItem.CallId is null ? "（0.9.72 之前的紀錄沒有對話可看）" : "（對話紀錄已清除，或當時未啟用記錄）")</span>
+                            }
+                        </dd>
+                    </div>
                 </dl>
 
                 <h3 class="token-usage-detail-title">輸入 (Input) — 送出／prompt，計價較低（快取更便宜）</h3>

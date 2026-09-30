@@ -154,6 +154,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITokenUsageRecorder>(sp => sp.GetRequiredService<TokenUsageLogService>());
         #endregion
 
+        #region AI 對話紀錄
+        // 與 Token 用量同一個模式：呼叫端只依賴 IAiCallLogRecorder（只有記錄），
+        // 頁面才用得到完整的 AiCallLogService（查詢、明細、刪除）。內文只准進這裡（速查 §6.7）。
+        services.AddScoped<AiCallLogFileStore>();
+        services.AddScoped<AiCallLogService>();
+        services.AddScoped<IAiCallLogRecorder>(sp => sp.GetRequiredService<AiCallLogService>());
+        // 自動過期：啟動時一次、之後每日一次；停用記錄時照樣清除過期內容。
+        services.AddHostedService<AiCallLogRetentionWorker>();
+        #endregion
+
         services.AddHttpContextAccessor();
         services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
         services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, MyProject.Web.Components.ApplicationCircuitHandler>();
@@ -171,6 +181,11 @@ public static class ServiceCollectionExtensions
         services.Configure<RateLimitSettings>(configuration.GetSection(RateLimitSettings.SectionName));
         services.Configure<AiSettings>(configuration.GetSection(AiSettings.SectionName));
         services.Configure<AiPricingSettings>(configuration.GetSection(AiPricingSettings.SectionName));
+        // 保留天數寫壞（0 或超過 3650）就啟動失敗，不要讓自動過期悄悄用錯的門檻刪資料。
+        services.AddOptions<AiCallLogSettings>()
+            .Bind(configuration.GetSection(AiCallLogSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }

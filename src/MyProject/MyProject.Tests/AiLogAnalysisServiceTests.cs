@@ -614,7 +614,8 @@ public sealed class AiLogAnalysisServiceTests
     [Fact]
     public async Task AnalyzeAsync_ShouldRecordOnlyUsageJson_NotTheWholeResponseBody()
     {
-        // ⚠️ 安全紅線：提示詞就是日誌內容，模型回應也不得落地。只能存 usage 那一段。
+        // ⚠️ 安全紅線：提示詞就是日誌內容，模型回應不得落在 Token 用量，只能存 usage 那一段
+        // （完整內容 0.9.72 起只進管理員專屬的 AI 對話紀錄，見下一個測試）。
         var (service, _, recorder) = CreateServiceWithRecorder(
             CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload));
 
@@ -625,6 +626,37 @@ public sealed class AiLogAnalysisServiceTests
         Assert.Contains("prompt_tokens", raw);
         Assert.DoesNotContain("choices", raw);
         Assert.DoesNotContain("一切正常", raw);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_ShouldRecordFullConversation_InCallLogOnly()
+    {
+        var callLog = new FakeAiCallLogRecorder();
+        var (service, _, recorder) = CreateServiceWithRecorder(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.OK, SuccessPayload), callLog);
+
+        await service.AnalyzeAsync(CreateEntries(3));
+
+        var usage = Assert.Single(recorder.Entries);
+        var logged = Assert.Single(callLog.Entries);
+        Assert.Equal(usage.CallId, logged.CallId);
+        Assert.Equal(TokenUsageOperations.AiLogAnalysis, logged.Operation);
+        Assert.Contains("raw-0 something happened", logged.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("一切正常", logged.ResponseText, StringComparison.Ordinal);
+        Assert.Equal("日誌 2026-09-11 10:00:00～2026-09-11 10:02:00，送出 3／3 筆", logged.RelatedInfo);
+        Assert.Null(logged.ConversationId);
+    }
+
+    [Fact]
+    public void BuildRelatedInfo_ShouldDescribeOnlyTheEntriesActuallySent()
+    {
+        var entries = CreateEntries(5);
+        var prompt = AiLogPromptBuilder.Build(entries, maxEntries: 2);
+
+        var text = AiLogAnalysisService.BuildRelatedInfo(entries, prompt);
+
+        // 只送出最新的 2 筆（10:03、10:04），區間要跟實際送出的一致，不是整個查詢結果。
+        Assert.Equal("日誌 2026-09-11 10:03:00～2026-09-11 10:04:00，送出 2／5 筆", text);
     }
 
     [Fact]
@@ -689,7 +721,8 @@ public sealed class AiLogAnalysisServiceTests
     /// 它會把假的記錄器一併回傳。
     /// </summary>
     private static (AiLogAnalysisService Service, StubHttpMessageHandler Handler, FakeTokenUsageRecorder Recorder)
-        CreateServiceWithRecorder(AiSettings settings, StubHttpMessageHandler handler)
+        CreateServiceWithRecorder(
+            AiSettings settings, StubHttpMessageHandler handler, IAiCallLogRecorder? callLogRecorder = null)
     {
         var recorder = new FakeTokenUsageRecorder();
 
@@ -704,7 +737,8 @@ public sealed class AiLogAnalysisServiceTests
                 new StubHttpClientFactory(handler),
                 optionsMonitor,
                 recorder,
-                new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } }));
+                new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } },
+                callLogRecorder ?? new FakeAiCallLogRecorder()));
 
         return (service, handler, recorder);
     }

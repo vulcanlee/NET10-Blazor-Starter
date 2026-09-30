@@ -14,9 +14,9 @@ namespace MyProject.AccessDatas.Models;
 /// ⚠️ <b>供應商回傳的原始 usage JSON 不存在本表</b>，而是寫到檔案系統
 /// （見 <see cref="RawUsageFile"/>），本表只保留可聚合統計的數值欄位。
 ///
-/// ⚠️ <b>絕不儲存提示詞與模型回應內文。</b>本專案唯一的 LLM 呼叫是 AI 日誌分析，
-/// 它的提示詞就是整份日誌內容，而日誌內容有一部分來自使用者輸入。存進來等於
-/// 繞過日誌檢視頁的管理員限制，也會破掉「稽核紀錄不得寫入日誌內容或 AI 輸出」這條既有紅線。
+/// ⚠️ <b>本表絕不儲存提示詞與模型回應內文。</b>AI 日誌分析的提示詞就是整份日誌內容，
+/// 例外分析則含堆疊與使用者帳號。完整內容只存在管理員專屬的 <see cref="AiCallLog"/>
+/// （內容檔在 AiCallLogPath，依 RetentionDays 自動過期），兩者以 <see cref="CallId"/> 關聯。
 /// </summary>
 public class TokenUsageLog
 {
@@ -135,4 +135,7 @@ public class TokenUsageLog
 
     /// <summary>原始 usage JSON 的相對路徑，例如 202609/ab12….json。寫檔失敗時為 null。</summary>
     public string? RawUsageFile { get; set; }
+
+    /// <summary>呼叫識別碼，對應 <see cref="AiCallLog.CallId"/>（0.9.72 起；之前的紀錄為 null）。</summary>
+    public Guid? CallId { get; set; }
 }

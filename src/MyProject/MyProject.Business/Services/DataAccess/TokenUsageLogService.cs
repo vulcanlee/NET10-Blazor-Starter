@@ -97,6 +97,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
                 CostLongContext = cost?.LongContext ?? false,
                 CostRateSnapshot = cost?.RateSnapshot,
                 RawUsageFile = rawFile,
+                CallId = entry.CallId,
             };
 
             try

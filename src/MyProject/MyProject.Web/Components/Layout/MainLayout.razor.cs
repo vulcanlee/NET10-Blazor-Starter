@@ -105,7 +105,9 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private void UpdateCurrentPageTitle()
     {
-        var currentPath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Trim('/');
+        // 查詢字串與錨點不參與比對（例如 /ai-call-logs?callId=… 的深連結，0.9.72 起）。
+        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        var currentPath = relativePath.Split('?', '#')[0].Trim('/');
         var normalizedCurrentPath = string.IsNullOrEmpty(currentPath) ? "/" : $"/{currentPath}";
 
         CurrentPageTitle = TryFindMenuTitle(MenuItems, normalizedCurrentPath, out var pageTitle)

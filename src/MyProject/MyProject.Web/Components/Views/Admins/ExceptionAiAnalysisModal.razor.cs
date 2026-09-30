@@ -84,6 +84,12 @@ namespace MyProject.Web.Components.Views.Admins
 
         private ExceptionLogAdapterModel? item;
 
+        /// <summary>
+        /// 這段對話在 AI 對話紀錄裡的識別碼（0.9.72 起）：開窗時產生，第一次分析與每輪追問共用，
+        /// 對話紀錄頁才能把它們串成同一段。服務本身無狀態，所以由持有對話的這個窗來產生。
+        /// </summary>
+        private Guid conversationId;
+
         /// <summary>原始堆疊。null 代表堆疊檔不存在（與明細窗上的提示文字區分開）。</summary>
         private string? stackTrace;
 
@@ -178,6 +184,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             Reset();
             item = exceptionItem;
+            conversationId = Guid.NewGuid();
             stackTrace = stackTraceOrNull;
             conversation.Add(new AiChatMessage(
                 AiChatRoles.User, AiExceptionPromptBuilder.Build(exceptionItem, stackTraceOrNull)));
@@ -222,7 +229,10 @@ namespace MyProject.Web.Components.Views.Admins
                 var token = cts.Token;
                 _ = RunElapsedTickerAsync(token);
 
-                var result = await aiExceptionAnalysisService.AskAsync(conversation.ToList(), token);
+                var callContext = item is null
+                    ? null
+                    : new AiExceptionCallContext(item.Id, item.ExceptionType, conversationId);
+                var result = await aiExceptionAnalysisService.AskAsync(conversation.ToList(), callContext, token);
 
                 // ⚠️ 使用者導航離開時 circuit 已經收掉，連 DbContext 都被釋放了 —— 什麼都不要再碰。
                 if (isDisposed)
@@ -453,7 +463,8 @@ namespace MyProject.Web.Components.Views.Admins
         /// 使用者關閉對話窗。
         ///
         /// ⚠️ 等待中關窗<b>等於放棄這次呼叫</b>：真的取消 HTTP 請求，不留在背景。
-        /// 不論是否等待中，關窗都會丟棄整段對話 —— 本功能不保存報告。
+        /// 不論是否等待中，關窗都會丟棄窗內的整段對話 —— 窗內不保存報告；
+        /// 每一次送出的呼叫另記於「AI 對話紀錄」（0.9.72 起，管理員專屬、依保留天數自動過期）。
         /// </summary>
         private void OnModalCancel()
         {
@@ -470,6 +481,7 @@ namespace MyProject.Web.Components.Views.Admins
         private void Reset()
         {
             item = null;
+            conversationId = Guid.Empty;
             stackTrace = null;
             conversation.Clear();
             entries.Clear();

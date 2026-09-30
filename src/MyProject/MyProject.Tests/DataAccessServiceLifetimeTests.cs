@@ -28,6 +28,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(MyUserService),
         typeof(ExceptionLogService),
         typeof(TokenUsageLogService),
+        typeof(AiCallLogService),
         typeof(AuditLogQueryService),
     ];
 

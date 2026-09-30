@@ -1,10 +1,10 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.12
+- 文件版本：6.13
 - 文件狀態：維護中
-- 現行系統版本：0.9.71
+- 現行系統版本：0.9.72
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/09/29
+- 最後核對日期：2026/09/30
 
 本目錄收錄 NET10-Blazor-Starter 的所有設計、規範與教學文件。文件依「特性」分類到下列子目錄；新增文件時請先依特性歸入既有分類，**若沒有任何分類適用，請自動新增一個語意明確的英文小寫分類目錄**，並同步更新本檔與主 [`readme.md`](../readme.md) 第 9 節「文件索引」。
 
@@ -97,6 +97,7 @@
 - [日誌等級設定 PRD](prd/日誌等級設定-prd.md)
 - [系統例外紀錄 PRD](prd/系統例外紀錄-prd.md)
 - [Token 用量 PRD](prd/Token用量-prd.md)
+- [AI 對話紀錄 PRD](prd/AI對話紀錄-prd.md)
 - [LLM 呼叫費用估算 PRD](prd/LLM呼叫費用估算-prd.md)
 - [紀錄分類與團隊權控 PRD](prd/紀錄分類與團隊權控-prd.md)
 - [稽核紀錄 PRD](prd/稽核紀錄-prd.md)
@@ -108,6 +109,7 @@
 - [系統例外紀錄（ExceptionLog）](superpowers/specs/2026-09-16-system-exception-log-design.md)
 - [寄信服務與忘記密碼](superpowers/specs/2026-09-24-email-password-reset-design.md)
 - [AI 例外分析](superpowers/specs/2026-09-27-exception-ai-analysis-design.md)
+- [AI 對話紀錄](superpowers/specs/2026-09-30-ai-call-log-design.md)
 
 ### changelog — 變更紀錄
 - [登入頁改版紀錄：粉梅暖雪、RWD 與果凍動畫（0.9.23）](changelog/login-redesign.md)
@@ -207,3 +209,4 @@
 - [日誌檢視新增「全部展開／收合」與「複製到剪貼簿」：點列複製單筆、一鍵複製查詢結果（0.9.69）](changelog/2026-09-29-日誌檢視展開收合與複製.md)
 - [原文區塊統一為深梅黑底＋等寬字：日誌檢視、健康監控、例外堆疊同一組（0.9.70）](changelog/2026-09-29-原文區塊深色統一.md)
 - [衍生專案版本號重設為 1.0.0，並補齊腳本參數說明（0.9.71）](changelog/2026-09-29-衍生專案版本重設.md)
+- [新增「AI 對話紀錄」：保存每次 AI 呼叫的完整 Prompt 與 Response，並與 Token 用量互相連結（0.9.72）](changelog/2026-09-30-AI對話紀錄.md)

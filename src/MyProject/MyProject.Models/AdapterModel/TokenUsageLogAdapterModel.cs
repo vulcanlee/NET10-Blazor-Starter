@@ -71,6 +71,9 @@ public class TokenUsageLogAdapterModel
 
     public string? RawUsageFile { get; set; }
 
+    /// <summary>呼叫識別碼，對應 AI 對話紀錄；0.9.72 之前的紀錄為 null。</summary>
+    public Guid? CallId { get; set; }
+
     /// <summary>依時長計費的呼叫（不回傳 token 數），合計欄要改顯示秒數而非 token。</summary>
     public bool IsDurationBilled => DurationSeconds.HasValue && TotalCount.HasValue == false;
 

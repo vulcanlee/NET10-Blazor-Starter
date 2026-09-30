@@ -19,6 +19,78 @@ namespace MyProject.AccessDatas.Migrations
                 .UseCollation("Chinese_Taiwan_Stroke_CI_AS")
                 .HasAnnotation("ProductVersion", "10.0.5");
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.AiCallLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Account")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CallId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentFile")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ElapsedMilliseconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FinishReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("HttpStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelatedInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RequestCharacters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ResponseCharacters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CallId")
+                        .IsUnique();
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.ToTable("AiCallLog");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.AuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -456,6 +528,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<int?>("CachedInputCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("CallId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CallKind")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -536,6 +611,8 @@ namespace MyProject.AccessDatas.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CallId");
 
                     b.HasIndex("OccurredAt");
 

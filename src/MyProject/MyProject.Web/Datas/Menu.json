@@ -82,6 +82,12 @@
             "name": "Token 用量",
             "icon": "toll",
             "url": "/token-usage"
+          },
+          {
+            "id": 66,
+            "name": "AI 對話紀錄",
+            "icon": "forum",
+            "url": "/ai-call-logs"
           }
         ]
       },

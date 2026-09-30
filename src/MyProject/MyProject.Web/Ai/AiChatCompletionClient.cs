@@ -10,7 +10,8 @@ using MyProject.Web.Configuration;
 namespace MyProject.Web.Ai;
 
 /// <summary>
-/// 送出一次 Chat Completions 呼叫：HTTP、錯誤對應、Token 用量記錄都在這裡。
+/// 送出一次 Chat Completions 呼叫：HTTP、錯誤對應、Token 用量記錄都在這裡，
+/// 0.9.72 起也在這裡把完整請求與回應記進 AI 對話紀錄（兩邊以同一個 CallId 關聯）。
 ///
 /// 0.9.68 起由 <see cref="AiLogAnalysisService"/> 抽出，AI 日誌分析與 AI 例外分析共用，
 /// 兩邊的錯誤處理與記帳規則才不會各自漂移。
@@ -39,19 +40,22 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
     private readonly ITokenUsageRecorder tokenUsageRecorder;
     private readonly CurrentUserService currentUserService;
+    private readonly IAiCallLogRecorder aiCallLogRecorder;
 
     public AiChatCompletionClient(
         ILogger<AiChatCompletionClient> logger,
         IHttpClientFactory httpClientFactory,
         IOptionsMonitor<AiSettings> optionsMonitor,
         ITokenUsageRecorder tokenUsageRecorder,
-        CurrentUserService currentUserService)
+        CurrentUserService currentUserService,
+        IAiCallLogRecorder aiCallLogRecorder)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
         this.tokenUsageRecorder = tokenUsageRecorder;
         this.currentUserService = currentUserService;
+        this.aiCallLogRecorder = aiCallLogRecorder;
     }
 
     /// <summary>
@@ -62,8 +66,10 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
     /// 「回應成功但內容為空」那種情況付了錢卻沒拿到東西，最值得被看見。
     ///
     /// 記錄失敗絕不影響分析結果（Service 內部已全程吞例外）。
+    /// 同時把結果寫到 <paramref name="capture"/>，兩邊以同一個 CallId 關聯。
     /// </summary>
     private async Task RecordUsageAsync(
+        AiCallCapture capture,
         string operation,
         AiSettings settings,
         string? modelName,
@@ -74,6 +80,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         AiAnalysisFailureReason reason)
     {
         var user = currentUserService.CurrentUser;
+
+        capture.SetOutcome(success, reason.ToString());
 
         await tokenUsageRecorder.RecordAsync(new TokenUsageEntry
         {
@@ -92,6 +100,7 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             Success = success,
             FailureReason = reason == AiAnalysisFailureReason.None ? null : reason.ToString(),
             RawUsageJson = rawUsageJson,
+            CallId = capture.CallId,
         });
     }
 
@@ -116,6 +125,18 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         var descriptor = AiChatEndpoint.Create(settings);
         var body = AiChatRequestFactory.CreateRequestJson(settings, request.Messages);
 
+        var user = currentUserService.CurrentUser;
+        var capture = new AiCallCapture(
+            request.Operation,
+            settings.GetProvider().ToString(),
+            settings.Model,
+            user.Account,
+            user.Id,
+            descriptor.RequestUri,
+            body,
+            request.RelatedInfo,
+            request.ConversationId);
+
         var stopwatch = Stopwatch.StartNew();
         try
         {
@@ -131,8 +152,11 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             // 而且設定重載換了金鑰之後用的還是舊的。
             httpRequest.Headers.TryAddWithoutValidation(descriptor.AuthHeaderName, descriptor.AuthHeaderValue);
 
+            capture.MarkSent();
             using var response = await client.SendAsync(httpRequest, cancellationToken);
+            capture.HttpStatus = (int)response.StatusCode;
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+            capture.ResponseBody = payload;
             stopwatch.Stop();
 
             if (response.IsSuccessStatusCode == false)
@@ -140,11 +164,14 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
                 var failure = MapHttpFailure(request, response.StatusCode, payload, characters, stopwatch.Elapsed);
                 // 沒有用量可記，但呼叫確實發生過、上游也可能已經計費，至少要留下次數。
                 await RecordUsageAsync(
-                    request.Operation, settings, settings.Model, null, null, stopwatch.Elapsed, false, failure.Reason);
+                    capture, request.Operation, settings, settings.Model, null, null, stopwatch.Elapsed, false, failure.Reason);
                 return failure;
             }
 
             var parsed = AiChatResponseParser.Parse(payload);
+            capture.ResponseText = parsed.Content ?? string.Empty;
+            capture.FinishReason = parsed.FinishReason;
+            capture.ResponseModel = parsed.ModelName;
             if (string.IsNullOrWhiteSpace(parsed.Content))
             {
                 var message = DescribeEmptyResponse(parsed);
@@ -157,7 +184,7 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
 
                 // ⚠️ 這一支最值得記：回應成功、上游照常計費，但使用者什麼都沒拿到。
                 await RecordUsageAsync(
-                    request.Operation, settings, parsed.ModelName, parsed.Usage,
+                    capture, request.Operation, settings, parsed.ModelName, parsed.Usage,
                     AiChatResponseParser.ExtractUsageJson(payload),
                     stopwatch.Elapsed, false, AiAnalysisFailureReason.EmptyResponse);
 
@@ -179,7 +206,7 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
                 stopwatch.ElapsedMilliseconds);
 
             await RecordUsageAsync(
-                request.Operation, settings, parsed.ModelName, parsed.Usage,
+                capture, request.Operation, settings, parsed.ModelName, parsed.Usage,
                 AiChatResponseParser.ExtractUsageJson(payload),
                 stopwatch.Elapsed, true, AiAnalysisFailureReason.None);
 
@@ -201,6 +228,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             // 呼叫端主動放棄。這是使用者的決定，不是故障 —— 記 Information 而非 Error，
             // 也不要落到下面的泛型 catch 被寫成「failed unexpectedly」。
             stopwatch.Stop();
+            // Token 用量不記取消，但請求確實送出過，AI 對話紀錄照記。
+            capture.SetOutcome(false, AiAnalysisFailureReason.Canceled.ToString());
             logger.LogInformation(
                 "AI chat completion canceled by the caller. Operation={Operation}, ElapsedMs={ElapsedMs}",
                 request.Operation,
@@ -215,13 +244,14 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             // HttpClient 的逾時在 .NET 上表現為 TaskCanceledException（內含 TimeoutException），
             // 所以要用 cancellationToken 是否真的被取消來區分「使用者取消」與「逾時」。
             stopwatch.Stop();
+            capture.ExceptionType = ex.GetType().Name;
             logger.LogError(
                 ex,
                 "AI chat completion timed out. Operation={Operation}, TimeoutSeconds={TimeoutSeconds}",
                 request.Operation,
                 settings.TimeoutSeconds);
             await RecordUsageAsync(
-                request.Operation, settings, settings.Model, null, null, stopwatch.Elapsed, false,
+                capture, request.Operation, settings, settings.Model, null, null, stopwatch.Elapsed, false,
                 AiAnalysisFailureReason.Timeout);
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.Timeout,
@@ -231,9 +261,10 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         catch (HttpRequestException ex)
         {
             stopwatch.Stop();
+            capture.ExceptionType = ex.GetType().Name;
             logger.LogError(ex, "AI chat completion request failed at transport level. Operation={Operation}", request.Operation);
             await RecordUsageAsync(
-                request.Operation, settings, settings.Model, null, null, stopwatch.Elapsed, false,
+                capture, request.Operation, settings, settings.Model, null, null, stopwatch.Elapsed, false,
                 AiAnalysisFailureReason.UpstreamError);
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.UpstreamError,
@@ -243,11 +274,19 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         catch (Exception ex)
         {
             stopwatch.Stop();
+            capture.ExceptionType = ex.GetType().Name;
+            capture.SetOutcome(false, AiAnalysisFailureReason.Unexpected.ToString());
             logger.LogError(ex, "AI chat completion failed unexpectedly. Operation={Operation}", request.Operation);
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.Unexpected,
                 $"AI 分析失敗：{ex.GetType().Name}。",
                 elapsed: stopwatch.Elapsed);
+        }
+        finally
+        {
+            // 單一記錄點：每個分支都已填好 capture。沒送出（MarkSent 之前就失敗）不記。
+            // ⚠️ 不傳 cancellationToken：取消那一支的 token 已經取消了，照傳就記不進去。
+            await AiCallCapture.RecordSafelyAsync(aiCallLogRecorder, capture, stopwatch.Elapsed, logger);
         }
     }
 

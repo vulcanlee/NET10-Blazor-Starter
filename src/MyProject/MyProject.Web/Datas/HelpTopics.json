@@ -10,6 +10,7 @@
   { "route": "/system-exceptions", "title": "系統例外紀錄", "file": "system-exceptions.md" },
   { "route": "/database-usage", "title": "資料庫用量", "file": "database-usage.md" },
   { "route": "/token-usage", "title": "Token 用量", "file": "token-usage.md" },
+  { "route": "/ai-call-logs", "title": "AI 對話紀錄", "file": "ai-call-logs.md" },
   { "route": "/myusers", "title": "使用者管理", "file": "myusers.md" },
   { "route": "/roleviews", "title": "角色管理", "file": "roleviews.md" },
   { "route": "/audit-logs", "title": "稽核紀錄", "file": "audit-logs.md" }
