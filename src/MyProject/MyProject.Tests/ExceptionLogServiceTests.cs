@@ -225,6 +225,29 @@ public sealed class ExceptionLogServiceTests
         Assert.Null(await service.GetStackTraceAsync(row.Id));
     }
 
+    [Fact]
+    public async Task GetStackTracesAsync_ShouldReturnEachStackAndNullForMissingOrUnknown()
+    {
+        await using var fixture = await ExceptionLogFixture.CreateAsync();
+        var service = fixture.CreateService();
+        await service.RecordAsync(NewEntry(page: "/a", stackTrace: "stack-a"));
+        await service.RecordAsync(NewEntry(page: "/b", stackTrace: "stack-b"));
+        await service.RecordAsync(NewEntry(page: "/c", stackTrace: "stack-c"));
+
+        var rows = await fixture.ListAsync();
+        var a = rows.Single(x => x.Page == "/a");
+        var b = rows.Single(x => x.Page == "/b");
+        var c = rows.Single(x => x.Page == "/c");
+        File.Delete(fixture.FullPath(c.StackTraceFile!));
+
+        var result = await service.GetStackTracesAsync([a.Id, b.Id, c.Id, 999]);
+
+        Assert.Contains("stack-a", result[a.Id]);
+        Assert.Contains("stack-b", result[b.Id]);
+        Assert.Null(result[c.Id]);
+        Assert.Null(result[999]);
+    }
+
     private static ExceptionLogEntry NewEntry(
         string? page = "/categories",
         string? operation = "Failed to create category. Name={CategoryName}",

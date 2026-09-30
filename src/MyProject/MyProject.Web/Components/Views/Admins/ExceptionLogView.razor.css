@@ -42,6 +42,11 @@
     overflow-x: auto;
 }
 
+/* 點一下任一列即複製該筆（明細＋堆疊）；列由 AntDesign 渲染，需要 ::deep。只改游標，顏色沿用 theme.css 的列 hover。 */
+::deep .exception-log-row-copyable {
+    cursor: pointer;
+}
+
 @media (max-width: 640.98px) {
     .exception-log-account-input,
     .exception-log-search-input {

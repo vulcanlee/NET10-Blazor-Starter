@@ -251,6 +251,28 @@ public class ExceptionLogService
         return item is null ? null : await fileStore.ReadAsync(item.StackTraceFile);
     }
 
+    /// <summary>
+    /// 一次讀取多筆的堆疊全文（「複製目前查詢結果」用）。每個傳入的 id 都有一個鍵；
+    /// 找不到資料列或堆疊檔不存在時值為 null。
+    /// 刻意只查一次資料庫：整次查詢最多 <see cref="MaxRows"/> 列，逐筆呼叫 <see cref="GetStackTraceAsync"/> 會開同樣多個 DbContext。
+    /// </summary>
+    public async Task<Dictionary<int, string?>> GetStackTracesAsync(IReadOnlyCollection<int> ids)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var files = await context.ExceptionLog
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.StackTraceFile);
+
+        var result = new Dictionary<int, string?>(ids.Count);
+        foreach (var id in ids)
+        {
+            result[id] = files.TryGetValue(id, out var file) ? await fileStore.ReadAsync(file) : null;
+        }
+
+        return result;
+    }
+
     /// <summary>刪除單一列，同時刪除其堆疊檔。</summary>
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {

@@ -22,6 +22,12 @@ namespace MyProject.Web.Components.Views.Admins
         /// </summary>
         private const int PurgeDays = 90;
 
+        /// <summary>
+        /// 「複製目前查詢結果」超過這個筆數先確認。每筆都含完整堆疊（數 KB～數十 KB），
+        /// 比日誌檢視的單行內容大得多，所以門檻也低得多；大量資料建議改用匯出。
+        /// </summary>
+        private const int CopyAllConfirmThreshold = 100;
+
         private readonly ILogger<ExceptionLogView> logger;
         private readonly ExceptionLogService exceptionLogService;
         private readonly ModalService modalService;
@@ -223,18 +229,87 @@ namespace MyProject.Web.Components.Views.Admins
             await aiAnalysisModal.OpenAsync(detailItem, detailRawStackTrace);
         }
 
-        /// <summary>明細窗的「使用者」顯示文字；只有帳號與 UserId，不含姓名／Email。</summary>
+        /// <summary>明細窗的「使用者」顯示文字；與複製文字共用同一個格式，只有帳號與 UserId，不含姓名／Email。</summary>
         private string DetailAccountText
+            => detailItem is null ? "—" : ExceptionLogClipboardText.FormatAccount(detailItem);
+
+        /// <summary>
+        /// 點一下任一列即複製該筆（明細欄位＋完整堆疊），不開明細窗。
+        /// 「查看」「刪除」按鈕外層在 razor 裡擋掉冒泡，不會進到這裡。
+        /// </summary>
+        private async Task OnRowClickAsync(RowData<ExceptionLogAdapterModel> row)
         {
-            get
+            try
             {
-                if (detailItem is null)
+                var stackTrace = await exceptionLogService.GetStackTraceAsync(row.Data.Id);
+                await CopyToClipboardAsync(ExceptionLogClipboardText.Build(row.Data, stackTrace), 1);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to copy exception log to clipboard. ExceptionLogId={ExceptionLogId}", row.Data.Id);
+                ViewNotification.Error(notificationService, "複製失敗，請改按「查看」手動選取複製。");
+            }
+        }
+
+        /// <summary>複製整次查詢結果（與 CSV 匯出同範圍），每筆與點列複製同格式。</summary>
+        private async Task OnCopyAllAsync()
+        {
+            try
+            {
+                var result = await exceptionLogService.GetAsync(BuildFullQuery());
+                var items = result.Result.ToList();
+                if (items.Count == 0)
                 {
-                    return "—";
+                    ViewNotification.Warning(notificationService, "目前沒有可複製的例外紀錄。");
+                    return;
                 }
 
-                var account = string.IsNullOrWhiteSpace(detailItem.Account) ? "—" : detailItem.Account;
-                return detailItem.UserId is null ? account : $"{account}（UserId={detailItem.UserId}）";
+                if (items.Count > CopyAllConfirmThreshold)
+                {
+                    var confirmed = await ConfirmDialog.AskAsync(
+                        modalService,
+                        "確認複製",
+                        $"本次查詢共 {items.Count:N0} 筆（每筆含完整堆疊），內容較大，貼上時可能較慢；大量資料建議改用匯出。",
+                        "仍要複製");
+                    if (confirmed == false)
+                    {
+                        return;
+                    }
+                }
+
+                var stackTraces = await exceptionLogService.GetStackTracesAsync(items.Select(x => x.Id).ToList());
+                var text = ExceptionLogClipboardText.BuildMany(items.Select(x => (x, stackTraces[x.Id])));
+                await CopyToClipboardAsync(text, items.Count);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to copy exception logs to clipboard.");
+                ViewNotification.Error(notificationService, $"複製失敗：{ex.GetType().Name}。");
+            }
+        }
+
+        /// <summary>
+        /// 走 appClipboard.copyText：https 用 navigator.clipboard，http 內網退回 execCommand，兩種部署都能用。
+        /// </summary>
+        private async Task CopyToClipboardAsync(string text, int rows)
+        {
+            try
+            {
+                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", text);
+                if (copied)
+                {
+                    logger.LogInformation("Exception logs copied to clipboard. Rows={Rows}, Characters={Characters}", rows, text.Length);
+                    ViewNotification.Info(notificationService, $"已複製 {rows:N0} 筆例外紀錄到剪貼簿。");
+                }
+                else
+                {
+                    ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to copy exception logs to clipboard. Rows={Rows}", rows);
+                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
             }
         }
 
@@ -317,21 +392,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             try
             {
-                // 匯出目前查詢條件下的全部資料，而非只有當頁 —— 管理員要的是整份對照。
-                var query = new ExceptionLogQuery
-                {
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    Source = selectedSource,
-                    Account = accountFilter,
-                    Keyword = keyword,
-                    CurrentPage = 1,
-                    PageSize = ExceptionLogService.MaxRows,
-                    SortField = sortField,
-                    SortDescending = sortDirection == "ascend" ? false : true,
-                };
-
-                var result = await exceptionLogService.GetAsync(query);
+                var result = await exceptionLogService.GetAsync(BuildFullQuery());
 
                 var builder = new StringBuilder();
                 builder.AppendLine("最後發生,次數,例外類型,訊息,來源,頁面,操作,記錄器,使用者,首次發生");
@@ -367,6 +428,22 @@ namespace MyProject.Web.Components.Views.Admins
                 ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
+
+        /// <summary>
+        /// 匯出與「複製目前查詢結果」共用：目前查詢條件下的全部資料，而非只有當頁 —— 管理員要的是整份對照。
+        /// </summary>
+        private ExceptionLogQuery BuildFullQuery() => new()
+        {
+            StartTime = startTime,
+            EndTime = endTime,
+            Source = selectedSource,
+            Account = accountFilter,
+            Keyword = keyword,
+            CurrentPage = 1,
+            PageSize = ExceptionLogService.MaxRows,
+            SortField = sortField,
+            SortDescending = sortDirection == "ascend" ? false : true,
+        };
 
         /// <summary>CSV 欄位跳脫：雙引號加倍，整欄以雙引號包住，換行才不會把一列拆成兩列。</summary>
         private static string Csv(string? value)
