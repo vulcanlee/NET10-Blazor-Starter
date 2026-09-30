@@ -72,6 +72,7 @@ public sealed class AiPricingSettingsTests
     /// </summary>
     [Theory]
     [InlineData("gpt-6-astra", 10.0, 1.0, 50.0)]
+    [InlineData("gpt-6.1-sol", 2.0, 0.1, 10.0)]
     [InlineData("gpt-6-sol", 2.0, 0.2, 10.0)]
     [InlineData("gpt-6-luna", 0.1, 0.01, 0.5)]
     [InlineData("gpt-5.6-sol", 4.0, 0.4, 20.0)]
@@ -89,6 +90,7 @@ public sealed class AiPricingSettingsTests
 
     [Theory]
     [InlineData("gpt-6-astra", 20.0, 2.0, 75.0)]
+    [InlineData("gpt-6.1-sol", 4.0, 0.2, 15.0)]
     [InlineData("gpt-6-sol", 4.0, 0.4, 15.0)]
     [InlineData("gpt-6-luna", 0.2, 0.02, 0.75)]
     [InlineData("gpt-5.6-sol", 8.0, 0.8, 30.0)]
