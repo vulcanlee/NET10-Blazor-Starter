@@ -1,14 +1,14 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.2
-- 文件狀態：部分實作
-- 現行系統版本：0.9.78
+- 文件版本：1.3
+- 文件狀態：已實作
+- 現行系統版本：0.9.79
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/10/01
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
-> （P0 於 0.9.77、P1 於 0.9.78 完成，P2 仍為規劃中）。
+> （P0 於 0.9.77、P1 於 0.9.78、P2 於 0.9.79 完成；尚待處理的事項見 §十）。
 
 ## 一、目標與範圍
 
@@ -169,7 +169,7 @@
 |---|:-:|:-:|---|
 | 時間、等級、Logger 名稱 | ✔ | ✔ | 已具備 |
 | 追蹤碼（TraceId） | ✔ | ✔ | 8 碼錯誤追蹤碼：HTTP 請求與 Blazor 每次互動各一個；例外紀錄存 `LastTraceId`（0.9.78，LOG-10） |
-| 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`系統`（0.9.77，LOG-04）／`未知`；規劃新增 `瀏覽器`（LOG-20） |
+| 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`系統`（0.9.77，LOG-04）／`瀏覽器`（0.9.79，LOG-20）／`未知` |
 | 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/projects/{id}`），不記帶 Id 的原始路徑（0.9.78，LOG-16） |
 | Account、UserId | 依訊息 | ✔ | **可記錄的身分只有這兩項** |
 | CircuitId | Blazor 相關訊息 | | 用於串起同一位使用者的連續操作 |
@@ -218,7 +218,7 @@
 | 啟動：`builder.Build()` 之前 | 頂層 catch 直接經 NLog 寫檔，並寫補登檔（0.9.77） | ✅ | — |
 | 啟動：遷移、種子資料 | 頂層 catch 記 Critical 並寫補登檔，下次啟動補進例外紀錄（0.9.77） | ✅ | — |
 | 關機 | 寫入背景服務停止時清空佇列，上限 5 秒（0.9.77） | ✅ | — |
-| 瀏覽器 JavaScript | 無 `window.onerror`／`unhandledrejection` 回報 | ❌ | LOG-20 |
+| 瀏覽器 JavaScript | `client-error-reporter.js` ＋ `BrowserErrorReporter`，經 circuit 回報，來源 `瀏覽器`（0.9.79） | ✅ | 僅限登入後頁面 |
 
 ## 六、需求清單
 
@@ -269,44 +269,20 @@
 | LOG-15 補上缺少日誌的類別 | `JwtTokenService`、`ApiValidationFilterAttribute`（只記欄位名稱）、`DatabaseHealthCheck`、`RecordAccessScopeProvider`、登出（含帳號）補上日誌；`LoggingConventionTests` 的「必有 ILogger」範圍加入 `Web/Auth`、`Web/Filters`、`Web/Health` | `LoggingConventionTests.BehaviourClasses_ShouldHoldALogger` |
 | LOG-16 頁面記路由樣板 | `UseExceptionContextUser` 與請求日誌的 catch 以 `RouteEndpoint.RoutePattern.RawText` 取代原始路徑（例如 `/api/ContractProbe/throw/{id}`）；Blazor 頁面目前沒有帶參數的 `@page`，維持原路徑 | `ApiIntegrationTests.UnhandledApiException_ShouldRecordRouteTemplateAsPage` |
 
-### 6.4 規劃中 —— P2：可觀測性強化
+### 6.4 已實作 —— P2：可觀測性強化（0.9.79）
 
-**LOG-20 瀏覽器端錯誤回報**
-- 需求：
-  - 掛上 `window.onerror` 與 `unhandledrejection`，經 circuit 的 JS Interop 回報伺服器，以 Error 記錄，
-    進例外紀錄表，來源為新增的 `瀏覽器`，頁面為當下路由。
-  - 只在**已登入、circuit 已建立**的頁面啟用；登入頁等靜態頁面不回報（避免匿名濫用）。
-  - 防濫用：每個 circuit 每分鐘最多 10 筆，超過丟棄並計數；訊息截斷 1000 字、堆疊截斷 4000 字。
-  - 過濾雜訊：來源為 `chrome-extension://`、`moz-extension://` 的錯誤，以及 `ResizeObserver loop` 類已知無害訊息，不回報。
-  - 回報內容不含表單輸入值、Cookie、localStorage。
-- 驗收：在已登入頁面以開發者工具拋出錯誤，例外紀錄出現來源 `瀏覽器` 的一列；連續拋 20 次只記 10 次。
+以下三項原列為規劃中的 P2，已於 0.9.79 完成；與原規劃不同之處標示「調整」。
 
-**LOG-21 慢操作記錄**
-- 需求：超過門檻的操作記一筆 Warning（含操作名稱、耗時、門檻），門檻寫在 `SlowOperationSettings`：
-
-  | 操作 | 預設門檻 |
-  |---|---|
-  | HTTP 請求 | 3,000 ms |
-  | 資料庫指令（EF Core 攔截器） | 1,000 ms |
-  | Blazor 單次互動 | 3,000 ms |
-  | Email 寄送、Google SSO | 10,000 ms |
-  | AI 呼叫 | 60,000 ms |
-
-  - 門檻 ≤ 0 代表停用該項。資料庫指令只記指令類型與耗時，**不記 SQL 參數值**。
-- 驗收：單元測試以模擬耗時驗證超過門檻才記錄。
-
-**LOG-22 日誌管線自我監控**
-- 需求：`/system-health` 新增「日誌與例外管線」項目，顯示：
-  - 例外佇列目前長度、累計丟棄筆數（LOG-02）、最後一次寫入失敗時間。
-  - 前端回報丟棄筆數（LOG-20）、告警寄送失敗次數（LOG-12）。
-  - 日誌目錄所在磁碟剩餘空間；低於 1GB 顯示警告、低於 200MB 顯示錯誤。
-  - NLog 內部日誌最近是否有 Error。
-- 驗收：模擬佇列丟棄與磁碟空間不足，健康監控頁顯示對應狀態。
+| 編號 | 0.9.79 的做法 | 守門測試 |
+|---|---|---|
+| LOG-20 瀏覽器端錯誤回報 | `wwwroot/js/client-error-reporter.js` 掛上 `error` 與 `unhandledrejection`，經 circuit 呼叫 `BrowserErrorReporter.Report`（`[JSInvokable]`，每個 circuit 一份），以 Error 記錄並帶 `BrowserScriptException`，進系統例外紀錄（來源 `瀏覽器`）。只有登入後的 MainLayout 會註冊回報（靜態登入頁沒有 circuit，錯誤只暫存不送出）。防濫用：每個 circuit 每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`），超過的丟棄並計數；訊息 1000 字、堆疊 4000 字、頁面只取路徑（去掉查詢字串與片段）；過濾瀏覽器外掛與 `ResizeObserver loop`、`Script error.` 等已知雜訊 | `BrowserErrorReporterTests` |
+| LOG-21 慢操作記錄 | `SlowOperationSettings`：HTTP 請求 3 秒（`UseHttpRequestLogging`，排除 `/_blazor` 長連線）、資料庫指令 1 秒（`SlowDbCommandInterceptor`，只記指令類型）、寄信 10 秒（`EmailDispatchWorker`）、AI 呼叫 60 秒（`AiChatCompletionClient`、`AiHealthProbe`）；超過記 Warning。**調整**：不量「Blazor 單次互動」—— AI 分析在按鈕事件裡等待、確認窗等使用者按鈕都會算進互動時間，每次誤報；Google SSO 的往返本身就是 HTTP 請求，由 HTTP 門檻涵蓋，不另設 | `LoggingPipelineHealthTests`（門檻判斷、指令類型只取第一個關鍵字、`/_blazor` 排除）；實機以 1 毫秒門檻驗證三類 Warning 都寫入日誌檔 |
+| LOG-22 日誌管線自我監控 | `LoggingPipelineMonitor`（單例、不得注入 ILogger）累計：例外寫入失敗（`RecordAsync` 回傳 null）、前端回報限流丟棄、告警信入列失敗與寄送失敗、NLog 內部錯誤（訂閱 `InternalLogger.InternalEventOccurred`，Error 以上）。系統健康監控新增「日誌管線」（權重 10，總權重 145），另讀例外佇列長度、`DroppedCount` 與日誌所在磁碟可用空間 | `LoggingPipelineHealthTests`、`ExceptionLogWriterTests.RunAsync_WhenRecordFails_ShouldCountWriteFailure`、`SystemHealthTests.CheckWeights_ShouldSumTo145` |
 
 ## 七、設定鍵
 
-`ExceptionAlertSettings`、`LogRetentionSettings` 已於 0.9.78 實作，逐鍵說明見 [日誌與設定檔說明](../operations/日誌與設定檔說明.md) §4.11、§4.12；
-其餘為規劃中，實作時須同步寫進該文件 §4。
+全部已實作：`ExceptionAlertSettings`、`LogRetentionSettings`（0.9.78）、`SlowOperationSettings`、`ClientErrorReporting`（0.9.79），
+逐鍵說明見 [日誌與設定檔說明](../operations/日誌與設定檔說明.md) §4.11～§4.14。
 新增 `ExternalFileSystem` 路徑時，須同步加進 `ApiIntegrationTests.CreateSettings()`（見速查表 §6.6）。
 
 | 區段 | 鍵 | 預設 | 意義 |
@@ -317,7 +293,7 @@
 | | `MaxEmailsPerHour` | `20` | 全域上限 |
 | `LogRetentionSettings` | `ExceptionLogDays` | `90` | `0` 不自動清理（範圍 0～36500） |
 | | `AuditLogDays` | `365` | `0` 不自動清理（範圍 0～36500） |
-| `SlowOperationSettings` | `HttpRequestMs` ／ `DbCommandMs` ／ `UiInteractionMs` ／ `ExternalCallMs` ／ `AiCallMs` | 見 LOG-21 | ≤ 0 停用 |
+| `SlowOperationSettings` | `HttpRequestMs` ／ `DbCommandMs` ／ `ExternalCallMs` ／ `AiCallMs` | `3000` ／ `1000` ／ `10000` ／ `60000` | `0` 停用該項（無 `UiInteractionMs`，見 LOG-21 調整） |
 | `ClientErrorReporting` | `Enabled` | `true` | 前端錯誤回報開關 |
 | | `MaxPerCircuitPerMinute` | `10` | 防濫用 |
 
@@ -339,8 +315,8 @@
 | LOG-04、LOG-06、LOG-07（0.9.77 已實作） | `ProcessExceptionHooksTests`、`CrashMarkerStoreTests`、`FormModalConventionTests`＋人工驗收（啟動失敗已實機驗證；浮層例外待瀏覽器手動重現） |
 | LOG-08（0.9.77 已實作）、LOG-14、LOG-15（0.9.78 已實作） | 慣例測試＋各事件單元測試 |
 | LOG-11（0.9.78 已實作） | `ExceptionLogServiceTests`、服務測試 |
-| LOG-12、LOG-13（0.9.78 已實作）、LOG-21 | 以假時鐘的單元測試（`ManualTimeProvider`） |
-| LOG-20、LOG-22 | 人工驗收（瀏覽器開發者工具、健康監控頁） |
+| LOG-12、LOG-13（0.9.78 已實作） | 以假時鐘的單元測試（`ManualTimeProvider`） |
+| LOG-20、LOG-21、LOG-22（0.9.79 已實作） | `BrowserErrorReporterTests`、`LoggingPipelineHealthTests`；瀏覽器內實際觸發 JS 錯誤、健康監控頁顯示仍需人工驗收 |
 
 每一項實作完成後，須把該項從「規劃中」移到「已實作」（如 §6.2），並更新文件版本與現行系統版本。
 
@@ -354,7 +330,9 @@
 - **Web API（JWT）的紀錄存取範圍只看得到公開紀錄**（0.9.78 補日誌時發現，尚未修正）：`RecordAccessScopeProvider` 以 `Sid` claim
   找使用者，但 JWT 的 UserId 放在 `NameIdentifier`，因此 API 使用者一律退回「非管理員、無團隊」。屬權限行為，須另立需求修正；
   目前以 Debug 日誌「Record access scope fell back to public records because the principal has no Sid claim.」標示。
-- **Blazor 互動的追蹤碼尚未在瀏覽器內人工驗證**：HTTP 請求的追蹤碼已實機確認寫入日誌檔；circuit 互動由程式碼與單元測試保證。
+- **Blazor 互動的追蹤碼、前端錯誤回報、浮層錯誤提示尚未在瀏覽器內人工驗證**：HTTP 請求的追蹤碼與慢操作日誌已實機確認；
+  circuit 內的行為由程式碼與單元測試保證。
+- **管線監控的數字是本次啟動以來的累計**，重啟歸零；也不會主動告警（例外告警本身失敗時無法再用告警通知）。
 
 ## 十一、相關程式與文件
 

@@ -5,6 +5,7 @@ using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using System.Diagnostics;
 using System.Net;
+using Microsoft.Extensions.Options;
 using MyProject.Web.Auth;
 using MyProject.Web.Diagnostics;
 
@@ -114,6 +115,34 @@ public static class ApplicationBuilderExtensions
     ];
 
     /// <summary>
+    /// 慢 HTTP 請求（LOG-21）。
+    /// ⚠️ 排除 <c>/_blazor</c>：Blazor 的 WebSocket 連線本身就是一個「請求」，會持續整個 circuit（可能好幾小時），
+    /// 不排除的話每個使用者離開頁面時都會記一筆慢請求。
+    /// </summary>
+    private static void LogIfSlowRequest(HttpContext context, ILogger requestLogger, TimeSpan elapsed)
+    {
+        if (IsLongLivedConnection(context.Request.Path))
+        {
+            return;
+        }
+
+        var threshold = context.RequestServices.GetService<IOptionsMonitor<SlowOperationSettings>>()?.CurrentValue.HttpRequestMs ?? 0;
+        if (SlowOperationSettings.IsSlow(elapsed, threshold))
+        {
+            requestLogger.LogWarning(
+                "Slow HTTP request. Method={Method}, Path={Path}, StatusCode={StatusCode}, ElapsedMilliseconds={ElapsedMilliseconds}, ThresholdMilliseconds={ThresholdMilliseconds}",
+                context.Request.Method,
+                context.Request.Path.Value,
+                context.Response.StatusCode,
+                (long)elapsed.TotalMilliseconds,
+                threshold);
+        }
+    }
+
+    internal static bool IsLongLivedConnection(PathString path)
+        => path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// 靜態資產的副檔名。單靠路徑前綴不夠 —— 例如 app.css 是掛在網站根目錄
     /// （/app.css）而非 /css 之下，只比對前綴會漏掉。
     /// </summary>
@@ -211,6 +240,8 @@ public static class ApplicationBuilderExtensions
                     context.Request.Path.Value,
                     context.Response.StatusCode,
                     stopwatch.ElapsedMilliseconds);
+
+                LogIfSlowRequest(context, requestLogger, stopwatch.Elapsed);
             }
             catch (Exception ex)
             {

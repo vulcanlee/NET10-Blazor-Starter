@@ -29,6 +29,7 @@ public sealed class ExceptionAlertService
     private readonly IOptions<SystemSettings> systemSettings;
     private readonly IEmailQueue emailQueue;
     private readonly TimeProvider timeProvider;
+    private readonly LoggingPipelineMonitor? monitor;
 
     private readonly object gate = new();
     private readonly Dictionary<int, Queue<DateTimeOffset>> occurrences = [];
@@ -41,8 +42,10 @@ public sealed class ExceptionAlertService
         IOptionsMonitor<EmailSettings> emailOptions,
         IOptions<SystemSettings> systemSettings,
         IEmailQueue emailQueue,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        LoggingPipelineMonitor? monitor = null)
     {
+        this.monitor = monitor;
         this.alertOptions = alertOptions;
         this.emailOptions = emailOptions;
         this.systemSettings = systemSettings;
@@ -170,6 +173,7 @@ public sealed class ExceptionAlertService
             if (emailQueue.TryEnqueue(EmailTemplates.BuildExceptionAlert(recipient.Trim(), systemName, content)) == false)
             {
                 NLog.Common.InternalLogger.Warn("Exception alert email was not queued because the email queue is full.");
+                monitor?.RecordAlertQueueFailure();
             }
         }
     }

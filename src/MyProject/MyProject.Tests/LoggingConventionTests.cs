@@ -368,6 +368,8 @@ public sealed class LoggingConventionTests
             "CrashMarkerStore.cs",          // 程序即將結束或 host 尚未建立時寫補登檔，記錄機制可能已失效
             "TraceCode.cs",                 // 純函式：產生與讀取錯誤追蹤碼（LOG-10）
             "ExceptionAlertService.cs",     // 在例外記錄管線內被呼叫；寄信失敗走 ILogger 會再被收成例外、再觸發告警
+            "LoggingPipelineMonitor.cs",    // 由 NLog 內部事件與例外寫入器呼叫；在 NLog 內部事件裡用 logger 會死結或遞迴
+            "BrowserScriptException.cs",    // 例外型別，無行為
             "RequestActorResolver.cs",      // 純函式：從 claims 取帳號與 UserId
             "SystemHealthModels.cs",        // 健康監控的模型
             "SystemHealthScoreCalculator.cs", // 純算術：由各項狀態算分數與燈號

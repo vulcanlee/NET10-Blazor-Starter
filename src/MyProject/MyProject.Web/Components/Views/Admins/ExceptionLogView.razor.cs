@@ -485,6 +485,7 @@ namespace MyProject.Web.Components.Views.Admins
             ExceptionSources.Startup => "gold",
             ExceptionSources.Background => "cyan",
             ExceptionSources.Process => "volcano",
+            ExceptionSources.Browser => "geekblue",
             _ => "default",
         };
     }
