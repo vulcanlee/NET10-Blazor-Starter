@@ -32,7 +32,7 @@ else
                 </Select>
 
                 <Input class="exception-log-account-input" @bind-Value="accountFilter" Placeholder="使用者帳號" />
-                <Input class="exception-log-search-input" @bind-Value="keyword" Placeholder="關鍵字（類型／訊息／頁面／操作）" />
+                <Input class="exception-log-search-input" @bind-Value="keyword" Placeholder="關鍵字（類型／訊息／頁面／操作／追蹤碼）" />
             </div>
             <div class="exception-log-toolbar-right">
                 <ToolbarIconButton Title="查詢" Icon="search"
@@ -156,6 +156,7 @@ else
                     <div><dt>累計次數</dt><dd>@detailItem.OccurrenceCount.ToString("N0")</dd></div>
                     <div><dt>首次發生</dt><dd>@detailItem.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
                     <div><dt>最後發生</dt><dd>@detailItem.LastOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
+                    <div><dt>最後追蹤碼</dt><dd>@(detailItem.LastTraceId ?? "—")</dd></div>
                 </dl>
 
                 <h3 class="exception-log-detail-title">完整堆疊</h3>

@@ -13,6 +13,45 @@ namespace MyProject.Tests;
 public sealed class TeamServiceTests
 {
     [Fact]
+    public async Task AddUpdateDelete_ShouldWriteAuditWithCurrentUser()
+    {
+        // LOG-14：0.9.78 之前分類、團隊、專案的增刪改完全沒有稽核紀錄。
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        fixture.CurrentUser.CurrentUser = new MyProject.Models.Others.CurrentUser { Id = 7, Account = "alice" };
+        var service = fixture.CreateService();
+
+        Assert.True((await service.AddAsync(new TeamAdapterModel { Name = "研發部", Code = "RD" })).Success);
+        var created = await fixture.Context.Team.AsNoTracking().SingleAsync();
+        Assert.True((await service.UpdateAsync(new TeamAdapterModel { Id = created.Id, Name = "研發一部", Code = "RD" })).Success);
+        Assert.True((await service.DeleteAsync(created.Id)).Success);
+
+        Assert.Equal(
+            [MyProject.Business.Helpers.AuditActions.Team.Create, MyProject.Business.Helpers.AuditActions.Team.Update, MyProject.Business.Helpers.AuditActions.Team.Delete],
+            fixture.Audit.Entries.Select(x => x.Action));
+        Assert.All(fixture.Audit.Entries, entry =>
+        {
+            Assert.True(entry.Success);
+            Assert.Equal(7, entry.ActorUserId);
+            Assert.Equal("alice", entry.ActorAccount);
+        });
+        Assert.Equal("name=研發一部", fixture.Audit.Entries[1].Detail);
+    }
+
+    [Fact]
+    public async Task AddAsync_WhenRejected_ShouldNotWriteAudit()
+    {
+        await using var fixture = await TeamServiceFixture.CreateAsync();
+        await fixture.AddTeamAsync("研發部", "RD");
+        var service = fixture.CreateService();
+
+        // 繞過前置檢查直接撞唯一索引：失敗的寫入不得留下稽核。
+        var result = await service.AddAsync(new TeamAdapterModel { Name = "研發部", Code = "RD9" });
+
+        Assert.False(result.Success);
+        Assert.Empty(fixture.Audit.Entries);
+    }
+
+    [Fact]
     public async Task BeforeAddCheckAsync_WithUniqueNameAndCode_ShouldSucceed()
     {
         await using var fixture = await TeamServiceFixture.CreateAsync();
@@ -278,12 +317,19 @@ public sealed class TeamServiceTests
             return new TeamServiceFixture(connection, context);
         }
 
+        /// <summary>CreateService 建出來的服務寫進這裡的稽核（LOG-14）。</summary>
+        public RecordingAuditLogService Audit { get; } = new();
+
+        public MyProject.Business.Services.Other.CurrentUserService CurrentUser { get; } = new();
+
         public TeamService CreateService()
         {
             return new TeamService(
                 new TestDbContextFactory(connection),
                 mapper,
-                loggerFactory.CreateLogger<TeamService>());
+                loggerFactory.CreateLogger<TeamService>(),
+                Audit,
+                CurrentUser);
         }
 
         public async Task<Team> AddTeamAsync(string name, string? code)

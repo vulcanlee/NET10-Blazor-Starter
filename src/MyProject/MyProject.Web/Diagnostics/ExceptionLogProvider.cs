@@ -122,6 +122,8 @@ public sealed class ExceptionLogProvider : ILoggerProvider
                     Account = context?.Account,
                     UserId = context?.UserId,
                     OccurredAt = DateTime.Now,
+                    TraceId = TraceCode.Current,
+                    IsCritical = logLevel >= LogLevel.Critical,
                 };
 
                 // TryWrite 不阻塞。佇列滿了就丟棄 —— 與 nlog.config 的

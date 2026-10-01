@@ -12,6 +12,7 @@ using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -160,7 +161,7 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 logger.LogError(ex, "Failed to load AI call log detail. CallLogId={CallLogId}", id);
                 visible = false;
-                ViewNotification.Error(notificationService, $"讀取對話紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"讀取對話紀錄失敗：{ex.GetType().Name}。");
             }
             finally
             {
@@ -325,7 +326,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy AI call log block.");
-                ViewNotification.Error(notificationService, $"複製失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"複製失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -363,7 +364,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI call log download failed. CallLogId={CallLogId}", detail.Item.Id);
-                ViewNotification.Error(notificationService, $"下載失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"下載失敗：{ex.GetType().Name}。");
             }
             finally
             {
@@ -420,7 +421,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI call log PDF export failed.");
-                ViewNotification.Error(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
             }
             finally
             {
@@ -441,7 +442,7 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 var currentUser = currentUserService.CurrentUser;
                 await auditLogService.WriteAsync(
-                    "AiCallLog.Export",
+                    AuditActions.AiCallLog.Export,
                     success: true,
                     actorUserId: currentUser.Id,
                     actorAccount: currentUser.Account,

@@ -179,6 +179,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<DateTime>("LastOccurredAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LastTraceId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("LoggerName")
                         .HasColumnType("TEXT");
 

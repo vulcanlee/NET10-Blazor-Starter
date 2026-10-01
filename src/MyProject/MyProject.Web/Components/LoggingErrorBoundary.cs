@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using MyProject.Business.Services.Other;
+using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components;
 
@@ -36,6 +37,9 @@ public sealed class LoggingErrorBoundary : ErrorBoundary
             SafeRelativePath(),
             account,
             user.Id);
+
+        // 讓 ErrorContent 顯示得出這次互動的錯誤追蹤碼（LOG-10）：它拿得到例外，拿不到當時的追蹤範圍。
+        TraceCode.Attach(exception);
 
         return base.OnErrorAsync(exception);
     }

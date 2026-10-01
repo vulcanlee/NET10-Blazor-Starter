@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
@@ -126,6 +127,13 @@ namespace MyProject.Web.Components.Views.Analytics
         [Inject]
         public CurrentUserService CurrentUserService { get; set; } = default!;
 
+        [Inject]
+        public IAuditLogService AuditLogService { get; set; } = default!;
+
+        /// <summary>用量紀錄的維護與匯出要留稽核（LOG-14），只記筆數與格式。</summary>
+        private Task WriteAuditAsync(string action, string targetId, string detail)
+            => ViewAudit.WriteAsync(AuditLogService, CurrentUserService, action, "TokenUsage", targetId, detail);
+
         public TokenUsageView(
             ILogger<TokenUsageView> logger,
             TokenUsageLogService tokenUsageLogService,
@@ -232,6 +240,7 @@ namespace MyProject.Web.Components.Views.Analytics
             if (AuthenticationStateHelper.CheckIsAdmin() == false)
             {
                 RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/token-usage");
                 logger.LogWarning("Usage page denied because the current user is not an administrator.");
                 return;
             }
@@ -285,7 +294,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load LLM usage records.");
-                ViewNotification.Error(notificationService, $"載入用量紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入用量紀錄失敗：{ex.GetType().Name}。");
                 rows = [];
                 _total = 0;
                 summary = new TokenUsageSummary();
@@ -669,6 +678,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await tokenUsageLogService.DeleteAsync(item.Id);
             if (result.Success)
             {
+                await WriteAuditAsync(AuditActions.TokenUsage.Delete, item.Id.ToString(), "刪除一筆用量紀錄");
                 ViewNotification.Warning(notificationService, "刪除成功");
                 await ReloadAsync();
             }
@@ -699,6 +709,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await tokenUsageLogService.PurgeBeforeAsync(purgeBeforeDate.Value);
             if (result.Success)
             {
+                await WriteAuditAsync(AuditActions.TokenUsage.Purge, "*", $"清除 {purgeBeforeDate.Value:yyyy-MM-dd} 之前的用量紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, result.Message);
                 await ReloadAsync();
             }
@@ -724,6 +735,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await tokenUsageLogService.ClearAllAsync();
             if (result.Success)
             {
+                await WriteAuditAsync(AuditActions.TokenUsage.ClearAll, "*", $"清空全部用量紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, result.Message);
                 await ReloadAsync();
             }
@@ -783,11 +795,12 @@ namespace MyProject.Web.Components.Views.Analytics
                 await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
 
                 logger.LogInformation("Usage export downloaded. Rows={Rows}", all.Count);
+                await WriteAuditAsync(AuditActions.TokenUsage.Export, "*", $"format=csv; rows={all.Count}");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Usage CSV export failed.");
-                ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -870,6 +883,7 @@ namespace MyProject.Web.Components.Views.Analytics
                     scope,
                     bytes.Length,
                     details.Count);
+                await WriteAuditAsync(AuditActions.TokenUsage.Export, "*", $"format=pdf; scope={scope}; rows={details.Count}");
             }
             catch (InvalidOperationException ex)
             {
@@ -883,7 +897,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Usage PDF export failed.");
-                ViewNotification.Error(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
             }
             finally
             {

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Web.Auth;
@@ -56,7 +57,7 @@ public class JwtTokenServiceTests
             ClockSkewMinutes = 0
         };
 
-        return new JwtTokenService(Options.Create(settings));
+        return new JwtTokenService(Options.Create(settings), NullLogger<JwtTokenService>.Instance);
     }
 
     private static MyUser CreateUser()

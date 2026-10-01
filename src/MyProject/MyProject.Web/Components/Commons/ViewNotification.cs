@@ -1,4 +1,5 @@
 using AntDesign;
+using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Commons;
 
@@ -25,6 +26,13 @@ public static class ViewNotification
 
     public static void Error(NotificationService notificationService, string description)
         => Open(notificationService, SystemTitle, description, NotificationType.Error);
+
+    /// <summary>
+    /// 未預期例外（catch 到並已 <c>LogError</c>）的錯誤通知：自動附上錯誤追蹤碼（LOG-10），
+    /// 停留 10 秒讓使用者抄下來回報。「名稱重複」這類一般驗證訊息請用 <see cref="Error"/>，不附追蹤碼。
+    /// </summary>
+    public static void UnexpectedError(NotificationService notificationService, string description)
+        => Open(notificationService, SystemTitle, description + TraceCode.Suffix(TraceCode.Current), NotificationType.Error, durationSeconds: 10);
 
     /// <summary>
     /// 進行中或純資訊性的訊息（例如「正在送出，請稍候」）。

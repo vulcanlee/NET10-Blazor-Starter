@@ -164,15 +164,11 @@ public class AuditLogQueryService
     /// </summary>
     public async Task<VerifyRecordResult> PurgeAsync(int days)
     {
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var threshold = DateTime.UtcNow.AddDays(-days);
         Logger.LogInformation("Purging audit logs older than {Days} days.", days);
 
         try
         {
-            var removed = await context.AuditLog
-                .Where(x => x.OccurredAt < threshold)
-                .ExecuteDeleteAsync();
+            var removed = await PurgeBeforeAsync(DateTime.UtcNow.AddDays(-days));
 
             if (removed == 0)
             {
@@ -187,6 +183,18 @@ public class AuditLogQueryService
             Logger.LogError(ex, "Failed to purge audit logs.");
             return VerifyRecordResultFactory.Build(false, "清除稽核紀錄失敗。", ex);
         }
+    }
+
+    /// <summary>
+    /// 刪除早於 <paramref name="thresholdUtc"/> 的稽核紀錄，回傳刪除筆數。
+    /// ⚠️ 門檻必須是 UTC（資料表存 UTC）。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出。
+    /// </summary>
+    public async Task<int> PurgeBeforeAsync(DateTime thresholdUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.AuditLog
+            .Where(x => x.OccurredAt < thresholdUtc)
+            .ExecuteDeleteAsync();
     }
 
     /// <summary>清空全部紀錄。</summary>

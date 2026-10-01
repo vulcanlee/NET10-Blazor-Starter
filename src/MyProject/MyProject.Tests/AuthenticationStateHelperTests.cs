@@ -276,7 +276,8 @@ public sealed class AuthenticationStateHelperTests
                 CurrentUserService,
                 rolePermissionService,
                 new EffectiveTeamResolver(Context, NullLogger<EffectiveTeamResolver>.Instance),
-                new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance));
+                new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()));
         }
 
         public async Task<MyUser> AddUserAsync(

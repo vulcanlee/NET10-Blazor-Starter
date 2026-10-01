@@ -71,6 +71,59 @@ public static class EmailTemplates
         return new EmailMessage(to, subject, html, text, EmailKinds.PasswordChanged);
     }
 
+    /// <summary>
+    /// 系統例外告警（LOG-12）。<b>只含摘要</b>：類型、來源、頁面、次數、時間、追蹤碼與連結；
+    /// 例外訊息全文、堆疊、帳號都不放 —— 信件可能被轉寄或長留在信箱，細節請登入系統查看。
+    /// </summary>
+    public static EmailMessage BuildExceptionAlert(string to, string systemName, ExceptionAlertContent content)
+    {
+        var subject = $"[{systemName}] 系統例外告警：{content.Reason}";
+        var page = string.IsNullOrWhiteSpace(content.Page) ? "—" : content.Page;
+        var traceId = string.IsNullOrWhiteSpace(content.TraceId) ? "—" : content.TraceId;
+        var first = content.FirstOccurredAt.ToString("yyyy/MM/dd HH:mm:ss");
+        var last = content.LastOccurredAt.ToString("yyyy/MM/dd HH:mm:ss");
+        var suppressed = content.SuppressedCount > 0
+            ? $"另外，先前有 {content.SuppressedCount} 則告警因每小時寄信上限而未寄出，請一併到系統查看。"
+            : null;
+
+        var rows = new (string Label, string Value)[]
+        {
+            ("觸發原因", content.Reason),
+            ("例外類型", content.ExceptionType),
+            ("來源", content.Source),
+            ("頁面", page),
+            ("累計次數", content.OccurrenceCount.ToString("N0")),
+            ("首次發生", first),
+            ("最後發生", last),
+            ("錯誤追蹤碼", traceId),
+        };
+
+        var tableHtml = "<table style=\"border-collapse:collapse;font-size:14px;\">"
+            + string.Concat(rows.Select(row =>
+                $"<tr><td style=\"padding:4px 12px 4px 0;color:#666666;white-space:nowrap;\">{Encode(row.Label)}</td>"
+                + $"<td style=\"padding:4px 0;\">{Encode(row.Value)}</td></tr>"))
+            + "</table>";
+
+        var linkHtml = content.Link is null
+            ? "<p>請登入系統，於「系統例外紀錄」頁（/system-exceptions）查看完整內容。</p>"
+            : $"<p style=\"margin:24px 0;\"><a href=\"{Encode(content.Link)}\" style=\"display:inline-block;padding:10px 20px;background:#555555;color:#ffffff;text-decoration:none;border-radius:6px;\">查看系統例外紀錄</a></p>";
+
+        var html = WrapHtml(
+            systemName,
+            "系統例外告警",
+            tableHtml + linkHtml
+            + (suppressed is null ? string.Empty : $"<p style=\"color:#666666;font-size:13px;\">{Encode(suppressed)}</p>"));
+
+        var text = string.Concat(rows.Select(row => $"{row.Label}：{row.Value}\n"))
+            + "\n"
+            + (content.Link is null
+                ? "請登入系統，於「系統例外紀錄」頁（/system-exceptions）查看完整內容。\n"
+                : $"查看系統例外紀錄：{content.Link}\n")
+            + (suppressed is null ? string.Empty : $"\n{suppressed}\n");
+
+        return new EmailMessage(to, subject, html, text, EmailKinds.ExceptionAlert);
+    }
+
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
 
     private static string WrapHtml(string systemName, string heading, string bodyHtml)

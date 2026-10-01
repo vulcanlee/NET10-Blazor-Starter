@@ -13,10 +13,12 @@ public class JwtTokenService : IJwtTokenService
     private const string RefreshTokenType = "refresh";
     private const string AccessTokenType = "access";
     private readonly JwtSettings settings;
+    private readonly ILogger<JwtTokenService> logger;
 
-    public JwtTokenService(IOptions<JwtSettings> options)
+    public JwtTokenService(IOptions<JwtSettings> options, ILogger<JwtTokenService> logger)
     {
         settings = options.Value;
+        this.logger = logger;
     }
 
     public TokenResponseDto CreateTokenResponse(MyUser user)
@@ -24,6 +26,11 @@ public class JwtTokenService : IJwtTokenService
         var currentUser = ToCurrentUserDto(user);
         var accessExpiresAt = DateTime.UtcNow.AddMinutes(settings.AccessTokenMinutes);
         var refreshExpiresAt = DateTime.UtcNow.AddDays(settings.RefreshTokenDays);
+
+        // ⚠️ 只記 UserId 與到期時間，token 本身絕不進日誌。
+        logger.LogDebug(
+            "Issued access and refresh tokens. UserId={UserId}, AccessExpiresAt={AccessExpiresAt}, RefreshExpiresAt={RefreshExpiresAt}",
+            currentUser.Id, accessExpiresAt, refreshExpiresAt);
 
         return new TokenResponseDto
         {
@@ -45,6 +52,8 @@ public class JwtTokenService : IJwtTokenService
         var tokenType = principal.FindFirstValue("token_type");
         if (!string.Equals(tokenType, RefreshTokenType, StringComparison.Ordinal))
         {
+            // 拿 access token 來換 refresh 屬「可能的誤用」（§3.1）。呼叫端（AuthController）會再記一筆並回 401。
+            logger.LogWarning("Refresh token rejected because the token type is not refresh. Kind={Kind}", tokenType);
             throw new SecurityTokenException("Token 類型不是 refresh token。");
         }
 

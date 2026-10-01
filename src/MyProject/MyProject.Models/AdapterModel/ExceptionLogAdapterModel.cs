@@ -34,6 +34,9 @@ public class ExceptionLogAdapterModel
 
     public DateTime LastOccurredAt { get; set; }
 
+    /// <summary>最後一次發生時的錯誤追蹤碼（LOG-10）。</summary>
+    public string? LastTraceId { get; set; }
+
     /// <summary>型別全名太長，清單只顯示最後一節（例如 NullReferenceException）。</summary>
     public string ShortExceptionType
     {

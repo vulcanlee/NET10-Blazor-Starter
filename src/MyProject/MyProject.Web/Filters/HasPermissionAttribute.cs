@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Share.Helpers;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Filters;
 
@@ -122,7 +123,7 @@ public sealed class HasPermissionAttribute : Attribute, IAsyncAuthorizationFilte
         {
             var auditLogService = services.GetRequiredService<IAuditLogService>();
             await auditLogService.WriteAsync(
-                "Permission.Denied",
+                AuditActions.Permission.Denied,
                 success: false,
                 actorUserId: userId,
                 actorAccount: account,

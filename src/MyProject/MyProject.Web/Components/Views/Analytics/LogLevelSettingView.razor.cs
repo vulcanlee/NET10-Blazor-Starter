@@ -5,6 +5,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -73,6 +74,7 @@ namespace MyProject.Web.Components.Views.Analytics
             if (AuthenticationStateHelper.CheckIsAdmin() == false)
             {
                 RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/log-level-setting");
                 logger.LogWarning("Log level setting denied because the current user is not an administrator.");
                 return;
             }
@@ -121,7 +123,7 @@ namespace MyProject.Web.Components.Views.Analytics
             selectedLevel = effectiveLevel;
             _ = messageService.SuccessAsync($"已套用日誌等級：{LogLevelRankHelper.ToLevelText(target)}");
 
-            await WriteAuditAsync("LogLevel.Apply", previous, target);
+            await WriteAuditAsync(AuditActions.LogLevel.Apply, previous, target);
         }
 
         private async Task OnRestoreAsync()
@@ -138,7 +140,7 @@ namespace MyProject.Web.Components.Views.Analytics
             _ = messageService.SuccessAsync(
                 $"已還原為系統預設等級：{LogLevelRankHelper.ToLevelText(effectiveLevel)}");
 
-            await WriteAuditAsync("LogLevel.Restore", previous, effectiveLevel);
+            await WriteAuditAsync(AuditActions.LogLevel.Restore, previous, effectiveLevel);
         }
 
         /// <summary>

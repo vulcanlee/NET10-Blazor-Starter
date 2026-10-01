@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
@@ -67,6 +68,8 @@ public class AuthController : ControllerBase
                 logger.LogWarning(
                     "Refresh rejected because the user no longer exists or is disabled. UserId={UserId}",
                     currentUser.Id);
+                await this.WriteAuditAsync(
+                    AuditActions.Token.RefreshFailed, "MyUser", currentUser.Id.ToString(), "reason=UserInactive", success: false);
                 return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult("Refresh Token 無效或已過期。"));
             }
 
@@ -76,6 +79,9 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Refresh token validation failed.");
+            // 只記失敗原因的類別，token 本身與例外訊息都不進稽核。
+            await this.WriteAuditAsync(
+                AuditActions.Token.RefreshFailed, "Token", null, $"reason=InvalidToken; error={ex.GetType().Name}", success: false);
             return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult("Refresh Token 無效或已過期。"));
         }
     }

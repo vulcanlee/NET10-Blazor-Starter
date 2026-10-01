@@ -191,7 +191,9 @@ public sealed class CategoryServiceTeamVisibilityTests
                 new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<CategoryService>(),
-                new FakeRecordAccessScopeProvider(isAdmin, teams));
+                new FakeRecordAccessScopeProvider(isAdmin, teams),
+                new RecordingAuditLogService(),
+                new MyProject.Business.Services.Other.CurrentUserService());
         }
 
         public async Task<Category> AddCategoryAsync(string name, IEnumerable<string>? teams, bool isEnabled = true)

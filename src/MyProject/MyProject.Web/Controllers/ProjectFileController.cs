@@ -6,6 +6,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Share.Helpers;
 using MyProject.Web.Filters;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Controllers;
 
@@ -104,7 +105,7 @@ public class ProjectFileController : ControllerBase
         try
         {
             await auditLogService.WriteAsync(
-                "Project.FileDownload",
+                AuditActions.Project.FileDownload,
                 success: true,
                 actorUserId: userId,
                 actorAccount: account,

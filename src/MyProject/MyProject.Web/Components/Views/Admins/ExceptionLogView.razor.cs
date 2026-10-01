@@ -3,7 +3,9 @@ using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
@@ -20,7 +22,7 @@ namespace MyProject.Web.Components.Views.Admins
         /// 「清除很久沒再發生的紀錄」門檻。刻意是程式常數而非設定鍵 ——
         /// 這是管理員按一下才會發生的動作，不需要每個部署各自調整。
         /// </summary>
-        private const int PurgeDays = 90;
+        private int PurgeDays => RetentionOptions.CurrentValue.ManualExceptionLogDays;
 
         /// <summary>
         /// 「複製目前查詢結果」超過這個筆數先確認。每筆都含完整堆疊（數 KB～數十 KB），
@@ -79,6 +81,19 @@ namespace MyProject.Web.Components.Views.Admins
         [Inject]
         public IJSRuntime JSRuntime { get; set; } = default!;
 
+        [Inject]
+        public IOptionsMonitor<LogRetentionSettings> RetentionOptions { get; set; } = default!;
+
+        [Inject]
+        public IAuditLogService AuditLogService { get; set; } = default!;
+
+        [Inject]
+        public CurrentUserService CurrentUserService { get; set; } = default!;
+
+        /// <summary>例外紀錄的維護動作本身也要留稽核（LOG-14）；0.9.78 之前刪除、清除、清空、匯出都不留痕跡。</summary>
+        private Task WriteAuditAsync(string action, string targetId, string detail)
+            => ViewAudit.WriteAsync(AuditLogService, CurrentUserService, action, "ExceptionLog", targetId, detail);
+
         public ExceptionLogView(
             ILogger<ExceptionLogView> logger,
             ExceptionLogService exceptionLogService,
@@ -108,6 +123,7 @@ namespace MyProject.Web.Components.Views.Admins
             if (AuthenticationStateHelper.CheckIsAdmin() == false)
             {
                 RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/system-exceptions");
                 logger.LogWarning("Exception log view denied because the current user is not an administrator.");
                 return;
             }
@@ -147,7 +163,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load exception logs.");
-                ViewNotification.Error(notificationService, $"載入例外紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入例外紀錄失敗：{ex.GetType().Name}。");
                 exceptionLogAdapterModels = [];
                 _total = 0;
             }
@@ -284,7 +300,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy exception logs to clipboard.");
-                ViewNotification.Error(notificationService, $"複製失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"複製失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -329,6 +345,7 @@ namespace MyProject.Web.Components.Views.Admins
             var result = await exceptionLogService.DeleteAsync(item.Id);
             if (result.Success)
             {
+                await WriteAuditAsync(AuditActions.ExceptionLog.Delete, item.Id.ToString(), $"type={item.ShortExceptionType}");
                 ViewNotification.Warning(notificationService, "刪除成功");
                 await ReloadAsync();
             }
@@ -354,6 +371,7 @@ namespace MyProject.Web.Components.Views.Admins
             var result = await exceptionLogService.PurgeAsync(PurgeDays);
             if (result.Success)
             {
+                await WriteAuditAsync(AuditActions.ExceptionLog.Purge, "*", $"清除 {PurgeDays} 天未再發生的例外紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, string.IsNullOrWhiteSpace(result.Message) ? "清除完成" : result.Message);
                 await ReloadAsync();
             }
@@ -379,6 +397,7 @@ namespace MyProject.Web.Components.Views.Admins
             var result = await exceptionLogService.ClearAllAsync();
             if (result.Success)
             {
+                await WriteAuditAsync(AuditActions.ExceptionLog.ClearAll, "*", $"清空全部例外紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, "已清空全部例外紀錄");
                 await ReloadAsync();
             }
@@ -395,7 +414,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var result = await exceptionLogService.GetAsync(BuildFullQuery());
 
                 var builder = new StringBuilder();
-                builder.AppendLine("最後發生,次數,例外類型,訊息,來源,頁面,操作,記錄器,使用者,首次發生");
+                builder.AppendLine("最後發生,次數,例外類型,訊息,來源,頁面,操作,記錄器,使用者,首次發生,最後追蹤碼");
                 foreach (var item in result.Result)
                 {
                     builder.AppendLine(string.Join(',',
@@ -408,7 +427,8 @@ namespace MyProject.Web.Components.Views.Admins
                         Csv(item.Operation),
                         Csv(item.LoggerName),
                         Csv(item.Account),
-                        Csv(item.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss"))));
+                        Csv(item.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
+                        Csv(item.LastTraceId)));
                 }
 
                 // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
@@ -421,11 +441,12 @@ namespace MyProject.Web.Components.Views.Admins
                 await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
 
                 logger.LogInformation("Exception log export downloaded. Rows={Rows}", result.Count);
+                await WriteAuditAsync(AuditActions.ExceptionLog.Export, "*", $"format=csv; rows={result.Count}");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Exception log export failed.");
-                ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
 

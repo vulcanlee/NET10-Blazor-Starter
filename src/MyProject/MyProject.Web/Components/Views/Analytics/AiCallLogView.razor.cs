@@ -12,6 +12,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -108,6 +109,7 @@ namespace MyProject.Web.Components.Views.Analytics
             if (AuthenticationStateHelper.CheckIsAdmin() == false)
             {
                 RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/ai-call-logs");
                 logger.LogWarning("AI call log view denied because the current user is not an administrator.");
                 return;
             }
@@ -142,7 +144,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to open AI call log from deep link.");
-                ViewNotification.Error(notificationService, $"開啟對話紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"開啟對話紀錄失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -184,7 +186,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load AI call logs.");
-                ViewNotification.Error(notificationService, $"載入對話紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入對話紀錄失敗：{ex.GetType().Name}。");
                 items = [];
                 _total = 0;
             }
@@ -277,7 +279,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await aiCallLogService.DeleteAsync(item.Id);
             if (result.Success)
             {
-                await WriteSelfAuditAsync("AiCallLog.Delete", item.Id.ToString(), $"刪除 AI 對話紀錄：{item.Operation}");
+                await WriteSelfAuditAsync(AuditActions.AiCallLog.Delete, item.Id.ToString(), $"刪除 AI 對話紀錄：{item.Operation}");
                 ViewNotification.Warning(notificationService, "已刪除對話紀錄");
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
@@ -309,7 +311,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await aiCallLogService.PurgeBeforeAsync(beforeDate);
             if (result.Success)
             {
-                await WriteSelfAuditAsync("AiCallLog.Purge", "*", $"清除 {beforeDate:yyyy-MM-dd} 之前的 AI 對話紀錄：{result.Message}");
+                await WriteSelfAuditAsync(AuditActions.AiCallLog.Purge, "*", $"清除 {beforeDate:yyyy-MM-dd} 之前的 AI 對話紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, string.IsNullOrWhiteSpace(result.Message) ? "清除完成" : result.Message);
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
@@ -336,7 +338,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await aiCallLogService.ClearAllAsync();
             if (result.Success)
             {
-                await WriteSelfAuditAsync("AiCallLog.ClearAll", "*", $"清空全部 AI 對話紀錄：{result.Message}");
+                await WriteSelfAuditAsync(AuditActions.AiCallLog.ClearAll, "*", $"清空全部 AI 對話紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, "已清空全部對話紀錄");
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
@@ -409,11 +411,12 @@ namespace MyProject.Web.Components.Views.Analytics
                 await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
 
                 logger.LogInformation("AI call log export downloaded. Rows={Rows}", result.Count);
+                await WriteSelfAuditAsync(AuditActions.AiCallLog.Export, "*", $"format=csv; rows={result.Count}");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI call log export failed.");
-                ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
 

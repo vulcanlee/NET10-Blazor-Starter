@@ -81,6 +81,10 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
                 logger.LogWarning(ex, "Failed to set exception context for circuit activity. CircuitId={CircuitId}", circuitId);
             }
 
+            // 每次互動一個錯誤追蹤碼（LOG-10）。circuit 內沒有 HttpContext，
+            // 日誌檔的 TraceId 欄位原本是空的或過期的，一次操作的多行日誌串不起來。
+            using var traceScope = TraceCode.Begin(TraceCode.New());
+
             await next(context);
         };
     }

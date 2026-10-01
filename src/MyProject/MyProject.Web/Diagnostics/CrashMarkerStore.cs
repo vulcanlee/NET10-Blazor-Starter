@@ -35,6 +35,8 @@ public static class CrashMarkerStore
             Operation = operation,
             LoggerName = loggerName,
             OccurredAt = DateTime.Now,
+            // 會寫補登檔的都是「程序即將結束」等級的事件，補登時視同 Critical（告警會立即通知）。
+            IsCritical = true,
         });
     }
 

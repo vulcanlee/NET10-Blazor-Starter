@@ -9,6 +9,7 @@ using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Components.Views.Admins
 {
@@ -240,7 +241,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                await WriteAuditAsync(round == 0 ? "ExceptionLog.AiAnalyze" : "ExceptionLog.AiFollowUp", audit, result);
+                await WriteAuditAsync(round == 0 ? AuditActions.ExceptionLog.AiAnalyze : AuditActions.ExceptionLog.AiFollowUp, audit, result);
 
                 // 使用者關窗放棄。窗已經關了、對話也清掉了，這裡不要再改任何畫面狀態 ——
                 // 即使回應恰好在取消的同時成功回來，也不能把它塞進已經清空的對話。
@@ -432,7 +433,7 @@ namespace MyProject.Web.Components.Views.Admins
                     "AI exception analysis PDF exported. Bytes={Bytes}, FollowUps={FollowUps}", bytes.Length, FollowUpCount);
 
                 await WriteAuditAsync(
-                    "ExceptionLog.AiExportPdf",
+                    AuditActions.ExceptionLog.AiExportPdf,
                     new AuditTarget(item.Id, FollowUpCount, conversation.Count, conversation.Sum(message => message.Content.Length)),
                     result: null);
 
@@ -450,7 +451,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI exception analysis PDF export failed.");
-                ViewNotification.Error(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
             }
             finally
             {

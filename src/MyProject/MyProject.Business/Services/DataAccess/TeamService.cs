@@ -5,6 +5,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -13,6 +14,8 @@ namespace MyProject.Business.Services.DataAccess;
 public class TeamService
 {
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
+    private readonly IAuditLogService auditLogService;
+    private readonly CurrentUserService currentUserService;
 
     public IMapper Mapper { get; }
     public ILogger<TeamService> Logger { get; }
@@ -20,11 +23,32 @@ public class TeamService
     public TeamService(
         IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
-        ILogger<TeamService> logger)
+        ILogger<TeamService> logger,
+        IAuditLogService auditLogService,
+        CurrentUserService currentUserService)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
+        this.auditLogService = auditLogService;
+        this.currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
+    /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
+    /// </summary>
+    private Task WriteAuditAsync(string action, int targetId, string detail)
+    {
+        var user = currentUserService.CurrentUser;
+        return auditLogService.WriteAsync(
+            action,
+            success: true,
+            actorUserId: user.Id > 0 ? user.Id : null,
+            actorAccount: user.Id > 0 ? user.Account : null,
+            targetType: "Team",
+            targetId: targetId.ToString(),
+            detail: detail);
     }
 
     public async Task<DataRequestResult<TeamAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -139,19 +163,21 @@ public class TeamService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Team created successfully. TeamId={TeamId}, Name={TeamName}", itemParameter.Id, itemParameter.Name);
+            await WriteAuditAsync(AuditActions.Team.Create, itemParameter.Id, $"name={itemParameter.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to create team. Name={TeamName}", paraObject.Name);
-
             // 前置檢查與寫入不在同一個交易裡，唯一索引是最後一道防線；
             // 命中時要給明確訊息，不要被泛用的「新增團隊失敗。」蓋掉。
+            // 名稱重複是使用者錯誤（LOG-11）：記 Information、不帶例外物件，不進系統例外紀錄。
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
+                Logger.LogInformation("Team create rejected by unique constraint. Name={TeamName}", paraObject.Name);
                 return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
             }
 
+            Logger.LogError(ex, "Failed to create team. Name={TeamName}", paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "新增團隊失敗。", ex);
         }
     }
@@ -181,17 +207,18 @@ public class TeamService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={TeamName}", itemData.Id, itemData.Name);
+            await WriteAuditAsync(AuditActions.Team.Update, itemData.Id, $"name={itemData.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to update team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
-
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
+                Logger.LogInformation("Team update rejected by unique constraint. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
                 return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
             }
 
+            Logger.LogError(ex, "Failed to update team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "修改團隊失敗。", ex);
         }
     }
@@ -217,6 +244,7 @@ public class TeamService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Team deleted successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
+            await WriteAuditAsync(AuditActions.Team.Delete, id, $"name={item.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)

@@ -76,6 +76,12 @@ public sealed class LogQueryRequest
 
     public string Keyword { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 錯誤追蹤碼（LOG-10）：只留 TraceId 欄位完全相同的紀錄（不分大小寫）。
+    /// 與關鍵字的差別：關鍵字比對整筆原文，短碼可能剛好出現在別筆的訊息裡。
+    /// </summary>
+    public string TraceCode { get; set; } = string.Empty;
+
     public const int DefaultTake = 100;
     public const int MaxTake = 10000;
 

@@ -310,6 +310,9 @@ public sealed class LoggingConventionTests
     [InlineData("MyProject.Business", "Repositories")]
     [InlineData("MyProject.Web", "Controllers")]
     [InlineData("MyProject.Web", "Diagnostics")]
+    [InlineData("MyProject.Web", "Auth")]
+    [InlineData("MyProject.Web", "Filters")]
+    [InlineData("MyProject.Web", "Health")]
     public void BehaviourClasses_ShouldHoldALogger(string project, string folder)
     {
         var root = Path.Combine(FindSourceRoot(), project, folder);
@@ -363,6 +366,12 @@ public sealed class LoggingConventionTests
             "ExceptionLogWriter.cs",        // 記錄管線的出口；用 ILogger 會遞迴
             "ExceptionStackFileStore.cs",   // 由管線內呼叫的檔案存取；用 ILogger 會遞迴
             "CrashMarkerStore.cs",          // 程序即將結束或 host 尚未建立時寫補登檔，記錄機制可能已失效
+            "TraceCode.cs",                 // 純函式：產生與讀取錯誤追蹤碼（LOG-10）
+            "ExceptionAlertService.cs",     // 在例外記錄管線內被呼叫；寄信失敗走 ILogger 會再被收成例外、再觸發告警
+            "RequestActorResolver.cs",      // 純函式：從 claims 取帳號與 UserId
+            "SystemHealthModels.cs",        // 健康監控的模型
+            "SystemHealthScoreCalculator.cs", // 純算術：由各項狀態算分數與燈號
+            "SystemStartupState.cs",        // 只持有啟動時間，無行為
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

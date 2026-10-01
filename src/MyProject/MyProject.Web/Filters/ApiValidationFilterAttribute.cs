@@ -31,6 +31,14 @@ public class ApiValidationFilterAttribute : ActionFilterAttribute
                         : e.ErrorMessage)
                     .ToArray());
 
+        // 屬性類別不經過 DI 建構，logger 從請求的服務容器取（同 HasPermissionAttribute）。
+        // 驗證失敗是使用者輸入的正常後果（§3.1）：記 Information，只記欄位「名稱」，絕不記使用者輸入的值。
+        context.HttpContext.RequestServices.GetService<ILogger<ApiValidationFilterAttribute>>()?
+            .LogInformation(
+                "API request rejected by model validation. Path={Path}, Fields={Fields}",
+                context.HttpContext.Request.Path.Value,
+                string.Join(",", errors.Keys));
+
         // 根據回傳型別決定 ApiResult 泛型
         // 這裡假設 Create 回傳 ApiResult<ProjectDto>、Update 回傳 ApiResult
         var returnType = (context.ActionDescriptor as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor)?

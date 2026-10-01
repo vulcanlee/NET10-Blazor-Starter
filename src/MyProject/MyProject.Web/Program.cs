@@ -355,11 +355,16 @@ namespace MyProject.Web
                     if (crashMarkers.Count > 0)
                     {
                         var exceptionLogService = scope.ServiceProvider.GetRequiredService<ExceptionLogService>();
+                        var exceptionAlertService = app.Services.GetRequiredService<ExceptionAlertService>();
                         foreach (var (markerPath, entry) in crashMarkers)
                         {
                             // RecordAsync 絕不拋出；失敗也刪檔，避免每次啟動都重複補登同一筆。
-                            exceptionLogService.RecordAsync(entry).GetAwaiter().GetResult();
+                            var outcome = exceptionLogService.RecordAsync(entry).GetAwaiter().GetResult();
                             CrashMarkerStore.Delete(markerPath);
+
+                            // 補登的都是 Critical（程序結束、啟動失敗），立即告警（LOG-12）。
+                            // 寄信佇列此時已可入列，app.Run() 後由寄信背景作業送出。
+                            exceptionAlertService.Evaluate(outcome);
                         }
 
                         logger.LogInformation("Imported {Count} pending crash records.", crashMarkers.Count);

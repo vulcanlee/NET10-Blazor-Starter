@@ -91,7 +91,7 @@ public sealed class LogQueryService : ILogQueryService
             try
             {
                 var readResult = await ReadFileAsync(
-                    file, start, end, take, request.MinimumLevel, request.Keyword,
+                    file, start, end, take, request.MinimumLevel, request.Keyword, request.TraceCode.Trim(),
                     collected, sequence, cancellationToken);
 
                 sequence = readResult.Sequence;
@@ -184,6 +184,7 @@ public sealed class LogQueryService : ILogQueryService
         int take,
         LogLevelRank minimumLevel,
         string keyword,
+        string traceCode,
         Queue<LogEntry> collected,
         int sequence,
         CancellationToken cancellationToken)
@@ -208,7 +209,7 @@ public sealed class LogQueryService : ILogQueryService
             if (TryParseTimestamp(line, out var timestamp))
             {
                 if (hasPending
-                    && Flush(buffer, pendingTimestamp, start, end, take, minimumLevel, keyword, collected, ref sequence))
+                    && Flush(buffer, pendingTimestamp, start, end, take, minimumLevel, keyword, traceCode, collected, ref sequence))
                 {
                     reachedEnd = true;
                     break;
@@ -234,7 +235,7 @@ public sealed class LogQueryService : ILogQueryService
 
         if (reachedEnd == false
             && hasPending
-            && Flush(buffer, pendingTimestamp, start, end, take, minimumLevel, keyword, collected, ref sequence))
+            && Flush(buffer, pendingTimestamp, start, end, take, minimumLevel, keyword, traceCode, collected, ref sequence))
         {
             reachedEnd = true;
         }
@@ -255,6 +256,7 @@ public sealed class LogQueryService : ILogQueryService
         int take,
         LogLevelRank minimumLevel,
         string keyword,
+        string traceCode,
         Queue<LogEntry> collected,
         ref int sequence)
     {
@@ -281,6 +283,12 @@ public sealed class LogQueryService : ILogQueryService
 
         if (string.IsNullOrWhiteSpace(keyword) == false
             && raw.Contains(keyword, StringComparison.OrdinalIgnoreCase) == false)
+        {
+            return false;
+        }
+
+        if (traceCode.Length > 0
+            && string.Equals(entry.TraceId, traceCode, StringComparison.OrdinalIgnoreCase) == false)
         {
             return false;
         }

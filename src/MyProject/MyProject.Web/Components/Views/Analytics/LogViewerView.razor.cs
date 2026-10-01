@@ -12,6 +12,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -92,6 +93,7 @@ namespace MyProject.Web.Components.Views.Analytics
         private string minimumLevel = string.Empty;
         private int takeCount = LogQueryRequest.DefaultTake;
         private string keyword = string.Empty;
+        private string traceCode = string.Empty;
 
         private bool isLoading;
         private string statusMessage = string.Empty;
@@ -202,6 +204,7 @@ namespace MyProject.Web.Components.Views.Analytics
             if (AuthenticationStateHelper.CheckIsAdmin() == false)
             {
                 RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/logs");
                 logger.LogWarning("Log viewer access denied because the current user is not an administrator.");
                 return;
             }
@@ -236,6 +239,7 @@ namespace MyProject.Web.Components.Views.Analytics
                     Take = takeCount,
                     MinimumLevel = ToRank(minimumLevel),
                     Keyword = keyword,
+                    TraceCode = traceCode,
                 };
 
                 var result = await logQueryService.QueryAsync(request);
@@ -252,7 +256,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Log query failed.");
-                statusMessage = $"查詢日誌失敗：{ex.GetType().Name}。";
+                statusMessage = $"查詢日誌失敗：{ex.GetType().Name}。{TraceCode.Suffix(TraceCode.Current)}";
                 entriesAscending = new();
                 entriesDisplay = new();
             }
@@ -286,11 +290,14 @@ namespace MyProject.Web.Components.Views.Analytics
 
                 logger.LogInformation(
                     "Log export downloaded. Rows={Rows}, Bytes={Bytes}", entriesAscending.Count, bytes.Length);
+                await ViewAudit.WriteAsync(
+                    auditLogService, currentUserService, AuditActions.LogViewer.Export, "LogQuery", null,
+                    $"format=log; rows={entriesAscending.Count}");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Log export failed.");
-                ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -433,7 +440,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 return;
             }
 
-            await WriteAiAuditAsync("LogViewer.AiAnalyze", result);
+            await WriteAiAuditAsync(AuditActions.LogViewer.AiAnalyze, result);
 
             if (result.Reason == AiAnalysisFailureReason.Canceled)
             {
@@ -531,7 +538,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI analysis PDF export failed.");
-                ViewNotification.Error(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
             }
             finally
             {
@@ -575,7 +582,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 bytes.Length,
                 result.Prompt.IncludedEntryCount);
 
-            await WriteAiAuditAsync("LogViewer.AiAnalyzeExportPdf", result);
+            await WriteAiAuditAsync(AuditActions.LogViewer.AiAnalyzeExportPdf, result);
 
             ViewNotification.Info(notificationService, "PDF 已產生並開始下載。");
         }
@@ -690,6 +697,11 @@ namespace MyProject.Web.Components.Views.Analytics
             if (string.IsNullOrWhiteSpace(keyword) == false)
             {
                 items.Add(new KeyValuePair<string, string>("關鍵字", keyword));
+            }
+
+            if (string.IsNullOrWhiteSpace(traceCode) == false)
+            {
+                items.Add(new KeyValuePair<string, string>("錯誤追蹤碼", traceCode.Trim()));
             }
 
             var scope = $"分析 {result.Prompt.IncludedEntryCount} 筆／查詢 {result.Prompt.TotalEntryCount} 筆";
