@@ -1,8 +1,8 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.76
+- 現行系統版本：0.9.77
 - 首次實作版本：0.9.11
 - 最後核對日期：2026/10/01
 
@@ -88,14 +88,27 @@ AntDesign 的 `Modal` 會把內容渲染到元件 DOM 範圍之外，`ExceptionL
 logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   ← 全專案既有 catch，零修改
    → ExceptionLogProvider（ILoggerProvider）
    → ExceptionContextAccessor（AsyncLocal，讀出來源／頁面／帳號／UserId）
-   → Channel（有界 1000，滿載丟棄）
-   → ExceptionLogWriter（BackgroundService，單一消費者）
+   → Channel（有界 1000，Wait 模式＋TryWrite：滿載即丟棄並計數）
+   → ExceptionLogWriter（BackgroundService，單一消費者；關機時清空佇列，上限 5 秒）
    → ExceptionLogService → SQLite ＋ ExceptionStackFileStore → 檔案系統
 ```
 
 **為什麼掛在 `ILogger` 管線**：全專案 75 個 `catch (Exception ex)` 多數在服務層記完 `LogError` 後就回傳 `VerifyRecordResult`，**例外不再往上拋**。只掛未處理例外（error boundary、API filter）會完全收不到它們，而那正是「系統怪怪的」的主要來源。
 
 **為什麼要背景寫入**：大語言模型主機逾時會在短時間內重複數百次，同步寫 DB 會拖垮正在等待的使用者。logger 只入列即返回；單一消費者也順帶避開並發 upsert 競爭。
+
+**0.9.77 的管線修正**（見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.2）：
+- ⚠️ Channel 必須是 `Wait` 模式：`DropWrite` 下 `TryWrite` 永遠回 true，丟棄筆數永遠是 0（LOG-02）。
+- 同一個例外實例只收一次（`ConditionalWeakTable`）：請求日誌與框架 ExceptionHandlerMiddleware 各記一次的情況不再變成兩列（LOG-03）。
+- 寫入器收到停止訊號後清空佇列，上限 5 秒，逾時剩餘筆數輸出到 InternalLogger（LOG-05）。
+
+### 4.1.1 補登檔（0.9.77）
+
+程序即將結束、背景寫入器來不及寫資料庫的例外 —— 啟動失敗（寫入器要到 `app.Run()` 才啟動）與
+`AppDomain.UnhandledException` —— 先由 `CrashMarkerStore` 寫成 `{ExceptionPath}/pending/*.json`，
+下次成功啟動時在遷移之後補進本表，然後刪檔（LOG-06）。記錄當下的 `LogCritical` 在抑制旗標下執行，
+避免「佇列剛好寫進去＋補登」變成兩列。`CrashMarkerStore` 位於記錄機制之外，**不得注入 `ILogger`**。
+「清空全部」會連同 `pending/` 一起刪除；補登檔在啟動時即匯入，平常是空的。
 
 ### 4.2 收錄條件
 
@@ -105,6 +118,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `OperationCanceledException`／`TaskCanceledException` —— 使用者取消、正常關機。
 - 本子系統自己的記錄器（`ExceptionLogProvider`／`ExceptionLogWriter`／`ExceptionLogService`／`ExceptionStackFileStore`）。
 - `AsyncLocal` 抑制旗標開啟時（寫入器執行期間全程開啟）。
+- 同一個例外實例的第二次以後（0.9.77）。
 
 > `LogWarning(ex, …)` 多半是「已處理、降級可用」，收進來只是噪音，故以 Error 為門檻（程式常數）。
 
@@ -113,8 +127,9 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | 路徑 | 設定位置 | Source |
 | --- | --- | --- |
 | Blazor 互動 | `ApplicationCircuitHandler.CreateInboundActivityHandler` | `畫面` |
-| HTTP／API | `ApplicationBuilderExtensions.UseHttpRequestLogging` | `/api` 開頭→`WebAPI`，否則`畫面` |
-| 系統啟動 | `Program.cs` 的 migrate／seed／RBAC 回填區段 | `系統啟動` |
+| HTTP／API | `ApplicationBuilderExtensions.UseHttpRequestLogging`；帳號由 `UseExceptionContextUser` 在 `UseAuthorization` 之後補上（0.9.77 前恆為空） | `/api` 開頭→`WebAPI`，否則`畫面` |
+| 系統啟動 | `Program.cs` 的 migrate／seed／RBAC 回填區段；啟動失敗經補登檔補進 | `系統啟動` |
+| 程序層級 | `ProcessExceptionHooks`：射後不理的 Task（`UnobservedTaskException`）、其他執行緒的未處理例外（0.9.77） | `系統` |
 | 其他 | 未設定時 | `未知` |
 
 ⚠️ `CreateInboundActivityHandler` 是**全站每一次互動都會經過**的路徑，內部全程 `try/catch`，設定情境失敗絕不影響使用者操作。
@@ -154,7 +169,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 ## 六、錯誤與邊界
 
-- 佇列滿載：丟棄並累加計數，停止時由 `InternalLogger` 輸出總丟棄數。**寧可漏記，不可拖垮主流程**
+- 佇列滿載：丟棄並累加計數（0.9.77 前計數永遠是 0），停止時由 `InternalLogger` 輸出總丟棄數。**寧可漏記，不可拖垮主流程**
   （與 `nlog.config` 的 `AsyncWrapper overflowAction="Discard"` 同一種取捨）。
 - 寫入失敗：`RecordAsync` 全程吞例外，且**不得經由 `ILogger` 回報**（會遞迴），改用 `NLog.Common.InternalLogger`。
 - 堆疊檔讀不到：UI 友善降級，不拋例外。
@@ -166,12 +181,15 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | --- | --- |
 | `ExceptionSignatureTests` | 合併鍵組成；**樣板與算好的訊息必須產生不同簽章** |
 | `ExceptionLogServiceTests` | 合併累加、堆疊只寫一次、刪列同時刪檔、清空、`PurgeAsync`、5000 列上限、`RecordAsync` 絕不拋出、`GetStackTracesAsync` 批次讀堆疊（缺檔與未知 id 回 null） |
-| `ExceptionLogProviderTests` | Warning／無例外／取消例外／自身記錄器／抑制旗標皆不收；佇列滿載丟棄不拋例外 |
+| `ExceptionLogProviderTests` | Warning／無例外／取消例外／自身記錄器／抑制旗標皆不收；佇列滿載丟棄不拋例外且計數增加；同一例外實例只收一次（0.9.77） |
+| `ExceptionLogWriterTests` | 停止時清空佇列；清空逾時即放棄（0.9.77） |
+| `CrashMarkerStoreTests`／`ProcessExceptionHooksTests` | 補登檔讀寫刪、壞檔略過、路徑未設定不拋；程序層級例外的來源、抑制與情境還原（0.9.77） |
+| `ApiIntegrationTests` | API 例外帶得出帳號；非 API 頁面例外只記一列（0.9.77） |
 | `DataAccessServiceLifetimeTests` | `ExceptionLogService` 注入 `IDbContextFactory` 而非 scoped context |
 | `AdminOnlyPermissionTests` | 權限鍵不在角色矩陣 |
 | `MenuPermissionConsistencyTests` | `AdminOnlyViews` 含 `ExceptionLogView.razor.cs` |
 | `MenuIconTests` | `bug_report` 在允許清單 |
-| `LoggingConventionTests` | 管線內四支類別列於 ILogger 豁免清單（**刻意不注入，請勿補上**） |
+| `LoggingConventionTests` | 管線內四支類別與 `CrashMarkerStore` 列於 ILogger 豁免清單（**刻意不注入，請勿補上**） |
 | `ExceptionLogClipboardTextTests` | 點列／批次複製文字：欄位順序、空值「—」、帳號＋UserId、堆疊標記與缺檔說明、LF 行尾、分隔線（0.9.73） |
 | `AiExceptionPromptBuilderTests`／`AiExceptionAnalysisServiceTests`／`AiExceptionReportPdfBuilderTests` | AI 例外分析（0.9.68）：送出內容不含帳號、追問上限不發請求、PDF 產生 |
 
@@ -194,7 +212,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Business/Services/DataAccess/ExceptionLogService.cs`
 - `src/MyProject/MyProject.Business/Services/Other/ExceptionStackFileStore.cs`
 - `src/MyProject/MyProject.Models/Systems/ExceptionLogEntry.cs`、`ExceptionLogQuery.cs`
-- `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`
+- `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`、`CrashMarkerStore.cs`、`ProcessExceptionHooks.cs`（後兩者 0.9.77）
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/ExceptionLogPage.razor`、`Components/Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73）
 - `src/MyProject/MyProject.Web/Components/ApplicationCircuitHandler.cs`（情境設定）
 - `src/MyProject/MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor`、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）

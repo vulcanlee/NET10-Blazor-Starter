@@ -261,6 +261,29 @@ public sealed class FormModalConventionTests
     }
 
     /// <summary>
+    /// AntContainer（對話窗、確認窗、通知、消息條）在頁面的錯誤邊界之外。
+    /// 0.9.77 之前它沒有任何邊界：裡面一拋未處理例外，整個 circuit 就中斷（畫面突然沒反應），
+    /// 只留下一行框架日誌（LOG-07）。Routes.razor 必須用 LoggingErrorBoundary 包住它。
+    /// </summary>
+    [Fact]
+    public void AntContainer_ShouldBeWrappedInErrorBoundary()
+    {
+        var text = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Routes.razor"));
+
+        var containerIndex = text.IndexOf("<AntContainer", StringComparison.Ordinal);
+        Assert.True(containerIndex >= 0, "Routes.razor 找不到 <AntContainer />。");
+
+        var boundaryOpen = text.LastIndexOf("<LoggingErrorBoundary", containerIndex, StringComparison.Ordinal);
+        var boundaryCloseBefore = text.LastIndexOf("</LoggingErrorBoundary>", containerIndex, StringComparison.Ordinal);
+        var boundaryCloseAfter = text.IndexOf("</LoggingErrorBoundary>", containerIndex, StringComparison.Ordinal);
+
+        Assert.True(
+            boundaryOpen >= 0 && boundaryOpen > boundaryCloseBefore && boundaryCloseAfter > containerIndex,
+            "Routes.razor 的 <AntContainer /> 必須包在 <LoggingErrorBoundary> 之內，"
+                + "否則浮層內的未處理例外會讓整個 circuit 中斷。");
+    }
+
+    /// <summary>
     /// 待遷移清單不得放著爛掉：名單上的檢視若已經套用共用骨架，就要把它從名單刪掉。
     /// </summary>
     [Fact]

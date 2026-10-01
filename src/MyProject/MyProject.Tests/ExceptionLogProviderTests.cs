@@ -160,6 +160,9 @@ public sealed class ExceptionLogProviderTests
         using var harness = new ProviderHarness(capacity: 2);
         var logger = harness.CreateLogger("Some.Service");
 
+        // DroppedCount 是行程全域的 static，其他測試也可能累加，只能比對增量。
+        var droppedBefore = ExceptionLogProvider.DroppedCount;
+
         var exception = Record.Exception(() =>
         {
             for (var index = 0; index < 50; index++)
@@ -169,6 +172,38 @@ public sealed class ExceptionLogProviderTests
         });
 
         Assert.Null(exception);
+        Assert.Equal(2, harness.DrainEntries().Count);
+
+        // 0.9.77 之前 Channel 是 DropWrite，TryWrite 永遠回 true，這裡會是 0。
+        Assert.True(ExceptionLogProvider.DroppedCount - droppedBefore >= 48);
+    }
+
+    [Fact]
+    public void Log_SameExceptionInstanceTwice_ShouldCaptureOnlyOnce()
+    {
+        // 例如 UseHttpRequestLogging 記完重拋，框架的 ExceptionHandlerMiddleware 再記一次：
+        // 樣板不同 → 兩個簽章 → 同一次發生變兩列。以實例去重，只收第一次。
+        using var harness = new ProviderHarness();
+        var inner = harness.CreateLogger("MyProject.Web.Program");
+        var framework = harness.CreateLogger("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware");
+        var exception = new InvalidOperationException("boom");
+
+        inner.LogError(exception, "HTTP {Method} {Path} failed after {ElapsedMilliseconds} ms", "GET", "/x", 1);
+        framework.LogError(exception, "An unhandled exception has occurred while executing the request.");
+
+        var entry = Assert.Single(harness.DrainEntries());
+        Assert.Equal("MyProject.Web.Program", entry.LoggerName);
+    }
+
+    [Fact]
+    public void Log_DifferentExceptionInstances_ShouldEachBeCaptured()
+    {
+        using var harness = new ProviderHarness();
+        var logger = harness.CreateLogger("Some.Service");
+
+        logger.LogError(new InvalidOperationException("boom"), "Something failed.");
+        logger.LogError(new InvalidOperationException("boom"), "Something failed.");
+
         Assert.Equal(2, harness.DrainEntries().Count);
     }
 
@@ -182,7 +217,8 @@ public sealed class ExceptionLogProviderTests
             channel = Channel.CreateBounded<ExceptionLogEntry>(
                 new BoundedChannelOptions(capacity)
                 {
-                    FullMode = BoundedChannelFullMode.DropWrite,
+                    // 與正式環境相同（ServiceCollectionExtensions）：Wait ＋ TryWrite，滿載時才回得出 false。
+                    FullMode = BoundedChannelFullMode.Wait,
                     SingleReader = true,
                     SingleWriter = false,
                 });

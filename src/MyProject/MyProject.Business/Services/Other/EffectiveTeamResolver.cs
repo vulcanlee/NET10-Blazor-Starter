@@ -66,7 +66,7 @@ public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
 
             foreach (var json in roleTeamJsons)
             {
-                foreach (var name in TeamJsonHelper.Deserialize(json))
+                foreach (var name in TeamJsonHelper.Deserialize(json, logger))
                 {
                     AddDistinct(name, seen, result);
                 }

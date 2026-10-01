@@ -121,10 +121,12 @@ public static class ServiceCollectionExtensions
         // 記錄管線：ILoggerProvider（生產）→ 有界 Channel → ExceptionLogWriter（消費）→ ExceptionLogService。
         // Channel 有界且滿載即丟棄：寧可漏記，也不能讓例外記錄拖垮正在等待的使用者。
         // 與 nlog.config 的 AsyncWrapper overflowAction="Discard" 同一種取捨。
+        // ⚠️ FullMode 用 Wait 搭配 provider 的 TryWrite（不阻塞），**不要改回 DropWrite**：
+        // Drop 系列模式下 TryWrite 永遠回傳 true，丟棄筆數永遠是 0（0.9.77 修正，與 ChannelEmailQueue 同理）。
         var exceptionChannel = Channel.CreateBounded<ExceptionLogEntry>(
             new BoundedChannelOptions(1000)
             {
-                FullMode = BoundedChannelFullMode.DropWrite,
+                FullMode = BoundedChannelFullMode.Wait,
                 SingleReader = true,
                 SingleWriter = false,
             });
@@ -135,6 +137,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ExceptionStackFileStore>();
         services.AddScoped<ExceptionLogService>();
         services.AddHostedService<ExceptionLogWriter>();
+
+        // 程序層級的未處理例外（射後不理的 Task、背景執行緒）。由 Program.cs 在 Build 後呼叫 Register。
+        services.AddSingleton<ProcessExceptionHooks>();
 
         // 以 DI 註冊 ILoggerProvider，讓它拿得到 Channel 與情境存取器。
         // ⚠️ 必須晚於 Program.cs 的 builder.Logging.ClearProviders()，否則會被清掉；

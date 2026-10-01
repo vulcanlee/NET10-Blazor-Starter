@@ -5,7 +5,7 @@ using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using System.Diagnostics;
 using System.Net;
-using System.Security.Claims;
+using MyProject.Web.Auth;
 using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Extensions;
@@ -157,7 +157,9 @@ public static class ApplicationBuilderExtensions
             var requestLogger = context.RequestServices.GetRequiredService<ILogger<TProgram>>();
             var stopwatch = Stopwatch.StartNew();
 
-            // 供系統例外紀錄使用：這個請求內任何 LogError 都會帶上來源、路徑與帳號。
+            // 供系統例外紀錄使用：這個請求內任何 LogError 都會帶上來源與路徑。
+            // ⚠️ 這裡在 UseAuthentication 之前，User 還是匿名 —— 帳號由排在 UseAuthorization 之後的
+            // UseExceptionContextUser 補上（內層看得到），本方法的 catch 則在記錄前自己重新取一次（外層看不到內層設定的值）。
             // 設定失敗只損失診斷資訊，不得影響請求本身，所以整段包 try/catch。
             try
             {
@@ -166,16 +168,15 @@ public static class ApplicationBuilderExtensions
                     ? ExceptionSources.WebApi
                     : ExceptionSources.Ui;
 
-                // ⚠️ claim 對應在兩套機制中相反：Cookie 是 NameIdentifier=帳號、Sid=UserId；
-                // JWT 是 NameIdentifier=UserId、Name=帳號。API 走 JWT，其餘走 Cookie。
-                var (account, userId) = ResolveRequestUser(context, source);
+                var (account, userId) = RequestActorResolver.Resolve(context.User);
 
                 context.RequestServices.GetRequiredService<ExceptionContextAccessor>()
                     .Set(new ExceptionContext(source, path, account, userId));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // 診斷加值資訊，取不到就算了。
+                // 診斷加值資訊，取不到就算了；但要留下痕跡（Warning 不會進例外紀錄，不會遞迴）。
+                requestLogger.LogWarning(ex, "Failed to set exception context for HTTP request.");
             }
 
             try
@@ -199,6 +200,11 @@ public static class ApplicationBuilderExtensions
             catch (Exception ex)
             {
                 stopwatch.Stop();
+
+                // 走到這裡時驗證已經跑過，User 有值了；但內層 UseExceptionContextUser 設定的帳號
+                // 不會流回外層，所以記錄前在這裡補上，否則例外紀錄的帳號欄永遠是空的。
+                EnrichExceptionContextUser(context);
+
                 requestLogger.LogError(
                     ex,
                     "HTTP {Method} {Path} failed after {ElapsedMilliseconds} ms",
@@ -213,28 +219,50 @@ public static class ApplicationBuilderExtensions
     }
 
     /// <summary>
-    /// 取出請求的身分。只取帳號與 UserId —— 姓名、Email 屬個資，絕不進入紀錄。
+    /// 把已驗證的使用者補進例外情境，讓內層（MVC 篩選器、控制器、服務）的 LogError 帶得出帳號。
+    ///
+    /// ⚠️ 必須排在 <c>UseAuthorization</c> 之後：JWT 不是預設驗證機制，
+    /// JWT 端點的 User 要到授權中介軟體依原則驗證後才有值。
     /// </summary>
-    private static (string? Account, int? UserId) ResolveRequestUser(HttpContext context, string source)
+    public static WebApplication UseExceptionContextUser(this WebApplication app)
     {
-        var principal = context.User;
-        if (principal?.Identity?.IsAuthenticated != true)
+        app.Use(async (context, next) =>
         {
-            return (null, null);
-        }
+            EnrichExceptionContextUser(context);
+            await next();
+        });
 
-        var nameIdentifier = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return app;
+    }
 
-        if (source == ExceptionSources.WebApi)
+    /// <summary>
+    /// 只取帳號與 UserId —— 姓名、Email 屬個資，絕不進入紀錄。失敗只損失診斷資訊，絕不拋出。
+    /// </summary>
+    private static void EnrichExceptionContextUser(HttpContext context)
+    {
+        try
         {
-            // JWT：NameIdentifier=UserId、Name=帳號。
-            var account = principal.FindFirst(ClaimTypes.Name)?.Value;
-            return (account, int.TryParse(nameIdentifier, out var jwtUserId) ? jwtUserId : null);
-        }
+            var accessor = context.RequestServices.GetRequiredService<ExceptionContextAccessor>();
+            var current = accessor.Current;
+            if (current is null)
+            {
+                return;
+            }
 
-        // Cookie：NameIdentifier=帳號、Sid=UserId。
-        var sid = principal.FindFirst(ClaimTypes.Sid)?.Value;
-        return (nameIdentifier, int.TryParse(sid, out var cookieUserId) ? cookieUserId : null);
+            var (account, userId) = RequestActorResolver.Resolve(context.User);
+            if (userId is null)
+            {
+                return;
+            }
+
+            accessor.Set(current with { Account = account, UserId = userId });
+        }
+        catch (Exception ex)
+        {
+            context.RequestServices.GetService<ILoggerFactory>()?
+                .CreateLogger(typeof(ApplicationBuilderExtensions))
+                .LogWarning(ex, "Failed to add the authenticated user to the exception context.");
+        }
     }
 
     public static WebApplication UseConfiguredLocalization(this WebApplication app)

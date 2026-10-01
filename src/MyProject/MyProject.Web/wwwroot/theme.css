@@ -344,6 +344,18 @@
     color: var(--app-error) !important;
 }
 
+/* 浮層（AntContainer）錯誤邊界的提示：浮層本身已無法渲染，改成固定在畫面底部的一條（0.9.77）。
+   渲染在 Routes.razor（頁面 DOM），不在 AntContainer 底下，所以寫在這裡而不是 OverlayStyles。 */
+.overlay-error-banner {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    max-width: calc(100vw - 32px);
+    margin: 0;
+}
+
 /* ⚠️ 位移與縮放一律降級，顏色回饋保留 —— 做法比照 Login.razor.css 與 OverlayStyles.razor。 */
 @media (prefers-reduced-motion: reduce) {
     .toolbar-icon-button.ant-btn,

@@ -10,10 +10,12 @@ public interface IHealthLogReader
 public sealed class HealthLogReader : IHealthLogReader
 {
     private readonly INLogFilePathResolver pathResolver;
+    private readonly ILogger<HealthLogReader> logger;
 
-    public HealthLogReader(INLogFilePathResolver pathResolver)
+    public HealthLogReader(INLogFilePathResolver pathResolver, ILogger<HealthLogReader> logger)
     {
         this.pathResolver = pathResolver;
+        this.logger = logger;
     }
 
     public HealthLogTail ReadLatestLines(int lineCount)
@@ -54,6 +56,7 @@ public sealed class HealthLogReader : IHealthLogReader
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Failed to read the latest log lines for the health report.");
             return new HealthLogTail
             {
                 FilePath = logFilePath,

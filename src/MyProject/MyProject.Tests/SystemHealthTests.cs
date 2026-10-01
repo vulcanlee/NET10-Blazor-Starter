@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
 
@@ -208,7 +209,9 @@ public sealed class SystemHealthTests
             })
             .Build();
 
-        return new HealthLogReader(new NLogFilePathResolver(configuration, new TestWebHostEnvironment()));
+        return new HealthLogReader(
+            new NLogFilePathResolver(configuration, new TestWebHostEnvironment()),
+            NullLogger<HealthLogReader>.Instance);
     }
 
     private sealed class TestWebHostEnvironment : IWebHostEnvironment

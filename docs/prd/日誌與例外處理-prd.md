@@ -1,13 +1,14 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：部分實作
-- 現行系統版本：0.9.76
+- 現行系統版本：0.9.77
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/10/01
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
-> 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 是目前尚未做到、日後要逐項實作的缺口。
+> 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
+> （P0 已於 0.9.77 完成，P1、P2 仍為規劃中）。
 
 ## 一、目標與範圍
 
@@ -168,7 +169,7 @@
 |---|:-:|:-:|---|
 | 時間、等級、Logger 名稱 | ✔ | ✔ | 已具備 |
 | 追蹤碼（TraceId） | ✔ | ✔ | HTTP 請求已有；Blazor 互動與例外紀錄尚無（LOG-10） |
-| 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`未知`；新增 `瀏覽器`、`系統`（LOG-04、LOG-20） |
+| 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`系統`（0.9.77，LOG-04）／`未知`；規劃新增 `瀏覽器`（LOG-20） |
 | 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/projects/{id}`），不記帶 Id 的原始路徑（LOG-16） |
 | Account、UserId | 依訊息 | ✔ | **可記錄的身分只有這兩項** |
 | CircuitId | Blazor 相關訊息 | | 用於串起同一位使用者的連續操作 |
@@ -177,7 +178,7 @@
 
 沿用 [日誌與設定檔說明](../operations/日誌與設定檔說明.md) §2.4 的禁記清單（密碼、Salt、token、金鑰、驗證碼、TOTP、連線字串、Email、姓名、電話），並明訂：
 
-- **查詢關鍵字**：不記原文，只記 `HasSearch`（有無）與 `SearchLength`（長度）。目前各畫面與 API 仍記原文，見 LOG-08。
+- **查詢關鍵字**：不記原文，只記 `HasSearch`（有無）與 `SearchLength`（長度）；Web API 的參數名稱是 Keyword，對應 `HasKeyword`／`KeywordLength`。0.9.77 起由慣例測試守門（LOG-08）。
 - 不記 QueryString、HTTP header、cookie。
 - 例外紀錄、稽核 `Detail`、告警信、日誌檔**都不得**寫入 AI Prompt／Response 內文；內文只存在 AI 對話紀錄。
 - Cookie 驗證下 `ClaimTypes.Name` 是**使用者姓名**，不可記錄（claim 對應見操作文件 §2.4）。
@@ -196,8 +197,8 @@
 |---|---|
 | 訊息英文、PascalCase 佔位、禁 `{@}`、禁敏感佔位與敏感屬性、行為類別必有 `ILogger` | `LoggingConventionTests`（已有） |
 | 例外簽章用訊息樣板 | `ExceptionSignatureTests`、`ExceptionLogProviderTests`（已有） |
-| 禁 `{Search}`／`{Keyword}` 佔位 | `LoggingConventionTests`（LOG-08 新增） |
-| 禁空 catch | 新增慣例測試（LOG-08 一併處理），白名單須註明理由 |
+| 禁查詢關鍵字佔位（`search`／`keyword`，`HasSearch` 等旗標除外） | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`（0.9.77） |
+| 禁空 catch（本體只有註解也算） | `LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（0.9.77）；取消／斷線類例外與管線類別列白名單，須註明理由 |
 | 稽核動作代碼只能用常數 | 新增慣例測試（LOG-14） |
 | 等級選得對不對、有沒有記到該記的事 | **人工 Code Review**，依本文件 §三 判斷 |
 
@@ -208,15 +209,15 @@
 | 進入點 | 現行防線 | 現況 | 需求 |
 |---|---|:-:|---|
 | Web API（`/api/*`） | `ApiExceptionFilterAttribute`：記 Error，回 `ApiResult` 500 附 `TraceId` | ✅ | 控制器自行 catch 時 `ApiServerError` 也要帶 `TraceId`（LOG-10） |
-| 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error")` | ⚠️ | 同一例外記成兩筆（LOG-03）；帳號欄恆空（LOG-01）；錯誤頁追蹤碼對不上（LOG-10） |
+| 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error")`；以例外實例去重、帳號於驗證後補上（0.9.77） | ✅ | 錯誤頁追蹤碼對不上（LOG-10） |
 | Blazor 頁面元件 | `LoggingErrorBoundary` 包住 `AuthorizeRouteView`，記 Error 並顯示錯誤訊息 | ✅ | 錯誤訊息加上追蹤碼（LOG-10） |
-| Blazor 浮層（對話窗、通知、確認窗） | `AntContainer` 在錯誤邊界**外面**；出錯時整個 circuit 中斷，只靠框架的 CircuitHost 記錄 | ⚠️ | LOG-07 |
-| 射後不理的 Task（`_ = XxxAsync()`） | 無 | ❌ | LOG-04 |
-| 程序層級（其他執行緒） | 無 `AppDomain.UnhandledException` | ❌ | LOG-04 |
+| Blazor 浮層（對話窗、通知、確認窗） | `AntContainer` 包在第二個 `LoggingErrorBoundary` 內，換頁自動復原（0.9.77） | ✅ | 提示加上追蹤碼（LOG-10） |
+| 射後不理的 Task（`_ = XxxAsync()`） | `ProcessExceptionHooks`：`UnobservedTaskException` 記 Error，來源 `系統`（0.9.77） | ✅ | — |
+| 程序層級（其他執行緒） | `ProcessExceptionHooks`：`AppDomain.UnhandledException` 寫補登檔並記 Critical（0.9.77） | ✅ | — |
 | 背景服務 | 三個 Worker 都自行 catch；未設定 `BackgroundServiceExceptionBehavior` | ✅ | 維持；新 Worker 必須自行 catch 並記 Error |
-| 啟動：`builder.Build()` 之前 | 頂層 catch 時 logger 還不存在，只到 stderr | ❌ | LOG-06 |
-| 啟動：遷移、種子資料 | 頂層 catch 記 Critical，只進日誌檔；寫入例外紀錄表的背景服務尚未啟動 | ⚠️ | LOG-06 |
-| 關機 | 寫入背景服務停止時不清空佇列，殘留的例外遺失 | ❌ | LOG-05 |
+| 啟動：`builder.Build()` 之前 | 頂層 catch 直接經 NLog 寫檔，並寫補登檔（0.9.77） | ✅ | — |
+| 啟動：遷移、種子資料 | 頂層 catch 記 Critical 並寫補登檔，下次啟動補進例外紀錄（0.9.77） | ✅ | — |
+| 關機 | 寫入背景服務停止時清空佇列，上限 5 秒（0.9.77） | ✅ | — |
 | 瀏覽器 JavaScript | 無 `window.onerror`／`unhandledrejection` 回報 | ❌ | LOG-20 |
 
 ## 六、需求清單
@@ -238,56 +239,21 @@
 | Blazor 錯誤邊界 | `LoggingErrorBoundary` | `Routes.razor` |
 | 慣例守門 | 訊息格式、敏感資料、必備 `ILogger` | `LoggingConventionTests` |
 
-### 6.2 規劃中 —— P0：資料遺失或記錄錯誤，優先修正
+### 6.2 已實作 —— P0 缺口修正（0.9.77）
 
-**LOG-01 例外紀錄的帳號欄在 HTTP／API 請求時恆為空**
-- 現況：`UseHttpRequestLogging` 掛在 `UseAuthentication` 之前，設定情境時 `HttpContext.User` 尚未驗證。
-- 需求：HTTP 與 API 請求產生的例外紀錄，必須帶有已登入使用者的 `Account`、`UserId`。
-- 驗收：已登入狀態呼叫一支會拋例外的 API，例外紀錄的帳號欄為該使用者；未登入請求為空。整合測試覆蓋。
+以下八項原列為規劃中的 P0，已於 0.9.77 完成。每項都有自動化測試守門；
+「拿掉修正後測試必須轉紅」已逐一實測（LOG-01、LOG-02、LOG-03、LOG-08）。
 
-**LOG-02 例外佇列的丟棄筆數永遠是 0**
-- 現況：佇列採 `BoundedChannelFullMode.DropWrite`，此模式下 `TryWrite` 即使丟棄也回傳 true，`DroppedCount` 不會累加。
-- 需求：佇列滿時丟棄的筆數必須正確計數。
-- 驗收：單元測試塞滿佇列後再寫入 N 筆，`DroppedCount == N`。
-
-**LOG-03 非 API 請求的未處理例外被記成兩筆**
-- 現況：`UseHttpRequestLogging` 與框架的 `ExceptionHandlerMiddleware` 各記一次 Error，訊息樣板不同，產生兩個簽章。
-- 需求：同一個未處理例外在例外紀錄表只產生一筆（一次發生計一次）。
-- 驗收：正式環境設定下觸發頁面請求例外，例外紀錄表只多一筆、次數為 1。
-
-**LOG-04 攔截射後不理的 Task 與程序層級例外**
-- 需求：
-  - 掛上 `TaskScheduler.UnobservedTaskException`，記 Error 並標記為已觀察。
-  - 掛上 `AppDomain.CurrentDomain.UnhandledException`，記 Critical，並在程序結束前盡力清空日誌。
-  - 兩者在例外紀錄表的來源為新增的 `系統`。
-- 驗收：測試中產生一個未被 await 的失敗 Task 並觸發 GC，例外紀錄出現對應列。
-
-**LOG-05 關機時清空例外佇列**
-- 現況：`ExceptionLogWriter` 以 `ReadAllAsync(stoppingToken)` 讀取，收到停止訊號立刻結束，佇列中的例外遺失。
-- 需求：停止時繼續寫完佇列中剩餘的項目，上限 5 秒；逾時仍未寫完的筆數透過 `InternalLogger` 輸出。
-- 驗收：單元測試在佇列有資料時停止 Writer，資料全部寫入。
-
-**LOG-06 啟動失敗必須事後看得到**
-- 需求：
-  - NLog 在讀取設定、建立服務容器之前就已就緒，`builder.Build()` 之前的失敗也要寫進日誌檔。
-  - 啟動失敗時，把例外摘要寫入一個「啟動失敗標記檔」（位於 `ExternalFileSystem` 設定的目錄）。
-  - 下次成功啟動時，讀取標記檔補登到例外紀錄表（來源 `系統啟動`），然後刪除標記檔。
-- 驗收：故意讓設定驗證失敗啟動一次，再正常啟動，例外紀錄表看得到上次的啟動失敗。
-
-**LOG-07 Blazor 浮層的例外要被攔截並記錄**
-- 現況：`AntContainer` 位於 `LoggingErrorBoundary` 之外，對話窗或通知內的例外會讓整個 circuit 中斷。
-- 需求：浮層內的未處理例外要被記錄（來源 `畫面`、頁面為當下路徑），且使用者看到明確的錯誤訊息與追蹤碼，
-  而不是畫面突然失去回應。作法（另包一層錯誤邊界或在對話窗元件層攔截）於實作規格決定。
-- 驗收：在對話窗內故意拋例外，例外紀錄出現對應列，頁面其他部分仍可操作或有明確的重新整理提示。
-
-**LOG-08 查詢關鍵字不得記錄原文，並禁止空 catch**
-- 現況：各 CRUD 畫面以 Information 記錄 `Search={Search}`；分類、專案、團隊 API 以 Debug 記錄 `Keyword={Keyword}`。
-  另有多處 JSON 解析失敗的 catch 完全不記錄（`TeamJsonHelper`、`RoleViewService`、`RbacBackfillService` 等）。
-- 需求：
-  - 全部改記 `HasSearch`、`SearchLength`。
-  - `LoggingConventionTests` 擋下 `Search`、`Keyword`、`Query` 類佔位（布林與長度欄位除外）。
-  - 既有空 catch 補上至少 Debug 的紀錄；新增慣例測試禁止空 catch，必要的例外列入白名單並註明理由。
-- 驗收：慣例測試通過，且故意加入 `{Search}` 佔位或空 catch 時測試失敗。
+| 編號 | 原本的問題 | 0.9.77 的做法 | 守門測試 |
+|---|---|---|---|
+| LOG-01 | HTTP／API 例外紀錄的帳號欄恆為空：`UseHttpRequestLogging` 排在驗證之前 | 新增 `UseExceptionContextUser()`，排在 `UseAuthorization` 之後補上帳號（JWT 端點要到授權中介軟體才驗證出 User）；`UseHttpRequestLogging` 的 catch 記錄前再取一次（內層設定的值不會流回外層）。帳號解析改由 `RequestActorResolver` 依 claim 判斷、不依路徑 —— 原本 `/api/project-files`（Cookie）會把**姓名**當帳號 | `ApiIntegrationTests.UnhandledApiException_ShouldRecordAccountInExceptionLog`、`RequestActorResolverTests` |
+| LOG-02 | 丟棄筆數永遠是 0：`DropWrite` 模式下 `TryWrite` 永遠回 true | Channel 改為 `Wait` ＋ `TryWrite`（與 `ChannelEmailQueue` 同理），滿載時才回得出 false | `ExceptionLogProviderTests.Log_WhenChannelIsFull_ShouldDropWithoutThrowing` |
+| LOG-03 | 非 API 請求的未處理例外記成兩列（請求日誌＋框架 ExceptionHandlerMiddleware） | `ExceptionLogProvider` 以**例外實例**去重（`ConditionalWeakTable`），同一個例外只收第一次；一併涵蓋 DeveloperExceptionPage 與「記錄後重拋」。日誌檔不受影響 | `ApiIntegrationTests.UnhandledPageException_ShouldBeRecordedOnlyOnce`、`ExceptionLogProviderTests.Log_SameExceptionInstanceTwice_ShouldCaptureOnlyOnce` |
+| LOG-04 | 射後不理的 Task、背景執行緒的未處理例外完全不留紀錄 | `ProcessExceptionHooks` 訂閱 `TaskScheduler.UnobservedTaskException`（記 Error、標記已觀察、還原情境）與 `AppDomain.UnhandledException`（寫補登檔、抑制收錄下記 Critical）；新增來源 `系統`（`ExceptionSources.Process`）；`ApplicationStopped` 時取消訂閱 | `ProcessExceptionHooksTests` |
+| LOG-05 | 關機時佇列中的例外遺失 | `ExceptionLogWriter` 收到停止訊號後清空佇列，上限 5 秒；逾時剩餘筆數輸出到 InternalLogger | `ExceptionLogWriterTests` |
+| LOG-06 | 啟動失敗只進日誌檔；host 建立前的失敗連日誌檔都沒有 | `StartupSafetyValidator` 移到 NLog 設定之後；host 建立前的失敗直接經 NLog 寫檔；所有啟動失敗寫入**補登檔**（`{ExceptionPath}/pending/*.json`，`CrashMarkerStore`），下次成功啟動於遷移後補進例外紀錄（來源 `系統啟動`）。`HostAbortedException`（`dotnet ef` 的正常中止）排除在外 | `CrashMarkerStoreTests`；實機驗證：以 Production 設定啟動失敗一次 → 日誌檔有 FATAL、產生補登檔 → 正常啟動後例外紀錄出現該列、補登檔已刪 |
+| LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10 | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門；瀏覽器內的實際觸發尚未人工驗收） |
+| LOG-08 | 查詢關鍵字記錄原文；多處 JSON 解析失敗與情境設定失敗的 catch 不留紀錄 | 17 處改記 `HasSearch`／`SearchLength`（API 為 `HasKeyword`／`KeywordLength`、專案擁有者篩選為 `HasOwner`）；團隊／權限 JSON 解析失敗、健康檢查失敗、例外情境設定失敗補記 Warning；Try 型 API（回傳 false／null 即結果）維持不動 | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`、`LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（取消／斷線類例外與管線類別列白名單並附理由） |
 
 ### 6.3 規劃中 —— P1：可追蹤性與主動通知
 
@@ -435,15 +401,15 @@
 | 需求 | 主要驗收方式 |
 |---|---|
 | §三、§四 規範 | `LoggingConventionTests`（自動）＋ Code Review 依本文件判斷等級 |
-| LOG-01、LOG-03、LOG-10 | `ApiIntegrationTests` 整合測試 |
-| LOG-02、LOG-05 | `ExceptionLogProviderTests`、新增 `ExceptionLogWriterTests` |
-| LOG-04、LOG-06、LOG-07 | 單元測試＋人工驗收步驟（啟動失敗、浮層例外需手動重現） |
-| LOG-08、LOG-14、LOG-15 | 慣例測試＋各事件單元測試 |
+| LOG-01、LOG-03（0.9.77 已實作）、LOG-10 | `ApiIntegrationTests` 整合測試 |
+| LOG-02、LOG-05（0.9.77 已實作） | `ExceptionLogProviderTests`、`ExceptionLogWriterTests` |
+| LOG-04、LOG-06、LOG-07（0.9.77 已實作） | `ProcessExceptionHooksTests`、`CrashMarkerStoreTests`、`FormModalConventionTests`＋人工驗收（啟動失敗已實機驗證；浮層例外待瀏覽器手動重現） |
+| LOG-08（0.9.77 已實作）、LOG-14、LOG-15 | 慣例測試＋各事件單元測試 |
 | LOG-11、LOG-16 | `ExceptionLogServiceTests`、`ExceptionSignatureTests` |
 | LOG-12、LOG-13、LOG-21 | 以假時鐘的單元測試 |
 | LOG-20、LOG-22 | 人工驗收（瀏覽器開發者工具、健康監控頁） |
 
-每一項實作完成後，須把該項從 §6.2–6.4 移到 §6.1，並更新文件版本與現行系統版本。
+每一項實作完成後，須把該項從「規劃中」移到「已實作」（如 §6.2），並更新文件版本與現行系統版本。
 
 ## 十、已知限制與待決事項
 

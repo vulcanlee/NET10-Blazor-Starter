@@ -50,7 +50,7 @@ public class RoleViewService
         return user.Id > 0 ? (user.Id, user.Account) : (null, null);
     }
 
-    private static List<string> ParsePermissionKeys(string? tabViewJson)
+    private List<string> ParsePermissionKeys(string? tabViewJson)
     {
         if (string.IsNullOrWhiteSpace(tabViewJson))
         {
@@ -61,8 +61,10 @@ public class RoleViewService
         {
             return JsonSerializer.Deserialize<List<string>>(tabViewJson) ?? [];
         }
-        catch
+        catch (Exception ex)
         {
+            // 解析失敗等於「這個角色沒有任何權限」，必須留下紀錄（LOG-08）。
+            Logger.LogWarning(ex, "Failed to parse role permission JSON; treating it as no permissions. JsonLength={JsonLength}", tabViewJson.Length);
             return [];
         }
     }
@@ -71,8 +73,9 @@ public class RoleViewService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
-            "Loading role views. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
-            dataRequest.Search,
+            "Loading role views. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
+            string.IsNullOrWhiteSpace(dataRequest.Search) == false,
+            dataRequest.Search?.Length ?? 0,
             dataRequest.SortField,
             dataRequest.SortDescending,
             dataRequest.CurrentPage,

@@ -90,8 +90,9 @@ namespace MyProject.Web.Components.Views.Teams
         public async Task ReloadAsync()
         {
             logger.LogDebug(
-                "Reloading teams. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
-                searchText,
+                "Reloading teams. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+                string.IsNullOrWhiteSpace(searchText) == false,
+                searchText.Length,
                 sortField,
                 sortDirection,
                 _pageIndex,
@@ -139,7 +140,7 @@ namespace MyProject.Web.Components.Views.Teams
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            logger.LogInformation("Team search triggered. Search={Search}", searchText);
+            logger.LogInformation("Team search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync();
         }
 

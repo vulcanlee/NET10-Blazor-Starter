@@ -288,7 +288,7 @@ public sealed class RbacBackfillService : IRbacBackfillService
                 continue;
             }
 
-            foreach (var teamName in TeamJsonHelper.Deserialize(role.DefaultTeamsJson))
+            foreach (var teamName in TeamJsonHelper.Deserialize(role.DefaultTeamsJson, logger))
             {
                 if (teamIdByName.TryGetValue(teamName, out var teamId)
                     && existing.Add((user.Id, teamId)))
@@ -305,7 +305,7 @@ public sealed class RbacBackfillService : IRbacBackfillService
         await context.SaveChangesAsync();
     }
 
-    private static List<string> DeserializePermissionNames(string? tabViewJson)
+    private List<string> DeserializePermissionNames(string? tabViewJson)
     {
         if (string.IsNullOrWhiteSpace(tabViewJson))
         {
@@ -316,8 +316,10 @@ public sealed class RbacBackfillService : IRbacBackfillService
         {
             return JsonSerializer.Deserialize<List<string>>(tabViewJson) ?? [];
         }
-        catch
+        catch (Exception ex)
         {
+            // 解析失敗等於「這個角色沒有任何權限」，回填會略過它，必須留下紀錄（LOG-08）。
+            logger.LogWarning(ex, "Failed to parse role permission JSON during RBAC backfill. JsonLength={JsonLength}", tabViewJson.Length);
             return [];
         }
     }

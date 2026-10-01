@@ -463,6 +463,7 @@ namespace MyProject.Web.Components.Views.Admins
             ExceptionSources.WebApi => "purple",
             ExceptionSources.Startup => "gold",
             ExceptionSources.Background => "cyan",
+            ExceptionSources.Process => "volcano",
             _ => "default",
         };
     }
