@@ -1,14 +1,14 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：部分實作
-- 現行系統版本：0.9.77
+- 現行系統版本：0.9.78
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/10/01
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
-> （P0 已於 0.9.77 完成，P1、P2 仍為規劃中）。
+> （P0 於 0.9.77、P1 於 0.9.78 完成，P2 仍為規劃中）。
 
 ## 一、目標與範圍
 
@@ -168,9 +168,9 @@
 | 欄位 | 日誌檔 | 例外紀錄 | 說明 |
 |---|:-:|:-:|---|
 | 時間、等級、Logger 名稱 | ✔ | ✔ | 已具備 |
-| 追蹤碼（TraceId） | ✔ | ✔ | HTTP 請求已有；Blazor 互動與例外紀錄尚無（LOG-10） |
+| 追蹤碼（TraceId） | ✔ | ✔ | 8 碼錯誤追蹤碼：HTTP 請求與 Blazor 每次互動各一個；例外紀錄存 `LastTraceId`（0.9.78，LOG-10） |
 | 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`系統`（0.9.77，LOG-04）／`未知`；規劃新增 `瀏覽器`（LOG-20） |
-| 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/projects/{id}`），不記帶 Id 的原始路徑（LOG-16） |
+| 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/projects/{id}`），不記帶 Id 的原始路徑（0.9.78，LOG-16） |
 | Account、UserId | 依訊息 | ✔ | **可記錄的身分只有這兩項** |
 | CircuitId | Blazor 相關訊息 | | 用於串起同一位使用者的連續操作 |
 
@@ -199,7 +199,7 @@
 | 例外簽章用訊息樣板 | `ExceptionSignatureTests`、`ExceptionLogProviderTests`（已有） |
 | 禁查詢關鍵字佔位（`search`／`keyword`，`HasSearch` 等旗標除外） | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`（0.9.77） |
 | 禁空 catch（本體只有註解也算） | `LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（0.9.77）；取消／斷線類例外與管線類別列白名單，須註明理由 |
-| 稽核動作代碼只能用常數 | 新增慣例測試（LOG-14） |
+| 稽核動作代碼只能用 `AuditActions` 常數 | `AuditConventionTests`（0.9.78） |
 | 等級選得對不對、有沒有記到該記的事 | **人工 Code Review**，依本文件 §三 判斷 |
 
 ## 五、未捕捉例外的涵蓋矩陣
@@ -208,10 +208,10 @@
 
 | 進入點 | 現行防線 | 現況 | 需求 |
 |---|---|:-:|---|
-| Web API（`/api/*`） | `ApiExceptionFilterAttribute`：記 Error，回 `ApiResult` 500 附 `TraceId` | ✅ | 控制器自行 catch 時 `ApiServerError` 也要帶 `TraceId`（LOG-10） |
-| 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error")`；以例外實例去重、帳號於驗證後補上（0.9.77） | ✅ | 錯誤頁追蹤碼對不上（LOG-10） |
-| Blazor 頁面元件 | `LoggingErrorBoundary` 包住 `AuthorizeRouteView`，記 Error 並顯示錯誤訊息 | ✅ | 錯誤訊息加上追蹤碼（LOG-10） |
-| Blazor 浮層（對話窗、通知、確認窗） | `AntContainer` 包在第二個 `LoggingErrorBoundary` 內，換頁自動復原（0.9.77） | ✅ | 提示加上追蹤碼（LOG-10） |
+| Web API（`/api/*`） | `ApiExceptionFilterAttribute`：記 Error，回 `ApiResult` 500 附 `TraceId`；控制器自行 catch 的 `ApiServerError` 也帶（0.9.78） | ✅ | — |
+| 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error")`；以例外實例去重、帳號於驗證後補上（0.9.77） | ✅ | —（0.9.78 起 `/Error` 頁顯示的追蹤碼與日誌一致） |
+| Blazor 頁面元件 | `LoggingErrorBoundary` 包住 `AuthorizeRouteView`，記 Error 並顯示錯誤訊息與追蹤碼（0.9.78） | ✅ | — |
+| Blazor 浮層（對話窗、通知、確認窗） | `AntContainer` 包在第二個 `LoggingErrorBoundary` 內，換頁自動復原（0.9.77），提示附追蹤碼（0.9.78） | ✅ | — |
 | 射後不理的 Task（`_ = XxxAsync()`） | `ProcessExceptionHooks`：`UnobservedTaskException` 記 Error，來源 `系統`（0.9.77） | ✅ | — |
 | 程序層級（其他執行緒） | `ProcessExceptionHooks`：`AppDomain.UnhandledException` 寫補登檔並記 Critical（0.9.77） | ✅ | — |
 | 背景服務 | 三個 Worker 都自行 catch；未設定 `BackgroundServiceExceptionBehavior` | ✅ | 維持；新 Worker 必須自行 catch 並記 Error |
@@ -255,87 +255,19 @@
 | LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10 | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門；瀏覽器內的實際觸發尚未人工驗收） |
 | LOG-08 | 查詢關鍵字記錄原文；多處 JSON 解析失敗與情境設定失敗的 catch 不留紀錄 | 17 處改記 `HasSearch`／`SearchLength`（API 為 `HasKeyword`／`KeywordLength`、專案擁有者篩選為 `HasOwner`）；團隊／權限 JSON 解析失敗、健康檢查失敗、例外情境設定失敗補記 Warning；Try 型 API（回傳 false／null 即結果）維持不動 | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`、`LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（取消／斷線類例外與管線類別列白名單並附理由） |
 
-### 6.3 規劃中 —— P1：可追蹤性與主動通知
+### 6.3 已實作 —— P1：可追蹤性與主動通知（0.9.78）
 
-**LOG-10 錯誤追蹤碼**
-- 需求：
-  - 每個 HTTP 請求與**每次 Blazor 互動**都有一個追蹤碼；Blazor 互動的追蹤碼由 `ApplicationCircuitHandler` 產生，
-    透過 NLog `ScopeContext` 寫進該次互動的所有日誌行（日誌檔版面新增欄位，`/logs` 解析器與 AI 日誌分析同步調整）。
-  - 例外紀錄表新增 `LastTraceId`（最後一次發生的追蹤碼），明細窗顯示。
-  - 使用者看到的錯誤訊息（錯誤邊界、表單失敗通知、`/Error` 頁）顯示「錯誤追蹤碼：xxxx」；
-    `/Error` 頁顯示的碼必須與日誌檔一致（現況顯示 `Activity.Id`，日誌記 `TraceIdentifier`，兩者不同）。
-  - `ApiServerError` 回應也帶 `TraceId`。
-  - `/logs` 可用追蹤碼篩選。
-  - 追蹤碼只含隨機識別字元，不含任何內部資訊。
-- 驗收：使用者回報一個追蹤碼，管理員能在 `/logs` 找到該次操作的所有日誌行，並在 `/system-exceptions` 找到對應例外。
+以下七項原列為規劃中的 P1，已於 0.9.78 完成；與原規劃不同之處標示「調整」。
 
-**LOG-11 使用者錯誤不進例外紀錄表**
-- 現況：重複鍵（`UniqueConstraintHelper` 轉成友善訊息的情況）仍以 `LogError(ex)` 記錄，被當成系統例外。
-- 需求：依 §4.2 分類表，重複名稱／重複鍵改記 Information、不帶例外物件；其餘既有 catch 依分類表全面檢視一次。
-- 驗收：新增重複名稱的分類，例外紀錄表不新增任何列，日誌檔有一筆 Information。
-
-**LOG-12 例外 Email 告警**
-- 需求：
-  - 觸發條件（任一成立）：
-    1. 例外紀錄出現**新簽章**（第一次發生）。
-    2. 等級為 **Critical**。
-    3. **同一簽章 10 分鐘內發生 ≥ 20 次**（暴增）。
-  - 節流：同一簽章 60 分鐘內最多寄一次；全系統每小時最多 20 封，超過的合併成一封摘要。
-  - 收件人：`ExceptionAlertSettings:Recipients` 清單；**清單為空即停用告警**。與系統帳號無關，可填維運群組信箱。
-  - 信件內容**只含摘要**：例外類型、來源、頁面、發生次數、首次與最後時間、追蹤碼，以及連到 `/system-exceptions` 的連結。
-    **不含**例外訊息全文、堆疊、帳號、UserId。
-  - 透過既有寄信背景佇列送出；寄送失敗記 Warning，不重試轟炸，不影響例外收錄。
-  - 告警判斷位於例外管線內，須遵守 §4.5 紅線。
-- 驗收：單元測試驗證三種觸發、兩層節流與信件內容不含敏感欄位；`EmailSettings` 為 Pickup 時可在收件匣目錄看到信件。
-
-**LOG-13 統一的保存期限與自動清理**
-- 需求：
-
-  | 紀錄 | 預設保存 | 設定位置 | 清理方式 |
-  |---|---|---|---|
-  | 日誌檔 | 30 天 | `nlog.config` 的 `maxArchiveDays` | NLog 自動（維持現狀） |
-  | 系統例外紀錄 | 最後發生超過 90 天 | `LogRetentionSettings:ExceptionLogDays` | 每日自動，連同堆疊檔 |
-  | 稽核紀錄 | 365 天 | `LogRetentionSettings:AuditLogDays` | 每日自動 |
-  | AI 對話紀錄 | 90 天 | 沿用 `AiCallLogSettings`（已有自動清理） | 維持現狀 |
-
-  - 由一個背景作業每日執行一次；設定值 ≤ 0 代表不自動清理。
-  - 每次清理寫一筆稽核（`系統` 為執行者，Detail 記清除筆數）；空跑不寫。
-  - 頁面上的手動清除與清空保留，清除天數改讀同一組設定（不再寫死 90／365）。
-- 驗收：單元測試以假時鐘驗證只刪除過期資料、堆疊檔同步刪除、稽核有紀錄。
-
-**LOG-14 補齊稽核事件**
-- 需求：下列事件都必須寫稽核（Detail 只記非敏感摘要：對象 Id、變更的欄位**名稱**、筆數）：
-
-  | 事件 | 建議動作代碼 |
-  |---|---|
-  | 專案新增／修改／刪除、附件上傳／刪除 | `Project.Create`／`Update`／`Delete`、`Project.FileUpload`／`FileDelete` |
-  | 分類新增／修改／刪除 | `Category.Create`／`Update`／`Delete` |
-  | 團隊新增／修改／刪除 | `Team.Create`／`Update`／`Delete` |
-  | 登出 | `Logout` |
-  | Google SSO 登入成功／失敗、帳號自動建立、帳號連結 | `Login.Sso.Success`／`Failed`、`User.SsoCreate`、`User.SsoLink` |
-  | 自行變更密碼 | `Password.Changed` |
-  | JWT 刷新失敗 | `Token.RefreshFailed` |
-  | Blazor 頁面權限拒絕 | `Permission.Denied`（與 API 共用） |
-  | 例外紀錄刪除／清除／清空 | `ExceptionLog.Delete`／`Purge`／`ClearAll` |
-  | Token 用量刪除／清除 | `TokenUsage.Delete`／`Purge` |
-  | 各頁面匯出 CSV／PDF | `<資源>.Export` |
-  | 自動清理（LOG-13） | `<資源>.AutoPurge` |
-
-  - 所有動作代碼收斂到單一 `AuditActions` 常數類別，並以慣例測試禁止字串字面值。
-  - 稽核寫入時機：交易 commit 之後（沿用密碼重設的做法），避免記到實際沒成功的動作。
-- 驗收：每個事件各有一個測試，確認動作代碼、執行者與成敗正確。
-
-**LOG-15 補上缺少日誌的類別與欄位**
-- 需求：
-  - `SystemHealthService`、`HealthLogReader`、`DatabaseHealthCheck`、`JwtTokenService`、`ApiValidationFilterAttribute`
-    補上 `ILogger`，並依 §3.4 記錄（驗證被拒記 Information，含欄位**名稱**，不含值）。
-  - 登出日誌補上 `Account`、`UserId`。
-- 驗收：`LoggingConventionTests` 的豁免清單縮減，只剩例外管線四個類別與純計算類別。
-
-**LOG-16 例外紀錄的頁面改記路由樣板**
-- 現況：頁面記原始路徑（如 `/api/v1/projects/123`），每個 Id 都會產生新簽章，佔滿 5000 列上限。
-- 需求：API 記路由樣板（`/api/v1/projects/{id}`）；Blazor 頁面記 `@page` 樣板。
-- 驗收：對兩個不同 Id 觸發同一例外，例外紀錄只有一列、次數為 2。
+| 編號 | 0.9.78 的做法 | 守門測試 |
+|---|---|---|
+| LOG-10 錯誤追蹤碼 | `TraceCode` 產生 8 碼短碼（Crockford Base32，不含時間、主機、帳號）：HTTP 請求由 `UseHttpRequestLogging` 產生並**取代 `HttpContext.TraceIdentifier`**（`/Error` 重新執行時沿用同一個碼），Blazor 每次互動由 `ApplicationCircuitHandler` 產生；兩者放進 NLog ScopeContext。例外紀錄新增 `LastTraceId`（migration `AddExceptionLogLastTraceId`），明細窗、點列複製、CSV 都顯示，關鍵字可搜尋。錯誤邊界兩處、`/Error` 頁（改為中文並修正原本顯示 `Activity.Id` 對不上的問題）、表單儲存失敗與 18 處「…失敗：{型別}」通知（`ViewNotification.UnexpectedError`）顯示「錯誤追蹤碼：xxxx」；`ApiServerError` 回應帶 `TraceId`。`/logs` 新增「錯誤追蹤碼」篩選（比對 TraceId 欄位完全相同）。**調整**：不新增日誌欄位，沿用原本的 TraceId 欄位（`${scopeproperty:item=TraceCode:whenEmpty=${aspnet-TraceIdentifier}}`），欄位數維持 7 個、舊日誌檔照樣解析。只有「未預期例外」的訊息附追蹤碼，「名稱重複」等一般驗證訊息不附 | `TraceCodeTests`、`LogQueryServiceTests.Query_TraceCodeFilter_ShouldKeepOnlyExactTraceIdMatches`、`ApiIntegrationTests.UnhandledApiException_TraceIdShouldMatchExceptionLog`、`ApiIntegrationTests.CaughtApiException_ShouldReturnTraceId`、`ExceptionLogServiceTests.RecordAsync_ShouldKeepLastTraceId_AndReturnOutcome` |
+| LOG-11 使用者錯誤不進例外紀錄表 | 分類、團隊的新增／修改撞唯一索引時先判斷，命中記 Information、不帶例外物件；`ProjectController` 刪除時的外鍵衝突改為先判斷再記錄，並補上 SQLite 的訊息（原本只認 SQL Server） | `TeamServiceTests.AddAsync_WhenRejected_ShouldNotWriteAudit` 等既有服務測試 |
+| LOG-12 例外 Email 告警 | `ExceptionAlertService`（`ExceptionAlertSettings`）在寫入器每筆寫入後評估，補登檔匯入時也評估；觸發：新簽章、Critical、暴增；節流：同簽章冷卻、全系統每小時上限（超過的筆數併入下一封）。`RecordAsync` 改為回傳 `ExceptionRecordOutcome`，`ExceptionLogEntry` 新增 `IsCritical`。信件 `EmailKinds.ExceptionAlert` 只含摘要。寄信背景作業自身的錯誤不告警。出貨預設停用 | `ExceptionAlertServiceTests`（假時鐘） |
+| LOG-13 統一保存期限 | `LogRetentionSettings`＋`LogRetentionWorker`（啟動時與每日；`TimeProvider` 可替換）；例外以本地時間、稽核以 UTC 計算門檻；刪到資料時寫 `ExceptionLog.AutoPurge`／`Audit.AutoPurge`。兩頁的手動清除改讀同一組天數。**調整**：「不自動清理」為 `0`（不接受負數） | `LogRetentionWorkerTests`（假時鐘） |
+| LOG-14 補齊稽核事件 | 動作代碼收斂到 `MyProject.Business.Helpers.AuditActions`。新增：分類／團隊／專案增刪改（Blazor 走服務、API 走 Controller，`ControllerAuditExtensions`）、專案附件上傳／刪除筆數、登出、Google SSO 成功／失敗／停用／帳號連結／自動建立、自行變更密碼（兩條路徑）、JWT 刷新失敗、Blazor 頁面權限拒絕（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`，14 頁）、例外紀錄與 Token 用量的刪除／清除／清空、稽核／例外／AI 對話／日誌／Token 用量的匯出、自動清理 | `AuditConventionTests`（禁字串字面值、代碼唯一）、`TeamServiceTests.AddUpdateDelete_ShouldWriteAuditWithCurrentUser` |
+| LOG-15 補上缺少日誌的類別 | `JwtTokenService`、`ApiValidationFilterAttribute`（只記欄位名稱）、`DatabaseHealthCheck`、`RecordAccessScopeProvider`、登出（含帳號）補上日誌；`LoggingConventionTests` 的「必有 ILogger」範圍加入 `Web/Auth`、`Web/Filters`、`Web/Health` | `LoggingConventionTests.BehaviourClasses_ShouldHoldALogger` |
+| LOG-16 頁面記路由樣板 | `UseExceptionContextUser` 與請求日誌的 catch 以 `RouteEndpoint.RoutePattern.RawText` 取代原始路徑（例如 `/api/ContractProbe/throw/{id}`）；Blazor 頁面目前沒有帶參數的 `@page`，維持原路徑 | `ApiIntegrationTests.UnhandledApiException_ShouldRecordRouteTemplateAsPage` |
 
 ### 6.4 規劃中 —— P2：可觀測性強化
 
@@ -371,9 +303,10 @@
   - NLog 內部日誌最近是否有 Error。
 - 驗收：模擬佇列丟棄與磁碟空間不足，健康監控頁顯示對應狀態。
 
-## 七、設定鍵（規劃中）
+## 七、設定鍵
 
-以下為規劃中的新設定區段，實作時須同步寫進 [日誌與設定檔說明](../operations/日誌與設定檔說明.md) §4。
+`ExceptionAlertSettings`、`LogRetentionSettings` 已於 0.9.78 實作，逐鍵說明見 [日誌與設定檔說明](../operations/日誌與設定檔說明.md) §4.11、§4.12；
+其餘為規劃中，實作時須同步寫進該文件 §4。
 新增 `ExternalFileSystem` 路徑時，須同步加進 `ApiIntegrationTests.CreateSettings()`（見速查表 §6.6）。
 
 | 區段 | 鍵 | 預設 | 意義 |
@@ -382,8 +315,8 @@
 | | `BurstThreshold` ／ `BurstWindowMinutes` | `20` ／ `10` | 暴增判定 |
 | | `PerSignatureCooldownMinutes` | `60` | 同簽章冷卻 |
 | | `MaxEmailsPerHour` | `20` | 全域上限 |
-| `LogRetentionSettings` | `ExceptionLogDays` | `90` | ≤ 0 不自動清理 |
-| | `AuditLogDays` | `365` | ≤ 0 不自動清理 |
+| `LogRetentionSettings` | `ExceptionLogDays` | `90` | `0` 不自動清理（範圍 0～36500） |
+| | `AuditLogDays` | `365` | `0` 不自動清理（範圍 0～36500） |
 | `SlowOperationSettings` | `HttpRequestMs` ／ `DbCommandMs` ／ `UiInteractionMs` ／ `ExternalCallMs` ／ `AiCallMs` | 見 LOG-21 | ≤ 0 停用 |
 | `ClientErrorReporting` | `Enabled` | `true` | 前端錯誤回報開關 |
 | | `MaxPerCircuitPerMinute` | `10` | 防濫用 |
@@ -401,12 +334,12 @@
 | 需求 | 主要驗收方式 |
 |---|---|
 | §三、§四 規範 | `LoggingConventionTests`（自動）＋ Code Review 依本文件判斷等級 |
-| LOG-01、LOG-03（0.9.77 已實作）、LOG-10 | `ApiIntegrationTests` 整合測試 |
+| LOG-01、LOG-03（0.9.77 已實作）、LOG-10、LOG-16（0.9.78 已實作） | `ApiIntegrationTests` 整合測試 |
 | LOG-02、LOG-05（0.9.77 已實作） | `ExceptionLogProviderTests`、`ExceptionLogWriterTests` |
 | LOG-04、LOG-06、LOG-07（0.9.77 已實作） | `ProcessExceptionHooksTests`、`CrashMarkerStoreTests`、`FormModalConventionTests`＋人工驗收（啟動失敗已實機驗證；浮層例外待瀏覽器手動重現） |
-| LOG-08（0.9.77 已實作）、LOG-14、LOG-15 | 慣例測試＋各事件單元測試 |
-| LOG-11、LOG-16 | `ExceptionLogServiceTests`、`ExceptionSignatureTests` |
-| LOG-12、LOG-13、LOG-21 | 以假時鐘的單元測試 |
+| LOG-08（0.9.77 已實作）、LOG-14、LOG-15（0.9.78 已實作） | 慣例測試＋各事件單元測試 |
+| LOG-11（0.9.78 已實作） | `ExceptionLogServiceTests`、服務測試 |
+| LOG-12、LOG-13（0.9.78 已實作）、LOG-21 | 以假時鐘的單元測試（`ManualTimeProvider`） |
 | LOG-20、LOG-22 | 人工驗收（瀏覽器開發者工具、健康監控頁） |
 
 每一項實作完成後，須把該項從「規劃中」移到「已實作」（如 §6.2），並更新文件版本與現行系統版本。
@@ -418,6 +351,10 @@
 - **單機設計**：例外合併、告警節流、前端回報計數都在單一程序的記憶體中；未來若改為多台主機需重新設計。
 - **時區**：例外紀錄與日誌檔使用伺服器本地時間，稽核使用 UTC（見稽核紀錄 PRD §四），跨表比對時須注意。
 - **告警只有 Email**：Teams、Slack、LINE 等通道不在本次範圍。
+- **Web API（JWT）的紀錄存取範圍只看得到公開紀錄**（0.9.78 補日誌時發現，尚未修正）：`RecordAccessScopeProvider` 以 `Sid` claim
+  找使用者，但 JWT 的 UserId 放在 `NameIdentifier`，因此 API 使用者一律退回「非管理員、無團隊」。屬權限行為，須另立需求修正；
+  目前以 Debug 日誌「Record access scope fell back to public records because the principal has no Sid claim.」標示。
+- **Blazor 互動的追蹤碼尚未在瀏覽器內人工驗證**：HTTP 請求的追蹤碼已實機確認寫入日誌檔；circuit 互動由程式碼與單元測試保證。
 
 ## 十一、相關程式與文件
 

@@ -47,22 +47,38 @@ public class ExceptionLogService
 
     /// <summary>
     /// 記錄一筆例外：相同簽章就累加次數，否則新增一列並寫入堆疊檔。
+    /// 回傳寫入後的狀態供告警判斷（LOG-12）；記錄失敗時回傳 null。
     ///
     /// ⚠️ 由背景寫入器呼叫，全程不得拋出、不得走 ILogger（見類別註解）。
     /// </summary>
-    public async Task RecordAsync(ExceptionLogEntry entry)
+    public async Task<ExceptionRecordOutcome?> RecordAsync(ExceptionLogEntry entry)
     {
         try
         {
-            await RecordCoreAsync(entry);
+            return await RecordCoreAsync(entry);
         }
         catch (Exception)
         {
             // 刻意吞掉。例外記錄本身失敗不該影響系統，更不該回流管線造成遞迴。
+            return null;
         }
     }
 
-    private async Task RecordCoreAsync(ExceptionLogEntry entry)
+    private static ExceptionRecordOutcome ToOutcome(ExceptionLog row, bool isNew, ExceptionLogEntry entry)
+        => new(
+            row.Id,
+            isNew,
+            row.Signature == ExceptionSignature.OverflowSignature,
+            row.ExceptionType,
+            row.Source,
+            row.Page,
+            row.OccurrenceCount,
+            row.FirstOccurredAt,
+            row.LastOccurredAt,
+            entry.TraceId,
+            entry.IsCritical);
+
+    private async Task<ExceptionRecordOutcome?> RecordCoreAsync(ExceptionLogEntry entry)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
 
@@ -74,15 +90,16 @@ public class ExceptionLogService
         {
             existing.OccurrenceCount++;
             existing.LastOccurredAt = entry.OccurredAt;
+            existing.LastTraceId = entry.TraceId;
             await context.SaveChangesAsync();
-            return;
+            return ToOutcome(existing, isNew: false, entry);
         }
 
         // 達列數上限：不再新增相異列，改累加哨兵列。
         if (await context.ExceptionLog.CountAsync() >= MaxRows)
         {
-            await RecordOverflowAsync(context, entry.OccurredAt);
-            return;
+            var overflow = await RecordOverflowAsync(context, entry.OccurredAt);
+            return ToOutcome(overflow, isNew: false, entry);
         }
 
         // 堆疊檔在建立資料列之前寫，失敗只是少了全文，資料列仍必須建立。
@@ -103,12 +120,14 @@ public class ExceptionLogService
             OccurrenceCount = 1,
             FirstOccurredAt = entry.OccurredAt,
             LastOccurredAt = entry.OccurredAt,
+            LastTraceId = entry.TraceId,
         };
 
         try
         {
             await context.ExceptionLog.AddAsync(item);
             await context.SaveChangesAsync();
+            return ToOutcome(item, isNew: true, entry);
         }
         catch (Exception)
         {
@@ -123,19 +142,23 @@ public class ExceptionLogService
             {
                 conflicting.OccurrenceCount++;
                 conflicting.LastOccurredAt = entry.OccurredAt;
+                conflicting.LastTraceId = entry.TraceId;
                 await retryContext.SaveChangesAsync();
+                return ToOutcome(conflicting, isNew: false, entry);
             }
+
+            return null;
         }
     }
 
-    private static async Task RecordOverflowAsync(BackendDBContext context, DateTime occurredAt)
+    private static async Task<ExceptionLog> RecordOverflowAsync(BackendDBContext context, DateTime occurredAt)
     {
         var overflow = await context.ExceptionLog
             .FirstOrDefaultAsync(x => x.Signature == ExceptionSignature.OverflowSignature);
 
         if (overflow is null)
         {
-            await context.ExceptionLog.AddAsync(new ExceptionLog
+            overflow = new ExceptionLog
             {
                 Signature = ExceptionSignature.OverflowSignature,
                 ExceptionType = "(其他)",
@@ -144,7 +167,8 @@ public class ExceptionLogService
                 OccurrenceCount = 1,
                 FirstOccurredAt = occurredAt,
                 LastOccurredAt = occurredAt,
-            });
+            };
+            await context.ExceptionLog.AddAsync(overflow);
         }
         else
         {
@@ -153,6 +177,7 @@ public class ExceptionLogService
         }
 
         await context.SaveChangesAsync();
+        return overflow;
     }
 
     public async Task<DataRequestResult<ExceptionLogAdapterModel>> GetAsync(ExceptionLogQuery query)
@@ -193,7 +218,8 @@ public class ExceptionLogService
                 x.ExceptionType.Contains(query.Keyword) ||
                 x.Message.Contains(query.Keyword) ||
                 (x.Page != null && x.Page.Contains(query.Keyword)) ||
-                (x.Operation != null && x.Operation.Contains(query.Keyword)));
+                (x.Operation != null && x.Operation.Contains(query.Keyword)) ||
+                (x.LastTraceId != null && x.LastTraceId == query.Keyword.Trim().ToUpperInvariant()));
         }
 
         IOrderedQueryable<ExceptionLog>? sorted = null;
@@ -325,38 +351,53 @@ public class ExceptionLogService
     /// <summary>刪除「最後發生」早於 N 天前的紀錄，同時刪除其堆疊檔。</summary>
     public async Task<VerifyRecordResult> PurgeAsync(int days)
     {
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var threshold = DateTime.Now.AddDays(-days);
         Logger.LogInformation("Purging exception logs older than {Days} days.", days);
 
         try
         {
-            var stale = await context.ExceptionLog
-                .Where(x => x.LastOccurredAt < threshold)
-                .ToListAsync();
-
-            if (stale.Count == 0)
+            var removed = await PurgeBeforeAsync(DateTime.Now.AddDays(-days));
+            if (removed == 0)
             {
                 return VerifyRecordResultFactory.Build(true, "沒有符合條件的紀錄。");
             }
 
-            // 先刪資料列再刪檔：資料列刪失敗就整批不動，不會留下「有列卻沒檔」的狀態。
-            var stackFiles = stale.Select(x => x.StackTraceFile).ToList();
-            context.ExceptionLog.RemoveRange(stale);
-            await context.SaveChangesAsync();
-
-            foreach (var stackFile in stackFiles)
-            {
-                fileStore.Delete(stackFile);
-            }
-
-            Logger.LogInformation("Purged exception logs. Rows={Rows}, Days={Days}", stale.Count, days);
-            return VerifyRecordResultFactory.Build(true, $"已清除 {stale.Count} 筆紀錄。");
+            Logger.LogInformation("Purged exception logs. Rows={Rows}, Days={Days}", removed, days);
+            return VerifyRecordResultFactory.Build(true, $"已清除 {removed} 筆紀錄。");
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge exception logs. Days={Days}", days);
             return VerifyRecordResultFactory.Build(false, "清除舊例外紀錄失敗。", ex);
         }
+    }
+
+    /// <summary>
+    /// 刪除「最後發生」早於 <paramref name="threshold"/>（本地時間，與 LastOccurredAt 同一個時間基準）的紀錄與堆疊檔，
+    /// 回傳刪除筆數。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出，由呼叫端決定如何回報。
+    /// </summary>
+    public async Task<int> PurgeBeforeAsync(DateTime threshold)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        var stale = await context.ExceptionLog
+            .Where(x => x.LastOccurredAt < threshold)
+            .ToListAsync();
+
+        if (stale.Count == 0)
+        {
+            return 0;
+        }
+
+        // 先刪資料列再刪檔：資料列刪失敗就整批不動，不會留下「有列卻沒檔」的狀態。
+        var stackFiles = stale.Select(x => x.StackTraceFile).ToList();
+        context.ExceptionLog.RemoveRange(stale);
+        await context.SaveChangesAsync();
+
+        foreach (var stackFile in stackFiles)
+        {
+            fileStore.Delete(stackFile);
+        }
+
+        return stale.Count;
     }
 }

@@ -99,6 +99,7 @@ public partial class HomeWelcomeView
         if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.角色_首頁) == false)
         {
             RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+            await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/");
             Logger.LogWarning("Home welcome view denied because current user has not this role permission.");
             return;
         }

@@ -62,6 +62,25 @@ public sealed class LogQueryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Query_TraceCodeFilter_ShouldKeepOnlyExactTraceIdMatches()
+    {
+        // LOG-10：錯誤追蹤碼要比對 TraceId 欄位「完全相同」，不能只是出現在內容裡 ——
+        // 短碼可能剛好出現在別筆的訊息中（第三行），關鍵字比對會誤中。
+        var today = DateTime.Today;
+        WriteLog(today,
+            $"{today:yyyy-MM-dd} 09:00:00.0000|K7Q2M9XA|INFO|1|A|first of the interaction.|",
+            $"{today:yyyy-MM-dd} 09:00:01.0000|K7Q2M9XA|ERROR|1|A|second of the interaction.|",
+            $"{today:yyyy-MM-dd} 09:00:02.0000|ZZZZ0000|INFO|1|A|mentions K7Q2M9XA in the message.|");
+
+        var request = CreateRequest(today);
+        request.TraceCode = "k7q2m9xa";
+        var result = await QueryAsync(request);
+
+        Assert.Equal(2, result.Entries.Count);
+        Assert.All(result.Entries, entry => Assert.Equal("K7Q2M9XA", entry.TraceId));
+    }
+
+    [Fact]
     public async Task Query_TraceIdPopulated_ShouldParseTraceId()
     {
         var today = DateTime.Today;

@@ -25,7 +25,8 @@ public sealed class ExceptionLogClipboardTextTests
             "使用者：alice（UserId=7）",
             "累計次數：1,234",
             "首次發生：2026-09-01 08:00:00",
-            "最後發生：2026-09-27 09:30:00");
+            "最後發生：2026-09-27 09:30:00",
+            "最後追蹤碼：K7Q2M9XA");
         Assert.StartsWith(expected + "\n", text);
     }
 
@@ -38,9 +39,11 @@ public sealed class ExceptionLogClipboardTextTests
         item.LoggerName = null;
         item.Account = null;
         item.UserId = null;
+        item.LastTraceId = null;
 
         var text = ExceptionLogClipboardText.Build(item, "stack");
 
+        Assert.Contains("最後追蹤碼：—\n", text);
         Assert.Contains("頁面：—\n", text);
         Assert.Contains("操作（日誌訊息樣板）：—\n", text);
         Assert.Contains("記錄器：—\n", text);
@@ -136,5 +139,6 @@ public sealed class ExceptionLogClipboardTextTests
         OccurrenceCount = 1234,
         FirstOccurredAt = new DateTime(2026, 9, 1, 8, 0, 0),
         LastOccurredAt = new DateTime(2026, 9, 27, 9, 30, 0),
+        LastTraceId = "K7Q2M9XA",
     };
 }

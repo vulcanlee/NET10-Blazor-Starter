@@ -53,4 +53,10 @@ public class ExceptionLog
 
     public DateTime FirstOccurredAt { get; set; }
     public DateTime LastOccurredAt { get; set; }
+
+    /// <summary>
+    /// 最後一次發生時的錯誤追蹤碼（0.9.78，LOG-10）。使用者回報的追蹤碼可在 /logs 找到該次操作的所有日誌行。
+    /// 背景作業、啟動流程等沒有請求或互動的情況為 null。
+    /// </summary>
+    public string? LastTraceId { get; set; }
 }

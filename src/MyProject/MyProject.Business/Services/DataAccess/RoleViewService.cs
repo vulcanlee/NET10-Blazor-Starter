@@ -181,7 +181,7 @@ public class RoleViewService
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
-                "Role.Create", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.Role.Create, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: itemParameter.Id.ToString(),
                 detail: $"name={itemParameter.Name}; permissionKeyCount={permissionKeys.Count}");
 
@@ -223,7 +223,7 @@ public class RoleViewService
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
-                "Role.Update", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.Role.Update, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: itemData.Id.ToString(),
                 detail: $"name={itemData.Name}; permissionKeyCount={permissionKeys.Count}");
 
@@ -259,7 +259,7 @@ public class RoleViewService
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
-                "Role.Delete", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.Role.Delete, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: id.ToString(),
                 detail: $"name={item.Name}");
 

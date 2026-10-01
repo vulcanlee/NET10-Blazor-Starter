@@ -20,7 +20,7 @@
 - 依發生時間區間、動作、結果、操作者帳號與關鍵字查詢稽核事件。
 - 按每列的「查看」打開單筆明細，看完整摘要與國際標準時間（UTC）。
 - 把目前查詢條件下的結果匯出成 CSV，最多 10,000 筆。
-- 清除發生在 365 天之前的紀錄，或清空全部紀錄；這兩個動作本身也會再留下一筆紀錄。
+- 清除發生在 N 天之前的紀錄（預設 365 天，由系統設定決定），或清空全部紀錄；這兩個動作本身也會再留下一筆紀錄。系統每天也會自動清除一次，並留下一筆 `Audit.AutoPurge`。
 
 頁面上方有一段固定說明：「本頁記錄『誰、何時、對什麼、做了什麼、結果如何』，涵蓋登入、使用者與角色異動、權限拒絕等事件。時間以伺服器本地時區顯示（資料庫存的是 UTC）。清除與清空動作本身也會留下一筆紀錄。」
 
@@ -39,18 +39,25 @@
 
 | 類別 | 什麼時候寫入 | 動作代碼 |
 |---|---|---|
-| 登入 | 登入成功、帳號或密碼錯誤、帳號停用中仍嘗試登入、帳號被鎖定 | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut` |
-| 使用者 | 在「使用者管理」新增、修改、刪除帳號 | `User.Create`、`User.Update`、`User.Delete` |
+| 登入 | 登入成功、帳號或密碼錯誤、帳號停用中仍嘗試登入、帳號被鎖定；用 Google 帳號登入成功或失敗 | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed` |
+| 登出 | 使用者登出 | `Logout` |
+| 使用者 | 在「使用者管理」新增、修改、刪除帳號；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號 | `User.Create`、`User.Update`、`User.Delete`、`User.SsoCreate`、`User.SsoLink` |
 | 角色 | 在「角色管理」新增、修改、刪除角色 | `Role.Create`、`Role.Update`、`Role.Delete` |
-| 權限 | 有人透過系統的 Web API 做了沒有權限的動作而被拒絕 | `Permission.Denied` |
-| 密碼 | 忘記密碼的申請、完成重設、重設失敗 | `Password.ResetRequested`、`Password.ResetCompleted`、`Password.ResetFailed` |
+| 權限 | 有人打開沒有權限的頁面，或透過 Web API 做了沒有權限的動作而被拒絕 | `Permission.Denied` |
+| 密碼 | 忘記密碼的申請、完成重設、重設失敗；自己變更密碼 | `Password.ResetRequested`、`Password.ResetCompleted`、`Password.ResetFailed`、`Password.Changed` |
+| Token | 透過 Web API 換發登入憑證失敗 | `Token.RefreshFailed` |
+| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API） | `Category.Create`、`Category.Update`、`Category.Delete`、`Team.Create`、`Team.Update`、`Team.Delete` |
+| 專案 | 新增、修改、刪除專案；上傳或刪除附件 | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.FileUpload`、`Project.FileDelete` |
+| 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；系統每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge` |
+| Token 用量 | 在「Token 用量」刪除、清除、清空、匯出 | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export` |
+| 匯出 | 在「日誌檢視」匯出日誌、在「AI 對話紀錄」匯出清單 | `LogViewer.Export`、`AiCallLog.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |
 | 日誌分析 | 在「日誌檢視」執行 AI 分析，或匯出 AI 分析的 PDF 報告 | `LogViewer.AiAnalyze`、`LogViewer.AiAnalyzeExportPdf` |
 | 專案附件 | 在「專案項目」下載附件 | `Project.FileDownload` |
-| 稽核 | 在這一頁清除或清空稽核紀錄 | `Audit.Purge`、`Audit.ClearAll` |
+| 稽核 | 在這一頁清除、清空或匯出稽核紀錄；系統每天自動清除 | `Audit.Purge`、`Audit.ClearAll`、`Audit.Export`、`Audit.AutoPurge` |
 
-「分類清單」「團隊清單」與「專案項目」本身的新增、修改、刪除，以及在「變更密碼」自己改密碼，都**不會**寫入稽核紀錄。
+系統自動清除的紀錄，操作者顯示「（系統／匿名）」。
 
 ### 時間的顯示方式
 
@@ -103,7 +110,7 @@
 | 查詢 | 依條件重新查詢，並回到第 1 頁。 | 無 | 改了條件後要按這個才會生效。 |
 | 重新整理 | 重新查詢，並更新「動作」下拉的選項。 | 無 | 剛發生新種類的事件時，按這個讓它出現在選單中。 |
 | 匯出目前查詢結果（CSV） | 把目前條件下的**全部**結果（不只這一頁）下載成 CSV。 | 無（瀏覽器直接下載）；失敗時「匯出失敗：…。」 | 查詢結果是 0 筆時按鈕停用。最多 10,000 筆，超過時只匯出排在前面的 10,000 筆。檔名像 `MyProject.Web-audit-20260926-143000.csv`。 |
-| 清除 365 天前的紀錄 | 先跳確認「清除 365 天前的紀錄」：「將刪除發生時間早於 365 天前的所有稽核紀錄。此動作無法復原，且本次清除會另外留下一筆稽核紀錄。」，按「清除」才執行。 | 「已清除 N 筆紀錄。」；沒有那麼舊的紀錄時「沒有符合條件的紀錄。」 | **無法復原**，請先匯出 CSV 備份。清除範圍不看上面的查詢條件。完成後會多一筆 `Audit.Purge`。 |
+| 清除 N 天前的紀錄 | N 預設 365，由系統設定決定。先跳確認「清除 N 天前的紀錄」：「將刪除發生時間早於 N 天前的所有稽核紀錄。此動作無法復原，且本次清除會另外留下一筆稽核紀錄。」，按「清除」才執行。 | 「已清除 N 筆紀錄。」；沒有那麼舊的紀錄時「沒有符合條件的紀錄。」 | **無法復原**，請先匯出 CSV 備份。清除範圍不看上面的查詢條件。完成後會多一筆 `Audit.Purge`。 |
 | 清空全部紀錄 | 先跳確認「清空全部稽核紀錄」：「將刪除所有稽核紀錄。此動作無法復原，且本次清空會另外留下一筆稽核紀錄。」，按「清空」才執行。 | 「已清空全部稽核紀錄」 | **無法復原**。完成後清單會剩下一筆 `Audit.ClearAll`，記下是誰清空的。 |
 
 CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者帳號、操作者Id、目標類型、目標識別、摘要。標題特別寫明「本地」，提醒讀檔的人這不是 UTC。
@@ -142,7 +149,7 @@ CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者�
 
 | 訊息 | 原因與處理 |
 |---|---|
-| 已清除 N 筆紀錄。／沒有符合條件的紀錄。 | 清除 365 天前的紀錄完成；後者代表沒有那麼舊的紀錄。 |
+| 已清除 N 筆紀錄。／沒有符合條件的紀錄。 | 清除舊紀錄完成；後者代表沒有那麼舊的紀錄。 |
 | 已清空全部稽核紀錄 | 清空完成。 |
 | 清除稽核紀錄失敗。／清空稽核紀錄失敗。 | 操作沒有完成，資料維持原狀。請稍後再試，仍失敗時交給技術人員。 |
 | 載入稽核紀錄失敗：…。 | 讀取資料時發生錯誤，清單會變成空的。請按「重新整理」再試。 |
@@ -175,7 +182,7 @@ CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者�
 ### 年度保存期滿，要清理並留存舊紀錄
 
 1. 「發生時間（迄）」選到一年前，按「查詢」，再按「匯出目前查詢結果（CSV）」下載備份。
-2. 按「清除 365 天前的紀錄」，在確認窗按「清除」。
+2. 按「清除 N 天前的紀錄」（N 預設 365），在確認窗按「清除」。
 
 **會得到什麼**：一份舊紀錄的 CSV 備份，資料表只留最近一年；同時會多出一筆 `Audit.Purge`，記下是誰在何時做了清除。
 

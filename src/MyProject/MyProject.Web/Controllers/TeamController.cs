@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
@@ -125,6 +126,7 @@ public class TeamController : ControllerBase
             var createdDto = mapper.Map<TeamDto>(created);
 
             logger.LogInformation("Team created successfully. TeamId={TeamId}, Name={Name}", createdDto.Id, createdDto.Name);
+            await this.WriteAuditAsync(AuditActions.Team.Create, "Team", createdDto.Id.ToString(), $"name={createdDto.Name}");
             return Ok(ApiResult<TeamDto>.SuccessResult(createdDto, "新增團隊成功"));
         }
         catch (Exception ex)
@@ -169,6 +171,7 @@ public class TeamController : ControllerBase
             }
 
             logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={Name}", id, teamDto.Name);
+            await this.WriteAuditAsync(AuditActions.Team.Update, "Team", id.ToString(), $"name={teamDto.Name}");
             return Ok(ApiResult.SuccessResult("更新團隊成功"));
         }
         catch (Exception ex)
@@ -194,6 +197,7 @@ public class TeamController : ControllerBase
             }
 
             logger.LogInformation("Team deleted successfully. TeamId={TeamId}", id);
+            await this.WriteAuditAsync(AuditActions.Team.Delete, "Team", id.ToString());
             return Ok(ApiResult.SuccessResult("刪除團隊成功"));
         }
         catch (Exception ex)

@@ -61,7 +61,7 @@ public sealed class EmailTestService
 
             // 稽核只記 provider 與成敗，不記收件者（個資）。
             await auditLogService.WriteAsync(
-                "Email.Test", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.Email.Test, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 detail: $"provider={provider}");
 
             return VerifyRecordResultFactory.Build(true, provider == EmailProvider.Pickup
@@ -72,7 +72,7 @@ public sealed class EmailTestService
         {
             logger.LogWarning(ex, "Test email failed. Provider={Provider}, UserId={UserId}", provider, actorUserId);
             await auditLogService.WriteAsync(
-                "Email.Test", success: false, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.Email.Test, success: false, actorUserId: actorUserId, actorAccount: actorAccount,
                 detail: $"provider={provider}; error={ex.GetType().Name}");
 
             return VerifyRecordResultFactory.Build(false, $"寄送失敗：{ex.GetType().Name}。詳細原因請查看日誌。");

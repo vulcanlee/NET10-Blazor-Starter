@@ -10,19 +10,23 @@ using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Components.Views.Admins
 {
     public partial class AuditLogView
     {
         /// <summary>
-        /// 「清除很久以前的紀錄」門檻。刻意是程式常數而非設定鍵 ——
-        /// 這是管理員按一下才會發生的動作，不需要每個部署各自調整。
+        /// 「清除很久以前的紀錄」門檻，讀 <see cref="LogRetentionSettings.AuditLogDays"/>（0.9.78 起與自動清理同一個設定，LOG-13）。
+        /// 停用自動清理（0）時退回預設 365 天。
         ///
-        /// 這裡是 365 天而非例外紀錄的 90 天：例外紀錄清的是噪音，
+        /// 預設 365 天而非例外紀錄的 90 天：例外紀錄清的是噪音，
         /// 稽核軌跡清的是責任證據，保存期預期以「年」為單位。
         /// </summary>
-        private const int PurgeDays = 365;
+        private int PurgeDays => RetentionOptions.CurrentValue.ManualAuditLogDays;
+
+        [Inject]
+        public Microsoft.Extensions.Options.IOptionsMonitor<LogRetentionSettings> RetentionOptions { get; set; } = default!;
 
         private readonly ILogger<AuditLogView> logger;
         private readonly AuditLogQueryService auditLogQueryService;
@@ -100,6 +104,7 @@ namespace MyProject.Web.Components.Views.Admins
             if (AuthenticationStateHelper.CheckIsAdmin() == false)
             {
                 RoleMessage = MagicObjectHelper.你沒有權限存取此頁面;
+                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/audit-logs");
                 logger.LogWarning("Audit log view denied because the current user is not an administrator.");
                 return;
             }
@@ -148,7 +153,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load audit logs.");
-                ViewNotification.Error(notificationService, $"載入稽核紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入稽核紀錄失敗：{ex.GetType().Name}。");
                 auditLogAdapterModels = [];
                 _total = 0;
             }
@@ -244,7 +249,7 @@ namespace MyProject.Web.Components.Views.Admins
             var result = await auditLogQueryService.PurgeAsync(PurgeDays);
             if (result.Success)
             {
-                await WriteSelfAuditAsync("Audit.Purge", $"清除 {PurgeDays} 天前的稽核紀錄：{result.Message}");
+                await WriteSelfAuditAsync(AuditActions.Audit.Purge, $"清除 {PurgeDays} 天前的稽核紀錄：{result.Message}");
                 ViewNotification.Warning(
                     notificationService,
                     string.IsNullOrWhiteSpace(result.Message) ? "清除完成" : result.Message);
@@ -273,7 +278,7 @@ namespace MyProject.Web.Components.Views.Admins
             var result = await auditLogQueryService.ClearAllAsync();
             if (result.Success)
             {
-                await WriteSelfAuditAsync("Audit.ClearAll", $"清空全部稽核紀錄：{result.Message}");
+                await WriteSelfAuditAsync(AuditActions.Audit.ClearAll, $"清空全部稽核紀錄：{result.Message}");
                 ViewNotification.Warning(notificationService, "已清空全部稽核紀錄");
                 await ReloadActionOptionsAsync();
                 await ReloadAsync();
@@ -348,11 +353,12 @@ namespace MyProject.Web.Components.Views.Admins
                 await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
 
                 logger.LogInformation("Audit log export downloaded. Rows={Rows}", result.Count);
+                await WriteSelfAuditAsync(AuditActions.Audit.Export, $"format=csv; rows={result.Count}");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Audit log export failed.");
-                ViewNotification.Error(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
             }
         }
 
@@ -390,6 +396,16 @@ namespace MyProject.Web.Components.Views.Admins
             "Role" => "purple",
             "Permission" => "red",
             "Audit" => "volcano",
+            "Logout" => "blue",
+            "Token" => "red",
+            "Project" => "geekblue",
+            "Category" => "lime",
+            "Team" => "gold",
+            "ExceptionLog" => "magenta",
+            "AiCallLog" => "magenta",
+            "TokenUsage" => "magenta",
+            "LogLevel" => "cyan",
+            "LogViewer" => "cyan",
             "Email" => "cyan",
             "Password" => "orange",
             _ => "default",

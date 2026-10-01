@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
@@ -119,6 +120,7 @@ public class CategoryController : ControllerBase
             var createdDto = mapper.Map<CategoryDto>(created);
 
             logger.LogInformation("Category created successfully. CategoryId={CategoryId}, Name={Name}", createdDto.Id, createdDto.Name);
+            await this.WriteAuditAsync(AuditActions.Category.Create, "Category", createdDto.Id.ToString(), $"name={createdDto.Name}");
             return Ok(ApiResult<CategoryDto>.SuccessResult(createdDto, "新增分類成功"));
         }
         catch (Exception ex)
@@ -157,6 +159,7 @@ public class CategoryController : ControllerBase
             }
 
             logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={Name}", id, categoryDto.Name);
+            await this.WriteAuditAsync(AuditActions.Category.Update, "Category", id.ToString(), $"name={categoryDto.Name}");
             return Ok(ApiResult.SuccessResult("更新分類成功"));
         }
         catch (Exception ex)
@@ -182,6 +185,7 @@ public class CategoryController : ControllerBase
             }
 
             logger.LogInformation("Category deleted successfully. CategoryId={CategoryId}", id);
+            await this.WriteAuditAsync(AuditActions.Category.Delete, "Category", id.ToString());
             return Ok(ApiResult.SuccessResult("刪除分類成功"));
         }
         catch (Exception ex)

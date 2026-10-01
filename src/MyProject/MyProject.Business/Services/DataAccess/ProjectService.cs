@@ -20,6 +20,8 @@ public class ProjectService
     private readonly IRecordAccessScopeProvider accessScope;
     private readonly string projectFileRootPath;
     private readonly IReadOnlyCollection<string> allowedUploadExtensions;
+    private readonly IAuditLogService auditLogService;
+    private readonly CurrentUserService currentUserService;
 
     public IMapper Mapper { get; }
     public ILogger<ProjectService> Logger { get; }
@@ -29,12 +31,16 @@ public class ProjectService
         IMapper mapper,
         ILogger<ProjectService> logger,
         IOptions<SystemSettings> systemSettings,
-        IRecordAccessScopeProvider accessScope)
+        IRecordAccessScopeProvider accessScope,
+        IAuditLogService auditLogService,
+        CurrentUserService currentUserService)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.accessScope = accessScope;
+        this.auditLogService = auditLogService;
+        this.currentUserService = currentUserService;
         projectFileRootPath = systemSettings.Value.ExternalFileSystem.ProjectFilePath;
         allowedUploadExtensions = systemSettings.Value.Upload.AllowedExtensions;
     }
@@ -203,6 +209,23 @@ public class ProjectService
         return Mapper.Map<ProjectAdapterModel>(item);
     }
 
+    /// <summary>
+    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
+    /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
+    /// </summary>
+    private Task WriteAuditAsync(string action, int targetId, string detail)
+    {
+        var user = currentUserService.CurrentUser;
+        return auditLogService.WriteAsync(
+            action,
+            success: true,
+            actorUserId: user.Id > 0 ? user.Id : null,
+            actorAccount: user.Id > 0 ? user.Account : null,
+            targetType: "Project",
+            targetId: targetId.ToString(),
+            detail: detail);
+    }
+
     public async Task<VerifyRecordResult> AddAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -223,6 +246,8 @@ public class ProjectService
             }
 
             Logger.LogInformation("Project created successfully. ProjectId={ProjectId}, Title={Title}", itemParameter.Id, itemParameter.Title);
+            await WriteAuditAsync(AuditActions.Project.Create, itemParameter.Id, $"title={itemParameter.Title}");
+            await WriteFileAuditAsync(AuditActions.Project.FileUpload, itemParameter.Id, uploadFiles?.Count() ?? 0);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
@@ -279,6 +304,9 @@ public class ProjectService
             }
 
             Logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", currentItem.Id, currentItem.Title);
+            await WriteAuditAsync(AuditActions.Project.Update, currentItem.Id, $"title={currentItem.Title}");
+            await WriteFileAuditAsync(AuditActions.Project.FileUpload, currentItem.Id, uploadFiles?.Count() ?? 0);
+            await WriteFileAuditAsync(AuditActions.Project.FileDelete, currentItem.Id, removedFileIds?.Count() ?? 0);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
@@ -314,6 +342,7 @@ public class ProjectService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Project deleted successfully. ProjectId={ProjectId}, Title={Title}", id, item.Title);
+            await WriteAuditAsync(AuditActions.Project.Delete, id, $"title={item.Title}; files={item.Files.Count}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
@@ -578,6 +607,10 @@ public class ProjectService
             },
             fullPath);
     }
+
+    /// <summary>附件上傳／刪除的稽核：只記筆數，沒有異動就不寫。</summary>
+    private Task WriteFileAuditAsync(string action, int projectId, int count)
+        => count > 0 ? WriteAuditAsync(action, projectId, $"count={count}") : Task.CompletedTask;
 
     private void DeletePhysicalFile(ProjectFile file)
     {

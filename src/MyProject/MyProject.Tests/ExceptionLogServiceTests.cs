@@ -45,6 +45,27 @@ public sealed class ExceptionLogServiceTests
     }
 
     [Fact]
+    public async Task RecordAsync_ShouldKeepLastTraceId_AndReturnOutcome()
+    {
+        // LOG-10：例外紀錄要帶得出「最後一次」的錯誤追蹤碼；LOG-12：告警靠回傳值判斷新簽章。
+        await using var fixture = await ExceptionLogFixture.CreateAsync();
+        var service = fixture.CreateService();
+
+        var first = await service.RecordAsync(NewEntry(traceId: "AAAA1111"));
+        var second = await service.RecordAsync(NewEntry(traceId: "BBBB2222", isCritical: true));
+
+        Assert.NotNull(first);
+        Assert.True(first.IsNew);
+        Assert.Equal(1, first.OccurrenceCount);
+        Assert.NotNull(second);
+        Assert.False(second.IsNew);
+        Assert.Equal(2, second.OccurrenceCount);
+        Assert.True(second.IsCritical);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal("BBBB2222", Assert.Single(await fixture.ListAsync()).LastTraceId);
+    }
+
+    [Fact]
     public async Task RecordAsync_SameException_ShouldMergeAndIncrementCount()
     {
         await using var fixture = await ExceptionLogFixture.CreateAsync();
@@ -255,9 +276,13 @@ public sealed class ExceptionLogServiceTests
         string source = ExceptionSources.Ui,
         string account = "support",
         string stackTrace = "stack-trace-content",
-        DateTime? occurredAt = null)
+        DateTime? occurredAt = null,
+        string? traceId = null,
+        bool isCritical = false)
         => new()
         {
+            TraceId = traceId,
+            IsCritical = isCritical,
             ExceptionType = "System.NullReferenceException",
             Message = message,
             StackTrace = stackTrace,

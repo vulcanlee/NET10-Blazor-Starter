@@ -141,6 +141,9 @@ public static class ServiceCollectionExtensions
         // 程序層級的未處理例外（射後不理的 Task、背景執行緒）。由 Program.cs 在 Build 後呼叫 Register。
         services.AddSingleton<ProcessExceptionHooks>();
 
+        // 例外 Email 告警（LOG-12）。單例：暴增計數、冷卻與每小時配額都是記憶體狀態。
+        services.AddSingleton<ExceptionAlertService>();
+
         // 以 DI 註冊 ILoggerProvider，讓它拿得到 Channel 與情境存取器。
         // ⚠️ 必須晚於 Program.cs 的 builder.Logging.ClearProviders()，否則會被清掉；
         // 本方法由 AddApplicationServices 呼叫，時序在其後，NLog 與本 provider 並存。
@@ -167,6 +170,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiCallLogRecorder>(sp => sp.GetRequiredService<AiCallLogService>());
         // 自動過期：啟動時一次、之後每日一次；停用記錄時照樣清除過期內容。
         services.AddHostedService<AiCallLogRetentionWorker>();
+
+        // 例外紀錄與稽核紀錄的自動保存期限（LOG-13）。TimeProvider 讓測試能以假時鐘驗證門檻。
+        services.AddSingleton(TimeProvider.System);
+        services.AddHostedService<LogRetentionWorker>();
         #endregion
 
         services.AddHttpContextAccessor();
@@ -187,6 +194,11 @@ public static class ServiceCollectionExtensions
         services.Configure<AiSettings>(configuration.GetSection(AiSettings.SectionName));
         services.Configure<AiPricingSettings>(configuration.GetSection(AiPricingSettings.SectionName));
         // 保留天數寫壞（0 或超過 3650）就啟動失敗，不要讓自動過期悄悄用錯的門檻刪資料。
+        services.AddOptions<LogRetentionSettings>()
+            .Bind(configuration.GetSection(LogRetentionSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddOptions<AiCallLogSettings>()
             .Bind(configuration.GetSection(AiCallLogSettings.SectionName))
             .ValidateDataAnnotations()
@@ -301,6 +313,12 @@ public static class ServiceCollectionExtensions
             .Validate(s => s.TryGetProvider(out _), "EmailSettings:Provider 只接受 None、Pickup 或 Smtp。")
             .Validate(s => s.TryGetSecurity(out _), "EmailSettings:Security 只接受 Auto、None、StartTls 或 SslOnConnect。")
             .Validate(s => s.HasRequiredSmtpFields(), "EmailSettings 使用 Smtp 時，Host 不可留空、FromAddress 必須是有效的 Email。")
+            .ValidateOnStart();
+
+        // 例外告警（0.9.78 起，LOG-12）。收件人為空即停用；實際寄出仍要 Provider 不是 None。
+        services.AddOptions<ExceptionAlertSettings>()
+            .Bind(configuration.GetSection(ExceptionAlertSettings.SectionName))
+            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         // 忘記密碼的時效（0.9.60 起）。類別在 Models（Business 要讀），驗證跟著寄信一起註冊。

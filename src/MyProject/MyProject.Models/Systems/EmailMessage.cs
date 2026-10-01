@@ -19,4 +19,7 @@ public static class EmailKinds
 
     /// <summary>重設成功後通知帳號主人「密碼已變更」（0.9.60 起）。</summary>
     public const string PasswordChanged = "PasswordChanged";
+
+    /// <summary>系統例外告警（0.9.78 起，LOG-12）。</summary>
+    public const string ExceptionAlert = "ExceptionAlert";
 }

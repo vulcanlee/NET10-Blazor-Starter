@@ -44,6 +44,7 @@ namespace MyProject.Web.Components.Views.Admins
             AppendField(builder, "累計次數", item.OccurrenceCount.ToString("N0"));
             AppendField(builder, "首次發生", item.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss"));
             AppendField(builder, "最後發生", item.LastOccurredAt.ToString("yyyy-MM-dd HH:mm:ss"));
+            AppendField(builder, "最後追蹤碼", item.LastTraceId ?? "—");
 
             builder.Append('\n');
             if (string.IsNullOrWhiteSpace(stackTrace))

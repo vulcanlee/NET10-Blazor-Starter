@@ -15,6 +15,8 @@ public class CategoryService
 {
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly IRecordAccessScopeProvider accessScope;
+    private readonly IAuditLogService auditLogService;
+    private readonly CurrentUserService currentUserService;
 
     public IMapper Mapper { get; }
     public ILogger<CategoryService> Logger { get; }
@@ -23,12 +25,33 @@ public class CategoryService
         IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<CategoryService> logger,
-        IRecordAccessScopeProvider accessScope)
+        IRecordAccessScopeProvider accessScope,
+        IAuditLogService auditLogService,
+        CurrentUserService currentUserService)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.accessScope = accessScope;
+        this.auditLogService = auditLogService;
+        this.currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
+    /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
+    /// </summary>
+    private Task WriteAuditAsync(string action, int targetId, string detail)
+    {
+        var user = currentUserService.CurrentUser;
+        return auditLogService.WriteAsync(
+            action,
+            success: true,
+            actorUserId: user.Id > 0 ? user.Id : null,
+            actorAccount: user.Id > 0 ? user.Account : null,
+            targetType: "Category",
+            targetId: targetId.ToString(),
+            detail: detail);
     }
 
     /// <summary>
@@ -169,19 +192,21 @@ public class CategoryService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Category created successfully. CategoryId={CategoryId}, Name={CategoryName}", itemParameter.Id, itemParameter.Name);
+            await WriteAuditAsync(AuditActions.Category.Create, itemParameter.Id, $"name={itemParameter.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to create category. Name={CategoryName}", paraObject.Name);
-
             // 前置檢查與寫入不在同一個交易裡，唯一索引是最後一道防線；
             // 命中時要給明確訊息，不要被泛用的「新增分類失敗。」蓋掉。
+            // 名稱重複是使用者錯誤（LOG-11）：記 Information、不帶例外物件，不進系統例外紀錄。
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
+                Logger.LogInformation("Category create rejected by unique constraint. Name={CategoryName}", paraObject.Name);
                 return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
             }
 
+            Logger.LogError(ex, "Failed to create category. Name={CategoryName}", paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "新增分類失敗。", ex);
         }
     }
@@ -211,17 +236,18 @@ public class CategoryService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={CategoryName}", itemData.Id, itemData.Name);
+            await WriteAuditAsync(AuditActions.Category.Update, itemData.Id, $"name={itemData.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to update category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
-
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
+                Logger.LogInformation("Category update rejected by unique constraint. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
                 return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
             }
 
+            Logger.LogError(ex, "Failed to update category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "修改分類失敗。", ex);
         }
     }
@@ -247,6 +273,7 @@ public class CategoryService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Category deleted successfully. CategoryId={CategoryId}, Name={CategoryName}", id, item.Name);
+            await WriteAuditAsync(AuditActions.Category.Delete, id, $"name={item.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
@@ -139,6 +140,7 @@ public class ProjectController : ControllerBase
                 "Project created successfully. ProjectId={ProjectId}, Title={Title}",
                 createdProjectDto.Id,
                 createdProjectDto.Title);
+            await this.WriteAuditAsync(AuditActions.Project.Create, "Project", createdProjectDto.Id.ToString(), $"title={createdProjectDto.Title}");
 
             return Ok(ApiResult<ProjectDto>.SuccessResult(createdProjectDto, "新增專案成功"));
         }
@@ -189,6 +191,7 @@ public class ProjectController : ControllerBase
             }
 
             logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", id, projectDto.Title);
+            await this.WriteAuditAsync(AuditActions.Project.Update, "Project", id.ToString(), $"title={projectDto.Title}");
             return Ok(ApiResult.SuccessResult("更新專案成功"));
         }
         catch (Exception ex)
@@ -215,13 +218,16 @@ public class ProjectController : ControllerBase
             }
 
             logger.LogInformation("Project deleted successfully. ProjectId={ProjectId}", id);
+            await this.WriteAuditAsync(AuditActions.Project.Delete, "Project", id.ToString());
             return Ok(ApiResult.SuccessResult("刪除專案成功"));
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to delete project. ProjectId={ProjectId}", id);
-
-            if (ex.InnerException?.Message.Contains("DELETE statement conflicted") == true)
+            // 仍有關聯資料是使用者錯誤（LOG-11）：先判斷，命中時只記 Warning、不帶例外物件。
+            // 0.9.78 之前先記 Error 再判斷，而且只認 SQL Server 的訊息；本系統只支援 SQLite。
+            var innerMessage = ex.InnerException?.Message;
+            if (innerMessage?.Contains("FOREIGN KEY constraint failed", StringComparison.OrdinalIgnoreCase) == true
+                || innerMessage?.Contains("DELETE statement conflicted", StringComparison.OrdinalIgnoreCase) == true)
             {
                 logger.LogWarning(
                     "Project delete request rejected because related data still exists. ProjectId={ProjectId}",
@@ -229,6 +235,7 @@ public class ProjectController : ControllerBase
                 return BadRequest(ApiResult.FailureResult("此專案仍有關聯資料，無法刪除"));
             }
 
+            logger.LogError(ex, "Failed to delete project. ProjectId={ProjectId}", id);
             return this.ApiServerError("刪除專案失敗", ex);
         }
     }

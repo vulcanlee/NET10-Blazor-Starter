@@ -84,7 +84,7 @@ public sealed class PasswordResetService
         {
             logger.LogInformation("Password reset requested but no account matched.");
             await auditLogService.WriteAsync(
-                "Password.ResetRequested", success: false, actorAccount: TruncateForAudit(input), detail: "reason=NotFound");
+                AuditActions.Password.ResetRequested, success: false, actorAccount: TruncateForAudit(input), detail: "reason=NotFound");
             return;
         }
 
@@ -108,7 +108,7 @@ public sealed class PasswordResetService
             {
                 logger.LogInformation("Password reset request skipped. UserId={UserId}, Reason={Reason}", user.Id, reason);
                 await auditLogService.WriteAsync(
-                    "Password.ResetRequested", success: false, actorUserId: user.Id, actorAccount: user.Account,
+                    AuditActions.Password.ResetRequested, success: false, actorUserId: user.Id, actorAccount: user.Account,
                     targetType: nameof(MyUser), targetId: user.Id.ToString(), detail: $"reason={reason}");
                 continue;
             }
@@ -134,14 +134,14 @@ public sealed class PasswordResetService
             {
                 logger.LogWarning("Password reset message could not be queued. UserId={UserId}", user.Id);
                 await auditLogService.WriteAsync(
-                    "Password.ResetRequested", success: false, actorUserId: user.Id, actorAccount: user.Account,
+                    AuditActions.Password.ResetRequested, success: false, actorUserId: user.Id, actorAccount: user.Account,
                     targetType: nameof(MyUser), targetId: user.Id.ToString(), detail: "reason=QueueFull");
                 continue;
             }
 
             logger.LogInformation("Password reset message queued. UserId={UserId}", user.Id);
             await auditLogService.WriteAsync(
-                "Password.ResetRequested", success: true, actorUserId: user.Id, actorAccount: user.Account,
+                AuditActions.Password.ResetRequested, success: true, actorUserId: user.Id, actorAccount: user.Account,
                 targetType: nameof(MyUser), targetId: user.Id.ToString());
         }
     }
@@ -233,7 +233,7 @@ public sealed class PasswordResetService
 
         logger.LogInformation("Password reset completed. UserId={UserId}", user.Id);
         await auditLogService.WriteAsync(
-            "Password.ResetCompleted", success: true, actorUserId: user.Id, actorAccount: user.Account,
+            AuditActions.Password.ResetCompleted, success: true, actorUserId: user.Id, actorAccount: user.Account,
             targetType: nameof(MyUser), targetId: user.Id.ToString());
 
         var notice = EmailTemplates.BuildPasswordChanged(
@@ -335,7 +335,7 @@ public sealed class PasswordResetService
     private async Task WriteResetFailedAsync(MyUser? user, string reason)
     {
         await auditLogService.WriteAsync(
-            "Password.ResetFailed", success: false, actorUserId: user?.Id, actorAccount: user?.Account,
+            AuditActions.Password.ResetFailed, success: false, actorUserId: user?.Id, actorAccount: user?.Account,
             targetType: user is null ? null : nameof(MyUser), targetId: user?.Id.ToString(), detail: $"reason={reason}");
     }
 

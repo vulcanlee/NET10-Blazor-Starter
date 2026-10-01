@@ -150,12 +150,27 @@ public static class ApplicationBuilderExtensions
         return false;
     }
 
+    /// <summary>HttpContext.Items 的鍵：記住這個請求的追蹤碼，讓重新執行（/Error、/not-found）沿用同一個碼。</summary>
+    private const string TraceCodeItemKey = "MyProject.TraceCode";
+
     public static WebApplication UseHttpRequestLogging<TProgram>(this WebApplication app)
     {
         app.Use(async (context, next) =>
         {
             var requestLogger = context.RequestServices.GetRequiredService<ILogger<TProgram>>();
             var stopwatch = Stopwatch.StartNew();
+
+            // 錯誤追蹤碼（LOG-10）：取代 TraceIdentifier，API 回應的 TraceId、/Error 頁、日誌檔都是同一個碼。
+            // ⚠️ UseExceptionHandler 與 UseStatusCodePagesWithReExecute 會拿同一個 HttpContext 重跑管線，
+            // 再次經過這裡時必須沿用原本的碼，否則錯誤頁顯示的碼在日誌裡找不到。
+            if (context.Items[TraceCodeItemKey] is not string traceCode)
+            {
+                traceCode = TraceCode.New();
+                context.Items[TraceCodeItemKey] = traceCode;
+                context.TraceIdentifier = traceCode;
+            }
+
+            using var traceScope = TraceCode.Begin(traceCode);
 
             // 供系統例外紀錄使用：這個請求內任何 LogError 都會帶上來源與路徑。
             // ⚠️ 這裡在 UseAuthentication 之前，User 還是匿名 —— 帳號由排在 UseAuthorization 之後的
@@ -236,6 +251,7 @@ public static class ApplicationBuilderExtensions
     }
 
     /// <summary>
+    /// 補上已驗證的使用者與路由樣板。
     /// 只取帳號與 UserId —— 姓名、Email 屬個資，絕不進入紀錄。失敗只損失診斷資訊，絕不拋出。
     /// </summary>
     private static void EnrichExceptionContextUser(HttpContext context)
@@ -249,13 +265,18 @@ public static class ApplicationBuilderExtensions
                 return;
             }
 
+            var enriched = current with { Page = ResolveRouteTemplate(context) ?? current.Page };
+
             var (account, userId) = RequestActorResolver.Resolve(context.User);
-            if (userId is null)
+            if (userId is not null)
             {
-                return;
+                enriched = enriched with { Account = account, UserId = userId };
             }
 
-            accessor.Set(current with { Account = account, UserId = userId });
+            if (enriched != current)
+            {
+                accessor.Set(enriched);
+            }
         }
         catch (Exception ex)
         {
@@ -263,6 +284,21 @@ public static class ApplicationBuilderExtensions
                 .CreateLogger(typeof(ApplicationBuilderExtensions))
                 .LogWarning(ex, "Failed to add the authenticated user to the exception context.");
         }
+    }
+
+    /// <summary>
+    /// 路由樣板（LOG-16），例如 <c>/api/Category/{id}</c>。
+    /// 例外紀錄的「頁面」是簽章的一部分：記原始路徑（<c>/api/Category/123</c>）會讓每個 Id 都變成一個新簽章，
+    /// 同一個錯誤散成好幾列，還會吃掉 5000 列上限。還沒有路由結果（例如靜態檔）時回傳 null，沿用原始路徑。
+    /// </summary>
+    private static string? ResolveRouteTemplate(HttpContext context)
+    {
+        if (context.GetEndpoint() is not RouteEndpoint { RoutePattern.RawText: { Length: > 0 } rawText })
+        {
+            return null;
+        }
+
+        return rawText.StartsWith('/') ? rawText : "/" + rawText;
     }
 
     public static WebApplication UseConfiguredLocalization(this WebApplication app)

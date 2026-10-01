@@ -23,6 +23,10 @@
     width: 240px;
 }
 
+.log-view-trace-input {
+    width: 130px;
+}
+
 .log-view-alert {
     padding: 8px 12px;
     margin-bottom: 8px;

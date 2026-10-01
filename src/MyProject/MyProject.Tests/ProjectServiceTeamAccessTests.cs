@@ -262,7 +262,9 @@ public sealed class ProjectServiceTeamAccessTests
                 mapper,
                 loggerFactory.CreateLogger<ProjectService>(),
                 Options.Create(settings),
-                new FakeScopeProvider(isAdmin, teams));
+                new FakeScopeProvider(isAdmin, teams),
+                new RecordingAuditLogService(),
+                new MyProject.Business.Services.Other.CurrentUserService());
         }
 
         /// <summary>

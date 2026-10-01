@@ -36,7 +36,32 @@ public sealed class ExceptionLogEntry
     public int? UserId { get; init; }
 
     public DateTime OccurredAt { get; init; } = DateTime.Now;
+
+    /// <summary>錯誤追蹤碼（LOG-10）；沒有請求或互動範圍時為 null。</summary>
+    public string? TraceId { get; init; }
+
+    /// <summary>
+    /// 是否為 Critical（應用程式無法繼續）。告警（LOG-12）以此判斷是否立即通知。
+    /// 補登檔（程序結束、啟動失敗）一律為 true。
+    /// </summary>
+    public bool IsCritical { get; init; }
 }
+
+/// <summary>
+/// <c>ExceptionLogService.RecordAsync</c> 的結果，供告警（LOG-12）判斷「新簽章」「暴增」。
+/// </summary>
+public sealed record ExceptionRecordOutcome(
+    int Id,
+    bool IsNew,
+    bool IsOverflow,
+    string ExceptionType,
+    string Source,
+    string? Page,
+    long OccurrenceCount,
+    DateTime FirstOccurredAt,
+    DateTime LastOccurredAt,
+    string? TraceId,
+    bool IsCritical);
 
 /// <summary>
 /// 例外的來源分類。刻意用字串常數而非 enum —— 值會直接寫進資料庫並顯示在畫面上，

@@ -30,12 +30,14 @@ public sealed class ExceptionLogWriter : BackgroundService
     private readonly IServiceScopeFactory scopeFactory;
     private readonly ExceptionContextAccessor contextAccessor;
     private readonly TimeSpan drainTimeout;
+    private readonly ExceptionAlertService? alertService;
 
     public ExceptionLogWriter(
         ChannelReader<ExceptionLogEntry> reader,
         IServiceScopeFactory scopeFactory,
-        ExceptionContextAccessor contextAccessor)
-        : this(reader, scopeFactory, contextAccessor, DefaultDrainTimeout)
+        ExceptionContextAccessor contextAccessor,
+        ExceptionAlertService alertService)
+        : this(reader, scopeFactory, contextAccessor, DefaultDrainTimeout, alertService)
     {
     }
 
@@ -43,12 +45,14 @@ public sealed class ExceptionLogWriter : BackgroundService
         ChannelReader<ExceptionLogEntry> reader,
         IServiceScopeFactory scopeFactory,
         ExceptionContextAccessor contextAccessor,
-        TimeSpan drainTimeout)
+        TimeSpan drainTimeout,
+        ExceptionAlertService? alertService = null)
     {
         this.reader = reader;
         this.scopeFactory = scopeFactory;
         this.contextAccessor = contextAccessor;
         this.drainTimeout = drainTimeout;
+        this.alertService = alertService;
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => RunAsync(stoppingToken);
@@ -118,7 +122,10 @@ public sealed class ExceptionLogWriter : BackgroundService
         {
             using var scope = scopeFactory.CreateScope();
             var service = scope.ServiceProvider.GetRequiredService<ExceptionLogService>();
-            await service.RecordAsync(entry);
+            var outcome = await service.RecordAsync(entry);
+
+            // 告警（LOG-12）在抑制範圍內評估：寄信相關的任何錯誤都不會再被收成例外。
+            alertService?.Evaluate(outcome);
         }
         catch (Exception ex)
         {

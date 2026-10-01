@@ -242,7 +242,7 @@ public class MyUserService
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
-                "User.Create", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.User.Create, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(MyUser), targetId: itemParameter.Id.ToString(),
                 detail: BuildAssignmentDetail(itemParameter.Account, paraObject));
 
@@ -294,7 +294,7 @@ public class MyUserService
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
-                "User.Update", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.User.Update, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(MyUser), targetId: itemData.Id.ToString(),
                 detail: BuildAssignmentDetail(itemData.Account, paraObject));
 
@@ -395,7 +395,7 @@ public class MyUserService
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
-                "User.Delete", success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                AuditActions.User.Delete, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(MyUser), targetId: id.ToString(),
                 detail: $"account={item.Account}");
 
@@ -510,6 +510,9 @@ public class MyUserService
         await context.SaveChangesAsync();
 
         Logger.LogInformation("Own password changed successfully. UserId={UserId}", userId);
+        await auditLogService.WriteAsync(
+            AuditActions.Password.Changed, success: true, actorUserId: user.Id, actorAccount: user.Account,
+            targetType: "MyUser", targetId: user.Id.ToString(), detail: "via=ChangePasswordPage");
         return VerifyRecordResultFactory.Build(true);
     }
 
@@ -576,6 +579,9 @@ public class MyUserService
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Password changed successfully. UserId={UserId}", userId);
+            await auditLogService.WriteAsync(
+                AuditActions.Password.Changed, success: true, actorUserId: trackedUser.Id, actorAccount: trackedUser.Account,
+                targetType: "MyUser", targetId: trackedUser.Id.ToString(), detail: "via=ChangePasswordDialog");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)

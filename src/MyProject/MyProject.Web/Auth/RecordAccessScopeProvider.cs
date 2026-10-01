@@ -18,17 +18,20 @@ public sealed class RecordAccessScopeProvider : IRecordAccessScopeProvider
     private readonly IHttpContextAccessor httpContextAccessor;
     private readonly BackendDBContext context;
     private readonly IEffectiveTeamResolver effectiveTeamResolver;
+    private readonly ILogger<RecordAccessScopeProvider> logger;
 
     public RecordAccessScopeProvider(
         CurrentUserService currentUserService,
         IHttpContextAccessor httpContextAccessor,
         BackendDBContext context,
-        IEffectiveTeamResolver effectiveTeamResolver)
+        IEffectiveTeamResolver effectiveTeamResolver,
+        ILogger<RecordAccessScopeProvider> logger)
     {
         this.currentUserService = currentUserService;
         this.httpContextAccessor = httpContextAccessor;
         this.context = context;
         this.effectiveTeamResolver = effectiveTeamResolver;
+        this.logger = logger;
     }
 
     public async Task<RecordAccessScope> GetAsync()
@@ -55,7 +58,14 @@ public sealed class RecordAccessScopeProvider : IRecordAccessScopeProvider
                     var teams = await effectiveTeamResolver.GetEffectiveTeamNamesAsync(id);
                     return new RecordAccessScope(user.IsAdmin, teams);
                 }
+
+                logger.LogWarning("Record access scope fell back to public records because the user was not found. UserId={UserId}", id);
+                return new RecordAccessScope(false, []);
             }
+
+            // 已驗證卻沒有 Sid（JWT 身分的 UserId 在 NameIdentifier）：退回「僅公開紀錄」。
+            // 每個 API 請求都會經過，記 Debug 避免淹沒日誌；排查「API 看不到團隊紀錄」時調到 Debug 即可看到。
+            logger.LogDebug("Record access scope fell back to public records because the principal has no Sid claim.");
         }
 
         return new RecordAccessScope(false, []);

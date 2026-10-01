@@ -56,7 +56,7 @@ public static class FormModalFlow
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while saving from a form modal.");
-            ViewNotification.Error(notificationService, unexpectedErrorMessage);
+            ViewNotification.UnexpectedError(notificationService, unexpectedErrorMessage);
 
             // 出錯不關窗，使用者的輸入還在。
             return true;

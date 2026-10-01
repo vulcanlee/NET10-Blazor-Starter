@@ -303,6 +303,47 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     [Fact]
+    public async Task UnhandledApiException_TraceIdShouldMatchExceptionLog()
+    {
+        // LOG-10：回應的 TraceId（錯誤追蹤碼）＝例外紀錄的 LastTraceId，使用者回報這個碼就能對上。
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        var result = await ReadApiResultAsync<object>(await client.GetAsync("/api/ContractProbe/throw"));
+
+        Assert.Matches("^[0-9A-Z]{8}$", result.TraceId);
+        await WaitForExceptionLogAsync(x => x.Message == "Integration probe exception." && x.LastTraceId == result.TraceId);
+    }
+
+    [Fact]
+    public async Task CaughtApiException_ShouldReturnTraceId()
+    {
+        // LOG-10：Controller 自己 catch 後回 500（ApiServerError）也要帶錯誤追蹤碼；0.9.78 之前是 null。
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        var result = await ReadApiResultAsync<object>(await client.GetAsync("/api/ContractProbe/caught"));
+
+        Assert.Matches("^[0-9A-Z]{8}$", result.TraceId);
+    }
+
+    [Fact]
+    public async Task UnhandledApiException_ShouldRecordRouteTemplateAsPage()
+    {
+        // LOG-16：記路由樣板而不是帶 Id 的原始路徑，同一個錯誤不會因為 Id 不同散成好幾列。
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        await client.GetAsync("/api/ContractProbe/throw/1");
+        await client.GetAsync("/api/ContractProbe/throw/2");
+
+        await WaitForExceptionLogAsync(x => x.Message == "Integration probe route exception." && x.OccurrenceCount == 2);
+        Assert.Equal(1, await CountExceptionLogsAsync(x => x.Message == "Integration probe route exception."));
+        var row = await WaitForExceptionLogAsync(x => x.Message == "Integration probe route exception.");
+        Assert.Equal("/api/ContractProbe/throw/{id}", row.Page);
+    }
+
+    [Fact]
     public async Task UnhandledPageException_ShouldBeRecordedOnlyOnce()
     {
         // LOG-03：非 API 請求的未處理例外會被 UseHttpRequestLogging 與框架的
@@ -1116,6 +1157,14 @@ public sealed class ContractProbeController : ControllerBase
     public IActionResult ThrowProbe()
     {
         throw new InvalidOperationException("Integration probe exception.");
+    }
+
+    /// <summary>帶 Id 的路由：LOG-16 驗證例外紀錄的頁面記的是路由樣板。</summary>
+    [HttpGet("throw/{id}")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    public IActionResult ThrowWithIdProbe(int id)
+    {
+        throw new InvalidOperationException("Integration probe route exception.");
     }
 
     /// <summary>

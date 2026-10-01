@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Admins;
@@ -21,6 +22,7 @@ public class AuthenticationStateHelper
     private readonly RolePermissionService rolePermissionService;
     private readonly IEffectiveTeamResolver effectiveTeamResolver;
     private readonly IPermissionChecker permissionChecker;
+    private readonly IAuditLogService auditLogService;
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
@@ -29,7 +31,8 @@ public class AuthenticationStateHelper
         CurrentUserService currentUserService,
         RolePermissionService rolePermissionService,
         IEffectiveTeamResolver effectiveTeamResolver,
-        IPermissionChecker permissionChecker)
+        IPermissionChecker permissionChecker,
+        IAuditLogService auditLogService)
     {
         this.logger = logger;
         this.mapper = mapper;
@@ -38,6 +41,7 @@ public class AuthenticationStateHelper
         this.rolePermissionService = rolePermissionService;
         this.effectiveTeamResolver = effectiveTeamResolver;
         this.permissionChecker = permissionChecker;
+        this.auditLogService = auditLogService;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -179,6 +183,25 @@ public class AuthenticationStateHelper
         }
 
         return await myUserService.GetAsync(id);
+    }
+
+    /// <summary>
+    /// 記錄 Blazor 頁面的權限拒絕（LOG-14），與 API 的 <c>HasPermissionAttribute</c> 共用同一個動作代碼。
+    ///
+    /// ⚠️ 不寫在 <see cref="CheckIsAdmin"/>／<see cref="CheckAccessPage"/> 裡：它們也被側邊欄用來過濾選單，
+    /// 寫在那裡會讓每個被隱藏的選單項都記一筆「拒絕」。只在頁面真的擋下使用者時呼叫。
+    /// </summary>
+    public Task RecordPageAccessDeniedAsync(string page)
+    {
+        var user = currentUserService.CurrentUser;
+        return auditLogService.WriteAsync(
+            AuditActions.Permission.Denied,
+            success: false,
+            actorUserId: user.Id > 0 ? user.Id : null,
+            actorAccount: user.Id > 0 ? user.Account : null,
+            targetType: "Page",
+            targetId: page,
+            detail: "via=Blazor");
     }
 
     public bool CheckIsAdmin()

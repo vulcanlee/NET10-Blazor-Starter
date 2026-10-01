@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -12,11 +13,13 @@ public class ExternalLoginService
 {
     private readonly BackendDBContext context;
     private readonly ILogger<ExternalLoginService> logger;
+    private readonly IAuditLogService auditLogService;
 
-    public ExternalLoginService(BackendDBContext context, ILogger<ExternalLoginService> logger)
+    public ExternalLoginService(BackendDBContext context, ILogger<ExternalLoginService> logger, IAuditLogService auditLogService)
     {
         this.context = context;
         this.logger = logger;
+        this.auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -54,6 +57,10 @@ public class ExternalLoginService
                 user.UpdateAt = DateTime.Now;
                 await context.SaveChangesAsync();
                 logger.LogInformation("External login linked Google to existing account. UserId={UserId}.", user.Id);
+                // 以 Email 把外部身分連到既有帳號是安全相關事件：日後該帳號可直接用 Google 登入（LOG-14）。
+                await auditLogService.WriteAsync(
+                    AuditActions.User.SsoLink, success: true, actorUserId: user.Id, actorAccount: user.Account,
+                    targetType: "MyUser", targetId: user.Id.ToString(), detail: $"provider={provider}");
                 return user;
             }
         }
@@ -86,6 +93,9 @@ public class ExternalLoginService
         logger.LogInformation(
             "External login created new disabled account awaiting approval. UserId={UserId}, Provider={Provider}.",
             newUser.Id, provider);
+        await auditLogService.WriteAsync(
+            AuditActions.User.SsoCreate, success: true, actorUserId: newUser.Id, actorAccount: newUser.Account,
+            targetType: "MyUser", targetId: newUser.Id.ToString(), detail: $"provider={provider}; status=disabled");
         return newUser;
     }
 }

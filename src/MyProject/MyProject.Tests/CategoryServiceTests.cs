@@ -184,7 +184,9 @@ public sealed class CategoryServiceTests
                 new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<CategoryService>(),
-                new FakeRecordAccessScopeProvider(isAdmin: true, []));
+                new FakeRecordAccessScopeProvider(isAdmin: true, []),
+                new RecordingAuditLogService(),
+                new MyProject.Business.Services.Other.CurrentUserService());
         }
 
         public async Task<Category> AddCategoryAsync(string name)
