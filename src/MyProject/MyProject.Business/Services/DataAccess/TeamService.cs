@@ -31,8 +31,9 @@ public class TeamService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
-            "Loading teams. Search={Search}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
-            dataRequest.Search,
+            "Loading teams. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDescending={SortDescending}, CurrentPage={CurrentPage}, PageSize={PageSize}, Take={Take}",
+            string.IsNullOrWhiteSpace(dataRequest.Search) == false,
+            dataRequest.Search?.Length ?? 0,
             dataRequest.SortField,
             dataRequest.SortDescending,
             dataRequest.CurrentPage,

@@ -193,6 +193,116 @@ public sealed class LoggingConventionTests
     }
 
     /// <summary>
+    /// 使用者輸入的查詢關鍵字可能是人名、Email、電話（搜尋「王小明」等於記錄了一個人名），
+    /// 只能記「有沒有」與「多長」。0.9.77 之前各 CRUD 畫面與 API 都記了原文（LOG-08）。
+    /// </summary>
+    private static readonly string[] SafeSearchPlaceholderNames =
+    [
+        "HasSearch", "SearchLength",    // 畫面與服務層
+        "HasKeyword", "KeywordLength",  // Web API 與 Repository（參數名稱是 Keyword）
+    ];
+
+    [Fact]
+    public void LogPlaceholders_ShouldNotRecordSearchText()
+    {
+        var violations = new List<string>();
+        foreach (var call in EnumerateLogCalls())
+        {
+            foreach (Match placeholder in Placeholder.Matches(call.Template))
+            {
+                var name = placeholder.Groups[1].Value;
+                if (SafeSearchPlaceholderNames.Contains(name, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                if (name.Contains("search", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("keyword", StringComparison.OrdinalIgnoreCase))
+                {
+                    violations.Add($"{call.Line} -> {{{name}}}");
+                }
+            }
+        }
+
+        Assert.True(violations.Count == 0,
+            "日誌不得記錄查詢關鍵字原文，請改記 HasSearch／SearchLength（或 HasKeyword／KeywordLength）："
+                + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 本體只有空白與註解的 catch。可選的 when 篩選允許一層巢狀括號。
+    /// </summary>
+    private static readonly Regex EmptyCatch = new(
+        @"catch\s*(?:\((?<type>[^)]*)\))?\s*(?:when\s*\((?:[^()]|\([^()]*\))*\)\s*)?\{(?:\s|//[^\n]*|/\*.*?\*/)*\}",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>
+    /// 本來就該安靜忽略的例外：使用者取消、正常關機、瀏覽器已斷線、元件已釋放。
+    /// </summary>
+    private static readonly string[] IgnorableExceptionTypes =
+    [
+        "OperationCanceledException",
+        "TaskCanceledException",
+        "JSDisconnectedException",
+        "JSException",
+        "ObjectDisposedException",
+    ];
+
+    /// <summary>
+    /// 允許空 catch 的檔案，逐一附理由。新增前請先確認真的不能記錄。
+    /// </summary>
+    private static readonly string[] EmptyCatchAllowedFiles =
+    [
+        // 例外紀錄管線之內：不得用 ILogger（會遞迴），且記錄失敗不得影響呼叫端。
+        "ExceptionLogProvider.cs",
+        "ExceptionStackFileStore.cs",
+        "ExceptionLogService.cs",       // RecordAsync 由管線寫入器呼叫，刻意吞掉、不回到管線
+        // 純顯示用的 JSON 美化（static），解析失敗就顯示原文，沒有任何資料受影響。
+        "TokenUsageView.razor.cs",
+    ];
+
+    [Fact]
+    public void CatchBlocks_ShouldNotBeEmpty()
+    {
+        var root = FindSourceRoot();
+        var violations = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(p => (p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || p.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                     && !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                     && !p.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                     && !p.Contains($"{Path.DirectorySeparatorChar}artifacts{Path.DirectorySeparatorChar}")
+                     && !p.Contains("MyProject.Tests")))
+        {
+            var name = Path.GetFileName(file);
+            if (EmptyCatchAllowedFiles.Contains(name, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            var text = File.ReadAllText(file);
+            foreach (Match match in EmptyCatch.Matches(text))
+            {
+                // 「catch (Foo.BarException ex)」→「BarException」
+                var type = match.Groups["type"].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault()?.Split('.').Last() ?? string.Empty;
+                if (IgnorableExceptionTypes.Contains(type, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                var lineNumber = text.Take(match.Index).Count(c => c == '\n') + 1;
+                violations.Add($"{name}:{lineNumber} -> catch ({(type.Length == 0 ? "（全部）" : type)})");
+            }
+        }
+
+        Assert.True(violations.Count == 0,
+            "catch 區塊不得是空的或只有註解：至少記一筆 Debug／Warning 並說明為什麼可以忽略"
+                + "（例外紀錄管線內改用 NLog InternalLogger）："
+                + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
     /// 會出問題的地方必須有 logger。下一個新增的服務或檢視才不會又忘記寫日誌。
     /// </summary>
     [Theory]
@@ -252,6 +362,7 @@ public sealed class LoggingConventionTests
             "ExceptionLogProvider.cs",      // 記錄管線的進入點；用 ILogger 會遞迴
             "ExceptionLogWriter.cs",        // 記錄管線的出口；用 ILogger 會遞迴
             "ExceptionStackFileStore.cs",   // 由管線內呼叫的檔案存取；用 ILogger 會遞迴
+            "CrashMarkerStore.cs",          // 程序即將結束或 host 尚未建立時寫補登檔，記錄機制可能已失效
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

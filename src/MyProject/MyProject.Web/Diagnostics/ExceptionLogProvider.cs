@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using MyProject.Models.Systems;
 
@@ -21,6 +22,15 @@ public sealed class ExceptionLogProvider : ILoggerProvider
     private readonly ExceptionContextAccessor contextAccessor;
     private readonly ConcurrentDictionary<string, ILogger> loggers = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// 已收錄過的例外實例。同一個例外常被記兩次以上 —— 例如 <c>UseHttpRequestLogging</c> 記完重拋，
+    /// 框架的 ExceptionHandlerMiddleware／DeveloperExceptionPageMiddleware 再記一次；或「記錄後重拋」的服務。
+    /// 兩次的訊息樣板不同，會變成兩個簽章、兩列紀錄。以實例去重，只收第一次（最內層、情境最完整）。
+    /// 用 <see cref="ConditionalWeakTable{TKey,TValue}"/>：不延長例外的生命週期，執行緒安全。
+    /// NLog 日誌檔不受影響，照常每次都寫。
+    /// </summary>
+    private readonly ConditionalWeakTable<Exception, object> capturedExceptions = new();
+
     public ExceptionLogProvider(
         ChannelWriter<ExceptionLogEntry> writer,
         ExceptionContextAccessor contextAccessor)
@@ -37,7 +47,7 @@ public sealed class ExceptionLogProvider : ILoggerProvider
     private static long droppedCount;
 
     public ILogger CreateLogger(string categoryName)
-        => loggers.GetOrAdd(categoryName, name => new ExceptionCapturingLogger(name, writer, contextAccessor));
+        => loggers.GetOrAdd(categoryName, name => new ExceptionCapturingLogger(name, writer, contextAccessor, capturedExceptions));
 
     public void Dispose() => loggers.Clear();
 
@@ -58,18 +68,23 @@ public sealed class ExceptionLogProvider : ILoggerProvider
         private const string OwnServicePrefix = "MyProject.Business.Services.DataAccess.ExceptionLogService";
         private const string OwnStorePrefix = "MyProject.Business.Services.Other.ExceptionStackFileStore";
 
+        private static readonly object CapturedMarker = new();
+
         private readonly string categoryName;
         private readonly ChannelWriter<ExceptionLogEntry> writer;
         private readonly ExceptionContextAccessor contextAccessor;
+        private readonly ConditionalWeakTable<Exception, object> capturedExceptions;
 
         public ExceptionCapturingLogger(
             string categoryName,
             ChannelWriter<ExceptionLogEntry> writer,
-            ExceptionContextAccessor contextAccessor)
+            ExceptionContextAccessor contextAccessor,
+            ConditionalWeakTable<Exception, object> capturedExceptions)
         {
             this.categoryName = categoryName;
             this.writer = writer;
             this.contextAccessor = contextAccessor;
+            this.capturedExceptions = capturedExceptions;
         }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -111,6 +126,7 @@ public sealed class ExceptionLogProvider : ILoggerProvider
 
                 // TryWrite 不阻塞。佇列滿了就丟棄 —— 與 nlog.config 的
                 // AsyncWrapper overflowAction="Discard" 同一種取捨：寧可漏記，不可拖垮主流程。
+                // Channel 是 Wait 模式，滿載時 TryWrite 才會回傳 false（DropWrite 永遠回 true，計數會失靈）。
                 if (writer.TryWrite(entry) == false)
                 {
                     IncrementDropped();
@@ -149,7 +165,8 @@ public sealed class ExceptionLogProvider : ILoggerProvider
                 return false;
             }
 
-            return true;
+            // 同一個例外實例只收一次（一次發生計一次）。TryAdd 失敗代表先前已收過。
+            return capturedExceptions.TryAdd(exception, CapturedMarker);
         }
 
         /// <summary>

@@ -70,9 +70,10 @@ public class ProjectController : ControllerBase
         try
         {
             logger.LogDebug(
-                "Received project search request. Keyword={Keyword}, Owner={Owner}, Status={Status}, Priority={Priority}, PageIndex={PageIndex}, PageSize={PageSize}, SortBy={SortBy}, SortDescending={SortDescending}, IncludeRelatedData={IncludeRelatedData}",
-                request.Keyword,
-                request.Owner,
+                "Received project search request. HasKeyword={HasKeyword}, KeywordLength={KeywordLength}, HasOwner={HasOwner}, Status={Status}, Priority={Priority}, PageIndex={PageIndex}, PageSize={PageSize}, SortBy={SortBy}, SortDescending={SortDescending}, IncludeRelatedData={IncludeRelatedData}",
+                string.IsNullOrWhiteSpace(request.Keyword) == false,
+                request.Keyword?.Length ?? 0,
+                string.IsNullOrWhiteSpace(request.Owner) == false,
                 request.Status,
                 request.Priority,
                 request.PageIndex,

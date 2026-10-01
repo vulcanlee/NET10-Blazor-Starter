@@ -124,8 +124,9 @@ public partial class ProjectViewView
     public async Task ReloadAsync()
     {
         logger.LogDebug(
-            "Reloading projects. Search={Search}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
-            searchText,
+            "Reloading projects. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
+            string.IsNullOrWhiteSpace(searchText) == false,
+            searchText.Length,
             sortField,
             sortDirection,
             _pageIndex,
@@ -221,7 +222,7 @@ public partial class ProjectViewView
     private async Task OnSearchAsync()
     {
         _pageIndex = 1;
-        logger.LogInformation("Project search triggered. Search={Search}", searchText);
+        logger.LogInformation("Project search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
         await ReloadAsync();
     }
 

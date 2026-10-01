@@ -25,7 +25,7 @@ public class ExceptionLog
     /// <summary>ex.Message，超長時截斷。</summary>
     public string Message { get; set; } = string.Empty;
 
-    /// <summary>來源：畫面／WebAPI／系統啟動／背景作業／未知。</summary>
+    /// <summary>來源：畫面／WebAPI／系統啟動／背景作業／系統／未知。</summary>
     public string Source { get; set; } = string.Empty;
 
     /// <summary>頁面或請求路徑（已去除查詢字串）。</summary>

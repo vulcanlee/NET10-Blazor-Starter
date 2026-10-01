@@ -56,6 +56,12 @@ public static class ExceptionSources
     /// <summary>背景作業（Email 派送、AI 對話紀錄自動過期等 BackgroundService）。</summary>
     public const string Background = "背景作業";
 
+    /// <summary>
+    /// 程序層級：沒人 await 的失敗 Task（UnobservedTaskException）與
+    /// 其他執行緒的未處理例外（AppDomain.UnhandledException）。見 ProcessExceptionHooks。
+    /// </summary>
+    public const string Process = "系統";
+
     /// <summary>沒有任何情境資訊可用時的預設值。</summary>
     public const string Unknown = "未知";
 
@@ -65,6 +71,7 @@ public static class ExceptionSources
         WebApi,
         Startup,
         Background,
+        Process,
         Unknown,
     ];
 }

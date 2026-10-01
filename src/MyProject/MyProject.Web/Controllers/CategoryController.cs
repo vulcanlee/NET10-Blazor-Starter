@@ -65,8 +65,9 @@ public class CategoryController : ControllerBase
         try
         {
             logger.LogDebug(
-                "Received category search request. Keyword={Keyword}, IsEnabled={IsEnabled}, PageIndex={PageIndex}, PageSize={PageSize}, SortBy={SortBy}, SortDescending={SortDescending}",
-                request.Keyword,
+                "Received category search request. HasKeyword={HasKeyword}, KeywordLength={KeywordLength}, IsEnabled={IsEnabled}, PageIndex={PageIndex}, PageSize={PageSize}, SortBy={SortBy}, SortDescending={SortDescending}",
+                string.IsNullOrWhiteSpace(request.Keyword) == false,
+                request.Keyword?.Length ?? 0,
                 request.IsEnabled,
                 request.PageIndex,
                 request.PageSize,

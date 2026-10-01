@@ -74,9 +74,11 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
                 exceptionContextAccessor.Set(
                     new ExceptionContext(ExceptionSources.Ui, previousPath, account, userId));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // 情境只是診斷用的加值資訊，設定失敗就讓它空著，不影響使用者操作。
+                // 情境只是診斷用的加值資訊，設定失敗就讓它空著，不影響使用者操作；
+                // 但要留下痕跡（Warning 不會進例外紀錄，不會遞迴）。
+                logger.LogWarning(ex, "Failed to set exception context for circuit activity. CircuitId={CircuitId}", circuitId);
             }
 
             await next(context);

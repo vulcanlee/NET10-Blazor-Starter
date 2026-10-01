@@ -40,6 +40,7 @@ public sealed class SystemHealthService : ISystemHealthService
     private readonly IOptions<CacheSettings> cacheOptions;
     private readonly IEmailHealthProbe emailHealthProbe;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
+    private readonly ILogger<SystemHealthService> logger;
 
     public SystemHealthService(
         BackendDBContext context,
@@ -59,7 +60,8 @@ public sealed class SystemHealthService : ISystemHealthService
         IOptionsMonitor<AiPricingSettings> aiPricingOptions,
         IOptions<CacheSettings> cacheOptions,
         IEmailHealthProbe emailHealthProbe,
-        IOptionsMonitor<EmailSettings> emailOptions)
+        IOptionsMonitor<EmailSettings> emailOptions,
+        ILogger<SystemHealthService> logger)
     {
         this.context = context;
         this.configuration = configuration;
@@ -78,6 +80,7 @@ public sealed class SystemHealthService : ISystemHealthService
         this.aiPricingOptions = aiPricingOptions;
         this.cacheOptions = cacheOptions;
         this.emailHealthProbe = emailHealthProbe;
+        this.logger = logger;
         this.emailOptions = emailOptions;
     }
 
@@ -183,6 +186,7 @@ public sealed class SystemHealthService : ISystemHealthService
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Health check failed. Check={Check}", "Database");
             return CreateItem(
                 "資料庫",
                 "Database",
@@ -348,6 +352,7 @@ public sealed class SystemHealthService : ISystemHealthService
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Health check failed. Check={Check}", "Ai");
             // AiHealthProbe 內部已全程吞例外，這裡是最後一道保險 ——
             // 單一項目絕不能讓整份報告掛掉（其餘 7 項檢查都沒有保護）。
             return CreateItem(
@@ -378,6 +383,7 @@ public sealed class SystemHealthService : ISystemHealthService
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Health check failed. Check={Check}", "CacheProvider");
             return CreateItem(
                 "快取服務",
                 "Cache",
@@ -419,6 +425,7 @@ public sealed class SystemHealthService : ISystemHealthService
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Health check failed. Check={Check}", "Cache");
             return CreateItem(
                 "快取服務",
                 "Cache",

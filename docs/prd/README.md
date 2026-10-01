@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.6
+- 文件版本：2.7
 - 文件狀態：維護中
-- 現行系統版本：0.9.76
+- 現行系統版本：0.9.77
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/10/01
 
@@ -23,7 +23,7 @@
 | 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Pages/Analytics/LogViewerPage.razor`、`LogQueryService`、`NLogFilePathResolver`、`AiLogAnalysisService` | 已實作 | 0.9.8 |
 | 資料庫用量 | [資料庫用量](資料庫用量-prd.md) | `/database-usage` | `Pages/Analytics/DatabaseUsagePage.razor`、`DatabaseUsageService` | 已實作 | 0.4.42 |
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.4.42 |
-| 系統例外紀錄 | [系統例外紀錄](系統例外紀錄-prd.md) | `/system-exceptions` | `Pages/Admins/ExceptionLogPage.razor`、`Diagnostics/ExceptionLogProvider`、`ExceptionLogService`、`AiExceptionAnalysisService` | 已實作 | 0.9.68 |
+| 系統例外紀錄 | [系統例外紀錄](系統例外紀錄-prd.md) | `/system-exceptions` | `Pages/Admins/ExceptionLogPage.razor`、`Diagnostics/ExceptionLogProvider`、`ExceptionLogService`、`AiExceptionAnalysisService`、`CrashMarkerStore`、`ProcessExceptionHooks` | 已實作（0.9.77 補齊漏記、重複與帳號）| 0.9.77 |
 | Token 用量 | [Token 用量](Token用量-prd.md) | `/token-usage` | `Pages/Analytics/TokenUsagePage.razor`、`ITokenUsageRecorder`、`TokenUsageLogService`、`TokenUsageRawStore` | 已實作（0.9.17 起每列含費用估算；0.9.50 起有「最近 1／7／30 天」摘要卡與每日費用趨勢；0.9.51 起 PDF 可只匯出目前頁籤且含趨勢；0.9.55 起有折線趨勢圖頁籤，PDF 同步輸出）| 0.9.55 |
 | AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionWorker` | 已實作（0.9.72）| 0.9.72 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.4.42 |
@@ -38,7 +38,7 @@
 | 帳號安全（PBKDF2、帳號鎖定、忘記密碼、TOTP 骨架）| [登入與帳號流程](登入與帳號流程-prd.md) | 已實作；忘記密碼需啟用寄信（0.9.60）；TOTP 預設關閉 |
 | 檔案上傳（專案附件）| [專案項目](專案項目-prd.md) | 已實作 |
 | 寄信服務（None／Pickup／Smtp、背景佇列、健康監控項與測試寄信）| [寄信服務](寄信服務-prd.md) | 已實作（0.9.59）；設定在 `EmailSettings`，畫面在「系統健康監控」|
-| 日誌與例外處理（全系統共用規範：等級規則、例外分類、未捕捉例外涵蓋、稽核範圍、保存期限、告警）| [日誌與例外處理](日誌與例外處理-prd.md) | 部分實作（0.9.76 立案）；§三、§四 為所有功能的開發與驗收依據，§六 列 LOG-01～LOG-22 待實作缺口 |
+| 日誌與例外處理（全系統共用規範：等級規則、例外分類、未捕捉例外涵蓋、稽核範圍、保存期限、告警）| [日誌與例外處理](日誌與例外處理-prd.md) | 部分實作（0.9.76 立案；0.9.77 完成 P0 的 LOG-01～08）；§三、§四 為所有功能的開發與驗收依據，§六 列 P1／P2 待實作缺口 |
 | LLM 呼叫費用估算（單價／匯率設定、四種計費單位、單價快照）| [LLM 呼叫費用估算](LLM呼叫費用估算-prd.md) | 已實作（0.9.17）；表現在「Token 用量」頁，維護入口是 `appsettings.json` |
 
 ## 三、規劃中產品藍圖

@@ -38,10 +38,15 @@ namespace MyProject.Web
         public static void Main(string[] args)
         {
             ILogger<Program>? logger = null;
+
+            // 啟動失敗時 catch 區塊要用到的東西，必須宣告在 try 之外（LOG-06）。
+            ExceptionContextAccessor? exceptionContextAccessor = null;
+            string? exceptionPath = null;
+            var nlogReady = false;
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
-                StartupSafetyValidator.Validate(builder.Configuration, builder.Environment.EnvironmentName);
+                exceptionPath = builder.Configuration["SystemSettings:ExternalFileSystem:ExceptionPath"];
 
                 // PDF 報告的中文字型解析器。GlobalFontSettings.FontResolver 是 process 全域且
                 // write-once，必須在建立第一個 XFont 之前註冊，所以擺在啟動最前段。
@@ -77,7 +82,15 @@ namespace MyProject.Web
                 // 遇到 BasePath 直接丟 NLogConfigurationException 讓啟動失敗。正式環境一定有 nlog.config，
                 // 但同一行程內前一個 host 結束時的 LogManager.Shutdown() 會把設定清空（整合測試會連續啟動多個 host）。
                 builder.Host.UseNLog(new NLogAspNetCoreOptions { LoggingConfigurationSectionName = string.Empty });
+
+                // BasePath 設好之後，host 建立前的失敗也能直接經 NLog 寫進日誌檔（見 catch）。
+                // 沒設 BasePath 時檔名會落到磁碟根目錄，寧可不寫。
+                nlogReady = nlogBasePath is not null && LogManager.Configuration is not null;
                 #endregion
+
+                // ⚠️ 必須排在 NLog 設定之後（0.9.77）：先前它是 Main 的第一行，設定不安全時直接丟例外，
+                // 那時 NLog 還沒設定 BasePath，日誌檔裡完全沒有「為什麼啟動失敗」。
+                StartupSafetyValidator.Validate(builder.Configuration, builder.Environment.EnvironmentName);
 
                 #region 系統使用服務
                 // Add services to the container.
@@ -301,6 +314,10 @@ namespace MyProject.Web
                 var app = builder.Build();
                 logger = app.Services.GetRequiredService<ILogger<Program>>();
                 logger.LogInformation("Application host built successfully.");
+                exceptionContextAccessor = app.Services.GetRequiredService<ExceptionContextAccessor>();
+
+                // 射後不理的 Task 與背景執行緒的未處理例外（LOG-04）。
+                app.Services.GetRequiredService<ProcessExceptionHooks>().Register(app.Lifetime);
 
                 // 必須在啟動時初始化，不能等到有人開啟「日誌等級設定」頁面才懶載入 ——
                 // 它同時負責訂閱 NLog 的 ConfigurationChanged，在 autoReload 重載後把
@@ -332,6 +349,22 @@ namespace MyProject.Web
                         dbContext.Database.EnsureCreated();
                         logger.LogInformation("Database created because no migrations were found.");
                     }
+
+                    #region 補登上次來不及寫進資料庫的例外（啟動失敗、程序層級例外；LOG-06）
+                    var crashMarkers = CrashMarkerStore.ReadAll(exceptionPath);
+                    if (crashMarkers.Count > 0)
+                    {
+                        var exceptionLogService = scope.ServiceProvider.GetRequiredService<ExceptionLogService>();
+                        foreach (var (markerPath, entry) in crashMarkers)
+                        {
+                            // RecordAsync 絕不拋出；失敗也刪檔，避免每次啟動都重複補登同一筆。
+                            exceptionLogService.RecordAsync(entry).GetAwaiter().GetResult();
+                            CrashMarkerStore.Delete(markerPath);
+                        }
+
+                        logger.LogInformation("Imported {Count} pending crash records.", crashMarkers.Count);
+                    }
+                    #endregion
 
                     RoleView? roleViewItemNew = null;
 
@@ -454,6 +487,10 @@ namespace MyProject.Web
                 app.UseAuthentication();
                 app.UseAuthorization();
 
+                // 把已驗證的使用者補進例外情境，讓內層的 LogError 帶得出帳號（LOG-01）。
+                // ⚠️ 必須在 UseAuthorization 之後：JWT 端點的 User 要到授權中介軟體才驗證出來。
+                app.UseExceptionContextUser();
+
                 #region 綁定靜態資源
                 // ⚠️ 一定要放在 UseAuthentication/UseAuthorization 之後。
                 // 0.4.34 之前它掛在兩者之前，等於 DownloadPath 目錄匿名可讀 ——
@@ -502,10 +539,32 @@ namespace MyProject.Web
                     logger?.LogInformation("Created {DirectoryName} directory at {DirectoryPath}", directoryName, directoryPath);
                 }
             }
-            catch (Exception ex)
+            // ⚠️ HostAbortedException 不是失敗：dotnet ef（migration 工具）執行 Main 取得 host 後，
+            // 會在 Build() 丟出它來中止程式。不排除的話，每次產生 migration 都會留下一筆假的「啟動失敗」。
+            catch (Exception ex) when (ex is not HostAbortedException)
             {
+                // 例外紀錄的背景寫入器要到 app.Run() 才啟動，程序隨即結束，入列的紀錄寫不進資料庫。
+                // 先寫補登檔，下次成功啟動時補進系統例外紀錄（LOG-06）。
+                CrashMarkerStore.Write(
+                    exceptionPath,
+                    ex,
+                    ExceptionSources.Startup,
+                    "Application is stopping because of an unhandled exception.",
+                    typeof(Program).FullName!);
+
                 if (logger != null)
+                {
+                    // 抑制例外紀錄的收錄：已有補登檔，若剛好寫入器在跑，會變成兩列。日誌檔照常寫。
+                    using var suppression = exceptionContextAccessor?.Suppress();
                     logger.LogCritical(ex, "Application is stopping because of an unhandled exception.");
+                }
+                else if (nlogReady)
+                {
+                    // host 尚未建立（設定驗證、服務註冊、Build 失敗），ILogger 還不存在，直接經 NLog 寫檔。
+                    LogManager.GetLogger(typeof(Program).FullName!)
+                        .Fatal(ex, "Application failed to start before the host was built.");
+                }
+
                 throw;
             }
             finally

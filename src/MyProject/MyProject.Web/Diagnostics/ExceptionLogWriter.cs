@@ -1,4 +1,5 @@
-﻿using System.Threading.Channels;
+﻿using System.Diagnostics;
+using System.Threading.Channels;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.Systems;
 
@@ -19,21 +20,43 @@ namespace MyProject.Web.Diagnostics;
 /// </summary>
 public sealed class ExceptionLogWriter : BackgroundService
 {
+    /// <summary>
+    /// 關機時清空佇列的時間上限。須遠小於主機的關機逾時（預設 30 秒），
+    /// 否則資料庫卡住時會拖住整個關機流程。
+    /// </summary>
+    internal static readonly TimeSpan DefaultDrainTimeout = TimeSpan.FromSeconds(5);
+
     private readonly ChannelReader<ExceptionLogEntry> reader;
     private readonly IServiceScopeFactory scopeFactory;
     private readonly ExceptionContextAccessor contextAccessor;
+    private readonly TimeSpan drainTimeout;
 
     public ExceptionLogWriter(
         ChannelReader<ExceptionLogEntry> reader,
         IServiceScopeFactory scopeFactory,
         ExceptionContextAccessor contextAccessor)
+        : this(reader, scopeFactory, contextAccessor, DefaultDrainTimeout)
+    {
+    }
+
+    internal ExceptionLogWriter(
+        ChannelReader<ExceptionLogEntry> reader,
+        IServiceScopeFactory scopeFactory,
+        ExceptionContextAccessor contextAccessor,
+        TimeSpan drainTimeout)
     {
         this.reader = reader;
         this.scopeFactory = scopeFactory;
         this.contextAccessor = contextAccessor;
+        this.drainTimeout = drainTimeout;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) => RunAsync(stoppingToken);
+
+    /// <summary>
+    /// 主迴圈。獨立成 internal 方法，讓測試能以「已取消的 token」直接驗證關機時的清空行為。
+    /// </summary>
+    internal async Task RunAsync(CancellationToken stoppingToken)
     {
         NLog.Common.InternalLogger.Info("ExceptionLogWriter started.");
 
@@ -46,7 +69,9 @@ public sealed class ExceptionLogWriter : BackgroundService
         }
         catch (OperationCanceledException)
         {
-            // 正常關機。
+            // 正常關機。佇列裡可能還有剛記下的例外（包括關機過程本身的錯誤），
+            // 0.9.77 之前在這裡直接結束，它們就此遺失。
+            await DrainAsync();
         }
         catch (Exception ex)
         {
@@ -56,6 +81,31 @@ public sealed class ExceptionLogWriter : BackgroundService
         {
             NLog.Common.InternalLogger.Info(
                 "ExceptionLogWriter stopped. DroppedEntries={0}", ExceptionLogProvider.DroppedCount);
+        }
+    }
+
+    /// <summary>
+    /// 把佇列中剩餘的項目寫完，最多 <see cref="drainTimeout"/>。逾時仍寫不完的筆數輸出到 InternalLogger。
+    /// </summary>
+    private async Task DrainAsync()
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var written = 0;
+
+        while (stopwatch.Elapsed < drainTimeout && reader.TryRead(out var entry))
+        {
+            await WriteOneAsync(entry);
+            written++;
+        }
+
+        if (reader.CanCount && reader.Count > 0)
+        {
+            NLog.Common.InternalLogger.Warn(
+                "ExceptionLogWriter drain timed out. Written={0}, Remaining={1}", written, reader.Count);
+        }
+        else if (written > 0)
+        {
+            NLog.Common.InternalLogger.Info("ExceptionLogWriter drained {0} entries on shutdown.", written);
         }
     }
 

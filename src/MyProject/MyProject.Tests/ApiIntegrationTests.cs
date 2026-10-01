@@ -288,6 +288,42 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     [Fact]
+    public async Task UnhandledApiException_ShouldRecordAccountInExceptionLog()
+    {
+        // LOG-01：0.9.77 之前請求日誌中介軟體排在驗證之前，例外紀錄的帳號欄永遠是空的。
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        await client.GetAsync("/api/ContractProbe/throw");
+
+        var row = await WaitForExceptionLogAsync(x => x.Message == "Integration probe exception.");
+        Assert.Equal(ExceptionSources.WebApi, row.Source);
+        Assert.Equal("support", row.Account);
+        Assert.True(row.UserId > 0);
+    }
+
+    [Fact]
+    public async Task UnhandledPageException_ShouldBeRecordedOnlyOnce()
+    {
+        // LOG-03：非 API 請求的未處理例外會被 UseHttpRequestLogging 與框架的
+        // ExceptionHandlerMiddleware（Testing 環境會啟用）各記一次，0.9.77 之前因此變成兩列。
+        using var client = factory.CreateClient();
+        var marker = Guid.NewGuid().ToString("N");
+
+        var response = await client.GetAsync($"/contract-probe-page/throw?marker={marker}");
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+
+        var message = $"Integration page probe exception {marker}.";
+        var row = await WaitForExceptionLogAsync(x => x.Message == message);
+        Assert.Equal(ExceptionSources.Ui, row.Source);
+        Assert.Equal(1, row.OccurrenceCount);
+
+        // 第二筆（若存在）由同一個寫入器緊接著寫入，留一點時間再數一次。
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, await CountExceptionLogsAsync(x => x.Message == message));
+    }
+
+    [Fact]
     public async Task HealthReadiness_ShouldReturnHealthy()
     {
         using var client = factory.CreateClient();
@@ -717,6 +753,34 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.NotNull(context);
     }
 
+    /// <summary>
+    /// 例外紀錄由背景寫入器非同步寫入，輪詢等它出現（最多約 5 秒）。
+    /// </summary>
+    private async Task<ExceptionLog> WaitForExceptionLogAsync(System.Linq.Expressions.Expression<Func<ExceptionLog, bool>> predicate)
+    {
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<BackendDBContext>>();
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var row = await context.ExceptionLog.AsNoTracking().FirstOrDefaultAsync(predicate);
+            if (row is not null)
+            {
+                return row;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new Xunit.Sdk.XunitException("等待 5 秒仍未在系統例外紀錄中看到預期的例外。");
+    }
+
+    private async Task<int> CountExceptionLogsAsync(System.Linq.Expressions.Expression<Func<ExceptionLog, bool>> predicate)
+    {
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<BackendDBContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.ExceptionLog.CountAsync(predicate);
+    }
+
     private static async Task AuthorizeAsync(HttpClient client)
     {
         var loginResult = await LoginAsync(client);
@@ -1052,6 +1116,17 @@ public sealed class ContractProbeController : ControllerBase
     public IActionResult ThrowProbe()
     {
         throw new InvalidOperationException("Integration probe exception.");
+    }
+
+    /// <summary>
+    /// 不在 /api 之下的未處理例外：ApiExceptionFilter 不接手，會一路冒泡到
+    /// UseHttpRequestLogging 與框架的 ExceptionHandlerMiddleware（LOG-03 的重複記錄路徑）。
+    /// </summary>
+    [HttpGet("/contract-probe-page/throw")]
+    [AllowAnonymous]
+    public IActionResult PageThrowProbe([FromQuery] string marker)
+    {
+        throw new InvalidOperationException($"Integration page probe exception {marker}.");
     }
 
     /// <summary>
