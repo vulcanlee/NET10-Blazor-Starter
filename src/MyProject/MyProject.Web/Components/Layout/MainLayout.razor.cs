@@ -8,7 +8,9 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Components.Commons;
+using MyProject.Web.Diagnostics;
 using MyProject.Web.Health;
+using Microsoft.JSInterop;
 
 namespace MyProject.Web.Components.Layout;
 
@@ -70,6 +72,14 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private ChangePasswordForm changePasswordForm = new();
 
     private bool aboutVisible = false;
+
+    [Inject]
+    private BrowserErrorReporter BrowserErrorReporter { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private DotNetObjectReference<BrowserErrorReporter>? browserErrorReporterReference;
     private IReadOnlyList<KeyValuePair<string, string>> aboutItems = [];
 
     protected override async Task OnInitializedAsync()
@@ -279,9 +289,37 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         public string ConfirmPassword { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// 登入後才註冊瀏覽器錯誤回報（LOG-20）：只有已登入、有 circuit 的頁面回報，匿名者無從灌資料。
+    /// isAuthenticated 在非同步初始化後才成立，所以不能只看 firstRender。
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (isAuthenticated == false || browserErrorReporterReference is not null || BrowserErrorReporter.IsEnabled == false)
+        {
+            return;
+        }
+
+        browserErrorReporterReference = DotNetObjectReference.Create(BrowserErrorReporter);
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("appClientErrors.register", browserErrorReporterReference);
+        }
+        catch (JSDisconnectedException)
+        {
+            // circuit 已斷線，沒有東西可註冊。
+        }
+        catch (JSException ex)
+        {
+            // 腳本沒載入（例如被瀏覽器外掛擋掉）：少了前端錯誤回報，頁面照常可用。
+            Logger.LogWarning(ex, "Failed to register the browser error reporter.");
+        }
+    }
+
     public void Dispose()
     {
         Logger.LogDebug("Disposing main layout.");
         NavigationManager.LocationChanged -= OnLocationChanged;
+        browserErrorReporterReference?.Dispose();
     }
 }

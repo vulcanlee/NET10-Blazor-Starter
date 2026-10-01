@@ -31,13 +31,15 @@ public sealed class ExceptionLogWriter : BackgroundService
     private readonly ExceptionContextAccessor contextAccessor;
     private readonly TimeSpan drainTimeout;
     private readonly ExceptionAlertService? alertService;
+    private readonly LoggingPipelineMonitor? monitor;
 
     public ExceptionLogWriter(
         ChannelReader<ExceptionLogEntry> reader,
         IServiceScopeFactory scopeFactory,
         ExceptionContextAccessor contextAccessor,
-        ExceptionAlertService alertService)
-        : this(reader, scopeFactory, contextAccessor, DefaultDrainTimeout, alertService)
+        ExceptionAlertService alertService,
+        LoggingPipelineMonitor monitor)
+        : this(reader, scopeFactory, contextAccessor, DefaultDrainTimeout, alertService, monitor)
     {
     }
 
@@ -46,13 +48,15 @@ public sealed class ExceptionLogWriter : BackgroundService
         IServiceScopeFactory scopeFactory,
         ExceptionContextAccessor contextAccessor,
         TimeSpan drainTimeout,
-        ExceptionAlertService? alertService = null)
+        ExceptionAlertService? alertService = null,
+        LoggingPipelineMonitor? monitor = null)
     {
         this.reader = reader;
         this.scopeFactory = scopeFactory;
         this.contextAccessor = contextAccessor;
         this.drainTimeout = drainTimeout;
         this.alertService = alertService;
+        this.monitor = monitor;
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => RunAsync(stoppingToken);
@@ -124,6 +128,12 @@ public sealed class ExceptionLogWriter : BackgroundService
             var service = scope.ServiceProvider.GetRequiredService<ExceptionLogService>();
             var outcome = await service.RecordAsync(entry);
 
+            // RecordAsync 自己吞掉所有錯誤並回傳 null —— 寫入失敗只能從這裡看出來（LOG-22）。
+            if (outcome is null)
+            {
+                monitor?.RecordWriteFailure(DateTimeOffset.UtcNow);
+            }
+
             // 告警（LOG-12）在抑制範圍內評估：寄信相關的任何錯誤都不會再被收成例外。
             alertService?.Evaluate(outcome);
         }
@@ -131,6 +141,7 @@ public sealed class ExceptionLogWriter : BackgroundService
         {
             // 絕不使用 ILogger（見類別註解）。
             NLog.Common.InternalLogger.Warn(ex, "Failed to persist an exception log entry.");
+            monitor?.RecordWriteFailure(DateTimeOffset.UtcNow);
         }
     }
 }

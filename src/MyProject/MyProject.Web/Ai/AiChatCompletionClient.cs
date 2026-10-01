@@ -41,6 +41,7 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
     private readonly ITokenUsageRecorder tokenUsageRecorder;
     private readonly CurrentUserService currentUserService;
     private readonly IAiCallLogRecorder aiCallLogRecorder;
+    private readonly IOptionsMonitor<SlowOperationSettings>? slowOptions;
 
     public AiChatCompletionClient(
         ILogger<AiChatCompletionClient> logger,
@@ -48,8 +49,10 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         IOptionsMonitor<AiSettings> optionsMonitor,
         ITokenUsageRecorder tokenUsageRecorder,
         CurrentUserService currentUserService,
-        IAiCallLogRecorder aiCallLogRecorder)
+        IAiCallLogRecorder aiCallLogRecorder,
+        IOptionsMonitor<SlowOperationSettings>? slowOptions = null)
     {
+        this.slowOptions = slowOptions;
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
@@ -204,6 +207,15 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
                 parsed.Usage?.InputCount,
                 parsed.Usage?.OutputCount,
                 stopwatch.ElapsedMilliseconds);
+
+            // 慢 AI 呼叫（LOG-21）。
+            var slowThreshold = slowOptions?.CurrentValue.AiCallMs ?? 0;
+            if (SlowOperationSettings.IsSlow(stopwatch.Elapsed, slowThreshold))
+            {
+                logger.LogWarning(
+                    "Slow AI chat completion. Operation={Operation}, ElapsedMilliseconds={ElapsedMilliseconds}, ThresholdMilliseconds={ThresholdMilliseconds}",
+                    request.Operation, stopwatch.ElapsedMilliseconds, slowThreshold);
+            }
 
             await RecordUsageAsync(
                 capture, request.Operation, settings, parsed.ModelName, parsed.Usage,

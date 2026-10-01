@@ -44,6 +44,9 @@ public sealed class ExceptionLogProvider : ILoggerProvider
     /// </summary>
     public static long DroppedCount => droppedCount;
 
+    /// <summary>例外佇列容量（ServiceCollectionExtensions 建立 Channel 時使用；健康監控據此算使用率）。</summary>
+    public const int QueueCapacity = 1000;
+
     private static long droppedCount;
 
     public ILogger CreateLogger(string categoryName)

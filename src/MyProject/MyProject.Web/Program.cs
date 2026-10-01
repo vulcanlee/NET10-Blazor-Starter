@@ -319,6 +319,10 @@ namespace MyProject.Web
                 // 射後不理的 Task 與背景執行緒的未處理例外（LOG-04）。
                 app.Services.GetRequiredService<ProcessExceptionHooks>().Register(app.Lifetime);
 
+                // 日誌管線自我監控（LOG-22）：累計 NLog 內部錯誤（寫檔失敗、設定錯誤）。
+                app.Services.GetRequiredService<LoggingPipelineMonitor>()
+                    .Register(app.Lifetime, app.Services.GetRequiredService<TimeProvider>());
+
                 // 必須在啟動時初始化，不能等到有人開啟「日誌等級設定」頁面才懶載入 ——
                 // 它同時負責訂閱 NLog 的 ConfigurationChanged，在 autoReload 重載後把
                 // BasePath / LogFilenamePrefix 變數補回去，否則日誌會改寫到磁碟根目錄。

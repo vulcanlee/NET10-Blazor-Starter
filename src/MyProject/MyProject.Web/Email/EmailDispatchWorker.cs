@@ -22,14 +22,20 @@ public sealed class EmailDispatchWorker : BackgroundService
     private readonly ExceptionContextAccessor contextAccessor;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
     private readonly ILogger<EmailDispatchWorker> logger;
+    private readonly IOptionsMonitor<SlowOperationSettings>? slowOptions;
+    private readonly LoggingPipelineMonitor? monitor;
 
     public EmailDispatchWorker(
         ChannelEmailQueue queue,
         IServiceScopeFactory scopeFactory,
         ExceptionContextAccessor contextAccessor,
         IOptionsMonitor<EmailSettings> emailOptions,
-        ILogger<EmailDispatchWorker> logger)
+        ILogger<EmailDispatchWorker> logger,
+        IOptionsMonitor<SlowOperationSettings>? slowOptions = null,
+        LoggingPipelineMonitor? monitor = null)
     {
+        this.slowOptions = slowOptions;
+        this.monitor = monitor;
         this.queue = queue;
         this.scopeFactory = scopeFactory;
         this.contextAccessor = contextAccessor;
@@ -69,7 +75,17 @@ public sealed class EmailDispatchWorker : BackgroundService
 
             using var scope = scopeFactory.CreateScope();
             var sender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             await sender.SendAsync(message, timeout.Token);
+
+            // 慢寄信（LOG-21）：只記信件種類，收件者與內容一律不記。
+            var threshold = slowOptions?.CurrentValue.ExternalCallMs ?? 0;
+            if (SlowOperationSettings.IsSlow(stopwatch.Elapsed, threshold))
+            {
+                logger.LogWarning(
+                    "Slow email dispatch. Kind={Kind}, ElapsedMilliseconds={ElapsedMilliseconds}, ThresholdMilliseconds={ThresholdMilliseconds}",
+                    message.Kind, stopwatch.ElapsedMilliseconds, threshold);
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -78,6 +94,12 @@ public sealed class EmailDispatchWorker : BackgroundService
         catch (Exception ex)
         {
             logger.LogError(ex, "Queued email dispatch failed. Kind={Kind}, Provider={Provider}", message.Kind, settings.Provider);
+
+            // 告警信寄不出去不會再觸發告警（避免迴圈），只能在系統健康監控看到（LOG-22）。
+            if (message.Kind == EmailKinds.ExceptionAlert)
+            {
+                monitor?.RecordAlertSendFailure();
+            }
         }
         finally
         {

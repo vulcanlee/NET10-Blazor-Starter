@@ -124,7 +124,7 @@ public static class ServiceCollectionExtensions
         // ⚠️ FullMode 用 Wait 搭配 provider 的 TryWrite（不阻塞），**不要改回 DropWrite**：
         // Drop 系列模式下 TryWrite 永遠回傳 true，丟棄筆數永遠是 0（0.9.77 修正，與 ChannelEmailQueue 同理）。
         var exceptionChannel = Channel.CreateBounded<ExceptionLogEntry>(
-            new BoundedChannelOptions(1000)
+            new BoundedChannelOptions(ExceptionLogProvider.QueueCapacity)
             {
                 FullMode = BoundedChannelFullMode.Wait,
                 SingleReader = true,
@@ -143,6 +143,10 @@ public static class ServiceCollectionExtensions
 
         // 例外 Email 告警（LOG-12）。單例：暴增計數、冷卻與每小時配額都是記憶體狀態。
         services.AddSingleton<ExceptionAlertService>();
+
+        // 日誌管線自我監控（LOG-22）與瀏覽器錯誤回報（LOG-20，每個 circuit 一份）。
+        services.AddSingleton<LoggingPipelineMonitor>();
+        services.AddScoped<BrowserErrorReporter>();
 
         // 以 DI 註冊 ILoggerProvider，讓它拿得到 Channel 與情境存取器。
         // ⚠️ 必須晚於 Program.cs 的 builder.Logging.ClearProviders()，否則會被清掉；
@@ -194,6 +198,16 @@ public static class ServiceCollectionExtensions
         services.Configure<AiSettings>(configuration.GetSection(AiSettings.SectionName));
         services.Configure<AiPricingSettings>(configuration.GetSection(AiPricingSettings.SectionName));
         // 保留天數寫壞（0 或超過 3650）就啟動失敗，不要讓自動過期悄悄用錯的門檻刪資料。
+        services.AddOptions<SlowOperationSettings>()
+            .Bind(configuration.GetSection(SlowOperationSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<ClientErrorReportingSettings>()
+            .Bind(configuration.GetSection(ClientErrorReportingSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddOptions<LogRetentionSettings>()
             .Bind(configuration.GetSection(LogRetentionSettings.SectionName))
             .ValidateDataAnnotations()
@@ -223,11 +237,15 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddConfiguredDatabase(this IServiceCollection services, SystemSettings systemSettings)
     {
-        services.AddDbContextFactory<BackendDBContext>(options =>
+        services.AddDbContextFactory<BackendDBContext>((sp, options) =>
         {
             var sqliteConnectionString = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
             options.UseSqlite(sqliteConnectionString);
+
+            // 慢資料庫指令（LOG-21）：只記指令類型與耗時，不記 SQL 與參數。
+            options.AddInterceptors(sp.GetRequiredService<SlowDbCommandInterceptor>());
         });
+        services.AddSingleton<SlowDbCommandInterceptor>();
 
         services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<BackendDBContext>>().CreateDbContext());
 

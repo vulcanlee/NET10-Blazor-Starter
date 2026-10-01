@@ -52,6 +52,21 @@ public sealed class ExceptionLogWriterTests : IAsyncDisposable
         Assert.Equal(2, channel.Reader.Count);
     }
 
+    [Fact]
+    public async Task RunAsync_WhenRecordFails_ShouldCountWriteFailure()
+    {
+        // LOG-22：RecordAsync 自己吞掉錯誤並回傳 null，寫入失敗只能從寫入器看出來，必須計進管線監控。
+        var monitor = new LoggingPipelineMonitor();
+        var writer = await CreateWriterAsync(ExceptionLogWriter.DefaultDrainTimeout, monitor);
+        EnqueueDistinctEntries(2);
+        await connection.CloseAsync();
+
+        await writer.RunAsync(new CancellationToken(canceled: true));
+
+        Assert.Equal(2, monitor.Snapshot().WriteFailures);
+        Assert.NotNull(monitor.Snapshot().LastWriteFailureAt);
+    }
+
     private void EnqueueDistinctEntries(int count)
     {
         for (var index = 0; index < count; index++)
@@ -68,7 +83,7 @@ public sealed class ExceptionLogWriterTests : IAsyncDisposable
         }
     }
 
-    private async Task<ExceptionLogWriter> CreateWriterAsync(TimeSpan drainTimeout)
+    private async Task<ExceptionLogWriter> CreateWriterAsync(TimeSpan drainTimeout, LoggingPipelineMonitor? monitor = null)
     {
         await connection.OpenAsync();
         await using (var context = new TestDbContextFactory(connection).CreateDbContext())
@@ -95,7 +110,8 @@ public sealed class ExceptionLogWriterTests : IAsyncDisposable
             channel.Reader,
             services.GetRequiredService<IServiceScopeFactory>(),
             new ExceptionContextAccessor(),
-            drainTimeout);
+            drainTimeout,
+            monitor: monitor);
     }
 
     private async Task<int> CountRowsAsync()

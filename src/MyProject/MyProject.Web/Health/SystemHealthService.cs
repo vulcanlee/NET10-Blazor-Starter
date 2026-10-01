@@ -9,7 +9,9 @@ using MyProject.Business.Services.Other;
 using MyProject.Web.Ai;
 using MyProject.Web.Auth;
 using MyProject.Web.Caching;
+using System.Threading.Channels;
 using MyProject.Web.Configuration;
+using MyProject.Web.Diagnostics;
 using MyProject.Web.Email;
 using MyProject.Share.Helpers;
 
@@ -41,6 +43,8 @@ public sealed class SystemHealthService : ISystemHealthService
     private readonly IEmailHealthProbe emailHealthProbe;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
     private readonly ILogger<SystemHealthService> logger;
+    private readonly LoggingPipelineMonitor pipelineMonitor;
+    private readonly ChannelReader<ExceptionLogEntry> exceptionQueue;
 
     public SystemHealthService(
         BackendDBContext context,
@@ -61,8 +65,12 @@ public sealed class SystemHealthService : ISystemHealthService
         IOptions<CacheSettings> cacheOptions,
         IEmailHealthProbe emailHealthProbe,
         IOptionsMonitor<EmailSettings> emailOptions,
-        ILogger<SystemHealthService> logger)
+        ILogger<SystemHealthService> logger,
+        LoggingPipelineMonitor pipelineMonitor,
+        ChannelReader<ExceptionLogEntry> exceptionQueue)
     {
+        this.pipelineMonitor = pipelineMonitor;
+        this.exceptionQueue = exceptionQueue;
         this.context = context;
         this.configuration = configuration;
         this.environment = environment;
@@ -99,7 +107,8 @@ public sealed class SystemHealthService : ISystemHealthService
             await CheckAiAsync(cancellationToken),
             await CheckCacheAsync(cancellationToken),
             CheckAiPricing(),
-            await CheckEmailAsync(cancellationToken)
+            await CheckEmailAsync(cancellationToken),
+            CheckLoggingPipeline()
         };
 
         var score = SystemHealthScoreCalculator.CalculateScore(items);
@@ -273,6 +282,122 @@ public sealed class SystemHealthService : ISystemHealthService
             status,
             string.Join("；", paths.Select(path => $"{path.Key}：{path.Value}")),
             status == SystemHealthStatus.Healthy ? null : $"目錄不存在或不可寫入：{string.Join(", ", failures)}。");
+    }
+
+    /// <summary>
+    /// 日誌與例外管線本身（LOG-22）：記錄機制壞了卻沒人知道，是最難發現的一種故障。
+    /// 數值都是「本次啟動以來」的累計。
+    /// </summary>
+    private SystemHealthItem CheckLoggingPipeline()
+    {
+        double? freeGb = null;
+        try
+        {
+            var basePath = configuration.GetValue<string>("NLog:BasePath");
+            var root = string.IsNullOrWhiteSpace(basePath) ? null : Path.GetPathRoot(Path.GetFullPath(basePath));
+            if (string.IsNullOrWhiteSpace(root) == false)
+            {
+                freeGb = new DriveInfo(root).AvailableFreeSpace / 1024d / 1024d / 1024d;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Health check failed. Check={Check}", "LogDisk");
+        }
+
+        return EvaluateLoggingPipeline(
+            pipelineMonitor.Snapshot(),
+            exceptionQueue.CanCount ? exceptionQueue.Count : 0,
+            ExceptionLogProvider.QueueCapacity,
+            ExceptionLogProvider.DroppedCount,
+            freeGb);
+    }
+
+    /// <summary>
+    /// 判斷「日誌管線」的狀態。純函式，方便測試各種組合。
+    /// 不健康：日誌磁碟剩不到 200 MB，或例外佇列已滿。
+    /// 降級：任何丟棄、寫入失敗、告警失敗、NLog 內部錯誤，佇列使用率達八成，或磁碟剩不到 1 GB。
+    /// 前端回報被頻率限制擋下的筆數只列在佐證、不影響狀態：那是限流照設計運作。
+    /// </summary>
+    internal static SystemHealthItem EvaluateLoggingPipeline(
+        LoggingPipelineSnapshot snapshot,
+        int queueLength,
+        int queueCapacity,
+        long droppedEntries,
+        double? logDiskFreeGb)
+    {
+        var problems = new List<string>();
+        var status = SystemHealthStatus.Healthy;
+
+        void Degrade(string problem)
+        {
+            problems.Add(problem);
+            if (status == SystemHealthStatus.Healthy)
+            {
+                status = SystemHealthStatus.Degraded;
+            }
+        }
+
+        void Fail(string problem)
+        {
+            problems.Add(problem);
+            status = SystemHealthStatus.Unhealthy;
+        }
+
+        if (logDiskFreeGb is < 0.2)
+        {
+            Fail("日誌所在磁碟可用空間低於 200 MB，日誌即將無法寫入。");
+        }
+        else if (logDiskFreeGb is < 1)
+        {
+            Degrade("日誌所在磁碟可用空間低於 1 GB。");
+        }
+
+        if (queueLength >= queueCapacity)
+        {
+            Fail("例外佇列已滿，新的例外會被丟棄。");
+        }
+        else if (queueLength >= queueCapacity * 0.8)
+        {
+            Degrade("例外佇列使用率已達八成。");
+        }
+
+        if (droppedEntries > 0)
+        {
+            Degrade($"有 {droppedEntries:N0} 筆例外因佇列滿載被丟棄。");
+        }
+
+        if (snapshot.WriteFailures > 0)
+        {
+            Degrade($"有 {snapshot.WriteFailures:N0} 筆例外寫入資料庫失敗。");
+        }
+
+        if (snapshot.AlertQueueFailures + snapshot.AlertSendFailures > 0)
+        {
+            Degrade($"例外告警信有 {snapshot.AlertQueueFailures + snapshot.AlertSendFailures:N0} 封未能送出。");
+        }
+
+        if (snapshot.NLogInternalErrors > 0)
+        {
+            Degrade($"NLog 發生 {snapshot.NLogInternalErrors:N0} 次內部錯誤（請看 NLog 內部日誌）。");
+        }
+
+        var lastWriteFailure = snapshot.LastWriteFailureAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss") ?? "—";
+        var disk = logDiskFreeGb is null ? "未設定或無法讀取" : $"{logDiskFreeGb:N2} GB";
+        var evidence =
+            $"本次啟動以來：例外佇列 {queueLength:N0}/{queueCapacity:N0}；丟棄 {droppedEntries:N0}；"
+            + $"寫入失敗 {snapshot.WriteFailures:N0}（最後 {lastWriteFailure}）；"
+            + $"前端錯誤回報因限流丟棄 {snapshot.ClientErrorsDropped:N0}；"
+            + $"告警入列失敗 {snapshot.AlertQueueFailures:N0}、寄送失敗 {snapshot.AlertSendFailures:N0}；"
+            + $"NLog 內部錯誤 {snapshot.NLogInternalErrors:N0}；日誌磁碟可用 {disk}。";
+
+        return CreateItem(
+            "日誌管線",
+            "LoggingPipeline",
+            10,
+            status,
+            evidence,
+            problems.Count == 0 ? null : string.Join(" ", problems));
     }
 
     private SystemHealthItem CheckHostResources()

@@ -87,6 +87,9 @@ public static class ExceptionSources
     /// </summary>
     public const string Process = "系統";
 
+    /// <summary>瀏覽器端的 JavaScript 錯誤（0.9.79 起，見 BrowserErrorReporter）。</summary>
+    public const string Browser = "瀏覽器";
+
     /// <summary>沒有任何情境資訊可用時的預設值。</summary>
     public const string Unknown = "未知";
 
@@ -97,6 +100,7 @@ public static class ExceptionSources
         Startup,
         Background,
         Process,
+        Browser,
         Unknown,
     ];
 }

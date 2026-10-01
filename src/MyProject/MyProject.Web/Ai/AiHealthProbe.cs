@@ -28,6 +28,7 @@ public sealed class AiHealthProbe : IAiHealthProbe
     private readonly ITokenUsageRecorder tokenUsageRecorder;
     private readonly CurrentUserService currentUserService;
     private readonly IAiCallLogRecorder aiCallLogRecorder;
+    private readonly IOptionsMonitor<SlowOperationSettings>? slowOptions;
 
     public AiHealthProbe(
         ILogger<AiHealthProbe> logger,
@@ -35,8 +36,10 @@ public sealed class AiHealthProbe : IAiHealthProbe
         IOptionsMonitor<AiSettings> optionsMonitor,
         ITokenUsageRecorder tokenUsageRecorder,
         CurrentUserService currentUserService,
-        IAiCallLogRecorder aiCallLogRecorder)
+        IAiCallLogRecorder aiCallLogRecorder,
+        IOptionsMonitor<SlowOperationSettings>? slowOptions = null)
     {
+        this.slowOptions = slowOptions;
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
@@ -136,6 +139,14 @@ public sealed class AiHealthProbe : IAiHealthProbe
                 "AI health probe completed. HasContent={HasContent}, ElapsedMs={ElapsedMs}",
                 hasContent,
                 stopwatch.ElapsedMilliseconds);
+
+            var slowThreshold = slowOptions?.CurrentValue.AiCallMs ?? 0;
+            if (SlowOperationSettings.IsSlow(stopwatch.Elapsed, slowThreshold))
+            {
+                logger.LogWarning(
+                    "Slow AI health probe. ElapsedMilliseconds={ElapsedMilliseconds}, ThresholdMilliseconds={ThresholdMilliseconds}",
+                    stopwatch.ElapsedMilliseconds, slowThreshold);
+            }
 
             await RecordAsync(
                 capture,
