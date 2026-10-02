@@ -15,7 +15,7 @@ using MyProject.Share.Helpers;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 忘記密碼的核心規則。畫面只顯示同一句話，所以「有沒有寄、為什麼沒寄」全靠這裡驗證。
+/// 忘記密碼的核心規則。畫面只顯示同一句話（內建帳號除外），所以「有沒有寄、為什麼沒寄」全靠這裡驗證。
 /// </summary>
 public sealed class PasswordResetServiceTests
 {
@@ -121,6 +121,40 @@ public sealed class PasswordResetServiceTests
         var entry = Assert.Single(fixture.Audit.Entries);
         Assert.False(entry.Success);
         Assert.Equal($"reason={expectedReason}", entry.Detail);
+    }
+
+    /// <summary>內建帳號名稱是唯一可以明說的情況（名稱公開）；稽核仍以 UserId 記下 reason=Support。</summary>
+    [Theory]
+    [InlineData("support")]
+    [InlineData(" SUPPORT ")]
+    public async Task RequestAsync_WithSupportAccountName_ShouldSayNotAllowed(string input)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.AddUserAsync(MagicObjectHelper.開發者帳號, email: "support@example.com");
+
+        var result = await fixture.Service.RequestAsync(input, ResetPageUrl);
+
+        Assert.Equal(PasswordResetRequestResult.SupportAccountNotAllowed, result);
+        Assert.Empty(fixture.Queue.Enqueued);
+        Assert.Contains(fixture.Audit.Entries, e => e.Detail == "reason=Support");
+    }
+
+    /// <summary>防列舉：除了內建帳號名稱，寄出、找不到、不符資格都必須回同一個結果。</summary>
+    [Theory]
+    [InlineData("alice")]
+    [InlineData("ghost")]
+    [InlineData("bad-email")]
+    [InlineData("disabled")]
+    public async Task RequestAsync_ForAnyOtherInput_ShouldReturnAccepted(string input)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.AddUserAsync("alice", email: "alice@example.com");
+        await fixture.AddUserAsync("bad-email", email: "support");
+        await fixture.AddUserAsync("disabled", email: "disabled@example.com", status: false);
+
+        var result = await fixture.Service.RequestAsync(input, ResetPageUrl);
+
+        Assert.Equal(PasswordResetRequestResult.Accepted, result);
     }
 
     /// <summary>Google 帳號設過本地密碼就有密碼可忘，允許重設。</summary>

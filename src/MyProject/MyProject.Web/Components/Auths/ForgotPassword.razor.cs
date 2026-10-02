@@ -11,6 +11,7 @@ namespace MyProject.Web.Components.Auths
     /// 忘記密碼（匿名、靜態 SSR 表單）。
     ///
     /// ⚠️ 不論帳號存不存在，送出後都顯示同一句話；是否寄信、為什麼沒寄，只記在稽核裡。
+    ///    唯一例外是輸入內建帳號 support：留在表單並明說不提供服務（名稱公開，不洩漏資訊）。
     /// ⚠️ 日誌不可記錄使用者輸入的帳號或 Email —— 那正是有人想試探的東西。
     /// </summary>
     public partial class ForgotPassword
@@ -100,7 +101,15 @@ namespace MyProject.Web.Components.Auths
 
             try
             {
-                await PasswordResetService.RequestAsync(Input.Identifier, $"{baseUrl}/Auths/ResetPassword");
+                var result = await PasswordResetService.RequestAsync(Input.Identifier, $"{baseUrl}/Auths/ResetPassword");
+                if (result == PasswordResetRequestResult.SupportAccountNotAllowed)
+                {
+                    message = "support 是系統內建帳號，不提供忘記密碼服務。其密碼由系統設定管理，請洽系統維護人員。";
+                    RefreshCaptcha();
+                    Input.CaptchaInput = string.Empty;
+                    return;
+                }
+
                 isSubmitted = true;
             }
             catch (Exception ex)

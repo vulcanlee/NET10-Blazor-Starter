@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 
@@ -52,6 +53,53 @@ public sealed class EmailEnabledPagesTests : IClassFixture<ApiTestApplicationFac
 
         Assert.Contains("name=\"Input.Identifier\"", body);
         Assert.DoesNotContain("未啟用寄信功能", body);
+    }
+
+    /// <summary>內建帳號：留在表單並明說不提供服務。</summary>
+    [Fact]
+    public async Task ForgotPasswordPage_WithSupportAccount_ShouldStayOnFormAndSayNotAllowed()
+    {
+        using var client = factory.CreateClient();
+
+        var body = await PostForgotPasswordAsync(client, "support");
+
+        Assert.Contains("不提供忘記密碼服務", body);
+        Assert.Contains("name=\"Input.Identifier\"", body);
+    }
+
+    /// <summary>其他輸入（例如不存在的帳號）：中性說明，不可寫成「已經寄出」。</summary>
+    [Fact]
+    public async Task ForgotPasswordPage_WithUnknownAccount_ShouldShowNeutralNotice()
+    {
+        using var client = factory.CreateClient();
+
+        var body = await PostForgotPasswordAsync(client, "ghost-account");
+
+        Assert.Contains("申請已送出", body);
+        Assert.Contains("class=\"info-message\"", body);
+        Assert.DoesNotContain("已經寄出", body);
+        Assert.DoesNotContain("name=\"Input.Identifier\"", body);
+    }
+
+    /// <summary>以瀏覽器的方式送出靜態 SSR 表單：帶上頁面給的 antiforgery token 與驗證碼。</summary>
+    private static async Task<string> PostForgotPasswordAsync(HttpClient client, string identifier)
+    {
+        var page = await client.GetStringAsync("/Auths/ForgotPassword");
+        var antiforgery = Regex.Match(page, "name=\"__RequestVerificationToken\" value=\"([^\"]+)\"").Groups[1].Value;
+        var captcha = Regex.Match(page, "name=\"Input.CaptchaCode\" value=\"([^\"]+)\"").Groups[1].Value;
+        Assert.NotEmpty(antiforgery);
+        Assert.NotEmpty(captcha);
+
+        var response = await client.PostAsync("/Auths/ForgotPassword", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["_handler"] = "forgot-password",
+            ["__RequestVerificationToken"] = antiforgery,
+            ["Input.CaptchaCode"] = captcha,
+            ["Input.CaptchaInput"] = captcha,
+            ["Input.Identifier"] = identifier,
+        }));
+        response.EnsureSuccessStatusCode();
+        return WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>

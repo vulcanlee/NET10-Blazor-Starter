@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.63
+- 現行系統版本：0.9.85
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/09/24
+- 最後核對日期：2026/10/02
 
 ## 一、目標與範圍
 
@@ -30,7 +30,7 @@
 
 - **登入頁**：帳號、密碼、驗證碼（4 碼數字，前端產生存於隱藏欄位 `CaptchaCode`，以 `Ordinal` 比對）、「記住我」核取方塊。`GoogleOAuthSettings.IsConfigured` 為真時顯示「使用 Google 登入」按鈕，連結至 `/Auths/Google/Login`（帶 `returnUrl`）。前端逐項檢查空值與驗證碼，錯誤顯示「請輸入帳號／密碼／驗證碼」「驗證碼錯誤」。
 - **登入頁（0.9.60 起）**：`EmailSettings:Provider` 不是 `None` 時，「記住我」右側的「企業級安全登入」改為「忘記密碼？」連結；從重設頁成功導回（`?reset=1`）時，表單上方顯示綠色「密碼已重設，請以新密碼登入。」。外觀由共用元件 `AuthShell` 提供，三頁一致。出貨與開發環境都是 `None`（0.9.62 起；0.9.61 曾在 `appsettings.Development.json` 預設 `Pickup`），預設看不到；本機要測，用 User Secrets 設 `Provider=Pickup`。
-- **忘記密碼頁**：帳號或 Email、驗證碼（與登入頁同一套 4 碼）。送出後**一律**顯示「如果帳號存在且登記了有效的 Email，重設密碼的信已經寄出，請在 N 分鐘內點信中的連結…」—— 不論帳號是否存在、有沒有真的寄出。寄信未啟用時整頁只顯示「系統目前未啟用寄信功能…請聯絡系統管理員」。
+- **忘記密碼頁**：帳號或 Email、驗證碼（與登入頁同一套 4 碼）。送出後**一律**以中性色說明框（`.info-message`）顯示「申請已送出。若帳號存在、為啟用狀態且登記了有效的 Email，您會在幾分鐘內收到重設密碼的信，信中連結 N 分鐘內有效。若一直沒收到…請聯絡系統管理員協助。」—— 不論帳號是否存在、有沒有真的寄出（0.9.85 起；之前是綠色「…信已經寄出…」）。唯一例外：輸入 `support`（不分大小寫）時留在表單，紅字顯示「support 是系統內建帳號，不提供忘記密碼服務…」。寄信未啟用時整頁只顯示「系統目前未啟用寄信功能…請聯絡系統管理員」。
 - **重設密碼頁**：副標題顯示「為帳號「X」設定新密碼（至少 6 個字元）」；新密碼、確認新密碼。token 無效／過期／已用過一律顯示「重設連結無效或已過期，請重新申請。」並提供「重新申請重設信」連結。成功後導回登入頁。
 - **待審核頁**：靜態說明，告知 Google 帳號已建立但預設停用，須管理者啟用後再登入，提供返回登入頁連結。
 - **變更密碼**：目前密碼、新密碼、確認新密碼（`[Compare]` 驗證一致）。`support` 開發帳號被禁止。
@@ -56,7 +56,7 @@
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
 - **忘記密碼 → 重設**（`PasswordResetService`，0.9.60 起；Business 層、注入 `IDbContextFactory`）：
   1. `RequestAsync(identifier, 重設頁網址)`：先刪所有過期 token；以 `Account` 精確比對（與登入相同），對不到再以 `Email` 不分大小寫比對（可能多筆 → **每個帳號各寄一封**）。
-  2. 逐帳號判斷資格：`support`、停用（`Status=false`）、沒有本地密碼（Google-only，`Password=""`）、Email 空白或無效 → 不寄；同帳號 `RequestCooldownSeconds`（預設 60 秒）內已申請過 → 不寄。原因寫進稽核 detail（`reason=NotFound|Support|Disabled|NoLocalPassword|InvalidEmail|Cooldown|QueueFull`），畫面不透露。
+  2. 逐帳號判斷資格：`support`、停用（`Status=false`）、沒有本地密碼（Google-only，`Password=""`）、Email 空白或無效 → 不寄；同帳號 `RequestCooldownSeconds`（預設 60 秒）內已申請過 → 不寄。原因寫進稽核 detail（`reason=NotFound|Support|Disabled|NoLocalPassword|InvalidEmail|Cooldown|QueueFull`），畫面不透露。`RequestAsync` 回傳 `PasswordResetRequestResult`：輸入內建帳號名稱回 `SupportAccountNotAllowed`（大小寫不同也先正規化成 `support`，稽核照記 `reason=Support`），其餘一律 `Accepted`。
   3. 符合資格：刪掉該帳號舊 token → 產生 32 bytes 亂數（Base64Url）→ **資料表 `PasswordResetToken` 只存 SHA-256** 與到期時間（`TokenLifetimeMinutes`，預設 30 分）→ 重設信交給 `IEmailQueue` 背景寄出（回應時間不因「有寄信」而變長）。
   4. 重設頁開啟：`ValidateTokenAsync` 只讀不寫，決定顯示表單或「連結無效」。
   5. `ResetAsync`：先驗密碼規則（≥ 6 字元、兩次一致、≠ `123456`），**不過時不消耗 token**；再於交易內以 `ExecuteDelete` **搶占** token（刪到 1 列才繼續，並發送出兩次只有一次成功）→ PBKDF2 雜湊新密碼、`AccessFailedCount=0`、`LockoutEndUtc=null`（解除鎖定）→ 刪除該帳號其餘 token → commit → 稽核 `Password.ResetCompleted` → 背景寄「密碼已變更」通知信。

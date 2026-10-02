@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -424,7 +425,7 @@ public class MyUserService
             return VerifyRecordResultFactory.Build(false, "帳號已存在，無法新增。");
         }
 
-        return VerifyRecordResultFactory.Build(true);
+        return ValidateEmail(paraObject);
     }
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(MyUserAdapterModel paraObject)
@@ -450,6 +451,21 @@ public class MyUserService
         {
             Logger.LogInformation("Pre-update validation failed because account already exists. Account={Account}, UserId={UserId}", paraObject.Account, paraObject.Id);
             return VerifyRecordResultFactory.Build(false, "帳號已存在，無法修改。");
+        }
+
+        return ValidateEmail(paraObject);
+    }
+
+    /// <summary>
+    /// Email 選填，有填就必須是合法格式。規則與 <see cref="PasswordResetService"/> 判斷能否寄重設信的完全相同，
+    /// 存得進去就收得到忘記密碼的信。
+    /// </summary>
+    private VerifyRecordResult ValidateEmail(MyUserAdapterModel paraObject)
+    {
+        if (!string.IsNullOrWhiteSpace(paraObject.Email) && !MailAddress.TryCreate(paraObject.Email.Trim(), out _))
+        {
+            Logger.LogInformation("User validation failed because email is invalid. Account={Account}", paraObject.Account);
+            return VerifyRecordResultFactory.Build(false, "Email 格式不正確；不使用可留空。");
         }
 
         return VerifyRecordResultFactory.Build(true);
