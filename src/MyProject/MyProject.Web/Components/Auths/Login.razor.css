@@ -380,6 +380,28 @@
     animation: error-appear 200ms ease-out;
 }
 
+/* 中性說明：忘記密碼送出後用。不確定信是否真的寄出，所以不用綠色成功框。 */
+.info-message {
+    margin-bottom: 18px;
+    padding: 12px 16px;
+    border: 1px solid var(--app-line);
+    border-radius: 18px;
+    background: var(--app-tint);
+    color: var(--app-text);
+    font-size: 1rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    animation: error-appear 200ms ease-out;
+}
+
+.info-message p {
+    margin: 0;
+}
+
+.info-message p + p {
+    margin-top: 8px;
+}
+
 @keyframes snowfall {
     50% { transform: translate3d(20px, 256px, 0); }
     to { transform: translate3d(0, 512px, 0); }
@@ -444,6 +466,7 @@
     .login-card,
     .error-message,
     .success-message,
+    .info-message,
     .remember-me ::deep input:checked { animation: none; }
     .form-input,
     .form-label,

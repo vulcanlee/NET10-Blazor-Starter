@@ -350,6 +350,7 @@ public sealed class LoggingConventionTests
             "CurrentUserService.cs",        // 僅持有目前使用者狀態，無任何行為
             "RolePermissionService.cs",     // 純粹回傳靜態權限結構
             "AuthenticationCheckResult.cs", // 列舉
+            "PasswordResetRequestResult.cs", // 列舉
             "LogModels.cs",                 // 模型與純轉換
             "DatabaseUsageModels.cs",       // 模型
             "NLogFilePathResolver.cs",      // 純路徑組字串

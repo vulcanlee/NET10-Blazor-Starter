@@ -7,6 +7,7 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -91,6 +92,33 @@ public sealed class MyUserServicePasswordTests
         Assert.Contains("support", result.Message, StringComparison.OrdinalIgnoreCase);
         var savedUser = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Id == user.Id);
         Assert.Equal(originalPassword, savedUser.Password);
+    }
+
+    /// <summary>Email 選填，有填就必須合法 —— 否則忘記密碼的信寄不出去，畫面也不會提醒。</summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("   ", true)]
+    [InlineData("user01@example.com", true)]
+    [InlineData(" user01@example.com ", true)]
+    [InlineData("support", false)]
+    [InlineData("user01@", false)]
+    public async Task BeforeSaveChecks_ShouldValidateEmailFormat(string? email, bool expectedValid)
+    {
+        await using var fixture = await MyUserServiceFixture.CreateAsync();
+        var existing = await fixture.AddUserAsync("alice", "password");
+        var service = fixture.CreateService();
+
+        var addResult = await service.BeforeAddCheckAsync(new MyUserAdapterModel { Account = "bob", Name = "bob", Email = email });
+        var updateResult = await service.BeforeUpdateCheckAsync(
+            new MyUserAdapterModel { Id = existing.Id, Account = "alice", Name = "alice", Email = email });
+
+        Assert.Equal(expectedValid, addResult.Success);
+        Assert.Equal(expectedValid, updateResult.Success);
+        if (!expectedValid)
+        {
+            Assert.Contains("Email", addResult.Message);
+        }
     }
 
     private sealed class MyUserServiceFixture : IAsyncDisposable

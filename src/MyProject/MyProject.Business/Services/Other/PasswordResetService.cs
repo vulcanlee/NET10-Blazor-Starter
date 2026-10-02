@@ -17,9 +17,10 @@ namespace MyProject.Business.Services.Other;
 /// <summary>
 /// 忘記密碼／重設密碼（0.9.60 起）。匿名流程，呼叫端是 <c>/Auths/ForgotPassword</c> 與 <c>/Auths/ResetPassword</c>。
 ///
-/// <para><b>防列舉</b>：<see cref="RequestAsync"/> 不回傳任何結果，帳號存不存在、有沒有寄信，
+/// <para><b>防列舉</b>：<see cref="RequestAsync"/> 不透露帳號存不存在、有沒有寄信，
 /// 呼叫端都只能顯示同一句話；信一律交給 <see cref="IEmailQueue"/>，回應時間也不會因為「有寄信」而變長。
-/// 原因只寫進稽核（<c>Password.ResetRequested</c> 的 detail）。</para>
+/// 原因只寫進稽核（<c>Password.ResetRequested</c> 的 detail）。
+/// 唯一例外是輸入內建帳號名稱（<see cref="MagicObjectHelper.開發者帳號"/>）：名稱人人都知道，明說不提供服務不洩漏資訊。</para>
 ///
 /// <para><b>單次使用</b>：重設時在交易內用 <c>ExecuteDelete</c> 搶占 token，刪到 1 列才繼續改密碼 ——
 /// 同一個連結被並發送出兩次，只有一次會成功。</para>
@@ -64,12 +65,26 @@ public sealed class PasswordResetService
     /// </summary>
     /// <param name="identifier">使用者輸入的帳號或 Email。</param>
     /// <param name="resetPageAbsoluteUrl">重設頁的完整網址（不含 query），由呼叫端依 <c>PublicBaseUrl</c> 組出。</param>
-    public async Task RequestAsync(string? identifier, string resetPageAbsoluteUrl, CancellationToken cancellationToken = default)
+    /// <returns>
+    /// 只有輸入內建帳號名稱時回 <see cref="PasswordResetRequestResult.SupportAccountNotAllowed"/>；
+    /// 其餘（含找不到、不符資格、冷卻中）一律 <see cref="PasswordResetRequestResult.Accepted"/>。
+    /// </returns>
+    public async Task<PasswordResetRequestResult> RequestAsync(
+        string? identifier, string resetPageAbsoluteUrl, CancellationToken cancellationToken = default)
     {
         var input = identifier?.Trim() ?? string.Empty;
         if (input.Length == 0)
         {
-            return;
+            return PasswordResetRequestResult.Accepted;
+        }
+
+        // 照常往下走：support 帳號由 GetIneligibleReason 擋下並以 UserId 寫稽核，這裡只決定畫面要不要明說。
+        // 帳號比對區分大小寫，先正規化成內建名稱，「SUPPORT」才會記成 reason=Support 而不是 NotFound。
+        var result = PasswordResetRequestResult.Accepted;
+        if (string.Equals(input, MagicObjectHelper.開發者帳號, StringComparison.OrdinalIgnoreCase))
+        {
+            input = MagicObjectHelper.開發者帳號;
+            result = PasswordResetRequestResult.SupportAccountNotAllowed;
         }
 
         var settings = resetOptions.Value;
@@ -85,7 +100,7 @@ public sealed class PasswordResetService
             logger.LogInformation("Password reset requested but no account matched.");
             await auditLogService.WriteAsync(
                 AuditActions.Password.ResetRequested, success: false, actorAccount: TruncateForAudit(input), detail: "reason=NotFound");
-            return;
+            return result;
         }
 
         var systemName = systemOptions.Value.SystemInformation.SystemName;
@@ -144,6 +159,8 @@ public sealed class PasswordResetService
                 AuditActions.Password.ResetRequested, success: true, actorUserId: user.Id, actorAccount: user.Account,
                 targetType: nameof(MyUser), targetId: user.Id.ToString());
         }
+
+        return result;
     }
 
     /// <summary>
