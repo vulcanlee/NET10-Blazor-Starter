@@ -272,6 +272,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 功能機制（features）
 
+- [腳手架總覽與複刻上手](docs/features/腳手架總覽與複刻上手.md) — ⭐ 新手入口：為什麼需要腳手架、已內建的企業共通功能、vibe coding 提示詞、複刻步驟與後續待辦（0.9.82）。
 - [分散式快取機制](docs/features/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
 - [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/features/檔案上傳機制.md) — 專案附件、年月目錄、刪除同步、1GB 上限與副檔名白名單（0.4.35）。
