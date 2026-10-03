@@ -156,7 +156,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 │   ├── prd/                        ← 產品需求文件（能力覆蓋矩陣 + 各能力 PRD）
 │   ├── superpowers/                ← brainstorming 流程產出的設計規格
 │   └── changelog/                  ← 變更紀錄
-├── scripts/                        ← New-StarterProject.ps1 / New-CrudModule.ps1 / Test-DocsEncoding.ps1
+├── scripts/                        ← Invoke-QualityGate.ps1 / Install-GitHooks.ps1 / New-StarterProject.ps1 / New-CrudModule.ps1 / Test-DocsEncoding.ps1
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
@@ -267,19 +267,17 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    只要本次異動會改變既有功能、模組、API、資料表、設定欄位或 UI 行為，必須同步修訂相關文件。對應表詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md)。
 
 3. **檔案編碼**：
-   `docs/` 下所有 `.md` 一律使用 **UTF-8 含 BOM**（提交前在本機以 [`scripts/Test-DocsEncoding.ps1`](scripts/Test-DocsEncoding.ps1) 遞迴檢查，缺 BOM 或含亂碼即失敗）；其餘原始碼、設定檔採 UTF-8 即可。提交前需自行確認繁體中文無亂碼。
+   `docs/` 下與根目錄的所有 `.md` 一律使用 **UTF-8 含 BOM**（提交前在本機以 [`scripts/Test-DocsEncoding.ps1`](scripts/Test-DocsEncoding.ps1) 遞迴檢查，缺 BOM 或含亂碼即失敗）；其餘原始碼、設定檔採 UTF-8 即可。提交前需自行確認繁體中文無亂碼。
 
 4. **撰寫文件時請對應實際 codebase**：
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
-5. **提交前在本機跑完四道關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，沒有任何機制會自動擋下違規）：
-   在 repo 根目錄執行下列指令，或跑 `.vscode/tasks.json` 的 `build`／`test`／`format-check`／`docs-encoding` 任務。
+5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 1100 個測試、文件編碼、弱點掃描，遇到失敗就停；
+   VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell
-   dotnet build src/MyProject/MyProject.slnx -v:minimal            # 必須 0 warning
-   dotnet test src/MyProject/MyProject.slnx                        # 約 1100 個測試（0.9.87），全數通過
-   dotnet format src/MyProject/MyProject.slnx --verify-no-changes
-   pwsh ./scripts/Test-DocsEncoding.ps1
+   pwsh ./scripts/Invoke-QualityGate.ps1          # -Quick 略過弱點掃描
    ```
 
    衍生專案若要建立 CI，可依 [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) 的參考設計建立。

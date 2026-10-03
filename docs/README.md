@@ -1,6 +1,6 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.26
+- 文件版本：6.27
 - 文件狀態：維護中
 - 現行系統版本：0.9.87
 - 首次實作版本：0.2.8
@@ -8,7 +8,7 @@
 
 本目錄收錄 NET10-Blazor-Starter 的所有設計、規範與教學文件。文件依「特性」分類到下列子目錄；新增文件時請先依特性歸入既有分類，**若沒有任何分類適用，請自動新增一個語意明確的英文小寫分類目錄**，並同步更新本檔與主 [`readme.md`](../readme.md) 第 9 節「文件索引」。
 
-所有 `.md` 一律 UTF-8 **含 BOM**，以 `scripts/Test-DocsEncoding.ps1`（遞迴）檢查。專案已無 CI（`.github/workflows/dotnet-ci.yml` 已於 2026/09/20 移除），commit 前請在本機執行 `pwsh ./scripts/Test-DocsEncoding.ps1`。
+所有 `.md` 一律 UTF-8 **含 BOM**，以 `scripts/Test-DocsEncoding.ps1`（遞迴）檢查。專案已無 CI（`.github/workflows/dotnet-ci.yml` 已於 2026/09/20 移除），commit 前請在本機執行品質關卡 `pwsh ./scripts/Invoke-QualityGate.ps1`（含文件編碼檢查，涵蓋 `docs/` 與根目錄的 `.md`）。
 
 ## 分類規則
 

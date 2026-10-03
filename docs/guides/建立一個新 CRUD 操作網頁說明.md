@@ -1,6 +1,6 @@
 ﻿# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
 - 現行系統版本：0.9.87
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
@@ -210,10 +210,8 @@
     API 路徑在 Controller 呼叫 `this.WriteAuditAsync(...)`。動作代碼一律先加到
     `MyProject.Business/Helpers/AuditActions.cs` 再引用常數，**不可寫字串字面值**（`AuditConventionTests` 守門）。
     ⚠️ 產生器目前**不會**產生稽核呼叫，需要時自行補上。
-13. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示），再跑提交前的四道關卡：
-    `dotnet build src/MyProject/MyProject.slnx -v:minimal`（0 warning）、`dotnet test src/MyProject/MyProject.slnx`、
-    `dotnet format src/MyProject/MyProject.slnx --verify-no-changes`、`pwsh ./scripts/Test-DocsEncoding.ps1`
-    （本 repo 沒有 CI，見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)）。
+13. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示），再跑提交前的品質關卡
+    `pwsh ./scripts/Invoke-QualityGate.ps1`（本 repo 沒有 CI，見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)）。
 
 ---
 

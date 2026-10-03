@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
@@ -66,7 +66,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 * 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要把**最後一碼（Patch）加 1**（例：`0.4.0 → 0.4.1`，不進位、不分異動性質），並且在 commit message 中說明版本編號的變更。
 
-* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機以 `scripts/Test-DocsEncoding.ps1` 遞迴檢查）
+* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下與根目錄的 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機跑 `pwsh ./scripts/Invoke-QualityGate.ps1`，它依序執行建置、格式、測試、文件編碼與弱點掃描）
 
 * 需要 commit 的時候，不能自動去做 commit
 
@@ -95,5 +95,5 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - **每個登入後頁面都有「操作說明」**：新增 `@page` 必須登記 `MyProject.Web/Datas/HelpTopics.json` 並寫
   `Datas/Help/<路由>.md`（UTF-8 含 BOM、固定七段），或列入 `PageHelpCatalogTests.RoutesWithoutHelp`；
   改了頁面的按鈕／欄位要同步改說明第三段。見速查表 §6.14。
-- `docs/*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 遞迴檢查）。
+- `docs/*.md` 與根目錄 `*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 檢查，已含在 `Invoke-QualityGate.ps1` 內）。
 
