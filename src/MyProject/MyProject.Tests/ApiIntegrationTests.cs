@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -925,6 +926,14 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
 
         if (disposing && Directory.Exists(rootPath))
         {
+            // 0.9.91 起資料庫是 WAL 模式（多出 -wal／-shm 檔）；連線池佔著這些檔案時目錄刪不掉。
+            // 連線字串必須與 AddConfiguredDatabase 組出來的完全相同，連線池以字串為鍵。
+            SqliteConnection.ClearPool(new SqliteConnection(new SqliteConnectionStringBuilder(
+                MagicObjectHelper.GetSQLiteConnectionString(Path.Combine(rootPath, "DB")))
+            {
+                ForeignKeys = true,
+            }.ToString()));
+
             try
             {
                 Directory.Delete(rootPath, recursive: true);

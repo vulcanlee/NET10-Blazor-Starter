@@ -1,6 +1,6 @@
 ﻿# 第一次 Migration 
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
 - 現行系統版本：0.9.17
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
@@ -21,7 +21,7 @@ Add-Migration AddTokenUsageCost -Project MyProject.AccessDatas -StartupProject M
 
 > ⚠️ `AddTokenUsageCost`（0.9.17）含一個 `DropColumn`（移除預留但未使用的 `EstimatedCost`）。
 > SQLite 的 `DropColumn` 在 EF Core 是「建新表 → 搬資料 → 丟舊表 → 改名」的整表重建，
-> 而 `Program.cs` 在**每次啟動時自動 `Migrate()`**。
+> 而系統在**每次啟動時自動套用 migration**（0.9.91 起由 `MyProject.Business/Startup/DatabaseInitializer` 執行）。
 >
 > ⚠️ **這個重建不在交易保護之內。** 套用時 EF 會明確警告：
 > `The migration operation 'PRAGMA foreign_keys = 0;' ... cannot be executed in a transaction.`

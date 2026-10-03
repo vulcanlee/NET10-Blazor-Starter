@@ -3,18 +3,14 @@ using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using AntDesign;
 using MyProject.Dtos.Commons;
-using MyProject.AccessDatas;
-using MyProject.AccessDatas.Models;
-using MyProject.Business.Helpers;
 using MyProject.Business.Repositories;
 using MyProject.Business.Services.DataAccess;
-using MyProject.Business.Services.Other;
+using MyProject.Business.Startup;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
@@ -332,134 +328,39 @@ namespace MyProject.Web
                 // BasePath / LogFilenamePrefix 變數補回去，否則日誌會改寫到磁碟根目錄。
                 app.Services.GetRequiredService<LogLevelRuntimeState>().Initialize();
 
-                var bootstrapSettings = app.Configuration
-                    .GetSection(nameof(BootstrapSettings))
-                    .Get<BootstrapSettings>() ?? new BootstrapSettings();
+                #region 資料庫準備與補登例外
+                // 啟動流程中拋出的例外（migration、seed、RBAC 回填）都歸類為「系統啟動」。
+                // 這時還沒有任何使用者，所以帳號與頁面留空。
+                // ⚠️ 必須在這個同步的 Main 裡設定：情境存在 AsyncLocal，在非同步方法裡設定的值不會流回呼叫端。
+                app.Services.GetRequiredService<ExceptionContextAccessor>()
+                    .Set(new ExceptionContext(ExceptionSources.Startup, null, null, null));
 
-                #region 資料庫的 Migration
-                //if (!app.Environment.IsDevelopment())
+                // migrate、WAL、預設角色、support 帳號、RBAC 回填，全部在 Business/Startup（有測試、有跨行程鎖）。
+                // 衍生專案的種子資料請實作 IDatabaseSeeder，不要再加回這裡。
+                app.Services.GetRequiredService<IDatabaseInitializer>()
+                    .InitializeAsync(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+
+                // 補登上次來不及寫進資料庫的例外（啟動失敗、程序層級例外；LOG-06）
+                var crashMarkers = CrashMarkerStore.ReadAll(exceptionPath);
+                if (crashMarkers.Count > 0)
                 {
-                    // 啟動流程中拋出的例外（migration、seed、RBAC 回填）都歸類為「系統啟動」。
-                    // 這時還沒有任何使用者，所以帳號與頁面留空。
-                    app.Services.GetRequiredService<ExceptionContextAccessor>()
-                        .Set(new ExceptionContext(ExceptionSources.Startup, null, null, null));
-
                     using var scope = app.Services.CreateScope();
-                    using var dbContext = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
-                    logger.LogInformation("Ensuring database is ready.");
-                    if (dbContext.Database.GetMigrations().Any())
+                    var exceptionLogService = scope.ServiceProvider.GetRequiredService<ExceptionLogService>();
+                    var exceptionAlertService = app.Services.GetRequiredService<ExceptionAlertService>();
+                    foreach (var (markerPath, entry) in crashMarkers)
                     {
-                        dbContext.Database.Migrate();
-                        logger.LogInformation("Database migrations applied successfully.");
-                    }
-                    else
-                    {
-                        dbContext.Database.EnsureCreated();
-                        logger.LogInformation("Database created because no migrations were found.");
+                        // RecordAsync 絕不拋出；失敗也刪檔，避免每次啟動都重複補登同一筆。
+                        var outcome = exceptionLogService.RecordAsync(entry).GetAwaiter().GetResult();
+                        CrashMarkerStore.Delete(markerPath);
+
+                        // 補登的都是 Critical（程序結束、啟動失敗），立即告警（LOG-12）。
+                        // 寄信佇列此時已可入列，app.Run() 後由寄信背景作業送出。
+                        exceptionAlertService.Evaluate(outcome);
                     }
 
-                    #region 補登上次來不及寫進資料庫的例外（啟動失敗、程序層級例外；LOG-06）
-                    var crashMarkers = CrashMarkerStore.ReadAll(exceptionPath);
-                    if (crashMarkers.Count > 0)
-                    {
-                        var exceptionLogService = scope.ServiceProvider.GetRequiredService<ExceptionLogService>();
-                        var exceptionAlertService = app.Services.GetRequiredService<ExceptionAlertService>();
-                        foreach (var (markerPath, entry) in crashMarkers)
-                        {
-                            // RecordAsync 絕不拋出；失敗也刪檔，避免每次啟動都重複補登同一筆。
-                            var outcome = exceptionLogService.RecordAsync(entry).GetAwaiter().GetResult();
-                            CrashMarkerStore.Delete(markerPath);
-
-                            // 補登的都是 Critical（程序結束、啟動失敗），立即告警（LOG-12）。
-                            // 寄信佇列此時已可入列，app.Run() 後由寄信背景作業送出。
-                            exceptionAlertService.Evaluate(outcome);
-                        }
-
-                        logger.LogInformation("Imported {Count} pending crash records.", crashMarkers.Count);
-                    }
-                    #endregion
-
-                    RoleView? roleViewItemNew = null;
-
-                    #region 是否有存在的角色檢視定義
-                    var roleViewItem = dbContext.RoleView
-                        .FirstOrDefault(x => x.Name == MagicObjectHelper.預設角色);
-                    RolePermissionService RolePermissionService = scope
-                        .ServiceProvider
-                        .GetRequiredService<RolePermissionService>();
-                    var allPermissionJson = RolePermissionService
-                        .GetRolePermissionAllNameToJson();
-                    if (roleViewItem == null)
-                    {
-                        roleViewItemNew = new RoleView()
-                        {
-                            Name = MagicObjectHelper.預設角色,
-                            TabViewJson = allPermissionJson
-                        };
-                        dbContext.RoleView.Add(roleViewItemNew);
-                        dbContext.SaveChanges();
-                        logger.LogInformation("Seeded default role view.");
-                    }
-                    else
-                    {
-                        roleViewItem.TabViewJson = allPermissionJson;
-                        dbContext.SaveChanges();
-                        logger.LogDebug("Updated existing default role view.");
-                    }
-                    #endregion
-
-                    #region 產生預設帳號
-                    var support = dbContext.MyUser
-                        .FirstOrDefault(x => x.Account == bootstrapSettings.SupportAccount);
-
-                    if (support == null)
-                    {
-                        support = new MyUser()
-                        {
-                            Account = bootstrapSettings.SupportAccount,
-                            Name = bootstrapSettings.SupportName,
-                            Email = bootstrapSettings.SupportEmail,
-                            IsAdmin = true,
-                            Salt = Guid.NewGuid().ToString(),
-                            Status = true,
-                            RoleViewId = (roleViewItemNew ?? roleViewItem)!.Id,
-                        };
-                        support.Password =
-                            SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword);
-
-                        dbContext.MyUser.Add(support);
-                        dbContext.SaveChanges();
-                        logger.LogInformation("Seeded default support user.");
-                    }
-                    else
-                    {
-                        if (SecurePasswordHasher.VerifyPassword(bootstrapSettings.SupportPassword, support.Password, support.Salt)
-                            != PasswordVerificationOutcome.Success)
-                        {
-                            support.Password =
-                                SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword);
-                        }
-                        support.IsAdmin = true;
-                        if (roleViewItemNew != null)
-                            support.RoleViewId = roleViewItemNew.Id;
-                        else
-                            support.RoleViewId = roleViewItem!.Id;
-                        dbContext.SaveChanges();
-                        logger.LogDebug("Updated existing support user seed data.");
-                    }
-                    #endregion
-
-                    #region RBAC 回填（將既有權限資料填入新關聯表，冪等；失敗不中止啟動）
-                    try
-                    {
-                        var rbacBackfill = scope.ServiceProvider.GetRequiredService<IRbacBackfillService>();
-                        rbacBackfill.RunAsync().GetAwaiter().GetResult();
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "RBAC backfill failed at startup.");
-                    }
-                    #endregion
+                    logger.LogInformation("Imported {Count} pending crash records.", crashMarkers.Count);
                 }
                 #endregion
 

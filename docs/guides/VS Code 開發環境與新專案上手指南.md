@@ -1,6 +1,6 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.8
+- 文件版本：2.9
 - 文件狀態：已實作
 - 現行系統版本：0.9.87
 - 首次實作版本：0.9.1
@@ -324,14 +324,14 @@ public static string GetSQLiteConnectionString(string databasePath)
 
 ### 6.2 啟動時自動套用 Migration
 
-`Program.cs` 啟動時：若專案內有 Migration 就呼叫 `Database.Migrate()`，否則退回 `Database.EnsureCreated()`。本 repo 的 `MyProject.AccessDatas/Migrations/` 有完整 Migration，所以走的是 `Migrate()` 這條路 —— 你不需要手動執行 `dotnet ef database update`。
+`Program.cs` 啟動時呼叫 `IDatabaseInitializer`（0.9.91 起，`MyProject.Business/Startup/`）：取得跨行程鎖 → 套用 Migration → 設定 WAL → 執行種子資料（預設角色、support 帳號、RBAC 回填）。你不需要手動執行 `dotnet ef database update`。要加自己的種子資料，實作 `IDatabaseSeeder` 並在 `AddApplicationServices` 註冊，不要寫回 Program.cs。
 
 ### 6.3 重建資料庫
 
 ```powershell
 # 1. 停掉正在執行的程式（重要，SQLite 檔案會被鎖住）
-# 2. 刪除資料庫檔
-Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
+# 2. 刪除資料庫檔（0.9.91 起是 WAL 模式：連同 -wal、-shm 與鎖檔一起刪）
+Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 # 3. 重新執行，會重新套用 Migration 並 Seed
 ```
 
@@ -343,9 +343,9 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 |------|----|------|
 | 帳號 | `support` | `appsettings.json` 的 `BootstrapSettings:SupportAccount` |
 | 密碼 | `support` | `appsettings.json` 的 `BootstrapSettings:SupportPassword` |
-| 權限 | `IsAdmin = true` | `Program.cs` 啟動時的 support 帳號 seed 區段強制設定 |
+| 權限 | `IsAdmin = true` | 啟動時的 `SupportUserSeeder`（`MyProject.Business/Startup/`）強制設定 |
 
-> ⚠️ **重要行為，不是 bug**：每次啟動時，若資料庫內 `support` 的密碼雜湊**驗不過設定檔的值**，程式會把密碼**覆寫回設定檔的值**，並強制 `IsAdmin = true`（`Program.cs` 中 `VerifyPassword(bootstrapSettings.SupportPassword, ...)` 那段）。
+> ⚠️ **重要行為，不是 bug**：每次啟動時，若資料庫內 `support` 的密碼雜湊**驗不過設定檔的值**，程式會把密碼**覆寫回設定檔的值**，並強制 `IsAdmin = true`（`SupportUserSeeder` 中 `VerifyPassword(bootstrapSettings.SupportPassword, ...)` 那段）。
 >
 > 這造成兩個容易誤解的現象：
 > 1. 在 UI 改了 `support` 的密碼，重啟後又變回 `support`（`/ChangePassword` 頁面本身也會直接拒絕修改 support 的密碼）。
@@ -730,7 +730,7 @@ pwsh ./scripts/Invoke-QualityGate.ps1
 | `dotnet format --verify-no-changes` 失敗 | 格式不符 `.editorconfig` | 先跑一次不帶 `--verify-no-changes` 的 `dotnet format` 讓它自動修 |
 | `Test-DocsEncoding.ps1` 失敗 | 某個 `docs/**/*.md` 或根目錄 `*.md` 缺 BOM 或含 U+FFFD 亂碼 | 以 UTF-8 **含 BOM** 重存。用 PowerShell 寫檔時必須 `-Encoding utf8BOM`，**`-Encoding utf8` 在 pwsh 7 不含 BOM** |
 | EF 說有尚未套用的模型變更 | Migration 的 `.Designer.cs` / snapshot 內的 `MyProject.AccessDatas.Models.*` 字串沒換 | 對 `Migrations/` 目錄再做一次全域取代 |
-| 登入失敗，或密碼自己變回舊值 | `Program.cs` support 帳號 seed 區段的密碼救援覆寫行為 | 見 [§6.4](#64-預設管理者帳號)。要改密碼請同步改 `BootstrapSettings:SupportPassword` |
+| 登入失敗，或密碼自己變回舊值 | `SupportUserSeeder` 的密碼救援覆寫行為（開發環境還會讀 User Secrets 的 `BootstrapSettings`，它優先於 appsettings） | 見 [§6.4](#64-預設管理者帳號)。要改密碼請同步改 `BootstrapSettings:SupportPassword` |
 | 部署到 IIS 後啟動即中止，本機卻正常 | IIS 沒設 `ASPNETCORE_ENVIRONMENT` 時預設是 Production，會跑 `StartupSafetyValidator`；開發機是 Development，不做這項檢查 | 看 Windows 事件檢視器的「Production 啟動安全檢查失敗」訊息，逐項補齊；見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md) |
 | 資料庫檔刪不掉 | 程式還在執行，SQLite 檔案被鎖 | 先停掉程式（VS Code 按 `Shift+F5`）再刪 |
 | C# Dev Kit 找不到方案 | 工作區開錯層級 | 用 `File > Open Folder` 開 **repo 根目錄**；`.vscode/settings.json` 的 `dotnet.defaultSolution` 已指定方案檔 |

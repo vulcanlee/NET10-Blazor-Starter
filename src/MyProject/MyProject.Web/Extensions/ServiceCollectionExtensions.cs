@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
@@ -9,6 +10,7 @@ using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Startup;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
@@ -93,6 +95,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
+
+        // 啟動時的資料庫準備（0.9.91 起取代 Program.cs 的 migrate 與 seed）。
+        // 衍生專案的種子資料：實作 IDatabaseSeeder 並在這裡註冊成 Scoped（Order 不可重複）。
+        services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
+        services.AddOptions<DatabaseInitializerOptions>();
+        services.AddOptions<BootstrapSettings>().BindConfiguration(nameof(BootstrapSettings));
+        services.AddScoped<IDatabaseSeeder, DefaultRoleViewSeeder>();
+        services.AddScoped<IDatabaseSeeder, SupportUserSeeder>();
+        services.AddScoped<IDatabaseSeeder, RbacBackfillSeeder>();
+
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();
         services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
@@ -239,7 +251,15 @@ public static class ServiceCollectionExtensions
     {
         services.AddDbContextFactory<BackendDBContext>((sp, options) =>
         {
-            var sqliteConnectionString = MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath);
+            // Foreign Keys 明確開啟：目前的原生程式庫（e_sqlite3）預設就是開啟，但不能靠預設 ——
+            // 日後換原生程式庫時若預設變成關閉，所有 FK 的 Restrict／Cascade 會靜默失效。
+            // 刻意不加 busy_timeout：Microsoft.Data.Sqlite 遇到 SQLITE_BUSY 會自己重試到命令逾時（預設 30 秒）。
+            // 兩者都由 SqliteBehaviorTests 釘住。WAL 存在資料庫檔內，由 DatabaseInitializer 設定一次。
+            var sqliteConnectionString = new SqliteConnectionStringBuilder(
+                MagicObjectHelper.GetSQLiteConnectionString(systemSettings.ExternalFileSystem.DatabasePath))
+            {
+                ForeignKeys = true,
+            }.ToString();
             options.UseSqlite(sqliteConnectionString);
 
             // 慢資料庫指令（LOG-21）：只記指令類型與耗時，不記 SQL 與參數。

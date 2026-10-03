@@ -308,6 +308,7 @@ public sealed class LoggingConventionTests
     [Theory]
     [InlineData("MyProject.Business", "Services")]
     [InlineData("MyProject.Business", "Repositories")]
+    [InlineData("MyProject.Business", "Startup")]
     [InlineData("MyProject.Web", "Controllers")]
     [InlineData("MyProject.Web", "Diagnostics")]
     [InlineData("MyProject.Web", "Auth")]
@@ -357,6 +358,8 @@ public sealed class LoggingConventionTests
             "TokenUsageFormat.cs",          // 純數字格式化（K／M 精簡顯示），無任何行為
             "AiUsageCostCalculator.cs",     // 純算術：讀設定、套費率、回金額，沒有 I/O 也沒有可失敗的副作用
             "TotpService.cs",               // 純密碼學運算；所有輸入輸出都是機密，加 logger 只會誘使人記錄它
+            "DatabaseInitializerOptions.cs", // 設定
+            "DatabaseInitializationLock.cs", // 由 DatabaseInitializer 傳入 logger（靜態輔助類別無法注入）
 
             // ⚠️ 以下四支位在「系統例外紀錄」的記錄管線之內，**刻意不得注入 ILogger**。
             // 它們一旦用 ILogger 記錄自己的失敗，那筆記錄會再被管線收進來、再嘗試寫入、再失敗 ——

@@ -175,27 +175,14 @@ public sealed class RbacBackfillService : IRbacBackfillService
 
     private async Task BackfillPermissionCatalogAsync()
     {
-        var groups = rolePermissionService.GetRoleListPermissionAllName();
         var existingKeys = (await context.Permission.Select(x => x.Key).ToListAsync())
             .ToHashSet(StringComparer.Ordinal);
 
-        var sort = 0;
-        foreach (var group in groups)
+        foreach (var permission in rolePermissionService.CreatePermissionCatalog())
         {
-            var groupName = group.FirstOrDefault() ?? string.Empty;
-            foreach (var name in group)
+            if (existingKeys.Add(permission.Key))
             {
-                sort++;
-                if (existingKeys.Add(name))
-                {
-                    context.Permission.Add(new Permission
-                    {
-                        Key = name,
-                        DisplayName = name,
-                        GroupName = groupName,
-                        SortOrder = sort,
-                    });
-                }
+                context.Permission.Add(permission);
             }
         }
 

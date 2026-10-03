@@ -1,3 +1,4 @@
+using MyProject.AccessDatas.Models;
 using MyProject.Models.Admins;
 using MyProject.Share.Helpers;
 
@@ -28,6 +29,35 @@ public class RolePermissionService
         var result = GetRoleListPermissionAllName()
             .SelectMany(x => x)
             .ToList();
+
+        return result;
+    }
+
+    /// <summary>
+    /// 權限目錄（<see cref="Permission"/> 表）應有的頁面鍵，含群組名稱與排序；每次呼叫都回傳新的實體。
+    ///
+    /// RBAC 回填與 <c>DefaultRoleViewSeeder</c> 共用這一份：預設角色的「新頁面」偵測依賴目錄內容，
+    /// 兩邊各自組列的話，群組或排序只要差一點，就會出現同一個鍵兩種長相。
+    /// </summary>
+    public List<Permission> CreatePermissionCatalog()
+    {
+        var result = new List<Permission>();
+        var sort = 0;
+        foreach (var group in GetRoleListPermissionAllName())
+        {
+            var groupName = group.FirstOrDefault() ?? string.Empty;
+            foreach (var name in group)
+            {
+                sort++;
+                result.Add(new Permission
+                {
+                    Key = name,
+                    DisplayName = name,
+                    GroupName = groupName,
+                    SortOrder = sort,
+                });
+            }
+        }
 
         return result;
     }
