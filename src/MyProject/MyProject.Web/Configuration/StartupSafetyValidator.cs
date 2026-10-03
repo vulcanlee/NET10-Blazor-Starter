@@ -73,7 +73,10 @@ public static class StartupSafetyValidator
             if (!Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var baseUri)
                 || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp))
             {
-                errors.Add("EmailSettings:PublicBaseUrl 在 Production 使用 Smtp 時必須是完整的 http(s) 網址（信中連結以它為準，不採用請求的 Host header）。");
+                // 公開網址不是機密，直接帶出讀到的值，現場看事件檢視器就知道是沒填還是少了 http(s)://
+                var actual = string.IsNullOrWhiteSpace(publicBaseUrl) ? "（空白）" : $"「{publicBaseUrl}」";
+                errors.Add($"EmailSettings:PublicBaseUrl 在 Production 使用 Smtp 時必須是完整的 http(s) 網址（信中連結以它為準，不採用請求的 Host header），目前讀到的值：{actual}。"
+                    + "請填使用者實際開啟系統的網址，例如 https://erp.example.com（只有 http 的環境可填 http://erp.example.com）；若暫不寄信，可將 EmailSettings:Provider 改回 None。");
             }
         }
 
@@ -99,7 +102,9 @@ public static class StartupSafetyValidator
 
         if (errors.Count > 0)
         {
-            throw new InvalidOperationException("Production 啟動安全檢查失敗：" + string.Join(" ", errors));
+            throw new InvalidOperationException(
+                "Production 啟動安全檢查失敗（ASPNETCORE_ENVIRONMENT 未設定時預設即為 Production，例如 IIS；開發機以 Development 執行不會做此檢查）："
+                + string.Join(" ", errors));
         }
     }
 }

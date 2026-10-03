@@ -577,6 +577,9 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Contains("EmailSettings:Host", exception.Message);
         Assert.Contains("EmailSettings:FromAddress", exception.Message);
         Assert.Contains("EmailSettings:PublicBaseUrl", exception.Message);
+        // 現場排查用：要說出讀到的是空白，也要說明為什麼開發機（Development）不會被擋
+        Assert.Contains("（空白）", exception.Message);
+        Assert.Contains("ASPNETCORE_ENVIRONMENT", exception.Message);
     }
 
     /// <summary>公開網址必須是完整的 http(s) 網址，相對路徑或其他協定都不算。</summary>
@@ -598,6 +601,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
             StartupSafetyValidator.Validate(configuration, "Production"));
 
         Assert.Contains("EmailSettings:PublicBaseUrl", exception.Message);
+        Assert.Contains($"「{publicBaseUrl}」", exception.Message);
     }
 
     [Fact]
