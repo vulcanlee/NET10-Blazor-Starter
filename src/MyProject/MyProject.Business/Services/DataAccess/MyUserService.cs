@@ -233,6 +233,7 @@ public class MyUserService
 
             MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
             itemParameter.RoleView = null;
+            itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.Salt = Guid.NewGuid().ToString();
             itemParameter.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
 
@@ -264,31 +265,38 @@ public class MyUserService
 
         try
         {
-            MyUser? currentItem = await context.MyUser
-                .AsNoTracking()
+            MyUser? itemData = await context.MyUser
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
 
-            if (currentItem == null)
+            if (itemData == null)
             {
                 Logger.LogWarning("User update rejected because record was not found. UserId={UserId}", paraObject.Id);
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的使用者資料。");
             }
 
-            MyUser itemData = Mapper.Map<MyUser>(paraObject);
-            itemData.RoleView = null;
+            // 只複製編輯畫面上有的欄位（0.9.93 起）。0.9.92 之前是整筆覆蓋，而畫面模型沒有登入失敗次數、
+            // 鎖定到期、兩步驟驗證、Google 綁定 —— 管理員只改姓名，被鎖定的帳號就解鎖了。
+            itemData.Account = paraObject.Account;
+            itemData.Name = paraObject.Name;
+            itemData.Email = paraObject.Email;
+            itemData.Status = paraObject.Status;
+            itemData.IsAdmin = paraObject.IsAdmin;
+            itemData.RoleViewId = paraObject.RoleViewId;
+            itemData.UpdateAt = paraObject.UpdateAt;
 
-            if (string.IsNullOrWhiteSpace(paraObject.Password))
+            if (!string.IsNullOrWhiteSpace(paraObject.Password))
             {
-                itemData.Password = currentItem.Password;
-                itemData.Salt = currentItem.Salt;
-            }
-            else
-            {
-                itemData.Salt = string.IsNullOrWhiteSpace(currentItem.Salt) ? Guid.NewGuid().ToString() : currentItem.Salt;
+                itemData.Salt = string.IsNullOrWhiteSpace(itemData.Salt) ? Guid.NewGuid().ToString() : itemData.Salt;
                 itemData.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
+
+                // 管理員替使用者設定新密碼視為解除鎖定（與「忘記密碼」重設後的行為一致）。
+                // 0.9.92 之前這個效果是整筆覆蓋順帶造成的；改成只更新畫面欄位後要明確寫出來，
+                // 否則「被鎖住時請管理員改密碼」這個操作方式會失效。只改其他欄位時不動鎖定狀態。
+                itemData.AccessFailedCount = 0;
+                itemData.LockoutEndUtc = null;
             }
 
-            context.Entry(itemData).State = EntityState.Modified;
+            ConcurrencyStampHelper.Apply(context.Entry(itemData), paraObject.ConcurrencyStamp);
             await context.SaveChangesAsync();
 
             await SyncAssignmentsAsync(context, rbacWriteService, itemData.Id, paraObject);
@@ -301,6 +309,12 @@ public class MyUserService
 
             Logger.LogInformation("User updated successfully. UserId={UserId}, Account={Account}", itemData.Id, itemData.Account);
             return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
+            Logger.LogInformation("User update rejected by concurrency conflict. UserId={UserId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {

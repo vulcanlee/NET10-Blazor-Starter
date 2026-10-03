@@ -256,6 +256,99 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Equal(createDto.Title, getResult.Data?.Title);
     }
 
+    // 樂觀並行（0.9.93 起）：PUT 必須帶 GET 取得的版本號；沒帶 400、別人先改過 409。
+    // 建立時一律帶 Id = 0：三個 POST 目前會直接採用客戶端傳來的 Id（既有缺陷，見 0.9.93 changelog），
+    // 帶 1 會與同一個測試主機裡其他測試建立的資料撞號而回 500。
+    [Fact]
+    public async Task CategoryPut_ShouldRequireCurrentConcurrencyStamp()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+        await AssertPutRequiresCurrentStampAsync<CategoryCreateUpdateDto, CategoryDto>(
+            client,
+            "/api/Category",
+            new CategoryCreateUpdateDto { Id = 0, Name = $"並行分類 {Guid.NewGuid():N}", IsEnabled = true },
+            x => x.Id,
+            x => x.ConcurrencyStamp,
+            (opened, stamp) => new CategoryCreateUpdateDto { Id = opened.Id, Name = $"並行分類 {Guid.NewGuid():N}", IsEnabled = true, ConcurrencyStamp = stamp });
+    }
+
+    [Fact]
+    public async Task TeamPut_ShouldRequireCurrentConcurrencyStamp()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+        await AssertPutRequiresCurrentStampAsync<TeamCreateUpdateDto, TeamDto>(
+            client,
+            "/api/Team",
+            new TeamCreateUpdateDto { Id = 0, Name = $"並行團隊 {Guid.NewGuid():N}" },
+            x => x.Id,
+            x => x.ConcurrencyStamp,
+            (opened, stamp) => new TeamCreateUpdateDto { Id = opened.Id, Name = $"並行團隊 {Guid.NewGuid():N}", ConcurrencyStamp = stamp });
+    }
+
+    [Fact]
+    public async Task ProjectPut_ShouldRequireCurrentConcurrencyStamp()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+        await AssertPutRequiresCurrentStampAsync<ProjectCreateUpdateDto, ProjectDto>(
+            client,
+            "/api/Project",
+            NewProjectDto(0, null),
+            x => x.Id,
+            x => x.ConcurrencyStamp,
+            (opened, stamp) => NewProjectDto(opened.Id, stamp));
+
+        static ProjectCreateUpdateDto NewProjectDto(int? id, string? stamp) => new()
+        {
+            Id = id,
+            Title = $"並行專案 {Guid.NewGuid():N}",
+            StartDate = DateTime.Today,
+            EndDate = DateTime.Today.AddDays(7),
+            Status = "進行中",
+            Priority = "中",
+            CompletionPercentage = 10,
+            Owner = "integration-test",
+            ConcurrencyStamp = stamp,
+        };
+    }
+
+    /// <summary>
+    /// 同一套流程：建立 → GET 取得版本號 → PUT 沒帶版本號（400）→ 帶目前版本號（200）→ 再用同一個舊版本號（409）
+    /// → GET 拿到的版本號已經換新。
+    /// </summary>
+    private static async Task AssertPutRequiresCurrentStampAsync<TWrite, TRead>(
+        HttpClient client,
+        string resource,
+        TWrite createDto,
+        Func<TRead, int?> getId,
+        Func<TRead, string?> getStamp,
+        Func<TRead, string?, TWrite> buildUpdate)
+    {
+        var created = await ReadApiResultAsync<TRead>(await client.PostAsJsonAsync(resource, createDto));
+        Assert.True(created.Success, created.Message);
+        var id = getId(created.Data!);
+
+        var opened = (await ReadApiResultAsync<TRead>(await client.GetAsync($"{resource}/{id}"))).Data!;
+        var stamp = getStamp(opened);
+        Assert.False(string.IsNullOrWhiteSpace(stamp), "GET 的回應必須帶出 ConcurrencyStamp，API 用戶端才有辦法帶回來。");
+
+        var missing = await client.PutAsJsonAsync($"{resource}/{id}", buildUpdate(opened, null));
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+
+        var first = await client.PutAsJsonAsync($"{resource}/{id}", buildUpdate(opened, stamp));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var stale = await client.PutAsJsonAsync($"{resource}/{id}", buildUpdate(opened, stamp));
+        var staleResult = await ReadApiResultAsync<object>(stale);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.False(staleResult.Success);
+
+        var reopened = (await ReadApiResultAsync<TRead>(await client.GetAsync($"{resource}/{id}"))).Data!;
+        Assert.NotEqual(stamp, getStamp(reopened));
+    }
+
     [Fact]
     public async Task ForbiddenApi_ShouldReturnApiResult403()
     {

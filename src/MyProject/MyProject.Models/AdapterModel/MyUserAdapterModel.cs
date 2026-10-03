@@ -5,6 +5,9 @@ namespace MyProject.Models.AdapterModel;
 
 public class MyUserAdapterModel : ICloneable
 {
+    /// <summary>樂觀並行的版本號：開啟編輯時的值，存檔時用來比對資料是否已被別人修改（0.9.93 起）。</summary>
+    public string ConcurrencyStamp { get; set; } = string.Empty;
+
     public int Id { get; set; }
     [Required(ErrorMessage = "帳號 不可為空白")]
     public string Account { get; set; } = String.Empty;

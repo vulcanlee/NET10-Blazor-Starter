@@ -298,7 +298,15 @@ namespace MyProject.Web.Components.Views.Admins
                 CurrentRecord.CreateAt = DateTime.Now;
                 CurrentRecord.UpdateAt = DateTime.Now;
 
-                await roleViewService.AddAsync(CurrentRecord);
+                var actionResult = await roleViewService.AddAsync(CurrentRecord);
+                if (!actionResult.Success)
+                {
+                    // 0.9.92 之前這裡不看結果，失敗也顯示「新增成功」。
+                    logger.LogInformation("Role view create rejected. Name={RoleName}, Message={Message}", CurrentRecord.Name, actionResult.Message);
+                    ViewNotification.Error(notificationService, actionResult.Message);
+                    return false;
+                }
+
                 logger.LogInformation("Role view create submitted. Name={RoleName}", CurrentRecord.Name);
 
                 ViewNotification.Warning(notificationService, "新增成功");
@@ -317,7 +325,15 @@ namespace MyProject.Web.Components.Views.Admins
                 }
 
                 CurrentRecord.UpdateAt = DateTime.Now;
-                await roleViewService.UpdateAsync(CurrentRecord);
+                var actionResult = await roleViewService.UpdateAsync(CurrentRecord);
+                if (!actionResult.Success)
+                {
+                    // 0.9.92 之前這裡不看結果，失敗也顯示「修改成功」；0.9.93 起的並行衝突訊息也走這裡，表單維持開啟。
+                    logger.LogInformation("Role view update rejected. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, actionResult.Message);
+                    ViewNotification.Error(notificationService, actionResult.Message);
+                    return false;
+                }
+
                 logger.LogInformation("Role view update submitted. RoleViewId={RoleViewId}, Name={RoleName}", CurrentRecord.Id, CurrentRecord.Name);
 
                 ViewNotification.Warning(notificationService, "修改成功");

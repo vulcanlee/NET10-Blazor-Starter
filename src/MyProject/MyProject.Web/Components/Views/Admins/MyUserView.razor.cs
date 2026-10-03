@@ -336,7 +336,15 @@ namespace MyProject.Web.Components.Views.Admins
                 CurrentRecord.CreateAt = DateTime.Now;
                 CurrentRecord.UpdateAt = DateTime.Now;
 
-                await myUserService.AddAsync(CurrentRecord);
+                var actionResult = await myUserService.AddAsync(CurrentRecord);
+                if (!actionResult.Success)
+                {
+                    // 0.9.92 之前這裡不看結果，失敗也顯示「新增成功」。
+                    logger.LogInformation("User create rejected. Account={Account}, Message={Message}", CurrentRecord.Account, actionResult.Message);
+                    ViewNotification.Error(notificationService, actionResult.Message);
+                    return false;
+                }
+
                 logger.LogInformation("User create submitted. Account={Account}", CurrentRecord.Account);
 
                 ViewNotification.Warning(notificationService, "新增成功");
@@ -356,7 +364,15 @@ namespace MyProject.Web.Components.Views.Admins
 
                 CurrentRecord.UpdateAt = DateTime.Now;
 
-                await myUserService.UpdateAsync(CurrentRecord);
+                var actionResult = await myUserService.UpdateAsync(CurrentRecord);
+                if (!actionResult.Success)
+                {
+                    // 0.9.92 之前這裡不看結果，失敗也顯示「修改成功」；0.9.93 起的並行衝突訊息也走這裡，表單維持開啟。
+                    logger.LogInformation("User update rejected. UserId={UserId}, Message={Message}", CurrentRecord.Id, actionResult.Message);
+                    ViewNotification.Error(notificationService, actionResult.Message);
+                    return false;
+                }
+
                 logger.LogInformation("User update submitted. UserId={UserId}, Account={Account}", CurrentRecord.Id, CurrentRecord.Account);
 
                 ViewNotification.Warning(notificationService, "修改成功");

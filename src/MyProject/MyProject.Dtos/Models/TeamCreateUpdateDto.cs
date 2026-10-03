@@ -8,6 +8,12 @@ namespace MyProject.Dtos.Models;
 /// </summary>
 public class TeamCreateUpdateDto
 {
+    /// <summary>
+    /// 樂觀並行的版本號（0.9.93 起）。PUT 必填：請帶上 GET 取得的值；與資料庫目前的值不同代表別人已先修改，回 409。
+    /// POST 會忽略這個欄位。
+    /// </summary>
+    public string? ConcurrencyStamp { get; set; }
+
     public TeamCreateUpdateDto()
     {
     }

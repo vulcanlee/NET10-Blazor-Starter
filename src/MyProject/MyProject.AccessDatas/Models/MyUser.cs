@@ -5,7 +5,7 @@ namespace MyProject.AccessDatas.Models;
 /// <summary>
 /// 使用者
 /// </summary>
-public class MyUser
+public class MyUser : IConcurrencyStamped
 {
     public MyUser()
     {
@@ -49,4 +49,7 @@ public class MyUser
     /// </summary>
     public string? TwoFactorSecret { get; set; }
     public RoleView? RoleView { get; set; }
+
+    /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
 }

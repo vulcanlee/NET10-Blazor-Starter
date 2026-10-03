@@ -5,7 +5,7 @@ namespace MyProject.AccessDatas.Models;
 /// <summary>
 /// 分類（主資料，獨立無外鍵關聯）
 /// </summary>
-public class Category
+public class Category : IConcurrencyStamped
 {
     public int Id { get; set; }
 
@@ -22,4 +22,7 @@ public class Category
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
+
+    /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
 }

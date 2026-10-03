@@ -5,7 +5,7 @@ namespace MyProject.AccessDatas.Models;
 /// <summary>
 /// 使用者
 /// </summary>
-public class RoleView
+public class RoleView : IConcurrencyStamped
 {
     public RoleView()
     {
@@ -19,4 +19,7 @@ public class RoleView
     public string DefaultTeamsJson { get; set; } = "[]";
     public DateTime CreateAt { get; set; } = DateTime.Now;
     public DateTime UpdateAt { get; set; } = DateTime.Now;
+
+    /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
 }

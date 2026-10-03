@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Repositories;
@@ -144,6 +145,13 @@ public class CategoryController : ControllerBase
                 return BadRequest(ApiResult.ValidationError("路由 ID 與資料 ID 不一致"));
             }
 
+            // 樂觀並行（0.9.93 起）：PUT 必須帶上 GET 取得的版本號，否則無法判斷是否覆蓋了別人的修改。
+            if (string.IsNullOrWhiteSpace(categoryDto.ConcurrencyStamp))
+            {
+                logger.LogInformation("Category update request rejected because concurrency stamp is missing. CategoryId={CategoryId}", id);
+                return BadRequest(ApiResult.ValidationError("ConcurrencyStamp 為必填：請帶上 GET 取得的版本號（用來避免覆蓋別人的修改）。"));
+            }
+
             if (await categoryRepository.ExistsByNameAsync(categoryDto.Name, id))
             {
                 logger.LogInformation("Category update request rejected because name is already in use. CategoryId={CategoryId}, Name={Name}", id, categoryDto.Name);
@@ -161,6 +169,12 @@ public class CategoryController : ControllerBase
             logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={Name}", id, categoryDto.Name);
             await this.WriteAuditAsync(AuditActions.Category.Update, "Category", id.ToString(), $"name={categoryDto.Name}");
             return Ok(ApiResult.SuccessResult("更新分類成功"));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // 別人在這段期間先更新或刪除了這筆：使用者情境（LOG-11），記 Information、不進系統例外紀錄。
+            logger.LogInformation("Category update request rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            return Conflict(ApiResult.ConflictResult(ConcurrencyStampHelper.ConflictMessage));
         }
         catch (Exception ex)
         {
