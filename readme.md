@@ -195,7 +195,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     ├── MyProject.Models/           ← AdapterModel、Systems、AutoMapper 來源
     ├── MyProject.Dtos/             ← API DTO（含 ApiResult/PagedResult）
     ├── MyProject.Share/            ← Helpers、Extensions
-    └── MyProject.Tests/            ← xUnit 測試（含慣例守門測試）
+    └── MyProject.Tests/            ← xUnit 測試（含慣例守門測試；Components/ 為 bUnit 元件測試）
 ```
 
 ---
