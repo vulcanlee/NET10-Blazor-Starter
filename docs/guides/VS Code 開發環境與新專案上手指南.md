@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.6
+- 文件版本：2.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.71
+- 現行系統版本：0.9.87
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/09/29
+- 最後核對日期：2026/10/03
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -48,7 +48,7 @@
 | 工具 | 版本 / 說明 | 驗證指令 |
 |------|-------------|----------|
 | .NET SDK | **10.0.400**（`global.json` 已鎖定，`rollForward: latestFeature`，故 10.0.4xx 以上可用） | `dotnet --info` |
-| PowerShell 7（`pwsh`）| `scripts/*.ps1` 與 CI 都以 pwsh 執行；**Windows 內建的 Windows PowerShell 5.1 不算** | `pwsh --version` |
+| PowerShell 7（`pwsh`）| `scripts/*.ps1` 都以 pwsh 執行；**Windows 內建的 Windows PowerShell 5.1 不算** | `pwsh --version` |
 | Git | 任意近期版本 | `git --version` |
 | Visual Studio Code | 任意近期版本 | — |
 
@@ -64,7 +64,7 @@ repo 已提供 `.vscode/extensions.json`，開啟工作區時 VS Code 會主動�
 | `ms-dotnettools.csharp` | C# 語言服務與偵錯器（`coreclr`） |
 | `ms-dotnettools.vscode-dotnet-runtime` | 前兩者的相依 runtime 管理 |
 | `ms-vscode.powershell` | 編輯與偵錯 `scripts/*.ps1` |
-| `editorconfig.editorconfig` | 讓編輯器遵守 `.editorconfig`（CI 會以 `dotnet format` 強制） |
+| `editorconfig.editorconfig` | 讓編輯器遵守 `.editorconfig`（提交前的 `dotnet format --verify-no-changes` 會檢查） |
 
 ### 2.3 選用工具
 
@@ -100,10 +100,12 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | 路徑 | 內容 | 來源設定 |
 |------|------|----------|
 | `C:\temp\MyProject\DB\BackendDB.db` | SQLite 資料庫 | `SystemSettings:ExternalFileSystem:DatabasePath` |
-| `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的另外三個鍵 |
+| `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
+| `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
+| `C:\temp\MyProject\Keys` | Data Protection 金鑰環（登入 Cookie 靠它解密，刪掉等於全站登出） | 同上區段的 `DataProtectionKeyPath` |
 | `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
 
-這些目錄若不存在，`Program.cs` 會在啟動時自動建立。
+`ExternalFileSystem` 的八個目錄若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
 
 ### 3.2 建置注意事項
 
@@ -124,7 +126,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | 檔案 | 作用 |
 |------|------|
 | `launch.json` | F5 偵錯設定。使用 **`https` profile**、自動開啟瀏覽器、`ASPNETCORE_ENVIRONMENT=Development` |
-| `tasks.json` | 對齊 CI 的四道品質關卡：`build` / `format-check` / `test` / `docs-encoding`，另有 `restore` |
+| `tasks.json` | 提交前要跑的四道本機檢查：`build` / `format-check` / `test` / `docs-encoding`，另有 `restore`（本專案沒有 CI，見 [§9](#9-更名後驗證清單)） |
 | `settings.json` | Markdown 預設存成 **UTF-8 含 BOM**（對應本專案不變量）、隱藏 `bin`/`obj`、指定預設方案檔 |
 | `extensions.json` | 建議安裝的擴充套件清單 |
 
@@ -137,9 +139,9 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | 建置 | `Ctrl+Shift+B` | 執行 `build` 任務 |
 | 執行其他任務 | `Ctrl+Shift+P` → `Tasks: Run Task` | 選 `format-check` / `test` / `docs-encoding` |
 
-### 4.4 ⚠️ 一定要用 `https` profile
+### 4.4 建議用 `https` profile
 
-`Program.cs:389` **無條件**呼叫 `app.UseHttpsRedirection()`：
+`Program.cs` 的中介軟體管線**無條件**呼叫 `app.UseHttpsRedirection()`：
 
 ```csharp
 app.UseHttpsRedirection();
@@ -152,7 +154,8 @@ app.UseHttpsRedirection();
 | `http` | `http://localhost:5109` |
 | `https` | `https://localhost:7144;http://localhost:5109` |
 
-只跑 `http` profile 時，程式會把請求導向 HTTPS，但根本沒有監聽 HTTPS 埠 → 瀏覽器顯示連線失敗或無限重導。**請一律使用 `https` profile**（`.vscode/launch.json` 已預設如此）。
+只跑 `http` profile 時，`UseHttpsRedirection` 找不到 HTTPS 埠，**不會重導**：網站仍以 http 正常運作，日誌會記一筆 `Failed to determine the https port for redirect.` 警告（0.9.87 實測）。
+仍**建議使用 `https` profile**（`.vscode/launch.json` 已預設如此）：它比較接近正式環境，Google 登入的 redirect URI 也通常以 https 註冊。
 
 ---
 
@@ -168,7 +171,9 @@ app.UseHttpsRedirection();
 }
 ```
 
-`Configuration/StartupSafetyValidator.cs:7,17-21` 把這個字串寫成常數當作絆索 —— 只要 `ASPNETCORE_ENVIRONMENT=Production` 而金鑰還是它，程式會**丟出例外直接中止啟動**，不會帶著假金鑰上線。
+`Auth/JwtSettings.cs` 的 `IsPlaceholderSigningKey` 以「金鑰是否含 `ChangeThisJwtSigningKey` 標記」當絆索（所以 `New-StarterProject.ps1` 換成 `<新代號>-ChangeThisJwtSigningKey-…` 後一樣會被認出）；`Configuration/StartupSafetyValidator.cs` 在 `ASPNETCORE_ENVIRONMENT=Production` 時遇到它就**丟出例外直接中止啟動**，不會帶著假金鑰上線。
+
+> ⚠️ IIS 等主機**沒有設定 `ASPNETCORE_ENVIRONMENT` 時預設就是 Production**。開發機以 `launchSettings.json` 的 `Development` 執行，不做這項檢查，所以「本機正常、部署後起不來」多半是這個原因；中止時的訊息會寫在 Windows 事件檢視器（0.9.86 起訊息會直接說明這一點）。
 
 **User Secrets** 讓你把真實金鑰放在 repo 之外、又不必改任何程式碼。
 
@@ -193,7 +198,7 @@ app.UseHttpsRedirection();
 C:\Users\<你的帳號>\AppData\Roaming\Microsoft\UserSecrets\83f6d54f-9f33-4cd9-a626-d4c05c996e5d\secrets.json
 ```
 
-> ⚠️ **只在 Development 環境載入**。本專案使用 `WebApplication.CreateBuilder(args)`（`Program.cs:42`）的預設設定來源鏈，全案**沒有**任何明確的 `AddUserSecrets(...)` 呼叫 —— 也就是完全依賴預設行為：`ASPNETCORE_ENVIRONMENT` 不是 `Development` 時，User Secrets **完全不會被讀取**。正式環境請改用環境變數或雲端 secret store，見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)。
+> ⚠️ **只在 Development 環境載入**。本專案使用 `Program.cs` 開頭 `WebApplication.CreateBuilder(args)` 的預設設定來源鏈，全案**沒有**任何明確的 `AddUserSecrets(...)` 呼叫 —— 也就是完全依賴預設行為：`ASPNETCORE_ENVIRONMENT` 不是 `Development` 時，User Secrets **完全不會被讀取**。正式環境請改用環境變數或雲端 secret store，見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)。
 
 > ✅ 這個檔案在 repo **之外**，不可能被 `git add` 進去，也不需要在 `.gitignore` 加任何規則。
 
@@ -254,18 +259,18 @@ code "$dir\secrets.json"
 }
 ```
 
-> **兩種寫法等價**：`dotnet user-secrets set "JwtSettings:SigningKey" "..."` 存進檔案後就是上面的巢狀結構。而 `"AutoMapper:LicenseKey"` 之所以維持扁平的冒號鍵，是因為 `appsettings.json:67` 本來就是這樣宣告、`Program.cs:221` 也以 `builder.Configuration["AutoMapper:LicenseKey"]` 讀取；兩種格式 .NET 都認得。
+> **兩種寫法等價**：`dotnet user-secrets set "JwtSettings:SigningKey" "..."` 存進檔案後就是上面的巢狀結構。而 `"AutoMapper:LicenseKey"` 之所以維持扁平的冒號鍵，是因為 `appsettings.json` 本來就是這樣宣告（檔案最後一個鍵）、`Program.cs` 也以 `builder.Configuration["AutoMapper:LicenseKey"]` 讀取；兩種格式 .NET 都認得。
 
 ### 5.5 該搬哪些鍵
 
 | 鍵路徑 | 目前值 | 必要性 | 不設定會怎樣 |
 |--------|--------|--------|--------------|
-| `JwtSettings:SigningKey` | `DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars` | **必要** | 開發環境可跑，但 Production 啟動直接中止（`StartupSafetyValidator.cs:18-21`）；且此金鑰已公開於版控，任何人都能偽造 JWT |
+| `JwtSettings:SigningKey` | `DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars` | **必要** | 開發環境可跑，但 Production 啟動直接中止（`StartupSafetyValidator` 的 SigningKey 檢查）；且此金鑰已公開於版控，任何人都能偽造 JWT |
 | `GoogleOAuthSettings:ClientId` | `""` | 啟用 Google 登入時必要 | `Enabled` 設 true 但憑證留空會登入失敗。設定細節見 [Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md) |
 | `GoogleOAuthSettings:ClientSecret` | `""` | 同上 | 同上。**這是真正的密鑰，絕不可進版控** |
-| `CacheSettings:RedisConnection` | `""` | `CacheSettings:Provider` 改成 `Redis` 時必要 | 連線字串通常含密碼；Production 下留空會被 `StartupSafetyValidator.cs:34-39` 擋下 |
+| `CacheSettings:RedisConnection` | `""` | `CacheSettings:Provider` 改成 `Redis` 時必要 | 連線字串通常含密碼；Production 下留空會被 `StartupSafetyValidator` 的 Redis 檢查擋下 |
 | `EmailSettings:UserName` / `EmailSettings:Password` | `""` | `EmailSettings:Provider` 改成 `Smtp` 且 SMTP 需要登入時必要 | 登入失敗、信寄不出去（健康監控「寄信服務」紅燈）。**密碼絕不可進版控**。開發機預設是 `Provider=None`（與出貨值相同）；本機要測忘記密碼，用 User Secrets 設 `Provider=Pickup`，信寫成 `.eml` 檔，不需要任何帳密；要測真的 SMTP，才用 User Secrets 設 `Provider=Smtp` 與這兩個鍵 |
-| `AutoMapper:LicenseKey` | `""` | 商業授權情境 | 留空不影響開發（`Program.cs:221`），但授權金鑰不應進版控 |
+| `AutoMapper:LicenseKey` | `""` | 商業授權情境 | 留空不影響開發（`Program.cs` 讀不到就不設定授權），但授權金鑰不應進版控 |
 
 > ⚠️ `BootstrapSettings:SupportPassword`（預設管理者密碼）**不建議**放進 User Secrets —— 它的行為與一般機密不同，改動會反向覆寫資料庫。詳見 [§6.4](#64-預設管理者帳號)。
 
@@ -303,7 +308,7 @@ appsettings.json
 
 ### 6.1 資料庫檔案位置
 
-本系統**只支援 SQLite**。連線字串由 `MyProject.Share/Helpers/MagicObjectHelper.cs:6-11` 組出：
+本系統**只支援 SQLite**。連線字串由 `MyProject.Share/Helpers/MagicObjectHelper.cs` 的 `GetSQLiteConnectionString` 組出：
 
 ```csharp
 public const string SQLiteDatabaseFilename = "BackendDB.db";
@@ -313,13 +318,13 @@ public static string GetSQLiteConnectionString(string databasePath)
 }
 ```
 
-目錄部分來自 `appsettings.json:61` 的 `SystemSettings:ExternalFileSystem:DatabasePath`，所以開發環境的實際檔案是 **`C:\temp\MyProject\DB\BackendDB.db`**。
+目錄部分來自 `appsettings.json` 的 `SystemSettings:ExternalFileSystem:DatabasePath`，所以開發環境的實際檔案是 **`C:\temp\MyProject\DB\BackendDB.db`**。
 
-> ⚠️ **陷阱**：`appsettings.json:52-54` 還有一個 `SystemSettings:ConnectionStrings:SQLiteDefaultConnection`（值為 `Data Source=BackendDB.db`）。這是**死設定，執行期完全不會被讀取**，改它沒有任何作用。要換資料庫位置請改 `ExternalFileSystem:DatabasePath`。
+> ⚠️ **陷阱**：`appsettings.json` 還有一個 `SystemSettings:ConnectionStrings:SQLiteDefaultConnection`（值為 `Data Source=BackendDB.db`）。這是**死設定，執行期完全不會被讀取**，改它沒有任何作用。要換資料庫位置請改 `ExternalFileSystem:DatabasePath`。
 
 ### 6.2 啟動時自動套用 Migration
 
-`Program.cs:267-282`：若專案內有 Migration 就呼叫 `Database.Migrate()`，否則退回 `Database.EnsureCreated()`。本 repo 的 `MyProject.AccessDatas/Migrations/` 有完整 Migration，所以走的是 `Migrate()` 這條路 —— 你不需要手動執行 `dotnet ef database update`。
+`Program.cs` 啟動時：若專案內有 Migration 就呼叫 `Database.Migrate()`，否則退回 `Database.EnsureCreated()`。本 repo 的 `MyProject.AccessDatas/Migrations/` 有完整 Migration，所以走的是 `Migrate()` 這條路 —— 你不需要手動執行 `dotnet ef database update`。
 
 ### 6.3 重建資料庫
 
@@ -336,19 +341,21 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 
 | 項目 | 值 | 來源 |
 |------|----|------|
-| 帳號 | `support` | `appsettings.json:40` `BootstrapSettings:SupportAccount` |
+| 帳號 | `support` | `appsettings.json` 的 `BootstrapSettings:SupportAccount` |
 | 密碼 | `support` | `appsettings.json` 的 `BootstrapSettings:SupportPassword` |
-| 權限 | `IsAdmin = true` | `Program.cs:313-352` 強制設定 |
+| 權限 | `IsAdmin = true` | `Program.cs` 啟動時的 support 帳號 seed 區段強制設定 |
 
-> ⚠️ **重要行為，不是 bug**：每次啟動時，若資料庫內 `support` 的密碼雜湊**驗不過設定檔的值**，程式會把密碼**覆寫回設定檔的值**，並強制 `IsAdmin = true`（`Program.cs:337-345`）。
+> ⚠️ **重要行為，不是 bug**：每次啟動時，若資料庫內 `support` 的密碼雜湊**驗不過設定檔的值**，程式會把密碼**覆寫回設定檔的值**，並強制 `IsAdmin = true`（`Program.cs` 中 `VerifyPassword(bootstrapSettings.SupportPassword, ...)` 那段）。
 >
 > 這造成兩個容易誤解的現象：
-> 1. 在 UI 改了 `support` 的密碼，重啟後又變回 `support`。
+> 1. 在 UI 改了 `support` 的密碼，重啟後又變回 `support`（`/ChangePassword` 頁面本身也會直接拒絕修改 support 的密碼）。
 > 2. 把 `SupportPassword` 改成新值後，下次啟動會**靜默重設**資料庫裡的密碼。
 >
 > 這是刻意的「救援後門」設計，讓你永遠有辦法登入。正式上線前的處理方式見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)。
 
-`MagicObjectHelper.cs:17` 的 `開發者帳號 = "support"` 用於後續識別並保護這個帳號（例如不允許在 UI 刪除）。
+`MagicObjectHelper.cs` 的 `開發者帳號 = "support"` 用於後續識別並保護這個帳號（例如不允許在 UI 刪除、0.9.85 起「忘記密碼」頁也不受理這個帳號）。
+
+> ⚠️ 出貨的 `BootstrapSettings:SupportEmail` 值是 `support`，**不是有效的信箱**。0.9.85 起使用者存檔時會檢查 Email 格式，所以在「使用者管理」編輯 support 帳號時，要先把 Email 改成有效信箱或清空才能存檔。
 
 ---
 
@@ -365,7 +372,6 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db" -Force
 | 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
-| 側邊欄品牌圖示 | `Components/Layout/NavMenu.razor:14` 的 `MaterialIcon Kind="dashboard_customize"` | 側邊欄左上（**不是** `brand-logo.png`，是字型圖示） |
 
 > **沿革**：`0.9.2` 之前，登入頁與啟動頁的兩段說明文字是**寫死在 `.razor` 裡**的，`SystemDescription` 只影響「關於」對話窗 —— 改設定檔那兩頁不會變。0.9.2 起兩頁都改讀設定，`SystemName` 與 `SystemDescription` 都是單一來源。
 
@@ -434,14 +440,13 @@ ffmpeg -i images/brand-logo.png \
 
 `Components/App.razor` **沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
 
-全專案 17 個 `<PageTitle>` 中還有兩處是範本殘留的英文（其餘 15 個都已中文化）：
+全專案 22 個 `<PageTitle>`（0.9.87）中只剩一處是範本殘留的英文：
 
 | 檔案 | 目前標題 |
 |------|------|
-| `Components/Pages/Home.razor:4` | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
-| `Components/Pages/Error.razor:5` | `Error` |
+| `Components/Pages/Home.razor` | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
 
-> `Components/Pages/HomeAuthed.razor` 原本也是 `Home`，0.9.9 已改為「首頁」。
+> `Components/Pages/HomeAuthed.razor` 原本也是 `Home`，0.9.9 已改為「首頁」；`Error.razor` 已是「系統錯誤」。
 
 想讓每個分頁都帶產品名（例如「使用者管理 — 你的系統」），需要自行加後綴機制，本專案未提供。
 
@@ -458,10 +463,10 @@ ffmpeg -i images/brand-logo.png \
 | `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`系統能力`／`快速入口`／`系統版本`／`執行環境` |
 | `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `FeatureCards` | 登入後首頁六張能力卡片的標題與說明：`權限與角色控管`／`專案項目管理`／`分類與團隊定義`／`日誌檢視與 AI 分析`／`健康監控與資料庫用量`／`檔案上傳與保管`。⚠️ 改成自家系統的能力時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
 | `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
-| `Components/Layout/NavMenu.razor:18` / `:25` | `管理後台功能清單` / `功能選單` |
-| `Components/Layout/MainLayout.razor.cs:52` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
-| `Components/Commons/ViewNotification.cs:15` | `系統訊息`（全站通知的標題） |
-| `MainLayout.razor:103`、`EmptyLayout.razor:12`、`NoFooterLayout.razor:10` | `An unhandled error has occurred.`（Blazor 預設，尚未中文化） |
+| `Components/Layout/NavMenu.razor` | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
+| `Components/Layout/MainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
+| `Components/Commons/ViewNotification.cs` 的 `SystemTitle` | `系統訊息`（全站通知的標題） |
+| `MainLayout.razor`、`EmptyLayout.razor`、`NoFooterLayout.razor` | `An unhandled error has occurred.`（Blazor 預設，尚未中文化） |
 
 另註：全專案**沒有** footer 或版權文字，`.csproj` 也沒有設定 `<Product>` / `<AssemblyTitle>`，所以組件層級沒有產品名要改。
 
@@ -506,16 +511,18 @@ pwsh ./scripts/New-StarterProject.ps1 `
 
 **腳本會做的事：**
 
-- 複製整個 repo 到目標路徑，跳過 `.git` / `bin` / `obj` / `.vs` / `.playwright-cli` / `output`
-- 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml`）內的 `MyProject` 全部換成新代號，**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
+- 複製整個 repo 到目標路徑，跳過 `.git` / `bin` / `obj` / `.vs` / `.playwright-cli` / `output`，以及開發機上的本機產物 `artifacts` / `.gstack` / `PublishProfiles`、`*.user` / `*.suo`、`.claude\settings.local.json`（0.9.87 起）；複製完會刪掉因此變空的資料夾（例如已移除的 `SqlServerMigrations` 殘骸）
+- 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml`）內的 `MyProject` 全部換成新代號；全小寫的 `myproject`（例如 Gmail 指南的範例信箱）換成新代號的小寫（0.9.87 起）。**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
-- **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
+- **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）。舊埠是從來源的 `launchSettings.json` 讀出來的（0.9.87 起），所以從衍生專案再衍生一次，埠也會換新；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
 - **把 `SystemVersion` 重設為 `1.0.0 (執行當天)`**（0.9.71 起），文件開頭的「現行系統版本」也一併改為 `1.0.0`；「首次實作版本」保留原值（那是功能的歷史）
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs`，先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
-- 最後掃一次殘留字串並警告
+- 最後掃一次殘留字串並警告。正常情況只會出現 5 筆「開發用 JWT 佔位金鑰」的警告：本文 §5.1／§5.5 的說明、腳本自己的兩行、`ApiIntegrationTests.cs` 的測試資料，都是刻意保留的
+
+> `-ProjectName` 每一段都必須是合法的 C# 識別字（0.9.87 起），`Acme..Erp`、`Acme.`、`Acme.1x` 會在一開始就被擋下。
 
 **腳本做完之後你仍須手動處理：**
 
@@ -524,9 +531,8 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
-| 外部目錄路徑 | `ExternalFileSystem` 四個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
+| 外部目錄路徑 | `ExternalFileSystem` 八個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
-| 殘骸目錄 | `src/<新代號>/<新代號>.AccessDatas.SqlServerMigrations/` 只剩建置產物（0.4.24 起已移除 SQL Server 軌道、不在 `.slnx` 內）；腳本排除 `bin`／`obj` 後會留下一個空殼目錄，可直接刪除 |
 
 即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
 
@@ -545,6 +551,9 @@ output/                                ← 產生器輸出
 src/MyProject/.vs/                     ← Visual Studio 本機狀態
 src/MyProject/**/bin/  **/obj/         ← 所有建置產物
 src/MyProject/MyProject.AccessDatas.SqlServerMigrations/   ← 殘骸目錄（只剩 bin/obj，沒有 csproj，也不在方案內）
+src/MyProject/artifacts/  .gstack/                         ← 本機發佈輸出等產物（若有）
+src/MyProject/MyProject.Web/Properties/PublishProfiles/   ← 本機發佈設定
+src/MyProject/.claude/settings.local.json                 ← 個人的 Claude Code 權限設定
 ```
 
 #### 步驟 2：改資料夾名稱（由深到淺）
@@ -564,7 +573,7 @@ src/MyProject/MyProject.AccessDatas.SqlServerMigrations/   ← 殘骸目錄（�
 
 #### 步驟 3：改檔案名稱
 
-6 個 `.csproj` 加 1 個方案檔：
+7 個 `.csproj` 加 1 個方案檔：
 
 ```
 Acme.Erp.Share/MyProject.Share.csproj             → Acme.Erp.Share.csproj
@@ -592,7 +601,9 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 按 `Alt+C` 開啟**大小寫相符**（Match Case），避免誤傷。取代前先看一次結果清單。
 
-> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（11 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、CI workflow、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1`（範本內嵌 48 處）、`CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md`。
+> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（12 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1`（範本內嵌約 50 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
+>
+> 開了大小寫相符，全小寫的 `myproject`（例如 `docs/operations/Gmail寄信設定指南.md` 的範例信箱）不會被換到，記得另外搜尋一次。
 
 #### 步驟 5：換掉 `UserSecretsId`
 
@@ -621,8 +632,8 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 | 鍵 | 建議值 |
 |----|--------|
-| `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議歸零為 `0.0.1 (2026/01/01)` |
-| `SystemSettings:ExternalFileSystem:*` | 四個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
+| `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議比照腳本重設為 `1.0.0 (當天日期)` |
+| `SystemSettings:ExternalFileSystem:*` | 八個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
 | `JwtSettings:Issuer` / `Audience` | `Acme.Erp` / `Acme.Erp.WebApi` |
 | `JwtSettings:SigningKey` | 換成你自己的值；建議直接搬進 User Secrets |
 | `BootstrapSettings:*` | 改掉預設的 `support` / `support` |
@@ -635,14 +646,13 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/images/brand-logo.png   ← 登入頁與啟動
 src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖示
 ```
 
-#### 步驟 8：文件與 CI
+#### 步驟 8：文件與工具設定
 
 | 檔案 | 要改什麼 |
 |------|----------|
-| `.github/workflows/dotnet-ci.yml` | 6 處硬編路徑（`src/MyProject/...`、`MyProject.slnx`），步驟 4 應已處理，確認一次 |
 | `readme.md` | 系統介紹、架構圖、專案結構樹、快速開始指令 |
 | `docs/**` | 內文敘述（不只代號，還有描述舊系統功能的句子）。`docs/changelog/`、`docs/planning/`、`docs/superpowers/` 腳本已自動清掉，手動更名才需要自己處理 |
-| `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md` | LLM 協作準則裡的專案描述 |
+| `CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md` | LLM 協作準則裡的專案描述 |
 | `.vscode/launch.json` / `tasks.json` / `settings.json` | 內含 `src/MyProject/...` 路徑，確認已更新 |
 
 ### 8.3 高風險清單
@@ -652,18 +662,18 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | 位置 | 內容 | 漏改的後果 |
 |------|------|------------|
 | `Components/App.razor:13` | `@Assets["MyProject.Web.styles.css"]` | ⚠️ **最危險**：Blazor scoped CSS 套件名取自組件名。漏改會讓**全站 scoped CSS 完全不載入**，畫面嚴重跑版，但**不會有任何錯誤訊息** |
-| `MyProject.Web.csproj:30` | `<InternalsVisibleTo Include="MyProject.Tests" />` | 慣例守門測試無法編譯（會報錯，容易發現） |
-| `Program.cs:47` | `typeof(Program).Namespace ?? nameof(MyProject.Web)` | 決定 NLog 目錄與檔名前綴。漏改會讓日誌寫到舊名目錄，系統內的「日誌檢視」頁讀不到任何資料 |
-| `Program.cs:97` | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
-| `Extensions/ApplicationBuilderExtensions.cs:28` | `SwaggerEndpoint(..., "MyProject API v1")` | 同上 |
+| `MyProject.Web.csproj` | `<InternalsVisibleTo Include="MyProject.Tests" />` | 慣例守門測試無法編譯（會報錯，容易發現） |
+| `Program.cs`（NLog 設定區段） | `typeof(Program).Namespace ?? nameof(MyProject.Web)` | 決定 NLog 目錄與檔名前綴。漏改會讓日誌寫到舊名目錄，系統內的「日誌檢視」頁讀不到任何資料 |
+| `Program.cs`（`AddSwaggerGen`） | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
+| `Extensions/ApplicationBuilderExtensions.cs` | `SwaggerEndpoint(..., "MyProject API v1")` | 同上 |
 | `Program.cs`（`AddCookie(MagicObjectHelper.CookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.Auth"` | 登入 Cookie 名稱殘留舊名。Cookie 不分連接埠，同一主機名稱部署多個系統時會**互相覆蓋、互相登出**（`ApiIntegrationTests.AuthCookieName_ShouldBeProjectSpecific` 會紅） |
 | `Program.cs`（`AddCookie(MagicObjectHelper.ExternalCookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
 | 🔴 `Share/Helpers/MagicObjectHelper.cs` | `DataProtectionApplicationName = "MyProject"` | **改了會讓全站既有登入 Cookie 立刻失效**（連同記住我）。這是 Data Protection 金鑰環的用途判別子。⚠️ 與上面那些不同，這一條**建議不要跟著改**；真要改請安排在可接受全體重新登入的時機 |
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
-| `Components/Views/Analytics/LogViewerView.razor.cs:151` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
+| `Components/Views/Analytics/LogViewerView.razor.cs` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |
 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` | 二進位圖檔，全域文字取代**完全不會處理** | 新系統掛著舊產品的圖示與品牌圖片。作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
-| `MyProject.Tests/*.cs` | 多支守門測試以字串或路徑比對專案名：`LoggingConventionTests`、`ButtonIconConventionTests`、`MenuIconTests`、`MenuPermissionConsistencyTests`、`LogLevelRuntimeStateTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`TotpServiceTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§9](#9-更名後驗證清單) 一定要跑 `dotnet test` |
+| `MyProject.Tests/*.cs` | 數十支測試以字串或路徑比對專案名，例如 `LoggingConventionTests`、`ButtonIconConventionTests`、`MenuPermissionConsistencyTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`PageHelpCatalogTests`、`StartupSafetyConventionTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§9](#9-更名後驗證清單) 一定要跑 `dotnet test` |
 | `.vscode/launch.json`、`tasks.json`、`settings.json` | `src/MyProject/...` 路徑與 `MyProject.Web.dll` | F5 啟動失敗、任務找不到方案檔 |
 
 ### 8.4 不需要改的東西
@@ -673,7 +683,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | 項目 | 為什麼不用改 |
 |------|--------------|
 | `BackendDBContext` 類別名 | 本來就沒有品牌字，只是 DbContext 的名字 |
-| `Migrations/` 的檔名（`*_InitialCreate.cs` 等） | 檔名是 EF 的時間戳記慣例，與專案名無關 |
+| `Migrations/` 的檔名（腳手架是 `20260316083639_init.cs` 起的一串；腳本重建後是 `<時間戳記>_Init.cs`） | 檔名是 EF 的時間戳記慣例，與專案名無關 |
 | `launchSettings.json` 的 `http` / `https` profile 名稱 | 兩個 profile 名都是通用字，不含品牌 |
 | `Directory.Build.props` / `Directory.Packages.props` / `global.json` / `.editorconfig` / `.gitignore` | 經確認**都不含** `MyProject` 字串 |
 | `Datas/Menu.json` | 選單定義檔不含專案名 |
@@ -683,13 +693,13 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 
 ## 9. 更名後驗證清單
 
-四道關卡（與 CI `.github/workflows/dotnet-ci.yml` 完全一致），全部在 repo 根目錄執行：
+四道本機檢查，全部在 repo 根目錄執行。本專案**沒有 CI**（`.github/workflows/dotnet-ci.yml` 已於 2026-09-20 移除），所以每次提交前都要自己跑；要自行建立 CI 可參考 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)：
 
 ```powershell
 # 1. 建置（TreatWarningsAsErrors，任何警告都會失敗）
 dotnet build src/Acme.Erp/Acme.Erp.slnx -v:minimal --no-incremental
 
-# 2. 格式（CI 會以 --verify-no-changes 檢查）
+# 2. 格式（有任何差異即失敗）
 dotnet format src/Acme.Erp/Acme.Erp.slnx --verify-no-changes
 
 # 3. 測試（守門測試會抓出漏改的專案名）
@@ -705,7 +715,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 - [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
-- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile}` 已正確產生
+- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,Keys}` 已正確產生
 - [ ] `C:\temp\Logs\Acme.Erp.Web\` 有新日誌檔產生，且系統內的「日誌檢視」頁讀得到
 - [ ] 全文搜尋（排除 `bin`/`obj`）已無任何 `MyProject` 殘留
 - [ ] `git grep -i "DevelopmentOnly-ChangeThis"` 無殘留，或已改用 User Secrets
@@ -717,18 +727,19 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 | 症狀 | 原因 | 解法 |
 |------|------|------|
-| 瀏覽器連不上或無限重導 | 用了 `http` profile，但 `Program.cs:389` 無條件做 HTTPS 重導 | 改用 `https` profile（`.vscode/launch.json` 已預設） |
+| 日誌出現 `Failed to determine the https port for redirect.` | 用了 `http` profile，`UseHttpsRedirection` 找不到 HTTPS 埠（不影響使用，不會重導） | 改用 `https` profile（`.vscode/launch.json` 已預設），或忽略這筆警告 |
 | 瀏覽器顯示憑證不受信任 | 尚未信任本機開發憑證 | `dotnet dev-certs https --trust` |
 | `Address already in use` / 埠被占用 | `launchSettings.json` 的 `applicationUrl` 所用連接埠被其他程式占用 | 改 `launchSettings.json` 的 `applicationUrl`，或 `Get-NetTCPConnection -LocalPort <埠號>` 找出占用者 |
 | **畫面完全沒有樣式** | `App.razor:13` 的 `MyProject.Web.styles.css` 沒跟著改名 | 改成 `<新代號>.Web.styles.css` |
 | User Secrets 設了卻沒生效 | ①`ASPNETCORE_ENVIRONMENT` 不是 `Development` ②`UserSecretsId` 與實際目錄不符 ③改了 csproj 沒重建 | 逐項確認；`dotnet user-secrets list` 應讀得到值 |
 | `dotnet user-secrets` 說找不到專案 | 不在 csproj 目錄下 | `cd src/.../*.Web`，或加 `--project <csproj 路徑>` |
 | 建置因為一個小警告就失敗 | `Directory.Build.props` 的 `TreatWarningsAsErrors` | 修掉警告，別 disable。這是刻意的品質關卡 |
-| CI 的 `dotnet format` 步驟失敗 | 格式不符 `.editorconfig` | 先跑一次不帶 `--verify-no-changes` 的 `dotnet format` 讓它自動修 |
-| CI 掛在 `Test-DocsEncoding` | 某個 `docs/**/*.md` 缺 BOM 或含 U+FFFD 亂碼 | 以 UTF-8 **含 BOM** 重存。用 PowerShell 寫檔時必須 `-Encoding utf8BOM`，**`-Encoding utf8` 在 pwsh 7 不含 BOM** |
+| `dotnet format --verify-no-changes` 失敗 | 格式不符 `.editorconfig` | 先跑一次不帶 `--verify-no-changes` 的 `dotnet format` 讓它自動修 |
+| `Test-DocsEncoding.ps1` 失敗 | 某個 `docs/**/*.md` 缺 BOM 或含 U+FFFD 亂碼 | 以 UTF-8 **含 BOM** 重存。用 PowerShell 寫檔時必須 `-Encoding utf8BOM`，**`-Encoding utf8` 在 pwsh 7 不含 BOM** |
 | `Test-DocsEncoding.ps1` 說找不到 docs | 不是在 repo 根目錄執行 | `-DocsPath` 預設相對於工作目錄，請 `cd` 到根目錄 |
 | EF 說有尚未套用的模型變更 | Migration 的 `.Designer.cs` / snapshot 內的 `MyProject.AccessDatas.Models.*` 字串沒換 | 對 `Migrations/` 目錄再做一次全域取代 |
-| 登入失敗，或密碼自己變回舊值 | `Program.cs:337-345` 的密碼救援覆寫行為 | 見 [§6.4](#64-預設管理者帳號)。要改密碼請同步改 `BootstrapSettings:SupportPassword` |
+| 登入失敗，或密碼自己變回舊值 | `Program.cs` support 帳號 seed 區段的密碼救援覆寫行為 | 見 [§6.4](#64-預設管理者帳號)。要改密碼請同步改 `BootstrapSettings:SupportPassword` |
+| 部署到 IIS 後啟動即中止，本機卻正常 | IIS 沒設 `ASPNETCORE_ENVIRONMENT` 時預設是 Production，會跑 `StartupSafetyValidator`；開發機是 Development，不做這項檢查 | 看 Windows 事件檢視器的「Production 啟動安全檢查失敗」訊息，逐項補齊；見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md) |
 | 資料庫檔刪不掉 | 程式還在執行，SQLite 檔案被鎖 | 先停掉程式（VS Code 按 `Shift+F5`）再刪 |
 | C# Dev Kit 找不到方案 | 工作區開錯層級 | 用 `File > Open Folder` 開 **repo 根目錄**；`.vscode/settings.json` 的 `dotnet.defaultSolution` 已指定方案檔 |
 
@@ -739,14 +750,16 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | 文件 | 內容 |
 |------|------|
 | [開發慣例與限制速查](../architecture/開發慣例與限制速查.md) | **改程式前必讀**：分層、Migration、權限同步等不變量 |
+| [腳手架總覽與複刻上手](../features/腳手架總覽與複刻上手.md) | 給新手的白話導覽：內建功能、AI 協作提示詞、複刻流程 |
 | [腳手架新專案啟動流程](腳手架新專案啟動流程.md) | 改名與 API/DTO 待辦的勾選式檢查清單 |
 | [日誌與設定檔說明](../operations/日誌與設定檔說明.md) | `appsettings.json` 每個區段的完整說明 |
 | [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md) | 上線前必須處理的機密、帳號與 Swagger 設定 |
+| [Gmail 寄信設定指南](../operations/Gmail寄信設定指南.md) | 用 Gmail 帳號寄信（忘記密碼、例外告警）的逐步設定 |
 | [密碼種類與儲存機制](../security/密碼種類與儲存機制.md) | 各種密碼與金鑰分別存在哪、怎麼雜湊 |
 | [Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md) | Google SSO 憑證申請與設定 |
 | [EFCore 指令備忘](EFCore.md) | Migration 指令範本 |
 | [測試指南](測試指南.md) | 測試分類、本機執行與覆蓋率 |
-| [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md) | CI 流程與四個品質關卡設定檔 |
+| [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md) | 參考設計：本專案目前沒有 CI，要自行建立時的步驟與弱點掃描允許清單 |
 | [維護規範](../operations/維護規範.md) | 版本號、文件同步與 commit 前的檢查 |
 | [建立一個新 CRUD 操作網頁說明](建立一個新%20CRUD%20操作網頁說明.md) | 新專案開好後，怎麼加第一個功能模組 |
 

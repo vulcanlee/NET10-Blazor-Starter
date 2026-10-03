@@ -1,10 +1,10 @@
 ﻿# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.32
+- 現行系統版本：0.9.87
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/09/19
+- 最後核對日期：2026/10/03
 
 > 目標：完整複刻 `RoleViewView` 的「新增、查詢、更新、刪除、過濾、排序、分頁、驗證、通知」行為，並保留同等結構（Page + View + Service + AdapterModel + Entity + 註冊 + 樣式）。
 
@@ -47,6 +47,7 @@
    - 參照既有流程：方法開頭 `await using var context = await contextFactory.CreateDbContextAsync();` → 寫入 → `SaveChangesAsync()`。
      （0.4.36 起改用 `IDbContextFactory`，不再需要手動清除 EF 追蹤。）
    - 全部包裝 `try/catch`，失敗時 `Logger.LogError` 並回傳 `VerifyRecordResult`。
+   - 成功後寫一筆稽核（`RoleViewService` 寫 `AuditActions.Role.Create／Update／Delete`），代碼引用 `AuditActions` 常數，見第 4 章步驟 12。
 
 4. **BeforeXxxCheckAsync**（新增/修改/刪除前檢查）
    - 新增重複檢查。
@@ -107,7 +108,7 @@
    > 圖示名稱須為 **classic Material Icons**（非 Material Symbols），否則會渲染成破圖方塊。完整慣例見 `docs/architecture/開發慣例與限制速查.md` §6.1。
 
 3. **Modal + EditForm**
-   ⚠️ 這一段有守門測試，照舊寫法做會讓 CI 紅掉：
+   ⚠️ 這一段有守門測試，照舊寫法做會讓 `dotnet test` 紅掉：
    - `<Modal>` 上**必須**有 `Class="form-modal"`、`MaskClosable="false"`、`Keyboard="true"`、`OnCancel`，
      且**不可**使用 `Width` 參數 —— 尺寸的唯一來源是 `Components/Commons/OverlayStyles.razor`。
      由 `MyProject.Tests/FormModalConventionTests.cs` 守門（六項）。
@@ -164,31 +165,55 @@
 ## 4. 手動開發步驟（建議順序）
 
 > 💡 **先跑產生器**：`./scripts/New-CrudModule.ps1 -Name Xxx -DisplayName 顯示名稱`
-> 會產出 13 個符合現行慣例、可直接編譯的檔案（含 `ToolbarIconButton` / `CrudActionButton` /
-> `TableSortHelper` / `ViewNotification`）。本章是需要手動微調時的對照說明 ——
+> 會在 `output/crud-modules/Xxx/` 產出 14 個檔案：Entity、三個 DTO、AdapterModel、Repository、Service、
+> Controller、Page、View（`.razor`／`.razor.cs`）、Service 測試、頁面操作說明初稿（0.9.66 起，
+> `Web/Datas/Help/<路由>.md`）與整合步驟 `README.md`。程式碼符合現行慣例、可直接編譯（含 `ToolbarIconButton` /
+> `CrudActionButton` / `TableSortHelper` / `ViewNotification`），搬進方案後依 README 完成註冊。
+> 本章是需要手動微調時的對照說明 ——
 > **不要用複製既有檢視的方式建立新模組**，0.4.27 的 emoji 回歸就是這樣來的。
 
 
-1. 建立 `Entity`（AccessDatas/Models）。
+1. 建立 `Entity`（AccessDatas/Models），在 `BackendDBContext` 加入 `DbSet`，並**產生 SQLite migration**
+   （`dotnet ef migrations add AddXxx --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web`，
+   見 [EFCore.md](EFCore.md)）。
 2. 建立 `AdapterModel`（Models/AdapterModel）+ DataAnnotations。
 3. 在 `AutoMapping` 加入雙向映射。
 4. 建立 `YourEntityService`（Business/Services/DataAccess）並完成 CRUD + 查詢排序過濾分頁。
 5. 在 `Extensions/ServiceCollectionExtensions.cs` 的 `AddApplicationServices` 註冊
-   `AddScoped<YourEntityService>()`（DbContext 本身走 `AddDbContextFactory`，不要另外註冊）。
+   `AddScoped<YourEntityService>()`（有 Web API 時另加 `AddScoped<YourEntityRepository>()`；
+   DbContext 本身走 `AddDbContextFactory`，不要另外註冊）。
 6. 建立 `YourEntityView.razor`（照 RoleViewView 版型）。
 7. 建立 `YourEntityView.razor.cs`（照 RoleViewView 的狀態與事件流程）。
 8. 建立 `YourEntityView.razor.css` —— **只放版面（flex／寬度），不要放顏色**。
-   表格、分頁、輸入框、按鈕的視覺由全域的 `wwwroot/theme.css` 統一提供，十張表共用一份；
-   在檢視的 `.razor.css` 裡寫 `.ant-*` 只會對你正在改的那一頁生效，然後被複製到其他九頁。
+   表格、分頁、輸入框、按鈕的視覺由全域的 `wwwroot/theme.css` 統一提供，全站表格共用一份；
+   在檢視的 `.razor.css` 裡寫 `.ant-*` 只會對你正在改的那一頁生效，然後被複製到其他頁。
    狀態欄請用共用元件 `<StatusPill Text Tone />`，不要自己寫徽章樣式。
    判準與陷阱見 [介面視覺設計規範](../architecture/介面視覺設計規範.md) 與速查表 §6.9。
 9. 建立 `YourEntityPage.razor` 與 `@page` 路由。
 10. **註冊權限鍵與選單（四處必須同步）**：`MagicObjectHelper` 權限鍵常數、`Datas/Menu.json`
     （唯一 `id`）、`SidebarMenuService.MenuPermissionMap`（id→權限鍵）、頁面自己的
     `CheckAccessPage(同一個葉節點鍵)`；並到 `MyProject.Tests/MenuPermissionConsistencyTests.cs`
-    的 `ViewToMenuId` 登錄。少做任一處，CI 會被該測試擋下。細節見
+    的 `ViewToMenuId` 登錄。少做任一處，`dotnet test` 會被該測試擋下。另外別忘了把權限鍵放進
+    `RolePermissionService.GetRoleListPermissionAllName()` 的群組（管理員專屬頁則改登錄
+    `AdminOnlyPermissionTests`），選單圖示要加入 `MenuIconTests.AllowedIcons`。細節見
     [開發慣例與限制速查](../architecture/開發慣例與限制速查.md) §5。
-11. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示）。
+11. **登記頁面操作說明**（0.9.66 起，每個登入後頁面都要有）：在 `MyProject.Web/Datas/HelpTopics.json`
+    加入 `{ "route": "/xxx", "title": "顯示名稱", "file": "xxx.md" }`，並把說明寫在
+    `MyProject.Web/Datas/Help/<路由>.md`（檔名＝路由去頭尾斜線、斜線換 `-`、轉小寫；**UTF-8 含 BOM**）。
+    內容固定七段（`## 一、功能摘要`…`## 七、常見問題`）加前言的「一分鐘看懂這一頁」，`title` 與說明檔
+    `# 頁名` 都要等於 `Menu.json` 的 `name`。產生器的初稿已符合結構，請依實際欄位修潤第三段
+    「畫面上有哪些按鈕、各自做什麼」。確實不需要說明的頁面，改列入 `PageHelpCatalogTests.RoutesWithoutHelp` 並附理由。
+    漏登記或格式不符，`PageHelpCatalogTests` 會擋。規則全文見
+    [開發慣例與限制速查](../architecture/開發慣例與限制速查.md) §6.14。
+12. **寫稽核**（建議比照既有模組；藍本 `RoleViewService` 本來就有，0.9.78 起分類、團隊、專案的增刪改也都有記）：Blazor 路徑在 Service 成功寫入後呼叫
+    `IAuditLogService.WriteAsync`（操作者取自 `CurrentUserService`，見 `CategoryService.WriteAuditAsync`）；
+    API 路徑在 Controller 呼叫 `this.WriteAuditAsync(...)`。動作代碼一律先加到
+    `MyProject.Business/Helpers/AuditActions.cs` 再引用常數，**不可寫字串字面值**（`AuditConventionTests` 守門）。
+    ⚠️ 產生器目前**不會**產生稽核呼叫，需要時自行補上。
+13. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示），再跑提交前的四道關卡：
+    `dotnet build src/MyProject/MyProject.slnx -v:minimal`（0 warning）、`dotnet test src/MyProject/MyProject.slnx`、
+    `dotnet format src/MyProject/MyProject.slnx --verify-no-changes`、`pwsh ./scripts/Test-DocsEncoding.ps1`
+    （本 repo 沒有 CI，見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)）。
 
 ---
 
@@ -264,6 +289,7 @@
    - Select／DatePicker 展開時按 Esc 只收合該面板；面板都收合時 Esc 才關閉對話窗。
    - 存檔只能按「確定」按鈕，驗證訊息正常顯示。
 9. 例外路徑：服務拋錯時有錯誤紀錄與使用者可理解訊息。
+10. 操作說明：頂欄頁名旁的說明圖示鈕能開啟本頁說明，第三段的按鈕與欄位與實際畫面一致。
 
 ---
 

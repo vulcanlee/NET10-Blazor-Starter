@@ -1,10 +1,10 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.4.42
+- 現行系統版本：0.9.87
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/08/26
+- 最後核對日期：2026/10/03
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
@@ -17,6 +17,11 @@
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
 - Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
+- 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）：呼叫 `this.WriteAuditAsync(AuditActions.Xxx.Create, ...)`
+  （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT／Cookie 身分解析）。
+  動作代碼一律引用 `MyProject.Business/Helpers/AuditActions.cs` 的常數，不可寫字串字面值（`AuditConventionTests` 守門）。
+- 例外：`ProjectFileController`（附件下載）**只收 Cookie 驗證**、路由為 kebab-case 的 `api/project-files`，
+  因為呼叫端是 Blazor 畫面上由瀏覽器直接導覽的連結，帶的是登入 Cookie 而不是 Bearer token。
 
 ## 統一回傳格式
 所有一般 Web API 回應固定使用 `MyProject.Dtos.Commons.ApiResult<T>` 或非泛型 `ApiResult`。
@@ -27,7 +32,11 @@
 - `Message`：使用者可讀訊息。
 - `Data`：成功時的回傳資料。
 - `Errors`：欄位或規則錯誤集合。
-- `TraceId`：請求追蹤識別碼。
+- `TraceId`：**錯誤追蹤碼**（0.9.78 起，LOG-10）。值是 8 碼短碼（例：`7K3QX9MD`），由 `UseHttpRequestLogging`
+  以 `TraceCode.New()` 產生並**取代 `HttpContext.TraceIdentifier`**，因此與日誌檔的 TraceId 欄位、`/Error` 頁、
+  系統例外紀錄的 `LastTraceId` 是同一個碼，管理員可在 `/logs` 以「錯誤追蹤碼」篩選找回同一次請求。
+  目前會填入的路徑：`ApiExceptionFilter`（未處理例外）、`this.ApiServerError(...)`、JWT 的 401／403 事件；
+  一般驗證錯誤（400）、`HasPermission` 的 403、限流的 429 不帶（為 `null`）。
 - `Exception`：例外資訊。Development 或 `Security:ReturnExceptionDetails=true` 時回傳；Production 預設不回傳。
 
 相容欄位：
@@ -46,6 +55,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生） |
 | 404 | 找不到指定資源 |
 | 409 | 資料衝突，例如名稱重複 |
+| 429 | 超過限流配額（`api` 分區；登入端點另有較嚴的配額），Body 同樣是 `ApiResult` |
 | 500 | 未預期例外 |
 
 ## JWT 與 Swagger

@@ -2,7 +2,7 @@
   // 更名專案時，dotnet.defaultSolution 的路徑必須一併更新。
   "dotnet.defaultSolution": "src/MyProject/MyProject.slnx",
 
-  // docs/**/*.md 必須是 UTF-8 含 BOM，CI 以 scripts/Test-DocsEncoding.ps1 強制檢查。
+  // docs/**/*.md 必須是 UTF-8 含 BOM，提交前在本機以 scripts/Test-DocsEncoding.ps1 檢查（專案沒有 CI）。
   "files.encoding": "utf8",
   "[markdown]": {
     "files.encoding": "utf8bom"

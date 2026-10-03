@@ -673,11 +673,13 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     /// 登入 Cookie 名稱必須帶專案名稱。Cookie 不分連接埠，兩個衍生專案若部署在同一主機名稱
     /// 的不同連接埠，又都沿用框架預設名 <c>.AspNetCore.CookieAuthenticationScheme</c>，
     /// 就會互相覆蓋、互相登出。期望值由組件名稱推算，所以 New-StarterProject.ps1 改名後依然有效。
+    /// 專案名稱可以含點（例如 <c>Acme.Erp</c>），所以是去掉結尾的 <c>.Web</c>，不是取第一段。
     /// </summary>
     [Fact]
     public void AuthCookieName_ShouldBeProjectSpecific()
     {
-        var projectName = typeof(Program).Assembly.GetName().Name!.Split('.')[0];
+        var assemblyName = typeof(Program).Assembly.GetName().Name!;
+        var projectName = assemblyName[..^".Web".Length];
         var options = factory.Services
             .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(MagicObjectHelper.CookieScheme);

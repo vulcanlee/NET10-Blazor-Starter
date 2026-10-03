@@ -67,7 +67,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 * 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要把**最後一碼（Patch）加 1**（例：`0.4.0 → 0.4.1`，不進位、不分異動性質），並且在 commit message 中說明版本編號的變更。
 
-* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下 `.md` 須**含 BOM**，CI 以 `scripts/Test-DocsEncoding.ps1` 遞迴強制）
+* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機以 `scripts/Test-DocsEncoding.ps1` 遞迴檢查）
 
 * 需要 commit 的時候，不能自動去做 commit
 
@@ -83,7 +83,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 最關鍵的不變量（違反會改壞功能或留下隱患）：
 - 本系統**只支援 SQLite**；模型變更要在 `MyProject.AccessDatas/Migrations/` 產生 migration（0.4.24 起已移除 SQL Server 軌道）。
-- 分層依賴一律向上：Web → Business → AccessDatas；`Share`/`Models`/`Dtos` 不相依其他專案；UI 不直接 `using BackendDBContext`。
+- 分層依賴一律向上：Web → Business → AccessDatas；`Share` 不相依其他專案，`Models`/`Dtos` 只相依 `Share`；UI 不直接 `using BackendDBContext`。
 - Web API 一律回傳 `ApiResult<T>`，分頁包 `PagedResult<T>`；UI 用 Cookie 驗證、API 用 JWT Bearer。受保護 CRUD 另以 `[HasPermission("resource:action")]` + `IPermissionChecker` 做動作級授權（無權限回 403，維持 `ApiResult`；管理員短路）；UI 與 API 共用此單一 RBAC 權威來源。
 - Blazor 檢視編輯前 `Clone()`。**不再需要手動清除 EF 追蹤** —— 0.4.36 起 Blazor 路徑的資料服務
   改注入 `IDbContextFactory<BackendDBContext>`，每個方法用完即棄，`CleanTrackingHelper` 已移除。

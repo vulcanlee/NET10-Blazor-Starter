@@ -1,5 +1,5 @@
 {
-  // 四個任務對齊 .github/workflows/dotnet-ci.yml 的品質關卡。
+  // build／format-check／test／docs-encoding 四個任務是提交前要在本機跑過的品質關卡（專案沒有 CI）。
   // 更名專案時，本檔的 MyProject 路徑必須一併更新。
   "version": "2.0.0",
   "tasks": [
@@ -29,7 +29,7 @@
     },
     {
       "label": "format-check",
-      "detail": "等同 CI 的 dotnet format --verify-no-changes；失敗時改跑不帶該旗標的 dotnet format 讓它自動修。",
+      "detail": "執行 dotnet format --verify-no-changes；失敗時改跑不帶該旗標的 dotnet format 讓它自動修。",
       "command": "dotnet",
       "type": "process",
       "args": [
