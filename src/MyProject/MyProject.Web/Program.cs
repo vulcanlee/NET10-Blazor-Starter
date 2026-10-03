@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using AntDesign;
@@ -18,6 +19,7 @@ using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
+using MyProject.Web.Configuration.Validation;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Extensions;
 using MyProject.Web.Filters;
@@ -177,8 +179,8 @@ namespace MyProject.Web
                 var googleOAuthSettings = builder.Configuration
                     .GetSection(GoogleOAuthSettings.SectionName)
                     .Get<GoogleOAuthSettings>() ?? new GoogleOAuthSettings();
-                builder.Services.Configure<GoogleOAuthSettings>(
-                    builder.Configuration.GetSection(GoogleOAuthSettings.SectionName));
+                builder.Services.AddValidatedOptions<GoogleOAuthSettings, GoogleOAuthSettingsValidator>(
+                    builder.Configuration, GoogleOAuthSettings.SectionName);
 
                 var authenticationBuilder = builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
                     .AddCookie(MagicObjectHelper.CookieScheme, options =>
@@ -327,6 +329,10 @@ namespace MyProject.Web
                 // 它同時負責訂閱 NLog 的 ConfigurationChanged，在 autoReload 重載後把
                 // BasePath / LogFilenamePrefix 變數補回去，否則日誌會改寫到磁碟根目錄。
                 app.Services.GetRequiredService<LogLevelRuntimeState>().Initialize();
+
+                // 設定驗證提早到資料庫初始化之前（0.9.92 起）：ValidateOnStart 預設要到 app.Run() 才執行，
+                // 那時 migration 與 seed 都已跑完。設定寫錯就不該先動到資料庫。app.Run() 時框架會再驗一次，無害。
+                app.Services.GetRequiredService<IStartupValidator>().Validate();
 
                 #region 資料庫準備與補登例外
                 // 啟動流程中拋出的例外（migration、seed、RBAC 回填）都歸類為「系統啟動」。
