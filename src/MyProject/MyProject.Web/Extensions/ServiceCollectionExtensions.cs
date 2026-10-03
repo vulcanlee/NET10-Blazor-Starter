@@ -18,6 +18,7 @@ using MyProject.Web.Auth;
 using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
+using MyProject.Web.Configuration.Validation;
 using MyProject.Web.Email;
 using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
@@ -100,7 +101,6 @@ public static class ServiceCollectionExtensions
         // 衍生專案的種子資料：實作 IDatabaseSeeder 並在這裡註冊成 Scoped（Order 不可重複）。
         services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
         services.AddOptions<DatabaseInitializerOptions>();
-        services.AddOptions<BootstrapSettings>().BindConfiguration(nameof(BootstrapSettings));
         services.AddScoped<IDatabaseSeeder, DefaultRoleViewSeeder>();
         services.AddScoped<IDatabaseSeeder, SupportUserSeeder>();
         services.AddScoped<IDatabaseSeeder, RbacBackfillSeeder>();
@@ -201,14 +201,21 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddConfiguredOptions(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<SystemSettings>(configuration.GetSection(nameof(SystemSettings)));
-        services.Configure<SecuritySettings>(configuration.GetSection(SecuritySettings.SectionName));
-        services.Configure<CorsSettings>(configuration.GetSection(CorsSettings.SectionName));
-        services.Configure<SwaggerSettings>(configuration.GetSection(SwaggerSettings.SectionName));
-        services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SectionName));
-        services.Configure<RateLimitSettings>(configuration.GetSection(RateLimitSettings.SectionName));
-        services.Configure<AiSettings>(configuration.GetSection(AiSettings.SectionName));
-        services.Configure<AiPricingSettings>(configuration.GetSection(AiPricingSettings.SectionName));
+        // 0.9.92 起每個從設定檔綁定的類別都在啟動時驗證（不再有單純的 Configure<T>）：
+        // 設定矛盾、拼錯、格式錯誤一律拒絕啟動，而不是帶著錯的值跑、等使用者操作時才失敗或靜默失效。
+        // 規則在 Configuration/Validation/ 各類別的 IValidateOptions；Program.cs 會在資料庫初始化之前就執行驗證。
+        // 沒有欄位規則的類別（Security、Swagger）也要 ValidateOnStart：型別錯誤（bool 填了 "yes"）才會在啟動時就失敗。
+        services.AddValidatedOptions<SystemSettings, SystemSettingsValidator>(configuration, nameof(SystemSettings));
+        services.AddValidatedOptions<BootstrapSettings, BootstrapSettingsValidator>(configuration, nameof(BootstrapSettings));
+        services.AddValidatedOptions<CorsSettings, CorsSettingsValidator>(configuration, CorsSettings.SectionName);
+        services.AddValidatedOptions<CacheSettings, CacheSettingsValidator>(configuration, CacheSettings.SectionName);
+        services.AddValidatedOptions<RateLimitSettings, RateLimitSettingsValidator>(configuration, RateLimitSettings.SectionName);
+        services.AddValidatedOptions<AiSettings, AiSettingsValidator>(configuration, AiSettings.SectionName);
+        services.AddValidatedOptions<AiPricingSettings, AiPricingSettingsValidator>(configuration, AiPricingSettings.SectionName);
+        services.AddValidatedOptions<ForwardedHeadersSettings, ForwardedHeadersSettingsValidator>(configuration, ForwardedHeadersSettings.SectionName);
+        services.AddOptions<SecuritySettings>().Bind(configuration.GetSection(SecuritySettings.SectionName)).ValidateOnStart();
+        services.AddOptions<SwaggerSettings>().Bind(configuration.GetSection(SwaggerSettings.SectionName)).ValidateOnStart();
+
         // 保留天數寫壞（0 或超過 3650）就啟動失敗，不要讓自動過期悄悄用錯的門檻刪資料。
         services.AddOptions<SlowOperationSettings>()
             .Bind(configuration.GetSection(SlowOperationSettings.SectionName))
@@ -230,6 +237,16 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        return services;
+    }
+
+    /// <summary>綁定設定區段、在啟動時驗證，並註冊該類別的驗證器。</summary>
+    public static IServiceCollection AddValidatedOptions<TOptions, TValidator>(this IServiceCollection services, IConfiguration configuration, string sectionName)
+        where TOptions : class
+        where TValidator : class, IValidateOptions<TOptions>
+    {
+        services.AddOptions<TOptions>().Bind(configuration.GetSection(sectionName)).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<TOptions>, TValidator>();
         return services;
     }
 
@@ -351,12 +368,18 @@ public static class ServiceCollectionExtensions
             .Validate(s => s.TryGetProvider(out _), "EmailSettings:Provider 只接受 None、Pickup 或 Smtp。")
             .Validate(s => s.TryGetSecurity(out _), "EmailSettings:Security 只接受 Auto、None、StartTls 或 SslOnConnect。")
             .Validate(s => s.HasRequiredSmtpFields(), "EmailSettings 使用 Smtp 時，Host 不可留空、FromAddress 必須是有效的 Email。")
+            .Validate(
+                s => string.IsNullOrWhiteSpace(s.PublicBaseUrl) || OptionsErrors.IsHttpUrl(s.PublicBaseUrl),
+                "EmailSettings:PublicBaseUrl 有填時必須是以 http:// 或 https:// 開頭的完整網址（信件裡的連結以它為開頭）。")
             .ValidateOnStart();
 
         // 例外告警（0.9.78 起，LOG-12）。收件人為空即停用；實際寄出仍要 Provider 不是 None。
         services.AddOptions<ExceptionAlertSettings>()
             .Bind(configuration.GetSection(ExceptionAlertSettings.SectionName))
             .ValidateDataAnnotations()
+            .Validate(
+                s => s.Recipients.Where(x => !string.IsNullOrWhiteSpace(x)).All(x => System.Net.Mail.MailAddress.TryCreate(x.Trim(), out _)),
+                "ExceptionAlertSettings:Recipients 每一項都必須是有效的 Email（寫錯的收件人要到寄告警信時才會失敗，而且只留在日誌裡）。")
             .ValidateOnStart();
 
         // 忘記密碼的時效（0.9.60 起）。類別在 Models（Business 要讀），驗證跟著寄信一起註冊。
