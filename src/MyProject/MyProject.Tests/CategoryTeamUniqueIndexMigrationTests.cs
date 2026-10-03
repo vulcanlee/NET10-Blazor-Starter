@@ -9,7 +9,7 @@ namespace MyProject.Tests;
 /// <summary>
 /// AddCategoryTeamNameUniqueIndex migration 的資料清理。
 ///
-/// 這是整個唯一性補強中最危險的一段：Program.cs 啟動時無條件呼叫 Database.Migrate()，
+/// 這是整個唯一性補強中最危險的一段：每次啟動都會自動套用 migration（0.9.91 起由 DatabaseInitializer 執行），
 /// 只要既有資料庫裡有一筆重複名稱，索引就建不起來、migration 回滾、
 /// __EFMigrationsHistory 不會寫入 —— 每次重啟都再失敗一次，服務永遠起不來。
 ///

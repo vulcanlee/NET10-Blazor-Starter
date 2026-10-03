@@ -17,7 +17,7 @@ namespace MyProject.AccessDatas.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // ⚠️ 建立唯一索引之前必須先清理既有資料。
-            // Program.cs 啟動時無條件呼叫 Database.Migrate()，只要資料表裡有一筆重複，
+            // 每次啟動都會自動套用 migration（0.9.91 起由 Business/Startup 的 DatabaseInitializer 執行），只要資料表裡有一筆重複，
             // 索引就建不起來、migration 回滾、__EFMigrationsHistory 不會寫入 ——
             // 結果是每次啟動都重試、每次都失敗，服務永遠起不來。
 

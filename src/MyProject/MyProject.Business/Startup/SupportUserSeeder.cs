@@ -1,0 +1,82 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using MyProject.AccessDatas;
+using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
+using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
+
+namespace MyProject.Business.Startup;
+
+/// <summary>
+/// 內建管理員帳號（<c>BootstrapSettings</c>，預設 support）。行為與 0.9.90 之前 Program.cs 的寫法完全相同：
+/// <list type="bullet">
+/// <item>不存在 → 建立為管理員，密碼取自設定。</item>
+/// <item>已存在 → 密碼與設定不符（或仍是舊雜湊格式）就重設為設定值；強制 <c>IsAdmin = true</c>、角色指回預設角色。
+/// 姓名、Email、啟用狀態、鎖定狀態不動。</item>
+/// </list>
+/// Production 不允許空白或範本預設密碼，由 Web 的 <c>StartupSafetyValidator</c> 在更早的階段擋下。
+/// </summary>
+public sealed class SupportUserSeeder : IDatabaseSeeder
+{
+    private readonly BackendDBContext dbContext;
+    private readonly BootstrapSettings bootstrapSettings;
+    private readonly ILogger<SupportUserSeeder> logger;
+
+    public SupportUserSeeder(
+        BackendDBContext dbContext,
+        IOptions<BootstrapSettings> bootstrapSettings,
+        ILogger<SupportUserSeeder> logger)
+    {
+        this.dbContext = dbContext;
+        this.bootstrapSettings = bootstrapSettings.Value;
+        this.logger = logger;
+    }
+
+    public int Order => 20;
+
+    public string Name => "support 帳號";
+
+    public async Task SeedAsync(CancellationToken cancellationToken)
+    {
+        // 以名稱重新查詢，不依賴前一個 seeder 留下的實體（初始化器會在 seeder 之間清空追蹤狀態）。
+        var defaultRole = await dbContext.RoleView
+            .FirstOrDefaultAsync(x => x.Name == MagicObjectHelper.預設角色, cancellationToken)
+            ?? throw new InvalidOperationException($"找不到「{MagicObjectHelper.預設角色}」，support 帳號無法指定角色；DefaultRoleViewSeeder 應先執行。");
+
+        var support = await dbContext.MyUser
+            .FirstOrDefaultAsync(x => x.Account == bootstrapSettings.SupportAccount, cancellationToken);
+
+        if (support is null)
+        {
+            support = new MyUser
+            {
+                Account = bootstrapSettings.SupportAccount,
+                Name = bootstrapSettings.SupportName,
+                Email = bootstrapSettings.SupportEmail,
+                IsAdmin = true,
+                Salt = Guid.NewGuid().ToString(),
+                Status = true,
+                RoleViewId = defaultRole.Id,
+                Password = SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword),
+            };
+
+            dbContext.MyUser.Add(support);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Seeded default support user.");
+            return;
+        }
+
+        if (SecurePasswordHasher.VerifyPassword(bootstrapSettings.SupportPassword, support.Password, support.Salt)
+            != PasswordVerificationOutcome.Success)
+        {
+            support.Password = SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword);
+        }
+
+        support.IsAdmin = true;
+        support.RoleViewId = defaultRole.Id;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        logger.LogDebug("Updated existing support user seed data.");
+    }
+}
