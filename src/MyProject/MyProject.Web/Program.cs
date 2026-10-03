@@ -68,10 +68,14 @@ namespace MyProject.Web
                     NLog.Common.InternalLogger.LogFile = Path.Combine(nlogBasePath, $"{baseNamespace}-nlog-internal.log");
 
                     // 設置變量到當前配置
-                    if (LogManager.Configuration is not null)
+                    // ⚠️ 先存進區域變數、只讀一次：同一行程內前一個 host 的 finally 會在背景執行緒呼叫
+                    // LogManager.Shutdown() 把設定清成 null（整合測試連續啟動多個 host 時），
+                    // 「檢查不是 null 之後再讀一次」會在兩次讀取之間被清空而丟 NullReferenceException（0.9.90 修正）。
+                    var nlogConfiguration = LogManager.Configuration;
+                    if (nlogConfiguration is not null)
                     {
-                        LogManager.Configuration.Variables["BasePath"] = nlogBasePath;
-                        LogManager.Configuration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
+                        nlogConfiguration.Variables["BasePath"] = nlogBasePath;
+                        nlogConfiguration.Variables["LogFilenamePrefix"] = $"{baseNamespace}-logfile";
                     }
                 }
 
