@@ -93,7 +93,26 @@ public sealed class CategoryTeamUniqueIndexMigrationTests
             Assert.True(await IndexExistsAsync(context, "IX_Category_Name"));
             Assert.True(await IndexExistsAsync(context, "IX_Team_Name"));
             Assert.True(await IndexExistsAsync(context, "IX_Team_Code"));
+
+            // 0.9.94 起為部分唯一索引（AddSoftDelete）：只約束未刪除的資料，已刪除的名稱可以重新建立。
+            foreach (var indexName in new[] { "IX_Category_Name", "IX_Team_Name", "IX_Team_Code" })
+            {
+                Assert.Contains("WHERE", await IndexSqlAsync(context, indexName), StringComparison.OrdinalIgnoreCase);
+            }
         }
+    }
+
+    private static async Task<string> IndexSqlAsync(BackendDBContext context, string indexName)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = $name;";
+
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$name";
+        parameter.Value = indexName;
+        command.Parameters.Add(parameter);
+
+        return Convert.ToString(await command.ExecuteScalarAsync()) ?? string.Empty;
     }
 
     private static async Task<bool> IndexExistsAsync(BackendDBContext context, string indexName)

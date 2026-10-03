@@ -204,7 +204,15 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            await roleViewService.DeleteAsync(roleViewAdapterModel.Id);
+            var result = await roleViewService.DeleteAsync(roleViewAdapterModel.Id);
+            if (!result.Success)
+            {
+                // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」（例如角色仍是某些使用者的主要角色時根本刪不掉）。
+                logger.LogInformation("Role view delete rejected. RoleViewId={RoleViewId}, Message={Message}", roleViewAdapterModel.Id, result.Message);
+                ViewNotification.Error(notificationService, result.Message);
+                return;
+            }
+
             logger.LogInformation("Role view delete completed. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
 
             ViewNotification.Warning(notificationService, "刪除成功");

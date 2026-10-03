@@ -257,8 +257,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     // 樂觀並行（0.9.93 起）：PUT 必須帶 GET 取得的版本號；沒帶 400、別人先改過 409。
-    // 建立時一律帶 Id = 0：三個 POST 目前會直接採用客戶端傳來的 Id（既有缺陷，見 0.9.93 changelog），
-    // 帶 1 會與同一個測試主機裡其他測試建立的資料撞號而回 500。
+    // 建立時帶 Id = 0（新建、由資料庫配號）。0.9.94 起 POST 一律忽略客戶端的 Id，見 TeamCreate_ShouldIgnoreClientSuppliedId。
     [Fact]
     public async Task CategoryPut_ShouldRequireCurrentConcurrencyStamp()
     {
@@ -312,6 +311,40 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
             Owner = "integration-test",
             ConcurrencyStamp = stamp,
         };
+    }
+
+    // 軟刪除（0.9.94 起）：API 的 DELETE 是軟刪除，之後 GET／PUT／DELETE 都回 404（FindAsync 套用軟刪除過濾）。
+    [Fact]
+    public async Task CategoryDelete_ShouldSoftDelete_AndHideTheRecordFromTheApi()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+        var created = (await ReadApiResultAsync<CategoryDto>(await client.PostAsJsonAsync("/api/Category",
+            new CategoryCreateUpdateDto { Id = 0, Name = $"軟刪除分類 {Guid.NewGuid():N}", IsEnabled = true }))).Data!;
+
+        var delete = await client.DeleteAsync($"/api/Category/{created.Id}");
+        Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/Category/{created.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/Category/{created.Id}")).StatusCode);
+        var put = await client.PutAsJsonAsync($"/api/Category/{created.Id}",
+            new CategoryCreateUpdateDto { Id = created.Id, Name = created.Name, IsEnabled = true, ConcurrencyStamp = created.ConcurrencyStamp });
+        Assert.Equal(HttpStatusCode.NotFound, put.StatusCode);
+    }
+
+    // 0.9.93 之前 POST 會直接採用客戶端傳來的 Id，同一個 Id 第二次建立就撞主鍵回 500。
+    [Fact]
+    public async Task TeamCreate_ShouldIgnoreClientSuppliedId()
+    {
+        using var client = factory.CreateClient();
+        await AuthorizeAsync(client);
+
+        var first = await client.PostAsJsonAsync("/api/Team", new TeamCreateUpdateDto { Id = 999, Name = $"指定 Id 團隊 {Guid.NewGuid():N}" });
+        var second = await client.PostAsJsonAsync("/api/Team", new TeamCreateUpdateDto { Id = 999, Name = $"指定 Id 團隊 {Guid.NewGuid():N}" });
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.NotEqual((await ReadApiResultAsync<TeamDto>(first)).Data!.Id, (await ReadApiResultAsync<TeamDto>(second)).Data!.Id);
     }
 
     /// <summary>

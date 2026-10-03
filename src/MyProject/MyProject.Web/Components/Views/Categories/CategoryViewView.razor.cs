@@ -112,7 +112,7 @@ namespace MyProject.Web.Components.Views.Categories
                 _pageIndex,
                 _pageSize);
 
-            DataRequestResult<CategoryAdapterModel> dataRequestResult = await categoryService.GetAsync(new DataRequest
+            var dataRequest = new DataRequest
             {
                 Search = searchText,
                 SortField = sortField,
@@ -120,7 +120,12 @@ namespace MyProject.Web.Components.Views.Categories
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
-            });
+            };
+
+            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.94 起）。
+            DataRequestResult<CategoryAdapterModel> dataRequestResult = showDeleted
+                ? await categoryService.GetDeletedAsync(dataRequest)
+                : await categoryService.GetAsync(dataRequest);
 
             categoryAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
@@ -208,7 +213,7 @@ namespace MyProject.Web.Components.Views.Categories
         {
             logger.LogInformation("Delete category requested. CategoryId={CategoryId}, Name={Name}", categoryAdapterModel.Id, categoryAdapterModel.Name);
 
-            var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
+            var ok = await ConfirmDialog.AskSoftDeleteRecordAsync(modalService);
 
             if (!ok)
             {
@@ -216,12 +221,91 @@ namespace MyProject.Web.Components.Views.Categories
                 return;
             }
 
-            await categoryService.DeleteAsync(categoryAdapterModel.Id);
+            var result = await categoryService.DeleteAsync(categoryAdapterModel.Id);
+            if (!result.Success)
+            {
+                // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」。
+                logger.LogInformation("Category delete rejected. CategoryId={CategoryId}, Message={Message}", categoryAdapterModel.Id, result.Message);
+                ViewNotification.Error(notificationService, result.Message);
+                return;
+            }
+
             logger.LogInformation("Category delete completed. CategoryId={CategoryId}", categoryAdapterModel.Id);
 
             ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
+        }
+
+        bool showDeleted;
+
+        async Task OnToggleDeletedAsync()
+        {
+            showDeleted = !showDeleted;
+            _pageIndex = 1;
+            await ReloadAsync();
+        }
+
+        async Task OnRestoreAsync(CategoryAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "確認還原", $"要還原「{record.Name}」嗎？", "還原");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await categoryService.RestoreAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Category restore rejected. CategoryId={CategoryId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("Category restore completed. CategoryId={CategoryId}", record.Id);
+                ViewNotification.Warning(notificationService, "還原成功");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while restoring category.");
+                ViewNotification.Error(notificationService, "還原分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        async Task OnPurgeAsync(CategoryAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskDestructiveAsync(
+                    modalService,
+                    "永久刪除",
+                    $"永久刪除「{record.Name}」後無法復原。確定要永久刪除嗎？",
+                    "永久刪除");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await categoryService.PurgeAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Category purge rejected. CategoryId={CategoryId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("Category purge completed. CategoryId={CategoryId}", record.Id);
+                ViewNotification.Warning(notificationService, "已永久刪除");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while purging category.");
+                ViewNotification.Error(notificationService, "永久刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
         }
 
         async Task OnAddAsync()

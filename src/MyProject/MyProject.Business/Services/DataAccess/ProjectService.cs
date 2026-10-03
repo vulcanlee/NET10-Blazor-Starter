@@ -293,6 +293,7 @@ public class ProjectService
             // 先載入再複製欄位的寫法：一定要以使用者開窗時的版本號比對，否則永遠偵測不到衝突。
             // 衝突時第一次 SaveChanges 就會失敗，附件的新增與刪除都不會執行。
             ConcurrencyStampHelper.Apply(context.Entry(currentItem), paraObject.ConcurrencyStamp);
+            SoftDeleteHelper.ProtectFlags(context.Entry(currentItem));
             await context.SaveChangesAsync();
 
             var saveFilesResult = await SaveNewFilesAsync(context, currentItem, uploadFiles);
@@ -326,6 +327,10 @@ public class ProjectService
         }
     }
 
+    /// <summary>
+    /// 刪除 = 軟刪除（0.9.94 起）：資料與附件實體檔都保留，可在「顯示已刪除」中還原；
+    /// 附件在永久刪除（<see cref="PurgeAsync"/>）時才刪。軟刪除期間附件無法下載（見 GetFileDownloadAsync）。
+    /// </summary>
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -333,9 +338,7 @@ public class ProjectService
 
         try
         {
-            Project? item = await context.Project
-                .Include(x => x.Files)
-                .FirstOrDefaultAsync(x => x.Id == id);
+            Project? item = await context.Project.FirstOrDefaultAsync(x => x.Id == id);
 
             if (item == null)
             {
@@ -343,22 +346,172 @@ public class ProjectService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的專案資料。");
             }
 
-            foreach (var file in item.Files.ToList())
+            // 0.9.93 之前刪除完全不檢查團隊範圍；畫面上看不到不代表伺服器端不該擋。
+            var scope = await accessScope.GetAsync();
+            if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
             {
-                DeletePhysicalFile(file);
+                Logger.LogWarning("Project deletion denied by team scope. ProjectId={ProjectId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法刪除。");
             }
 
-            context.Project.Remove(item);
+            SoftDeleteHelper.MarkDeleted(item, currentUserService.CurrentUser.Id > 0 ? currentUserService.CurrentUser.Account : null);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Project deleted successfully. ProjectId={ProjectId}, Title={Title}", id, item.Title);
-            await WriteAuditAsync(AuditActions.Project.Delete, id, $"title={item.Title}; files={item.Files.Count}");
+            await WriteAuditAsync(AuditActions.Project.Delete, id, $"title={item.Title}");
             return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Project deletion rejected by concurrency conflict. ProjectId={ProjectId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete project. ProjectId={ProjectId}", id);
             return VerifyRecordResultFactory.Build(false, "刪除專案失敗。", ex);
+        }
+    }
+
+    /// <summary>已刪除的專案（「顯示已刪除」清單）。沿用搜尋與團隊範圍，固定依刪除時間由新到舊。</summary>
+    public async Task<DataRequestResult<ProjectAdapterModel>> GetDeletedAsync(DataRequest dataRequest)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        IQueryable<Project> dataSource = context.Project
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .AsNoTracking()
+            .Where(x => x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(dataRequest.Search))
+        {
+            var search = dataRequest.Search.Trim();
+            dataSource = dataSource.Where(x =>
+                x.Title.Contains(search) ||
+                (x.Description ?? string.Empty).Contains(search) ||
+                x.Owner.Contains(search));
+        }
+
+        var scope = await accessScope.GetAsync();
+        if (!scope.IsAdmin)
+        {
+            dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<Project>(x => x.Teams, scope.Teams));
+        }
+
+        dataSource = dataSource.OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id);
+
+        var result = new DataRequestResult<ProjectAdapterModel> { Count = await dataSource.CountAsync() };
+        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
+        if (dataRequest.Take != 0)
+        {
+            dataSource = dataSource.Take(dataRequest.PageSize);
+        }
+
+        result.Result = Mapper.Map<List<ProjectAdapterModel>>(await dataSource.ToListAsync());
+        return result;
+    }
+
+    public async Task<VerifyRecordResult> RestoreAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Restoring project. ProjectId={ProjectId}", id);
+
+        try
+        {
+            Project? item = await context.Project
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Project restore rejected because deleted record was not found. ProjectId={ProjectId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要還原的專案（可能已被還原或永久刪除）。");
+            }
+
+            var scope = await accessScope.GetAsync();
+            if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+            {
+                Logger.LogWarning("Project restore denied by team scope. ProjectId={ProjectId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法還原。");
+            }
+
+            SoftDeleteHelper.Restore(item);
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("Project restored successfully. ProjectId={ProjectId}, Title={Title}", id, item.Title);
+            await WriteAuditAsync(AuditActions.Project.Restore, id, $"title={item.Title}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Project restore rejected by concurrency conflict. ProjectId={ProjectId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to restore project. ProjectId={ProjectId}", id);
+            return VerifyRecordResultFactory.Build(false, "還原專案失敗。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 永久刪除：只能對已刪除的專案執行，無法復原。
+    /// ⚠️ 順序是「先提交資料庫、成功後才刪附件實體檔」：0.9.93 之前是先刪檔再寫資料庫，資料庫失敗時檔案已經不見了。
+    /// 刪檔失敗只記警告（資料列已不存在，留下的是孤兒檔，不影響資料正確性）。
+    /// </summary>
+    public async Task<VerifyRecordResult> PurgeAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Purging project. ProjectId={ProjectId}", id);
+
+        try
+        {
+            Project? item = await context.Project
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .Include(x => x.Files)
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Project purge rejected because deleted record was not found. ProjectId={ProjectId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的專案（只能永久刪除已刪除的資料）。");
+            }
+
+            var scope = await accessScope.GetAsync();
+            if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+            {
+                Logger.LogWarning("Project purge denied by team scope. ProjectId={ProjectId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法永久刪除。");
+            }
+
+            var files = item.Files.ToList();
+            context.Project.Remove(item);
+            await context.SaveChangesAsync();
+
+            foreach (var file in files)
+            {
+                try
+                {
+                    DeletePhysicalFile(file);
+                }
+                catch (Exception fileEx)
+                {
+                    Logger.LogWarning(fileEx, "Project purged but an attachment file could not be deleted. ProjectId={ProjectId}, RelativePath={RelativePath}", id, file.RelativePath);
+                }
+            }
+
+            Logger.LogInformation("Project purged successfully. ProjectId={ProjectId}, Title={Title}, Files={FileCount}", id, item.Title, files.Count);
+            await WriteAuditAsync(AuditActions.Project.Purge, id, $"title={item.Title}; files={files.Count}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Project purge rejected by concurrency conflict. ProjectId={ProjectId}", id);
+            return VerifyRecordResultFactory.Build(false, "這筆專案已被其他人還原或變更，沒有執行永久刪除。", ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to purge project. ProjectId={ProjectId}", id);
+            return VerifyRecordResultFactory.Build(false, "永久刪除專案失敗。", ex);
         }
     }
 
@@ -407,6 +560,16 @@ public class ProjectService
         }
 
         var parent = await context.Project.AsNoTracking().FirstOrDefaultAsync(p => p.Id == file.ProjectId);
+
+        // ⚠️ 父專案查不到（0.9.94 起最常見的原因：已被軟刪除）就不提供下載。
+        // 不能交給下面的團隊檢查：IsTeamAccessible(null) 的語意是「沒有團隊 = 公開」，
+        // 原本限團隊的附件會因此對任何有專案檢視權限的人公開。
+        if (parent is null)
+        {
+            Logger.LogInformation("Project file download refused because the project is deleted or missing. ProjectFileId={ProjectFileId}", projectFileId);
+            return null;
+        }
+
         var scope = await accessScope.GetAsync();
         if (!TagStringHelper.IsTeamAccessible(parent?.Teams, scope.Teams, scope.IsAdmin))
         {

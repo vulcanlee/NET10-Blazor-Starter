@@ -211,7 +211,15 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            await myUserService.DeleteAsync(myUserAdapterModel.Id);
+            var result = await myUserService.DeleteAsync(myUserAdapterModel.Id);
+            if (!result.Success)
+            {
+                // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」（例如角色仍是某些使用者的主要角色時根本刪不掉）。
+                logger.LogInformation("User delete rejected. UserId={UserId}, Message={Message}", myUserAdapterModel.Id, result.Message);
+                ViewNotification.Error(notificationService, result.Message);
+                return;
+            }
+
             logger.LogInformation("User delete completed. UserId={UserId}", myUserAdapterModel.Id);
 
             ViewNotification.Warning(notificationService, "刪除成功");

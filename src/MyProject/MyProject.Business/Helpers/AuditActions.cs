@@ -61,7 +61,11 @@ public static class AuditActions
     {
         public const string Create = "Project.Create";
         public const string Update = "Project.Update";
+        /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Project.Delete";
+        public const string Restore = "Project.Restore";
+        /// <summary>永久刪除（只能對已刪除的資料執行，無法復原）。</summary>
+        public const string Purge = "Project.Purge";
         public const string FileUpload = "Project.FileUpload";
         public const string FileDelete = "Project.FileDelete";
         public const string FileDownload = "Project.FileDownload";
@@ -71,14 +75,22 @@ public static class AuditActions
     {
         public const string Create = "Category.Create";
         public const string Update = "Category.Update";
+        /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Category.Delete";
+        public const string Restore = "Category.Restore";
+        /// <summary>永久刪除（只能對已刪除的資料執行，無法復原）。</summary>
+        public const string Purge = "Category.Purge";
     }
 
     public static class Team
     {
         public const string Create = "Team.Create";
         public const string Update = "Team.Update";
+        /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Team.Delete";
+        public const string Restore = "Team.Restore";
+        /// <summary>永久刪除（只能對已刪除的資料執行，無法復原）。</summary>
+        public const string Purge = "Team.Purge";
     }
 
     public static class LogLevel

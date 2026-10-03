@@ -76,7 +76,15 @@ public sealed class RbacWriteService : IRbacWriteService
         var existing = await context.UserTeam.Where(x => x.MyUserId == userId).ToListAsync();
         var existingIds = existing.Select(x => x.TeamId).ToHashSet();
 
-        foreach (var removed in existing.Where(x => !desired.Contains(x.TeamId)))
+        // 指向已軟刪除團隊的關聯一律保留（0.9.94 起）：編輯畫面看不到已刪除的團隊，送來的 desired 自然不含它，
+        // 若照樣刪掉，團隊還原後成員關係就回不來了。只在「有效團隊」之間計算差異（context.Team 套用軟刪除過濾）。
+        var activeExistingIds = (await context.Team
+                .Where(t => existingIds.Contains(t.Id))
+                .Select(t => t.Id)
+                .ToListAsync())
+            .ToHashSet();
+
+        foreach (var removed in existing.Where(x => activeExistingIds.Contains(x.TeamId) && !desired.Contains(x.TeamId)))
         {
             context.UserTeam.Remove(removed);
         }

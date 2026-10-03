@@ -99,7 +99,7 @@ namespace MyProject.Web.Components.Views.Teams
                 _pageIndex,
                 _pageSize);
 
-            DataRequestResult<TeamAdapterModel> dataRequestResult = await teamService.GetAsync(new DataRequest
+            var dataRequest = new DataRequest
             {
                 Search = searchText,
                 SortField = sortField,
@@ -107,7 +107,12 @@ namespace MyProject.Web.Components.Views.Teams
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
-            });
+            };
+
+            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.94 起）。
+            DataRequestResult<TeamAdapterModel> dataRequestResult = showDeleted
+                ? await teamService.GetDeletedAsync(dataRequest)
+                : await teamService.GetAsync(dataRequest);
 
             teamAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
@@ -186,7 +191,7 @@ namespace MyProject.Web.Components.Views.Teams
         {
             logger.LogInformation("Delete team requested. TeamId={TeamId}, Name={Name}", teamAdapterModel.Id, teamAdapterModel.Name);
 
-            var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
+            var ok = await ConfirmDialog.AskSoftDeleteRecordAsync(modalService);
 
             if (!ok)
             {
@@ -194,12 +199,91 @@ namespace MyProject.Web.Components.Views.Teams
                 return;
             }
 
-            await teamService.DeleteAsync(teamAdapterModel.Id);
+            var result = await teamService.DeleteAsync(teamAdapterModel.Id);
+            if (!result.Success)
+            {
+                // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」。
+                logger.LogInformation("Team delete rejected. TeamId={TeamId}, Message={Message}", teamAdapterModel.Id, result.Message);
+                ViewNotification.Error(notificationService, result.Message);
+                return;
+            }
+
             logger.LogInformation("Team delete completed. TeamId={TeamId}", teamAdapterModel.Id);
 
             ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
+        }
+
+        bool showDeleted;
+
+        async Task OnToggleDeletedAsync()
+        {
+            showDeleted = !showDeleted;
+            _pageIndex = 1;
+            await ReloadAsync();
+        }
+
+        async Task OnRestoreAsync(TeamAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "確認還原", $"要還原「{record.Name}」嗎？", "還原");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await teamService.RestoreAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Team restore rejected. TeamId={TeamId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("Team restore completed. TeamId={TeamId}", record.Id);
+                ViewNotification.Warning(notificationService, "還原成功");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while restoring team.");
+                ViewNotification.Error(notificationService, "還原團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        async Task OnPurgeAsync(TeamAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskDestructiveAsync(
+                    modalService,
+                    "永久刪除",
+                    $"永久刪除「{record.Name}」後無法復原，使用者與這個團隊的關聯也會一併刪除。確定要永久刪除嗎？",
+                    "永久刪除");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await teamService.PurgeAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Team purge rejected. TeamId={TeamId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("Team purge completed. TeamId={TeamId}", record.Id);
+                ViewNotification.Warning(notificationService, "已永久刪除");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while purging team.");
+                ViewNotification.Error(notificationService, "永久刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
         }
 
         async Task OnAddAsync()
