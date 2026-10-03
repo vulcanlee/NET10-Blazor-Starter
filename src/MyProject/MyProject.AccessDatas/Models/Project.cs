@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MyProject.AccessDatas.Models;
 
-public class Project
+public class Project : IConcurrencyStamped
 {
     public int Id { get; set; }
 
@@ -38,4 +38,7 @@ public class Project
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
     public ICollection<ProjectFile> Files { get; set; } = [];
+
+    /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>
+    public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
 }

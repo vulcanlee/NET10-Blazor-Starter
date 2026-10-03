@@ -4,6 +4,9 @@ namespace MyProject.Models.AdapterModel;
 
 public class ProjectAdapterModel : ICloneable, IValidatableObject
 {
+    /// <summary>樂觀並行的版本號：開啟編輯時的值，存檔時用來比對資料是否已被別人修改（0.9.93 起）。</summary>
+    public string ConcurrencyStamp { get; set; } = string.Empty;
+
     public static readonly IReadOnlyList<string> StatusOptions =
     [
         "未開始",

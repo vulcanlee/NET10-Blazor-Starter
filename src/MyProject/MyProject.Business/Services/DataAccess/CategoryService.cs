@@ -185,6 +185,7 @@ public class CategoryService
         try
         {
             Category itemParameter = Mapper.Map<Category>(paraObject);
+            itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.CreatedAt = DateTime.Now;
             itemParameter.UpdatedAt = DateTime.Now;
 
@@ -232,12 +233,20 @@ public class CategoryService
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
-            context.Entry(itemData).State = EntityState.Modified;
+            var entry = context.Entry(itemData);
+            entry.State = EntityState.Modified;
+            ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={CategoryName}", itemData.Id, itemData.Name);
             await WriteAuditAsync(AuditActions.Category.Update, itemData.Id, $"name={itemData.Name}");
             return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
+            Logger.LogInformation("Category update rejected by concurrency conflict. CategoryId={CategoryId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {

@@ -171,6 +171,7 @@ public class RoleViewService
         try
         {
             RoleView itemParameter = Mapper.Map<RoleView>(paraObject);
+            itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
             await context.RoleView.AddAsync(itemParameter);
@@ -215,7 +216,9 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的角色資料。");
             }
 
-            context.Entry(itemData).State = EntityState.Modified;
+            var entry = context.Entry(itemData);
+            entry.State = EntityState.Modified;
+            ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             await context.SaveChangesAsync();
 
             var permissionKeys = ParsePermissionKeys(itemData.TabViewJson);
@@ -229,6 +232,12 @@ public class RoleViewService
 
             Logger.LogInformation("Role view updated successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
+            Logger.LogInformation("Role view update rejected by concurrency conflict. RoleViewId={RoleViewId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {

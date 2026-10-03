@@ -52,6 +52,8 @@ public sealed class AuditEventsTests
             Account = "u",
             Name = "u-renamed",
             Status = true,
+            // 0.9.93 起編輯必須帶開窗時讀到的版本號（樂觀並行），否則視為衝突。
+            ConcurrencyStamp = user.ConcurrencyStamp,
         });
 
         Assert.True(result.Success);

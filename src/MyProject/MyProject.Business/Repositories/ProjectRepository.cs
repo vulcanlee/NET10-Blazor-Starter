@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using MyProject.Business.Helpers;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers.Searchs;
@@ -193,6 +194,8 @@ public class ProjectRepository
         project.CreatedAt = DateTime.Now;
         project.UpdatedAt = DateTime.Now;
 
+        // 不信任客戶端傳來的版本號（POST 會忽略它）；AutoMapper 從 DTO 映射時可能是 null。
+        project.ConcurrencyStamp = ConcurrencyStampHelper.New();
         await context.Project.AddAsync(project);
         await context.SaveChangesAsync();
 
@@ -209,6 +212,11 @@ public class ProjectRepository
         {
             project.CreatedAt = now;
             project.UpdatedAt = now;
+        }
+
+        foreach (var project in projects)
+        {
+            project.ConcurrencyStamp = ConcurrencyStampHelper.New();
         }
 
         await context.Project.AddRangeAsync(projects);
@@ -234,6 +242,9 @@ public class ProjectRepository
         project.CreatedAt = existingProject.CreatedAt; // 保留原建立時間
 
         context.Entry(existingProject).CurrentValues.SetValues(project);
+        // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
+        // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
+        ConcurrencyStampHelper.Apply(context.Entry(existingProject), project.ConcurrencyStamp);
         await context.SaveChangesAsync();
 
         return true;

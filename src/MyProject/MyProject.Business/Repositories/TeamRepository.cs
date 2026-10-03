@@ -117,6 +117,8 @@ public class TeamRepository
         team.CreatedAt = DateTime.Now;
         team.UpdatedAt = DateTime.Now;
 
+        // 不信任客戶端傳來的版本號（POST 會忽略它）；AutoMapper 從 DTO 映射時可能是 null。
+        team.ConcurrencyStamp = ConcurrencyStampHelper.New();
         await context.Team.AddAsync(team);
         await context.SaveChangesAsync();
 
@@ -135,6 +137,9 @@ public class TeamRepository
         team.CreatedAt = existing.CreatedAt;
 
         context.Entry(existing).CurrentValues.SetValues(team);
+        // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
+        // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
+        ConcurrencyStampHelper.Apply(context.Entry(existing), team.ConcurrencyStamp);
         await context.SaveChangesAsync();
 
         return true;

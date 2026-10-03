@@ -1,6 +1,6 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
 - 現行系統版本：0.9.87
 - 首次實作版本：0.3.0
@@ -83,6 +83,9 @@
 - 驗證失敗：`DataAnnotations`（名稱必填、長度上限）由 `EditContext.Validate()` 於 Modal 攔截並逐條通知。
 - 路由 ID 與 Payload ID 不一致：API `Update` 回 400 ValidationError。
 - 例外：Service 以 try/catch 記 `Error` 並回 `VerifyRecordResult(false, "新增／修改／刪除分類失敗。")`；API 以 `ApiServerError` 回 500。畫面上未預期的例外由 `FormModalFlow`／刪除流程的 try/catch 攔下，顯示通用錯誤訊息，不會拆掉 Blazor circuit。
+- **並行衝突**（0.9.93 起，樂觀並行）：開啟編輯後若別人先存檔或刪除了同一筆，存檔時回「這筆資料在你編輯期間已被其他人修改或刪除。請關閉視窗、重新開啟後再編輯。」，
+  Modal 維持開啟、輸入不會遺失。API 的 `PUT` 必須帶 GET 取得的 `ConcurrencyStamp`：沒帶回 400、與資料庫不符回 409。
+  屬使用者情境（LOG-11）：只記 `Information`，不進「系統例外紀錄」。
 
 ## 七、驗收與測試
 

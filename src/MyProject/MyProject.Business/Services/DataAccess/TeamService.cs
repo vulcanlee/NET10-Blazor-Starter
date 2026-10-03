@@ -156,6 +156,7 @@ public class TeamService
         try
         {
             Team itemParameter = Mapper.Map<Team>(paraObject);
+            itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.CreatedAt = DateTime.Now;
             itemParameter.UpdatedAt = DateTime.Now;
 
@@ -203,12 +204,20 @@ public class TeamService
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
-            context.Entry(itemData).State = EntityState.Modified;
+            var entry = context.Entry(itemData);
+            entry.State = EntityState.Modified;
+            ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={TeamName}", itemData.Id, itemData.Name);
             await WriteAuditAsync(AuditActions.Team.Update, itemData.Id, $"name={itemData.Name}");
             return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
+            Logger.LogInformation("Team update rejected by concurrency conflict. TeamId={TeamId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {

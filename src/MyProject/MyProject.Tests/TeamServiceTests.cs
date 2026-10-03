@@ -22,7 +22,8 @@ public sealed class TeamServiceTests
 
         Assert.True((await service.AddAsync(new TeamAdapterModel { Name = "研發部", Code = "RD" })).Success);
         var created = await fixture.Context.Team.AsNoTracking().SingleAsync();
-        Assert.True((await service.UpdateAsync(new TeamAdapterModel { Id = created.Id, Name = "研發一部", Code = "RD" })).Success);
+        // 0.9.93 起編輯必須帶開窗時讀到的版本號（樂觀並行），否則視為衝突。
+        Assert.True((await service.UpdateAsync(new TeamAdapterModel { Id = created.Id, Name = "研發一部", Code = "RD", ConcurrencyStamp = created.ConcurrencyStamp })).Success);
         Assert.True((await service.DeleteAsync(created.Id)).Success);
 
         Assert.Equal(

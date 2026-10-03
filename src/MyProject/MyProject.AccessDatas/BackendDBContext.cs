@@ -49,6 +49,18 @@ public partial class BackendDBContext : DbContext
         }
         #endregion
 
+        #region 樂觀並行：實作 IConcurrencyStamped 的實體一律以 ConcurrencyStamp 為 concurrency token（0.9.93 起）
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                     .Where(x => typeof(IConcurrencyStamped).IsAssignableFrom(x.ClrType)))
+        {
+            modelBuilder.Entity(entityType.ClrType)
+                .Property(nameof(IConcurrencyStamped.ConcurrencyStamp))
+                .IsConcurrencyToken()
+                .HasMaxLength(32)
+                .IsRequired();
+        }
+        #endregion
+
         modelBuilder.Entity<Project>(entity =>
         {
             entity.HasMany(x => x.Files)

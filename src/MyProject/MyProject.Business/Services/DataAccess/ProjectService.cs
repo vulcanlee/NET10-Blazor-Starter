@@ -235,6 +235,7 @@ public class ProjectService
         {
             Project itemParameter = Mapper.Map<Project>(paraObject);
             itemParameter.Files = [];
+            itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
 
             await context.Project.AddAsync(itemParameter);
             await context.SaveChangesAsync();
@@ -289,6 +290,9 @@ public class ProjectService
             currentItem.Teams = TagStringHelper.ToStored(paraObject.Teams);
             currentItem.UpdatedAt = paraObject.UpdatedAt;
 
+            // 先載入再複製欄位的寫法：一定要以使用者開窗時的版本號比對，否則永遠偵測不到衝突。
+            // 衝突時第一次 SaveChanges 就會失敗，附件的新增與刪除都不會執行。
+            ConcurrencyStampHelper.Apply(context.Entry(currentItem), paraObject.ConcurrencyStamp);
             await context.SaveChangesAsync();
 
             var saveFilesResult = await SaveNewFilesAsync(context, currentItem, uploadFiles);
@@ -308,6 +312,12 @@ public class ProjectService
             await WriteFileAuditAsync(AuditActions.Project.FileUpload, currentItem.Id, uploadFiles?.Count() ?? 0);
             await WriteFileAuditAsync(AuditActions.Project.FileDelete, currentItem.Id, removedFileIds?.Count() ?? 0);
             return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
+            Logger.LogInformation("Project update rejected by concurrency conflict. ProjectId={ProjectId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
