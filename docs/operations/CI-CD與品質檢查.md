@@ -1,16 +1,42 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.4
-- 文件狀態：已實作
-- 現行系統版本：0.9.59
+- 文件版本：1.5
+- 文件狀態：參考設計（腳手架目前沒有 CI）
+- 現行系統版本：0.9.87
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/09/24
+- 最後核對日期：2026/10/03
 
-本專案以 **GitHub Actions** 在每次 push 與 PR 時自動建置、測試與品質檢查。工作流程定義於 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)。
+> ⚠️ **腳手架目前沒有 CI。** 原本的 GitHub Actions 工作流程 `.github/workflows/dotnet-ci.yml` 已於 **2026-09-20**
+> 由擁有者移除（commit `05cca70`），repo 根目錄也不再有 `.github/` 資料夾。**現在沒有任何機制會自動擋下違規**，
+> 品質關卡全靠提交前在本機自行執行（見 §0）。
+>
+> §1～§4 保留原工作流程的步驟與決策，作為**參考設計**：衍生專案若要建立 CI，可依本文的步驟建立。
+> 原始 YAML 可從 git 歷史取回：`git show 05cca70^:.github/workflows/dotnet-ci.yml`。
 
 ---
 
-## 1. 觸發條件
+## 0. 現行做法：提交前在本機跑四道關卡
+
+在 repo 根目錄依序執行，**四道全過才提交**：
+
+```powershell
+dotnet build src/MyProject/MyProject.slnx -v:minimal            # 必須 0 warning（TreatWarningsAsErrors，有警告即建置失敗）
+dotnet test src/MyProject/MyProject.slnx                        # 約 1100 個測試（0.9.87），須全數通過
+dotnet format src/MyProject/MyProject.slnx --verify-no-changes  # 有差異時改跑不帶旗標的 dotnet format 自動修正
+pwsh ./scripts/Test-DocsEncoding.ps1                            # docs/**/*.md 須 UTF-8 含 BOM、無亂碼
+```
+
+VS Code 使用者可直接執行 [`.vscode/tasks.json`](../../.vscode/tasks.json) 的 `build`／`test`／`format-check`／`docs-encoding` 四個任務，內容與上面相同。
+
+弱點掃描沒有自動化，升級套件或定期檢查時請手動執行，並依 §4 的規則判讀輸出（**這個指令找到弱點時仍回傳 0**，要自己看）：
+
+```powershell
+dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive
+```
+
+---
+
+## 1. 觸發條件（參考設計）
 
 | 事件 | 分支 |
 |------|------|
@@ -19,10 +45,10 @@
 
 ---
 
-## 2. 工作流程（job：`build-test`）
+## 2. 工作流程（參考設計，job：`build-test`）
 
 執行環境：`windows-latest`，.NET SDK `10.0.x`。job 層級設有 `NUGET_HTTP_TIMEOUT_SECONDS=180`（見 §4）。
-依序執行下列步驟，任一失敗即中止並讓 PR 無法合併：
+依序執行下列步驟，任一失敗即中止；搭配分支保護即可讓 PR 無法合併：
 
 | 步驟 | 指令 / 動作 | 目的 |
 |------|-------------|------|
@@ -36,6 +62,9 @@
 | Documentation encoding check | `./scripts/Test-DocsEncoding.ps1`（pwsh） | 檢查 `docs/` 文件編碼 |
 | Vulnerability scan | pwsh 解析 `dotnet list ... package --vulnerable --include-transitive` 的輸出 | 掃描已知弱點套件，**未列入允許清單者讓 CI 失敗** |
 
+> 本機四道關卡（§0）用的是預設 Debug 組態；原工作流程的 Build／Test 用 `--configuration Release`。
+> 兩者都會套用 `TreatWarningsAsErrors`，但衍生專案建 CI 時仍建議沿用 Release，與部署產物一致。
+
 ---
 
 ## 2.1 建置設定與品質防線（0.4.32 起）⚠️
@@ -44,7 +73,7 @@
 
 | 檔案 | 作用 |
 |------|------|
-| [`.editorconfig`](../../.editorconfig)（repo 根目錄）| 程式碼格式規則，供 `dotnet format` 與 IDE 依循，並由 CI 的 Format check 強制。 |
+| [`.editorconfig`](../../.editorconfig)（repo 根目錄）| 程式碼格式規則，供 `dotnet format` 與 IDE 依循；提交前以 `dotnet format --verify-no-changes` 檢查（§0）。 |
 | [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) | 全方案共用建置屬性：`Nullable`、`ImplicitUsings`、**`TreatWarningsAsErrors`**，以及 CVE 抑制。 |
 | [`src/MyProject/Directory.Packages.props`](../../src/MyProject/Directory.Packages.props) | Central Package Management：所有套件版本的單一來源。 |
 | [`global.json`](../../global.json)（repo 根目錄）| 鎖定 .NET SDK 版本（`10.0.400` + `rollForward: latestFeature`）。 |
@@ -56,7 +85,7 @@
   注意它是 MSBuild 屬性，**不只影響編譯** —— NuGet restore 階段的 `NU****` 警告同樣會被升級為 error。
 - **唯一的警告豁免：`WarningsNotAsErrors` = `NU1900`**（0.4.47 起）。
   `NU1900` 是「**取不到**弱點資料」（NuGet Audit 連不上 nuget.org 弱點索引，逾時／限流／暫時性網路失敗），
-  與「發現弱點」無關；被升級成 error 後，nuget.org 抖一下就會讓整條 CI 失敗（見
+  與「發現弱點」無關；被升級成 error 後，nuget.org 抖一下就會讓還原與建置失敗（當時的 CI 就因此中斷，見
   [changelog 0.4.47](../changelog/2026-08-27-CI還原NU1900失敗修正.md)）。
   用 `WarningsNotAsErrors` 而非 `NoWarn`，是為了讓警告仍印在 log 上、看得出是否常態性連不到來源。
   **真正代表發現弱點的 `NU1901`~`NU1904` 不在豁免清單，維持 error。**
@@ -66,12 +95,7 @@
   因此刻意**不強制** namespace 宣告形式、`this.` 前綴、`var` 用法、檔案 BOM 與 using 排序
   —— 這些在專案中兩種寫法並存，強制會產生大量與需求無關的異動。
 
-本機可先自行執行：
-
-```powershell
-dotnet build src/MyProject/MyProject.slnx -c Release
-dotnet format src/MyProject/MyProject.slnx --verify-no-changes
-```
+這些檔案在本機建置時就會生效，不依賴 CI；提交前的完整檢查見 §0。
 
 ---
 
@@ -84,7 +108,7 @@ dotnet format src/MyProject/MyProject.slnx --verify-no-changes
 
 > 注意：檔案移入子目錄後，此腳本以 `-Recurse` 涵蓋所有層級。以 PowerShell 建立／另存文件時請使用含 BOM 的 UTF-8（例如 `Set-Content -Encoding utf8BOM`），避免被擋下。編碼規定詳見 [維護規範 §3](維護規範.md)。
 
-本機可先自行執行：
+提交前在 repo 根目錄執行（§0 的第四道關卡）：
 
 ```powershell
 pwsh ./scripts/Test-DocsEncoding.ps1
@@ -96,20 +120,33 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 `dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。發現弱點時應升級對應套件版本。
 
-為降低 NuGet 來源偶發逾時造成的假失敗，`NUGET_HTTP_TIMEOUT_SECONDS=180` 設在 **job 層級**，涵蓋 Restore／Build／Test／Vulnerability scan 全部步驟（0.4.47 前只掛在本步驟，最需要它的 Restore 反而沒有）。
+> 現況：沒有 CI，這一節沒有任何自動化在執行。請依 §0 手動執行指令，並以下表的規則判讀輸出。
+
+為降低 NuGet 來源偶發逾時造成的假失敗，原工作流程把 `NUGET_HTTP_TIMEOUT_SECONDS=180` 設在 **job 層級**，涵蓋 Restore／Build／Test／Vulnerability scan 全部步驟（0.4.47 前只掛在本步驟，最需要它的 Restore 反而沒有）。
 
 ⚠️ **這個指令找到弱點時仍然回傳 0。** 0.9.32 之前 CI 直接執行它，因此這道關卡從來沒有擋下過任何東西。
-0.9.32 起改由 pwsh 解析輸出並比對**允許清單**：
+0.9.32 起改由 pwsh 解析輸出並比對**允許清單**（參考設計，衍生專案建 CI 時照做）：
 
 | 情況 | 結果 |
 |------|------|
-| 出現不在允許清單中的諮詢 | ❌ CI 失敗 |
+| 出現不在允許清單中的諮詢 | ❌ 失敗 |
 | 只出現允許清單中的諮詢 | ✅ 通過 |
-| 允許清單中某筆**已不再出現**（上游修好了）| ❌ CI 失敗，要求你把它從清單與本文件移除 |
+| 允許清單中某筆**已不再出現**（上游修好了）| ❌ 失敗，要求你把它從清單與本文件移除 |
 
-最後一列是刻意的：豁免只能是暫時的。清單寫在 [`.github/workflows/dotnet-ci.yml`](../../.github/workflows/dotnet-ci.yml)
-的 `$allowed`，目前只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。
+最後一列是刻意的：豁免只能是暫時的。清單原本寫在已移除的 `.github/workflows/dotnet-ci.yml`（2026-09-20 移除，檔案已不存在）
+的 `$allowed`，當時只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。手動掃描時，輸出中除了這一筆以外的諮詢都要處理。
 比對用諮詢代號而非訊息文字 —— dotnet CLI 的輸出會隨執行環境語系改變。
+
+參考做法（取自原工作流程，可直接放進衍生專案的 CI 步驟）：
+
+```powershell
+$allowed = @('GHSA-2m69-gcr7-jv3q')
+$output = dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive 2>&1 | Out-String
+$found = [regex]::Matches($output, 'advisories/(?<id>[A-Za-z0-9-]+)') |
+  ForEach-Object { $_.Groups['id'].Value } | Sort-Object -Unique
+$unexpected = @($found | Where-Object { $allowed -notcontains $_ })   # 非空 → 失敗
+$stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 → 失敗（清單過時）
+```
 
 > 0.9.59 新增 `MailKit` 4.18.0（寄信服務，只加在 `MyProject.Web`），遞移帶入 `MimeKit` 4.18.0 與
 > `BouncyCastle.Cryptography` 2.7.0。加入當下 `--vulnerable --include-transitive` 對這三個套件**沒有任何諮詢**，
@@ -128,7 +165,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | 風險評估 | 低：EF Core 採參數化查詢，無未受信任的原始 SQL 進入 SQLite（0.4.24 起 SQLite 為唯一支援的資料庫） |
 | 處置 | 於 [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) 以 `NuGetAuditSuppress` 抑制該 advisory，消除 restore/build 的 `NU1903` 警告 |
 
-**重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；`dotnet list package --vulnerable` 是獨立查詢，**仍會列出**此 advisory。因此它必須同時出現在 CI 的 `$allowed` 允許清單中，兩處缺一不可。
+**重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；`dotnet list package --vulnerable` 是獨立查詢，**仍會列出**此 advisory。因此手動掃描時看到它屬預期；衍生專案建 CI 時，它必須同時出現在弱點掃描步驟的 `$allowed` 允許清單中，兩處缺一不可。
 
 **移除條件**：待 `SQLitePCLRaw`（或 `Microsoft.EntityFrameworkCore.Sqlite`）釋出 bundled SQLite ≥ 3.50.2 的版本後，升級套件、移除 `Directory.Build.props` 內的 `NuGetAuditSuppress`、並刪除本小節。
 

@@ -1,10 +1,10 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.78
+- 現行系統版本：0.9.87
 - 首次實作版本：0.9.59
-- 最後核對日期：2026/09/24
+- 最後核對日期：2026/10/03
 
 ## 一、目標與範圍
 
@@ -24,6 +24,8 @@
 | `appsettings.json` 的 `EmailSettings`（＋環境變數／User Secrets）| 主機管理權 | 部署人員 |
 | `/system-health` 的「寄信服務」檢查項與「寄信測試」區塊 | 管理員（`IsAdmin`）| 系統管理員 |
 | `IEmailSender`／`IEmailQueue`（程式介面）| — | 開發者（新增會寄信的功能時）|
+
+> 用 Gmail 帳號寄信的逐步設定（應用程式密碼、`EmailSettings` 各值從哪裡取得、驗證與疑難排解）見 [Gmail 寄信設定指南](../operations/Gmail寄信設定指南.md)（0.9.84 起）。
 
 ## 三、畫面與欄位
 
@@ -71,7 +73,12 @@
 - 設定鍵見 [日誌與設定檔說明 §4.3.2.2](../operations/日誌與設定檔說明.md)。
 - 所有環境（`ValidateOnStart`）：Provider／Security 必須可解析、`Port` 1–65535、`TimeoutSeconds` 1–300；
   `Smtp` 時 `Host` 不可空、`FromAddress` 必須是有效 Email。
-- Production（`StartupSafetyValidator`）：`Pickup` 拒絕啟動；`Smtp` 另需 `Host`、`FromAddress` 與完整的 http(s) `PublicBaseUrl`。
+- Production（`StartupSafetyValidator`）：`Pickup` 拒絕啟動；`Smtp` 另需 `Host`、`FromAddress` 與完整的 http(s) `PublicBaseUrl`（`http://` 亦可）。
+  - ⚠️ `ASPNETCORE_ENVIRONMENT` 未設定時預設即為 Production（例如 IIS 不讀 `launchSettings.json`），所以開發機正常、IIS 主機卻啟動即中止是常見情況。
+  - 0.9.86 起錯誤訊息開頭會說明上述環境預設；`PublicBaseUrl` 的錯誤帶出**目前讀到的值**（空白顯示「（空白）」，否則以「」括起原值）、
+    範例 `https://erp.example.com`（只有 http 的環境可填 `http://erp.example.com`），並提示暫不寄信可把 `Provider` 改回 `None`。
+    公開網址不是機密才帶出值；其他檢查項（金鑰、密碼）的訊息不帶值。
+  - 不提供「留白就從請求自動組網址」：`AllowedHosts` 為 `*` 時取 Host header 會重新打開 password reset poisoning。非 Production 且未設定時才退回目前請求的網址（`PublicBaseUrlResolver`）。
 
 ## 五、權限與安全
 
@@ -85,6 +92,7 @@
 ## 六、錯誤與邊界
 
 - Provider 打錯字、`Smtp` 缺主機或寄件者 → 啟動失敗，訊息指出是哪個鍵。
+- Production 使用 `Smtp` 但 `PublicBaseUrl` 空白或不是 http(s) 網址 → 啟動失敗，訊息帶出讀到的值與範例（0.9.86 起，見 §4.4）。
 - 測試寄信的收件者空白或格式錯誤 → 顯示「請輸入有效的收件者 Email。」，不寄出、不寫稽核。
 - SMTP 連不上或登入失敗 → 健康項紅燈（5 秒內回應），測試寄信顯示「寄送失敗：{例外型別}」。
 - 背景佇列滿（100 封未寄）→ `TryEnqueue` 回 false，該封信不會寄出。
@@ -112,16 +120,16 @@
 - `EmailHealthProbeTests`：SMTP 連不上時回報失敗、不拋例外。
 - `EmailTestServiceTests`：None／無效收件者拒絕、成功與失敗都稽核且不含收件者。
 - `EmailTemplatesTests`：HTML 編碼、主旨。
-- `ApiIntegrationTests`：Production 下 Pickup 拒絕、Smtp 設定不完整拒絕、完整設定通過。
-- `SystemHealthTests.CheckWeights_ShouldSumTo135`：寄信服務權重 10。
+- `ApiIntegrationTests`：Production 下 Pickup 拒絕、Smtp 設定不完整拒絕、`PublicBaseUrl` 不是 http(s) 網址拒絕（`ProductionSafetyValidation_WithSmtpAndInvalidPublicBaseUrl_ShouldFailFast`）、完整設定通過。
+- `SystemHealthTests.CheckWeights_ShouldSumTo145`：寄信服務權重 10（0.9.79 加入「日誌管線」後總權重為 145）。
 
 ## 九、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Configuration/EmailSettings.cs`、`StartupSafetyValidator.cs`
-- `src/MyProject/MyProject.Web/Email/`（三個 sender、`ChannelEmailQueue`、`EmailDispatchWorker`、`EmailHealthProbe`、`EmailTestService`、`MimeMessageFactory`）
+- `src/MyProject/MyProject.Web/Email/`（三個 sender、`ChannelEmailQueue`、`EmailDispatchWorker`、`EmailHealthProbe`、`EmailTestService`、`MimeMessageFactory`、`PublicBaseUrlResolver`）
 - `src/MyProject/MyProject.Business/Services/Other/IEmailSender.cs`、`IEmailQueue.cs`
 - `src/MyProject/MyProject.Business/Helpers/EmailTemplates.cs`、`src/MyProject/MyProject.Models/Systems/EmailMessage.cs`
 - `src/MyProject/MyProject.Web/Extensions/ServiceCollectionExtensions.cs`（`AddConfiguredEmail`）
-- 交叉連結：[系統健康監控](系統健康監控-prd.md)、[稽核紀錄](稽核紀錄-prd.md)、[開發慣例與限制速查 §6.12](../architecture/開發慣例與限制速查.md)、[正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)
+- 交叉連結：[系統健康監控](系統健康監控-prd.md)、[稽核紀錄](稽核紀錄-prd.md)、[開發慣例與限制速查 §6.12](../architecture/開發慣例與限制速查.md)、[正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)、[Gmail 寄信設定指南](../operations/Gmail寄信設定指南.md)
 
 > 返回 [PRD 主控台](README.md)

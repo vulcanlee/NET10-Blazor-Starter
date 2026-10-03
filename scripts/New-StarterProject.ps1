@@ -1,6 +1,7 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^[A-Za-z][A-Za-z0-9_.]*$')]
+    # 每一段都必須是合法的 C# 識別字：擋掉 Acme..Erp、Acme.、Acme.1x 這類建置才會爆的命名空間。
+    [ValidatePattern('^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$')]
     [string]$ProjectName,
 
     [Parameter(Mandatory = $true)]
@@ -39,8 +40,22 @@ if (-not $dotnetEfAvailable) {
 
 # 每個衍生專案都要有自己的開發連接埠，否則同一台機器同時開兩個專案會搶埠；
 # Google OAuth 的 redirect URI 也是依埠註冊。範圍比照 VS／dotnet new（http 5000–5300、https 7000–7300）。
-$sourceHttpPort = 5109
-$sourceHttpsPort = 7144
+# 來源埠從來源的 launchSettings.json 讀，不寫死：從衍生專案再衍生時，來源埠已經不是腳手架的 5109／7144，
+# 寫死會讓新專案沿用上一代的埠，而且殘留掃描也找不到。
+$sourceLaunchSettings = Join-Path $repoRoot "src/$SourceProjectName/$SourceProjectName.Web/Properties/launchSettings.json"
+if (-not (Test-Path -LiteralPath $sourceLaunchSettings)) {
+    throw "Could not find the source launchSettings.json to read the development ports: $sourceLaunchSettings"
+}
+
+$sourceLaunchContent = [System.IO.File]::ReadAllText($sourceLaunchSettings)
+$sourceHttpMatch = [regex]::Match($sourceLaunchContent, 'http://localhost:(\d+)')
+$sourceHttpsMatch = [regex]::Match($sourceLaunchContent, 'https://localhost:(\d+)')
+if (-not $sourceHttpMatch.Success -or -not $sourceHttpsMatch.Success) {
+    throw "Could not read http/https localhost ports from applicationUrl in: $sourceLaunchSettings"
+}
+
+$sourceHttpPort = [int]$sourceHttpMatch.Groups[1].Value
+$sourceHttpsPort = [int]$sourceHttpsMatch.Groups[1].Value
 
 function Get-FreeDevPort {
     param(
@@ -84,8 +99,11 @@ if (Test-Path -LiteralPath $destinationFullPath) {
 }
 
 # 這些目錄可能出現在任何層級（例如 src/MyProject/MyProject.Web/bin），必須遞迴排除。
-$excludedDirectories = @(".git", "bin", "obj", ".vs", ".playwright-cli", "output")
+# artifacts（發佈輸出，可達上百 MB）、.gstack、PublishProfiles（本機發佈設定）都是開發機上的產物，不屬於範本。
+$excludedDirectories = @(".git", "bin", "obj", ".vs", ".playwright-cli", "output", "artifacts", ".gstack", "PublishProfiles")
 $excludedFilePatterns = @("*.user", "*.suo")
+# 個人的 Claude Code 權限設定；以「上層目錄\檔名」比對，避免誤排除其他同名檔案。
+$excludedRelativeFiles = @(".claude\settings.local.json")
 
 function Copy-TreeExcluding {
     param(
@@ -115,6 +133,10 @@ function Copy-TreeExcluding {
             }
         }
 
+        if (-not $isExcludedFile -and ($excludedRelativeFiles -contains (Join-Path $item.Directory.Name $item.Name))) {
+            $isExcludedFile = $true
+        }
+
         if ($isExcludedFile) {
             continue
         }
@@ -124,6 +146,12 @@ function Copy-TreeExcluding {
 }
 
 Copy-TreeExcluding -SourceDirectory $repoRoot -TargetDirectory $destinationFullPath
+
+# 排除後可能留下空資料夾（例如已移除的 SqlServerMigrations 專案只剩 bin/obj），由深到淺清掉。
+Get-ChildItem -LiteralPath $destinationFullPath -Recurse -Directory -Force |
+    Sort-Object { $_.FullName.Length } -Descending |
+    Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force) } |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
 
 $textExtensions = @(
     ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js",
@@ -207,6 +235,8 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         $hasBom = Test-Utf8Bom -Path $_.FullName
         $content = [System.IO.File]::ReadAllText($_.FullName)
         $content = $content.Replace($SourceProjectName, $ProjectName)
+        # 全小寫的形式（例如文件裡的範例信箱 myproject.noreply@gmail.com）另外換成新名稱的小寫；String.Replace 區分大小寫。
+        $content = $content.Replace($SourceProjectName.ToLowerInvariant(), $ProjectName.ToLowerInvariant())
         $content = $content.Replace($sourceUserSecretsId, $UserSecretsId)
         # launchSettings.json 與文件裡的網址一起換；只換帶 localhost: 的形式，避免誤傷其他數字。
         $content = $content.Replace("localhost:$sourceHttpsPort", "localhost:$httpsPort")

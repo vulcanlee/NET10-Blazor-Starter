@@ -511,7 +511,7 @@ namespace MyProject.Web
                 // 刻意「只」套在 Controller 上，不用 AuthorizationOptions.FallbackPolicy。
                 // Blazor 頁面另有自己的「預設需登入」機制（0.9.41 起）：
                 // Components/Pages/_Imports.razor 對整個 Pages/ 標 [Authorize]，
-                // 登入頁等匿名頁面各自標 [AllowAnonymous]，白名單由 PageAuthorizationConventionTests 守門。
+                // 登入頁等匿名頁面各自標 [AllowAnonymous]，白名單由 PageAuthorizationTests 守門。
                 // 未登入的頁面請求因此在上面的 UseAuthorization 就被 302 到登入頁，
                 // 瀏覽器拿不到任何頁面內容。
                 app.MapControllers()
