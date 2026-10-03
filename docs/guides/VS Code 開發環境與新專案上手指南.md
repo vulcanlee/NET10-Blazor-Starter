@@ -1,6 +1,6 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.7
+- 文件版本：2.8
 - 文件狀態：已實作
 - 現行系統版本：0.9.87
 - 首次實作版本：0.9.1
@@ -126,7 +126,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | 檔案 | 作用 |
 |------|------|
 | `launch.json` | F5 偵錯設定。使用 **`https` profile**、自動開啟瀏覽器、`ASPNETCORE_ENVIRONMENT=Development` |
-| `tasks.json` | 提交前要跑的四道本機檢查：`build` / `format-check` / `test` / `docs-encoding`，另有 `restore`（本專案沒有 CI，見 [§9](#9-更名後驗證清單)） |
+| `tasks.json` | 提交前要跑的 `quality-gate`（品質關卡），以及單項任務 `build` / `format-check` / `test` / `docs-encoding` / `restore`（本專案沒有 CI，見 [§9](#9-更名後驗證清單)） |
 | `settings.json` | Markdown 預設存成 **UTF-8 含 BOM**（對應本專案不變量）、隱藏 `bin`/`obj`、指定預設方案檔 |
 | `extensions.json` | 建議安裝的擴充套件清單 |
 
@@ -693,21 +693,14 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 
 ## 9. 更名後驗證清單
 
-四道本機檢查，全部在 repo 根目錄執行。本專案**沒有 CI**（`.github/workflows/dotnet-ci.yml` 已於 2026-09-20 移除），所以每次提交前都要自己跑；要自行建立 CI 可參考 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)：
+跑一次品質關卡。本專案**沒有 CI**（`.github/workflows/dotnet-ci.yml` 已於 2026-09-20 移除），所以每次提交前都要自己跑；要自行建立 CI 可參考 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)：
 
 ```powershell
-# 1. 建置（TreatWarningsAsErrors，任何警告都會失敗）
-dotnet build src/Acme.Erp/Acme.Erp.slnx -v:minimal --no-incremental
-
-# 2. 格式（有任何差異即失敗）
-dotnet format src/Acme.Erp/Acme.Erp.slnx --verify-no-changes
-
-# 3. 測試（守門測試會抓出漏改的專案名）
-dotnet test src/Acme.Erp/Acme.Erp.slnx
-
-# 4. 文件編碼（必須從 repo 根目錄執行，預設掃 ./docs）
-pwsh ./scripts/Test-DocsEncoding.ps1
+# restore → Release 建置（任何警告都會失敗）→ format → 測試（守門測試會抓出漏改的專案名）→ 文件編碼 → 弱點掃描
+pwsh ./scripts/Invoke-QualityGate.ps1
 ```
+
+遇到失敗就停，結尾的摘要會指出停在哪一步；下表是各步驟常見的失敗原因。
 
 手動驗收項目：
 
@@ -735,8 +728,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | `dotnet user-secrets` 說找不到專案 | 不在 csproj 目錄下 | `cd src/.../*.Web`，或加 `--project <csproj 路徑>` |
 | 建置因為一個小警告就失敗 | `Directory.Build.props` 的 `TreatWarningsAsErrors` | 修掉警告，別 disable。這是刻意的品質關卡 |
 | `dotnet format --verify-no-changes` 失敗 | 格式不符 `.editorconfig` | 先跑一次不帶 `--verify-no-changes` 的 `dotnet format` 讓它自動修 |
-| `Test-DocsEncoding.ps1` 失敗 | 某個 `docs/**/*.md` 缺 BOM 或含 U+FFFD 亂碼 | 以 UTF-8 **含 BOM** 重存。用 PowerShell 寫檔時必須 `-Encoding utf8BOM`，**`-Encoding utf8` 在 pwsh 7 不含 BOM** |
-| `Test-DocsEncoding.ps1` 說找不到 docs | 不是在 repo 根目錄執行 | `-DocsPath` 預設相對於工作目錄，請 `cd` 到根目錄 |
+| `Test-DocsEncoding.ps1` 失敗 | 某個 `docs/**/*.md` 或根目錄 `*.md` 缺 BOM 或含 U+FFFD 亂碼 | 以 UTF-8 **含 BOM** 重存。用 PowerShell 寫檔時必須 `-Encoding utf8BOM`，**`-Encoding utf8` 在 pwsh 7 不含 BOM** |
 | EF 說有尚未套用的模型變更 | Migration 的 `.Designer.cs` / snapshot 內的 `MyProject.AccessDatas.Models.*` 字串沒換 | 對 `Migrations/` 目錄再做一次全域取代 |
 | 登入失敗，或密碼自己變回舊值 | `Program.cs` support 帳號 seed 區段的密碼救援覆寫行為 | 見 [§6.4](#64-預設管理者帳號)。要改密碼請同步改 `BootstrapSettings:SupportPassword` |
 | 部署到 IIS 後啟動即中止，本機卻正常 | IIS 沒設 `ASPNETCORE_ENVIRONMENT` 時預設是 Production，會跑 `StartupSafetyValidator`；開發機是 Development，不做這項檢查 | 看 Windows 事件檢視器的「Production 啟動安全檢查失敗」訊息，逐項補齊；見 [正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md) |

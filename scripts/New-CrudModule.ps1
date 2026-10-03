@@ -1185,12 +1185,9 @@ TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔�
 
 ## 六、驗收
 
-專案沒有 CI，提交前在 repo 根目錄跑完這四道檢查：
+專案沒有 CI，提交前跑完品質關卡（restore、Release 建置 0 warning、format、test、文件編碼、弱點掃描，遇到失敗就停）：
 
-    dotnet build src/MyProject/MyProject.slnx -v:minimal      # 0 warning（TreatWarningsAsErrors）
-    dotnet test src/MyProject/MyProject.slnx
-    dotnet format src/MyProject/MyProject.slnx --verify-no-changes
-    pwsh ./scripts/Test-DocsEncoding.ps1                      # docs/ 須 UTF-8 含 BOM
+    pwsh ./scripts/Invoke-QualityGate.ps1
 
 別忘了 **SystemVersion Patch +1** 與同步更新相關文件。
 "@

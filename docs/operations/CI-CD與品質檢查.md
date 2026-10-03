@@ -1,38 +1,60 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.5
-- 文件狀態：參考設計（腳手架目前沒有 CI）
-- 現行系統版本：0.9.87
+- 文件版本：1.6
+- 文件狀態：已實作（本機品質關卡）；§1～§4 的 CI 為參考設計
+- 現行系統版本：0.9.89
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/10/03
 
 > ⚠️ **腳手架目前沒有 CI。** 原本的 GitHub Actions 工作流程 `.github/workflows/dotnet-ci.yml` 已於 **2026-09-20**
 > 由擁有者移除（commit `05cca70`），repo 根目錄也不再有 `.github/` 資料夾。**現在沒有任何機制會自動擋下違規**，
-> 品質關卡全靠提交前在本機自行執行（見 §0）。
+> 品質關卡全靠提交前在本機執行 `scripts/Invoke-QualityGate.ps1`（0.9.89 起，見 §0）。
 >
 > §1～§4 保留原工作流程的步驟與決策，作為**參考設計**：衍生專案若要建立 CI，可依本文的步驟建立。
 > 原始 YAML 可從 git 歷史取回：`git show 05cca70^:.github/workflows/dotnet-ci.yml`。
 
 ---
 
-## 0. 現行做法：提交前在本機跑四道關卡
-
-在 repo 根目錄依序執行，**四道全過才提交**：
+## 0. 現行做法：提交前跑一行品質關卡（0.9.89 起）
 
 ```powershell
-dotnet build src/MyProject/MyProject.slnx -v:minimal            # 必須 0 warning（TreatWarningsAsErrors，有警告即建置失敗）
-dotnet test src/MyProject/MyProject.slnx                        # 約 1100 個測試（0.9.87），須全數通過
-dotnet format src/MyProject/MyProject.slnx --verify-no-changes  # 有差異時改跑不帶旗標的 dotnet format 自動修正
-pwsh ./scripts/Test-DocsEncoding.ps1                            # docs/**/*.md 須 UTF-8 含 BOM、無亂碼
+pwsh ./scripts/Invoke-QualityGate.ps1          # 完整關卡，約 1 分鐘（0.9.89 實測 42～66 秒，已建置過的情況）
+pwsh ./scripts/Invoke-QualityGate.ps1 -Quick   # 略過弱點掃描（不需連網），約少 10 秒
 ```
 
-VS Code 使用者可直接執行 [`.vscode/tasks.json`](../../.vscode/tasks.json) 的 `build`／`test`／`format-check`／`docs-encoding` 四個任務，內容與上面相同。
+從任何目錄執行都可以（腳本以自己的位置找 repo 根目錄）。**全部通過（結束代碼 0）才提交。**
+依序執行下列步驟，**遇到第一個失敗就停止**，結尾印出各步驟的結果與耗時，失敗時結束代碼為 1：
 
-弱點掃描沒有自動化，升級套件或定期檢查時請手動執行，並依 §4 的規則判讀輸出（**這個指令找到弱點時仍回傳 0**，要自己看）：
+| # | 步驟 | 指令 | 擋什麼 |
+|---|------|------|--------|
+| 1 | Restore | `dotnet restore` | 套件還原失敗（腳本會把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180，見 §4）|
+| 2 | Build | `dotnet build --configuration Release --no-restore` | 編譯錯誤與**任何警告**（`TreatWarningsAsErrors`）|
+| 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
+| 4 | Test | `dotnet test --configuration Release --no-build` | 約 1100 個測試（0.9.89），含十多組慣例守門測試 |
+| 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
+| 6 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
+
+**為什麼用 Release**：與原工作流程、部署產物一致；而且開發中的網站鎖住的是 Debug 的 `bin`，
+用 Release 建置不會跟它搶檔案，網站開著也能跑關卡。
+
+VS Code 使用者可執行 [`.vscode/tasks.json`](../../.vscode/tasks.json) 的 `quality-gate` 任務。
+`build`／`test`／`format-check`／`docs-encoding` 四個任務保留給「只想單獨跑某一道」時使用（它們用 Debug 組態）。
+
+### 0.1 選用：push 前自動執行
 
 ```powershell
-dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive
+pwsh ./scripts/Install-GitHooks.ps1             # 安裝 pre-push hook：每次 git push 先跑 -Quick 關卡
+pwsh ./scripts/Install-GitHooks.ps1 -Uninstall  # 移除
 ```
+
+- **不會自動安裝**：每次 push 都要等測試跑完，是否接受由你決定。臨時要跳過用 `git push --no-verify`。
+- 已經有別的 pre-push hook 時拒絕覆寫（加 `-Force` 才覆寫）；`-Uninstall` 只會刪除本腳本裝的那一個。
+- hooks 目錄以 `git rev-parse --git-path hooks` 取得，worktree 與自訂 `core.hooksPath` 都適用。
+
+### 0.2 自建 CI 時
+
+在任何 CI 平台上只要執行同一行指令即可，不用把關卡重寫成 YAML 步驟：
+換平台時改的只有「怎麼呼叫這支腳本」。§1～§4 記錄原工作流程的設計與決策，供參考。
 
 ---
 
@@ -62,8 +84,8 @@ dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transiti
 | Documentation encoding check | `./scripts/Test-DocsEncoding.ps1`（pwsh） | 檢查 `docs/` 文件編碼 |
 | Vulnerability scan | pwsh 解析 `dotnet list ... package --vulnerable --include-transitive` 的輸出 | 掃描已知弱點套件，**未列入允許清單者讓 CI 失敗** |
 
-> 本機四道關卡（§0）用的是預設 Debug 組態；原工作流程的 Build／Test 用 `--configuration Release`。
-> 兩者都會套用 `TreatWarningsAsErrors`，但衍生專案建 CI 時仍建議沿用 Release，與部署產物一致。
+> 本機品質關卡（§0）與原工作流程一樣用 `--configuration Release`；VS Code 的單項任務則用預設 Debug 組態。
+> 兩者都會套用 `TreatWarningsAsErrors`。
 
 ---
 
@@ -101,18 +123,20 @@ dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transiti
 
 ## 3. 文件編碼檢查 ⚠️
 
-`scripts/Test-DocsEncoding.ps1` 會**遞迴**掃描 `docs/` 下所有 `.md`，逐檔驗證：
+`scripts/Test-DocsEncoding.ps1` 會**遞迴**掃描 `docs/` 下所有 `.md`，加上 repo 根目錄的 `*.md`（`readme.md`、`CLAUDE.md`、`AGENTS.md`、`design-qa.md`，0.9.89 起），逐檔驗證：
 
 - **必須含 UTF-8 BOM**（檔頭 `EF BB BF`），缺少即失敗。
 - **不得含取代字元**（`U+FFFD`），出現代表編碼轉換時已產生亂碼。
 
 > 注意：檔案移入子目錄後，此腳本以 `-Recurse` 涵蓋所有層級。以 PowerShell 建立／另存文件時請使用含 BOM 的 UTF-8（例如 `Set-Content -Encoding utf8BOM`），避免被擋下。編碼規定詳見 [維護規範 §3](維護規範.md)。
 
-提交前在 repo 根目錄執行（§0 的第四道關卡）：
+它是品質關卡（§0）的第 5 步，也可以單獨執行（從任何目錄都可以）：
 
 ```powershell
 pwsh ./scripts/Test-DocsEncoding.ps1
 ```
+
+只會印出失敗的檔案，最後一行是檢查的檔案總數。
 
 ---
 
@@ -120,7 +144,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 `dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。發現弱點時應升級對應套件版本。
 
-> 現況：沒有 CI，這一節沒有任何自動化在執行。請依 §0 手動執行指令，並以下表的規則判讀輸出。
+> 現況（0.9.89 起）：已納入本機品質關卡（§0 第 6 步），判讀規則與下表相同，允許清單是 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`。
 
 為降低 NuGet 來源偶發逾時造成的假失敗，原工作流程把 `NUGET_HTTP_TIMEOUT_SECONDS=180` 設在 **job 層級**，涵蓋 Restore／Build／Test／Vulnerability scan 全部步驟（0.4.47 前只掛在本步驟，最需要它的 Restore 反而沒有）。
 
@@ -133,11 +157,12 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | 只出現允許清單中的諮詢 | ✅ 通過 |
 | 允許清單中某筆**已不再出現**（上游修好了）| ❌ 失敗，要求你把它從清單與本文件移除 |
 
-最後一列是刻意的：豁免只能是暫時的。清單原本寫在已移除的 `.github/workflows/dotnet-ci.yml`（2026-09-20 移除，檔案已不存在）
-的 `$allowed`，當時只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。手動掃描時，輸出中除了這一筆以外的諮詢都要處理。
+最後一列是刻意的：豁免只能是暫時的。清單原本寫在已移除的 `.github/workflows/dotnet-ci.yml` 的 `$allowed`，
+0.9.89 起搬到 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`，目前只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。
+**新增或移除清單項目時，本節與 §4.1 要一起改。**
 比對用諮詢代號而非訊息文字 —— dotnet CLI 的輸出會隨執行環境語系改變。
 
-參考做法（取自原工作流程，可直接放進衍生專案的 CI 步驟）：
+核心邏輯如下（完整版見 `Invoke-QualityGate.ps1` 的 `Invoke-VulnerabilityScan`，它另外在擷取輸出時暫時把 `[Console]::OutputEncoding` 改成 UTF-8，避免繁中 Windows 上的中文訊息變亂碼）：
 
 ```powershell
 $allowed = @('GHSA-2m69-gcr7-jv3q')
