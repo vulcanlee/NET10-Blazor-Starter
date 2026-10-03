@@ -1,6 +1,6 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
 - 現行系統版本：0.9.41
 - 首次實作版本：0.1.61
@@ -23,13 +23,15 @@
 |------|------|------|------|
 | 取得單筆 | `GET {controller}/{id}` | View | `ApiResult<TDto>`（查無回 `NotFound`）|
 | 搜尋分頁 | `POST {controller}/search` | View | `ApiResult<PagedResult<TDto>>` |
-| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`）|
+| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
 | 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
-| 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（查無回 `NotFound`）|
+| 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無或已刪除回 `NotFound`）|
 
 > **樂觀並行（0.9.93 起）**：`GET` 回傳的 DTO 帶有 `ConcurrencyStamp`。`PUT` 必須把它原樣帶回；伺服器以它比對資料庫目前的值，不同代表別人已先修改或刪除，回 409（訊息「這筆資料在你編輯期間已被其他人修改或刪除…」），用戶端應重新 `GET` 後再決定如何合併。`PUT` 成功後版本號會換新，要再次修改請重新 `GET`。`POST` 會忽略這個欄位。
 >
-> ⚠️ 已知缺陷（未修）：三個 `POST` 目前會直接採用客戶端傳來的 `Id` 寫入資料庫，與既有資料撞號時回 500。建立資料時請帶 `Id = 0`。
+> **軟刪除（0.9.94 起）**：`DELETE` 只把資料標記為已刪除，之後對同一筆的 `GET`／`PUT`／`DELETE` 都回 404。還原與永久刪除只能在畫面上的「顯示已刪除」操作，API 不提供。
+>
+> 0.9.93 之前三個 `POST` 會直接採用客戶端傳來的 `Id`，與既有資料撞號時回 500；0.9.94 起一律由資料庫配號。
 
 各控制器對應的路由前綴與權限鍵：
 

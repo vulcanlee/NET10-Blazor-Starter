@@ -195,6 +195,8 @@ public class ProjectRepository
         project.UpdatedAt = DateTime.Now;
 
         // 不信任客戶端傳來的版本號（POST 會忽略它）；AutoMapper 從 DTO 映射時可能是 null。
+        // 一律由資料庫配號：0.9.93 之前會直接採用客戶端傳來的 Id，與既有資料撞號時回 500（軟刪除的列也一直佔著 Id）。
+        project.Id = 0;
         project.ConcurrencyStamp = ConcurrencyStampHelper.New();
         await context.Project.AddAsync(project);
         await context.SaveChangesAsync();
@@ -216,6 +218,7 @@ public class ProjectRepository
 
         foreach (var project in projects)
         {
+            project.Id = 0;
             project.ConcurrencyStamp = ConcurrencyStampHelper.New();
         }
 
@@ -245,6 +248,7 @@ public class ProjectRepository
         // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
         // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
         ConcurrencyStampHelper.Apply(context.Entry(existingProject), project.ConcurrencyStamp);
+        SoftDeleteHelper.ProtectFlags(context.Entry(existingProject));
         await context.SaveChangesAsync();
 
         return true;
@@ -298,7 +302,11 @@ public class ProjectRepository
     /// <summary>
     /// 刪除專案
     /// </summary>
-    public async Task<bool> DeleteAsync(int id)
+    /// <summary>
+    /// 軟刪除（0.9.94 起）：可在畫面的「顯示已刪除」中還原或永久刪除。
+    /// FindAsync 會套用軟刪除過濾，已刪除的資料回 false（controller 回 404）。
+    /// </summary>
+    public async Task<bool> DeleteAsync(int id, string? actorAccount)
     {
         var project = await context.Project.FindAsync(id);
         if (project == null)
@@ -306,7 +314,7 @@ public class ProjectRepository
             return false;
         }
 
-        context.Project.Remove(project);
+        SoftDeleteHelper.MarkDeleted(project, actorAccount);
         await context.SaveChangesAsync();
 
         return true;
@@ -315,13 +323,18 @@ public class ProjectRepository
     /// <summary>
     /// 批次刪除專案
     /// </summary>
-    public async Task<int> DeleteRangeAsync(List<int> ids)
+    public async Task<int> DeleteRangeAsync(List<int> ids, string? actorAccount)
     {
         var projects = await context.Project
             .Where(p => ids.Contains(p.Id))
             .ToListAsync();
 
-        context.Project.RemoveRange(projects);
+        // 軟刪除（0.9.94 起），與 DeleteAsync 一致。
+        foreach (var project in projects)
+        {
+            SoftDeleteHelper.MarkDeleted(project, actorAccount);
+        }
+
         return await context.SaveChangesAsync();
     }
 

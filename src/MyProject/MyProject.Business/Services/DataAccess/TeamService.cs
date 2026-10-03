@@ -207,6 +207,7 @@ public class TeamService
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
+            SoftDeleteHelper.ProtectFlags(entry);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={TeamName}", itemData.Id, itemData.Name);
@@ -232,6 +233,10 @@ public class TeamService
         }
     }
 
+    /// <summary>
+    /// 刪除 = 軟刪除（0.9.94 起）：資料仍在，可在「顯示已刪除」中還原；永久刪除見 <see cref="PurgeAsync"/>。
+    /// 使用者與團隊的關聯（UserTeam）保留，團隊還原後成員關係自動恢復；查詢時經由 context.Team 的過濾自然排除。
+    /// </summary>
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -239,9 +244,7 @@ public class TeamService
 
         try
         {
-            Team? item = await context.Team
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id);
+            Team? item = await context.Team.FirstOrDefaultAsync(x => x.Id == id);
 
             if (item == null)
             {
@@ -249,17 +252,149 @@ public class TeamService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的團隊資料。");
             }
 
-            context.Entry(item).State = EntityState.Deleted;
+            SoftDeleteHelper.MarkDeleted(item, currentUserService.CurrentUser.Id > 0 ? currentUserService.CurrentUser.Account : null);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Team deleted successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
             await WriteAuditAsync(AuditActions.Team.Delete, id, $"name={item.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Team deletion rejected by concurrency conflict. TeamId={TeamId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete team. TeamId={TeamId}", id);
             return VerifyRecordResultFactory.Build(false, "刪除團隊失敗。", ex);
+        }
+    }
+
+    /// <summary>已刪除的團隊（「顯示已刪除」清單），固定依刪除時間由新到舊。</summary>
+    public async Task<DataRequestResult<TeamAdapterModel>> GetDeletedAsync(DataRequest dataRequest)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        IQueryable<Team> dataSource = context.Team
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .AsNoTracking()
+            .Where(x => x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(dataRequest.Search))
+        {
+            dataSource = dataSource.Where(x =>
+                x.Name.Contains(dataRequest.Search) ||
+                (x.Code != null && x.Code.Contains(dataRequest.Search)) ||
+                (x.Description != null && x.Description.Contains(dataRequest.Search)));
+        }
+
+        dataSource = dataSource.OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id);
+
+        var result = new DataRequestResult<TeamAdapterModel> { Count = await dataSource.CountAsync() };
+        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
+        if (dataRequest.Take != 0)
+        {
+            dataSource = dataSource.Take(dataRequest.PageSize);
+        }
+
+        result.Result = Mapper.Map<List<TeamAdapterModel>>(await dataSource.ToListAsync());
+        return result;
+    }
+
+    public async Task<VerifyRecordResult> RestoreAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Restoring team. TeamId={TeamId}", id);
+
+        try
+        {
+            Team? item = await context.Team
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Team restore rejected because deleted record was not found. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要還原的團隊（可能已被還原或永久刪除）。");
+            }
+
+            // 刪除期間可能有人建立了同名或同代號的團隊（部分唯一索引允許），規則與新增時相同：去空白後不分大小寫。
+            var name = item.Name.ToLower();
+            if (await context.Team.AnyAsync(x => x.Id != id && x.Name.ToLower() == name))
+            {
+                Logger.LogInformation("Team restore rejected because an active team has the same name. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, $"已有同名的團隊「{item.Name}」，無法還原。請先將現有的同名團隊改名後再還原。");
+            }
+
+            if (item.Code is { } code)
+            {
+                var lowerCode = code.ToLower();
+                if (await context.Team.AnyAsync(x => x.Id != id && x.Code != null && x.Code.ToLower() == lowerCode))
+                {
+                    Logger.LogInformation("Team restore rejected because an active team has the same code. TeamId={TeamId}", id);
+                    return VerifyRecordResultFactory.Build(false, $"已有代號為「{code}」的團隊，無法還原。請先將現有團隊的代號改掉後再還原。");
+                }
+            }
+
+            SoftDeleteHelper.Restore(item);
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("Team restored successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
+            await WriteAuditAsync(AuditActions.Team.Restore, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Team restore rejected by concurrency conflict. TeamId={TeamId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
+        catch (Exception ex)
+        {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("Team restore rejected by unique constraint. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
+            Logger.LogError(ex, "Failed to restore team. TeamId={TeamId}", id);
+            return VerifyRecordResultFactory.Build(false, "還原團隊失敗。", ex);
+        }
+    }
+
+    /// <summary>永久刪除：只能對已刪除的團隊執行，無法復原；使用者與團隊的關聯一併刪除（資料庫 Cascade）。</summary>
+    public async Task<VerifyRecordResult> PurgeAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Purging team. TeamId={TeamId}", id);
+
+        try
+        {
+            Team? item = await context.Team
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Team purge rejected because deleted record was not found. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的團隊（只能永久刪除已刪除的資料）。");
+            }
+
+            context.Team.Remove(item);
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("Team purged successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
+            await WriteAuditAsync(AuditActions.Team.Purge, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Team purge rejected by concurrency conflict. TeamId={TeamId}", id);
+            return VerifyRecordResultFactory.Build(false, "這筆團隊已被其他人還原或變更，沒有執行永久刪除。", ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to purge team. TeamId={TeamId}", id);
+            return VerifyRecordResultFactory.Build(false, "永久刪除團隊失敗。", ex);
         }
     }
 

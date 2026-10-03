@@ -76,8 +76,18 @@ public static class ConfirmDialog
     }
 
     /// <summary>
-    /// 五個 CRUD 檢視共用的「刪除這一筆」確認。文案完全一致，因此收成一個方法，
-    /// 不必在五個地方各維護一份同樣的字串。
+    /// 軟刪除的「刪除這一筆」確認（0.9.94 起：專案、分類、團隊）。資料可以還原，所以不用破壞性的紅色樣式，
+    /// 但仍維持 <c>MaskClosable = false</c>，並明確告訴使用者去哪裡還原。
+    /// </summary>
+    public static Task<bool> AskSoftDeleteRecordAsync(ModalService modalService)
+        => AskAsync(
+            modalService,
+            "確認刪除",
+            "確定要刪除這筆紀錄嗎？刪除後可在工具列的「顯示已刪除」中還原。",
+            "刪除");
+
+    /// <summary>
+    /// 實體刪除的「刪除這一筆」確認（使用者、角色；軟刪除的頁面請用 <see cref="AskSoftDeleteRecordAsync"/>）。
     /// </summary>
     public static Task<bool> AskDeleteRecordAsync(ModalService modalService)
         => AskDestructiveAsync(

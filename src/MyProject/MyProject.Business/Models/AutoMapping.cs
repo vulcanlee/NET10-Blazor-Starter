@@ -18,13 +18,13 @@ public class AutoMapping : Profile
         CreateMap<Project, ProjectAdapterModel>()
             .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToList(s.Categories)))
             .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)));
-        CreateMap<ProjectAdapterModel, Project>()
+        CreateMap<ProjectAdapterModel, Project>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Categories, o => o.MapFrom(s => TagStringHelper.ToStored(s.Categories)))
             .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)));
         CreateMap<Project, ProjectDto>();
-        CreateMap<ProjectDto, Project>();
+        CreateMap<ProjectDto, Project>().IgnoreSoftDeleteFields();
         CreateMap<Project, ProjectCreateUpdateDto>();
-        CreateMap<ProjectCreateUpdateDto, Project>();
+        CreateMap<ProjectCreateUpdateDto, Project>().IgnoreSoftDeleteFields();
         CreateMap<ProjectFile, ProjectFileAdapterModel>();
         CreateMap<ProjectFileAdapterModel, ProjectFile>();
         #endregion
@@ -42,28 +42,28 @@ public class AutoMapping : Profile
         #region Category
         CreateMap<Category, CategoryAdapterModel>()
             .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)));
-        CreateMap<CategoryAdapterModel, Category>()
+        CreateMap<CategoryAdapterModel, Category>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
             .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)));
         CreateMap<Category, CategoryDto>();
-        CreateMap<CategoryDto, Category>()
+        CreateMap<CategoryDto, Category>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)));
         CreateMap<Category, CategoryCreateUpdateDto>();
-        CreateMap<CategoryCreateUpdateDto, Category>()
+        CreateMap<CategoryCreateUpdateDto, Category>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)));
         #endregion
 
         #region Team
         CreateMap<Team, TeamAdapterModel>();
-        CreateMap<TeamAdapterModel, Team>()
+        CreateMap<TeamAdapterModel, Team>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
             .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         CreateMap<Team, TeamDto>();
-        CreateMap<TeamDto, Team>()
+        CreateMap<TeamDto, Team>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
             .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         CreateMap<Team, TeamCreateUpdateDto>();
-        CreateMap<TeamCreateUpdateDto, Team>()
+        CreateMap<TeamCreateUpdateDto, Team>().IgnoreSoftDeleteFields()
             .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
             .ForMember(d => d.Code, o => o.MapFrom(s => NameNormalizer.NormalizeOptional(s.Code)));
         #endregion
@@ -101,4 +101,18 @@ public class AutoMapping : Profile
         #endregion
         #endregion
     }
+}
+
+/// <summary>
+/// 「→ 實體」的對應一律不帶軟刪除欄位：畫面模型與 DTO 上的值（或預設值）不能決定一筆資料是否已刪除，
+/// 刪除與還原只能經由服務的刪除／還原方法（見 SoftDeleteHelper）。
+/// </summary>
+internal static class SoftDeleteMappingExtensions
+{
+    public static IMappingExpression<TSource, TEntity> IgnoreSoftDeleteFields<TSource, TEntity>(this IMappingExpression<TSource, TEntity> map)
+        where TEntity : ISoftDeletable
+        => map
+            .ForMember(d => d.IsDeleted, o => o.Ignore())
+            .ForMember(d => d.DeletedAt, o => o.Ignore())
+            .ForMember(d => d.DeletedBy, o => o.Ignore());
 }

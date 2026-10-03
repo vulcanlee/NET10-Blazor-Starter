@@ -9,6 +9,7 @@ using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
 using MyProject.Share.Helpers;
+using MyProject.Web.Auth;
 using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
@@ -191,7 +192,8 @@ public class CategoryController : ControllerBase
         {
             logger.LogDebug("Received category delete request. CategoryId={CategoryId}", id);
 
-            var success = await categoryRepository.DeleteAsync(id);
+            // 軟刪除（0.9.94 起），刪除者記入 DeletedBy。
+            var success = await categoryRepository.DeleteAsync(id, RequestActorResolver.Resolve(User).Account);
             if (!success)
             {
                 logger.LogWarning("Category delete request could not find record. CategoryId={CategoryId}", id);

@@ -236,6 +236,7 @@ public class CategoryService
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
+            SoftDeleteHelper.ProtectFlags(entry);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={CategoryName}", itemData.Id, itemData.Name);
@@ -261,6 +262,9 @@ public class CategoryService
         }
     }
 
+    /// <summary>
+    /// 刪除 = 軟刪除（0.9.94 起）：資料仍在，可在「顯示已刪除」中還原；永久刪除見 <see cref="PurgeAsync"/>。
+    /// </summary>
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -268,9 +272,7 @@ public class CategoryService
 
         try
         {
-            Category? item = await context.Category
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id);
+            Category? item = await context.Category.FirstOrDefaultAsync(x => x.Id == id);
 
             if (item == null)
             {
@@ -278,17 +280,158 @@ public class CategoryService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的分類資料。");
             }
 
-            context.Entry(item).State = EntityState.Deleted;
+            // 0.9.93 之前刪除完全不檢查團隊範圍；畫面上看不到不代表伺服器端不該擋。
+            if (!IsVisible(item, await accessScope.GetAsync()))
+            {
+                Logger.LogWarning("Category deletion denied by team scope. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法刪除。");
+            }
+
+            SoftDeleteHelper.MarkDeleted(item, currentUserService.CurrentUser.Id > 0 ? currentUserService.CurrentUser.Account : null);
             await context.SaveChangesAsync();
 
             Logger.LogInformation("Category deleted successfully. CategoryId={CategoryId}, Name={CategoryName}", id, item.Name);
             await WriteAuditAsync(AuditActions.Category.Delete, id, $"name={item.Name}");
             return VerifyRecordResultFactory.Build(true);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Category deletion rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete category. CategoryId={CategoryId}", id);
             return VerifyRecordResultFactory.Build(false, "刪除分類失敗。", ex);
+        }
+    }
+
+    /// <summary>已刪除的分類（「顯示已刪除」清單）。沿用搜尋與團隊可見性，固定依刪除時間由新到舊。</summary>
+    public async Task<DataRequestResult<CategoryAdapterModel>> GetDeletedAsync(DataRequest dataRequest)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        IQueryable<Category> dataSource = context.Category
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .AsNoTracking()
+            .Where(x => x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(dataRequest.Search))
+        {
+            dataSource = dataSource.Where(x =>
+                x.Name.Contains(dataRequest.Search) ||
+                (x.Description != null && x.Description.Contains(dataRequest.Search)));
+        }
+
+        dataSource = ApplyTeamVisibility(dataSource, await accessScope.GetAsync())
+            .OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id);
+
+        var result = new DataRequestResult<CategoryAdapterModel> { Count = await dataSource.CountAsync() };
+        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
+        if (dataRequest.Take != 0)
+        {
+            dataSource = dataSource.Take(dataRequest.PageSize);
+        }
+
+        result.Result = Mapper.Map<List<CategoryAdapterModel>>(await dataSource.ToListAsync());
+        return result;
+    }
+
+    public async Task<VerifyRecordResult> RestoreAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Restoring category. CategoryId={CategoryId}", id);
+
+        try
+        {
+            Category? item = await context.Category
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Category restore rejected because deleted record was not found. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要還原的分類（可能已被還原或永久刪除）。");
+            }
+
+            if (!IsVisible(item, await accessScope.GetAsync()))
+            {
+                Logger.LogWarning("Category restore denied by team scope. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法還原。");
+            }
+
+            // 刪除期間可能有人建立了同名的分類（部分唯一索引允許），規則與新增時相同：去空白後不分大小寫。
+            var name = item.Name.ToLower();
+            if (await context.Category.AnyAsync(x => x.Id != id && x.Name.ToLower() == name))
+            {
+                Logger.LogInformation("Category restore rejected because an active category has the same name. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, $"已有同名的分類「{item.Name}」，無法還原。請先將現有的同名分類改名後再還原。");
+            }
+
+            SoftDeleteHelper.Restore(item);
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("Category restored successfully. CategoryId={CategoryId}, Name={CategoryName}", id, item.Name);
+            await WriteAuditAsync(AuditActions.Category.Restore, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Category restore rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
+        catch (Exception ex)
+        {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("Category restore rejected by unique constraint. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
+            Logger.LogError(ex, "Failed to restore category. CategoryId={CategoryId}", id);
+            return VerifyRecordResultFactory.Build(false, "還原分類失敗。", ex);
+        }
+    }
+
+    /// <summary>永久刪除：只能對已刪除的分類執行，無法復原。</summary>
+    public async Task<VerifyRecordResult> PurgeAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Purging category. CategoryId={CategoryId}", id);
+
+        try
+        {
+            Category? item = await context.Category
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Category purge rejected because deleted record was not found. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的分類（只能永久刪除已刪除的資料）。");
+            }
+
+            if (!IsVisible(item, await accessScope.GetAsync()))
+            {
+                Logger.LogWarning("Category purge denied by team scope. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法永久刪除。");
+            }
+
+            context.Category.Remove(item);
+            await context.SaveChangesAsync();
+
+            Logger.LogInformation("Category purged successfully. CategoryId={CategoryId}, Name={CategoryName}", id, item.Name);
+            await WriteAuditAsync(AuditActions.Category.Purge, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Category purge rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            return VerifyRecordResultFactory.Build(false, "這筆分類已被其他人還原或變更，沒有執行永久刪除。", ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to purge category. CategoryId={CategoryId}", id);
+            return VerifyRecordResultFactory.Build(false, "永久刪除分類失敗。", ex);
         }
     }
 

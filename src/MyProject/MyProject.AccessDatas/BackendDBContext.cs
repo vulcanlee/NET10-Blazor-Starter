@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Reflection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using MyProject.AccessDatas.Models;
 
 namespace MyProject.AccessDatas;
@@ -36,6 +38,11 @@ public partial class BackendDBContext : DbContext
         {
             // 連線設定一律由 MyProject.Web 的 AddConfiguredDatabase 以 SQLite 註冊。
         }
+
+        // 10622：「必要導覽的主體有全域過濾器」。從相依端（UserTeam、ProjectFile…）經導覽屬性查主體時，
+        // 相依的資料列會隨主體被過濾而靜默消失。本專案規定關聯表一律用明確 Join（見 ISoftDeletable），
+        // 程式中沒有這種查詢，因此忽略這個模型驗證警告，避免每次啟動都記一筆。
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -46,6 +53,16 @@ public partial class BackendDBContext : DbContext
         foreach (var relationship in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))
         {
             relationship.DeleteBehavior = DeleteBehavior.Restrict;
+        }
+        #endregion
+
+        #region 軟刪除：實作 ISoftDeletable 的實體一律套用具名全域過濾器（0.9.94 起）
+        var applySoftDelete = typeof(BackendDBContext).GetMethod(nameof(ApplySoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Static)!;
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                     .Where(x => typeof(ISoftDeletable).IsAssignableFrom(x.ClrType))
+                     .ToList())
+        {
+            applySoftDelete.MakeGenericMethod(entityType.ClrType).Invoke(null, [modelBuilder]);
         }
         #endregion
 
@@ -74,18 +91,19 @@ public partial class BackendDBContext : DbContext
         // 兩個並發請求可以同時通過檢查，因此需要資料庫層的唯一索引兜底。
         // 索引採 SQLite 預設的 BINARY 定序（區分大小寫）；服務層的不分大小寫判定更嚴格，
         // 會先擋下，兩者不衝突。刻意不改欄位 collation，以免影響既有查詢行為。
+        // 0.9.94 起為部分索引（只約束未刪除的資料）：已刪除的名稱可以重新建立，還原時由服務層檢查衝突。
         modelBuilder.Entity<Category>(entity =>
         {
-            entity.HasIndex(x => x.Name).IsUnique();
+            entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);
         });
 
         modelBuilder.Entity<Team>(entity =>
         {
-            entity.HasIndex(x => x.Name).IsUnique();
+            entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);
 
             // Code 為選填。SQLite 的唯一索引視 NULL 互不相等，所以多筆「未填代號」沒問題；
             // 但空字串彼此相同，因此寫入前一律由 NameNormalizer.NormalizeOptional 歸一成 null。
-            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasIndex(x => x.Code).IsUnique().HasFilter(ActiveRowsOnly);
         });
         #endregion
 
@@ -163,6 +181,13 @@ public partial class BackendDBContext : DbContext
 
         OnModelCreatingPartial(modelBuilder);
     }
+
+    /// <summary>部分唯一索引的條件：只約束未軟刪除的資料列。</summary>
+    private const string ActiveRowsOnly = "\"IsDeleted\" = 0";
+
+    private static void ApplySoftDeleteFilter<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class, ISoftDeletable
+        => modelBuilder.Entity<TEntity>().HasQueryFilter(ISoftDeletable.FilterName, e => !e.IsDeleted);
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }

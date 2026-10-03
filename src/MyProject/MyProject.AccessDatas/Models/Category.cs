@@ -5,7 +5,7 @@ namespace MyProject.AccessDatas.Models;
 /// <summary>
 /// 分類（主資料，獨立無外鍵關聯）
 /// </summary>
-public class Category : IConcurrencyStamped
+public class Category : IConcurrencyStamped, ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -25,4 +25,11 @@ public class Category : IConcurrencyStamped
 
     /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>
     public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>軟刪除旗標（見 <see cref="ISoftDeletable"/>）。</summary>
+    public bool IsDeleted { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeletedBy { get; set; }
 }

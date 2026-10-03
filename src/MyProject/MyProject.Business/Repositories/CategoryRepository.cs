@@ -97,6 +97,8 @@ public class CategoryRepository
         category.UpdatedAt = DateTime.Now;
 
         // 不信任客戶端傳來的版本號（POST 會忽略它）；AutoMapper 從 DTO 映射時可能是 null。
+        // 一律由資料庫配號：0.9.93 之前會直接採用客戶端傳來的 Id，與既有資料撞號時回 500（軟刪除的列也一直佔著 Id）。
+        category.Id = 0;
         category.ConcurrencyStamp = ConcurrencyStampHelper.New();
         await context.Category.AddAsync(category);
         await context.SaveChangesAsync();
@@ -119,12 +121,17 @@ public class CategoryRepository
         // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
         // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
         ConcurrencyStampHelper.Apply(context.Entry(existing), category.ConcurrencyStamp);
+        SoftDeleteHelper.ProtectFlags(context.Entry(existing));
         await context.SaveChangesAsync();
 
         return true;
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    /// <summary>
+    /// 軟刪除（0.9.94 起）：可在畫面的「顯示已刪除」中還原或永久刪除。
+    /// FindAsync 會套用軟刪除過濾，已刪除的資料回 false（controller 回 404）。
+    /// </summary>
+    public async Task<bool> DeleteAsync(int id, string? actorAccount)
     {
         var category = await context.Category.FindAsync(id);
         if (category == null)
@@ -132,7 +139,7 @@ public class CategoryRepository
             return false;
         }
 
-        context.Category.Remove(category);
+        SoftDeleteHelper.MarkDeleted(category, actorAccount);
         await context.SaveChangesAsync();
 
         return true;

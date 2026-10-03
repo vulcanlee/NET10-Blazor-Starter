@@ -9,6 +9,7 @@ using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Models;
 using MyProject.Share.Helpers;
+using MyProject.Web.Auth;
 using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
@@ -223,7 +224,8 @@ public class ProjectController : ControllerBase
         {
             logger.LogDebug("Received project delete request. ProjectId={ProjectId}", id);
 
-            var success = await projectRepository.DeleteAsync(id);
+            // 軟刪除（0.9.94 起），刪除者記入 DeletedBy。
+            var success = await projectRepository.DeleteAsync(id, RequestActorResolver.Resolve(User).Account);
 
             if (!success)
             {
@@ -237,18 +239,7 @@ public class ProjectController : ControllerBase
         }
         catch (Exception ex)
         {
-            // 仍有關聯資料是使用者錯誤（LOG-11）：先判斷，命中時只記 Warning、不帶例外物件。
-            // 0.9.78 之前先記 Error 再判斷，而且只認 SQL Server 的訊息；本系統只支援 SQLite。
-            var innerMessage = ex.InnerException?.Message;
-            if (innerMessage?.Contains("FOREIGN KEY constraint failed", StringComparison.OrdinalIgnoreCase) == true
-                || innerMessage?.Contains("DELETE statement conflicted", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                logger.LogWarning(
-                    "Project delete request rejected because related data still exists. ProjectId={ProjectId}",
-                    id);
-                return BadRequest(ApiResult.FailureResult("此專案仍有關聯資料，無法刪除"));
-            }
-
+            // 0.9.94 起刪除是軟刪除，不再有「仍有關聯資料（FK）」的情況，原本攔截 FK 錯誤的分支已移除。
             logger.LogError(ex, "Failed to delete project. ProjectId={ProjectId}", id);
             return this.ApiServerError("刪除專案失敗", ex);
         }

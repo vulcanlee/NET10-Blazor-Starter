@@ -133,7 +133,7 @@ public partial class ProjectViewView
             _pageIndex,
             _pageSize);
 
-        DataRequestResult<ProjectAdapterModel> dataRequestResult = await projectService.GetAsync(new DataRequest
+        var dataRequest = new DataRequest
         {
             Search = searchText,
             SortField = sortField,
@@ -143,7 +143,12 @@ public partial class ProjectViewView
             Take = 0,
             CategoryFilters = selectedCategoryFilters.ToList(),
             TeamFilters = selectedTeamFilters.ToList(),
-        });
+        };
+
+        // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.94 起）。
+        DataRequestResult<ProjectAdapterModel> dataRequestResult = showDeleted
+            ? await projectService.GetDeletedAsync(dataRequest)
+            : await projectService.GetAsync(dataRequest);
 
         projectAdapterModels = dataRequestResult.Result.ToList();
         _total = dataRequestResult.Count;
@@ -284,7 +289,7 @@ public partial class ProjectViewView
             return;
         }
 
-        var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
+        var ok = await ConfirmDialog.AskSoftDeleteRecordAsync(modalService);
 
         if (!ok)
         {
@@ -292,12 +297,91 @@ public partial class ProjectViewView
             return;
         }
 
-        await projectService.DeleteAsync(projectAdapterModel.Id);
+        var result = await projectService.DeleteAsync(projectAdapterModel.Id);
+        if (!result.Success)
+        {
+            // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」。
+            logger.LogInformation("Project delete rejected. ProjectId={ProjectId}, Message={Message}", projectAdapterModel.Id, result.Message);
+            ViewNotification.Error(notificationService, result.Message);
+            return;
+        }
+
         logger.LogInformation("Project delete completed. ProjectId={ProjectId}", projectAdapterModel.Id);
 
         ViewNotification.Warning(notificationService, "刪除成功");
 
         await ReloadAsync();
+    }
+
+    bool showDeleted;
+
+    async Task OnToggleDeletedAsync()
+    {
+        showDeleted = !showDeleted;
+        _pageIndex = 1;
+        await ReloadAsync();
+    }
+
+    async Task OnRestoreAsync(ProjectAdapterModel record)
+    {
+        try
+        {
+            var ok = await ConfirmDialog.AskAsync(modalService, "確認還原", $"要還原「{record.Title}」嗎？", "還原");
+            if (!ok)
+            {
+                return;
+            }
+
+            var result = await projectService.RestoreAsync(record.Id);
+            if (!result.Success)
+            {
+                logger.LogInformation("Project restore rejected. ProjectId={ProjectId}, Message={Message}", record.Id, result.Message);
+                ViewNotification.Error(notificationService, result.Message);
+                return;
+            }
+
+            logger.LogInformation("Project restore completed. ProjectId={ProjectId}", record.Id);
+            ViewNotification.Warning(notificationService, "還原成功");
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while restoring project.");
+            ViewNotification.Error(notificationService, "還原專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+        }
+    }
+
+    async Task OnPurgeAsync(ProjectAdapterModel record)
+    {
+        try
+        {
+            var ok = await ConfirmDialog.AskDestructiveAsync(
+                modalService,
+                "永久刪除",
+                $"永久刪除「{record.Title}」後無法復原，附件檔案也會一併刪除。確定要永久刪除嗎？",
+                "永久刪除");
+            if (!ok)
+            {
+                return;
+            }
+
+            var result = await projectService.PurgeAsync(record.Id);
+            if (!result.Success)
+            {
+                logger.LogInformation("Project purge rejected. ProjectId={ProjectId}, Message={Message}", record.Id, result.Message);
+                ViewNotification.Error(notificationService, result.Message);
+                return;
+            }
+
+            logger.LogInformation("Project purge completed. ProjectId={ProjectId}", record.Id);
+            ViewNotification.Warning(notificationService, "已永久刪除");
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while purging project.");
+            ViewNotification.Error(notificationService, "永久刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+        }
     }
 
     private Task OnAddAsync(bool continueOnCapturedContext)
