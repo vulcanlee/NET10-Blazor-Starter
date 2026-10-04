@@ -16,5 +16,6 @@
   { "route": "/roleviews", "title": "角色管理", "file": "roleviews.md" },
   { "route": "/audit-logs", "title": "稽核紀錄", "file": "audit-logs.md" },
   { "route": "/system-parameters", "title": "系統參數", "file": "system-parameters.md" },
-  { "route": "/backups", "title": "系統備份", "file": "backups.md" }
+  { "route": "/backups", "title": "系統備份", "file": "backups.md" },
+  { "route": "/announcements", "title": "公告管理", "file": "announcements.md" }
 ]

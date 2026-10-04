@@ -26,6 +26,7 @@ public sealed class AdminOnlyPermissionTests
         MagicObjectHelper.角色_排程作業,
         MagicObjectHelper.角色_系統參數,
         MagicObjectHelper.角色_系統備份,
+        MagicObjectHelper.角色_公告管理,
         MagicObjectHelper.角色_系統管理,
         MagicObjectHelper.角色_權限管理,
         MagicObjectHelper.角色_使用者管理,

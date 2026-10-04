@@ -573,7 +573,7 @@ public sealed class SoftDeleteUserRoleTests
                 new RolePermissionService(), new RecordingAuditLogService());
 
         public Task<ExternalLoginResult> ExternalLogin(string subject, string email)
-            => new ExternalLoginService(NewContext(), NullLogger<ExternalLoginService>.Instance, new RecordingAuditLogService())
+            => new ExternalLoginService(NewContext(), NullLogger<ExternalLoginService>.Instance, new RecordingAuditLogService(), new RecordingNotificationSender())
                 .FindOrCreateAsync("Google", subject, email, "Google User", MagicObjectHelper.預設角色);
 
         public async Task<IReadOnlyCollection<string>> PermissionKeysAsync(int userId)

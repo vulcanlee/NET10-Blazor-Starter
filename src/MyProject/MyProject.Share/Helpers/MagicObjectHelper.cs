@@ -71,6 +71,9 @@ public class MagicObjectHelper
     public const string 角色_系統備份 = "系統備份";
 
     /// <inheritdoc cref="角色_系統管理"/>
+    public const string 角色_公告管理 = "公告管理";
+
+    /// <inheritdoc cref="角色_系統管理"/>
     public const string 角色_系統例外紀錄 = "系統例外紀錄";
     public const string 角色_資料定義 = "資料定義管理功能";
     public const string 角色_分類清單 = "分類清單";

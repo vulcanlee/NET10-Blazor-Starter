@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
@@ -63,7 +64,8 @@ public sealed class ScheduledJobRunner
         string trigger,
         DateTime? scheduledForUtc,
         string? account,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? triggeredByUserId = null)
     {
         if (trigger != JobRunTriggers.Manual)
         {
@@ -96,7 +98,7 @@ public sealed class ScheduledJobRunner
         }
 
         await RecoverStaleRunsCoreAsync(descriptor.Name);
-        await ExecuteCoreAsync(descriptor, trigger, scheduledForUtc, account, cancellationToken);
+        await ExecuteCoreAsync(descriptor, trigger, scheduledForUtc, account, triggeredByUserId, cancellationToken);
         return ScheduledJobRunOutcome.Executed;
     }
 
@@ -119,7 +121,7 @@ public sealed class ScheduledJobRunner
         }
     }
 
-    private async Task ExecuteCoreAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? scheduledForUtc, string? account, CancellationToken cancellationToken)
+    private async Task ExecuteCoreAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? scheduledForUtc, string? account, int? triggeredByUserId, CancellationToken cancellationToken)
     {
         // 每次執行一個新的追蹤碼：不可沿用呼叫端的（例如手動觸發時畫面那一次互動的碼）。
         var traceId = TraceCode.New();
@@ -148,7 +150,7 @@ public sealed class ScheduledJobRunner
 
             await using var scope = scopeFactory.CreateAsyncScope();
             var job = (IScheduledJob)scope.ServiceProvider.GetRequiredService(descriptor.JobType);
-            var result = await job.ExecuteAsync(new ScheduledJobContext(runId, trigger, scheduledForUtc, account), cancellationToken);
+            var result = await job.ExecuteAsync(new ScheduledJobContext(runId, trigger, scheduledForUtc, account, triggeredByUserId), cancellationToken);
 
             status = result.Succeeded ? JobRunStatuses.Succeeded : JobRunStatuses.Failed;
             message = result.Message;
@@ -189,8 +191,35 @@ public sealed class ScheduledJobRunner
                 }
             }
 
+            if (status == JobRunStatuses.Failed)
+            {
+                await NotifyFailureAsync(descriptor, message, triggeredByUserId);
+            }
+
             await PruneAsync();
             contextAccessor.Clear();
+        }
+    }
+
+    /// <summary>
+    /// 作業失敗（不含中斷與略過）時通知所有管理員與手動觸發者，並同時寄信（0.9.100 起）。
+    /// 用新的 scope：作業自己的 scope 已經結束。通知失敗只記錯誤，不影響這次執行的結果。
+    /// </summary>
+    private async Task NotifyFailureAsync(ScheduledJobDescriptor descriptor, string? message, int? triggeredByUserId)
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var notifications = scope.ServiceProvider.GetRequiredService<INotificationSender>();
+            var target = triggeredByUserId is { } userId
+                ? NotificationTarget.Union(NotificationTarget.AllAdmins(), NotificationTarget.Users(userId))
+                : NotificationTarget.AllAdmins();
+            await notifications.SendAsync(new NotificationRequest(
+                NotificationCategories.JobFailed, $"排程作業失敗：{descriptor.DisplayName}", message, "/scheduled-jobs", target, AlsoEmail: true));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send the scheduled job failure notification. JobName={JobName}", descriptor.Name);
         }
     }
 

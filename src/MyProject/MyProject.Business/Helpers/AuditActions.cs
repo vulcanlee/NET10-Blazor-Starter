@@ -177,6 +177,20 @@ public static class AuditActions
         public const string Disable = "Job.Disable";
     }
 
+    /// <summary>公告管理（0.9.100 起）。</summary>
+    public static class Announcement
+    {
+        public const string Create = "Announcement.Create";
+        public const string Update = "Announcement.Update";
+        public const string Delete = "Announcement.Delete";
+    }
+
+    /// <summary>站內通知（0.9.100 起）：排程作業依保留天數自動清除。</summary>
+    public static class Notification
+    {
+        public const string AutoPurge = "Notification.AutoPurge";
+    }
+
     /// <summary>系統備份（0.9.99 起）：建立（排程或立即備份）、依份數自動刪除、下載、手動刪除。</summary>
     public static class Backup
     {

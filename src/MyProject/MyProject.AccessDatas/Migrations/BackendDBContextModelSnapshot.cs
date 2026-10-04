@@ -91,6 +91,74 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("AiCallLog");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.Announcement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByAccount")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TargetId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TargetKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Announcement");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.AnnouncementDismissal", b =>
+                {
+                    b.Property<int>("AnnouncementId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MyUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DismissedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("AnnouncementId", "MyUserId");
+
+                    b.HasIndex("MyUserId");
+
+                    b.ToTable("AnnouncementDismissal");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.AuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -369,6 +437,56 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("RoleViewId");
 
                     b.ToTable("MyUser");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Link")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReadAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecipientUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("RecipientUserId", "CreatedAtUtc");
+
+                    b.HasIndex("RecipientUserId", "ReadAtUtc");
+
+                    b.HasIndex("RecipientUserId", "SourceKey");
+
+                    b.ToTable("Notification");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.PasswordResetToken", b =>
@@ -856,6 +974,25 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("UserTeam");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.AnnouncementDismissal", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.Announcement", "Announcement")
+                        .WithMany()
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyProject.AccessDatas.Models.MyUser", "MyUser")
+                        .WithMany()
+                        .HasForeignKey("MyUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("MyUser");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.MyUser", b =>
                 {
                     b.HasOne("MyProject.AccessDatas.Models.RoleView", "RoleView")
@@ -864,6 +1001,17 @@ namespace MyProject.AccessDatas.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("RoleView");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.Notification", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.MyUser", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RecipientUser");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.PasswordResetToken", b =>

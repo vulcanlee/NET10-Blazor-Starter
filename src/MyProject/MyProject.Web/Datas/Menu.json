@@ -133,6 +133,12 @@
         "name": "系統備份",
         "icon": "backup",
         "url": "/backups"
+      },
+      {
+        "id": 38,
+        "name": "公告管理",
+        "icon": "campaign",
+        "url": "/announcements"
       }
     ]
   },

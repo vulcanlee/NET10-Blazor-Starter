@@ -204,7 +204,7 @@ public sealed class JobSchedulerWorker : BackgroundService
                 }
 
                 // 由排程器自己的執行環境啟動並追蹤，關機時 StopAsync 會等它。
-                var task = RunManualAsync(descriptor, request.Account, stoppingToken);
+                var task = RunManualAsync(descriptor, request.Account, request.UserId, stoppingToken);
                 lock (manualRunsLock)
                 {
                     manualRuns.RemoveAll(t => t.IsCompleted);
@@ -218,11 +218,11 @@ public sealed class JobSchedulerWorker : BackgroundService
         }
     }
 
-    private async Task RunManualAsync(ScheduledJobDescriptor descriptor, string? account, CancellationToken stoppingToken)
+    private async Task RunManualAsync(ScheduledJobDescriptor descriptor, string? account, int? userId, CancellationToken stoppingToken)
     {
         try
         {
-            await RunSafelyAsync(descriptor, JobRunTriggers.Manual, null, stoppingToken, account);
+            await RunSafelyAsync(descriptor, JobRunTriggers.Manual, null, stoppingToken, account, userId);
         }
         finally
         {
@@ -230,11 +230,11 @@ public sealed class JobSchedulerWorker : BackgroundService
         }
     }
 
-    private async Task RunSafelyAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? slotUtc, CancellationToken cancellationToken, string? account = null)
+    private async Task RunSafelyAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? slotUtc, CancellationToken cancellationToken, string? account = null, int? userId = null)
     {
         try
         {
-            await runner.RunAsync(descriptor, trigger, slotUtc, account, cancellationToken);
+            await runner.RunAsync(descriptor, trigger, slotUtc, account, cancellationToken, userId);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -20,12 +20,14 @@ public class ExternalLoginService
     private readonly BackendDBContext context;
     private readonly ILogger<ExternalLoginService> logger;
     private readonly IAuditLogService auditLogService;
+    private readonly INotificationSender notificationService;
 
-    public ExternalLoginService(BackendDBContext context, ILogger<ExternalLoginService> logger, IAuditLogService auditLogService)
+    public ExternalLoginService(BackendDBContext context, ILogger<ExternalLoginService> logger, IAuditLogService auditLogService, INotificationSender notificationService)
     {
         this.context = context;
         this.logger = logger;
         this.auditLogService = auditLogService;
+        this.notificationService = notificationService;
     }
 
     /// <summary>
@@ -127,6 +129,10 @@ public class ExternalLoginService
         await auditLogService.WriteAsync(
             AuditActions.User.SsoCreate, success: true, actorUserId: newUser.Id, actorAccount: newUser.Account,
             targetType: "MyUser", targetId: newUser.Id.ToString(), detail: $"provider={provider}; status=disabled");
+        await notificationService.SendAsync(new NotificationRequest(
+            NotificationCategories.AccountPending, "有新帳號等待開通",
+            $"{newUser.Name}（{newUser.Account}）第一次用 Google 登入，帳號目前停用，請到使用者管理確認身分後啟用並指派角色。",
+            "/myusers", NotificationTarget.AllAdmins(), SourceKey: $"AccountPending:{newUser.Id}"));
         return new ExternalLoginResult(newUser, IsDeleted: false);
     }
 

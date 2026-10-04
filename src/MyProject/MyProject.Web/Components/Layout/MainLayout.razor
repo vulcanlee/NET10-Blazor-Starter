@@ -20,6 +20,7 @@
                     <PageHelpDialog MenuItems="MenuItems" />
                 </div>
                 <div class="top-row-status">
+                    <NotificationBell />
                     <div class="user-menu @(isUserMenuOpen ? "user-menu-open" : string.Empty)">
                         <button type="button"
                                 class="user-menu-trigger"
@@ -52,6 +53,8 @@
                     </div>
                 </div>
             </div>
+
+            <AnnouncementBanner />
 
             <article class="content px-4">
                 @Body

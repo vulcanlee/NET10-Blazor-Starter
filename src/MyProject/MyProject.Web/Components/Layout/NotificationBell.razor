@@ -1,0 +1,46 @@
+@* 站內通知的鈴鐺（0.9.100 起）：未讀數、最近 10 則、點選標為已讀並導向、全部標為已讀。 *@
+<div class="notification-bell @(isOpen ? "notification-bell-open" : string.Empty)">
+    <button type="button"
+            class="notification-bell-trigger"
+            aria-label="@(unreadCount > 0 ? $"通知（{unreadCount} 則未讀）" : "通知")"
+            aria-expanded="@isOpen"
+            aria-haspopup="menu"
+            @onclick="ToggleAsync">
+        <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="notifications" />
+        @if (unreadCount > 0)
+        {
+            <span class="notification-bell-badge">@BadgeText(unreadCount)</span>
+        }
+    </button>
+
+    @if (isOpen)
+    {
+        <div class="notification-bell-dropdown" role="menu" aria-label="通知">
+            <div class="notification-bell-header">
+                <span class="notification-bell-heading">通知</span>
+                <button type="button" class="notification-bell-link" disabled="@(unreadCount == 0)" @onclick="MarkAllReadAsync">全部標為已讀</button>
+            </div>
+            @if (items.Count == 0)
+            {
+                <div class="notification-bell-empty">目前沒有通知。</div>
+            }
+            else
+            {
+                @foreach (var item in items)
+                {
+                    <button type="button"
+                            class="notification-bell-item @(item.ReadAtUtc is null ? "notification-bell-item-unread" : string.Empty)"
+                            role="menuitem"
+                            @onclick="@(() => OpenAsync(item))">
+                        <span class="notification-bell-item-title">@item.Title</span>
+                        @if (!string.IsNullOrWhiteSpace(item.Body))
+                        {
+                            <span class="notification-bell-item-body">@item.Body</span>
+                        }
+                        <span class="notification-bell-item-time">@ToLocalText(item.CreatedAtUtc)</span>
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>

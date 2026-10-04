@@ -98,6 +98,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 站內通知與公告（0.9.100 起）。訊號與公告快取是 singleton（跨連線共用）；發送服務是 scoped。
+        services.AddSingleton<INotificationSignal, NotificationSignal>();
+        services.AddSingleton<AnnouncementCache>();
+        services.AddScoped<INotificationMailer, NotificationMailer>();
+        services.AddScoped<INotificationSender, NotificationSender>();
+        services.AddScoped<NotificationQueryService>();
+        services.AddScoped<AnnouncementService>();
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
         services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddScoped<ITotpService, TotpService>();
@@ -241,6 +248,9 @@ public static class ServiceCollectionExtensions
             SoftDeletePurgeJob.JobName, "已刪除資料清理",
             "已刪除超過保留天數的專案（含附件檔）、分類、團隊、使用者與角色，永久刪除（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
 
+        services.AddScheduledJob<NotificationRetentionJob>(
+            NotificationRetentionJob.JobName, "站內通知清理",
+            "刪除超過保留天數的站內通知（不論已讀未讀；保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
             "備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
@@ -291,6 +301,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<SoftDeleteSettings>()
             .Bind(configuration.GetSection(SoftDeleteSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<NotificationSettings>()
+            .Bind(configuration.GetSection(NotificationSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

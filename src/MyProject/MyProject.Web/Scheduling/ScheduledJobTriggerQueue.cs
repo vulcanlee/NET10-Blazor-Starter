@@ -17,14 +17,14 @@ public sealed class ScheduledJobTriggerQueue
     public ChannelReader<ManualJobRequest> Reader => channel.Reader;
 
     /// <summary>放入一個手動執行請求；同一個作業已在佇列或執行中（本行程）時回 false。</summary>
-    public bool TryEnqueue(string jobName, string? account)
+    public bool TryEnqueue(string jobName, string? account, int? userId = null)
     {
         if (!pending.TryAdd(jobName, 0))
         {
             return false;
         }
 
-        if (!channel.Writer.TryWrite(new ManualJobRequest(jobName, account)))
+        if (!channel.Writer.TryWrite(new ManualJobRequest(jobName, account, userId)))
         {
             pending.TryRemove(jobName, out _);
             return false;
@@ -41,4 +41,5 @@ public sealed class ScheduledJobTriggerQueue
 }
 
 /// <summary>一個「立即執行」請求。</summary>
-public sealed record ManualJobRequest(string JobName, string? Account);
+/// <param name="UserId">觸發者的使用者 Id（0.9.100 起；作業失敗時通知他）。</param>
+public sealed record ManualJobRequest(string JobName, string? Account, int? UserId = null);

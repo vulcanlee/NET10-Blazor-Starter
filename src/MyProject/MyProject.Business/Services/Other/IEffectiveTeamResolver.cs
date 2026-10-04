@@ -8,4 +8,10 @@ namespace MyProject.Business.Services.Other;
 public interface IEffectiveTeamResolver
 {
     Task<IReadOnlyList<string>> GetEffectiveTeamNamesAsync(int userId);
+
+    /// <summary>
+    /// 反向查詢：有效團隊包含 <paramref name="teamName"/> 的使用者 Id（0.9.100 起，發通知給整個團隊用）。
+    /// 與 <see cref="GetEffectiveTeamNamesAsync"/> 同一個定義（測試以兩邊互相對照）：使用者 u 在結果裡 ⇔ 團隊名稱在 u 的有效團隊裡。
+    /// </summary>
+    Task<IReadOnlyList<int>> GetUserIdsInTeamAsync(string teamName);
 }

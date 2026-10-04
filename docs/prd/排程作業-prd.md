@@ -1,8 +1,8 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.99
+- 現行系統版本：0.9.100
 - 首次實作版本：0.9.96
 - 最後核對日期：2026/10/04
 
@@ -53,8 +53,11 @@
 | `TokenUsageLogRetention` | Token 用量紀錄清理 | `LogRetentionSettings:TokenUsageLogDays`（365，分批刪除）| `TokenUsage.AutoPurge` |
 | `SystemBackup` | 系統備份（0.9.99 起，預設 `0 2 * * *`）| `BackupSettings:KeepCount`（7 份，成功後才刪舊的）| `Backup.Create`／`Backup.AutoPurge` |
 | `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |
+| `NotificationRetention` | 站內通知清理（0.9.100 起）| `NotificationSettings:RetentionDays`（90，UTC 門檻，分批刪除）| `Notification.AutoPurge` |
 
   有刪到資料才寫稽核；天數 0 回成功但不動作。刪檔一律經對應的 file store。
+
+- **失敗通知**（0.9.100 起）：結果為 **Failed** 時（不含中斷、略過），`ScheduledJobRunner` 在寫回結果之後以新的 scope 經 `INotificationSender` 通知全體管理員＋手動觸發者（觸發者 Id 經 `ScheduledJobTriggerQueue` 與 `ScheduledJobContext.TriggeredByUserId` 傳遞），同時寄信、連結 `/scheduled-jobs`；通知失敗不影響作業結果。見 [站內通知與公告 PRD](站內通知與公告-prd.md)。
 
 - **已刪除資料清理**（`SoftDeletePurgeService`）：
   - 系統層級，**不套團隊範圍**、不重用各服務的 `PurgeAsync`（背景作業沒有登入者，會被團隊檢查擋下）。

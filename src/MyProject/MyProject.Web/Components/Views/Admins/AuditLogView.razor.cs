@@ -411,6 +411,8 @@ namespace MyProject.Web.Components.Views.Admins
             "Job" => "cyan",
             "SystemParameter" => "cyan",
             "Backup" => "orange",
+            "Announcement" => "cyan",
+            "Notification" => "cyan",
             _ => "default",
         };
     }

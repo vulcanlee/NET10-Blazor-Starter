@@ -20,7 +20,7 @@ public interface IScheduledJob
 /// <param name="Trigger">觸發方式（<c>JobRunTriggers</c>）。</param>
 /// <param name="ScheduledForUtc">對應的排程時段；手動執行為 null。</param>
 /// <param name="TriggeredByAccount">手動執行的操作者帳號；排程與補跑為 null。</param>
-public sealed record ScheduledJobContext(int RunId, string Trigger, DateTime? ScheduledForUtc, string? TriggeredByAccount);
+public sealed record ScheduledJobContext(int RunId, string Trigger, DateTime? ScheduledForUtc, string? TriggeredByAccount, int? TriggeredByUserId = null);
 
 /// <summary>
 /// 作業的結果。服務層若已經自己處理並記錄了錯誤（例如回傳 null），作業要回 <see cref="Failure"/> ——

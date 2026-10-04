@@ -41,6 +41,7 @@ public sealed class MenuIconTests
         "schedule",
         "settings",
         "backup",
+        "campaign",
     };
 
     [Fact]

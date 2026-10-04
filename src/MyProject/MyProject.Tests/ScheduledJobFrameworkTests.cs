@@ -10,6 +10,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
@@ -280,6 +281,52 @@ public sealed class ScheduledJobFrameworkTests : IDisposable
     }
 
     [Fact]
+    public async Task FailedRun_ShouldNotifyAdminsAndTheTriggeringUser_WithEmail()
+    {
+        await using var a = await StartProcessAsync();
+        probe.Fail = true;
+
+        await a.Runner.RunAsync(Probe, JobRunTriggers.Manual, null, "alice", default, triggeredByUserId: 42);
+
+        var request = Assert.Single(a.Notifications.Requests);
+        Assert.Equal(NotificationCategories.JobFailed, request.Category);
+        Assert.True(request.Target.Admins);
+        Assert.Equal([42], request.Target.UserIds);
+        Assert.True(request.AlsoEmail);
+        Assert.Equal("/scheduled-jobs", request.Link);
+    }
+
+    [Fact]
+    public async Task ScheduledFailure_ShouldNotifyOnlyAdmins_AndSuccessShouldNotNotify()
+    {
+        await using var a = await StartProcessAsync();
+        await a.Runner.RunAsync(Probe, JobRunTriggers.Manual, null, null, default);
+        Assert.Empty(a.Notifications.Requests);
+
+        probe.Throw = true;
+        await a.Runner.RunAsync(Probe, JobRunTriggers.Manual, null, null, default);
+
+        var request = Assert.Single(a.Notifications.Requests);
+        Assert.True(request.Target.Admins);
+        Assert.Empty(request.Target.UserIds);
+    }
+
+    [Fact]
+    public async Task InterruptedRun_ShouldNotNotify()
+    {
+        await using var a = await StartProcessAsync();
+        probe.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var shutdown = new CancellationTokenSource();
+
+        var running = a.Runner.RunAsync(Probe, JobRunTriggers.Manual, null, null, shutdown.Token);
+        await Task.Delay(200);
+        await shutdown.CancelAsync();
+        await running;
+
+        Assert.Empty(a.Notifications.Requests);
+    }
+
+    [Fact]
     public async Task CancelledRun_ShouldRecordInterrupted_AndReleaseTheLock()
     {
         await using var a = await StartProcessAsync();
@@ -532,6 +579,7 @@ public sealed class ScheduledJobFrameworkTests : IDisposable
             services.AddSingleton<ExceptionContextAccessor>();
             services.AddScoped<ScopeMarker>();
             services.AddScoped<ProbeJob>();
+            services.AddSingleton<INotificationSender>(Notifications);
             provider = services.BuildServiceProvider();
 
             Accessor = provider.GetRequiredService<ExceptionContextAccessor>();
@@ -553,6 +601,9 @@ public sealed class ScheduledJobFrameworkTests : IDisposable
         public ScheduledJobRunner Runner { get; }
 
         public CapturingLogger<ScheduledJobRunner> RunnerLog { get; } = new();
+
+        /// <summary>作業失敗時發出的通知（0.9.100 起）。</summary>
+        public RecordingNotificationSender Notifications { get; } = new();
 
         public JobSchedulerWorker CreateWorker()
             => new([Probe], Runner, RunService, new ScheduledJobTriggerQueue(), options, clock, NullLogger<JobSchedulerWorker>.Instance);

@@ -131,7 +131,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                if (!overviewService.TryTrigger(SystemBackupJob.JobName, CurrentUserService.CurrentUser.Account))
+                if (!overviewService.TryTrigger(SystemBackupJob.JobName, CurrentUserService.CurrentUser.Account, CurrentUserService.CurrentUser.Id))
                 {
                     ViewNotification.Warning(notificationService, "備份已經在執行中，請等它完成。");
                     return;
