@@ -19,6 +19,7 @@ using MyProject.Web.Auth;
 using MyProject.Web.Components;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
+using MyProject.Web.Configuration.Parameters;
 using MyProject.Web.Configuration.Validation;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Extensions;
@@ -44,6 +45,10 @@ namespace MyProject.Web
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
+
+                // 系統參數覆寫層（0.9.98 起）：疊在 appsettings、環境變數、命令列之上，管理員在「系統參數」頁修改的值。
+                // ⚠️ 必須是最後加入的設定來源（最後加入的優先權最高）；內容在資料庫初始化之後才由 SystemParameterRuntime 載入。
+                var systemParameterProvider = builder.Configuration.AddSystemParameterOverrides();
                 exceptionPath = builder.Configuration["SystemSettings:ExternalFileSystem:ExceptionPath"];
 
                 // PDF 報告的中文字型解析器。GlobalFontSettings.FontResolver 是 process 全域且
@@ -311,6 +316,7 @@ namespace MyProject.Web
 
                 #region 客製服務註冊
                 builder.Services.AddApplicationServices();
+                builder.Services.AddSystemParameters(systemParameterProvider);
                 #endregion
 
                 var app = builder.Build();
@@ -345,6 +351,13 @@ namespace MyProject.Web
                 // 衍生專案的種子資料請實作 IDatabaseSeeder，不要再加回這裡。
                 app.Services.GetRequiredService<IDatabaseInitializer>()
                     .InitializeAsync(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+
+                // 套用系統參數覆寫（0.9.98 起）。必須在 migration 之後（要讀資料表），也要在下面補登例外之前
+                // （告警會讀告警門檻與系統名稱）。不合法的覆寫會被略過並標示，不會讓啟動失敗。
+                app.Services.GetRequiredService<SystemParameterRuntime>()
+                    .LoadAsync(CancellationToken.None)
                     .GetAwaiter()
                     .GetResult();
 

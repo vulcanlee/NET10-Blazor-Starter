@@ -40,23 +40,23 @@ public sealed class PasswordResetService
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly IEmailQueue emailQueue;
     private readonly IAuditLogService auditLogService;
-    private readonly IOptions<PasswordResetSettings> resetOptions;
-    private readonly IOptions<SystemSettings> systemOptions;
+    private readonly IOptionsMonitor<PasswordResetSettings> resetOptions;
+    private readonly ISystemIdentity systemIdentity;
     private readonly ILogger<PasswordResetService> logger;
 
     public PasswordResetService(
         IDbContextFactory<BackendDBContext> contextFactory,
         IEmailQueue emailQueue,
         IAuditLogService auditLogService,
-        IOptions<PasswordResetSettings> resetOptions,
-        IOptions<SystemSettings> systemOptions,
+        IOptionsMonitor<PasswordResetSettings> resetOptions,
+        ISystemIdentity systemIdentity,
         ILogger<PasswordResetService> logger)
     {
         this.contextFactory = contextFactory;
         this.emailQueue = emailQueue;
         this.auditLogService = auditLogService;
         this.resetOptions = resetOptions;
-        this.systemOptions = systemOptions;
+        this.systemIdentity = systemIdentity;
         this.logger = logger;
     }
 
@@ -87,7 +87,7 @@ public sealed class PasswordResetService
             result = PasswordResetRequestResult.SupportAccountNotAllowed;
         }
 
-        var settings = resetOptions.Value;
+        var settings = resetOptions.CurrentValue;
         var nowUtc = DateTime.UtcNow;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -103,7 +103,7 @@ public sealed class PasswordResetService
             return result;
         }
 
-        var systemName = systemOptions.Value.SystemInformation.SystemName;
+        var systemName = systemIdentity.Name;
 
         foreach (var user in users)
         {
@@ -254,7 +254,7 @@ public sealed class PasswordResetService
             targetType: nameof(MyUser), targetId: user.Id.ToString());
 
         var notice = EmailTemplates.BuildPasswordChanged(
-            user.Email!.Trim(), systemOptions.Value.SystemInformation.SystemName, user.Account, DateTime.Now);
+            user.Email!.Trim(), systemIdentity.Name, user.Account, DateTime.Now);
         if (!emailQueue.TryEnqueue(notice))
         {
             logger.LogWarning("Password changed notice could not be queued. UserId={UserId}", user.Id);

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Tests;
 
@@ -168,7 +169,7 @@ public sealed class ExceptionAlertServiceTests
         return new ExceptionAlertService(
             new StaticOptionsMonitor<ExceptionAlertSettings>(settings ?? new ExceptionAlertSettings { Recipients = ["ops@example.com"] }),
             new StaticOptionsMonitor<EmailSettings>(new EmailSettings { PublicBaseUrl = publicBaseUrl }),
-            Options.Create(systemSettings),
+            new SystemIdentity(new StaticOptionsMonitor<SystemSettings>(systemSettings)),
             queue,
             clock);
     }

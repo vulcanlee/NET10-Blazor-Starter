@@ -3,10 +3,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
-using MyProject.Models.Systems;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Health;
@@ -47,7 +45,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private ModalService ModalService { get; set; } = default!;
 
     [Inject]
-    private IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+    private ISystemIdentity SystemIdentity { get; set; } = default!;
 
     [Inject]
     private IWebHostEnvironment WebHostEnvironment { get; set; } = default!;
@@ -250,14 +248,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         Logger.LogDebug("Opening about dialog.");
 
-        var systemInformation = SystemSettingsOptions.Value.SystemInformation;
         var uptime = DateTimeOffset.Now - SystemStartupState.StartedAt;
 
         aboutItems =
         [
-            new("系統名稱", systemInformation.SystemName),
-            new("系統描述", systemInformation.SystemDescription),
-            new("系統版本", systemInformation.SystemVersion),
+            new("系統名稱", SystemIdentity.Name),
+            new("系統描述", SystemIdentity.Description),
+            new("系統版本", SystemIdentity.Version),
             new("執行環境", WebHostEnvironment.EnvironmentName),
             new("啟動時間", SystemStartupState.StartedAt.ToString("yyyy/MM/dd HH:mm:ss")),
             new("已運作時間", uptime.ToString(@"dd\.hh\:mm\:ss")),

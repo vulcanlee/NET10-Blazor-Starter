@@ -33,7 +33,7 @@ namespace MyProject.Web.Components.Auths
         public IOptions<EmailSettings> EmailOptions { get; set; } = default!;
 
         [Inject]
-        public IOptions<PasswordResetSettings> ResetOptions { get; set; } = default!;
+        public IOptionsMonitor<PasswordResetSettings> ResetOptions { get; set; } = default!;
 
         [Inject]
         public IHostEnvironment HostEnvironment { get; set; } = default!;
@@ -43,7 +43,7 @@ namespace MyProject.Web.Components.Auths
 
         private bool IsEmailEnabled => EmailOptions.Value.TryGetProvider(out var provider) && provider != EmailProvider.None;
 
-        private int LifetimeMinutes => ResetOptions.Value.TokenLifetimeMinutes;
+        private int LifetimeMinutes => ResetOptions.CurrentValue.TokenLifetimeMinutes;
 
         protected override void OnInitialized()
         {

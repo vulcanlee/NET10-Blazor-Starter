@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Email;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Tests;
 
@@ -87,7 +87,7 @@ public sealed class EmailTestServiceTests
                 Host = "smtp.example.com",
                 FromAddress = "noreply@example.com",
             }),
-            Options.Create(new SystemSettings()),
+            new SystemIdentity(new StaticOptionsMonitor<SystemSettings>(new SystemSettings())),
             NullLogger<EmailTestService>.Instance);
     }
 }

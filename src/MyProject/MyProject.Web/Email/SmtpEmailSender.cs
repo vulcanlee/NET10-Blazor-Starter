@@ -18,23 +18,23 @@ namespace MyProject.Web.Email;
 public sealed class SmtpEmailSender : IEmailSender
 {
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
-    private readonly IOptions<SystemSettings> systemOptions;
+    private readonly ISystemIdentity systemIdentity;
     private readonly ILogger<SmtpEmailSender> logger;
 
     public SmtpEmailSender(
         IOptionsMonitor<EmailSettings> emailOptions,
-        IOptions<SystemSettings> systemOptions,
+        ISystemIdentity systemIdentity,
         ILogger<SmtpEmailSender> logger)
     {
         this.emailOptions = emailOptions;
-        this.systemOptions = systemOptions;
+        this.systemIdentity = systemIdentity;
         this.logger = logger;
     }
 
     public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
         var settings = emailOptions.CurrentValue;
-        using var mime = MimeMessageFactory.Create(message, settings, systemOptions.Value.SystemInformation.SystemName);
+        using var mime = MimeMessageFactory.Create(message, settings, systemIdentity.Name);
 
         using var client = new SmtpClient { Timeout = settings.TimeoutSeconds * 1000 };
         await ConnectAsync(client, settings, cancellationToken);

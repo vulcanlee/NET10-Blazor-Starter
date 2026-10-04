@@ -625,6 +625,37 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("ScheduledJobState");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.SystemParameter", b =>
+                {
+                    b.Property<string>("ParameterKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ParameterKey");
+
+                    b.ToTable("SystemParameter");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.Team", b =>
                 {
                     b.Property<int>("Id")

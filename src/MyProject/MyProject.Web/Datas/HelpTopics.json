@@ -14,5 +14,6 @@
   { "route": "/ai-call-logs", "title": "AI 對話紀錄", "file": "ai-call-logs.md" },
   { "route": "/myusers", "title": "使用者管理", "file": "myusers.md" },
   { "route": "/roleviews", "title": "角色管理", "file": "roleviews.md" },
-  { "route": "/audit-logs", "title": "稽核紀錄", "file": "audit-logs.md" }
+  { "route": "/audit-logs", "title": "稽核紀錄", "file": "audit-logs.md" },
+  { "route": "/system-parameters", "title": "系統參數", "file": "system-parameters.md" }
 ]

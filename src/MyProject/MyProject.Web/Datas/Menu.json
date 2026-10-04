@@ -121,6 +121,12 @@
             "url": "/audit-logs"
           }
         ]
+      },
+      {
+        "id": 36,
+        "name": "系統參數",
+        "icon": "settings",
+        "url": "/system-parameters"
       }
     ]
   },

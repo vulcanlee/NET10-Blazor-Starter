@@ -199,6 +199,7 @@ public sealed class EmailSettingsTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.Configure<SystemSettings>(_ => { });
+        services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddConfiguredEmail(configuration);
         return services.BuildServiceProvider();
     }

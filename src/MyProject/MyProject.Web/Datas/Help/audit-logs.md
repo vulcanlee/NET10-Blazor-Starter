@@ -51,6 +51,7 @@
 | 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge` |
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
 | 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable` |
+| 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
 | 匯出 | 在「日誌檢視」匯出日誌、在「AI 對話紀錄」匯出清單 | `LogViewer.Export`、`AiCallLog.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |
@@ -209,6 +210,7 @@ CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者�
 - [系統例外紀錄](/system-exceptions)：要查程式錯誤而不是人的操作時，請改看那一頁。
 - [日誌檢視](/logs)：需要比稽核紀錄更細的系統運作過程時，用時間對照日誌。
 - [系統健康監控](/system-health)：`Email.Test` 事件來自那裡的「寄出測試信」。
+- [系統參數](/system-parameters)：`SystemParameter` 開頭的事件都來自那一頁；稽核紀錄的保留天數也在那裡調整。
 - [資料庫用量](/database-usage)：想知道稽核紀錄累積了多少筆、佔多少空間時去看。
 
 ## 七、常見問題

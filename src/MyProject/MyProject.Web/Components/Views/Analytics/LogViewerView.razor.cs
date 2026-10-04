@@ -4,10 +4,8 @@ using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 using MyProject.Business.Services.Other;
-using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
@@ -169,7 +167,7 @@ namespace MyProject.Web.Components.Views.Analytics
         [Inject]
         public IJSRuntime JSRuntime { get; set; } = default!;
         [Inject]
-        public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+        public ISystemIdentity SystemIdentity { get; set; } = default!;
 
         public LogViewerView(
             ILogger<LogViewerView> logger,
@@ -551,13 +549,13 @@ namespace MyProject.Web.Components.Views.Analytics
         {
             ViewNotification.Info(notificationService, "正在產生 PDF…");
 
-            var information = SystemSettingsOptions.Value.SystemInformation;
+            var information = SystemIdentity;
             var currentUser = currentUserService.CurrentUser;
 
             var bytes = AiReportPdfBuilder.Build(new AiReportPdfRequest
             {
-                SystemName = information.SystemName,
-                SystemVersion = information.SystemVersion,
+                SystemName = information.Name,
+                SystemVersion = information.Version,
                 OperatorAccount = currentUser.Account ?? string.Empty,
                 GeneratedAt = DateTime.Now,
                 QueryStartTime = startTime ?? DateTime.Now.AddHours(-1),

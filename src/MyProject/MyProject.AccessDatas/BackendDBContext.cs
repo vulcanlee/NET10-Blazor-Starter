@@ -33,6 +33,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<PasswordResetToken> PasswordResetToken { get; set; }
     public virtual DbSet<JobRun> JobRun { get; set; }
     public virtual DbSet<ScheduledJobState> ScheduledJobState { get; set; }
+    public virtual DbSet<SystemParameter> SystemParameter { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
