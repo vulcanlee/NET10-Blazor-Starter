@@ -688,6 +688,51 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("ProjectFile");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.PromptTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByAccount")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TemplateKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateKey")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = 1");
+
+                    b.HasIndex("TemplateKey", "Version")
+                        .IsUnique();
+
+                    b.ToTable("PromptTemplate");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.RolePermissionMap", b =>
                 {
                     b.Property<int>("Id")
@@ -972,6 +1017,8 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("CallId");
 
                     b.HasIndex("OccurredAt");
+
+                    b.HasIndex("UserId", "OccurredAt");
 
                     b.ToTable("TokenUsageLog");
                 });

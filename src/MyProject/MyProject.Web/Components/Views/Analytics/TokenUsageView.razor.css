@@ -76,6 +76,24 @@
     margin-bottom: 0.75rem;
 }
 
+/* AI 用量上限（0.9.109 起）：一行一個上限，窄螢幕自動換行。 */
+.token-usage-quota {
+    margin-bottom: 0.75rem;
+}
+
+.token-usage-quota-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+}
+
+.token-usage-quota-item {
+    align-items: center;
+    display: inline-flex;
+    font-size: 0.88rem;
+    gap: 0.4rem;
+}
+
 .token-usage-cards-caption {
     color: var(--app-muted);
     font-size: 0.82rem;

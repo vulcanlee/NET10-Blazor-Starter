@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
@@ -41,6 +42,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
     private readonly ITokenUsageRecorder tokenUsageRecorder;
     private readonly CurrentUserService currentUserService;
     private readonly IAiCallLogRecorder aiCallLogRecorder;
+    private readonly IAiQuotaService quotaService;
+    private readonly IAuditLogService auditLogService;
     private readonly IOptionsMonitor<SlowOperationSettings>? slowOptions;
 
     public AiChatCompletionClient(
@@ -50,6 +53,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         ITokenUsageRecorder tokenUsageRecorder,
         CurrentUserService currentUserService,
         IAiCallLogRecorder aiCallLogRecorder,
+        IAiQuotaService quotaService,
+        IAuditLogService auditLogService,
         IOptionsMonitor<SlowOperationSettings>? slowOptions = null)
     {
         this.slowOptions = slowOptions;
@@ -59,6 +64,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         this.tokenUsageRecorder = tokenUsageRecorder;
         this.currentUserService = currentUserService;
         this.aiCallLogRecorder = aiCallLogRecorder;
+        this.quotaService = quotaService;
+        this.auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -122,6 +129,26 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         {
             logger.LogWarning("AI chat completion skipped because settings are incomplete. Operation={Operation}", request.Operation);
             return AiAnalysisResult.Failure(AiAnalysisFailureReason.NotConfigured, invalid);
+        }
+
+        // AI 用量上限（0.9.109 起）：設定完整之後、送出之前檢查。並行的呼叫可能讓已用金額小幅超過上限（已接受）。
+        var caller = currentUserService.CurrentUser;
+        var callerId = caller.Id == 0 ? (int?)null : caller.Id;
+        var reached = await quotaService.CheckAsync(callerId, cancellationToken);
+        if (reached is not null)
+        {
+            logger.LogWarning(
+                "AI chat completion blocked by usage quota. Operation={Operation}, Scope={Scope}, Period={Period}",
+                request.Operation, reached.Scope, reached.Period);
+            await auditLogService.WriteAsync(
+                AuditActions.Ai.QuotaBlocked,
+                success: false,
+                actorUserId: callerId,
+                actorAccount: string.IsNullOrWhiteSpace(caller.Account) ? null : caller.Account,
+                targetType: "AiQuota",
+                targetId: $"{reached.Scope}:{reached.Period}",
+                detail: $"operation={request.Operation}; limit={reached.LimitTwd}; used={AiQuotaService.Money(reached.UsedTwd)}");
+            return AiAnalysisResult.Failure(AiAnalysisFailureReason.QuotaExceeded, AiQuotaService.BlockedMessage(reached));
         }
 
         var characters = request.Messages.Sum(message => message.Content.Length);

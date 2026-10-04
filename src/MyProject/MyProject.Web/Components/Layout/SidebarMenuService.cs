@@ -41,6 +41,7 @@ public sealed class SidebarMenuService
         [36] = MagicObjectHelper.角色_系統參數,
         [37] = MagicObjectHelper.角色_系統備份,
         [38] = MagicObjectHelper.角色_公告管理,
+        [39] = MagicObjectHelper.角色_AI提示詞,
         [5] = MagicObjectHelper.角色_資料定義,
         [51] = MagicObjectHelper.角色_分類清單,
         [52] = MagicObjectHelper.角色_團隊清單,

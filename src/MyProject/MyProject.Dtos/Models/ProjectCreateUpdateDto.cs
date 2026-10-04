@@ -78,8 +78,9 @@ public class ProjectCreateUpdateDto
     public int CompletionPercentage { get; set; }
 
     /// <summary>
-    /// 專案擁有者
+    /// 專案擁有者（必填；0.9.107 之前不帶時資料庫 NOT NULL 擋下而回 500，現在回 400）
     /// </summary>
+    [Required(ErrorMessage = "負責人 不可為空白")]
     [JsonPropertyName("owner")]
     public string? Owner { get; set; }
 

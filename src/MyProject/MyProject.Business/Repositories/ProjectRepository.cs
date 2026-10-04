@@ -221,28 +221,6 @@ public class ProjectRepository
         return project;
     }
 
-    /// <summary>
-    /// 批次新增專案
-    /// </summary>
-    public async Task<int> AddRangeAsync(List<Project> projects)
-    {
-        var now = DateTime.Now;
-        foreach (var project in projects)
-        {
-            project.CreatedAt = now;
-            project.UpdatedAt = now;
-        }
-
-        foreach (var project in projects)
-        {
-            project.Id = 0;
-            project.ConcurrencyStamp = ConcurrencyStampHelper.New();
-        }
-
-        await context.Project.AddRangeAsync(projects);
-        return await context.SaveChangesAsync();
-    }
-
     #endregion
 
     #region 更新方法
@@ -271,47 +249,6 @@ public class ProjectRepository
         return true;
     }
 
-    /// <summary>
-    /// 更新專案狀態
-    /// </summary>
-    public async Task<bool> UpdateStatusAsync(int id, string status)
-    {
-        var project = await context.Project.FindAsync(id);
-        if (project == null)
-        {
-            return false;
-        }
-
-        project.Status = status;
-        project.UpdatedAt = DateTime.Now;
-
-        await context.SaveChangesAsync();
-        return true;
-    }
-
-    /// <summary>
-    /// 更新專案完成百分比
-    /// </summary>
-    public async Task<bool> UpdateCompletionPercentageAsync(int id, int percentage)
-    {
-        if (percentage < 0 || percentage > 100)
-        {
-            throw new ArgumentOutOfRangeException(nameof(percentage), "完成百分比必須介於 0 到 100 之間");
-        }
-
-        var project = await context.Project.FindAsync(id);
-        if (project == null)
-        {
-            return false;
-        }
-
-        project.CompletionPercentage = percentage;
-        project.UpdatedAt = DateTime.Now;
-
-        await context.SaveChangesAsync();
-        return true;
-    }
-
     #endregion
 
     #region 刪除方法
@@ -335,24 +272,6 @@ public class ProjectRepository
         await context.SaveChangesAsync();
 
         return true;
-    }
-
-    /// <summary>
-    /// 批次刪除專案
-    /// </summary>
-    public async Task<int> DeleteRangeAsync(List<int> ids, string? actorAccount)
-    {
-        var projects = await context.Project
-            .Where(p => ids.Contains(p.Id))
-            .ToListAsync();
-
-        // 軟刪除（0.9.94 起），與 DeleteAsync 一致。
-        foreach (var project in projects)
-        {
-            SoftDeleteHelper.MarkDeleted(project, actorAccount);
-        }
-
-        return await context.SaveChangesAsync();
     }
 
     #endregion

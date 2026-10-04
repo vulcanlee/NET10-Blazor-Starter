@@ -4,17 +4,62 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
+using MyProject.Web.Export;
 
 namespace MyProject.Web.Components.Views.Teams
 {
     public partial class TeamViewView
     {
+
+        [Inject]
+        public Microsoft.JSInterop.IJSRuntime JSRuntime { get; set; } = default!;
+
+        [Inject]
+        public IAuditLogService AuditLogService { get; set; } = default!;
+
+        [Inject]
+        public CurrentUserService CurrentUserService { get; set; } = default!;
+
+        /// <summary>匯出的「上層部門」欄：已刪除的上層顯示「（已刪除的部門）」。</summary>
+        private string? ParentNameForExport(int? parentId) => parentId is { } id ? teamNames.GetValueOrDefault(id, "（已刪除的部門）") : null;
+
+        /// <summary>匯出 Excel（0.9.107 起）：與清單同一個查詢，超過 <see cref="BusinessExports.MaxRows"/> 筆不匯出。</summary>
+        private async Task OnExportExcelAsync()
+        {
+            try
+            {
+                var outcome = IsTreeMode
+                    ? BusinessExports.FromRows(await teamService.GetAllAsync(), "團隊", "teams", BusinessExports.TeamColumns(ParentNameForExport))
+                    : await BusinessExports.BuildAsync(r => showDeleted ? teamService.GetDeletedAsync(r) : teamService.GetAsync(r), new DataRequest
+                    {
+                        Search = searchText,
+                        SortField = sortField,
+                        SortDescending = sortDirection == "Descending" ? true : sortDirection == "Ascending" ? false : (bool?)null,
+                    }, "團隊", "teams", BusinessExports.TeamColumns(ParentNameForExport));
+                if (outcome.Error is { } error)
+                {
+                    ViewNotification.Warning(notificationService, error);
+                    return;
+                }
+
+                await JSRuntime.DownloadAsync(outcome.FileName!, outcome.Content!, TabularExport.XlsxContentType);
+                logger.LogInformation("Team export downloaded. Rows={Rows}", outcome.Rows);
+                await BusinessExports.WriteAuditAsync(AuditLogService, CurrentUserService, AuditActions.Team.Export, "Team", outcome.Rows, showDeleted);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Team export failed.");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+            }
+        }
+
         private readonly ILogger<TeamViewView> logger;
         private readonly TeamService teamService;
         private readonly ModalService modalService;

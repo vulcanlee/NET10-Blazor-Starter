@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 
@@ -35,13 +36,16 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
 {
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
     private readonly IAiChatCompletionClient chatCompletionClient;
+    private readonly IAiSystemPromptProvider systemPromptProvider;
 
     public AiExceptionAnalysisService(
         IOptionsMonitor<AiSettings> optionsMonitor,
-        IAiChatCompletionClient chatCompletionClient)
+        IAiChatCompletionClient chatCompletionClient,
+        IAiSystemPromptProvider systemPromptProvider)
     {
         this.optionsMonitor = optionsMonitor;
         this.chatCompletionClient = chatCompletionClient;
+        this.systemPromptProvider = systemPromptProvider;
     }
 
     public bool IsAvailable => AiChatEndpoint.Validate(optionsMonitor.CurrentValue) is null;
@@ -72,11 +76,14 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
                 $"已達追問上限（{MaxFollowUpRounds} 輪）。請關閉視窗後重新分析，或調整 AiSettings:MaxFollowUpRounds。");
         }
 
+        // 每一輪都重新取：管理員在對話途中切換版本，下一輪就用新版（0.9.108 起）。
+        var systemPrompt = await systemPromptProvider.GetAsync(PromptTemplateKeys.ExceptionAnalysis, cancellationToken);
+
         return await chatCompletionClient.CompleteAsync(
             new AiChatCompletionRequest
             {
                 Operation = TokenUsageOperations.AiExceptionAnalysis,
-                Messages = [new AiChatMessage(AiChatRoles.System, AiExceptionPromptDefaults.SystemPrompt), .. conversation],
+                Messages = [new AiChatMessage(AiChatRoles.System, systemPrompt), .. conversation],
                 ContextLengthExceededMessage = followUps > 0
                     ? "對話內容已超過模型的內容視窗上限。請關閉視窗後重新分析，並減少追問輪數。"
                     : "這筆例外的內容（多半是堆疊）超過模型的內容視窗上限，無法送交 AI 分析。",

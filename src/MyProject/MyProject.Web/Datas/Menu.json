@@ -139,6 +139,12 @@
         "name": "公告管理",
         "icon": "campaign",
         "url": "/announcements"
+      },
+      {
+        "id": 39,
+        "name": "AI 提示詞",
+        "icon": "smart_toy",
+        "url": "/prompt-templates"
       }
     ]
   },

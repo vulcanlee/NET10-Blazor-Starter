@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using AntDesign;
 using AntDesign.TableModels;
@@ -15,6 +14,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
+using MyProject.Web.Export;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -128,6 +128,20 @@ namespace MyProject.Web.Components.Views.Analytics
 
         [Inject]
         public IAuditLogService AuditLogService { get; set; } = default!;
+
+        [Inject]
+        public IAiQuotaService QuotaService { get; set; } = default!;
+
+        [Inject]
+        public Microsoft.Extensions.Options.IOptionsMonitor<AiQuotaSettings> QuotaOptions { get; set; } = default!;
+
+        private IReadOnlyList<AiQuotaLimitStatus> quotaStatus = [];
+
+        /// <summary>「全系統每日：今日 NT$ 12.5／NT$ 100」；沒有上限時寫「不限制」。</summary>
+        private static string QuotaText(AiQuotaLimitStatus status)
+            => $"{status.Label}：{status.PeriodLabel} NT$ {AiQuotaService.Money(status.UsedTwd)}／{LimitText(status.LimitTwd)}";
+
+        private static string LimitText(int limitTwd) => limitTwd > 0 ? $"NT$ {AiQuotaService.Money(limitTwd)}" : "不限制";
 
         /// <summary>用量紀錄的維護與匯出要留稽核（LOG-14），只記筆數與格式。</summary>
         private Task WriteAuditAsync(string action, string targetId, string detail)
@@ -281,6 +295,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 _total = page.Count;
 
                 summary = await tokenUsageLogService.GetSummaryAsync(query);
+                quotaStatus = await QuotaService.GetStatusAsync(null);
 
                 groupedByAccount = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.Account);
                 groupedByOperation = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.Operation);
@@ -744,6 +759,34 @@ namespace MyProject.Web.Components.Views.Analytics
             }
         }
 
+        internal static readonly IReadOnlyList<ExportColumn<TokenUsageLogAdapterModel>> CsvColumns =
+        [
+            new("時間", x => x.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
+            new("使用者", x => x.Account ?? "（系統自動）"),
+            new("作業", x => x.Operation),
+            new("型別", x => x.CallKind),
+            new("供應商", x => x.Provider),
+            new("模型", x => x.Model),
+            new("輸入", x => x.InputCount?.ToString()),
+            new("輸出", x => x.OutputCount?.ToString()),
+            new("推理", x => x.ReasoningCount?.ToString()),
+            new("快取", x => x.CachedInputCount?.ToString()),
+            new("圖片輸入", x => x.ImageInputCount?.ToString()),
+            new("圖片快取", x => x.ImageCachedInputCount?.ToString()),
+            new("圖片輸出", x => x.ImageOutputCount?.ToString()),
+            new("合計", x => x.TotalCount?.ToString()),
+            new("費用USD", x => CsvCost(x.CostUsd, "F6")),
+            new("費用TWD", x => CsvCost(x.CostTwd, "F4")),
+            new("匯率", x => CsvCost(x.CostExchangeRate, "F4")),
+            new("計價依據", x => x.CostPriceKey),
+            new("長脈絡", x => x.IsUnpriced ? null : (x.CostLongContext ? "是" : "否")),
+            new("字元數", x => x.CharacterCount?.ToString()),
+            new("音訊時長秒", x => x.DurationSeconds?.ToString()),
+            new("耗時ms", x => x.ElapsedMilliseconds.ToString()),
+            new("結果", x => x.Success ? "成功" : "失敗"),
+            new("失敗原因", x => x.FailureReason),
+        ];
+
         private async Task OnExportCsvAsync()
         {
             try
@@ -753,45 +796,10 @@ namespace MyProject.Web.Components.Views.Analytics
                 query.CurrentPage = 1;
                 var all = await tokenUsageLogService.GetAsync(query);
 
-                var builder = new StringBuilder();
-                builder.AppendLine("時間,使用者,作業,型別,供應商,模型,輸入,輸出,推理,快取,圖片輸入,圖片快取,圖片輸出,合計,費用USD,費用TWD,匯率,計價依據,長脈絡,字元數,音訊時長秒,耗時ms,結果,失敗原因");
-                foreach (var item in all.Result)
-                {
-                    builder.AppendLine(string.Join(',',
-                        Csv(item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
-                        Csv(item.Account ?? "（系統自動）"),
-                        Csv(item.Operation),
-                        Csv(item.CallKind),
-                        Csv(item.Provider),
-                        Csv(item.Model),
-                        Csv(item.InputCount?.ToString()),
-                        Csv(item.OutputCount?.ToString()),
-                        Csv(item.ReasoningCount?.ToString()),
-                        Csv(item.CachedInputCount?.ToString()),
-                        Csv(item.ImageInputCount?.ToString()),
-                        Csv(item.ImageCachedInputCount?.ToString()),
-                        Csv(item.ImageOutputCount?.ToString()),
-                        Csv(item.TotalCount?.ToString()),
-                        Csv(CsvCost(item.CostUsd, "F6")),
-                        Csv(CsvCost(item.CostTwd, "F4")),
-                        Csv(CsvCost(item.CostExchangeRate, "F4")),
-                        Csv(item.CostPriceKey),
-                        Csv(item.IsUnpriced ? null : (item.CostLongContext ? "是" : "否")),
-                        Csv(item.CharacterCount?.ToString()),
-                        Csv(item.DurationSeconds?.ToString()),
-                        Csv(item.ElapsedMilliseconds.ToString()),
-                        Csv(item.Success ? "成功" : "失敗"),
-                        Csv(item.FailureReason)));
-                }
-
-                // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
-                var bytes = TextDownloadPayload.Utf8WithBom(builder.ToString());
-
-                using var stream = new MemoryStream(bytes);
-                using var streamReference = new DotNetStreamReference(stream);
-
+                // 0.9.107 起經共用的 TabularExport（BOM、跳脫、換行與之前手寫的相同，ExportCsvCompatibilityTests 守門）。
+                var bytes = TabularExport.ToCsv(CsvColumns, all.Result);
                 var fileName = $"MyProject.Web-llm-usage-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
-                await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
+                await JSRuntime.DownloadAsync(fileName, bytes, TabularExport.CsvContentType);
 
                 logger.LogInformation("Usage export downloaded. Rows={Rows}", all.Count);
                 await WriteAuditAsync(AuditActions.TokenUsage.Export, "*", $"format=csv; rows={all.Count}");
@@ -915,9 +923,5 @@ namespace MyProject.Web.Components.Views.Analytics
         /// </summary>
         private static string? CsvCost(double? value, string format)
             => value?.ToString(format, CultureInfo.InvariantCulture);
-
-        /// <summary>CSV 欄位跳脫：雙引號加倍、整欄以雙引號包住，換行才不會把一列拆成兩列。</summary>
-        private static string Csv(string? value)
-            => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
     }
 }

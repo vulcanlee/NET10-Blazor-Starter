@@ -28,9 +28,11 @@ public static class SystemParameterCatalog
     public const string GroupSecurity = "安全與流量";
     public const string GroupBackup = "備份";
     public const string GroupPassword = "密碼與登入";
+    public const string GroupAiQuota = "AI 用量";
 
     private const string NextRetentionRun = "下一次排程清理時（預設每天 03:00）";
     private const string NextPasswordSet = "之後設定的密碼（現有的密碼不受影響）";
+    private const string QuotaNote = "以「Token 用量」記錄的台幣費用加總，未定價的模型以 0 計；達 80% 與 100% 各通知一次。";
 
     public static IReadOnlyList<SystemParameterDefinition> All { get; } =
     [
@@ -139,6 +141,19 @@ public static class SystemParameterCatalog
         Define<TwoFactorSettings, int>(TwoFactorSettings.SectionName, x => x.RememberDeviceDays, GroupPassword,
             "記住裝置天數", "輸入驗證碼時勾選「記住這台裝置」後，這麼多天內在同一個瀏覽器登入不再要求驗證碼；改密碼或被強制登出後失效。",
             "之後勾選的裝置", unit: "天", zeroMeaning: "不提供「記住這台裝置」"),
+
+        Define<AiQuotaSettings, int>(AiQuotaSettings.SectionName, x => x.GlobalDailyTwd, GroupAiQuota,
+            "全系統每日上限", "所有人今天的 AI 費用合計達到這個金額後，AI 分析暫停到明天 00:00。" + QuotaNote + "管理員收到通知，達上限時另寄信。",
+            "下一次 AI 呼叫起", unit: "元（新台幣）", zeroMeaning: "不限制"),
+        Define<AiQuotaSettings, int>(AiQuotaSettings.SectionName, x => x.GlobalMonthlyTwd, GroupAiQuota,
+            "全系統每月上限", "所有人本月的 AI 費用合計達到這個金額後，AI 分析暫停到下個月 1 日 00:00。" + QuotaNote + "管理員收到通知，達上限時另寄信。",
+            "下一次 AI 呼叫起", unit: "元（新台幣）", zeroMeaning: "不限制"),
+        Define<AiQuotaSettings, int>(AiQuotaSettings.SectionName, x => x.PerUserDailyTwd, GroupAiQuota,
+            "每人每日上限", "同一個人今天的 AI 費用達到這個金額後，他的 AI 分析暫停到明天 00:00。" + QuotaNote + "本人收到通知。",
+            "下一次 AI 呼叫起", unit: "元（新台幣）", zeroMeaning: "不限制"),
+        Define<AiQuotaSettings, int>(AiQuotaSettings.SectionName, x => x.PerUserMonthlyTwd, GroupAiQuota,
+            "每人每月上限", "同一個人本月的 AI 費用達到這個金額後，他的 AI 分析暫停到下個月 1 日 00:00。" + QuotaNote + "本人收到通知。",
+            "下一次 AI 呼叫起", unit: "元（新台幣）", zeroMeaning: "不限制"),
 
         Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
             "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",

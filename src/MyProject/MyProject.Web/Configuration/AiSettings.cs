@@ -40,11 +40,6 @@ public class AiSettings
     /// </summary>
     public string Model { get; set; } = string.Empty;
 
-    /// <summary>
-    /// 系統提示詞。留空代表沿用 <see cref="Ai.AiPromptDefaults.SystemPrompt"/> 的內建值。
-    /// </summary>
-    public string SystemPrompt { get; set; } = string.Empty;
-
     /// <summary>送出給 AI 的日誌筆數上限。超過時取最新的 N 筆。</summary>
     public int MaxEntries { get; set; } = 100;
 

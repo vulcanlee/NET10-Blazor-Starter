@@ -30,6 +30,9 @@ public static class AuditActions
     public static class User
     {
         public const string Create = "User.Create";
+
+        /// <summary>使用者管理匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "User.Export";
         public const string Update = "User.Update";
         /// <summary>軟刪除（0.9.95 起）；還原與永久刪除見 <see cref="Restore"/>、<see cref="Purge"/>。</summary>
         public const string Delete = "User.Delete";
@@ -85,6 +88,9 @@ public static class AuditActions
     public static class Project
     {
         public const string Create = "Project.Create";
+
+        /// <summary>專案項目匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "Project.Export";
         public const string Update = "Project.Update";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Project.Delete";
@@ -101,6 +107,9 @@ public static class AuditActions
     public static class Category
     {
         public const string Create = "Category.Create";
+
+        /// <summary>分類清單匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "Category.Export";
         public const string Update = "Category.Update";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Category.Delete";
@@ -114,6 +123,9 @@ public static class AuditActions
     public static class Team
     {
         public const string Create = "Team.Create";
+
+        /// <summary>團隊清單匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "Team.Export";
         public const string Update = "Team.Update";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Team.Delete";
@@ -198,6 +210,19 @@ public static class AuditActions
         public const string Create = "Announcement.Create";
         public const string Update = "Announcement.Update";
         public const string Delete = "Announcement.Delete";
+    }
+
+    /// <summary>AI 用量上限（0.9.109 起）：送出前被上限擋下（detail 記作業、上限與已用金額）。</summary>
+    public static class Ai
+    {
+        public const string QuotaBlocked = "Ai.QuotaBlocked";
+    }
+
+    /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>
+    public static class Prompt
+    {
+        public const string Update = "Prompt.Update";
+        public const string Activate = "Prompt.Activate";
     }
 
     /// <summary>站內通知（0.9.100 起）：排程作業依保留天數自動清除。</summary>

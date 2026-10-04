@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILogQueryService, LogQueryService>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
+        services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
         services.AddScoped<IAiExceptionAnalysisService, AiExceptionAnalysisService>();
         services.AddScoped<IAiHealthProbe, AiHealthProbe>();
 
@@ -106,6 +107,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationSender, NotificationSender>();
         services.AddScoped<NotificationQueryService>();
         services.AddScoped<AnnouncementService>();
+
+        // AI 提示詞（0.9.108 起）。
+        services.AddScoped<PromptTemplateService>();
         // 個人資料頁（0.9.102 起）。
         services.AddScoped<ProfileService>();
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
@@ -124,6 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDatabaseSeeder, DefaultRoleViewSeeder>();
         services.AddScoped<IDatabaseSeeder, SupportUserSeeder>();
         services.AddScoped<IDatabaseSeeder, RbacBackfillSeeder>();
+        services.AddScoped<IDatabaseSeeder, LegacySystemPromptSeeder>();
 
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();
@@ -208,6 +213,8 @@ public static class ServiceCollectionExtensions
         // 費用計算器：由 TokenUsageLogService 在寫入前呼叫，呼叫端不必知道它的存在。
         services.AddScoped<IAiUsageCostCalculator, AiUsageCostCalculator>();
         services.AddScoped<TokenUsageLogService>();
+        // AI 用量上限（0.9.109 起）：送出前檢查（AiChatCompletionClient）、記帳後提醒（TokenUsageLogService）。
+        services.AddScoped<IAiQuotaService, AiQuotaService>();
         // 轉發到同一個實例：呼叫端只依賴 ITokenUsageRecorder（只有記錄），
         // 頁面才用得到完整的 TokenUsageLogService（查詢、統計、刪除）。
         services.AddScoped<ITokenUsageRecorder>(sp => sp.GetRequiredService<TokenUsageLogService>());
@@ -327,6 +334,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<NotificationSettings>()
             .Bind(configuration.GetSection(NotificationSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<AiQuotaSettings>()
+            .Bind(configuration.GetSection(AiQuotaSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

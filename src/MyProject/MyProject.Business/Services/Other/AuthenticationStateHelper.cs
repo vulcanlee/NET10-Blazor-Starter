@@ -282,17 +282,8 @@ public class AuthenticationStateHelper
     /// <summary>
     /// 檢查目前使用者是否具備某頁面的特定動作權限（view/create/edit/delete/export）。
     /// 管理員一律通過；擁有動作鍵「頁面:動作」或裸頁面鍵（舊制＝全動作）即通過。
-    /// 供 Razor 檢視依動作顯示/停用按鈕使用。
+    /// 規則在 <see cref="PermissionRules.CanAccessAction"/>；Razor 檢視請改用 <c>&lt;RequirePermission&gt;</c> 元件（0.9.110 起）。
     /// </summary>
     public bool CheckAccessAction(string page, string action)
-    {
-        var currentUser = currentUserService.CurrentUser;
-        if (currentUser.IsAdmin)
-        {
-            return true;
-        }
-
-        var keys = currentUser.RoleList;
-        return keys.Contains(PermissionKey.For(page, action)) || keys.Contains(page);
-    }
+        => PermissionRules.CanAccessAction(currentUserService.CurrentUser, page, action);
 }

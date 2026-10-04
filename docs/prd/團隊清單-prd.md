@@ -1,8 +1,8 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.7
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.105
+- 現行系統版本：0.9.110
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/10/04
 
@@ -34,7 +34,7 @@
 
 單頁清單 + Modal 表單（`TeamViewView`）：
 
-- 工具列：新增（需 `團隊清單:create`）、重新整理；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
+- 工具列：新增（需 `團隊清單:create`）、重新整理、匯出 Excel（0.9.107 起；樹狀模式匯出全部並含「上層部門」，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
 - **部門樹**（0.9.105 起）：沒有搜尋、不是「顯示已刪除」時，一次載入全部部門在畫面上組樹（`TreeChildren`），下屬收在上層底下、可展開收合；分頁以最上層計，排序作用在最上層（預設依名稱），下屬一律依名稱。上層不存在（資料異常）的部門當作最上層顯示。
 - 搜尋：關鍵字比對 `Name`、`Code` 或 `Description`（`Contains`），結果為平面清單並多一欄「上層部門」。
 - 排序：可排序欄位 `Name`、`Code`、`IsEnabled`、`UpdatedAt`；平面清單預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
@@ -79,7 +79,7 @@
 - API 一律 `[Authorize(JwtBearer)]`；每個動作以 `[HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.*)]` 做動作級授權。
 - 權限鍵組合規則 `頁面:動作`（`PermissionKey.For`）：`團隊清單:view`、`團隊清單:create`、`團隊清單:edit`、`團隊清單:delete`。裸鍵「團隊清單」代表該頁全部動作（向後相容）。
 - 無權限回 403，且維持 `ApiResult` 格式；系統管理員短路（不需個別權限）。
-- UI 與 API 共用單一 RBAC 權威來源：UI 用 Cookie 驗證並以 `CheckAccessPage`（頁面鍵）控制進入頁面、以 `CheckAccessAction(角色_團隊清單, 動作)` 控制新增／修改／刪除按鈕是否顯示；API 用 JWT Bearer 並以動作鍵控制個別操作。
+- UI 與 API 共用單一 RBAC 權威來源：UI 用 Cookie 驗證並以 `CheckAccessPage`（頁面鍵）控制進入頁面、以 `CheckAccessAction(角色_團隊清單, 動作)`（0.9.110 起畫面改用 `<RequirePermission>` 元件，規則相同）控制新增／修改／刪除按鈕是否顯示；API 用 JWT Bearer 並以動作鍵控制個別操作。
 - 頁面被權限擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/teams`，0.9.78 起）。
 
 ## 六、錯誤與邊界

@@ -74,8 +74,4 @@ public static class AiLogPromptBuilder
             CharacterCount = message.Length,
         };
     }
-
-    /// <summary>空白或 null 時退回程式碼內建的預設提示詞。</summary>
-    public static string ResolveSystemPrompt(string? configured)
-        => string.IsNullOrWhiteSpace(configured) ? AiPromptDefaults.SystemPrompt : configured;
 }

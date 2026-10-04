@@ -272,6 +272,8 @@ Generated_Code/
 # because we have git ;-)
 _UpgradeReport_Files/
 Backup*/
+# 例外：系統備份的程式碼（0.9.99 起）。沒有這一行時 Backup/ 底下的 .cs 不會被提交，乾淨的 clone 建置失敗（0.9.110 由 Test-CrudGenerator 發現）。
+!src/MyProject/MyProject.Web/Backup/
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/

@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.8
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.105
+- 現行系統版本：0.9.110
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/10/04
 
@@ -35,7 +35,7 @@
 
 單頁清單 + Modal 表單（`CategoryViewView`）：
 
-- 工具列：新增（需 `分類清單:create`）、重新整理；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
+- 工具列：新增（需 `分類清單:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
 - 搜尋：關鍵字比對 `Name` 或 `Description`（`Contains`）。
 - 排序：可排序欄位 `Name`、`IsEnabled`、`UpdatedAt`；預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆），`RemoteDataSource=true` 由服務端分頁。
@@ -73,7 +73,7 @@
 - API 一律 `[Authorize(JwtBearer)]`；每個動作以 `[HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.*)]` 做動作級授權。
 - 權限鍵組合規則 `頁面:動作`（`PermissionKey.For`）：`分類清單:view`、`分類清單:create`、`分類清單:edit`、`分類清單:delete`。裸鍵「分類清單」代表該頁全部動作（向後相容）。
 - 無權限回 403，且維持 `ApiResult` 格式；系統管理員短路（不需個別權限）。
-- UI 與 API 共用單一 RBAC 權威來源：UI 用 Cookie 驗證並以 `CheckAccessPage`（頁面鍵）控制進入頁面、以 `CheckAccessAction(角色_分類清單, 動作)` 控制新增／修改／刪除按鈕是否顯示；API 用 JWT Bearer 並以動作鍵控制個別操作。
+- UI 與 API 共用單一 RBAC 權威來源：UI 用 Cookie 驗證並以 `CheckAccessPage`（頁面鍵）控制進入頁面、以 `CheckAccessAction(角色_分類清單, 動作)`（0.9.110 起畫面改用 `<RequirePermission>` 元件，規則相同）控制新增／修改／刪除按鈕是否顯示；API 用 JWT Bearer 並以動作鍵控制個別操作。
 - 頁面被權限擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/categories`，0.9.78 起）。
 
 ## 六、錯誤與邊界

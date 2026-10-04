@@ -655,6 +655,7 @@ public sealed class TeamTreeApiTests : IClassFixture<ApiTestApplicationFactory>
         {
             Id = 0,
             Title = $"越權-{suffix}",
+            Owner = "mgr",
             Status = "進行中",
             Priority = "中",
             Teams = TagStringHelper.ToStored([sales]),

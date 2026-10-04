@@ -1,4 +1,3 @@
-using System.Text;
 using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
@@ -13,6 +12,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 using MyProject.Business.Helpers;
+using MyProject.Web.Export;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -380,35 +380,10 @@ namespace MyProject.Web.Components.Views.Analytics
                 var result = await aiCallLogService.GetAsync(BuildQuery(1, AiCallLogService.MaxExportRows));
 
                 // ⚠️ 只匯出中繼資料，不含內文：CSV 常被帶出系統，內文請在明細視窗逐筆下載。
-                var builder = new StringBuilder();
-                builder.AppendLine("送出時間（本地）,結果,失敗原因,作業,帳號,供應商,模型,HTTP,結束原因,耗時ms,送出字元,回應字元,關聯說明,呼叫識別碼");
-                foreach (var item in result.Result)
-                {
-                    builder.AppendLine(string.Join(
-                        ',',
-                        Csv(item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
-                        Csv(AiCallLogPdfBuilder.DescribeOutcome(item)),
-                        Csv(item.FailureReason),
-                        Csv(item.Operation),
-                        Csv(item.Account),
-                        Csv(item.Provider),
-                        Csv(item.Model),
-                        Csv(item.HttpStatus?.ToString()),
-                        Csv(item.FinishReason),
-                        Csv(item.ElapsedMilliseconds.ToString()),
-                        Csv(item.RequestCharacters.ToString()),
-                        Csv(item.ResponseCharacters.ToString()),
-                        Csv(item.RelatedInfo),
-                        Csv(item.CallId.ToString())));
-                }
-
-                var bytes = TextDownloadPayload.Utf8WithBom(builder.ToString());
-
-                using var stream = new MemoryStream(bytes);
-                using var streamReference = new DotNetStreamReference(stream);
-
+                // 0.9.107 起經共用的 TabularExport（BOM、跳脫、換行與之前手寫的相同，ExportCsvCompatibilityTests 守門）。
+                var bytes = TabularExport.ToCsv(CsvColumns, result.Result);
                 var fileName = $"MyProject.Web-ai-call-logs-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
-                await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
+                await JSRuntime.DownloadAsync(fileName, bytes, TabularExport.CsvContentType);
 
                 logger.LogInformation("AI call log export downloaded. Rows={Rows}", result.Count);
                 await WriteSelfAuditAsync(AuditActions.AiCallLog.Export, "*", $"format=csv; rows={result.Count}");
@@ -420,9 +395,23 @@ namespace MyProject.Web.Components.Views.Analytics
             }
         }
 
-        /// <summary>CSV 欄位跳脫：雙引號加倍，整欄以雙引號包住，換行才不會把一列拆成兩列。</summary>
-        private static string Csv(string? value)
-            => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
+        internal static readonly IReadOnlyList<ExportColumn<AiCallLogAdapterModel>> CsvColumns =
+        [
+            new("送出時間（本地）", x => x.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
+            new("結果", x => AiCallLogPdfBuilder.DescribeOutcome(x)),
+            new("失敗原因", x => x.FailureReason),
+            new("作業", x => x.Operation),
+            new("帳號", x => x.Account),
+            new("供應商", x => x.Provider),
+            new("模型", x => x.Model),
+            new("HTTP", x => x.HttpStatus?.ToString()),
+            new("結束原因", x => x.FinishReason),
+            new("耗時ms", x => x.ElapsedMilliseconds.ToString()),
+            new("送出字元", x => x.RequestCharacters.ToString()),
+            new("回應字元", x => x.ResponseCharacters.ToString()),
+            new("關聯說明", x => x.RelatedInfo),
+            new("呼叫識別碼", x => x.CallId.ToString()),
+        ];
 
         private static StatusTone ResolveTone(AiCallLogAdapterModel item)
             => item.Success ? StatusTone.Positive : item.IsCanceled ? StatusTone.Muted : StatusTone.Warning;

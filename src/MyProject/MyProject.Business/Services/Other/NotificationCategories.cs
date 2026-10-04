@@ -14,4 +14,7 @@ public static class NotificationCategories
 
     /// <summary>密碼即將到期 → 本人（0.9.101 起，啟用密碼到期時）。</summary>
     public const string PasswordExpiring = "PasswordExpiring";
+
+    /// <summary>AI 用量達上限的 80%／100% → 每人上限通知本人，全系統上限通知管理員（達 100% 同時寄信；0.9.109 起）。</summary>
+    public const string AiQuota = "AiQuota";
 }

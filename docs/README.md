@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.35
+- 文件版本：6.39
 - 文件狀態：維護中
-- 現行系統版本：0.9.106
+- 現行系統版本：0.9.110
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/10/04
 
@@ -74,7 +74,7 @@
 - [EFCore 指令備忘](guides/EFCore.md)
 - [測試指南](guides/測試指南.md)
 
-> 腳手架腳本：`scripts/New-StarterProject.ps1`（複製新專案並替換 namespace / project 名稱）、`scripts/New-CrudModule.ps1`（產生新 CRUD 模組骨架）。
+> 腳手架腳本：`scripts/New-StarterProject.ps1`（複製新專案並替換 namespace / project 名稱）、`scripts/New-CrudModule.ps1`（一行產生並登記新 CRUD 模組，0.9.110 起；改了樣板跑 `scripts/Test-CrudGenerator.ps1`）。
 
 ### operations — 維運與部署
 - [維護規範](operations/維護規範.md)
@@ -108,6 +108,9 @@
 - [個人資料 PRD](prd/個人資料-prd.md)
 - [兩步驟驗證 PRD](prd/兩步驟驗證-prd.md)
 - [首頁儀表板 PRD](prd/首頁儀表板-prd.md)
+- [通用匯出 PRD](prd/通用匯出-prd.md)
+- [AI 提示詞管理 PRD](prd/AI提示詞管理-prd.md)
+- [AI 用量配額 PRD](prd/AI用量配額-prd.md)
 - [LLM 呼叫費用估算 PRD](prd/LLM呼叫費用估算-prd.md)
 - [紀錄分類與團隊權控 PRD](prd/紀錄分類與團隊權控-prd.md)
 - [稽核紀錄 PRD](prd/稽核紀錄-prd.md)

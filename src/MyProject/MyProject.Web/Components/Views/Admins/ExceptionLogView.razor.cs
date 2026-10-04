@@ -1,5 +1,4 @@
-﻿using System.Text;
-using AntDesign;
+﻿using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -13,6 +12,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
+using MyProject.Web.Export;
 
 namespace MyProject.Web.Components.Views.Admins
 {
@@ -407,38 +407,31 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
+        internal static readonly IReadOnlyList<ExportColumn<ExceptionLogAdapterModel>> CsvColumns =
+        [
+            new("最後發生", x => x.LastOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
+            new("次數", x => x.OccurrenceCount.ToString()),
+            new("例外類型", x => x.ExceptionType),
+            new("訊息", x => x.Message),
+            new("來源", x => x.Source),
+            new("頁面", x => x.Page),
+            new("操作", x => x.Operation),
+            new("記錄器", x => x.LoggerName),
+            new("使用者", x => x.Account),
+            new("首次發生", x => x.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
+            new("最後追蹤碼", x => x.LastTraceId),
+        ];
+
         private async Task OnExportAsync()
         {
             try
             {
                 var result = await exceptionLogService.GetAsync(BuildFullQuery());
 
-                var builder = new StringBuilder();
-                builder.AppendLine("最後發生,次數,例外類型,訊息,來源,頁面,操作,記錄器,使用者,首次發生,最後追蹤碼");
-                foreach (var item in result.Result)
-                {
-                    builder.AppendLine(string.Join(',',
-                        Csv(item.LastOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
-                        Csv(item.OccurrenceCount.ToString()),
-                        Csv(item.ExceptionType),
-                        Csv(item.Message),
-                        Csv(item.Source),
-                        Csv(item.Page),
-                        Csv(item.Operation),
-                        Csv(item.LoggerName),
-                        Csv(item.Account),
-                        Csv(item.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
-                        Csv(item.LastTraceId)));
-                }
-
-                // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
-                var bytes = TextDownloadPayload.Utf8WithBom(builder.ToString());
-
-                using var stream = new MemoryStream(bytes);
-                using var streamReference = new DotNetStreamReference(stream);
-
+                // 0.9.107 起經共用的 TabularExport（BOM、跳脫、換行與之前手寫的相同，ExportCsvCompatibilityTests 守門）。
+                var bytes = TabularExport.ToCsv(CsvColumns, result.Result);
                 var fileName = $"MyProject.Web-exceptions-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
-                await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
+                await JSRuntime.DownloadAsync(fileName, bytes, TabularExport.CsvContentType);
 
                 logger.LogInformation("Exception log export downloaded. Rows={Rows}", result.Count);
                 await WriteAuditAsync(AuditActions.ExceptionLog.Export, "*", $"format=csv; rows={result.Count}");
@@ -465,10 +458,6 @@ namespace MyProject.Web.Components.Views.Admins
             SortField = sortField,
             SortDescending = sortDirection == "ascend" ? false : true,
         };
-
-        /// <summary>CSV 欄位跳脫：雙引號加倍，整欄以雙引號包住，換行才不會把一列拆成兩列。</summary>
-        private static string Csv(string? value)
-            => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
 
         /// <summary>次數越多顏色越重，讓「重複數百次」的噪音一眼可辨。</summary>
         private static string GetCountColor(long count) => count switch

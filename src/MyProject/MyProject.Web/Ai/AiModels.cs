@@ -103,6 +103,11 @@ public enum AiAnalysisFailureReason
     /// 在發出 HTTP 之前就擋下，所以不會計費、也不記用量。
     /// </summary>
     FollowUpLimitReached,
+
+    /// <summary>
+    /// 已達 AI 用量上限（0.9.109 起，系統參數「AI 用量」）。在發出 HTTP 之前就擋下，不計費、也不記用量。
+    /// </summary>
+    QuotaExceeded,
 }
 
 /// <summary>Chat Completions 的 <c>role</c> 值。</summary>
