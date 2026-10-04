@@ -26,6 +26,7 @@ public static class SystemParameterCatalog
     public const string GroupRetention = "資料保留";
     public const string GroupMonitoring = "監控與告警";
     public const string GroupSecurity = "安全與流量";
+    public const string GroupBackup = "備份";
 
     private const string NextRetentionRun = "下一次排程清理時（預設每天 03:00）";
 
@@ -103,6 +104,13 @@ public static class SystemParameterCatalog
         Define<PasswordResetSettings, int>(PasswordResetSettings.SectionName, x => x.RequestCooldownSeconds, GroupSecurity,
             "重設密碼申請冷卻時間", "同一個帳號兩次申請「忘記密碼」至少要隔多久。",
             "立即", unit: "秒", zeroMeaning: "不限制"),
+
+        Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
+            "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",
+            "下一次備份成功時（預設每天 02:00）", unit: "份", zeroMeaning: "不自動刪除舊備份", isRetention: true),
+        Define<BackupSettings, bool>(BackupSettings.SectionName, x => x.IncludeAiCallLogs, GroupBackup,
+            "備份 AI 對話內容", "是否一併備份 AI 對話紀錄的內容檔。內容含日誌與例外堆疊、檔案較大，預設不備份。",
+            "下一次備份起"),
     ];
 
     private static readonly Dictionary<string, SystemParameterDefinition> ByKey =

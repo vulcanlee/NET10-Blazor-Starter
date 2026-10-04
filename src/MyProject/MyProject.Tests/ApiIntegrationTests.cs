@@ -1141,6 +1141,8 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             // 同理：整合測試會啟動真實 host，Data Protection 會真的把金鑰環寫到磁碟。
             // 漏掉這一行，測試就會把金鑰寫進開發者（或 CI）真正的金鑰目錄。
             ["SystemSettings:ExternalFileSystem:DataProtectionKeyPath"] = Path.Combine(rootPath, "Keys"),
+            // 同理：備份作業會把資料庫與檔案打包寫到這裡（0.9.99 起）。
+            ["SystemSettings:ExternalFileSystem:BackupPath"] = Path.Combine(rootPath, "Backup"),
             // 明寫 None：開發者本機若用 User Secrets／環境變數開了 Smtp，整合測試也不可以真的寄信。
             // Pickup 資料夾同樣指到 rootPath，切換 provider 的子類才不會寫進真正的信件資料夾。
             ["EmailSettings:Provider"] = "None",

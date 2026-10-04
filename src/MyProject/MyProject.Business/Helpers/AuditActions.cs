@@ -177,6 +177,15 @@ public static class AuditActions
         public const string Disable = "Job.Disable";
     }
 
+    /// <summary>系統備份（0.9.99 起）：建立（排程或立即備份）、依份數自動刪除、下載、手動刪除。</summary>
+    public static class Backup
+    {
+        public const string Create = "Backup.Create";
+        public const string AutoPurge = "Backup.AutoPurge";
+        public const string Download = "Backup.Download";
+        public const string Delete = "Backup.Delete";
+    }
+
     /// <summary>「系統參數」頁的修改與還原（0.9.98 起）。Detail 為 <c>key=…; old=…(來源); new=…(來源)</c>。</summary>
     public static class SystemParameter
     {

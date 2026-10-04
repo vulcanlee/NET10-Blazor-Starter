@@ -1,8 +1,8 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.98
+- 現行系統版本：0.9.99
 - 首次實作版本：0.9.96
 - 最後核對日期：2026/10/04
 
@@ -51,6 +51,7 @@
 | `ExceptionLogRetention` | 系統例外紀錄清理 | `LogRetentionSettings:ExceptionLogDays`（90，本地門檻）| `ExceptionLog.AutoPurge` |
 | `AiCallLogRetention` | AI 對話紀錄清理 | `AiCallLogSettings:RetentionDays`（90）| `AiCallLog.AutoPurge` |
 | `TokenUsageLogRetention` | Token 用量紀錄清理 | `LogRetentionSettings:TokenUsageLogDays`（365，分批刪除）| `TokenUsage.AutoPurge` |
+| `SystemBackup` | 系統備份（0.9.99 起，預設 `0 2 * * *`）| `BackupSettings:KeepCount`（7 份，成功後才刪舊的）| `Backup.Create`／`Backup.AutoPurge` |
 | `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |
 
   有刪到資料才寫稽核；天數 0 回成功但不動作。刪檔一律經對應的 file store。

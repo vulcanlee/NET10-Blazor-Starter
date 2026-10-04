@@ -52,6 +52,7 @@
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
 | 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable` |
 | 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
+| 系統備份 | 建立備份（排程或立即備份）、依保留份數自動刪除、下載、手動刪除（0.9.99 起） | `Backup.Create`、`Backup.AutoPurge`、`Backup.Download`、`Backup.Delete` |
 | 匯出 | 在「日誌檢視」匯出日誌、在「AI 對話紀錄」匯出清單 | `LogViewer.Export`、`AiCallLog.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |

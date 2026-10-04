@@ -158,9 +158,9 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 var ok = await ConfirmDialog.AskDestructiveAsync(
                     modalService,
-                    "縮短保留天數",
+                    "縮短保留期限",
                     $"「{definition.Label}」將從 {SystemParameterValueCodec.Display(definition, item.EffectiveValue)} 改為 {SystemParameterValueCodec.Display(definition, raw)}。" +
-                    "下一次排程清理（預設每天 03:00）會永久刪除超過新天數的資料，無法復原。確定要儲存嗎？",
+                    $"下一次執行時（{definition.EffectNote}）會永久刪除超出新設定的資料，無法復原。確定要儲存嗎？",
                     "確定縮短");
                 if (!ok)
                 {
@@ -194,7 +194,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var content = $"「{definition.Label}」將改回設定檔的值 {SystemParameterValueCodec.Display(definition, item.BaseValue)}。";
                 var ok = definition.IsRetention && ShortensRetention(item.EffectiveValue, item.BaseValue)
                     ? await ConfirmDialog.AskDestructiveAsync(modalService, "還原為設定檔值",
-                        content + "這會縮短保留天數，下一次排程清理會永久刪除超過天數的資料，無法復原。", "確定還原")
+                        content + "這會縮短保留期限，下一次執行時會永久刪除超出設定的資料，無法復原。", "確定還原")
                     : await ConfirmDialog.AskAsync(modalService, "還原為設定檔值", content, "還原");
                 if (!ok)
                 {

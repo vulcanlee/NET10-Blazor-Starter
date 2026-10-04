@@ -320,6 +320,7 @@ public sealed class OptionsValidationTests
         paths.TokenUsagePath = @"C:\temp\app\TokenUsage";
         paths.AiCallLogPath = @"C:\temp\app\AiCallLog";
         paths.DataProtectionKeyPath = @"\\fileserver\share\Keys";
+        paths.BackupPath = @"D:\backup\app";
         return settings;
     }
 

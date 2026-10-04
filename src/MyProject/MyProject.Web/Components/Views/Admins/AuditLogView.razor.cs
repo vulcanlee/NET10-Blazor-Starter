@@ -410,6 +410,7 @@ namespace MyProject.Web.Components.Views.Admins
             "Password" => "orange",
             "Job" => "cyan",
             "SystemParameter" => "cyan",
+            "Backup" => "orange",
             _ => "default",
         };
     }

@@ -26,7 +26,7 @@ public sealed class ScheduledJobWiringTests : IClassFixture<ApiTestApplicationFa
         var descriptors = factory.Services.GetServices<ScheduledJobDescriptor>().ToList();
 
         Assert.Equal(
-            new[] { AiCallLogRetentionJob.JobName, AuditLogRetentionJob.JobName, ExceptionLogRetentionJob.JobName, SoftDeletePurgeJob.JobName, TokenUsageLogRetentionJob.JobName },
+            new[] { AiCallLogRetentionJob.JobName, AuditLogRetentionJob.JobName, ExceptionLogRetentionJob.JobName, SoftDeletePurgeJob.JobName, SystemBackupJob.JobName, TokenUsageLogRetentionJob.JobName },
             descriptors.Select(x => x.Name).Order(StringComparer.Ordinal).ToArray());
 
         using var scope = factory.Services.CreateScope();

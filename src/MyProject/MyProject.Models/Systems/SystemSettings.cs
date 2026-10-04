@@ -65,6 +65,15 @@ public class ExternalFileSystem
     /// 於是每次回收都換一批。詳見正式部署與安全檢查清單。
     /// </summary>
     public string DataProtectionKeyPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 系統備份 zip 的存放目錄（0.9.99 起）：資料庫快照、專案附件、例外堆疊檔、Token 原始檔與 Data Protection 金鑰環。
+    ///
+    /// ⚠️ 備份含全部資料與金鑰環，拿到的人可以偽造登入 Cookie：目錄權限只給應用程式集區身分與管理員。
+    /// 啟動驗證不允許它與其他任何資料目錄重疊（尤其不可放在 <see cref="DownloadPath"/> 底下 —— 那裡以靜態檔案對外提供），
+    /// 也不可放在網站目錄底下。
+    /// </summary>
+    public string BackupPath { get; set; } = string.Empty;
 }
 
 public class BootstrapSettings

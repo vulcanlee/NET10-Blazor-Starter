@@ -16,6 +16,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Auth;
+using MyProject.Web.Backup;
 using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
@@ -124,6 +125,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         // 專案附件實體檔的唯一刪除入口（0.9.97 起，含根目錄檢查）。
         services.AddScoped<ProjectFileStore>();
+        // 系統備份（0.9.99 起）：檔案清單與建立備份。建立備份只由排程作業 SystemBackup 呼叫（含「立即備份」）。
+        services.AddSingleton<BackupStore>();
+        services.AddScoped<SystemBackupService>();
         services.AddScoped<ProjectService>();
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
         services.AddScoped<SoftDeletePurgeService>();
@@ -237,6 +241,10 @@ public static class ServiceCollectionExtensions
             SoftDeletePurgeJob.JobName, "已刪除資料清理",
             "已刪除超過保留天數的專案（含附件檔）、分類、團隊、使用者與角色，永久刪除（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
 
+        services.AddScheduledJob<SystemBackupJob>(
+            SystemBackupJob.JobName, "系統備份",
+            "備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
+
         // ⚠️ 必須註冊在 ExceptionLogWriter 之後：主機以相反順序停止，作業在關機時記的錯誤才還有人寫進系統例外紀錄。
         services.AddHostedService<JobSchedulerWorker>();
         return services;
@@ -283,6 +291,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<SoftDeleteSettings>()
             .Bind(configuration.GetSection(SoftDeleteSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<BackupSettings>()
+            .Bind(configuration.GetSection(BackupSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
