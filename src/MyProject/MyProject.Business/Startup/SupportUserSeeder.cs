@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
@@ -84,6 +85,8 @@ public sealed class SupportUserSeeder : IDatabaseSeeder
             != PasswordVerificationOutcome.Success)
         {
             support.Password = SecurePasswordHasher.HashPassword(bootstrapSettings.SupportPassword);
+            // 設定檔換了 support 的密碼：既有的 support 工作階段一律失效（0.9.103 起）。
+            support.SecurityStamp = SecurityStamps.New();
         }
 
         support.IsAdmin = true;

@@ -19,4 +19,9 @@ public interface ITotpService
 
     /// <summary>驗證使用者輸入的驗證碼（指定時間與時間窗，供測試與精確控制）。</summary>
     bool VerifyCode(string secret, string code, long unixSeconds, int window);
+
+    /// <summary>
+    /// 符合的時間步（30 秒一步）；不符回 null（0.9.104 起）。防重放：呼叫端只接受比上次用過的時間步更新的碼。
+    /// </summary>
+    long? FindMatchingStep(string secret, string code, long unixSeconds, int window = 1);
 }

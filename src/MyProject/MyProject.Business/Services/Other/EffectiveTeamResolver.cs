@@ -8,15 +8,23 @@ namespace MyProject.Business.Services.Other;
 public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
 {
     private readonly BackendDBContext context;
+    private readonly ITeamTreeCache teamTree;
     private readonly ILogger<EffectiveTeamResolver> logger;
 
-    public EffectiveTeamResolver(BackendDBContext context, ILogger<EffectiveTeamResolver> logger)
+    public EffectiveTeamResolver(BackendDBContext context, ITeamTreeCache teamTree, ILogger<EffectiveTeamResolver> logger)
     {
         this.context = context;
+        this.teamTree = teamTree;
         this.logger = logger;
     }
 
     public async Task<IReadOnlyList<string>> GetEffectiveTeamNamesAsync(int userId)
+    {
+        var assigned = await GetAssignedTeamNamesAsync(userId);
+        return assigned.Count == 0 ? assigned : (await teamTree.GetAsync()).ExpandWithDescendants(assigned);
+    }
+
+    public async Task<IReadOnlyList<string>> GetAssignedTeamNamesAsync(int userId)
     {
         var user = await context.MyUser
             .AsNoTracking()
@@ -84,6 +92,8 @@ public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
             return [];
         }
 
+        // 被指派了這個團隊或它任一個上層部門的人，有效團隊裡都有它。
+        var names = new HashSet<string>((await teamTree.GetAsync()).AncestorsAndSelf(name), StringComparer.OrdinalIgnoreCase);
         var result = new HashSet<int>();
 
         // 1) 直接綁在使用者的團隊（UserTeam；經 context.Team 排除已刪除的團隊）
@@ -91,7 +101,7 @@ public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
             .AsNoTracking()
             .Join(context.Team, ut => ut.TeamId, t => t.Id, (ut, t) => new { ut.MyUserId, t.Name })
             .ToListAsync();
-        result.UnionWith(direct.Where(x => string.Equals(x.Name.Trim(), name, StringComparison.OrdinalIgnoreCase)).Select(x => x.MyUserId));
+        result.UnionWith(direct.Where(x => names.Contains(x.Name.Trim())).Select(x => x.MyUserId));
 
         // 2) 預設團隊含這個名稱的角色（經 context.RoleView 排除已刪除的角色）→ 以它為額外角色或主要角色的使用者
         var roles = await context.RoleView
@@ -99,7 +109,7 @@ public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
             .Select(r => new { r.Id, r.DefaultTeamsJson })
             .ToListAsync();
         var roleIds = roles
-            .Where(r => TeamJsonHelper.Deserialize(r.DefaultTeamsJson, logger).Any(x => string.Equals((x ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            .Where(r => TeamJsonHelper.Deserialize(r.DefaultTeamsJson, logger).Any(x => names.Contains((x ?? string.Empty).Trim())))
             .Select(r => r.Id)
             .ToList();
         if (roleIds.Count > 0)

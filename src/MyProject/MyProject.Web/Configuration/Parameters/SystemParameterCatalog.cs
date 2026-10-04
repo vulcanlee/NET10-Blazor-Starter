@@ -133,6 +133,12 @@ public static class SystemParameterCatalog
         Define<LockoutSettings, int>(LockoutSettings.SectionName, x => x.LockoutMinutes, GroupPassword,
             "鎖定時間", "帳號被鎖定後多久自動解除；管理員也可以在「使用者管理」立即解鎖。",
             "之後發生的鎖定（已鎖定的維持原本的時間）", unit: "分鐘"),
+        Define<TwoFactorSettings, bool>(TwoFactorSettings.SectionName, x => x.RequireForAdmins, GroupPassword,
+            "管理員必須使用兩步驟驗證", "開啟後，勾了「管理員」的帳號必須啟用兩步驟驗證，未啟用者登入後先被帶去設定。support 帳號與只用 Google 登入的帳號除外。",
+            "立即（已登入的管理員在下一次換頁時判斷）"),
+        Define<TwoFactorSettings, int>(TwoFactorSettings.SectionName, x => x.RememberDeviceDays, GroupPassword,
+            "記住裝置天數", "輸入驗證碼時勾選「記住這台裝置」後，這麼多天內在同一個瀏覽器登入不再要求驗證碼；改密碼或被強制登出後失效。",
+            "之後勾選的裝置", unit: "天", zeroMeaning: "不提供「記住這台裝置」"),
 
         Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
             "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",

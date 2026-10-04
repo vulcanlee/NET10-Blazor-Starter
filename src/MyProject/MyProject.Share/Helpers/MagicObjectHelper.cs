@@ -16,6 +16,12 @@ public class MagicObjectHelper
     public const string ExternalCookieScheme = "ExternalCookieScheme";
 
     /// <summary>
+    /// 登入 Cookie 與 JWT 裡的工作階段版本 claim（0.9.103 起）。值是 <c>MyUser.SecurityStamp</c>；
+    /// 與資料庫不符代表這個工作階段已失效（改密碼、停用、刪除、角色變更、管理員強制登出）。
+    /// </summary>
+    public const string SecurityStampClaimType = "security_stamp";
+
+    /// <summary>
     /// Data Protection 的應用程式識別名稱，決定金鑰環的「用途」判別子。
     ///
     /// ⚠️ **改掉這個值等於讓全站所有既有登入 Cookie 立刻失效**（連同記住我）。

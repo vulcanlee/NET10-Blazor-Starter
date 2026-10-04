@@ -1,8 +1,8 @@
 ﻿# 個人資料 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.102
+- 現行系統版本：0.9.104
 - 首次實作版本：0.9.102
 - 最後核對日期：2026/10/04
 
@@ -27,14 +27,15 @@
 - **姓名與 Email**：圓形縮寫、姓名、帳號；「姓名」可改（必填、前後空白去掉）；「Email」唯讀並說明由管理員修改。「儲存」。
 - **角色與團隊**：所有角色（主要 ∪ 額外，排除已刪除）與有效團隊（直接加入 ∪ 角色預設），以小標籤顯示。
 - **密碼**：上次變更、到期（`IPasswordPolicy.GetExpiresAtUtc`；不會到期時顯示「不會到期」）、「系統管理員要求變更」狀態、「變更密碼」按鈕；沒有本機密碼（Google）時只顯示說明。
-- **最近 20 筆登入紀錄**：時間（伺服器本地時間）、動作（登入、登入失敗、帳號停用中嘗試登入、連續輸錯被鎖定、Google 登入／失敗、登出）、結果。
+- **兩步驟驗證**（0.9.104 起，有本機密碼的人才有）：「已啟用／未啟用」徽章與「設定兩步驟驗證」／「管理兩步驟驗證」按鈕，前往 `/TwoFactorSetup`（見[兩步驟驗證](兩步驟驗證-prd.md)）。
+- **最近 20 筆登入紀錄**：時間（伺服器本地時間）、動作（登入、登入失敗、帳號停用中嘗試登入、連續輸錯被鎖定、Google 登入／失敗、登出；0.9.104 起另有「兩步驟驗證碼錯誤」與「其他地方變更了帳號，被登出」）、結果。
 - **右上角**：人像圖示改為姓名縮寫（`UserInitials`：中文取第一個字；英文姓名取第一與最後一個字的字首；沒有姓名用帳號）。
 - **頂欄頁名**：不在選單的登入後頁面改用操作說明登記的頁名（`MainLayout.ResolvePageTitle`），`/ChangePassword` 不再顯示「系統首頁」。
 
 ## 四、內部系統運作
 
 - `ProfileService`（`Business/Services/DataAccess`，scoped，`IDbContextFactory`）：
-  - `GetAsync(userId)`：帳號資料、角色經 `RoleView`（排除已刪除）、團隊經 `IEffectiveTeamResolver`、密碼狀態。
+  - `GetAsync(userId)`：帳號資料、角色經 `RoleView`（排除已刪除）、團隊經 `IEffectiveTeamResolver`、密碼狀態、兩步驟驗證是否開啟（0.9.104 起）。
   - `GetRecentLoginsAsync(userId)`：`AuditLog` 以 ⚠️ **精確 `ActorUserId`** 篩選 `Login.*` 與 `Logout`、新到舊、取 20 筆（不用帳號比對：帳號刪除後可能被別人重新使用）。
     Migration `AddAuditLogActorIndex` 加索引 (`ActorUserId`, `OccurredAt`)（稽核表之前沒有任何索引）。
   - `UpdateNameAsync(userId, name, stamp)`：只寫 `Name` 與更新時間；`ConcurrencyStampHelper.Apply` 比對開頁時的版本號（管理員同時修改 → 衝突訊息）、`ProtectFlags`；稽核 `User.ProfileUpdate`（detail 只寫 `field=Name`，姓名是個資）；

@@ -5,13 +5,15 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MyProject.AccessDatas.Models;
 using MyProject.Dtos.Auths;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Auth;
 
 public class JwtTokenService : IJwtTokenService
 {
+    internal const string TokenTypeClaimType = "token_type";
     private const string RefreshTokenType = "refresh";
-    private const string AccessTokenType = "access";
+    internal const string AccessTokenType = "access";
     private readonly JwtSettings settings;
     private readonly ILogger<JwtTokenService> logger;
 
@@ -34,22 +36,22 @@ public class JwtTokenService : IJwtTokenService
 
         return new TokenResponseDto
         {
-            AccessToken = CreateToken(currentUser, AccessTokenType, accessExpiresAt),
+            AccessToken = CreateToken(currentUser, user.SecurityStamp, AccessTokenType, accessExpiresAt),
             AccessTokenExpiresAt = accessExpiresAt,
-            RefreshToken = CreateToken(currentUser, RefreshTokenType, refreshExpiresAt),
+            RefreshToken = CreateToken(currentUser, user.SecurityStamp, RefreshTokenType, refreshExpiresAt),
             RefreshTokenExpiresAt = refreshExpiresAt,
             User = currentUser
         };
     }
 
-    public CurrentUserDto ValidateRefreshToken(string refreshToken)
+    public RefreshTokenIdentity ValidateRefreshToken(string refreshToken)
     {
         var principal = new JwtSecurityTokenHandler().ValidateToken(
             refreshToken,
             CreateValidationParameters(validateLifetime: true),
             out _);
 
-        var tokenType = principal.FindFirstValue("token_type");
+        var tokenType = principal.FindFirstValue(TokenTypeClaimType);
         if (!string.Equals(tokenType, RefreshTokenType, StringComparison.Ordinal))
         {
             // 拿 access token 來換 refresh 屬「可能的誤用」（§3.1）。呼叫端（AuthController）會再記一筆並回 401。
@@ -57,7 +59,7 @@ public class JwtTokenService : IJwtTokenService
             throw new SecurityTokenException("Token 類型不是 refresh token。");
         }
 
-        return new CurrentUserDto
+        var user = new CurrentUserDto
         {
             Id = int.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0"),
             Account = principal.FindFirstValue(ClaimTypes.Name) ?? string.Empty,
@@ -65,6 +67,9 @@ public class JwtTokenService : IJwtTokenService
             Email = principal.FindFirstValue(ClaimTypes.Email),
             IsAdmin = bool.TryParse(principal.FindFirstValue("is_admin"), out var isAdmin) && isAdmin
         };
+
+        // 工作階段版本另外回傳，不放進 /me 回傳給前端的 DTO（0.9.103 起；之前簽發的 token 沒有這個 claim → 空字串 → 比對不符）。
+        return new RefreshTokenIdentity(user, principal.FindFirstValue(MagicObjectHelper.SecurityStampClaimType) ?? string.Empty);
     }
 
     public TokenValidationParameters CreateValidationParameters(bool validateLifetime)
@@ -82,7 +87,7 @@ public class JwtTokenService : IJwtTokenService
         };
     }
 
-    private string CreateToken(CurrentUserDto user, string tokenType, DateTime expiresAt)
+    private string CreateToken(CurrentUserDto user, string securityStamp, string tokenType, DateTime expiresAt)
     {
         var credentials = new SigningCredentials(CreateSecurityKey(), SecurityAlgorithms.HmacSha256);
         var claims = new List<Claim>
@@ -93,7 +98,8 @@ public class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Name, user.Account),
             new("display_name", user.Name),
             new("is_admin", user.IsAdmin.ToString()),
-            new("token_type", tokenType)
+            new(TokenTypeClaimType, tokenType),
+            new(MagicObjectHelper.SecurityStampClaimType, securityStamp)
         };
 
         if (!string.IsNullOrWhiteSpace(user.Email))

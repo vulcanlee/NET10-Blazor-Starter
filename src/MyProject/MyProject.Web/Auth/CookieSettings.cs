@@ -38,4 +38,12 @@ public class CookieSettings
     /// circuit 內的 SignalR 換頁不經過 cookie 中介軟體。</para>
     /// </summary>
     public bool SlidingExpiration { get; set; } = true;
+
+    /// <summary>
+    /// 工作階段版本在 HTTP 請求上的檢查間隔（分鐘，0.9.103 起）。預設 5。
+    /// 改密碼、停用、強制登出之後，其他瀏覽器的下一個 HTTP 請求最晚在這段時間內被登出；同一個行程內強制登出是立即的。
+    /// 已開著的頁面在換頁時檢查（不受這個值影響）。調小會增加每次請求查資料庫的機會。
+    /// </summary>
+    [Range(1, 60)]
+    public int ValidationIntervalMinutes { get; set; } = 5;
 }

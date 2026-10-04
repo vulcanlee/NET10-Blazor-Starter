@@ -33,10 +33,13 @@ public sealed class TotpService : ITotpService
         => VerifyCode(secret, code, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), window: 1);
 
     public bool VerifyCode(string secret, string code, long unixSeconds, int window)
+        => FindMatchingStep(secret, code, unixSeconds, window) is not null;
+
+    public long? FindMatchingStep(string secret, string code, long unixSeconds, int window = 1)
     {
         if (string.IsNullOrWhiteSpace(code))
         {
-            return false;
+            return null;
         }
 
         code = code.Trim();
@@ -48,11 +51,11 @@ public sealed class TotpService : ITotpService
                     Encoding.ASCII.GetBytes(candidate),
                     Encoding.ASCII.GetBytes(code)))
             {
-                return true;
+                return counter + offset;
             }
         }
 
-        return false;
+        return null;
     }
 
     private static string ComputeHotp(string secret, long counter)

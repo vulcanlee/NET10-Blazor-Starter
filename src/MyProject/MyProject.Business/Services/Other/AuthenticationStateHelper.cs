@@ -24,6 +24,14 @@ public class AuthenticationStateHelper
     private readonly IPermissionChecker permissionChecker;
     private readonly IAuditLogService auditLogService;
     private readonly IPasswordPolicy passwordPolicy;
+    private readonly ISecurityStampService securityStampService;
+    private readonly ITwoFactorService twoFactorService;
+
+    /// <summary>
+    /// 換頁時工作階段版本的查詢可以沿用幾秒內的結果：同一次換頁裡版面、選單、頁面各檢查一次，不必各查一次資料庫。
+    /// 同一個行程的強制登出會立即清掉快取，所以這段時間只影響別的行程。
+    /// </summary>
+    private static readonly TimeSpan SessionRecheckWindow = TimeSpan.FromSeconds(5);
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
@@ -34,7 +42,9 @@ public class AuthenticationStateHelper
         IEffectiveTeamResolver effectiveTeamResolver,
         IPermissionChecker permissionChecker,
         IAuditLogService auditLogService,
-        IPasswordPolicy passwordPolicy)
+        IPasswordPolicy passwordPolicy,
+        ISecurityStampService securityStampService,
+        ITwoFactorService twoFactorService)
     {
         this.logger = logger;
         this.mapper = mapper;
@@ -45,6 +55,8 @@ public class AuthenticationStateHelper
         this.permissionChecker = permissionChecker;
         this.auditLogService = auditLogService;
         this.passwordPolicy = passwordPolicy;
+        this.securityStampService = securityStampService;
+        this.twoFactorService = twoFactorService;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -94,6 +106,18 @@ public class AuthenticationStateHelper
             return AuthenticationCheckResult.InvalidUser;
         }
 
+        // ⚠️ 工作階段版本在「帳號存在」之後、其他檢查之前比（0.9.103 起）：改密碼、停用、角色變更、強制登出之後，已開著的頁面在下一次換頁被登出。
+        // 已開著的 Blazor 連線不經過 Cookie 驗證器，只能靠這裡。升級前簽發的 Cookie 沒有這個 claim，會被登出一次。
+        // 這裡只比版本；停用由下方的檢查處理（結果不同：InvalidUser）。
+        if (!await securityStampService.IsValidAsync(id, user.FindFirst(MagicObjectHelper.SecurityStampClaimType)?.Value, SessionRecheckWindow, requireActive: false))
+        {
+            logger.LogInformation("Authentication check failed because the session was revoked. UserId={UserId}", id);
+            await auditLogService.WriteAsync(
+                AuditActions.Login.SessionExpired, success: false, actorUserId: id, actorAccount: user.FindFirst(ClaimTypes.NameIdentifier)?.Value, detail: "reason=SessionRevoked");
+            navigationManager.NavigateTo("/Auths/Logout?reason=session", true, true);
+            return AuthenticationCheckResult.SessionRevoked;
+        }
+
         if (!myUser.Status)
         {
             logger.LogWarning("Authentication check failed because UserId={UserId} is disabled.", id);
@@ -112,6 +136,15 @@ public class AuthenticationStateHelper
             await Task.Delay(200);
             navigationManager.NavigateTo("/ChangePassword", true);
             return AuthenticationCheckResult.RequiresPasswordChange;
+        }
+
+        // 必須使用兩步驟驗證卻還沒設定（0.9.104 起）：在改密碼之後判斷，而且兩個頁面互不導向，否則會來回跳。
+        if (!needChangePassword && !myUser.TwoFactorEnabled && !IsPage(navigationManager, "TwoFactorSetup")
+            && await twoFactorService.IsRequiredAsync(id))
+        {
+            logger.LogInformation("User {UserId} must set up two-factor authentication before continuing.", id);
+            navigationManager.NavigateTo("/TwoFactorSetup", true);
+            return AuthenticationCheckResult.RequiresTwoFactorSetup;
         }
 
         CurrentUser currentUser = mapper.Map<CurrentUser>(myUser);
@@ -158,10 +191,12 @@ public class AuthenticationStateHelper
         }
     }
 
-    private static bool IsChangePasswordPage(NavigationManager navigationManager)
+    private static bool IsChangePasswordPage(NavigationManager navigationManager) => IsPage(navigationManager, "ChangePassword");
+
+    private static bool IsPage(NavigationManager navigationManager, string page)
     {
         var currentPath = new Uri(navigationManager.Uri).AbsolutePath.Trim('/');
-        return string.Equals(currentPath, "ChangePassword", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(currentPath, page, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<MyUserAdapterModel?> GetUserInformation(AuthenticationStateProvider authStateProvider)

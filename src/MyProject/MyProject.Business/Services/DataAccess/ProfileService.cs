@@ -22,7 +22,9 @@ public sealed record ProfileInfo(
     DateTime? PasswordChangedAtUtc,
     DateTime? PasswordExpiresAtUtc,
     bool MustChangePassword,
-    string ConcurrencyStamp);
+    string ConcurrencyStamp,
+    bool TwoFactorEnabled = false,
+    IReadOnlyList<string>? SubordinateTeams = null);
 
 /// <summary>一筆自己的登入或登出紀錄。</summary>
 public sealed record LoginRecord(DateTime OccurredAtUtc, string Action, bool Success);
@@ -78,7 +80,10 @@ public class ProfileService
         }
 
         var roles = await context.RoleView.AsNoTracking().Where(x => roleIds.Contains(x.Id)).Select(x => x.Name).OrderBy(x => x).ToListAsync();
-        var teams = (await effectiveTeamResolver.GetEffectiveTeamNamesAsync(userId)).Order(StringComparer.Ordinal).ToList();
+        // 0.9.105 起分開顯示：指派的團隊（直接加入＋角色預設），與因此看得到的下屬部門。
+        var teams = (await effectiveTeamResolver.GetAssignedTeamNamesAsync(userId)).Order(StringComparer.Ordinal).ToList();
+        var subordinates = (await effectiveTeamResolver.GetEffectiveTeamNamesAsync(userId))
+            .Where(x => !teams.Contains(x, StringComparer.OrdinalIgnoreCase)).Order(StringComparer.Ordinal).ToList();
         var hasLocalPassword = !string.IsNullOrEmpty(user.Password);
 
         return new ProfileInfo(
@@ -93,7 +98,9 @@ public class ProfileService
             user.PasswordChangedAtUtc,
             passwordPolicy.GetExpiresAtUtc(user.Account, hasLocalPassword, user.PasswordChangedAtUtc),
             user.MustChangePassword,
-            user.ConcurrencyStamp);
+            user.ConcurrencyStamp,
+            user.TwoFactorEnabled,
+            subordinates);
     }
 
     /// <summary>自己最近 <see cref="LoginHistorySize"/> 筆登入與登出紀錄（新到舊）。</summary>
@@ -106,6 +113,21 @@ public class ProfileService
             .Take(LoginHistorySize)
             .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success))
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// 上一次成功登入（0.9.106 起，首頁「我的帳號」）：密碼或 Google 登入成功的倒數第二筆 —— 最近一筆通常就是這次登入，顯示它沒有意義。
+    /// 一樣以精確的 <c>ActorUserId</c> 篩選；只登入過一次時回 null。
+    /// </summary>
+    public async Task<LoginRecord?> GetPreviousLoginAsync(int userId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.AuditLog.AsNoTracking()
+            .Where(x => x.ActorUserId == userId && x.Success && (x.Action == AuditActions.Login.Success || x.Action == AuditActions.Login.SsoSuccess))
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+            .Skip(1)
+            .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success))
+            .FirstOrDefaultAsync();
     }
 
     /// <summary>

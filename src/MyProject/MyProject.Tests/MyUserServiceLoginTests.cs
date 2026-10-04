@@ -230,7 +230,8 @@ public sealed class MyUserServiceLoginTests
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
                 PasswordTestDefaults.Lockout(),
                 Notifications,
-                TimeProvider.System);
+                TimeProvider.System,
+                TwoFactorTestDefaults.Service(new TestDbContextFactory(connection)));
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password, bool legacy)

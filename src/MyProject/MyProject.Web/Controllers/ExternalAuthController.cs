@@ -25,17 +25,26 @@ public class ExternalAuthController : Controller
     private readonly GoogleOAuthSettings googleOAuthSettings;
     private readonly ILogger<ExternalAuthController> logger;
     private readonly IAuditLogService auditLogService;
+    private readonly ISecurityStampService securityStampService;
+    private readonly TwoFactorLoginCookies twoFactorCookies;
+    private readonly MyUserServiceLogin myUserServiceLogin;
 
     public ExternalAuthController(
         ExternalLoginService externalLoginService,
         IOptions<GoogleOAuthSettings> googleOAuthSettings,
         ILogger<ExternalAuthController> logger,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        ISecurityStampService securityStampService,
+        TwoFactorLoginCookies twoFactorCookies,
+        MyUserServiceLogin myUserServiceLogin)
     {
         this.externalLoginService = externalLoginService;
         this.googleOAuthSettings = googleOAuthSettings.Value;
         this.logger = logger;
         this.auditLogService = auditLogService;
+        this.securityStampService = securityStampService;
+        this.twoFactorCookies = twoFactorCookies;
+        this.myUserServiceLogin = myUserServiceLogin;
     }
 
     /// <summary>
@@ -129,18 +138,31 @@ public class ExternalAuthController : Controller
             return Redirect("/Auths/Login?sso=locked");
         }
 
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.Role, "User"),
-            new(ClaimTypes.Name, user.Name),
-            new(ClaimTypes.NameIdentifier, user.Account),
-            new(ClaimTypes.Sid, user.Id.ToString()),
-        };
+        // 重疊回收時舊版程式建立的帳號可能還沒有工作階段版本（0.9.103 起）。
+        user.SecurityStamp = await securityStampService.EnsureAsync(user.Id);
 
-        var claimsIdentity = new ClaimsIdentity(claims, MagicObjectHelper.CookieScheme);
-        await HttpContext.SignInAsync(
-            MagicObjectHelper.CookieScheme,
-            new ClaimsPrincipal(claimsIdentity));
+        // ⚠️ 帳號已啟用兩步驟驗證時，Google 登入也要第二步（0.9.104 起）：Google 會自動連結到同 Email 的既有帳號，
+        // 不問的話，已啟用兩步驟驗證的本機帳號（包括管理員）可以改用 Google 繞過。沒有啟用的 Google 帳號照舊直接登入。
+        if (user.TwoFactorEnabled && !string.IsNullOrEmpty(user.TwoFactorSecret))
+        {
+            if (!twoFactorCookies.IsDeviceRemembered(HttpContext, user.Id, user.SecurityStamp))
+            {
+                twoFactorCookies.SetPending(HttpContext, new PendingTwoFactorLogin(user.Id, user.SecurityStamp, false, GetSafeReturnUrl(returnUrl), GoogleDefaults.AuthenticationScheme));
+                logger.LogInformation("Google login requires the second factor. UserId={UserId}.", user.Id);
+                return Redirect("/Auths/TwoFactor");
+            }
+
+            var completed = await myUserServiceLogin.CompleteSecondFactorAsync(user.Id, null, rememberedDevice: true, GoogleDefaults.AuthenticationScheme);
+            if (completed.User is null)
+            {
+                return Redirect("/Auths/Login?sso=locked");
+            }
+
+            await HttpContext.SignInAsync(MagicObjectHelper.CookieScheme, CookieClaims.Create(completed.User));
+            return Redirect(GetSafeReturnUrl(returnUrl));
+        }
+
+        await HttpContext.SignInAsync(MagicObjectHelper.CookieScheme, CookieClaims.Create(user));
 
         logger.LogInformation(
             "Google login succeeded. UserId={UserId}, Account={Account}.",

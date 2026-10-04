@@ -322,10 +322,10 @@ public sealed class PasswordPolicyTests : IDisposable
         var id = AddUser("alice", "Passw0rd-1");
         await LockAsync(id);
 
-        var unknown = (await Login().LoginAsync("nobody", "x")).Item1;
-        var locked = (await Login().LoginAsync("alice", "Passw0rd-1")).Item1;
+        var unknown = (await Login().LoginAsync("nobody", "x")).Message;
+        var locked = (await Login().LoginAsync("alice", "Passw0rd-1")).Message;
         AddUser("bob", "Passw0rd-1");
-        var wrong = (await Login().LoginAsync("bob", "wrong")).Item1;
+        var wrong = (await Login().LoginAsync("bob", "wrong")).Message;
 
         Assert.All(new[] { unknown, locked, wrong }, m => Assert.Equal(MyUserServiceLogin.InvalidCredentialsMessage, m));
     }
@@ -359,7 +359,7 @@ public sealed class PasswordPolicyTests : IDisposable
                 .SetProperty(x => x.AccessFailedCount, 5).SetProperty(x => x.LockoutEndUtc, NowUtc.AddMinutes(-1)));
         }
 
-        Assert.NotNull((await Login().LoginAsync("alice", "Passw0rd-1")).Item2);
+        Assert.NotNull((await Login().LoginAsync("alice", "Passw0rd-1")).User);
         var saved = await LoadAsync(id);
         Assert.Null(saved.LockoutEndUtc);
         Assert.Equal(0, saved.AccessFailedCount);
@@ -371,8 +371,8 @@ public sealed class PasswordPolicyTests : IDisposable
         var legacy = AddUser("old", MagicObjectHelper.NeedChangePassword);
         var normal = AddUser("new", "Passw0rd-1");
 
-        Assert.NotNull((await Login().LoginAsync("old", MagicObjectHelper.NeedChangePassword)).Item2);
-        Assert.NotNull((await Login().LoginAsync("new", "Passw0rd-1")).Item2);
+        Assert.NotNull((await Login().LoginAsync("old", MagicObjectHelper.NeedChangePassword)).User);
+        Assert.NotNull((await Login().LoginAsync("new", "Passw0rd-1")).User);
 
         Assert.True((await LoadAsync(legacy)).MustChangePassword);
         Assert.False((await LoadAsync(normal)).MustChangePassword);
@@ -469,7 +469,8 @@ public sealed class PasswordPolicyTests : IDisposable
         var context = factory.CreateDbContext();
         disposables.Add(context);
         return new MyUserServiceLogin(context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
-            new RolePermissionService(), audit, PasswordTestDefaults.Lockout(maxFailedAttempts, lockoutMinutes), notifications, time);
+            new RolePermissionService(), audit, PasswordTestDefaults.Lockout(maxFailedAttempts, lockoutMinutes), notifications, time,
+            TwoFactorTestDefaults.Service(factory, audit, time));
     }
 
     private PasswordExpiryReminderJob ReminderJob(int expiryDays)

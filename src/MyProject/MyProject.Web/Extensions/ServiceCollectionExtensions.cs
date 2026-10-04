@@ -25,6 +25,7 @@ using MyProject.Web.Email;
 using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
+using MyProject.Web.Dashboard;
 using MyProject.Web.Scheduling;
 using MyProject.Web.Scheduling.Jobs;
 using System.Globalization;
@@ -110,6 +111,10 @@ public static class ServiceCollectionExtensions
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
         services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddScoped<ITotpService, TotpService>();
+        // 兩步驟驗證（0.9.104 起）。
+        services.AddSingleton<ITwoFactorSecretProtector, DataProtectionTwoFactorSecretProtector>();
+        services.AddScoped<ITwoFactorService, TwoFactorService>();
+        services.AddSingleton<TwoFactorLoginCookies>();
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
 
         // 啟動時的資料庫準備（0.9.91 起取代 Program.cs 的 migrate 與 seed）。
@@ -123,8 +128,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();
         services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
+        services.AddSingleton<ITeamTreeCache, TeamTreeCache>();
         // 密碼原則（0.9.101 起）：所有設定密碼的路徑都經過它；只讀 IOptionsMonitor 與時鐘，所以是 singleton。
         services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
+        // 工作階段失效（0.9.103 起）：版本讀取有快取，所以是 singleton；Cookie 驗證器每個請求一個。
+        services.AddSingleton<ISecurityStampService, SecurityStampService>();
+        services.AddScoped<SecurityStampCookieEvents>();
+        services.AddSingleton<SessionRefreshTicketService>();
+        services.AddScoped<SessionRefreshNavigator>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<PasswordResetService>();
@@ -236,6 +247,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ScheduledJobRunner>();
         services.AddSingleton<ScheduledJobOverviewService>();
 
+        // 首頁儀表板的小工具（0.9.106 起）；新增小工具在 AddDashboard 加一行 AddDashboardWidget。
+        services.AddDashboard();
+
         services.AddScheduledJob<AuditLogRetentionJob>(
             AuditLogRetentionJob.JobName, "稽核紀錄清理",
             "刪除超過保留天數的稽核紀錄（保留天數在「系統參數」頁設定，預設 365 天，0 = 不清除）。", "0 3 * * *");
@@ -328,6 +342,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<LockoutSettings>()
             .Bind(configuration.GetSection(LockoutSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<TwoFactorSettings>()
+            .Bind(configuration.GetSection(TwoFactorSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

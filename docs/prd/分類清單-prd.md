@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.97
+- 現行系統版本：0.9.105
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/10/04
 
@@ -126,12 +126,12 @@
 | 使用者未綁定任何團隊 | 看得到全部分類 |
 | 使用者有團隊 | 看得到「公用分類」＋「適用團隊與自己所屬團隊有交集」的分類 |
 
-- 「使用者的團隊」＝其**所有**所屬團隊的聯集，由 `IEffectiveTeamResolver` 計算（`UserTeam` ∪ 角色 `DefaultTeamsJson`），經 `IRecordAccessScopeProvider` 取得。系統沒有「目前團隊／切換團隊」的概念。
-- 規則集中在 `CategoryService.ApplyTeamVisibility`（清單／下拉）與 `IsVisible`（單筆），共三個讀取入口。
+- 「使用者的團隊」＝其**所有**所屬團隊的聯集（`UserTeam` ∪ 角色 `DefaultTeamsJson`），0.9.105 起再加上它們所有的下屬部門，由 `IEffectiveTeamResolver` 計算、經 `IRecordAccessScopeProvider` 取得。系統沒有「目前團隊／切換團隊」的概念。
+- 規則集中在 `RecordTeamScope.ApplyCategory`／`CanAccessCategory`（0.9.105 起；`CategoryService.ApplyTeamVisibility`／`IsVisible` 轉呼叫它們）。修改也檢查既有分類在範圍內；非管理員新加的適用團隊必須在自己範圍內、有指定的不可改成留空（`RecordTeamScope.CheckAssignment`）。
 - ⚠️ **「未綁團隊的使用者看得到全部」與紀錄（Project）的規則相反** —— 紀錄是「只看得到公開紀錄」。分類可見性是下拉清單的便利性過濾，不是安全邊界（安全邊界為 RBAC），故刻意採寬鬆規則。
 - 名稱唯一性檢查**不**套團隊過濾，避免「看不到卻建得出同名分類」。
 - 專案編輯畫面的分類下拉，會額外把「這筆專案已貼、但目前使用者看不到」的分類列出並加註「（已限定其他團隊）」，避免使用者一存檔就把它靜默清掉。
-- Web API 路徑（`CategoryController` / `CategoryRepository`）維持既有分工，**不**做行級過濾。
+- Web API 路徑（`CategoryController` / `CategoryRepository`）0.9.105 起套用同一套規則（之前**不**做行級過濾）：範圍外 404、指派範圍外 400。
 
 ## 九、相關程式與文件
 

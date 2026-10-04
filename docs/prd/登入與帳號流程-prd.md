@@ -1,8 +1,8 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.11
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.102
+- 現行系統版本：0.9.104
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -10,8 +10,8 @@
 
 提供本專案的身分驗證與帳號自助維護能力，涵蓋本地帳密登入、Google OAuth2 第三方登入、登出、待審核導向、變更密碼，以及忘記密碼／以 Email 連結重設密碼（0.9.60 起）。網頁採 Cookie 驗證、API 採 JWT Bearer，兩者共用同一份使用者與 RBAC 權威來源。
 
-- **範圍**：`/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword`；Google 導向端點 `/Auths/Google/Login`、`/Auths/Google/Callback`；API 端 `/api/v1/auth/login`、`/refresh`、`/me`。帳號安全（PBKDF2 雜湊、登入失敗鎖定、登入時雜湊自動升級）。
-- **非範圍**：帳號 CRUD 與角色／團隊指派見 [使用者管理](使用者管理-prd.md)；角色與權限矩陣見 [角色管理](角色管理-prd.md)。二階段驗證（TOTP）僅有資料模型與 `TotpService` 骨架，預設關閉、尚未提供強制啟用 UI，不在本次驗收範圍。
+- **範圍**：`/Auths/Login`、`/Auths/TwoFactor`（0.9.104 起，登入第二步）、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword`；Google 導向端點 `/Auths/Google/Login`、`/Auths/Google/Callback`；API 端 `/api/v1/auth/login`、`/refresh`、`/me`。帳號安全（PBKDF2 雜湊、登入失敗鎖定、登入時雜湊自動升級）。
+- **非範圍**：帳號 CRUD 與角色／團隊指派見 [使用者管理](使用者管理-prd.md)；角色與權限矩陣見 [角色管理](角色管理-prd.md)。兩步驟驗證的設定頁、備用碼、強制與管理員重設見 [兩步驟驗證](兩步驟驗證-prd.md)；本 PRD 只描述登入流程裡的第二步。
 
 ## 二、使用者與入口
 
@@ -20,6 +20,7 @@
 | `/Auths/Login` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名 | 所有人 |
 | `/Auths/Logout` | `EmptyLayout`（0.9.95 起；之前沒有指定而套用預設的 `MainLayout`）| 已登入 | 所有登入者 |
 | `/Auths/Pending` | `NoFooterLayout` | 匿名 | Google 自動建帳待審核者 |
+| `/Auths/TwoFactor` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名＋有效的待驗證 Cookie | 已啟用兩步驟驗證、密碼或 Google 已通過的人（0.9.104 起）|
 | `/Auths/ForgotPassword` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名 | 忘記密碼者（0.9.60 起；寄信未啟用時只顯示「未啟用」）|
 | `/Auths/ResetPassword?token=…` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名＋有效 token | 收到重設信的人（0.9.60 起）|
 | `/ChangePassword` | 預設版面 | 已登入 | 需變更密碼者 |
@@ -34,6 +35,7 @@
 - **重設密碼頁**：副標題顯示「為帳號「X」設定新密碼。密碼規則：…」（0.9.101 起由 `IPasswordPolicy.Describe()` 產生）；新密碼、確認新密碼。token 無效／過期／已用過一律顯示「重設連結無效或已過期，請重新申請。」並提供「重新申請重設信」連結。成功後導回登入頁。
 - **待審核頁**：靜態說明，告知 Google 帳號已建立但預設停用，須管理者啟用後再登入，提供返回登入頁連結。
 - **變更密碼**：目前密碼、新密碼（下方顯示密碼規則）、確認新密碼（`[Compare]` 驗證一致）。`support` 開發帳號被禁止。0.9.101 起被導到這一頁時上方說明原因（管理員要求／密碼已到期）；右上角使用者選單的「變更密碼」直接開這一頁（原本的對話窗已移除）。
+- **兩步驟驗證頁（0.9.104 起）**：「驗證碼或備用碼」（App 上的 6 位數或一組 `XXXXX-XXXXX` 備用碼）、「記住這台裝置 N 天」（`TwoFactorSettings:RememberDeviceDays` 為 0 時不顯示）、「驗證並登入」、「取消，回到登入頁」。錯誤一律「驗證碼不正確，或帳號已被暫時鎖定。」。
 - **登入頁的鎖定說明（0.9.101 起）**：表單下方固定顯示「連續輸錯 N 次密碼會暫時鎖定 M 分鐘；被鎖定時可以用「忘記密碼」重設，或請系統管理員解鎖。」（N、M 取自 `LockoutSettings`；寄信停用時改為「請稍後再試」）。
 
 ## 四、內部系統運作
@@ -56,8 +58,14 @@
     後者參照不到前者。
   - 直接在網址列輸入 `/Auths/Logout` 維持立即登出，刻意不擋（刻意輸入網址不是誤觸）。
   - ⚠️ **登出頁不可套用 `MainLayout`**（0.9.95 修正）：`MainLayout` 會先跑 `Check`，使用者已停用或已刪除時又導向 `/Auths/Logout`，而這個導向發生在登出頁清掉 Cookie 之前 —— 瀏覽器顯示「重新導向太多次」，被停用的人永遠回不到登入頁（至少從 0.9.41 起）。現在指定 `EmptyLayout`；由 `PageAuthorizationTests.Logout_WithLiveCookieOfDisabledOrDeletedUser_ShouldRedirectToLogin` 守門。
-- **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）為真且不在改密碼頁時強制導向 `/ChangePassword`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
-- **API 登入**（`AuthController`）：`login` 以帳密換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
+- **工作階段失效**（0.9.103 起）：登入 Cookie 與 JWT 帶著 `MyUser.SecurityStamp`（`CookieClaims.Create`、`JwtTokenService`）；改密碼、停用、刪除、角色或管理員身分變更、管理員強制登出時換版本。
+  `SecurityStampCookieEvents` 在 HTTP 請求上比對（快取 `CookieSettings:ValidationIntervalMinutes`）、`Check` 在換頁時比對（不符 → `/Auths/Logout?reason=session`、稽核 `Login.SessionExpired`）、refresh 比對（不符 401）。
+  Bearer 只接受 access token。在 `/ChangePassword` 改自己的密碼後經 `/Auths/RefreshSession` 換發這台的 Cookie（一次性 ticket，須帶著原本的 Cookie）。
+- **兩步驟驗證的第二步**（0.9.104 起）：帳號已啟用時 `LoginAsync` 回 `RequiresTwoFactor`（⚠️ 不歸零失敗次數、不寫 `Login.Success`）；登入頁寫入 5 分鐘的加密 Cookie `.MyProject.TwoFactorPending`（使用者 Id、工作階段版本、記住我、返回網址）並導向 `/Auths/TwoFactor`。
+  這台裝置被「記住」而且版本沒換時直接完成（稽核 detail `mfa=device`）。送出時重查版本與帳號狀態（期間改了密碼或被強制登出 → 回登入頁），`CompleteSecondFactorAsync` 驗證碼對了才歸零、`SignInAsync`、稽核 `Login.Success`（`mfa=totp|backup`）；錯了稽核 `Login.TwoFactorFailed` 並累加鎖定次數。
+  Google 回呼：帳號已啟用時同樣走第二步（稽核 `Login.Sso.Success`，detail 帶 `provider=Google; mfa=…`）。API 登入以 `twoFactorCode` 欄位帶驗證碼。
+- **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）為真且不在改密碼頁時強制導向 `/ChangePassword`；之後（0.9.104 起）必須使用兩步驟驗證卻還沒設定、而且不在設定頁時導向 `/TwoFactorSetup`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
+- **API 登入**（`AuthController`）：`login` 以帳密（已啟用兩步驟驗證時加 `twoFactorCode`）換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
 - **忘記密碼 → 重設**（`PasswordResetService`，0.9.60 起；Business 層、注入 `IDbContextFactory`）：
   1. `RequestAsync(identifier, 重設頁網址)`：先刪所有過期 token；以 `Account` 精確比對（與登入相同），對不到再以 `Email` 不分大小寫比對（可能多筆 → **每個帳號各寄一封**）。
@@ -80,6 +88,7 @@
 
 - 驗證碼錯誤／欄位空白：停留登入頁並重新產生驗證碼。
 - 連續輸錯 `MaxFailedAttempts` 次鎖定 `LockoutMinutes` 分鐘（預設 5 次、15 分鐘）；鎖定到期後可再次登入，失敗次數從 0 重新算；管理員可在使用者清單立即解鎖。
+- 兩步驟驗證：驗證碼錯、備用碼用過、同一組驗證碼第二次使用 → 「驗證碼不正確，或帳號已被暫時鎖定。」並計入鎖定次數；待驗證 Cookie 超過 5 分鐘或被竄改 → 回登入頁重新輸入密碼。
 - 帳號被鎖定時用 Google 登入：導回 `/Auths/Login?sso=locked`，顯示「此帳號因連續輸錯密碼已暫時鎖定…」（Google 已驗證身分，明確告知無洩漏疑慮）。
 - Google Callback 缺 `subject`／`email`：登出外部身分並導回登入頁。
 - 已刪除的使用者（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息（不透露帳號曾存在）；Google 登入導回 `/Auths/Login?sso=deleted`（Google 已驗證身分，告知原因無洩漏疑慮）。
@@ -90,7 +99,7 @@
 
 ### 6.1 已知限制（忘記密碼）
 
-- **既有工作階段不會失效**：重設後，其他裝置上已登入的 Cookie（最長「記住我」30 天）與 JWT 仍然有效 —— 系統沒有 security stamp（與「Refresh Token 落庫撤銷刻意不做」的決議一致）。
+- **其他工作階段失效**（0.9.103 起）：重設密碼會換掉工作階段版本，其他裝置上已開著的頁面在下一次換頁被登出、新的 HTTP 請求最晚 5 分鐘、API 無法再 refresh（已發出的 access token 在 60 分鐘效期內仍可用）。
 - **沒有依 IP 限流**：`/Auths/*` 不在 `api` 限流政策內；防線是同帳號冷卻時間。驗證碼答案在頁面隱藏欄位，只是減速帶，擋不了腳本。
 - token 在網址 query 裡：IIS 的 W3C 日誌、或開啟 `Microsoft.AspNetCore.Hosting.Diagnostics` 的 NLog 規則會記到完整網址。
 - 背景佇列只在記憶體：程式重啟時未寄出的信會遺失，使用者重新申請即可。
@@ -102,17 +111,21 @@
 - `MyProject.Tests/MyUserServicePasswordTests.cs`：`ChangeOwnPasswordAsync` 正確／錯誤舊密碼、空白新密碼、確認不一致、`support` 帳號被拒。
 - `MyProject.Tests/SecurePasswordHasherTests.cs`：自述式雜湊、非決定性、新舊格式驗證與要求 rehash。
 - `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson 導向登出、旗標與到期導向改密碼頁（0.9.101 起；只有 123456 而沒有旗標不導向）、多角色聯集初始化。
+- `MyProject.Tests/SessionTests.cs`（0.9.103）：⭐ 換版本的時機（改密碼換、登入時舊雜湊升級不換、只改姓名或 Email 不換、停用／管理員／主要或額外角色變更換、刪除與強制登出換、support 設定密碼變更才換）、空版本登入時補上、快取存活與輪替立即清除、空字串一律不符、ticket 一次性／竄改／過期；
+  `SessionIntegrationTests`：換版本後與沒有版本的 Cookie 被拒、停用的帳號 Cookie 被拒、⭐ refresh token 不能當 Bearer、換版本後 refresh 401 並稽核、⭐ 換發頁只接受原本的 Cookie 與資料庫目前的版本、ticket 不能重用。
 - `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：規則邊界、歷史（目前、第 N、第 N+1、0 關閉、裁切、舊格式目前密碼）、必須變更（旗標、到期邊界、support 與 Google 豁免）、新增／修改使用者與變更密碼都套用原則、⭐ 雜湊只准出現在政策服務等三處、⭐ 鎖定門檻與到期先歸零、稽核標籤、同一則訊息、只通知一次、123456 登入補旗標、解鎖不換版本號、Google 被鎖定擋下、到期提醒作業。
-- `MyProject.Tests/TotpServiceTests.cs`：TOTP 產碼／驗證（骨架，預設關閉）。
+- `MyProject.Tests/TotpServiceTests.cs`：TOTP 產碼／驗證（RFC 6238 測試向量）。
+- `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：登入兩段（⭐ 密碼對了不歸零、⭐ 重輸密碼也洗不掉驗證碼失敗次數、成功稽核帶方式、停用帳號不能完成第二步）、待驗證與記住裝置 Cookie；`TwoFactorIntegrationTests`：API 三種情況、⭐ Google 登入已啟用的帳號要第二步。其餘見[兩步驟驗證 PRD](兩步驟驗證-prd.md)。
 - `MyProject.Tests/PasswordResetServiceTests.cs`（0.9.60）：帳號比對、Email 不分大小寫、帳號優先、共用 Email 各寄一封、查無只稽核、五種不符資格、Google 有本地密碼允許、冷卻、新申請作廢舊連結、只存雜湊、過期、重設成功（新密碼可驗＋解鎖＋token 清空＋通知信）、同連結第二次失敗、規則不過不消耗 token、申請後停用、刪除使用者連帶刪 token（cascade）。
 - `MyProject.Tests/EmailPagesIntegrationTests.cs`（0.9.60）：Pickup 時登入頁有連結、忘記頁有表單、壞 token 重設頁回 `no-referrer`／`no-store` 且不給表單；None 時沒有連結、兩頁顯示未啟用。
-- `MyProject.Tests/PageAuthorizationTests.cs`：匿名白名單含 `ForgotPassword`、`ResetPassword`。
+- `MyProject.Tests/PageAuthorizationTests.cs`：匿名白名單含 `ForgotPassword`、`ResetPassword`、`TwoFactor`。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Auths/Login.razor`、`Login.razor.cs`（登入表單與 Cookie 簽發）
 - `src/MyProject/MyProject.Web/Components/Auths/AuthShell.razor`（登入／忘記／重設三頁共用外框）、`ForgotPassword.razor(.cs)`、`ResetPassword.razor(.cs)`、`AuthCaptcha.cs`
-- `src/MyProject/MyProject.Web/Components/Auths/Logout.razor.cs`、`Pending.razor`
+- `src/MyProject/MyProject.Web/Components/Auths/Logout.razor.cs`、`Pending.razor`、`TwoFactor.razor(.cs)`（0.9.104）
+- `src/MyProject/MyProject.Web/Auth/TwoFactorLoginCookies.cs`（待驗證與記住裝置 Cookie）
 - `src/MyProject/MyProject.Web/Components/Pages/ChangePassword.razor`
 - `src/MyProject/MyProject.Business/Services/Other/MyUserServiceLogin.cs`（鎖定、PBKDF2、升級、稽核）
 - `src/MyProject/MyProject.Business/Services/Other/ExternalLoginService.cs`（Google 查找／建立）

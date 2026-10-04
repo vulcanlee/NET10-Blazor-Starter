@@ -75,7 +75,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserAsync(status: false);
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -89,7 +89,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserWithoutRoleAsync();
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -103,7 +103,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserAsync(roleJson: "not-json");
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -117,7 +117,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserAsync(mustChangePassword: true);
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -131,7 +131,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserAsync(mustChangePassword: true);
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/ChangePassword?returnUrl=/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -147,13 +147,85 @@ public sealed class AuthenticationStateHelperTests
         var user = await fixture.AddUserAsync(mustChangePassword: true);
         fixture.CurrentUserService.CurrentUser.IsAuthenticated = true;
         fixture.CurrentUserService.CurrentUser.Id = user.Id;
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
 
         Assert.Equal(AuthenticationCheckResult.RequiresPasswordChange, result);
         Assert.Equal("/ChangePassword", navigationManager.NavigatedTo);
+    }
+
+    /// <summary>0.9.104 起：必須使用兩步驟驗證卻還沒設定 → 每次換頁都帶去設定頁。</summary>
+    [Fact]
+    public async Task Check_WhenTwoFactorRequiredButNotSetUp_ShouldRedirectToTheSetupPage()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        await fixture.RequireTwoFactorForRoleOfAsync(user);
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.RequiresTwoFactorSetup, result);
+        Assert.Equal("/TwoFactorSetup", navigationManager.NavigatedTo);
+    }
+
+    [Fact]
+    public async Task Check_OnTheSetupPage_OrWhenAlreadyEnabled_ShouldSucceed()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        await fixture.RequireTwoFactorForRoleOfAsync(user);
+
+        var onSetup = new TestNavigationManager("http://localhost/TwoFactorSetup");
+        Assert.Equal(AuthenticationCheckResult.Succeeded, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), onSetup));
+        Assert.Null(onSetup.NavigatedTo);
+
+        await fixture.Context.MyUser.Where(x => x.Id == user.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.TwoFactorEnabled, true).SetProperty(x => x.TwoFactorSecret, "protected"));
+        var elsewhere = new TestNavigationManager("http://localhost/App");
+        Assert.Equal(AuthenticationCheckResult.Succeeded, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), elsewhere));
+        Assert.Null(elsewhere.NavigatedTo);
+    }
+
+    /// <summary>同時要改密碼與設定兩步驟驗證：先改密碼，而且改密碼頁不會被帶去設定頁（兩頁互不導向，否則來回跳）。</summary>
+    [Fact]
+    public async Task Check_WhenPasswordChangeIsAlsoRequired_ShouldGoToChangePasswordFirst_WithoutALoop()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync(mustChangePassword: true);
+        await fixture.RequireTwoFactorForRoleOfAsync(user);
+
+        var onApp = new TestNavigationManager("http://localhost/App");
+        Assert.Equal(AuthenticationCheckResult.RequiresPasswordChange, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), onApp));
+        Assert.Equal("/ChangePassword", onApp.NavigatedTo);
+
+        var onChangePassword = new TestNavigationManager("http://localhost/ChangePassword");
+        Assert.Equal(AuthenticationCheckResult.Succeeded, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), onChangePassword));
+        Assert.Null(onChangePassword.NavigatedTo);
+    }
+
+    /// <summary>0.9.103 起：工作階段版本與資料庫不符（改密碼、停用、強制登出之後的舊登入）→ 系統登出並記 Login.SessionExpired。</summary>
+    [Fact]
+    public async Task Check_WithAStaleSecurityStamp_ShouldRevokeTheSession()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        var stale = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Sid, user.Id.ToString()), new Claim(MagicObjectHelper.SecurityStampClaimType, "old-stamp")], "Test"));
+        var withoutStamp = CreatePrincipal(user.Id.ToString());
+
+        foreach (var principal in new[] { stale, withoutStamp })
+        {
+            var navigationManager = new TestNavigationManager("http://localhost/App");
+            var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(principal), navigationManager);
+
+            Assert.Equal(AuthenticationCheckResult.SessionRevoked, result);
+            Assert.Equal("/Auths/Logout?reason=session", navigationManager.NavigatedTo);
+        }
+
+        Assert.Equal(2, await fixture.Context.AuditLog.CountAsync(x => x.Action == AuditActions.Login.SessionExpired && x.ActorUserId == user.Id));
     }
 
     /// <summary>0.9.101 起只看旗標與到期：密碼是 123456 本身不再觸發（登入時才補旗標，見 MyUserServiceLoginTests）。</summary>
@@ -164,7 +236,7 @@ public sealed class AuthenticationStateHelperTests
         var user = await fixture.AddUserAsync(password: MagicObjectHelper.NeedChangePassword);
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
-        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), navigationManager);
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), navigationManager);
 
         Assert.Equal(AuthenticationCheckResult.Succeeded, result);
     }
@@ -177,7 +249,7 @@ public sealed class AuthenticationStateHelperTests
         var navigationManager = new TestNavigationManager("http://localhost/App");
         var policy = PasswordTestDefaults.Policy(new PasswordPolicySettings { ExpiryDays = 30 });
 
-        var result = await fixture.CreateHelper(policy).Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), navigationManager);
+        var result = await fixture.CreateHelper(policy).Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), navigationManager);
 
         Assert.Equal(AuthenticationCheckResult.RequiresPasswordChange, result);
         Assert.Equal("/ChangePassword", navigationManager.NavigatedTo);
@@ -192,7 +264,7 @@ public sealed class AuthenticationStateHelperTests
         string? nameSeen = null;
         fixture.CurrentUserService.Changed += () => nameSeen = fixture.CurrentUserService.CurrentUser.Name;
 
-        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), new TestNavigationManager("http://localhost/App"));
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), new TestNavigationManager("http://localhost/App"));
 
         Assert.Equal(AuthenticationCheckResult.Succeeded, result);
         Assert.Equal("Test User", nameSeen);
@@ -203,7 +275,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserAsync(permissionName: "PermissionA");
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -220,7 +292,7 @@ public sealed class AuthenticationStateHelperTests
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddMultiRoleUserAsync(primaryKey: "PermissionA", additionalKey: "PermissionB");
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -238,7 +310,7 @@ public sealed class AuthenticationStateHelperTests
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
         var user = await fixture.AddUserAsync();
         await fixture.Context.MyUser.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x => x.SetProperty(u => u.IsDeleted, true));
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -258,7 +330,7 @@ public sealed class AuthenticationStateHelperTests
             .Select(x => x.RoleViewId)
             .SingleAsync();
         await fixture.Context.RoleView.Where(x => x.Id == additionalRoleId).ExecuteUpdateAsync(x => x.SetProperty(r => r.IsDeleted, true));
-        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
         var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
@@ -299,6 +371,12 @@ public sealed class AuthenticationStateHelperTests
         Assert.False(fixture.CreateHelper().CheckAccessPage(MagicObjectHelper.角色_分類清單));
     }
 
+    /// <summary>與真正登入相同：帶著使用者目前的工作階段版本（0.9.103 起）。</summary>
+    private static ClaimsPrincipal CreatePrincipal(MyUser user)
+        => new(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Sid, user.Id.ToString()), new Claim(MagicObjectHelper.SecurityStampClaimType, user.SecurityStamp)],
+            "Test"));
+
     private static ClaimsPrincipal CreatePrincipal(string sid)
     {
         var identity = new ClaimsIdentity(
@@ -331,6 +409,9 @@ public sealed class AuthenticationStateHelperTests
 
         public CurrentUserService CurrentUserService { get; }
 
+        /// <summary>兩步驟驗證設定（0.9.104 起）；測試可在建立 helper 前修改。</summary>
+        public TwoFactorSettings TwoFactorSettings { get; } = new();
+
         public static async Task<AuthenticationStateHelperFixture> CreateAsync()
         {
             var connection = new SqliteConnection("Data Source=:memory:");
@@ -356,10 +437,12 @@ public sealed class AuthenticationStateHelperTests
                 new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy()),
                 CurrentUserService,
                 rolePermissionService,
-                new EffectiveTeamResolver(Context, NullLogger<EffectiveTeamResolver>.Instance),
+                new EffectiveTeamResolver(Context, new ContextTeamTreeCache(Context), NullLogger<EffectiveTeamResolver>.Instance),
                 new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
-                passwordPolicy ?? PasswordTestDefaults.Policy());
+                passwordPolicy ?? PasswordTestDefaults.Policy(),
+                new SecurityStampService(new TestDbContextFactory(connection), TimeProvider.System, NullLogger<SecurityStampService>.Instance),
+                TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), currentUser: CurrentUserService, settings: TwoFactorSettings));
         }
 
         public async Task<MyUser> AddUserAsync(
@@ -403,6 +486,9 @@ public sealed class AuthenticationStateHelperTests
 
             return user;
         }
+
+        public async Task RequireTwoFactorForRoleOfAsync(MyUser user)
+            => await Context.RoleView.Where(x => x.Id == user.RoleViewId).ExecuteUpdateAsync(s => s.SetProperty(x => x.RequireTwoFactor, true));
 
         public async Task<MyUser> AddMultiRoleUserAsync(string primaryKey, string additionalKey)
         {

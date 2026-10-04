@@ -109,7 +109,7 @@ public sealed class NotificationTests : IDisposable
         AddUserRole(users[4], managerRole);
 
         await using var context = factory.CreateDbContext();
-        var resolver = new EffectiveTeamResolver(context, NullLogger<EffectiveTeamResolver>.Instance);
+        var resolver = new EffectiveTeamResolver(context, new ContextTeamTreeCache(context), NullLogger<EffectiveTeamResolver>.Instance);
         foreach (var teamName in new[] { "北區", "南區", "撤銷" })
         {
             var members = await resolver.GetUserIdsInTeamAsync(teamName);
@@ -463,7 +463,7 @@ public sealed class NotificationTests : IDisposable
         var mailer = new RecordingMailer();
         var context = factory.CreateDbContext();
         disposables.Add(context);
-        var sender = new NotificationSender(factory, new EffectiveTeamResolver(context, NullLogger<EffectiveTeamResolver>.Instance), signal, mailer, TimeProvider.System, NullLogger<NotificationSender>.Instance);
+        var sender = new NotificationSender(factory, new EffectiveTeamResolver(context, new ContextTeamTreeCache(context), NullLogger<EffectiveTeamResolver>.Instance), signal, mailer, TimeProvider.System, NullLogger<NotificationSender>.Instance);
         return (sender, signal, mailer);
     }
 

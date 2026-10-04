@@ -25,6 +25,13 @@ namespace MyProject.Web.Components.Auths
         [Inject]
         public NavigationManager NavigationManager { get; set; } = default!;
 
+        /// <summary>
+        /// <c>session</c>：工作階段已失效、由系統登出（0.9.103 起）。那一筆已由 <c>AuthenticationStateHelper.Check</c> 記成
+        /// <c>Login.SessionExpired</c>，這裡不再記一筆「使用者登出」。
+        /// </summary>
+        [SupplyParameterFromQuery(Name = "reason")]
+        private string? Reason { get; set; }
+
         protected override async Task OnInitializedAsync()
         {
             try
@@ -37,7 +44,7 @@ namespace MyProject.Web.Components.Auths
                 logger.LogInformation("User logout completed successfully. Account={Account}, UserId={UserId}", account, userId);
 
                 // 未登入狀態打開登出頁（重複點擊、過期 Cookie）不算一次登出，不寫稽核。
-                if (userId is not null)
+                if (userId is not null && Reason != "session")
                 {
                     await auditLogService.WriteAsync(AuditActions.Logout, success: true, actorUserId: userId, actorAccount: account);
                 }

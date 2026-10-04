@@ -46,10 +46,18 @@ else
                    RemoteDataSource="true"
                    DataSource="@teamAdapterModels"
                    OnChange="OnTableChange"
+                   TreeChildren="ChildrenOf"
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
                    @bind-Total="_total">
+                @* 0.9.105 起：沒有搜尋、不是「顯示已刪除」時是部門樹（下屬部門收在上層底下，分頁以最上層計）；其他時候是平面清單。 *@
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Name)" Title="名稱" Sortable />
+                @if (!IsTreeMode)
+                {
+                    <Column TData="int?" DataIndex="@nameof(TeamAdapterModel.ParentId)" Title="上層部門">
+                        @ParentNameOf(context)
+                    </Column>
+                }
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Code)" Title="代號" Sortable />
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Description)" Title="描述" />
                 <Column TData="bool" DataIndex="@nameof(TeamAdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
@@ -126,6 +134,21 @@ else
                     <FormItem Label="名稱" Required>
                         <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入團隊名稱" />
                         <ValidationMessage For="() => CurrentRecord.Name" />
+                        @if (!isNewRecordMode)
+                        {
+                            <div class="team-view-hint">改名時，專案、分類與角色預設團隊裡的這個名稱會一起改。</div>
+                        }
+                    </FormItem>
+
+                    <FormItem Label="上層部門">
+                        <Select TItem="string" TItemValue="string" @bind-Value="ParentIdText"
+                                Placeholder="（最上層）" AllowClear EnableSearch Style="width: 100%;">
+                            @foreach (var candidate in parentCandidates)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@candidate.Id.ToString()">@candidate.Name</SelectOption>
+                            }
+                        </Select>
+                        <div class="team-view-hint">上層部門的成員看得到這個部門與它所有下屬部門的資料。自己和自己的下屬部門不在選項裡。</div>
                     </FormItem>
 
                     <FormItem Label="代號">

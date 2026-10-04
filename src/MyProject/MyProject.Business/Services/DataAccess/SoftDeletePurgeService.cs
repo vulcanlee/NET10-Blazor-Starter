@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
@@ -90,21 +91,22 @@ public class SoftDeletePurgeService
 
         await PurgeTypeAsync<Project>(result, nameof(Project), cutoffLocal, x => x.Id, x => x.Title,
             isProtected: null, isInUse: null, include: q => q.Include(x => x.Files),
-            attachmentsOf: x => x.Files.Select(f => f.RelativePath).ToList(), cancellationToken);
+            attachmentsOf: x => x.Files.Select(f => f.RelativePath).ToList(), order: null, cancellationToken);
 
         await PurgeTypeAsync<Category>(result, nameof(Category), cutoffLocal, x => x.Id, x => x.Name,
-            isProtected: null, isInUse: null, include: null, attachmentsOf: null, cancellationToken);
+            isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);
 
+        // 部門樹（0.9.105 起）：仍被當作上層（含已刪除的下屬）就不能刪（外鍵 Restrict）；先刪最深層，同一次就能把整串清掉。
         await PurgeTypeAsync<Team>(result, nameof(Team), cutoffLocal, x => x.Id, x => x.Name,
-            isProtected: null, isInUse: null, include: null, attachmentsOf: null, cancellationToken);
+            isProtected: null, isInUse: IsTeamParentOfAnyAsync, include: null, attachmentsOf: null, order: DeepestTeamsFirstAsync, cancellationToken);
 
         await PurgeTypeAsync<MyUser>(result, nameof(MyUser), cutoffLocal, x => x.Id, x => x.Account,
             isProtected: x => string.Equals(x.Account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase),
-            isInUse: null, include: null, attachmentsOf: null, cancellationToken);
+            isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);
 
         await PurgeTypeAsync<RoleView>(result, nameof(RoleView), cutoffLocal, x => x.Id, x => x.Name,
             isProtected: x => x.Name == MagicObjectHelper.預設角色,
-            isInUse: IsRoleInUseAsync, include: null, attachmentsOf: null, cancellationToken);
+            isInUse: IsRoleInUseAsync, include: null, attachmentsOf: null, order: null, cancellationToken);
 
         return result;
     }
@@ -119,6 +121,7 @@ public class SoftDeletePurgeService
         Func<int, Task<bool>>? isInUse,
         Func<IQueryable<TEntity>, IQueryable<TEntity>>? include,
         Func<TEntity, List<string>>? attachmentsOf,
+        Func<List<TEntity>, Task<List<TEntity>>>? order,
         CancellationToken cancellationToken)
         where TEntity : class, ISoftDeletable
     {
@@ -142,7 +145,7 @@ public class SoftDeletePurgeService
                     .ToListAsync(CancellationToken.None);
             }
 
-            foreach (var candidate in candidates.OrderBy(idOf))
+            foreach (var candidate in order is null ? candidates.OrderBy(idOf).ToList() : await order(candidates))
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -230,6 +233,33 @@ public class SoftDeletePurgeService
             result.Failed = true;
             logger.LogError(ex, "Failed to purge soft-deleted records. EntityType={EntityType}, RowsBeforeFailure={Rows}", entityType, result.Removed.Count);
         }
+    }
+
+    private async Task<bool> IsTeamParentOfAnyAsync(int teamId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await TeamHierarchy.IsParentOfAnyAsync(context, teamId);
+    }
+
+    /// <summary>依在整棵樹（含已刪除）裡的深度由深到淺；同深度依 Id。</summary>
+    private async Task<List<Team>> DeepestTeamsFirstAsync(List<Team> candidates)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var parents = await context.Team.IgnoreQueryFilters([ISoftDeletable.FilterName]).AsNoTracking()
+            .ToDictionaryAsync(x => x.Id, x => x.ParentId);
+        int DepthOf(int id)
+        {
+            var depth = 0;
+            var visited = new HashSet<int>();
+            for (int? current = parents.GetValueOrDefault(id); current is { } parent && visited.Add(parent) && depth < TeamTree.MaxDepth; current = parents.GetValueOrDefault(parent))
+            {
+                depth++;
+            }
+
+            return depth;
+        }
+
+        return candidates.OrderByDescending(x => DepthOf(x.Id)).ThenBy(x => x.Id).ToList();
     }
 
     /// <summary>任何使用者（含已刪除、尚未到期的）仍以這個角色為主要角色。外鍵 Restrict 連已刪除的使用者都算。</summary>

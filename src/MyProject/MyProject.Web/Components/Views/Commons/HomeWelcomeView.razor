@@ -22,22 +22,7 @@ else
                 <p class="home-eyebrow">Welcome</p>
                 <h1 class="home-title">@SystemName</h1>
                 <p class="home-description">@SystemDescription</p>
-            </div>
-        </div>
-
-        <div class="home-section">
-            <h2 class="home-section-title">系統能力</h2>
-            <div class="home-feature-grid">
-                @foreach (var feature in FeatureCards)
-                {
-                    <article class="home-feature-card">
-                        <span class="home-feature-icon" aria-hidden="true">
-                            <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@feature.Icon" />
-                        </span>
-                        <h3 class="home-feature-title">@feature.Title</h3>
-                        <p class="home-feature-description">@feature.Description</p>
-                    </article>
-                }
+                <p class="home-hero-meta">系統版本 @SystemVersion · 執行環境 @WebHostEnvironment.EnvironmentName</p>
             </div>
         </div>
 
@@ -59,15 +44,13 @@ else
             </div>
         }
 
-        <dl class="home-meta">
-            <div class="home-meta-item">
-                <dt>系統版本</dt>
-                <dd>@SystemVersion</dd>
+        @* 小工具區（0.9.106 起）：只建立看得到的小工具，每個各自有錯誤邊界。 *@
+        @if (widgets.Count > 0)
+        {
+            <div class="home-section">
+                <h2 class="home-section-title">儀表板</h2>
+                <MyProject.Web.Components.Views.Dashboard.DashboardGrid Widgets="widgets" />
             </div>
-            <div class="home-meta-item">
-                <dt>執行環境</dt>
-                <dd>@WebHostEnvironment.EnvironmentName</dd>
-            </div>
-        </dl>
+        }
     </section>
 }

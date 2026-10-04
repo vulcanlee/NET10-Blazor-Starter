@@ -135,6 +135,12 @@ public class ProjectController : ControllerBase
             }
 
             var project = mapper.Map<Project>(projectDto);
+            if (await projectRepository.CheckTeamAssignmentAsync(null, project.Teams) is { } teamError)
+            {
+                logger.LogInformation("Project create request rejected by team assignment rule.");
+                return BadRequest(ApiResult<ProjectDto>.ValidationError(teamError));
+            }
+
             var createdProject = await projectRepository.AddAsync(project);
             var createdProjectDto = mapper.Map<ProjectDto>(createdProject);
 
@@ -191,6 +197,12 @@ public class ProjectController : ControllerBase
             }
 
             var project = mapper.Map<Project>(projectDto);
+            if (await projectRepository.CheckTeamAssignmentAsync(id, project.Teams) is { } teamError)
+            {
+                logger.LogInformation("Project update request rejected by team assignment rule. ProjectId={ProjectId}", id);
+                return BadRequest(ApiResult.ValidationError(teamError));
+            }
+
             var success = await projectRepository.UpdateAsync(project);
 
             if (!success)

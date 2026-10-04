@@ -203,7 +203,7 @@ public sealed class ProfileTests : IDisposable
     {
         var context = factory.CreateDbContext();
         disposables.Add(context);
-        return new ProfileService(factory, new EffectiveTeamResolver(context, NullLogger<EffectiveTeamResolver>.Instance),
+        return new ProfileService(factory, new EffectiveTeamResolver(context, new ContextTeamTreeCache(context), NullLogger<EffectiveTeamResolver>.Instance),
             PasswordTestDefaults.Policy(policy), audit, currentUser, NullLogger<ProfileService>.Instance);
     }
 

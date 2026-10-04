@@ -9,6 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Auth;
 using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Views.Admins
@@ -56,6 +57,12 @@ namespace MyProject.Web.Components.Views.Admins
         public NavigationManager NavigationManager { get; set; } = default!;
         [Inject]
         public IPasswordPolicy PasswordPolicy { get; set; } = default!;
+        [Inject]
+        public CurrentUserService CurrentUserService { get; set; } = default!;
+        [Inject]
+        public SessionRefreshNavigator SessionRefreshNavigator { get; set; } = default!;
+        [Inject]
+        public ITwoFactorService TwoFactorService { get; set; } = default!;
 
         public MyUserView(
             ILogger<MyUserView> logger,
@@ -249,6 +256,67 @@ namespace MyProject.Web.Components.Views.Admins
         {
             var local = DateTime.SpecifyKind(record.LockoutEndUtc!.Value, DateTimeKind.Utc).ToLocalTime();
             return local.Date == DateTime.Today ? $"鎖定至 {local:HH:mm}" : $"鎖定至 {local:MM-dd HH:mm}";
+        }
+
+        /// <summary>自己那一列不顯示「強制登出」（要登出自己請用右上角的登出）。</summary>
+        bool CanForceLogout(MyUserAdapterModel record) => record.Id != CurrentUserService.CurrentUser.Id;
+
+        async Task OnForceLogoutAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "強制登出", $"要讓「{record.Account}」所有已登入的瀏覽器與 API 都登出嗎？他需要重新登入。", "強制登出");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await myUserService.ForceLogoutAsync(record.Id);
+                if (!result.Success)
+                {
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("User force logout requested from list. UserId={UserId}", record.Id);
+                ViewNotification.Warning(notificationService, $"已強制登出「{record.Account}」");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while forcing a user to log out.");
+                ViewNotification.Error(notificationService, "強制登出時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        /// <summary>只在對方已啟用時顯示；自己那一列不顯示（自己到「兩步驟驗證」頁停用或重新設定）。</summary>
+        bool CanResetTwoFactor(MyUserAdapterModel record) => record.TwoFactorEnabled && record.Id != CurrentUserService.CurrentUser.Id;
+
+        async Task OnResetTwoFactorAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "重設兩步驟驗證",
+                    $"要清除「{record.Account}」的驗證器設定與備用碼嗎？對方所有已登入的地方都會登出，下次登入只需要密碼（若角色要求使用，會被帶去重新設定）。", "重設");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await TwoFactorService.ResetAsync(record.Id);
+                if (!result.Success)
+                {
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                ViewNotification.Warning(notificationService, $"已重設「{record.Account}」的兩步驟驗證");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while resetting two-factor authentication.");
+                ViewNotification.Error(notificationService, "重設兩步驟驗證時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
         }
 
         async Task OnUnlockAsync(MyUserAdapterModel record)
@@ -511,6 +579,12 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogInformation("User update submitted. UserId={UserId}, Account={Account}", CurrentRecord.Id, CurrentRecord.Account);
 
                 ViewNotification.Warning(notificationService, "修改成功");
+
+                // 管理員改了自己的密碼、角色或管理員身分：自己的工作階段版本已換掉，換發這台裝置的 Cookie（0.9.103 起）。
+                if (await SessionRefreshNavigator.KeepSignedInAsync("/myusers"))
+                {
+                    return true;
+                }
             }
 
             await ReloadAsync();

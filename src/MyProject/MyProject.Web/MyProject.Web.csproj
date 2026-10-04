@@ -12,6 +12,7 @@
     <PackageReference Include="Cronos" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Markdig" />
+    <PackageReference Include="QRCoder" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
@@ -50,6 +51,7 @@
     <None Update="Components\Auths\AuthShell.razor.css" CssScope="b-auth-shell" />
     <None Update="Components\Auths\ForgotPassword.razor.css" CssScope="b-auth-shell" />
     <None Update="Components\Auths\ResetPassword.razor.css" CssScope="b-auth-shell" />
+    <None Update="Components\Auths\TwoFactor.razor.css" CssScope="b-auth-shell" />
   </ItemGroup>
 
   <!--

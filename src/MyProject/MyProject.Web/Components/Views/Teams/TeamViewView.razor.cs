@@ -30,6 +30,25 @@ namespace MyProject.Web.Components.Views.Teams
 
         List<TeamAdapterModel> teamAdapterModels = new();
 
+        /// <summary>部門樹（0.9.105 起）：上層 Id → 下屬；名稱查詢給「上層部門」欄與表單用。</summary>
+        ILookup<int, TeamAdapterModel> childrenLookup = Enumerable.Empty<TeamAdapterModel>().ToLookup(x => 0);
+        Dictionary<int, string> teamNames = new();
+        List<TeamNode> parentCandidates = new();
+
+        bool IsTreeMode => !showDeleted && string.IsNullOrWhiteSpace(searchText);
+
+        IEnumerable<TeamAdapterModel> ChildrenOf(TeamAdapterModel item) => IsTreeMode ? childrenLookup[item.Id] : [];
+
+        string ParentNameOf(TeamAdapterModel item)
+            => item.ParentId is { } parentId ? teamNames.GetValueOrDefault(parentId, "（已刪除的部門）") : "—";
+
+        /// <summary>下拉以字串綁定（與其他表單的多選一致），留白＝最上層。</summary>
+        string? ParentIdText
+        {
+            get => CurrentRecord.ParentId?.ToString();
+            set => CurrentRecord.ParentId = int.TryParse(value, out var id) ? id : null;
+        }
+
         string modalTitle = "團隊維護";
         bool modalVisible = false;
         TeamAdapterModel CurrentRecord = new();
@@ -109,6 +128,20 @@ namespace MyProject.Web.Components.Views.Teams
                 Take = 0,
             };
 
+            var all = await teamService.GetAllAsync();
+            teamNames = all.ToDictionary(x => x.Id, x => x.Name);
+            if (IsTreeMode)
+            {
+                // 一次載入全部在畫面上組樹；上層不存在（資料異常）的當作最上層，不會消失。
+                childrenLookup = all.Where(x => x.ParentId is { } p && teamNames.ContainsKey(p)).ToLookup(x => x.ParentId!.Value);
+                var roots = SortRoots(all.Where(x => x.ParentId is not { } p || !teamNames.ContainsKey(p))).ToList();
+                _total = roots.Count;
+                teamAdapterModels = roots.Skip((_pageIndex - 1) * _pageSize).Take(_pageSize).ToList();
+                logger.LogDebug("Team tree reloaded successfully. Count={Count}, Roots={Roots}", all.Count, _total);
+                StateHasChanged();
+                return;
+            }
+
             // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.94 起）。
             DataRequestResult<TeamAdapterModel> dataRequestResult = showDeleted
                 ? await teamService.GetDeletedAsync(dataRequest)
@@ -118,6 +151,20 @@ namespace MyProject.Web.Components.Views.Teams
             _total = dataRequestResult.Count;
             logger.LogDebug("Team list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
+        }
+
+        /// <summary>樹狀模式的最上層排序：沿用欄位排序，預設依名稱。</summary>
+        IEnumerable<TeamAdapterModel> SortRoots(IEnumerable<TeamAdapterModel> roots)
+        {
+            var descending = sortDirection == "Descending";
+            return sortField switch
+            {
+                nameof(TeamAdapterModel.Code) => descending ? roots.OrderByDescending(x => x.Code) : roots.OrderBy(x => x.Code),
+                nameof(TeamAdapterModel.IsEnabled) => descending ? roots.OrderByDescending(x => x.IsEnabled) : roots.OrderBy(x => x.IsEnabled),
+                nameof(TeamAdapterModel.UpdatedAt) => descending ? roots.OrderByDescending(x => x.UpdatedAt) : roots.OrderBy(x => x.UpdatedAt),
+                nameof(TeamAdapterModel.Name) when descending => roots.OrderByDescending(x => x.Name),
+                _ => roots.OrderBy(x => x.Name),
+            };
         }
 
         async Task OnTableChange(QueryModel<TeamAdapterModel> args)
@@ -163,6 +210,7 @@ namespace MyProject.Web.Components.Views.Teams
             isNewRecordMode = false;
             modalTitle = "修改團隊";
             CurrentRecord = teamAdapterModel.Clone();
+            parentCandidates = await teamService.GetParentCandidatesAsync(teamAdapterModel.Id);
             // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
             dirtyTracker.Capture(CurrentRecord);
 
@@ -291,6 +339,7 @@ namespace MyProject.Web.Components.Views.Teams
             CurrentRecord = new();
             isNewRecordMode = true;
             modalTitle = "新增團隊";
+            parentCandidates = await teamService.GetParentCandidatesAsync(0);
             // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
             dirtyTracker.Capture(CurrentRecord);
 

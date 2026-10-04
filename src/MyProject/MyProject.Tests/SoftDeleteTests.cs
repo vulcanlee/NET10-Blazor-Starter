@@ -202,7 +202,7 @@ public sealed class SoftDeleteTests
         var users = fixture.UserService();
         Assert.True((await users.AddAsync(new MyUserAdapterModel { Account = "carol", Name = "carol", Password = "Passw0rd", Status = true, TeamNames = ["研發部"] })).Success);
         var userId = await fixture.Context.MyUser.Select(x => x.Id).SingleAsync();
-        var resolver = new EffectiveTeamResolver(fixture.Context, NullLogger<EffectiveTeamResolver>.Instance);
+        var resolver = new EffectiveTeamResolver(fixture.Context, new ContextTeamTreeCache(fixture.Context), NullLogger<EffectiveTeamResolver>.Instance);
         Assert.Contains("研發部", await resolver.GetEffectiveTeamNamesAsync(userId));
 
         await teams.DeleteAsync(teamId);
@@ -255,7 +255,7 @@ public sealed class SoftDeleteTests
         await service.DeleteAsync(id);
 
         await using var context = fixture.NewContext();
-        var repository = new CategoryRepository(context, NullLogger<CategoryRepository>.Instance);
+        var repository = new CategoryRepository(context, new FakeRecordAccessScopeProvider(true, []), NullLogger<CategoryRepository>.Instance);
 
         Assert.Null(await repository.GetByIdAsync(id));
         Assert.False(await repository.DeleteAsync(id, "api-user"));
@@ -292,13 +292,17 @@ public sealed class SoftDeleteTests
 
         public BackendDBContext NewContext() => new(new DbContextOptionsBuilder<BackendDBContext>().UseSqlite(connection).Options);
 
-        public EffectiveTeamResolver NewResolver() => new(NewContext(), NullLogger<EffectiveTeamResolver>.Instance);
+        public EffectiveTeamResolver NewResolver()
+        {
+            var context = NewContext();
+            return new(context, new ContextTeamTreeCache(context), NullLogger<EffectiveTeamResolver>.Instance);
+        }
 
         public CategoryService CategoryService(FakeRecordAccessScopeProvider? scope = null)
             => new(Factory(), mapper, NullLogger<CategoryService>.Instance, scope ?? new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
 
         public TeamService TeamService()
-            => new(Factory(), mapper, NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser);
+            => new(Factory(), mapper, NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser, new ContextTeamTreeCache(Context));
 
         public ProjectService ProjectService(FakeRecordAccessScopeProvider? scope = null)
         {

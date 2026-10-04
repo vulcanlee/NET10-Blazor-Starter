@@ -118,6 +118,12 @@ public class CategoryController : ControllerBase
             }
 
             var category = mapper.Map<Category>(categoryDto);
+            if (await categoryRepository.CheckTeamAssignmentAsync(null, category.Teams) is { } teamError)
+            {
+                logger.LogInformation("Category create request rejected by team assignment rule.");
+                return BadRequest(ApiResult<CategoryDto>.ValidationError(teamError));
+            }
+
             var created = await categoryRepository.AddAsync(category);
             var createdDto = mapper.Map<CategoryDto>(created);
 
@@ -160,6 +166,12 @@ public class CategoryController : ControllerBase
             }
 
             var category = mapper.Map<Category>(categoryDto);
+            if (await categoryRepository.CheckTeamAssignmentAsync(id, category.Teams) is { } teamError)
+            {
+                logger.LogInformation("Category update request rejected by team assignment rule. CategoryId={CategoryId}", id);
+                return BadRequest(ApiResult.ValidationError(teamError));
+            }
+
             var success = await categoryRepository.UpdateAsync(category);
             if (!success)
             {

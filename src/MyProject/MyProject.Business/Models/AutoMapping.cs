@@ -101,7 +101,11 @@ public class AutoMapping : Profile
         // 鎖定與密碼設定時間只由登入、解鎖與密碼原則寫入，畫面模型上的值不寫回實體（0.9.101 起）。
         CreateMap<MyUserAdapterModel, MyUser>().IgnoreSoftDeleteFields()
             .ForMember(dest => dest.LockoutEndUtc, opt => opt.Ignore())
-            .ForMember(dest => dest.PasswordChangedAtUtc, opt => opt.Ignore());
+            .ForMember(dest => dest.PasswordChangedAtUtc, opt => opt.Ignore())
+            .ForMember(dest => dest.SecurityStamp, opt => opt.Ignore())
+            .ForMember(dest => dest.TwoFactorEnabled, opt => opt.Ignore())
+            .ForMember(dest => dest.TwoFactorSecret, opt => opt.Ignore())
+            .ForMember(dest => dest.TwoFactorLastStep, opt => opt.Ignore());
         CreateMap<MyUserAdapterModel, CurrentUser>()
             .ForMember(dest => dest.RoleJson, opt => opt.Ignore())
             .ForMember(dest => dest.RoleList, opt => opt.Ignore())

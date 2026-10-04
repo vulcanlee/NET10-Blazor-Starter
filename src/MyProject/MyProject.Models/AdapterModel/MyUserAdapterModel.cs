@@ -39,6 +39,8 @@ public class MyUserAdapterModel : ICloneable
     public DateTime? LockoutEndUtc { get; set; }
     /// <summary>是否有本機密碼（只用 Google 登入的帳號沒有；唯讀）。<see cref="Password"/> 讀出時一律清空，所以另外對應。</summary>
     public bool HasLocalPassword { get; set; }
+    /// <summary>已啟用兩步驟驗證（唯讀；0.9.104 起）。只能由本人設定、管理員重設，不經編輯表單寫回。</summary>
+    public bool TwoFactorEnabled { get; set; }
     public RoleViewAdapterModel? RoleView { get; set; }
     /// <summary>額外角色（主要角色 RoleViewId 之外）；與主要角色一起寫入 UserRole（多角色）。</summary>
     public List<int> AdditionalRoleIds { get; set; } = new();

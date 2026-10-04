@@ -428,10 +428,17 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<string>("Salt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("Status")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("TwoFactorEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("TwoFactorLastStep")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("TwoFactorSecret")
@@ -735,6 +742,9 @@ namespace MyProject.AccessDatas.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("RequireTwoFactor")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TabViewJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -842,6 +852,9 @@ namespace MyProject.AccessDatas.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ParentId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -854,6 +867,8 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("Name")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = 0");
+
+                    b.HasIndex("ParentId");
 
                     b.ToTable("Team");
                 });
@@ -959,6 +974,32 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("OccurredAt");
 
                     b.ToTable("TokenUsageLog");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.TwoFactorBackupCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MyUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MyUserId", "CodeHash");
+
+                    b.ToTable("TwoFactorBackupCode");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.UserRole", b =>
@@ -1095,6 +1136,25 @@ namespace MyProject.AccessDatas.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("RoleView");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.Team", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.Team", null)
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.TwoFactorBackupCode", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.MyUser", "MyUser")
+                        .WithMany()
+                        .HasForeignKey("MyUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MyUser");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.UserRole", b =>

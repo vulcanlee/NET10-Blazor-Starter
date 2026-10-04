@@ -63,23 +63,13 @@ public class CategoryService
     /// 安全邊界由 RBAC（HasPermission / IPermissionChecker）負責。
     /// </summary>
     private static IQueryable<Category> ApplyTeamVisibility(IQueryable<Category> source, RecordAccessScope scope)
-    {
-        if (scope.IsAdmin || scope.Teams.Count == 0)
-        {
-            return source;
-        }
-
-        return source.Where(TagStringHelper.BuildTeamAccessPredicate<Category>(x => x.Teams, scope.Teams));
-    }
+        => RecordTeamScope.ApplyCategory(source, scope);
 
     /// <summary>
     /// 單筆分類的可見性判斷，規則與 <see cref="ApplyTeamVisibility"/> 一致。
     /// </summary>
     private static bool IsVisible(Category item, RecordAccessScope scope)
-    {
-        return scope.Teams.Count == 0
-            || TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin);
-    }
+        => RecordTeamScope.CanAccessCategory(item.Teams, scope);
 
     public async Task<DataRequestResult<CategoryAdapterModel>> GetAsync(DataRequest dataRequest)
     {
@@ -184,6 +174,13 @@ public class CategoryService
 
         try
         {
+            // 非管理員只能指定自己範圍內的團隊（0.9.105 起，與專案相同）。
+            if (RecordTeamScope.CheckAssignment(null, TagStringHelper.ToStored(paraObject.Teams), await accessScope.GetAsync()) is { } teamError)
+            {
+                Logger.LogInformation("Category create rejected by team assignment rule. Name={CategoryName}", paraObject.Name);
+                return VerifyRecordResultFactory.Build(false, teamError);
+            }
+
             Category itemParameter = Mapper.Map<Category>(paraObject);
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.CreatedAt = DateTime.Now;
@@ -227,6 +224,20 @@ public class CategoryService
             {
                 Logger.LogWarning("Category update rejected because record was not found. CategoryId={CategoryId}", paraObject.Id);
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的分類資料。");
+            }
+
+            // 0.9.105 之前修改不檢查團隊範圍（刪除、還原早已檢查）。
+            var scope = await accessScope.GetAsync();
+            if (!IsVisible(item, scope))
+            {
+                Logger.LogWarning("Category update denied by team scope. CategoryId={CategoryId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法修改。");
+            }
+
+            if (RecordTeamScope.CheckAssignment(item.Teams, TagStringHelper.ToStored(paraObject.Teams), scope) is { } teamError)
+            {
+                Logger.LogInformation("Category update rejected by team assignment rule. CategoryId={CategoryId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, teamError);
             }
 
             Category itemData = Mapper.Map<Category>(paraObject);

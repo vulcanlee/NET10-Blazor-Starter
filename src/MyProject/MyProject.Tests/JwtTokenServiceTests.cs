@@ -29,8 +29,9 @@ public class JwtTokenServiceTests
         var service = CreateService();
         var tokenResponse = service.CreateTokenResponse(CreateUser());
 
-        var user = service.ValidateRefreshToken(tokenResponse.RefreshToken);
+        var (user, stamp) = service.ValidateRefreshToken(tokenResponse.RefreshToken);
 
+        Assert.Equal("stamp-1", stamp);
         Assert.Equal(7, user.Id);
         Assert.Equal("api-user", user.Account);
         Assert.True(user.IsAdmin);
@@ -68,7 +69,8 @@ public class JwtTokenServiceTests
             Account = "api-user",
             Name = "API User",
             Email = "api-user@example.com",
-            IsAdmin = true
+            IsAdmin = true,
+            SecurityStamp = "stamp-1",
         };
     }
 }

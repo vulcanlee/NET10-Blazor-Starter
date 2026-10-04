@@ -16,3 +16,9 @@
 .team-view-search-input {
     width: 260px;
 }
+
+.team-view-hint {
+    color: var(--app-muted);
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}

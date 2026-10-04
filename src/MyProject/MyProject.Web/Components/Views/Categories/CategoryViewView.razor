@@ -144,7 +144,7 @@ else
                                 Values="CurrentRecord.Teams" OnSelectedItemsChanged="OnRecordTeamsChanged"
                                 Placeholder="選擇可使用此分類的團隊（不設定表示所有團隊皆可使用）"
                                 AllowClear EnableSearch Style="width: 100%;">
-                            @foreach (var t in availableTeams)
+                            @foreach (var t in AssignableTeams)
                             {
                                 <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
                             }
