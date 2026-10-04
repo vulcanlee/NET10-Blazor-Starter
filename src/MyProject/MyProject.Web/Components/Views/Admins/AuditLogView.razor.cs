@@ -1,5 +1,4 @@
-﻿using System.Text;
-using AntDesign;
+﻿using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -11,6 +10,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
 using MyProject.Business.Helpers;
+using MyProject.Web.Export;
 
 namespace MyProject.Web.Components.Views.Admins
 {
@@ -325,32 +325,10 @@ namespace MyProject.Web.Components.Views.Admins
                 var query = BuildQuery(1, AuditLogQueryService.MaxExportRows);
                 var result = await auditLogQueryService.GetAsync(query);
 
-                var builder = new StringBuilder();
-
-                // 標頭明講「本地」：稽核檔常被帶出系統比對，讀檔的人不會知道資料庫存的是 UTC。
-                builder.AppendLine("發生時間（本地）,結果,動作,操作者帳號,操作者Id,目標類型,目標識別,摘要");
-                foreach (var item in result.Result)
-                {
-                    builder.AppendLine(string.Join(
-                        ',',
-                        Csv(item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
-                        Csv(item.Success ? "成功" : "失敗"),
-                        Csv(item.Action),
-                        Csv(item.ActorAccount),
-                        Csv(item.ActorUserId?.ToString()),
-                        Csv(item.TargetType),
-                        Csv(item.TargetId),
-                        Csv(item.Detail)));
-                }
-
-                // 匯出檔的 BOM 一律走 TextDownloadPayload；自己接 UTF8Encoding 容易寫成「看起來有、其實沒有」。
-                var bytes = TextDownloadPayload.Utf8WithBom(builder.ToString());
-
-                using var stream = new MemoryStream(bytes);
-                using var streamReference = new DotNetStreamReference(stream);
-
+                // 0.9.107 起經共用的 TabularExport（BOM、跳脫、換行與之前手寫的相同，ExportCsvCompatibilityTests 守門）。
+                var bytes = TabularExport.ToCsv(CsvColumns, result.Result);
                 var fileName = $"MyProject.Web-audit-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
-                await JSRuntime.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, "text/csv");
+                await JSRuntime.DownloadAsync(fileName, bytes, TabularExport.CsvContentType);
 
                 logger.LogInformation("Audit log export downloaded. Rows={Rows}", result.Count);
                 await WriteSelfAuditAsync(AuditActions.Audit.Export, $"format=csv; rows={result.Count}");
@@ -362,9 +340,18 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        /// <summary>CSV 欄位跳脫：雙引號加倍，整欄以雙引號包住，換行才不會把一列拆成兩列。</summary>
-        private static string Csv(string? value)
-            => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
+        /// <summary>CSV 欄位。標頭明講「本地」：稽核檔常被帶出系統比對，讀檔的人不會知道資料庫存的是 UTC。</summary>
+        internal static readonly IReadOnlyList<ExportColumn<AuditLogAdapterModel>> CsvColumns =
+        [
+            new("發生時間（本地）", x => x.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")),
+            new("結果", x => x.Success ? "成功" : "失敗"),
+            new("動作", x => x.Action),
+            new("操作者帳號", x => x.ActorAccount),
+            new("操作者Id", x => x.ActorUserId?.ToString()),
+            new("目標類型", x => x.TargetType),
+            new("目標識別", x => x.TargetId),
+            new("摘要", x => x.Detail),
+        ];
 
         /// <summary>操作者顯示文字；系統或匿名事件（例如帳號不存在的登入失敗）沒有 Id。</summary>
         private static string ActorText(AuditLogAdapterModel item)

@@ -30,6 +30,9 @@ public static class AuditActions
     public static class User
     {
         public const string Create = "User.Create";
+
+        /// <summary>使用者管理匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "User.Export";
         public const string Update = "User.Update";
         /// <summary>軟刪除（0.9.95 起）；還原與永久刪除見 <see cref="Restore"/>、<see cref="Purge"/>。</summary>
         public const string Delete = "User.Delete";
@@ -85,6 +88,9 @@ public static class AuditActions
     public static class Project
     {
         public const string Create = "Project.Create";
+
+        /// <summary>專案項目匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "Project.Export";
         public const string Update = "Project.Update";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Project.Delete";
@@ -101,6 +107,9 @@ public static class AuditActions
     public static class Category
     {
         public const string Create = "Category.Create";
+
+        /// <summary>分類清單匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "Category.Export";
         public const string Update = "Category.Update";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Category.Delete";
@@ -114,6 +123,9 @@ public static class AuditActions
     public static class Team
     {
         public const string Create = "Team.Create";
+
+        /// <summary>團隊清單匯出 Excel（0.9.107 起）。</summary>
+        public const string Export = "Team.Export";
         public const string Update = "Team.Update";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Team.Delete";

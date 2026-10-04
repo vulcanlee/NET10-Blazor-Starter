@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.105
+- 現行系統版本：0.9.107
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/10/04
 
@@ -35,7 +35,7 @@
 
 單頁清單 + Modal 表單（`CategoryViewView`）：
 
-- 工具列：新增（需 `分類清單:create`）、重新整理；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
+- 工具列：新增（需 `分類清單:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
 - 搜尋：關鍵字比對 `Name` 或 `Description`（`Contains`）。
 - 排序：可排序欄位 `Name`、`IsEnabled`、`UpdatedAt`；預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆），`RemoteDataSource=true` 由服務端分頁。

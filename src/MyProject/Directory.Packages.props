@@ -34,6 +34,8 @@
     <PackageVersion Include="Newtonsoft.Json"        Version="13.0.4" />
     <PackageVersion Include="PDFsharp-MigraDoc"      Version="6.2.4" />
     <PackageVersion Include="QRCoder"                Version="1.6.0" />
+    <!-- 0.9.107 起：業務頁匯出 Excel。傳遞相依 SixLabors.Fonts 解析到 1.0.0（Apache-2.0；2.x 起改為 Split License，升級前要確認）。 -->
+    <PackageVersion Include="ClosedXML"              Version="0.105.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 

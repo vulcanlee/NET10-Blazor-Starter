@@ -21,6 +21,9 @@ else
                 }
                 <ToolbarIconButton Title="重新整理" Icon="refresh"
                                    OnClick="@(async () => await OnRefreshAsync())" />
+                @* 0.9.107 起：依目前的搜尋、篩選、排序與「顯示已刪除」匯出（團隊範圍與畫面相同）。 *@
+                <ToolbarIconButton Title="匯出 Excel" Icon="file_download"
+                                   OnClick="@(async () => await OnExportExcelAsync())" />
                 @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete))
                 {
                     @* 0.9.94 起刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除。 *@
