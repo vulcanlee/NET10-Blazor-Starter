@@ -280,7 +280,9 @@ public sealed class AiChatCompletionClientTests
             }),
             recorder,
             new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } },
-            callLogRecorder ?? new FakeAiCallLogRecorder());
+            callLogRecorder ?? new FakeAiCallLogRecorder(),
+            new StubAiQuotaService(),
+            new RecordingAuditLogService());
 
         return (client, handler, recorder);
     }

@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.20
+- 文件版本：2.21
 - 文件狀態：維護中
-- 現行系統版本：0.9.108
+- 現行系統版本：0.9.109
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/10/04
 
@@ -28,6 +28,7 @@
 | AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionJob` | 已實作（0.9.72；0.9.96 起自動過期改由排程作業執行）| 0.9.96 |
 | 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99）| 0.9.99 |
 | 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`ProfileService`、`Layout/UserInitials` | 已實作（0.9.102）| 0.9.102 |
+| AI 用量配額 | [AI 用量配額](AI用量配額-prd.md) | 全系統與每人的每日、每月新台幣上限，送出前擋下、80%／100% 通知 | `AiQuotaService`、`AiChatCompletionClient` | 已實作（0.9.109）| 0.9.109 |
 | AI 提示詞管理 | [AI 提示詞管理](AI提示詞管理-prd.md) | 管理員修改 AI 日誌分析與例外分析的提示詞，版本保留可切回；固定規則自動附加 | `PromptTemplateService`、`Web/Ai/AiPromptGuardrails.cs` | 已實作（0.9.108）| 0.9.108 |
 | 通用匯出 | [通用匯出](通用匯出-prd.md) | 專案、分類、團隊、使用者頁「匯出 Excel」；診斷頁 CSV | `Web/Export/*` | 已實作（0.9.107）| 0.9.107 |
 | 首頁儀表板 | [首頁儀表板](首頁儀表板-prd.md) | `/App` 的小工具區 | `Web/Dashboard/*`、`Views/Dashboard/*`、`HomeWelcomeView` | 已實作（0.9.106）| 0.9.106 |

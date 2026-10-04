@@ -303,6 +303,7 @@ public sealed class RetentionJobTests : IAsyncDisposable
         collection.AddSingleton<IOptionsMonitor<AiCallLogSettings>>(new StaticOptionsMonitor<AiCallLogSettings>(new AiCallLogSettings { RetentionDays = 90 }));
         collection.AddSingleton<TimeProvider>(clock);
         collection.AddSingleton<IAuditLogService>(audit);
+        collection.AddSingleton<IAiQuotaService>(new StubAiQuotaService());
         collection.AddSingleton<IAiUsageCostCalculator>(new AiUsageCostCalculator(new StaticOptionsMonitor<AiPricingSettings>(new AiPricingSettings())));
         collection.AddScoped<ExceptionStackFileStore>();
         collection.AddScoped<ExceptionLogService>();

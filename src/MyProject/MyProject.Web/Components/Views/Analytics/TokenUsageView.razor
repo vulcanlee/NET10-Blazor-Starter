@@ -35,6 +35,29 @@ else
             </p>
         </div>
 
+        @* AI 用量上限（0.9.109 起）：全系統的今日、本月已用 vs 上限，與每人上限的設定值。 *@
+        <div class="token-usage-quota">
+            <div class="token-usage-cards-caption">AI 用量上限　—　在「系統參數」的「AI 用量」調整；未定價的呼叫以 0 計</div>
+            <div class="token-usage-quota-items">
+                @foreach (var status in quotaStatus)
+                {
+                    <span class="token-usage-quota-item">
+                        @QuotaText(status)
+                        @if (status.IsReached)
+                        {
+                            <StatusPill Text="已達上限" Tone="StatusTone.Warning" />
+                        }
+                        else if (status.Ratio >= 0.8)
+                        {
+                            <StatusPill Text="已達 80%" Tone="StatusTone.Warning" />
+                        }
+                    </span>
+                }
+                <span class="token-usage-quota-item">每人每日上限：@LimitText(QuotaOptions.CurrentValue.PerUserDailyTwd)</span>
+                <span class="token-usage-quota-item">每人每月上限：@LimitText(QuotaOptions.CurrentValue.PerUserMonthlyTwd)</span>
+            </div>
+        </div>
+
         <div class="token-usage-toolbar">
             <div class="token-usage-toolbar-left">
                 <Input class="token-usage-account-input" @bind-Value="accountFilter" Placeholder="帳號" />

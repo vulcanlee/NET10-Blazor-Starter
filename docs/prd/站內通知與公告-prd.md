@@ -1,8 +1,8 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.105
+- 現行系統版本：0.9.109
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/10/04
 
@@ -51,6 +51,8 @@
 | 排程作業失敗（不含中斷、略過；含系統備份） | 管理員＋手動觸發者 | 是 | — | `ScheduledJobRunner`（結束後以新 scope 發送） |
 | 帳號被鎖定 | 管理員 | 是 | 每次鎖定（不設去重鍵） | `MyUserServiceLogin`（0.9.101 起） |
 | 密碼即將到期（7 天內） | 本人 | 否 | `PasswordExpiring:{使用者 Id}:{到期時間}` | 排程作業「密碼到期提醒」（`PasswordExpiryReminder`，`0 8 * * *`，0.9.101 起） |
+| AI 用量達每人上限的 80%／100% | 本人 | 否 | `AiQuota:user:{使用者 Id}:{daily:日期\|monthly:年月}:{80\|100}` | `TokenUsageLogService` 記帳後（0.9.109 起，[AI 用量配額](AI用量配額-prd.md)） |
+| AI 用量達全系統上限的 80%／100% | 管理員 | 100% 時是 | `AiQuota:global:{daily:日期\|monthly:年月}:{80\|100}` | 同上 |
 
 - **清除**：排程作業「站內通知清理」（`NotificationRetention`，`0 3 * * *`）刪除建立超過 `NotificationSettings:RetentionDays`（預設 90，系統參數）天的通知，分批進行，寫 `Notification.AutoPurge`。
 

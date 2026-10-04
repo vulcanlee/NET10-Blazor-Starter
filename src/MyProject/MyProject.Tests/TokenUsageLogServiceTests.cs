@@ -573,7 +573,8 @@ public sealed class TokenUsageLogServiceTests
                 mapper,
                 loggerFactory.CreateLogger<TokenUsageLogService>(),
                 new TokenUsageRawStore(Options.Create(settings), loggerFactory.CreateLogger<TokenUsageRawStore>()),
-                costCalculator ?? CreateCostCalculator());
+                costCalculator ?? CreateCostCalculator(),
+                new StubAiQuotaService());
         }
 
         /// <summary>

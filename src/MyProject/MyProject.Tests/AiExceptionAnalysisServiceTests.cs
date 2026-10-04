@@ -203,7 +203,9 @@ public sealed class AiExceptionAnalysisServiceTests
                 optionsMonitor,
                 recorder,
                 new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "admin" } },
-                callLogRecorder ?? new FakeAiCallLogRecorder()),
+                callLogRecorder ?? new FakeAiCallLogRecorder(),
+                new StubAiQuotaService(),
+                new RecordingAuditLogService()),
             new StubSystemPromptProvider());
 
         return (service, handler, recorder);

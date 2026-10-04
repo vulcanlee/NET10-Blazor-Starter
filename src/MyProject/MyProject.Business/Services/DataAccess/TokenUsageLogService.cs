@@ -23,6 +23,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly TokenUsageRawStore rawStore;
     private readonly IAiUsageCostCalculator costCalculator;
+    private readonly IAiQuotaService quotaService;
 
     public IMapper Mapper { get; }
     public ILogger<TokenUsageLogService> Logger { get; }
@@ -33,13 +34,15 @@ public class TokenUsageLogService : ITokenUsageRecorder
         IMapper mapper,
         ILogger<TokenUsageLogService> logger,
         TokenUsageRawStore rawStore,
-        IAiUsageCostCalculator costCalculator)
+        IAiUsageCostCalculator costCalculator,
+        IAiQuotaService quotaService)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.rawStore = rawStore;
         this.costCalculator = costCalculator;
+        this.quotaService = quotaService;
     }
 
     /// <summary>
@@ -110,6 +113,13 @@ public class TokenUsageLogService : ITokenUsageRecorder
                 // 資料列沒建起來，剛才那個檔就是孤兒 —— 一律清掉。
                 rawStore.Delete(rawFile);
                 throw;
+            }
+
+            // AI 用量上限的 80%／100% 提醒（0.9.109 起；健康檢測也計入）。沒有費用的呼叫不會改變已用金額，不必評估。
+            // 方法本身不丟例外，提醒失敗不影響這筆用量。
+            if (item.CostTwd is > 0)
+            {
+                await quotaService.NotifyIfReachedAsync(entry.UserId);
             }
         }
         catch (Exception ex)

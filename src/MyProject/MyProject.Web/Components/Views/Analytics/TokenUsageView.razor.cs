@@ -129,6 +129,20 @@ namespace MyProject.Web.Components.Views.Analytics
         [Inject]
         public IAuditLogService AuditLogService { get; set; } = default!;
 
+        [Inject]
+        public IAiQuotaService QuotaService { get; set; } = default!;
+
+        [Inject]
+        public Microsoft.Extensions.Options.IOptionsMonitor<AiQuotaSettings> QuotaOptions { get; set; } = default!;
+
+        private IReadOnlyList<AiQuotaLimitStatus> quotaStatus = [];
+
+        /// <summary>「全系統每日：今日 NT$ 12.5／NT$ 100」；沒有上限時寫「不限制」。</summary>
+        private static string QuotaText(AiQuotaLimitStatus status)
+            => $"{status.Label}：{status.PeriodLabel} NT$ {AiQuotaService.Money(status.UsedTwd)}／{LimitText(status.LimitTwd)}";
+
+        private static string LimitText(int limitTwd) => limitTwd > 0 ? $"NT$ {AiQuotaService.Money(limitTwd)}" : "不限制";
+
         /// <summary>用量紀錄的維護與匯出要留稽核（LOG-14），只記筆數與格式。</summary>
         private Task WriteAuditAsync(string action, string targetId, string detail)
             => ViewAudit.WriteAsync(AuditLogService, CurrentUserService, action, "TokenUsage", targetId, detail);
@@ -281,6 +295,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 _total = page.Count;
 
                 summary = await tokenUsageLogService.GetSummaryAsync(query);
+                quotaStatus = await QuotaService.GetStatusAsync(null);
 
                 groupedByAccount = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.Account);
                 groupedByOperation = await tokenUsageLogService.GetGroupedAsync(query, TokenUsageGroupBy.Operation);

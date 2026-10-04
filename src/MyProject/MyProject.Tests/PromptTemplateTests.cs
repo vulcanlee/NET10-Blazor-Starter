@@ -363,7 +363,9 @@ public sealed class PromptTemplateTests : IDisposable
                 options,
                 new RecordingTokenUsageRecorder(),
                 new CurrentUserService { CurrentUser = new CurrentUser { Id = 1, Account = "support" } },
-                new FakeAiCallLogRecorder()),
+                new FakeAiCallLogRecorder(),
+                new StubAiQuotaService(),
+                new RecordingAuditLogService()),
             Provider());
     }
 

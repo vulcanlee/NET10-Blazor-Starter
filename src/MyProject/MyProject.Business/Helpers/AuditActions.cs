@@ -212,6 +212,12 @@ public static class AuditActions
         public const string Delete = "Announcement.Delete";
     }
 
+    /// <summary>AI 用量上限（0.9.109 起）：送出前被上限擋下（detail 記作業、上限與已用金額）。</summary>
+    public static class Ai
+    {
+        public const string QuotaBlocked = "Ai.QuotaBlocked";
+    }
+
     /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>
     public static class Prompt
     {
