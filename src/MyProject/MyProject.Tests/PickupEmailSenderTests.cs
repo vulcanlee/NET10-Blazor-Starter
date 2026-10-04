@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using MimeKit;
 using MyProject.Business.Helpers;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Email;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Tests;
 
@@ -80,7 +80,7 @@ public sealed class PickupEmailSenderTests
 
         return new PickupEmailSender(
             new StaticOptionsMonitor<EmailSettings>(settings),
-            Options.Create(systemSettings),
+            new SystemIdentity(new StaticOptionsMonitor<SystemSettings>(systemSettings)),
             NullLogger<PickupEmailSender>.Instance);
     }
 }

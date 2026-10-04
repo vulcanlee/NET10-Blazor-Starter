@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
-using MyProject.Models.Systems;
 
 namespace MyProject.Web.Components.Views.Commons;
 
@@ -17,17 +15,17 @@ public partial class SplashView
     [Inject]
     public ILogger<SplashView> Logger { get; set; } = default!;
     [Inject]
-    public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+    public ISystemIdentity SystemIdentity { get; set; } = default!;
 
     /// <summary>
-    /// 系統名稱，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemName。
+    /// 系統名稱，取自 ISystemIdentity（可在「系統參數」頁修改，0.9.98 起）。
     /// </summary>
-    private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
+    private string SystemName => SystemIdentity.Name;
 
     /// <summary>
-    /// 系統簡短說明，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemDescription。
+    /// 系統簡短說明，取自 ISystemIdentity（可在「系統參數」頁修改，0.9.98 起）。
     /// </summary>
-    private string SystemDescription => SystemSettingsOptions.Value.SystemInformation.SystemDescription;
+    private string SystemDescription => SystemIdentity.Description;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

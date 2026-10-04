@@ -26,7 +26,7 @@ public sealed class ExceptionAlertService
 
     private readonly IOptionsMonitor<ExceptionAlertSettings> alertOptions;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
-    private readonly IOptions<SystemSettings> systemSettings;
+    private readonly ISystemIdentity systemIdentity;
     private readonly IEmailQueue emailQueue;
     private readonly TimeProvider timeProvider;
     private readonly LoggingPipelineMonitor? monitor;
@@ -40,7 +40,7 @@ public sealed class ExceptionAlertService
     public ExceptionAlertService(
         IOptionsMonitor<ExceptionAlertSettings> alertOptions,
         IOptionsMonitor<EmailSettings> emailOptions,
-        IOptions<SystemSettings> systemSettings,
+        ISystemIdentity systemIdentity,
         IEmailQueue emailQueue,
         TimeProvider timeProvider,
         LoggingPipelineMonitor? monitor = null)
@@ -48,7 +48,7 @@ public sealed class ExceptionAlertService
         this.monitor = monitor;
         this.alertOptions = alertOptions;
         this.emailOptions = emailOptions;
-        this.systemSettings = systemSettings;
+        this.systemIdentity = systemIdentity;
         this.emailQueue = emailQueue;
         this.timeProvider = timeProvider;
     }
@@ -166,7 +166,7 @@ public sealed class ExceptionAlertService
             string.IsNullOrEmpty(baseUrl) ? null : $"{baseUrl}/system-exceptions",
             suppressedCount);
 
-        var systemName = systemSettings.Value.SystemInformation.SystemName;
+        var systemName = systemIdentity.Name;
         foreach (var recipient in settings.Recipients.Where(x => string.IsNullOrWhiteSpace(x) == false).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             // 寄信佇列滿時 TryEnqueue 回 false，ChannelEmailQueue 自己會記 Warning；這裡不重試。

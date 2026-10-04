@@ -395,8 +395,8 @@ public sealed class PasswordResetServiceTests
                 new TestDbContextFactory(connection),
                 Queue,
                 Audit,
-                Options.Create(new PasswordResetSettings { TokenLifetimeMinutes = 30, RequestCooldownSeconds = cooldownSeconds }),
-                Options.Create(systemSettings),
+                new StaticOptionsMonitor<PasswordResetSettings>(new PasswordResetSettings { TokenLifetimeMinutes = 30, RequestCooldownSeconds = cooldownSeconds }),
+                new SystemIdentity(new StaticOptionsMonitor<SystemSettings>(systemSettings)),
                 NullLogger<PasswordResetService>.Instance);
         }
 

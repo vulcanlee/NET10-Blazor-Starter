@@ -1,6 +1,5 @@
-@using Microsoft.Extensions.Options
-@using MyProject.Models.Systems
-@inject IOptions<SystemSettings> SystemSettingsOptions
+@using MyProject.Business.Services.Other
+@inject ISystemIdentity SystemIdentity
 
 @*
     登入、忘記密碼、重設密碼三頁共用的外框：冬景背景、飄雪、品牌欄與卡片。
@@ -22,8 +21,8 @@
             <div class="brand-logo">
                 <img class="brand-logo-image" src="@Assets["images/brand-logo.png"]" alt="系統品牌圖示" />
             </div>
-            <h1 class="app-title">@SystemSettingsOptions.Value.SystemInformation.SystemName</h1>
-            <p class="brand-description">@SystemSettingsOptions.Value.SystemInformation.SystemDescription</p>
+            <h1 class="app-title">@SystemIdentity.Name</h1>
+            <p class="brand-description">@SystemIdentity.Description</p>
         </section>
 
         <section class="login-card">

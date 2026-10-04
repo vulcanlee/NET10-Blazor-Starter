@@ -176,4 +176,11 @@ public static class AuditActions
         public const string Enable = "Job.Enable";
         public const string Disable = "Job.Disable";
     }
+
+    /// <summary>「系統參數」頁的修改與還原（0.9.98 起）。Detail 為 <c>key=…; old=…(來源); new=…(來源)</c>。</summary>
+    public static class SystemParameter
+    {
+        public const string Update = "SystemParameter.Update";
+        public const string Reset = "SystemParameter.Reset";
+    }
 }

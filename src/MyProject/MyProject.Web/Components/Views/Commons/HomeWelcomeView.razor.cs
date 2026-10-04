@@ -1,8 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
-using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Components.Views.Commons;
@@ -64,19 +62,19 @@ public partial class HomeWelcomeView
     public ILogger<HomeWelcomeView> Logger { get; set; } = default!;
 
     [Inject]
-    public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+    public ISystemIdentity SystemIdentity { get; set; } = default!;
 
     [Inject]
     public IWebHostEnvironment WebHostEnvironment { get; set; } = default!;
 
-    /// <summary>系統名稱，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemName。</summary>
-    private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
+    /// <summary>系統名稱，取自 ISystemIdentity（可在「系統參數」頁修改，0.9.98 起）。</summary>
+    private string SystemName => SystemIdentity.Name;
 
-    /// <summary>系統簡短說明，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemDescription。</summary>
-    private string SystemDescription => SystemSettingsOptions.Value.SystemInformation.SystemDescription;
+    /// <summary>系統簡短說明，取自 ISystemIdentity（可在「系統參數」頁修改，0.9.98 起）。</summary>
+    private string SystemDescription => SystemIdentity.Description;
 
     /// <summary>系統版本，唯一來源同上（SystemVersion）。</summary>
-    private string SystemVersion => SystemSettingsOptions.Value.SystemInformation.SystemVersion;
+    private string SystemVersion => SystemIdentity.Version;
 
     private string RoleMessage = string.Empty;
     private bool isAccessChecked;

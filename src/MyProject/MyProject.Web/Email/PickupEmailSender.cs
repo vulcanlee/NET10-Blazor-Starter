@@ -14,16 +14,16 @@ namespace MyProject.Web.Email;
 public sealed class PickupEmailSender : IEmailSender
 {
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
-    private readonly IOptions<SystemSettings> systemOptions;
+    private readonly ISystemIdentity systemIdentity;
     private readonly ILogger<PickupEmailSender> logger;
 
     public PickupEmailSender(
         IOptionsMonitor<EmailSettings> emailOptions,
-        IOptions<SystemSettings> systemOptions,
+        ISystemIdentity systemIdentity,
         ILogger<PickupEmailSender> logger)
     {
         this.emailOptions = emailOptions;
-        this.systemOptions = systemOptions;
+        this.systemIdentity = systemIdentity;
         this.logger = logger;
     }
 
@@ -37,7 +37,7 @@ public sealed class PickupEmailSender : IEmailSender
         var fileName = $"{DateTime.Now:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}.eml";
         var path = Path.Combine(settings.PickupDirectory, fileName);
 
-        using var mime = MimeMessageFactory.Create(message, settings, systemOptions.Value.SystemInformation.SystemName);
+        using var mime = MimeMessageFactory.Create(message, settings, systemIdentity.Name);
         await mime.WriteToAsync(path, cancellationToken);
 
         logger.LogInformation("Email written to pickup directory. Kind={Kind}, FileName={FileName}", message.Kind, fileName);

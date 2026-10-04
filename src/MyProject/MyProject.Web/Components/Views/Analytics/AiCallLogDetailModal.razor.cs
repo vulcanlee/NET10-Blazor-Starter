@@ -3,16 +3,15 @@ using System.Text;
 using System.Text.Json;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
-using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
 using MyProject.Business.Helpers;
+using MyProject.Models.Systems;
 
 namespace MyProject.Web.Components.Views.Analytics
 {
@@ -67,7 +66,7 @@ namespace MyProject.Web.Components.Views.Analytics
         private readonly IAuditLogService auditLogService;
         private readonly CurrentUserService currentUserService;
         private readonly NotificationService notificationService;
-        private readonly IOptions<SystemSettings> systemSettingsOptions;
+        private readonly ISystemIdentity systemIdentity;
         private readonly IJSRuntime jsRuntime;
 
         private readonly Dictionary<string, string> htmlCache = new(StringComparer.Ordinal);
@@ -87,7 +86,7 @@ namespace MyProject.Web.Components.Views.Analytics
             IAuditLogService auditLogService,
             CurrentUserService currentUserService,
             NotificationService notificationService,
-            IOptions<SystemSettings> systemSettingsOptions,
+            ISystemIdentity systemIdentity,
             IJSRuntime jsRuntime)
         {
             this.logger = logger;
@@ -95,7 +94,7 @@ namespace MyProject.Web.Components.Views.Analytics
             this.auditLogService = auditLogService;
             this.currentUserService = currentUserService;
             this.notificationService = notificationService;
-            this.systemSettingsOptions = systemSettingsOptions;
+            this.systemIdentity = systemIdentity;
             this.jsRuntime = jsRuntime;
         }
 
@@ -384,11 +383,11 @@ namespace MyProject.Web.Components.Views.Analytics
 
             try
             {
-                var information = systemSettingsOptions.Value.SystemInformation;
+                var information = systemIdentity;
                 var request = new AiCallLogPdfRequest
                 {
-                    SystemName = information.SystemName,
-                    SystemVersion = information.SystemVersion,
+                    SystemName = information.Name,
+                    SystemVersion = information.Version,
                     OperatorAccount = currentUserService.CurrentUser.Account ?? string.Empty,
                     GeneratedAt = DateTime.Now,
                     Item = detail.Item,

@@ -97,6 +97,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
+        services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
 
@@ -221,19 +223,19 @@ public static class ServiceCollectionExtensions
 
         services.AddScheduledJob<AuditLogRetentionJob>(
             AuditLogRetentionJob.JobName, "稽核紀錄清理",
-            "刪除超過保留天數的稽核紀錄（LogRetentionSettings:AuditLogDays，預設 365 天，0 = 不清除）。", "0 3 * * *");
+            "刪除超過保留天數的稽核紀錄（保留天數在「系統參數」頁設定，預設 365 天，0 = 不清除）。", "0 3 * * *");
         services.AddScheduledJob<ExceptionLogRetentionJob>(
             ExceptionLogRetentionJob.JobName, "系統例外紀錄清理",
-            "刪除超過保留天數的系統例外紀錄與堆疊檔（LogRetentionSettings:ExceptionLogDays，預設 90 天，0 = 不清除）。", "0 3 * * *");
+            "刪除超過保留天數的系統例外紀錄與堆疊檔（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
         services.AddScheduledJob<AiCallLogRetentionJob>(
             AiCallLogRetentionJob.JobName, "AI 對話紀錄清理",
-            "刪除超過保留天數的 AI 對話紀錄與內容檔（AiCallLogSettings:RetentionDays，預設 90 天）。", "0 3 * * *");
+            "刪除超過保留天數的 AI 對話紀錄與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
         services.AddScheduledJob<TokenUsageLogRetentionJob>(
             TokenUsageLogRetentionJob.JobName, "Token 用量紀錄清理",
-            "刪除超過保留天數的 Token 用量紀錄與原始檔（LogRetentionSettings:TokenUsageLogDays，預設 365 天，0 = 不清除）。", "0 3 * * *");
+            "刪除超過保留天數的 Token 用量紀錄與原始檔（保留天數在「系統參數」頁設定，預設 365 天，0 = 不清除）。", "0 3 * * *");
         services.AddScheduledJob<SoftDeletePurgeJob>(
             SoftDeletePurgeJob.JobName, "已刪除資料清理",
-            "已刪除超過保留天數的專案（含附件檔）、分類、團隊、使用者與角色，永久刪除（SoftDeleteSettings:PurgeAfterDays，預設 90 天，0 = 不清除）。", "0 3 * * *");
+            "已刪除超過保留天數的專案（含附件檔）、分類、團隊、使用者與角色，永久刪除（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
 
         // ⚠️ 必須註冊在 ExceptionLogWriter 之後：主機以相反順序停止，作業在關機時記的錯誤才還有人寫進系統例外紀錄。
         services.AddHostedService<JobSchedulerWorker>();
@@ -520,8 +522,7 @@ public static class ServiceCollectionExtensions
                 var isLogin = IsLoginRequest(context);
                 var permitLimit = isLogin ? settings.LoginRequestsPerMinute : settings.ApiRequestsPerMinute;
 
-                // 前綴讓登入與一般 API 各自計數，不會互相消耗配額。
-                var partitionKey = (isLogin ? "login:" : "api:") + ResolvePartitionKey(context);
+                var partitionKey = BuildRateLimitPartitionKey(isLogin, permitLimit, ResolvePartitionKey(context));
 
                 return RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey,
@@ -537,6 +538,15 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// 限流計數器的鍵。前綴讓登入與一般 API 各自計數，不會互相消耗配額。
+    ///
+    /// ⚠️ 鍵含上限值（0.9.98 起，上限可在「系統參數」頁修改）：limiter 依鍵快取，工廠只在第一次建立時呼叫，
+    /// 不含上限值的話持續呼叫的用戶端會一直沿用舊上限。改了上限就換一個新的計數器，舊的閒置後由框架回收。
+    /// </summary>
+    internal static string BuildRateLimitPartitionKey(bool isLogin, int permitLimit, string caller)
+        => $"{(isLogin ? "login" : "api")}:{permitLimit}:{caller}";
 
     /// <summary>
     /// 登入端點（含 /api/v1 平行路由）。登入是暴力破解的主要標的，配額比一般 API 嚴格得多；

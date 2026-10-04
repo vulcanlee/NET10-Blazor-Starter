@@ -2,9 +2,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
-using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
-using MyProject.Models.Systems;
 using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Components.Layout;
@@ -52,16 +50,16 @@ public partial class NavMenu : ComponentBase, IDisposable
     }
 
     [Inject]
-    private IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+    private ISystemIdentity SystemIdentity { get; set; } = default!;
 
     /// <summary>
-    /// 側邊欄品牌文字，統一取自 appsettings.json 的 SystemSettings:SystemInformation:SystemName。
+    /// 側邊欄品牌文字，取自 ISystemIdentity（可在「系統參數」頁修改，0.9.98 起）。
     ///
     /// 0.9.13 之前這裡是硬編的 "MyProject.Web" —— 對腳手架而言每個複製出去的新專案都得記得手改，
     /// 忘了就會在側邊欄掛著別人的專案代號。改讀設定後，SystemName 才真正是單一來源
     /// （啟動頁、登入頁、登入後首頁、「關於」對話窗、側邊欄）。
     /// </summary>
-    private string SystemName => SystemSettingsOptions.Value.SystemInformation.SystemName;
+    private string SystemName => SystemIdentity.Name;
 
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string? ActiveMenuPath { get; set; }

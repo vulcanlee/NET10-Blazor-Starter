@@ -19,20 +19,20 @@ public sealed class EmailTestService
     private readonly IEmailSender emailSender;
     private readonly IAuditLogService auditLogService;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
-    private readonly IOptions<SystemSettings> systemOptions;
+    private readonly ISystemIdentity systemIdentity;
     private readonly ILogger<EmailTestService> logger;
 
     public EmailTestService(
         IEmailSender emailSender,
         IAuditLogService auditLogService,
         IOptionsMonitor<EmailSettings> emailOptions,
-        IOptions<SystemSettings> systemOptions,
+        ISystemIdentity systemIdentity,
         ILogger<EmailTestService> logger)
     {
         this.emailSender = emailSender;
         this.auditLogService = auditLogService;
         this.emailOptions = emailOptions;
-        this.systemOptions = systemOptions;
+        this.systemIdentity = systemIdentity;
         this.logger = logger;
     }
 
@@ -52,7 +52,7 @@ public sealed class EmailTestService
         }
 
         var message = EmailTemplates.BuildTest(
-            recipient, systemOptions.Value.SystemInformation.SystemName, DateTime.Now, provider.ToString());
+            recipient, systemIdentity.Name, DateTime.Now, provider.ToString());
 
         try
         {

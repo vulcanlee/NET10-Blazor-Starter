@@ -2,11 +2,9 @@ using System.Globalization;
 using System.Text;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
-using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Commons;
 using MyProject.Business.Helpers;
@@ -117,7 +115,7 @@ namespace MyProject.Web.Components.Views.Admins
         public IJSRuntime JSRuntime { get; set; } = default!;
 
         [Inject]
-        public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+        public ISystemIdentity SystemIdentity { get; set; } = default!;
 
         public ExceptionAiAnalysisModal(
             ILogger<ExceptionAiAnalysisModal> logger,
@@ -408,11 +406,11 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 ViewNotification.Info(notificationService, "正在產生 PDF…");
 
-                var information = SystemSettingsOptions.Value.SystemInformation;
+                var information = SystemIdentity;
                 var bytes = AiExceptionReportPdfBuilder.Build(new AiExceptionReportPdfRequest
                 {
-                    SystemName = information.SystemName,
-                    SystemVersion = information.SystemVersion,
+                    SystemName = information.Name,
+                    SystemVersion = information.Version,
                     OperatorAccount = currentUserService.CurrentUser.Account ?? string.Empty,
                     GeneratedAt = DateTime.Now,
                     DetailLines = AiExceptionPromptBuilder.BuildDetailLines(item),

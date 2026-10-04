@@ -5,7 +5,6 @@ using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
@@ -122,7 +121,7 @@ namespace MyProject.Web.Components.Views.Analytics
         public IJSRuntime JSRuntime { get; set; } = default!;
 
         [Inject]
-        public IOptions<SystemSettings> SystemSettingsOptions { get; set; } = default!;
+        public ISystemIdentity SystemIdentity { get; set; } = default!;
 
         [Inject]
         public CurrentUserService CurrentUserService { get; set; } = default!;
@@ -845,11 +844,11 @@ namespace MyProject.Web.Components.Views.Analytics
                     details = [.. (await tokenUsageLogService.GetAsync(query)).Result];
                 }
 
-                var information = SystemSettingsOptions.Value.SystemInformation;
+                var information = SystemIdentity;
                 var bytes = TokenUsageReportPdfBuilder.Build(new TokenUsageReportRequest
                 {
-                    SystemName = information.SystemName,
-                    SystemVersion = information.SystemVersion,
+                    SystemName = information.Name,
+                    SystemVersion = information.Version,
                     OperatorAccount = CurrentUserService.CurrentUser.Account ?? string.Empty,
                     GeneratedAt = DateTime.Now,
                     StartDate = startDate,
