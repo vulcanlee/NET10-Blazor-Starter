@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Startup;
 
@@ -12,12 +13,10 @@ namespace MyProject.Business.Startup;
 ///
 /// 為什麼是檔案鎖：named Mutex 只在同一台機器的同一個工作階段有效，檔案鎖則與行程類型無關；
 /// 行程結束（包括被砍）時作業系統會自動釋放。鎖檔刻意不刪：刪除會和下一個開檔的行程競爭。
-/// 停站時可以安全刪除它。
+/// 停站時可以安全刪除它。取鎖本身由 <see cref="CrossProcessFileLock"/> 負責（0.9.96 起與排程作業共用）。
 /// </summary>
 internal static class DatabaseInitializationLock
 {
-    private const int ErrorSharingViolation = 32;
-    private const int ErrorLockViolation = 33;
     private static readonly TimeSpan RetryInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan ProgressLogInterval = TimeSpan.FromSeconds(10);
 
@@ -31,14 +30,12 @@ internal static class DatabaseInitializationLock
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(databasePath)
-            || databasePath.Contains(":memory:", StringComparison.OrdinalIgnoreCase))
+        if (CrossProcessFileLock.ResolveDatabaseFile(databasePath) is not { } databaseFile)
         {
             return NoopLock.Instance;
         }
 
-        var lockPath = Path.GetFullPath(databasePath) + ".migration.lock";
-        Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
+        var lockPath = databaseFile + ".migration.lock";
 
         var watch = Stopwatch.StartNew();
         var nextProgressLog = ProgressLogInterval;
@@ -46,9 +43,8 @@ internal static class DatabaseInitializationLock
 
         while (true)
         {
-            try
+            if (CrossProcessFileLock.TryAcquire(lockPath) is { } handle)
             {
-                var stream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 if (waited)
                 {
                     logger.LogInformation(
@@ -57,44 +53,34 @@ internal static class DatabaseInitializationLock
                         lockPath);
                 }
 
-                return stream;
+                return handle;
             }
-            catch (IOException ex) when (IsHeldByAnotherHandle(ex))
+
+            if (watch.Elapsed >= timeout)
             {
-                if (watch.Elapsed >= timeout)
-                {
-                    throw new TimeoutException(
-                        $"等待資料庫初始化鎖逾時（{timeout.TotalSeconds:0} 秒）：{lockPath}。"
-                            + "可能有另一個行程正在初始化同一個資料庫；若確定沒有其他行程在執行，停站後可刪除這個鎖檔。",
-                        ex);
-                }
-
-                if (!waited)
-                {
-                    waited = true;
-                    logger.LogInformation(
-                        "Database initialization lock is held by another process; waiting. LockPath={LockPath}",
-                        lockPath);
-                }
-                else if (watch.Elapsed >= nextProgressLog)
-                {
-                    nextProgressLog += ProgressLogInterval;
-                    logger.LogWarning(
-                        "Still waiting for the database initialization lock. ElapsedMs={ElapsedMs} LockPath={LockPath}",
-                        watch.ElapsedMilliseconds,
-                        lockPath);
-                }
-
-                await Task.Delay(RetryInterval, cancellationToken);
+                throw new TimeoutException(
+                    $"等待資料庫初始化鎖逾時（{timeout.TotalSeconds:0} 秒）：{lockPath}。"
+                        + "可能有另一個行程正在初始化同一個資料庫；若確定沒有其他行程在執行，停站後可刪除這個鎖檔。");
             }
-        }
-    }
 
-    /// <summary>只有「別的控制代碼佔著這個檔案」才值得重試；其餘 IO 錯誤（磁碟、權限、路徑）重試也不會好。</summary>
-    private static bool IsHeldByAnotherHandle(IOException ex)
-    {
-        var code = ex.HResult & 0xFFFF;
-        return code is ErrorSharingViolation or ErrorLockViolation;
+            if (!waited)
+            {
+                waited = true;
+                logger.LogInformation(
+                    "Database initialization lock is held by another process; waiting. LockPath={LockPath}",
+                    lockPath);
+            }
+            else if (watch.Elapsed >= nextProgressLog)
+            {
+                nextProgressLog += ProgressLogInterval;
+                logger.LogWarning(
+                    "Still waiting for the database initialization lock. ElapsedMs={ElapsedMs} LockPath={LockPath}",
+                    watch.ElapsedMilliseconds,
+                    lockPath);
+            }
+
+            await Task.Delay(RetryInterval, cancellationToken);
+        }
     }
 
     private sealed class NoopLock : IDisposable

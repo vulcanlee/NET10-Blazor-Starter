@@ -238,6 +238,60 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("ExceptionLog");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.JobRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("FinishedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("JobName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ScheduledForUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TriggeredByAccount")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("JobName", "StartedAtUtc");
+
+                    b.ToTable("JobRun");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.MyUser", b =>
                 {
                     b.Property<int>("Id")
@@ -542,6 +596,33 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("RoleView");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.ScheduledJobState", b =>
+                {
+                    b.Property<string>("JobName")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastScheduledForUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("JobName");
+
+                    b.ToTable("ScheduledJobState");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.Team", b =>

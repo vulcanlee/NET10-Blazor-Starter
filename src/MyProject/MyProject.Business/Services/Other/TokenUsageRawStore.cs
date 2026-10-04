@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Globalization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyProject.Models.Systems;
 
@@ -133,6 +134,40 @@ public class TokenUsageRawStore
         {
             // 同上。
             logger.LogWarning(ex, "Failed to clear the usage payload directory.");
+        }
+    }
+
+    /// <summary>
+    /// 刪除早於 <paramref name="threshold"/> 所在月份的整個 <c>{yyyyMM}</c> 目錄（0.9.96 起，自動過期的收尾）。
+    ///
+    /// 檔案依紀錄的 <c>OccurredAt</c> 分月存放，所以門檻月份之前的目錄只剩：逐筆刪檔後的空目錄、
+    /// 「檔已寫、資料列沒建起來」或刪除中途被中斷留下的孤兒檔。門檻所在月份本身不動 —— 那個月可能還有未過期的紀錄。
+    /// 只能在該門檻之前的資料列都已刪除之後呼叫。
+    /// </summary>
+    public void DeleteMonthsBefore(DateTime threshold)
+    {
+        if (string.IsNullOrWhiteSpace(RootPath) || Directory.Exists(RootPath) == false)
+        {
+            return;
+        }
+
+        var boundary = new DateTime(threshold.Year, threshold.Month, 1);
+
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(RootPath))
+            {
+                var name = Path.GetFileName(directory);
+                if (DateTime.TryParseExact(name, "yyyyMM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month)
+                    && month < boundary)
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to remove expired usage payload folders.");
         }
     }
 }

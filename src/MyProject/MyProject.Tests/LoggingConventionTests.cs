@@ -314,6 +314,7 @@ public sealed class LoggingConventionTests
     [InlineData("MyProject.Web", "Auth")]
     [InlineData("MyProject.Web", "Filters")]
     [InlineData("MyProject.Web", "Health")]
+    [InlineData("MyProject.Web", "Scheduling")]
     public void BehaviourClasses_ShouldHoldALogger(string project, string folder)
     {
         var root = Path.Combine(FindSourceRoot(), project, folder);
@@ -378,6 +379,9 @@ public sealed class LoggingConventionTests
             "SystemHealthModels.cs",        // 健康監控的模型
             "SystemHealthScoreCalculator.cs", // 純算術：由各項狀態算分數與燈號
             "SystemStartupState.cs",        // 只持有啟動時間，無行為
+            "ScheduledJobDescriptor.cs",    // 排程作業的描述（record），無行為
+            "ScheduleCalculator.cs",        // 純函式：cron 的下次時段與補跑時段
+            "ScheduledJobTriggerQueue.cs",  // 「立即執行」請求的佇列與去重，無 I/O
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

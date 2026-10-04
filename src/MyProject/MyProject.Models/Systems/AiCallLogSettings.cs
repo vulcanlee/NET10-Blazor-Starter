@@ -18,7 +18,7 @@ public class AiCallLogSettings
     /// </summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>保留天數。超過的紀錄連同內容檔於啟動時與每日自動清除。</summary>
+    /// <summary>保留天數。超過的紀錄連同內容檔由排程作業自動清除（0.9.96 起預設每天 03:00；之前是啟動時與每日）。</summary>
     [Range(1, 3650)]
     public int RetentionDays { get; set; } = 90;
 }

@@ -643,6 +643,33 @@
             overflow-y: auto !important;
         }
 
+    /* 排程作業的「執行紀錄」窗（0.9.96 起）：唯讀表格，比照例外明細窗接近滿版。 */
+    .scheduled-job-runs-modal {
+        width: 96vw !important;
+        max-width: 96vw !important;
+        top: 2vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+        .scheduled-job-runs-modal .ant-modal-content {
+            height: 96vh !important;
+            max-height: 96vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        .scheduled-job-runs-modal .ant-modal-header {
+            flex-shrink: 0;
+        }
+
+        .scheduled-job-runs-modal .ant-modal-body {
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+        }
+
 /*
        明細窗的內容樣式寫在這裡（全域）而非 ExceptionLogView.razor.css：
        這些規則與 AntDesign 自己渲染的 .ant-modal-* 搭配使用，

@@ -1,10 +1,10 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.75
+- 現行系統版本：0.9.96
 - 首次實作版本：0.9.72
-- 最後核對日期：2026/10/01
+- 最後核對日期：2026/10/04
 
 ## 一、目標與範圍
 
@@ -79,7 +79,7 @@ AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `E
 - 寫入順序：先寫檔再建資料列；資料列建不起來就刪檔。寫檔失敗時仍建資料列（`ContentFile` 為 null，明細顯示檔案不存在）。
 - 設定 `AiCallLogSettings { Enabled = true, RetentionDays = 90 }`（`RetentionDays` 範圍 1～3650，`ValidateOnStart`）：
   - `Enabled=false` 不記。
-  - `AiCallLogRetentionWorker` 在啟動時與每 24 小時刪除過期資料列與檔案，並清掉門檻月份之前的整個月份目錄（收拾孤兒檔）。
+  - 排程作業「AI 對話紀錄清理」（0.9.96 起預設每天 03:00；之前是 `AiCallLogRetentionWorker` 啟動時與每 24 小時）刪除過期資料列與檔案，並清掉門檻月份之前的整個月份目錄（收拾孤兒檔）；刪到資料時寫 `AiCallLog.AutoPurge`。
   - 停用時仍執行過期清除。
 - 上限：關聯說明截斷至 500 字元。
 - 記錄**絕不影響** AI 呼叫本身：recorder 全程吞例外，呼叫點另以 `RecordSafelyAsync` 在 `finally` 中執行。

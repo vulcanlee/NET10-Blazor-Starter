@@ -50,6 +50,7 @@ public sealed class MenuPermissionConsistencyTests
         "TokenUsageView.razor.cs",
         "AiCallLogView.razor.cs",
         "AuditLogView.razor.cs",
+        "ScheduledJobView.razor.cs",
     };
 
     [Fact]

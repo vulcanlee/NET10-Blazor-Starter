@@ -313,9 +313,12 @@ public class AiCallLogService : IAiCallLogRecorder
     /// 停用記錄時照樣執行 —— 停用的意思是「不再記」，已存在的內容仍必須過期。
     /// </summary>
     /// <returns>刪除的資料列數；失敗回 null。</returns>
-    public async Task<int?> PurgeExpiredAsync()
+    public Task<int?> PurgeExpiredAsync() => PurgeExpiredAsync(DateTime.Now);
+
+    /// <summary>同 <see cref="PurgeExpiredAsync()"/>，由呼叫端提供「現在」（本地時間）—— 排程作業傳入 TimeProvider 的時間，測試才控制得了。</summary>
+    public async Task<int?> PurgeExpiredAsync(DateTime nowLocal)
     {
-        var threshold = DateTime.Now.Date.AddDays(-RetentionDays);
+        var threshold = nowLocal.Date.AddDays(-RetentionDays);
         var (success, removed) = await PurgeCoreAsync(threshold);
         if (success)
         {

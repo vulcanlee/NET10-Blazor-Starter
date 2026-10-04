@@ -88,6 +88,12 @@
             "name": "AI 對話紀錄",
             "icon": "forum",
             "url": "/ai-call-logs"
+          },
+          {
+            "id": 67,
+            "name": "排程作業",
+            "icon": "schedule",
+            "url": "/scheduled-jobs"
           }
         ]
       },

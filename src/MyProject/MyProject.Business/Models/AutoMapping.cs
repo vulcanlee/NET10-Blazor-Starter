@@ -89,6 +89,10 @@ public class AutoMapping : Profile
         // ⚠️ OccurredAt 在資料表是 UTC，映射只做原值搬運；UTC → 本地的換算
         //    統一由 AuditLogQueryService 在映射之後處理，不要在這裡加 ConvertUsing。
         CreateMap<AuditLog, AuditLogAdapterModel>();
+
+        // 排程作業的狀態與執行紀錄（0.9.96 起）：唯讀，只需要 Entity → AdapterModel。
+        CreateMap<JobRun, JobRunAdapterModel>();
+        CreateMap<ScheduledJobState, ScheduledJobStateAdapterModel>();
         #endregion
 
         #region MyUser

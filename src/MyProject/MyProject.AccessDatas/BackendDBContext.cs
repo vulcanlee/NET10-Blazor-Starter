@@ -31,6 +31,8 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<UserRole> UserRole { get; set; }
     public virtual DbSet<UserTeam> UserTeam { get; set; }
     public virtual DbSet<PasswordResetToken> PasswordResetToken { get; set; }
+    public virtual DbSet<JobRun> JobRun { get; set; }
+    public virtual DbSet<ScheduledJobState> ScheduledJobState { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -176,6 +178,15 @@ public partial class BackendDBContext : DbContext
             // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：MyUserService.DeleteAsync
             // 不會先刪相依資料，Restrict 會讓「有未用 token 的使用者」刪除失敗。
             entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
+
+        #region 排程作業（0.9.96 起）
+        modelBuilder.Entity<JobRun>(entity =>
+        {
+            // 管理頁「每個作業的最近紀錄」與依保留天數清除各吃一個索引。
+            entity.HasIndex(x => new { x.JobName, x.StartedAtUtc });
+            entity.HasIndex(x => x.StartedAtUtc);
         });
         #endregion
 
