@@ -16,6 +16,7 @@ using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Auth;
 using MyProject.Web.Backup;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Validation;
@@ -508,25 +509,18 @@ public sealed class BackupDownloadTests : IClassFixture<ApiTestApplicationFactor
     private async Task<string> CookieForAsync(bool isAdmin)
     {
         var account = $"backup-{Guid.NewGuid():N}";
-        int userId;
+        MyUser user;
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
-            var user = new MyUser { Account = account, Name = account, Password = "x", Status = true, IsAdmin = isAdmin };
+            user = new MyUser { Account = account, Name = account, Password = "x", Status = true, IsAdmin = isAdmin };
             db.MyUser.Add(user);
             await db.SaveChangesAsync();
-            userId = user.Id;
         }
 
         var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(MagicObjectHelper.CookieScheme);
-        var identity = new ClaimsIdentity(
-        [
-            new(ClaimTypes.Role, "User"),
-            new(ClaimTypes.Name, account),
-            new(ClaimTypes.NameIdentifier, account),
-            new(ClaimTypes.Sid, userId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-        ], MagicObjectHelper.CookieScheme);
-        var ticket = options.TicketDataFormat.Protect(new AuthenticationTicket(new ClaimsPrincipal(identity), MagicObjectHelper.CookieScheme));
+        // 與真正登入相同的 claims（含工作階段版本，0.9.103 起 Cookie 驗證器會比對）。
+        var ticket = options.TicketDataFormat.Protect(new AuthenticationTicket(CookieClaims.Create(user), MagicObjectHelper.CookieScheme));
         return $"{options.Cookie.Name}={ticket}";
     }
 }

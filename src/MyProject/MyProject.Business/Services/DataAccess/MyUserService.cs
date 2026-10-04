@@ -304,6 +304,12 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, passwordError);
             }
 
+            // 停用、管理員身分或角色有變，這個人所有已登入的工作階段都要失效（0.9.103 起）。角色在存檔後才同步，
+            // 所以先算出「原本有效的角色」與「這次要寫入的角色」來比較（已刪除角色的關聯會被保留，不算變更）。
+            var sessionAffected = itemData.Status != paraObject.Status
+                || itemData.IsAdmin != paraObject.IsAdmin
+                || !(await GetActiveRoleIdsAsync(context, itemData.Id, itemData.RoleViewId)).SetEquals(DesiredRoleIds(paraObject));
+
             // 只複製編輯畫面上有的欄位（0.9.93 起）。0.9.92 之前是整筆覆蓋，而畫面模型沒有登入失敗次數、
             // 鎖定到期、兩步驟驗證、Google 綁定 —— 管理員只改姓名，被鎖定的帳號就解鎖了。
             itemData.Account = paraObject.Account;
@@ -321,6 +327,11 @@ public class MyUserService
                 // 0.9.92 之前這個效果是整筆覆蓋順帶造成的；改成只更新畫面欄位後要明確寫出來，
                 // 否則「被鎖住時請管理員改密碼」這個操作方式會失效。只改其他欄位時不動鎖定狀態。0.9.101 起由 ApplyAsync 一併處理。
                 await passwordPolicy.ApplyAsync(context, itemData, paraObject.Password, paraObject.MustChangePassword);
+            }
+
+            if (sessionAffected)
+            {
+                itemData.SecurityStamp = SecurityStamps.New();
             }
 
             var entry = context.Entry(itemData);
@@ -386,6 +397,30 @@ public class MyUserService
     /// 由 Add/Update 呼叫，**必須沿用呼叫端的 context**（同一個工作單元），
     /// 不可自行 CreateDbContext。
     /// </summary>
+    /// <summary>目前有效的角色：主要角色 ∪ 額外角色，排除已刪除的角色。</summary>
+    private static async Task<HashSet<int>> GetActiveRoleIdsAsync(BackendDBContext context, int userId, int? primaryRoleId)
+    {
+        var ids = await context.UserRole.Where(x => x.MyUserId == userId).Select(x => x.RoleViewId).ToListAsync();
+        if (primaryRoleId is { } primary)
+        {
+            ids.Add(primary);
+        }
+
+        return (await context.RoleView.Where(x => ids.Contains(x.Id)).Select(x => x.Id).ToListAsync()).ToHashSet();
+    }
+
+    /// <summary>這次存檔要寫入的角色（與 <see cref="SyncAssignmentsAsync"/> 相同的組法；角色已先驗證存在且未刪除）。</summary>
+    private static HashSet<int> DesiredRoleIds(MyUserAdapterModel paraObject)
+    {
+        var ids = (paraObject.AdditionalRoleIds ?? []).ToHashSet();
+        if (paraObject.RoleViewId is { } primary)
+        {
+            ids.Add(primary);
+        }
+
+        return ids;
+    }
+
     private static async Task SyncAssignmentsAsync(
         BackendDBContext context,
         IRbacWriteService rbacWriteService,
@@ -471,6 +506,7 @@ public class MyUserService
             // 軟刪除（0.9.95 起）：角色與團隊的關聯保留，還原後原樣回來；登入、權限判斷都經全域過濾器而看不到這個人。
             var (actorUserId, actorAccount) = ResolveActor();
             SoftDeleteHelper.MarkDeleted(item, actorAccount);
+            item.SecurityStamp = SecurityStamps.New();
             await context.SaveChangesAsync();
 
             // 密碼重設連結沒有還原的價值；留著也用不了（重設流程查不到已刪除的使用者），直接清掉。
@@ -829,6 +865,30 @@ public class MyUserService
             AuditActions.User.Unlock, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
             targetType: nameof(MyUser), targetId: userId.ToString());
         Logger.LogInformation("User unlocked. UserId={UserId}", userId);
+        return VerifyRecordResultFactory.Build(true);
+    }
+
+    /// <summary>
+    /// 管理員強制登出（0.9.103 起）：換掉工作階段版本，這個人所有已登入的瀏覽器在下一次換頁（最晚數分鐘）被登出、API 無法再 refresh。
+    /// 只更新這一欄，不換 <c>ConcurrencyStamp</c>（別人開著這個人的編輯窗不會衝突）。
+    /// </summary>
+    public async Task<VerifyRecordResult> ForceLogoutAsync(int userId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var rows = await context.MyUser
+            .Where(x => x.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.SecurityStamp, SecurityStamps.New()));
+        if (rows == 0)
+        {
+            Logger.LogInformation("Force logout skipped because the user was not found. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "找不到這位使用者。");
+        }
+
+        var (actorUserId, actorAccount) = ResolveActor();
+        await auditLogService.WriteAsync(
+            AuditActions.User.ForceLogout, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+            targetType: nameof(MyUser), targetId: userId.ToString());
+        Logger.LogInformation("User sessions revoked. UserId={UserId}", userId);
         return VerifyRecordResultFactory.Build(true);
     }
 }

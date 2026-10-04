@@ -19,6 +19,8 @@ public static class AuditActions
         public const string LockedOut = "Login.LockedOut";
         public const string SsoSuccess = "Login.Sso.Success";
         public const string SsoFailed = "Login.Sso.Failed";
+        /// <summary>工作階段已失效（改密碼、停用、角色變更、強制登出後的舊登入）被系統登出（0.9.103 起）。</summary>
+        public const string SessionExpired = "Login.SessionExpired";
     }
 
     public const string Logout = "Logout";
@@ -39,6 +41,8 @@ public static class AuditActions
         public const string Unlock = "User.Unlock";
         /// <summary>使用者在個人資料頁修改自己的姓名（0.9.102 起）。</summary>
         public const string ProfileUpdate = "User.ProfileUpdate";
+        /// <summary>管理員強制登出這位使用者所有的工作階段（0.9.103 起）。</summary>
+        public const string ForceLogout = "User.ForceLogout";
     }
 
     public static class Role

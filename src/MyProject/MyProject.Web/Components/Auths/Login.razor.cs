@@ -160,16 +160,6 @@ namespace MyProject.Web.Components.Auths
             }
             else
             {
-                var claims = new List<Claim>
-                {
-                    new(ClaimTypes.Role, "User"),
-                    new(ClaimTypes.Name, myUser.Name),
-                    new(ClaimTypes.NameIdentifier, myUser.Account),
-                    new(ClaimTypes.Sid, myUser.Id.ToString()),
-                };
-
-                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-
                 string returnUrl = ReturnUrlGuard.Sanitize(ReturnUrl);
                 var authProperties = new AuthenticationProperties
                 {
@@ -190,7 +180,7 @@ namespace MyProject.Web.Components.Auths
                 {
                     await HttpContext.SignInAsync(
                         MagicObjectHelper.CookieScheme,
-                        new ClaimsPrincipal(claimsIdentity),
+                        CookieClaims.Create(myUser),
                         authProperties);
 
                     Logger.LogInformation(

@@ -205,6 +205,9 @@ namespace MyProject.Web
                         // scheme 共用的，做不出兩種，故在 Login.razor.cs 明寫 ExpiresUtc 覆蓋。
                         options.ExpireTimeSpan = TimeSpan.FromMinutes(cookieSettings.ExpireMinutes);
                         options.SlidingExpiration = cookieSettings.SlidingExpiration;
+
+                        // 工作階段失效（0.9.103 起）：改密碼、停用、強制登出後，其他瀏覽器的舊 Cookie 被拒。
+                        options.EventsType = typeof(SecurityStampCookieEvents);
                     })
                     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
                     {
@@ -223,6 +226,17 @@ namespace MyProject.Web
                         };
                         options.Events = new JwtBearerEvents
                         {
+                            // ⚠️ 0.9.103 起只接受 access token。之前 refresh token（效期 7 天）也能直接當 Bearer 用，
+                            // 等於 access token 的 60 分鐘效期形同虛設。
+                            OnTokenValidated = context =>
+                            {
+                                if (!string.Equals(context.Principal?.FindFirst(JwtTokenService.TokenTypeClaimType)?.Value, JwtTokenService.AccessTokenType, StringComparison.Ordinal))
+                                {
+                                    context.Fail("Only access tokens are accepted as bearer tokens.");
+                                }
+
+                                return Task.CompletedTask;
+                            },
                             OnChallenge = async context =>
                             {
                                 context.HandleResponse();

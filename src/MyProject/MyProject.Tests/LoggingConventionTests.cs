@@ -46,7 +46,7 @@ public sealed class LoggingConventionTests
     /// 因此精準度高：樣板可能寫 {Value}，但引數若是 user.Password 一樣是外洩。
     /// </summary>
     private static readonly Regex ForbiddenArgument = new(
-        @"\.(Password|Salt|Email|SigningKey|ClientSecret|RefreshToken|AccessToken|CaptchaCode|TwoFactorSecret)\b",
+        @"\.(Password|Salt|Email|SigningKey|ClientSecret|RefreshToken|AccessToken|CaptchaCode|TwoFactorSecret|SecurityStamp)\b",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -384,6 +384,7 @@ public sealed class LoggingConventionTests
             "ScheduledJobTriggerQueue.cs",  // 「立即執行」請求的佇列與去重，無 I/O
             "NotificationCategories.cs",    // 通知分類常數，無行為（0.9.100 起）
             "PasswordPolicy.cs",            // 密碼原則：純規則計算與雜湊，失敗由呼叫端記錄（0.9.101 起）
+            "CookieClaims.cs",              // 登入 Cookie 的 claims 組裝，純函式（0.9.103 起）
             "SystemIdentity.cs",            // 例外告警服務（例外記錄管線內）使用它讀系統名稱；用 ILogger 會遞迴（0.9.98 起）
         ];
 

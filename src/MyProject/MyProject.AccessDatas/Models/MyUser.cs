@@ -56,6 +56,12 @@ public class MyUser : IConcurrencyStamped, ISoftDeletable
     /// 最近一次設定密碼的時間（UTC，0.9.101 起），用來計算密碼到期；null 表示不會到期（沒有本機密碼或升級前的資料）。
     /// </summary>
     public DateTime? PasswordChangedAtUtc { get; set; }
+    /// <summary>
+    /// 工作階段版本（0.9.103 起）。換掉它，這位使用者所有已登入的瀏覽器與 API refresh token 都會失效。
+    /// 只由 <c>SecurityStamps.New()</c> 產生；空字串代表「尚未設定」（重疊回收時舊版程式新增的列），登入時補上，比對時一律視為不符。
+    /// ⚠️ 與 <see cref="ConcurrencyStamp"/> 無關，換它不會讓別人的編輯窗衝突；不可放進畫面模型。
+    /// </summary>
+    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
     public RoleView? RoleView { get; set; }
 
     /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>

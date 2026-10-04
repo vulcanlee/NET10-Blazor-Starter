@@ -107,6 +107,13 @@ else
                                 </SpaceItem>
                             }
                             @* support 與自己不可刪除（伺服器端仍會再檢查）。 *@
+                            @if (CanForceLogout(context))
+                            {
+                                <SpaceItem>
+                                    <CrudActionButton Title="強制登出" Icon="logout"
+                                                      OnClick="@(async () => await OnForceLogoutAsync(@context))" />
+                                </SpaceItem>
+                            }
                             @if (myUserService.CanDelete(context))
                             {
                                 <SpaceItem>

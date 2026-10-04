@@ -56,7 +56,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var currentUser = jwtTokenService.ValidateRefreshToken(request.RefreshToken);
+            var (currentUser, tokenStamp) = jwtTokenService.ValidateRefreshToken(request.RefreshToken);
 
             // ⚠️ 不可直接拿 token claim 裡的資料重簽。
             // Refresh token 是 stateless、不落庫、無法撤銷（見「認證授權與權限機制」的既有限制），
@@ -70,6 +70,15 @@ public class AuthController : ControllerBase
                     currentUser.Id);
                 await this.WriteAuditAsync(
                     AuditActions.Token.RefreshFailed, "MyUser", currentUser.Id.ToString(), "reason=UserInactive", success: false);
+                return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult("Refresh Token 無效或已過期。"));
+            }
+
+            // 工作階段已失效（改密碼、停用、角色變更、強制登出之後，0.9.103 起）：舊的 refresh token 不能再換發。
+            if (!SecurityStamps.Matches(tokenStamp, user.SecurityStamp))
+            {
+                logger.LogInformation("Refresh rejected because the session was revoked. UserId={UserId}", currentUser.Id);
+                await this.WriteAuditAsync(
+                    AuditActions.Token.RefreshFailed, "MyUser", currentUser.Id.ToString(), "reason=SessionRevoked", success: false);
                 return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult("Refresh Token 無效或已過期。"));
             }
 

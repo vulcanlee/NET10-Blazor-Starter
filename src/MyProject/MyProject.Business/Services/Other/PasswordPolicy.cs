@@ -26,7 +26,7 @@ public interface IPasswordPolicy
     Task<bool> IsReusedAsync(BackendDBContext context, MyUser user, string password, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 寫入新密碼：雜湊、設定時間、「下次登入須變更密碼」旗標、解除鎖定、寫入歷史並裁到 N 筆。不呼叫 SaveChanges。
+    /// 寫入新密碼：雜湊、設定時間、「下次登入須變更密碼」旗標、解除鎖定、換工作階段版本、寫入歷史並裁到 N 筆。不呼叫 SaveChanges。
     /// </summary>
     Task ApplyAsync(BackendDBContext context, MyUser user, string password, bool mustChangeAtNextLogin, CancellationToken cancellationToken = default);
 
@@ -158,6 +158,9 @@ public sealed class PasswordPolicy : IPasswordPolicy
         user.Password = SecurePasswordHasher.HashPassword(password);
         user.PasswordChangedAtUtc = nowUtc;
         user.MustChangePassword = mustChangeAtNextLogin;
+
+        // 改了密碼，其他已登入的瀏覽器與 API refresh token 一律失效（0.9.103 起）。登入時的舊雜湊升級不經這裡，不會輪替。
+        user.SecurityStamp = SecurityStamps.New();
 
         // 設了新密碼就解除鎖定（與忘記密碼重設、管理員改密碼一直以來的行為一致）。
         user.AccessFailedCount = 0;

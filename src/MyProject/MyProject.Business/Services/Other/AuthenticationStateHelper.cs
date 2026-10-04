@@ -24,6 +24,13 @@ public class AuthenticationStateHelper
     private readonly IPermissionChecker permissionChecker;
     private readonly IAuditLogService auditLogService;
     private readonly IPasswordPolicy passwordPolicy;
+    private readonly ISecurityStampService securityStampService;
+
+    /// <summary>
+    /// 換頁時工作階段版本的查詢可以沿用幾秒內的結果：同一次換頁裡版面、選單、頁面各檢查一次，不必各查一次資料庫。
+    /// 同一個行程的強制登出會立即清掉快取，所以這段時間只影響別的行程。
+    /// </summary>
+    private static readonly TimeSpan SessionRecheckWindow = TimeSpan.FromSeconds(5);
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
@@ -34,7 +41,8 @@ public class AuthenticationStateHelper
         IEffectiveTeamResolver effectiveTeamResolver,
         IPermissionChecker permissionChecker,
         IAuditLogService auditLogService,
-        IPasswordPolicy passwordPolicy)
+        IPasswordPolicy passwordPolicy,
+        ISecurityStampService securityStampService)
     {
         this.logger = logger;
         this.mapper = mapper;
@@ -45,6 +53,7 @@ public class AuthenticationStateHelper
         this.permissionChecker = permissionChecker;
         this.auditLogService = auditLogService;
         this.passwordPolicy = passwordPolicy;
+        this.securityStampService = securityStampService;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -92,6 +101,18 @@ public class AuthenticationStateHelper
             await Task.Delay(200);
             navigationManager.NavigateTo("/Auths/Logout", true, true);
             return AuthenticationCheckResult.InvalidUser;
+        }
+
+        // ⚠️ 工作階段版本在「帳號存在」之後、其他檢查之前比（0.9.103 起）：改密碼、停用、角色變更、強制登出之後，已開著的頁面在下一次換頁被登出。
+        // 已開著的 Blazor 連線不經過 Cookie 驗證器，只能靠這裡。升級前簽發的 Cookie 沒有這個 claim，會被登出一次。
+        // 這裡只比版本；停用由下方的檢查處理（結果不同：InvalidUser）。
+        if (!await securityStampService.IsValidAsync(id, user.FindFirst(MagicObjectHelper.SecurityStampClaimType)?.Value, SessionRecheckWindow, requireActive: false))
+        {
+            logger.LogInformation("Authentication check failed because the session was revoked. UserId={UserId}", id);
+            await auditLogService.WriteAsync(
+                AuditActions.Login.SessionExpired, success: false, actorUserId: id, actorAccount: user.FindFirst(ClaimTypes.NameIdentifier)?.Value, detail: "reason=SessionRevoked");
+            navigationManager.NavigateTo("/Auths/Logout?reason=session", true, true);
+            return AuthenticationCheckResult.SessionRevoked;
         }
 
         if (!myUser.Status)

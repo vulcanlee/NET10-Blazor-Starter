@@ -125,6 +125,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
         // 密碼原則（0.9.101 起）：所有設定密碼的路徑都經過它；只讀 IOptionsMonitor 與時鐘，所以是 singleton。
         services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
+        // 工作階段失效（0.9.103 起）：版本讀取有快取，所以是 singleton；Cookie 驗證器每個請求一個。
+        services.AddSingleton<ISecurityStampService, SecurityStampService>();
+        services.AddScoped<SecurityStampCookieEvents>();
+        services.AddSingleton<SessionRefreshTicketService>();
+        services.AddScoped<SessionRefreshNavigator>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<PasswordResetService>();

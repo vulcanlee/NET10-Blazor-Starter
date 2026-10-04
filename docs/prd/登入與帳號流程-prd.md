@@ -1,8 +1,8 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.102
+- 現行系統版本：0.9.103
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -56,6 +56,9 @@
     後者參照不到前者。
   - 直接在網址列輸入 `/Auths/Logout` 維持立即登出，刻意不擋（刻意輸入網址不是誤觸）。
   - ⚠️ **登出頁不可套用 `MainLayout`**（0.9.95 修正）：`MainLayout` 會先跑 `Check`，使用者已停用或已刪除時又導向 `/Auths/Logout`，而這個導向發生在登出頁清掉 Cookie 之前 —— 瀏覽器顯示「重新導向太多次」，被停用的人永遠回不到登入頁（至少從 0.9.41 起）。現在指定 `EmptyLayout`；由 `PageAuthorizationTests.Logout_WithLiveCookieOfDisabledOrDeletedUser_ShouldRedirectToLogin` 守門。
+- **工作階段失效**（0.9.103 起）：登入 Cookie 與 JWT 帶著 `MyUser.SecurityStamp`（`CookieClaims.Create`、`JwtTokenService`）；改密碼、停用、刪除、角色或管理員身分變更、管理員強制登出時換版本。
+  `SecurityStampCookieEvents` 在 HTTP 請求上比對（快取 `CookieSettings:ValidationIntervalMinutes`）、`Check` 在換頁時比對（不符 → `/Auths/Logout?reason=session`、稽核 `Login.SessionExpired`）、refresh 比對（不符 401）。
+  Bearer 只接受 access token。在 `/ChangePassword` 改自己的密碼後經 `/Auths/RefreshSession` 換發這台的 Cookie（一次性 ticket，須帶著原本的 Cookie）。
 - **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）為真且不在改密碼頁時強制導向 `/ChangePassword`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
 - **API 登入**（`AuthController`）：`login` 以帳密換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
@@ -90,7 +93,7 @@
 
 ### 6.1 已知限制（忘記密碼）
 
-- **既有工作階段不會失效**：重設後，其他裝置上已登入的 Cookie（最長「記住我」30 天）與 JWT 仍然有效 —— 系統沒有 security stamp（與「Refresh Token 落庫撤銷刻意不做」的決議一致）。
+- **其他工作階段失效**（0.9.103 起）：重設密碼會換掉工作階段版本，其他裝置上已開著的頁面在下一次換頁被登出、新的 HTTP 請求最晚 5 分鐘、API 無法再 refresh（已發出的 access token 在 60 分鐘效期內仍可用）。
 - **沒有依 IP 限流**：`/Auths/*` 不在 `api` 限流政策內；防線是同帳號冷卻時間。驗證碼答案在頁面隱藏欄位，只是減速帶，擋不了腳本。
 - token 在網址 query 裡：IIS 的 W3C 日誌、或開啟 `Microsoft.AspNetCore.Hosting.Diagnostics` 的 NLog 規則會記到完整網址。
 - 背景佇列只在記憶體：程式重啟時未寄出的信會遺失，使用者重新申請即可。
@@ -102,6 +105,8 @@
 - `MyProject.Tests/MyUserServicePasswordTests.cs`：`ChangeOwnPasswordAsync` 正確／錯誤舊密碼、空白新密碼、確認不一致、`support` 帳號被拒。
 - `MyProject.Tests/SecurePasswordHasherTests.cs`：自述式雜湊、非決定性、新舊格式驗證與要求 rehash。
 - `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson 導向登出、旗標與到期導向改密碼頁（0.9.101 起；只有 123456 而沒有旗標不導向）、多角色聯集初始化。
+- `MyProject.Tests/SessionTests.cs`（0.9.103）：⭐ 換版本的時機（改密碼換、登入時舊雜湊升級不換、只改姓名或 Email 不換、停用／管理員／主要或額外角色變更換、刪除與強制登出換、support 設定密碼變更才換）、空版本登入時補上、快取存活與輪替立即清除、空字串一律不符、ticket 一次性／竄改／過期；
+  `SessionIntegrationTests`：換版本後與沒有版本的 Cookie 被拒、停用的帳號 Cookie 被拒、⭐ refresh token 不能當 Bearer、換版本後 refresh 401 並稽核、⭐ 換發頁只接受原本的 Cookie 與資料庫目前的版本、ticket 不能重用。
 - `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：規則邊界、歷史（目前、第 N、第 N+1、0 關閉、裁切、舊格式目前密碼）、必須變更（旗標、到期邊界、support 與 Google 豁免）、新增／修改使用者與變更密碼都套用原則、⭐ 雜湊只准出現在政策服務等三處、⭐ 鎖定門檻與到期先歸零、稽核標籤、同一則訊息、只通知一次、123456 登入補旗標、解鎖不換版本號、Google 被鎖定擋下、到期提醒作業。
 - `MyProject.Tests/TotpServiceTests.cs`：TOTP 產碼／驗證（骨架，預設關閉）。
 - `MyProject.Tests/PasswordResetServiceTests.cs`（0.9.60）：帳號比對、Email 不分大小寫、帳號優先、共用 Email 各寄一封、查無只稽核、五種不符資格、Google 有本地密碼允許、冷卻、新申請作廢舊連結、只存雜湊、過期、重設成功（新密碼可驗＋解鎖＋token 清空＋通知信）、同連結第二次失敗、規則不過不消耗 token、申請後停用、刪除使用者連帶刪 token（cascade）。

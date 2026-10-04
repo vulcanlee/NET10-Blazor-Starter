@@ -152,6 +152,13 @@ public class MyUserServiceLogin
                 changed = true;
             }
 
+            // 重疊回收時舊版程式新增的帳號沒有工作階段版本：補一個，否則登入後的每一次檢查都會判定不符（0.9.103 起）。
+            if (string.IsNullOrEmpty(item.SecurityStamp))
+            {
+                item.SecurityStamp = SecurityStamps.New();
+                changed = true;
+            }
+
             // 0.9.100 之前以「密碼是 123456」代表必須變更密碼，既有資料無法以 SQL 轉換（只有雜湊）——
             // 登入成功時看明文，還在用 123456 的人補上旗標，之後一律只看旗標。
             if (!item.MustChangePassword && string.Equals(password, MagicObjectHelper.NeedChangePassword, StringComparison.Ordinal))
