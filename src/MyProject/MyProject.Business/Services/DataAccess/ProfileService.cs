@@ -116,6 +116,21 @@ public class ProfileService
     }
 
     /// <summary>
+    /// 上一次成功登入（0.9.106 起，首頁「我的帳號」）：密碼或 Google 登入成功的倒數第二筆 —— 最近一筆通常就是這次登入，顯示它沒有意義。
+    /// 一樣以精確的 <c>ActorUserId</c> 篩選；只登入過一次時回 null。
+    /// </summary>
+    public async Task<LoginRecord?> GetPreviousLoginAsync(int userId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.AuditLog.AsNoTracking()
+            .Where(x => x.ActorUserId == userId && x.Success && (x.Action == AuditActions.Login.Success || x.Action == AuditActions.Login.SsoSuccess))
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+            .Skip(1)
+            .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success))
+            .FirstOrDefaultAsync();
+    }
+
+    /// <summary>
     /// 修改自己的姓名。只寫 <c>Name</c>（與更新時間）；以開啟頁面時的版本號比對，管理員同時修改就回衝突。成功後通知右上角更新。
     /// </summary>
     public async Task<VerifyRecordResult> UpdateNameAsync(int userId, string? name, string? expectedStamp)
