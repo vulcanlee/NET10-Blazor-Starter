@@ -1,302 +1,108 @@
-﻿# 以 `RoleViewView` 為藍本手動開發新 CRUD 頁面的計畫
+﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：1.4
+- 文件版本：2.0
 - 文件狀態：已實作
-- 現行系統版本：0.9.87
+- 現行系統版本：0.9.110
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/10/03
+- 最後核對日期：2026/10/04
 
-> 目標：完整複刻 `RoleViewView` 的「新增、查詢、更新、刪除、過濾、排序、分頁、驗證、通知」行為，並保留同等結構（Page + View + Service + AdapterModel + Entity + 註冊 + 樣式）。
-
----
-
-## 1. 先做盤點（複刻前準備）
-
-1. **確認資料實體與欄位**
-   - 目標 CRUD 的資料表實體（Entity）欄位需定義完成，至少要有 `Id`、主要顯示欄位、建立/更新時間欄位。
-   - 參考：`RoleView` 的資料結構。  
-
-2. **確認前後端模型對應**
-   - 建立 AdapterModel（ViewModel）承接畫面資料與驗證屬性。
-   - 若會在編輯時修改集合/巢狀物件，需提供 `Clone()` 避免直接改到表格來源。
-
-3. **確認 AutoMapper 映射**
-   - 新增 `Entity <-> AdapterModel` 雙向映射。
-
-4. **確認 DI 註冊與路由入口**
-   - 在 `Extensions/ServiceCollectionExtensions.cs` 的 `AddApplicationServices` 加入對應 Service
-     （`Program.cs` 已無任何 `AddScoped`，全部收斂到這裡）。
-   - 建立對應 `Page.razor` 並放入 `<YourEntityView />`。
+> 0.9.110 起一行指令產生並登記完整的 CRUD 模組（[路線圖](../planning/00-腳手架強化路線圖.md) G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
+> 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
 
 ---
 
-## 2. 後端服務層複刻計畫（DataAccess Service）
+## 1. 一行指令
 
-以 `RoleViewService` 為模板建立 `YourEntityService`：
+```powershell
+pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
+```
 
-1. **GetAsync(DataRequest)**：列表查詢
-   - 支援 `Search` 關鍵字篩選。
-   - 支援 `SortField` + `SortDescending` 排序（每個可排序欄位要明確分支）。
-   - 支援分頁 `CurrentPage/PageSize/Take`。
-   - 回傳 `DataRequestResult<T>`（`Result + Count`）。
+- 先提交或暫存手上的變更：產生器預設要求工作目錄乾淨，讓它的異動可以單獨檢視（`-Force` 略過）。
+- 跑完會列出寫入的檔案、每一項登記（「已登記」或「略過（已存在）」）與 migration 結果。
+- 要先看產出長什麼樣子：加 `-Preview`，只寫到 `output/crud-modules/<Name>/`，不改專案。
 
-2. **GetAsync(id)**：單筆查詢
-   - 以 `AsNoTracking` 取單筆後映射成 AdapterModel。
+## 2. 參數
 
-3. **AddAsync / UpdateAsync / DeleteAsync**
-   - 參照既有流程：方法開頭 `await using var context = await contextFactory.CreateDbContextAsync();` → 寫入 → `SaveChangesAsync()`。
-     （0.4.36 起改用 `IDbContextFactory`，不再需要手動清除 EF 追蹤。）
-   - 全部包裝 `try/catch`，失敗時 `Logger.LogError` 並回傳 `VerifyRecordResult`。
-   - 成功後寫一筆稽核（`RoleViewService` 寫 `AuditActions.Role.Create／Update／Delete`），代碼引用 `AuditActions` 常數，見第 4 章步驟 12。
+| 參數 | 預設 | 說明 |
+|---|---|---|
+| `-Name` | （必填） | 實體名稱，PascalCase，例如 `Equipment` |
+| `-DisplayName` | 同 `-Name` | 顯示名稱，同時是權限鍵（`MagicObjectHelper.角色_設備清單 = "設備清單"`），不可與既有頁面重複 |
+| `-Plural` | `<Name>s` | 頁面與檢視的資料夾／命名空間 |
+| `-Route` | `/<plural 小寫>` | 頁面路由；說明檔名同規則（`equipments.md`） |
+| `-MenuGroupId` | `5`（資料定義） | 掛在 `Menu.json` 的哪個群組；非管理員專屬只能 `2`（專案管理）或 `5`，因為角色權限矩陣只有這兩組 |
+| `-Icon` | `description` | 選單圖示（classic Material Icons），不在 `MenuIconTests` 允許清單時自動加入 |
+| `-WithTeams` | 關 | 加上「團隊」欄位與團隊範圍：沒有團隊（公開）或與授權團隊有交集才看得到；非管理員只能指定自己範圍內的團隊 |
+| `-AdminOnly` | 關 | 管理員專屬：權限鍵不進角色矩陣，檢視以 `CheckIsAdmin` 判斷（通常配 `-MenuGroupId 3`） |
+| `-SkipMigration` | 關 | 不自動產生 migration |
+| `-Preview` | 關 | 只產生檔案到 `-OutputPath`，不登記、不產生 migration |
+| `-Force` | 關 | 略過工作目錄檢查；之前產生過的檔案保留不覆蓋（用來重跑登記） |
 
-4. **BeforeXxxCheckAsync**（新增/修改/刪除前檢查）
-   - 新增重複檢查。
-   - 修改時做「資料仍存在」與「唯一性衝突」檢查。
-   - 刪除前檢查可放關聯限制邏輯。
+## 3. 產生了哪些檔案
 
-5. **其他依賴資料初始化**
-   - 若有 JSON 欄位/權限樹/外部依賴，集中在 `OtherDependencyData` 類方法處理，避免散落在 UI。
+樣板在 `scripts/crud-templates/`（行首 `#IF TEAMS`／`#IF ADMIN`／`#ELSE`／`#ENDIF` 控制條件區塊）。以 `-Name Equipment -DisplayName 設備清單` 為例：
 
----
+| 檔案 | 內容 |
+|---|---|
+| `AccessDatas/Models/Equipment.cs` | 實體：名稱、描述、啟用（、團隊）；`IConcurrencyStamped`（樂觀並行）＋`ISoftDeletable`（刪除可還原） |
+| `Models/AdapterModel/EquipmentAdapterModel.cs` | 畫面模型，`Clone()` |
+| `Dtos/Models/EquipmentDto.cs`、`EquipmentCreateUpdateDto.cs`、`Dtos/Commons/EquipmentSearchRequestDto.cs` | Web API 的 DTO（PUT 必須帶 `concurrencyStamp`） |
+| `Business/Repositories/EquipmentRepository.cs` | Web API 的資料存取（scoped DbContext） |
+| `Business/Services/DataAccess/EquipmentService.cs` | Blazor 的資料服務（`IDbContextFactory`）：清單、已刪除清單、新增、修改（並行比對）、刪除、還原、永久刪除、名稱重複檢查、稽核 |
+| `Web/Controllers/EquipmentController.cs` | GET／search／POST／PUT／DELETE，各自 `[HasPermission]`，回 `ApiResult`；名稱重複 409、並行衝突 409、軟刪除 |
+| `Web/Components/Pages/Equipments/EquipmentPage.razor` | `@page`＋`@layout MainLayout` |
+| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認） |
+| `Web/Datas/Help/equipments.md` | 操作說明初稿（固定七段，UTF-8 含 BOM） |
+| `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |
 
-## 3. 前端 View 元件複刻計畫（.razor + .razor.cs + .razor.css）
+工具列與表格容器用 `wwwroot/theme.css` 的共用類別（`.view-toolbar`、`.view-table-wrap`），不另產生 `.razor.css`。
 
-### 3.1 Razor 結構（UI 佈局）
+## 4. 自動登記了哪些地方
 
-1. **工具列（Toolbar）**
-   - 左側：新增、重新整理。
-   - 右側：搜尋輸入框、清空搜尋（有值才顯示）、搜尋按鈕。
-   - **按鈕一律使用 `<ToolbarIconButton>`**，不要自己寫 `<Button>` 加圖示，也**不要用 emoji**（`ButtonIconConventionTests` 會擋下）：
+重跑不會重複插入（已存在就略過並列出）；找不到登記位置時停止並說明是哪一項。
 
-   ```razor
-   <div class="xxx-view-toolbar">
-       <div class="xxx-view-toolbar-left">
-           <ToolbarIconButton Title="新增" Icon="add"
-                              OnClick="@(async () => await OnAddAsync())" />
-           <ToolbarIconButton Title="重新整理" Icon="refresh"
-                              OnClick="@(async () => await OnRefreshAsync())" />
-       </div>
-       <div class="xxx-view-toolbar-right">
-           <Input class="xxx-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
-           @if (!string.IsNullOrWhiteSpace(searchText))
-           {
-               <ToolbarIconButton Title="清空搜尋" Icon="close"
-                                  OnClick="@(async () => { searchText = string.Empty; _pageIndex = 1; await ReloadAsync(); })" />
-           }
-           <ToolbarIconButton Title="搜尋" Icon="search"
-                              OnClick="@(async () => await OnSearchAsync())" />
-       </div>
-   </div>
-   ```
+| 位置 | 內容 |
+|---|---|
+| `BackendDBContext` | `DbSet`、名稱唯一索引（只約束未刪除的資料） |
+| `AutoMapping` | 實體 ↔ 畫面模型／DTO（名稱正規化、`IgnoreSoftDeleteFields`、團隊字串轉換） |
+| `ServiceCollectionExtensions` | 服務與 Repository 的 DI |
+| `MagicObjectHelper` | 權限鍵常數 |
+| `AuditActions` | `Equipment.Create／Update／Delete／Restore／Purge／AutoPurge／Export` |
+| `Menu.json` | 指定群組的最後一項，id＝目前最大 id＋1 |
+| `SidebarMenuService.MenuPermissionMap` | 選單 id → 權限鍵 |
+| `RolePermissionService`（一般）或 `AdminOnlyPermissionTests`＋`MenuPermissionConsistencyTests.AdminOnlyViews`（管理員專屬） | 角色權限矩陣；預設角色在下次啟動時自動加入新頁面 |
+| `MenuPermissionConsistencyTests.ViewToMenuId`（一般） | 檢視檔與選單 id 的對照 |
+| `HelpTopics.json`、`_Imports.razor` | 操作說明目錄、檢視命名空間 |
+| `SoftDeletePurgeService`、`SoftDeletePurgeJob` | 排程作業「已刪除資料清理」與它的稽核 |
+| `OptimisticConcurrencyTests`、`SoftDeleteUserRoleTests`、`SoftDeletePurgeTests` | 並行與軟刪除的實體清單、清理測試 |
+| `DataAccessServiceLifetimeTests`、`AdapterModelCloneTests`、`ApiIntegrationTests`、`MenuIconTests` | 服務生命週期、Clone、API DI 解析、選單圖示 |
 
-   元件自帶 `<Tooltip>` 與無障礙標籤，外層不需再包；也**不需要**在 `.razor.css` 自訂 `*-icon-button` 樣式。
+最後在隔離的暫存路徑執行 `dotnet build` 與 `dotnet ef migrations add Add<Name>`（不寫進 `C:\temp` 或正式路徑）。
 
-2. **Table（RemoteDataSource=true）**
-   - `@bind-PageIndex`、`@bind-PageSize`、`@bind-Total`。
-   - `OnChange=OnTableChange` 處理分頁與排序。
-   - 至少一個 `ActionColumn` 放修改/刪除按鈕，**一律使用 `<CrudActionButton>`**：
+## 5. 產生之後的檢查清單
 
-   ```razor
-   <ActionColumn Title="操作">
-       <CrudActionButton Title="修改" Icon="edit"
-                         OnClick="@(async () => await OnEditAsync(context))" />
-       <CrudActionButton Title="刪除" Icon="delete" Danger
-                         OnClick="@(async () => await OnDeleteAsync(context))" />
-   </ActionColumn>
-   ```
+1. [ ] **補上實際欄位**：實體、畫面模型、兩個 DTO、`AutoMapping`（有需要轉換時）、表單（短欄位自動兩欄，多行或多選加 `Class="form-field-full"`）、表格欄位、`ExportColumns`、服務的搜尋與排序、Repository 的搜尋與排序、測試。
+2. [ ] **改了欄位就重新產生 migration**：刪掉產生器建立的 `Add<Name>` 再執行 `dotnet ef migrations add Add<Name>`（隔離路徑的做法見[開發指引](腳手架開發指引.md)），或另外加一個 migration。
+3. [ ] **操作說明**：把 `Datas/Help/<路由>.md` 第二段（這個頁面在做什麼）與第四段（建議操作）改成實際的業務說明；改了按鈕或欄位要同步改第三段（[速查 §6.14](../architecture/開發慣例與限制速查.md)）。
+4. [ ] **被其他資料引用時**：在服務的刪除與永久刪除加上「仍被使用就不能刪」的檢查，並在 `SoftDeletePurgeService` 的這一行加上 `isInUse`。
+5. [ ] **權限**：一般頁面在「角色管理」把新頁面的動作授予需要的角色（預設角色已自動加入）。
+6. [ ] `pwsh ./scripts/Invoke-QualityGate.ps1` 全綠。
+7. [ ] 實機：選單出現、可新增、修改、刪除、還原、永久刪除、匯出；沒有權限的人看不到按鈕、直接開網址會被擋。
+8. [ ] 文件：PRD、畫面字典、changelog、版本號 Patch +1。
 
-   > 圖示名稱須為 **classic Material Icons**（非 Material Symbols），否則會渲染成破圖方塊。完整慣例見 `docs/architecture/開發慣例與限制速查.md` §6.1。
+## 6. 改了產生器或樣板之後
 
-3. **Modal + EditForm**
-   ⚠️ 這一段有守門測試，照舊寫法做會讓 `dotnet test` 紅掉：
-   - `<Modal>` 上**必須**有 `Class="form-modal"`、`MaskClosable="false"`、`Keyboard="true"`、`OnCancel`，
-     且**不可**使用 `Width` 參數 —— 尺寸的唯一來源是 `Components/Commons/OverlayStyles.razor`。
-     由 `MyProject.Tests/FormModalConventionTests.cs` 守門（六項）。
-   - 欄位以 `<FormSection Title="...">` 分組，2 欄版型；不適合 2 欄的欄位加 `Class="form-field-full"`。
-   - 未儲存保護用 `Components/Commons/FormDirtyTracker.cs`。⚠️ **不可**改用 `EditContext.IsModified()`
-     —— AntDesign 元件不會呼叫 `NotifyFieldChanged`，它會**恆為 false**，提示永遠不跳且毫無徵兆。
-     失敗路徑一律 `return false`，走 `Components/Commons/FormModalFlow.cs`。
-   - `OnOk`／`OnCancel` 的**第一行**必須是 `modalVisible = true;`
-     —— AntDesign 在呼叫它們之前就已經送出關窗，不搶回來就會「驗證失敗 → 窗關了 → 輸入全丟」。
-   - 確認窗一律走 `Components/Commons/ConfirmDialog.cs`，不要自己寫 `ConfirmAsync`（必定漏 `Danger`）。
-   - 完整規範見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)。
-   - `OnOk` 統一走儲存。
-   - `DataAnnotationsValidator + ValidationSummary + ValidationMessage`。
-   - 使用 `InputWatcher` 將 `EditContext` 傳到 code-behind，供 `Validate()` 使用。
-   - 依欄位型態放對應元件（Input、Select、Checkbox...）。
+```powershell
+pwsh ./scripts/Test-CrudGenerator.ps1            # 數分鐘；-KeepWorktree 保留工作目錄以便啟動網站實際操作
+```
 
-### 3.2 Code-behind 行為（事件與狀態）
+在暫存的 git worktree（以目前工作目錄為準，含未提交的變更；不動你的 index）產生三個範例模組（一般、`-WithTeams`、`-AdminOnly`），
+建置、格式檢查、全部測試、文件編碼，再以 `-Force` 重跑確認沒有任何檔案再被改動。它不在品質關卡裡（太慢），**修改產生器、樣板或任何被登記的檔案的錨點之後必跑**。
 
-1. **狀態欄位**
-   - `_pageIndex/_pageSize/_total/searchText/sortField/sortDirection`。
-   - `modalVisible/isNewRecordMode/CurrentRecord`。
+⚠️ 登記是以既有程式碼為錨點插入的（例如 `services.AddScoped<CategoryRepository>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`，`Test-CrudGenerator.ps1` 會先失敗告訴你。
 
-2. **ReloadAsync**
-   - 統一列表資料載入入口，任何操作後都回到這裡。
+## 7. 已知限制
 
-3. **OnTableChange**
-   - 更新頁碼。
-   - 解析目前排序欄位與方向（含 `FieldName` fallback 處理），再 `ReloadAsync()`。
-
-4. **OnSearchAsync / OnRefreshAsync**
-   - 搜尋時頁碼重設為 1。
-   - 重新整理後提供通知。
-
-5. **OnAddAsync / OnEditAsync / OnDeleteAsync**
-   - Add：建立新物件與預設值。
-   - Edit：使用 `Clone()` 防止雙向綁定直接污染列表項目。
-   - Delete：先 Confirm，再刪除，再通知，再 Reload。
-
-6. **OnModalOKHandleAsync**
-   - 先做 `LocalEditContext.Validate()`。
-   - 新增/修改分流：補齊 `CreateAt/UpdateAt` 或僅更新 `UpdateAt`。
-   - 成功後關閉 Modal 並 Reload。
-
-7. **鍵盤操作** ⚠️
-   - **不要在 `<EditForm>`／`<form>` 上掛 `@onkeydown`**：keydown 會從表單內任何子元素
-     冒泡上來，TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔並關窗」。
-   - 存檔的唯一入口是 `<Modal OnOk>`（「確定」按鈕）；Esc 交給 `<Modal Keyboard="true">`。
-   - 需要捷徑時綁在個別元件上（例如 `<Input OnPressEnter="..." />`），不要綁在表單層。
-   - 細節與理由見 [開發慣例與限制速查 §6.3](../architecture/開發慣例與限制速查.md)，
-     由 `MyProject.Tests/ModalKeyboardConventionTests.cs` 守門。
-
----
-
-## 4. 手動開發步驟（建議順序）
-
-> 💡 **先跑產生器**：`./scripts/New-CrudModule.ps1 -Name Xxx -DisplayName 顯示名稱`
-> 會在 `output/crud-modules/Xxx/` 產出 14 個檔案：Entity、三個 DTO、AdapterModel、Repository、Service、
-> Controller、Page、View（`.razor`／`.razor.cs`）、Service 測試、頁面操作說明初稿（0.9.66 起，
-> `Web/Datas/Help/<路由>.md`）與整合步驟 `README.md`。程式碼符合現行慣例、可直接編譯（含 `ToolbarIconButton` /
-> `CrudActionButton` / `TableSortHelper` / `ViewNotification`），搬進方案後依 README 完成註冊。
-> 本章是需要手動微調時的對照說明 ——
-> **不要用複製既有檢視的方式建立新模組**，0.4.27 的 emoji 回歸就是這樣來的。
-
-
-1. 建立 `Entity`（AccessDatas/Models），在 `BackendDBContext` 加入 `DbSet`，並**產生 SQLite migration**
-   （`dotnet ef migrations add AddXxx --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web`，
-   見 [EFCore.md](EFCore.md)）。
-2. 建立 `AdapterModel`（Models/AdapterModel）+ DataAnnotations。
-3. 在 `AutoMapping` 加入雙向映射。
-4. 建立 `YourEntityService`（Business/Services/DataAccess）並完成 CRUD + 查詢排序過濾分頁。
-5. 在 `Extensions/ServiceCollectionExtensions.cs` 的 `AddApplicationServices` 註冊
-   `AddScoped<YourEntityService>()`（有 Web API 時另加 `AddScoped<YourEntityRepository>()`；
-   DbContext 本身走 `AddDbContextFactory`，不要另外註冊）。
-6. 建立 `YourEntityView.razor`（照 RoleViewView 版型）。
-7. 建立 `YourEntityView.razor.cs`（照 RoleViewView 的狀態與事件流程）。
-8. 建立 `YourEntityView.razor.css` —— **只放版面（flex／寬度），不要放顏色**。
-   表格、分頁、輸入框、按鈕的視覺由全域的 `wwwroot/theme.css` 統一提供，全站表格共用一份；
-   在檢視的 `.razor.css` 裡寫 `.ant-*` 只會對你正在改的那一頁生效，然後被複製到其他頁。
-   狀態欄請用共用元件 `<StatusPill Text Tone />`，不要自己寫徽章樣式。
-   判準與陷阱見 [介面視覺設計規範](../architecture/介面視覺設計規範.md) 與速查表 §6.9。
-9. 建立 `YourEntityPage.razor` 與 `@page` 路由。
-10. **註冊權限鍵與選單（四處必須同步）**：`MagicObjectHelper` 權限鍵常數、`Datas/Menu.json`
-    （唯一 `id`）、`SidebarMenuService.MenuPermissionMap`（id→權限鍵）、頁面自己的
-    `CheckAccessPage(同一個葉節點鍵)`；並到 `MyProject.Tests/MenuPermissionConsistencyTests.cs`
-    的 `ViewToMenuId` 登錄。少做任一處，`dotnet test` 會被該測試擋下。另外別忘了把權限鍵放進
-    `RolePermissionService.GetRoleListPermissionAllName()` 的群組（管理員專屬頁則改登錄
-    `AdminOnlyPermissionTests`），選單圖示要加入 `MenuIconTests.AllowedIcons`。細節見
-    [開發慣例與限制速查](../architecture/開發慣例與限制速查.md) §5。
-11. **登記頁面操作說明**（0.9.66 起，每個登入後頁面都要有）：在 `MyProject.Web/Datas/HelpTopics.json`
-    加入 `{ "route": "/xxx", "title": "顯示名稱", "file": "xxx.md" }`，並把說明寫在
-    `MyProject.Web/Datas/Help/<路由>.md`（檔名＝路由去頭尾斜線、斜線換 `-`、轉小寫；**UTF-8 含 BOM**）。
-    內容固定七段（`## 一、功能摘要`…`## 七、常見問題`）加前言的「一分鐘看懂這一頁」，`title` 與說明檔
-    `# 頁名` 都要等於 `Menu.json` 的 `name`。產生器的初稿已符合結構，請依實際欄位修潤第三段
-    「畫面上有哪些按鈕、各自做什麼」。確實不需要說明的頁面，改列入 `PageHelpCatalogTests.RoutesWithoutHelp` 並附理由。
-    漏登記或格式不符，`PageHelpCatalogTests` 會擋。規則全文見
-    [開發慣例與限制速查](../architecture/開發慣例與限制速查.md) §6.14。
-12. **寫稽核**（建議比照既有模組；藍本 `RoleViewService` 本來就有，0.9.78 起分類、團隊、專案的增刪改也都有記）：Blazor 路徑在 Service 成功寫入後呼叫
-    `IAuditLogService.WriteAsync`（操作者取自 `CurrentUserService`，見 `CategoryService.WriteAuditAsync`）；
-    API 路徑在 Controller 呼叫 `this.WriteAuditAsync(...)`。動作代碼一律先加到
-    `MyProject.Business/Helpers/AuditActions.cs` 再引用常數，**不可寫字串字面值**（`AuditConventionTests` 守門）。
-    ⚠️ 產生器目前**不會**產生稽核呼叫，需要時自行補上。
-13. 本機驗證（新增/查詢/修改/刪除/過濾/排序/分頁/驗證提示），再跑提交前的品質關卡
-    `pwsh ./scripts/Invoke-QualityGate.ps1`（本 repo 沒有 CI，見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)）。
-
----
-
-## 5. 「完美複刻」的關鍵注意事項
-
-1. **排序欄位名稱一致性**
-   - UI `DataIndex` 必須對應 Service `SortField` 比對字串（通常用 `nameof(AdapterModel.Property)`）。
-
-2. **分頁行為一致性**
-   - 任何查詢條件變更（搜尋、重設）時，頁碼要回到第 1 頁。
-
-3. **編輯時資料隔離**
-   - 使用 `Clone()` 後再編輯，避免列表資料提早變動造成 UI 錯亂。
-
-4. **Validation 上下文取得**
-   - 若要在 Modal 的 `OnOk` 觸發 `Validate()`，要確保 `LocalEditContext` 已被 `InputWatcher` 正確帶入。
-
-5. **通知與錯誤體驗一致**
-   - 成功/失敗都要有明確通知（`NotificationService`/`MessageService`）。
-
-6. **DbContext 生命週期（EF Core）**
-   - 每個方法自己 `await using var context = await contextFactory.CreateDbContextAsync();`，用完即棄。
-   - ⚠️ 不要重新引入「清追蹤」helper，也不要改回注入 scoped `BackendDBContext` ——
-     0.4.36 起改用工廠後，該慣例整條退場，`DataAccessServiceLifetimeTests` 會擋下回歸。
-
-7. **初始化商業邏輯收斂**
-   - 新增時的預設值（如權限預設）寫在 Add 流程，不要散在 UI 多處。
-
----
-
-## 6. 參考與引用程式碼清單（複製模板時優先順序）
-
-1. **主樣板元件（首要）**
-   - `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`
-   - `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor.cs`
-   - `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor.css`
-
-2. **服務層樣板**
-   - `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`
-
-3. **模型樣板**
-   - `src/MyProject/MyProject.Models/AdapterModel/RoleViewAdapterModel.cs`
-   - `src/MyProject/MyProject.AccessDatas/Models/RoleView.cs`
-   - `src/MyProject/MyProject.Models/Systems/DataRequest.cs`
-   - `src/MyProject/MyProject.Models/Systems/DataRequestResult.cs`
-
-4. **通用機制樣板**
-   - `src/MyProject/MyProject.Web/Components/Commons/InputWatcher.cs`
-   - `src/MyProject/MyProject.Business/Models/AutoMapping.cs`
-   - `src/MyProject/MyProject.Web/Program.cs`
-   - `src/MyProject/MyProject.Web/Components/Pages/Admins/RoleViewPage.razor`
-
----
-
-## 7. 手動測試清單（交付前必跑）
-
-1. 開啟頁面後資料可正確載入（含總筆數）。
-2. 搜尋關鍵字可過濾，清空搜尋可還原。
-3. 點欄位排序可切換升冪/降冪，資料順序正確。
-4. 分頁切頁後資料正確。
-5. 新增：
-   - 必填未填會顯示驗證錯誤。
-   - 儲存後出現成功通知，列表可見新資料。
-6. 修改：
-   - 開啟編輯資料正確。
-   - 儲存後資料更新且時間欄位更新。
-7. 刪除：
-   - 有二次確認。
-   - 刪除成功後列表更新。
-8. 鍵盤操作：
-   - TextArea 內按 Enter／Shift+Enter 可換行，且**對話窗不關閉**。
-   - Select 展開後按 Enter 選取選項，且**對話窗不關閉**。
-   - Select／DatePicker 展開時按 Esc 只收合該面板；面板都收合時 Esc 才關閉對話窗。
-   - 存檔只能按「確定」按鈕，驗證訊息正常顯示。
-9. 例外路徑：服務拋錯時有錯誤紀錄與使用者可理解訊息。
-10. 操作說明：頂欄頁名旁的說明圖示鈕能開啟本頁說明，第三段的按鈕與欄位與實際畫面一致。
-
----
-
-## 8. 建議的實作原則（降低後續維護成本）
-
-1. **命名對齊**：`XxxPage / XxxView / XxxService / XxxAdapterModel`。
-2. **方法對齊**：`ReloadAsync / OnTableChange / OnAddAsync / OnEditAsync / OnDeleteAsync / OnModalOKHandleAsync`。
-3. **單一資料入口**：所有 UI 刷新都走 `ReloadAsync`。
-4. **商業邏輯集中**：預設值、JSON 轉換、限制檢查放 Service。
-5. **UI 僅做互動**：按鈕事件只組裝參數與呼叫 Service。
-
-> 依照此計畫，你可以在不引入額外框架的前提下，將新 CRUD 頁面以最小偏差複刻成與 `RoleViewView` 一致的結構與行為。
+- 範例欄位只有名稱、描述、啟用（、團隊），名稱全系統唯一（不分大小寫、只看未刪除的資料）。
+- 一般頁面只能掛在「專案管理」或「資料定義」群組（角色權限矩陣只有這兩組）。
+- 不產生子表、檔案上傳或外鍵關聯；需要時參考 `ProjectService`（附件）或 `TeamService`（自我參照）。
+- 產生的模組不含 PRD 與畫面字典條目，請自行補上。

@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作（本機品質關卡）；§1～§4 的 CI 為參考設計
-- 現行系統版本：0.9.89
+- 現行系統版本：0.9.110
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/10/03
+- 最後核對日期：2026/10/04
 
 > ⚠️ **腳手架目前沒有 CI。** 原本的 GitHub Actions 工作流程 `.github/workflows/dotnet-ci.yml` 已於 **2026-09-20**
 > 由擁有者移除（commit `05cca70`），repo 根目錄也不再有 `.github/` 資料夾。**現在沒有任何機制會自動擋下違規**，
@@ -20,6 +20,7 @@
 ```powershell
 pwsh ./scripts/Invoke-QualityGate.ps1          # 完整關卡，約 1 分鐘（0.9.89 實測 42～66 秒，已建置過的情況）
 pwsh ./scripts/Invoke-QualityGate.ps1 -Quick   # 略過弱點掃描（不需連網），約少 10 秒
+pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）：修改 CRUD 產生器或樣板後必跑（0.9.110 起），在暫存 worktree 產生三種模組並跑全部測試
 ```
 
 從任何目錄執行都可以（腳本以自己的位置找 repo 根目錄）。**全部通過（結束代碼 0）才提交。**

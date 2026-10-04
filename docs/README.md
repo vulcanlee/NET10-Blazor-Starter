@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.38
+- 文件版本：6.39
 - 文件狀態：維護中
-- 現行系統版本：0.9.109
+- 現行系統版本：0.9.110
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/10/04
 
@@ -74,7 +74,7 @@
 - [EFCore 指令備忘](guides/EFCore.md)
 - [測試指南](guides/測試指南.md)
 
-> 腳手架腳本：`scripts/New-StarterProject.ps1`（複製新專案並替換 namespace / project 名稱）、`scripts/New-CrudModule.ps1`（產生新 CRUD 模組骨架）。
+> 腳手架腳本：`scripts/New-StarterProject.ps1`（複製新專案並替換 namespace / project 名稱）、`scripts/New-CrudModule.ps1`（一行產生並登記新 CRUD 模組，0.9.110 起；改了樣板跑 `scripts/Test-CrudGenerator.ps1`）。
 
 ### operations — 維運與部署
 - [維護規範](operations/維護規範.md)

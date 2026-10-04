@@ -1,1196 +1,536 @@
 ﻿<#
 .SYNOPSIS
-    產生一個符合本專案現行慣例的 CRUD 模組骨架。
+    一行指令產生一個符合本專案現行慣例的 CRUD 模組，並完成所有登記與 migration（0.9.110 起）。
 
 .DESCRIPTION
-    產出檔案落在 -OutputPath（預設 output/crud-modules/<Name>），依方案結構分資料夾，
-    需人工搬進 src/MyProject/ 對應位置，再依產出的 README.md 完成註冊。
+    產生的模組包含：實體（軟刪除＋樂觀並行）、畫面模型、DTO、Repository（Web API）、資料服務（Blazor）、
+    Web API（GET／search／POST／PUT／DELETE，各自 [HasPermission]）、頁面與檢視（權限閘門、依動作顯示按鈕、
+    搜尋排序分頁、顯示已刪除／還原／永久刪除、匯出 Excel、稽核）、操作說明、服務測試。
+    -WithTeams 另加「團隊」欄位與團隊範圍（RecordTeamScope）。
 
-    ⚠️ 這個產生器存在的意義，是讓新模組**不必靠複製既有檢視**。
-    0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
-    因此樣板必須與現行慣例同步；改了慣例請一併改這裡，
-    否則產生器會再度淪為「看起來有工具、實際沒人用」的擺設。
+    並自動登記（重複執行不會重複插入，已存在就略過並列出）：
+      DbSet 與名稱唯一索引、AutoMapper、DI、權限鍵常數、稽核動作、Menu.json（下一個可用 id）、選單權限對照、
+      角色權限矩陣（或管理員專屬清單）、選單／權限一致性測試、操作說明目錄、_Imports.razor、
+      已刪除資料清理（服務與作業）、並行／軟刪除實體清單、服務生命週期／畫面模型 Clone／API DI 測試清單、選單圖示允許清單。
 
-    產出的程式碼已對齊下列慣例：
-      - Blazor 服務注入 IDbContextFactory（0.4.36 起；不再需要 CleanTrackingHelper）
-      - Web API 回 ApiResult<T> / PagedResult<T>，並以 [HasPermission] 做動作級授權
-      - 例外一律走 this.ApiServerError（遵守 Security:ReturnExceptionDetails）
-      - 檢視使用 ToolbarIconButton / CrudActionButton / TableSortHelper / ViewNotification
-      - 編輯前 Clone()；權限用 CheckAccessPage + CheckAccessAction
-      - Skip/Take 必搭 OrderBy；分頁在資料庫端執行
-      - 附頁面操作說明初稿（Datas/Help，結構符合 PageHelpCatalogTests）
+    樣板在 scripts/crud-templates/（行首 #IF TEAMS／#IF ADMIN／#ELSE／#ENDIF 控制條件區塊）。
+    ⚠️ 改了專案慣例就要同步改樣板，並跑 scripts/Test-CrudGenerator.ps1 確認產出的模組能建置、全部測試通過。
 
 .PARAMETER Name
-    模組（實體）名稱，PascalCase，例如 Equipment。
+    實體名稱，PascalCase（例如 Equipment）。
 
 .PARAMETER DisplayName
-    顯示名稱與權限鍵，預設同 Name。
+    顯示名稱，同時是權限鍵（例如 設備清單）。預設同 Name。
+
+.PARAMETER Plural
+    頁面與檢視的資料夾／命名空間，預設 <Name>s。
+
+.PARAMETER Route
+    頁面路由，預設 /<plural 小寫>。
+
+.PARAMETER MenuGroupId
+    掛在 Menu.json 的哪一個群組底下，預設 5（資料定義）。非管理員專屬頁面只能是 2（專案管理）或 5。
+
+.PARAMETER Icon
+    選單圖示（classic Material Icons 名稱），預設 description；不在 MenuIconTests 允許清單時自動加入。
+
+.PARAMETER WithTeams
+    加上「團隊」欄位與團隊範圍。
+
+.PARAMETER AdminOnly
+    管理員專屬：權限鍵不進角色矩陣，檢視以 CheckIsAdmin 判斷。
+
+.PARAMETER SkipMigration
+    不自動產生 migration（之後自己跑 dotnet ef migrations add Add<Name>）。
+
+.PARAMETER Preview
+    只把產出的檔案寫到 -OutputPath 底下，不改專案、不登記、不產生 migration。
+
+.PARAMETER Force
+    略過「工作目錄必須乾淨」的檢查；之前由本產生器寫出的檔案保留不覆蓋（用來重跑登記）。
 
 .EXAMPLE
     ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
+
+.EXAMPLE
+    ./scripts/New-CrudModule.ps1 -Name Vendor -DisplayName 廠商清單 -WithTeams -Icon storefront
 #>
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^[A-Za-z][A-Za-z0-9]*$')]
+    [ValidatePattern('^[A-Z][A-Za-z0-9]*$')]
     [string]$Name,
 
     [string]$DisplayName,
 
-    [string]$OutputPath = "output/crud-modules",
+    [ValidatePattern('^[A-Z][A-Za-z0-9]*$')]
+    [string]$Plural,
+
+    [ValidatePattern('^/[a-z0-9][a-z0-9-/]*$')]
+    [string]$Route,
+
+    [int]$MenuGroupId = 5,
+
+    [ValidatePattern('^[a-z0-9_]+$')]
+    [string]$Icon = 'description',
+
+    [switch]$WithTeams,
+
+    [switch]$AdminOnly,
+
+    [switch]$SkipMigration,
+
+    [switch]$Preview,
+
+    [string]$OutputPath = 'output/crud-modules',
 
     [switch]$Force
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
+$GeneratedMarker = 'scripts/New-CrudModule.ps1'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$src = Join-Path $repoRoot 'src/MyProject'
+$templateRoot = Join-Path $PSScriptRoot 'crud-templates'
+
+#region 名稱與參數
 if (-not $DisplayName) { $DisplayName = $Name }
-
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$moduleRoot = Join-Path (Join-Path $repoRoot $OutputPath) $Name
-
-if ((Test-Path -LiteralPath $moduleRoot) -and -not $Force) {
-    throw "CRUD module scaffold already exists. Use -Force to overwrite: $moduleRoot"
+if ($DisplayName -notmatch '^[\p{L}\p{Nd} ]+$') {
+    throw "DisplayName 只能包含文字、數字與空白：$DisplayName"
 }
-if (Test-Path -LiteralPath $moduleRoot) {
-    Remove-Item -LiteralPath $moduleRoot -Recurse -Force
-}
-New-Item -ItemType Directory -Path $moduleRoot | Out-Null
+if (-not $Plural) { $Plural = "${Name}s" }
+if (-not $Route) { $Route = '/' + $Plural.ToLowerInvariant() }
+$camel = $Name.Substring(0, 1).ToLowerInvariant() + $Name.Substring(1)
+$permConst = '角色_' + ($DisplayName -replace ' ', '')
+$routeKey = $Route.Trim('/').Replace('/', '-').ToLowerInvariant()
+$item = $DisplayName -replace '清單$', ''
+if (-not $item) { $item = $DisplayName }
 
-function New-ScaffoldFile {
-    param([string]$RelativePath, [string]$Content, [switch]$WithBom)
-
-    $fullPath = Join-Path $moduleRoot $RelativePath
-    $directory = Split-Path -Path $fullPath -Parent
-    if (-not (Test-Path -LiteralPath $directory)) {
-        New-Item -ItemType Directory -Path $directory | Out-Null
-    }
-    # 原始碼採 UTF-8 無 BOM；docs/*.md 與頁面操作說明（Datas/Help/*.md）需要 BOM。
-    $encoding = if ($WithBom) { "utf8BOM" } else { "utf8NoBOM" }
-    Set-Content -LiteralPath $fullPath -Value $Content -Encoding $encoding
-}
-
-$lower = $Name.Substring(0, 1).ToLowerInvariant() + $Name.Substring(1)
-$permissionConst = "角色_$DisplayName"
-$route = "/$($lower)s"
-# 與 PageHelpService.ToSlugFileName 相同的規則：去頭尾斜線、斜線換成 -、轉小寫。
-$helpFile = "$($route.Trim('/').Replace('/', '-').ToLowerInvariant()).md"
-
-New-ScaffoldFile "AccessDatas/Models/$Name.cs" @"
-namespace MyProject.AccessDatas.Models;
-
-/// <summary>$DisplayName</summary>
-public class $Name
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public bool Status { get; set; } = true;
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
-}
-"@
-
-New-ScaffoldFile "Dtos/Models/${Name}Dto.cs" @"
-namespace MyProject.Dtos.Models;
-
-public class ${Name}Dto
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public bool Status { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-}
-"@
-
-New-ScaffoldFile "Dtos/Models/${Name}CreateUpdateDto.cs" @"
-using System.ComponentModel.DataAnnotations;
-
-namespace MyProject.Dtos.Models;
-
-public class ${Name}CreateUpdateDto
-{
-    public int Id { get; set; }
-
-    [Required(ErrorMessage = "名稱不可為空白。")]
-    [StringLength(100, ErrorMessage = "名稱不可超過 100 個字。")]
-    public string Name { get; set; } = string.Empty;
-
-    [StringLength(500, ErrorMessage = "說明不可超過 500 個字。")]
-    public string? Description { get; set; }
-
-    public bool Status { get; set; } = true;
-}
-"@
-
-New-ScaffoldFile "Dtos/Commons/${Name}SearchRequestDto.cs" @"
-namespace MyProject.Dtos.Commons;
-
-/// <summary>
-/// 分頁參數的上下限由 <see cref="SearchRequestBaseDto"/> 的 [Range] 保護，
-/// 違規由 ApiValidationFilter 回 400，不要在這裡重複驗證。
-/// </summary>
-public class ${Name}SearchRequestDto : SearchRequestBaseDto
-{
-    public bool? Status { get; set; }
-}
-"@
-
-New-ScaffoldFile "Models/AdapterModel/${Name}AdapterModel.cs" @"
-using System.ComponentModel.DataAnnotations;
-
-namespace MyProject.Models.AdapterModel;
-
-public class ${Name}AdapterModel
-{
-    public int Id { get; set; }
-
-    [Required(ErrorMessage = "名稱 不可為空白")]
-    [StringLength(100, ErrorMessage = "名稱 不可超過 100 個字")]
-    public string Name { get; set; } = string.Empty;
-
-    [StringLength(500, ErrorMessage = "說明 不可超過 500 個字")]
-    public string? Description { get; set; }
-
-    public bool Status { get; set; } = true;
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
-
-    /// <summary>⚠️ 檢視編輯前一律先 Clone()，避免雙向繫結污染表格來源資料。</summary>
-    public ${Name}AdapterModel Clone() => (${Name}AdapterModel)MemberwiseClone();
-}
-"@
-
-New-ScaffoldFile "Business/Repositories/${Name}Repository.cs" @"
-using Microsoft.EntityFrameworkCore;
-using MyProject.AccessDatas;
-using MyProject.AccessDatas.Models;
-using MyProject.Dtos.Commons;
-
-namespace MyProject.Business.Repositories;
-
-/// <summary>
-/// API 路徑用。這裡維持注入 scoped BackendDBContext ——
-/// Controller 的 scope ＝ 單次 HTTP 請求，本來就正確，不需要改用 IDbContextFactory。
-/// </summary>
-public class ${Name}Repository
-{
-    private readonly BackendDBContext context;
-
-    public ${Name}Repository(BackendDBContext context)
-    {
-        this.context = context;
-    }
-
-    public Task<${Name}?> GetByIdAsync(int id)
-    {
-        return context.Set<$Name>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-    }
-
-    public async Task<PagedResult<$Name>> GetPagedAsync(${Name}SearchRequestDto request)
-    {
-        var query = context.Set<$Name>().AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            query = query.Where(x => x.Name.Contains(request.Keyword));
+$menuPath = Join-Path $src 'MyProject.Web/Datas/Menu.json'
+$menu = Get-Content -LiteralPath $menuPath -Raw -Encoding utf8 | ConvertFrom-Json
+function Find-MenuNode($nodes, [int]$id) {
+    foreach ($node in $nodes) {
+        if ($node.id -eq $id) { return $node }
+        if ($node.PSObject.Properties.Name -contains 'subMenu') {
+            $found = Find-MenuNode $node.subMenu $id
+            if ($found) { return $found }
         }
-
-        if (request.Status.HasValue)
-        {
-            query = query.Where(x => x.Status == request.Status.Value);
-        }
-
-        var totalCount = await query.CountAsync();
-
-        // Skip/Take 必須搭配 OrderBy，否則分頁結果不穩定。
-        var items = await query
-            .OrderByDescending(x => x.Id)
-            .Skip((request.PageIndex - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .ToListAsync();
-
-        return new PagedResult<$Name>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageIndex = request.PageIndex,
-            PageSize = request.PageSize,
-            TotalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize)
-        };
+    }
+    return $null
+}
+function Get-MenuIds($nodes) {
+    foreach ($node in $nodes) {
+        $node.id
+        if ($node.PSObject.Properties.Name -contains 'subMenu') { Get-MenuIds $node.subMenu }
     }
 }
-"@
+$group = Find-MenuNode $menu $MenuGroupId
+if (-not $group -or -not ($group.PSObject.Properties.Name -contains 'subMenu')) {
+    throw "Menu.json 找不到 id 為 $MenuGroupId 的群組（必須是有 subMenu 的節點）。"
+}
+if (-not $AdminOnly -and $MenuGroupId -notin 2, 5) {
+    throw "非管理員專屬的頁面只能掛在群組 2（專案管理）或 5（資料定義），角色權限矩陣只有這兩組；管理員專屬請加 -AdminOnly。"
+}
+$menuId = ((@(Get-MenuIds $menu) | Measure-Object -Maximum).Maximum) + 1
+$menuPathText = "$($group.name) › $DisplayName"
 
-New-ScaffoldFile "Business/Services/DataAccess/${Name}Service.cs" @"
-using AutoMapper;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using MyProject.AccessDatas;
-using MyProject.AccessDatas.Models;
-using MyProject.Business.Factories;
-using MyProject.Models.AdapterModel;
-using MyProject.Models.Systems;
+$flags = @{ TEAMS = [bool]$WithTeams; ADMIN = [bool]$AdminOnly }
+# 區分大小寫（__Name__ 與 __name__ 是不同的記號；PowerShell 的 @{} 不分大小寫）。
+$tokens = [System.Collections.Specialized.OrderedDictionary]::new([StringComparer]::Ordinal)
+$tokens['__PermConst__'] = $permConst
+$tokens['__RouteKey__'] = $routeKey
+$tokens['__MenuPath__'] = $menuPathText
+$tokens['__Display__'] = $DisplayName
+$tokens['__Plural__'] = $Plural
+$tokens['__Route__'] = $Route
+$tokens['__Item__'] = $item
+$tokens['__Name__'] = $Name
+$tokens['__name__'] = $camel
+#endregion
 
-namespace MyProject.Business.Services.DataAccess;
-
-/// <summary>
-/// ⚠️ 注入 IDbContextFactory 而非 BackendDBContext：
-/// Blazor Server 的 DI scope ＝ SignalR circuit（可存活數小時），
-/// scoped 的 DbContext 會累積追蹤實體，並在並行事件時拋
-/// 「A second operation was started on this context」。
-/// 由 DataAccessServiceLifetimeTests 守門。
-/// </summary>
-public class ${Name}Service
-{
-    private readonly IDbContextFactory<BackendDBContext> contextFactory;
-
-    public IMapper Mapper { get; }
-    public ILogger<${Name}Service> Logger { get; }
-
-    public ${Name}Service(
-        IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
-        ILogger<${Name}Service> logger)
-    {
-        this.contextFactory = contextFactory;
-        Mapper = mapper;
-        Logger = logger;
-    }
-
-    public async Task<DataRequestResult<${Name}AdapterModel>> GetAsync(DataRequest dataRequest)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        DataRequestResult<${Name}AdapterModel> result = new();
-        IQueryable<$Name> dataSource = context.Set<$Name>().AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(dataRequest.Search))
-        {
-            dataSource = dataSource.Where(x =>
-                x.Name.Contains(dataRequest.Search) ||
-                (x.Description != null && x.Description.Contains(dataRequest.Search)));
+#region 樣板展開
+function Expand-Template([string]$text) {
+    $out = [System.Collections.Generic.List[string]]::new()
+    $stack = [System.Collections.Generic.Stack[object]]::new()
+    $emit = $true
+    foreach ($line in ($text -split "`r?`n")) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^#IF (!?)([A-Z]+)$') {
+            $condition = [bool]$flags[$Matches[2]]
+            if ($Matches[1]) { $condition = -not $condition }
+            $stack.Push([pscustomobject]@{ Parent = $emit; Condition = $condition })
+            $emit = $emit -and $condition
+            continue
         }
-
-        // Skip/Take 一定要搭配 OrderBy，否則分頁結果不穩定。
-        dataSource = dataRequest.SortDescending == true
-            ? dataSource.OrderByDescending(x => x.Id)
-            : dataSource.OrderBy(x => x.Id);
-
-        // 分頁在資料庫端執行，不要先 ToList 再切。
-        // DataRequest 用 CurrentPage/PageSize（沒有 Skip 屬性），與既有服務一致。
-        result.Count = await dataSource.CountAsync();
-        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
-        if (dataRequest.Take != 0)
-        {
-            dataSource = dataSource.Take(dataRequest.PageSize);
+        if ($trimmed -eq '#ELSE') {
+            $top = $stack.Peek()
+            $emit = $top.Parent -and (-not $top.Condition)
+            continue
         }
-
-        var items = await dataSource.ToListAsync();
-
-        result.Result = Mapper.Map<List<${Name}AdapterModel>>(items);
-        return result;
-    }
-
-    public async Task<${Name}AdapterModel> GetAsync(int id)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        ${Name}? item = await context.Set<$Name>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        return item is null ? new ${Name}AdapterModel() : Mapper.Map<${Name}AdapterModel>(item);
-    }
-
-    public async Task<VerifyRecordResult> AddAsync(${Name}AdapterModel paraObject)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        try
-        {
-            $Name item = Mapper.Map<$Name>(paraObject);
-            item.CreatedAt = DateTime.Now;
-            item.UpdatedAt = DateTime.Now;
-
-            await context.Set<$Name>().AddAsync(item);
-            await context.SaveChangesAsync();
-
-            Logger.LogInformation("$Name created successfully. ${Name}Id={${Name}Id}", item.Id);
-            return VerifyRecordResultFactory.Build(true);
+        if ($trimmed -eq '#ENDIF') {
+            $emit = $stack.Pop().Parent
+            continue
         }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to create $lower.");
-            return VerifyRecordResultFactory.Build(false, "新增失敗");
+        if ($emit) { $out.Add($line) }
+    }
+    if ($stack.Count -ne 0) { throw '樣板的 #IF／#ENDIF 不成對。' }
+
+    $result = $out -join "`n"
+    foreach ($key in $tokens.Keys) { $result = $result.Replace($key, $tokens[$key]) }
+    return $result
+}
+
+$projectFolders = @{
+    AccessDatas = 'MyProject.AccessDatas'; Models = 'MyProject.Models'; Dtos = 'MyProject.Dtos'
+    Business = 'MyProject.Business'; Web = 'MyProject.Web'; Tests = 'MyProject.Tests'
+}
+
+$outputs = foreach ($template in Get-ChildItem -LiteralPath $templateRoot -Recurse -File -Filter '*.tmpl') {
+    $relative = [IO.Path]::GetRelativePath($templateRoot, $template.FullName).Replace('\', '/')
+    $relative = $relative.Substring(0, $relative.Length - '.tmpl'.Length)
+    foreach ($key in $tokens.Keys) { $relative = $relative.Replace($key, $tokens[$key]) }
+    $first, $rest = $relative.Split('/', 2)
+    $target = if ($Preview) {
+        Join-Path (Join-Path (Join-Path $repoRoot $OutputPath) $Name) $relative
+    } else {
+        Join-Path (Join-Path $src $projectFolders[$first]) $rest
+    }
+    [pscustomobject]@{ Template = $template.FullName; Target = $target; Relative = $relative }
+}
+#endregion
+
+#region 檢查
+if (-not $Preview) {
+    if (-not $Force) {
+        $dirty = git -C $repoRoot status --porcelain
+        if ($dirty) {
+            throw '工作目錄有未提交的變更。請先提交或暫存，讓產生器的異動可以單獨檢視；確定要繼續請加 -Force。'
         }
     }
 
-    public async Task<VerifyRecordResult> UpdateAsync(${Name}AdapterModel paraObject)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        try
-        {
-            ${Name}? item = await context.Set<$Name>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == paraObject.Id);
-            if (item is null)
-            {
-                return VerifyRecordResultFactory.Build(false, "找不到指定的紀錄");
+    foreach ($output in $outputs) {
+        if (Test-Path -LiteralPath $output.Target) {
+            $existing = Get-Content -LiteralPath $output.Target -Raw -Encoding utf8
+            if (-not $existing.Contains($GeneratedMarker)) {
+                throw "目標檔案已存在且不是本產生器寫的：$($output.Target)"
             }
-
-            $Name itemData = Mapper.Map<$Name>(paraObject);
-            itemData.CreatedAt = item.CreatedAt;
-            itemData.UpdatedAt = DateTime.Now;
-
-            context.Entry(itemData).State = EntityState.Modified;
-            await context.SaveChangesAsync();
-
-            Logger.LogInformation("$Name updated successfully. ${Name}Id={${Name}Id}", itemData.Id);
-            return VerifyRecordResultFactory.Build(true);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to update $lower.");
-            return VerifyRecordResultFactory.Build(false, "修改失敗");
-        }
-    }
-
-    public async Task<VerifyRecordResult> DeleteAsync(int id)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        try
-        {
-            ${Name}? item = await context.Set<$Name>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-            if (item is null)
-            {
-                return VerifyRecordResultFactory.Build(false, "找不到指定的紀錄");
+            if (-not $Force) {
+                throw "目標檔案已存在：$($output.Target)（重跑登記請加 -Force，已產生的檔案會保留不覆蓋）"
             }
-
-            context.Entry(item).State = EntityState.Deleted;
-            await context.SaveChangesAsync();
-
-            Logger.LogInformation("$Name deleted successfully. ${Name}Id={${Name}Id}", id);
-            return VerifyRecordResultFactory.Build(true);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to delete $lower.");
-            return VerifyRecordResultFactory.Build(false, "刪除失敗");
         }
     }
 
-    public async Task<VerifyRecordResult> BeforeAddCheckAsync(${Name}AdapterModel paraObject)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        var duplicated = await context.Set<$Name>().AsNoTracking().AnyAsync(x => x.Name == paraObject.Name);
-        return duplicated
-            ? VerifyRecordResultFactory.Build(false, "已經存在相同的名稱")
-            : VerifyRecordResultFactory.Build(true);
+    $magic = Get-Content -LiteralPath (Join-Path $src 'MyProject.Share/Helpers/MagicObjectHelper.cs') -Raw -Encoding utf8
+    if (-not $magic.Contains("public const string $permConst ") -and $magic.Contains("= `"$DisplayName`";")) {
+        throw "權限鍵「$DisplayName」已被其他頁面使用，請換一個 DisplayName。"
     }
-
-    public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(${Name}AdapterModel paraObject)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-
-        var duplicated = await context.Set<$Name>().AsNoTracking()
-            .AnyAsync(x => x.Name == paraObject.Name && x.Id != paraObject.Id);
-        return duplicated
-            ? VerifyRecordResultFactory.Build(false, "已經存在相同的名稱")
-            : VerifyRecordResultFactory.Build(true);
-    }
-
-    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(${Name}AdapterModel paraObject)
-    {
-        // 若本模組被其他資料表參照，請在此加上參照檢查後再允許刪除。
-        return Task.FromResult(VerifyRecordResultFactory.Build(true));
+    if (-not $Force -and (Get-Content -LiteralPath $menuPath -Raw -Encoding utf8).Contains("`"url`": `"$Route`"")) {
+        throw "Menu.json 已有路由 $Route。"
     }
 }
-"@
+#endregion
 
-New-ScaffoldFile "Web/Controllers/${Name}Controller.cs" @"
-using AutoMapper;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using MyProject.Business.Repositories;
-using MyProject.Dtos.Commons;
-using MyProject.Dtos.Models;
-using MyProject.Share.Helpers;
-using MyProject.Web.Filters;
-
-namespace MyProject.Web.Controllers;
-
-[Route("api/[controller]")]
-[Route("api/v1/[controller]")]
-[ApiController]
-[ApiValidationFilter]
-[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-public class ${Name}Controller : ControllerBase
-{
-    private readonly ILogger<${Name}Controller> logger;
-    private readonly ${Name}Repository ${lower}Repository;
-    private readonly IMapper mapper;
-
-    public ${Name}Controller(
-        ILogger<${Name}Controller> logger,
-        ${Name}Repository ${lower}Repository,
-        IMapper mapper)
-    {
-        this.logger = logger;
-        this.${lower}Repository = ${lower}Repository;
-        this.mapper = mapper;
+#region 寫檔
+$written = [System.Collections.Generic.List[string]]::new()
+$kept = [System.Collections.Generic.List[string]]::new()
+foreach ($output in $outputs) {
+    if (-not $Preview -and (Test-Path -LiteralPath $output.Target)) {
+        $kept.Add($output.Relative)
+        continue
     }
-
-    [HttpGet("{id}")]
-    [HasPermission(MagicObjectHelper.$permissionConst, PermissionActions.View)]
-    public async Task<ActionResult<ApiResult<${Name}Dto>>> GetById(int id)
-    {
-        try
-        {
-            var item = await ${lower}Repository.GetByIdAsync(id);
-            if (item is null)
-            {
-                return NotFound(ApiResult<${Name}Dto>.NotFoundResult(`$"找不到 ID 為 {id} 的$DisplayName"));
-            }
-
-            return Ok(ApiResult<${Name}Dto>.SuccessResult(mapper.Map<${Name}Dto>(item), "查詢成功"));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to get $lower. ${Name}Id={${Name}Id}", id);
-            // 一律用 this.ApiServerError：它依 Security:ReturnExceptionDetails 決定是否
-            // 夾帶例外細節。不要自己組 ApiResult.ServerErrorResult(message, exception)，
-            // 那個多載會無條件回傳堆疊追蹤，Production 會外洩。
-            return this.ApiServerError<${Name}Dto>("查詢失敗", ex);
-        }
-    }
-
-    [HttpPost("search")]
-    [HasPermission(MagicObjectHelper.$permissionConst, PermissionActions.View)]
-    public async Task<ActionResult<ApiResult<PagedResult<${Name}Dto>>>> Search([FromBody] ${Name}SearchRequestDto request)
-    {
-        try
-        {
-            var paged = await ${lower}Repository.GetPagedAsync(request);
-
-            var result = new PagedResult<${Name}Dto>
-            {
-                Items = mapper.Map<List<${Name}Dto>>(paged.Items),
-                TotalCount = paged.TotalCount,
-                PageIndex = paged.PageIndex,
-                PageSize = paged.PageSize,
-                TotalPages = paged.TotalPages
-            };
-
-            return Ok(ApiResult<PagedResult<${Name}Dto>>.SuccessResult(result, "搜尋成功"));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to search $lower records.");
-            return this.ApiServerError<PagedResult<${Name}Dto>>("搜尋失敗", ex);
-        }
-    }
+    $content = Expand-Template (Get-Content -LiteralPath $output.Template -Raw -Encoding utf8)
+    $directory = Split-Path -Parent $output.Target
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    # 原始碼 UTF-8 無 BOM；操作說明（Datas/Help/*.md）需要 BOM（PageHelpCatalogTests）。
+    $bom = $output.Target.EndsWith('.md')
+    [IO.File]::WriteAllText($output.Target, $content.TrimEnd("`n") + "`n", [Text.UTF8Encoding]::new($bom))
+    $written.Add($output.Relative)
 }
-"@
 
-New-ScaffoldFile "Web/Components/Pages/${Name}Page.razor" @"
-@page "$route"
-
-<PageTitle>$DisplayName</PageTitle>
-
-<${Name}View />
-"@
-
-New-ScaffoldFile "Web/Components/Views/${Name}s/${Name}View.razor" @"
-@if (!string.IsNullOrWhiteSpace(RoleMessage))
-{
-    <div class="alert alert-danger" role="alert">@RoleMessage</div>
+if ($Preview) {
+    Write-Host "已產生 $($written.Count) 個檔案到 $(Join-Path $OutputPath $Name)（預覽模式：沒有改專案、沒有登記、沒有 migration）。"
+    return
 }
-else
-{
-    @*
-        工具列與表格容器用全域共用類別（wwwroot/theme.css），不要再各自寫一份 .razor.css。
-        表格本身的視覺（表頭、斑馬、hover、排序箭頭、分頁）也由 theme.css 全站統一提供。
-        既有的 10 個檢視仍帶自己的 <前綴>-view-toolbar，那是歷史包袱，新模組不要跟進。
-    *@
-    <div class="view-toolbar">
-        <div class="view-toolbar-left">
-            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.$permissionConst, PermissionActions.Create))
-            {
-                <ToolbarIconButton Title="新增" Icon="add" OnClick="OnAddAsync" />
-            }
-            <ToolbarIconButton Title="重新整理" Icon="refresh" OnClick="OnRefreshAsync" />
-        </div>
-    </div>
+#endregion
 
-    <div class="view-table-wrap">
-    <Table TItem="${Name}AdapterModel"
-           DataSource="@records"
-           Total="_total"
-           @bind-PageIndex="_pageIndex"
-           @bind-PageSize="_pageSize"
-           RemoteDataSource
-           OnChange="OnTableChange"
-           RowKey="x => x.Id.ToString()">
-        <Column TData="string" DataIndex="@nameof(${Name}AdapterModel.Name)" Title="名稱" Sortable />
-        <Column TData="string" DataIndex="@nameof(${Name}AdapterModel.Description)" Title="說明" />
-        <ActionColumn Title="操作">
-            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.$permissionConst, PermissionActions.Edit))
-            {
-                <CrudActionButton Title="修改" Icon="edit" OnClick="() => OnEditAsync(context)" />
-            }
-            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.$permissionConst, PermissionActions.Delete))
-            {
-                <CrudActionButton Title="刪除" Icon="delete" Danger OnClick="() => OnDeleteAsync(context)" />
-            }
-        </ActionColumn>
-    </Table>
-    </div>
+#region 登記
+$report = [System.Collections.Generic.List[string]]::new()
 
-    @*
-        大量資料輸入對話窗骨架。規範見 docs/architecture/對話窗 UI 設計規範.md：
-        接近滿版、欄位 2 欄、區塊分組、未儲存二次確認、粉梅暖雪果凍視覺。
-
-        ⚠️ Class 一定要有 form-modal（尺寸與版型的唯一來源），不要改用 Modal 的 Width 參數。
-        ⚠️ EditForm／form 上絕不可掛鍵盤事件 —— keydown 會從 TextArea／Select／DatePicker
-           冒泡上來，變成「輸入還沒完成就存檔關窗」。存檔唯一入口是 Modal 的 OnOk。
-        ⚠️ 不適合 2 欄的欄位（多行文字、檔案上傳、清單、權限矩陣）加 Class="form-field-full"。
-        以上三點都由 MyProject.Tests/FormModalConventionTests.cs 與 ModalKeyboardConventionTests.cs 守門。
-
-        ⚠️ 樣式要寫哪裡，判準是 DOM 位置，不是元件名稱（速查表 §6.9）：
-           渲染在 AntContainer 底下（Modal／Confirm／Notification／Message）→ OverlayStyles.razor
-           渲染在頁面 DOM 內（Table／Pagination／Input／Select／Tag）→ wwwroot/theme.css
-           顏色一律用 var(--app-*)，不要寫死色碼（ThemeConventionTests 守門）。
-    *@
-    <Modal Title="@modalTitle"
-           Class="form-modal"
-           @bind-Visible="@modalVisible"
-           Keyboard="true"
-           MaskClosable="false"
-           OkText="@("儲存")"
-           CancelText="@("取消")"
-           OnOk="OnModalOKHandleAsync"
-           OnCancel="OnModalCancelHandleAsync">
-        <EditForm Model="@CurrentRecord" Context="editContext">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
-            <InputWatcher EditContextActionChanged="OnEditContestChanged" />
-
-            <AntDesign.Form TModel="${Name}AdapterModel" Model="@CurrentRecord" Layout="FormLayout.Vertical" Context="formContext">
-                <FormSection Title="基本資料">
-                    <FormItem Label="名稱" Required>
-                        <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
-                        <ValidationMessage For="() => CurrentRecord.Name" />
-                    </FormItem>
-
-                    @* TODO: 其餘欄位依實際模型補上；短欄位放這裡即可自動 2 欄排列。 *@
-
-                    <FormItem Label="說明" Class="form-field-full">
-                        <TextArea @bind-Value="CurrentRecord.Description" Rows="4" Placeholder="請輸入說明" />
-                        <ValidationMessage For="() => CurrentRecord.Description" />
-                    </FormItem>
-                </FormSection>
-            </AntDesign.Form>
-        </EditForm>
-    </Modal>
+function Update-Source([string]$relativePath, [string]$label, [string]$marker, [scriptblock]$transform) {
+    $path = Join-Path $src $relativePath
+    $bytes = [IO.File]::ReadAllBytes($path)
+    $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+    $original = [Text.UTF8Encoding]::new($false).GetString($bytes, $(if ($hasBom) { 3 } else { 0 }), $bytes.Length - $(if ($hasBom) { 3 } else { 0 }))
+    $crlf = $original.Contains("`r`n")
+    $text = $original.Replace("`r`n", "`n")
+    if ($text.Contains($marker)) {
+        $report.Add("略過（已存在）：$label")
+        return
+    }
+    $updated = & $transform $text
+    if ($updated -eq $text) { throw "找不到登記位置：$label（$relativePath）。樣板或錨點需要更新。" }
+    if ($crlf) { $updated = $updated.Replace("`n", "`r`n") }
+    [IO.File]::WriteAllText($path, $updated, [Text.UTF8Encoding]::new($hasBom))
+    $report.Add("已登記：$label")
 }
-"@
 
-New-ScaffoldFile "Web/Components/Views/${Name}s/${Name}View.razor.cs" @"
-using AntDesign;
-using AntDesign.TableModels;
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.AspNetCore.Components.Web;
-using MyProject.Business.Services.DataAccess;
-using MyProject.Business.Services.Other;
-using MyProject.Models.AdapterModel;
-using MyProject.Models.Systems;
-using MyProject.Share.Helpers;
-using MyProject.Web.Components.Commons;
+function Insert-After([string]$text, [string]$anchor, [string]$snippet) {
+    $index = $text.IndexOf($anchor, [StringComparison]::Ordinal)
+    if ($index -lt 0) { return $text }
+    return $text.Insert($index + $anchor.Length, $snippet)
+}
 
-namespace MyProject.Web.Components.Views.${Name}s;
+function Insert-Before([string]$text, [string]$anchor, [string]$snippet) {
+    $index = $text.IndexOf($anchor, [StringComparison]::Ordinal)
+    if ($index -lt 0) { return $text }
+    return $text.Insert($index, $snippet)
+}
 
-public partial class ${Name}View
-{
-    private readonly ILogger<${Name}View> logger;
-    private readonly ${Name}Service ${lower}Service;
-    private readonly NotificationService notificationService;
-    private readonly ModalService modalService;
+function Add-SortedName([string]$text, [string]$entity) {
+    $pattern = 'new\[\] \{ (nameof\(\w+\)(?:, nameof\(\w+\))*) \}'
+    $match = [regex]::Match($text, $pattern)
+    if (-not $match.Success) { return $text }
+    $names = [regex]::Matches($match.Groups[1].Value, 'nameof\((\w+)\)') | ForEach-Object { $_.Groups[1].Value }
+    $sorted = [string[]](@($names) + $entity)
+    [Array]::Sort($sorted, [StringComparer]::Ordinal)
+    $replacement = 'new[] { ' + (($sorted | ForEach-Object { "nameof($_)" }) -join ', ') + ' }'
+    return $text.Remove($match.Index, $match.Length).Insert($match.Index, $replacement)
+}
 
-    List<${Name}AdapterModel> records = new();
-
-    int _pageIndex = 1;
-    int _pageSize = MagicObjectHelper.PageSize;
-    int _total = 0;
-    string searchText = string.Empty;
-    string sortField = string.Empty;
-    string sortDirection = "None";
-    string RoleMessage = string.Empty;
-
-    ${Name}AdapterModel CurrentRecord = new();
-
-    string modalTitle = "$DisplayName維護";
-    bool modalVisible = false;
-    bool isNewRecordMode;
-    public EditContext? LocalEditContext { get; set; }
-
-    /// <summary>
-    /// 未儲存變更偵測。開窗時 Capture、按取消／儲存時比對，
-    /// 「改了又改回原值」視為無變更，不會白問使用者一次。
-    /// ⚠️ 不要改用 EditContext.IsModified()：AntDesign 的輸入元件不會通知外層 EditContext，
-    ///    它會恆為 false，未儲存提示永遠不跳，而且不會有任何徵兆。
-    /// </summary>
-    private readonly FormDirtyTracker dirtyTracker = new();
-
-    [Inject]
-    public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
-
-    [Inject]
-    public AuthenticationStateProvider authStateProvider { get; set; } = default!;
-
-    [Inject]
-    public NavigationManager NavigationManager { get; set; } = default!;
-
-    public ${Name}View(
-        ILogger<${Name}View> logger,
-        ${Name}Service ${lower}Service,
-        NotificationService notificationService,
-        ModalService modalService)
-    {
-        this.logger = logger;
-        this.${lower}Service = ${lower}Service;
-        this.notificationService = notificationService;
-        this.modalService = modalService;
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-
-        // ⚠️ 這裡的權限鍵必須與 SidebarMenuService.MenuPermissionMap 中該路由的鍵一致，
-        // 否則使用者會「看得到選單、點進去被踢」。
-        // 新增檢視時請於 MenuPermissionConsistencyTests.ViewToMenuId 登錄，測試會驗證。
-        if (AuthenticationStateHelper.CheckAccessPage(MagicObjectHelper.$permissionConst) == false)
+Update-Source 'MyProject.AccessDatas/BackendDBContext.cs' 'DbSet' "DbSet<$Name> $Name " {
+    param($t)
+    $last = [regex]::Matches($t, '(?m)^    public virtual DbSet<[^>]+> \w+ \{ get; set; \}\n') | Select-Object -Last 1
+    $t.Insert($last.Index + $last.Length, "    public virtual DbSet<$Name> $Name { get; set; }`n")
+}
+Update-Source 'MyProject.AccessDatas/BackendDBContext.cs' '名稱唯一索引' "modelBuilder.Entity<$Name>(" {
+    param($t)
+    Insert-Before $t "        OnModelCreatingPartial(modelBuilder);" @"
+        #region $DisplayName（$GeneratedMarker 產生）：名稱唯一（只約束未刪除的資料）
+        modelBuilder.Entity<$Name>(entity =>
         {
-            RoleMessage = "你沒有權限存取此頁面";
-            return;
-        }
-
-        await ReloadAsync();
-    }
-
-    public async Task ReloadAsync()
-    {
-        var result = await ${lower}Service.GetAsync(new DataRequest
-        {
-            CurrentPage = _pageIndex,
-            PageSize = _pageSize,
-            Take = _pageSize,
-            Search = searchText,
-            SortField = sortField,
-            SortDescending = sortDirection == "descend" ? true : sortDirection == "ascend" ? false : null,
+            entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);
         });
+        #endregion
 
-        records = result.Result.ToList();
-        _total = result.Count;
-        StateHasChanged();
+
+"@
+}
+
+$teamsMapIn = if ($WithTeams) { "`n            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)))" } else { '' }
+$teamsMapOut = if ($WithTeams) { "`n            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)))" } else { '' }
+Update-Source 'MyProject.Business/Models/AutoMapping.cs' 'AutoMapper' "CreateMap<$Name, ${Name}AdapterModel>" {
+    param($t)
+    Insert-Before $t "        #region TokenUsageLog" @"
+        #region $Name（$GeneratedMarker 產生）
+        CreateMap<$Name, ${Name}AdapterModel>()$teamsMapIn;
+        CreateMap<${Name}AdapterModel, $Name>().IgnoreSoftDeleteFields()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))$teamsMapOut;
+        CreateMap<$Name, ${Name}Dto>();
+        CreateMap<$Name, ${Name}CreateUpdateDto>();
+        CreateMap<${Name}CreateUpdateDto, $Name>().IgnoreSoftDeleteFields()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)));
+        #endregion
+
+
+"@
+}
+
+Update-Source 'MyProject.Web/Extensions/ServiceCollectionExtensions.cs' 'DI' "AddScoped<${Name}Service>" {
+    param($t)
+    Insert-After $t "        services.AddScoped<CategoryRepository>();`n" "        services.AddScoped<${Name}Service>();`n        services.AddScoped<${Name}Repository>();`n"
+}
+
+$constDoc = if ($AdminOnly) { "`n    /// <inheritdoc cref=`"角色_系統管理`"/>`n" } else { '' }
+Update-Source 'MyProject.Share/Helpers/MagicObjectHelper.cs' '權限鍵常數' "public const string $permConst " {
+    param($t)
+    Insert-After $t "    public const string 角色_團隊清單 = `"團隊清單`";`n" "$constDoc    public const string $permConst = `"$DisplayName`";`n"
+}
+
+Update-Source 'MyProject.Business/Helpers/AuditActions.cs' '稽核動作' "        public const string Create = `"$Name.Create`";" {
+    param($t)
+    Insert-Before $t "    public static class Team`n" @"
+    /// <summary>$DisplayName（$GeneratedMarker 產生）。刪除為軟刪除；AutoPurge 由排程作業「已刪除資料清理」寫入。</summary>
+    public static class $Name
+    {
+        public const string Create = "$Name.Create";
+        public const string Update = "$Name.Update";
+        public const string Delete = "$Name.Delete";
+        public const string Restore = "$Name.Restore";
+        public const string Purge = "$Name.Purge";
+        public const string AutoPurge = "$Name.AutoPurge";
+        public const string Export = "$Name.Export";
     }
 
-    async Task OnTableChange(QueryModel<${Name}AdapterModel> args)
-    {
-        // ⚠️ 排序解析一律走 TableSortHelper：它以 reflection 讀 AntDesign 內部屬性，
-        // 對套件升版脆弱，因此全專案只保留一份。不要複製回本檔。
-        var sortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-        sortField = TableSortHelper.ResolveSortFieldName(sortModel);
-        sortDirection = TableSortHelper.HasSortDirection(sortModel.SortDirection)
-            ? sortModel.SortDirection.ToString() ?? "None"
-            : "None";
 
-        _pageIndex = args.PageIndex;
-        _pageSize = args.PageSize;
-        await ReloadAsync();
+"@
+}
+
+Update-Source 'MyProject.Web/Datas/Menu.json' "選單（id $menuId）" "`"url`": `"$Route`"" {
+    param($t)
+    # 找到群組節點的 subMenu 陣列，在它的最後一個元素後面加上新項目（保留原本的排版）。
+    $groupMatch = [regex]::Match($t, "(?m)^(\s*)`"id`": $MenuGroupId,\s*$")
+    if (-not $groupMatch.Success) { return $t }
+    $subIndex = $t.IndexOf('"subMenu": [', $groupMatch.Index, [StringComparison]::Ordinal)
+    $depth = 0
+    for ($i = $subIndex + '"subMenu": '.Length; $i -lt $t.Length; $i++) {
+        $c = $t[$i]
+        if ($c -eq '[' -or $c -eq '{') { $depth++ }
+        elseif ($c -eq ']' -or $c -eq '}') {
+            $depth--
+            if ($depth -eq 0) { break }
+        }
     }
+    $close = $i
+    $lastBrace = $t.LastIndexOf('}', $close)
+    $lineStart = $t.LastIndexOf("`n", $lastBrace) + 1
+    $indent = $t.Substring($lineStart, $lastBrace - $lineStart)
+    $inner = $indent + '  '
+    $entry = ",`n$indent{`n$inner`"id`": $menuId,`n$inner`"name`": `"$DisplayName`",`n$inner`"icon`": `"$Icon`",`n$inner`"url`": `"$Route`"`n$indent}"
+    $t.Insert($lastBrace + 1, $entry)
+}
 
-    async Task OnRefreshAsync()
-    {
-        await ReloadAsync();
-        ViewNotification.Warning(notificationService, "已更新最新資料");
+Update-Source 'MyProject.Web/Components/Layout/SidebarMenuService.cs' '選單權限對照' "] = MagicObjectHelper.$permConst," {
+    param($t)
+    Insert-Before $t "        [4] = MagicObjectHelper.角色_登出," "        [$menuId] = MagicObjectHelper.$permConst,`n"
+}
+
+if ($AdminOnly) {
+    Update-Source 'MyProject.Tests/AdminOnlyPermissionTests.cs' '管理員專屬權限鍵清單' "MagicObjectHelper.$permConst," {
+        param($t)
+        Insert-After $t "        MagicObjectHelper.角色_公告管理,`n" "        MagicObjectHelper.$permConst,`n"
     }
-
-    Task OnAddAsync()
-    {
-        CurrentRecord = new ${Name}AdapterModel();
-        isNewRecordMode = true;
-        modalTitle = "新增$DisplayName";
-
-        // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
-        dirtyTracker.Capture(CurrentRecord);
-
-        modalVisible = true;
-        return Task.CompletedTask;
+    Update-Source 'MyProject.Tests/MenuPermissionConsistencyTests.cs' '管理員專屬檢視清單' "`"${Name}ViewView.razor.cs`"," {
+        param($t)
+        Insert-After $t "        `"AnnouncementView.razor.cs`",`n" "        `"${Name}ViewView.razor.cs`",`n"
     }
-
-    Task OnEditAsync(${Name}AdapterModel record)
-    {
-        // ⚠️ 一律 Clone()：直接綁定會讓表單的雙向繫結污染表格來源資料。
-        CurrentRecord = record.Clone();
-        isNewRecordMode = false;
-        modalTitle = "修改$DisplayName";
-
-        // ⚠️ 必須是開窗前的最後一步。
-        dirtyTracker.Capture(CurrentRecord);
-
-        modalVisible = true;
-        return Task.CompletedTask;
+} else {
+    $roleAnchor = if ($MenuGroupId -eq 2) { "                MagicObjectHelper.角色_專案項目,`n" } else { "                MagicObjectHelper.角色_團隊清單,`n" }
+    Update-Source 'MyProject.Business/Services/Other/RolePermissionService.cs' '角色權限矩陣' "MagicObjectHelper.$permConst," {
+        param($t)
+        Insert-After $t $roleAnchor "                MagicObjectHelper.$permConst,`n"
     }
-
-    /// <summary>
-    /// 「儲存」按鈕。
-    ///
-    /// ⚠️ 第一行的 modalVisible = true 不可移動，也不可在它之前 await：
-    /// AntDesign 在呼叫本方法**之前**就已送出 VisibleChanged(false)，這一行是在同一個
-    /// render batch 內把它搶回來（那個 false 從來不會被畫出來，所以不會閃爍）。
-    /// 之後的開關一律由 FormModalFlow 的回傳值決定 —— 失敗路徑只要 return false。
-    /// ⚠️ args 可能是 null，不要解參考它。
-    /// </summary>
-    private async Task OnModalOKHandleAsync(MouseEventArgs args)
-    {
-        modalVisible = true;
-        modalVisible = await FormModalFlow.RunOkAsync(
-            SaveAsync,
-            logger,
-            notificationService,
-            "儲存$DisplayName時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+    Update-Source 'MyProject.Tests/MenuPermissionConsistencyTests.cs' '檢視與選單對照' "[`"${Name}ViewView.razor.cs`"]" {
+        param($t)
+        Insert-After $t "        [`"TeamViewView.razor.cs`"] = 52,`n" "        [`"${Name}ViewView.razor.cs`"] = $menuId,`n"
     }
+}
 
-    /// <summary>
-    /// 實際存檔。回傳 true 表示已完成、可以關窗；
-    /// 任何驗證失敗或使用者中止都 return false，不必再碰 modalVisible。
-    /// </summary>
-    private async Task<bool> SaveAsync()
-    {
-        if (LocalEditContext?.Validate() == false)
-        {
-            foreach (var error in LocalEditContext.GetValidationMessages())
-            {
-                ViewNotification.ValidationError(notificationService, error);
+Update-Source 'MyProject.Web/Datas/HelpTopics.json' '操作說明目錄' "`"route`": `"$Route`"" {
+    param($t)
+    $end = $t.LastIndexOf('}')
+    $t.Insert($end + 1, ",`n  { `"route`": `"$Route`", `"title`": `"$DisplayName`", `"file`": `"$routeKey.md`" }")
+}
+
+Update-Source 'MyProject.Web/Components/_Imports.razor' '_Imports.razor' "@using MyProject.Web.Components.Views.$Plural`n" {
+    param($t)
+    Insert-After $t "@using MyProject.Web.Components.Views.Teams`n" "@using MyProject.Web.Components.Views.$Plural`n"
+}
+
+Update-Source 'MyProject.Business/Services/DataAccess/SoftDeletePurgeService.cs' '已刪除資料清理（服務）' "PurgeTypeAsync<$Name>(" {
+    param($t)
+    $anchor = "        await PurgeTypeAsync<Category>(result, nameof(Category), cutoffLocal, x => x.Id, x => x.Name,`n            isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);`n"
+    Insert-After $t $anchor "`n        await PurgeTypeAsync<$Name>(result, nameof($Name), cutoffLocal, x => x.Id, x => x.Name,`n            isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);`n"
+}
+
+Update-Source 'MyProject.Web/Scheduling/Jobs/SoftDeletePurgeJob.cs' '已刪除資料清理（作業稽核）' "[`"$Name`"] = (AuditActions.$Name.AutoPurge" {
+    param($t)
+    Insert-After $t "        [`"Category`"] = (AuditActions.Category.AutoPurge, `"分類`"),`n" "        [`"$Name`"] = (AuditActions.$Name.AutoPurge, `"$item`"),`n"
+}
+
+foreach ($testFile in 'MyProject.Tests/OptimisticConcurrencyTests.cs', 'MyProject.Tests/SoftDeleteUserRoleTests.cs') {
+    Update-Source $testFile "實體清單（$(Split-Path -Leaf $testFile)）" "nameof($Name)" { param($t) Add-SortedName $t $Name }
+}
+
+Update-Source 'MyProject.Tests/SoftDeletePurgeTests.cs' '已刪除資料清理測試' "db.$Name.AddRange(" {
+    param($t)
+    $t = Insert-After $t "            db.Category.AddRange(new Category { Name = `"過期分類`", IsDeleted = true, DeletedAt = Expired }, new Category { Name = `"未到期分類`", IsDeleted = true, DeletedAt = NotYet });`n" "            db.$Name.AddRange(new $Name { Name = `"過期資料`", IsDeleted = true, DeletedAt = Expired }, new $Name { Name = `"未到期資料`", IsDeleted = true, DeletedAt = NotYet });`n"
+    Insert-After $t "        Assert.Equal([`"未到期分類`"], (await All<Category>(verify)).Select(x => x.Name).ToArray());`n" "        Assert.Equal([`"未到期資料`"], (await All<$Name>(verify)).Select(x => x.Name).ToArray());`n"
+}
+
+Update-Source 'MyProject.Tests/DataAccessServiceLifetimeTests.cs' '服務生命週期測試' "typeof(${Name}Service)," {
+    param($t)
+    Insert-After $t "        typeof(CategoryService),`n" "        typeof(${Name}Service),`n"
+}
+Update-Source 'MyProject.Tests/AdapterModelCloneTests.cs' '畫面模型 Clone 測試' "typeof(${Name}AdapterModel)," {
+    param($t)
+    Insert-After $t "        typeof(CategoryAdapterModel),`n" "        typeof(${Name}AdapterModel),`n"
+}
+Update-Source 'MyProject.Tests/ApiIntegrationTests.cs' 'API DI 解析測試' "[InlineData(typeof(${Name}Service))]" {
+    param($t)
+    Insert-After $t "    [InlineData(typeof(CategoryService))]`n" "    [InlineData(typeof(${Name}Service))]`n"
+}
+Update-Source 'MyProject.Tests/MenuIconTests.cs' "選單圖示允許清單（$Icon）" "        `"$Icon`",`n" {
+    param($t)
+    $setStart = $t.IndexOf('AllowedIcons', [StringComparison]::Ordinal)
+    $close = $t.IndexOf("`n    };", $setStart, [StringComparison]::Ordinal)
+    $t.Insert($close + 1, "        `"$Icon`",`n")
+}
+#endregion
+
+#region migration
+$migration = '略過（-SkipMigration）'
+if (-not $SkipMigration) {
+    $migrationName = "Add$Name"
+    $existingMigration = Get-ChildItem -LiteralPath (Join-Path $src 'MyProject.AccessDatas/Migrations') -Filter "*_$migrationName.cs" -ErrorAction SilentlyContinue
+    if ($existingMigration) {
+        $migration = "略過（已存在 $($existingMigration[0].Name)）"
+    } else {
+        # 設計階段會建立主機：所有外部路徑與日誌一律導到暫存目錄，不寫進開發機的 C:\temp 或正式路徑。
+        $isolated = Join-Path ([IO.Path]::GetTempPath()) ("crudgen-" + [guid]::NewGuid().ToString('N'))
+        $environment = @{
+            ASPNETCORE_ENVIRONMENT                               = 'Development'
+            BootstrapSettings__SupportPassword                  = 'support'
+            NLog__BasePath                                      = (Join-Path $isolated 'logs')
+            SystemSettings__ExternalFileSystem__DatabasePath    = (Join-Path $isolated 'DB')
+            SystemSettings__ExternalFileSystem__DownloadPath    = (Join-Path $isolated 'Download')
+            SystemSettings__ExternalFileSystem__UploadPath      = (Join-Path $isolated 'Upload')
+            SystemSettings__ExternalFileSystem__ProjectFilePath = (Join-Path $isolated 'ProjectFile')
+            SystemSettings__ExternalFileSystem__ExceptionPath   = (Join-Path $isolated 'Exception')
+            SystemSettings__ExternalFileSystem__TokenUsagePath  = (Join-Path $isolated 'TokenUsage')
+            SystemSettings__ExternalFileSystem__AiCallLogPath   = (Join-Path $isolated 'AiCallLog')
+            SystemSettings__ExternalFileSystem__DataProtectionKeyPath = (Join-Path $isolated 'Keys')
+            SystemSettings__ExternalFileSystem__BackupPath      = (Join-Path $isolated 'Backup')
+        }
+        $saved = @{}
+        foreach ($key in $environment.Keys) {
+            $saved[$key] = [Environment]::GetEnvironmentVariable($key)
+            [Environment]::SetEnvironmentVariable($key, $environment[$key])
+        }
+        try {
+            Push-Location (Join-Path $src 'MyProject.Web')
+            # 先建置（含還原）：產出的程式碼有編譯錯誤時在這裡就看得到；dotnet ef 讀專案中繼資料前需要還原過。
+            $buildOutput = & dotnet build -v q -nologo 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $buildOutput | Write-Host
+                throw "建置失敗（見上方輸出），沒有產生 migration。檔案與登記已完成。"
             }
-
-            return false;
-        }
-
-        // 一個字都沒改就按儲存：不值得白寫一筆，也不該白跳一次確認窗。
-        if (isNewRecordMode == false && dirtyTracker.IsDirty(CurrentRecord) == false)
-        {
-            ViewNotification.Info(notificationService, "沒有任何變更，未進行儲存。");
-            return true;
-        }
-
-        // 儲存前的二次確認。排在資料庫前置檢查之前：使用者若選「再檢查」，
-        // 就不必白跑一次資料庫來回。
-        if (await FormEditConfirm.AskSaveAsync(modalService) == false)
-        {
-            return false;
-        }
-
-        var actionResult = isNewRecordMode
-            ? await ${lower}Service.AddAsync(CurrentRecord)
-            : await ${lower}Service.UpdateAsync(CurrentRecord);
-
-        // 前置檢查通過不代表寫得進去：唯一索引在並發時仍會擋下，
-        // 忽略這個回傳值會讓失敗的儲存顯示成「新增成功」。
-        if (!actionResult.Success)
-        {
-            ViewNotification.Error(notificationService, actionResult.Message);
-            return false;
-        }
-
-        ViewNotification.Warning(notificationService, isNewRecordMode ? "新增成功" : "修改成功");
-
-        await ReloadAsync();
-        dirtyTracker.Clear();
-
-        return true;
-    }
-
-    /// <summary>
-    /// 取消／✕／ESC 的共用出口（遮罩已由 MaskClosable="false" 擋掉，不會走到這裡）。
-    /// 有未儲存變更時先問過使用者；無變更直接關閉，不打擾。
-    ///
-    /// ⚠️ 第一行的 modalVisible = true 不可移動：AntDesign 呼叫本方法前已送出
-    /// VisibleChanged(false)，要讓「繼續編輯」留住整窗輸入就得在這裡搶回來。
-    /// ⚠️ args 可能是 null（ESC／✕ 走 Config.OnCancel.Invoke(null)），不要解參考它。
-    /// </summary>
-    private async Task OnModalCancelHandleAsync(MouseEventArgs args)
-    {
-        modalVisible = true;
-        modalVisible = await FormModalFlow.ConfirmCloseAsync(modalService, dirtyTracker.IsDirty(CurrentRecord));
-
-        if (modalVisible == false)
-        {
-            dirtyTracker.Clear();
-        }
-    }
-
-    public void OnEditContestChanged(EditContext context)
-    {
-        LocalEditContext = context;
-    }
-
-    async Task OnDeleteAsync(${Name}AdapterModel record)
-    {
-        var checkResult = await ${lower}Service.BeforeDeleteCheckAsync(record);
-        if (!checkResult.Success)
-        {
-            ViewNotification.Error(notificationService, checkResult.Message);
-            return;
-        }
-
-        var result = await ${lower}Service.DeleteAsync(record.Id);
-        if (!result.Success)
-        {
-            ViewNotification.Error(notificationService, result.Message);
-            return;
-        }
-
-        logger.LogInformation("$Name deleted from view. ${Name}Id={${Name}Id}", record.Id);
-        await ReloadAsync();
-        ViewNotification.Warning(notificationService, "刪除成功");
-    }
-}
-"@
-
-New-ScaffoldFile "Tests/${Name}ServiceTests.cs" @"
-using AutoMapper;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using MyProject.AccessDatas;
-using MyProject.AccessDatas.Models;
-using MyProject.Business.Services.DataAccess;
-using MyProject.Models.AdapterModel;
-using MyProject.Models.Systems;
-
-namespace MyProject.Tests;
-
-public sealed class ${Name}ServiceTests
-{
-    [Fact]
-    public async Task AddAsync_ShouldPersistRecord()
-    {
-        await using var fixture = await ${Name}ServiceFixture.CreateAsync();
-        var service = fixture.CreateService();
-
-        var result = await service.AddAsync(new ${Name}AdapterModel { Name = "甲" });
-
-        Assert.True(result.Success);
-        Assert.Equal(1, await fixture.Context.Set<$Name>().CountAsync());
-    }
-
-    [Fact]
-    public async Task BeforeAddCheckAsync_WithDuplicatedName_ShouldFail()
-    {
-        await using var fixture = await ${Name}ServiceFixture.CreateAsync();
-        var service = fixture.CreateService();
-        await service.AddAsync(new ${Name}AdapterModel { Name = "甲" });
-
-        var result = await service.BeforeAddCheckAsync(new ${Name}AdapterModel { Name = "甲" });
-
-        Assert.False(result.Success);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ShouldRemoveRecord()
-    {
-        await using var fixture = await ${Name}ServiceFixture.CreateAsync();
-        var service = fixture.CreateService();
-        await service.AddAsync(new ${Name}AdapterModel { Name = "甲" });
-        var id = await fixture.Context.Set<$Name>().Select(x => x.Id).SingleAsync();
-
-        var result = await service.DeleteAsync(id);
-
-        Assert.True(result.Success);
-        Assert.Equal(0, await fixture.Context.Set<$Name>().CountAsync());
-    }
-
-    private sealed class ${Name}ServiceFixture : IAsyncDisposable
-    {
-        private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
-        private readonly ILoggerFactory loggerFactory;
-
-        private ${Name}ServiceFixture(SqliteConnection connection, BackendDBContext context)
-        {
-            this.connection = connection;
-            Context = context;
-            loggerFactory = LoggerFactory.Create(_ => { });
-            var configuration = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory);
-            mapper = configuration.CreateMapper();
-        }
-
-        public BackendDBContext Context { get; }
-
-        public static async Task<${Name}ServiceFixture> CreateAsync()
-        {
-            var connection = new SqliteConnection("Data Source=:memory:");
-            await connection.OpenAsync();
-            var options = new DbContextOptionsBuilder<BackendDBContext>().UseSqlite(connection).Options;
-            var context = new BackendDBContext(options);
-            await context.Database.EnsureCreatedAsync();
-            return new ${Name}ServiceFixture(connection, context);
-        }
-
-        // ⚠️ 服務注入 IDbContextFactory，測試也要用工廠（在同一條連線上開新 context），
-        // 才能真實反映正式環境「每次操作各拿一個乾淨 context」的行為。
-        public ${Name}Service CreateService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<${Name}Service>());
-
-        public async ValueTask DisposeAsync()
-        {
-            await Context.DisposeAsync();
-            await connection.DisposeAsync();
-            loggerFactory.Dispose();
+            $efOutput = & dotnet ef migrations add $migrationName --project ../MyProject.AccessDatas --startup-project . --no-build 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $efOutput | Write-Host
+                throw "dotnet ef migrations add 失敗（見上方輸出）。檔案與登記已完成，修正後可以自己執行：dotnet ef migrations add $migrationName --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web"
+            }
+            $migration = "已產生 $migrationName"
+        } finally {
+            Pop-Location
+            foreach ($key in $environment.Keys) { [Environment]::SetEnvironmentVariable($key, $saved[$key]) }
+            Remove-Item -LiteralPath $isolated -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
-"@
-
-# 頁面操作說明初稿：結構已符合 PageHelpCatalogTests（七段、一分鐘看懂六標籤、第三段四欄表格、問答與固定結尾題、相關頁面格式），
-# 內容是通用 CRUD 文字，搬進專案後請依實際欄位修潤。
-# ⚠️ 這段是 PowerShell 的雙引號 here-string，反引號是跳脫字元，所以內文不用 Markdown 行內 code。
-New-ScaffoldFile "Web/Datas/Help/$helpFile" -WithBom @"
-# $DisplayName
-
-在這一頁**新增、修改、刪除**「$DisplayName」的資料，並用清單瀏覽既有紀錄。
-
-> 看得到「新增」「修改」「刪除」按鈕與否，取決於你的角色在「$DisplayName」勾了哪些權限。
-
-### 一分鐘看懂這一頁
-
-- **解決什麼問題**：集中維護「$DisplayName」的資料，不必各自記在不同地方，大家看到的都是同一份。
-- **誰會用到**：被授予「$DisplayName」權限的使用者；新增、修改、刪除按鈕會依你的權限個別顯示。
-- **它在系統的哪個位置**：從左側選單的「$DisplayName」進入；清單每一列右側有修改與刪除按鈕。
-- **開始前要準備**：先確認要輸入的名稱，名稱是必填欄位，說明可以之後再補。
-- **做完會得到**：一筆會出現在清單中、可以排序與修改的「$DisplayName」紀錄。
-- **它不做什麼**：這一頁不負責權限設定，誰能看到、誰能修改由管理員在角色管理中決定。
-
-## 一、功能摘要
-
-在這裡可以做什麼：
-
-- 新增、修改、刪除「$DisplayName」紀錄（依你的權限顯示按鈕）。
-- 點「名稱」欄位標題切換排序。
-- 用下方頁碼換頁瀏覽所有紀錄。
-
-## 二、這個頁面在做什麼
-
-### 誰會使用、為什麼要用
-
-| 角色 | 為什麼要用 |
-|---|---|
-| 資料維護者 | 建立與更新「$DisplayName」紀錄，讓其他人有一致的資料可用。 |
-| 一般使用者 | 查閱目前有哪些「$DisplayName」紀錄。 |
-
-清單會向伺服器分頁查詢資料，每次只取目前這一頁的紀錄，資料再多也不會拖慢畫面。
-
-### 需要的權限
-
-| 權限 | 可以做的事 |
-|---|---|
-| 檢視 | 進入畫面、瀏覽清單。 |
-| 新增 | 看得到「新增」按鈕，可以建立紀錄。 |
-| 修改 | 看得到每列的「修改」按鈕。 |
-| 刪除 | 看得到每列的「刪除」按鈕。 |
-
-### 它跟其他頁面的分工
-
-| 你想做的事 | 該去哪 |
-|---|---|
-| 維護「$DisplayName」資料 | 這一頁 |
-| 調整誰可以檢視、新增、修改、刪除這一頁 | 「角色管理」 |
-
-## 三、畫面上有哪些按鈕、各自做什麼
-
-### 上方工具列
-
-| 按鈕 | 按下後會做什麼 | 右下角會看到的提示 | 注意事項 |
-|---|---|---|---|
-| 新增 | 開啟空白的編輯視窗。 | 無 | 需要「新增」權限才看得到。 |
-| 重新整理 | 重新讀取清單，看到其他人剛做的異動。 | 「已更新最新資料」 | 一律出現。 |
-
-### 表格欄位
-
-| 欄位 | 意思 | 範例 | 怎麼填或怎麼用 |
-|---|---|---|---|
-| 名稱 | 這筆紀錄給人辨識用的名字。 | 「北區倉庫」 | 點欄位標題可以切換遞增／遞減排序。 |
-| 說明 | 補充這筆紀錄用途的文字。 | 「存放一般備品」 | 只供閱讀，不能排序。 |
-| 操作 | 每列的「修改」「刪除」按鈕。 | — | 依你的權限顯示。 |
-
-| 按鈕 | 按下後會做什麼 | 右下角會看到的提示 | 注意事項 |
-|---|---|---|---|
-| 修改（每列） | 開啟這筆紀錄的編輯視窗。 | 無 | 需要「修改」權限。 |
-| 刪除（每列） | 直接刪除這筆紀錄。 | 「刪除成功」 | 需要「刪除」權限；**按下就刪除、無法復原**。 |
-
-### 新增／修改視窗
-
-| 欄位 | 意思 | 範例 | 怎麼填或怎麼用 |
-|---|---|---|---|
-| 名稱 | 這筆紀錄的名字。 | 「北區倉庫」 | **必填**。 |
-| 說明 | 補充說明。 | 「存放一般備品」 | 選填，可以多行。 |
-
-| 按鈕 | 按下後會做什麼 | 右下角會看到的提示 | 注意事項 |
-|---|---|---|---|
-| 儲存 | 先檢查必填欄位，再跳「確認儲存」：「確定要儲存這筆記錄嗎？」，按「儲存」才寫入，按「再檢查」回到表單。 | 「新增成功」或「修改成功」 | 修改時一個欄位都沒動就按儲存，會顯示「沒有任何變更，未進行儲存。」並關閉視窗。 |
-| 取消、✕、Esc | 關閉視窗。 | 無 | 有未儲存的變更時會先詢問，選「放棄變更」關閉、選「繼續編輯」回去。點視窗外面不會關閉。 |
-
-### 你可能看到的訊息
-
-| 訊息 | 原因與處理 |
-|---|---|
-| 名稱 不可為空白 | 名稱沒填，補上後再儲存。 |
-| 沒有任何變更，未進行儲存。 | 修改時沒有改動任何欄位，視窗會直接關閉，資料不變。 |
-
-## 四、建議這樣操作，會得到什麼
-
-### 新增一筆紀錄
-
-1. 按工具列的「新增」。
-2. 輸入名稱，視需要補上說明。
-3. 按「儲存」，在「確認儲存」視窗再按一次「儲存」。
-
-**會得到什麼**：清單出現這筆新紀錄，右下角顯示「新增成功」。
-
-### 修改既有紀錄
-
-1. 在清單找到要改的那一列，按右側的「修改」。
-2. 調整內容後按「儲存」並確認；不想改了就按「取消」並選「放棄變更」。
-
-**會得到什麼**：清單顯示更新後的內容，右下角顯示「修改成功」。
-
-## 五、名詞解釋
-
-| 名詞 | 白話解釋 |
-|---|---|
-| 名稱 | 這筆紀錄給人辨識用的名字，是必填欄位。 |
-| 說明 | 補充這筆紀錄用途的文字，可以留空。 |
-| 權限 | 決定你能不能看到這一頁，以及能不能新增、修改、刪除，由管理員在角色管理中設定。 |
-
-## 六、相關頁面
-
-以下頁面是否看得到、能不能操作，取決於你的權限設定。
-
-- [首頁](/App)：登入後的落地頁，可以從快速入口回到常用功能。
-- [角色管理](/roleviews)：管理員在這裡決定哪些角色可以檢視、新增、修改、刪除這一頁的資料。
-
-## 七、常見問題
-
-**問：為什麼我看不到「新增」按鈕？**
-答：新增、修改、刪除按鈕會依你的權限個別顯示。需要這些動作時，請洽管理員調整你的角色權限。
-
-**問：刪除之後可以復原嗎？**
-答：不行，刪除會直接移除這筆紀錄。不確定時請先改用修改，或向管理員確認後再刪除。
-
-**問：儲存時出現「名稱 不可為空白」？**
-答：名稱是必填欄位，請輸入名稱後再按「儲存」。
-
-**問：還是解決不了怎麼辦？**
-答：請記下發生時間、操作的頁面與按鈕、畫面或右下角的訊息（最好截圖），以及右上角使用者選單「關於」裡的系統版本，回報給系統管理員。
-"@
-
-New-ScaffoldFile "README.md" @"
-# $DisplayName（$Name）模組整合說明
-
-本目錄是骨架，**尚未**加入方案。請依下列步驟搬移並完成註冊。
-每一步都對應專案的既有不變量，漏掉會有守門測試或執行期錯誤提醒你。
-
-## 一、搬移檔案
-
-| 產出 | 目的地 |
-|------|--------|
-| AccessDatas/Models/$Name.cs | src/MyProject/MyProject.AccessDatas/Models/ |
-| Dtos/ | src/MyProject/MyProject.Dtos/ |
-| Models/AdapterModel/ | src/MyProject/MyProject.Models/AdapterModel/ |
-| Business/ | src/MyProject/MyProject.Business/ |
-| Web/ | src/MyProject/MyProject.Web/ |
-
-搬入 Web/ 之後，`Components/_Imports.razor` 需加入：
-`@using MyProject.Web.Components.Views.${Name}s`
-（既有檢視都放在自己的子命名空間，Page 薄殼才找得到元件）。
-| Tests/ | src/MyProject/MyProject.Tests/ |
-
-## 二、資料層註冊
-
-1. BackendDBContext 加入：public virtual DbSet<$Name> $Name { get; set; }
-2. MyProject.Business/Models/AutoMapping.cs 加入對應：
-   CreateMap<$Name, ${Name}AdapterModel>().ReverseMap();
-   CreateMap<$Name, ${Name}Dto>();
-3. **產生 SQLite migration**（不可略過，否則程式與 schema 不一致）：
-   dotnet ef migrations add Add$Name --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web
-
-## 三、DI 註冊
-
-MyProject.Web/Extensions/ServiceCollectionExtensions.cs：
-
-    services.AddScoped<${Name}Service>();
-    services.AddScoped<${Name}Repository>();
-
-## 四、權限與選單（四方一致）⚠️
-
-1. MagicObjectHelper 新增權限鍵常數：
-   public const string $permissionConst = "$DisplayName";
-   **不得帶前後空白**（MenuPermissionConsistencyTests 會擋）。
-2. Datas/Menu.json 新增項目並**給定唯一 id**（下例用 99，請改成實際值）：
-   { "id": 99, "name": "$DisplayName", "icon": "category", "url": "$route" }
-   icon 必須是有效的 **classic** Material Icons 名稱（非 Material Symbols），
-   並加入 MenuIconTests.AllowedIcons。
-3. SidebarMenuService.MenuPermissionMap 加入：[99] = MagicObjectHelper.$permissionConst,
-4. RolePermissionService.GetRoleListPermissionAllName() 把權限鍵放進對應群組。
-   若本頁要做成**管理員專屬**，則反過來：不要放進矩陣，改在檢視用 CheckIsAdmin()，
-   並把權限鍵加入 AdminOnlyPermissionTests 白名單。
-5. MenuPermissionConsistencyTests.ViewToMenuId 加入：["${Name}View.razor.cs"] = 99,
-   這條會驗證檢視實際使用的權限鍵與選單對應一致 ——
-   對不上就是「看得到選單、點進去被踢」。
-6. **頁面操作說明**：Web/Datas/Help/$helpFile 已隨 Web/ 一起搬入（UTF-8 含 BOM，檔名不可改）。
-   在 Datas/HelpTopics.json 加入：
-   { "route": "$route", "title": "$DisplayName", "file": "$helpFile" }
-   title 要與 Menu.json 的 name 一致（說明檔第一行 # 頁名也要相同）。初稿是通用 CRUD 文字，
-   請依實際欄位修潤第三段「畫面上有哪些按鈕、各自做什麼」（欄位表的「範例」欄與按鈕表的
-   「右下角會看到的提示」欄都要填）。漏登記或格式不符，PageHelpCatalogTests 會擋。
-
-## 五、尚未產生的部分
-
-維護 Modal 的**骨架已經產生**（接近滿版、2 欄版型、未儲存二次確認、果凍視覺都已接好），
-但裡面只有「名稱」與「說明」兩個示意欄位，請依實際模型補齊其餘欄位：
-
-- 短欄位直接放進 FormSection，會自動 2 欄由左而右排列。
-- 不適合 2 欄的欄位（多行文字、檔案上傳、清單、權限矩陣）加 Class="form-field-full" 獨占整行。
-- 欄位一多就再開一個 FormSection 分組，別讓使用者在一長串欄位裡找東西。
-- 不在模型裡的暫存狀態（待上傳檔案等）要傳指紋給 dirtyTracker.Capture 的第二個參數，
-  否則「只加了檔案、沒動欄位」會被判定為無變更而直接關窗。
-
-規範全文見 docs/architecture/對話窗 UI 設計規範.md，
-由 MyProject.Tests/FormModalConventionTests.cs 守門。
-
-⚠️ **EditForm／form 上絕不可加 @onkeydown**：keydown 會從表單內任何子元素冒泡上來，
-TextArea 換行、Select 選取、DatePicker 確認日期都會變成「存檔並關窗」。
-存檔的唯一入口是 <Modal OnOk>，Esc 交給 <Modal Keyboard="true">。
-需要捷徑請綁在個別元件上（例如 <Input OnPressEnter="..." />）。
-理由見 docs/architecture/開發慣例與限制速查.md §6.3，
-由 MyProject.Tests/ModalKeyboardConventionTests.cs 守門。
-
-⚠️ **不要把 modalVisible = true 補在每條失敗路徑**：handler 第一行已經搶回 Visible，
-失敗路徑只要 return false。舊寫法只要漏補一次，症狀就是「驗證失敗 → 窗關了 → 輸入全丟」。
-
-## 六、驗收
-
-專案沒有 CI，提交前跑完品質關卡（restore、Release 建置 0 warning、format、test、文件編碼、弱點掃描，遇到失敗就停）：
-
-    pwsh ./scripts/Invoke-QualityGate.ps1
-
-別忘了 **SystemVersion Patch +1** 與同步更新相關文件。
-"@
-
-Write-Host "Created CRUD module scaffold at $moduleRoot"
-Write-Host "Next: read $moduleRoot/README.md for the required registration steps."
+#endregion
+
+Write-Host ''
+Write-Host "CRUD 模組「$DisplayName」（$Name）—— 路由 $Route、選單 id $menuId（$menuPathText）、權限鍵 MagicObjectHelper.$permConst$(if ($AdminOnly) { '（管理員專屬）' })$(if ($WithTeams) { '、含團隊範圍' })"
+Write-Host "寫入 $($written.Count) 個檔案$(if ($kept.Count) { "，保留既有 $($kept.Count) 個" })："
+$written | ForEach-Object { Write-Host "  + $_" }
+$kept | ForEach-Object { Write-Host "  = $_（已存在，未覆蓋）" }
+Write-Host '登記：'
+$report | ForEach-Object { Write-Host "  $_" }
+Write-Host "migration：$migration"
+Write-Host ''
+Write-Host '接下來：'
+Write-Host "  1. 補上實際的欄位（實體、畫面模型、DTO、表單、匯出欄位），改完欄位後重新產生 migration。"
+Write-Host "  2. 把操作說明 Datas/Help/$routeKey.md 第二段與第四段改成實際的業務說明。"
+Write-Host '  3. pwsh ./scripts/Invoke-QualityGate.ps1'

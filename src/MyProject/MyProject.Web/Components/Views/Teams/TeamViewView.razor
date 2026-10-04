@@ -13,23 +13,24 @@ else
     <div>
         <div class="team-view-toolbar">
             <div class="team-view-toolbar-left">
-                @if (!showDeleted && AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_團隊清單, PermissionActions.Create))
+                @if (!showDeleted)
                 {
-                    <ToolbarIconButton Title="新增" Icon="add"
-                                       OnClick="@(async () => await OnAddAsync())" />
+                    <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Create">
+                        <ToolbarIconButton Title="新增" Icon="add"
+                                           OnClick="@(async () => await OnAddAsync())" />
+                    </RequirePermission>
                 }
                 <ToolbarIconButton Title="重新整理" Icon="refresh"
                                    OnClick="@(async () => await OnRefreshAsync())" />
                 @* 0.9.107 起：依目前的搜尋、篩選、排序與「顯示已刪除」匯出（團隊範圍與畫面相同）。 *@
                 <ToolbarIconButton Title="匯出 Excel" Icon="file_download"
                                    OnClick="@(async () => await OnExportExcelAsync())" />
-                @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_團隊清單, PermissionActions.Delete))
-                {
+                <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Delete">
                     @* 0.9.94 起刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除。 *@
                     <ToolbarIconButton Title="@(showDeleted ? "返回清單" : "顯示已刪除")"
                                        Icon="@(showDeleted ? "arrow_back" : "auto_delete")"
                                        OnClick="@(async () => await OnToggleDeletedAsync())" />
-                }
+                </RequirePermission>
             </div>
             <div class="team-view-toolbar-right">
                 <Input class="team-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
@@ -77,8 +78,7 @@ else
                     @if (showDeleted)
                     {
                         <Space>
-                            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_團隊清單, PermissionActions.Delete))
-                            {
+                            <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Delete">
                                 <SpaceItem>
                                     <CrudActionButton Title="還原" Icon="restore_from_trash"
                                                       OnClick="@(async () => await OnRestoreAsync(@context))" />
@@ -87,26 +87,24 @@ else
                                     <CrudActionButton Title="永久刪除" Icon="delete_forever" Danger
                                                       OnClick="@(async () => await OnPurgeAsync(@context))" />
                                 </SpaceItem>
-                            }
+                            </RequirePermission>
                         </Space>
                     }
                     else
                     {
                         <Space>
-                            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_團隊清單, PermissionActions.Edit))
-                            {
+                            <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Edit">
                                 <SpaceItem>
                                     <CrudActionButton Title="修改" Icon="edit"
                                                       OnClick="@(async () => await OnEditAsync(@context))" />
                                 </SpaceItem>
-                            }
-                            @if (AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_團隊清單, PermissionActions.Delete))
-                            {
+                            </RequirePermission>
+                            <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Delete">
                                 <SpaceItem>
                                     <CrudActionButton Title="刪除" Icon="delete" Danger
                                                       OnClick="@(async () => await OnDeleteAsync(@context))" />
                                 </SpaceItem>
-                            }
+                            </RequirePermission>
                         </Space>
                     }
                 </ActionColumn>
