@@ -23,6 +23,7 @@ public class AuthenticationStateHelper
     private readonly IEffectiveTeamResolver effectiveTeamResolver;
     private readonly IPermissionChecker permissionChecker;
     private readonly IAuditLogService auditLogService;
+    private readonly IPasswordPolicy passwordPolicy;
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
@@ -32,7 +33,8 @@ public class AuthenticationStateHelper
         RolePermissionService rolePermissionService,
         IEffectiveTeamResolver effectiveTeamResolver,
         IPermissionChecker permissionChecker,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IPasswordPolicy passwordPolicy)
     {
         this.logger = logger;
         this.mapper = mapper;
@@ -42,6 +44,7 @@ public class AuthenticationStateHelper
         this.effectiveTeamResolver = effectiveTeamResolver;
         this.permissionChecker = permissionChecker;
         this.auditLogService = auditLogService;
+        this.passwordPolicy = passwordPolicy;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -101,7 +104,8 @@ public class AuthenticationStateHelper
 
         logger.LogDebug("Resolved authenticated user information for UserId={UserId}.", id);
 
-        bool needChangePassword = await myUserService.NeedChangePasswordAsync(myUser);
+        // 0.9.101 起只看旗標與到期時間（不再每次換頁都以 PBKDF2 比對 123456）。
+        bool needChangePassword = passwordPolicy.RequiresChange(myUser.Account, myUser.HasLocalPassword, myUser.MustChangePassword, myUser.PasswordChangedAtUtc);
         if (needChangePassword && !IsChangePasswordPage(navigationManager))
         {
             logger.LogWarning("User {UserId} is required to change password before continuing.", id);
@@ -134,6 +138,7 @@ public class AuthenticationStateHelper
             // 覆寫 CopyFrom 由 TabViewJson 反序列化得到的 RoleList。TabViewJson 僅保留供角色編輯畫面回填。
             currentUserService.CurrentUser.RoleList =
                 (await permissionChecker.GetEffectivePermissionKeysAsync(myUser.Id)).ToList();
+            currentUserService.NotifyChanged();
 
             // 每次導覽都會跑，屬於流程細節而非使用者意圖，因此記在 Debug。
             logger.LogDebug(

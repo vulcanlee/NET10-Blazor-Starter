@@ -2,8 +2,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
-using Microsoft.Extensions.Configuration;
-using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
@@ -33,15 +31,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private SidebarMenuService SidebarMenuService { get; set; } = default!;
 
     [Inject]
-    private IConfiguration Configuration { get; set; } = default!;
-
-    [Inject]
-    private MyUserService MyUserService { get; set; } = default!;
-
-    [Inject]
-    private MessageService MessageService { get; set; } = default!;
-
-    [Inject]
     private ModalService ModalService { get; set; } = default!;
 
     [Inject]
@@ -53,21 +42,21 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private SystemStartupState SystemStartupState { get; set; } = default!;
 
+    [Inject]
+    private PageHelpService PageHelpService { get; set; } = default!;
+
     private const string DefaultPageTitle = "系統首頁";
     private const string DefaultUserDisplayName = "使用者";
 
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
     private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
+    private string CurrentUserInitials { get; set; } = "?";
+    private IReadOnlyList<PageHelpTopicModel> helpTopics = [];
     private bool CurrentUserIsAdmin { get; set; }
     private bool isAuthenticated;
     private bool isSidebarCollapsed = true;
     private bool isUserMenuOpen;
-
-    private bool changePasswordVisible = false;
-    private bool isSupportAccount = false;
-    private string changePasswordErrorMessage = string.Empty;
-    private ChangePasswordForm changePasswordForm = new();
 
     private bool aboutVisible = false;
 
@@ -92,9 +81,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         }
 
         MenuItems = await SidebarMenuService.LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper);
+        helpTopics = await PageHelpService.LoadTopicsAsync();
         UpdateCurrentUserStatus();
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
+        CurrentUserService.Changed += OnCurrentUserChanged;
         isAuthenticated = true;
     }
 
@@ -108,7 +99,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
                 ? currentUser.Account
                 : DefaultUserDisplayName;
 
+        CurrentUserInitials = UserInitials.From(currentUser.Name, currentUser.Account);
         CurrentUserIsAdmin = currentUser.IsAdmin;
+    }
+
+    /// <summary>每次換頁的登入檢查與個人資料存檔後觸發（見 <see cref="CurrentUserService.Changed"/>）。</summary>
+    private void OnCurrentUserChanged()
+    {
+        UpdateCurrentUserStatus();
+        InvokeAsync(StateHasChanged);
     }
 
     private void UpdateCurrentPageTitle()
@@ -118,12 +117,18 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         var currentPath = relativePath.Split('?', '#')[0].Trim('/');
         var normalizedCurrentPath = string.IsNullOrEmpty(currentPath) ? "/" : $"/{currentPath}";
 
-        CurrentPageTitle = TryFindMenuTitle(MenuItems, normalizedCurrentPath, out var pageTitle)
-            ? pageTitle
-            : DefaultPageTitle;
+        CurrentPageTitle = ResolvePageTitle(MenuItems, helpTopics, normalizedCurrentPath);
 
         Logger.LogDebug("Updated page title. Path={Path}, Title={Title}", normalizedCurrentPath, CurrentPageTitle);
     }
+
+    /// <summary>
+    /// 頂欄的頁名：先找選單；不在選單裡的登入後頁面（/ChangePassword、/Profile）用操作說明登記的頁名（0.9.102 起；之前一律顯示「系統首頁」）。
+    /// </summary>
+    internal static string ResolvePageTitle(IEnumerable<SidebarMenuItemModel> menuItems, IReadOnlyList<PageHelpTopicModel> helpTopics, string normalizedPath)
+        => TryFindMenuTitle(menuItems, normalizedPath, out var pageTitle)
+            ? pageTitle
+            : PageHelpService.MatchTopic(helpTopics, normalizedPath)?.Title ?? DefaultPageTitle;
 
     private static bool TryFindMenuTitle(IEnumerable<SidebarMenuItemModel> items, string currentPath, out string pageTitle)
     {
@@ -181,64 +186,19 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         await LogoutConfirm.RequestAsync(ModalService, NavigationManager);
     }
 
+    /// <summary>
+    /// 0.9.101 起變更密碼只有一個入口：/ChangePassword 頁（右上角原本的對話窗沒有套用密碼原則與歷史，已移除）。
+    /// </summary>
+    private void OnProfileClick()
+    {
+        isUserMenuOpen = false;
+        NavigationManager.NavigateTo("/Profile");
+    }
+
     private void OnChangePasswordClick()
     {
-        var supportAccount = Configuration["BootstrapSettings:SupportAccount"] ?? "support";
-        isSupportAccount = CurrentUserService.CurrentUser.Account == supportAccount;
-        changePasswordForm = new ChangePasswordForm();
-        changePasswordErrorMessage = string.Empty;
-        changePasswordVisible = true;
-    }
-
-    private async Task OnChangePasswordOkAsync()
-    {
-        if (isSupportAccount)
-        {
-            changePasswordVisible = false;
-            return;
-        }
-
-        changePasswordErrorMessage = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(changePasswordForm.CurrentPassword))
-        {
-            changePasswordErrorMessage = "請輸入目前密碼。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(changePasswordForm.NewPassword) || changePasswordForm.NewPassword.Length < 6)
-        {
-            changePasswordErrorMessage = "新密碼至少需要 6 個字元。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        if (changePasswordForm.NewPassword != changePasswordForm.ConfirmPassword)
-        {
-            changePasswordErrorMessage = "新密碼與確認密碼不一致。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        var userId = CurrentUserService.CurrentUser.Id;
-        var result = await MyUserService.ChangePasswordAsync(userId, changePasswordForm.CurrentPassword, changePasswordForm.NewPassword);
-
-        if (!result.Success)
-        {
-            changePasswordErrorMessage = result.Message ?? "變更密碼失敗，請稍後再試。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        changePasswordVisible = false;
-        _ = MessageService.SuccessAsync("密碼變更成功！");
-    }
-
-    private void OnChangePasswordCancelAsync()
-    {
-        changePasswordVisible = false;
-        changePasswordErrorMessage = string.Empty;
+        isUserMenuOpen = false;
+        NavigationManager.NavigateTo("/ChangePassword");
     }
 
     /// <summary>
@@ -279,13 +239,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         isUserMenuOpen = !isUserMenuOpen;
     }
 
-    private sealed class ChangePasswordForm
-    {
-        public string CurrentPassword { get; set; } = string.Empty;
-        public string NewPassword { get; set; } = string.Empty;
-        public string ConfirmPassword { get; set; } = string.Empty;
-    }
-
     /// <summary>
     /// 登入後才註冊瀏覽器錯誤回報（LOG-20）：只有已登入、有 circuit 的頁面回報，匿名者無從灌資料。
     /// isAuthenticated 在非同步初始化後才成立，所以不能只看 firstRender。
@@ -317,6 +270,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         Logger.LogDebug("Disposing main layout.");
         NavigationManager.LocationChanged -= OnLocationChanged;
+        CurrentUserService.Changed -= OnCurrentUserChanged;
         browserErrorReporterReference?.Dispose();
     }
 }

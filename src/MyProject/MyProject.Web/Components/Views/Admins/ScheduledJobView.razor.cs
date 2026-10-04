@@ -127,7 +127,7 @@ namespace MyProject.Web.Components.Views.Admins
                 }
 
                 var account = CurrentUserService.CurrentUser.Account;
-                if (!overviewService.TryTrigger(item.Name, account))
+                if (!overviewService.TryTrigger(item.Name, account, CurrentUserService.CurrentUser.Id))
                 {
                     ViewNotification.Warning(notificationService, "這個作業已經在執行中，請等它完成。");
                     return;

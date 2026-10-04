@@ -54,6 +54,11 @@ else
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable>
                     <StatusPill Text="@context.StatusText"
                                 Tone="@(context.Status ? StatusTone.Positive : StatusTone.Muted)" />
+                    @* 登入鎖定（0.9.101 起）：到期自動解除，管理員可按「解鎖」立即解除。 *@
+                    @if (IsLocked(context))
+                    {
+                        <StatusPill Text="@LockedText(context)" Tone="StatusTone.Warning" />
+                    }
                 </Column>
                 @* 只有「是」值得一個徽章；每一列都掛一顆「否」只會讓這一欄變成雜訊。 *@
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.IsAdminText)" Title="管理員" Sortable>
@@ -94,6 +99,13 @@ else
                                 <CrudActionButton Title="修改" Icon="edit"
                                                   OnClick="@(async () => await OnEditAsync(@context))" />
                             </SpaceItem>
+                            @if (IsLocked(context))
+                            {
+                                <SpaceItem>
+                                    <CrudActionButton Title="解鎖" Icon="lock_open"
+                                                      OnClick="@(async () => await OnUnlockAsync(@context))" />
+                                </SpaceItem>
+                            }
                             @* support 與自己不可刪除（伺服器端仍會再檢查）。 *@
                             @if (myUserService.CanDelete(context))
                             {
@@ -137,12 +149,17 @@ else
                     </FormItem>
 
                     <FormItem Label="密碼" Required="@isNewRecordMode">
-                        <Input Password @bind-Value="CurrentRecord.Password" Placeholder="新增時請輸入密碼，編輯時留白表示不變更" />
-                        @if (!isNewRecordMode)
-                        {
-                            <div class="form-field-hint">編輯模式留白表示沿用既有密碼</div>
-                        }
+                        <Input Password @bind-Value="CurrentRecord.Password" @bind-Value:after="OnPasswordTyped" Placeholder="新增時請輸入密碼，編輯時留白表示不變更" />
+                        <div class="form-field-hint">@(isNewRecordMode ? string.Empty : "留白表示沿用既有密碼。")密碼規則：@PasswordPolicy.Describe()</div>
                         <ValidationMessage For="() => CurrentRecord.Password" />
+                    </FormItem>
+
+                    <FormItem>
+                        <Checkbox Checked="@CurrentRecord.MustChangePassword"
+                                  CheckedChanged="@(value => CurrentRecord.MustChangePassword = value)">
+                            下次登入須變更密碼
+                        </Checkbox>
+                        <div class="form-field-hint">勾選後，這位使用者登入時會先被帶到「變更密碼」頁。新增帳號與替使用者設定密碼時預設勾選。</div>
                     </FormItem>
                 </FormSection>
 

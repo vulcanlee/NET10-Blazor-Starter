@@ -141,7 +141,7 @@ public sealed class OptimisticConcurrencyTests
             .SetProperty(u => u.LockoutEndUtc, DateTime.UtcNow.AddMinutes(15)));
 
         var edit = EditUser(opened, "dave");
-        edit.Password = "new-password";
+        edit.Password = "new-password-2";
         Assert.True((await service.UpdateAsync(edit)).Success);
 
         var saved = await fixture.Context.MyUser.AsNoTracking().SingleAsync();
@@ -255,15 +255,15 @@ public sealed class OptimisticConcurrencyTests
 
         public MyUserService UserService()
             => new(Factory(), mapper, NullLogger<MyUserService>.Instance,
-                new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()));
+                new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public MyUserServiceLogin LoginService()
             => new(Context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
-                new RolePermissionService(), new RecordingAuditLogService());
+                new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System);
 
         public async Task<MyUser> AddUserAsync(MyUserService service, string account)
         {
-            Assert.True((await service.AddAsync(new MyUserAdapterModel { Account = account, Name = account, Password = "correct-password", Status = true })).Success);
+            Assert.True((await service.AddAsync(new MyUserAdapterModel { Account = account, Name = account, Password = "correct-password-1", Status = true })).Success);
             return await Context.MyUser.AsNoTracking().SingleAsync(x => x.Account == account);
         }
 

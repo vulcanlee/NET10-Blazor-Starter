@@ -22,4 +22,7 @@ public static class EmailKinds
 
     /// <summary>系統例外告警（0.9.78 起，LOG-12）。</summary>
     public const string ExceptionAlert = "ExceptionAlert";
+
+    /// <summary>站內通知的同步信（0.9.100 起）。</summary>
+    public const string Notification = "Notification";
 }

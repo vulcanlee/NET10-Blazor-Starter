@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.7
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.98
+- 現行系統版本：0.9.102
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/10/04
 
@@ -104,11 +104,15 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 
 | 動作代碼 | 來源 |
 | --- | --- |
-| `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin` |
-| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` | `MyUserService` |
+| `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin`（0.9.101 起 `LockedOut` 只記造成鎖定的那一次；鎖定中的嘗試記 `Failed`、detail `reason=Locked`）|
+| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` / `User.Unlock`（0.9.101 起，解除登入鎖定）| `MyUserService` |
+| `User.ProfileUpdate` | `ProfileService`（使用者在個人資料頁改自己的姓名，0.9.102 起；detail 只寫 `field=Name`，不記姓名內容）|
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄） |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
+| `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
+| `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
+| `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）|

@@ -35,6 +35,10 @@ public static class AuditActions
         public const string AutoPurge = "User.AutoPurge";
         public const string SsoCreate = "User.SsoCreate";
         public const string SsoLink = "User.SsoLink";
+        /// <summary>管理員在使用者清單解除登入鎖定（0.9.101 起）。</summary>
+        public const string Unlock = "User.Unlock";
+        /// <summary>使用者在個人資料頁修改自己的姓名（0.9.102 起）。</summary>
+        public const string ProfileUpdate = "User.ProfileUpdate";
     }
 
     public static class Role
@@ -175,6 +179,29 @@ public static class AuditActions
         public const string Trigger = "Job.Trigger";
         public const string Enable = "Job.Enable";
         public const string Disable = "Job.Disable";
+    }
+
+    /// <summary>公告管理（0.9.100 起）。</summary>
+    public static class Announcement
+    {
+        public const string Create = "Announcement.Create";
+        public const string Update = "Announcement.Update";
+        public const string Delete = "Announcement.Delete";
+    }
+
+    /// <summary>站內通知（0.9.100 起）：排程作業依保留天數自動清除。</summary>
+    public static class Notification
+    {
+        public const string AutoPurge = "Notification.AutoPurge";
+    }
+
+    /// <summary>系統備份（0.9.99 起）：建立（排程或立即備份）、依份數自動刪除、下載、手動刪除。</summary>
+    public static class Backup
+    {
+        public const string Create = "Backup.Create";
+        public const string AutoPurge = "Backup.AutoPurge";
+        public const string Download = "Backup.Download";
+        public const string Delete = "Backup.Delete";
     }
 
     /// <summary>「系統參數」頁的修改與還原（0.9.98 起）。Detail 為 <c>key=…; old=…(來源); new=…(來源)</c>。</summary>

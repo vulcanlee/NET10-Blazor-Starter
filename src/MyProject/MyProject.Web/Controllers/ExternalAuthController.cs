@@ -98,8 +98,10 @@ public class ExternalAuthController : Controller
         // 清除暫存的外部登入身分
         await HttpContext.SignOutAsync(MagicObjectHelper.ExternalCookieScheme);
 
+        var outcome = lookup.Evaluate(DateTime.UtcNow);
+
         // 已刪除的使用者（0.9.95 起）：不登入、不建新帳號，回登入頁顯示固定訊息；管理員還原後即可再登入。
-        if (lookup.IsDeleted)
+        if (outcome == ExternalLoginOutcome.Deleted)
         {
             logger.LogInformation("Google login refused because the user is deleted. UserId={UserId}.", user.Id);
             await auditLogService.WriteAsync(
@@ -107,7 +109,7 @@ public class ExternalAuthController : Controller
             return Redirect("/Auths/Login?sso=deleted");
         }
 
-        if (!user.Status)
+        if (outcome == ExternalLoginOutcome.Pending)
         {
             logger.LogInformation(
                 "Google login user is disabled and awaiting approval. UserId={UserId}.",
@@ -115,6 +117,16 @@ public class ExternalAuthController : Controller
             await auditLogService.WriteAsync(
                 AuditActions.Login.Disabled, success: false, actorUserId: user.Id, actorAccount: user.Account, detail: "provider=Google");
             return Redirect("/Auths/Pending");
+        }
+
+        // 帳號因密碼輸錯被鎖定時，Google 登入也不放行（0.9.101 起；之前可以用 Google 繞過鎖定）。
+        // 對方已向 Google 證明身分，所以明確告知是鎖定，不必用模糊訊息。
+        if (outcome == ExternalLoginOutcome.Locked)
+        {
+            logger.LogInformation("Google login refused because the account is locked. UserId={UserId}, LockoutEndUtc={LockoutEndUtc}.", user.Id, user.LockoutEndUtc);
+            await auditLogService.WriteAsync(
+                AuditActions.Login.SsoFailed, success: false, actorUserId: user.Id, actorAccount: user.Account, detail: "provider=Google; reason=Locked");
+            return Redirect("/Auths/Login?sso=locked");
         }
 
         var claims = new List<Claim>

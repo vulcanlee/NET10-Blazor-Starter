@@ -34,6 +34,10 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<JobRun> JobRun { get; set; }
     public virtual DbSet<ScheduledJobState> ScheduledJobState { get; set; }
     public virtual DbSet<SystemParameter> SystemParameter { get; set; }
+    public virtual DbSet<Notification> Notification { get; set; }
+    public virtual DbSet<Announcement> Announcement { get; set; }
+    public virtual DbSet<AnnouncementDismissal> AnnouncementDismissal { get; set; }
+    public virtual DbSet<PasswordHistory> PasswordHistory { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -188,6 +192,42 @@ public partial class BackendDBContext : DbContext
             // 管理頁「每個作業的最近紀錄」與依保留天數清除各吃一個索引。
             entity.HasIndex(x => new { x.JobName, x.StartedAtUtc });
             entity.HasIndex(x => x.StartedAtUtc);
+        });
+        #endregion
+
+        #region 站內通知與公告（0.9.100 起）
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            // 鈴鐺的未讀數與最近清單、去重各吃一個索引。
+            entity.HasIndex(x => new { x.RecipientUserId, x.ReadAtUtc });
+            entity.HasIndex(x => new { x.RecipientUserId, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.RecipientUserId, x.SourceKey });
+            entity.HasIndex(x => x.CreatedAtUtc);
+
+            // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：永久刪除使用者時不會先刪他的通知。
+            entity.HasOne(x => x.RecipientUser).WithMany().HasForeignKey(x => x.RecipientUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AnnouncementDismissal>(entity =>
+        {
+            entity.HasKey(x => new { x.AnnouncementId, x.MyUserId });
+            entity.HasOne(x => x.Announcement).WithMany().HasForeignKey(x => x.AnnouncementId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
+
+        #region 稽核紀錄（0.9.102 起）
+        // 個人資料頁依「操作者 Id」取最近的登入紀錄；稽核表會無限長大，沒有索引就是整表掃描。
+        modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.ActorUserId, x.OccurredAt });
+        #endregion
+
+        #region 密碼歷史（0.9.101 起）
+        modelBuilder.Entity<PasswordHistory>(entity =>
+        {
+            entity.HasIndex(x => new { x.MyUserId, x.CreatedAtUtc });
+
+            // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：永久刪除使用者時不會先刪他的密碼歷史。
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
         });
         #endregion
 

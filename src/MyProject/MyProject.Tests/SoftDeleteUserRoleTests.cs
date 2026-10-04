@@ -251,9 +251,9 @@ public sealed class SoftDeleteUserRoleTests
         Assert.True((await fixture.RoleService().DeleteAsync(deleted)).Success);
         var users = fixture.UserService();
 
-        var deletedPrimary = await users.AddAsync(new MyUserAdapterModel { Account = "p", Name = "p", Password = "pw", RoleViewId = deleted });
-        var deletedExtra = await users.AddAsync(new MyUserAdapterModel { Account = "e", Name = "e", Password = "pw", RoleViewId = active, AdditionalRoleIds = [deleted] });
-        var noRole = await users.AddAsync(new MyUserAdapterModel { Account = "n", Name = "n", Password = "pw", RoleViewId = null });
+        var deletedPrimary = await users.AddAsync(new MyUserAdapterModel { Account = "p", Name = "p", Password = "Passw0rd", RoleViewId = deleted });
+        var deletedExtra = await users.AddAsync(new MyUserAdapterModel { Account = "e", Name = "e", Password = "Passw0rd", RoleViewId = active, AdditionalRoleIds = [deleted] });
+        var noRole = await users.AddAsync(new MyUserAdapterModel { Account = "n", Name = "n", Password = "Passw0rd", RoleViewId = null });
 
         Assert.False(deletedPrimary.Success);
         Assert.Contains("已被刪除", deletedPrimary.Message, StringComparison.Ordinal);
@@ -361,7 +361,7 @@ public sealed class SoftDeleteUserRoleTests
 
         var (message, user) = await fixture.LoginService().LoginAsync("amy", "pw-123456");
         Assert.Null(user);
-        Assert.Equal("帳號或者密碼不正確", message);
+        Assert.Equal(MyUserServiceLogin.InvalidCredentialsMessage, message);
         Assert.Null(await fixture.LoginService().GetActiveUserAsync(userId));
         Assert.Equal(0, await fixture.Context.PasswordResetToken.CountAsync(x => x.MyUserId == userId));
         Assert.Equal(0, (await users.GetAsync(userId)).Id);
@@ -561,7 +561,7 @@ public sealed class SoftDeleteUserRoleTests
         public MyUserService UserService()
             => new(new TestDbContextFactory(connection), mapper, NullLogger<MyUserService>.Instance,
                 new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser,
-                Options.Create(bootstrapSettings));
+                Options.Create(bootstrapSettings), PasswordTestDefaults.Policy(supportAccount: bootstrapSettings.SupportAccount));
 
         public RoleViewService RoleService(IInterceptor? interceptor = null)
             => new(interceptor is null ? new TestDbContextFactory(connection) : new InterceptingFactory(connection, interceptor),
@@ -570,10 +570,10 @@ public sealed class SoftDeleteUserRoleTests
 
         public MyUserServiceLogin LoginService()
             => new(NewContext(), mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
-                new RolePermissionService(), new RecordingAuditLogService());
+                new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System);
 
         public Task<ExternalLoginResult> ExternalLogin(string subject, string email)
-            => new ExternalLoginService(NewContext(), NullLogger<ExternalLoginService>.Instance, new RecordingAuditLogService())
+            => new ExternalLoginService(NewContext(), NullLogger<ExternalLoginService>.Instance, new RecordingAuditLogService(), new RecordingNotificationSender())
                 .FindOrCreateAsync("Google", subject, email, "Google User", MagicObjectHelper.預設角色);
 
         public async Task<IReadOnlyCollection<string>> PermissionKeysAsync(int userId)

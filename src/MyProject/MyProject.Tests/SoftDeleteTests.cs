@@ -170,7 +170,7 @@ public sealed class SoftDeleteTests
         Assert.True((await teams.AddAsync(new TeamAdapterModel { Name = "研發部" })).Success);
         var teamId = await fixture.Context.Team.Select(x => x.Id).SingleAsync();
         var users = fixture.UserService();
-        Assert.True((await users.AddAsync(new MyUserAdapterModel { Account = "bob", Name = "bob", Password = "pw", Status = true, TeamNames = ["研發部"] })).Success);
+        Assert.True((await users.AddAsync(new MyUserAdapterModel { Account = "bob", Name = "bob", Password = "Passw0rd", Status = true, TeamNames = ["研發部"] })).Success);
         var user = await fixture.Context.MyUser.AsNoTracking().SingleAsync();
 
         await teams.DeleteAsync(teamId);
@@ -200,7 +200,7 @@ public sealed class SoftDeleteTests
         Assert.True((await teams.AddAsync(new TeamAdapterModel { Name = "研發部" })).Success);
         var teamId = await fixture.Context.Team.Select(x => x.Id).SingleAsync();
         var users = fixture.UserService();
-        Assert.True((await users.AddAsync(new MyUserAdapterModel { Account = "carol", Name = "carol", Password = "pw", Status = true, TeamNames = ["研發部"] })).Success);
+        Assert.True((await users.AddAsync(new MyUserAdapterModel { Account = "carol", Name = "carol", Password = "Passw0rd", Status = true, TeamNames = ["研發部"] })).Success);
         var userId = await fixture.Context.MyUser.Select(x => x.Id).SingleAsync();
         var resolver = new EffectiveTeamResolver(fixture.Context, NullLogger<EffectiveTeamResolver>.Instance);
         Assert.Contains("研發部", await resolver.GetEffectiveTeamNamesAsync(userId));
@@ -311,7 +311,7 @@ public sealed class SoftDeleteTests
 
         public MyUserService UserService()
             => new(Factory(), mapper, NullLogger<MyUserService>.Instance,
-                new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()));
+                new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public async Task<int> AddCategoryAsync(CategoryService service, string name, List<string>? teams = null)
         {

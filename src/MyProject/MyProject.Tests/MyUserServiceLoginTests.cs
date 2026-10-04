@@ -192,6 +192,8 @@ public sealed class MyUserServiceLoginTests
         private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
+        public RecordingNotificationSender Notifications { get; } = new();
+
         private LoginFixture(SqliteConnection connection, BackendDBContext context)
         {
             this.connection = connection;
@@ -225,7 +227,10 @@ public sealed class MyUserServiceLoginTests
                 new ConfigurationBuilder().Build(),
                 loggerFactory.CreateLogger<MyUserServiceLogin>(),
                 new RolePermissionService(),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()));
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
+                PasswordTestDefaults.Lockout(),
+                Notifications,
+                TimeProvider.System);
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password, bool legacy)

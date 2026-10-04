@@ -76,6 +76,41 @@ public sealed class EffectiveTeamResolver : IEffectiveTeamResolver
         return result;
     }
 
+    public async Task<IReadOnlyList<int>> GetUserIdsInTeamAsync(string teamName)
+    {
+        var name = (teamName ?? string.Empty).Trim();
+        if (name.Length == 0)
+        {
+            return [];
+        }
+
+        var result = new HashSet<int>();
+
+        // 1) 直接綁在使用者的團隊（UserTeam；經 context.Team 排除已刪除的團隊）
+        var direct = await context.UserTeam
+            .AsNoTracking()
+            .Join(context.Team, ut => ut.TeamId, t => t.Id, (ut, t) => new { ut.MyUserId, t.Name })
+            .ToListAsync();
+        result.UnionWith(direct.Where(x => string.Equals(x.Name.Trim(), name, StringComparison.OrdinalIgnoreCase)).Select(x => x.MyUserId));
+
+        // 2) 預設團隊含這個名稱的角色（經 context.RoleView 排除已刪除的角色）→ 以它為額外角色或主要角色的使用者
+        var roles = await context.RoleView
+            .AsNoTracking()
+            .Select(r => new { r.Id, r.DefaultTeamsJson })
+            .ToListAsync();
+        var roleIds = roles
+            .Where(r => TeamJsonHelper.Deserialize(r.DefaultTeamsJson, logger).Any(x => string.Equals((x ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            .Select(r => r.Id)
+            .ToList();
+        if (roleIds.Count > 0)
+        {
+            result.UnionWith(await context.UserRole.AsNoTracking().Where(x => roleIds.Contains(x.RoleViewId)).Select(x => x.MyUserId).ToListAsync());
+            result.UnionWith(await context.MyUser.AsNoTracking().Where(x => x.RoleViewId != null && roleIds.Contains(x.RoleViewId.Value)).Select(x => x.Id).ToListAsync());
+        }
+
+        return result.Order().ToList();
+    }
+
     private static void AddDistinct(string? name, HashSet<string> seen, List<string> result)
     {
         var trimmed = (name ?? string.Empty).Trim();

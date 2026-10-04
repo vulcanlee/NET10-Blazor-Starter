@@ -40,6 +40,8 @@ public sealed class MenuIconTests
         "fact_check",
         "schedule",
         "settings",
+        "backup",
+        "campaign",
     };
 
     [Fact]

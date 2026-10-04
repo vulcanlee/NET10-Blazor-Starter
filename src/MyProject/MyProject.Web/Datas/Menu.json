@@ -127,6 +127,18 @@
         "name": "系統參數",
         "icon": "settings",
         "url": "/system-parameters"
+      },
+      {
+        "id": 37,
+        "name": "系統備份",
+        "icon": "backup",
+        "url": "/backups"
+      },
+      {
+        "id": 38,
+        "name": "公告管理",
+        "icon": "campaign",
+        "url": "/announcements"
       }
     ]
   },

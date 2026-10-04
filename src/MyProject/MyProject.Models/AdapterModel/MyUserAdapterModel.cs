@@ -31,6 +31,14 @@ public class MyUserAdapterModel : ICloneable
     public int? RoleViewId { get; set; }
     public string? OAuthProvider { get; set; }
     public string? GoogleId { get; set; }
+    /// <summary>下次登入須變更密碼（0.9.101 起）。管理員新增使用者時預設勾選；編輯時輸入新密碼也會自動勾選。</summary>
+    public bool MustChangePassword { get; set; }
+    /// <summary>最近一次設定密碼的時間（UTC，唯讀；0.9.101 起）。</summary>
+    public DateTime? PasswordChangedAtUtc { get; set; }
+    /// <summary>鎖定截止時間（UTC，唯讀；0.9.101 起在使用者清單顯示與解鎖）。</summary>
+    public DateTime? LockoutEndUtc { get; set; }
+    /// <summary>是否有本機密碼（只用 Google 登入的帳號沒有；唯讀）。<see cref="Password"/> 讀出時一律清空，所以另外對應。</summary>
+    public bool HasLocalPassword { get; set; }
     public RoleViewAdapterModel? RoleView { get; set; }
     /// <summary>額外角色（主要角色 RoleViewId 之外）；與主要角色一起寫入 UserRole（多角色）。</summary>
     public List<int> AdditionalRoleIds { get; set; } = new();

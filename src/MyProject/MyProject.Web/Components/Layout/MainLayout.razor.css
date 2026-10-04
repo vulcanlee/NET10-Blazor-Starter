@@ -370,3 +370,10 @@ article {
     color: var(--app-text);
     word-break: break-word;
 }
+
+/* 姓名縮寫（0.9.102 起取代人像圖示）：沿用 .user-menu-icon 的圓形底色。 */
+.user-menu-initials {
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1;
+}

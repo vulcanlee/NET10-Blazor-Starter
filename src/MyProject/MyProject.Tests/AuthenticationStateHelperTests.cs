@@ -116,7 +116,7 @@ public sealed class AuthenticationStateHelperTests
     public async Task Check_WhenPasswordChangeRequiredOutsideChangePasswordPage_ShouldReturnRequiresPasswordChange()
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
-        var user = await fixture.AddUserAsync(password: MagicObjectHelper.NeedChangePassword);
+        var user = await fixture.AddUserAsync(mustChangePassword: true);
         var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
         var navigationManager = new TestNavigationManager("http://localhost/App");
 
@@ -130,7 +130,7 @@ public sealed class AuthenticationStateHelperTests
     public async Task Check_WhenPasswordChangeRequiredOnChangePasswordPageWithQuery_ShouldSucceed()
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
-        var user = await fixture.AddUserAsync(password: MagicObjectHelper.NeedChangePassword);
+        var user = await fixture.AddUserAsync(mustChangePassword: true);
         var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
         var navigationManager = new TestNavigationManager("http://localhost/ChangePassword?returnUrl=/App");
 
@@ -144,7 +144,7 @@ public sealed class AuthenticationStateHelperTests
     public async Task Check_WithCachedUserStillRechecksPasswordChangeRequirement()
     {
         await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
-        var user = await fixture.AddUserAsync(password: MagicObjectHelper.NeedChangePassword);
+        var user = await fixture.AddUserAsync(mustChangePassword: true);
         fixture.CurrentUserService.CurrentUser.IsAuthenticated = true;
         fixture.CurrentUserService.CurrentUser.Id = user.Id;
         var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
@@ -154,6 +154,48 @@ public sealed class AuthenticationStateHelperTests
 
         Assert.Equal(AuthenticationCheckResult.RequiresPasswordChange, result);
         Assert.Equal("/ChangePassword", navigationManager.NavigatedTo);
+    }
+
+    /// <summary>0.9.101 起只看旗標與到期：密碼是 123456 本身不再觸發（登入時才補旗標，見 MyUserServiceLoginTests）。</summary>
+    [Fact]
+    public async Task Check_WithLegacyDefaultPasswordButNoFlag_ShouldSucceed()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync(password: MagicObjectHelper.NeedChangePassword);
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.Succeeded, result);
+    }
+
+    [Fact]
+    public async Task Check_WhenPasswordExpired_ShouldReturnRequiresPasswordChange()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync(passwordChangedAtUtc: DateTime.UtcNow.AddDays(-31));
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+        var policy = PasswordTestDefaults.Policy(new PasswordPolicySettings { ExpiryDays = 30 });
+
+        var result = await fixture.CreateHelper(policy).Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.RequiresPasswordChange, result);
+        Assert.Equal("/ChangePassword", navigationManager.NavigatedTo);
+    }
+
+    /// <summary>0.9.102 起：每次換頁的登入檢查載入最新資料後通知右上角（管理員改了姓名，對方換頁就看到）。</summary>
+    [Fact]
+    public async Task Check_WithValidUser_ShouldRaiseChangedAfterLoadingTheLatestData()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        string? nameSeen = null;
+        fixture.CurrentUserService.Changed += () => nameSeen = fixture.CurrentUserService.CurrentUser.Name;
+
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), new TestNavigationManager("http://localhost/App"));
+
+        Assert.Equal(AuthenticationCheckResult.Succeeded, result);
+        Assert.Equal("Test User", nameSeen);
     }
 
     [Fact]
@@ -304,26 +346,29 @@ public sealed class AuthenticationStateHelperTests
             return new AuthenticationStateHelperFixture(connection, context);
         }
 
-        public AuthenticationStateHelper CreateHelper()
+        public AuthenticationStateHelper CreateHelper(IPasswordPolicy? passwordPolicy = null)
         {
             var rolePermissionService = new RolePermissionService();
 
             return new AuthenticationStateHelper(
                 loggerFactory.CreateLogger<AuthenticationStateHelper>(),
                 mapper,
-                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings())),
+                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy()),
                 CurrentUserService,
                 rolePermissionService,
                 new EffectiveTeamResolver(Context, NullLogger<EffectiveTeamResolver>.Instance),
                 new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()));
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
+                passwordPolicy ?? PasswordTestDefaults.Policy());
         }
 
         public async Task<MyUser> AddUserAsync(
             bool status = true,
             string password = "secure-password",
             string roleJson = """["PermissionA"]""",
-            string permissionName = "PermissionA")
+            string permissionName = "PermissionA",
+            bool mustChangePassword = false,
+            DateTime? passwordChangedAtUtc = null)
         {
             var roleView = new RoleView
             {
@@ -346,7 +391,9 @@ public sealed class AuthenticationStateHelperTests
                 Name = "Test User",
                 Salt = Guid.NewGuid().ToString(),
                 Status = status,
-                RoleViewId = roleView.Id
+                RoleViewId = roleView.Id,
+                MustChangePassword = mustChangePassword,
+                PasswordChangedAtUtc = passwordChangedAtUtc,
             };
             user.Password = PasswordHelper.GetPasswordSHA(user.Salt, password);
 

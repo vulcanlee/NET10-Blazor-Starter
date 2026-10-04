@@ -105,8 +105,8 @@ public sealed class ScheduledJobOverviewService
         => runService.SetEnabledAsync(RequireDescriptor(jobName).Name, enabled, account, timeProvider.GetUtcNow().UtcDateTime);
 
     /// <summary>放入「立即執行」請求；同一個作業已在佇列或執行中時回 false。</summary>
-    public bool TryTrigger(string jobName, string? account)
-        => triggerQueue.TryEnqueue(RequireDescriptor(jobName).Name, account);
+    public bool TryTrigger(string jobName, string? account, int? userId = null)
+        => triggerQueue.TryEnqueue(RequireDescriptor(jobName).Name, account, userId);
 
     public DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(ScheduleCalculator.AsUtc(utc), timeProvider.LocalTimeZone);
 

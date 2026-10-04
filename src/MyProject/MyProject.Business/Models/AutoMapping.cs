@@ -96,8 +96,12 @@ public class AutoMapping : Profile
         #endregion
 
         #region MyUser
-        CreateMap<MyUser, MyUserAdapterModel>();
-        CreateMap<MyUserAdapterModel, MyUser>().IgnoreSoftDeleteFields();
+        CreateMap<MyUser, MyUserAdapterModel>()
+            .ForMember(dest => dest.HasLocalPassword, opt => opt.MapFrom(src => !string.IsNullOrEmpty(src.Password)));
+        // 鎖定與密碼設定時間只由登入、解鎖與密碼原則寫入，畫面模型上的值不寫回實體（0.9.101 起）。
+        CreateMap<MyUserAdapterModel, MyUser>().IgnoreSoftDeleteFields()
+            .ForMember(dest => dest.LockoutEndUtc, opt => opt.Ignore())
+            .ForMember(dest => dest.PasswordChangedAtUtc, opt => opt.Ignore());
         CreateMap<MyUserAdapterModel, CurrentUser>()
             .ForMember(dest => dest.RoleJson, opt => opt.Ignore())
             .ForMember(dest => dest.RoleList, opt => opt.Ignore())

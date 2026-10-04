@@ -26,8 +26,11 @@ public static class SystemParameterCatalog
     public const string GroupRetention = "資料保留";
     public const string GroupMonitoring = "監控與告警";
     public const string GroupSecurity = "安全與流量";
+    public const string GroupBackup = "備份";
+    public const string GroupPassword = "密碼與登入";
 
     private const string NextRetentionRun = "下一次排程清理時（預設每天 03:00）";
+    private const string NextPasswordSet = "之後設定的密碼（現有的密碼不受影響）";
 
     public static IReadOnlyList<SystemParameterDefinition> All { get; } =
     [
@@ -56,6 +59,9 @@ public static class SystemParameterCatalog
         Define<SoftDeleteSettings, int>(SoftDeleteSettings.SectionName, x => x.PurgeAfterDays, GroupRetention,
             "已刪除資料保留天數", "專案、分類、團隊、使用者、角色被刪除超過這麼多天，就永久刪除（專案連同附件檔）。",
             NextRetentionRun, unit: "天", zeroMeaning: "不自動永久刪除", isRetention: true),
+        Define<NotificationSettings, int>(NotificationSettings.SectionName, x => x.RetentionDays, GroupRetention,
+            "站內通知保留天數", "建立超過這麼多天的站內通知（不論已讀未讀）會被自動刪除。",
+            NextRetentionRun, unit: "天", zeroMeaning: "不自動清除", isRetention: true),
         Define<ScheduledJobSettings, int>(ScheduledJobSettings.SectionName, x => x.JobRunRetentionDays, GroupRetention,
             "排程執行紀錄保留天數", "「排程作業」頁的執行紀錄保留多久。",
             "下一次任何排程作業執行完時", unit: "天", zeroMeaning: "不清除", min: 0, max: 36500, isRetention: true),
@@ -103,6 +109,37 @@ public static class SystemParameterCatalog
         Define<PasswordResetSettings, int>(PasswordResetSettings.SectionName, x => x.RequestCooldownSeconds, GroupSecurity,
             "重設密碼申請冷卻時間", "同一個帳號兩次申請「忘記密碼」至少要隔多久。",
             "立即", unit: "秒", zeroMeaning: "不限制"),
+
+        Define<PasswordPolicySettings, int>(PasswordPolicySettings.SectionName, x => x.MinimumLength, GroupPassword,
+            "密碼最少字元數", "設定密碼（新增使用者、管理員改密碼、變更密碼、忘記密碼重設）時至少要有幾個字元。",
+            NextPasswordSet, unit: "字元"),
+        Define<PasswordPolicySettings, bool>(PasswordPolicySettings.SectionName, x => x.RequireLetter, GroupPassword,
+            "密碼須含英文字母", "密碼必須包含至少一個英文字母（大小寫皆可）。", NextPasswordSet),
+        Define<PasswordPolicySettings, bool>(PasswordPolicySettings.SectionName, x => x.RequireDigit, GroupPassword,
+            "密碼須含數字", "密碼必須包含至少一個數字。", NextPasswordSet),
+        Define<PasswordPolicySettings, bool>(PasswordPolicySettings.SectionName, x => x.RequireUppercase, GroupPassword,
+            "密碼須含大寫字母", "密碼必須包含至少一個大寫英文字母。", NextPasswordSet),
+        Define<PasswordPolicySettings, bool>(PasswordPolicySettings.SectionName, x => x.RequireSymbol, GroupPassword,
+            "密碼須含符號", "密碼必須包含至少一個英數字以外的符號（例如 ! @ # -）。", NextPasswordSet),
+        Define<PasswordPolicySettings, int>(PasswordPolicySettings.SectionName, x => x.HistoryCount, GroupPassword,
+            "不可重複最近幾次的密碼", "新密碼不可與最近這麼多次用過的密碼相同（含目前的密碼）。",
+            NextPasswordSet, unit: "次", zeroMeaning: "不檢查"),
+        Define<PasswordPolicySettings, int>(PasswordPolicySettings.SectionName, x => x.ExpiryDays, GroupPassword,
+            "密碼有效天數", "密碼設定後幾天到期；到期後登入會被導去變更密碼，到期前 7 天每天早上會收到站內通知。support 帳號與只用 Google 登入的帳號不受影響。",
+            "立即（已登入的人在下一次換頁時判斷）", unit: "天", zeroMeaning: "不過期"),
+        Define<LockoutSettings, int>(LockoutSettings.SectionName, x => x.MaxFailedAttempts, GroupPassword,
+            "連續輸錯幾次鎖定", "同一個帳號連續輸錯密碼這麼多次就暫時鎖定，並通知管理員。調高會削弱對猜密碼的防護。",
+            "下一次登入嘗試起", unit: "次"),
+        Define<LockoutSettings, int>(LockoutSettings.SectionName, x => x.LockoutMinutes, GroupPassword,
+            "鎖定時間", "帳號被鎖定後多久自動解除；管理員也可以在「使用者管理」立即解鎖。",
+            "之後發生的鎖定（已鎖定的維持原本的時間）", unit: "分鐘"),
+
+        Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
+            "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",
+            "下一次備份成功時（預設每天 02:00）", unit: "份", zeroMeaning: "不自動刪除舊備份", isRetention: true),
+        Define<BackupSettings, bool>(BackupSettings.SectionName, x => x.IncludeAiCallLogs, GroupBackup,
+            "備份 AI 對話內容", "是否一併備份 AI 對話紀錄的內容檔。內容含日誌與例外堆疊、檔案較大，預設不備份。",
+            "下一次備份起"),
     ];
 
     private static readonly Dictionary<string, SystemParameterDefinition> ByKey =

@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.30
+- 文件版本：6.33
 - 文件狀態：維護中
-- 現行系統版本：0.9.98
+- 現行系統版本：0.9.102
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/10/04
 
@@ -80,6 +80,7 @@
 - [維護規範](operations/維護規範.md)
 - [正式部署與安全檢查清單](operations/正式部署與安全檢查清單.md)
 - [日誌與設定檔說明](operations/日誌與設定檔說明.md)
+- [備份與還原操作手冊](operations/備份與還原操作手冊.md)
 - [Gmail 寄信設定指南](operations/Gmail寄信設定指南.md)
 - [AI 模型計費更新指南](operations/AI模型計費更新指南.md)
 - [CI-CD 與品質檢查](operations/CI-CD與品質檢查.md)
@@ -102,6 +103,9 @@
 - [AI 對話紀錄 PRD](prd/AI對話紀錄-prd.md)
 - [排程作業 PRD](prd/排程作業-prd.md)
 - [系統參數 PRD](prd/系統參數-prd.md)
+- [系統備份與還原 PRD](prd/系統備份與還原-prd.md)
+- [站內通知與公告 PRD](prd/站內通知與公告-prd.md)
+- [個人資料 PRD](prd/個人資料-prd.md)
 - [LLM 呼叫費用估算 PRD](prd/LLM呼叫費用估算-prd.md)
 - [紀錄分類與團隊權控 PRD](prd/紀錄分類與團隊權控-prd.md)
 - [稽核紀錄 PRD](prd/稽核紀錄-prd.md)

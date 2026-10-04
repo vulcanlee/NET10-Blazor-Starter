@@ -44,12 +44,13 @@ namespace MyProject.Web.Components.Auths
         [Inject]
         public ILogger<ResetPassword> Logger { get; set; } = default!;
 
-        private static int MinimumPasswordLength => PasswordResetService.MinimumPasswordLength;
+        [Inject]
+        public IPasswordPolicy PasswordPolicy { get; set; } = default!;
 
         private bool IsEmailEnabled => EmailOptions.Value.TryGetProvider(out var provider) && provider != EmailProvider.None;
 
         private string Subtitle => isTokenValid
-            ? $"為帳號「{account}」設定新密碼（至少 {MinimumPasswordLength} 個字元）。"
+            ? $"為帳號「{account}」設定新密碼。密碼規則：{PasswordPolicy.Describe()}"
             : "請使用重設密碼信中的連結開啟本頁。";
 
         protected override async Task OnInitializedAsync()

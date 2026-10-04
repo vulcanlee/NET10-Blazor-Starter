@@ -124,6 +124,26 @@ public static class EmailTemplates
         return new EmailMessage(to, subject, html, text, EmailKinds.ExceptionAlert);
     }
 
+    /// <summary>
+    /// 站內通知的同步信（0.9.100 起）。<paramref name="link"/> 是完整網址（沒有設定 <c>PublicBaseUrl</c> 時為 null，信裡只請收件人登入查看）。
+    /// </summary>
+    public static EmailMessage BuildNotification(string to, string systemName, string title, string? body, string? link)
+    {
+        var subject = $"[{systemName}] {title}";
+        var bodyHtml = string.IsNullOrWhiteSpace(body)
+            ? string.Empty
+            : $"<p style=\"white-space:pre-wrap;\">{Encode(body)}</p>";
+        var linkHtml = link is null
+            ? "<p style=\"color:#666666;font-size:13px;\">請登入系統，按右上角的鈴鐺查看。</p>"
+            : $"<p style=\"margin:24px 0;\"><a href=\"{Encode(link)}\" style=\"display:inline-block;padding:10px 20px;background:#555555;color:#ffffff;text-decoration:none;border-radius:6px;\">前往查看</a></p>";
+
+        var html = WrapHtml(systemName, title, bodyHtml + linkHtml);
+        var text = (string.IsNullOrWhiteSpace(body) ? string.Empty : body + "\n\n")
+            + (link is null ? "請登入系統，按右上角的鈴鐺查看。\n" : $"前往查看：{link}\n");
+
+        return new EmailMessage(to, subject, html, text, EmailKinds.Notification);
+    }
+
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
 
     private static string WrapHtml(string systemName, string heading, string bodyHtml)

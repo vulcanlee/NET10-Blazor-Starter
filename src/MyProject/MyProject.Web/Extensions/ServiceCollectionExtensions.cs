@@ -16,6 +16,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Auth;
+using MyProject.Web.Backup;
 using MyProject.Web.Caching;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
@@ -97,6 +98,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 站內通知與公告（0.9.100 起）。訊號與公告快取是 singleton（跨連線共用）；發送服務是 scoped。
+        services.AddSingleton<INotificationSignal, NotificationSignal>();
+        services.AddSingleton<AnnouncementCache>();
+        services.AddScoped<INotificationMailer, NotificationMailer>();
+        services.AddScoped<INotificationSender, NotificationSender>();
+        services.AddScoped<NotificationQueryService>();
+        services.AddScoped<AnnouncementService>();
+        // 個人資料頁（0.9.102 起）。
+        services.AddScoped<ProfileService>();
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
         services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddScoped<ITotpService, TotpService>();
@@ -113,6 +123,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();
         services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
+        // 密碼原則（0.9.101 起）：所有設定密碼的路徑都經過它；只讀 IOptionsMonitor 與時鐘，所以是 singleton。
+        services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<PasswordResetService>();
@@ -124,6 +136,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         // 專案附件實體檔的唯一刪除入口（0.9.97 起，含根目錄檢查）。
         services.AddScoped<ProjectFileStore>();
+        // 系統備份（0.9.99 起）：檔案清單與建立備份。建立備份只由排程作業 SystemBackup 呼叫（含「立即備份」）。
+        services.AddSingleton<BackupStore>();
+        services.AddScoped<SystemBackupService>();
         services.AddScoped<ProjectService>();
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
         services.AddScoped<SoftDeletePurgeService>();
@@ -237,6 +252,16 @@ public static class ServiceCollectionExtensions
             SoftDeletePurgeJob.JobName, "已刪除資料清理",
             "已刪除超過保留天數的專案（含附件檔）、分類、團隊、使用者與角色，永久刪除（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
 
+        services.AddScheduledJob<NotificationRetentionJob>(
+            NotificationRetentionJob.JobName, "站內通知清理",
+            "刪除超過保留天數的站內通知（不論已讀未讀；保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
+        services.AddScheduledJob<SystemBackupJob>(
+            SystemBackupJob.JobName, "系統備份",
+            "備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
+        services.AddScheduledJob<PasswordExpiryReminderJob>(
+            PasswordExpiryReminderJob.JobName, "密碼到期提醒",
+            "密碼在 7 天內到期的使用者各收到一則站內通知（密碼有效天數在「系統參數」頁設定，預設 0 = 不過期，此時不動作）。", "0 8 * * *");
+
         // ⚠️ 必須註冊在 ExceptionLogWriter 之後：主機以相反順序停止，作業在關機時記的錯誤才還有人寫進系統例外紀錄。
         services.AddHostedService<JobSchedulerWorker>();
         return services;
@@ -283,6 +308,26 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<SoftDeleteSettings>()
             .Bind(configuration.GetSection(SoftDeleteSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<NotificationSettings>()
+            .Bind(configuration.GetSection(NotificationSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<BackupSettings>()
+            .Bind(configuration.GetSection(BackupSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<PasswordPolicySettings>()
+            .Bind(configuration.GetSection(PasswordPolicySettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<LockoutSettings>()
+            .Bind(configuration.GetSection(LockoutSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
