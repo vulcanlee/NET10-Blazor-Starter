@@ -112,6 +112,9 @@ public partial class BackendDBContext : DbContext
             // Code 為選填。SQLite 的唯一索引視 NULL 互不相等，所以多筆「未填代號」沒問題；
             // 但空字串彼此相同，因此寫入前一律由 NameNormalizer.NormalizeOptional 歸一成 null。
             entity.HasIndex(x => x.Code).IsUnique().HasFilter(ActiveRowsOnly);
+
+            // 上層部門（0.9.105 起）：自我參照、沒有導覽屬性；寫在 Restrict 迴圈之後，要明確設定 Restrict。
+            entity.HasOne<Team>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
         });
         #endregion
 

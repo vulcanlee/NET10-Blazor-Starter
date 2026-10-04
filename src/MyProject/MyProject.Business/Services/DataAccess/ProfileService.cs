@@ -23,7 +23,8 @@ public sealed record ProfileInfo(
     DateTime? PasswordExpiresAtUtc,
     bool MustChangePassword,
     string ConcurrencyStamp,
-    bool TwoFactorEnabled = false);
+    bool TwoFactorEnabled = false,
+    IReadOnlyList<string>? SubordinateTeams = null);
 
 /// <summary>一筆自己的登入或登出紀錄。</summary>
 public sealed record LoginRecord(DateTime OccurredAtUtc, string Action, bool Success);
@@ -79,7 +80,10 @@ public class ProfileService
         }
 
         var roles = await context.RoleView.AsNoTracking().Where(x => roleIds.Contains(x.Id)).Select(x => x.Name).OrderBy(x => x).ToListAsync();
-        var teams = (await effectiveTeamResolver.GetEffectiveTeamNamesAsync(userId)).Order(StringComparer.Ordinal).ToList();
+        // 0.9.105 起分開顯示：指派的團隊（直接加入＋角色預設），與因此看得到的下屬部門。
+        var teams = (await effectiveTeamResolver.GetAssignedTeamNamesAsync(userId)).Order(StringComparer.Ordinal).ToList();
+        var subordinates = (await effectiveTeamResolver.GetEffectiveTeamNamesAsync(userId))
+            .Where(x => !teams.Contains(x, StringComparer.OrdinalIgnoreCase)).Order(StringComparer.Ordinal).ToList();
         var hasLocalPassword = !string.IsNullOrEmpty(user.Password);
 
         return new ProfileInfo(
@@ -95,7 +99,8 @@ public class ProfileService
             passwordPolicy.GetExpiresAtUtc(user.Account, hasLocalPassword, user.PasswordChangedAtUtc),
             user.MustChangePassword,
             user.ConcurrencyStamp,
-            user.TwoFactorEnabled);
+            user.TwoFactorEnabled,
+            subordinates);
     }
 
     /// <summary>自己最近 <see cref="LoginHistorySize"/> 筆登入與登出紀錄（新到舊）。</summary>

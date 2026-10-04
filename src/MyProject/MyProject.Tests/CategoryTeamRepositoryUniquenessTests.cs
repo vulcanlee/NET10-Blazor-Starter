@@ -111,10 +111,10 @@ public sealed class CategoryTeamRepositoryUniquenessTests
         }
 
         public CategoryRepository CreateCategoryRepository()
-            => new(Context, loggerFactory.CreateLogger<CategoryRepository>());
+            => new(Context, new FakeRecordAccessScopeProvider(true, []), loggerFactory.CreateLogger<CategoryRepository>());
 
         public TeamRepository CreateTeamRepository()
-            => new(Context, loggerFactory.CreateLogger<TeamRepository>());
+            => new(Context, new ContextTeamTreeCache(Context), loggerFactory.CreateLogger<TeamRepository>());
 
         public async ValueTask DisposeAsync()
         {

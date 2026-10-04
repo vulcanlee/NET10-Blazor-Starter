@@ -30,6 +30,14 @@ public partial class ProjectViewView
 
     private List<string> availableCategories = [];
     private List<string> availableTeams = [];
+
+    /// <summary>
+    /// 表單「團隊」的選項（0.9.105 起）：管理員是全部；其他人只有自己範圍內的團隊（含下屬部門），
+    /// 加上這筆原本就有的（才看得到、也能保留）。伺服器端 <c>RecordTeamScope.CheckAssignment</c> 會再檢查一次。
+    /// </summary>
+    private IEnumerable<string> AssignableTeams => currentScope.IsAdmin
+        ? availableTeams
+        : availableTeams.Where(t => currentScope.Teams.Contains(t, StringComparer.OrdinalIgnoreCase) || CurrentRecord.Teams.Contains(t, StringComparer.OrdinalIgnoreCase));
     private List<string> selectedCategoryFilters = [];
     private List<string> selectedTeamFilters = [];
 
@@ -75,6 +83,12 @@ public partial class ProjectViewView
     [Inject]
     public NavigationManager NavigationManager { get; set; } = default!;
 
+    [Inject]
+    public ITeamTreeCache TeamTreeCache { get; set; } = default!;
+
+    /// <summary>新增時預設帶入的團隊：範圍裡最上層的那些（0.9.105 起範圍含下屬部門，全帶會讓專案對所有下屬公開）。</summary>
+    private List<string> defaultTeams = [];
+
     public ProjectViewView(
         ILogger<ProjectViewView> logger,
         ProjectService projectService,
@@ -118,6 +132,10 @@ public partial class ProjectViewView
         availableCategories = await categoryService.GetAllEnabledNamesAsync();
         availableTeams = await teamService.GetAllEnabledNamesAsync();
         currentScope = await accessScope.GetAsync();
+        var tree = await TeamTreeCache.GetAsync();
+        defaultTeams = currentScope.Teams
+            .Where(t => !tree.AncestorsAndSelf(t).Skip(1).Any(a => currentScope.Teams.Contains(a, StringComparer.OrdinalIgnoreCase)))
+            .ToList();
 
         await ReloadAsync();
     }
@@ -392,8 +410,8 @@ public partial class ProjectViewView
             Priority = PriorityOptions[1],
             CompletionPercentage = 0,
             Files = [],
-            // 預設帶入使用者的有效團隊；已停用（不在選項內）的略過，否則多選 Select 會視為未知值。
-            Teams = currentScope.Teams
+            // 預設帶入使用者範圍裡最上層的團隊；已停用（不在選項內）的略過，否則多選 Select 會視為未知值。
+            Teams = defaultTeams
                 .Where(t => availableTeams.Contains(t, StringComparer.OrdinalIgnoreCase))
                 .ToList()
         };

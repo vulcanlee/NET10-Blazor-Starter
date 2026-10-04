@@ -4,17 +4,31 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Dtos.Commons;
 using Microsoft.Extensions.Logging;
+using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Business.Repositories;
+
+/// <summary>Web API 團隊寫入的結果（0.9.105 起）：違反部門樹規則時帶訊息（controller 回 400）。</summary>
+public enum TeamWriteStatus
+{
+    Ok,
+    NotFound,
+    Invalid,
+}
+
+public sealed record TeamWriteResult(TeamWriteStatus Status, string? Message = null, Team? Team = null);
 
 public class TeamRepository
 {
     private readonly BackendDBContext context;
+    private readonly ITeamTreeCache teamTree;
     private readonly ILogger<TeamRepository> logger;
 
-    public TeamRepository(BackendDBContext context, ILogger<TeamRepository> logger)
+    public TeamRepository(BackendDBContext context, ITeamTreeCache teamTree, ILogger<TeamRepository> logger)
     {
         this.context = context;
+        this.teamTree = teamTree;
         this.logger = logger;
     }
 
@@ -112,7 +126,7 @@ public class TeamRepository
 
     #region 新增 / 更新 / 刪除
 
-    public async Task<Team> AddAsync(Team team)
+    public async Task<TeamWriteResult> AddAsync(Team team)
     {
         team.CreatedAt = DateTime.Now;
         team.UpdatedAt = DateTime.Now;
@@ -121,18 +135,48 @@ public class TeamRepository
         // 一律由資料庫配號：0.9.93 之前會直接採用客戶端傳來的 Id，與既有資料撞號時回 500（軟刪除的列也一直佔著 Id）。
         team.Id = 0;
         team.ConcurrencyStamp = ConcurrencyStampHelper.New();
+
+        // 上層部門的檢查與寫入在同一個交易內（規則與 Blazor 的 TeamService 相同，0.9.105 起）。
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        if (await TeamHierarchy.ValidateParentAsync(context, 0, team.ParentId) is { } parentError)
+        {
+            return new TeamWriteResult(TeamWriteStatus.Invalid, parentError);
+        }
+
         await context.Team.AddAsync(team);
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        teamTree.Invalidate();
 
-        return team;
+        return new TeamWriteResult(TeamWriteStatus.Ok, Team: team);
     }
 
-    public async Task<bool> UpdateAsync(Team team)
+    /// <summary>修改；改名時在同一個交易內同步更新所有引用（與 Blazor 相同），稽核要用的筆數放在 <see cref="TeamWriteResult.Message"/>。</summary>
+    public async Task<TeamWriteResult> UpdateAsync(Team team)
     {
+        await using var transaction = await context.Database.BeginTransactionAsync();
         var existing = await context.Team.FindAsync(team.Id);
         if (existing == null)
         {
-            return false;
+            return new TeamWriteResult(TeamWriteStatus.NotFound);
+        }
+
+        if (await TeamHierarchy.ValidateParentAsync(context, existing.Id, team.ParentId) is { } parentError)
+        {
+            return new TeamWriteResult(TeamWriteStatus.Invalid, parentError);
+        }
+
+        TeamRenameResult? renamed = null;
+        var newName = NameNormalizer.Normalize(team.Name);
+        if (!string.Equals(existing.Name, newName, StringComparison.Ordinal))
+        {
+            var lower = newName.ToLower();
+            if (await context.Team.IgnoreQueryFilters([ISoftDeletable.FilterName]).AnyAsync(x => x.IsDeleted && x.Id != existing.Id && x.Name.ToLower() == lower))
+            {
+                return new TeamWriteResult(TeamWriteStatus.Invalid, TeamService.DeletedNameMessage(newName));
+            }
+
+            renamed = await TeamHierarchy.RenameReferencesAsync(context, existing.Name, newName);
         }
 
         team.UpdatedAt = DateTime.Now;
@@ -144,26 +188,36 @@ public class TeamRepository
         ConcurrencyStampHelper.Apply(context.Entry(existing), team.ConcurrencyStamp);
         SoftDeleteHelper.ProtectFlags(context.Entry(existing));
         await context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        teamTree.Invalidate();
 
-        return true;
+        return new TeamWriteResult(TeamWriteStatus.Ok, renamed?.ToString(), existing);
     }
 
     /// <summary>
     /// 軟刪除（0.9.94 起）：可在畫面的「顯示已刪除」中還原或永久刪除。
     /// FindAsync 會套用軟刪除過濾，已刪除的資料回 false（controller 回 404）。
     /// </summary>
-    public async Task<bool> DeleteAsync(int id, string? actorAccount)
+    public async Task<TeamWriteResult> DeleteAsync(int id, string? actorAccount)
     {
         var team = await context.Team.FindAsync(id);
         if (team == null)
         {
-            return false;
+            return new TeamWriteResult(TeamWriteStatus.NotFound);
+        }
+
+        // 有下屬部門時不可刪（0.9.105 起）。
+        var children = await TeamHierarchy.CountActiveChildrenAsync(context, id);
+        if (children > 0)
+        {
+            return new TeamWriteResult(TeamWriteStatus.Invalid, TeamHierarchy.HasChildrenMessage(children));
         }
 
         SoftDeleteHelper.MarkDeleted(team, actorAccount);
         await context.SaveChangesAsync();
+        teamTree.Invalidate();
 
-        return true;
+        return new TeamWriteResult(TeamWriteStatus.Ok, Team: team);
     }
 
     #endregion

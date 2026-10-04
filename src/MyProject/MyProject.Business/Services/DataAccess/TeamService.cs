@@ -16,6 +16,7 @@ public class TeamService
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
+    private readonly ITeamTreeCache teamTree;
 
     public IMapper Mapper { get; }
     public ILogger<TeamService> Logger { get; }
@@ -25,13 +26,31 @@ public class TeamService
         IMapper mapper,
         ILogger<TeamService> logger,
         IAuditLogService auditLogService,
-        CurrentUserService currentUserService)
+        CurrentUserService currentUserService,
+        ITeamTreeCache teamTree)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
+        this.teamTree = teamTree;
+    }
+
+    /// <summary>所有未刪除的部門（依名稱），團隊清單在畫面上組成樹（0.9.105 起）。</summary>
+    public async Task<List<TeamAdapterModel>> GetAllAsync()
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var records = await context.Team.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id).ToListAsync();
+        return Mapper.Map<List<TeamAdapterModel>>(records);
+    }
+
+    /// <summary>可以當作上層的部門：排除自己與自己的所有下屬（新增時 <paramref name="teamId"/> 傳 0）。存檔時伺服器會再檢查一次。</summary>
+    public async Task<List<TeamNode>> GetParentCandidatesAsync(int teamId)
+    {
+        var tree = await teamTree.GetAsync();
+        var excluded = teamId > 0 ? tree.DescendantIds(teamId) : new HashSet<int>();
+        return tree.Nodes.Where(x => x.Id != teamId && !excluded.Contains(x.Id)).OrderBy(x => x.Name).ToList();
     }
 
     /// <summary>
@@ -155,6 +174,14 @@ public class TeamService
 
         try
         {
+            // 檢查上層與寫入在同一個交易內（SQLite 的寫入交易會排隊）。
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            if (await TeamHierarchy.ValidateParentAsync(context, 0, paraObject.ParentId) is { } parentError)
+            {
+                Logger.LogInformation("Team create rejected by parent rule. Name={TeamName}, ParentId={ParentId}", paraObject.Name, paraObject.ParentId);
+                return VerifyRecordResultFactory.Build(false, parentError);
+            }
+
             Team itemParameter = Mapper.Map<Team>(paraObject);
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.CreatedAt = DateTime.Now;
@@ -162,9 +189,11 @@ public class TeamService
 
             await context.Team.AddAsync(itemParameter);
             await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            teamTree.Invalidate();
 
             Logger.LogInformation("Team created successfully. TeamId={TeamId}, Name={TeamName}", itemParameter.Id, itemParameter.Name);
-            await WriteAuditAsync(AuditActions.Team.Create, itemParameter.Id, $"name={itemParameter.Name}");
+            await WriteAuditAsync(AuditActions.Team.Create, itemParameter.Id, $"name={itemParameter.Name}; parentId={itemParameter.ParentId}");
             return VerifyRecordResultFactory.Build(true);
         }
         catch (Exception ex)
@@ -190,6 +219,7 @@ public class TeamService
 
         try
         {
+            await using var transaction = await context.Database.BeginTransactionAsync();
             Team? item = await context.Team
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == paraObject.Id);
@@ -200,18 +230,33 @@ public class TeamService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的團隊資料。");
             }
 
+            if (await TeamHierarchy.ValidateParentAsync(context, item.Id, paraObject.ParentId) is { } parentError)
+            {
+                Logger.LogInformation("Team update rejected by parent rule. TeamId={TeamId}, ParentId={ParentId}", item.Id, paraObject.ParentId);
+                return VerifyRecordResultFactory.Build(false, parentError);
+            }
+
             Team itemData = Mapper.Map<Team>(paraObject);
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
+
+            // 改名（0.9.105 起）：紀錄以名稱引用團隊，同一個交易內把專案、分類、角色預設團隊的舊名稱一併換掉。
+            var renamed = await RenameReferencesAsync(context, item, itemData.Name);
+            if (renamed.Error is { } renameError)
+            {
+                return VerifyRecordResultFactory.Build(false, renameError);
+            }
 
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             SoftDeleteHelper.ProtectFlags(entry);
             await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            teamTree.Invalidate();
 
             Logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={TeamName}", itemData.Id, itemData.Name);
-            await WriteAuditAsync(AuditActions.Team.Update, itemData.Id, $"name={itemData.Name}");
+            await WriteAuditAsync(AuditActions.Team.Update, itemData.Id, $"name={itemData.Name}; parentId={itemData.ParentId}" + (renamed.Result is { } counts ? $"; from={item.Name}; {counts}" : string.Empty));
             return VerifyRecordResultFactory.Build(true);
         }
         catch (DbUpdateConcurrencyException ex)
@@ -252,8 +297,17 @@ public class TeamService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的團隊資料。");
             }
 
+            // 有下屬部門時不可刪（0.9.105 起，使用者決定）：否則下屬變成掛在已刪除部門底下。
+            var children = await TeamHierarchy.CountActiveChildrenAsync(context, id);
+            if (children > 0)
+            {
+                Logger.LogInformation("Team deletion rejected because it still has child teams. TeamId={TeamId}, ChildCount={ChildCount}", id, children);
+                return VerifyRecordResultFactory.Build(false, TeamHierarchy.HasChildrenMessage(children));
+            }
+
             SoftDeleteHelper.MarkDeleted(item, currentUserService.CurrentUser.Id > 0 ? currentUserService.CurrentUser.Account : null);
             await context.SaveChangesAsync();
+            teamTree.Invalidate();
 
             Logger.LogInformation("Team deleted successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
             await WriteAuditAsync(AuditActions.Team.Delete, id, $"name={item.Name}");
@@ -336,8 +390,15 @@ public class TeamService
                 }
             }
 
+            if (await TeamHierarchy.ValidateRestoreAsync(context, item) is { } parentError)
+            {
+                Logger.LogInformation("Team restore rejected because its parent is deleted. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, parentError);
+            }
+
             SoftDeleteHelper.Restore(item);
             await context.SaveChangesAsync();
+            teamTree.Invalidate();
 
             Logger.LogInformation("Team restored successfully. TeamId={TeamId}, Name={TeamName}", id, item.Name);
             await WriteAuditAsync(AuditActions.Team.Restore, id, $"name={item.Name}");
@@ -377,6 +438,12 @@ public class TeamService
             {
                 Logger.LogWarning("Team purge rejected because deleted record was not found. TeamId={TeamId}", id);
                 return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的團隊（只能永久刪除已刪除的資料）。");
+            }
+
+            if (await TeamHierarchy.IsParentOfAnyAsync(context, id))
+            {
+                Logger.LogInformation("Team purge rejected because other teams still use it as parent. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, "還有其他部門（含已刪除的）以它為上層部門，請先永久刪除那些部門。");
             }
 
             context.Team.Remove(item);
@@ -481,6 +548,27 @@ public class TeamService
         Logger.LogDebug("Running pre-delete validation for team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
         return Task.FromResult(VerifyRecordResultFactory.Build(true));
     }
+
+    /// <summary>名稱有變時同步更新引用；改成已刪除團隊用過的名稱會讓那個團隊留下的資料被這個部門看到，擋下。</summary>
+    private async Task<(TeamRenameResult? Result, string? Error)> RenameReferencesAsync(BackendDBContext context, Team current, string newName)
+    {
+        if (string.Equals(current.Name, newName, StringComparison.Ordinal))
+        {
+            return (null, null);
+        }
+
+        var lower = newName.ToLower();
+        if (await context.Team.IgnoreQueryFilters([ISoftDeletable.FilterName]).AnyAsync(x => x.IsDeleted && x.Id != current.Id && x.Name.ToLower() == lower))
+        {
+            Logger.LogInformation("Team rename rejected because a deleted team used the name. TeamId={TeamId}", current.Id);
+            return (null, DeletedNameMessage(newName));
+        }
+
+        return (await TeamHierarchy.RenameReferencesAsync(context, current.Name, newName), null);
+    }
+
+    public static string DeletedNameMessage(string name)
+        => $"已刪除的團隊用過「{name}」這個名稱，改成它會讓那個團隊留下的資料被這個部門看到。請換一個名稱，或先永久刪除那個團隊。";
 
     /// <summary>
     /// 取得所有啟用中的團隊名稱（依名稱排序），供其他頁面下拉選取使用。

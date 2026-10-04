@@ -4,17 +4,24 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Dtos.Commons;
 using Microsoft.Extensions.Logging;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Business.Repositories;
 
+/// <summary>
+/// Web API 的分類存取。0.9.105 起與 Blazor 的 <c>CategoryService</c> 套用同一套團隊範圍（<see cref="RecordTeamScope"/>，分類的反向規則）：
+/// 清單只回看得到的，單筆、修改、刪除看不到的一律當作不存在（controller 回 404）。
+/// </summary>
 public class CategoryRepository
 {
     private readonly BackendDBContext context;
+    private readonly IRecordAccessScopeProvider accessScope;
     private readonly ILogger<CategoryRepository> logger;
 
-    public CategoryRepository(BackendDBContext context, ILogger<CategoryRepository> logger)
+    public CategoryRepository(BackendDBContext context, IRecordAccessScopeProvider accessScope, ILogger<CategoryRepository> logger)
     {
         this.context = context;
+        this.accessScope = accessScope;
         this.logger = logger;
     }
 
@@ -22,12 +29,22 @@ public class CategoryRepository
 
     public async Task<Category?> GetByIdAsync(int id)
     {
-        return await context.Category.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        var category = await context.Category.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        return category is not null && RecordTeamScope.CanAccessCategory(category.Teams, await accessScope.GetAsync()) ? category : null;
+    }
+
+    /// <summary>非管理員指定團隊的規則（新加的團隊要在自己範圍內、不可清成公開）；新增時 <paramref name="id"/> 傳 null。回傳錯誤訊息。</summary>
+    public async Task<string?> CheckTeamAssignmentAsync(int? id, string? requestedTeams)
+    {
+        var current = id is { } existingId
+            ? await context.Category.AsNoTracking().Where(x => x.Id == existingId).Select(x => x.Teams).FirstOrDefaultAsync()
+            : null;
+        return RecordTeamScope.CheckAssignment(current, requestedTeams, await accessScope.GetAsync());
     }
 
     public async Task<PagedResult<Category>> GetPagedAsync(CategorySearchRequestDto request)
     {
-        var query = context.Category.AsNoTracking().AsQueryable();
+        var query = RecordTeamScope.ApplyCategory(context.Category.AsNoTracking(), await accessScope.GetAsync());
 
         if (!string.IsNullOrEmpty(request.Keyword))
         {
@@ -109,7 +126,7 @@ public class CategoryRepository
     public async Task<bool> UpdateAsync(Category category)
     {
         var existing = await context.Category.FindAsync(category.Id);
-        if (existing == null)
+        if (existing == null || !RecordTeamScope.CanAccessCategory(existing.Teams, await accessScope.GetAsync()))
         {
             return false;
         }
@@ -134,7 +151,7 @@ public class CategoryRepository
     public async Task<bool> DeleteAsync(int id, string? actorAccount)
     {
         var category = await context.Category.FindAsync(id);
-        if (category == null)
+        if (category == null || !RecordTeamScope.CanAccessCategory(category.Teams, await accessScope.GetAsync()))
         {
             return false;
         }

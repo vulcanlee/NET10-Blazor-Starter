@@ -16,7 +16,7 @@ public sealed class EffectiveTeamResolverTests
         await using var fixture = await Fixture.CreateAsync();
         var role = await fixture.AddRoleAsync("R", new[] { "團隊A" });
         var user = await fixture.AddUserAsync("u", role.Id);
-        var resolver = new EffectiveTeamResolver(fixture.Context, NullLogger<EffectiveTeamResolver>.Instance);
+        var resolver = new EffectiveTeamResolver(fixture.Context, new ContextTeamTreeCache(fixture.Context), NullLogger<EffectiveTeamResolver>.Instance);
 
         var teams = await resolver.GetEffectiveTeamNamesAsync(user.Id);
 
@@ -31,7 +31,7 @@ public sealed class EffectiveTeamResolverTests
         var user = await fixture.AddUserAsync("u", role.Id);
         var team = await fixture.AddTeamAsync("團隊B");
         await fixture.AddUserTeamAsync(user.Id, team.Id);
-        var resolver = new EffectiveTeamResolver(fixture.Context, NullLogger<EffectiveTeamResolver>.Instance);
+        var resolver = new EffectiveTeamResolver(fixture.Context, new ContextTeamTreeCache(fixture.Context), NullLogger<EffectiveTeamResolver>.Instance);
 
         var teams = await resolver.GetEffectiveTeamNamesAsync(user.Id);
 
@@ -48,7 +48,7 @@ public sealed class EffectiveTeamResolverTests
         var teamB = await fixture.AddTeamAsync("團隊B");
         await fixture.AddUserTeamAsync(user.Id, teamA.Id);
         await fixture.AddUserTeamAsync(user.Id, teamB.Id);
-        var resolver = new EffectiveTeamResolver(fixture.Context, NullLogger<EffectiveTeamResolver>.Instance);
+        var resolver = new EffectiveTeamResolver(fixture.Context, new ContextTeamTreeCache(fixture.Context), NullLogger<EffectiveTeamResolver>.Instance);
 
         var teams = await resolver.GetEffectiveTeamNamesAsync(user.Id);
 
@@ -62,7 +62,7 @@ public sealed class EffectiveTeamResolverTests
     public async Task ShouldReturnEmptyForUnknownUser()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var resolver = new EffectiveTeamResolver(fixture.Context, NullLogger<EffectiveTeamResolver>.Instance);
+        var resolver = new EffectiveTeamResolver(fixture.Context, new ContextTeamTreeCache(fixture.Context), NullLogger<EffectiveTeamResolver>.Instance);
 
         var teams = await resolver.GetEffectiveTeamNamesAsync(999);
 

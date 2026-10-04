@@ -1,8 +1,8 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.101
+- 現行系統版本：0.9.105
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/10/04
 
@@ -36,7 +36,7 @@
   - `Announcement`：標題、內容（純文字）、`StartAtUtc`、`EndAtUtc`（不含，可為空）、`TargetKind`（All／Role／Team）、`TargetId`（不設外鍵）、建立者、時間、`ConcurrencyStamp`（條件式 UPDATE 比對）。
   - `AnnouncementDismissal`：(公告, 使用者) 主鍵，兩邊 Cascade。
 - **發送** `NotificationSender`（`INotificationSender.SendAsync(NotificationRequest)`）：
-  1. 展開對象：`Users`、`Role`（`UserRole` ∪ 主要角色；已刪除的角色沒有收件人）、`Team`（`IEffectiveTeamResolver.GetUserIdsInTeamAsync`，與列級權控同一個定義）、`AllAdmins`（啟用中的管理員），可 `Union`；最後只留啟用、未刪除的帳號。
+  1. 展開對象：`Users`、`Role`（`UserRole` ∪ 主要角色；已刪除的角色沒有收件人）、`Team`（`IEffectiveTeamResolver.GetUserIdsInTeamAsync`，與列級權控同一個定義；0.9.105 起含被指派到這個團隊**上層部門**的人）、`AllAdmins`（啟用中的管理員），可 `Union`；最後只留啟用、未刪除的帳號。
   2. 去重：有 `SourceKey` 時，已收過同鍵的收件人不再發。
   3. 一位收件人寫一列 → `INotificationSignal.Publish(收件人)` →（`AlsoEmail`）交給 `INotificationMailer`。
   4. ⚠️ 絕不丟例外：失敗記錯誤並回 `Failed`，不中斷登入或排程作業。

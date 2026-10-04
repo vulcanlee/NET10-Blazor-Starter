@@ -86,10 +86,7 @@ public class ProjectService
         }
 
         var scope = await accessScope.GetAsync();
-        if (!scope.IsAdmin)
-        {
-            dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<Project>(x => x.Teams, scope.Teams));
-        }
+        dataSource = RecordTeamScope.Apply(dataSource, x => x.Teams, scope);
 
         IOrderedQueryable<Project>? sorted = null;
 
@@ -203,7 +200,7 @@ public class ProjectService
         }
 
         var scope = await accessScope.GetAsync();
-        if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+        if (!RecordTeamScope.CanAccess(item.Teams, scope))
         {
             Logger.LogWarning("Project access denied by team scope. ProjectId={ProjectId}", id);
             return new ProjectAdapterModel();
@@ -236,6 +233,13 @@ public class ProjectService
 
         try
         {
+            // 非管理員只能指定自己範圍內的團隊（0.9.105 起），否則建出來的專案自己也看不到。
+            if (RecordTeamScope.CheckAssignment(null, TagStringHelper.ToStored(paraObject.Teams), await accessScope.GetAsync()) is { } teamError)
+            {
+                Logger.LogInformation("Project create rejected by team assignment rule. Title={Title}", paraObject.Title);
+                return VerifyRecordResultFactory.Build(false, teamError);
+            }
+
             Project itemParameter = Mapper.Map<Project>(paraObject);
             itemParameter.Files = [];
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
@@ -279,6 +283,20 @@ public class ProjectService
             {
                 Logger.LogWarning("Project update rejected because record was not found. ProjectId={ProjectId}", paraObject.Id);
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的專案資料。");
+            }
+
+            // 0.9.105 之前修改不檢查團隊範圍：看不到的專案只要知道 Id 就能改（刪除、還原早已檢查）。
+            var scope = await accessScope.GetAsync();
+            if (!RecordTeamScope.CanAccess(currentItem.Teams, scope))
+            {
+                Logger.LogWarning("Project update denied by team scope. ProjectId={ProjectId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法修改。");
+            }
+
+            if (RecordTeamScope.CheckAssignment(currentItem.Teams, TagStringHelper.ToStored(paraObject.Teams), scope) is { } teamError)
+            {
+                Logger.LogInformation("Project update rejected by team assignment rule. ProjectId={ProjectId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, teamError);
             }
 
             currentItem.Title = paraObject.Title;
@@ -351,7 +369,7 @@ public class ProjectService
 
             // 0.9.93 之前刪除完全不檢查團隊範圍；畫面上看不到不代表伺服器端不該擋。
             var scope = await accessScope.GetAsync();
-            if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+            if (!RecordTeamScope.CanAccess(item.Teams, scope))
             {
                 Logger.LogWarning("Project deletion denied by team scope. ProjectId={ProjectId}", id);
                 return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法刪除。");
@@ -395,10 +413,7 @@ public class ProjectService
         }
 
         var scope = await accessScope.GetAsync();
-        if (!scope.IsAdmin)
-        {
-            dataSource = dataSource.Where(TagStringHelper.BuildTeamAccessPredicate<Project>(x => x.Teams, scope.Teams));
-        }
+        dataSource = RecordTeamScope.Apply(dataSource, x => x.Teams, scope);
 
         dataSource = dataSource.OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id);
 
@@ -431,7 +446,7 @@ public class ProjectService
             }
 
             var scope = await accessScope.GetAsync();
-            if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+            if (!RecordTeamScope.CanAccess(item.Teams, scope))
             {
                 Logger.LogWarning("Project restore denied by team scope. ProjectId={ProjectId}", id);
                 return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法還原。");
@@ -480,7 +495,7 @@ public class ProjectService
             }
 
             var scope = await accessScope.GetAsync();
-            if (!TagStringHelper.IsTeamAccessible(item.Teams, scope.Teams, scope.IsAdmin))
+            if (!RecordTeamScope.CanAccess(item.Teams, scope))
             {
                 Logger.LogWarning("Project purge denied by team scope. ProjectId={ProjectId}", id);
                 return VerifyRecordResultFactory.Build(false, "這筆專案不在你的團隊範圍內，無法永久刪除。");
@@ -568,7 +583,7 @@ public class ProjectService
         }
 
         var scope = await accessScope.GetAsync();
-        if (!TagStringHelper.IsTeamAccessible(parent?.Teams, scope.Teams, scope.IsAdmin))
+        if (!RecordTeamScope.CanAccess(parent?.Teams, scope))
         {
             Logger.LogWarning("Project file download denied by team scope. ProjectFileId={ProjectFileId}", projectFileId);
             return null;

@@ -26,6 +26,9 @@ public class TeamAdapterModel : ICloneable
     [StringLength(2000, ErrorMessage = "描述長度不可超過 2000 字元")]
     public string? Description { get; set; }
 
+    /// <summary>上層部門（0.9.105 起，null＝最上層）。</summary>
+    public int? ParentId { get; set; }
+
     public bool IsEnabled { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.Now;

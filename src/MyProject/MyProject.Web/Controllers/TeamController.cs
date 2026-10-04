@@ -124,11 +124,17 @@ public class TeamController : ControllerBase
             }
 
             var team = mapper.Map<Team>(teamDto);
-            var created = await teamRepository.AddAsync(team);
-            var createdDto = mapper.Map<TeamDto>(created);
+            var outcome = await teamRepository.AddAsync(team);
+            if (outcome.Status == TeamWriteStatus.Invalid)
+            {
+                logger.LogInformation("Team create request rejected by parent rule. ParentId={ParentId}", teamDto.ParentId);
+                return BadRequest(ApiResult<TeamDto>.ValidationError(outcome.Message!));
+            }
+
+            var createdDto = mapper.Map<TeamDto>(outcome.Team);
 
             logger.LogInformation("Team created successfully. TeamId={TeamId}, Name={Name}", createdDto.Id, createdDto.Name);
-            await this.WriteAuditAsync(AuditActions.Team.Create, "Team", createdDto.Id.ToString(), $"name={createdDto.Name}");
+            await this.WriteAuditAsync(AuditActions.Team.Create, "Team", createdDto.Id.ToString(), $"name={createdDto.Name}; parentId={createdDto.ParentId}");
             return Ok(ApiResult<TeamDto>.SuccessResult(createdDto, "新增團隊成功"));
         }
         catch (Exception ex)
@@ -172,15 +178,22 @@ public class TeamController : ControllerBase
             }
 
             var team = mapper.Map<Team>(teamDto);
-            var success = await teamRepository.UpdateAsync(team);
-            if (!success)
+            var outcome = await teamRepository.UpdateAsync(team);
+            if (outcome.Status == TeamWriteStatus.NotFound)
             {
                 logger.LogWarning("Team update request could not find record. TeamId={TeamId}", id);
                 return NotFound(ApiResult.NotFoundResult($"找不到 ID 為 {id} 的團隊"));
             }
 
+            if (outcome.Status == TeamWriteStatus.Invalid)
+            {
+                logger.LogInformation("Team update request rejected by team rule. TeamId={TeamId}", id);
+                return BadRequest(ApiResult.ValidationError(outcome.Message!));
+            }
+
             logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={Name}", id, teamDto.Name);
-            await this.WriteAuditAsync(AuditActions.Team.Update, "Team", id.ToString(), $"name={teamDto.Name}");
+            await this.WriteAuditAsync(AuditActions.Team.Update, "Team", id.ToString(),
+                $"name={teamDto.Name}; parentId={teamDto.ParentId}" + (outcome.Message is { } renamed ? $"; {renamed}" : string.Empty));
             return Ok(ApiResult.SuccessResult("更新團隊成功"));
         }
         catch (DbUpdateConcurrencyException)
@@ -205,11 +218,17 @@ public class TeamController : ControllerBase
             logger.LogDebug("Received team delete request. TeamId={TeamId}", id);
 
             // 軟刪除（0.9.94 起），刪除者記入 DeletedBy。
-            var success = await teamRepository.DeleteAsync(id, RequestActorResolver.Resolve(User).Account);
-            if (!success)
+            var outcome = await teamRepository.DeleteAsync(id, RequestActorResolver.Resolve(User).Account);
+            if (outcome.Status == TeamWriteStatus.NotFound)
             {
                 logger.LogWarning("Team delete request could not find record. TeamId={TeamId}", id);
                 return NotFound(ApiResult.NotFoundResult($"找不到 ID 為 {id} 的團隊"));
+            }
+
+            if (outcome.Status == TeamWriteStatus.Invalid)
+            {
+                logger.LogInformation("Team delete request rejected because it still has child teams. TeamId={TeamId}", id);
+                return BadRequest(ApiResult.ValidationError(outcome.Message!));
             }
 
             logger.LogInformation("Team deleted successfully. TeamId={TeamId}", id);

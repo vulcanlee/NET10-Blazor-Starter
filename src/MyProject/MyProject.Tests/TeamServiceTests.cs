@@ -35,7 +35,8 @@ public sealed class TeamServiceTests
             Assert.Equal(7, entry.ActorUserId);
             Assert.Equal("alice", entry.ActorAccount);
         });
-        Assert.Equal("name=研發一部", fixture.Audit.Entries[1].Detail);
+        // 0.9.105 起帶上層部門；改名時再帶舊名稱與同步更新的筆數。
+        Assert.Equal("name=研發一部; parentId=; from=研發部; renamedProjects=0; renamedCategories=0; renamedRoles=0", fixture.Audit.Entries[1].Detail);
     }
 
     [Fact]
@@ -303,6 +304,11 @@ public sealed class TeamServiceTests
 
         public BackendDBContext Context { get; }
 
+        /// <summary>部門樹（0.9.105 起）；每次重讀，也記下失效次數。</summary>
+        public ContextTeamTreeCache Tree => tree ??= new ContextTeamTreeCache(Context);
+
+        private ContextTeamTreeCache? tree;
+
         public static async Task<TeamServiceFixture> CreateAsync()
         {
             var connection = new SqliteConnection("Data Source=:memory:");
@@ -330,7 +336,8 @@ public sealed class TeamServiceTests
                 mapper,
                 loggerFactory.CreateLogger<TeamService>(),
                 Audit,
-                CurrentUser);
+                CurrentUser,
+                Tree);
         }
 
         public async Task<Team> AddTeamAsync(string name, string? code)

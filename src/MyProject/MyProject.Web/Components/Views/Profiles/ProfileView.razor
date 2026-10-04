@@ -62,7 +62,19 @@ else
                     }
                 </span>
             </div>
-            <div class="profile-muted">角色與團隊由系統管理員設定；團隊包含你直接加入的與角色預設的。</div>
+            @if (profile.SubordinateTeams is { Count: > 0 } subordinates)
+            {
+                <div class="profile-row">
+                    <span class="profile-label">下屬部門</span>
+                    <span class="profile-chips">
+                        @foreach (var team in subordinates)
+                        {
+                            <span class="profile-chip">@team</span>
+                        }
+                    </span>
+                </div>
+            }
+            <div class="profile-muted">角色與團隊由系統管理員設定；團隊包含你直接加入的與角色預設的，你也看得到它們所有下屬部門的資料。</div>
         </section>
 
         <section class="profile-section">

@@ -242,7 +242,7 @@ public sealed class OptimisticConcurrencyTests
             => new(Factory(), mapper, NullLogger<CategoryService>.Instance, new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
 
         public TeamService TeamService()
-            => new(Factory(), mapper, NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser);
+            => new(Factory(), mapper, NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser, new ContextTeamTreeCache(Context));
 
         public ProjectService ProjectService()
             => new(Factory(), mapper, NullLogger<ProjectService>.Instance, Options.Create(new SystemSettings()),

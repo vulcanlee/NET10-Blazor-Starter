@@ -33,6 +33,14 @@ namespace MyProject.Web.Components.Views.Categories
         List<CategoryAdapterModel> categoryAdapterModels = new();
         List<string> availableTeams = new();
 
+        /// <summary>
+        /// 表單「適用團隊」的選項（0.9.105 起）：管理員是全部；其他人只有自己範圍內的團隊（含下屬部門），
+        /// 加上這筆原本就有的。伺服器端 <c>RecordTeamScope.CheckAssignment</c> 會再檢查一次。
+        /// </summary>
+        IEnumerable<string> AssignableTeams => currentScope.IsAdmin
+            ? availableTeams
+            : availableTeams.Where(t => currentScope.Teams.Contains(t, StringComparer.OrdinalIgnoreCase) || CurrentRecord.Teams.Contains(t, StringComparer.OrdinalIgnoreCase));
+
         /// <summary>目前使用者的存取範圍，用於判斷「存檔後自己就看不到這筆」的提醒。</summary>
         RecordAccessScope currentScope = new(false, []);
 

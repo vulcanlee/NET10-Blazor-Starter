@@ -48,6 +48,12 @@ public class TeamCreateUpdateDto
     public string? Description { get; set; }
 
     /// <summary>
+    /// 上層部門的 Id（0.9.105 起，null＝最上層）。不可是自己、自己的下屬或已刪除的部門，否則回 400。
+    /// </summary>
+    [JsonPropertyName("parentId")]
+    public int? ParentId { get; set; }
+
+    /// <summary>
     /// 是否啟用
     /// </summary>
     [JsonPropertyName("isEnabled")]

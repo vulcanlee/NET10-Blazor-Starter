@@ -437,7 +437,7 @@ public sealed class AuthenticationStateHelperTests
                 new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy()),
                 CurrentUserService,
                 rolePermissionService,
-                new EffectiveTeamResolver(Context, NullLogger<EffectiveTeamResolver>.Instance),
+                new EffectiveTeamResolver(Context, new ContextTeamTreeCache(Context), NullLogger<EffectiveTeamResolver>.Instance),
                 new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
                 passwordPolicy ?? PasswordTestDefaults.Policy(),

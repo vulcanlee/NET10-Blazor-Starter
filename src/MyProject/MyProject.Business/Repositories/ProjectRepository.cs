@@ -9,17 +9,24 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Business.Repositories;
 
+/// <summary>
+/// Web API 的專案存取。0.9.105 起與 Blazor 的 <c>ProjectService</c> 套用同一套團隊範圍（<see cref="RecordTeamScope"/>）：
+/// 清單只回看得到的，單筆、修改、刪除看不到的一律當作不存在（controller 回 404）。
+/// </summary>
 public class ProjectRepository
 {
     private readonly BackendDBContext context;
+    private readonly IRecordAccessScopeProvider accessScope;
     private readonly ILogger<ProjectRepository> logger;
 
-    public ProjectRepository(BackendDBContext context, ILogger<ProjectRepository> logger)
+    public ProjectRepository(BackendDBContext context, IRecordAccessScopeProvider accessScope, ILogger<ProjectRepository> logger)
     {
         this.context = context;
+        this.accessScope = accessScope;
         this.logger = logger;
     }
 
@@ -37,14 +44,24 @@ public class ProjectRepository
             // Project currently has no related data included by this API shape.
         }
 
-        return await query.FirstOrDefaultAsync(p => p.Id == id);
+        var project = await query.FirstOrDefaultAsync(p => p.Id == id);
+        return project is not null && RecordTeamScope.CanAccess(project.Teams, await accessScope.GetAsync()) ? project : null;
+    }
+
+    /// <summary>非管理員指定團隊的規則（新加的團隊要在自己範圍內、不可清成公開）；新增時 <paramref name="id"/> 傳 null。回傳錯誤訊息。</summary>
+    public async Task<string?> CheckTeamAssignmentAsync(int? id, string? requestedTeams)
+    {
+        var current = id is { } existingId
+            ? await context.Project.AsNoTracking().Where(x => x.Id == existingId).Select(x => x.Teams).FirstOrDefaultAsync()
+            : null;
+        return RecordTeamScope.CheckAssignment(current, requestedTeams, await accessScope.GetAsync());
     }
 
     public async Task<PagedResult<Project>> GetPagedAsync(
         ProjectSearchRequestDto request,
         bool includeRelatedData = false)
     {
-        var query = context.Project.AsNoTracking().AsQueryable();
+        var query = RecordTeamScope.Apply(context.Project.AsNoTracking(), x => x.Teams, await accessScope.GetAsync());
 
         #region 建立過濾條件
         Expression<Func<Project, bool>>? predicate = null;
@@ -236,7 +253,7 @@ public class ProjectRepository
     public async Task<bool> UpdateAsync(Project project)
     {
         var existingProject = await context.Project.FindAsync(project.Id);
-        if (existingProject == null)
+        if (existingProject == null || !RecordTeamScope.CanAccess(existingProject.Teams, await accessScope.GetAsync()))
         {
             return false;
         }
@@ -309,7 +326,7 @@ public class ProjectRepository
     public async Task<bool> DeleteAsync(int id, string? actorAccount)
     {
         var project = await context.Project.FindAsync(id);
-        if (project == null)
+        if (project == null || !RecordTeamScope.CanAccess(project.Teams, await accessScope.GetAsync()))
         {
             return false;
         }

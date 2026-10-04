@@ -221,7 +221,7 @@ else
                         <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
                                 Values="CurrentRecord.Teams" OnSelectedItemsChanged="OnRecordTeamsChanged"
                                 Placeholder="選擇團隊（不設定表示公開）" AllowClear EnableSearch Style="width: 100%;">
-                            @foreach (var t in availableTeams)
+                            @foreach (var t in AssignableTeams)
                             {
                                 <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
                             }
