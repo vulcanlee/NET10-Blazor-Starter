@@ -39,9 +39,9 @@
 
 | 類別 | 什麼時候寫入 | 動作代碼 |
 |---|---|---|
-| 登入 | 登入成功、帳號或密碼錯誤、帳號停用中仍嘗試登入、帳號被鎖定；用 Google 帳號登入成功或失敗 | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed` |
+| 登入 | 登入成功、帳號或密碼錯誤（鎖定中仍嘗試登入也記在這裡，摘要為 `reason=Locked`）、帳號停用中仍嘗試登入、連續輸錯造成帳號被鎖定（只記鎖定的那一次）；用 Google 帳號登入成功或失敗 | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed` |
 | 登出 | 使用者登出 | `Logout` |
-| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除帳號；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink` |
+| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除、解除登入鎖定（0.9.101 起）帳號；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink`、`User.Unlock` |
 | 角色 | 在「角色管理」新增、修改、刪除、還原、永久刪除角色；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Role.Create`、`Role.Update`、`Role.Delete`、`Role.Restore`、`Role.Purge`、`Role.AutoPurge` |
 | 權限 | 有人打開沒有權限的頁面，或透過 Web API 做了沒有權限的動作而被拒絕 | `Permission.Denied` |
 | 密碼 | 忘記密碼的申請、完成重設、重設失敗；自己變更密碼 | `Password.ResetRequested`、`Password.ResetCompleted`、`Password.ResetFailed`、`Password.Changed` |

@@ -62,38 +62,6 @@
         </main>
     </div>
 
-    <Modal Title="變更密碼"
-           Class="change-password-modal"
-           @bind-Visible="@changePasswordVisible"
-           Keyboard="true"
-           OnOk="OnChangePasswordOkAsync"
-           OnCancel="OnChangePasswordCancelAsync"
-           OkText="@("確認變更")"
-           CancelText="@("取消")">
-        @if (isSupportAccount)
-        {
-            <AntDesign.Alert Message="系統預設帳號 support 不允許變更密碼。" Type="@AntDesign.AlertType.Warning" ShowIcon="true" />
-        }
-        else
-        {
-            <AntDesign.Form TModel="ChangePasswordForm" Model="@changePasswordForm" Layout="FormLayout.Vertical">
-                <FormItem Label="目前密碼" Required>
-                    <InputPassword @bind-Value="changePasswordForm.CurrentPassword" Placeholder="請輸入目前密碼" />
-                </FormItem>
-                <FormItem Label="新密碼" Required>
-                    <InputPassword @bind-Value="changePasswordForm.NewPassword" Placeholder="請輸入新密碼（至少 6 個字元）" />
-                </FormItem>
-                <FormItem Label="確認新密碼" Required>
-                    <InputPassword @bind-Value="changePasswordForm.ConfirmPassword" Placeholder="請再次輸入新密碼" />
-                </FormItem>
-                @if (!string.IsNullOrEmpty(changePasswordErrorMessage))
-                {
-                    <AntDesign.Alert Message="@changePasswordErrorMessage" Type="@AntDesign.AlertType.Error" ShowIcon="true" />
-                }
-            </AntDesign.Form>
-        }
-    </Modal>
-
     @* 尺寸寫在 Components/Commons/OverlayStyles.razor 的 .about-modal，不用 Width 參數（速查表 §6.4）。 *@
     <Modal Title="關於"
            Class="about-modal"

@@ -37,6 +37,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<Notification> Notification { get; set; }
     public virtual DbSet<Announcement> Announcement { get; set; }
     public virtual DbSet<AnnouncementDismissal> AnnouncementDismissal { get; set; }
+    public virtual DbSet<PasswordHistory> PasswordHistory { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -211,6 +212,16 @@ public partial class BackendDBContext : DbContext
         {
             entity.HasKey(x => new { x.AnnouncementId, x.MyUserId });
             entity.HasOne(x => x.Announcement).WithMany().HasForeignKey(x => x.AnnouncementId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
+
+        #region 密碼歷史（0.9.101 起）
+        modelBuilder.Entity<PasswordHistory>(entity =>
+        {
+            entity.HasIndex(x => new { x.MyUserId, x.CreatedAtUtc });
+
+            // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：永久刪除使用者時不會先刪他的密碼歷史。
             entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
         });
         #endregion

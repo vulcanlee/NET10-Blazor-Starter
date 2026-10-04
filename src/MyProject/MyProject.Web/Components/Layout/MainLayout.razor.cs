@@ -2,8 +2,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
-using Microsoft.Extensions.Configuration;
-using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
@@ -33,15 +31,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private SidebarMenuService SidebarMenuService { get; set; } = default!;
 
     [Inject]
-    private IConfiguration Configuration { get; set; } = default!;
-
-    [Inject]
-    private MyUserService MyUserService { get; set; } = default!;
-
-    [Inject]
-    private MessageService MessageService { get; set; } = default!;
-
-    [Inject]
     private ModalService ModalService { get; set; } = default!;
 
     [Inject]
@@ -63,11 +52,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private bool isAuthenticated;
     private bool isSidebarCollapsed = true;
     private bool isUserMenuOpen;
-
-    private bool changePasswordVisible = false;
-    private bool isSupportAccount = false;
-    private string changePasswordErrorMessage = string.Empty;
-    private ChangePasswordForm changePasswordForm = new();
 
     private bool aboutVisible = false;
 
@@ -181,64 +165,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         await LogoutConfirm.RequestAsync(ModalService, NavigationManager);
     }
 
+    /// <summary>
+    /// 0.9.101 起變更密碼只有一個入口：/ChangePassword 頁（右上角原本的對話窗沒有套用密碼原則與歷史，已移除）。
+    /// </summary>
     private void OnChangePasswordClick()
     {
-        var supportAccount = Configuration["BootstrapSettings:SupportAccount"] ?? "support";
-        isSupportAccount = CurrentUserService.CurrentUser.Account == supportAccount;
-        changePasswordForm = new ChangePasswordForm();
-        changePasswordErrorMessage = string.Empty;
-        changePasswordVisible = true;
-    }
-
-    private async Task OnChangePasswordOkAsync()
-    {
-        if (isSupportAccount)
-        {
-            changePasswordVisible = false;
-            return;
-        }
-
-        changePasswordErrorMessage = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(changePasswordForm.CurrentPassword))
-        {
-            changePasswordErrorMessage = "請輸入目前密碼。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(changePasswordForm.NewPassword) || changePasswordForm.NewPassword.Length < 6)
-        {
-            changePasswordErrorMessage = "新密碼至少需要 6 個字元。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        if (changePasswordForm.NewPassword != changePasswordForm.ConfirmPassword)
-        {
-            changePasswordErrorMessage = "新密碼與確認密碼不一致。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        var userId = CurrentUserService.CurrentUser.Id;
-        var result = await MyUserService.ChangePasswordAsync(userId, changePasswordForm.CurrentPassword, changePasswordForm.NewPassword);
-
-        if (!result.Success)
-        {
-            changePasswordErrorMessage = result.Message ?? "變更密碼失敗，請稍後再試。";
-            changePasswordVisible = true;
-            return;
-        }
-
-        changePasswordVisible = false;
-        _ = MessageService.SuccessAsync("密碼變更成功！");
-    }
-
-    private void OnChangePasswordCancelAsync()
-    {
-        changePasswordVisible = false;
-        changePasswordErrorMessage = string.Empty;
+        isUserMenuOpen = false;
+        NavigationManager.NavigateTo("/ChangePassword");
     }
 
     /// <summary>
@@ -277,13 +210,6 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private void ToggleUserMenu()
     {
         isUserMenuOpen = !isUserMenuOpen;
-    }
-
-    private sealed class ChangePasswordForm
-    {
-        public string CurrentPassword { get; set; } = string.Empty;
-        public string NewPassword { get; set; } = string.Empty;
-        public string ConfirmPassword { get; set; } = string.Empty;
     }
 
     /// <summary>

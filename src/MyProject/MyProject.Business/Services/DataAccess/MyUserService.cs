@@ -21,6 +21,7 @@ public class MyUserService
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
     private readonly BootstrapSettings bootstrapSettings;
+    private readonly IPasswordPolicy passwordPolicy;
 
     public IMapper Mapper { get; }
     public ILogger<MyUserService> Logger { get; }
@@ -32,7 +33,8 @@ public class MyUserService
         IRbacWriteService rbacWriteService,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
-        IOptions<BootstrapSettings> bootstrapOptions)
+        IOptions<BootstrapSettings> bootstrapOptions,
+        IPasswordPolicy passwordPolicy)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
@@ -41,6 +43,7 @@ public class MyUserService
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
         bootstrapSettings = bootstrapOptions.Value;
+        this.passwordPolicy = passwordPolicy;
     }
 
     /// <summary>取得目前操作者作為稽核 actor；未登入（Id==0）時回 null。</summary>
@@ -235,6 +238,12 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "新增使用者時必須輸入密碼。");
             }
 
+            if (passwordPolicy.Check(paraObject.Password) is { } passwordError)
+            {
+                Logger.LogInformation("User creation rejected because the password does not meet the policy. Account={Account}", paraObject.Account);
+                return VerifyRecordResultFactory.Build(false, passwordError);
+            }
+
             if (await ValidateRolesAsync(context, paraObject) is { } roleError)
             {
                 return VerifyRecordResultFactory.Build(false, roleError);
@@ -243,8 +252,7 @@ public class MyUserService
             MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
             itemParameter.RoleView = null;
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
-            itemParameter.Salt = Guid.NewGuid().ToString();
-            itemParameter.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
+            await passwordPolicy.ApplyAsync(context, itemParameter, paraObject.Password, paraObject.MustChangePassword);
 
             await context.MyUser.AddAsync(itemParameter);
             await context.SaveChangesAsync();
@@ -288,6 +296,14 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, roleError);
             }
 
+            var settingPassword = !string.IsNullOrWhiteSpace(paraObject.Password);
+            if (settingPassword && (passwordPolicy.Check(paraObject.Password)
+                ?? (await passwordPolicy.IsReusedAsync(context, itemData, paraObject.Password) ? PasswordPolicy.ReusedMessage : null)) is { } passwordError)
+            {
+                Logger.LogInformation("User update rejected because the new password does not meet the policy. UserId={UserId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, passwordError);
+            }
+
             // 只複製編輯畫面上有的欄位（0.9.93 起）。0.9.92 之前是整筆覆蓋，而畫面模型沒有登入失敗次數、
             // 鎖定到期、兩步驟驗證、Google 綁定 —— 管理員只改姓名，被鎖定的帳號就解鎖了。
             itemData.Account = paraObject.Account;
@@ -297,17 +313,14 @@ public class MyUserService
             itemData.IsAdmin = paraObject.IsAdmin;
             itemData.RoleViewId = paraObject.RoleViewId;
             itemData.UpdateAt = paraObject.UpdateAt;
+            itemData.MustChangePassword = paraObject.MustChangePassword;
 
-            if (!string.IsNullOrWhiteSpace(paraObject.Password))
+            if (settingPassword)
             {
-                itemData.Salt = string.IsNullOrWhiteSpace(itemData.Salt) ? Guid.NewGuid().ToString() : itemData.Salt;
-                itemData.Password = SecurePasswordHasher.HashPassword(paraObject.Password);
-
                 // 管理員替使用者設定新密碼視為解除鎖定（與「忘記密碼」重設後的行為一致）。
                 // 0.9.92 之前這個效果是整筆覆蓋順帶造成的；改成只更新畫面欄位後要明確寫出來，
-                // 否則「被鎖住時請管理員改密碼」這個操作方式會失效。只改其他欄位時不動鎖定狀態。
-                itemData.AccessFailedCount = 0;
-                itemData.LockoutEndUtc = null;
+                // 否則「被鎖住時請管理員改密碼」這個操作方式會失效。只改其他欄位時不動鎖定狀態。0.9.101 起由 ApplyAsync 一併處理。
+                await passwordPolicy.ApplyAsync(context, itemData, paraObject.Password, paraObject.MustChangePassword);
             }
 
             var entry = context.Entry(itemData);
@@ -767,8 +780,13 @@ public class MyUserService
             return VerifyRecordResultFactory.Build(false, "新密碼與確認密碼不一致。");
         }
 
-        user.Salt = string.IsNullOrWhiteSpace(user.Salt) ? Guid.NewGuid().ToString() : user.Salt;
-        user.Password = SecurePasswordHasher.HashPassword(newPassword);
+        if ((passwordPolicy.Check(newPassword) ?? (await passwordPolicy.IsReusedAsync(context, user, newPassword) ? PasswordPolicy.ReusedMessage : null)) is { } passwordError)
+        {
+            Logger.LogInformation("Own password change rejected because the new password does not meet the policy. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, passwordError);
+        }
+
+        await passwordPolicy.ApplyAsync(context, user, newPassword, mustChangeAtNextLogin: false);
         user.UpdateAt = DateTime.Now;
 
         await context.SaveChangesAsync();
@@ -791,67 +809,26 @@ public class MyUserService
         return Task.CompletedTask;
     }
 
-    public async Task<bool> NeedChangePasswordAsync(MyUserAdapterModel myUser)
+    /// <summary>
+    /// 管理員解除鎖定（0.9.101 起）：只更新失敗次數與鎖定時間，不換版本號 —— 別人正開著這位使用者的編輯窗也不會因此衝突。
+    /// </summary>
+    public async Task<VerifyRecordResult> UnlockAsync(int userId)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        Logger.LogDebug("Checking whether user must change password. UserId={UserId}", myUser.Id);
-
-        var user = await context.MyUser
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == myUser.Id);
-
-        if (user == null)
+        var rows = await context.MyUser
+            .Where(x => x.Id == userId && x.LockoutEndUtc != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccessFailedCount, 0).SetProperty(x => x.LockoutEndUtc, (DateTime?)null));
+        if (rows == 0)
         {
-            Logger.LogWarning("Cannot check password-change requirement because user was not found. UserId={UserId}", myUser.Id);
-            return false;
+            Logger.LogInformation("Unlock skipped because the user is not locked or was not found. UserId={UserId}", userId);
+            return VerifyRecordResultFactory.Build(false, "這位使用者目前沒有被鎖定。");
         }
 
-        bool result = SecurePasswordHasher.VerifyPassword(MagicObjectHelper.NeedChangePassword, user.Password, user.Salt)
-            != PasswordVerificationOutcome.Failed;
-
-        Logger.LogDebug("Password-change requirement check completed. UserId={UserId}, NeedChangePassword={NeedChangePassword}", myUser.Id, result);
-        return result;
-    }
-
-    public async Task<VerifyRecordResult> ChangePasswordAsync(int userId, string currentPassword, string newPassword)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync();
-        Logger.LogInformation("Changing password for user. UserId={UserId}", userId);
-
-        try
-        {
-            MyUser? user = await context.MyUser
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == userId);
-
-            if (user == null)
-            {
-                Logger.LogWarning("Change password rejected because user was not found. UserId={UserId}", userId);
-                return VerifyRecordResultFactory.Build(false, "找不到使用者資料。");
-            }
-
-            if (SecurePasswordHasher.VerifyPassword(currentPassword, user.Password, user.Salt) == PasswordVerificationOutcome.Failed)
-            {
-                Logger.LogWarning("Change password rejected because current password is incorrect. UserId={UserId}", userId);
-                return VerifyRecordResultFactory.Build(false, "目前密碼輸入錯誤。");
-            }
-
-            var newHash = SecurePasswordHasher.HashPassword(newPassword);
-
-            MyUser? trackedUser = await context.MyUser.FirstOrDefaultAsync(x => x.Id == userId);
-            trackedUser!.Password = newHash;
-            await context.SaveChangesAsync();
-
-            Logger.LogInformation("Password changed successfully. UserId={UserId}", userId);
-            await auditLogService.WriteAsync(
-                AuditActions.Password.Changed, success: true, actorUserId: trackedUser.Id, actorAccount: trackedUser.Account,
-                targetType: "MyUser", targetId: trackedUser.Id.ToString(), detail: "via=ChangePasswordDialog");
-            return VerifyRecordResultFactory.Build(true);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to change password. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "變更密碼失敗。", ex);
-        }
+        var (actorUserId, actorAccount) = ResolveActor();
+        await auditLogService.WriteAsync(
+            AuditActions.User.Unlock, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+            targetType: nameof(MyUser), targetId: userId.ToString());
+        Logger.LogInformation("User unlocked. UserId={UserId}", userId);
+        return VerifyRecordResultFactory.Build(true);
     }
 }

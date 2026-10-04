@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.100
+- 現行系統版本：0.9.101
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/10/04
 
@@ -104,8 +104,8 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 
 | 動作代碼 | 來源 |
 | --- | --- |
-| `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin` |
-| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` | `MyUserService` |
+| `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin`（0.9.101 起 `LockedOut` 只記造成鎖定的那一次；鎖定中的嘗試記 `Failed`、detail `reason=Locked`）|
+| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` / `User.Unlock`（0.9.101 起，解除登入鎖定）| `MyUserService` |
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄） |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |

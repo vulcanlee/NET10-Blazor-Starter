@@ -10,7 +10,26 @@ namespace MyProject.Business.Services.Other;
 /// <summary>
 /// Google 登入查找的結果；<see cref="IsDeleted"/> 為 true 表示命中的是已刪除的使用者，呼叫端必須拒絕登入（0.9.95 起）。
 /// </summary>
-public sealed record ExternalLoginResult(MyUser User, bool IsDeleted);
+public sealed record ExternalLoginResult(MyUser User, bool IsDeleted)
+{
+    /// <summary>
+    /// 這次 Google 登入該怎麼處理（0.9.101 起集中在這裡，回呼端只依結果導向）。順序有意義：已刪除 → 待開通（停用）→ 鎖定 → 登入。
+    /// ⚠️ 鎖定一定要檢查：之前 Google 登入不看鎖定，密碼被猜到鎖住的帳號可以改用 Google 進來。
+    /// </summary>
+    public ExternalLoginOutcome Evaluate(DateTime nowUtc)
+        => IsDeleted ? ExternalLoginOutcome.Deleted
+            : !User.Status ? ExternalLoginOutcome.Pending
+            : User.LockoutEndUtc is { } lockoutEndUtc && lockoutEndUtc > nowUtc ? ExternalLoginOutcome.Locked
+            : ExternalLoginOutcome.SignIn;
+}
+
+public enum ExternalLoginOutcome
+{
+    SignIn,
+    Deleted,
+    Pending,
+    Locked,
+}
 
 /// <summary>
 /// 處理第三方（Google）登入時的帳號查找、連結與自動建立。

@@ -383,6 +383,7 @@ public sealed class LoggingConventionTests
             "ScheduleCalculator.cs",        // 純函式：cron 的下次時段與補跑時段
             "ScheduledJobTriggerQueue.cs",  // 「立即執行」請求的佇列與去重，無 I/O
             "NotificationCategories.cs",    // 通知分類常數，無行為（0.9.100 起）
+            "PasswordPolicy.cs",            // 密碼原則：純規則計算與雜湊，失敗由呼叫端記錄（0.9.101 起）
             "SystemIdentity.cs",            // 例外告警服務（例外記錄管線內）使用它讀系統名稱；用 ILogger 會遞迴（0.9.98 起）
         ];
 

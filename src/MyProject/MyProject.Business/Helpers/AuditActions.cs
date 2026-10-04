@@ -35,6 +35,8 @@ public static class AuditActions
         public const string AutoPurge = "User.AutoPurge";
         public const string SsoCreate = "User.SsoCreate";
         public const string SsoLink = "User.SsoLink";
+        /// <summary>管理員在使用者清單解除登入鎖定（0.9.101 起）。</summary>
+        public const string Unlock = "User.Unlock";
     }
 
     public static class Role

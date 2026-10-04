@@ -24,14 +24,14 @@ public sealed class MyUserServicePasswordTests
         var user = await fixture.AddUserAsync("alice", "old-password");
         var service = fixture.CreateService();
 
-        var result = await service.ChangeOwnPasswordAsync(user.Id, "old-password", "new-password", "new-password");
+        var result = await service.ChangeOwnPasswordAsync(user.Id, "old-password", "new-password-1", "new-password-1");
 
         Assert.True(result.Success);
         var savedUser = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Id == user.Id);
         Assert.StartsWith("PBKDF2", savedUser.Password);
         Assert.Equal(
             PasswordVerificationOutcome.Success,
-            SecurePasswordHasher.VerifyPassword("new-password", savedUser.Password, savedUser.Salt));
+            SecurePasswordHasher.VerifyPassword("new-password-1", savedUser.Password, savedUser.Salt));
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class MyUserServicePasswordTests
         var originalPassword = user.Password;
         var service = fixture.CreateService();
 
-        var result = await service.ChangeOwnPasswordAsync(user.Id, "wrong-password", "new-password", "new-password");
+        var result = await service.ChangeOwnPasswordAsync(user.Id, "wrong-password", "new-password-1", "new-password-1");
 
         Assert.False(result.Success);
         var savedUser = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Id == user.Id);
@@ -72,7 +72,7 @@ public sealed class MyUserServicePasswordTests
         var originalPassword = user.Password;
         var service = fixture.CreateService();
 
-        var result = await service.ChangeOwnPasswordAsync(user.Id, "old-password", "new-password", "different-password");
+        var result = await service.ChangeOwnPasswordAsync(user.Id, "old-password", "new-password-1", "different-password");
 
         Assert.False(result.Success);
         var savedUser = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Id == user.Id);
@@ -87,7 +87,7 @@ public sealed class MyUserServicePasswordTests
         var originalPassword = user.Password;
         var service = fixture.CreateService();
 
-        var result = await service.ChangeOwnPasswordAsync(user.Id, "support-password", "new-password", "new-password");
+        var result = await service.ChangeOwnPasswordAsync(user.Id, "support-password", "new-password-1", "new-password-1");
 
         Assert.False(result.Success);
         Assert.Contains("support", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -166,7 +166,8 @@ public sealed class MyUserServicePasswordTests
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
                 new CurrentUserService(),
-                Options.Create(new BootstrapSettings()));
+                Options.Create(new BootstrapSettings()),
+                PasswordTestDefaults.Policy());
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password)

@@ -1,8 +1,8 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.100
+- 現行系統版本：0.9.101
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/10/04
 
@@ -49,8 +49,8 @@
 |---|---|---|---|---|
 | Google 第一次登入建立待開通帳號 | 管理員 | 否 | `AccountPending:{使用者 Id}` | `ExternalLoginService` |
 | 排程作業失敗（不含中斷、略過；含系統備份） | 管理員＋手動觸發者 | 是 | — | `ScheduledJobRunner`（結束後以新 scope 發送） |
-| 帳號被鎖定 | 管理員 | 是 | 每次鎖定 | C-9（0.9.101） |
-| 密碼即將到期 | 本人 | 否 | 依到期日 | C-9（0.9.101） |
+| 帳號被鎖定 | 管理員 | 是 | 每次鎖定（不設去重鍵） | `MyUserServiceLogin`（0.9.101 起） |
+| 密碼即將到期（7 天內） | 本人 | 否 | `PasswordExpiring:{使用者 Id}:{到期時間}` | 排程作業「密碼到期提醒」（`PasswordExpiryReminder`，`0 8 * * *`，0.9.101 起） |
 
 - **清除**：排程作業「站內通知清理」（`NotificationRetention`，`0 3 * * *`）刪除建立超過 `NotificationSettings:RetentionDays`（預設 90，系統參數）天的通知，分批進行，寫 `Notification.AutoPurge`。
 

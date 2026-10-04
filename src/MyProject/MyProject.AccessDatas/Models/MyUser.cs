@@ -48,6 +48,14 @@ public class MyUser : IConcurrencyStamped, ISoftDeletable
     /// TOTP Base32 密鑰；未綁定時為 null。
     /// </summary>
     public string? TwoFactorSecret { get; set; }
+    /// <summary>
+    /// 下次登入必須先變更密碼（0.9.101 起，取代以密碼 123456 當哨兵的做法）。管理員建立帳號或替使用者設密碼時預設勾選。
+    /// </summary>
+    public bool MustChangePassword { get; set; }
+    /// <summary>
+    /// 最近一次設定密碼的時間（UTC，0.9.101 起），用來計算密碼到期；null 表示不會到期（沒有本機密碼或升級前的資料）。
+    /// </summary>
+    public DateTime? PasswordChangedAtUtc { get; set; }
     public RoleView? RoleView { get; set; }
 
     /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>

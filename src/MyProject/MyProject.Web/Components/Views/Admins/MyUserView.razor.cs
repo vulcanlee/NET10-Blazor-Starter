@@ -54,6 +54,8 @@ namespace MyProject.Web.Components.Views.Admins
         public AuthenticationStateProvider authStateProvider { get; set; } = default!;
         [Inject]
         public NavigationManager NavigationManager { get; set; } = default!;
+        [Inject]
+        public IPasswordPolicy PasswordPolicy { get; set; } = default!;
 
         public MyUserView(
             ILogger<MyUserView> logger,
@@ -232,6 +234,53 @@ namespace MyProject.Web.Components.Views.Admins
             await ReloadAsync();
         }
 
+        /// <summary>管理員替使用者輸入新密碼時，自動勾選「下次登入須變更密碼」（仍可取消勾選）。</summary>
+        void OnPasswordTyped()
+        {
+            if (!string.IsNullOrEmpty(CurrentRecord.Password))
+            {
+                CurrentRecord.MustChangePassword = true;
+            }
+        }
+
+        static bool IsLocked(MyUserAdapterModel record) => record.LockoutEndUtc is { } end && end > DateTime.UtcNow;
+
+        static string LockedText(MyUserAdapterModel record)
+        {
+            var local = DateTime.SpecifyKind(record.LockoutEndUtc!.Value, DateTimeKind.Utc).ToLocalTime();
+            return local.Date == DateTime.Today ? $"鎖定至 {local:HH:mm}" : $"鎖定至 {local:MM-dd HH:mm}";
+        }
+
+        async Task OnUnlockAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "解除鎖定", $"要解除「{record.Account}」的登入鎖定嗎？他可以立刻再登入。", "解鎖");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await myUserService.UnlockAsync(record.Id);
+                if (!result.Success)
+                {
+                    ViewNotification.Error(notificationService, result.Message);
+                }
+                else
+                {
+                    logger.LogInformation("User unlocked from list. UserId={UserId}", record.Id);
+                    ViewNotification.Warning(notificationService, $"已解除「{record.Account}」的鎖定");
+                }
+
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while unlocking user.");
+                ViewNotification.Error(notificationService, "解除鎖定時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
         bool showDeleted;
 
         async Task OnToggleDeletedAsync()
@@ -329,6 +378,8 @@ namespace MyProject.Web.Components.Views.Admins
 
             isNewRecordMode = true;
             modalTitle = "新增使用者";
+            // 新帳號的密碼是管理員設的，預設要求本人第一次登入時換掉（0.9.101 起）。
+            CurrentRecord.MustChangePassword = true;
 
             // ⚠️ 必須是開窗前的最後一步：預設角色已經塞完才拍快照。
             dirtyTracker.Capture(CurrentRecord);

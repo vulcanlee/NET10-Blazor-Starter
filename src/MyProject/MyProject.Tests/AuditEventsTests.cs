@@ -26,7 +26,7 @@ public sealed class AuditEventsTests
         {
             Account = "newbie",
             Name = "newbie",
-            Password = "pw",
+            Password = "Passw0rd",
             Status = true,
         });
 
@@ -44,7 +44,7 @@ public sealed class AuditEventsTests
     {
         await using var fixture = await Fixture.CreateAsync(actorId: 7, actorAccount: "actor7");
         var service = fixture.CreateUserService();
-        await service.AddAsync(new MyUserAdapterModel { Account = "u", Name = "u", Password = "pw", Status = true });
+        await service.AddAsync(new MyUserAdapterModel { Account = "u", Name = "u", Password = "Passw0rd", Status = true });
         var user = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Account == "u");
 
         var result = await service.UpdateAsync(new MyUserAdapterModel
@@ -68,7 +68,7 @@ public sealed class AuditEventsTests
     {
         await using var fixture = await Fixture.CreateAsync(actorId: 7, actorAccount: "actor7");
         var service = fixture.CreateUserService();
-        await service.AddAsync(new MyUserAdapterModel { Account = "gone", Name = "gone", Password = "pw", Status = true });
+        await service.AddAsync(new MyUserAdapterModel { Account = "gone", Name = "gone", Password = "Passw0rd", Status = true });
         var user = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Account == "gone");
 
         var result = await service.DeleteAsync(user.Id);
@@ -123,7 +123,7 @@ public sealed class AuditEventsTests
         await using var fixture = await Fixture.CreateAsync(actorId: 0, actorAccount: "");
         var service = fixture.CreateUserService();
 
-        await service.AddAsync(new MyUserAdapterModel { Account = "anon", Name = "anon", Password = "pw", Status = true });
+        await service.AddAsync(new MyUserAdapterModel { Account = "anon", Name = "anon", Password = "Passw0rd", Status = true });
 
         var audit = await fixture.Context.AuditLog.AsNoTracking().SingleAsync(x => x.Action == "User.Create");
         Assert.Null(audit.ActorUserId);
@@ -165,7 +165,7 @@ public sealed class AuditEventsTests
         private AuditLogService Audit() => new(Context, loggerFactory.CreateLogger<AuditLogService>());
 
         public MyUserService CreateUserService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService, Options.Create(new BootstrapSettings()));
+            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public RoleViewService CreateRoleService()
             => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);

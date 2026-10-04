@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.97
+- 現行系統版本：0.9.101
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -30,8 +30,10 @@
 ## 三、畫面與欄位
 
 - **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、搜尋、清空搜尋。0.9.30 起「狀態」以 `StatusPill` 徽章呈現（啟用＝綠、停用＝灰）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
+  0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
 - **維護表單**（Modal）欄位：
-  - 帳號（必填，唯一）、密碼（新增必填；編輯留白＝沿用既有密碼）、名稱（必填）、Email。
+  - 帳號（必填，唯一）、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
+  - 「下次登入須變更密碼」核取方塊（0.9.101 起，`MustChangePassword`）：新增時預設勾選；編輯時輸入新密碼會自動勾選（仍可取消）；也可以不改密碼只勾選，要求對方下次登入先換密碼。
     ⚠️ 0.9.60 起 **Email 是「忘記密碼」寄信的收件者**：留空的帳號無法自助重設密碼（只記在稽核 `Password.ResetRequested` 的 `reason=InvalidEmail`）。0.9.85 起 `BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查格式（`MailAddress.TryCreate`，與 `PasswordResetService` 判斷能否寄信的規則相同）：有填但不合法時擋下並顯示「Email 格式不正確；不使用可留空。」。既有錯誤資料不自動修正（例如出貨預設 `BootstrapSettings:SupportEmail = "support"`），修改該帳號時須改正或清空。多個帳號可以共用同一個 Email，申請時每個帳號各收一封。
   - 角色（必填，單選主要角色 `RoleViewId`）。
   - 額外角色（多選，`AdditionalRoleIds`，與主要角色權限取聯集）。
@@ -43,7 +45,7 @@
 
 View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
-- **新增**（`AddAsync`）：產生 `Salt`、以 `SecurePasswordHasher.HashPassword` 雜湊密碼；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。
+- **新增**（`AddAsync`）：0.9.101 起先以 `IPasswordPolicy.Check` 檢查規則，再由 `ApplyAsync` 雜湊並寫入設定時間、旗標與歷史；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。
 - **修改**（`UpdateAsync`）：以 `Entry(...).State = Modified` 更新；密碼留白時沿用既有 `Password`／`Salt`，否則重新雜湊；再 `SyncAssignmentsAsync`；寫 `User.Update` 稽核。
 - **刪除**（`DeleteAsync`，0.9.95 起為軟刪除）：追蹤載入 → 禁止刪除 support（`BootstrapSettings.SupportAccount`，不分大小寫）與自己（`CurrentUser.Id`，0 時不比對）→ `SoftDeleteHelper.MarkDeleted` → 刪掉該使用者的密碼重設 token；`UserRole`／`UserTeam` 保留（還原後原樣回來）。畫面以 `CanDelete` 隱藏 support 與自己那一列的刪除鈕（伺服器端仍是權威）。
 - **已刪除清單／還原／永久刪除**（`GetDeletedAsync`／`RestoreAsync`／`PurgeAsync`，0.9.95 起）：工具列「顯示已刪除」切換。還原時擋下三種衝突並說明：與有效使用者同帳號（完全比對，與新增檢查一致）、綁定的 GoogleId 已連到別人、主要角色已被刪除（主要角色為 null 允許）。永久刪除只能對已刪除的使用者，`IgnoreQueryFilters` 追蹤載入後 `Remove`，關聯由資料庫 Cascade 刪除（不可用 `ExecuteDelete`，它也套用過濾器而刪 0 筆）。刪除與還原都會換新版本號；登入、權限判斷、下拉選單都經全域過濾器而看不到已刪除的資料。稽核：`User.Delete`（軟刪除）、`User.Restore`、`User.Purge`。
@@ -72,7 +74,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - 新增未輸入密碼：前端與 `AddAsync` 皆拒絕（「新增使用者時必須輸入密碼。」）。
 - 帳號重複：新增／修改前置檢查回「帳號已存在，無法新增／修改。」
 - 修改對象不存在：回「找不到要修改的使用者資料。」；刪除同理。
-- **已刪除的使用者**（0.9.95 起）：密碼登入回「帳號或者密碼不正確」、忘記密碼維持中性訊息、既有 Cookie 在下一次換頁被登出、JWT 更新失敗、API 權限判斷回 false（403）。已知殘留：在**目前這一頁**仍有效（與停用相同）；已簽發的 JWT access token 到期前打 `/api/Auth/me` 仍會回傳 claims（不碰資料庫）。
+- **已刪除的使用者**（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息、忘記密碼維持中性訊息、既有 Cookie 在下一次換頁被登出、JWT 更新失敗、API 權限判斷回 false（403）。已知殘留：在**目前這一頁**仍有效（與停用相同）；已簽發的 JWT access token 到期前打 `/api/Auth/me` 仍會回傳 claims（不碰資料庫）。
 - 已刪除的使用者用 Google 登入：見 [登入與帳號流程](登入與帳號流程-prd.md)。
 - 團隊名稱查無對應 `Team`：該名稱不會產生 `UserTeam`（僅同步存在的團隊）。
 - 未設額外角色／團隊：僅保留主要角色與角色預設團隊。
@@ -86,6 +88,8 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - **修改只更新畫面上的欄位**（0.9.93 起）：帳號、姓名、Email、啟用、管理員、角色，密碼有填才更換。
   登入失敗次數、鎖定到期、兩步驟驗證、Google 綁定不會被管理員的存檔覆蓋 —— 0.9.92 之前是整筆覆蓋，管理員只改姓名，被鎖定的帳號就解鎖了。
   例外：管理員**設定新密碼**時一併解除鎖定（失敗次數歸零、清除鎖定到期），與「忘記密碼」重設後的行為一致。
+  0.9.101 起設定新密碼要通過規則與歷史檢查（不可與這位使用者最近 N 次用過的密碼相同），`MustChangePassword` 一律依畫面儲存。
+- **解鎖**（`UnlockAsync`，0.9.101 起）：只以 `ExecuteUpdate` 清除失敗次數與鎖定到期，**不換版本號**（別人開著這位使用者的編輯窗不會因此衝突）；沒有被鎖定時回「這位使用者目前沒有被鎖定。」。
 
 ## 七、驗收與測試
 
@@ -94,6 +98,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/RbacBackfillServiceTests.cs`：由 `RoleViewId` 建 `UserRole`、由角色預設團隊建 `UserTeam`、冪等。
 - `MyProject.Tests/AuditEventsTests.cs`：`User.Create`／`User.Update`／`User.Delete`（含帳號）與未登入 actor 為 null。
 - `MyProject.Tests/PermissionCheckerTests.cs`：多角色聯集有效權限鍵、管理員短路。
+- `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：新增與修改套用密碼原則、只勾旗標也會存、設定新密碼解鎖、解鎖不換版本號並寫稽核。
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：support／自己不可刪、存檔驗證角色、保留指向已刪除角色的連結、還原衝突、永久刪除、已刪除者無法登入。
 
 ## 八、相關程式與文件

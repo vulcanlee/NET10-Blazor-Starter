@@ -121,6 +121,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();
         services.AddScoped<IEffectiveTeamResolver, EffectiveTeamResolver>();
+        // 密碼原則（0.9.101 起）：所有設定密碼的路徑都經過它；只讀 IOptionsMonitor 與時鐘，所以是 singleton。
+        services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<PasswordResetService>();
@@ -254,6 +256,9 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
             "備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
+        services.AddScheduledJob<PasswordExpiryReminderJob>(
+            PasswordExpiryReminderJob.JobName, "密碼到期提醒",
+            "密碼在 7 天內到期的使用者各收到一則站內通知（密碼有效天數在「系統參數」頁設定，預設 0 = 不過期，此時不動作）。", "0 8 * * *");
 
         // ⚠️ 必須註冊在 ExceptionLogWriter 之後：主機以相反順序停止，作業在關機時記的錯誤才還有人寫進系統例外紀錄。
         services.AddHostedService<JobSchedulerWorker>();
@@ -311,6 +316,16 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<BackupSettings>()
             .Bind(configuration.GetSection(BackupSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<PasswordPolicySettings>()
+            .Bind(configuration.GetSection(PasswordPolicySettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<LockoutSettings>()
+            .Bind(configuration.GetSection(LockoutSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

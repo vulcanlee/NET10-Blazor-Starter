@@ -263,6 +263,7 @@ public sealed class PasswordResetServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var user = await fixture.AddUserAsync("alice", email: "alice@example.com", locked: true);
+        await fixture.Context.MyUser.Where(x => x.Id == user.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.MustChangePassword, true));
         var token = await fixture.RequestTokenAsync("alice");
         fixture.Queue.Enqueued.Clear();
 
@@ -275,6 +276,9 @@ public sealed class PasswordResetServiceTests
             SecurePasswordHasher.VerifyPassword("NewPass#2026", saved.Password, saved.Salt));
         Assert.Equal(0, saved.AccessFailedCount);
         Assert.Null(saved.LockoutEndUtc);
+        Assert.False(saved.MustChangePassword);   // 0.9.101 起經密碼原則套用：清旗標、記時間、寫歷史
+        Assert.NotNull(saved.PasswordChangedAtUtc);
+        Assert.Equal(1, await fixture.Context.PasswordHistory.CountAsync(x => x.MyUserId == user.Id));
         Assert.Equal(0, await fixture.Context.PasswordResetToken.CountAsync());
         Assert.Contains(fixture.Audit.Entries, e => e.Action == "Password.ResetCompleted" && e.Success);
         Assert.Equal(EmailKinds.PasswordChanged, Assert.Single(fixture.Queue.Enqueued).Kind);
@@ -296,9 +300,10 @@ public sealed class PasswordResetServiceTests
         Assert.Equal(PasswordResetService.InvalidLinkMessage, second.Message);
     }
 
-    /// <summary>密碼規則不過時不可消耗 token，否則使用者打錯一次就得重新申請。</summary>
+    /// <summary>密碼規則或歷史不過時不可消耗 token，否則使用者打錯一次就得重新申請（0.9.101 起含「與目前密碼相同」）。</summary>
     [Theory]
     [InlineData("12345", "12345")]
+    [InlineData("OldPass#2025", "OldPass#2025")]
     [InlineData("abcdef", "abcdeg")]
     [InlineData("123456", "123456")]
     [InlineData("      ", "      ")]
@@ -362,14 +367,16 @@ public sealed class PasswordResetServiceTests
     #endregion
 
     [Theory]
-    [InlineData("abcdef", "abcdef", true)]
-    [InlineData("abcde", "abcde", false)]
+    [InlineData("Abcdef12", "Abcdef12", true)]
+    [InlineData("Abcde12", "Abcde12", false)]
+    [InlineData("abcdefgh", "abcdefgh", false)]
     [InlineData(null, null, false)]
-    [InlineData("abcdef", "ABCDEF", false)]
+    [InlineData("Abcdef12", "ABCDEF12", false)]
     [InlineData("123456", "123456", false)]
-    public void ValidateNewPassword_ShouldApplyTheRules(string? newPassword, string? confirmPassword, bool expectedValid)
+    public async Task ValidateNewPassword_ShouldApplyThePolicyAndConfirmation(string? newPassword, string? confirmPassword, bool expectedValid)
     {
-        Assert.Equal(expectedValid, PasswordResetService.ValidateNewPassword(newPassword, confirmPassword) is null);
+        await using var fixture = await Fixture.CreateAsync();
+        Assert.Equal(expectedValid, fixture.Service.ValidateNewPassword(newPassword, confirmPassword) is null);
     }
 
     private static readonly Regex TokenInLink = new(@"token=([A-Za-z0-9_\-]+)", RegexOptions.Compiled);
@@ -397,6 +404,7 @@ public sealed class PasswordResetServiceTests
                 Audit,
                 new StaticOptionsMonitor<PasswordResetSettings>(new PasswordResetSettings { TokenLifetimeMinutes = 30, RequestCooldownSeconds = cooldownSeconds }),
                 new SystemIdentity(new StaticOptionsMonitor<SystemSettings>(systemSettings)),
+                PasswordTestDefaults.Policy(),
                 NullLogger<PasswordResetService>.Instance);
         }
 

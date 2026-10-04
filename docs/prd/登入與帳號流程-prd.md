@@ -1,8 +1,8 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.98
+- 現行系統版本：0.9.101
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -31,14 +31,18 @@
 - **登入頁**：帳號、密碼、驗證碼（4 碼數字，前端產生存於隱藏欄位 `CaptchaCode`，以 `Ordinal` 比對）、「記住我」核取方塊。`GoogleOAuthSettings.IsConfigured` 為真時顯示「使用 Google 登入」按鈕，連結至 `/Auths/Google/Login`（帶 `returnUrl`）。前端逐項檢查空值與驗證碼，錯誤顯示「請輸入帳號／密碼／驗證碼」「驗證碼錯誤」。
 - **登入頁（0.9.60 起）**：`EmailSettings:Provider` 不是 `None` 時，「記住我」右側的「企業級安全登入」改為「忘記密碼？」連結；從重設頁成功導回（`?reset=1`）時，表單上方顯示綠色「密碼已重設，請以新密碼登入。」。外觀由共用元件 `AuthShell` 提供，三頁一致。出貨與開發環境都是 `None`（0.9.62 起；0.9.61 曾在 `appsettings.Development.json` 預設 `Pickup`），預設看不到；本機要測，用 User Secrets 設 `Provider=Pickup`。
 - **忘記密碼頁**：帳號或 Email、驗證碼（與登入頁同一套 4 碼）。送出後**一律**以中性色說明框（`.info-message`）顯示「申請已送出。若帳號存在、為啟用狀態且登記了有效的 Email，您會在幾分鐘內收到重設密碼的信，信中連結 N 分鐘內有效。若一直沒收到…請聯絡系統管理員協助。」—— 不論帳號是否存在、有沒有真的寄出（0.9.85 起；之前是綠色「…信已經寄出…」）。唯一例外：輸入 `support`（不分大小寫）時留在表單，紅字顯示「support 是系統內建帳號，不提供忘記密碼服務…」。寄信未啟用時整頁只顯示「系統目前未啟用寄信功能…請聯絡系統管理員」。
-- **重設密碼頁**：副標題顯示「為帳號「X」設定新密碼（至少 6 個字元）」；新密碼、確認新密碼。token 無效／過期／已用過一律顯示「重設連結無效或已過期，請重新申請。」並提供「重新申請重設信」連結。成功後導回登入頁。
+- **重設密碼頁**：副標題顯示「為帳號「X」設定新密碼。密碼規則：…」（0.9.101 起由 `IPasswordPolicy.Describe()` 產生）；新密碼、確認新密碼。token 無效／過期／已用過一律顯示「重設連結無效或已過期，請重新申請。」並提供「重新申請重設信」連結。成功後導回登入頁。
 - **待審核頁**：靜態說明，告知 Google 帳號已建立但預設停用，須管理者啟用後再登入，提供返回登入頁連結。
-- **變更密碼**：目前密碼、新密碼、確認新密碼（`[Compare]` 驗證一致）。`support` 開發帳號被禁止。
+- **變更密碼**：目前密碼、新密碼（下方顯示密碼規則）、確認新密碼（`[Compare]` 驗證一致）。`support` 開發帳號被禁止。0.9.101 起被導到這一頁時上方說明原因（管理員要求／密碼已到期）；右上角使用者選單的「變更密碼」直接開這一頁（原本的對話窗已移除）。
+- **登入頁的鎖定說明（0.9.101 起）**：表單下方固定顯示「連續輸錯 N 次密碼會暫時鎖定 M 分鐘；被鎖定時可以用「忘記密碼」重設，或請系統管理員解鎖。」（N、M 取自 `LockoutSettings`；寄信停用時改為「請稍後再試」）。
 
 ## 四、內部系統運作
 
-- **本地登入**（`MyUserServiceLogin.LoginAsync`，View → Service → `BackendDBContext`）：以 `Account` 查 `MyUser`；帳號不存在或密碼錯誤一律回「帳號或者密碼不正確」（不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
-- **帳號鎖定**：失敗時 `AccessFailedCount++`，達 `MaxFailedAccessAttempts=5` 設 `LockoutEndUtc = UtcNow + 15 分`；鎖定期間回「帳號已鎖定，請稍後再試。」成功登入後將 `AccessFailedCount` 歸零、`LockoutEndUtc` 清空。
+- **本地登入**（`MyUserServiceLogin.LoginAsync`，View → Service → `BackendDBContext`）：以 `Account` 查 `MyUser`；帳號不存在、密碼錯誤、鎖定中一律回 `InvalidCredentialsMessage`「帳號或密碼不正確，或帳號已被暫時鎖定。」（0.9.101 起；不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
+- **帳號鎖定**（0.9.101 起讀 `LockoutSettings`，系統參數可調）：失敗時 `AccessFailedCount++`，達 `MaxFailedAttempts`（預設 5）設 `LockoutEndUtc = UtcNow + LockoutMinutes`（預設 15 分）並通知全體管理員（同時寄信）；
+  鎖定期間不驗證密碼、不累加次數，稽核記 `Login.Failed`（`reason=Locked`），`Login.LockedOut` 只記造成鎖定的那一次。⚠️ 鎖定**到期時先歸零再驗證**（之前到期後錯一次就再鎖）。成功登入後 `AccessFailedCount` 歸零。
+- **舊的 123456**：登入成功時明文是 `123456` 就設 `MustChangePassword`（舊資料只有雜湊，無法用 SQL 轉換）。
+- **Google 登入**：處理順序集中在 `ExternalLoginResult.Evaluate`：已刪除 → 待開通 → **鎖定（0.9.101 起，導回 `?sso=locked`）** → 登入。
 - **雜湊自動升級**：驗證回傳 `SuccessRehashNeeded`（舊格式）時，即時以 PBKDF2 重新雜湊並存回。
 - **Cookie 簽發**（Login.razor.cs）：建立 `ClaimTypes.Role=User`、`Name`、`NameIdentifier=Account`、`Sid=Id`，以 `CookieAuthenticationScheme` `SignInAsync`；`IsPersistent = RememberMe`（記住我 → 持久性 Cookie），`RedirectUri` 取 `ReturnUrl` 或 `/App`。
 - **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`，否則簽發 Cookie 並導回本地安全的 `returnUrl`。
@@ -52,7 +56,7 @@
     後者參照不到前者。
   - 直接在網址列輸入 `/Auths/Logout` 維持立即登出，刻意不擋（刻意輸入網址不是誤觸）。
   - ⚠️ **登出頁不可套用 `MainLayout`**（0.9.95 修正）：`MainLayout` 會先跑 `Check`，使用者已停用或已刪除時又導向 `/Auths/Logout`，而這個導向發生在登出頁清掉 Cookie 之前 —— 瀏覽器顯示「重新導向太多次」，被停用的人永遠回不到登入頁（至少從 0.9.41 起）。現在指定 `EmptyLayout`；由 `PageAuthorizationTests.Logout_WithLiveCookieOfDisabledOrDeletedUser_ShouldRedirectToLogin` 守門。
-- **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`NeedChangePasswordAsync`（密碼等於 `123456`）為真且不在改密碼頁時強制導向 `/ChangePassword`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
+- **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）為真且不在改密碼頁時強制導向 `/ChangePassword`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
 - **API 登入**（`AuthController`）：`login` 以帳密換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
 - **忘記密碼 → 重設**（`PasswordResetService`，0.9.60 起；Business 層、注入 `IDbContextFactory`）：
@@ -60,7 +64,7 @@
   2. 逐帳號判斷資格：`support`、停用（`Status=false`）、沒有本地密碼（Google-only，`Password=""`）、Email 空白或無效 → 不寄；同帳號 `RequestCooldownSeconds`（預設 60 秒）內已申請過 → 不寄。原因寫進稽核 detail（`reason=NotFound|Support|Disabled|NoLocalPassword|InvalidEmail|Cooldown|QueueFull`），畫面不透露。`RequestAsync` 回傳 `PasswordResetRequestResult`：輸入內建帳號名稱回 `SupportAccountNotAllowed`（大小寫不同也先正規化成 `support`，稽核照記 `reason=Support`），其餘一律 `Accepted`。
   3. 符合資格：刪掉該帳號舊 token → 產生 32 bytes 亂數（Base64Url）→ **資料表 `PasswordResetToken` 只存 SHA-256** 與到期時間（`TokenLifetimeMinutes`，預設 30 分；0.9.98 起可在「系統參數」頁修改，`PasswordResetService` 以 `IOptionsMonitor` 即時讀取，只影響之後寄出的連結）→ 重設信交給 `IEmailQueue` 背景寄出（回應時間不因「有寄信」而變長）。
   4. 重設頁開啟：`ValidateTokenAsync` 只讀不寫，決定顯示表單或「連結無效」。
-  5. `ResetAsync`：先驗密碼規則（≥ 6 字元、兩次一致、≠ `123456`），**不過時不消耗 token**；再於交易內以 `ExecuteDelete` **搶占** token（刪到 1 列才繼續，並發送出兩次只有一次成功）→ PBKDF2 雜湊新密碼、`AccessFailedCount=0`、`LockoutEndUtc=null`（解除鎖定）→ 刪除該帳號其餘 token → commit → 稽核 `Password.ResetCompleted` → 背景寄「密碼已變更」通知信。
+  5. `ResetAsync`：先驗密碼規則（0.9.101 起依 `PasswordPolicySettings`）與兩次一致，再查歷史（不可與最近 N 次相同，含目前的），**不過時不消耗 token**；再於交易內以 `ExecuteDelete` **搶占** token（刪到 1 列才繼續，並發送出兩次只有一次成功）→ `IPasswordPolicy.ApplyAsync`（雜湊、記設定時間、清旗標、解除鎖定、寫歷史）→ 刪除該帳號其餘 token → commit → 稽核 `Password.ResetCompleted` → 背景寄「密碼已變更」通知信。
   6. 信中連結的網址基準是 `EmailSettings:PublicBaseUrl`；留白時只有非 Production 會退回目前請求的網址（不信任 Host header）。
 
 ## 五、權限與安全
@@ -75,9 +79,10 @@
 ## 六、錯誤與邊界
 
 - 驗證碼錯誤／欄位空白：停留登入頁並重新產生驗證碼。
-- 連續 5 次失敗鎖定 15 分鐘；鎖定到期後（`LockoutEndUtc` 過期）可再次登入。
+- 連續輸錯 `MaxFailedAttempts` 次鎖定 `LockoutMinutes` 分鐘（預設 5 次、15 分鐘）；鎖定到期後可再次登入，失敗次數從 0 重新算；管理員可在使用者清單立即解鎖。
+- 帳號被鎖定時用 Google 登入：導回 `/Auths/Login?sso=locked`，顯示「此帳號因連續輸錯密碼已暫時鎖定…」（Google 已驗證身分，明確告知無洩漏疑慮）。
 - Google Callback 缺 `subject`／`email`：登出外部身分並導回登入頁。
-- 已刪除的使用者（0.9.95 起）：密碼登入回「帳號或者密碼不正確」（不透露帳號曾存在）；Google 登入導回 `/Auths/Login?sso=deleted`（Google 已驗證身分，告知原因無洩漏疑慮）。
+- 已刪除的使用者（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息（不透露帳號曾存在）；Google 登入導回 `/Auths/Login?sso=deleted`（Google 已驗證身分，告知原因無洩漏疑慮）。
 - `support` 帳號於 `/ChangePassword` 一律被拒。Google 帳號只用於網頁登入，不支援 API（0.9.63 起移除「設定 API 密碼」`/Profile`）。
 - 使用者無角色、`RoleView` 為 null 或 `TabViewJson` 解析失敗：導向登出。
 - 忘記密碼：輸入空白 →「請輸入帳號或 Email」；驗證碼錯 → 重新產生驗證碼；查無帳號、不符資格、冷卻中 → 畫面與成功時相同；背景佇列滿 → 不寄（稽核 `QueueFull`）；資料庫錯誤 →「系統暫時無法處理您的申請，請稍後再試。」。
@@ -96,7 +101,8 @@
 - `MyProject.Tests/MyUserServiceLoginTests.cs`：新舊雜湊登入、舊雜湊自動升級、密碼錯誤、5 次失敗鎖定並拒絕正確密碼、成功後歸零、鎖定到期放行、成功／失敗稽核。
 - `MyProject.Tests/MyUserServicePasswordTests.cs`：`ChangeOwnPasswordAsync` 正確／錯誤舊密碼、空白新密碼、確認不一致、`support` 帳號被拒。
 - `MyProject.Tests/SecurePasswordHasherTests.cs`：自述式雜湊、非決定性、新舊格式驗證與要求 rehash。
-- `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson 導向登出、需改密碼導向、多角色聯集初始化。
+- `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson 導向登出、旗標與到期導向改密碼頁（0.9.101 起；只有 123456 而沒有旗標不導向）、多角色聯集初始化。
+- `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：規則邊界、歷史（目前、第 N、第 N+1、0 關閉、裁切、舊格式目前密碼）、必須變更（旗標、到期邊界、support 與 Google 豁免）、新增／修改使用者與變更密碼都套用原則、⭐ 雜湊只准出現在政策服務等三處、⭐ 鎖定門檻與到期先歸零、稽核標籤、同一則訊息、只通知一次、123456 登入補旗標、解鎖不換版本號、Google 被鎖定擋下、到期提醒作業。
 - `MyProject.Tests/TotpServiceTests.cs`：TOTP 產碼／驗證（骨架，預設關閉）。
 - `MyProject.Tests/PasswordResetServiceTests.cs`（0.9.60）：帳號比對、Email 不分大小寫、帳號優先、共用 Email 各寄一封、查無只稽核、五種不符資格、Google 有本地密碼允許、冷卻、新申請作廢舊連結、只存雜湊、過期、重設成功（新密碼可驗＋解鎖＋token 清空＋通知信）、同連結第二次失敗、規則不過不消耗 token、申請後停用、刪除使用者連帶刪 token（cascade）。
 - `MyProject.Tests/EmailPagesIntegrationTests.cs`（0.9.60）：Pickup 時登入頁有連結、忘記頁有表單、壞 token 重設頁回 `no-referrer`／`no-store` 且不給表單；None 時沒有連結、兩頁顯示未啟用。

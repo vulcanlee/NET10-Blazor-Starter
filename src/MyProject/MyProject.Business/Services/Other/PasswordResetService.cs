@@ -29,8 +29,6 @@ namespace MyProject.Business.Services.Other;
 /// </summary>
 public sealed class PasswordResetService
 {
-    public const int MinimumPasswordLength = 6;
-
     private const int TokenByteLength = 32;
     private const int AuditIdentifierMaxLength = 64;
 
@@ -42,6 +40,7 @@ public sealed class PasswordResetService
     private readonly IAuditLogService auditLogService;
     private readonly IOptionsMonitor<PasswordResetSettings> resetOptions;
     private readonly ISystemIdentity systemIdentity;
+    private readonly IPasswordPolicy passwordPolicy;
     private readonly ILogger<PasswordResetService> logger;
 
     public PasswordResetService(
@@ -50,6 +49,7 @@ public sealed class PasswordResetService
         IAuditLogService auditLogService,
         IOptionsMonitor<PasswordResetSettings> resetOptions,
         ISystemIdentity systemIdentity,
+        IPasswordPolicy passwordPolicy,
         ILogger<PasswordResetService> logger)
     {
         this.contextFactory = contextFactory;
@@ -57,6 +57,7 @@ public sealed class PasswordResetService
         this.auditLogService = auditLogService;
         this.resetOptions = resetOptions;
         this.systemIdentity = systemIdentity;
+        this.passwordPolicy = passwordPolicy;
         this.logger = logger;
     }
 
@@ -183,7 +184,7 @@ public sealed class PasswordResetService
     }
 
     /// <summary>
-    /// 以連結設定新密碼。密碼規則不過時**不消耗** token，使用者改正後可以用同一個連結再送一次。
+    /// 以連結設定新密碼。密碼規則或歷史不過時**不消耗** token，使用者改正後可以用同一個連結再送一次。
     /// </summary>
     public async Task<VerifyRecordResult> ResetAsync(
         string? token, string? newPassword, string? confirmPassword, CancellationToken cancellationToken = default)
@@ -223,6 +224,13 @@ public sealed class PasswordResetService
             return VerifyRecordResultFactory.Build(false, InvalidLinkMessage);
         }
 
+        // 歷史檢查要在搶占 token 之前（0.9.101 起）：不合格就讓使用者換一個密碼再送，同一個連結仍可用。
+        if (await passwordPolicy.IsReusedAsync(context, user, newPassword!, cancellationToken))
+        {
+            logger.LogInformation("Password reset rejected because the new password was used recently. UserId={UserId}", user.Id);
+            return VerifyRecordResultFactory.Build(false, PasswordPolicy.ReusedMessage);
+        }
+
         await using (var transaction = await context.Database.BeginTransactionAsync(cancellationToken))
         {
             // 搶占：刪到 1 列代表這個請求拿到了 token；0 列代表另一個請求先用掉了。
@@ -237,10 +245,7 @@ public sealed class PasswordResetService
                 return VerifyRecordResultFactory.Build(false, InvalidLinkMessage);
             }
 
-            user.Salt = string.IsNullOrWhiteSpace(user.Salt) ? Guid.NewGuid().ToString() : user.Salt;
-            user.Password = SecurePasswordHasher.HashPassword(newPassword!);
-            user.AccessFailedCount = 0;
-            user.LockoutEndUtc = null;
+            await passwordPolicy.ApplyAsync(context, user, newPassword!, mustChangeAtNextLogin: false, cancellationToken);
             user.UpdateAt = DateTime.Now;
             await context.SaveChangesAsync(cancellationToken);
 
@@ -263,23 +268,17 @@ public sealed class PasswordResetService
         return VerifyRecordResultFactory.Build(true);
     }
 
-    /// <summary>新密碼規則；回傳 null 代表通過。</summary>
-    public static string? ValidateNewPassword(string? newPassword, string? confirmPassword)
+    /// <summary>新密碼規則（0.9.101 起依密碼原則）；回傳 null 代表通過。</summary>
+    public string? ValidateNewPassword(string? newPassword, string? confirmPassword)
     {
-        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < MinimumPasswordLength)
+        if (passwordPolicy.Check(newPassword) is { } ruleError)
         {
-            return $"新密碼至少需要 {MinimumPasswordLength} 個字元。";
+            return ruleError;
         }
 
         if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
         {
             return "新密碼與確認密碼不一致。";
-        }
-
-        // 123456 是「強制變更密碼」的哨兵值：設成它，登入後會立刻被導去改密碼。
-        if (string.Equals(newPassword, MagicObjectHelper.NeedChangePassword, StringComparison.Ordinal))
-        {
-            return "新密碼不可使用系統預設密碼。";
         }
 
         return null;

@@ -28,7 +28,7 @@ public sealed class MyUserServiceAssignmentTests
         {
             Account = "multi",
             Name = "multi",
-            Password = "pw",
+            Password = "Passw0rd",
             Status = true,
             RoleViewId = roleA.Id,
             AdditionalRoleIds = new List<int> { roleB.Id },
@@ -84,7 +84,7 @@ public sealed class MyUserServiceAssignmentTests
 
         public MyUserService CreateService()
             => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()));
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public async Task<RoleView> AddRoleAsync(string name)
         {

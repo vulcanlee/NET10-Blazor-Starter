@@ -52,12 +52,29 @@ namespace MyProject.Web.Components.Auths
         [Inject]
         public IOptions<EmailSettings> EmailOptions { get; set; } = default!;
 
+        [Inject]
+        public IOptionsMonitor<LockoutSettings> LockoutOptions { get; set; } = default!;
+
         string message = string.Empty;
 
         private bool ShowGoogleLogin => GoogleOptions.Value.IsConfigured;
 
         /// <summary>寄信未啟用（Provider = None）時沒有忘記密碼可用，連結不出現。</summary>
         private bool ShowForgotPassword => EmailOptions.Value.TryGetProvider(out var provider) && provider != EmailProvider.None;
+
+        /// <summary>
+        /// 登入失敗的訊息刻意不分「帳號不存在／密碼錯／鎖定中」（0.9.101 起），所以把鎖定規則固定寫在頁面上，
+        /// 被鎖住的人才知道可以等、重設密碼或找管理員。
+        /// </summary>
+        private string LockoutHint
+        {
+            get
+            {
+                var settings = LockoutOptions.CurrentValue;
+                var way = ShowForgotPassword ? "可以用「忘記密碼」重設，或請系統管理員解鎖" : "請稍後再試，或請系統管理員解鎖";
+                return $"連續輸錯 {settings.MaxFailedAttempts} 次密碼會暫時鎖定 {settings.LockoutMinutes} 分鐘；被鎖定時{way}。";
+            }
+        }
 
         /// <summary>只在還沒送出登入表單時顯示；登入失敗的錯誤訊息優先。</summary>
         private bool ShowResetSucceeded => Reset == "1" && string.IsNullOrEmpty(message);
@@ -68,6 +85,7 @@ namespace MyProject.Web.Components.Auths
             : Sso switch
             {
                 "deleted" => "此帳號已被刪除，請洽系統管理員。",
+                "locked" => "此帳號因連續輸錯密碼已暫時鎖定，請稍後再試，或請系統管理員解鎖。",
                 _ => null,
             };
 

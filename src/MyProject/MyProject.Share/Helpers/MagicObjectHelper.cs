@@ -27,6 +27,10 @@ public class MagicObjectHelper
 
     public const string 開發者帳號 = "support";
     public const string 預設角色 = "預設角色";
+    /// <summary>
+    /// 0.9.100 之前代表「必須變更密碼」的哨兵密碼。0.9.101 起改用 <c>MyUser.MustChangePassword</c> 旗標，
+    /// 這個常數只用在登入成功時替仍使用它的舊帳號補上旗標；新程式不可再以密碼內容表達狀態。
+    /// </summary>
     public const string NeedChangePassword = "123456";
 
     public static readonly int PageSize = 8;

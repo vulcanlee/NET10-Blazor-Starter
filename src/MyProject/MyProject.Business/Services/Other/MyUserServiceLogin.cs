@@ -2,9 +2,12 @@ using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
+using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -13,9 +16,15 @@ public class MyUserServiceLogin
     private readonly BackendDBContext context;
     private readonly RolePermissionService rolePermissionService;
     private readonly IAuditLogService auditLogService;
+    private readonly IOptionsMonitor<LockoutSettings> lockoutOptions;
+    private readonly INotificationSender notificationSender;
+    private readonly TimeProvider timeProvider;
 
-    private const int MaxFailedAccessAttempts = 5;
-    private const int LockoutMinutes = 15;
+    /// <summary>
+    /// 帳號不存在、密碼錯誤、帳號鎖定中一律回這一則（0.9.101 起），不讓人從訊息分辨帳號是否存在。
+    /// 登入頁另外固定顯示鎖定規則，被鎖住的人知道可以等、用忘記密碼或找管理員。
+    /// </summary>
+    public const string InvalidCredentialsMessage = "帳號或密碼不正確，或帳號已被暫時鎖定。";
 
     public IMapper Mapper { get; }
     public IConfiguration Configuration { get; }
@@ -27,7 +36,10 @@ public class MyUserServiceLogin
         IConfiguration configuration,
         ILogger<MyUserServiceLogin> logger,
         RolePermissionService rolePermissionService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IOptionsMonitor<LockoutSettings> lockoutOptions,
+        INotificationSender notificationSender,
+        TimeProvider timeProvider)
     {
         this.context = context;
         Mapper = mapper;
@@ -35,6 +47,9 @@ public class MyUserServiceLogin
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
         this.auditLogService = auditLogService;
+        this.lockoutOptions = lockoutOptions;
+        this.notificationSender = notificationSender;
+        this.timeProvider = timeProvider;
     }
 
     /// <summary>
@@ -63,7 +78,7 @@ public class MyUserServiceLogin
             {
                 Logger.LogWarning("Login failed because account was not found. Account={Account}", username);
                 await auditLogService.WriteAsync(AuditActions.Login.Failed, success: false, actorAccount: username, detail: "帳號不存在");
-                return ("帳號或者密碼不正確", null);
+                return (InvalidCredentialsMessage, null);
             }
 
             // 停用帳號一律擋在發證之前。
@@ -78,20 +93,33 @@ public class MyUserServiceLogin
                 return ("帳號已停用，請聯絡系統管理員。", null);
             }
 
-            if (item.LockoutEndUtc.HasValue && item.LockoutEndUtc.Value > DateTime.UtcNow)
+            var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+            bool changed = false;
+            if (item.LockoutEndUtc is { } lockoutEndUtc)
             {
-                Logger.LogWarning("Login blocked because account is locked. Account={Account}, UserId={UserId}, LockoutEndUtc={LockoutEndUtc}", username, item.Id, item.LockoutEndUtc);
-                await auditLogService.WriteAsync(AuditActions.Login.LockedOut, success: false, actorUserId: item.Id, actorAccount: username);
-                return ("帳號已鎖定，請稍後再試。", null);
+                if (lockoutEndUtc > nowUtc)
+                {
+                    // 鎖定中不驗證密碼、不累加次數；稽核記 Failed（LockedOut 只記造成鎖定的那一次）。
+                    Logger.LogWarning("Login blocked because account is locked. Account={Account}, UserId={UserId}, LockoutEndUtc={LockoutEndUtc}", username, item.Id, lockoutEndUtc);
+                    await auditLogService.WriteAsync(AuditActions.Login.Failed, success: false, actorUserId: item.Id, actorAccount: username, detail: "reason=Locked");
+                    return (InvalidCredentialsMessage, null);
+                }
+
+                // ⚠️ 鎖定已到期：次數先歸零再驗證。0.9.100 之前次數留在門檻上，到期後只要再錯一次就立刻又鎖。
+                item.AccessFailedCount = 0;
+                item.LockoutEndUtc = null;
+                changed = true;
             }
 
             PasswordVerificationOutcome outcome = SecurePasswordHasher.VerifyPassword(password, item.Password, item.Salt);
             if (outcome == PasswordVerificationOutcome.Failed)
             {
+                var settings = lockoutOptions.CurrentValue;
                 item.AccessFailedCount++;
-                if (item.AccessFailedCount >= MaxFailedAccessAttempts)
+                bool lockedNow = item.AccessFailedCount >= settings.MaxFailedAttempts;
+                if (lockedNow)
                 {
-                    item.LockoutEndUtc = DateTime.UtcNow.AddMinutes(LockoutMinutes);
+                    item.LockoutEndUtc = nowUtc.AddMinutes(settings.LockoutMinutes);
                     Logger.LogWarning("Account locked after too many failed attempts. Account={Account}, UserId={UserId}, LockoutEndUtc={LockoutEndUtc}", username, item.Id, item.LockoutEndUtc);
                 }
                 else
@@ -100,12 +128,17 @@ public class MyUserServiceLogin
                 }
 
                 await context.SaveChangesAsync();
-                string failAction = item.LockoutEndUtc is not null ? AuditActions.Login.LockedOut : AuditActions.Login.Failed;
-                await auditLogService.WriteAsync(failAction, success: false, actorUserId: item.Id, actorAccount: username, detail: $"AccessFailedCount={item.AccessFailedCount}");
-                return ("帳號或者密碼不正確", null);
+                await auditLogService.WriteAsync(
+                    lockedNow ? AuditActions.Login.LockedOut : AuditActions.Login.Failed,
+                    success: false, actorUserId: item.Id, actorAccount: username, detail: $"AccessFailedCount={item.AccessFailedCount}");
+                if (lockedNow)
+                {
+                    await NotifyLockedAsync(item, settings.MaxFailedAttempts);
+                }
+
+                return (InvalidCredentialsMessage, null);
             }
 
-            bool changed = false;
             if (outcome == PasswordVerificationOutcome.SuccessRehashNeeded)
             {
                 item.Password = SecurePasswordHasher.HashPassword(password);
@@ -113,11 +146,19 @@ public class MyUserServiceLogin
                 Logger.LogInformation("Password hash upgraded to PBKDF2 for UserId={UserId}.", item.Id);
             }
 
-            if (item.AccessFailedCount != 0 || item.LockoutEndUtc is not null)
+            if (item.AccessFailedCount != 0)
             {
                 item.AccessFailedCount = 0;
-                item.LockoutEndUtc = null;
                 changed = true;
+            }
+
+            // 0.9.100 之前以「密碼是 123456」代表必須變更密碼，既有資料無法以 SQL 轉換（只有雜湊）——
+            // 登入成功時看明文，還在用 123456 的人補上旗標，之後一律只看旗標。
+            if (!item.MustChangePassword && string.Equals(password, MagicObjectHelper.NeedChangePassword, StringComparison.Ordinal))
+            {
+                item.MustChangePassword = true;
+                changed = true;
+                Logger.LogInformation("Legacy default password detected; password change is now required. UserId={UserId}", item.Id);
             }
 
             if (changed)
@@ -134,5 +175,18 @@ public class MyUserServiceLogin
             Logger.LogError(ex, "Login attempt failed unexpectedly for Account={Account}.", username);
             throw;
         }
+    }
+
+    /// <summary>通知全體管理員並寄信；<see cref="INotificationSender"/> 不會丟例外，不影響登入回應。</summary>
+    private async Task NotifyLockedAsync(MyUser user, int attempts)
+    {
+        var localEnd = TimeZoneInfo.ConvertTimeFromUtc(user.LockoutEndUtc!.Value, timeProvider.LocalTimeZone);
+        await notificationSender.SendAsync(new NotificationRequest(
+            NotificationCategories.AccountLocked,
+            $"帳號已鎖定：{user.Account}",
+            $"連續輸錯密碼 {attempts} 次，鎖定到 {localEnd:yyyy-MM-dd HH:mm}。可在「使用者管理」解鎖，或等鎖定時間結束。",
+            "/myusers",
+            NotificationTarget.AllAdmins(),
+            AlsoEmail: true));
     }
 }

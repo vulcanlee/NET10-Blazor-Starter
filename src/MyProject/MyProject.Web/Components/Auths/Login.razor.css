@@ -260,6 +260,14 @@
     font-size: 0.875rem;
 }
 
+/* 鎖定規則（0.9.101 起）：登入失敗訊息不分原因，規則固定寫在表單下方。 */
+.lockout-hint {
+    margin: 16px 0 0;
+    color: var(--login-muted);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+}
+
 .login-button,
 .google-login-button {
     box-sizing: border-box;
