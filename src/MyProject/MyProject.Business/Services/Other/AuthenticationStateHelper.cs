@@ -138,6 +138,7 @@ public class AuthenticationStateHelper
             // 覆寫 CopyFrom 由 TabViewJson 反序列化得到的 RoleList。TabViewJson 僅保留供角色編輯畫面回填。
             currentUserService.CurrentUser.RoleList =
                 (await permissionChecker.GetEffectivePermissionKeysAsync(myUser.Id)).ToList();
+            currentUserService.NotifyChanged();
 
             // 每次導覽都會跑，屬於流程細節而非使用者意圖，因此記在 Debug。
             logger.LogDebug(

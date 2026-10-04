@@ -37,6 +37,8 @@ public static class AuditActions
         public const string SsoLink = "User.SsoLink";
         /// <summary>管理員在使用者清單解除登入鎖定（0.9.101 起）。</summary>
         public const string Unlock = "User.Unlock";
+        /// <summary>使用者在個人資料頁修改自己的姓名（0.9.102 起）。</summary>
+        public const string ProfileUpdate = "User.ProfileUpdate";
     }
 
     public static class Role

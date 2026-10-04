@@ -105,6 +105,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationSender, NotificationSender>();
         services.AddScoped<NotificationQueryService>();
         services.AddScoped<AnnouncementService>();
+        // 個人資料頁（0.9.102 起）。
+        services.AddScoped<ProfileService>();
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
         services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddScoped<ITotpService, TotpService>();

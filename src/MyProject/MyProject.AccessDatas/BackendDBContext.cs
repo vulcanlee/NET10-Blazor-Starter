@@ -216,6 +216,11 @@ public partial class BackendDBContext : DbContext
         });
         #endregion
 
+        #region 稽核紀錄（0.9.102 起）
+        // 個人資料頁依「操作者 Id」取最近的登入紀錄；稽核表會無限長大，沒有索引就是整表掃描。
+        modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.ActorUserId, x.OccurredAt });
+        #endregion
+
         #region 密碼歷史（0.9.101 起）
         modelBuilder.Entity<PasswordHistory>(entity =>
         {

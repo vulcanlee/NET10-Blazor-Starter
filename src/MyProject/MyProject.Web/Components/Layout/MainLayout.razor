@@ -28,9 +28,8 @@
                                 aria-expanded="@isUserMenuOpen"
                                 aria-haspopup="menu"
                                 @onclick="ToggleUserMenu">
-                            <span class="user-menu-icon" aria-hidden="true">
-                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="account_circle" />
-                            </span>
+                            @* 0.9.102 起以姓名縮寫取代人像圖示（不做頭像上傳）。 *@
+                            <span class="user-menu-icon user-menu-initials" aria-hidden="true">@CurrentUserInitials</span>
                             <span class="user-menu-text">
                                 <span class="user-menu-name">@CurrentUserDisplayName</span>
                                 @if (CurrentUserIsAdmin)
@@ -46,6 +45,7 @@
                         <div class="user-menu-dropdown @(isUserMenuOpen ? "user-menu-dropdown-open" : string.Empty)"
                              role="menu"
                              aria-label="使用者操作">
+                            <button type="button" class="user-menu-item" role="menuitem" @onclick="OnProfileClick">個人資料</button>
                             <button type="button" class="user-menu-item" role="menuitem" @onclick="OnChangePasswordClick">變更密碼</button>
                             <button type="button" class="user-menu-item" role="menuitem" @onclick="OnAboutClick">關於</button>
                             <button type="button" class="user-menu-item" role="menuitem" @onclick="OnLogoutClickAsync">登出</button>

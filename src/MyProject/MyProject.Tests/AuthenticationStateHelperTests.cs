@@ -183,6 +183,21 @@ public sealed class AuthenticationStateHelperTests
         Assert.Equal("/ChangePassword", navigationManager.NavigatedTo);
     }
 
+    /// <summary>0.9.102 起：每次換頁的登入檢查載入最新資料後通知右上角（管理員改了姓名，對方換頁就看到）。</summary>
+    [Fact]
+    public async Task Check_WithValidUser_ShouldRaiseChangedAfterLoadingTheLatestData()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        string? nameSeen = null;
+        fixture.CurrentUserService.Changed += () => nameSeen = fixture.CurrentUserService.CurrentUser.Name;
+
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString())), new TestNavigationManager("http://localhost/App"));
+
+        Assert.Equal(AuthenticationCheckResult.Succeeded, result);
+        Assert.Equal("Test User", nameSeen);
+    }
+
     [Fact]
     public async Task Check_WithValidUser_ShouldInitializeCurrentUser()
     {

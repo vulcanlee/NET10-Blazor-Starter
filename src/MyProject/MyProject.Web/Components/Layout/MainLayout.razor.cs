@@ -42,12 +42,17 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private SystemStartupState SystemStartupState { get; set; } = default!;
 
+    [Inject]
+    private PageHelpService PageHelpService { get; set; } = default!;
+
     private const string DefaultPageTitle = "系統首頁";
     private const string DefaultUserDisplayName = "使用者";
 
     private IReadOnlyList<SidebarMenuItemModel> MenuItems { get; set; } = [];
     private string CurrentPageTitle { get; set; } = DefaultPageTitle;
     private string CurrentUserDisplayName { get; set; } = DefaultUserDisplayName;
+    private string CurrentUserInitials { get; set; } = "?";
+    private IReadOnlyList<PageHelpTopicModel> helpTopics = [];
     private bool CurrentUserIsAdmin { get; set; }
     private bool isAuthenticated;
     private bool isSidebarCollapsed = true;
@@ -76,9 +81,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         }
 
         MenuItems = await SidebarMenuService.LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper);
+        helpTopics = await PageHelpService.LoadTopicsAsync();
         UpdateCurrentUserStatus();
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
+        CurrentUserService.Changed += OnCurrentUserChanged;
         isAuthenticated = true;
     }
 
@@ -92,7 +99,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
                 ? currentUser.Account
                 : DefaultUserDisplayName;
 
+        CurrentUserInitials = UserInitials.From(currentUser.Name, currentUser.Account);
         CurrentUserIsAdmin = currentUser.IsAdmin;
+    }
+
+    /// <summary>每次換頁的登入檢查與個人資料存檔後觸發（見 <see cref="CurrentUserService.Changed"/>）。</summary>
+    private void OnCurrentUserChanged()
+    {
+        UpdateCurrentUserStatus();
+        InvokeAsync(StateHasChanged);
     }
 
     private void UpdateCurrentPageTitle()
@@ -102,12 +117,18 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         var currentPath = relativePath.Split('?', '#')[0].Trim('/');
         var normalizedCurrentPath = string.IsNullOrEmpty(currentPath) ? "/" : $"/{currentPath}";
 
-        CurrentPageTitle = TryFindMenuTitle(MenuItems, normalizedCurrentPath, out var pageTitle)
-            ? pageTitle
-            : DefaultPageTitle;
+        CurrentPageTitle = ResolvePageTitle(MenuItems, helpTopics, normalizedCurrentPath);
 
         Logger.LogDebug("Updated page title. Path={Path}, Title={Title}", normalizedCurrentPath, CurrentPageTitle);
     }
+
+    /// <summary>
+    /// 頂欄的頁名：先找選單；不在選單裡的登入後頁面（/ChangePassword、/Profile）用操作說明登記的頁名（0.9.102 起；之前一律顯示「系統首頁」）。
+    /// </summary>
+    internal static string ResolvePageTitle(IEnumerable<SidebarMenuItemModel> menuItems, IReadOnlyList<PageHelpTopicModel> helpTopics, string normalizedPath)
+        => TryFindMenuTitle(menuItems, normalizedPath, out var pageTitle)
+            ? pageTitle
+            : PageHelpService.MatchTopic(helpTopics, normalizedPath)?.Title ?? DefaultPageTitle;
 
     private static bool TryFindMenuTitle(IEnumerable<SidebarMenuItemModel> items, string currentPath, out string pageTitle)
     {
@@ -168,6 +189,12 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     /// <summary>
     /// 0.9.101 起變更密碼只有一個入口：/ChangePassword 頁（右上角原本的對話窗沒有套用密碼原則與歷史，已移除）。
     /// </summary>
+    private void OnProfileClick()
+    {
+        isUserMenuOpen = false;
+        NavigationManager.NavigateTo("/Profile");
+    }
+
     private void OnChangePasswordClick()
     {
         isUserMenuOpen = false;
@@ -243,6 +270,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         Logger.LogDebug("Disposing main layout.");
         NavigationManager.LocationChanged -= OnLocationChanged;
+        CurrentUserService.Changed -= OnCurrentUserChanged;
         browserErrorReporterReference?.Dispose();
     }
 }
