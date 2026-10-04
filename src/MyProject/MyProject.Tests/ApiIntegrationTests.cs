@@ -332,6 +332,36 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Equal(HttpStatusCode.NotFound, put.StatusCode);
     }
 
+    // 0.9.95 起使用者是軟刪除：已簽發的 JWT 在到期前仍然有效，權限判斷必須查不到已刪除的人（連管理員也一樣）。
+    [Fact]
+    public async Task SoftDeletedUsersToken_ShouldBeForbidden()
+    {
+        var account = $"deleted-{Guid.NewGuid():N}";
+        const string password = "deleted-pass";
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+            db.MyUser.Add(new MyUser { Account = account, Name = "deleted", Status = true, IsAdmin = true, Password = SecurePasswordHasher.HashPassword(password) });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = password });
+        var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
+        var created = await client.PostAsJsonAsync("/api/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除前 {Guid.NewGuid():N}", IsEnabled = true });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+            await db.MyUser.Where(x => x.Account == account).ExecuteUpdateAsync(x => x.SetProperty(u => u.IsDeleted, true));
+        }
+
+        var afterDelete = await client.PostAsJsonAsync("/api/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除後 {Guid.NewGuid():N}", IsEnabled = true });
+        Assert.Equal(HttpStatusCode.Forbidden, afterDelete.StatusCode);
+    }
+
     // 0.9.93 之前 POST 會直接採用客戶端傳來的 Id，同一個 Id 第二次建立就撞主鍵回 500。
     [Fact]
     public async Task TeamCreate_ShouldIgnoreClientSuppliedId()

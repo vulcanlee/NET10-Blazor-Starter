@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -5,6 +6,11 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.Other;
+
+/// <summary>
+/// Google 登入查找的結果；<see cref="IsDeleted"/> 為 true 表示命中的是已刪除的使用者，呼叫端必須拒絕登入（0.9.95 起）。
+/// </summary>
+public sealed record ExternalLoginResult(MyUser User, bool IsDeleted);
 
 /// <summary>
 /// 處理第三方（Google）登入時的帳號查找、連結與自動建立。
@@ -23,10 +29,14 @@ public class ExternalLoginService
     }
 
     /// <summary>
-    /// 依 Google 身分查找或建立本地使用者。
-    /// 1) 先以 GoogleId 比對；2) 否則以 Email 連結既有帳號；3) 否則自動建立停用中的新帳號。
+    /// 依 Google 身分查找或建立本地使用者（0.9.95 起的比對順序）：
+    /// 1) 有效的 GoogleId；2) 已刪除的 GoogleId → 拒絕；3) 有效的 Email → 連結；4) 已刪除的 Email → 拒絕；5) 自動建立停用中的新帳號。
+    ///
+    /// GoogleId 是 Google 給的穩定識別，排在 Email 前面：否則已刪除使用者的 Google 帳號會被連結到另一位同 Email 的使用者，
+    /// 之後那位已刪除的使用者就因 GoogleId 衝突而無法還原。命中已刪除的資料時不寫入、不連結、不新建 ——
+    /// 全域過濾器看不到已刪除的使用者，不特別處理的話會建出一個重複的新帳號。
     /// </summary>
-    public async Task<MyUser> FindOrCreateAsync(
+    public async Task<ExternalLoginResult> FindOrCreateAsync(
         string provider,
         string googleSubject,
         string email,
@@ -42,10 +52,18 @@ public class ExternalLoginService
         if (user is not null)
         {
             logger.LogInformation("External login matched existing GoogleId. UserId={UserId}.", user.Id);
-            return user;
+            return new ExternalLoginResult(user, IsDeleted: false);
         }
 
-        // 2) 以 Email 連結既有本地帳號（不改動 Status / 權限）
+        // 2) 已刪除的使用者綁著這個 Google 帳號
+        var deletedByGoogleId = await FindDeletedAsync(x => x.GoogleId == googleSubject);
+        if (deletedByGoogleId is not null)
+        {
+            logger.LogInformation("External login refused because the GoogleId belongs to a deleted user. UserId={UserId}.", deletedByGoogleId.Id);
+            return new ExternalLoginResult(deletedByGoogleId, IsDeleted: true);
+        }
+
+        // 3) 以 Email 連結既有本地帳號（不改動 Status / 權限）
         if (!string.IsNullOrWhiteSpace(email))
         {
             user = await context.MyUser
@@ -61,15 +79,28 @@ public class ExternalLoginService
                 await auditLogService.WriteAsync(
                     AuditActions.User.SsoLink, success: true, actorUserId: user.Id, actorAccount: user.Account,
                     targetType: "MyUser", targetId: user.Id.ToString(), detail: $"provider={provider}");
-                return user;
+                return new ExternalLoginResult(user, IsDeleted: false);
+            }
+
+            // 4) 已刪除的使用者用的是這個 Email
+            var deletedByEmail = await FindDeletedAsync(x => x.Email != null && x.Email.ToLower() == email.ToLower());
+            if (deletedByEmail is not null)
+            {
+                logger.LogInformation("External login refused because the email belongs to a deleted user. UserId={UserId}.", deletedByEmail.Id);
+                return new ExternalLoginResult(deletedByEmail, IsDeleted: true);
             }
         }
 
-        // 3) 自動建立新帳號（預設停用，待管理者啟用）
+        // 5) 自動建立新帳號（預設停用，待管理者啟用）
         int? defaultRoleId = await context.RoleView
             .Where(x => x.Name == defaultRoleName)
             .Select(x => (int?)x.Id)
             .FirstOrDefaultAsync();
+        if (defaultRoleId is null)
+        {
+            // 設定的預設角色不存在（改名或已刪除）時，新帳號會沒有角色；管理員啟用前要先替他指定。
+            logger.LogWarning("External login default role was not found; the new account has no role. RoleName={RoleName}.", defaultRoleName);
+        }
 
         var newUser = new MyUser
         {
@@ -96,6 +127,15 @@ public class ExternalLoginService
         await auditLogService.WriteAsync(
             AuditActions.User.SsoCreate, success: true, actorUserId: newUser.Id, actorAccount: newUser.Account,
             targetType: "MyUser", targetId: newUser.Id.ToString(), detail: $"provider={provider}; status=disabled");
-        return newUser;
+        return new ExternalLoginResult(newUser, IsDeleted: false);
     }
+
+    private Task<MyUser?> FindDeletedAsync(Expression<Func<MyUser, bool>> predicate)
+        => context.MyUser
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .AsNoTracking()
+            .Where(x => x.IsDeleted)
+            .Where(predicate)
+            .OrderBy(x => x.Id)
+            .FirstOrDefaultAsync();
 }

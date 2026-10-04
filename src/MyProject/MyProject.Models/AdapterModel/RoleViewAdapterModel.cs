@@ -8,6 +8,13 @@ public class RoleViewAdapterModel : ICloneable
     /// <summary>樂觀並行的版本號：開啟編輯時的值，存檔時用來比對資料是否已被別人修改（0.9.93 起）。</summary>
     public string ConcurrencyStamp { get; set; } = string.Empty;
 
+    /// <summary>軟刪除狀態（0.9.95 起，只由實體對應過來，供「顯示已刪除」清單使用）。</summary>
+    public bool IsDeleted { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeletedBy { get; set; }
+
     public int Id { get; set; }
     [Required(ErrorMessage = "名稱 不可為空白")]
     public string Name { get; set; } = String.Empty;
@@ -24,8 +31,14 @@ public class RoleViewAdapterModel : ICloneable
     }
     object ICloneable.Clone()
     {
+        // 手寫逐欄複製（RolePermission、DefaultTeams 要深複製）：新增屬性時務必補上，
+        // AdapterModelCloneTests 會抓漏。0.9.93 加上 ConcurrencyStamp 時漏了它，角色存檔全被當成並行衝突。
         return new RoleViewAdapterModel
         {
+            ConcurrencyStamp = ConcurrencyStamp,
+            IsDeleted = IsDeleted,
+            DeletedAt = DeletedAt,
+            DeletedBy = DeletedBy,
             Id = Id,
             Name = Name,
             TabViewJson = TabViewJson,

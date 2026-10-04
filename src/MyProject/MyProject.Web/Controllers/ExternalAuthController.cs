@@ -87,15 +87,25 @@ public class ExternalAuthController : Controller
             return Redirect("/Auths/Login");
         }
 
-        var user = await externalLoginService.FindOrCreateAsync(
+        var lookup = await externalLoginService.FindOrCreateAsync(
             GoogleDefaults.AuthenticationScheme,
             subject,
             email,
             name,
             googleOAuthSettings.DefaultRoleName);
+        var user = lookup.User;
 
         // 清除暫存的外部登入身分
         await HttpContext.SignOutAsync(MagicObjectHelper.ExternalCookieScheme);
+
+        // 已刪除的使用者（0.9.95 起）：不登入、不建新帳號，回登入頁顯示固定訊息；管理員還原後即可再登入。
+        if (lookup.IsDeleted)
+        {
+            logger.LogInformation("Google login refused because the user is deleted. UserId={UserId}.", user.Id);
+            await auditLogService.WriteAsync(
+                AuditActions.Login.SsoFailed, success: false, actorUserId: user.Id, actorAccount: user.Account, detail: "provider=Google; reason=Deleted");
+            return Redirect("/Auths/Login?sso=deleted");
+        }
 
         if (!user.Status)
         {

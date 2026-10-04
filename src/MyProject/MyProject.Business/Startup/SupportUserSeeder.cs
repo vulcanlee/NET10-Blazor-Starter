@@ -45,8 +45,20 @@ public sealed class SupportUserSeeder : IDatabaseSeeder
             .FirstOrDefaultAsync(x => x.Name == MagicObjectHelper.預設角色, cancellationToken)
             ?? throw new InvalidOperationException($"找不到「{MagicObjectHelper.預設角色}」，support 帳號無法指定角色；DefaultRoleViewSeeder 應先執行。");
 
+        // 連已刪除的一起找、優先取未刪除的（0.9.95 起）：只看有過濾的集合的話，被軟刪除的 support 會被當成不存在，
+        // 建出第二個 support。服務層禁止刪除它，這裡是最後一道防線。
         var support = await dbContext.MyUser
-            .FirstOrDefaultAsync(x => x.Account == bootstrapSettings.SupportAccount, cancellationToken);
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .Where(x => x.Account == bootstrapSettings.SupportAccount)
+            .OrderBy(x => x.IsDeleted)
+            .ThenBy(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (support is { IsDeleted: true })
+        {
+            SoftDeleteHelper.Restore(support);
+            logger.LogWarning("Support user was soft-deleted; restored it. UserId={UserId}", support.Id);
+        }
 
         if (support is null)
         {

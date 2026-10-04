@@ -8,6 +8,13 @@ public class MyUserAdapterModel : ICloneable
     /// <summary>樂觀並行的版本號：開啟編輯時的值，存檔時用來比對資料是否已被別人修改（0.9.93 起）。</summary>
     public string ConcurrencyStamp { get; set; } = string.Empty;
 
+    /// <summary>軟刪除狀態（0.9.95 起，只由實體對應過來，供「顯示已刪除」清單使用）。</summary>
+    public bool IsDeleted { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeletedBy { get; set; }
+
     public int Id { get; set; }
     [Required(ErrorMessage = "帳號 不可為空白")]
     public string Account { get; set; } = String.Empty;

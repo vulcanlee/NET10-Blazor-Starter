@@ -32,7 +32,7 @@ public class AutoMapping : Profile
         #region RoleView
         CreateMap<RoleView, RoleViewAdapterModel>()
             .ForMember(d => d.DefaultTeams, o => o.MapFrom(s => TeamJsonHelper.Deserialize(s.DefaultTeamsJson)));
-        CreateMap<RoleViewAdapterModel, RoleView>()
+        CreateMap<RoleViewAdapterModel, RoleView>().IgnoreSoftDeleteFields()
             .ForMember(d => d.DefaultTeamsJson, o => o.MapFrom(s => TeamJsonHelper.Serialize(s.DefaultTeams)));
         #endregion
 
@@ -93,7 +93,7 @@ public class AutoMapping : Profile
 
         #region MyUser
         CreateMap<MyUser, MyUserAdapterModel>();
-        CreateMap<MyUserAdapterModel, MyUser>();
+        CreateMap<MyUserAdapterModel, MyUser>().IgnoreSoftDeleteFields();
         CreateMap<MyUserAdapterModel, CurrentUser>()
             .ForMember(dest => dest.RoleJson, opt => opt.Ignore())
             .ForMember(dest => dest.RoleList, opt => opt.Ignore())

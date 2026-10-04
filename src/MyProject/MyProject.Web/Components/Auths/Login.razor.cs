@@ -30,6 +30,13 @@ namespace MyProject.Web.Components.Auths
         [SupplyParameterFromQuery(Name = "reset")]
         private string? Reset { get; set; }
 
+        /// <summary>
+        /// Google 登入被拒時導回本頁帶 <c>?sso=代碼</c>（0.9.95 起）。只認得固定代碼、對應固定文字，
+        /// 其他值一律忽略 —— 不把網址內容顯示到頁面上。
+        /// </summary>
+        [SupplyParameterFromQuery(Name = "sso")]
+        private string? Sso { get; set; }
+
         [Inject]
         public ILogger<Login> Logger { get; set; } = default!;
 
@@ -54,6 +61,15 @@ namespace MyProject.Web.Components.Auths
 
         /// <summary>只在還沒送出登入表單時顯示；登入失敗的錯誤訊息優先。</summary>
         private bool ShowResetSucceeded => Reset == "1" && string.IsNullOrEmpty(message);
+
+        /// <summary>只在還沒送出登入表單時顯示；登入失敗的錯誤訊息優先。</summary>
+        private string? SsoFailureMessage => !string.IsNullOrEmpty(message)
+            ? null
+            : Sso switch
+            {
+                "deleted" => "此帳號已被刪除，請洽系統管理員。",
+                _ => null,
+            };
 
         private string GoogleLoginUrl =>
             string.IsNullOrWhiteSpace(ReturnUrl)

@@ -13,6 +13,11 @@
         <div class="success-message" role="status">密碼已重設，請以新密碼登入。</div>
     }
 
+    @if (SsoFailureMessage is { } ssoFailure)
+    {
+        <div class="alert-danger error-message" role="alert">@ssoFailure</div>
+    }
+
     <EditForm Model="@Input" method="post" OnValidSubmit="LoginUser" FormName="login">
         <input type="hidden" name="Input.CaptchaCode" value="@Input.CaptchaCode" />
 

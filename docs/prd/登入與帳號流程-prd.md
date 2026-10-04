@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.85
+- 現行系統版本：0.9.95
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/02
+- 最後核對日期：2026/10/04
 
 ## 一、目標與範圍
 
@@ -18,7 +18,7 @@
 | 路由 | 版面 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
 | `/Auths/Login` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名 | 所有人 |
-| `/Auths/Logout` | 無版面 | 已登入 | 所有登入者 |
+| `/Auths/Logout` | `EmptyLayout`（0.9.95 起；之前沒有指定而套用預設的 `MainLayout`）| 已登入 | 所有登入者 |
 | `/Auths/Pending` | `NoFooterLayout` | 匿名 | Google 自動建帳待審核者 |
 | `/Auths/ForgotPassword` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名 | 忘記密碼者（0.9.60 起；寄信未啟用時只顯示「未啟用」）|
 | `/Auths/ResetPassword?token=…` | `NoFooterLayout`（靜態 SSR 表單 POST）| 匿名＋有效 token | 收到重設信的人（0.9.60 起）|
@@ -41,7 +41,7 @@
 - **帳號鎖定**：失敗時 `AccessFailedCount++`，達 `MaxFailedAccessAttempts=5` 設 `LockoutEndUtc = UtcNow + 15 分`；鎖定期間回「帳號已鎖定，請稍後再試。」成功登入後將 `AccessFailedCount` 歸零、`LockoutEndUtc` 清空。
 - **雜湊自動升級**：驗證回傳 `SuccessRehashNeeded`（舊格式）時，即時以 PBKDF2 重新雜湊並存回。
 - **Cookie 簽發**（Login.razor.cs）：建立 `ClaimTypes.Role=User`、`Name`、`NameIdentifier=Account`、`Sid=Id`，以 `CookieAuthenticationScheme` `SignInAsync`；`IsPersistent = RememberMe`（記住我 → 持久性 Cookie），`RedirectUri` 取 `ReturnUrl` 或 `/App`。
-- **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「GoogleId 比對 → Email 連結既有帳號 → 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。`!Status` 導向 `/Auths/Pending`，否則簽發 Cookie 並導回本地安全的 `returnUrl`。
+- **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`，否則簽發 Cookie 並導回本地安全的 `returnUrl`。
 - **登出**：`SignOutAsync(CookieScheme)` 後 `NavigateTo("/Auths/Login", forceLoad: true)`。
   - **使用者主動登出**（0.9.29 起）先經二次確認：三個 UI 入口都走
     `Components/Commons/LogoutConfirm.cs`，確認後才導向 `/Auths/Logout`。
@@ -51,6 +51,7 @@
     這兩條路徑在分層上就分開：`LogoutConfirm` 在 Web 層，`AuthenticationStateHelper` 在 Business 層，
     後者參照不到前者。
   - 直接在網址列輸入 `/Auths/Logout` 維持立即登出，刻意不擋（刻意輸入網址不是誤觸）。
+  - ⚠️ **登出頁不可套用 `MainLayout`**（0.9.95 修正）：`MainLayout` 會先跑 `Check`，使用者已停用或已刪除時又導向 `/Auths/Logout`，而這個導向發生在登出頁清掉 Cookie 之前 —— 瀏覽器顯示「重新導向太多次」，被停用的人永遠回不到登入頁（至少從 0.9.41 起）。現在指定 `EmptyLayout`；由 `PageAuthorizationTests.Logout_WithLiveCookieOfDisabledOrDeletedUser_ShouldRedirectToLogin` 守門。
 - **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`NeedChangePasswordAsync`（密碼等於 `123456`）為真且不在改密碼頁時強制導向 `/ChangePassword`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
 - **API 登入**（`AuthController`）：`login` 以帳密換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
@@ -76,6 +77,7 @@
 - 驗證碼錯誤／欄位空白：停留登入頁並重新產生驗證碼。
 - 連續 5 次失敗鎖定 15 分鐘；鎖定到期後（`LockoutEndUtc` 過期）可再次登入。
 - Google Callback 缺 `subject`／`email`：登出外部身分並導回登入頁。
+- 已刪除的使用者（0.9.95 起）：密碼登入回「帳號或者密碼不正確」（不透露帳號曾存在）；Google 登入導回 `/Auths/Login?sso=deleted`（Google 已驗證身分，告知原因無洩漏疑慮）。
 - `support` 帳號於 `/ChangePassword` 一律被拒。Google 帳號只用於網頁登入，不支援 API（0.9.63 起移除「設定 API 密碼」`/Profile`）。
 - 使用者無角色、`RoleView` 為 null 或 `TabViewJson` 解析失敗：導向登出。
 - 忘記密碼：輸入空白 →「請輸入帳號或 Email」；驗證碼錯 → 重新產生驗證碼；查無帳號、不符資格、冷卻中 → 畫面與成功時相同；背景佇列滿 → 不寄（稽核 `QueueFull`）；資料庫錯誤 →「系統暫時無法處理您的申請，請稍後再試。」。

@@ -56,7 +56,15 @@ public sealed class RbacWriteService : IRbacWriteService
         var existing = await context.UserRole.Where(x => x.MyUserId == userId).ToListAsync();
         var existingIds = existing.Select(x => x.RoleViewId).ToHashSet();
 
-        foreach (var removed in existing.Where(x => !desired.Contains(x.RoleViewId)))
+        // 指向已軟刪除角色的關聯一律保留（0.9.95 起，與 SyncUserTeamsAsync 相同）：編輯畫面看不到已刪除的角色，
+        // 若照樣刪掉，角色還原後這個人的額外角色就回不來了。權限判斷另經 context.RoleView 過濾，保留的關聯不會生效。
+        var activeExistingIds = (await context.RoleView
+                .Where(r => existingIds.Contains(r.Id))
+                .Select(r => r.Id)
+                .ToListAsync())
+            .ToHashSet();
+
+        foreach (var removed in existing.Where(x => activeExistingIds.Contains(x.RoleViewId) && !desired.Contains(x.RoleViewId)))
         {
             context.UserRole.Remove(removed);
         }

@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.78
+- 現行系統版本：0.9.95
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/01
+- 最後核對日期：2026/10/04
 
 ## 一、目標與範圍
 
@@ -105,8 +105,8 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 | 動作代碼 | 來源 |
 | --- | --- |
 | `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin` |
-| `User.Create` / `User.Update` / `User.Delete` | `MyUserService` |
-| `Role.Create` / `Role.Update` / `Role.Delete` | `RoleViewService` |
+| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` | `MyUserService` |
+| `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）|
 | `Project.FileDownload` | `ProjectFileController` |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |

@@ -109,7 +109,7 @@ namespace MyProject.Web.Components.Views.Admins
                 _pageIndex,
                 _pageSize);
 
-            DataRequestResult<MyUserAdapterModel> dataRequestResult = await myUserService.GetAsync(new DataRequest
+            var dataRequest = new DataRequest
             {
                 Search = searchText,
                 SortField = sortField,
@@ -117,7 +117,12 @@ namespace MyProject.Web.Components.Views.Admins
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
-            });
+            };
+
+            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.95 起）。
+            DataRequestResult<MyUserAdapterModel> dataRequestResult = showDeleted
+                ? await myUserService.GetDeletedAsync(dataRequest)
+                : await myUserService.GetAsync(dataRequest);
 
             myUserAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
@@ -203,7 +208,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             logger.LogInformation("Delete user requested. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
 
-            var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
+            var ok = await ConfirmDialog.AskSoftDeleteRecordAsync(modalService);
 
             if (!ok)
             {
@@ -214,7 +219,7 @@ namespace MyProject.Web.Components.Views.Admins
             var result = await myUserService.DeleteAsync(myUserAdapterModel.Id);
             if (!result.Success)
             {
-                // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」（例如角色仍是某些使用者的主要角色時根本刪不掉）。
+                // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」。
                 logger.LogInformation("User delete rejected. UserId={UserId}, Message={Message}", myUserAdapterModel.Id, result.Message);
                 ViewNotification.Error(notificationService, result.Message);
                 return;
@@ -225,6 +230,77 @@ namespace MyProject.Web.Components.Views.Admins
             ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
+        }
+
+        bool showDeleted;
+
+        async Task OnToggleDeletedAsync()
+        {
+            showDeleted = !showDeleted;
+            _pageIndex = 1;
+            await ReloadAsync();
+        }
+
+        async Task OnRestoreAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "確認還原", $"要還原「{record.Account}」嗎？", "還原");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await myUserService.RestoreAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("User restore rejected. UserId={UserId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("User restore completed. UserId={UserId}", record.Id);
+                ViewNotification.Warning(notificationService, "還原成功");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while restoring user.");
+                ViewNotification.Error(notificationService, "還原使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        async Task OnPurgeAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskDestructiveAsync(
+                    modalService,
+                    "永久刪除",
+                    $"永久刪除「{record.Account}」後無法復原，他的角色與團隊設定也會一併刪除。確定要永久刪除嗎？",
+                    "永久刪除");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await myUserService.PurgeAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("User purge rejected. UserId={UserId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("User purge completed. UserId={UserId}", record.Id);
+                ViewNotification.Warning(notificationService, "已永久刪除");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while purging user.");
+                ViewNotification.Error(notificationService, "永久刪除使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
         }
 
         async Task OnAddAsync(bool continueOnCapturedContext)

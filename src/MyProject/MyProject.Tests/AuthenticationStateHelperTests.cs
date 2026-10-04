@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
@@ -188,6 +189,44 @@ public sealed class AuthenticationStateHelperTests
         Assert.Contains("PermissionB", roleList);
     }
 
+    [Fact]
+    public async Task Check_WithSoftDeletedUser_ShouldReturnInvalidUserAndNavigateLogout()
+    {
+        // 0.9.95 起使用者是軟刪除：已登入的人被刪除後，下一次換頁就要被登出（全域過濾器讓他「找不到」）。
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        await fixture.Context.MyUser.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x => x.SetProperty(u => u.IsDeleted, true));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+
+        var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.InvalidUser, result);
+        Assert.Equal("/Auths/Logout", navigationManager.NavigatedTo);
+    }
+
+    [Fact]
+    public async Task Check_WithSoftDeletedAdditionalRole_ShouldDropItsPermissionsFromRoleList()
+    {
+        // 額外角色的關聯（UserRole）刻意保留，權限判斷必須經 RoleView 過濾，否則已刪除的角色會繼續給畫面權限。
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddMultiRoleUserAsync(primaryKey: "PermissionA", additionalKey: "PermissionB");
+        var additionalRoleId = await fixture.Context.UserRole
+            .Where(x => x.MyUserId == user.Id && x.RoleViewId != user.RoleViewId)
+            .Select(x => x.RoleViewId)
+            .SingleAsync();
+        await fixture.Context.RoleView.Where(x => x.Id == additionalRoleId).ExecuteUpdateAsync(x => x.SetProperty(r => r.IsDeleted, true));
+        var authProvider = new TestAuthenticationStateProvider(CreatePrincipal(user.Id.ToString()));
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+
+        var result = await fixture.CreateHelper().Check(authProvider, navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.Succeeded, result);
+        var roleList = fixture.CurrentUserService.CurrentUser.RoleList;
+        Assert.Contains("PermissionA", roleList);
+        Assert.DoesNotContain("PermissionB", roleList);
+    }
+
     /// <summary>
     /// 角色矩陣只勾「檢視」時產生的是「頁面:view」而不含裸鍵。若 CheckAccessPage 只認裸鍵，
     /// 唯讀角色會連頁面都打不開、選單也不顯示 —— 「可看不可改」就只剩 API 端生效。
@@ -272,7 +311,7 @@ public sealed class AuthenticationStateHelperTests
             return new AuthenticationStateHelper(
                 loggerFactory.CreateLogger<AuthenticationStateHelper>(),
                 mapper,
-                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService),
+                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings())),
                 CurrentUserService,
                 rolePermissionService,
                 new EffectiveTeamResolver(Context, NullLogger<EffectiveTeamResolver>.Instance),

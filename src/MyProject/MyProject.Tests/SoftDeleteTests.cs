@@ -310,7 +310,7 @@ public sealed class SoftDeleteTests
 
         public MyUserService UserService()
             => new(Factory(), mapper, NullLogger<MyUserService>.Instance,
-                new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser);
+                new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()));
 
         public async Task<int> AddCategoryAsync(CategoryService service, string name, List<string>? teams = null)
         {
