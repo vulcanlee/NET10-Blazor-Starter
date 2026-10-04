@@ -1,8 +1,8 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.95
+- 現行系統版本：0.9.97
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -45,6 +45,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - **RBAC 雙寫**（`RbacWriteService.SyncRolePermissionsAsync`）：`EnsurePermissionsAsync` 對缺漏的權限鍵自動補建 `Permission` 列，再對 `RolePermissionMap` 差異化增刪，使角色權限與矩陣一致。
 - **刪除**（`DeleteAsync`，0.9.95 起為軟刪除）：追蹤載入 → 禁止刪除「預設角色」→ 仍有**未刪除**使用者（含停用者）以它為主要角色就擋下，訊息列出人數與前 5 個帳號（使用者決定；刪了的話那些人每次換頁都會被登出）→ `MarkDeleted` 存檔 → **存檔後再數一次**，期間若有人被設成這個主要角色就還原並擋下。事前檢查不可省略：只靠事後複查會先寫入再還原，版本號被換掉，正在編輯這個角色的人存檔時會被誤判為衝突。`RolePermissionMap` 與額外角色的 `UserRole` 保留。
 - **已刪除清單／還原／永久刪除**（0.9.95 起）：還原時與有效角色同名（完全比對）就擋下。永久刪除只能對已刪除的角色；任何使用者（**含已刪除的**，`IgnoreQueryFilters` 計算）仍以它為主要角色就擋下並列出帳號（`MyUser.RoleViewId` 是 Restrict 外鍵）。刪除與還原都會換新版本號；登入、權限判斷、下拉選單都經全域過濾器而看不到已刪除的資料。稽核：`Role.Delete`（軟刪除）、`Role.Restore`、`Role.Purge`。
+- **自動永久刪除**（0.9.97 起）：刪除超過 `SoftDeleteSettings:PurgeAfterDays`（預設 90 天，`0`＝不自動）的角色，由排程作業「已刪除資料清理」（`SoftDeletePurgeService`）永久刪除；系統層級清除，不看團隊範圍。每次有刪到時寫一筆彙總稽核 `Role.AutoPurge`（筆數、天數、觸發方式、`#Id 名稱` 清單）。「預設角色」永遠不刪；任何使用者（含尚未到期的已刪除使用者）仍以它為主要角色時留到之後再刪，同一輪中使用者先於角色處理。見 [排程作業 PRD](排程作業-prd.md)。
 - **啟動回填**（`RbacBackfillService.RunAsync`）：開機時由 `RolePermissionService` 建立權限目錄（`Permission`，含 `GroupName`／`SortOrder`），並依各角色 `TabViewJson` 補寫 `RolePermissionMap`，冪等。
 - **權限判定**（`PermissionChecker`）：使用者角色取自 `UserRole`（多角色）並容錯併入 legacy `RoleViewId`；join `RolePermissionMap`／**`RoleView`（0.9.95 起，排除已刪除的角色）**／`Permission` 得有效權限鍵集合；管理員短路回 true；擁有裸頁面鍵者視為具該頁全部動作。
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性。

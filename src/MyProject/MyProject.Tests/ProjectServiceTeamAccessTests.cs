@@ -1,6 +1,7 @@
 using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
@@ -153,6 +154,59 @@ public sealed class ProjectServiceTeamAccessTests
         Assert.Null(await service.GetFileDownloadAsync(fileId));
     }
 
+    // ---- 移除附件（0.9.97 起經 ProjectFileStore）----
+
+    [Fact]
+    public async Task UpdateAsync_RemovingAnAttachmentWhosePathEscapesTheRoot_ShouldNotDeleteTheOutsideFile()
+    {
+        // 0.9.96 之前移除附件沒有根目錄檢查，會照資料庫給的路徑刪掉附件目錄以外的檔案。
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        var ids = await fixture.SeedDefaultProjectsAsync();
+        var outside = Path.Combine(fixture.Sandbox, "outside.txt");
+        await File.WriteAllTextAsync(outside, "KEEP");
+        var fileId = await fixture.SeedFileAsync(ids["公開專案"], "outside.txt", "text/plain", content: null, relativePath: "../outside.txt");
+        var service = fixture.CreateService(isAdmin: true);
+        var project = await service.GetAsync(ids["公開專案"]);
+
+        var result = await service.UpdateAsync(project, removedFileIds: [fileId]);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(File.Exists(outside), "移除附件時刪掉了附件根目錄以外的檔案。");
+        Assert.Equal(0, await fixture.Context.ProjectFile.CountAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenRemovingAnAttachmentFailsToSave_ShouldKeepThePhysicalFile()
+    {
+        // 0.9.96 之前是先刪實體檔再存資料庫：存檔失敗時資料列還在、檔案卻已經不見了。
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        var ids = await fixture.SeedDefaultProjectsAsync();
+        var fileId = await fixture.SeedFileAsync(ids["公開專案"], "a.txt", "text/plain", content: "attachment", relativePath: "2026/08/keep.txt");
+        var physical = Path.Combine(fixture.FileRoot, "2026", "08", "keep.txt");
+        var service = fixture.CreateService(isAdmin: true, interceptor: new FailWhenRemovingFiles());
+        var project = await service.GetAsync(ids["公開專案"]);
+
+        var result = await service.UpdateAsync(project, removedFileIds: [fileId]);
+
+        Assert.False(result.Success);
+        Assert.True(File.Exists(physical), "存檔失敗，附件實體檔卻已經被刪了。");
+        Assert.Equal(1, await fixture.Context.ProjectFile.CountAsync());
+    }
+
+    private sealed class FailWhenRemovingFiles : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+            => eventData.Context!.ChangeTracker.Entries<ProjectFile>().Any(e => e.State == EntityState.Deleted)
+                ? throw new InvalidOperationException("simulated database failure")
+                : base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    private sealed class InterceptingFactory(SqliteConnection connection, IInterceptor interceptor) : IDbContextFactory<BackendDBContext>
+    {
+        public BackendDBContext CreateDbContext()
+            => new(new DbContextOptionsBuilder<BackendDBContext>().UseSqlite(connection).AddInterceptors(interceptor).Options);
+    }
+
 
     // ---- 分頁排序退路（0.4.46）----
     // ProjectService 原本連預設排序都沒有；這兩個測例補上「欄位不認得」與「方向未指定」兩種落空輸入。
@@ -252,19 +306,22 @@ public sealed class ProjectServiceTeamAccessTests
             return new ProjectServiceFixture(connection, context, sandbox);
         }
 
-        public ProjectService CreateService(bool isAdmin, params string[] teams)
+        public ProjectService CreateService(bool isAdmin, params string[] teams) => CreateService(isAdmin, null, teams);
+
+        public ProjectService CreateService(bool isAdmin, IInterceptor? interceptor, params string[] teams)
         {
             var settings = new SystemSettings();
             settings.ExternalFileSystem.ProjectFilePath = FileRoot;
 
             return new ProjectService(
-                new TestDbContextFactory(connection),
+                interceptor is null ? new TestDbContextFactory(connection) : new InterceptingFactory(connection, interceptor),
                 mapper,
                 loggerFactory.CreateLogger<ProjectService>(),
                 Options.Create(settings),
                 new FakeScopeProvider(isAdmin, teams),
                 new RecordingAuditLogService(),
-                new MyProject.Business.Services.Other.CurrentUserService());
+                new MyProject.Business.Services.Other.CurrentUserService(),
+                new MyProject.Business.Services.Other.ProjectFileStore(Options.Create(settings), loggerFactory.CreateLogger<MyProject.Business.Services.Other.ProjectFileStore>()));
         }
 
         /// <summary>

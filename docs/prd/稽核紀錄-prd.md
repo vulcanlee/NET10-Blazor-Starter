@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.96
+- 現行系統版本：0.9.97
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/10/04
 
@@ -109,6 +109,7 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄） |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
+| `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）|
 | `Project.FileDownload` | `ProjectFileController` |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |

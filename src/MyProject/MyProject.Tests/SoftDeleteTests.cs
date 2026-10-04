@@ -305,7 +305,8 @@ public sealed class SoftDeleteTests
             var settings = new SystemSettings();
             settings.ExternalFileSystem.ProjectFilePath = fileRoot;
             return new(Factory(), mapper, NullLogger<ProjectService>.Instance, Options.Create(settings),
-                scope ?? new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
+                scope ?? new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser,
+                new ProjectFileStore(Options.Create(settings), NullLogger<ProjectFileStore>.Instance));
         }
 
         public MyUserService UserService()

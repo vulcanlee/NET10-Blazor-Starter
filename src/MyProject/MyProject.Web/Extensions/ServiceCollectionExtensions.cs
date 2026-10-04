@@ -120,7 +120,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<RoleViewService>();
         services.AddScoped<MyUserService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        // 專案附件實體檔的唯一刪除入口（0.9.97 起，含根目錄檢查）。
+        services.AddScoped<ProjectFileStore>();
         services.AddScoped<ProjectService>();
+        // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
+        services.AddScoped<SoftDeletePurgeService>();
         services.AddScoped<ProjectRepository>();
         services.AddScoped<CategoryService>();
         services.AddScoped<CategoryRepository>();
@@ -227,6 +231,9 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<TokenUsageLogRetentionJob>(
             TokenUsageLogRetentionJob.JobName, "Token 用量紀錄清理",
             "刪除超過保留天數的 Token 用量紀錄與原始檔（LogRetentionSettings:TokenUsageLogDays，預設 365 天，0 = 不清除）。", "0 3 * * *");
+        services.AddScheduledJob<SoftDeletePurgeJob>(
+            SoftDeletePurgeJob.JobName, "已刪除資料清理",
+            "已刪除超過保留天數的專案（含附件檔）、分類、團隊、使用者與角色，永久刪除（SoftDeleteSettings:PurgeAfterDays，預設 90 天，0 = 不清除）。", "0 3 * * *");
 
         // ⚠️ 必須註冊在 ExceptionLogWriter 之後：主機以相反順序停止，作業在關機時記的錯誤才還有人寫進系統例外紀錄。
         services.AddHostedService<JobSchedulerWorker>();
@@ -269,6 +276,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<AiCallLogSettings>()
             .Bind(configuration.GetSection(AiCallLogSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<SoftDeleteSettings>()
+            .Bind(configuration.GetSection(SoftDeleteSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

@@ -231,6 +231,18 @@ public sealed class OptionsValidationTests
         Assert.Contains("ExceptionAlertSettings:Recipients", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("36501")]
+    public void SoftDeletePurgeAfterDays_OutOfRange_ShouldFailOnStart(string days)
+    {
+        // 保留天數寫壞時拒絕啟動：不可以讓自動永久刪除用錯的門檻刪資料（0.9.97 起）。
+        var exception = Assert.Throws<OptionsValidationException>(
+            () => ValidateRegisteredOptions(ShippedConfiguration(), new() { ["SoftDeleteSettings:PurgeAfterDays"] = days }));
+
+        Assert.Contains("PurgeAfterDays", exception.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TypeMismatch_InClassWithoutRules_ShouldFailOnStart()
     {

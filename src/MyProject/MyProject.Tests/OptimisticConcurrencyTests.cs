@@ -246,7 +246,8 @@ public sealed class OptimisticConcurrencyTests
 
         public ProjectService ProjectService()
             => new(Factory(), mapper, NullLogger<ProjectService>.Instance, Options.Create(new SystemSettings()),
-                new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
+                new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser,
+                new ProjectFileStore(Options.Create(new SystemSettings()), NullLogger<ProjectFileStore>.Instance));
 
         public RoleViewService RoleService()
             => new(Factory(), mapper, NullLogger<RoleViewService>.Instance, new RolePermissionService(),
