@@ -238,6 +238,17 @@
     font-weight: 700 !important;
 }
 
+/* ── 分頁籤（Token 用量、AI 提示詞）──
+   0.9.108 起：之前沒有覆寫，作用中的分頁籤與底線是 AntDesign 的藍色。 */
+.ant-tabs-tab:hover,
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: var(--app-accent) !important;
+}
+
+.ant-tabs-ink-bar {
+    background: var(--app-accent) !important;
+}
+
 /* ── 輸入框、下拉與日期 ──
    對話窗內的同款欄位已由 OverlayStyles.razor 處理（特異性更高，不會被這裡蓋掉）。
    頁面上的篩選欄位若留著 AntDesign 藍，正是「只做一半」最明顯的破綻。 */

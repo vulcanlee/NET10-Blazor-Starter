@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
@@ -14,13 +15,16 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
 {
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
     private readonly IAiChatCompletionClient chatCompletionClient;
+    private readonly IAiSystemPromptProvider systemPromptProvider;
 
     public AiLogAnalysisService(
         IOptionsMonitor<AiSettings> optionsMonitor,
-        IAiChatCompletionClient chatCompletionClient)
+        IAiChatCompletionClient chatCompletionClient,
+        IAiSystemPromptProvider systemPromptProvider)
     {
         this.optionsMonitor = optionsMonitor;
         this.chatCompletionClient = chatCompletionClient;
+        this.systemPromptProvider = systemPromptProvider;
     }
 
     public bool IsAvailable => AiChatEndpoint.Validate(optionsMonitor.CurrentValue) is null;
@@ -49,13 +53,16 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
             return AiAnalysisResult.Failure(AiAnalysisFailureReason.NoData, "目前沒有可分析的日誌。", prompt);
         }
 
+        // 0.9.108 起提示詞在「AI 提示詞」頁管理（作用中的版本或內建預設＋固定規則）。
+        var systemPrompt = await systemPromptProvider.GetAsync(PromptTemplateKeys.LogAnalysis, cancellationToken);
+
         var result = await chatCompletionClient.CompleteAsync(
             new AiChatCompletionRequest
             {
                 Operation = TokenUsageOperations.AiLogAnalysis,
                 Messages =
                 [
-                    new AiChatMessage(AiChatRoles.System, AiLogPromptBuilder.ResolveSystemPrompt(settings.SystemPrompt)),
+                    new AiChatMessage(AiChatRoles.System, systemPrompt),
                     new AiChatMessage(AiChatRoles.User, prompt.UserMessage),
                 ],
                 // 0.9.7 起送出的日誌不再有字元上限，所以「內容太長」變成主要的失敗模式。

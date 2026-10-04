@@ -738,7 +738,8 @@ public sealed class AiLogAnalysisServiceTests
                 optionsMonitor,
                 recorder,
                 new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } },
-                callLogRecorder ?? new FakeAiCallLogRecorder()));
+                callLogRecorder ?? new FakeAiCallLogRecorder()),
+            new StubSystemPromptProvider());
 
         return (service, handler, recorder);
     }

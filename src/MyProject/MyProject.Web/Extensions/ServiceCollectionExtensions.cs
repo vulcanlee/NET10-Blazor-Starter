@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILogQueryService, LogQueryService>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
+        services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
         services.AddScoped<IAiExceptionAnalysisService, AiExceptionAnalysisService>();
         services.AddScoped<IAiHealthProbe, AiHealthProbe>();
 
@@ -106,6 +107,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationSender, NotificationSender>();
         services.AddScoped<NotificationQueryService>();
         services.AddScoped<AnnouncementService>();
+
+        // AI 提示詞（0.9.108 起）。
+        services.AddScoped<PromptTemplateService>();
         // 個人資料頁（0.9.102 起）。
         services.AddScoped<ProfileService>();
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
@@ -124,6 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDatabaseSeeder, DefaultRoleViewSeeder>();
         services.AddScoped<IDatabaseSeeder, SupportUserSeeder>();
         services.AddScoped<IDatabaseSeeder, RbacBackfillSeeder>();
+        services.AddScoped<IDatabaseSeeder, LegacySystemPromptSeeder>();
 
         services.AddScoped<IPermissionChecker, PermissionChecker>();
         services.AddScoped<IRbacWriteService, RbacWriteService>();

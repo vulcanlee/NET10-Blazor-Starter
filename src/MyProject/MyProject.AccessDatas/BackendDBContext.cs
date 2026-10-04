@@ -39,6 +39,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<AnnouncementDismissal> AnnouncementDismissal { get; set; }
     public virtual DbSet<PasswordHistory> PasswordHistory { get; set; }
     public virtual DbSet<TwoFactorBackupCode> TwoFactorBackupCode { get; set; }
+    public virtual DbSet<PromptTemplate> PromptTemplate { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -242,6 +243,16 @@ public partial class BackendDBContext : DbContext
 
             // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：永久刪除使用者時不會先刪他的密碼歷史。
             entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
+
+        #region AI 提示詞（0.9.108 起）
+        modelBuilder.Entity<PromptTemplate>(entity =>
+        {
+            entity.HasIndex(x => new { x.TemplateKey, x.Version }).IsUnique();
+
+            // 同一個範本最多一個作用中的版本；切換時在同一個交易裡先全部取消再設定。
+            entity.HasIndex(x => x.TemplateKey).IsUnique().HasFilter("\"IsActive\" = 1");
         });
         #endregion
 

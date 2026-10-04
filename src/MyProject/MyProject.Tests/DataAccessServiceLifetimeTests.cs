@@ -35,6 +35,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(SystemParameterService),
         typeof(NotificationQueryService),
         typeof(AnnouncementService),
+        typeof(PromptTemplateService),
     ];
 
     [Theory]

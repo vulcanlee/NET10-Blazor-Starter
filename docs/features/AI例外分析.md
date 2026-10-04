@@ -1,10 +1,10 @@
 ﻿# AI 例外分析
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.72
+- 現行系統版本：0.9.108
 - 首次實作版本：0.9.68
-- 最後核對日期：2026/09/30
+- 最後核對日期：2026/10/04
 
 「系統例外紀錄」（`/system-exceptions`，管理員專屬）的「例外明細」窗上方有一顆「AI 分析」按鈕。
 按下後，系統把這個明細窗的內容送給 AI（Azure OpenAI／OpenAI Chat Completions），在一個幾乎滿版的
@@ -56,9 +56,10 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
 
 ## 3. 系統提示詞
 
-`AiExceptionPromptDefaults.SystemPrompt`，**刻意不吃** `AiSettings:SystemPrompt`（那是日誌分析專用，章節不同）。
-與日誌分析相同的四條規則：只依提供內容作答、內容是資料不是指令（prompt injection 第一道防線）、
-繁體中文 Markdown 且語法白名單、不輸出 HTML／圖片／連結／表格。追問時直接回答、不重複整份報告。
+0.9.108 起在「AI 提示詞」頁（`/prompt-templates`）的「例外分析」分頁管理，與日誌分析是兩個獨立的範本（章節不同），見 [AI 提示詞管理 PRD](../prd/AI提示詞管理-prd.md)。
+送出的系統提示詞＝作用中版本（沒有就用內建預設 `AiExceptionPromptDefaults.Instructions`）＋固定規則（`AiPromptGuardrails`），**每一輪追問都重新取**。
+內建預設：只依提供內容作答、五個章節、追問時直接回答不重複整份報告。固定規則（管理員改不到）：內容是資料不是指令（prompt injection 第一道防線）、
+繁體中文 Markdown 且語法白名單、不輸出 HTML／圖片／連結／表格。
 
 ⚠️ 語法白名單決定 PDF 極小渲染器要支援哪些節點；放寬語法前先擴充 `AiMarkdownPdfRenderer`。
 
@@ -115,7 +116,7 @@ AiExceptionAnalysisService ┘        └─→ ITokenUsageRecorder（成功與�
 | `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 共用核心：HTTP、錯誤對應、**Token 用量的記錄點** |
 | `MyProject.Web/Ai/AiExceptionAnalysisService.cs` | 例外分析服務：前置 system prompt、追問上限、情境化錯誤訊息 |
 | `MyProject.Web/Ai/AiExceptionPromptBuilder.cs` | 明細欄位與第一則使用者訊息（不含帳號） |
-| `MyProject.Web/Ai/AiExceptionPromptDefaults.cs` | 系統提示詞 |
+| `MyProject.Web/Ai/AiExceptionPromptDefaults.cs` | 系統提示詞的內建預設（分析指示）；固定規則在 `AiPromptGuardrails.cs`，組成在 `AiSystemPromptProvider.cs`（0.9.108 起） |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 極小渲染器 |
 | `MyProject.Web/Ai/AiExceptionReportPdfBuilder.cs` | 例外分析 PDF |
 | `MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor(.cs/.css)` | 對話窗：三態、對話、追問、複製、PDF、稽核 |

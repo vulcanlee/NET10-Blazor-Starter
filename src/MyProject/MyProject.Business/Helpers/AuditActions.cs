@@ -212,6 +212,13 @@ public static class AuditActions
         public const string Delete = "Announcement.Delete";
     }
 
+    /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>
+    public static class Prompt
+    {
+        public const string Update = "Prompt.Update";
+        public const string Activate = "Prompt.Activate";
+    }
+
     /// <summary>站內通知（0.9.100 起）：排程作業依保留天數自動清除。</summary>
     public static class Notification
     {

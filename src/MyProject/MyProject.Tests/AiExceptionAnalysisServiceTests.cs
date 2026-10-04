@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
+using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Others;
@@ -40,7 +41,9 @@ public sealed class AiExceptionAnalysisServiceTests
         var messages = document.RootElement.GetProperty("messages").EnumerateArray().ToList();
         Assert.Equal(4, messages.Count);
         Assert.Equal("system", messages[0].GetProperty("role").GetString());
-        Assert.Equal(AiExceptionPromptDefaults.SystemPrompt, messages[0].GetProperty("content").GetString());
+        Assert.Equal(
+            AiPromptGuardrails.Compose(PromptTemplateKeys.ExceptionAnalysis, AiExceptionPromptDefaults.Instructions),
+            messages[0].GetProperty("content").GetString());
         Assert.Equal(
             ["detail", "report", "follow-up"],
             messages.Skip(1).Select(message => message.GetProperty("content").GetString()));
@@ -200,7 +203,8 @@ public sealed class AiExceptionAnalysisServiceTests
                 optionsMonitor,
                 recorder,
                 new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "admin" } },
-                callLogRecorder ?? new FakeAiCallLogRecorder()));
+                callLogRecorder ?? new FakeAiCallLogRecorder()),
+            new StubSystemPromptProvider());
 
         return (service, handler, recorder);
     }

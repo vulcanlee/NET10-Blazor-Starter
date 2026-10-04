@@ -42,6 +42,7 @@ public sealed class MenuIconTests
         "settings",
         "backup",
         "campaign",
+        "smart_toy",
     };
 
     [Fact]

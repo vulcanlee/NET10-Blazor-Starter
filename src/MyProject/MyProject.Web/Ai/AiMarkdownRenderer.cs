@@ -17,7 +17,7 @@ namespace MyProject.Web.Ai;
 /// <para>
 /// 模型的輸出受日誌內容影響（有人把字串送進 log 就能間接影響輸出），屬於不可信輸入，
 /// 所以還需要移除圖片與連結 scheme 白名單。這是 prompt injection 的第二、三道防線，
-/// 第一道在 <see cref="AiPromptDefaults.SystemPrompt"/>。
+/// 第一道在 <see cref="AiPromptGuardrails"/>。
 /// </para>
 /// </summary>
 public static class AiMarkdownRenderer
