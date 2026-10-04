@@ -5,6 +5,7 @@
   { "route": "/teams", "title": "團隊清單", "file": "teams.md" },
   { "route": "/ChangePassword", "title": "變更密碼", "file": "changepassword.md" },
   { "route": "/Profile", "title": "個人資料", "file": "profile.md" },
+  { "route": "/TwoFactorSetup", "title": "兩步驟驗證", "file": "twofactorsetup.md" },
   { "route": "/system-health", "title": "系統健康監控", "file": "system-health.md" },
   { "route": "/logs", "title": "日誌檢視", "file": "logs.md" },
   { "route": "/log-level-setting", "title": "日誌等級設定", "file": "log-level-setting.md" },

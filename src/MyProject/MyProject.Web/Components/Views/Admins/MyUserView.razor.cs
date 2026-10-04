@@ -61,6 +61,8 @@ namespace MyProject.Web.Components.Views.Admins
         public CurrentUserService CurrentUserService { get; set; } = default!;
         [Inject]
         public SessionRefreshNavigator SessionRefreshNavigator { get; set; } = default!;
+        [Inject]
+        public ITwoFactorService TwoFactorService { get; set; } = default!;
 
         public MyUserView(
             ILogger<MyUserView> logger,
@@ -283,6 +285,37 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 logger.LogError(ex, "Unhandled exception while forcing a user to log out.");
                 ViewNotification.Error(notificationService, "強制登出時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        /// <summary>只在對方已啟用時顯示；自己那一列不顯示（自己到「兩步驟驗證」頁停用或重新設定）。</summary>
+        bool CanResetTwoFactor(MyUserAdapterModel record) => record.TwoFactorEnabled && record.Id != CurrentUserService.CurrentUser.Id;
+
+        async Task OnResetTwoFactorAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "重設兩步驟驗證",
+                    $"要清除「{record.Account}」的驗證器設定與備用碼嗎？對方所有已登入的地方都會登出，下次登入只需要密碼（若角色要求使用，會被帶去重新設定）。", "重設");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await TwoFactorService.ResetAsync(record.Id);
+                if (!result.Success)
+                {
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                ViewNotification.Warning(notificationService, $"已重設「{record.Account}」的兩步驟驗證");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while resetting two-factor authentication.");
+                ViewNotification.Error(notificationService, "重設兩步驟驗證時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
             }
         }
 

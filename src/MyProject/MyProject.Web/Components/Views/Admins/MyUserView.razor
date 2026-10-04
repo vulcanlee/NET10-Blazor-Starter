@@ -59,6 +59,10 @@ else
                     {
                         <StatusPill Text="@LockedText(context)" Tone="StatusTone.Warning" />
                     }
+                    @if (context.TwoFactorEnabled)
+                    {
+                        <StatusPill Text="兩步驟驗證" Tone="StatusTone.Accent" />
+                    }
                 </Column>
                 @* 只有「是」值得一個徽章；每一列都掛一顆「否」只會讓這一欄變成雜訊。 *@
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.IsAdminText)" Title="管理員" Sortable>
@@ -112,6 +116,13 @@ else
                                 <SpaceItem>
                                     <CrudActionButton Title="強制登出" Icon="logout"
                                                       OnClick="@(async () => await OnForceLogoutAsync(@context))" />
+                                </SpaceItem>
+                            }
+                            @if (CanResetTwoFactor(context))
+                            {
+                                <SpaceItem>
+                                    <CrudActionButton Title="重設兩步驟驗證" Icon="phonelink_erase"
+                                                      OnClick="@(async () => await OnResetTwoFactorAsync(@context))" />
                                 </SpaceItem>
                             }
                             @if (myUserService.CanDelete(context))

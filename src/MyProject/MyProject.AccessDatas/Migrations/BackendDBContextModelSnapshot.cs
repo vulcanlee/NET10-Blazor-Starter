@@ -438,6 +438,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("TwoFactorLastStep")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TwoFactorSecret")
                         .HasColumnType("TEXT");
 
@@ -739,6 +742,9 @@ namespace MyProject.AccessDatas.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("RequireTwoFactor")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("TabViewJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -965,6 +971,32 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("TokenUsageLog");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.TwoFactorBackupCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MyUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MyUserId", "CodeHash");
+
+                    b.ToTable("TwoFactorBackupCode");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.UserRole", b =>
                 {
                     b.Property<int>("Id")
@@ -1099,6 +1131,17 @@ namespace MyProject.AccessDatas.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("RoleView");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.TwoFactorBackupCode", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.MyUser", "MyUser")
+                        .WithMany()
+                        .HasForeignKey("MyUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MyUser");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.UserRole", b =>

@@ -184,7 +184,7 @@ public class RoleViewService
             await auditLogService.WriteAsync(
                 AuditActions.Role.Create, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: itemParameter.Id.ToString(),
-                detail: $"name={itemParameter.Name}; permissionKeyCount={permissionKeys.Count}");
+                detail: $"name={itemParameter.Name}; permissionKeyCount={permissionKeys.Count}; requireTwoFactor={itemParameter.RequireTwoFactor}");
 
             Logger.LogInformation("Role view created successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
@@ -229,7 +229,7 @@ public class RoleViewService
             await auditLogService.WriteAsync(
                 AuditActions.Role.Update, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: itemData.Id.ToString(),
-                detail: $"name={itemData.Name}; permissionKeyCount={permissionKeys.Count}");
+                detail: $"name={itemData.Name}; permissionKeyCount={permissionKeys.Count}; requireTwoFactor={itemData.RequireTwoFactor}");
 
             Logger.LogInformation("Role view updated successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);

@@ -355,7 +355,7 @@ public sealed class SoftDeleteUserRoleTests
         var userId = await fixture.Context.MyUser.Where(x => x.Account == "amy").Select(x => x.Id).SingleAsync();
         fixture.Context.PasswordResetToken.Add(new PasswordResetToken { MyUserId = userId, TokenHash = "hash", CreatedAtUtc = DateTime.UtcNow, ExpiresAtUtc = DateTime.UtcNow.AddHours(1) });
         await fixture.Context.SaveChangesAsync();
-        Assert.NotNull((await fixture.LoginService().LoginAsync("amy", "pw-123456")).Item2);
+        Assert.NotNull((await fixture.LoginService().LoginAsync("amy", "pw-123456")).User);
 
         Assert.True((await users.DeleteAsync(userId)).Success);
 
@@ -570,7 +570,8 @@ public sealed class SoftDeleteUserRoleTests
 
         public MyUserServiceLogin LoginService()
             => new(NewContext(), mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
-                new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System);
+                new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
+                TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), supportAccount: bootstrapSettings.SupportAccount));
 
         public Task<ExternalLoginResult> ExternalLogin(string subject, string email)
             => new ExternalLoginService(NewContext(), NullLogger<ExternalLoginService>.Instance, new RecordingAuditLogService(), new RecordingNotificationSender())

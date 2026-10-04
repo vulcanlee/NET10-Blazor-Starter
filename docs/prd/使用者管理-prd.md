@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.103
+- 現行系統版本：0.9.104
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -31,6 +31,7 @@
 
 - **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、搜尋、清空搜尋。0.9.30 起「狀態」以 `StatusPill` 徽章呈現（啟用＝綠、停用＝灰）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
   0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
+  0.9.104 起：已開啟兩步驟驗證的帳號在「狀態」多一個「兩步驟驗證」徽章，操作欄（自己那一列除外）多「重設兩步驟驗證」（確認後清除驗證器設定與備用碼，見[兩步驟驗證](兩步驟驗證-prd.md)）。
 - **維護表單**（Modal）欄位：
   - 帳號（必填，唯一）、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
   - 「下次登入須變更密碼」核取方塊（0.9.101 起，`MustChangePassword`）：新增時預設勾選；編輯時輸入新密碼會自動勾選（仍可取消）；也可以不改密碼只勾選，要求對方下次登入先換密碼。
@@ -91,6 +92,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
   0.9.101 起設定新密碼要通過規則與歷史檢查（不可與這位使用者最近 N 次用過的密碼相同），`MustChangePassword` 一律依畫面儲存。
 - **強制登出**（`ForceLogoutAsync`，0.9.103 起）：換掉這個人的工作階段版本（`ExecuteUpdate`、不換 `ConcurrencyStamp`、稽核 `User.ForceLogout`），所有已登入的瀏覽器下一次換頁被登出、API 無法再 refresh；自己那一列沒有這個按鈕。
   另外停用、刪除、變更管理員身分或角色、設定新密碼也會換版本；管理員改到自己時經 `/Auths/RefreshSession` 保持這台登入。
+- **重設兩步驟驗證**（`ITwoFactorService.ResetAsync`，0.9.104 起）：清掉密鑰、時間步與備用碼並換工作階段版本（對方所有登入失效），稽核 `User.TwoFactorReset`；對方下次登入只需密碼，若必須使用會被帶去重新設定。
 - **解鎖**（`UnlockAsync`，0.9.101 起）：只以 `ExecuteUpdate` 清除失敗次數與鎖定到期，**不換版本號**（別人開著這位使用者的編輯窗不會因此衝突）；沒有被鎖定時回「這位使用者目前沒有被鎖定。」。
 
 ## 七、驗收與測試
@@ -101,6 +103,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/AuditEventsTests.cs`：`User.Create`／`User.Update`／`User.Delete`（含帳號）與未登入 actor 為 null。
 - `MyProject.Tests/PermissionCheckerTests.cs`：多角色聯集有效權限鍵、管理員短路。
 - `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：新增與修改套用密碼原則、只勾旗標也會存、設定新密碼解鎖、解鎖不換版本號並寫稽核。
+- `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：管理員重設清除密鑰與備用碼、換版本、稽核。
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：support／自己不可刪、存檔驗證角色、保留指向已刪除角色的連結、還原衝突、永久刪除、已刪除者無法登入。
 
 ## 八、相關程式與文件

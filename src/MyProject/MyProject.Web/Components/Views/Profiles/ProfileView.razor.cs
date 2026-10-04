@@ -112,6 +112,8 @@ public partial class ProfileView
         AuditActions.Login.LockedOut => "連續輸錯，帳號被鎖定",
         AuditActions.Login.SsoSuccess => "Google 登入",
         AuditActions.Login.SsoFailed => "Google 登入失敗",
+        AuditActions.Login.TwoFactorFailed => "兩步驟驗證碼錯誤",
+        AuditActions.Login.SessionExpired => "其他地方變更了帳號，被登出",
         AuditActions.Logout => "登出",
         _ => action,
     };

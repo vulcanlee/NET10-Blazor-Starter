@@ -38,6 +38,7 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         "ForgotPassword", // 忘記密碼（0.9.60）：只有輸入框，送出後一律顯示同一句話
         "ResetPassword",  // 以信中連結重設密碼（0.9.60）：沒有有效 token 時只顯示「連結無效」
         "RefreshSession", // 換發這台裝置的 Cookie（0.9.103）：沒有原本的 Cookie 與有效 ticket 一律導去登出，不顯示任何內容
+        "TwoFactor",      // 兩步驟驗證第二步（0.9.104）：沒有有效的待驗證 Cookie 一律導回登入頁，只有驗證碼輸入框
     ];
 
     private readonly ApiTestApplicationFactory factory;

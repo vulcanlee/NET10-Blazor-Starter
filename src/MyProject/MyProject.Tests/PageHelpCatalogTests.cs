@@ -30,6 +30,7 @@ public sealed class PageHelpCatalogTests
         ["/Auths/ForgotPassword"] = "NoFooterLayout 忘記密碼頁，沒有頂欄",
         ["/Auths/ResetPassword"] = "NoFooterLayout 重設密碼頁，沒有頂欄",
         ["/Auths/RefreshSession"] = "換發 Cookie 的轉導頁，停留時間趨近於零",
+        ["/Auths/TwoFactor"] = "NoFooterLayout 兩步驟驗證第二步，沒有頂欄",
     };
 
     private static readonly string[] UnfinishedMarkers = ["TODO", "TBD", "待補", "（略）", "(略)"];

@@ -22,7 +22,8 @@ public sealed record ProfileInfo(
     DateTime? PasswordChangedAtUtc,
     DateTime? PasswordExpiresAtUtc,
     bool MustChangePassword,
-    string ConcurrencyStamp);
+    string ConcurrencyStamp,
+    bool TwoFactorEnabled = false);
 
 /// <summary>一筆自己的登入或登出紀錄。</summary>
 public sealed record LoginRecord(DateTime OccurredAtUtc, string Action, bool Success);
@@ -93,7 +94,8 @@ public class ProfileService
             user.PasswordChangedAtUtc,
             passwordPolicy.GetExpiresAtUtc(user.Account, hasLocalPassword, user.PasswordChangedAtUtc),
             user.MustChangePassword,
-            user.ConcurrencyStamp);
+            user.ConcurrencyStamp,
+            user.TwoFactorEnabled);
     }
 
     /// <summary>自己最近 <see cref="LoginHistorySize"/> 筆登入與登出紀錄（新到舊）。</summary>

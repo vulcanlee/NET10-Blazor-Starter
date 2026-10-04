@@ -21,6 +21,8 @@ public static class AuditActions
         public const string SsoFailed = "Login.Sso.Failed";
         /// <summary>工作階段已失效（改密碼、停用、角色變更、強制登出後的舊登入）被系統登出（0.9.103 起）。</summary>
         public const string SessionExpired = "Login.SessionExpired";
+        /// <summary>登入第二步的驗證碼或備用碼錯誤（0.9.104 起，計入登入失敗次數）。</summary>
+        public const string TwoFactorFailed = "Login.TwoFactorFailed";
     }
 
     public const string Logout = "Logout";
@@ -43,6 +45,11 @@ public static class AuditActions
         public const string ProfileUpdate = "User.ProfileUpdate";
         /// <summary>管理員強制登出這位使用者所有的工作階段（0.9.103 起）。</summary>
         public const string ForceLogout = "User.ForceLogout";
+        /// <summary>兩步驟驗證：本人啟用、停用、重新產生備用碼；管理員重設（0.9.104 起）。</summary>
+        public const string TwoFactorEnable = "User.TwoFactorEnable";
+        public const string TwoFactorDisable = "User.TwoFactorDisable";
+        public const string TwoFactorBackupCodesRegenerate = "User.TwoFactorBackupCodesRegenerate";
+        public const string TwoFactorReset = "User.TwoFactorReset";
     }
 
     public static class Role

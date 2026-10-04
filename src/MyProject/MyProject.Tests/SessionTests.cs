@@ -60,7 +60,7 @@ public sealed class SessionTests : IDisposable
         var legacy = AddUser("legacy", legacyPassword: "Legacy-pass1");
         var before = await StampOfAsync(legacy);
 
-        Assert.NotNull((await Login().LoginAsync("legacy", "Legacy-pass1")).Item2);
+        Assert.NotNull((await Login().LoginAsync("legacy", "Legacy-pass1")).User);
         Assert.Equal(before, await StampOfAsync(legacy));
 
         await using var context = factory.CreateDbContext();
@@ -278,7 +278,8 @@ public sealed class SessionTests : IDisposable
         var context = factory.CreateDbContext();
         disposables.Add(context);
         return new MyUserServiceLogin(context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
-            new RolePermissionService(), audit, PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System);
+            new RolePermissionService(), audit, PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
+            TwoFactorTestDefaults.Service(factory, audit));
     }
 
     private async Task SeedSupportAsync(string password)

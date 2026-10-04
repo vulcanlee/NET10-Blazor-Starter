@@ -259,7 +259,8 @@ public sealed class OptimisticConcurrencyTests
 
         public MyUserServiceLogin LoginService()
             => new(Context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
-                new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System);
+                new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
+                TwoFactorTestDefaults.Service(Factory()));
 
         public async Task<MyUser> AddUserAsync(MyUserService service, string account)
         {

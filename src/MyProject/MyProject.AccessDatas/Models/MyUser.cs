@@ -45,9 +45,13 @@ public class MyUser : IConcurrencyStamped, ISoftDeletable
     /// </summary>
     public bool TwoFactorEnabled { get; set; } = false;
     /// <summary>
-    /// TOTP Base32 密鑰；未綁定時為 null。
+    /// TOTP Base32 密鑰；未綁定時為 null。0.9.104 起以 Data Protection 加密後存放（<c>ITwoFactorSecretProtector</c>），⚠️ 絕不寫進日誌。
     /// </summary>
     public string? TwoFactorSecret { get; set; }
+    /// <summary>
+    /// 最近一次接受的 TOTP 時間步（0.9.104 起，防重放）：同一組 6 位數在有效期間內只能用一次。
+    /// </summary>
+    public long? TwoFactorLastStep { get; set; }
     /// <summary>
     /// 下次登入必須先變更密碼（0.9.101 起，取代以密碼 123456 當哨兵的做法）。管理員建立帳號或替使用者設密碼時預設勾選。
     /// </summary>

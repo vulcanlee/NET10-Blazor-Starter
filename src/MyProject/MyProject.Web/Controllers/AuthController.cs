@@ -19,15 +19,18 @@ public class AuthController : ControllerBase
 {
     private readonly MyUserServiceLogin userServiceLogin;
     private readonly IJwtTokenService jwtTokenService;
+    private readonly ITwoFactorService twoFactorService;
     private readonly ILogger<AuthController> logger;
 
     public AuthController(
         MyUserServiceLogin userServiceLogin,
         IJwtTokenService jwtTokenService,
+        ITwoFactorService twoFactorService,
         ILogger<AuthController> logger)
     {
         this.userServiceLogin = userServiceLogin;
         this.jwtTokenService = jwtTokenService;
+        this.twoFactorService = twoFactorService;
         this.logger = logger;
     }
 
@@ -38,11 +41,32 @@ public class AuthController : ControllerBase
     // MapControllers().RequireRateLimiting("api") 套用時機晚於屬性，會把它蓋掉而靜默失效。
     public async Task<ActionResult<ApiResult<TokenResponseDto>>> Login([FromBody] LoginRequestDto request)
     {
-        var (message, user) = await userServiceLogin.LoginAsync(request.Account, request.Password);
+        var attempt = await userServiceLogin.LoginAsync(request.Account, request.Password);
+        var (message, user) = attempt;
+
+        // 已啟用兩步驟驗證（0.9.104 起）：API 也要第二步，不能留後門。沒帶驗證碼只提示、不計入失敗次數。
+        if (attempt.RequiresTwoFactor && attempt.User is { } pendingUser)
+        {
+            if (string.IsNullOrWhiteSpace(request.TwoFactorCode))
+            {
+                logger.LogInformation("API login requires the second factor. UserId={UserId}", pendingUser.Id);
+                return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult("需要兩步驟驗證碼。"));
+            }
+
+            (message, user) = await userServiceLogin.CompleteSecondFactorAsync(pendingUser.Id, request.TwoFactorCode);
+        }
+
         if (user is null)
         {
             logger.LogWarning("API login failed. Account={Account}", request.Account);
             return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult(message));
+        }
+
+        // 必須使用兩步驟驗證卻還沒設定：網頁會帶去設定頁，API 沒有地方設定，直接拒絕（否則等於可以用 API 繞過強制）。
+        if (!user.TwoFactorEnabled && await twoFactorService.IsRequiredAsync(user.Id))
+        {
+            logger.LogInformation("API login refused because two-factor setup is required. UserId={UserId}", user.Id);
+            return Unauthorized(ApiResult<TokenResponseDto>.UnauthorizedResult("請先在網頁完成兩步驟驗證設定。"));
         }
 
         var tokenResponse = jwtTokenService.CreateTokenResponse(user);

@@ -55,6 +55,12 @@ namespace MyProject.Web.Components.Auths
         [Inject]
         public IOptionsMonitor<LockoutSettings> LockoutOptions { get; set; } = default!;
 
+        [Inject]
+        public TwoFactorLoginCookies TwoFactorCookies { get; set; } = default!;
+
+        [Inject]
+        public ISecurityStampService SecurityStampService { get; set; } = default!;
+
         string message = string.Empty;
 
         private bool ShowGoogleLogin => GoogleOptions.Value.IsConfigured;
@@ -150,7 +156,23 @@ namespace MyProject.Web.Components.Auths
                 return;
             }
 
-            (string result, MyUser? myUser) = await MyUserServiceLogin.LoginAsync(Input.Account, Input.Password);
+            var attempt = await MyUserServiceLogin.LoginAsync(Input.Account, Input.Password);
+            (string result, MyUser? myUser) = attempt;
+
+            // 已啟用兩步驟驗證（0.9.104 起）：記住過的裝置直接完成，否則帶到第二步（還不發 Cookie）。
+            if (attempt.RequiresTwoFactor && attempt.User is { } pendingUser)
+            {
+                var stamp = await SecurityStampService.EnsureAsync(pendingUser.Id);
+                if (!TwoFactorCookies.IsDeviceRemembered(HttpContext, pendingUser.Id, stamp))
+                {
+                    TwoFactorCookies.SetPending(HttpContext, new PendingTwoFactorLogin(pendingUser.Id, stamp, Input.RememberMe, ReturnUrlGuard.Sanitize(ReturnUrl), null));
+                    NavigationManager.NavigateTo("/Auths/TwoFactor");
+                    return;
+                }
+
+                (result, myUser) = await MyUserServiceLogin.CompleteSecondFactorAsync(pendingUser.Id, null, rememberedDevice: true);
+            }
+
             if (!string.IsNullOrEmpty(result) || myUser is null)
             {
                 Logger.LogWarning("Login failed for Account={Account}. Reason={Reason}", Input.Account, result);

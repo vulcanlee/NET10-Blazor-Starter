@@ -1,8 +1,8 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.97
+- 現行系統版本：0.9.104
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -33,6 +33,7 @@
 - **維護表單**（Modal）：
   - 名稱（必填，唯一）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。
+  - 「需要兩步驟驗證」（0.9.104 起，`RoleView.RequireTwoFactor`）：有這個角色（主要或額外）的人必須開啟兩步驟驗證，還沒設定的人下一次換頁被帶到設定頁；稽核 detail 帶 `requireTwoFactor=`。見[兩步驟驗證](兩步驟驗證-prd.md)。
   - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「系統管理功能」）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
 - **矩陣互動語意**：勾「（全部）」等同該頁裸鍵、代表全部動作，並停用個別動作核取方塊（舊制相容）；勾任一動作或頁面會自動點亮所屬群組；取消群組會連帶清掉其下所有頁面權限。
 
@@ -79,6 +80,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - `MyProject.Tests/PermissionCheckerTests.cs`：管理員全通過、角色具／缺鍵、裸頁面鍵授予全動作、僅 `view` 不含 `edit`、多角色聯集。
 - `MyProject.Tests/AuditEventsTests.cs`：`Role.Create`／`Role.Delete` 稽核。
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：已刪除的角色不再給權限（含 legacy `RoleViewId`）、仍是主要角色時刪除被擋且不改版本號、存檔後複查、預設角色不可刪、永久刪除的明確訊息、從 Clone 出來的模型可以存檔。
+- `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：主要或額外角色勾了「需要兩步驟驗證」即必須使用、已刪除的角色不算。
 - `MyProject.Tests/AdapterModelCloneTests.cs`（0.9.95）：`Clone()` 複製每個可寫屬性 —— 0.9.93～0.9.94 `RoleViewAdapterModel.Clone()` 漏了版本號，從畫面修改任何角色都被當成並行衝突。
 
 ## 八、相關程式與文件

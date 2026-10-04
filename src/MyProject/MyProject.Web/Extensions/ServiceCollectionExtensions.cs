@@ -110,6 +110,10 @@ public static class ServiceCollectionExtensions
         // 系統名稱與簡介的唯一讀取入口（0.9.98 起，可在「系統參數」頁修改，讀到的永遠是目前的值）。
         services.AddSingleton<ISystemIdentity, SystemIdentity>();
         services.AddScoped<ITotpService, TotpService>();
+        // 兩步驟驗證（0.9.104 起）。
+        services.AddSingleton<ITwoFactorSecretProtector, DataProtectionTwoFactorSecretProtector>();
+        services.AddScoped<ITwoFactorService, TwoFactorService>();
+        services.AddSingleton<TwoFactorLoginCookies>();
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
 
         // 啟動時的資料庫準備（0.9.91 起取代 Program.cs 的 migrate 與 seed）。
@@ -333,6 +337,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<LockoutSettings>()
             .Bind(configuration.GetSection(LockoutSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<TwoFactorSettings>()
+            .Bind(configuration.GetSection(TwoFactorSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

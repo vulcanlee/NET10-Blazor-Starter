@@ -24,6 +24,8 @@ public class RoleViewAdapterModel : ICloneable
     public RolePermission RolePermission { get; set; } = new();
     /// <summary>角色預設團隊（UI 綁定用）</summary>
     public List<string> DefaultTeams { get; set; } = [];
+    /// <summary>有這個角色的人必須使用兩步驟驗證（0.9.104 起）。</summary>
+    public bool RequireTwoFactor { get; set; }
 
     public RoleViewAdapterModel Clone()
     {
@@ -45,7 +47,8 @@ public class RoleViewAdapterModel : ICloneable
             CreateAt = CreateAt,
             UpdateAt = UpdateAt,
             RolePermission = RolePermission.Clone(),
-            DefaultTeams = new List<string>(DefaultTeams)
+            DefaultTeams = new List<string>(DefaultTeams),
+            RequireTwoFactor = RequireTwoFactor
         };
     }
 }

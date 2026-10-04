@@ -125,6 +125,10 @@ else
                             }
                         </Select>
                     </FormItem>
+
+                    <FormItem Class="form-field-full">
+                        <Checkbox Checked="@CurrentRecord.RequireTwoFactor" CheckedChanged="@(value => CurrentRecord.RequireTwoFactor = value)">需要兩步驟驗證（有這個角色的人，設定完成前無法使用其他頁面）</Checkbox>
+                    </FormItem>
                 </FormSection>
 
                 @* 權限矩陣本身就是二維排列，再塞進半欄會變成三層巢狀 —— 整個區塊走單欄。 *@

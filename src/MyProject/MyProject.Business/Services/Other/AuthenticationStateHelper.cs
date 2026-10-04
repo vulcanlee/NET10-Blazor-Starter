@@ -25,6 +25,7 @@ public class AuthenticationStateHelper
     private readonly IAuditLogService auditLogService;
     private readonly IPasswordPolicy passwordPolicy;
     private readonly ISecurityStampService securityStampService;
+    private readonly ITwoFactorService twoFactorService;
 
     /// <summary>
     /// 換頁時工作階段版本的查詢可以沿用幾秒內的結果：同一次換頁裡版面、選單、頁面各檢查一次，不必各查一次資料庫。
@@ -42,7 +43,8 @@ public class AuthenticationStateHelper
         IPermissionChecker permissionChecker,
         IAuditLogService auditLogService,
         IPasswordPolicy passwordPolicy,
-        ISecurityStampService securityStampService)
+        ISecurityStampService securityStampService,
+        ITwoFactorService twoFactorService)
     {
         this.logger = logger;
         this.mapper = mapper;
@@ -54,6 +56,7 @@ public class AuthenticationStateHelper
         this.auditLogService = auditLogService;
         this.passwordPolicy = passwordPolicy;
         this.securityStampService = securityStampService;
+        this.twoFactorService = twoFactorService;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -135,6 +138,15 @@ public class AuthenticationStateHelper
             return AuthenticationCheckResult.RequiresPasswordChange;
         }
 
+        // 必須使用兩步驟驗證卻還沒設定（0.9.104 起）：在改密碼之後判斷，而且兩個頁面互不導向，否則會來回跳。
+        if (!needChangePassword && !myUser.TwoFactorEnabled && !IsPage(navigationManager, "TwoFactorSetup")
+            && await twoFactorService.IsRequiredAsync(id))
+        {
+            logger.LogInformation("User {UserId} must set up two-factor authentication before continuing.", id);
+            navigationManager.NavigateTo("/TwoFactorSetup", true);
+            return AuthenticationCheckResult.RequiresTwoFactorSetup;
+        }
+
         CurrentUser currentUser = mapper.Map<CurrentUser>(myUser);
         RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
 
@@ -179,10 +191,12 @@ public class AuthenticationStateHelper
         }
     }
 
-    private static bool IsChangePasswordPage(NavigationManager navigationManager)
+    private static bool IsChangePasswordPage(NavigationManager navigationManager) => IsPage(navigationManager, "ChangePassword");
+
+    private static bool IsPage(NavigationManager navigationManager, string page)
     {
         var currentPath = new Uri(navigationManager.Uri).AbsolutePath.Trim('/');
-        return string.Equals(currentPath, "ChangePassword", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(currentPath, page, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<MyUserAdapterModel?> GetUserInformation(AuthenticationStateProvider authStateProvider)

@@ -102,7 +102,10 @@ public class AutoMapping : Profile
         CreateMap<MyUserAdapterModel, MyUser>().IgnoreSoftDeleteFields()
             .ForMember(dest => dest.LockoutEndUtc, opt => opt.Ignore())
             .ForMember(dest => dest.PasswordChangedAtUtc, opt => opt.Ignore())
-            .ForMember(dest => dest.SecurityStamp, opt => opt.Ignore());
+            .ForMember(dest => dest.SecurityStamp, opt => opt.Ignore())
+            .ForMember(dest => dest.TwoFactorEnabled, opt => opt.Ignore())
+            .ForMember(dest => dest.TwoFactorSecret, opt => opt.Ignore())
+            .ForMember(dest => dest.TwoFactorLastStep, opt => opt.Ignore());
         CreateMap<MyUserAdapterModel, CurrentUser>()
             .ForMember(dest => dest.RoleJson, opt => opt.Ignore())
             .ForMember(dest => dest.RoleList, opt => opt.Ignore())

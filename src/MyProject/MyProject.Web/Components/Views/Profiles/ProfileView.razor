@@ -94,6 +94,21 @@ else
             }
         </section>
 
+        @if (profile.HasLocalPassword)
+        {
+            <section class="profile-section">
+                <h2 class="profile-heading">兩步驟驗證</h2>
+                <div class="profile-row">
+                    <span class="profile-label">狀態</span>
+                    <StatusPill Text="@(profile.TwoFactorEnabled ? "已啟用" : "未啟用")" Tone="@(profile.TwoFactorEnabled ? StatusTone.Positive : StatusTone.Muted)" />
+                </div>
+                <div class="profile-muted">登入時除了密碼，還要輸入手機驗證器 App 上的驗證碼。</div>
+                <div class="profile-actions">
+                    <Button OnClick="@(() => NavigationManager.NavigateTo("/TwoFactorSetup"))">@(profile.TwoFactorEnabled ? "管理兩步驟驗證" : "設定兩步驟驗證")</Button>
+                </div>
+            </section>
+        }
+
         <section class="profile-section">
             <h2 class="profile-heading">最近 @HistorySize 筆登入紀錄</h2>
             @if (logins.Count == 0)

@@ -156,6 +156,56 @@ public sealed class AuthenticationStateHelperTests
         Assert.Equal("/ChangePassword", navigationManager.NavigatedTo);
     }
 
+    /// <summary>0.9.104 起：必須使用兩步驟驗證卻還沒設定 → 每次換頁都帶去設定頁。</summary>
+    [Fact]
+    public async Task Check_WhenTwoFactorRequiredButNotSetUp_ShouldRedirectToTheSetupPage()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        await fixture.RequireTwoFactorForRoleOfAsync(user);
+        var navigationManager = new TestNavigationManager("http://localhost/App");
+
+        var result = await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), navigationManager);
+
+        Assert.Equal(AuthenticationCheckResult.RequiresTwoFactorSetup, result);
+        Assert.Equal("/TwoFactorSetup", navigationManager.NavigatedTo);
+    }
+
+    [Fact]
+    public async Task Check_OnTheSetupPage_OrWhenAlreadyEnabled_ShouldSucceed()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync();
+        await fixture.RequireTwoFactorForRoleOfAsync(user);
+
+        var onSetup = new TestNavigationManager("http://localhost/TwoFactorSetup");
+        Assert.Equal(AuthenticationCheckResult.Succeeded, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), onSetup));
+        Assert.Null(onSetup.NavigatedTo);
+
+        await fixture.Context.MyUser.Where(x => x.Id == user.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.TwoFactorEnabled, true).SetProperty(x => x.TwoFactorSecret, "protected"));
+        var elsewhere = new TestNavigationManager("http://localhost/App");
+        Assert.Equal(AuthenticationCheckResult.Succeeded, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), elsewhere));
+        Assert.Null(elsewhere.NavigatedTo);
+    }
+
+    /// <summary>同時要改密碼與設定兩步驟驗證：先改密碼，而且改密碼頁不會被帶去設定頁（兩頁互不導向，否則來回跳）。</summary>
+    [Fact]
+    public async Task Check_WhenPasswordChangeIsAlsoRequired_ShouldGoToChangePasswordFirst_WithoutALoop()
+    {
+        await using var fixture = await AuthenticationStateHelperFixture.CreateAsync();
+        var user = await fixture.AddUserAsync(mustChangePassword: true);
+        await fixture.RequireTwoFactorForRoleOfAsync(user);
+
+        var onApp = new TestNavigationManager("http://localhost/App");
+        Assert.Equal(AuthenticationCheckResult.RequiresPasswordChange, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), onApp));
+        Assert.Equal("/ChangePassword", onApp.NavigatedTo);
+
+        var onChangePassword = new TestNavigationManager("http://localhost/ChangePassword");
+        Assert.Equal(AuthenticationCheckResult.Succeeded, await fixture.CreateHelper().Check(new TestAuthenticationStateProvider(CreatePrincipal(user)), onChangePassword));
+        Assert.Null(onChangePassword.NavigatedTo);
+    }
+
     /// <summary>0.9.103 起：工作階段版本與資料庫不符（改密碼、停用、強制登出之後的舊登入）→ 系統登出並記 Login.SessionExpired。</summary>
     [Fact]
     public async Task Check_WithAStaleSecurityStamp_ShouldRevokeTheSession()
@@ -359,6 +409,9 @@ public sealed class AuthenticationStateHelperTests
 
         public CurrentUserService CurrentUserService { get; }
 
+        /// <summary>兩步驟驗證設定（0.9.104 起）；測試可在建立 helper 前修改。</summary>
+        public TwoFactorSettings TwoFactorSettings { get; } = new();
+
         public static async Task<AuthenticationStateHelperFixture> CreateAsync()
         {
             var connection = new SqliteConnection("Data Source=:memory:");
@@ -388,7 +441,8 @@ public sealed class AuthenticationStateHelperTests
                 new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
                 passwordPolicy ?? PasswordTestDefaults.Policy(),
-                new SecurityStampService(new TestDbContextFactory(connection), TimeProvider.System, NullLogger<SecurityStampService>.Instance));
+                new SecurityStampService(new TestDbContextFactory(connection), TimeProvider.System, NullLogger<SecurityStampService>.Instance),
+                TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), currentUser: CurrentUserService, settings: TwoFactorSettings));
         }
 
         public async Task<MyUser> AddUserAsync(
@@ -432,6 +486,9 @@ public sealed class AuthenticationStateHelperTests
 
             return user;
         }
+
+        public async Task RequireTwoFactorForRoleOfAsync(MyUser user)
+            => await Context.RoleView.Where(x => x.Id == user.RoleViewId).ExecuteUpdateAsync(s => s.SetProperty(x => x.RequireTwoFactor, true));
 
         public async Task<MyUser> AddMultiRoleUserAsync(string primaryKey, string additionalKey)
         {
