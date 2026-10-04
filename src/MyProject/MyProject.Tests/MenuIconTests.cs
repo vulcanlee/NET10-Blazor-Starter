@@ -38,6 +38,7 @@ public sealed class MenuIconTests
         "tune",
         "monitor_heart",
         "fact_check",
+        "schedule",
     };
 
     [Fact]

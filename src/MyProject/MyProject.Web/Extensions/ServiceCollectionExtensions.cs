@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.Business.Repositories;
@@ -23,6 +24,8 @@ using MyProject.Web.Email;
 using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
+using MyProject.Web.Scheduling;
+using MyProject.Web.Scheduling.Jobs;
 using System.Globalization;
 using System.Threading.Channels;
 using System.Threading.RateLimiting;
@@ -184,18 +187,49 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AiCallLogFileStore>();
         services.AddScoped<AiCallLogService>();
         services.AddScoped<IAiCallLogRecorder>(sp => sp.GetRequiredService<AiCallLogService>());
-        // 自動過期：啟動時一次、之後每日一次；停用記錄時照樣清除過期內容。
-        services.AddHostedService<AiCallLogRetentionWorker>();
+        #endregion
 
-        // 例外紀錄與稽核紀錄的自動保存期限（LOG-13）。TimeProvider 讓測試能以假時鐘驗證門檻。
-        services.AddSingleton(TimeProvider.System);
-        services.AddHostedService<LogRetentionWorker>();
+        #region 排程作業（0.9.96 起）
+        services.AddScheduledJobs();
         #endregion
 
         services.AddHttpContextAccessor();
         services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
         services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, MyProject.Web.Components.ApplicationCircuitHandler>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// 排程作業（0.9.96 起）：框架的服務、四個內建清理作業與排程器。
+    /// 週期性的背景工作一律以 <see cref="ScheduledJobServiceCollectionExtensions.AddScheduledJob{TJob}"/> 註冊在這裡（速查表「排程作業」），
+    /// 不要再自己寫 BackgroundService 計時器。獨立成一個方法：設定驗證器需要作業清單，測試的設定驗證也呼叫它。
+    /// </summary>
+    public static IServiceCollection AddScheduledJobs(this IServiceCollection services)
+    {
+        // TimeProvider 讓測試能以假時鐘驗證排程時間與保留天數的門檻。
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<ScheduledJobRunService>();
+        services.AddSingleton<JobLockProvider>();
+        services.AddSingleton<ScheduledJobTriggerQueue>();
+        services.AddSingleton<ScheduledJobRunner>();
+        services.AddSingleton<ScheduledJobOverviewService>();
+
+        services.AddScheduledJob<AuditLogRetentionJob>(
+            AuditLogRetentionJob.JobName, "稽核紀錄清理",
+            "刪除超過保留天數的稽核紀錄（LogRetentionSettings:AuditLogDays，預設 365 天，0 = 不清除）。", "0 3 * * *");
+        services.AddScheduledJob<ExceptionLogRetentionJob>(
+            ExceptionLogRetentionJob.JobName, "系統例外紀錄清理",
+            "刪除超過保留天數的系統例外紀錄與堆疊檔（LogRetentionSettings:ExceptionLogDays，預設 90 天，0 = 不清除）。", "0 3 * * *");
+        services.AddScheduledJob<AiCallLogRetentionJob>(
+            AiCallLogRetentionJob.JobName, "AI 對話紀錄清理",
+            "刪除超過保留天數的 AI 對話紀錄與內容檔（AiCallLogSettings:RetentionDays，預設 90 天）。", "0 3 * * *");
+        services.AddScheduledJob<TokenUsageLogRetentionJob>(
+            TokenUsageLogRetentionJob.JobName, "Token 用量紀錄清理",
+            "刪除超過保留天數的 Token 用量紀錄與原始檔（LogRetentionSettings:TokenUsageLogDays，預設 365 天，0 = 不清除）。", "0 3 * * *");
+
+        // ⚠️ 必須註冊在 ExceptionLogWriter 之後：主機以相反順序停止，作業在關機時記的錯誤才還有人寫進系統例外紀錄。
+        services.AddHostedService<JobSchedulerWorker>();
         return services;
     }
 
@@ -213,6 +247,7 @@ public static class ServiceCollectionExtensions
         services.AddValidatedOptions<AiSettings, AiSettingsValidator>(configuration, AiSettings.SectionName);
         services.AddValidatedOptions<AiPricingSettings, AiPricingSettingsValidator>(configuration, AiPricingSettings.SectionName);
         services.AddValidatedOptions<ForwardedHeadersSettings, ForwardedHeadersSettingsValidator>(configuration, ForwardedHeadersSettings.SectionName);
+        services.AddValidatedOptions<ScheduledJobSettings, ScheduledJobSettingsValidator>(configuration, ScheduledJobSettings.SectionName);
         services.AddOptions<SecuritySettings>().Bind(configuration.GetSection(SecuritySettings.SectionName)).ValidateOnStart();
         services.AddOptions<SwaggerSettings>().Bind(configuration.GetSection(SwaggerSettings.SectionName)).ValidateOnStart();
 

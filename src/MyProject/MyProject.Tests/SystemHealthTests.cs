@@ -124,7 +124,7 @@ public sealed class SystemHealthTests
     /// ⚠️ 資料庫那項的權重 25 在原始碼裡出現三次（三個 return 分支），改動時特別容易漏。
     /// </summary>
     [Fact]
-    public void CheckWeights_ShouldSumTo145()
+    public void CheckWeights_ShouldSumTo150()
     {
         var expected = new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -141,10 +141,11 @@ public sealed class SystemHealthTests
             ["AI 計費表"] = 5,
             ["寄信服務"] = 10,
             ["日誌管線"] = 10,
+            ["排程作業"] = 5,
         };
 
-        Assert.Equal(13, expected.Count);
-        Assert.Equal(145, expected.Values.Sum());
+        Assert.Equal(14, expected.Count);
+        Assert.Equal(150, expected.Values.Sum());
 
         var source = File.ReadAllText(FindHealthServicePath());
 

@@ -130,6 +130,9 @@ public static class AuditActions
         public const string Delete = "AiCallLog.Delete";
         public const string Purge = "AiCallLog.Purge";
         public const string ClearAll = "AiCallLog.ClearAll";
+
+        /// <summary>排程作業依保留天數自動清除（0.9.96 起；之前自動清除不寫稽核）。</summary>
+        public const string AutoPurge = "AiCallLog.AutoPurge";
     }
 
     public static class TokenUsage
@@ -138,6 +141,9 @@ public static class AuditActions
         public const string Purge = "TokenUsage.Purge";
         public const string ClearAll = "TokenUsage.ClearAll";
         public const string Export = "TokenUsage.Export";
+
+        /// <summary>排程作業依保留天數自動清除（0.9.96 起；之前不會自動清除）。</summary>
+        public const string AutoPurge = "TokenUsage.AutoPurge";
     }
 
     public static class Audit
@@ -151,5 +157,13 @@ public static class AuditActions
     public static class Email
     {
         public const string Test = "Email.Test";
+    }
+
+    /// <summary>「排程作業」頁的手動操作（0.9.96 起）。排程自己跑的結果記在執行紀錄，不寫稽核。</summary>
+    public static class Job
+    {
+        public const string Trigger = "Job.Trigger";
+        public const string Enable = "Job.Enable";
+        public const string Disable = "Job.Disable";
     }
 }

@@ -23,6 +23,7 @@ public sealed class AdminOnlyPermissionTests
         MagicObjectHelper.角色_日誌等級設定,
         MagicObjectHelper.角色_Token用量,
         MagicObjectHelper.角色_AI對話紀錄,
+        MagicObjectHelper.角色_排程作業,
         MagicObjectHelper.角色_系統管理,
         MagicObjectHelper.角色_權限管理,
         MagicObjectHelper.角色_使用者管理,

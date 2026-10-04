@@ -376,6 +376,60 @@ public class TokenUsageLogService : ITokenUsageRecorder
         }
     }
 
+    /// <summary>
+    /// 自動過期（0.9.96 起由排程作業呼叫）：刪除早於「今天往前 <paramref name="days"/> 天」的紀錄與原始檔，
+    /// 最後清掉門檻月份之前的整個月份目錄（中斷時留下的孤兒檔）。
+    ///
+    /// ⚠️ 分批刪：<see cref="PurgeBeforeAsync"/> 一次載入全部過期資料並在一個交易裡刪，第一次清兩年份的資料會長時間佔住
+    /// SQLite 的寫入鎖，所有使用者的存檔都得排隊。每批先刪資料列再經 <see cref="TokenUsageRawStore"/> 刪檔（速查表 §6.7 紅線），
+    /// 批次之間檢查取消 —— 關機時停在批次邊界，不會留下「列刪了、檔還在」以外的狀態，而那種孤兒檔下一次會被月份清理收掉。
+    /// </summary>
+    /// <returns>刪除的資料列數；失敗回 null（已記錄錯誤）。</returns>
+    public async Task<int?> PurgeExpiredAsync(int days, DateTime nowLocal, CancellationToken cancellationToken, int batchSize = 500)
+    {
+        var threshold = nowLocal.Date.AddDays(-days);
+        var removed = 0;
+
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+                var batch = await context.TokenUsageLog
+                    .Where(x => x.OccurredAt < threshold)
+                    .OrderBy(x => x.Id)
+                    .Select(x => new { x.Id, x.RawUsageFile })
+                    .Take(batchSize)
+                    .ToListAsync(cancellationToken);
+                if (batch.Count == 0)
+                {
+                    break;
+                }
+
+                var ids = batch.Select(x => x.Id).ToList();
+                removed += await context.TokenUsageLog.Where(x => ids.Contains(x.Id)).ExecuteDeleteAsync(cancellationToken);
+                foreach (var item in batch)
+                {
+                    rawStore.Delete(item.RawUsageFile);
+                }
+            }
+
+            rawStore.DeleteMonthsBefore(threshold);
+            Logger.LogInformation("Expired LLM usage records purged. Rows={Rows}, RetentionDays={RetentionDays}", removed, days);
+            return removed;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to purge expired LLM usage records. RowsBeforeFailure={Rows}", removed);
+            return null;
+        }
+    }
+
     private static IQueryable<TokenUsageLog> ApplyFilters(IQueryable<TokenUsageLog> source, TokenUsageQuery query)
     {
         if (query.StartDate.HasValue)

@@ -1,10 +1,10 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.79
+- 現行系統版本：0.9.96
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
-- 最後核對日期：2026/10/01
+- 最後核對日期：2026/10/04
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
@@ -264,7 +264,7 @@
 | LOG-10 錯誤追蹤碼 | `TraceCode` 產生 8 碼短碼（Crockford Base32，不含時間、主機、帳號）：HTTP 請求由 `UseHttpRequestLogging` 產生並**取代 `HttpContext.TraceIdentifier`**（`/Error` 重新執行時沿用同一個碼），Blazor 每次互動由 `ApplicationCircuitHandler` 產生；兩者放進 NLog ScopeContext。例外紀錄新增 `LastTraceId`（migration `AddExceptionLogLastTraceId`），明細窗、點列複製、CSV 都顯示，關鍵字可搜尋。錯誤邊界兩處、`/Error` 頁（改為中文並修正原本顯示 `Activity.Id` 對不上的問題）、表單儲存失敗與 18 處「…失敗：{型別}」通知（`ViewNotification.UnexpectedError`）顯示「錯誤追蹤碼：xxxx」；`ApiServerError` 回應帶 `TraceId`。`/logs` 新增「錯誤追蹤碼」篩選（比對 TraceId 欄位完全相同）。**調整**：不新增日誌欄位，沿用原本的 TraceId 欄位（`${scopeproperty:item=TraceCode:whenEmpty=${aspnet-TraceIdentifier}}`），欄位數維持 7 個、舊日誌檔照樣解析。只有「未預期例外」的訊息附追蹤碼，「名稱重複」等一般驗證訊息不附 | `TraceCodeTests`、`LogQueryServiceTests.Query_TraceCodeFilter_ShouldKeepOnlyExactTraceIdMatches`、`ApiIntegrationTests.UnhandledApiException_TraceIdShouldMatchExceptionLog`、`ApiIntegrationTests.CaughtApiException_ShouldReturnTraceId`、`ExceptionLogServiceTests.RecordAsync_ShouldKeepLastTraceId_AndReturnOutcome` |
 | LOG-11 使用者錯誤不進例外紀錄表 | 分類、團隊的新增／修改撞唯一索引時先判斷，命中記 Information、不帶例外物件；`ProjectController` 刪除時的外鍵衝突改為先判斷再記錄，並補上 SQLite 的訊息（原本只認 SQL Server） | `TeamServiceTests.AddAsync_WhenRejected_ShouldNotWriteAudit` 等既有服務測試 |
 | LOG-12 例外 Email 告警 | `ExceptionAlertService`（`ExceptionAlertSettings`）在寫入器每筆寫入後評估，補登檔匯入時也評估；觸發：新簽章、Critical、暴增；節流：同簽章冷卻、全系統每小時上限（超過的筆數併入下一封）。`RecordAsync` 改為回傳 `ExceptionRecordOutcome`，`ExceptionLogEntry` 新增 `IsCritical`。信件 `EmailKinds.ExceptionAlert` 只含摘要。寄信背景作業自身的錯誤不告警。出貨預設停用 | `ExceptionAlertServiceTests`（假時鐘） |
-| LOG-13 統一保存期限 | `LogRetentionSettings`＋`LogRetentionWorker`（啟動時與每日；`TimeProvider` 可替換）；例外以本地時間、稽核以 UTC 計算門檻；刪到資料時寫 `ExceptionLog.AutoPurge`／`Audit.AutoPurge`。兩頁的手動清除改讀同一組天數。**調整**：「不自動清理」為 `0`（不接受負數） | `LogRetentionWorkerTests`（假時鐘） |
+| LOG-13 統一保存期限 | `LogRetentionSettings`＋排程作業（0.9.96 起預設每天 03:00；0.9.78～0.9.95 為 `LogRetentionWorker` 啟動時與每日；`TimeProvider` 可替換）；例外以本地時間、稽核以 UTC 計算門檻；刪到資料時寫 `ExceptionLog.AutoPurge`／`Audit.AutoPurge`。兩頁的手動清除改讀同一組天數。**調整**：「不自動清理」為 `0`（不接受負數） | `RetentionJobTests`（假時鐘，0.9.96 起取代 `LogRetentionWorkerTests`） |
 | LOG-14 補齊稽核事件 | 動作代碼收斂到 `MyProject.Business.Helpers.AuditActions`。新增：分類／團隊／專案增刪改（Blazor 走服務、API 走 Controller，`ControllerAuditExtensions`）、專案附件上傳／刪除筆數、登出、Google SSO 成功／失敗／停用／帳號連結／自動建立、自行變更密碼（兩條路徑）、JWT 刷新失敗、Blazor 頁面權限拒絕（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`，14 頁）、例外紀錄與 Token 用量的刪除／清除／清空、稽核／例外／AI 對話／日誌／Token 用量的匯出、自動清理 | `AuditConventionTests`（禁字串字面值、代碼唯一）、`TeamServiceTests.AddUpdateDelete_ShouldWriteAuditWithCurrentUser` |
 | LOG-15 補上缺少日誌的類別 | `JwtTokenService`、`ApiValidationFilterAttribute`（只記欄位名稱）、`DatabaseHealthCheck`、`RecordAccessScopeProvider`、登出（含帳號）補上日誌；`LoggingConventionTests` 的「必有 ILogger」範圍加入 `Web/Auth`、`Web/Filters`、`Web/Health` | `LoggingConventionTests.BehaviourClasses_ShouldHoldALogger` |
 | LOG-16 頁面記路由樣板 | `UseExceptionContextUser` 與請求日誌的 catch 以 `RouteEndpoint.RoutePattern.RawText` 取代原始路徑（例如 `/api/ContractProbe/throw/{id}`）；Blazor 頁面目前沒有帶參數的 `@page`，維持原路徑 | `ApiIntegrationTests.UnhandledApiException_ShouldRecordRouteTemplateAsPage` |

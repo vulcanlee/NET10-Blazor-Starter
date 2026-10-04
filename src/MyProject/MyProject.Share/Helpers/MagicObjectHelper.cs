@@ -95,6 +95,9 @@ public class MagicObjectHelper
 
     /// <inheritdoc cref="角色_統計與分析"/>
     public const string 角色_AI對話紀錄 = "AI 對話紀錄";
+
+    /// <inheritdoc cref="角色_統計與分析"/>
+    public const string 角色_排程作業 = "排程作業";
     public const string 使用者角色 = "使用者角色";
 
     #endregion

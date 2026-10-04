@@ -340,6 +340,7 @@ public sealed class OptionsValidationTests
         var services = new ServiceCollection();
         services.AddConfiguredOptions(configuration);
         services.AddConfiguredEmail(configuration);
+        services.AddScheduledJobs();
         services.AddValidatedOptions<GoogleOAuthSettings, GoogleOAuthSettingsValidator>(configuration, GoogleOAuthSettings.SectionName);
 
         using var provider = services.BuildServiceProvider();

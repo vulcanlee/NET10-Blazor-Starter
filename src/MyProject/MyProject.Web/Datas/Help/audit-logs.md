@@ -48,14 +48,15 @@
 | Token | 透過 Web API 換發登入憑證失敗 | `Token.RefreshFailed` |
 | 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在「顯示已刪除」還原或永久刪除 | `Category.Create`、`Category.Update`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Team.Create`、`Team.Update`、`Team.Delete`、`Team.Restore`、`Team.Purge` |
 | 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件 | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.FileUpload`、`Project.FileDelete` |
-| 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；系統每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge` |
-| Token 用量 | 在「Token 用量」刪除、清除、清空、匯出 | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export` |
+| 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge` |
+| Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
+| 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable` |
 | 匯出 | 在「日誌檢視」匯出日誌、在「AI 對話紀錄」匯出清單 | `LogViewer.Export`、`AiCallLog.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |
 | 日誌分析 | 在「日誌檢視」執行 AI 分析，或匯出 AI 分析的 PDF 報告 | `LogViewer.AiAnalyze`、`LogViewer.AiAnalyzeExportPdf` |
 | 專案附件 | 在「專案項目」下載附件 | `Project.FileDownload` |
-| 稽核 | 在這一頁清除、清空或匯出稽核紀錄；系統每天自動清除 | `Audit.Purge`、`Audit.ClearAll`、`Audit.Export`、`Audit.AutoPurge` |
+| 稽核 | 在這一頁清除、清空或匯出稽核紀錄；排程作業每天自動清除 | `Audit.Purge`、`Audit.ClearAll`、`Audit.Export`、`Audit.AutoPurge` |
 
 系統自動清除的紀錄，操作者顯示「（系統／匿名）」。
 

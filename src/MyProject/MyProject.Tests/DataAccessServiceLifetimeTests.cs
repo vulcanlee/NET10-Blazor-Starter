@@ -30,6 +30,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(TokenUsageLogService),
         typeof(AiCallLogService),
         typeof(AuditLogQueryService),
+        typeof(ScheduledJobRunService),
     ];
 
     [Theory]

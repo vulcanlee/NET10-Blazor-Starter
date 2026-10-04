@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.95
+- 現行系統版本：0.9.96
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/10/04
 
@@ -88,7 +88,7 @@ scoped CSS 連 `::deep` 都打不到。
 
 - 「清除 N 天前」的 N 讀 `LogRetentionSettings:AuditLogDays`（0.9.78 起，原為程式常數 365）；設 0 停用自動清理時退回 365。
   預設 365 天而非例外紀錄的 90 天：例外紀錄清的是噪音，稽核軌跡清的是責任證據。
-- **自動清理**（0.9.78 起）：`LogRetentionWorker` 啟動時與每日一次，刪除早於 N 天（UTC）的紀錄，
+- **自動清理**（0.9.78 起）：排程作業「稽核紀錄清理」（0.9.96 起預設每天 03:00；之前是 `LogRetentionWorker` 啟動時與每日）刪除早於 N 天（UTC）的紀錄，
   刪到資料時寫一筆 `Audit.AutoPurge`（操作者顯示「（系統／匿名）」）。有法規或內控保存要求時請調大天數或設 0。
 - **清除與清空動作本身會各寫一筆稽核紀錄**（`Audit.Purge` / `Audit.ClearAll`，含操作者與筆數）。
   寫入排在刪除之後，所以那一筆會留在清空後的資料表裡。
@@ -107,6 +107,8 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 | `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin` |
 | `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` | `MyUserService` |
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
+| `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄） |
+| `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）|
 | `Project.FileDownload` | `ProjectFileController` |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
@@ -123,7 +125,7 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 2. **`AuditLog.OccurredAt` 沒有索引**：`ExceptionLog.LastOccurredAt` 與 `TokenUsageLog.OccurredAt`
    在 `BackendDBContext` 都建了索引，`AuditLog` 沒有。資料量大到影響查詢時應補一支 migration。
 3. 時區以伺服器為準（見 §四）。
-4. ~~清除與清空沒有保留期限的自動化~~ —— 0.9.78 起由 `LogRetentionWorker` 每日自動清理（§五）。
+4. ~~清除與清空沒有保留期限的自動化~~ —— 0.9.78 起每日自動清理，0.9.96 起改由排程作業執行（§五）。
 
 **規劃中需求**（不屬於目前驗收範圍）
 

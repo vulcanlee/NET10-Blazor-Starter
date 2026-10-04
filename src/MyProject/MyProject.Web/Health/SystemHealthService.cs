@@ -13,6 +13,7 @@ using System.Threading.Channels;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Email;
+using MyProject.Web.Scheduling;
 using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Health;
@@ -45,6 +46,7 @@ public sealed class SystemHealthService : ISystemHealthService
     private readonly ILogger<SystemHealthService> logger;
     private readonly LoggingPipelineMonitor pipelineMonitor;
     private readonly ChannelReader<ExceptionLogEntry> exceptionQueue;
+    private readonly ScheduledJobOverviewService scheduledJobOverview;
 
     public SystemHealthService(
         BackendDBContext context,
@@ -67,8 +69,10 @@ public sealed class SystemHealthService : ISystemHealthService
         IOptionsMonitor<EmailSettings> emailOptions,
         ILogger<SystemHealthService> logger,
         LoggingPipelineMonitor pipelineMonitor,
-        ChannelReader<ExceptionLogEntry> exceptionQueue)
+        ChannelReader<ExceptionLogEntry> exceptionQueue,
+        ScheduledJobOverviewService scheduledJobOverview)
     {
+        this.scheduledJobOverview = scheduledJobOverview;
         this.pipelineMonitor = pipelineMonitor;
         this.exceptionQueue = exceptionQueue;
         this.context = context;
@@ -108,7 +112,8 @@ public sealed class SystemHealthService : ISystemHealthService
             await CheckCacheAsync(cancellationToken),
             CheckAiPricing(),
             await CheckEmailAsync(cancellationToken),
-            CheckLoggingPipeline()
+            CheckLoggingPipeline(),
+            await CheckScheduledJobsAsync()
         };
 
         var score = SystemHealthScoreCalculator.CalculateScore(items);
@@ -395,6 +400,80 @@ public sealed class SystemHealthService : ISystemHealthService
             "日誌管線",
             "LoggingPipeline",
             10,
+            status,
+            evidence,
+            problems.Count == 0 ? null : string.Join(" ", problems));
+    }
+
+    private async Task<SystemHealthItem> CheckScheduledJobsAsync()
+    {
+        try
+        {
+            return EvaluateScheduledJobs(await scheduledJobOverview.GetOverviewAsync());
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Health check failed. Check={Check}", "ScheduledJobs");
+            return CreateItem(
+                "排程作業",
+                "ScheduledJobs",
+                5,
+                SystemHealthStatus.Unhealthy,
+                "無法讀取排程作業的狀態。",
+                "讀取排程作業狀態時發生錯誤，詳細內容請看系統例外紀錄。");
+        }
+    }
+
+    /// <summary>
+    /// 排程作業（0.9.96 起）：啟用中的作業最近一次執行失敗 → 異常；總開關關閉、作業逾期沒有被任何行程執行、
+    /// 或執行中的設定被改壞 → 警示。「逾期」是唯一看得出「應用程式集區閒置停止、排程根本沒跑」的地方。
+    /// </summary>
+    internal static SystemHealthItem EvaluateScheduledJobs(ScheduledJobOverview overview)
+    {
+        var problems = new List<string>();
+        var status = SystemHealthStatus.Healthy;
+
+        void Degrade(string problem)
+        {
+            problems.Add(problem);
+            if (status == SystemHealthStatus.Healthy)
+            {
+                status = SystemHealthStatus.Degraded;
+            }
+        }
+
+        var failed = overview.Items
+            .Where(x => x.IsEnabled && x.LastFinishedRun?.Status == JobRunStatuses.Failed)
+            .Select(x => x.DisplayName)
+            .ToList();
+        if (failed.Count > 0)
+        {
+            problems.Add($"最近一次執行失敗：{string.Join("、", failed)}。");
+            status = SystemHealthStatus.Unhealthy;
+        }
+
+        var overdue = overview.Items.Where(x => x.OverdueSlotUtc is not null).Select(x => x.DisplayName).ToList();
+        if (!overview.SchedulingEnabled)
+        {
+            Degrade("排程總開關已關閉（ScheduledJobSettings:Enabled），作業不會自動執行。");
+        }
+        else if (overdue.Count > 0)
+        {
+            Degrade($"逾期未執行：{string.Join("、", overdue)}（網站可能閒置停止，請確認 IIS 的「永遠執行」與閒置逾時設定）。");
+        }
+
+        if (overview.SettingsError is not null)
+        {
+            Degrade("排程設定有誤，目前沿用上一份正確的設定。");
+        }
+
+        var enabledCount = overview.Items.Count(x => x.IsEnabled);
+        var evidence = $"{overview.Items.Count} 個作業，啟用 {enabledCount} 個；最近一次失敗 {failed.Count} 個；逾期 {overdue.Count} 個。";
+
+        return CreateItem(
+            "排程作業",
+            "ScheduledJobs",
+            5,
             status,
             evidence,
             problems.Count == 0 ? null : string.Join(" ", problems));

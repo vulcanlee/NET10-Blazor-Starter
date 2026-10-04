@@ -408,6 +408,7 @@ namespace MyProject.Web.Components.Views.Admins
             "LogViewer" => "cyan",
             "Email" => "cyan",
             "Password" => "orange",
+            "Job" => "cyan",
             _ => "default",
         };
     }
