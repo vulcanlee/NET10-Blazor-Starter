@@ -19,6 +19,7 @@ public class ProjectService
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly IRecordAccessScopeProvider accessScope;
     private readonly string projectFileRootPath;
+    private readonly ProjectFileStore fileStore;
     private readonly IReadOnlyCollection<string> allowedUploadExtensions;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
@@ -33,8 +34,10 @@ public class ProjectService
         IOptions<SystemSettings> systemSettings,
         IRecordAccessScopeProvider accessScope,
         IAuditLogService auditLogService,
-        CurrentUserService currentUserService)
+        CurrentUserService currentUserService,
+        ProjectFileStore fileStore)
     {
+        this.fileStore = fileStore;
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
@@ -489,14 +492,8 @@ public class ProjectService
 
             foreach (var file in files)
             {
-                try
-                {
-                    DeletePhysicalFile(file);
-                }
-                catch (Exception fileEx)
-                {
-                    Logger.LogWarning(fileEx, "Project purged but an attachment file could not be deleted. ProjectId={ProjectId}, RelativePath={RelativePath}", id, file.RelativePath);
-                }
+                // 經 ProjectFileStore：路徑跑出附件根目錄時拒絕，刪不掉只記警告（0.9.97 起）。
+                fileStore.Delete(file.RelativePath);
             }
 
             Logger.LogInformation("Project purged successfully. ProjectId={ProjectId}, Title={Title}, Files={FileCount}", id, item.Title, files.Count);
@@ -577,8 +574,8 @@ public class ProjectService
             return null;
         }
 
-        var fullPath = GetFullPath(file.RelativePath);
-        if (!IsUnderProjectFileRoot(fullPath))
+        var fullPath = fileStore.TryResolveFullPath(file.RelativePath);
+        if (fullPath is null)
         {
             Logger.LogWarning(
                 "Project file download refused because the resolved path escapes the configured root. ProjectFileId={ProjectFileId}, RelativePath={RelativePath}",
@@ -724,15 +721,22 @@ public class ProjectService
             .Where(x => removedFileIdSet.Contains(x.Id))
             .ToList();
 
+        // ⚠️ 先存資料庫、成功後才刪實體檔（0.9.97 起）：0.9.96 之前是先刪檔再存，
+        // 存檔失敗時資料列還在、檔案卻已經不見了。刪檔經 ProjectFileStore（有根目錄檢查）。
+        var relativePaths = filesToRemove.Select(x => x.RelativePath).ToList();
         foreach (var file in filesToRemove)
         {
-            DeletePhysicalFile(file);
             context.ProjectFile.Remove(file);
         }
 
         if (filesToRemove.Count > 0)
         {
             await context.SaveChangesAsync();
+        }
+
+        foreach (var relativePath in relativePaths)
+        {
+            fileStore.Delete(relativePath);
         }
 
         return VerifyRecordResultFactory.Build(true);
@@ -785,12 +789,7 @@ public class ProjectService
     private Task WriteFileAuditAsync(string action, int projectId, int count)
         => count > 0 ? WriteAuditAsync(action, projectId, $"count={count}") : Task.CompletedTask;
 
-    private void DeletePhysicalFile(ProjectFile file)
-    {
-        var fullPath = GetFullPath(file.RelativePath);
-        TryDeleteFile(fullPath);
-    }
-
+    /// <summary>只用在上傳失敗時回收這一次剛寫入的檔案（路徑是這裡自己產生的）；其他刪檔一律經 <see cref="ProjectFileStore"/>。</summary>
     private void TryDeleteFile(string fullPath)
     {
         if (!File.Exists(fullPath))
@@ -799,27 +798,6 @@ public class ProjectService
         }
 
         File.Delete(fullPath);
-    }
-
-    /// <summary>
-    /// 解析後的絕對路徑必須確實落在設定的附件根目錄之下。
-    ///
-    /// RelativePath 一律由 <see cref="SavePhysicalFileAsync"/> 寫成「年/月/Guid.副檔名」，
-    /// 正常情況不可能逸出；這裡守的是資料庫被直接改過的情況 —— 下載端點會把伺服器本機的
-    /// 檔案內容送出去，不該把「這個值一定安全」當成前提。
-    ///
-    /// 根目錄未設定時一律拒絕：Path.Combine("", x) 會退化成相對於工作目錄的路徑。
-    /// </summary>
-    private bool IsUnderProjectFileRoot(string fullPath)
-    {
-        if (string.IsNullOrWhiteSpace(projectFileRootPath))
-        {
-            return false;
-        }
-
-        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(projectFileRootPath));
-        return Path.GetFullPath(fullPath)
-            .StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private string GetFullPath(string relativePath)

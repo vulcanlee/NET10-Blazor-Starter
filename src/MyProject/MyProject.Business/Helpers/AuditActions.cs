@@ -31,6 +31,8 @@ public static class AuditActions
         public const string Delete = "User.Delete";
         public const string Restore = "User.Restore";
         public const string Purge = "User.Purge";
+        /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
+        public const string AutoPurge = "User.AutoPurge";
         public const string SsoCreate = "User.SsoCreate";
         public const string SsoLink = "User.SsoLink";
     }
@@ -43,6 +45,8 @@ public static class AuditActions
         public const string Delete = "Role.Delete";
         public const string Restore = "Role.Restore";
         public const string Purge = "Role.Purge";
+        /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
+        public const string AutoPurge = "Role.AutoPurge";
     }
 
     public static class Permission
@@ -72,6 +76,8 @@ public static class AuditActions
         public const string Restore = "Project.Restore";
         /// <summary>永久刪除（只能對已刪除的資料執行，無法復原）。</summary>
         public const string Purge = "Project.Purge";
+        /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
+        public const string AutoPurge = "Project.AutoPurge";
         public const string FileUpload = "Project.FileUpload";
         public const string FileDelete = "Project.FileDelete";
         public const string FileDownload = "Project.FileDownload";
@@ -86,6 +92,8 @@ public static class AuditActions
         public const string Restore = "Category.Restore";
         /// <summary>永久刪除（只能對已刪除的資料執行，無法復原）。</summary>
         public const string Purge = "Category.Purge";
+        /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
+        public const string AutoPurge = "Category.AutoPurge";
     }
 
     public static class Team
@@ -97,6 +105,8 @@ public static class AuditActions
         public const string Restore = "Team.Restore";
         /// <summary>永久刪除（只能對已刪除的資料執行，無法復原）。</summary>
         public const string Purge = "Team.Purge";
+        /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
+        public const string AutoPurge = "Team.AutoPurge";
     }
 
     public static class LogLevel

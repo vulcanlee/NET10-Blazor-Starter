@@ -31,6 +31,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(AiCallLogService),
         typeof(AuditLogQueryService),
         typeof(ScheduledJobRunService),
+        typeof(SoftDeletePurgeService),
     ];
 
     [Theory]

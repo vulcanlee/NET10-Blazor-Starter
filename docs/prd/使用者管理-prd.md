@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.95
+- 現行系統版本：0.9.97
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/04
 
@@ -47,6 +47,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - **修改**（`UpdateAsync`）：以 `Entry(...).State = Modified` 更新；密碼留白時沿用既有 `Password`／`Salt`，否則重新雜湊；再 `SyncAssignmentsAsync`；寫 `User.Update` 稽核。
 - **刪除**（`DeleteAsync`，0.9.95 起為軟刪除）：追蹤載入 → 禁止刪除 support（`BootstrapSettings.SupportAccount`，不分大小寫）與自己（`CurrentUser.Id`，0 時不比對）→ `SoftDeleteHelper.MarkDeleted` → 刪掉該使用者的密碼重設 token；`UserRole`／`UserTeam` 保留（還原後原樣回來）。畫面以 `CanDelete` 隱藏 support 與自己那一列的刪除鈕（伺服器端仍是權威）。
 - **已刪除清單／還原／永久刪除**（`GetDeletedAsync`／`RestoreAsync`／`PurgeAsync`，0.9.95 起）：工具列「顯示已刪除」切換。還原時擋下三種衝突並說明：與有效使用者同帳號（完全比對，與新增檢查一致）、綁定的 GoogleId 已連到別人、主要角色已被刪除（主要角色為 null 允許）。永久刪除只能對已刪除的使用者，`IgnoreQueryFilters` 追蹤載入後 `Remove`，關聯由資料庫 Cascade 刪除（不可用 `ExecuteDelete`，它也套用過濾器而刪 0 筆）。刪除與還原都會換新版本號；登入、權限判斷、下拉選單都經全域過濾器而看不到已刪除的資料。稽核：`User.Delete`（軟刪除）、`User.Restore`、`User.Purge`。
+- **自動永久刪除**（0.9.97 起）：刪除超過 `SoftDeleteSettings:PurgeAfterDays`（預設 90 天，`0`＝不自動）的使用者，由排程作業「已刪除資料清理」（`SoftDeletePurgeService`）永久刪除；系統層級清除，不看團隊範圍。每次有刪到時寫一筆彙總稽核 `User.AutoPurge`（筆數、天數、觸發方式、`#Id 名稱` 清單）。support 帳號（不分大小寫）永遠不刪。⚠️ 永久刪除後同一個 Google 帳號再登入會被當成第一次登入，建立新的停用帳號；要長期擋人請用停用。見 [排程作業 PRD](排程作業-prd.md)。
 - **RBAC 雙寫**（`SyncAssignmentsAsync` → `RbacWriteService`）：`SyncUserRolesAsync` 以 `UserRole` 反映主要＋額外角色（去重）；團隊名稱先解析為 `Team.Id`，`SyncUserTeamsAsync` 以 `UserTeam` 差異化增刪。
 - **回填**（`GetUserAssignmentsAsync`）：由 `UserRole` join `RoleView`（0.9.95 起，排除已刪除的角色）扣除主要角色得額外角色、由 `UserTeam` join `Team` 得團隊名稱。
 - **存檔驗證角色**（0.9.95 起）：新增與修改時，主要角色與額外角色必須存在且未刪除（null 跳過），否則回「選擇的角色已被刪除或不存在，請關閉視窗、重新開啟後再選擇角色。」—— 編輯視窗開著的期間角色可能被刪掉，存進去的話那個人每次換頁都會被登出。`SyncUserRolesAsync` 只在有效角色之間計算差異，指向已刪除角色的連結保留。

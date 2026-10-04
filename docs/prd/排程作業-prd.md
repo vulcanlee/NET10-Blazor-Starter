@@ -1,8 +1,8 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.96
+- 現行系統版本：0.9.97
 - 首次實作版本：0.9.96
 - 最後核對日期：2026/10/04
 
@@ -12,8 +12,8 @@
 有執行紀錄、可在管理頁查看與手動觸發，並保證 IIS 回收或重疊回收時**同一時段只跑一次**。
 
 - **範圍**：`IScheduledJob` 與註冊方式、排程器（`JobSchedulerWorker`）、執行器（`ScheduledJobRunner`）、狀態與執行紀錄（`ScheduledJobState`、`JobRun`）、
-  管理頁 `/scheduled-jobs`、系統健康監控的「排程作業」項目、四個內建清理作業。
-- **非範圍**：已軟刪除資料的自動永久刪除（路線圖 B-5b）；在畫面上修改執行時間與保留天數（之後由 B-6 系統參數處理，目前在 appsettings）；分散式佇列與重試策略。
+  管理頁 `/scheduled-jobs`、系統健康監控的「排程作業」項目、四個內建清理作業，以及已軟刪除資料的自動永久刪除（0.9.97 起，路線圖 B-5b）。
+- **非範圍**：在畫面上修改執行時間與保留天數（之後由 B-6 系統參數處理，目前在 appsettings）；分散式佇列與重試策略。
 
 ## 二、使用者與入口
 
@@ -51,8 +51,16 @@
 | `ExceptionLogRetention` | 系統例外紀錄清理 | `LogRetentionSettings:ExceptionLogDays`（90，本地門檻）| `ExceptionLog.AutoPurge` |
 | `AiCallLogRetention` | AI 對話紀錄清理 | `AiCallLogSettings:RetentionDays`（90）| `AiCallLog.AutoPurge` |
 | `TokenUsageLogRetention` | Token 用量紀錄清理 | `LogRetentionSettings:TokenUsageLogDays`（365，分批刪除）| `TokenUsage.AutoPurge` |
+| `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |
 
   有刪到資料才寫稽核；天數 0 回成功但不動作。刪檔一律經對應的 file store。
+
+- **已刪除資料清理**（`SoftDeletePurgeService`）：
+  - 系統層級，**不套團隊範圍**、不重用各服務的 `PurgeAsync`（背景作業沒有登入者，會被團隊檢查擋下）。
+  - 順序：專案 → 分類 → 團隊 → 使用者 → 角色。每種先以 `AsNoTracking` 取候選，再**逐筆用新的 DbContext** 重新確認條件、追蹤中 `Remove`（DELETE 帶版本號：候選之後被還原 → 並行衝突 → 略過）。
+  - 專案的附件實體檔在提交成功後經 `ProjectFileStore` 刪除；support 帳號與「預設角色」受保護不刪；仍被任何使用者當主要角色的角色留到下次（刪除當下被指派的外鍵錯誤也一樣）。
+  - 每種資料各自 try/catch：第一個未預期的錯誤中止該種並記一次錯誤，其他種類照常；失敗前已刪的仍寫稽核，作業回 Failure。略過、使用中、受保護、附件檔刪不掉只列在訊息，不算失敗。
+  - 取消時停在筆與筆之間、回傳部分結果；作業先寫稽核再把取消交回框架（記為「中斷」）。
 
 ## 五、權限與安全
 
@@ -72,6 +80,7 @@
 
 - `ScheduledJobFrameworkTests`：排程計算、設定驗證、跨行程只跑一次（暫存檔案資料庫＋兩個 DI 容器）、鎖、殘留回收、錯誤與取消、追蹤碼與 scope、排程器、健康監控判斷。
 - `RetentionJobTests`：四個清理作業（時區、0 天、無資料、失敗回報、分批、取消、月份目錄）。
+- `SoftDeletePurgeTests`（0.9.97）：五種資料的門檻邊界、附件實體檔與根目錄檢查、提交後才刪檔、中途還原與並行衝突、角色使用中與刪除當下被指派、同輪使用者與角色、受保護、Cascade 範圍、單一種類失敗、取消、本地時鐘、稽核內容與截斷。
 - `ScheduledJobWiringTests`：真正的主機中作業已註冊、舊計時器已移除、排程器註冊順序。
 - 守門：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`LoggingConventionTests`、`DataAccessServiceLifetimeTests`、`OptionsValidationTests`、`DocumentationConventionTests`。
 
@@ -79,6 +88,7 @@
 
 - `src/MyProject/MyProject.Web/Scheduling/`（框架與 `Jobs/`）、`Configuration/ScheduledJobSettings.cs`、`Configuration/Validation/ScheduledJobSettingsValidator.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/ScheduledJobRunService.cs`、`Helpers/CrossProcessFileLock.cs`
+- `src/MyProject/MyProject.Business/Services/DataAccess/SoftDeletePurgeService.cs`、`Services/Other/ProjectFileStore.cs`、`MyProject.Models/Systems/SoftDeleteSettings.cs`
 - `src/MyProject/MyProject.AccessDatas/Models/JobRun.cs`、`ScheduledJobState.cs`
 - `src/MyProject/MyProject.Web/Components/Views/Admins/ScheduledJobView.razor(.cs)`、`Datas/Help/scheduled-jobs.md`
 - 設定：[日誌與設定檔說明 §4.11](../operations/日誌與設定檔說明.md)；規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「排程作業」

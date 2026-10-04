@@ -41,13 +41,13 @@
 |---|---|---|
 | 登入 | 登入成功、帳號或密碼錯誤、帳號停用中仍嘗試登入、帳號被鎖定；用 Google 帳號登入成功或失敗 | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed` |
 | 登出 | 使用者登出 | `Logout` |
-| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除帳號；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號 | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.SsoCreate`、`User.SsoLink` |
-| 角色 | 在「角色管理」新增、修改、刪除、還原、永久刪除角色 | `Role.Create`、`Role.Update`、`Role.Delete`、`Role.Restore`、`Role.Purge` |
+| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除帳號；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink` |
+| 角色 | 在「角色管理」新增、修改、刪除、還原、永久刪除角色；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Role.Create`、`Role.Update`、`Role.Delete`、`Role.Restore`、`Role.Purge`、`Role.AutoPurge` |
 | 權限 | 有人打開沒有權限的頁面，或透過 Web API 做了沒有權限的動作而被拒絕 | `Permission.Denied` |
 | 密碼 | 忘記密碼的申請、完成重設、重設失敗；自己變更密碼 | `Password.ResetRequested`、`Password.ResetCompleted`、`Password.ResetFailed`、`Password.Changed` |
 | Token | 透過 Web API 換發登入憑證失敗 | `Token.RefreshFailed` |
-| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在「顯示已刪除」還原或永久刪除 | `Category.Create`、`Category.Update`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Team.Create`、`Team.Update`、`Team.Delete`、`Team.Restore`、`Team.Purge` |
-| 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件 | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.FileUpload`、`Project.FileDelete` |
+| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在「顯示已刪除」還原或永久刪除；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Category.Create`、`Category.Update`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Category.AutoPurge`、`Team.Create`、`Team.Update`、`Team.Delete`、`Team.Restore`、`Team.Purge`、`Team.AutoPurge` |
+| 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.AutoPurge`、`Project.FileUpload`、`Project.FileDelete` |
 | 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge` |
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
 | 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable` |
