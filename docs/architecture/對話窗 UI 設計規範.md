@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.67
+- 現行系統版本：0.9.95
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/09/27
+- 最後核對日期：2026/10/04
 
 ## 目的
 
@@ -264,7 +264,8 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 |------|------|----------|
 | `AskDestructiveAsync` | 刪除、清空、放棄變更 | `Danger`、`MaskClosable = false`、`ZIndex = 1100` |
 | `AskAsync` | 一般確認與提醒 | `MaskClosable = false`、`ZIndex = 1100` |
-| `AskDeleteRecordAsync` | 五個 CRUD 檢視共用的「刪除這一筆」 | 同 `AskDestructiveAsync` |
+| `AskSoftDeleteRecordAsync` | 軟刪除的「刪除這一筆」（0.9.94 起專案、分類、團隊；0.9.95 起使用者、角色），文字提示可在「顯示已刪除」還原 | 同 `AskAsync` |
+| `AskDeleteRecordAsync` | 真正無法復原的「刪除這一筆」；0.9.95 起內建頁面已不使用，保留給衍生專案 | 同 `AskDestructiveAsync` |
 
 具體文案仍由呼叫端提供 ——「清除 30 天未再發生的紀錄」這種訊息有資訊價值，
 不該為了收斂被壓成罐頭句子。樣板只負責統一參數與按鈕行為。

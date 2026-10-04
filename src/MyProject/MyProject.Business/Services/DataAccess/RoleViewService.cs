@@ -219,6 +219,7 @@ public class RoleViewService
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
+            SoftDeleteHelper.ProtectFlags(entry);
             await context.SaveChangesAsync();
 
             var permissionKeys = ParsePermissionKeys(itemData.TabViewJson);
@@ -253,9 +254,7 @@ public class RoleViewService
 
         try
         {
-            RoleView? item = await context.RoleView
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id);
+            RoleView? item = await context.RoleView.FirstOrDefaultAsync(x => x.Id == id);
 
             if (item == null)
             {
@@ -263,10 +262,34 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的角色資料。");
             }
 
-            context.Entry(item).State = EntityState.Deleted;
-            await context.SaveChangesAsync();
+            // 預設角色是新帳號與 support 的角色；種子資料找不到它時會以「全部權限」重建，刪掉反而危險。
+            if (item.Name == MagicObjectHelper.預設角色)
+            {
+                Logger.LogInformation("Role view deletion rejected for the default role. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, $"「{MagicObjectHelper.預設角色}」是新帳號與 support 使用的角色，不可刪除。");
+            }
+
+            // 仍是某些未刪除使用者（含停用者）的主要角色就不能刪：刪了之後那些人每次換頁都會被登出。
+            if (await BuildPrimaryRoleInUseMessageAsync(context.MyUser, item.Name, id, "無法刪除。請先到使用者管理把他們的主要角色改成其他角色，再刪除。") is { } inUse)
+            {
+                Logger.LogInformation("Role view deletion rejected because it is still a primary role. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, inUse);
+            }
 
             var (actorUserId, actorAccount) = ResolveActor();
+            SoftDeleteHelper.MarkDeleted(item, actorAccount);
+            await context.SaveChangesAsync();
+
+            // 存檔後再查一次：上面的檢查與「使用者存檔時驗證角色有效」各自在不同的 DbContext，
+            // 若有人剛好在這段期間被設成這個主要角色，就把角色還原並擋下，避免他被登出迴圈卡住。
+            if (await BuildPrimaryRoleInUseMessageAsync(context.MyUser, item.Name, id, "無法刪除。請先到使用者管理把他們的主要角色改成其他角色，再刪除。") is { } raced)
+            {
+                SoftDeleteHelper.Restore(item);
+                await context.SaveChangesAsync();
+                Logger.LogInformation("Role view deletion rolled back because a user was assigned it meanwhile. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, raced);
+            }
+
             await auditLogService.WriteAsync(
                 AuditActions.Role.Delete, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: id.ToString(),
@@ -275,10 +298,170 @@ public class RoleViewService
             Logger.LogInformation("Role view deleted successfully. RoleViewId={RoleViewId}, Name={RoleName}", id, item.Name);
             return VerifyRecordResultFactory.Build(true);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Role view deletion rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete role view. RoleViewId={RoleViewId}", id);
             return VerifyRecordResultFactory.Build(false, "刪除角色失敗。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 以這個角色為主要角色的使用者還有人時，回傳「人數 + 前 5 個帳號 + <paramref name="suffix"/>」的訊息；沒有人則回 null。
+    /// <paramref name="users"/> 決定範圍：一般的 <c>context.MyUser</c> 只算未刪除的，加上 <c>IgnoreQueryFilters</c> 連已刪除的也算。
+    /// </summary>
+    private static async Task<string?> BuildPrimaryRoleInUseMessageAsync(IQueryable<MyUser> users, string roleName, int roleId, string suffix)
+    {
+        var holders = users.Where(u => u.RoleViewId == roleId);
+        var count = await holders.CountAsync();
+        if (count == 0)
+        {
+            return null;
+        }
+
+        var accounts = await holders
+            .OrderBy(u => u.Account)
+            .Take(5)
+            .Select(u => u.IsDeleted ? u.Account + "（已刪除）" : u.Account)
+            .ToListAsync();
+        var more = count > accounts.Count ? " 等" : string.Empty;
+        return $"還有 {count} 位使用者以「{roleName}」為主要角色（{string.Join("、", accounts)}{more}），{suffix}";
+    }
+
+    /// <summary>已刪除的角色（「顯示已刪除」清單），固定依刪除時間由新到舊。</summary>
+    public async Task<DataRequestResult<RoleViewAdapterModel>> GetDeletedAsync(DataRequest dataRequest)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        IQueryable<RoleView> dataSource = context.RoleView
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .AsNoTracking()
+            .Where(x => x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(dataRequest.Search))
+        {
+            dataSource = dataSource.Where(x => x.Name.Contains(dataRequest.Search));
+        }
+
+        dataSource = dataSource.OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id);
+
+        var result = new DataRequestResult<RoleViewAdapterModel> { Count = await dataSource.CountAsync() };
+        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
+        if (dataRequest.Take != 0)
+        {
+            dataSource = dataSource.Take(dataRequest.PageSize);
+        }
+
+        var items = Mapper.Map<List<RoleViewAdapterModel>>(await dataSource.ToListAsync());
+        foreach (var item in items)
+        {
+            await OtherDependencyData(item);
+        }
+
+        result.Result = items;
+        return result;
+    }
+
+    public async Task<VerifyRecordResult> RestoreAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Restoring role view. RoleViewId={RoleViewId}", id);
+
+        try
+        {
+            RoleView? item = await context.RoleView
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Role view restore rejected because deleted record was not found. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要還原的角色（可能已被還原或永久刪除）。");
+            }
+
+            // 刪除期間可能有人建立了同名角色；比對規則與新增時相同（完全比對）。
+            if (await context.RoleView.AnyAsync(x => x.Id != id && x.Name == item.Name))
+            {
+                Logger.LogInformation("Role view restore rejected because an active role has the same name. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, $"已有同名的角色「{item.Name}」，無法還原。請先將現有的同名角色改名後再還原。");
+            }
+
+            SoftDeleteHelper.Restore(item);
+            await context.SaveChangesAsync();
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                AuditActions.Role.Restore, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(RoleView), targetId: id.ToString(),
+                detail: $"name={item.Name}");
+
+            Logger.LogInformation("Role view restored successfully. RoleViewId={RoleViewId}, Name={RoleName}", id, item.Name);
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Role view restore rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to restore role view. RoleViewId={RoleViewId}", id);
+            return VerifyRecordResultFactory.Build(false, "還原角色失敗。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 永久刪除：只能對已刪除的角色執行，無法復原；權限對應與額外角色的關聯由資料庫 Cascade 一併刪除。
+    /// 主要角色是 Restrict 外鍵，連已刪除的使用者都算 —— 先檢查並列出帳號，否則只會得到籠統的資料庫錯誤。
+    /// </summary>
+    public async Task<VerifyRecordResult> PurgeAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Purging role view. RoleViewId={RoleViewId}", id);
+
+        try
+        {
+            RoleView? item = await context.RoleView
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("Role view purge rejected because deleted record was not found. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的角色（只能永久刪除已刪除的資料）。");
+            }
+
+            var allUsers = context.MyUser.IgnoreQueryFilters([ISoftDeletable.FilterName]);
+            if (await BuildPrimaryRoleInUseMessageAsync(allUsers, item.Name, id, "無法永久刪除。已刪除的使用者請先永久刪除，或還原角色後替他們改用其他角色。") is { } inUse)
+            {
+                Logger.LogInformation("Role view purge rejected because users still reference it as primary role. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, inUse);
+            }
+
+            context.RoleView.Remove(item);
+            await context.SaveChangesAsync();
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                AuditActions.Role.Purge, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(RoleView), targetId: id.ToString(),
+                detail: $"name={item.Name}");
+
+            Logger.LogInformation("Role view purged successfully. RoleViewId={RoleViewId}, Name={RoleName}", id, item.Name);
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("Role view purge rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
+            return VerifyRecordResultFactory.Build(false, "這個角色已被其他人還原或變更，沒有執行永久刪除。", ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to purge role view. RoleViewId={RoleViewId}", id);
+            return VerifyRecordResultFactory.Build(false, "永久刪除角色失敗。", ex);
         }
     }
 

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
+using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Business.Startup;
@@ -122,6 +123,59 @@ public sealed class DatabaseInitializerTests : IDisposable
         await using var verify = host.CreateDbContext();
         Assert.DoesNotContain(MagicObjectHelper.角色_登出, await RolePagesAsync(verify));
         Assert.Equal(1, await verify.Permission.CountAsync(x => x.Key.Trim() == MagicObjectHelper.角色_登出));
+    }
+
+    [Fact]
+    public async Task SoftDeletedSupportAndDefaultRole_ShouldBeRestoredInsteadOfDuplicated()
+    {
+        // 0.9.95 起使用者與角色是軟刪除。seeder 若只看有過濾的集合，會把它們當成不存在而建出第二份
+        // （預設角色還會帶著全部權限重建）。服務層禁止刪除這兩者，這裡測的是最後一道防線。
+        using var host = CreateHost();
+        await host.InitializeAsync();
+        await using (var db = host.CreateDbContext())
+        {
+            await db.MyUser.Where(x => x.Account == "support").ExecuteUpdateAsync(x => x.SetProperty(u => u.IsDeleted, true));
+            await db.RoleView.Where(x => x.Name == MagicObjectHelper.預設角色).ExecuteUpdateAsync(x => x.SetProperty(r => r.IsDeleted, true));
+        }
+
+        await host.InitializeAsync();
+
+        await using var verify = host.CreateDbContext();
+        var supports = await verify.MyUser.IgnoreQueryFilters([ISoftDeletable.FilterName]).Where(x => x.Account == "support").ToListAsync();
+        Assert.False(Assert.Single(supports).IsDeleted);
+        var roles = await verify.RoleView.IgnoreQueryFilters([ISoftDeletable.FilterName]).Where(x => x.Name == MagicObjectHelper.預設角色).ToListAsync();
+        Assert.False(Assert.Single(roles).IsDeleted);
+    }
+
+    [Fact]
+    public async Task ActiveSupportWithOlderDeletedDuplicate_ShouldKeepTheActiveOne()
+    {
+        // 已刪除的那筆 Id 較小：查找若沒有「優先取未刪除」，會把它還原，變成兩個有效的 support。
+        using var host = CreateHost();
+        await host.InitializeAsync();
+        await using (var db = host.CreateDbContext())
+        {
+            var original = await db.MyUser.SingleAsync(x => x.Account == "support");
+            original.IsDeleted = true;
+            db.MyUser.Add(new MyUser
+            {
+                Account = "support",
+                Name = "support",
+                Salt = Guid.NewGuid().ToString(),
+                Password = SecurePasswordHasher.HashPassword(SupportPassword),
+                RoleViewId = original.RoleViewId,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await host.InitializeAsync();
+
+        await using var verify = host.CreateDbContext();
+        var supports = await verify.MyUser.IgnoreQueryFilters([ISoftDeletable.FilterName]).Where(x => x.Account == "support").OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, supports.Count);
+        Assert.True(supports[0].IsDeleted, "較舊的已刪除重複列被還原了 —— seeder 沒有優先取未刪除的列。");
+        Assert.False(supports[1].IsDeleted);
+        Assert.True(supports[1].IsAdmin);
     }
 
     [Fact]

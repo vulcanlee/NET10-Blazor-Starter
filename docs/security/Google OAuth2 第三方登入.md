@@ -1,10 +1,10 @@
 ﻿# Google OAuth2 第三方登入
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.65
+- 現行系統版本：0.9.95
 - 首次實作版本：0.2.6
-- 最後核對日期：2026/09/25
+- 最後核對日期：2026/10/04
 
 ## 目的
 
@@ -134,8 +134,11 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 3. Google 中介軟體把身分寫入外部暫存 Cookie，並導向 `/Auths/Google/Callback`。
 4. Callback 讀取外部 Cookie 的 Email、Name、`sub`，呼叫 `ExternalLoginService.FindOrCreateAsync(...)`：
    - 先以 **GoogleId** 比對既有連結；
+   - GoogleId 屬於**已刪除**的使用者 → 拒絕（0.9.95 起）；
    - 否則以 **Email** 連結既有本地帳號（寫入 GoogleId，不改狀態與權限）；
+   - Email 屬於**已刪除**的使用者 → 拒絕（0.9.95 起）；
    - 都沒有則 **自動建立**新帳號（`Status = false`、套用預設角色、無密碼）。
+   - 被拒絕時不寫入、不連結、不新建，導向 `/Auths/Login?sso=deleted`，登入頁顯示「此帳號已被刪除，請洽系統管理員。」；管理員在使用者管理「顯示已刪除」還原後即可再登入。
 5. 清除外部暫存 Cookie。
 6. 若 `Status = false` → 導向 `/Auths/Pending`（帳號待審核頁，**不**登入）。
 7. 若 `Status = true` → 比照帳密登入建立 Claims（`Role`、`Name`、`NameIdentifier`、`Sid`），以主 Cookie scheme 完成登入並導向 `returnUrl`（預設 `/App`）。

@@ -254,7 +254,7 @@ public sealed class OptimisticConcurrencyTests
 
         public MyUserService UserService()
             => new(Factory(), mapper, NullLogger<MyUserService>.Instance,
-                new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser);
+                new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()));
 
         public MyUserServiceLogin LoginService()
             => new(Context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,

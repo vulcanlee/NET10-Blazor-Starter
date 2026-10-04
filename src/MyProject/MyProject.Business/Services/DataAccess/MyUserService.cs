@@ -2,6 +2,7 @@ using System.Net.Mail;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
@@ -19,6 +20,7 @@ public class MyUserService
     private readonly IRbacWriteService rbacWriteService;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
+    private readonly BootstrapSettings bootstrapSettings;
 
     public IMapper Mapper { get; }
     public ILogger<MyUserService> Logger { get; }
@@ -29,7 +31,8 @@ public class MyUserService
         ILogger<MyUserService> logger,
         IRbacWriteService rbacWriteService,
         IAuditLogService auditLogService,
-        CurrentUserService currentUserService)
+        CurrentUserService currentUserService,
+        IOptions<BootstrapSettings> bootstrapOptions)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
@@ -37,6 +40,7 @@ public class MyUserService
         this.rbacWriteService = rbacWriteService;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
+        bootstrapSettings = bootstrapOptions.Value;
     }
 
     /// <summary>取得目前操作者作為稽核 actor；未登入（Id==0）時回 null。</summary>
@@ -231,6 +235,11 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "新增使用者時必須輸入密碼。");
             }
 
+            if (await ValidateRolesAsync(context, paraObject) is { } roleError)
+            {
+                return VerifyRecordResultFactory.Build(false, roleError);
+            }
+
             MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
             itemParameter.RoleView = null;
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
@@ -274,6 +283,11 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的使用者資料。");
             }
 
+            if (await ValidateRolesAsync(context, paraObject) is { } roleError)
+            {
+                return VerifyRecordResultFactory.Build(false, roleError);
+            }
+
             // 只複製編輯畫面上有的欄位（0.9.93 起）。0.9.92 之前是整筆覆蓋，而畫面模型沒有登入失敗次數、
             // 鎖定到期、兩步驟驗證、Google 綁定 —— 管理員只改姓名，被鎖定的帳號就解鎖了。
             itemData.Account = paraObject.Account;
@@ -296,7 +310,9 @@ public class MyUserService
                 itemData.LockoutEndUtc = null;
             }
 
-            ConcurrencyStampHelper.Apply(context.Entry(itemData), paraObject.ConcurrencyStamp);
+            var entry = context.Entry(itemData);
+            ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
+            SoftDeleteHelper.ProtectFlags(entry);
             await context.SaveChangesAsync();
 
             await SyncAssignmentsAsync(context, rbacWriteService, itemData.Id, paraObject);
@@ -321,6 +337,35 @@ public class MyUserService
             Logger.LogError(ex, "Failed to update user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
             return VerifyRecordResultFactory.Build(false, "修改使用者失敗。", ex);
         }
+    }
+
+    /// <summary>
+    /// 主要角色與額外角色必須存在且未刪除（0.9.95 起）：編輯視窗開著的期間角色可能被刪掉，
+    /// 存進去的話，以它為主要角色的人每次換頁都會被登出（<c>AuthenticationStateHelper</c> 找不到角色）。
+    /// 沒有主要角色（null）是允許的 —— Google 自動建立的帳號在預設角色不存在時就是 null。
+    /// </summary>
+    private async Task<string?> ValidateRolesAsync(BackendDBContext context, MyUserAdapterModel paraObject)
+    {
+        var requested = (paraObject.AdditionalRoleIds ?? []).ToList();
+        if (paraObject.RoleViewId.HasValue)
+        {
+            requested.Add(paraObject.RoleViewId.Value);
+        }
+
+        requested = requested.Distinct().ToList();
+        if (requested.Count == 0)
+        {
+            return null;
+        }
+
+        var activeCount = await context.RoleView.CountAsync(r => requested.Contains(r.Id));
+        if (activeCount == requested.Count)
+        {
+            return null;
+        }
+
+        Logger.LogInformation("User save rejected because a selected role is deleted or missing. UserId={UserId}", paraObject.Id);
+        return "選擇的角色已被刪除或不存在，請關閉視窗、重新開啟後再選擇角色。";
     }
 
     /// <summary>雙寫：同步使用者的角色（主要 + 額外，多角色）與團隊（UserTeam）。</summary>
@@ -368,10 +413,11 @@ public class MyUserService
             .Select(x => x.RoleViewId)
             .FirstOrDefaultAsync();
 
+        // 經 context.RoleView Join：已刪除的角色不帶回表單（0.9.95 起）。連結本身由 SyncUserRolesAsync 保留，角色還原後就回來。
         var allRoleIds = await context.UserRole
             .AsNoTracking()
             .Where(x => x.MyUserId == userId)
-            .Select(x => x.RoleViewId)
+            .Join(context.RoleView, ur => ur.RoleViewId, r => r.Id, (ur, r) => ur.RoleViewId)
             .ToListAsync();
 
         var additional = allRoleIds
@@ -395,9 +441,7 @@ public class MyUserService
 
         try
         {
-            MyUser? item = await context.MyUser
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id);
+            MyUser? item = await context.MyUser.FirstOrDefaultAsync(x => x.Id == id);
 
             if (item == null)
             {
@@ -405,10 +449,20 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "找不到要刪除的使用者資料。");
             }
 
-            context.Entry(item).State = EntityState.Deleted;
+            if (GetDeletionBlockReason(item.Account, item.Id) is { } blocked)
+            {
+                Logger.LogInformation("User deletion rejected for the support account or the current user. UserId={UserId}", id);
+                return VerifyRecordResultFactory.Build(false, blocked);
+            }
+
+            // 軟刪除（0.9.95 起）：角色與團隊的關聯保留，還原後原樣回來；登入、權限判斷都經全域過濾器而看不到這個人。
+            var (actorUserId, actorAccount) = ResolveActor();
+            SoftDeleteHelper.MarkDeleted(item, actorAccount);
             await context.SaveChangesAsync();
 
-            var (actorUserId, actorAccount) = ResolveActor();
+            // 密碼重設連結沒有還原的價值；留著也用不了（重設流程查不到已刪除的使用者），直接清掉。
+            await context.PasswordResetToken.Where(t => t.MyUserId == id).ExecuteDeleteAsync();
+
             await auditLogService.WriteAsync(
                 AuditActions.User.Delete, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(MyUser), targetId: id.ToString(),
@@ -417,10 +471,190 @@ public class MyUserService
             Logger.LogInformation("User deleted successfully. UserId={UserId}, Account={Account}", id, item.Account);
             return VerifyRecordResultFactory.Build(true);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("User deletion rejected by concurrency conflict. UserId={UserId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete user. UserId={UserId}", id);
             return VerifyRecordResultFactory.Build(false, "刪除使用者失敗。", ex);
+        }
+    }
+
+    /// <summary>畫面用來決定要不要顯示「刪除」鈕；伺服器端的 <see cref="DeleteAsync"/> 仍會再檢查一次。</summary>
+    public bool CanDelete(MyUserAdapterModel user) => GetDeletionBlockReason(user.Account, user.Id) is null;
+
+    /// <summary>
+    /// support 帳號與自己不可刪除（0.9.95 起）。比對設定檔的 <c>SupportAccount</c>（可改名），不分大小寫：
+    /// 多擋一個不會出事，少擋一個就可能刪掉唯一的救援帳號。
+    /// </summary>
+    private string? GetDeletionBlockReason(string account, int id)
+    {
+        if (string.Equals(account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"「{account}」是系統預設的開發帳號，不可刪除。";
+        }
+
+        var currentUserId = currentUserService.CurrentUser.Id;
+        return currentUserId > 0 && currentUserId == id ? "不可刪除自己的帳號。" : null;
+    }
+
+    /// <summary>已刪除的使用者（「顯示已刪除」清單），固定依刪除時間由新到舊。</summary>
+    public async Task<DataRequestResult<MyUserAdapterModel>> GetDeletedAsync(DataRequest dataRequest)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        // IgnoreQueryFilters 對整個查詢生效（含 Include）：主要角色若也被刪了，名稱仍會顯示出來。
+        IQueryable<MyUser> dataSource = context.MyUser
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .AsNoTracking()
+            .Include(x => x.RoleView)
+            .Where(x => x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(dataRequest.Search))
+        {
+            dataSource = dataSource.Where(x =>
+                x.Account.Contains(dataRequest.Search) ||
+                x.Name.Contains(dataRequest.Search) ||
+                (x.Email ?? string.Empty).Contains(dataRequest.Search));
+        }
+
+        dataSource = dataSource.OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id);
+
+        var result = new DataRequestResult<MyUserAdapterModel> { Count = await dataSource.CountAsync() };
+        dataSource = dataSource.Skip((dataRequest.CurrentPage - 1) * dataRequest.PageSize);
+        if (dataRequest.Take != 0)
+        {
+            dataSource = dataSource.Take(dataRequest.PageSize);
+        }
+
+        var items = Mapper.Map<List<MyUserAdapterModel>>(await dataSource.ToListAsync());
+        foreach (var item in items)
+        {
+            await OtherDependencyData(item);
+        }
+
+        result.Result = items;
+        return result;
+    }
+
+    public async Task<VerifyRecordResult> RestoreAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Restoring user. UserId={UserId}", id);
+
+        try
+        {
+            MyUser? item = await context.MyUser
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("User restore rejected because deleted record was not found. UserId={UserId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要還原的使用者（可能已被還原或永久刪除）。");
+            }
+
+            // 刪除期間帳號可能已被別人使用；比對規則與新增時相同（完全比對，區分大小寫）。
+            if (await context.MyUser.AnyAsync(x => x.Id != id && x.Account == item.Account))
+            {
+                Logger.LogInformation("User restore rejected because an active user has the same account. UserId={UserId}", id);
+                return VerifyRecordResultFactory.Build(false, $"已有帳號為「{item.Account}」的使用者，無法還原。請先將現有的那位使用者改用其他帳號後再還原。");
+            }
+
+            if (item.GoogleId is { } googleId)
+            {
+                var linked = await context.MyUser
+                    .Where(x => x.Id != id && x.GoogleId == googleId)
+                    .Select(x => x.Account)
+                    .FirstOrDefaultAsync();
+                if (linked is not null)
+                {
+                    Logger.LogInformation("User restore rejected because another active user is linked to the same Google account. UserId={UserId}", id);
+                    return VerifyRecordResultFactory.Build(false, $"這位使用者綁定的 Google 帳號已連結到使用者「{linked}」，無法還原。");
+                }
+            }
+
+            // 主要角色已被刪除就不能還原：還原後他每次換頁都會被登出。沒有主要角色（null）則允許。
+            if (item.RoleViewId is { } roleId && !await context.RoleView.AnyAsync(r => r.Id == roleId))
+            {
+                var roleName = await context.RoleView
+                    .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                    .Where(r => r.Id == roleId)
+                    .Select(r => r.Name)
+                    .FirstOrDefaultAsync();
+                Logger.LogInformation("User restore rejected because the primary role is deleted. UserId={UserId}, RoleViewId={RoleViewId}", id, roleId);
+                return VerifyRecordResultFactory.Build(false, $"這位使用者的主要角色「{roleName}」已被刪除，無法還原。請先到角色管理還原該角色，再還原這位使用者。");
+            }
+
+            SoftDeleteHelper.Restore(item);
+            await context.SaveChangesAsync();
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                AuditActions.User.Restore, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(MyUser), targetId: id.ToString(),
+                detail: $"account={item.Account}");
+
+            Logger.LogInformation("User restored successfully. UserId={UserId}, Account={Account}", id, item.Account);
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("User restore rejected by concurrency conflict. UserId={UserId}", id);
+            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to restore user. UserId={UserId}", id);
+            return VerifyRecordResultFactory.Build(false, "還原使用者失敗。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 永久刪除：只能對已刪除的使用者執行，無法復原；角色、團隊關聯與密碼重設 token 由資料庫 Cascade 一併刪除。
+    /// ⚠️ 用追蹤載入後 <c>Remove</c>，不要改成 <c>ExecuteDelete</c> —— 它也會套用軟刪除過濾器，對已刪除的列會刪 0 筆。
+    /// </summary>
+    public async Task<VerifyRecordResult> PurgeAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Logger.LogInformation("Purging user. UserId={UserId}", id);
+
+        try
+        {
+            MyUser? item = await context.MyUser
+                .IgnoreQueryFilters([ISoftDeletable.FilterName])
+                .FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
+
+            if (item == null)
+            {
+                Logger.LogWarning("User purge rejected because deleted record was not found. UserId={UserId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的使用者（只能永久刪除已刪除的資料）。");
+            }
+
+            context.MyUser.Remove(item);
+            await context.SaveChangesAsync();
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                AuditActions.User.Purge, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(MyUser), targetId: id.ToString(),
+                detail: $"account={item.Account}");
+
+            Logger.LogInformation("User purged successfully. UserId={UserId}, Account={Account}", id, item.Account);
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Logger.LogInformation("User purge rejected by concurrency conflict. UserId={UserId}", id);
+            return VerifyRecordResultFactory.Build(false, "這位使用者已被其他人還原或變更，沒有執行永久刪除。", ex);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to purge user. UserId={UserId}", id);
+            return VerifyRecordResultFactory.Build(false, "永久刪除使用者失敗。", ex);
         }
     }
 

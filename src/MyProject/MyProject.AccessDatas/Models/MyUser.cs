@@ -5,7 +5,7 @@ namespace MyProject.AccessDatas.Models;
 /// <summary>
 /// 使用者
 /// </summary>
-public class MyUser : IConcurrencyStamped
+public class MyUser : IConcurrencyStamped, ISoftDeletable
 {
     public MyUser()
     {
@@ -52,4 +52,11 @@ public class MyUser : IConcurrencyStamped
 
     /// <summary>樂觀並行的版本號（見 <see cref="IConcurrencyStamped"/>）。</summary>
     public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>軟刪除（見 <see cref="ISoftDeletable"/>，0.9.95 起）。</summary>
+    public bool IsDeleted { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeletedBy { get; set; }
 }

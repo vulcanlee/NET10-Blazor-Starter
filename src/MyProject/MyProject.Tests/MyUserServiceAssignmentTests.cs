@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
@@ -83,7 +84,7 @@ public sealed class MyUserServiceAssignmentTests
 
         public MyUserService CreateService()
             => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService());
+                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()));
 
         public async Task<RoleView> AddRoleAsync(string name)
         {

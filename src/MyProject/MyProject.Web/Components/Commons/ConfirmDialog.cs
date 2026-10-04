@@ -87,7 +87,8 @@ public static class ConfirmDialog
             "刪除");
 
     /// <summary>
-    /// 實體刪除的「刪除這一筆」確認（使用者、角色；軟刪除的頁面請用 <see cref="AskSoftDeleteRecordAsync"/>）。
+    /// 實體刪除的「刪除這一筆」確認。0.9.95 起內建頁面全部改為軟刪除、改用 <see cref="AskSoftDeleteRecordAsync"/>；
+    /// 保留給衍生專案中真正無法復原的刪除（CRUD 樣板與守門測試仍引用）。
     /// </summary>
     public static Task<bool> AskDeleteRecordAsync(ModalService modalService)
         => AskDestructiveAsync(

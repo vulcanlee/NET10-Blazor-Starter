@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
@@ -164,7 +165,7 @@ public sealed class AuditEventsTests
         private AuditLogService Audit() => new(Context, loggerFactory.CreateLogger<AuditLogService>());
 
         public MyUserService CreateUserService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
+            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService, Options.Create(new BootstrapSettings()));
 
         public RoleViewService CreateRoleService()
             => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);

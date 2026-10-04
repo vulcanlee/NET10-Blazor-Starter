@@ -27,7 +27,10 @@ public static class AuditActions
     {
         public const string Create = "User.Create";
         public const string Update = "User.Update";
+        /// <summary>軟刪除（0.9.95 起）；還原與永久刪除見 <see cref="Restore"/>、<see cref="Purge"/>。</summary>
         public const string Delete = "User.Delete";
+        public const string Restore = "User.Restore";
+        public const string Purge = "User.Purge";
         public const string SsoCreate = "User.SsoCreate";
         public const string SsoLink = "User.SsoLink";
     }
@@ -36,7 +39,10 @@ public static class AuditActions
     {
         public const string Create = "Role.Create";
         public const string Update = "Role.Update";
+        /// <summary>軟刪除（0.9.95 起）；還原與永久刪除見 <see cref="Restore"/>、<see cref="Purge"/>。</summary>
         public const string Delete = "Role.Delete";
+        public const string Restore = "Role.Restore";
+        public const string Purge = "Role.Purge";
     }
 
     public static class Permission

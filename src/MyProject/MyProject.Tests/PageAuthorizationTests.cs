@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using MyProject.Web.Components.Auths;
 using System.Net;
 using System.Reflection;
@@ -144,6 +145,78 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         var response = await client.GetAsync(route);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    /// <summary>
+    /// 已登入的人被停用或刪除後，帶著仍然有效的 Cookie 進到 /Auths/Logout，必須被導向登入頁。
+    ///
+    /// 0.9.95 之前登出頁沒有指定版面而套用 MainLayout；MainLayout 先跑 <c>Check</c>，發現使用者無效又導向
+    /// /Auths/Logout，而這個導向發生在登出頁清掉 Cookie 之前 —— 瀏覽器顯示「重新導向太多次」。
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task Logout_WithLiveCookieOfDisabledOrDeletedUser_ShouldRedirectToLogin(bool status, bool isDeleted)
+    {
+        var account = $"gone-{Guid.NewGuid():N}";
+        int userId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MyProject.AccessDatas.BackendDBContext>();
+            var user = new MyProject.AccessDatas.Models.MyUser { Account = account, Name = account, Password = "x", Status = status, IsDeleted = isDeleted };
+            db.MyUser.Add(user);
+            await db.SaveChangesAsync();
+            userId = user.Id;
+        }
+
+        var options = factory.Services
+            .GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>>()
+            .Get(MyProject.Share.Helpers.MagicObjectHelper.CookieScheme);
+        var identity = new System.Security.Claims.ClaimsIdentity(
+        [
+            new(System.Security.Claims.ClaimTypes.Role, "User"),
+            new(System.Security.Claims.ClaimTypes.Name, account),
+            new(System.Security.Claims.ClaimTypes.NameIdentifier, account),
+            new(System.Security.Claims.ClaimTypes.Sid, userId.ToString()),
+        ], MyProject.Share.Helpers.MagicObjectHelper.CookieScheme);
+        var cookie = options.TicketDataFormat.Protect(new Microsoft.AspNetCore.Authentication.AuthenticationTicket(
+            new System.Security.Claims.ClaimsPrincipal(identity), MyProject.Share.Helpers.MagicObjectHelper.CookieScheme));
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/Auths/Logout");
+        request.Headers.Add("Cookie", $"{options.Cookie.Name}={cookie}");
+
+        var response = await client.SendAsync(request);
+
+        Assert.True(response.StatusCode is HttpStatusCode.Redirect or HttpStatusCode.Found, $"預期導向，實際 {(int)response.StatusCode}");
+        var location = response.Headers.Location!;
+        var target = location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString.Split('?')[0];
+        Assert.Equal("/Auths/Login", target);
+    }
+
+    [Fact]
+    public async Task LoginPage_WithSsoDeleted_ShouldShowTheFixedMessage()
+    {
+        // 已刪除的使用者用 Google 登入時導回 /Auths/Login?sso=deleted（0.9.95 起）。
+        using var client = factory.CreateClient();
+
+        var body = System.Net.WebUtility.HtmlDecode(await client.GetStringAsync("/Auths/Login?sso=deleted"));
+
+        Assert.Contains("此帳號已被刪除，請洽系統管理員。", body);
+    }
+
+    [Fact]
+    public async Task LoginPage_WithUnknownSsoCode_ShouldNotEchoIt()
+    {
+        // 只認得固定代碼；網址上的其他值不可以被當成訊息顯示。
+        // （表單的 action 會帶著 URL 編碼後的目前網址，那是框架行為且已編碼，所以比對原始 HTML 裡未編碼的標籤。）
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/Auths/Login?sso=" + Uri.EscapeDataString("<b>injected-marker</b>"));
+
+        Assert.DoesNotContain("<b>injected-marker", body);
+        Assert.DoesNotContain("&lt;b&gt;injected-marker", body);
+        Assert.DoesNotContain("此帳號已被刪除", System.Net.WebUtility.HtmlDecode(body));
     }
 
     [Theory]

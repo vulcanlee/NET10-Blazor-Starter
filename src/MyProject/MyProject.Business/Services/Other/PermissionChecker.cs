@@ -84,9 +84,12 @@ public sealed class PermissionChecker : IPermissionChecker
             return new HashSet<string>(StringComparer.Ordinal);
         }
 
+        // ⚠️ 一定要經 context.RoleView（套用軟刪除過濾器）Join（0.9.95 起）：UserRole 與 legacy RoleViewId 都不看角色是否已刪除，
+        // 只在這裡過濾一次，兩個來源就都涵蓋；少了這一步，已刪除的角色會繼續把權限給 UI 與 API。
         var keys = await context.RolePermissionMap
             .AsNoTracking()
             .Where(m => roleIds.Contains(m.RoleViewId))
+            .Join(context.RoleView, m => m.RoleViewId, r => r.Id, (m, r) => m)
             .Join(context.Permission, m => m.PermissionId, p => p.Id, (m, p) => p.Key)
             .Distinct()
             .ToListAsync();

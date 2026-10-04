@@ -109,7 +109,7 @@ namespace MyProject.Web.Components.Views.Admins
                 _pageIndex,
                 _pageSize);
 
-            DataRequestResult<RoleViewAdapterModel> dataRequestResult = await roleViewService.GetAsync(new DataRequest
+            var dataRequest = new DataRequest
             {
                 Search = searchText,
                 SortField = sortField,
@@ -117,7 +117,12 @@ namespace MyProject.Web.Components.Views.Admins
                 CurrentPage = _pageIndex,
                 PageSize = _pageSize,
                 Take = 0,
-            });
+            };
+
+            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.95 起）。
+            DataRequestResult<RoleViewAdapterModel> dataRequestResult = showDeleted
+                ? await roleViewService.GetDeletedAsync(dataRequest)
+                : await roleViewService.GetAsync(dataRequest);
 
             roleViewAdapterModels = dataRequestResult.Result.ToList();
             _total = dataRequestResult.Count;
@@ -196,7 +201,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             logger.LogInformation("Delete role view requested. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
 
-            var ok = await ConfirmDialog.AskDeleteRecordAsync(modalService);
+            var ok = await ConfirmDialog.AskSoftDeleteRecordAsync(modalService);
 
             if (!ok)
             {
@@ -218,6 +223,77 @@ namespace MyProject.Web.Components.Views.Admins
             ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
+        }
+
+        bool showDeleted;
+
+        async Task OnToggleDeletedAsync()
+        {
+            showDeleted = !showDeleted;
+            _pageIndex = 1;
+            await ReloadAsync();
+        }
+
+        async Task OnRestoreAsync(RoleViewAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskAsync(modalService, "確認還原", $"要還原「{record.Name}」嗎？", "還原");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await roleViewService.RestoreAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Role view restore rejected. RoleViewId={RoleViewId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("Role view restore completed. RoleViewId={RoleViewId}", record.Id);
+                ViewNotification.Warning(notificationService, "還原成功");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while restoring role view.");
+                ViewNotification.Error(notificationService, "還原角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        async Task OnPurgeAsync(RoleViewAdapterModel record)
+        {
+            try
+            {
+                var ok = await ConfirmDialog.AskDestructiveAsync(
+                    modalService,
+                    "永久刪除",
+                    $"永久刪除「{record.Name}」後無法復原，它的權限設定與「額外角色」關聯也會一併刪除。確定要永久刪除嗎？",
+                    "永久刪除");
+                if (!ok)
+                {
+                    return;
+                }
+
+                var result = await roleViewService.PurgeAsync(record.Id);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Role view purge rejected. RoleViewId={RoleViewId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                    return;
+                }
+
+                logger.LogInformation("Role view purge completed. RoleViewId={RoleViewId}", record.Id);
+                ViewNotification.Warning(notificationService, "已永久刪除");
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while purging role view.");
+                ViewNotification.Error(notificationService, "永久刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
         }
 
         async Task OnAddAsync(bool continueOnCapturedContext)

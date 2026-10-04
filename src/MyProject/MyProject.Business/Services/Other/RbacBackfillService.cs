@@ -140,7 +140,8 @@ public sealed class RbacBackfillService : IRbacBackfillService
 
     private async Task NormalizeRoleTabViewJsonAsync()
     {
-        var roles = await context.RoleView.ToListAsync();
+        // 已刪除的角色也一併正規化與回填（0.9.95 起），還原後資料才一致。
+        var roles = await context.RoleView.IgnoreQueryFilters([ISoftDeletable.FilterName]).ToListAsync();
         var changed = false;
 
         foreach (var role in roles)
@@ -200,7 +201,7 @@ public sealed class RbacBackfillService : IRbacBackfillService
             .Select(x => (x.RoleViewId, x.PermissionId))
             .ToHashSet();
 
-        var roles = await context.RoleView.AsNoTracking().ToListAsync();
+        var roles = await context.RoleView.IgnoreQueryFilters([ISoftDeletable.FilterName]).AsNoTracking().ToListAsync();
         foreach (var role in roles)
         {
             foreach (var name in DeserializePermissionNames(role.TabViewJson))

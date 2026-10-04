@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Share.Helpers;
 
@@ -54,8 +55,20 @@ public sealed class DefaultRoleViewSeeder : IDatabaseSeeder
             .Where(x => !existingKeys.Contains(x.Key))
             .ToList();
 
+        // 連已刪除的一起找、優先取未刪除的（0.9.95 起）：只看有過濾的集合的話，被軟刪除的預設角色會被當成不存在，
+        // 重建出第二個「帶全部權限」的預設角色。服務層禁止刪除它，這裡是最後一道防線。
         var role = await dbContext.RoleView
-            .FirstOrDefaultAsync(x => x.Name == MagicObjectHelper.預設角色, cancellationToken);
+            .IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .Where(x => x.Name == MagicObjectHelper.預設角色)
+            .OrderBy(x => x.IsDeleted)
+            .ThenBy(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (role is { IsDeleted: true })
+        {
+            SoftDeleteHelper.Restore(role);
+            logger.LogWarning("Default role view was soft-deleted; restored it. RoleViewId={RoleViewId}", role.Id);
+        }
 
         if (role is null)
         {

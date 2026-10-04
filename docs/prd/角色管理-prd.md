@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.37
+- 現行系統版本：0.9.95
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/09/19
+- 最後核對日期：2026/10/04
 
 ## 一、目標與範圍
 
@@ -43,11 +43,12 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - **矩陣 ↔ 權限鍵**（`RolePermissionService`）：`GetPermissionInput` 將勾選狀態轉為權限鍵清單——群組名、裸頁面鍵（＝全動作），或 `PermissionKey.For(頁面, 動作)`（如「專案項目:edit」）；`SetPermissionInput` 反向回填矩陣。清單序列化為 `RoleView.TabViewJson`。
 - **新增／修改**（`AddAsync`／`UpdateAsync`）：以 `GetPermissionInputToJson` 產生 `TabViewJson` 存檔；再 `ParsePermissionKeys` 解析並呼叫 `RbacWriteService.SyncRolePermissionsAsync` 雙寫至 `RolePermissionMap`；寫 `Role.Create`／`Role.Update` 稽核（含權限鍵數）。
 - **RBAC 雙寫**（`RbacWriteService.SyncRolePermissionsAsync`）：`EnsurePermissionsAsync` 對缺漏的權限鍵自動補建 `Permission` 列，再對 `RolePermissionMap` 差異化增刪，使角色權限與矩陣一致。
-- **刪除**（`DeleteAsync`）：`Entry(...).State = Deleted`；寫 `Role.Delete` 稽核。
+- **刪除**（`DeleteAsync`，0.9.95 起為軟刪除）：追蹤載入 → 禁止刪除「預設角色」→ 仍有**未刪除**使用者（含停用者）以它為主要角色就擋下，訊息列出人數與前 5 個帳號（使用者決定；刪了的話那些人每次換頁都會被登出）→ `MarkDeleted` 存檔 → **存檔後再數一次**，期間若有人被設成這個主要角色就還原並擋下。事前檢查不可省略：只靠事後複查會先寫入再還原，版本號被換掉，正在編輯這個角色的人存檔時會被誤判為衝突。`RolePermissionMap` 與額外角色的 `UserRole` 保留。
+- **已刪除清單／還原／永久刪除**（0.9.95 起）：還原時與有效角色同名（完全比對）就擋下。永久刪除只能對已刪除的角色；任何使用者（**含已刪除的**，`IgnoreQueryFilters` 計算）仍以它為主要角色就擋下並列出帳號（`MyUser.RoleViewId` 是 Restrict 外鍵）。刪除與還原都會換新版本號；登入、權限判斷、下拉選單都經全域過濾器而看不到已刪除的資料。稽核：`Role.Delete`（軟刪除）、`Role.Restore`、`Role.Purge`。
 - **啟動回填**（`RbacBackfillService.RunAsync`）：開機時由 `RolePermissionService` 建立權限目錄（`Permission`，含 `GroupName`／`SortOrder`），並依各角色 `TabViewJson` 補寫 `RolePermissionMap`，冪等。
-- **權限判定**（`PermissionChecker`）：使用者角色取自 `UserRole`（多角色）並容錯併入 legacy `RoleViewId`；join `RolePermissionMap`／`Permission` 得有效權限鍵集合；管理員短路回 true；擁有裸頁面鍵者視為具該頁全部動作。
+- **權限判定**（`PermissionChecker`）：使用者角色取自 `UserRole`（多角色）並容錯併入 legacy `RoleViewId`；join `RolePermissionMap`／**`RoleView`（0.9.95 起，排除已刪除的角色）**／`Permission` 得有效權限鍵集合；管理員短路回 true；擁有裸頁面鍵者視為具該頁全部動作。
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性。
-- **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。
+- **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。0.9.95 起不可刪除；`DefaultRoleViewSeeder` 以 `IgnoreQueryFilters` 查找並優先取未刪除的列，找到已刪除的就還原（不會重建第二個帶全部權限的預設角色）。
 
 > ℹ️ `RbacWriteService` 沿用呼叫端的 `BackendDBContext`（而非自建），
 > 以確保 `TabViewJson` 與 `RolePermissionMap` 的雙寫落在同一個工作單元內。
@@ -62,6 +63,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 
 - 角色名稱重複：前置檢查回「角色名稱已存在，無法新增／修改。」
 - 修改對象不存在：回「找不到要修改的角色資料。」
+- **0.9.93～0.9.94 的缺陷（0.9.95 修正）**：`RoleViewAdapterModel.Clone()` 手寫逐欄複製、漏了 `ConcurrencyStamp`，從畫面修改任何角色都回並行衝突訊息。
 - `TabViewJson` 解析失敗：`OtherDependencyData` 以空權限初始化矩陣（不致命）。
 - 未設任何權限：該角色無有效權限鍵，成員（非管理員）將無對應頁面／動作。
 - 矩陣使用未在目錄中的權限鍵時，雙寫會自動補建 `Permission` 列。
@@ -75,6 +77,8 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - `MyProject.Tests/RbacBackfillServiceTests.cs`：建立權限目錄、由 `TabViewJson` 連結角色權限、冪等。
 - `MyProject.Tests/PermissionCheckerTests.cs`：管理員全通過、角色具／缺鍵、裸頁面鍵授予全動作、僅 `view` 不含 `edit`、多角色聯集。
 - `MyProject.Tests/AuditEventsTests.cs`：`Role.Create`／`Role.Delete` 稽核。
+- `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：已刪除的角色不再給權限（含 legacy `RoleViewId`）、仍是主要角色時刪除被擋且不改版本號、存檔後複查、預設角色不可刪、永久刪除的明確訊息、從 Clone 出來的模型可以存檔。
+- `MyProject.Tests/AdapterModelCloneTests.cs`（0.9.95）：`Clone()` 複製每個可寫屬性 —— 0.9.93～0.9.94 `RoleViewAdapterModel.Clone()` 漏了版本號，從畫面修改任何角色都被當成並行衝突。
 
 ## 八、相關程式與文件
 

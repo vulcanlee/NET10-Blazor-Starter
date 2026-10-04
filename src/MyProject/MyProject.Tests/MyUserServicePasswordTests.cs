@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
@@ -164,7 +165,8 @@ public sealed class MyUserServicePasswordTests
                 loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
-                new CurrentUserService());
+                new CurrentUserService(),
+                Options.Create(new BootstrapSettings()));
         }
 
         public async Task<MyUser> AddUserAsync(string account, string password)
