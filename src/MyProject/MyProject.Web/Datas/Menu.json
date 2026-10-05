@@ -43,8 +43,33 @@
     "icon": "admin_panel_settings",
     "subMenu": [
       {
+        "id": 34,
+        "name": "帳號與權限",
+        "icon": "manage_accounts",
+        "subMenu": [
+          {
+            "id": 31,
+            "name": "使用者管理",
+            "icon": "group",
+            "url": "/myusers"
+          },
+          {
+            "id": 32,
+            "name": "角色管理",
+            "icon": "shield_person",
+            "url": "/roleviews"
+          },
+          {
+            "id": 35,
+            "name": "稽核紀錄",
+            "icon": "fact_check",
+            "url": "/audit-logs"
+          }
+        ]
+      },
+      {
         "id": 6,
-        "name": "統計與分析",
+        "name": "監控與診斷",
         "icon": "analytics",
         "subMenu": [
           {
@@ -76,12 +101,19 @@
             "name": "資料庫用量",
             "icon": "data_usage",
             "url": "/database-usage"
-          },
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "name": "AI 管理",
+        "icon": "psychology",
+        "subMenu": [
           {
-            "id": 64,
-            "name": "Token 用量",
-            "icon": "toll",
-            "url": "/token-usage"
+            "id": 39,
+            "name": "AI 提示詞",
+            "icon": "smart_toy",
+            "url": "/prompt-templates"
           },
           {
             "id": 66,
@@ -90,61 +122,43 @@
             "url": "/ai-call-logs"
           },
           {
+            "id": 64,
+            "name": "Token 用量",
+            "icon": "toll",
+            "url": "/token-usage"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "name": "系統設定與維運",
+        "icon": "build",
+        "subMenu": [
+          {
+            "id": 36,
+            "name": "系統參數",
+            "icon": "settings",
+            "url": "/system-parameters"
+          },
+          {
+            "id": 38,
+            "name": "公告管理",
+            "icon": "campaign",
+            "url": "/announcements"
+          },
+          {
             "id": 67,
             "name": "排程作業",
             "icon": "schedule",
             "url": "/scheduled-jobs"
-          }
-        ]
-      },
-      {
-        "id": 34,
-        "name": "權限管理",
-        "icon": "manage_accounts",
-        "subMenu": [
-          {
-            "id": 31,
-            "name": "使用者管理",
-            "icon": "group",
-            "url": "/myusers"
           },
           {
-            "id": 32,
-            "name": "角色管理",
-            "icon": "shield_person",
-            "url": "/roleviews"
-          },
-          {
-            "id": 35,
-            "name": "稽核紀錄",
-            "icon": "fact_check",
-            "url": "/audit-logs"
+            "id": 37,
+            "name": "系統備份",
+            "icon": "backup",
+            "url": "/backups"
           }
         ]
-      },
-      {
-        "id": 36,
-        "name": "系統參數",
-        "icon": "settings",
-        "url": "/system-parameters"
-      },
-      {
-        "id": 37,
-        "name": "系統備份",
-        "icon": "backup",
-        "url": "/backups"
-      },
-      {
-        "id": 38,
-        "name": "公告管理",
-        "icon": "campaign",
-        "url": "/announcements"
-      },
-      {
-        "id": 39,
-        "name": "AI 提示詞",
-        "icon": "smart_toy",
-        "url": "/prompt-templates"
       }
     ]
   },

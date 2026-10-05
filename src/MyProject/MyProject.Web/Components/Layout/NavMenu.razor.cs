@@ -66,6 +66,7 @@ public partial class NavMenu : ComponentBase, IDisposable
     private string[] OpenKeys { get; set; } = [];
     private string[] SelectedKeys { get; set; } = [];
     private bool previousSidebarCollapsed;
+    private bool initialOpenKeysApplied;
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,7 +82,30 @@ public partial class NavMenu : ComponentBase, IDisposable
         MenuItems = await SidebarMenuService.LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper);
         UpdateActiveMenuPath();
         SyncMenuStateFromRoute();
+
+        // 展開的群組留到選單第一次渲染後才套用，見 OnAfterRender。
+        OpenKeys = [];
         NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    /// <summary>
+    /// AntDesign Menu 只把 OpenKeys 套用到「已經註冊」的 SubMenu。選單與 SubMenu 在同一次渲染才建立時，
+    /// 初始的 OpenKeys 會落空，目前頁面所屬的群組不會展開（0.9.112 起側邊欄預設展開才看得到）。
+    /// 等選單第一次渲染完再套一次，與「收合後再展開」走同一條路徑。
+    /// </summary>
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (initialOpenKeysApplied || MenuItems.Count == 0)
+        {
+            return;
+        }
+
+        initialOpenKeysApplied = true;
+        SyncOpenKeysForSidebarState();
+        if (OpenKeys.Length > 0)
+        {
+            StateHasChanged();
+        }
     }
 
     protected override void OnParametersSet()

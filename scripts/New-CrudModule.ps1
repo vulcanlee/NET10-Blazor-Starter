@@ -30,6 +30,8 @@
 
 .PARAMETER MenuGroupId
     掛在 Menu.json 的哪一個群組底下，預設 5（資料定義）。非管理員專屬頁面只能是 2（專案管理）或 5。
+    管理員專屬頁面掛在「系統管理」的子群組：34（帳號與權限）、6（監控與診斷）、7（AI 管理）、8（系統設定與維運）；
+    不可直接掛在 3（系統管理）—— 那一層只放子群組。
 
 .PARAMETER Icon
     選單圖示（classic Material Icons 名稱），預設 description；不在 MenuIconTests 允許清單時自動加入。
@@ -129,6 +131,12 @@ function Get-MenuIds($nodes) {
 $group = Find-MenuNode $menu $MenuGroupId
 if (-not $group -or -not ($group.PSObject.Properties.Name -contains 'subMenu')) {
     throw "Menu.json 找不到 id 為 $MenuGroupId 的群組（必須是有 subMenu 的節點）。"
+}
+if ($MenuGroupId -eq 3) {
+    # 系統管理底下只放子群組（0.9.113 起）；直接掛在 3 會在子群組之間多出一個散落的項目。
+    $subGroups = @($group.subMenu | Where-Object { $_.PSObject.Properties.Name -contains 'subMenu' } |
+        ForEach-Object { "$($_.id)（$($_.name)）" }) -join '、'
+    throw "不可直接掛在群組 3（系統管理），那一層只放子群組。請改用其中一個子群組：$subGroups。"
 }
 if (-not $AdminOnly -and $MenuGroupId -notin 2, 5) {
     throw "非管理員專屬的頁面只能掛在群組 2（專案管理）或 5（資料定義），角色權限矩陣只有這兩組；管理員專屬請加 -AdminOnly。"

@@ -19,7 +19,7 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/database-usage` | 統計與分析 › 資料庫用量 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
+| `/database-usage` | 系統管理 › 監控與診斷 › 資料庫用量 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
 
 權限採**管理員專屬**設計，與「日誌檢視」相同：`MagicObjectHelper.角色_資料庫用量` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`（id 62），但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色矩陣不顯示、任何角色都無法被授予，只有管理員短路能通過。`MyProject.Tests/AdminOnlyPermissionTests.cs` 會擋下日後「順手補齊」的修改。
 

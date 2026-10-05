@@ -22,7 +22,7 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/audit-logs` | 系統管理 → 權限管理 → id=35「稽核紀錄」 | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣）| 系統管理員、稽核人員 |
+| `/audit-logs` | 系統管理 → 帳號與權限 → id=35「稽核紀錄」 | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣）| 系統管理員、稽核人員 |
 
 權限鍵常數為 `MagicObjectHelper.角色_稽核紀錄`，值 `"稽核紀錄"`。
 與同群組的「使用者管理」「角色管理」一致，**刻意不列入** `RolePermissionService.GetRoleListPermissionAllName()`
