@@ -29,10 +29,10 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `-DisplayName` | 同 `-Name` | 顯示名稱，同時是權限鍵（`MagicObjectHelper.角色_設備清單 = "設備清單"`），不可與既有頁面重複 |
 | `-Plural` | `<Name>s` | 頁面與檢視的資料夾／命名空間 |
 | `-Route` | `/<plural 小寫>` | 頁面路由；說明檔名同規則（`equipments.md`） |
-| `-MenuGroupId` | `5`（資料定義） | 掛在 `Menu.json` 的哪個群組；非管理員專屬只能 `2`（專案管理）或 `5`，因為角色權限矩陣只有這兩組 |
+| `-MenuGroupId` | `5`（資料定義） | 掛在 `Menu.json` 的哪個群組；非管理員專屬只能 `2`（專案管理）或 `5`，因為角色權限矩陣只有這兩組。管理員專屬掛在「系統管理」的子群組：`34`（帳號與權限）、`6`（監控與診斷）、`7`（AI 管理）、`8`（系統設定與維運）；**不可**用 `3`（系統管理那一層只放子群組，0.9.113 起產生器會擋下） |
 | `-Icon` | `description` | 選單圖示（classic Material Icons），不在 `MenuIconTests` 允許清單時自動加入 |
 | `-WithTeams` | 關 | 加上「團隊」欄位與團隊範圍：沒有團隊（公開）或與授權團隊有交集才看得到；非管理員只能指定自己範圍內的團隊 |
-| `-AdminOnly` | 關 | 管理員專屬：權限鍵不進角色矩陣，檢視以 `CheckIsAdmin` 判斷（通常配 `-MenuGroupId 3`） |
+| `-AdminOnly` | 關 | 管理員專屬：權限鍵不進角色矩陣，檢視以 `CheckIsAdmin` 判斷（配合上列子群組，例如 `-MenuGroupId 8`） |
 | `-SkipMigration` | 關 | 不自動產生 migration |
 | `-Preview` | 關 | 只產生檔案到 `-OutputPath`，不登記、不產生 migration |
 | `-Force` | 關 | 略過工作目錄檢查；之前產生過的檔案保留不覆蓋（用來重跑登記） |

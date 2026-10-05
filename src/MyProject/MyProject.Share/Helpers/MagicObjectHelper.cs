@@ -52,7 +52,7 @@ public class MagicObjectHelper
     public const string 角色_專案管理 = "專案管理功能";
     public const string 角色_專案項目 = "專案項目";
     /// <summary>
-    /// 系統管理群組。與「統計與分析」相同，刻意不列入
+    /// 系統管理群組。與「監控與診斷」相同，刻意不列入
     /// <c>RolePermissionService.GetRoleListPermissionAllName()</c>：不種 Permission 資料列、
     /// 角色矩陣不顯示、任何角色都無法被授予，僅由 <c>CheckIsAdmin()</c> 通過。
     ///
@@ -63,7 +63,13 @@ public class MagicObjectHelper
     public const string 角色_系統管理 = "系統管理功能";
 
     /// <inheritdoc cref="角色_系統管理"/>
-    public const string 角色_權限管理 = "權限管理";
+    public const string 角色_帳號與權限 = "帳號與權限";
+
+    /// <inheritdoc cref="角色_系統管理"/>
+    public const string 角色_AI管理 = "AI 管理功能";
+
+    /// <inheritdoc cref="角色_系統管理"/>
+    public const string 角色_系統設定與維運 = "系統設定與維運功能";
 
     /// <inheritdoc cref="角色_系統管理"/>
     public const string 角色_使用者管理 = "使用者管理";
@@ -94,31 +100,31 @@ public class MagicObjectHelper
     public const string 角色_登出 = "登出";
 
     /// <summary>
-    /// 統計與分析群組。刻意不列入 <c>RolePermissionService.GetRoleListPermissionAllName()</c>：
+    /// 監控與診斷群組（0.9.113 前名為「統計與分析」）。刻意不列入 <c>RolePermissionService.GetRoleListPermissionAllName()</c>：
     /// 不種 Permission 資料列、角色矩陣不顯示、任何角色都無法被授予；
     /// 僅由 <c>AuthenticationStateHelper.CheckAccessPage</c> 的管理員短路通過。
     /// 這是讓「日誌檢視」成為管理員專屬頁面的機制，不是漏掉的步驟，請勿補上。
     /// </summary>
-    public const string 角色_統計與分析 = "統計與分析功能";
+    public const string 角色_監控與診斷 = "監控與診斷功能";
 
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_系統健康監控 = "系統健康監控";
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_日誌檢視 = "日誌檢視";
 
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_資料庫用量 = "資料庫用量";
 
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_日誌等級設定 = "日誌等級設定";
 
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_Token用量 = "Token 用量";
 
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_AI對話紀錄 = "AI 對話紀錄";
 
-    /// <inheritdoc cref="角色_統計與分析"/>
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_排程作業 = "排程作業";
     public const string 使用者角色 = "使用者角色";
 

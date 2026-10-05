@@ -43,6 +43,8 @@ public sealed class MenuIconTests
         "backup",
         "campaign",
         "smart_toy",
+        "psychology",
+        "build",
     };
 
     [Fact]

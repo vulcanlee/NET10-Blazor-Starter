@@ -19,9 +19,9 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/logs` | 統計與分析 › 日誌檢視 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
+| `/logs` | 系統管理 › 監控與診斷 › 日誌檢視 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
 
-權限採**管理員專屬**設計：`MagicObjectHelper.角色_統計與分析` 與 `角色_日誌檢視` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`，但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色權限矩陣不會顯示這兩項、任何角色都無法被授予，只有 `AuthenticationStateHelper.CheckAccessPage` 的管理員短路能通過。非管理員在側邊欄看不到整個「統計與分析」群組；直接輸入網址會看到無權限訊息，並留下一筆 `Permission.Denied` 稽核（目標 `Page`／`/logs`，0.9.78 起）。
+權限採**管理員專屬**設計：`MagicObjectHelper.角色_監控與診斷`（0.9.113 前為 `角色_統計與分析`）與 `角色_日誌檢視` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`，但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色權限矩陣不會顯示這兩項、任何角色都無法被授予，只有 `AuthenticationStateHelper.CheckAccessPage` 的管理員短路能通過。非管理員在側邊欄看不到整個「統計與分析」群組；直接輸入網址會看到無權限訊息，並留下一筆 `Permission.Denied` 稽核（目標 `Page`／`/logs`，0.9.78 起）。
 
 頂欄頁名旁有「操作說明」按鈕（0.9.66 起，`PageHelpDialog`），內容為 `Datas/Help/logs.md`，於 `Datas/HelpTopics.json` 登記 `/logs`。
 

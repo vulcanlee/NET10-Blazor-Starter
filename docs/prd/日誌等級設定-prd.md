@@ -19,7 +19,7 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/log-level-setting` | 統計與分析 › 日誌等級設定 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
+| `/log-level-setting` | 系統管理 › 監控與診斷 › 日誌等級設定 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
 
 權限沿用同子功能表的管理員專屬機制：`MagicObjectHelper.角色_日誌等級設定` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`（id 63），但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。`MyProject.Tests/AdminOnlyPermissionTests.cs` 會擋下日後「順手補齊」的修改。
 

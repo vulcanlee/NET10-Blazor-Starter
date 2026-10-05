@@ -54,7 +54,7 @@ function Get-TreeState {
 $modules = @(
     @{ Name = 'GenSample'; DisplayName = '產生器範例' },
     @{ Name = 'GenTeamSample'; DisplayName = '產生器團隊範例'; WithTeams = $true; Icon = 'inventory_2' },
-    @{ Name = 'GenAdminSample'; DisplayName = '產生器管理範例'; AdminOnly = $true; MenuGroupId = 3 }
+    @{ Name = 'GenAdminSample'; DisplayName = '產生器管理範例'; AdminOnly = $true; MenuGroupId = 8 }
 )
 
 try {
