@@ -1,8 +1,8 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.115
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/10/05
 
@@ -209,7 +209,7 @@
 | 進入點 | 現行防線 | 現況 | 需求 |
 |---|---|:-:|---|
 | Web API（`/api/*`） | `ApiExceptionFilterAttribute`：記 Error，回 `ApiResult` 500 附 `TraceId`；控制器自行 catch 的 `ApiServerError` 也帶（0.9.78） | ✅ | — |
-| 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error")`；以例外實例去重、帳號於驗證後補上（0.9.77） | ✅ | —（0.9.78 起 `/Error` 頁顯示的追蹤碼與日誌一致） |
+| 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error", createScopeForErrors: true)`；以例外實例去重、帳號於驗證後補上（0.9.77）；Host 空白或組不成網址由 `UseRejectInvalidHost` 回 400（0.9.115） | ✅ | —（0.9.78 起 `/Error` 頁顯示的追蹤碼與日誌一致；0.9.115 起 Blazor 頁面 SSR 例外也看得到錯誤頁，之前錯誤頁本身拋 "already initialized" 而回空白 500） |
 | Blazor 頁面元件 | `LoggingErrorBoundary` 包住 `AuthorizeRouteView`，記 Error 並顯示錯誤訊息與追蹤碼（0.9.78） | ✅ | — |
 | Blazor 浮層（對話窗、通知、確認窗） | `AntContainer` 包在第二個 `LoggingErrorBoundary` 內，換頁自動復原（0.9.77），提示附追蹤碼（0.9.78） | ✅ | — |
 | 射後不理的 Task（`_ = XxxAsync()`） | `ProcessExceptionHooks`：`UnobservedTaskException` 記 Error，來源 `系統`（0.9.77） | ✅ | — |

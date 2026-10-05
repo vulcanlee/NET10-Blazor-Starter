@@ -96,6 +96,30 @@ public static class ApplicationBuilderExtensions
         return app;
     }
 
+    /// <summary>
+    /// Host 標頭空白或組不成網址的請求直接回 400。
+    ///
+    /// HTTP/1.0 可以不帶 Host（掃描器、直接打 IP 的機器人常見）；這種請求進到 Blazor 頁面時，
+    /// 組 BaseUri 會得到 <c>https:///</c> 而拋 UriFormatException，連重跑的 /Error 都跟著失敗。
+    /// <c>AllowedHosts</c> 擋不到：HostFiltering 預設 <c>AllowEmptyHosts = true</c>。
+    /// 用 <c>Uri.TryCreate</c> 判斷，與 Blazor 實際失敗的那一步一致。
+    /// </summary>
+    public static WebApplication UseRejectInvalidHost(this WebApplication app)
+    {
+        app.Use(async (context, next) =>
+        {
+            if (!Uri.TryCreate($"{context.Request.Scheme}://{context.Request.Host}/", UriKind.Absolute, out _))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            await next();
+        });
+
+        return app;
+    }
+
     public static WebApplication UseConfiguredCors(this WebApplication app)
     {
         app.UseCors("ConfiguredCors");
