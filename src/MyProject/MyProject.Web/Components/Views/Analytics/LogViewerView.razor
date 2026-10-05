@@ -34,9 +34,6 @@ else
                 <AntDesign.InputNumber TValue="int" @bind-Value="takeCount"
                                        Min="1" Max="@LogQueryRequest.MaxTake" Step="100"
                                        Style="width: 110px;" />
-
-                <Input class="log-view-search-input" @bind-Value="keyword" Placeholder="關鍵字（比對整筆原始內容）" />
-                <Input class="log-view-trace-input" @bind-Value="traceCode" Placeholder="錯誤追蹤碼" />
             </div>
             <div class="log-view-toolbar-right">
                 <ToolbarIconButton Title="查詢" Icon="search"
@@ -72,6 +69,11 @@ else
                     OnClick="@(async () => await OnQuickRangeAsync(LogTimeRanges.Last(TimeSpan.FromHours(1), DateTime.Now)))">最近 1 小時</Button>
             <Button Size="@ButtonSize.Small" Shape="@ButtonShape.Round"
                     OnClick="@(async () => await OnQuickRangeAsync(LogTimeRanges.Today(DateTime.Now)))">今天</Button>
+        </div>
+
+        <div class="log-view-text-filters">
+            <div><Input @bind-Value="keyword" Placeholder="關鍵字（比對整筆原始內容）" /></div>
+            <div><Input @bind-Value="traceCode" Placeholder="錯誤追蹤碼" /></div>
         </div>
 
         @if (string.IsNullOrWhiteSpace(statusMessage) == false)
