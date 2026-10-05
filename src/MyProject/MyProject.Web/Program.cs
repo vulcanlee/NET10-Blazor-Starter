@@ -405,7 +405,9 @@ namespace MyProject.Web
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
                 {
-                    app.UseExceptionHandler("/Error");
+                    // ⚠️ createScopeForErrors 不可拿掉：重跑 /Error 若沿用原請求的 DI scope，
+                    // Blazor 的 NavigationManager 已初始化，錯誤頁本身會拋 "already initialized"，使用者只拿到空白 500。
+                    app.UseExceptionHandler("/Error", createScopeForErrors: true);
                     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                     app.UseHsts();
                 }
@@ -414,6 +416,9 @@ namespace MyProject.Web
                 app.UseSecurityHeaders();
                 app.UseConfiguredSwagger(logger);
                 app.UseHttpRequestLogging<Program>();
+
+                // 排在請求日誌之後（被擋的請求記一筆 Information 400）、StatusCodePages 之前（400 不會被重跑成 /not-found）。
+                app.UseRejectInvalidHost();
 
                 // ⚠️ 這個中介軟體只會對「沒有 body」的錯誤狀態碼重跑 /not-found。
                 // 對 API 而言那是災難：它會拿原始的 POST + JSON 去執行 Blazor 頁面，
