@@ -1,8 +1,8 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.9.112
+- 現行系統版本：0.9.114
 - 首次實作版本：0.4.26
 - 最後核對日期：2026/10/05
 
@@ -21,7 +21,7 @@
 | --- | --- | --- | --- |
 | `/logs` | 系統管理 › 監控與診斷 › 日誌檢視 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
 
-權限採**管理員專屬**設計：`MagicObjectHelper.角色_監控與診斷`（0.9.113 前為 `角色_統計與分析`）與 `角色_日誌檢視` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`，但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色權限矩陣不會顯示這兩項、任何角色都無法被授予，只有 `AuthenticationStateHelper.CheckAccessPage` 的管理員短路能通過。非管理員在側邊欄看不到整個「統計與分析」群組；直接輸入網址會看到無權限訊息，並留下一筆 `Permission.Denied` 稽核（目標 `Page`／`/logs`，0.9.78 起）。
+權限採**管理員專屬**設計：`MagicObjectHelper.角色_監控與診斷`（0.9.113 前為 `角色_統計與分析`）與 `角色_日誌檢視` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`，但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色權限矩陣不會顯示這兩項、任何角色都無法被授予，只有 `AuthenticationStateHelper.CheckAccessPage` 的管理員短路能通過。非管理員在側邊欄看不到整個「監控與診斷」群組（0.9.113 前名為「統計與分析」）；直接輸入網址會看到無權限訊息，並留下一筆 `Permission.Denied` 稽核（目標 `Page`／`/logs`，0.9.78 起）。
 
 頂欄頁名旁有「操作說明」按鈕（0.9.66 起，`PageHelpDialog`），內容為 `Datas/Help/logs.md`，於 `Datas/HelpTopics.json` 登記 `/logs`。
 
@@ -156,8 +156,9 @@
   `context_length_exceeded`，訊息會直接請使用者縮小時間區間或減少筆數。
 - **取消不保證不計費**（0.9.8）：關窗會中止 HTTP 連線，但請求早已送達上游，
   對方是否照樣計費不在本系統的控制範圍。所以取消仍然寫一筆稽核。
-- **字級選擇不保存**（0.9.8）：關窗重開回到「一般」。專案刻意沒有任何前端偏好保存
+- **字級選擇不保存**（0.9.8）：關窗重開回到「一般」。當時專案刻意沒有任何前端偏好保存
   機制（全庫零 `localStorage`），為了一個字級旋鈕引進一套新基礎建設不划算。
+  （0.9.112 起側邊選單的收合狀態以 `localStorage` 保存〔`wwwroot/js/nav-state.js`〕，字級仍不保存。）
 - **PDF 只有一個字重**：內嵌字型只有 Noto Sans TC Regular，而 PDFsharp 沒有粗體模擬，
   因此報告的層級靠字級、顏色與框線表達，Markdown 的 `**粗體**` 在 PDF 裡呈現為深色而非粗體。
   加 Bold 字面會讓 repo 再肥約 7 MB。
@@ -178,8 +179,9 @@
 `Take` 上限與預設、多行堆疊的合併解析、跨檔案查詢、區間上限 3 天的裁切，以及
 **`Query_WhenFileTimestampIsStale_ShouldStillReadEntries`** —— 釘住 0.4.39 移除「以檔案 mtime 整檔跳過」
 那個優化的原因（見第五節），該測試與執行時刻無關，修正前必紅。
+快速區間與「查前後 1 分鐘」的區間計算（0.9.111）由 `MyProject.Tests/LogTimeRangesTests.cs`（3 支：`Last_ShouldEndAtNowAndStartSpanEarlier`、`Today_ShouldStartAtMidnightAndEndAtNow`、`Around_ShouldSpanOneMinuteEachSide`）守住。
 
-AI 分析對應八個測試檔（0.9.4 起；部分與 AI 例外分析共用，現行共 121 支）：`AiSettingsTests`、`AiChatEndpointTests`、
+AI 分析對應八個測試檔（0.9.4 起；部分與 AI 例外分析共用，現行共 118 個測試方法）：`AiSettingsTests`、`AiChatEndpointTests`、
 `AiLogPromptBuilderTests`、`AiChatResponseParserTests`、`AiMarkdownRendererTests`、
 `AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`、`AiModalStyleConventionTests`（0.9.8）。
 其中五支是安全、成本與行為的守門測試，壞了不要改測試：

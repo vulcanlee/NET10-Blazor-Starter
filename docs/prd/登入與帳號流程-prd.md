@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.104
+- 現行系統版本：0.9.114
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -46,14 +46,14 @@
 - **舊的 123456**：登入成功時明文是 `123456` 就設 `MustChangePassword`（舊資料只有雜湊，無法用 SQL 轉換）。
 - **Google 登入**：處理順序集中在 `ExternalLoginResult.Evaluate`：已刪除 → 待開通 → **鎖定（0.9.101 起，導回 `?sso=locked`）** → 登入。
 - **雜湊自動升級**：驗證回傳 `SuccessRehashNeeded`（舊格式）時，即時以 PBKDF2 重新雜湊並存回。
-- **Cookie 簽發**（Login.razor.cs）：建立 `ClaimTypes.Role=User`、`Name`、`NameIdentifier=Account`、`Sid=Id`，以 `CookieAuthenticationScheme` `SignInAsync`；`IsPersistent = RememberMe`（記住我 → 持久性 Cookie），`RedirectUri` 取 `ReturnUrl` 或 `/App`。
+- **Cookie 簽發**（Login.razor.cs，claim 由 `Auth/CookieClaims.Create` 組成）：建立 `ClaimTypes.Role=User`、`Name`、`NameIdentifier=Account`、`Sid=Id`、`security_stamp`（0.9.103 起），以 `CookieAuthenticationScheme` `SignInAsync`；`IsPersistent = RememberMe`（記住我 → 持久性 Cookie），`RedirectUri` 取 `ReturnUrl` 或 `/App`。
 - **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`，否則簽發 Cookie 並導回本地安全的 `returnUrl`。
 - **登出**：`SignOutAsync(CookieScheme)` 後 `NavigateTo("/Auths/Login", forceLoad: true)`。
   - **使用者主動登出**（0.9.29 起）先經二次確認：三個 UI 入口都走
     `Components/Commons/LogoutConfirm.cs`，確認後才導向 `/Auths/Logout`。
   - ⚠️ **系統強制登出不確認**：`AuthenticationStateHelper` 的六處
-    `NavigateTo("/Auths/Logout", true, true)`（未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson）
-    是系統行為，直接登出 —— 對 session 已經失效的人跳「確定要登出嗎？」只會讓他卡住。
+    `NavigateTo("/Auths/Logout", true, true)`（無效 Sid／查無使用者／工作階段版本不符（`?reason=session`）／停用／無角色／壞 RoleJson；
+    未驗證則導向 `/Auths/Login`、不清 Cookie，0.9.39 起）是系統行為，直接登出 —— 對 session 已經失效的人跳「確定要登出嗎？」只會讓他卡住。
     這兩條路徑在分層上就分開：`LogoutConfirm` 在 Web 層，`AuthenticationStateHelper` 在 Business 層，
     後者參照不到前者。
   - 直接在網址列輸入 `/Auths/Logout` 維持立即登出，刻意不擋（刻意輸入網址不是誤觸）。
@@ -110,7 +110,7 @@
 - `MyProject.Tests/MyUserServiceLoginTests.cs`：新舊雜湊登入、舊雜湊自動升級、密碼錯誤、5 次失敗鎖定並拒絕正確密碼、成功後歸零、鎖定到期放行、成功／失敗稽核。
 - `MyProject.Tests/MyUserServicePasswordTests.cs`：`ChangeOwnPasswordAsync` 正確／錯誤舊密碼、空白新密碼、確認不一致、`support` 帳號被拒。
 - `MyProject.Tests/SecurePasswordHasherTests.cs`：自述式雜湊、非決定性、新舊格式驗證與要求 rehash。
-- `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證／無效 Sid／查無使用者／停用／無角色／壞 RoleJson 導向登出、旗標與到期導向改密碼頁（0.9.101 起；只有 123456 而沒有旗標不導向）、多角色聯集初始化。
+- `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證導向登入頁且不清 Cookie、無效 Sid／查無使用者／停用／已刪除／無角色／壞 RoleJson 導向登出、旗標與到期導向改密碼頁（0.9.101 起；只有 123456 而沒有旗標不導向）、多角色聯集初始化。
 - `MyProject.Tests/SessionTests.cs`（0.9.103）：⭐ 換版本的時機（改密碼換、登入時舊雜湊升級不換、只改姓名或 Email 不換、停用／管理員／主要或額外角色變更換、刪除與強制登出換、support 設定密碼變更才換）、空版本登入時補上、快取存活與輪替立即清除、空字串一律不符、ticket 一次性／竄改／過期；
   `SessionIntegrationTests`：換版本後與沒有版本的 Cookie 被拒、停用的帳號 Cookie 被拒、⭐ refresh token 不能當 Bearer、換版本後 refresh 401 並稽核、⭐ 換發頁只接受原本的 Cookie 與資料庫目前的版本、ticket 不能重用。
 - `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：規則邊界、歷史（目前、第 N、第 N+1、0 關閉、裁切、舊格式目前密碼）、必須變更（旗標、到期邊界、support 與 Google 豁免）、新增／修改使用者與變更密碼都套用原則、⭐ 雜湊只准出現在政策服務等三處、⭐ 鎖定門檻與到期先歸零、稽核標籤、同一則訊息、只通知一次、123456 登入補旗標、解鎖不換版本號、Google 被鎖定擋下、到期提醒作業。

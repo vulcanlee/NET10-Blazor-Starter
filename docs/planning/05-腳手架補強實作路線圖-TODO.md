@@ -11,6 +11,13 @@
 > ⚠️ 本檔頭的「現行系統版本／最後核對日期」**刻意停在快照當時**，不隨系統版本推進 ——
 > 它記錄的是「當時看到的樣子」，更新它反而會讓人誤以為內容經過重新查證。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - 「四道 CI 關卡」與 `.github/workflows/dotnet-ci.yml` 已移除；改為本機 `scripts/Invoke-QualityGate.ps1`（建置、格式、測試、文件編碼、弱點掃描），可選裝 `Install-GitHooks.ps1` —— 見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)
+> - Refresh token 仍不支援單顆撤銷，但 0.9.103 起可用 `SecurityStamp` 讓整位使用者失效 —— 見[認證授權與權限機制](../security/認證授權與權限機制.md)
+> - 「database/seed 深度拆分」已於 0.9.91 完成（`MyProject.Business/Startup/`）—— 見[資料模型與資料庫](../architecture/資料模型與資料庫.md)
+> - 「強制改密碼功能化」已於 0.9.101 以 `MustChangePassword` 與密碼原則實作 —— 見[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)
+> - `New-CrudModule.ps1` 0.9.110 起一行產生並自動登記與 migration，另有 `Test-CrudGenerator.ps1` —— 見[建立一個新 CRUD 操作網頁說明](../guides/建立一個新%20CRUD%20操作網頁說明.md)
+
 ## 第一階段：API 與 JWT 基礎
 - [x] 目標說明：先補齊日後所有系統都會需要的 API contract、JWT、Swagger、測試與 CI。
 - [x] 現況盤點：第一階段已完成，並保留既有 API 路由相容性。

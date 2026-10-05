@@ -1,10 +1,10 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.100
+- 現行系統版本：0.9.114
 - 首次實作版本：0.9.59
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -123,12 +123,12 @@
 - `EmailTestServiceTests`：None／無效收件者拒絕、成功與失敗都稽核且不含收件者。
 - `EmailTemplatesTests`：HTML 編碼、主旨。
 - `ApiIntegrationTests`：Production 下 Pickup 拒絕、Smtp 設定不完整拒絕、`PublicBaseUrl` 不是 http(s) 網址拒絕（`ProductionSafetyValidation_WithSmtpAndInvalidPublicBaseUrl_ShouldFailFast`）、完整設定通過。
-- `SystemHealthTests.CheckWeights_ShouldSumTo145`：寄信服務權重 10（0.9.79 加入「日誌管線」後總權重為 145）。
+- `SystemHealthTests.CheckWeights_ShouldSumTo150`：寄信服務權重 10（0.9.79 加入「日誌管線」後總權重為 145，0.9.96 加入「排程作業」後為 150）。
 
 ## 九、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Configuration/EmailSettings.cs`、`StartupSafetyValidator.cs`
-- `src/MyProject/MyProject.Web/Email/`（三個 sender、`ChannelEmailQueue`、`EmailDispatchWorker`、`EmailHealthProbe`、`EmailTestService`、`MimeMessageFactory`、`PublicBaseUrlResolver`）
+- `src/MyProject/MyProject.Web/Email/`（三個 sender、`ChannelEmailQueue`、`EmailDispatchWorker`、`EmailHealthProbe`、`EmailTestService`、`MimeMessageFactory`、`PublicBaseUrlResolver`、`NotificationMailer`）
 - `src/MyProject/MyProject.Business/Services/Other/IEmailSender.cs`、`IEmailQueue.cs`
 - `src/MyProject/MyProject.Business/Helpers/EmailTemplates.cs`、`src/MyProject/MyProject.Models/Systems/EmailMessage.cs`
 - `src/MyProject/MyProject.Web/Extensions/ServiceCollectionExtensions.cs`（`AddConfiguredEmail`）

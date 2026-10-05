@@ -11,6 +11,13 @@
 > ⚠️ 本檔頭的「現行系統版本／最後核對日期」**刻意停在快照當時**，不隨系統版本推進 ——
 > 它記錄的是「當時看到的樣子」，更新它反而會讓人誤以為內容經過重新查證。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - `.github/workflows/dotnet-ci.yml` 已移除、沒有 CI；`dotnet format` 等檢查改由本機 `scripts/Invoke-QualityGate.ps1` 執行（0.9.89 起）—— 見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)
+> - Refresh token 仍不落庫，但 0.9.103 起帶 `SecurityStamp`、refresh 時比對，改密碼、停用、改角色、強制登出會讓該使用者所有 refresh 失效 —— 見[認證授權與權限機制](../security/認證授權與權限機制.md)
+> - 密碼策略不只 `BootstrapSettings`：另有 `IPasswordPolicy`（規則、歷史、到期）、可設定的登入鎖定、`MustChangePassword`（0.9.101）與兩步驟驗證（0.9.104）；雜湊為 PBKDF2 —— 見[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)
+> - 「.NET preview SDK 提示」已不存在：`global.json` 鎖定 GA SDK `10.0.400`
+> - `New-CrudModule.ps1` 0.9.110 起已改為一鍵產生並自動登記 —— 見[建立一個新 CRUD 操作網頁說明](../guides/建立一個新%20CRUD%20操作網頁說明.md)
+
 ## 已處理風險
 - [x] 目標說明：記錄安全、套件、測試、CI、warning、密碼與預設帳號等風險，避免腳手架問題被複製到新系統。
 - [x] 現況盤點：AutoMapper 已為 16.1.1；套件弱點掃描目前未列出已知易受攻擊套件。

@@ -20,7 +20,7 @@
 - 用驗證器 App 掃描 QR Code，輸入一次驗證碼確認，開啟兩步驟驗證。
 - 開啟時取得 10 組備用碼（只顯示這一次）。
 - 已開啟時：看剩下幾組備用碼、重新產生備用碼、停用兩步驟驗證。
-- 開啟、停用、重新產生都會記在「稽核紀錄」。
+- 開啟、停用、重新產生都會記在「稽核紀錄」（`User.TwoFactorEnable`、`User.TwoFactorDisable`、`User.TwoFactorBackupCodesRegenerate`；系統管理員替你重設時記 `User.TwoFactorReset`）。
 
 ## 二、這個頁面在做什麼
 

@@ -1,10 +1,10 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.87
+- 現行系統版本：0.9.114
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/10/03
+- 最後核對日期：2026/10/05
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
@@ -22,6 +22,7 @@
   動作代碼一律引用 `MyProject.Business/Helpers/AuditActions.cs` 的常數，不可寫字串字面值（`AuditConventionTests` 守門）。
 - 例外：`ProjectFileController`（附件下載）**只收 Cookie 驗證**、路由為 kebab-case 的 `api/project-files`，
   因為呼叫端是 Blazor 畫面上由瀏覽器直接導覽的連結，帶的是登入 Cookie 而不是 Bearer token。
+  `BackupController`（系統備份下載，0.9.99 起）同理只收 Cookie，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權。
 
 ## 統一回傳格式
 所有一般 Web API 回應固定使用 `MyProject.Dtos.Commons.ApiResult<T>` 或非泛型 `ApiResult`。

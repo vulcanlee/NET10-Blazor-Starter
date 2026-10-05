@@ -1,10 +1,10 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.105
+- 現行系統版本：0.9.114
 - 首次實作版本：0.4.0
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -98,7 +98,7 @@
 - `src/MyProject/MyProject.Business/Services/Other/IRecordAccessScopeProvider.cs`（`RecordAccessScope`）
 - `src/MyProject/MyProject.Business/Helpers/RecordTeamScope.cs`（0.9.105 起的共用可見性與指派規則）、`Services/Other/TeamTree.cs`（部門樹與快取）
 - `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`、`CategoryService.cs`、`Repositories/ProjectRepository.cs`、`CategoryRepository.cs`（查詢範圍套用）
-- `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（`HasPermissionAsync`，管理員短路 `:27`）
+- `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（`HasPermissionAsync`，管理員短路 `:33`）
 - `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（401/403 與 `ApiResult`）
 - `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`（`[HasPermission]` 動作級標註）
 - `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessAction`）

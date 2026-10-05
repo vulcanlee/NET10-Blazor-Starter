@@ -9,6 +9,11 @@
 > [AI 例外分析](../../features/AI例外分析.md) 與 [系統例外紀錄 PRD](../../prd/系統例外紀錄-prd.md) 為準，
 > 變更結果見 [`docs/changelog/`](../../changelog/README.md)。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - `AiSettings:SystemPrompt` 已於 0.9.108 移除；日誌分析與例外分析的提示詞改由管理員在 `/prompt-templates`（`PromptTemplate` 版本）維護，`AiExceptionPromptDefaults` 只是內建預設，防注入規則固定接在最後 —— 見 [AI 提示詞管理 PRD](../../prd/AI提示詞管理-prd.md)
+> - 0.9.109 起送出前先檢查 AI 用量上限，超過時不送出（稽核 `Ai.QuotaBlocked`）—— 見 [AI 用量配額 PRD](../../prd/AI用量配額-prd.md)
+> - `MaxFollowUpRounds` 仍在 `AiSettings`（類別預設 10），但 `appsettings.json` 未列出此鍵
+
 ---
 
 ## 一、需求（與使用者逐項確認）

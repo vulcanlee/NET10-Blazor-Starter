@@ -1,10 +1,10 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.107
+- 現行系統版本：0.9.114
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -17,9 +17,9 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
-| `/myusers` | 系統管理 → 使用者管理（`Menu.json` id=31）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
+| `/myusers` | 系統管理 → 帳號與權限 → 使用者管理（`Menu.json` id=31；0.9.113 起移入「帳號與權限」子群組 id=34）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
 
-> **0.4.33 起**：`使用者管理` 權限鍵刻意**不列入角色矩陣**（比照「統計與分析」群組）。
+> **0.4.33 起**：`使用者管理` 權限鍵刻意**不列入角色矩陣**（比照「統計與分析」群組，0.9.113 起改名「監控與診斷」；同次新增的子群組鍵 `角色_帳號與權限` 同樣不列入）。
 > 此前該鍵可被勾選卻永遠無效（頁面以 `CheckIsAdmin` 守門），屬於「死權限」。
 > 由 `MyProject.Tests/AdminOnlyPermissionTests.cs` 守門，請勿補上。
 
@@ -59,9 +59,10 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查帳號唯一性。
 - **稽核 actor**：`ResolveActor` 取目前登入者；未登入時 actor 為 null。
 
-> ℹ️ `RbacWriteService` 是 0.4.36 `IDbContextFactory` 遷移後**唯一仍直接接收 `BackendDBContext`** 的服務。
-> 這是刻意的 —— 它必須沿用呼叫端的 context 才能與主要寫入處於同一個工作單元（交易一致性），
-> 因此不在 `DataAccessServiceLifetimeTests` 的守門範圍內。
+> ℹ️ `RbacWriteService` 在 0.4.36 `IDbContextFactory` 遷移後**仍直接接收 DI 注入的 scoped `BackendDBContext`**
+> （`AuditLogService`、`PermissionChecker`、`EffectiveTeamResolver` 等亦同），不在 `DataAccessServiceLifetimeTests` 的守門範圍內。
+> ⚠️ 現況：`MyUserService` 以工廠另建 context 寫入主表並先 `SaveChangesAsync`，`RbacWriteService` 再用自己的 context 各自 `SaveChangesAsync`，
+> 兩者**不是**同一個工作單元（沒有共用交易）。
 
 ## 五、權限與安全
 
@@ -109,10 +110,10 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/MyUserPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填）、`:405`（多角色／團隊變更）
-- `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs`（Add）、`:250`（Update）、`:305`（雙寫）、`:332`（回填）
-- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncUserRolesAsync`）、`:64`（`SyncUserTeamsAsync`）
-- `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs`、`:123`（啟動回填）
+- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填 `OnEditAsync`）、`:690`（多角色／團隊變更）
+- `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs`（Add `:228`）、`:278`（Update）、`:424`（雙寫）、`:455`（回填）
+- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncUserRolesAsync` `:52`）、`:80`（`SyncUserTeamsAsync`）
+- `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs`、`:26`（啟動回填 `RunAsync`）
 - `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs`（有效團隊）
 - RBAC 資料表：`MyUser`、`RoleView`、`UserRole`、`UserTeam`、`RolePermissionMap`、`Permission`（`src/MyProject/MyProject.AccessDatas/Models/`）
 - 交叉連結：[登入與帳號流程](登入與帳號流程-prd.md)、[角色管理](角色管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)

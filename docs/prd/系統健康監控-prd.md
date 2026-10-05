@@ -1,16 +1,16 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.111
+- 現行系統版本：0.9.114
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
-提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表、寄信服務與日誌管線是否正常，並附最近 24 小時 WARN 以上日誌與寄信測試；另提供部署平台使用的機器可讀探針端點。
+提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表、寄信服務、日誌管線與排程作業是否正常，並附最近 24 小時 WARN 以上日誌與寄信測試；另提供部署平台使用的機器可讀探針端點。
 
-- 範圍：`/system-health` 巡檢頁、13 項健康檢查、加權計分與燈號、最近 24 小時 WARN 以上日誌、寄信測試（0.9.59 起）、`/health/live` 與 `/health/ready` 探針。
+- 範圍：`/system-health` 巡檢頁、14 項健康檢查、加權計分與燈號、最近 24 小時 WARN 以上日誌、寄信測試（0.9.59 起）、`/health/live` 與 `/health/ready` 探針。
 - 非範圍：健康狀態的告警通知／歷史趨勢、外部監控整合、自動修復（例外告警信屬「日誌與例外處理」LOG-12，不在本頁）。機制細節不重寫，見 [系統健康監控（機制）](../features/系統健康監控.md)。
 
 ## 二、使用者與入口
@@ -26,10 +26,10 @@
 - 頂欄頁名旁的「操作說明」按鈕（0.9.66 起，`PageHelpDialog`）；內容為 `Datas/Help/system-health.md`，於 `Datas/HelpTopics.json` 登記 `/system-health`。
 - 摘要區：整體燈號（綠／黃／紅）、健康百分比（`Score%`）、狀態文字（正常／警示／異常）、最後檢查時間。
 - 檢查項目卡片（逐項）：名稱、類別、權重、狀態文字、燈號、佐證（Evidence）；異常時另顯示失敗訊息（FailureMessage）。
-- 報告只在頁面初始化時產生一次；要重新檢查請重新整理頁面（每次都會重跑 13 項，含會產生費用的 LLM API）。
-- 13 項檢查與權重（總計 145）：網站/應用程式(10)、API(10)、資料庫(25)、日誌(15)、身分驗證(15)、檔案系統(10)、主機資源(5)、安全設定(10)、LLM API(10)、快取服務(10)、AI 計費表(5)、寄信服務(10，0.9.59 起)、日誌管線(10，0.9.79 起，見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) LOG-22)。
+- 報告只在頁面初始化時產生一次；要重新檢查請重新整理頁面（每次都會重跑 14 項，含會產生費用的 LLM API）。
+- 14 項檢查與權重（總計 150）：網站/應用程式(10)、API(10)、資料庫(25)、日誌(15)、身分驗證(15)、檔案系統(10)、主機資源(5)、安全設定(10)、LLM API(10)、快取服務(10)、AI 計費表(5)、寄信服務(10，0.9.59 起)、日誌管線(10，0.9.79 起，見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) LOG-22)、排程作業(5，0.9.96 起)。
   分數是「得分／總權重」，總權重由項目自行加總而非固定 100，因此新增項目會等比稀釋既有項目的佔比。
-  權重由 `MyProject.Tests/SystemHealthTests.CheckWeights_ShouldSumTo145` 守住。
+  權重由 `MyProject.Tests/SystemHealthTests.CheckWeights_ShouldSumTo150` 守住。
 - **寄信服務**：`EmailSettings:Provider` 為 `None`（未啟用）或 `Pickup`（開發用）時黃燈；`Smtp` 時實際連線＋加密＋登入（上限 5 秒、不寄信），成功綠燈、失敗紅燈。佐證只顯示主機、埠號、加密方式，帳號與寄件者只顯示「已設定／未設定」，不顯示密碼。
 - **寄信測試區**（0.9.59 起）：收件者輸入框（預填目前登入者的 Email）＋「寄出測試信」按鈕；Provider 為 `None` 時輸入框與按鈕停用並提示如何啟用。同步寄送，結果以綠／紅訊息顯示（失敗只顯示例外型別名稱，細節看日誌）。
 - ⚠️ **LLM API 這項每次載入頁面都會真的呼叫一次 API**，會產生費用並記入「Token 用量」
@@ -41,7 +41,7 @@
 ## 四、內部系統運作
 
 1. `SystemHealthPage.OnInitializedAsync`：先 `AuthenticationStateHelper.Check` 驗證登入，再 `CheckIsAdmin`；非管理員設定 `roleMessage`、寫 `Permission.Denied` 稽核（0.9.78 起）並中止，不呼叫服務。
-2. `ISystemHealthService.GetReportAsync`（`SystemHealthService`）依序執行 13 項檢查，各回傳 `SystemHealthItem`（狀態 Healthy/Degraded/Unhealthy）：
+2. `ISystemHealthService.GetReportAsync`（`SystemHealthService`）依序執行 14 項檢查，各回傳 `SystemHealthItem`（狀態 Healthy/Degraded/Unhealthy）：
    - 應用程式：環境、`SystemVersion`（未設定→Degraded）、啟動時間與運作時長。
    - API：Controller action 數量（0→Unhealthy）、Swagger 依環境／設定。
    - 資料庫：`Database.CanConnectAsync`（false→Unhealthy）、待套用 migration 數（>0→Degraded）。
@@ -55,6 +55,7 @@
    - AI 計費表：AI 未啟用→Healthy；匯率 ≤ 0 或目前模型查無價格（沿用 `AiUsageCostCalculator.Resolve`）→Degraded。
    - 寄信服務：依 Provider 判斷；Smtp 走 `IEmailHealthProbe`（連線＋TLS＋登入，5 秒上限，永不拋例外）。
    - 日誌管線：讀 `LoggingPipelineMonitor` 快照、例外佇列長度與 `NLog:BasePath` 所在磁碟，由純函式 `EvaluateLoggingPipeline` 判定（佇列滿或磁碟 < 200 MB→Unhealthy；任何丟棄／寫入或告警失敗／NLog 內部錯誤、佇列達八成、磁碟 < 1 GB→Degraded）。
+   - 排程作業（0.9.96 起）：讀 `ScheduledJobOverviewService` 的總覽，由 `EvaluateScheduledJobs` 判定（啟用中的作業最近一次執行失敗→Unhealthy；排程總開關關閉、作業逾期未執行、排程設定有誤→Degraded；讀取失敗→Unhealthy）。
 3. 計分（`SystemHealthScoreCalculator`）：以權重加權，Healthy 計滿分、Degraded 計半、Unhealthy 計 0；`Score = round(earned/totalWeight*100)`。
 4. 燈號門檻：`Score >= 90` 綠、`>= 70` 黃、其餘紅；狀態文字同門檻映射正常／警示／異常。
 5. 日誌區：報告取得後，頁面另呼叫 `ILogQueryService.QueryAsync`（`StartTime = now − 24h`、`MinimumLevel = Warn`、`Take = LogQueryRequest.MaxTake`），結果反轉為新到舊。與報告分開，讀取失敗只影響本區。「日誌」檢查項目仍以 `IHealthLogReader.ReadLatestLines(100)` 判斷目錄可寫與今日檔狀態。
@@ -73,7 +74,7 @@
 ## 六、錯誤與邊界
 
 - 報告載入前顯示「正在讀取系統健康狀態...」。
-- 資料庫、LLM API、快取服務檢查擲例外時降級為 Unhealthy 並記錄例外型別，不使頁面崩潰；寄信服務由 probe 內部吞例外。其餘早期項目沒有個別防護（見機制文件 §4.1）。
+- 資料庫、LLM API、快取服務、排程作業檢查擲例外時降級為 Unhealthy 並記錄例外型別，不使頁面崩潰；寄信服務由 probe 內部吞例外。其餘早期項目沒有個別防護（見機制文件 §4.1）。
 - 最近 24 小時沒有日誌檔或沒有 WARN 以上紀錄時，日誌區顯示服務回傳的原因；讀取擲例外時記錄錯誤並顯示「讀取日誌失敗：…」，不影響上方檢查結果。
 - 任一子項降級／異常僅影響其權重計分與整體燈號，其餘項目仍照常呈現。
 
@@ -84,7 +85,7 @@
   - `GetLight_ItemStatus_ShouldMapTrafficLight`（狀態→燈號映射）。
   - `HealthLogReader_ReadLatestLines_ShouldReturnLast100Lines`、`HealthLogReader_MissingFile_ShouldReturnDegraded`（「日誌」檢查項目的尾端讀取與缺檔降級）。
   - 日誌區的查詢條件由 `LogQueryServiceTests`（等級篩選、跨日檔案合併）守住；`ApiIntegrationTests.SystemHealthPage_WithoutCookieLogin_ShouldNotExposeDetails` 確認匿名存取看不到「最近 24 小時警告以上日誌」。
-  - `CheckWeights_ShouldSumTo145`（13 項名稱與權重、總和 145）。
+  - `CheckWeights_ShouldSumTo150`（14 項名稱與權重、總和 150）。
 - `MyProject.Tests/LoggingPipelineHealthTests.cs`：`Evaluate_AllClear_ShouldBeHealthy`、`Evaluate_ClientErrorDropsOnly_ShouldStayHealthy`、`Evaluate_AnyPipelineProblem_ShouldDegrade`、`Evaluate_QueueFullOrDiskAlmostFull_ShouldBeUnhealthy`（日誌管線燈號）。
 - `MyProject.Tests/AiHealthProbeTests.cs`：未設定不呼叫、成功記 Token 用量與 AI 對話紀錄、失敗不拋例外且不外洩上游內容。
 - `MyProject.Tests/ApiIntegrationTests.cs`：`/health/ready`、`/health/live` 探針回應。
@@ -94,7 +95,7 @@
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/SystemHealthPage.razor`（`OnInitializedAsync` 的管理員守門、`GetStatusText`／`GetLightClass` 的狀態文字與燈號樣式）
-- `src/MyProject/MyProject.Web/Health/SystemHealthService.cs`（`GetReportAsync` 與 13 項檢查、`EvaluateLoggingPipeline`）
+- `src/MyProject/MyProject.Web/Health/SystemHealthService.cs`（`GetReportAsync` 與 14 項檢查、`EvaluateLoggingPipeline`、`EvaluateScheduledJobs`）
 - `src/MyProject/MyProject.Web/Ai/AiHealthProbe.cs`、`src/MyProject/MyProject.Web/Diagnostics/LoggingPipelineMonitor.cs`
 - `src/MyProject/MyProject.Web/Datas/Help/system-health.md`（頁面操作說明）
 - `src/MyProject/MyProject.Web/Health/SystemHealthScoreCalculator.cs`（計分與燈號門檻）

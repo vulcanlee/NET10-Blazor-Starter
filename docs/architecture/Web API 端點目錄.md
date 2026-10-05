@@ -1,23 +1,23 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.41
+- 現行系統版本：0.9.114
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/09/19
+- 最後核對日期：2026/10/05
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
 ## 一、通則
 
 - 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）。
-- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**唯一例外是 `ProjectFileController`（見第三節），它走 Cookie。**
+- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `ProjectFileController` 與 `BackupController`（見第三節），它們走 Cookie。**
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - 回傳一律包在 `ApiResult<T>`；分頁再包 `PagedResult<T>`。
 
 ## 二、資源 CRUD 控制器
 
-三個資源控制器共用同一組動作樣板（以 `CategoryController` 為代表，`src/MyProject/MyProject.Web/Controllers/CategoryController.cs:35`）：
+三個資源控制器共用同一組動作樣板（以 `CategoryController` 為代表，`src/MyProject/MyProject.Web/Controllers/CategoryController.cs:38`）：
 
 | 動作 | 路由（相對 `api/` 與 `api/v1/`）| 權限（`PermissionActions`）| 回傳 |
 |------|------|------|------|
@@ -56,6 +56,8 @@
 - **成功時不包 `ApiResult`**，維持原生 File stream（`enableRangeProcessing: true`，支援 1GB 附件續傳）；只有錯誤才回 `ApiResult`。
 
 查無紀錄、團隊越界（`ProjectService.GetFileDownloadAsync` 以 `IsTeamAccessible` 守門）、實體檔案不存在**一律回 404**，不以狀態碼洩漏檔案是否存在；三者差異由 Service 層的 Warning 日誌區分。成功下載寫入稽核 `Project.FileDownload`。
+
+> **系統備份下載 `BackupController`（0.9.99 起）**：`src/MyProject/MyProject.Web/Controllers/BackupController.cs`，路由 `api/backups`（**無** `api/v1` 平行路由）。`GET backups/{fileName}/download`，同樣走 `[Authorize(CookieScheme)]`、成功回原生檔案（`application/zip`，支援續傳）；不用 `[HasPermission]`，而是每次從資料庫確認是**管理員**，否則回 `ApiResult` 403；找不到備份回 `ApiResult` 404。第一段下載寫入稽核 `Backup.Download`（續傳的後續區段不重複寫）。
 
 ## 四、認證控制器 `AuthController`
 

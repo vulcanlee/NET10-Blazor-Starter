@@ -1,10 +1,10 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.107
+- 現行系統版本：0.9.114
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -68,7 +68,7 @@
 - 讀取：清單 `GetAsync(DataRequest)` 使用 `AsNoTracking`；單筆 `GetAsync(int)` 以 `Include(x => x.Files)` 帶附件。
 - 編輯前處理：開啟修改視窗時以 `ProjectService.GetAsync(id)` 重新取得資料（含附件），再 `Clone()` 一份作為編輯對象（非重用清單物件），並清空待上傳／待移除清單（`ProjectViewView.razor.cs`）。
 - DbContext 生命週期：每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）；附件的寫入與移除沿用 `AddAsync`／`UpdateAsync` 的同一個 context。
-- 附件 Adapter：UI 以 `ProjectUploadFileInput`（FileName/ContentType/FileSize/Content）傳入；Service 依主表 `CreatedAt` 年／月建立目錄，檔名以 GUID 產生，落地後寫入 `ProjectFile`；刪除主表時先刪實體檔再刪紀錄。細節見 [檔案上傳機制](../features/檔案上傳機制.md)。
+- 附件 Adapter：UI 以 `ProjectUploadFileInput`（FileName/ContentType/FileSize/Content）傳入；Service 依主表 `CreatedAt` 年／月建立目錄，檔名以 GUID 產生，落地後寫入 `ProjectFile`；刪除主表為軟刪除、實體檔保留，永久刪除時先提交資料庫、成功後才經 `ProjectFileStore` 刪實體檔（見上方「附件」）。細節見 [檔案上傳機制](../features/檔案上傳機制.md)。
 - 稽核（0.9.78 起，LOG-14）：成功後寫入，代碼定義於 `AuditActions`，可在「稽核紀錄」頁查詢。
 
   | 事件 | 動作代碼 | 寫入點 | 內容 |
@@ -83,8 +83,8 @@
 
 - 動作級授權：`ProjectController` 各端點標註 `[HasPermission(角色_專案項目, 動作)]`（`ProjectController.cs`）；無權限回 403 且維持 `ApiResult` 結構；管理員短路。
 - UI 與 API 共用同一 RBAC 權威（`IPermissionChecker`）。
-- 團隊可見範圍：非管理員清單以 `TagStringHelper.BuildTeamAccessPredicate` 只看到公開（無團隊）或與自身團隊交集的專案；單筆／附件下載以 `IsTeamAccessible` 守門，越界回空模型或 `null`（`ProjectService.cs`）。
-- ⚠️ 團隊可見範圍只在 Blazor 服務層：Web API（`ProjectController` → `ProjectRepository`）**不做**列級過濾，詳見 [紀錄分類與團隊權控 PRD](紀錄分類與團隊權控-prd.md)。
+- 團隊可見範圍：非管理員清單以 `RecordTeamScope.Apply`（內部用 `TagStringHelper.BuildTeamAccessPredicate`）只看到公開（無團隊）或與自身團隊交集的專案；單筆／附件下載以 `RecordTeamScope.CanAccess`（內部用 `TagStringHelper.IsTeamAccessible`）守門，越界回空模型或 `null`（`ProjectService.cs`）。
+- Web API（`ProjectController` → `ProjectRepository`）0.9.105 起套用同一套 `RecordTeamScope` 規則（之前**不做**列級過濾）：範圍外 404、指派範圍外 400，詳見 [紀錄分類與團隊權控 PRD](紀錄分類與團隊權控-prd.md)。
 - Web API 的刪除（`ProjectRepository.DeleteAsync`）與畫面路徑一樣是軟刪除（0.9.94 起），附件保留；0.9.93 之前 API 的硬刪除不會刪實體檔，會留下孤兒檔。
 - 附件下載端點 `ProjectFileController` 需 `專案項目:view`；查無紀錄、團隊越界、實體檔不存在、路徑逃脫一律回 404（不讓外部從狀態碼推斷哪些 Id 存在）。
 
@@ -109,6 +109,7 @@
   `GetFileDownloadAsync_Admin_ShouldReturnStreamWithOriginalName`、`_UnknownId_ShouldReturnNull`、
   `_NonAdminOutsideTeam_ShouldReturnNull`、`_WhenPhysicalFileMissing_ShouldReturnNull`、
   **`_WhenRelativePathEscapesRoot_ShouldReturnNull`**（路徑逃脫防護，屬安全不變量）。
+- `MyProject.Tests/ProjectServiceTeamAccessTests.cs`（移除附件）：`UpdateAsync_RemovingAnAttachmentWhosePathEscapesTheRoot_ShouldNotDeleteTheOutsideFile`、`UpdateAsync_WhenRemovingAnAttachmentFailsToSave_ShouldKeepThePhysicalFile`（0.9.97 起經 `ProjectFileStore`、存檔成功後才刪檔）。
 - `MyProject.Tests/ProjectServiceTeamAccessTests.cs`（排序退回）：`GetAsync_WithUnknownSortField_ShouldFallBackToDefaultOrder`、`GetAsync_WithNullSortDescending_ShouldFallBackToDefaultOrder`（0.4.46）。
 - `MyProject.Tests/UploadFileTypePolicyTests.cs`：副檔名白名單與 ContentType 對應，
   含 `DefaultAllowedExtensions_ShouldNotContainScriptableTypes`。
