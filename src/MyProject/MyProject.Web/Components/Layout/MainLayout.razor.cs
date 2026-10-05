@@ -55,7 +55,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private IReadOnlyList<PageHelpTopicModel> helpTopics = [];
     private bool CurrentUserIsAdmin { get; set; }
     private bool isAuthenticated;
-    private bool isSidebarCollapsed = true;
+    /// <summary>預設展開；實際初始值由 <see cref="ReadInitialSidebarCollapsedAsync"/> 依螢幕寬度與上次的選擇決定。</summary>
+    private bool isSidebarCollapsed;
     private bool isUserMenuOpen;
 
     private bool aboutVisible = false;
@@ -86,7 +87,24 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         UpdateCurrentPageTitle();
         NavigationManager.LocationChanged += OnLocationChanged;
         CurrentUserService.Changed += OnCurrentUserChanged;
+
+        // 版面在 isAuthenticated 成立前完全不渲染（且 prerender: false），所以在這裡讀，不會先閃另一種狀態。
+        isSidebarCollapsed = await ReadInitialSidebarCollapsedAsync();
         isAuthenticated = true;
+    }
+
+    private async Task<bool> ReadInitialSidebarCollapsedAsync()
+    {
+        try
+        {
+            return await JSRuntime.InvokeAsync<bool>("appNavState.isInitiallyCollapsed");
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // 腳本沒載入或 circuit 已斷線：維持預設的展開。
+            Logger.LogDebug(ex, "Failed to read the sidebar state; using the default.");
+            return false;
+        }
     }
 
     private void UpdateCurrentUserStatus()
@@ -229,9 +247,19 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         aboutVisible = false;
     }
 
-    private void ToggleSidebar()
+    private async Task ToggleSidebar()
     {
         isSidebarCollapsed = !isSidebarCollapsed;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("appNavState.save", isSidebarCollapsed);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // 只是少記住一次選擇，畫面已經切換了。
+            Logger.LogDebug(ex, "Failed to save the sidebar state.");
+        }
     }
 
     private void ToggleUserMenu()

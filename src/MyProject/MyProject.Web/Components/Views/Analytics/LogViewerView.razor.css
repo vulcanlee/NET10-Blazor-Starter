@@ -19,19 +19,28 @@
     color: var(--app-off);
 }
 
-.log-view-search-input {
-    width: 240px;
-}
-
-.log-view-trace-input {
-    width: 130px;
-}
-
 .log-view-quick-ranges {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     margin-bottom: 12px;
+}
+
+/*
+ * 關鍵字｜錯誤追蹤碼同列各半。寬度交給本元件自己的格子決定：AntDesign 渲染的 <input> 不帶本元件的
+ * scope 屬性，直接對它下 width 不會生效，而它自帶的 width: 100% 正好填滿格子。
+ */
+.log-view-text-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+@media (max-width: 640.98px) {
+    .log-view-text-filters {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* 「查前後 1 分鐘」在展開列內，落在本元件 scope 屬性之外，因此需要 ::deep。 */
