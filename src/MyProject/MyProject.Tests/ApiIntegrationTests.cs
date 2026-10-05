@@ -556,7 +556,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
             response.StatusCode == HttpStatusCode.OK
             || response.StatusCode == HttpStatusCode.Redirect
             || response.StatusCode == HttpStatusCode.Unauthorized);
-        Assert.DoesNotContain("最後 100 筆日誌紀錄", body);
+        Assert.DoesNotContain("最近 24 小時警告以上日誌", body);
     }
 
     [Fact]
