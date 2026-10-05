@@ -11,6 +11,12 @@
 > ⚠️ 本檔頭的「現行系統版本／最後核對日期」**刻意停在快照當時**，不隨系統版本推進 ——
 > 它記錄的是「當時看到的樣子」，更新它反而會讓人誤以為內容經過重新查證。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - 業務 Controller 現為 Project、Category、Team、ProjectFile，`ControllerApiResponseExtensions` 由它們共用（MyTask／Meeting 已於 0.4.24 移除）—— 見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)
+> - Category、Team 也採同一套 Create/Update/Search DTO 邊界 —— 見 [DTO 與模型邊界規範](../architecture/DTO%20與模型邊界規範.md)
+> - `Program.cs` 的 migrate／seed 已移到 `MyProject.Business/Startup/`（`IDatabaseInitializer`、各 `IDatabaseSeeder`、跨行程鎖與 WAL，0.9.91）—— 見[架構總覽](../architecture/架構總覽.md)
+> - 方案仍是七個專案；磁碟上的 `MyProject.AccessDatas.SqlServerMigrations/` 只剩 `obj/`，不在方案內（SQL Server 已於 0.4.24 移除）
+
 ## 分層現況
 - [x] 目標說明：盤點腳手架分層，讓後續系統能從清楚的責任邊界開始擴充。
 - [x] 現況盤點：目前包含 `AccessDatas`、`Business`、`Dtos`、`Models`、`Share`、`Web`、`Tests` 七個專案。

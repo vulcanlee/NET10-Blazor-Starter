@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.95
+- 現行系統版本：0.9.114
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 目的
 
@@ -225,6 +225,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 5. `Components/Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板。
 6. `<OverlayStyles />` 只能在 `Routes.razor` 出現，且恰好一次。
 7. 果凍必須寫在 `.ant-modal .ant-modal-content` 共用基底上（§2.1）。
+8. `Routes.razor` 的 `<AntContainer />` 必須包在 `<LoggingErrorBoundary>` 之內（`AntContainer_ShouldBeWrappedInErrorBoundary`），否則浮層內的未處理例外會讓整個 circuit 中斷。
 
 搭配既有的 `ModalKeyboardConventionTests.cs`（表單層不得攔截鍵盤事件）。
 

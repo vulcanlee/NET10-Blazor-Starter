@@ -76,10 +76,11 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
 - 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最近 24 小時 WARN 以上日誌（0.9.111 起）；0.9.59 起含「寄信服務」檢查與寄信測試，
-  0.9.79 起含「日誌管線」自我監控（共 13 項）
+  0.9.79 起含「日誌管線」自我監控、0.9.96 起含「排程作業」（共 14 項）
 - 寄信服務：`IEmailSender`（同步）與 `IEmailQueue`（背景佇列）兩個入口，`EmailSettings` 切換不寄／寫 `.eml` 檔（開發）／MailKit SMTP；出貨預設不寄信（0.9.59）
 - 日誌檢視頁：`/logs`，管理員可依等級／關鍵字／時間區間查詢並匯出（0.4.26）；
-  0.9.69 起可全部展開／收合、點列複製單筆、一鍵複製查詢結果，0.9.78 起可依錯誤追蹤碼篩選
+  0.9.69 起可全部展開／收合、點列複製單筆、一鍵複製查詢結果，0.9.78 起可依錯誤追蹤碼篩選，
+  0.9.111 起有「最近 5 分／15 分／1 小時／今天」快速區間與展開列「查前後 1 分鐘」
 - 日誌 AI 分析：日誌檢視頁可把查詢結果送 Azure OpenAI 或 OpenAI 整理，結果以唯讀對話窗呈現，
   可複製或匯出成 PDF 報告；供應商與金鑰在 `appsettings.json` 設定（0.9.4）
 - 資料庫用量頁：`/database-usage`，管理員可查看各資料表筆數與估算用量（0.4.28）
@@ -98,7 +99,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   自行變更密碼、頁面權限拒絕、匯出與自動清理
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - AI 對話紀錄：保存每次 AI 呼叫實際送出的 Prompt 與取得的 Response（管理員專屬、預設保留 90 天自動過期），五種檢視、JSON／PDF 匯出，並與 Token 用量以呼叫識別碼互相連結（0.9.72）
-- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（內建四個清理作業），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
+- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 8 個作業：6 個清理作業、系統備份、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
 - 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔與金鑰環成 zip，保留 7 份；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
 - 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）
 - 密碼原則與登入鎖定：密碼長度、字元種類、不可重複最近幾組、有效天數與鎖定次數／分鐘都在系統參數調整；「下次登入須變更密碼」旗標；管理員可解鎖、鎖定時通知管理員；登入失敗訊息不透露帳號是否存在（0.9.101）
@@ -118,7 +119,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Production 啟動安全檢查：JWT key、預設密碼、Swagger 暴露策略、Redis 連線字串、寄信設定（不可用 Pickup、Smtp 須填齊）
   與 AI 設定（填了金鑰時 `Model`、Azure 的 `Endpoint` 須齊）需明確設定；0.9.86 起錯誤訊息會說明「未設定環境時預設即為 Production（例如 IIS）」，
   並帶出 `PublicBaseUrl` 實際讀到的值
-- Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限
+- Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限；0.9.112 起寬螢幕預設展開並記住該瀏覽器上次的選擇（窄螢幕從收合開始）
 - 頁面操作說明：每個登入後頁面的頂欄頁名旁都有說明鈕，開啟近滿版的「〈頁名〉・操作說明」窗（固定七段、相關頁面依權限過濾）；
   內容在 `Datas/HelpTopics.json` ＋ `Datas/Help/*.md`，由 `PageHelpCatalogTests` 守門（0.9.66–0.9.67）
 - 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
@@ -172,7 +173,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 │   ├── prd/                        ← 產品需求文件（能力覆蓋矩陣 + 各能力 PRD）
 │   ├── superpowers/                ← brainstorming 流程產出的設計規格
 │   └── changelog/                  ← 變更紀錄
-├── scripts/                        ← Invoke-QualityGate.ps1 / Install-GitHooks.ps1 / New-StarterProject.ps1 / New-CrudModule.ps1 / Test-DocsEncoding.ps1
+├── scripts/                        ← Invoke-QualityGate.ps1 / Install-GitHooks.ps1 / New-StarterProject.ps1 / New-CrudModule.ps1（樣板在 crud-templates/）/ Test-CrudGenerator.ps1 / Restore-Backup.ps1 / Test-DocsEncoding.ps1
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
@@ -184,12 +185,16 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、CookieSettings
     │   ├── Ai/                     ← LLM 日誌／例外分析、安全 Markdown 渲染、PDF 報告、用量與計價
+    │   ├── Backup/                 ← 系統備份（VACUUM INTO 快照＋檔案打包成 zip）
     │   ├── Caching/                ← ICacheService（Memory ↔ Redis）
+    │   ├── Dashboard/              ← 首頁儀表板小工具登記
     │   ├── Diagnostics/            ← 例外紀錄管線、日誌查詢、錯誤追蹤碼、告警、保存期限、慢操作、瀏覽器錯誤回報
     │   ├── Email/                  ← 寄信實作（None／Pickup／Smtp）、背景寄信佇列
+    │   ├── Export/                 ← 通用匯出（TabularExport、業務頁 Excel）
     │   ├── Fonts/                  ← PDF 內嵌中文字型（Noto Sans TC）與授權
     │   ├── Health/                 ← 健康檢查與計分
     │   ├── Properties/             ← launchSettings.json、發行設定檔
+    │   ├── Scheduling/             ← 排程作業框架與內建作業（Jobs/）
     │   ├── wwwroot/                ← 靜態資源
     │   ├── nlog.config
     │   ├── Localization/           ← AntDesignLocaleFactory
@@ -236,7 +241,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `PasswordResetSettings` | 忘記密碼（0.9.60 起）：`TokenLifetimeMinutes`（重設連結效期，預設 30 分）、`RequestCooldownSeconds`（同帳號申請間隔，預設 60 秒）。只在寄信啟用時有作用。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
 | `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
-| `CookieSettings` | Blazor UI 登入 Cookie 效期（0.9.39 起）：`ExpireMinutes`（未勾「記住我」，預設 480 分）、`RememberMeDays`（勾了「記住我」，預設 30 天）、`SlidingExpiration`（預設 `true`）。超出範圍啟動失敗。見 [日誌與設定檔說明 §4.3.2.1](docs/operations/日誌與設定檔說明.md)。 |
+| `CookieSettings` | Blazor UI 登入 Cookie 效期（0.9.39 起）：`ExpireMinutes`（未勾「記住我」，預設 480 分）、`RememberMeDays`（勾了「記住我」，預設 30 天）、`SlidingExpiration`（預設 `true`）、`ValidationIntervalMinutes`（工作階段失效的重新檢查間隔，預設 5 分，0.9.103 起）。超出範圍啟動失敗。見 [日誌與設定檔說明 §4.3.2.1](docs/operations/日誌與設定檔說明.md)。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
 | `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md)）。 |
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
@@ -250,12 +255,13 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
 | `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.ExternalFileSystem.AiCallLogPath` | AI 對話紀錄的內容檔目錄（完整 Prompt／Response，0.9.72 起）。⚠️ 內容含日誌與例外堆疊，**絕不可放在 `DownloadPath` 底下**。 |
+| `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
-| `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365），範圍 0～36500，`0`＝不自動清理；每日清理一次。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `ExceptionAlertSettings` | 系統例外 Email 告警（0.9.78 起）：`Recipients`（預設空清單＝停用）、`BurstThreshold`／`BurstWindowMinutes`（暴增門檻，預設 20 次／10 分）、`PerSignatureCooldownMinutes`（預設 60）、`MaxEmailsPerHour`（預設 20）。需寄信已啟用。見 [日誌與設定檔說明 §4.12](docs/operations/日誌與設定檔說明.md)。 |
 | `SlowOperationSettings` | 慢操作門檻（0.9.79 起，毫秒，超過記 Warning，`0`＝停用）：`HttpRequestMs`（3000）、`DbCommandMs`（1000）、`ExternalCallMs`（寄信，10000）、`AiCallMs`（60000）。見 [日誌與設定檔說明 §4.13](docs/operations/日誌與設定檔說明.md)。 |
 | `ClientErrorReporting` | 瀏覽器端 JavaScript 錯誤回報（0.9.79 起）：`Enabled`（預設 `true`）、`MaxPerCircuitPerMinute`（預設 10，範圍 1～1000）。見 [日誌與設定檔說明 §4.14](docs/operations/日誌與設定檔說明.md)。 |
@@ -289,7 +295,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 1100 個測試、文件編碼、弱點掃描，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 1600 個測試、文件編碼、弱點掃描，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell
@@ -306,7 +312,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 架構與設計（architecture）
 
-- [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、追蹤清理、權限同步等不變量速查。
+- [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、DbContextFactory（0.4.36 起取代追蹤清理）、權限同步等不變量速查。
 - [架構總覽](docs/architecture/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
 - [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
@@ -344,7 +350,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 7 個專案會一起改名。
-- `scripts/New-CrudModule.ps1` — 產生新 CRUD 模組（14 個檔案，含操作說明初稿，對齊現行慣例；產出附 README 列出註冊步驟）。
+- `scripts/New-CrudModule.ps1` — 一行產生新 CRUD 模組（13 個樣板檔，含操作說明初稿與服務測試，對齊現行慣例），並自動完成所有登記與 migration（0.9.110 起）；改了樣板跑 `scripts/Test-CrudGenerator.ps1` 驗證。
 
 ### 維運與部署（operations）
 

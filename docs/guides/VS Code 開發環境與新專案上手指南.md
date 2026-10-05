@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：2.9
+- 文件版本：3.0
 - 文件狀態：已實作
-- 現行系統版本：0.9.87
+- 現行系統版本：0.9.114
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/10/03
+- 最後核對日期：2026/10/05
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -103,9 +103,10 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
 | `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
 | `C:\temp\MyProject\Keys` | Data Protection 金鑰環（登入 Cookie 靠它解密，刪掉等於全站登出） | 同上區段的 `DataProtectionKeyPath` |
+| `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
 | `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
 
-`ExternalFileSystem` 的八個目錄若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
+`ExternalFileSystem` 的九個目錄（0.9.99 起含 `BackupPath`）若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
 
 ### 3.2 建置注意事項
 
@@ -368,7 +369,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 | 要改的東西 | 檔案 / 設定鍵 | 使用者會在哪看到 |
 |------|------|------|
 | 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
-| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:23`，0.9.60 起登入／忘記密碼／重設密碼三頁共用）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
+| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:22`，0.9.60 起登入／忘記密碼／重設密碼三頁共用）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
 | 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
@@ -379,13 +380,13 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 
 現況規格：**1024×1024 PNG**（約 171 KB），滿版構圖、無透明邊。
 
-三處都用 `object-fit: cover` 填滿容器，**會裁成正方形**，所以主體務必置中、四周留安全邊距：
+啟動頁與登入後首頁用 `object-fit: cover` 填滿容器，**會裁成正方形**；登入頁用 `object-fit: contain`（完整縮放、不裁切）。所以主體務必置中、四周留安全邊距：
 
 | 位置 | 容器（CSS） | 實際顯示尺寸 |
 |------|------|------|
 | 登入頁 | `.brand-logo`（`Login.razor.css:65`），圓角 26px | **104 × 104**（螢幕寬 ≤1023px 時 56 × 56、≤767px 時 44 × 44）|
 | 啟動頁 | `.splash-brand-image-wrap`（`SplashView.razor.css:29`），圓角 24px | **120 × 120**（螢幕寬 ≤640.98px 時為 96 × 96） |
-| 登入後首頁 | `.home-hero-image-wrap`（`HomeWelcomeView.razor.css`），圓角 24px | **140 × 140**（螢幕寬 ≤640.98px 時為 96 × 96） |
+| 登入後首頁 | `.home-hero-image-wrap`（`HomeWelcomeView.razor.css`），圓角 24px | **72 × 72**（螢幕寬 ≤640.98px 時為 64 × 64） |
 
 換圖建議：
 
@@ -440,7 +441,7 @@ ffmpeg -i images/brand-logo.png \
 
 `Components/App.razor` **沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
 
-全專案 22 個 `<PageTitle>`（0.9.87）中只剩一處是範本殘留的英文：
+全專案 31 個 `<PageTitle>`（0.9.114）中只剩一處是範本殘留的英文：
 
 | 檔案 | 目前標題 |
 |------|------|
@@ -457,11 +458,11 @@ ffmpeg -i images/brand-logo.png \
 | 位置 | 目前文字 |
 |------|------|
 | `Components/Auths/Login.razor:10` | `使用者登入` / `請輸入您的帳號資訊以存取系統。`（`AuthShell` 的 `Title`／`Subtitle`）|
-| `Components/Auths/Login.razor:53` | `企業級安全登入`（寄信啟用時此處改為「忘記密碼？」連結）|
+| `Components/Auths/Login.razor:58` | `企業級安全登入`（寄信啟用時此處改為「忘記密碼？」連結）|
 | `Components/Auths/ForgotPassword.razor`、`ResetPassword.razor` | 兩頁的標題、副標題與提示文字（0.9.60 起）|
 | `Components/Views/Commons/SplashView.razor:11` | `Welcome` |
-| `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`系統能力`／`快速入口`／`系統版本`／`執行環境` |
-| `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `FeatureCards` | 登入後首頁六張能力卡片的標題與說明：`權限與角色控管`／`專案項目管理`／`分類與團隊定義`／`日誌檢視與 AI 分析`／`健康監控與資料庫用量`／`檔案上傳與保管`。⚠️ 改成自家系統的能力時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
+| `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`快速入口`／`儀表板`（0.9.106 起）／`系統版本`／`執行環境` |
+| `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `AllQuickLinks` | 登入後首頁快速入口的標題與圖示：`專案項目`／`分類清單`／`團隊清單`（依權限顯示；原本的六張能力卡片已移除）。⚠️ 改成自家系統的入口時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
 | `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
 | `Components/Layout/NavMenu.razor` | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
 | `Components/Layout/MainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
@@ -477,7 +478,7 @@ ffmpeg -i images/brand-logo.png \
 - [ ] 啟動頁（`https://localhost:7144/`）：品牌圖片、大標題（`SystemName`）、副說明（`SystemDescription`）
       —— 啟動頁只在驗證身分那一瞬間出現，會很快跳走，可先登出再開首頁觀察
 - [ ] 登入頁（`/Auths/Login`）：同樣三項，且說明文字沒有溢出面板
-- [ ] 登入後首頁（`/App`）：品牌圖片、大標題、副說明、六張能力卡片（圖示皆為單一圖示、未溢出容器）、快速入口與系統版本
+- [ ] 登入後首頁（`/App`）：品牌圖片、大標題、副說明、快速入口（圖示皆為單一圖示、未溢出容器）、儀表板小工具與系統版本
 - [ ] 登入後右上使用者選單 →「關於」：系統名稱／系統描述／系統版本三列正確
 - [ ] 「系統健康監控」頁（`/system-health`）：診斷文字含正確的 `版本：x.y.z`
 - [ ] 瀏覽器分頁圖示已換（先 `Ctrl+F5`）
@@ -531,7 +532,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
-| 外部目錄路徑 | `ExternalFileSystem` 八個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
+| 外部目錄路徑 | `ExternalFileSystem` 九個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
 
 即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
@@ -601,7 +602,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 按 `Alt+C` 開啟**大小寫相符**（Match Case），避免誤傷。取代前先看一次結果清單。
 
-> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（12 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1`（範本內嵌約 50 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
+> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（24 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 80 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
 >
 > 開了大小寫相符，全小寫的 `myproject`（例如 `docs/operations/Gmail寄信設定指南.md` 的範例信箱）不會被換到，記得另外搜尋一次。
 
@@ -633,7 +634,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 | 鍵 | 建議值 |
 |----|--------|
 | `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議比照腳本重設為 `1.0.0 (當天日期)` |
-| `SystemSettings:ExternalFileSystem:*` | 八個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
+| `SystemSettings:ExternalFileSystem:*` | 九個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
 | `JwtSettings:Issuer` / `Audience` | `Acme.Erp` / `Acme.Erp.WebApi` |
 | `JwtSettings:SigningKey` | 換成你自己的值；建議直接搬進 User Secrets |
 | `BootstrapSettings:*` | 改掉預設的 `support` / `support` |
@@ -708,7 +709,7 @@ pwsh ./scripts/Invoke-QualityGate.ps1
 - [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
-- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,Keys}` 已正確產生
+- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,Keys,Backup}` 已正確產生
 - [ ] `C:\temp\Logs\Acme.Erp.Web\` 有新日誌檔產生，且系統內的「日誌檢視」頁讀得到
 - [ ] 全文搜尋（排除 `bin`/`obj`）已無任何 `MyProject` 殘留
 - [ ] `git grep -i "DevelopmentOnly-ChangeThis"` 無殘留，或已改用 User Secrets

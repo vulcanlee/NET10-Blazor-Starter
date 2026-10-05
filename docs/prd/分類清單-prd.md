@@ -1,10 +1,10 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.110
+- 現行系統版本：0.9.114
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -63,7 +63,7 @@
 - API 路徑：`CategoryController` → `CategoryRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
 - Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），AutoMapper 以 `ForMember` 在 `List<string>` 與字串間轉換。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
-- 編輯前於 UI 以 `CurrentRecord = model.Clone()` 複製，避免污染清單資料；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified/Deleted` 提交。
+- 編輯前於 UI 以 `CurrentRecord = model.Clone()` 複製，避免污染清單資料；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
 - 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Category.Create`／`Category.Update`／`Category.Delete`（代碼定義於 `AuditActions`，目標為 `Category`／Id），可在「稽核紀錄」頁查詢。
   畫面路徑由 `CategoryService` 寫入（操作者取自 `CurrentUserService`，內容 `name=分類名稱`），Web API 路徑由 `CategoryController` 寫入（API 刪除不帶名稱）；寫入失敗（含唯一索引擋下）不留稽核。
 - 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。

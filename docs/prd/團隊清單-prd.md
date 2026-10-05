@@ -1,10 +1,10 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.110
+- 現行系統版本：0.9.114
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -42,8 +42,8 @@
 - 清單欄位：名稱、代號、描述、啟用狀態（`StatusPill` 徽章：啟用／停用）、更新時間、操作（修改需 `團隊清單:edit`、刪除需 `團隊清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「團隊資料」一區）：
   - 名稱 `Name`（必填，最長 100）
-  - 代號 `Code`（選填，最長 50，有填須唯一）
   - 上層部門 `ParentId`（0.9.105 起，選填＝最上層）：選項排除自己與自己的所有下屬（`TeamService.GetParentCandidatesAsync`）；修改時名稱欄下方提示「改名時，專案、分類與角色預設團隊裡的這個名稱會一起改。」
+  - 代號 `Code`（選填，最長 50，有填須唯一）
   - 描述 `Description`（選填，最長 2000，獨占整行）
   - 啟用狀態 `IsEnabled`（Switch，預設啟用）
 - 儲存流程（`SaveAsync`）依序為：表單驗證 → 修改模式下若沒有任何變更，提示「沒有任何變更，未進行儲存。」並關窗 →
@@ -67,7 +67,7 @@
 - Entity `Team`（`Id/Name/Code/Description/ParentId/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Team`。`ParentId` 自我參照外鍵（Restrict），沒有導覽屬性；Migration `AddTeamParent` 以單一 `ALTER TABLE … ADD COLUMN … REFERENCES` 加欄位（不重建資料表）。
 - 部門樹快取 `ITeamTreeCache`（singleton，60 秒；本行程的新增、修改、刪除、還原，含 Web API，立即失效），供有效團隊展開、反查與表單選項。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
-- 編輯前於 UI 以 `Clone()` 複製記錄；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified/Deleted` 提交。
+- 編輯前於 UI 以 `Clone()` 複製記錄；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
 - Web API 的 `POST`／`PUT` 接受 `parentId`；違反部門樹規則（含有下屬時刪除、改成已刪除團隊的名稱）回 400（`TeamRepository` 回 `TeamWriteResult`）。
 - 團隊清單本身**不**套團隊可見性過濾：有權限者看得到全部團隊；`GetAllEnabledNamesAsync()` 回傳所有啟用中的團隊（供分類、專案、使用者、角色等頁面的團隊下拉）。
 - 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Team.Create`／`Team.Update`／`Team.Delete`（代碼定義於 `AuditActions`，目標為 `Team`／Id），可在「稽核紀錄」頁查詢。

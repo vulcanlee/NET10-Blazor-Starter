@@ -11,6 +11,13 @@
 > ⚠️ 本檔頭的「現行系統版本／最後核對日期」**刻意停在快照當時**，不隨系統版本推進 ——
 > 它記錄的是「當時看到的樣子」，更新它反而會讓人誤以為內容經過重新查證。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - `ApiResult.Exception` 不再一律回傳堆疊：由 `Security:ReturnExceptionDetails` 控制，Production 為 `false`
+> - 路由已是 `/api/...` 與 `/api/v1/...` 並存（Auth、Project、Category、Team、project-files）；`api/backups` 沒有 v1 —— 見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)
+> - 檔案下載 API 已實作：`GET api/project-files/{id}/download`、`GET api/backups/{fileName}/download` —— 見 [Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)
+> - `POST /api/Auth/login` 已啟用兩步驟驗證時要帶 `twoFactorCode`（0.9.104）；refresh 會回查資料庫（0.4.34）並比對 `SecurityStamp`（0.9.103）—— 見[認證授權與權限機制](../security/認證授權與權限機制.md)
+> - Bearer 授權的 CRUD API 現為 Project、Category、Team；測試總數為 1598 個 —— 見[測試指南](../guides/測試指南.md)
+
 ## 本輪已完成
 - [x] 目標說明：建立 Web API 統一回傳格式、DTO 邊界、JWT Bearer 認證與 Swagger 測試入口。
 - [x] 現況盤點：已有 `ApiResult<T>`、DTO 專案、CRUD API、JWT settings、Auth API、Bearer 驗證與 Swagger security definition。

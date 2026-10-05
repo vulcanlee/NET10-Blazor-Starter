@@ -1,10 +1,10 @@
 ﻿# Google OAuth2 第三方登入
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.102
+- 現行系統版本：0.9.114
 - 首次實作版本：0.2.6
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 目的
 
@@ -141,7 +141,9 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
    - 被拒絕時不寫入、不連結、不新建，導向 `/Auths/Login?sso=deleted`，登入頁顯示「此帳號已被刪除，請洽系統管理員。」；管理員在使用者管理「顯示已刪除」還原後即可再登入。
 5. 清除外部暫存 Cookie。
 6. 若 `Status = false` → 導向 `/Auths/Pending`（帳號待審核頁，**不**登入）。
-7. 若 `Status = true` → 比照帳密登入建立 Claims（`Role`、`Name`、`NameIdentifier`、`Sid`），以主 Cookie scheme 完成登入並導向 `returnUrl`（預設 `/App`）。
+7. 若帳號因密碼輸錯被鎖定（0.9.101 起）→ 導向 `/Auths/Login?sso=locked`，不登入。判斷順序集中在 `ExternalLoginResult.Evaluate`：已刪除 → 待開通 → 鎖定 → 登入。
+8. 若帳號已啟用兩步驟驗證（0.9.104 起）且這台裝置沒有被記住 → 導向 `/Auths/TwoFactor` 完成第二步。
+9. 否則 → 以 `CookieClaims.Create` 建立與帳密登入相同的 Claims（`Role`、`Name`、`NameIdentifier`、`Sid`，以及 0.9.103 起的工作階段版本 `security_stamp`），以主 Cookie scheme 完成登入並導向 `returnUrl`（預設 `/App`）。
 
 ```
 使用者 ──點擊 Google 登入──▶ /Auths/Google/Login ──Challenge──▶ Google

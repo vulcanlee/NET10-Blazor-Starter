@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.104
+- 現行系統版本：0.9.114
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -17,11 +17,11 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
-| `/roleviews` | 系統管理 → 角色管理（`Menu.json` id=32）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
+| `/roleviews` | 系統管理 → 帳號與權限 → 角色管理（`Menu.json` id=32；0.9.113 起）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
 
 - `RoleViewView` 初始化先 `Check`，非管理員顯示「你沒有權限存取此頁面」並停止載入。
 
-> **0.4.33 起**：`角色管理` 權限鍵刻意**不列入角色矩陣**（比照「統計與分析」群組）。
+> **0.4.33 起**：`角色管理` 權限鍵刻意**不列入角色矩陣**（比照「統計與分析」群組，0.9.113 起改名「監控與診斷」）。
 > 此前該鍵可被勾選卻永遠無效（頁面以 `CheckIsAdmin` 守門），屬於「死權限」。
 > 由 `MyProject.Tests/AdminOnlyPermissionTests.cs` 守門，請勿補上。
 
@@ -34,7 +34,7 @@
   - 名稱（必填，唯一）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。
   - 「需要兩步驟驗證」（0.9.104 起，`RoleView.RequireTwoFactor`）：有這個角色（主要或額外）的人必須開啟兩步驟驗證，還沒設定的人下一次換頁被帶到設定頁；稽核 detail 帶 `requireTwoFactor=`。見[兩步驟驗證](兩步驟驗證-prd.md)。
-  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「系統管理功能」）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
+  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」；系統管理及其子群組不上架矩陣）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
 - **矩陣互動語意**：勾「（全部）」等同該頁裸鍵、代表全部動作，並停用個別動作核取方塊（舊制相容）；勾任一動作或頁面會自動點亮所屬群組；取消群組會連帶清掉其下所有頁面權限。
 
 ## 四、內部系統運作
@@ -86,10 +86,10 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/RoleViewPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動）、`:394`（動作欄定義）
-- `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`（Add）、`:188`（Update）、`:321`（回填矩陣）
-- `src/MyProject/MyProject.Business/Services/Other/RolePermissionService.cs`（`SetPermissionInput`）、`:116`（`GetPermissionInput`）
-- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncRolePermissionsAsync`）、`:84`（`EnsurePermissionsAsync`）
+- `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動）、`:490`（動作欄定義 `PermissionActionItems`）
+- `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`（Add `:166`）、`:199`（Update）、`:520`（回填矩陣 `OtherDependencyData`）
+- `src/MyProject/MyProject.Business/Services/Other/RolePermissionService.cs`（`SetPermissionInput` `:117`）、`:138`（`GetPermissionInput`）
+- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncRolePermissionsAsync`）、`:108`（`EnsurePermissionsAsync`）
 - `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（判定）、`RbacBackfillService.cs`（權限目錄）
 - `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（API 403）
 - `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionActions`／`PermissionKey`）

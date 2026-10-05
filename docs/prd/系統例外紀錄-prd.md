@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.79
+- 現行系統版本：0.9.114
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/10/01
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -14,14 +14,14 @@
 - 非範圍：**不提供 Web API**（內部診斷頁）。
 - 0.9.78 起：Email 告警（`ExceptionAlertSettings`，預設停用）、自動清除（`LogRetentionSettings:ExceptionLogDays`，預設 90 天）、
   錯誤追蹤碼（`LastTraceId`），見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3。
-  告警通知、自動清除、錯誤追蹤碼、瀏覽器端錯誤等規劃中需求見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §六。
+  告警通知、自動清除、錯誤追蹤碼、瀏覽器端錯誤（0.9.79）等需求（皆已實作）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §六。
 - 設計脈絡見 [系統例外紀錄設計規格](../superpowers/specs/2026-09-16-system-exception-log-design.md)。
 
 ## 二、使用者與入口
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/system-exceptions` | 系統管理 → id=33「系統例外紀錄」 | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣） | 系統管理員 |
+| `/system-exceptions` | 系統管理 → 監控與診斷 → id=33「系統例外紀錄」（0.9.113 起） | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣） | 系統管理員 |
 
 ## 三、畫面與欄位
 
@@ -31,7 +31,7 @@
 - 動作（`ToolbarIconButton`）：查詢 `search`、重新整理 `refresh`、複製目前查詢結果 `content_copy`（0.9.73）、匯出 CSV `file_download`、清除 N 天未再發生 `history`（N 讀 `LogRetentionSettings:ExceptionLogDays`，0.9.78 起；設 0 時退回 90）、清空全部 `delete_forever`。
 - 關鍵字比對類型、訊息、頁面、操作，0.9.78 起也可輸入**錯誤追蹤碼**（完全相同才命中）。
 - 刪除、清除、清空、匯出 0.9.78 起各寫一筆稽核（`ExceptionLog.Delete`／`Purge`／`ClearAll`／`Export`）。
-- 兩個破壞性動作（清除、清空）以 `ModalService.ConfirmAsync` 二次確認。
+- 破壞性動作（單列刪除、清除、清空）以 `ConfirmDialog.AskDestructiveAsync` 二次確認。
 - 匯出的 CSV 為 **UTF-8 含 BOM**（0.9.16 起；先前少了 BOM，Excel 開啟繁中會亂碼），
   位元組由 `Components/Commons/TextDownloadPayload.Utf8WithBom` 產生。
 - **複製目前查詢結果**（0.9.73）：與匯出同範圍（目前條件下的全部、依目前排序，最多 5,000 列，

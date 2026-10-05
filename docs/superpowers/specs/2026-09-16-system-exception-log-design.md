@@ -8,6 +8,14 @@
 > 本文為 brainstorming 流程的產出，記錄「為什麼這樣做」。實作後的現況請以
 > [`docs/prd/`](../../prd/README.md) 為準，變更結果見 [`docs/changelog/`](../../changelog/README.md)。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - 選單位置：不再直接掛在「系統管理」（id 3）下，0.9.113 起在子群組「監控與診斷」（id 6）底下（頁面 id 33 不變）—— 見[系統例外紀錄 PRD](../../prd/系統例外紀錄-prd.md)
+> - 「不做自動清除」已翻案：0.9.78 起依 `LogRetentionSettings:ExceptionLogDays`（預設 90 天）自動清除，0.9.96 起由排程作業 `ExceptionLogRetention` 執行 —— 見[排程作業 PRD](../../prd/排程作業-prd.md)
+> - 「不做告警／通知」已翻案：0.9.78 起有 `ExceptionAlertService`（`ExceptionAlertSettings`）—— 見[日誌與例外處理 PRD](../../prd/日誌與例外處理-prd.md)
+> - 啟動時的 migrate 已從 `Program.cs` 移到 `IDatabaseInitializer`（0.9.91）；`ExceptionLogWriter` 等註冊在 `Extensions/ServiceCollectionExtensions.cs`
+> - 匯出 CSV 0.9.107 起改走共用的 `TabularExport`（仍為 UTF-8 BOM）
+> - 0.9.68 起明細窗另有 AI 例外分析 —— 見 [AI 例外分析規格](2026-09-27-exception-ai-analysis-design.md)
+
 ---
 
 ## 一、目標與問題

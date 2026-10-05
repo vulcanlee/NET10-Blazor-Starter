@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.102
+- 現行系統版本：0.9.114
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/04
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
@@ -35,8 +35,9 @@
 
 - 篩選：發生時間範圍（兩個 `DatePicker`）、動作下拉、結果下拉（不限／成功／失敗）、
   操作者帳號、關鍵字（比對動作／操作者／目標類型／目標識別／摘要）。
-- **動作下拉的選項取自資料庫的 `SELECT DISTINCT Action`**，不寫死清單：動作代碼目前散落在
-  15 個呼叫點的字串字面值裡，沒有集中的常數來源，任何手寫清單都會在下次新增稽核事件時默默過期。
+- **動作下拉的選項取自資料庫的 `SELECT DISTINCT Action`**，不寫死清單：0.9.42 立頁時動作代碼散落在
+  15 個呼叫點的字串字面值裡，沒有集中的常數來源，任何手寫清單都會在下次新增稽核事件時默默過期
+  （0.9.78 起已收斂到 `AuditActions`，下拉仍讀 DISTINCT，見 §七）。
 - 動作（`ToolbarIconButton`）：查詢 `search`、重新整理 `refresh`、匯出 CSV `file_download`、
   清除 N 天前 `history`、清空全部 `delete_forever`。匯出 CSV 0.9.78 起寫一筆 `Audit.Export` 稽核。
 - 兩個破壞性動作以 `ConfirmDialog.AskDestructiveAsync` 二次確認。
@@ -48,7 +49,7 @@
 | --- | --- |
 | 發生時間 | 可排序，預設遞減。**顯示為伺服器本地時間**（資料庫存 UTC）|
 | 結果 | 成功綠／失敗紅的 `Tag` |
-| 動作 | 動作代碼，依第一節（`Login`／`User`／`Role`／`Permission`／`Audit`）上色 |
+| 動作 | 動作代碼，依第一節（`Login`／`User`／`Role`／`Permission`／`Audit`，以及後來加入的 `Project`／`Category`／`Team`／`Password`／`Backup` 等各類；未列出的為預設色）上色 |
 | 操作者 | 帳號（Id=N）；系統或匿名事件顯示「（系統／匿名）」|
 | 目標 | `TargetType#TargetId`，兩者皆空顯示破折號 |
 | 摘要 | `Detail`，過長以 `Ellipsis` 截斷 |
@@ -97,7 +98,7 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 六、資料來源
 
-0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（約 55 個），呼叫點一律引用常數，
+0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 105 個），呼叫點一律引用常數，
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 下表為 0.9.42 立頁時的寫入端：
@@ -108,14 +109,14 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 | `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` / `User.Unlock`（0.9.101 起，解除登入鎖定）| `MyUserService` |
 | `User.ProfileUpdate` | `ProfileService`（使用者在個人資料頁改自己的姓名，0.9.102 起；detail 只寫 `field=Name`，不記姓名內容）|
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
-| `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄） |
+| `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger` |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
 | `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
 | `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
-| `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）|
+| `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）|
 | `Project.FileDownload` | `ProjectFileController` |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
@@ -128,8 +129,9 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 
 1. ~~動作代碼沒有單一來源~~ —— 0.9.78 已收斂到 `AuditActions` 並以測試守門。
    下拉選單仍讀資料庫 DISTINCT：舊資料可能有已更名或移除的代碼。
-2. **`AuditLog.OccurredAt` 沒有索引**：`ExceptionLog.LastOccurredAt` 與 `TokenUsageLog.OccurredAt`
-   在 `BackendDBContext` 都建了索引，`AuditLog` 沒有。資料量大到影響查詢時應補一支 migration。
+2. **`AuditLog.OccurredAt` 沒有單欄索引**：`ExceptionLog.LastOccurredAt` 與 `TokenUsageLog.OccurredAt`
+   在 `BackendDBContext` 都建了索引，`AuditLog` 只有 0.9.102 為個人資料頁加的複合索引 `(ActorUserId, OccurredAt)`
+   （以操作者開頭，本頁依時間範圍查詢用不到）。資料量大到影響查詢時應補一支 migration。
 3. 時區以伺服器為準（見 §四）。
 4. ~~清除與清空沒有保留期限的自動化~~ —— 0.9.78 起每日自動清理，0.9.96 起改由排程作業執行（§五）。
 

@@ -11,6 +11,13 @@
 > ⚠️ 本檔頭的「現行系統版本／最後核對日期」**刻意停在快照當時**，不隨系統版本推進 ——
 > 它記錄的是「當時看到的樣子」，更新它反而會讓人誤以為內容經過重新查證。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - `.github/workflows/dotnet-ci.yml` 已移除、專案沒有 CI，提交前改跑 `scripts/Invoke-QualityGate.ps1`（0.9.89 起）—— 見 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)
+> - Web API 現為 Auth、Project、Category、Team、ProjectFile（附件下載）、Backup（備份下載）與 Google 登入的 `ExternalAuthController` —— 見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)
+> - 認證另有 Google 登入、PBKDF2 密碼雜湊、工作階段失效（0.9.103）與兩步驟驗證（0.9.104）—— 見[認證授權與權限機制](../security/認證授權與權限機制.md)
+> - 「.NET preview SDK 訊息」已不存在：`global.json` 鎖定 GA SDK `10.0.400`、`allowPrerelease: false`
+> - `Program.cs` 的 migrate／seed 已移到 `MyProject.Business/Startup/`（`IDatabaseInitializer`、`SupportUserSeeder`，0.9.91）—— 見[資料模型與資料庫](../architecture/資料模型與資料庫.md)
+
 ## 腳手架定位
 - [x] 目標說明：本專案定位為未來開發 .NET 10 Blazor + Web API 系統的預設腳手架，提供 UI、資料存取、DTO、API、認證授權、日誌與文件基礎。
 - [x] 現況盤點：目前已有 Blazor Web App、EF Core SQLite 預設、NLog、AutoMapper、DTO 專案、Project/MyTask/Meeting CRUD API、Swagger、Cookie 登入與 JWT Bearer API 認證基礎。（MyTask/Meeting 已於 0.4.24 移除）

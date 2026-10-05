@@ -39,27 +39,30 @@
 
 | 類別 | 什麼時候寫入 | 動作代碼 |
 |---|---|---|
-| 登入 | 登入成功、帳號或密碼錯誤（鎖定中仍嘗試登入也記在這裡，摘要為 `reason=Locked`）、帳號停用中仍嘗試登入、連續輸錯造成帳號被鎖定（只記鎖定的那一次）；用 Google 帳號登入成功或失敗 | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed` |
+| 登入 | 登入成功、帳號或密碼錯誤（鎖定中仍嘗試登入也記在這裡，摘要為 `reason=Locked`）、帳號停用中仍嘗試登入、連續輸錯造成帳號被鎖定（只記鎖定的那一次）；用 Google 帳號登入成功或失敗；登入第二步的驗證碼或備用碼錯誤（0.9.104 起）；工作階段已失效（改密碼、停用、角色變更、強制登出之後的舊登入）被系統登出（0.9.103 起） | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed`、`Login.TwoFactorFailed`、`Login.SessionExpired` |
 | 登出 | 使用者登出 | `Logout` |
-| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除、解除登入鎖定（0.9.101 起）帳號；使用者在「個人資料」改自己的姓名（0.9.102 起，摘要不記姓名）；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink`、`User.Unlock`、`User.ProfileUpdate` |
+| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除、解除登入鎖定（0.9.101 起）帳號、強制登出（0.9.103 起）、重設兩步驟驗證、匯出 Excel（0.9.107 起）；使用者在「個人資料」改自己的姓名（0.9.102 起，摘要不記姓名）；本人啟用、停用兩步驟驗證或重新產生備用碼（0.9.104 起）；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink`、`User.Unlock`、`User.ProfileUpdate`、`User.ForceLogout`、`User.Export`、`User.TwoFactorEnable`、`User.TwoFactorDisable`、`User.TwoFactorBackupCodesRegenerate`、`User.TwoFactorReset` |
 | 角色 | 在「角色管理」新增、修改、刪除、還原、永久刪除角色；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Role.Create`、`Role.Update`、`Role.Delete`、`Role.Restore`、`Role.Purge`、`Role.AutoPurge` |
 | 權限 | 有人打開沒有權限的頁面，或透過 Web API 做了沒有權限的動作而被拒絕 | `Permission.Denied` |
 | 密碼 | 忘記密碼的申請、完成重設、重設失敗；自己變更密碼 | `Password.ResetRequested`、`Password.ResetCompleted`、`Password.ResetFailed`、`Password.Changed` |
 | Token | 透過 Web API 換發登入憑證失敗 | `Token.RefreshFailed` |
-| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在「顯示已刪除」還原或永久刪除；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Category.Create`、`Category.Update`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Category.AutoPurge`、`Team.Create`、`Team.Update`、`Team.Delete`、`Team.Restore`、`Team.Purge`、`Team.AutoPurge` |
-| 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.AutoPurge`、`Project.FileUpload`、`Project.FileDelete` |
-| 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge` |
+| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在「顯示已刪除」還原或永久刪除；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Category.Create`、`Category.Update`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Category.Export`、`Category.AutoPurge`、`Team.Create`、`Team.Update`、`Team.Delete`、`Team.Restore`、`Team.Purge`、`Team.Export`、`Team.AutoPurge` |
+| 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.AutoPurge`、`Project.FileUpload`、`Project.FileDelete`、`Project.Export` |
+| 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；執行 AI 例外分析、追問、匯出 AI 分析的 PDF 報告；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge`、`ExceptionLog.AiAnalyze`、`ExceptionLog.AiFollowUp`、`ExceptionLog.AiExportPdf` |
+| AI 對話紀錄 | 在「AI 對話紀錄」刪除、批次清除、清空、匯出清單 CSV 或單筆 JSON／PDF；排程作業每天自動清除（0.9.96 起） | `AiCallLog.Delete`、`AiCallLog.Purge`、`AiCallLog.ClearAll`、`AiCallLog.Export`、`AiCallLog.AutoPurge` |
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
 | 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable` |
 | 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
 | 系統備份 | 建立備份（排程或立即備份）、依保留份數自動刪除、下載、手動刪除（0.9.99 起） | `Backup.Create`、`Backup.AutoPurge`、`Backup.Download`、`Backup.Delete` |
 | 公告 | 在「公告管理」新增、修改、刪除公告（0.9.100 起） | `Announcement.Create`、`Announcement.Update`、`Announcement.Delete` |
 | 站內通知 | 排程作業每天刪除建立超過保留天數的通知（0.9.100 起） | `Notification.AutoPurge` |
-| 匯出 | 在「日誌檢視」匯出日誌、在「AI 對話紀錄」匯出清單 | `LogViewer.Export`、`AiCallLog.Export` |
+| 匯出 | 在「日誌檢視」匯出日誌 | `LogViewer.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |
 | 日誌分析 | 在「日誌檢視」執行 AI 分析，或匯出 AI 分析的 PDF 報告 | `LogViewer.AiAnalyze`、`LogViewer.AiAnalyzeExportPdf` |
 | 專案附件 | 在「專案項目」下載附件 | `Project.FileDownload` |
+| AI 用量上限 | AI 呼叫在送出前被「系統參數」設定的用量上限擋下（0.9.109 起，記為失敗；摘要記作業、上限與已用金額） | `Ai.QuotaBlocked` |
+| AI 提示詞 | 在「AI 提示詞」儲存新版本，或切換使用的版本（0.9.108 起；只記範本與版本，不記提示詞內容） | `Prompt.Update`、`Prompt.Activate` |
 | 稽核 | 在這一頁清除、清空或匯出稽核紀錄；排程作業每天自動清除 | `Audit.Purge`、`Audit.ClearAll`、`Audit.Export`、`Audit.AutoPurge` |
 
 系統自動清除的紀錄，操作者顯示「（系統／匿名）」。
@@ -128,7 +131,7 @@ CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者�
 |---|---|---|---|
 | 發生時間 | 事件發生的本地時間。 | 2026-09-26 14:30:05 | 預設最新的在最上面，點標題可以改變排序。 |
 | 結果 | 綠色「成功」或紅色「失敗」。 | 失敗 | 「失敗」不代表系統壞了，密碼打錯、權限不足也記成失敗。 |
-| 動作 | 動作代碼，依類別上不同顏色的標籤。 | `Login.Failed` | 登入為藍色、使用者為綠色、角色為紫色、權限為紅色、密碼為橘色、郵件為青色、稽核為橘紅色，其他為灰色。 |
+| 動作 | 動作代碼，依類別上不同顏色的標籤。 | `Login.Failed` | 登入與登出為藍色、使用者為綠色、角色為紫色、權限與 Token 為紅色、密碼與備份為橘色、專案為深藍色、分類為黃綠色、團隊為金色、例外紀錄／AI 對話紀錄／Token 用量為洋紅色、稽核為橘紅色；日誌、郵件、排程作業、系統參數、公告與通知為青色；其他（例如 AI 用量上限、AI 提示詞）為灰色。 |
 | 操作者 | 顯示為「帳號（Id=編號）」。 | `admin`（Id=1） | 沒有帳號的事件顯示「（系統／匿名）」；輸入的帳號不存在時只有帳號、沒有 Id。 |
 | 目標 | 被操作的對象，顯示為「類型#識別」。 | `MyUser#12` | 沒有目標時顯示「—」。 |
 | 摘要 | 補充說明。 | `account=user01; roleIds=[2]; teams=[業務一組]` | 太長會被截斷，完整內容請按「查看」。沒有摘要時顯示「—」。 |

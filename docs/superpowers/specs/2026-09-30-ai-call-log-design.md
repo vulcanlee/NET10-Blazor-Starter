@@ -8,6 +8,10 @@
 > 本文為 brainstorming 流程的產出，記錄「為什麼這樣做」。實作後的現況請以
 > [AI 對話紀錄 PRD](../../prd/AI對話紀錄-prd.md) 為準，變更結果見 [`docs/changelog/`](../../changelog/README.md)。
 
+> 📌 現況差異（2026/10/05 核對 0.9.114）：本文為封存快照，內容維持當時原貌。與現行系統不同之處：
+> - 文中的「統計與分析群組」已於 0.9.113 改名為「監控與診斷」，而 AI 對話紀錄（id 66、圖示 `forum` 不變）移到新的「AI 管理」子群組（id 7），與 AI 提示詞、Token 用量同組 —— 見 [AI 對話紀錄 PRD](../../prd/AI對話紀錄-prd.md)
+> - 自動過期不再由獨立背景服務（`AiCallLogRetentionWorker`）執行：0.9.96 起改為排程作業 `AiCallLogRetention`（預設每天 03:00），並寫稽核 `AiCallLog.AutoPurge` —— 見[排程作業 PRD](../../prd/排程作業-prd.md)
+
 ---
 
 ## 一、需求

@@ -1,8 +1,8 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.22
+- 文件版本：1.23
 - 文件狀態：已實作
-- 現行系統版本：0.9.113
+- 現行系統版本：0.9.114
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/10/05
 
@@ -47,6 +47,7 @@
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。
   - 初始狀態（0.9.112 起）：寬螢幕第一次開啟為展開，之後沿用該瀏覽器上次的選擇（`wwwroot/js/nav-state.js`，localStorage `app.sidebarCollapsed`）；
     寬度 ≤ 640px 一律從收合開始，且不寫入偏好。`MainLayout` 在登入檢查完成、版面渲染前讀取，不會先閃另一種狀態；讀不到（腳本未載入、隱私模式）時為展開。
+    目前頁面所屬的群組在選單第一次渲染後（`NavMenu.OnAfterRender`）才套用 `OpenKeys` 展開 —— 0.9.113 修正：之前在同一次渲染設定，AntDesign 的 SubMenu 尚未註冊，一開始就展開時群組不會自動打開。
   - 每項含 `name`、`icon`（Material 圖示）、`url` 或子選單 `subMenu`。
 
   > ⚠️ **圖示大小只能從 `MaterialIcon` 的 `Size` 參數改**：該元件輸出行內的
@@ -82,7 +83,7 @@
   - 點「全部」顯示前言（頁名、簡介、提醒框、「一分鐘看懂這一頁」）與全部章節；點單一章節只顯示該章節（篩選，不是捲動），切換時內容捲回頂端。每次開啟都回到「全部」。
   - 「六、相關頁面」以卡片呈現，點名稱會先關窗再導頁；**使用者無權進入的頁面不顯示**。
   - 目前路由沒有登記說明時不顯示按鈕；切換頁面時對話窗自動關閉。窄視窗（≤640px）頁名與按鈕整組隱藏（與 ReviewSkills.AI 一致）；若開著窗縮小視窗，對話窗改為滿版、章節導覽改為橫向一排。
-  - 涵蓋登入後的 14 個頁面（13 個選單頁＋`/ChangePassword`）；內容與規則見 [開發慣例與限制速查 §6.14](../architecture/開發慣例與限制速查.md)。
+  - 涵蓋登入後的 22 個頁面（19 個選單頁＋`/ChangePassword`、`/Profile`、`/TwoFactorSetup`；0.9.66 起始時為 14 個）；內容與規則見 [開發慣例與限制速查 §6.14](../architecture/開發慣例與限制速查.md)。
 - 「關於」對話窗（`MainLayout.razor` 之 `about-modal`）：以 AntDesign `Modal`（寬 520、無 Footer）呈現六列唯讀系統資訊。
 
   | 項目 | 來源 |
@@ -124,7 +125,7 @@
 ## 六、錯誤與邊界
 
 - 找不到／無法解析 `Menu.json`：記錄警告或錯誤並回傳空清單，選單顯示「尚無可用選單」，不致中斷頁面。
-- 未登入者進入 `/App` 等受保護頁：`AuthenticationStateHelper.Check` 導向 `/Auths/Logout`；帳號停用、缺角色或需改密碼者亦於此攔截並導向。
+- 未登入者進入 `/App` 等受保護頁：0.9.41 起在 HTTP 層（`[Authorize]`）即被導去 `/Auths/Login`；`AuthenticationStateHelper.Check` 的未驗證分支同樣導向 `/Auths/Login`（0.9.39 起，不清 Cookie）。帳號停用、缺角色、工作階段失效者於此導向 `/Auths/Logout`，需改密碼者導向 `/ChangePassword`。
 - 使用者無任一項目權限：選單為空，僅顯示提示文字。
 
 ## 七、驗收與測試
@@ -148,7 +149,7 @@
 - `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor`（`/projects` 專案清單）
 - `src/MyProject/MyProject.Web/Components/Views/Commons/SplashView.razor`
 - `src/MyProject/MyProject.Web/Datas/Menu.json`
-- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`（`MenuPermissionMap`）、`:46`（載入與過濾）
+- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`（`MenuPermissionMap`）、`:68`（載入與過濾）
 - `src/MyProject/MyProject.Web/Components/Layout/NavMenu.razor`
 - `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor`（使用者選單與「關於」對話窗）
 - `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor.cs`（`OnAboutClick`）
