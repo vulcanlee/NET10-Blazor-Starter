@@ -1,16 +1,16 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.87
+- 現行系統版本：0.9.111
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/03
+- 最後核對日期：2026/10/05
 
 ## 一、目標與範圍
 
-提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表、寄信服務與日誌管線是否正常，並附最後 100 筆日誌與寄信測試；另提供部署平台使用的機器可讀探針端點。
+提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表、寄信服務與日誌管線是否正常，並附最近 24 小時 WARN 以上日誌與寄信測試；另提供部署平台使用的機器可讀探針端點。
 
-- 範圍：`/system-health` 巡檢頁、13 項健康檢查、加權計分與燈號、日誌尾端顯示、寄信測試（0.9.59 起）、`/health/live` 與 `/health/ready` 探針。
+- 範圍：`/system-health` 巡檢頁、13 項健康檢查、加權計分與燈號、最近 24 小時 WARN 以上日誌、寄信測試（0.9.59 起）、`/health/live` 與 `/health/ready` 探針。
 - 非範圍：健康狀態的告警通知／歷史趨勢、外部監控整合、自動修復（例外告警信屬「日誌與例外處理」LOG-12，不在本頁）。機制細節不重寫，見 [系統健康監控（機制）](../features/系統健康監控.md)。
 
 ## 二、使用者與入口
@@ -36,7 +36,7 @@
   （作業名稱「系統健康檢測」，約 27 token／NT$0.005 一次）與「AI 對話紀錄」（0.9.72 起），頁面載入也會因此多等 1～3 秒。
   逾時固定 30 秒，刻意不沿用 `AiSettings.TimeoutSeconds`（預設 600 秒）。AI 未設定時不發請求、該項黃燈。
 - **日誌管線**（0.9.79 起）：佐證列出本次啟動以來的例外佇列長度／丟棄數、寫入失敗、前端錯誤回報被限流丟棄數、告警信失敗、NLog 內部錯誤與日誌磁碟可用空間；燈號規則見 [系統健康監控（機制）§4](../features/系統健康監控.md)。
-- 日誌區：標題「最後 100 筆日誌紀錄」、讀取訊息與來源檔路徑；無資料顯示「沒有可顯示的日誌紀錄。」，否則以 `<pre>` 逐行呈現（0.9.70 起為深色等寬原文區塊）。
+- 日誌區（0.9.111 起）：標題「最近 24 小時警告以上日誌」，下方顯示查詢區間與筆數；以表格列出 WARN／ERROR／FATAL（時間、等級、記錄器、訊息、TraceId），新到舊、每頁 20 筆，展開列為深色等寬原文；無資料時顯示服務的原因（例如「指定條件下查無日誌紀錄。」），達 10,000 筆上限時黃色提示「僅顯示最新 10000 筆，完整內容請到「日誌檢視」查詢。」。0.9.110 以前為「最後 100 筆日誌紀錄」（今日檔尾端純文字）。
 
 ## 四、內部系統運作
 
@@ -57,7 +57,7 @@
    - 日誌管線：讀 `LoggingPipelineMonitor` 快照、例外佇列長度與 `NLog:BasePath` 所在磁碟，由純函式 `EvaluateLoggingPipeline` 判定（佇列滿或磁碟 < 200 MB→Unhealthy；任何丟棄／寫入或告警失敗／NLog 內部錯誤、佇列達八成、磁碟 < 1 GB→Degraded）。
 3. 計分（`SystemHealthScoreCalculator`）：以權重加權，Healthy 計滿分、Degraded 計半、Unhealthy 計 0；`Score = round(earned/totalWeight*100)`。
 4. 燈號門檻：`Score >= 90` 綠、`>= 70` 黃、其餘紅；狀態文字同門檻映射正常／警示／異常。
-5. 日誌：`IHealthLogReader.ReadLatestLines(100)` 讀取當日日誌尾端 100 行。
+5. 日誌區：報告取得後，頁面另呼叫 `ILogQueryService.QueryAsync`（`StartTime = now − 24h`、`MinimumLevel = Warn`、`Take = LogQueryRequest.MaxTake`），結果反轉為新到舊。與報告分開，讀取失敗只影響本區。「日誌」檢查項目仍以 `IHealthLogReader.ReadLatestLines(100)` 判斷目錄可寫與今日檔狀態。
 5.1 寄信測試：`EmailTestService.SendAsync` 驗證收件者格式後以 `IEmailSender` 同步寄出（不走背景佇列），並寫稽核 `Email.Test`（detail 只有 provider 與成敗／例外型別，**不含收件者**）。
 6. 探針：`/health/live` 對應 tag `live`（`self` 檢查恆 Healthy）；`/health/ready` 對應 tag `ready`（`DatabaseHealthCheck` 檢查資料庫連線）。
 
@@ -74,7 +74,7 @@
 
 - 報告載入前顯示「正在讀取系統健康狀態...」。
 - 資料庫、LLM API、快取服務檢查擲例外時降級為 Unhealthy 並記錄例外型別，不使頁面崩潰；寄信服務由 probe 內部吞例外。其餘早期項目沒有個別防護（見機制文件 §4.1）。
-- 日誌檔不存在時回傳 Degraded 的空尾端（`HealthLogTail.Empty`），頁面顯示無日誌提示。
+- 最近 24 小時沒有日誌檔或沒有 WARN 以上紀錄時，日誌區顯示服務回傳的原因；讀取擲例外時記錄錯誤並顯示「讀取日誌失敗：…」，不影響上方檢查結果。
 - 任一子項降級／異常僅影響其權重計分與整體燈號，其餘項目仍照常呈現。
 
 ## 七、驗收與測試
@@ -82,7 +82,8 @@
 - `MyProject.Tests/SystemHealthTests.cs`：
   - `CalculateScore_AllHealthy_ShouldReturnGreen100`、`CalculateScore_DegradedRange_ShouldReturnYellow`、`CalculateScore_UnhealthyRange_ShouldReturnRed`（計分與燈號門檻）。
   - `GetLight_ItemStatus_ShouldMapTrafficLight`（狀態→燈號映射）。
-  - `HealthLogReader_ReadLatestLines_ShouldReturnLast100Lines`、`HealthLogReader_MissingFile_ShouldReturnDegraded`（日誌尾端讀取與缺檔降級）。
+  - `HealthLogReader_ReadLatestLines_ShouldReturnLast100Lines`、`HealthLogReader_MissingFile_ShouldReturnDegraded`（「日誌」檢查項目的尾端讀取與缺檔降級）。
+  - 日誌區的查詢條件由 `LogQueryServiceTests`（等級篩選、跨日檔案合併）守住；`ApiIntegrationTests.SystemHealthPage_WithoutCookieLogin_ShouldNotExposeDetails` 確認匿名存取看不到「最近 24 小時警告以上日誌」。
   - `CheckWeights_ShouldSumTo145`（13 項名稱與權重、總和 145）。
 - `MyProject.Tests/LoggingPipelineHealthTests.cs`：`Evaluate_AllClear_ShouldBeHealthy`、`Evaluate_ClientErrorDropsOnly_ShouldStayHealthy`、`Evaluate_AnyPipelineProblem_ShouldDegrade`、`Evaluate_QueueFullOrDiskAlmostFull_ShouldBeUnhealthy`（日誌管線燈號）。
 - `MyProject.Tests/AiHealthProbeTests.cs`：未設定不呼叫、成功記 Token 用量與 AI 對話紀錄、失敗不拋例外且不外洩上游內容。

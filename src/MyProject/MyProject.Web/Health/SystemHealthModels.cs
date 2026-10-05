@@ -21,7 +21,6 @@ public sealed class SystemHealthReport
     public SystemHealthStatus Status { get; init; }
     public SystemHealthLight Light { get; init; }
     public IReadOnlyList<SystemHealthItem> Items { get; init; } = [];
-    public HealthLogTail LogTail { get; init; } = HealthLogTail.Empty;
 }
 
 public sealed class SystemHealthItem
@@ -37,14 +36,6 @@ public sealed class SystemHealthItem
 
 public sealed class HealthLogTail
 {
-    public static readonly HealthLogTail Empty = new()
-    {
-        FilePath = string.Empty,
-        Lines = [],
-        Status = SystemHealthStatus.Degraded,
-        Message = "尚未讀取日誌。"
-    };
-
     public required string FilePath { get; init; }
     public IReadOnlyList<string> Lines { get; init; } = [];
     public SystemHealthStatus Status { get; init; }

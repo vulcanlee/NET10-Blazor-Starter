@@ -63,6 +63,17 @@ else
             </div>
         </div>
 
+        <div class="log-view-quick-ranges">
+            <Button Size="@ButtonSize.Small" Shape="@ButtonShape.Round"
+                    OnClick="@(async () => await OnQuickRangeAsync(LogTimeRanges.Last(TimeSpan.FromMinutes(5), DateTime.Now)))">最近 5 分</Button>
+            <Button Size="@ButtonSize.Small" Shape="@ButtonShape.Round"
+                    OnClick="@(async () => await OnQuickRangeAsync(LogTimeRanges.Last(TimeSpan.FromMinutes(15), DateTime.Now)))">最近 15 分</Button>
+            <Button Size="@ButtonSize.Small" Shape="@ButtonShape.Round"
+                    OnClick="@(async () => await OnQuickRangeAsync(LogTimeRanges.Last(TimeSpan.FromHours(1), DateTime.Now)))">最近 1 小時</Button>
+            <Button Size="@ButtonSize.Small" Shape="@ButtonShape.Round"
+                    OnClick="@(async () => await OnQuickRangeAsync(LogTimeRanges.Today(DateTime.Now)))">今天</Button>
+        </div>
+
         @if (string.IsNullOrWhiteSpace(statusMessage) == false)
         {
             <div class="alert alert-info log-view-alert" role="alert">@statusMessage</div>
@@ -90,13 +101,17 @@ else
                         @context.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")
                     </Column>
                     <Column TData="string" Title="等級" Width="90">
-                        <Tag Color="@GetLevelColor(context.Rank)">@(string.IsNullOrEmpty(context.Level) ? "－" : context.Level)</Tag>
+                        <Tag Color="@LogLevelRankHelper.ToTagColor(context.Rank)">@(string.IsNullOrEmpty(context.Level) ? "－" : context.Level)</Tag>
                     </Column>
                     <Column TData="string" Title="記錄器" Width="260" Ellipsis>@context.Logger</Column>
                     <Column TData="string" Title="訊息" Ellipsis>@context.Message</Column>
                     <Column TData="string" Title="TraceId" Width="130" Ellipsis>@context.TraceId</Column>
                 </ColumnDefinitions>
                 <ExpandTemplate Context="rowData">
+                    <div class="log-view-expand-actions">
+                        <Button Size="@ButtonSize.Small"
+                                OnClick="@(async () => await OnAroundEntryAsync(rowData.Data))">查前後 1 分鐘</Button>
+                    </div>
                     <pre class="log-view-raw">@rowData.Data.Raw</pre>
                 </ExpandTemplate>
             </Table>

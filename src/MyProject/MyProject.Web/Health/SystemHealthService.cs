@@ -117,7 +117,6 @@ public sealed class SystemHealthService : ISystemHealthService
         };
 
         var score = SystemHealthScoreCalculator.CalculateScore(items);
-        var logTail = logReader.ReadLatestLines(100);
 
         return new SystemHealthReport
         {
@@ -125,8 +124,7 @@ public sealed class SystemHealthService : ISystemHealthService
             Score = score,
             Status = SystemHealthScoreCalculator.GetStatus(score),
             Light = SystemHealthScoreCalculator.GetLight(score),
-            Items = items,
-            LogTail = logTail
+            Items = items
         };
     }
 

@@ -3,8 +3,10 @@
 @using MyProject.Web.Health
 @using MyProject.Web.Configuration
 @using MyProject.Web.Email
+@using MyProject.Web.Diagnostics
 @using Microsoft.Extensions.Options
 @inject ISystemHealthService SystemHealthService
+@inject ILogQueryService LogQueryService
 @inject EmailTestService EmailTestService
 @inject IOptionsMonitor<EmailSettings> EmailOptions
 @inject MyProject.Business.Services.Other.CurrentUserService CurrentUserService
@@ -96,21 +98,48 @@ else
         </section>
 
         <section class="system-health-section">
-            <div class="log-heading">
-                <div>
-                    <h2>最後 100 筆日誌紀錄</h2>
-                    <p>@report.LogTail.Message</p>
-                </div>
-                <span class="log-path">@report.LogTail.FilePath</span>
-            </div>
-
-            @if (report.LogTail.Lines.Count == 0)
+            <h2>最近 24 小時警告以上日誌</h2>
+            @if (!string.IsNullOrWhiteSpace(warnLogMessage))
             {
-                <div class="empty-log">沒有可顯示的日誌紀錄。</div>
+                <p class="warn-log-summary">@warnLogMessage</p>
+            }
+            @foreach (var warning in warnLogWarnings)
+            {
+                <div class="warn-log-notice">@warning</div>
+            }
+
+            @if (warnLogEntries is null)
+            {
+                <div class="empty-log">正在讀取日誌...</div>
+            }
+            else if (warnLogEntries.Count == 0)
+            {
+                <div class="empty-log">@warnLogEmptyText</div>
             }
             else
             {
-                <pre class="log-tail">@string.Join(Environment.NewLine, report.LogTail.Lines)</pre>
+                <div class="warn-log-table-wrap">
+                    <Table TItem="LogEntry"
+                           DataSource="@warnLogEntries"
+                           Size="TableSize.Small"
+                           RowKey="@(entry => entry.Sequence)"
+                           PageSize="20">
+                        <ColumnDefinitions>
+                            <Column TData="DateTime" Title="時間" Width="180">
+                                @context.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")
+                            </Column>
+                            <Column TData="string" Title="等級" Width="90">
+                                <Tag Color="@LogLevelRankHelper.ToTagColor(context.Rank)">@(string.IsNullOrEmpty(context.Level) ? "－" : context.Level)</Tag>
+                            </Column>
+                            <Column TData="string" Title="記錄器" Width="260" Ellipsis>@context.Logger</Column>
+                            <Column TData="string" Title="訊息" Ellipsis>@context.Message</Column>
+                            <Column TData="string" Title="TraceId" Width="130" Ellipsis>@context.TraceId</Column>
+                        </ColumnDefinitions>
+                        <ExpandTemplate Context="rowData">
+                            <pre class="warn-log-raw">@rowData.Data.Raw</pre>
+                        </ExpandTemplate>
+                    </Table>
+                </div>
             }
         </section>
     </div>
@@ -125,6 +154,12 @@ else
     private string emailProviderText = string.Empty;
     private bool isSendingTestEmail;
     private MyProject.Models.Systems.VerifyRecordResult? testEmailResult;
+
+    /// <summary>最近 24 小時 WARN 以上日誌，新到舊；null 表示讀取中。</summary>
+    private List<LogEntry>? warnLogEntries;
+    private string warnLogMessage = string.Empty;
+    private string warnLogEmptyText = string.Empty;
+    private List<string> warnLogWarnings = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -153,6 +188,48 @@ else
         testEmailTo = CurrentUserService.CurrentUser.Email;
 
         report = await SystemHealthService.GetReportAsync();
+        await LoadWarnLogsAsync();
+    }
+
+    /// <summary>
+    /// 與健康報告分開讀取：日誌讀取失敗只影響本區塊，不影響上方的檢查結果。
+    /// 沿用日誌檢視的查詢服務與上限（最新 MaxTake 筆），表格在畫面上分頁。
+    /// </summary>
+    private async Task LoadWarnLogsAsync()
+    {
+        var now = DateTime.Now;
+
+        try
+        {
+            var result = await LogQueryService.QueryAsync(new LogQueryRequest
+            {
+                StartTime = now.AddHours(-24),
+                EndTime = now,
+                MinimumLevel = LogLevelRank.Warn,
+                Take = LogQueryRequest.MaxTake
+            });
+
+            warnLogEntries = Enumerable.Reverse(result.Entries).ToList();
+            warnLogWarnings = result.Warnings;
+            warnLogMessage = $"{result.AppliedStartTime:MM/dd HH:mm} ～ {result.AppliedEndTime:MM/dd HH:mm}，共 {warnLogEntries.Count} 筆 WARN、ERROR、FATAL（新到舊）。";
+
+            // 服務的訊息（目錄不存在、區間內沒有日誌檔等）比通用文字更能說明為什麼是空的。
+            warnLogEmptyText = string.IsNullOrWhiteSpace(result.Message)
+                ? "最近 24 小時沒有 WARN 以上的日誌紀錄。"
+                : result.Message;
+
+            if (warnLogEntries.Count >= LogQueryRequest.MaxTake)
+            {
+                warnLogWarnings.Add($"僅顯示最新 {LogQueryRequest.MaxTake} 筆，完整內容請到「日誌檢視」查詢。");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "System health page failed to load warning logs.");
+            warnLogEntries = new();
+            warnLogMessage = string.Empty;
+            warnLogEmptyText = $"讀取日誌失敗：{ex.GetType().Name}。{TraceCode.Suffix(TraceCode.Current)}";
+        }
     }
 
     private async Task SendTestEmailAsync()

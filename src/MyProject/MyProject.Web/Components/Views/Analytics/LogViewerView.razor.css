@@ -27,6 +27,18 @@
     width: 130px;
 }
 
+.log-view-quick-ranges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+/* 「查前後 1 分鐘」在展開列內，落在本元件 scope 屬性之外，因此需要 ::deep。 */
+::deep .log-view-expand-actions {
+    margin-bottom: 8px;
+}
+
 .log-view-alert {
     padding: 8px 12px;
     margin-bottom: 8px;

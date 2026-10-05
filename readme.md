@@ -75,7 +75,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
-- 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最後 100 筆日誌；0.9.59 起含「寄信服務」檢查與寄信測試，
+- 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最近 24 小時 WARN 以上日誌（0.9.111 起）；0.9.59 起含「寄信服務」檢查與寄信測試，
   0.9.79 起含「日誌管線」自我監控（共 13 項）
 - 寄信服務：`IEmailSender`（同步）與 `IEmailQueue`（背景佇列）兩個入口，`EmailSettings` 切換不寄／寫 `.eml` 檔（開發）／MailKit SMTP；出貨預設不寄信（0.9.59）
 - 日誌檢視頁：`/logs`，管理員可依等級／關鍵字／時間區間查詢並匯出（0.4.26）；
@@ -330,7 +330,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [分散式快取機制](docs/features/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
 - [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/features/檔案上傳機制.md) — 專案附件、年月目錄、刪除同步、1GB 上限與副檔名白名單（0.4.35）。
-- [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最後 100 筆日誌。
+- [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最近 24 小時 WARN 以上日誌。
 - [AI 日誌分析](docs/features/AI日誌分析.md) — 日誌送 Azure OpenAI／OpenAI 整理、Markdown 安全渲染管線、PDF 報告與內嵌中文字型（0.9.4）。
 - [AI 例外分析](docs/features/AI例外分析.md) — 例外明細送 AI 產生分析報告、多輪追問、複製對話與 PDF 下載（0.9.68）。
 

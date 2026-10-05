@@ -216,6 +216,27 @@ namespace MyProject.Web.Components.Views.Analytics
             await OnQueryAsync();
         }
 
+        /// <summary>快速區間：只改時間並立即查詢，等級、筆數、關鍵字、追蹤碼維持原值。</summary>
+        private async Task OnQuickRangeAsync((DateTime Start, DateTime End) range)
+        {
+            (startTime, endTime) = range;
+            await OnQueryAsync();
+        }
+
+        /// <summary>
+        /// 查前後 1 分鐘：要看這筆前後「所有」發生的事，所以清掉等級、關鍵字與追蹤碼。
+        /// 筆數拉到上限：服務只保留最新 N 筆，筆數不夠時較早的紀錄（可能就是這筆本身）會被切掉。
+        /// </summary>
+        private async Task OnAroundEntryAsync(LogEntry entry)
+        {
+            (startTime, endTime) = LogTimeRanges.Around(entry.Timestamp);
+            minimumLevel = string.Empty;
+            keyword = string.Empty;
+            traceCode = string.Empty;
+            takeCount = LogQueryRequest.MaxTake;
+            await OnQueryAsync();
+        }
+
         private async Task OnQueryAsync()
         {
             isLoading = true;
@@ -812,15 +833,5 @@ namespace MyProject.Web.Components.Views.Analytics
         // 解析使用者的篩選輸入時，空字串代表「不限」，因此 fallback 為 Any。
         private static LogLevelRank ToRank(string level)
             => LogLevelRankHelper.FromLevelText(level, LogLevelRank.Any);
-
-        private static string GetLevelColor(LogLevelRank rank) => rank switch
-        {
-            LogLevelRank.Fatal => "red",
-            LogLevelRank.Error => "red",
-            LogLevelRank.Warn => "orange",
-            LogLevelRank.Info => "blue",
-            LogLevelRank.Debug => "cyan",
-            _ => "default",
-        };
     }
 }

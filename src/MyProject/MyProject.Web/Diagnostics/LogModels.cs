@@ -59,6 +59,33 @@ public static class LogLevelRankHelper
         LogLevelRank.Fatal => "FATAL",
         _ => string.Empty,
     };
+
+    /// <summary>等級 Tag 的 AntDesign 顏色。日誌檢視與系統健康監控共用，兩頁顏色一致。</summary>
+    public static string ToTagColor(LogLevelRank rank) => rank switch
+    {
+        LogLevelRank.Fatal => "red",
+        LogLevelRank.Error => "red",
+        LogLevelRank.Warn => "orange",
+        LogLevelRank.Info => "blue",
+        LogLevelRank.Debug => "cyan",
+        _ => "default",
+    };
+}
+
+/// <summary>
+/// 日誌檢視的快速區間（最近 5 分／15 分／1 小時／今天）與「查前後 1 分鐘」的起訖計算。
+/// </summary>
+public static class LogTimeRanges
+{
+    /// <summary>最近一段時間：now − span ～ now。</summary>
+    public static (DateTime Start, DateTime End) Last(TimeSpan span, DateTime now) => (now - span, now);
+
+    /// <summary>今天：今天 00:00:00 ～ now。</summary>
+    public static (DateTime Start, DateTime End) Today(DateTime now) => (now.Date, now);
+
+    /// <summary>某筆日誌的前後 1 分鐘。</summary>
+    public static (DateTime Start, DateTime End) Around(DateTime timestamp)
+        => (timestamp.AddMinutes(-1), timestamp.AddMinutes(1));
 }
 
 public sealed class LogQueryRequest
