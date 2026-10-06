@@ -332,7 +332,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 功能機制（features）
 
-- [腳手架總覽與複刻上手](docs/features/腳手架總覽與複刻上手.md) — ⭐ 新手入口：為什麼需要腳手架、已內建的企業共通功能、vibe coding 提示詞、複刻步驟與後續待辦（0.9.82）。
+- [腳手架總覽與複刻上手](docs/features/腳手架總覽與複刻上手.md) — ⭐ 新手入口：為什麼需要腳手架、已內建的企業共通功能、vibe coding 提示詞、複刻步驟與後續待辦（0.9.82）；0.9.116 起附章節目錄、25 題 FAQ（含用 Claude Code／Codex 開發的注意事項）與名詞解釋附錄。
 - [分散式快取機制](docs/features/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
 - [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/features/檔案上傳機制.md) — 專案附件、年月目錄、刪除同步、1GB 上限與副檔名白名單（0.4.35）。
@@ -349,7 +349,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單（操作細節見上方上手指南）。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
-- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 7 個專案會一起改名。
+- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 7 個專案會一起改名；0.9.116 起開跑前會確認腳手架來源是最新的（工作目錄乾淨、在 `main`、不落後 origin），否則中止（`-AllowUnsyncedSource` 可放行）。
 - `scripts/New-CrudModule.ps1` — 一行產生新 CRUD 模組（13 個樣板檔，含操作說明初稿與服務測試，對齊現行慣例），並自動完成所有登記與 migration（0.9.110 起）；改了樣板跑 `scripts/Test-CrudGenerator.ps1` 驗證。
 
 ### 維運與部署（operations）

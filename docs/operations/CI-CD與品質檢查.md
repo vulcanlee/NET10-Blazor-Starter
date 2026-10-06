@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作（本機品質關卡）；§1～§4 的 CI 為參考設計
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.116
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/06
 
 > ⚠️ **腳手架目前沒有 CI。** 原本的 GitHub Actions 工作流程 `.github/workflows/dotnet-ci.yml` 已於 **2026-09-20**
 > 由擁有者移除（commit `05cca70`），repo 根目錄也不再有 `.github/` 資料夾。**現在沒有任何機制會自動擋下違規**，
@@ -124,7 +124,7 @@ pwsh ./scripts/Install-GitHooks.ps1 -Uninstall  # 移除
 
 ## 3. 文件編碼檢查 ⚠️
 
-`scripts/Test-DocsEncoding.ps1` 會**遞迴**掃描 `docs/` 下所有 `.md`，加上 repo 根目錄的 `*.md`（`readme.md`、`CLAUDE.md`、`AGENTS.md`、`design-qa.md`，0.9.89 起），逐檔驗證：
+`scripts/Test-DocsEncoding.ps1` 會**遞迴**掃描 `docs/` 下所有 `.md`，加上 repo 根目錄的 `*.md`（`readme.md`、`CLAUDE.md`、`AGENTS.md`，0.9.89 起；原本也在根目錄的 `design-qa.md` 已於 0.9.116 移到 `docs/changelog/login-redesign-design-qa.md`），逐檔驗證：
 
 - **必須含 UTF-8 BOM**（檔頭 `EF BB BF`），缺少即失敗。
 - **不得含取代字元**（`U+FFFD`），出現代表編碼轉換時已產生亂碼。
