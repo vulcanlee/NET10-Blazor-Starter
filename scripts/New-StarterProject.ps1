@@ -15,7 +15,11 @@
 
     # 預設會清掉腳手架自己的開發史（docs/changelog 內容、docs/planning、docs/superpowers），
     # 那些對衍生專案沒有用處。要原封不動整份複製時加這個開關。
-    [switch]$KeepStarterHistory
+    [switch]$KeepStarterHistory,
+
+    # 預設要求來源是「最新」：工作目錄乾淨（沒有未提交修改或未追蹤檔）、在 origin 的預設分支上、不落後 origin。
+    # 否則新專案會帶著半成品或舊版內容出生。確定要從這種狀態複刻時才加這個開關。
+    [switch]$AllowUnsyncedSource
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,6 +40,147 @@ catch {
 
 if (-not $dotnetEfAvailable) {
     throw "dotnet-ef is required to create the initial migration. Install it with: dotnet tool install --global dotnet-ef"
+}
+
+# 這些目錄可能出現在任何層級（例如 src/MyProject/MyProject.Web/bin），必須遞迴排除。
+# artifacts（發佈輸出，可達上百 MB）、.gstack、PublishProfiles（本機發佈設定）都是開發機上的產物，不屬於範本。
+$excludedDirectories = @(".git", "bin", "obj", ".vs", ".playwright-cli", "output", "artifacts", ".gstack", "PublishProfiles")
+$excludedFilePatterns = @("*.user", "*.suo")
+# 個人的 Claude Code 權限設定；以「上層目錄\檔名」比對，避免誤排除其他同名檔案。
+$excludedRelativeFiles = @(".claude\settings.local.json")
+
+# 與 Copy-TreeExcluding 同一組規則，改以 repo 相對路徑判斷；供來源檢查找出「被 git 忽略、卻會被複製」的檔案。
+function Test-ExcludedRelativePath {
+    param([Parameter(Mandatory = $true)][string]$RelativePath)
+
+    $segments = @($RelativePath -split '[\\/]')
+    for ($i = 0; $i -lt $segments.Count - 1; $i++) {
+        if ($excludedDirectories -contains $segments[$i]) {
+            return $true
+        }
+    }
+
+    $name = $segments[-1]
+    foreach ($pattern in $excludedFilePatterns) {
+        if ($name -like $pattern) {
+            return $true
+        }
+    }
+
+    return ($segments.Count -ge 2) -and ($excludedRelativeFiles -contains (Join-Path $segments[-2] $name))
+}
+
+function Invoke-SourceGit {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+    # git 沒裝、不是 repo、沒有網路都只回報失敗，由呼叫端決定要警告還是略過，不讓腳本在這裡中斷。
+    try {
+        $output = & git -C $repoRoot -c core.quotepath=false @Arguments 2>$null
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        return [pscustomobject]@{ Success = $false; Lines = @() }
+    }
+
+    return [pscustomobject]@{ Success = ($exitCode -eq 0); Lines = @($output | Where-Object { $_ -ne "" }) }
+}
+
+function Format-PathList {
+    param([Parameter(Mandatory = $true)][string[]]$Lines)
+
+    $listed = @($Lines | Select-Object -First 20 | ForEach-Object { "    $_" })
+    if ($Lines.Count -gt 20) {
+        $listed += "    ... and $($Lines.Count - 20) more"
+    }
+
+    return $listed -join [Environment]::NewLine
+}
+
+# 腳本複製的是本機磁碟上的工作目錄，不是 git 的某個版本：未提交的修改、未追蹤檔、
+# 落後 origin 的舊內容、開發中的功能分支，都會原樣進入新專案。開跑前先確認來源是最新的。
+# 無法判斷時（不是 git repo、沒有 origin、fetch 失敗）只警告：例如從下載的 zip 複刻，本來就沒有 git 可比對。
+$sourceProblems = New-Object System.Collections.Generic.List[string]
+
+# git 輸出的中文檔名要以 UTF-8 解讀，否則清單會變亂碼；沒有主控台（輸出被導向）時設定可能失敗，忽略即可。
+$previousOutputEncoding = [Console]::OutputEncoding
+try {
+    [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+}
+catch {
+}
+
+try {
+    $insideWorkTree = Invoke-SourceGit -Arguments @("rev-parse", "--is-inside-work-tree")
+    if (-not $insideWorkTree.Success) {
+        Write-Warning "The source is not a git repository (or git is not installed), so it cannot be verified as the latest version: $repoRoot"
+    }
+    else {
+        $remotes = Invoke-SourceGit -Arguments @("remote")
+        $hasOrigin = $remotes.Success -and ($remotes.Lines -contains "origin")
+        if ($hasOrigin) {
+            $fetch = Invoke-SourceGit -Arguments @("fetch", "--quiet", "origin")
+            if (-not $fetch.Success) {
+                Write-Warning "git fetch origin failed; comparing against the last known state of origin instead."
+            }
+        }
+        else {
+            Write-Warning "The source has no 'origin' remote; skipping the default-branch and behind-origin checks."
+        }
+
+        $status = Invoke-SourceGit -Arguments @("status", "--porcelain")
+        if ($status.Success -and $status.Lines.Count -gt 0) {
+            $sourceProblems.Add("Uncommitted changes or untracked files ($($status.Lines.Count)):$([Environment]::NewLine)$(Format-PathList -Lines $status.Lines)")
+        }
+
+        if ($hasOrigin) {
+            $defaultRef = Invoke-SourceGit -Arguments @("symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+            $defaultRemoteBranch = if ($defaultRef.Success -and $defaultRef.Lines.Count -gt 0) { $defaultRef.Lines[0] } else { "origin/main" }
+            $defaultBranch = $defaultRemoteBranch -replace '^origin/', ''
+
+            $currentBranch = Invoke-SourceGit -Arguments @("branch", "--show-current")
+            $currentBranchName = if ($currentBranch.Success -and $currentBranch.Lines.Count -gt 0) { $currentBranch.Lines[0] } else { "(detached HEAD)" }
+            if ($currentBranchName -ne $defaultBranch) {
+                $sourceProblems.Add("Not on the default branch: on '$currentBranchName', expected '$defaultBranch'.")
+            }
+
+            $behind = Invoke-SourceGit -Arguments @("rev-list", "--count", "HEAD..$defaultRemoteBranch")
+            if (-not $behind.Success -or $behind.Lines.Count -eq 0) {
+                Write-Warning "Could not compare with $defaultRemoteBranch; skipping the behind-origin check."
+            }
+            elseif ([int]$behind.Lines[0] -gt 0) {
+                $sourceProblems.Add("Behind $defaultRemoteBranch by $($behind.Lines[0]) commit(s).")
+            }
+        }
+
+        # 被 .gitignore 忽略的檔案 git status 看不到，但不在排除清單裡就一樣會被複製；只列出提醒，不中止。
+        $ignored = Invoke-SourceGit -Arguments @("ls-files", "--others", "--ignored", "--exclude-standard")
+        if ($ignored.Success) {
+            $copiedIgnored = @($ignored.Lines | Where-Object { -not (Test-ExcludedRelativePath -RelativePath $_) })
+            if ($copiedIgnored.Count -gt 0) {
+                Write-Warning "These files are ignored by git but will still be copied into the new project ($($copiedIgnored.Count)); delete them first if they are local leftovers:$([Environment]::NewLine)$(Format-PathList -Lines $copiedIgnored)"
+            }
+        }
+    }
+}
+finally {
+    try {
+        [Console]::OutputEncoding = $previousOutputEncoding
+    }
+    catch {
+    }
+}
+
+if ($sourceProblems.Count -gt 0) {
+    # 明細用警告逐行印出：throw 的訊息在預設錯誤檢視裡會被擠成一行，清單就看不清楚了。
+    Write-Warning "The source is not the latest version, so the new project would not get the latest files and docs:"
+    $sourceProblems | ForEach-Object { Write-Warning "  - $_" }
+
+    if ($AllowUnsyncedSource) {
+        Write-Warning "Continuing because -AllowUnsyncedSource was given."
+    }
+    else {
+        throw "Source is not the latest version (see the warnings above). Switch to the default branch, git pull, and commit or stash local changes; or rerun with -AllowUnsyncedSource to copy the working directory as it is."
+    }
 }
 
 # 每個衍生專案都要有自己的開發連接埠，否則同一台機器同時開兩個專案會搶埠；
@@ -97,13 +242,6 @@ if ((Test-Path -LiteralPath $destinationFullPath) -and -not $Force) {
 if (Test-Path -LiteralPath $destinationFullPath) {
     Remove-Item -LiteralPath $destinationFullPath -Recurse -Force
 }
-
-# 這些目錄可能出現在任何層級（例如 src/MyProject/MyProject.Web/bin），必須遞迴排除。
-# artifacts（發佈輸出，可達上百 MB）、.gstack、PublishProfiles（本機發佈設定）都是開發機上的產物，不屬於範本。
-$excludedDirectories = @(".git", "bin", "obj", ".vs", ".playwright-cli", "output", "artifacts", ".gstack", "PublishProfiles")
-$excludedFilePatterns = @("*.user", "*.suo")
-# 個人的 Claude Code 權限設定；以「上層目錄\檔名」比對，避免誤排除其他同名檔案。
-$excludedRelativeFiles = @(".claude\settings.local.json")
 
 function Copy-TreeExcluding {
     param(
@@ -308,10 +446,14 @@ if (Test-Path -LiteralPath $migrationsDirectory) {
     Get-ChildItem -LiteralPath $migrationsDirectory -Force | Remove-Item -Recurse -Force
 }
 
-# 這支測試寫死了腳手架的舊 migration 名稱（驗證腳手架自己的升級路徑），重建後在新專案必定失效。
-$starterMigrationTest = Join-Path $projectRoot "$ProjectName.Tests/CategoryTeamUniqueIndexMigrationTests.cs"
-if (Test-Path -LiteralPath $starterMigrationTest) {
-    Remove-Item -LiteralPath $starterMigrationTest -Force
+# 這些測試寫死了腳手架的舊 migration 名稱（驗證腳手架自己的升級路徑），重建後在新專案必定失效。
+# 新增這類測試時請獨立成檔並加進這份清單，否則衍生專案一複刻就有測試失敗。
+$starterMigrationTests = @("CategoryTeamUniqueIndexMigrationTests.cs", "TeamTreeMigrationTests.cs")
+foreach ($testFile in $starterMigrationTests) {
+    $starterMigrationTest = Join-Path $projectRoot "$ProjectName.Tests/$testFile"
+    if (Test-Path -LiteralPath $starterMigrationTest) {
+        Remove-Item -LiteralPath $starterMigrationTest -Force
+    }
 }
 
 # dotnet ef 取專案中繼資料前需要 project.assets.json，全新複製的專案必須先還原套件。

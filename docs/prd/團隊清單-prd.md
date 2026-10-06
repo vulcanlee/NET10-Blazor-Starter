@@ -1,10 +1,10 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.116
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/06
 
 ## 一、目標與範圍
 
@@ -119,7 +119,7 @@
 - `AddAsync_WhenRejected_ShouldNotWriteAudit`：被唯一索引擋下的寫入不留稽核（0.9.78）。
 - `GetAsync_WithoutSortField_ShouldOrderByUpdatedAtDescending`、`GetAsync_WithUnknownSortField_ShouldFallBackToDefaultOrder`、`GetAsync_WithNullSortDescending_ShouldFallBackToDefaultOrder`：分頁一律有穩定排序（0.4.46）。
 
-- `TeamTreeTests.cs`（0.9.105）：樹的展開與上層、資料循環不會無窮迴圈、快取存活與失效、上層不可是自己／下屬／已刪除、⭐ 並行互設上層不會成環、有下屬不可刪、還原與永久刪除規則、排程由深到淺清理、⭐ 改名同步（含已刪除列、換版本號、不動相似名稱）、不可改成已刪除團隊的名稱、Web API 同一套規則、migration 保留既有團隊與成員。
+- `TeamTreeTests.cs`（0.9.105）：樹的展開與上層、資料循環不會無窮迴圈、快取存活與失效、上層不可是自己／下屬／已刪除、⭐ 並行互設上層不會成環、有下屬不可刪、還原與永久刪除規則、排程由深到淺清理、⭐ 改名同步（含已刪除列、換版本號、不動相似名稱）、不可改成已刪除團隊的名稱、Web API 同一套規則；migration 保留既有團隊與成員在 `TeamTreeMigrationTests.cs`（0.9.116 起獨立成檔，衍生專案複刻時刪除）。
 
 測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper。
 
