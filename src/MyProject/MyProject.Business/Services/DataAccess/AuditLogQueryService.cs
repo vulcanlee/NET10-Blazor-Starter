@@ -102,7 +102,8 @@ public class AuditLogQueryService
                 (x.ActorAccount != null && x.ActorAccount.Contains(query.Keyword)) ||
                 (x.TargetType != null && x.TargetType.Contains(query.Keyword)) ||
                 (x.TargetId != null && x.TargetId.Contains(query.Keyword)) ||
-                (x.Detail != null && x.Detail.Contains(query.Keyword)));
+                (x.Detail != null && x.Detail.Contains(query.Keyword)) ||
+                (x.ClientIp != null && x.ClientIp.Contains(query.Keyword)));
         }
 
         IOrderedQueryable<AuditLog>? sorted = null;

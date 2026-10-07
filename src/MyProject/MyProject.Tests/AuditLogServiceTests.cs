@@ -31,6 +31,19 @@ public sealed class AuditLogServiceTests
         Assert.Equal("MyUser", saved.TargetType);
         Assert.Equal("7", saved.TargetId);
         Assert.NotEqual(default, saved.OccurredAt);
+        Assert.Null(saved.ClientIp); // 沒有 IClientIpProvider（例如排程作業的情境）就不記 IP
+    }
+
+    [Fact]
+    public async Task WriteAsync_ShouldPersistClientIpFromProvider()
+    {
+        await using var fixture = await AuditFixture.CreateAsync();
+        var service = fixture.CreateService(new FixedClientIpProvider("203.0.113.5"));
+
+        await service.WriteAsync("Login.Success", actorUserId: 7, actorAccount: "alice");
+
+        var saved = await fixture.Context.AuditLog.AsNoTracking().SingleAsync();
+        Assert.Equal("203.0.113.5", saved.ClientIp);
     }
 
     [Fact]
@@ -71,9 +84,9 @@ public sealed class AuditLogServiceTests
             return new AuditFixture(connection, context);
         }
 
-        public AuditLogService CreateService()
+        public AuditLogService CreateService(IClientIpProvider? clientIpProvider = null)
         {
-            return new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>());
+            return new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>(), clientIpProvider);
         }
 
         public async ValueTask DisposeAsync()
@@ -82,5 +95,10 @@ public sealed class AuditLogServiceTests
             await connection.DisposeAsync();
             loggerFactory.Dispose();
         }
+    }
+
+    private sealed class FixedClientIpProvider(string? ip) : IClientIpProvider
+    {
+        public string? GetClientIp() => ip;
     }
 }

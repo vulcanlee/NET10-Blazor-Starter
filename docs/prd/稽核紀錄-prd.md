@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.117
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/07
 
 ## 一、目標與範圍
 
@@ -34,7 +34,7 @@
 ### 3.1 工具列
 
 - 篩選：發生時間範圍（兩個 `DatePicker`）、動作下拉、結果下拉（不限／成功／失敗）、
-  操作者帳號、關鍵字（比對動作／操作者／目標類型／目標識別／摘要）。
+  操作者帳號、關鍵字（比對動作／操作者／目標類型／目標識別／摘要／來源 IP，0.9.117 起含 IP）。
 - **動作下拉的選項取自資料庫的 `SELECT DISTINCT Action`**，不寫死清單：0.9.42 立頁時動作代碼散落在
   15 個呼叫點的字串字面值裡，沒有集中的常數來源，任何手寫清單都會在下次新增稽核事件時默默過期
   （0.9.78 起已收斂到 `AuditActions`，下拉仍讀 DISTINCT，見 §七）。
@@ -51,13 +51,14 @@
 | 結果 | 成功綠／失敗紅的 `Tag` |
 | 動作 | 動作代碼，依第一節（`Login`／`User`／`Role`／`Permission`／`Audit`，以及後來加入的 `Project`／`Category`／`Team`／`Password`／`Backup` 等各類；未列出的為預設色）上色 |
 | 操作者 | 帳號（Id=N）；系統或匿名事件顯示「（系統／匿名）」|
+| 來源 IP | `ClientIp`（0.9.117 起）；排程作業與舊紀錄顯示「—」。CSV 加在最後一欄「來源IP」|
 | 目標 | `TargetType#TargetId`，兩者皆空顯示破折號 |
 | 摘要 | `Detail`，過長以 `Ellipsis` 截斷 |
 | 操作 | 「查看」開明細窗 |
 
 ### 3.3 明細窗
 
-列出本地時間、**UTC 原值**、結果、動作代碼、操作者、目標類型、目標識別與完整摘要。
+列出本地時間、**UTC 原值**、結果、動作代碼、操作者、來源 IP、目標類型、目標識別與完整摘要。
 UTC 原值一併呈現是刻意的：跨時區協查或要與日誌檔的時間戳對照時會用到。
 
 尺寸與內容樣式寫在 `Components/Commons/OverlayStyles.razor` 的 `.audit-log-modal`，
@@ -101,6 +102,11 @@ scoped CSS 連 `::deep` 都打不到。
 0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 105 個），呼叫點一律引用常數，
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
+**來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
+實作 `Web/Auth/ClientIpProvider` 依情境決定 —— SSR 頁面（登入／登出／兩步驟驗證）與 Web API 讀 `HttpContext.Connection.RemoteIpAddress`；
+Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入（circuit 內沒有可靠的 HttpContext）；
+排程作業兩者皆無，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
+
 下表為 0.9.42 立頁時的寫入端：
 
 | 動作代碼 | 來源 |
@@ -143,7 +149,8 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 
 ## 八、測試
 
-- `AuditLogQueryServiceTests`（24 項）：時區三條、過濾、排序、同秒分頁不重複、
+- `AuditLogServiceTests`、`ClientIpProviderTests`（0.9.117 起）：來源 IP 寫入、IPv4-mapped 轉換、circuit 值優先、無情境時為 null。
+- `AuditLogQueryServiceTests`（25 項）：時區三條、過濾（關鍵字含來源 IP）、排序、同秒分頁不重複、
   總筆數、下拉去重排序、清除門檻以 UTC 計算、清空。
 - `AdminOnlyPermissionTests`：`角色_稽核紀錄` 不得出現在角色矩陣。
 - `MenuPermissionConsistencyTests`：`AuditLogView.razor.cs` 列於 `AdminOnlyViews`，

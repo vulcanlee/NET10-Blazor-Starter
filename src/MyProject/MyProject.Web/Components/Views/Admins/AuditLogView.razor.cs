@@ -351,6 +351,8 @@ namespace MyProject.Web.Components.Views.Admins
             new("目標類型", x => x.TargetType),
             new("目標識別", x => x.TargetId),
             new("摘要", x => x.Detail),
+            // 0.9.117 起：放在最後，不打亂既有依欄位位置讀檔的下游。
+            new("來源IP", x => x.ClientIp),
         ];
 
         /// <summary>操作者顯示文字；系統或匿名事件（例如帳號不存在的登入失敗）沒有 Id。</summary>

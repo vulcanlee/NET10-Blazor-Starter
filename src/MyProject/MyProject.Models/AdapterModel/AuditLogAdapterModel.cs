@@ -32,6 +32,9 @@ public class AuditLogAdapterModel
 
     public bool Success { get; set; }
 
+    /// <summary>來源 IP（0.9.117 起）；排程作業與之前的舊紀錄為 null。</summary>
+    public string? ClientIp { get; set; }
+
     /// <summary>動作代碼的第一節（例如 Login.Success → Login），用於清單的分類標籤。</summary>
     public string ActionCategory
     {

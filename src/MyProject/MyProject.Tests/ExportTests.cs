@@ -55,16 +55,16 @@ public sealed class ExportTests : IDisposable
     {
         AuditLogAdapterModel[] rows =
         [
-            new() { OccurredAt = new DateTime(2026, 10, 4, 9, 5, 7), Success = true, Action = "Login.Success", ActorAccount = "alice", ActorUserId = 7, TargetType = "MyUser", TargetId = "7", Detail = Tricky },
+            new() { OccurredAt = new DateTime(2026, 10, 4, 9, 5, 7), Success = true, Action = "Login.Success", ActorAccount = "alice", ActorUserId = 7, TargetType = "MyUser", TargetId = "7", Detail = Tricky, ClientIp = "203.0.113.5" },
             new() { OccurredAt = new DateTime(2026, 10, 4, 9, 6, 0), Success = false, Action = "Login.Failed" },
         ];
 
         var legacy = new StringBuilder();
-        legacy.AppendLine("發生時間（本地）,結果,動作,操作者帳號,操作者Id,目標類型,目標識別,摘要");
+        legacy.AppendLine("發生時間（本地）,結果,動作,操作者帳號,操作者Id,目標類型,目標識別,摘要,來源IP");
         foreach (var item in rows)
         {
             legacy.AppendLine(string.Join(',', Csv(item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")), Csv(item.Success ? "成功" : "失敗"), Csv(item.Action),
-                Csv(item.ActorAccount), Csv(item.ActorUserId?.ToString()), Csv(item.TargetType), Csv(item.TargetId), Csv(item.Detail)));
+                Csv(item.ActorAccount), Csv(item.ActorUserId?.ToString()), Csv(item.TargetType), Csv(item.TargetId), Csv(item.Detail), Csv(item.ClientIp)));
         }
 
         Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(AuditLogView.CsvColumns, rows));

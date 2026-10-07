@@ -156,6 +156,7 @@ public sealed class AuditLogQueryServiceTests
     [InlineData("42")]          // TargetId
     [InlineData("account=")]    // Detail
     [InlineData("MyUser")]      // TargetType
+    [InlineData("203.0.113")]   // ClientIp（部分比對）
     public async Task GetAsync_ShouldFilterByKeyword_AcrossTargetAndDetail(string keyword)
     {
         await using var fixture = await Fixture.CreateAsync();
@@ -167,6 +168,7 @@ public sealed class AuditLogQueryServiceTests
                 TargetType = "MyUser",
                 TargetId = "42",
                 Detail = "account=newbie",
+                ClientIp = "203.0.113.5",
             },
             new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Login.Success", ActorAccount = "bob" });
 

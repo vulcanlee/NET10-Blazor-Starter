@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using MyProject.Models.Systems;
+using MyProject.Web.Auth;
 using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components;
@@ -25,6 +26,9 @@ namespace MyProject.Web.Components;
 ///   Cookie（本頁適用）：Sid=UserId、NameIdentifier=Account、Name=**姓名（個資，絕不記錄）**
 ///   JWT（API 適用）：  NameIdentifier=UserId、Name=Account
 /// 在此誤用 ClaimTypes.Name 會把使用者姓名寫進日誌。
+///
+/// 稽核紀錄的來源 IP（0.9.117 起）也在這裡取得：circuit 內的元件事件沒有可靠的 HttpContext，
+/// 只有連線建立（與斷線重連）的當下能從 SignalR 連線拿到 IP，存進同一個 scope 的 <see cref="ClientIpProvider"/>。
 /// </summary>
 public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
 {
@@ -34,6 +38,8 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
     private readonly NavigationManager navigationManager;
     private readonly AuthenticationStateProvider authenticationStateProvider;
     private readonly ExceptionContextAccessor exceptionContextAccessor;
+    private readonly IHttpContextAccessor httpContextAccessor;
+    private readonly ClientIpProvider clientIpProvider;
 
     private string circuitId = string.Empty;
     private string previousPath = string.Empty;
@@ -45,12 +51,16 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
         ILogger<ApplicationCircuitHandler> logger,
         NavigationManager navigationManager,
         AuthenticationStateProvider authenticationStateProvider,
-        ExceptionContextAccessor exceptionContextAccessor)
+        ExceptionContextAccessor exceptionContextAccessor,
+        IHttpContextAccessor httpContextAccessor,
+        ClientIpProvider clientIpProvider)
     {
         this.logger = logger;
         this.navigationManager = navigationManager;
         this.authenticationStateProvider = authenticationStateProvider;
         this.exceptionContextAccessor = exceptionContextAccessor;
+        this.httpContextAccessor = httpContextAccessor;
+        this.clientIpProvider = clientIpProvider;
     }
 
     /// <summary>
@@ -106,6 +116,16 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
 
     public override Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
     {
+        try
+        {
+            clientIpProvider.SetCircuitClientIp(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress);
+        }
+        catch (Exception ex)
+        {
+            // 取不到 IP 只會讓稽核紀錄的來源 IP 空著，不可以弄壞連線。
+            logger.LogWarning(ex, "Could not resolve client IP for circuit. CircuitId={CircuitId}", circuit.Id);
+        }
+
         var (account, userId) = ResolveUser();
         logger.LogDebug(
             "Blazor circuit connection up. CircuitId={CircuitId}, Account={Account}, UserId={UserId}",
