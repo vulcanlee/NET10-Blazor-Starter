@@ -42,7 +42,7 @@ else
                 </Select>
 
                 <Input class="audit-log-account-input" @bind-Value="accountFilter" Placeholder="操作者帳號" />
-                <Input class="audit-log-search-input" @bind-Value="keyword" Placeholder="關鍵字（動作／目標／摘要）" />
+                <Input class="audit-log-search-input" @bind-Value="keyword" Placeholder="關鍵字（動作／目標／摘要／IP）" />
             </div>
             <div class="audit-log-toolbar-right">
                 <ToolbarIconButton Title="查詢" Icon="search"
@@ -98,6 +98,7 @@ else
                         <Tag Color="@GetActionColor(context.ActionCategory)">@context.Action</Tag>
                     </Column>
                     <Column TData="string" Title="操作者" Width="130" Ellipsis>@ActorText(context)</Column>
+                    <Column TData="string" Title="來源 IP" Width="130" Ellipsis>@(context.ClientIp ?? "—")</Column>
                     <Column TData="string" Title="目標" Width="170" Ellipsis>@TargetText(context)</Column>
                     <Column TData="string" Title="摘要" Ellipsis>@(context.Detail ?? "—")</Column>
                     <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
@@ -139,6 +140,7 @@ else
                     </div>
                     <div><dt>動作代碼</dt><dd>@detailItem.Action</dd></div>
                     <div><dt>操作者</dt><dd>@ActorText(detailItem)</dd></div>
+                    <div><dt>來源 IP</dt><dd>@(detailItem.ClientIp ?? "—")</dd></div>
                     <div><dt>目標類型</dt><dd>@(detailItem.TargetType ?? "—")</dd></div>
                     <div><dt>目標識別</dt><dd>@(detailItem.TargetId ?? "—")</dd></div>
                 </dl>

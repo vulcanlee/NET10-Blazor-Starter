@@ -100,6 +100,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 稽核來源 IP（0.9.117 起）：circuit handler 寫入、AuditLogService 讀取，兩者必須拿到同一個實例。
+        services.AddScoped<ClientIpProvider>();
+        services.AddScoped<IClientIpProvider>(sp => sp.GetRequiredService<ClientIpProvider>());
         // 站內通知與公告（0.9.100 起）。訊號與公告快取是 singleton（跨連線共用）；發送服務是 scoped。
         services.AddSingleton<INotificationSignal, NotificationSignal>();
         services.AddSingleton<AnnouncementCache>();

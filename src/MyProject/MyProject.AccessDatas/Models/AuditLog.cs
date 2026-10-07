@@ -38,4 +38,8 @@ public class AuditLog
     /// 該操作是否成功。
     /// </summary>
     public bool Success { get; set; } = true;
+    /// <summary>
+    /// 來源 IP（0.9.117 起）。排程作業與之前的舊紀錄為 null；IPv4-mapped IPv6 已轉回 IPv4。
+    /// </summary>
+    public string? ClientIp { get; set; }
 }
