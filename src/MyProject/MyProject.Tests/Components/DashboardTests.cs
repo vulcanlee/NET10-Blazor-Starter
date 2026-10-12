@@ -153,13 +153,14 @@ public sealed class DashboardTests : ComponentTestBase
     public void Account_ShouldShowThePreviousLogin_NotThisOne_AndTheTwoFactorState()
     {
         AddAudit(AuditActions.Login.Success, DateTime.UtcNow.AddDays(-3));
-        AddAudit(AuditActions.Login.SsoSuccess, DateTime.UtcNow.AddDays(-1));
+        AddAudit(AuditActions.Login.SsoSuccess, DateTime.UtcNow.AddDays(-1), clientIp: "198.51.100.7");
         AddAudit(AuditActions.Login.Failed, DateTime.UtcNow.AddHours(-2), success: false);
         AddAudit(AuditActions.Login.Success, DateTime.UtcNow);
 
         var widget = Render<MyAccountWidget>();
 
         widget.WaitForAssertion(() => Assert.Contains("Google 登入", widget.Markup, StringComparison.Ordinal));
+        Assert.Contains("198.51.100.7", widget.Markup, StringComparison.Ordinal); // 0.9.123 起顯示上一次登入的來源 IP
         Assert.Contains("未啟用", widget.Markup, StringComparison.Ordinal);
         Assert.Contains("不會到期", widget.Markup, StringComparison.Ordinal);
     }
@@ -212,10 +213,10 @@ public sealed class DashboardTests : ComponentTestBase
         context.SaveChanges();
     }
 
-    private void AddAudit(string action, DateTime occurredAtUtc, bool success = true, int? actor = null)
+    private void AddAudit(string action, DateTime occurredAtUtc, bool success = true, int? actor = null, string? clientIp = null)
     {
         using var context = factory.CreateDbContext();
-        context.AuditLog.Add(new AuditLog { Action = action, OccurredAt = occurredAtUtc, Success = success, ActorUserId = actor ?? userId, ActorAccount = "alice" });
+        context.AuditLog.Add(new AuditLog { Action = action, OccurredAt = occurredAtUtc, Success = success, ActorUserId = actor ?? userId, ActorAccount = "alice", ClientIp = clientIp });
         context.SaveChanges();
     }
 

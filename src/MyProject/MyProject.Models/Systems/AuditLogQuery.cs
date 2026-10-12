@@ -29,8 +29,11 @@ public class AuditLogQuery
     /// <summary>成敗篩選：true 只看成功、false 只看失敗、null 不限。</summary>
     public bool? Success { get; set; }
 
-    /// <summary>關鍵字，同時比對 動作／帳號／目標類型／目標識別／摘要。</summary>
+    /// <summary>關鍵字，同時比對 動作／帳號／目標類型／目標識別／摘要／來源 IP。</summary>
     public string Keyword { get; set; } = string.Empty;
+
+    /// <summary>來源 IP，前綴比對（輸入前幾段即可，例如 <c>192.168.1</c>）；沒有記錄 IP 的舊紀錄不會符合（0.9.123 起）。</summary>
+    public string ClientIp { get; set; } = string.Empty;
 
     public int CurrentPage { get; set; } = 1;
 

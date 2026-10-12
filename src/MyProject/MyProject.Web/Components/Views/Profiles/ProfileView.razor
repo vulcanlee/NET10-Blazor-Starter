@@ -131,7 +131,7 @@ else
             {
                 <table class="profile-logins">
                     <thead>
-                        <tr><th>時間</th><th>動作</th><th>結果</th></tr>
+                        <tr><th>時間</th><th>動作</th><th>來源 IP</th><th>結果</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var item in logins)
@@ -139,6 +139,8 @@ else
                             <tr>
                                 <td>@ToLocalText(item.OccurredAtUtc)</td>
                                 <td>@DescribeAction(item.Action)</td>
+                                @* 0.9.123 起；0.9.117 之前的舊紀錄沒有 IP。 *@
+                                <td class="profile-login-ip">@(item.ClientIp ?? "—")</td>
                                 <td><StatusPill Text="@(item.Success ? "成功" : "失敗")" Tone="@(item.Success ? StatusTone.Positive : StatusTone.Warning)" /></td>
                             </tr>
                         }

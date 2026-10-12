@@ -26,8 +26,8 @@ public sealed record ProfileInfo(
     bool TwoFactorEnabled = false,
     IReadOnlyList<string>? SubordinateTeams = null);
 
-/// <summary>一筆自己的登入或登出紀錄。</summary>
-public sealed record LoginRecord(DateTime OccurredAtUtc, string Action, bool Success);
+/// <summary>一筆自己的登入或登出紀錄。<c>ClientIp</c>（0.9.123 起）：0.9.117 之前的舊紀錄為 null。</summary>
+public sealed record LoginRecord(DateTime OccurredAtUtc, string Action, bool Success, string? ClientIp = null);
 
 /// <summary>
 /// 使用者自己的個人資料（0.9.102 起）：讀取、最近的登入紀錄、修改姓名。
@@ -111,7 +111,7 @@ public class ProfileService
             .Where(x => x.ActorUserId == userId && (x.Action.StartsWith("Login.") || x.Action == AuditActions.Logout))
             .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Take(LoginHistorySize)
-            .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success))
+            .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success, x.ClientIp))
             .ToListAsync();
     }
 
@@ -126,7 +126,7 @@ public class ProfileService
             .Where(x => x.ActorUserId == userId && x.Success && (x.Action == AuditActions.Login.Success || x.Action == AuditActions.Login.SsoSuccess))
             .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Skip(1)
-            .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success))
+            .Select(x => new LoginRecord(x.OccurredAt, x.Action, x.Success, x.ClientIp))
             .FirstOrDefaultAsync();
     }
 

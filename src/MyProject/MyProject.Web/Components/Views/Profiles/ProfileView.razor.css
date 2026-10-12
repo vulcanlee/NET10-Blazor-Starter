@@ -103,6 +103,11 @@
     text-align: left;
 }
 
+/* IPv6 位址很長：允許在任意處換行，不撐破窄螢幕。 */
+.profile-login-ip {
+    overflow-wrap: anywhere;
+}
+
 .profile-logins th {
     background: var(--app-thead);
     color: var(--app-muted);

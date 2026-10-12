@@ -42,6 +42,7 @@ namespace MyProject.Web.Components.Views.Admins
         private string selectedAction = string.Empty;
         private string selectedSuccess = string.Empty;
         private string accountFilter = string.Empty;
+        private string ipFilter = string.Empty;
         private string keyword = string.Empty;
 
         private List<string> actionOptions = [];
@@ -173,6 +174,7 @@ namespace MyProject.Web.Components.Views.Admins
             StartTime = startTime,
             EndTime = endTime,
             Account = accountFilter,
+            ClientIp = ipFilter,
             Action = selectedAction,
             Success = selectedSuccess switch
             {

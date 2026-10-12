@@ -109,6 +109,25 @@ public sealed class AuditLogQueryServiceTests
         Assert.Equal("alice", item.ActorAccount);
     }
 
+    [Theory]
+    [InlineData("203.0.113", new[] { "203.0.113.5", "203.0.113.77" })]   // 輸入前幾段
+    [InlineData(" 203.0.113.5 ", new[] { "203.0.113.5" })]               // 前後空白忽略
+    [InlineData("0.113", new string[0])]                                  // 前綴比對，不是任意位置
+    public async Task GetAsync_ShouldFilterByClientIp_Prefix_AndSkipRecordsWithoutIp(string ip, string[] expected)
+    {
+        // 0.9.123 起「來源 IP」篩選；0.9.117 之前沒有 IP 的舊紀錄不會符合。
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.SeedAsync(
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Login.Success", ClientIp = "203.0.113.5" },
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddSeconds(-1), Action = "Login.Success", ClientIp = "203.0.113.77" },
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddSeconds(-2), Action = "Login.Success", ClientIp = "10.203.0.113" },
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddSeconds(-3), Action = "Login.Success", ClientIp = null });
+
+        var result = await fixture.CreateService().GetAsync(new AuditLogQuery { ClientIp = ip });
+
+        Assert.Equal(expected, result.Result.Select(x => x.ClientIp));
+    }
+
     [Fact]
     public async Task GetAsync_ShouldFilterByAction_ExactMatch()
     {
