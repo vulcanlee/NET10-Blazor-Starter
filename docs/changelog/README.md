@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.48
+- 文件版本：6.49
 - 文件狀態：維護中
-- 現行系統版本：0.9.117
+- 現行系統版本：0.9.118
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/10/07
+- 最後核對日期：2026/10/12
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 備份範圍說明：操作手冊列出各項「為什麼不備份」（DB 執行期檔、AI 對話內容、備份目錄、`DownloadPath`／`UploadPath`、日誌與設定）、空資料夾不會出現在 zip 裡；速查表規定要長期保存的檔案一律放 `ProjectFilePath`；系統備份操作說明加一題常見問題；只改文件（0.9.118）| [2026-10-12-備份範圍說明](2026-10-12-備份範圍說明.md) |
 | 稽核紀錄顯示來源 IP：`AuditLog` 加 `ClientIp`（migration `AddAuditLogClientIp`），由 `AuditLogService` 經 `IClientIpProvider` 自動填入，144 個呼叫點不動；SSR／API 取 `HttpContext`、Blazor circuit 於連線建立與重連時取；稽核紀錄頁清單、明細窗與 CSV（最後一欄）顯示，關鍵字可搜 IP；排程作業與舊紀錄顯示「—」（0.9.117）| [2026-10-07-稽核紀錄來源IP](2026-10-07-稽核紀錄來源IP.md) |
 | 新手總覽加上目錄、FAQ 與名詞附錄；複刻腳本確認來源是最新：《腳手架總覽與複刻上手》開頭加目錄、新增 §12 FAQ 25 題（含用 Claude Code／Codex 開發的注意事項）、§0 擴充為文末名詞附錄；`New-StarterProject.ps1` 開跑前 `git fetch` 並檢查工作目錄乾淨、在預設分支、不落後 origin，否則中止（`-AllowUnsyncedSource` 放行），被忽略卻會被複製的檔案列出警告；`TeamTreeTests` 寫死舊 migration 名稱的測試獨立成 `TeamTreeMigrationTests.cs` 並於複刻時刪除（衍生專案不再一複刻就有 1 個測試失敗）；`design-qa.md` 移入 changelog（0.9.116）| [2026-10-06-總覽文件FAQ與複刻來源檢查](2026-10-06-總覽文件FAQ與複刻來源檢查.md) |
 | 錯誤頁與空白 Host 修正：`UseExceptionHandler` 補 `createScopeForErrors: true`，Blazor 頁面 SSR 例外不再讓 `/Error` 本身拋 "already initialized" 而回空白 500；新增 `UseRejectInvalidHost`，Host 空白（HTTP/1.0 不帶 Host）或組不成網址的請求回 400，不再一次記 5 筆 ERROR（0.9.115）| [2026-10-05-錯誤頁與空白Host修正](2026-10-05-錯誤頁與空白Host修正.md) |
