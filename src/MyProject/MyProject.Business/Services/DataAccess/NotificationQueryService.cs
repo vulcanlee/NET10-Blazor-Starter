@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 
 namespace MyProject.Business.Services.DataAccess;
@@ -9,18 +10,21 @@ namespace MyProject.Business.Services.DataAccess;
 /// 鈴鐺的查詢與標為已讀（0.9.100 起）。
 /// ⚠️ <c>userId</c> 一律由呼叫端從 <c>CurrentUserService</c> 取得，每一條 UPDATE 都帶 <c>RecipientUserId = userId</c>：
 /// 不可以讓人把別人的通知標為已讀。
+/// 0.9.122 起標為已讀（真的改到資料時）會發出這位使用者的訊號，鈴鐺、首頁「我的通知」與他的其他分頁一起更新。
 /// </summary>
 public class NotificationQueryService
 {
     private const int PurgeBatchSize = 1000;
 
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
+    private readonly INotificationSignal signal;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<NotificationQueryService> logger;
 
-    public NotificationQueryService(IDbContextFactory<BackendDBContext> contextFactory, TimeProvider timeProvider, ILogger<NotificationQueryService> logger)
+    public NotificationQueryService(IDbContextFactory<BackendDBContext> contextFactory, INotificationSignal signal, TimeProvider timeProvider, ILogger<NotificationQueryService> logger)
     {
         this.contextFactory = contextFactory;
+        this.signal = signal;
         this.timeProvider = timeProvider;
         this.logger = logger;
     }
@@ -58,18 +62,28 @@ public class NotificationQueryService
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         await using var context = await contextFactory.CreateDbContextAsync();
-        await context.Notification
+        var changed = await context.Notification
             .Where(x => x.Id == notificationId && x.RecipientUserId == userId && x.ReadAtUtc == null)
             .ExecuteUpdateAsync(x => x.SetProperty(n => n.ReadAtUtc, nowUtc));
+        if (changed > 0)
+        {
+            signal.Publish([userId]);
+        }
     }
 
     public async Task<int> MarkAllReadAsync(int userId)
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         await using var context = await contextFactory.CreateDbContextAsync();
-        return await context.Notification
+        var changed = await context.Notification
             .Where(x => x.RecipientUserId == userId && x.ReadAtUtc == null)
             .ExecuteUpdateAsync(x => x.SetProperty(n => n.ReadAtUtc, nowUtc));
+        if (changed > 0)
+        {
+            signal.Publish([userId]);
+        }
+
+        return changed;
     }
 
     /// <summary>刪除建立時間早於門檻的通知（不論已讀未讀），分批進行，批次之間可取消。</summary>

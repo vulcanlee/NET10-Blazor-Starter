@@ -97,6 +97,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDatabaseUsageService, DatabaseUsageService>();
         services.AddScoped<IHealthLogReader, HealthLogReader>();
         services.AddScoped<ISystemHealthService, SystemHealthService>();
+        services.AddScoped<NotificationTestService>();
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();

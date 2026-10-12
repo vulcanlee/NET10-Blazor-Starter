@@ -17,4 +17,7 @@ public static class NotificationCategories
 
     /// <summary>AI 用量達上限的 80%／100% → 每人上限通知本人，全系統上限通知管理員（達 100% 同時寄信；0.9.109 起）。</summary>
     public const string AiQuota = "AiQuota";
+
+    /// <summary>管理員在「系統健康監控」按「發送測試通知」→ 全體管理員（不寄信；0.9.122 起）。</summary>
+    public const string Test = "Test";
 }

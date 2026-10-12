@@ -1,16 +1,16 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.122
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/12
 
 ## 一、目標與範圍
 
-提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表、寄信服務、日誌管線與排程作業是否正常，並附最近 24 小時 WARN 以上日誌與寄信測試；另提供部署平台使用的機器可讀探針端點。
+提供維運人員一個人工巡檢頁面（`/system-health`），以紅黃綠燈號與健康百分比快速判斷網站、API、資料庫、日誌、身分驗證、檔案系統、主機資源、安全設定、LLM API、快取服務、AI 計費表、寄信服務、日誌管線與排程作業是否正常，並附最近 24 小時 WARN 以上日誌、寄信測試與站內通知測試；另提供部署平台使用的機器可讀探針端點。
 
-- 範圍：`/system-health` 巡檢頁、14 項健康檢查、加權計分與燈號、最近 24 小時 WARN 以上日誌、寄信測試（0.9.59 起）、`/health/live` 與 `/health/ready` 探針。
+- 範圍：`/system-health` 巡檢頁、14 項健康檢查、加權計分與燈號、最近 24 小時 WARN 以上日誌、寄信測試（0.9.59 起）、站內通知測試（0.9.122 起）、`/health/live` 與 `/health/ready` 探針。
 - 非範圍：健康狀態的告警通知／歷史趨勢、外部監控整合、自動修復（例外告警信屬「日誌與例外處理」LOG-12，不在本頁）。機制細節不重寫，見 [系統健康監控（機制）](../features/系統健康監控.md)。
 
 ## 二、使用者與入口
@@ -32,6 +32,7 @@
   權重由 `MyProject.Tests/SystemHealthTests.CheckWeights_ShouldSumTo150` 守住。
 - **寄信服務**：`EmailSettings:Provider` 為 `None`（未啟用）或 `Pickup`（開發用）時黃燈；`Smtp` 時實際連線＋加密＋登入（上限 5 秒、不寄信），成功綠燈、失敗紅燈。佐證只顯示主機、埠號、加密方式，帳號與寄件者只顯示「已設定／未設定」，不顯示密碼。
 - **寄信測試區**（0.9.59 起）：收件者輸入框（預填目前登入者的 Email）＋「寄出測試信」按鈕；Provider 為 `None` 時輸入框與按鈕停用並提示如何啟用。同步寄送，結果以綠／紅訊息顯示（失敗只顯示例外型別名稱，細節看日誌）。
+- **站內通知測試區**（0.9.122 起）：「發送測試通知」按鈕，發一則「測試通知」給全體管理員（不寄信、不設 SourceKey 可重複測），連結回 `/system-health`；結果以綠／紅訊息顯示收件人數。
 - ⚠️ **LLM API 這項每次載入頁面都會真的呼叫一次 API**，會產生費用並記入「Token 用量」
   （作業名稱「系統健康檢測」，約 27 token／NT$0.005 一次）與「AI 對話紀錄」（0.9.72 起），頁面載入也會因此多等 1～3 秒。
   逾時固定 30 秒，刻意不沿用 `AiSettings.TimeoutSeconds`（預設 600 秒）。AI 未設定時不發請求、該項黃燈。
@@ -60,6 +61,7 @@
 4. 燈號門檻：`Score >= 90` 綠、`>= 70` 黃、其餘紅；狀態文字同門檻映射正常／警示／異常。
 5. 日誌區：報告取得後，頁面另呼叫 `ILogQueryService.QueryAsync`（`StartTime = now − 24h`、`MinimumLevel = Warn`、`Take = LogQueryRequest.MaxTake`），結果反轉為新到舊。與報告分開，讀取失敗只影響本區。「日誌」檢查項目仍以 `IHealthLogReader.ReadLatestLines(100)` 判斷目錄可寫與今日檔狀態。
 5.1 寄信測試：`EmailTestService.SendAsync` 驗證收件者格式後以 `IEmailSender` 同步寄出（不走背景佇列），並寫稽核 `Email.Test`（detail 只有 provider 與成敗／例外型別，**不含收件者**）。
+5.2 站內通知測試：`NotificationTestService.SendAsync` 經 `INotificationSender` 發給 `NotificationTarget.AllAdmins()`（分類 `NotificationCategories.Test`），寫稽核 `Notification.Test`（detail 收件人數）；沒有管理員或發送失敗回失敗訊息。
 6. 探針：`/health/live` 對應 tag `live`（`self` 檢查恆 Healthy）；`/health/ready` 對應 tag `ready`（`DatabaseHealthCheck` 檢查資料庫連線）。
 
 ## 五、權限與安全
@@ -102,6 +104,7 @@
 - `src/MyProject/MyProject.Web/Health/SystemHealthModels.cs`（報告與項目模型）
 - `src/MyProject/MyProject.Web/Health/HealthLogReader.cs`、`DatabaseHealthCheck.cs`
 - `src/MyProject/MyProject.Web/Email/EmailHealthProbe.cs`、`EmailTestService.cs`（寄信服務項與寄信測試）
+- `src/MyProject/MyProject.Web/Health/NotificationTestService.cs`（站內通知測試）
 - `src/MyProject/MyProject.Web/Extensions/ServiceCollectionExtensions.cs`（`AddConfiguredHealthChecks`，探針 tag `live`/`ready`）
 - `src/MyProject/MyProject.Web/Program.cs`（`MapHealthChecks` `/health/live`、`/health/ready`）
 - 交叉連結：[系統健康監控（機制）](../features/系統健康監控.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)、[寄信服務 PRD](寄信服務-prd.md)

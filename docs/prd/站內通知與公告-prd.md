@@ -1,17 +1,17 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.122
 - 首次實作版本：0.9.100
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/12
 
 ## 一、目標與範圍
 
 讓系統與業務模組能「通知某人某件事」，並讓管理員對全體或特定對象發布公告；通知保存在資料庫、可標為已讀，不再只有轉眼即逝的右下角提示。
 
 - **範圍**：通知（資料表、發送服務 `INotificationSender`、即時訊號、鈴鐺、已讀、可選的同步寄信、自動清除）、公告（資料表、管理頁 `/announcements`、每頁上方的橫幅、個人關閉）、四個內建事件。
-- **非範圍**：管理員手動發通知的畫面（業務需要時由程式發）；通知的使用者偏好設定（訂閱／退訂）；公告寄信；公告的多選對象與富文字。
+- **非範圍**：管理員手動發通知的畫面（業務需要時由程式發；0.9.122 起「系統健康監控」有固定內容的「發送測試通知」給全體管理員，只用來確認鈴鐺正常）；通知的使用者偏好設定（訂閱／退訂）；公告寄信；公告的多選對象與富文字。
 
 使用者決定（2026/10/04）：通知由程式發出、公告由管理員發布；內建事件四個；公告為每頁上方可關閉的橫幅；程式可指定同時寄信；公告對象為全體或單一角色／團隊。
 
@@ -41,7 +41,7 @@
   3. 一位收件人寫一列 → `INotificationSignal.Publish(收件人)` →（`AlsoEmail`）交給 `INotificationMailer`。
   4. ⚠️ 絕不丟例外：失敗記錯誤並回 `Failed`，不中斷登入或排程作業。
 - **寄信** `NotificationMailer`：寄信停用不寄；信箱格式不合（例如 support 預設的 `support`）略過；連結以 `EmailSettings:PublicBaseUrl` 組成完整網址；佇列滿時停止並只記一筆警告；日誌不記信箱。信件種類 `EmailKinds.Notification`。
-- **即時更新**：singleton `NotificationSignal` 依使用者 Id（與「公告」）訂閱，只送「有變動」訊號，畫面自己重查；取消訂閱時原子移除空的外層集合（防洩漏）；派送時不帶發送端的執行情境；一個處理程序失敗不影響其他人。單一行程以外（IIS 重疊回收、多台主機）靠鈴鐺與橫幅各自 60 秒輪詢補足。
+- **即時更新**：singleton `NotificationSignal` 依使用者 Id（與「公告」）訂閱，只送「有變動」訊號，畫面自己重查；取消訂閱時原子移除空的外層集合（防洩漏）；派送時不帶發送端的執行情境；一個處理程序失敗不影響其他人。單一行程以外（IIS 重疊回收、多台主機）靠鈴鐺、橫幅與首頁「我的通知」（0.9.122 起）各自 60 秒輪詢補足。0.9.122 起標為已讀（真的改到資料時）也發這位使用者的訊號，鈴鐺、首頁小工具與他的其他分頁一起更新。
 - **公告快取** `AnnouncementCache`（singleton）：所有連線共用「還沒結束的公告」（含尚未開始的），管理頁存檔時失效並廣播，否則 60 秒重讀；橫幅的角色 Id 與已關閉清單每個連線讀一次，換頁不查資料庫。
 - **內建事件**：
 
@@ -61,7 +61,7 @@
 - 通知只看得到自己的；所有標為已讀的 UPDATE 都帶 `RecipientUserId = 目前使用者`。
 - 通知與公告內容一律純文字（不經 Markdown／HTML），連結只導向站內網址。
 - ⚠️ 例外記錄管線內（例外告警服務、例外寫入器）不可發通知：發送失敗會記錯誤，形成遞迴。
-- 稽核：`Announcement.Create`／`Update`／`Delete`、`Notification.AutoPurge`。
+- 稽核：`Announcement.Create`／`Update`／`Delete`、`Notification.AutoPurge`、`Notification.Test`（0.9.122 起）。
 
 ## 六、錯誤與邊界
 
@@ -76,6 +76,7 @@
 - `NotificationTests`：各種對象（停用與已刪除帳號、停用的管理員、主要角色、已刪除角色、團隊直接與經角色預設團隊）、⭐ 團隊反查與有效團隊互相對照、去重、只在要求時寄信、發送失敗不丟例外、標為已讀只動自己的、最新排序與清除、徽章上限、⭐ 訊號只送給收件人且取消訂閱不留殘餘、處理程序失敗互不影響且不繼承呼叫端情境、並行訂閱不洩漏、寄信規則（停用、格式不合、佇列滿、完整網址）、公告時間邊界（開始含、結束不含）、橫幅篩選、公告驗證與衝突與個人關閉、已結束公告不快取、已刪除角色不算、Google 待開通通知一次、刪除使用者連帶刪除、清除作業。
 - `ScheduledJobFrameworkTests`：失敗通知管理員與觸發者並寄信、排程失敗只通知管理員、成功與中斷不通知。
 - `Components/NotificationComponentTests`（bUnit）：鈴鐺收到訊號不重新整理就更新、全部標為已讀；橫幅「知道了」立即隱藏且下一次連線不再出現。
+- 0.9.122 起：`NotificationTests.MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged`（標為已讀才發訊號）、`DashboardTests` 小工具輪詢與 Dispose 停止輪詢、`NotificationTestServiceTests`（測試通知）。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`DataAccessServiceLifetimeTests`、`LoggingConventionTests`、`PageHelpCatalogTests`。
 
 ## 八、相關程式與文件

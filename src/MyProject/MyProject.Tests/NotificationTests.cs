@@ -174,7 +174,7 @@ public sealed class NotificationTests : IDisposable
         var bob = AddUser("bob");
         var (sender, _, _) = NewSender();
         await sender.SendAsync(Request(NotificationTarget.Users(alice, bob)));
-        var query = new NotificationQueryService(factory, TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var query = new NotificationQueryService(factory, new NotificationSignal(NullLogger<NotificationSignal>.Instance), TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
         var bobsNotification = (await query.GetLatestAsync(bob)).Single();
 
         await query.MarkReadAsync(alice, bobsNotification.Id);
@@ -183,6 +183,31 @@ public sealed class NotificationTests : IDisposable
         await query.MarkAllReadAsync(alice);
         Assert.Equal(0, await query.GetUnreadCountAsync(alice));
         Assert.Equal(1, await query.GetUnreadCountAsync(bob));
+    }
+
+    [Fact]
+    public async Task MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged()
+    {
+        // 0.9.122 起：標為已讀會通知同一個人的鈴鐺、首頁小工具與其他分頁一起更新；沒改到資料就不發。
+        var alice = AddUser("alice");
+        var (sender, _, _) = NewSender();
+        await sender.SendAsync(Request(NotificationTarget.Users(alice)));
+        await sender.SendAsync(Request(NotificationTarget.Users(alice)));
+        var signal = new NotificationSignal(NullLogger<NotificationSignal>.Instance);
+        var hits = 0;
+        using var subscription = signal.Subscribe(alice, () => { Interlocked.Increment(ref hits); return Task.CompletedTask; });
+        var query = new NotificationQueryService(factory, signal, TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var first = (await query.GetLatestAsync(alice))[0];
+
+        await query.MarkReadAsync(alice, first.Id);
+        await WaitUntilAsync(() => hits == 1);
+        await query.MarkReadAsync(alice, first.Id); // 已讀的再標一次：不發
+        Assert.Equal(1, await query.MarkAllReadAsync(alice));
+        await WaitUntilAsync(() => hits == 2);
+        Assert.Equal(0, await query.MarkAllReadAsync(alice)); // 全部已讀：不發
+
+        await Task.Delay(100);
+        Assert.Equal(2, hits);
     }
 
     [Fact]
@@ -199,7 +224,7 @@ public sealed class NotificationTests : IDisposable
             await context.SaveChangesAsync();
         }
 
-        var query = new NotificationQueryService(factory, TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var query = new NotificationQueryService(factory, new NotificationSignal(NullLogger<NotificationSignal>.Instance), TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
         var latest = await query.GetLatestAsync(user, 10);
         Assert.Equal(10, latest.Count);
         Assert.Equal("n11", latest[0].Title);
@@ -438,7 +463,7 @@ public sealed class NotificationTests : IDisposable
             await context.SaveChangesAsync();
         }
 
-        var query = new NotificationQueryService(factory, TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var query = new NotificationQueryService(factory, new NotificationSignal(NullLogger<NotificationSignal>.Instance), TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
         var audit = new RecordingAuditLogService();
         var context0 = new ScheduledJobContext(1, JobRunTriggers.Schedule, DateTime.UtcNow, null);
 

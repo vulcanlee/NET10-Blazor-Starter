@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.120
+- 現行系統版本：0.9.122
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/10/12
 
@@ -121,6 +121,7 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 | `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
 | `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |
+| `Notification.Test` | `NotificationTestService`（「系統健康監控」的發送測試通知，0.9.122 起；detail `recipients=N`，發送失敗加 `; failed`） |
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）|
