@@ -46,7 +46,8 @@ public sealed class ProfileTests : IDisposable
         {
             for (var i = 0; i < 25; i++)
             {
-                context.AuditLog.Add(new AuditLog { OccurredAt = start.AddMinutes(i), ActorUserId = me, ActorAccount = "alice", Action = i % 5 == 0 ? AuditActions.Logout : AuditActions.Login.Success });
+                // 0.9.123 起帶出來源 IP；較舊的幾筆模擬 0.9.117 之前沒有 IP 的紀錄。
+                context.AuditLog.Add(new AuditLog { OccurredAt = start.AddMinutes(i), ActorUserId = me, ActorAccount = "alice", Action = i % 5 == 0 ? AuditActions.Logout : AuditActions.Login.Success, ClientIp = i >= 20 ? $"203.0.113.{i}" : null });
             }
 
             // 同帳號字串但不是同一個人（例如帳號被刪除後重新使用）、匿名失敗、非登入動作：都不算。
@@ -61,6 +62,8 @@ public sealed class ProfileTests : IDisposable
         Assert.Equal(ProfileService.LoginHistorySize, logins.Count);
         Assert.Equal(start.AddMinutes(24), logins[0].OccurredAtUtc);
         Assert.Equal(start.AddMinutes(5), logins[^1].OccurredAtUtc);
+        Assert.Equal("203.0.113.24", logins[0].ClientIp);
+        Assert.Null(logins[^1].ClientIp);
         Assert.All(logins, x => Assert.True(x.Action == AuditActions.Logout || x.Action.StartsWith("Login.", StringComparison.Ordinal)));
     }
 

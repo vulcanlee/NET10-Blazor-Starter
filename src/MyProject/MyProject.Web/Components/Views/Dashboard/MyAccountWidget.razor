@@ -25,6 +25,11 @@ else
                 {
                     @ToLocalText(previousLogin.OccurredAtUtc)
                     <span class="dashboard-muted">@(previousLogin.Action == AuditActions.Login.SsoSuccess ? "Google 登入" : "帳號密碼")</span>
+                    @if (!string.IsNullOrWhiteSpace(previousLogin.ClientIp))
+                    {
+                        @* 0.9.123 起：陌生的 IP 比較容易發現不是自己的登入。 *@
+                        <span class="dashboard-muted">@previousLogin.ClientIp</span>
+                    }
                 }
             </dd>
         </div>

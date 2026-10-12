@@ -89,6 +89,12 @@ public class AuditLogQueryService
             dataSource = dataSource.Where(x => x.Action == query.Action);
         }
 
+        if (string.IsNullOrWhiteSpace(query.ClientIp) == false)
+        {
+            var ip = query.ClientIp.Trim();
+            dataSource = dataSource.Where(x => x.ClientIp != null && x.ClientIp.StartsWith(ip));
+        }
+
         if (query.Success.HasValue)
         {
             var success = query.Success.Value;
