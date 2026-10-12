@@ -238,6 +238,9 @@ public static class AuditActions
     public static class Notification
     {
         public const string AutoPurge = "Notification.AutoPurge";
+
+        /// <summary>管理員在「系統健康監控」發送測試通知給全體管理員（0.9.122 起；detail 為收件人數）。</summary>
+        public const string Test = "Notification.Test";
     }
 
     /// <summary>系統備份（0.9.99 起）：建立（排程或立即備份）、依份數自動刪除、下載、手動刪除。</summary>

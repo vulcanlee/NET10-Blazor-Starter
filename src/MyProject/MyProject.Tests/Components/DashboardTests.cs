@@ -130,6 +130,26 @@ public sealed class DashboardTests : ComponentTestBase
     }
 
     [Fact]
+    public void Notifications_ShouldPollForChangesFromOtherProcesses_AndStopPollingOnDispose()
+    {
+        // 0.9.122 起：別的行程寫入的通知不會發訊號，靠每 60 秒輪詢補上（與鈴鐺相同）。
+        var clock = new TriggerableTimeProvider();
+        Services.AddSingleton<TimeProvider>(clock);
+        AddNotification("通知1", read: false);
+
+        var widget = Render<MyNotificationsWidget>();
+        widget.WaitForAssertion(() => Assert.Equal("1", widget.Find(".dashboard-stat-number").TextContent));
+        var timer = Assert.Single(clock.Timers);
+
+        AddNotification("別台主機發的", read: false); // 沒有發訊號
+        timer.Fire();
+        widget.WaitForAssertion(() => Assert.Equal("2", widget.Find(".dashboard-stat-number").TextContent));
+
+        widget.Instance.Dispose();
+        widget.WaitForAssertion(() => Assert.True(timer.Disposed));
+    }
+
+    [Fact]
     public void Account_ShouldShowThePreviousLogin_NotThisOne_AndTheTwoFactorState()
     {
         AddAudit(AuditActions.Login.Success, DateTime.UtcNow.AddDays(-3));
