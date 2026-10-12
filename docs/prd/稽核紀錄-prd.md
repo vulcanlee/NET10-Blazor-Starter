@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.117
+- 現行系統版本：0.9.120
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/07
+- 最後核對日期：2026/10/12
 
 ## 一、目標與範圍
 
@@ -112,7 +112,8 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 | 動作代碼 | 來源 |
 | --- | --- |
 | `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` | `MyUserServiceLogin`（0.9.101 起 `LockedOut` 只記造成鎖定的那一次；鎖定中的嘗試記 `Failed`、detail `reason=Locked`）|
-| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` / `User.Unlock`（0.9.101 起，解除登入鎖定）| `MyUserService` |
+| `User.Create` / `User.Update` / `User.Delete`（0.9.95 起為軟刪除）/ `User.Restore` / `User.Purge` / `User.Unlock`（0.9.101 起，解除登入鎖定）/ `User.Enable` / `User.Disable`（0.9.120 起，清單點狀態標籤；detail `account=…`）| `MyUserService` |
+| `Team.Enable` / `Team.Disable` / `Category.Enable` / `Category.Disable` | `TeamService`、`CategoryService` 的 `SetEnabledAsync`（0.9.120 起，清單點狀態標籤；detail `name=…`）|
 | `User.ProfileUpdate` | `ProfileService`（使用者在個人資料頁改自己的姓名，0.9.102 起；detail 只寫 `field=Name`，不記姓名內容）|
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger` |

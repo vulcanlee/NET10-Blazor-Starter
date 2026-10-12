@@ -324,6 +324,26 @@ public partial class __Name__ViewView
 
     public void OnEditContestChanged(EditContext context) => LocalEditContext = context;
 
+    /// <summary>點狀態標籤切換啟用／停用：停用先確認，啟用直接切換；只改狀態，不經修改窗。</summary>
+    private async Task OnToggleEnabledAsync(__Name__AdapterModel record)
+    {
+        try
+        {
+            var enable = !record.IsEnabled;
+            if (!enable && !await ConfirmDialog.AskAsync(modalService, "停用__Item__", $"要停用「{record.Name}」嗎？", "停用"))
+            {
+                return;
+            }
+
+            await ShowResultAsync(await __name__Service.SetEnabledAsync(record.Id, enable), $"已{(enable ? "啟用" : "停用")}「{record.Name}」");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while changing __name__ status.");
+            ViewNotification.Error(notificationService, "切換__Item__狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+        }
+    }
+
     private async Task OnDeleteAsync(__Name__AdapterModel record)
     {
         try

@@ -36,6 +36,26 @@
     border-color: var(--app-line);
 }
 
+/* 可點的標籤（0.9.120 起）：button 的預設外觀歸零，只多手指游標與 hover／鍵盤焦點的外框。 */
+.status-pill-clickable {
+    margin: 0;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.status-pill-clickable:hover {
+    border-color: currentColor;
+}
+
+.status-pill-clickable:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
+.status-pill-clickable:disabled {
+    cursor: progress;
+}
+
 .status-pill-neutral {
     color: var(--app-muted);
     background: rgba(var(--app-tint-rgb), 0.55);

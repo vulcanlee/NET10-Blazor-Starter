@@ -279,6 +279,49 @@ public class TeamService
     }
 
     /// <summary>
+    /// 清單上點狀態標籤切換啟用／停用（0.9.120 起）：只改 <c>IsEnabled</c>，不走整筆覆寫的 <see cref="UpdateAsync"/>。
+    /// 參數是目標值（重複點不會反轉）；已經是目標值時回成功、不寫稽核。
+    /// 這是使用者的編輯動作，所以換版本號：別人開著這筆的修改窗存檔時會得到並行衝突，而不是把狀態蓋回去。
+    /// </summary>
+    public async Task<VerifyRecordResult> SetEnabledAsync(int id, bool enabled)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        try
+        {
+            var item = await context.Team.AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new { x.Name, x.IsEnabled })
+                .FirstOrDefaultAsync();
+            if (item == null)
+            {
+                Logger.LogInformation("Team status change rejected because record was not found. TeamId={TeamId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到這個團隊，可能已被刪除。");
+            }
+
+            var rows = item.IsEnabled == enabled ? 0 : await context.Team
+                .Where(x => x.Id == id && x.IsEnabled != enabled)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.IsEnabled, enabled)
+                    .SetProperty(x => x.UpdatedAt, DateTime.Now)
+                    .SetProperty(x => x.ConcurrencyStamp, ConcurrencyStampHelper.New()));
+            if (rows == 0)
+            {
+                return VerifyRecordResultFactory.Build(true);
+            }
+
+            teamTree.Invalidate();
+            Logger.LogInformation("Team status changed. TeamId={TeamId}, Enabled={Enabled}", id, enabled);
+            await WriteAuditAsync(enabled ? AuditActions.Team.Enable : AuditActions.Team.Disable, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to change team status. TeamId={TeamId}, Enabled={Enabled}", id, enabled);
+            return VerifyRecordResultFactory.Build(false, "切換團隊狀態失敗。", ex);
+        }
+    }
+
+    /// <summary>
     /// 刪除 = 軟刪除（0.9.94 起）：資料仍在，可在「顯示已刪除」中還原；永久刪除見 <see cref="PurgeAsync"/>。
     /// 使用者與團隊的關聯（UserTeam）保留，團隊還原後成員關係自動恢復；查詢時經由 context.Team 的過濾自然排除。
     /// </summary>

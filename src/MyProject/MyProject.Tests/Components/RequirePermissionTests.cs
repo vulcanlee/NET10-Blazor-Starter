@@ -40,4 +40,23 @@ public sealed class RequirePermissionTests : ComponentTestBase
         Assert.True(expected == (cut.FindAll("button.guarded").Count == 1), scenario);
         Assert.Equal(expected, PermissionRules.CanAccessAction(user, Page, action));
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Fallback_ShouldRenderOnlyWithoutPermission(bool allowed)
+    {
+        // 0.9.120 起：有權限顯示可點的狀態標籤，沒權限改顯示 Fallback（不可點的標籤）。
+        var keys = allowed ? new[] { PermissionKey.For(Page, PermissionActions.Edit) } : [PermissionKey.For(Page, PermissionActions.View)];
+        Services.AddSingleton(new CurrentUserService { CurrentUser = new CurrentUser { Id = 9, Account = "dave", RoleList = [.. keys] } });
+
+        var cut = Render<RequirePermission>(parameters => parameters
+            .Add(p => p.Page, Page)
+            .Add(p => p.Action, PermissionActions.Edit)
+            .Add(p => p.ChildContent, "<button class=\"guarded\">啟用</button>")
+            .Add(p => p.Fallback, "<span class=\"fallback\">啟用</span>"));
+
+        Assert.Equal(allowed ? 1 : 0, cut.FindAll("button.guarded").Count);
+        Assert.Equal(allowed ? 0 : 1, cut.FindAll("span.fallback").Count);
+    }
 }

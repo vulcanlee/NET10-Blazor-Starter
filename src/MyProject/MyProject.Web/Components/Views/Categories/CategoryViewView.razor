@@ -57,8 +57,27 @@ else
                 <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Description)" Title="描述" />
                 <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.TeamsText)" Title="適用團隊" />
                 <Column TData="bool" DataIndex="@nameof(CategoryAdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
-                    <StatusPill Text="@(context.IsEnabled ? "啟用" : "停用")"
-                                Tone="@(context.IsEnabled ? StatusTone.Positive : StatusTone.Muted)" />
+                    @* 0.9.120 起：有修改權限時點標籤直接切換（停用先確認）；已刪除的資料不可點。 *@
+                    @if (showDeleted)
+                    {
+                        <StatusPill Text="@(context.IsEnabled ? "啟用" : "停用")"
+                                    Tone="@(context.IsEnabled ? StatusTone.Positive : StatusTone.Muted)" />
+                    }
+                    else
+                    {
+                        <RequirePermission Page="@MagicObjectHelper.角色_分類清單" Action="@PermissionActions.Edit">
+                            <ChildContent>
+                                <StatusPill Text="@(context.IsEnabled ? "啟用" : "停用")"
+                                            Tone="@(context.IsEnabled ? StatusTone.Positive : StatusTone.Muted)"
+                                            Hint="@(context.IsEnabled ? "點一下切換為停用" : "點一下切換為啟用")"
+                                            OnClick="@(async () => await OnToggleEnabledAsync(context))" />
+                            </ChildContent>
+                            <Fallback>
+                                <StatusPill Text="@(context.IsEnabled ? "啟用" : "停用")"
+                                            Tone="@(context.IsEnabled ? StatusTone.Positive : StatusTone.Muted)" />
+                            </Fallback>
+                        </RequirePermission>
+                    }
                 </Column>
                 <Column TData="DateTime" DataIndex="@nameof(CategoryAdapterModel.UpdatedAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Descending" />
                 @if (showDeleted)

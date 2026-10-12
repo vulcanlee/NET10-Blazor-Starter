@@ -102,6 +102,26 @@ public sealed class __Name__ServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SetEnabled_ShouldOnlyChangeStatus_BumpStamp_AndAudit()
+    {
+        var service = Service();
+        var id = await AddAsync(service, "要停用的");
+        var opened = mapper.Map<__Name__AdapterModel>(await SingleAsync(id));
+
+        Assert.True((await service.SetEnabledAsync(id, false)).Success);
+        Assert.True((await service.SetEnabledAsync(id, false)).Success); // 已經是目標值：成功、不再寫稽核
+
+        var saved = await SingleAsync(id);
+        Assert.False(saved.IsEnabled);
+        Assert.Equal("要停用的", saved.Name);
+        Assert.NotEqual(opened.ConcurrencyStamp, saved.ConcurrencyStamp);
+        Assert.Equal([AuditActions.__Name__.Create, AuditActions.__Name__.Disable], audit.Entries.Select(x => x.Action));
+
+        // 停用前就開著的修改窗存檔：並行衝突，不能把狀態蓋回「啟用」。
+        Assert.Equal(ConcurrencyStampHelper.ConflictMessage, (await service.UpdateAsync(opened)).Message);
+    }
+
+    [Fact]
     public async Task Delete_Restore_Purge_ShouldFollowTheSoftDeleteRules()
     {
         var service = Service();

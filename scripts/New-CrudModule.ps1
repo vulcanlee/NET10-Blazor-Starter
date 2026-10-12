@@ -364,6 +364,8 @@ Update-Source 'MyProject.Business/Helpers/AuditActions.cs' '稽核動作' "     
     {
         public const string Create = "$Name.Create";
         public const string Update = "$Name.Update";
+        public const string Enable = "$Name.Enable";
+        public const string Disable = "$Name.Disable";
         public const string Delete = "$Name.Delete";
         public const string Restore = "$Name.Restore";
         public const string Purge = "$Name.Purge";

@@ -264,6 +264,40 @@ namespace MyProject.Web.Components.Views.Teams
         }
 
         /// <summary>
+        /// 點狀態標籤切換啟用／停用（0.9.120 起）：停用先確認，啟用直接切換；只改狀態，不經修改窗。
+        /// </summary>
+        async Task OnToggleEnabledAsync(TeamAdapterModel record)
+        {
+            try
+            {
+                var enable = !record.IsEnabled;
+                if (!enable && !await ConfirmDialog.AskAsync(modalService, "停用團隊",
+                        $"要停用「{record.Name}」嗎？停用後它不會出現在下拉選單，已綁定的人員與資料不受影響。", "停用"))
+                {
+                    return;
+                }
+
+                var result = await teamService.SetEnabledAsync(record.Id, enable);
+                if (!result.Success)
+                {
+                    logger.LogInformation("Team status change rejected. TeamId={TeamId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                }
+                else
+                {
+                    ViewNotification.Warning(notificationService, $"已{(enable ? "啟用" : "停用")}「{record.Name}」");
+                }
+
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while changing team status.");
+                ViewNotification.Error(notificationService, "切換團隊狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        /// <summary>
         /// 包住實際邏輯以捕捉未預期的例外：先前這些寫入操作完全沒有 try/catch，
         /// 例外會直接拆掉 Blazor circuit，使用者只看到畫面斷線、日誌上也留不下任何痕跡。
         /// </summary>

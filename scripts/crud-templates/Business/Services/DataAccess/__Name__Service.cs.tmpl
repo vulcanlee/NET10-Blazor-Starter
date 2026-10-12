@@ -235,6 +235,51 @@ public class __Name__Service
         }
     }
 
+    /// <summary>
+    /// 清單上點狀態標籤切換啟用／停用：只改 IsEnabled，不走整筆覆寫的 UpdateAsync。參數是目標值；已經是目標值時回成功、不寫稽核。
+    /// 換版本號：別人開著這筆的修改窗存檔時會得到並行衝突，而不是把狀態蓋回去。
+    /// </summary>
+    public async Task<VerifyRecordResult> SetEnabledAsync(int id, bool enabled)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        try
+        {
+            var item = await context.__Name__.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+            if (item == null)
+            {
+                return VerifyRecordResultFactory.Build(false, "找不到這筆__Item__，可能已被刪除。");
+            }
+#IF TEAMS
+
+            if (!await IsVisibleAsync(item))
+            {
+                Logger.LogWarning("__Name__ status change denied by team scope. __Name__Id={__Name__Id}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆__Item__不在你的團隊範圍內，無法修改。");
+            }
+#ENDIF
+
+            var rows = item.IsEnabled == enabled ? 0 : await context.__Name__
+                .Where(x => x.Id == id && x.IsEnabled != enabled)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.IsEnabled, enabled)
+                    .SetProperty(x => x.UpdatedAt, DateTime.Now)
+                    .SetProperty(x => x.ConcurrencyStamp, ConcurrencyStampHelper.New()));
+            if (rows == 0)
+            {
+                return VerifyRecordResultFactory.Build(true);
+            }
+
+            Logger.LogInformation("__Name__ status changed. __Name__Id={__Name__Id}, Enabled={Enabled}", id, enabled);
+            await WriteAuditAsync(enabled ? AuditActions.__Name__.Enable : AuditActions.__Name__.Disable, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to change __name__ status. __Name__Id={__Name__Id}", id);
+            return VerifyRecordResultFactory.Build(false, "切換__Item__狀態失敗。", ex);
+        }
+    }
+
     /// <summary>刪除＝軟刪除：資料仍在，可在「顯示已刪除」還原；永久刪除見 <see cref="PurgeAsync"/>。</summary>
     public async Task<VerifyRecordResult> DeleteAsync(int id)
     {
