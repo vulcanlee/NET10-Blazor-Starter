@@ -14,6 +14,12 @@
     gap: 0.5rem;
 }
 
+/* 說明文字較長：讓左側可縮小換行，重新整理按鈕留在同一列右側。 */
+.system-parameter-toolbar-left {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 .system-parameter-hint,
 .system-parameter-muted {
     color: var(--app-muted);
