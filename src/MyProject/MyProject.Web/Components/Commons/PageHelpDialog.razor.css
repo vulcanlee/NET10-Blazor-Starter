@@ -94,11 +94,12 @@
 }
 
 /*
- * 字體大小：內文與左側目錄都乘上 --page-help-scale。「中」＝ 1，與 0.9.121 之前的大小完全相同
- * （內文 14px、目錄 0.9rem、h1／h2／h3 為 1.35／1.15／1rem）；小約 13px、大約 17px。
+ * 字體大小：內文、標題、左側目錄的字級與寬度都乘上 --page-help-scale（倍率以 AntD 內文 14px 為基準）。
+ * 0.9.124 起：小 1（內文 14px，＝0.9.121 之前的大小）、中 16/14（16px，預設）、大 20/14（20px）。
+ * 0.9.121～0.9.123 是 13／14／17px，「大」看起來不夠大。
  */
 .page-help-layout {
-    --page-help-scale: 1;
+    --page-help-scale: calc(16 / 14);
     display: flex;
     height: 100%;
     min-height: 0;
@@ -106,15 +107,15 @@
 }
 
 .page-help-font-small {
-    --page-help-scale: calc(13 / 14);
+    --page-help-scale: 1;
 }
 
 .page-help-font-large {
-    --page-help-scale: calc(17 / 14);
+    --page-help-scale: calc(20 / 14);
 }
 
 .page-help-nav {
-    width: 15rem;
+    width: calc(15rem * var(--page-help-scale));
     flex-shrink: 0;
     padding: 12px 8px;
     border-right: 1px solid var(--app-line);

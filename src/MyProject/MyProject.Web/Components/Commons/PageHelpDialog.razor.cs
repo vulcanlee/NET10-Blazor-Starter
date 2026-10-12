@@ -15,7 +15,7 @@ public enum PageHelpFontSize
 
 /// <summary>
 /// 說明窗字體大小的選項、CSS class 與 localStorage 存值的對照。
-/// 「中」就是原本的大小；倍率寫在 PageHelpDialog.razor.css 的 <c>--page-help-scale</c>。
+/// 內文約 14／16／20px（0.9.124 起，預設「中」）；倍率寫在 PageHelpDialog.razor.css 的 <c>--page-help-scale</c>。
 /// </summary>
 public static class PageHelpFontSizes
 {
