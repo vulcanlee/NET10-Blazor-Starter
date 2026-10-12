@@ -35,4 +35,38 @@ public sealed class StatusPillTests : ComponentTestBase
 
         Assert.True(cut.Find("span.status-pill").ClassList.Contains("status-pill-neutral"));
     }
+
+    [Fact]
+    public void WithOnClick_ShouldRenderAButton_WithHint_AndInvokeTheCallback()
+    {
+        // 0.9.120 起：清單上點「啟用／停用」直接切換。
+        var clicks = 0;
+        var cut = Render<StatusPill>(parameters => parameters
+            .Add(p => p.Text, "啟用")
+            .Add(p => p.Tone, StatusTone.Positive)
+            .Add(p => p.Hint, "點一下切換為停用")
+            .Add(p => p.OnClick, () => clicks++));
+
+        Assert.Empty(cut.FindAll("span.status-pill"));
+        var button = cut.Find("button.status-pill.status-pill-clickable");
+        Assert.True(button.ClassList.Contains("status-pill-positive"));
+        Assert.Equal("button", button.GetAttribute("type"));
+        Assert.Equal("點一下切換為停用", button.GetAttribute("title"));
+        Assert.Equal("啟用", button.TextContent);
+
+        button.Click();
+
+        Assert.Equal(1, clicks);
+    }
+
+    [Fact]
+    public void WithoutOnClick_ShouldStayANonInteractiveSpan()
+    {
+        var cut = Render<StatusPill>(parameters => parameters
+            .Add(p => p.Text, "停用")
+            .Add(p => p.Hint, "點一下切換為啟用"));
+
+        Assert.Empty(cut.FindAll("button"));
+        Assert.Null(cut.Find("span.status-pill").GetAttribute("title"));
+    }
 }

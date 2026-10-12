@@ -1,10 +1,10 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.120
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/12
 
 ## 一、目標與範圍
 
@@ -39,7 +39,7 @@
 - 搜尋：關鍵字比對 `Name` 或 `Description`（`Contains`）。
 - 排序：可排序欄位 `Name`、`IsEnabled`、`UpdatedAt`；預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆），`RemoteDataSource=true` 由服務端分頁。
-- 清單欄位：名稱、描述、適用團隊、啟用狀態（`StatusPill` 徽章：啟用／停用）、更新時間、操作（修改需 `分類清單:edit`、刪除需 `分類清單:delete`，無權限時不顯示按鈕）。
+- 清單欄位：名稱、描述、適用團隊、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `分類清單:edit` 時點徽章直接切換，停用先確認，`CategoryService.SetEnabledAsync` 只改狀態並換版本號、檢查團隊範圍、稽核 `Category.Enable`／`Category.Disable`）、更新時間、操作（修改需 `分類清單:edit`、刪除需 `分類清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「分類資料」一區）：
   - 名稱 `Name`（必填，最長 100）
   - 啟用狀態 `IsEnabled`（Switch，預設啟用）

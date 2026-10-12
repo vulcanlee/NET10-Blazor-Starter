@@ -34,6 +34,9 @@ public static class AuditActions
         /// <summary>使用者管理匯出 Excel（0.9.107 起）。</summary>
         public const string Export = "User.Export";
         public const string Update = "User.Update";
+        /// <summary>在使用者清單點狀態標籤切換啟用／停用（0.9.120 起）。</summary>
+        public const string Enable = "User.Enable";
+        public const string Disable = "User.Disable";
         /// <summary>軟刪除（0.9.95 起）；還原與永久刪除見 <see cref="Restore"/>、<see cref="Purge"/>。</summary>
         public const string Delete = "User.Delete";
         public const string Restore = "User.Restore";
@@ -111,6 +114,9 @@ public static class AuditActions
         /// <summary>分類清單匯出 Excel（0.9.107 起）。</summary>
         public const string Export = "Category.Export";
         public const string Update = "Category.Update";
+        /// <summary>在分類清單點狀態標籤切換啟用／停用（0.9.120 起）。</summary>
+        public const string Enable = "Category.Enable";
+        public const string Disable = "Category.Disable";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Category.Delete";
         public const string Restore = "Category.Restore";
@@ -127,6 +133,9 @@ public static class AuditActions
         /// <summary>團隊清單匯出 Excel（0.9.107 起）。</summary>
         public const string Export = "Team.Export";
         public const string Update = "Team.Update";
+        /// <summary>在團隊清單點狀態標籤切換啟用／停用（0.9.120 起）。</summary>
+        public const string Enable = "Team.Enable";
+        public const string Disable = "Team.Disable";
         /// <summary>0.9.94 起為軟刪除（可還原）。</summary>
         public const string Delete = "Team.Delete";
         public const string Restore = "Team.Restore";

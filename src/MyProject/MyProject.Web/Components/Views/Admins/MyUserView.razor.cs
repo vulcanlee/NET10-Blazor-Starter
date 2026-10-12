@@ -295,6 +295,41 @@ namespace MyProject.Web.Components.Views.Admins
             return local.Date == DateTime.Today ? $"鎖定至 {local:HH:mm}" : $"鎖定至 {local:MM-dd HH:mm}";
         }
 
+        /// <summary>
+        /// 點狀態標籤切換啟用／停用（0.9.120 起）：停用先確認，啟用直接切換。
+        /// ⚠️ 走 <see cref="MyUserService.SetStatusAsync"/>，不可用清單列呼叫 UpdateAsync（會清掉這個人的額外角色與團隊）。
+        /// </summary>
+        async Task OnToggleStatusAsync(MyUserAdapterModel record)
+        {
+            try
+            {
+                var enable = !record.Status;
+                if (!enable && !await ConfirmDialog.AskAsync(modalService, "停用使用者",
+                        $"要停用「{record.Account}」嗎？他所有已登入的瀏覽器與 API 會被登出，之後也不能再登入，直到重新啟用。", "停用"))
+                {
+                    return;
+                }
+
+                var result = await myUserService.SetStatusAsync(record.Id, enable);
+                if (!result.Success)
+                {
+                    logger.LogInformation("User status change rejected. UserId={UserId}, Message={Message}", record.Id, result.Message);
+                    ViewNotification.Error(notificationService, result.Message);
+                }
+                else
+                {
+                    ViewNotification.Warning(notificationService, $"已{(enable ? "啟用" : "停用")}「{record.Account}」");
+                }
+
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while changing user status.");
+                ViewNotification.Error(notificationService, "切換使用者狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
         /// <summary>自己那一列不顯示「強制登出」（要登出自己請用右上角的登出）。</summary>
         bool CanForceLogout(MyUserAdapterModel record) => record.Id != CurrentUserService.CurrentUser.Id;
 

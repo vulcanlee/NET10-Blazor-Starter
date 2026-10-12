@@ -274,6 +274,51 @@ public class CategoryService
     }
 
     /// <summary>
+    /// 清單上點狀態標籤切換啟用／停用（0.9.120 起）：只改 <c>IsEnabled</c>，不走整筆覆寫的 <see cref="UpdateAsync"/>。
+    /// 參數是目標值（重複點不會反轉）；已經是目標值時回成功、不寫稽核。團隊範圍與修改相同。
+    /// 這是使用者的編輯動作，所以換版本號：別人開著這筆的修改窗存檔時會得到並行衝突，而不是把狀態蓋回去。
+    /// </summary>
+    public async Task<VerifyRecordResult> SetEnabledAsync(int id, bool enabled)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        try
+        {
+            Category? item = await context.Category.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+            if (item == null)
+            {
+                Logger.LogInformation("Category status change rejected because record was not found. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "找不到這個分類，可能已被刪除。");
+            }
+
+            if (!IsVisible(item, await accessScope.GetAsync()))
+            {
+                Logger.LogWarning("Category status change denied by team scope. CategoryId={CategoryId}", id);
+                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法修改。");
+            }
+
+            var rows = item.IsEnabled == enabled ? 0 : await context.Category
+                .Where(x => x.Id == id && x.IsEnabled != enabled)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.IsEnabled, enabled)
+                    .SetProperty(x => x.UpdatedAt, DateTime.Now)
+                    .SetProperty(x => x.ConcurrencyStamp, ConcurrencyStampHelper.New()));
+            if (rows == 0)
+            {
+                return VerifyRecordResultFactory.Build(true);
+            }
+
+            Logger.LogInformation("Category status changed. CategoryId={CategoryId}, Enabled={Enabled}", id, enabled);
+            await WriteAuditAsync(enabled ? AuditActions.Category.Enable : AuditActions.Category.Disable, id, $"name={item.Name}");
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to change category status. CategoryId={CategoryId}, Enabled={Enabled}", id, enabled);
+            return VerifyRecordResultFactory.Build(false, "切換分類狀態失敗。", ex);
+        }
+    }
+
+    /// <summary>
     /// 刪除 = 軟刪除（0.9.94 起）：資料仍在，可在「顯示已刪除」中還原；永久刪除見 <see cref="PurgeAsync"/>。
     /// </summary>
     public async Task<VerifyRecordResult> DeleteAsync(int id)

@@ -304,6 +304,13 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, passwordError);
             }
 
+            // 0.9.120 起修改窗也擋停用 support 與自己（與清單上點狀態標籤同一條規則）。
+            if (itemData.Status && !paraObject.Status && GetDisableBlockReason(itemData.Account, itemData.Id) is { } disableBlocked)
+            {
+                Logger.LogInformation("User update rejected because it would disable the support account or the current user. UserId={UserId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, disableBlocked);
+            }
+
             // 停用、管理員身分或角色有變，這個人所有已登入的工作階段都要失效（0.9.103 起）。角色在存檔後才同步，
             // 所以先算出「原本有效的角色」與「這次要寫入的角色」來比較（已刪除角色的關聯會被保留，不算變更）。
             var sessionAffected = itemData.Status != paraObject.Status
@@ -548,6 +555,77 @@ public class MyUserService
 
         var currentUserId = currentUserService.CurrentUser.Id;
         return currentUserId > 0 && currentUserId == id ? "不可刪除自己的帳號。" : null;
+    }
+
+    /// <summary>畫面用來決定狀態標籤能不能點（0.9.120 起）；伺服器端的 <see cref="SetStatusAsync"/> 仍會再檢查一次。</summary>
+    public bool CanToggleStatus(MyUserAdapterModel user) => !user.Status || GetDisableBlockReason(user.Account, user.Id) is null;
+
+    /// <summary>
+    /// support 帳號與自己不可停用（0.9.120 起，清單點標籤與修改窗共用）。support 被停用後重新啟動也不會恢復
+    /// （<c>SupportUserSeeder</c> 不動 <c>Status</c>），可能讓所有管理員都進不來；停用自己則會立刻把自己登出。
+    /// </summary>
+    private string? GetDisableBlockReason(string account, int id)
+    {
+        if (string.Equals(account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"「{account}」是系統預設的開發帳號，不可停用。";
+        }
+
+        var currentUserId = currentUserService.CurrentUser.Id;
+        return currentUserId > 0 && currentUserId == id ? "不可停用自己的帳號。" : null;
+    }
+
+    /// <summary>
+    /// 清單上點狀態標籤切換啟用／停用（0.9.120 起）。⚠️ 不可用清單列呼叫 <see cref="UpdateAsync"/>：它會依畫面模型重寫角色與團隊，
+    /// 而清單列沒有這兩項，等於清掉這個人的額外角色與團隊。
+    /// 參數是目標值；已經是目標值時回成功、不寫稽核。換工作階段版本（停用者立刻被登出）與版本號（開著的修改窗存檔會衝突）。
+    /// </summary>
+    public async Task<VerifyRecordResult> SetStatusAsync(int userId, bool enabled)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        try
+        {
+            var item = await context.MyUser.AsNoTracking()
+                .Where(x => x.Id == userId)
+                .Select(x => new { x.Account, x.Status })
+                .FirstOrDefaultAsync();
+            if (item == null)
+            {
+                Logger.LogInformation("User status change rejected because record was not found. UserId={UserId}", userId);
+                return VerifyRecordResultFactory.Build(false, "找不到這位使用者，可能已被刪除。");
+            }
+
+            if (!enabled && GetDisableBlockReason(item.Account, userId) is { } blocked)
+            {
+                Logger.LogInformation("User status change rejected for the support account or the current user. UserId={UserId}", userId);
+                return VerifyRecordResultFactory.Build(false, blocked);
+            }
+
+            var rows = item.Status == enabled ? 0 : await context.MyUser
+                .Where(x => x.Id == userId && x.Status != enabled)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.Status, enabled)
+                    .SetProperty(x => x.UpdateAt, DateTime.Now)
+                    .SetProperty(x => x.SecurityStamp, SecurityStamps.New())
+                    .SetProperty(x => x.ConcurrencyStamp, ConcurrencyStampHelper.New()));
+            if (rows == 0)
+            {
+                return VerifyRecordResultFactory.Build(true);
+            }
+
+            var (actorUserId, actorAccount) = ResolveActor();
+            await auditLogService.WriteAsync(
+                enabled ? AuditActions.User.Enable : AuditActions.User.Disable, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
+                targetType: nameof(MyUser), targetId: userId.ToString(),
+                detail: $"account={item.Account}");
+            Logger.LogInformation("User status changed. UserId={UserId}, Enabled={Enabled}", userId, enabled);
+            return VerifyRecordResultFactory.Build(true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to change user status. UserId={UserId}, Enabled={Enabled}", userId, enabled);
+            return VerifyRecordResultFactory.Build(false, "切換使用者狀態失敗。", ex);
+        }
     }
 
     /// <summary>已刪除的使用者（「顯示已刪除」清單），固定依刪除時間由新到舊。</summary>

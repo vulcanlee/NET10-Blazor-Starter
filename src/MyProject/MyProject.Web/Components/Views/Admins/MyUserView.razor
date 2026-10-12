@@ -55,8 +55,19 @@ else
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable>
-                    <StatusPill Text="@context.StatusText"
-                                Tone="@(context.Status ? StatusTone.Positive : StatusTone.Muted)" />
+                    @* 0.9.120 起：點標籤直接切換（停用先確認）；自己與 support 不可停用，已刪除的資料不可點。 *@
+                    @if (!showDeleted && myUserService.CanToggleStatus(context))
+                    {
+                        <StatusPill Text="@context.StatusText"
+                                    Tone="@(context.Status ? StatusTone.Positive : StatusTone.Muted)"
+                                    Hint="@(context.Status ? "點一下切換為停用" : "點一下切換為啟用")"
+                                    OnClick="@(async () => await OnToggleStatusAsync(context))" />
+                    }
+                    else
+                    {
+                        <StatusPill Text="@context.StatusText"
+                                    Tone="@(context.Status ? StatusTone.Positive : StatusTone.Muted)" />
+                    }
                     @* 登入鎖定（0.9.101 起）：到期自動解除，管理員可按「解鎖」立即解除。 *@
                     @if (IsLocked(context))
                     {

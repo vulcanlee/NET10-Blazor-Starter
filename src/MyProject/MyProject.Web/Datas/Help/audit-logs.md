@@ -41,12 +41,12 @@
 |---|---|---|
 | 登入 | 登入成功、帳號或密碼錯誤（鎖定中仍嘗試登入也記在這裡，摘要為 `reason=Locked`）、帳號停用中仍嘗試登入、連續輸錯造成帳號被鎖定（只記鎖定的那一次）；用 Google 帳號登入成功或失敗；登入第二步的驗證碼或備用碼錯誤（0.9.104 起）；工作階段已失效（改密碼、停用、角色變更、強制登出之後的舊登入）被系統登出（0.9.103 起） | `Login.Success`、`Login.Failed`、`Login.Disabled`、`Login.LockedOut`、`Login.Sso.Success`、`Login.Sso.Failed`、`Login.TwoFactorFailed`、`Login.SessionExpired` |
 | 登出 | 使用者登出 | `Logout` |
-| 使用者 | 在「使用者管理」新增、修改、刪除、還原、永久刪除、解除登入鎖定（0.9.101 起）帳號、強制登出（0.9.103 起）、重設兩步驟驗證、匯出 Excel（0.9.107 起）；使用者在「個人資料」改自己的姓名（0.9.102 起，摘要不記姓名）；本人啟用、停用兩步驟驗證或重新產生備用碼（0.9.104 起）；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink`、`User.Unlock`、`User.ProfileUpdate`、`User.ForceLogout`、`User.Export`、`User.TwoFactorEnable`、`User.TwoFactorDisable`、`User.TwoFactorBackupCodesRegenerate`、`User.TwoFactorReset` |
+| 使用者 | 在「使用者管理」新增、修改、點狀態標籤啟用或停用（0.9.120 起）、刪除、還原、永久刪除、解除登入鎖定（0.9.101 起）帳號、強制登出（0.9.103 起）、重設兩步驟驗證、匯出 Excel（0.9.107 起）；使用者在「個人資料」改自己的姓名（0.9.102 起，摘要不記姓名）；本人啟用、停用兩步驟驗證或重新產生備用碼（0.9.104 起）；Google 帳號第一次登入時自動建立帳號，或連結到同 Email 的既有帳號；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `User.Create`、`User.Update`、`User.Enable`、`User.Disable`、`User.Delete`、`User.Restore`、`User.Purge`、`User.AutoPurge`、`User.SsoCreate`、`User.SsoLink`、`User.Unlock`、`User.ProfileUpdate`、`User.ForceLogout`、`User.Export`、`User.TwoFactorEnable`、`User.TwoFactorDisable`、`User.TwoFactorBackupCodesRegenerate`、`User.TwoFactorReset` |
 | 角色 | 在「角色管理」新增、修改、刪除、還原、永久刪除角色；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Role.Create`、`Role.Update`、`Role.Delete`、`Role.Restore`、`Role.Purge`、`Role.AutoPurge` |
 | 權限 | 有人打開沒有權限的頁面，或透過 Web API 做了沒有權限的動作而被拒絕 | `Permission.Denied` |
 | 密碼 | 忘記密碼的申請、完成重設、重設失敗；自己變更密碼 | `Password.ResetRequested`、`Password.ResetCompleted`、`Password.ResetFailed`、`Password.Changed` |
 | Token | 透過 Web API 換發登入憑證失敗 | `Token.RefreshFailed` |
-| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在「顯示已刪除」還原或永久刪除；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Category.Create`、`Category.Update`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Category.Export`、`Category.AutoPurge`、`Team.Create`、`Team.Update`、`Team.Delete`、`Team.Restore`、`Team.Purge`、`Team.Export`、`Team.AutoPurge` |
+| 分類／團隊 | 新增、修改、刪除分類或團隊（畫面或 Web API）；在清單點狀態標籤啟用或停用（0.9.120 起）；在「顯示已刪除」還原或永久刪除；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Category.Create`、`Category.Update`、`Category.Enable`、`Category.Disable`、`Category.Delete`、`Category.Restore`、`Category.Purge`、`Category.Export`、`Category.AutoPurge`、`Team.Create`、`Team.Update`、`Team.Enable`、`Team.Disable`、`Team.Delete`、`Team.Restore`、`Team.Purge`、`Team.Export`、`Team.AutoPurge` |
 | 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.AutoPurge`、`Project.FileUpload`、`Project.FileDelete`、`Project.Export` |
 | 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；執行 AI 例外分析、追問、匯出 AI 分析的 PDF 報告；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge`、`ExceptionLog.AiAnalyze`、`ExceptionLog.AiFollowUp`、`ExceptionLog.AiExportPdf` |
 | AI 對話紀錄 | 在「AI 對話紀錄」刪除、批次清除、清空、匯出清單 CSV 或單筆 JSON／PDF；排程作業每天自動清除（0.9.96 起） | `AiCallLog.Delete`、`AiCallLog.Purge`、`AiCallLog.ClearAll`、`AiCallLog.Export`、`AiCallLog.AutoPurge` |
@@ -77,7 +77,7 @@
 
 ### 摘要記了什麼、沒記什麼
 
-- 使用者異動只記帳號、角色編號與團隊；**「管理員」與「啟用」勾選的變更不會寫進摘要**。
+- 使用者異動只記帳號、角色編號與團隊；**在修改窗改「管理員」與「啟用」勾選的變更不會寫進摘要**。在清單點狀態標籤啟用或停用（0.9.120 起）則各自記成 `User.Enable`／`User.Disable`。
 - 角色異動只記角色名稱與權限數量，不記勾了哪些權限。
 - 登入失敗會記下累計失敗次數；帳號不存在時記「帳號不存在」。
 - 寄測試信只記寄送方式與成敗，不記收件者。
@@ -241,7 +241,7 @@ CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者�
 答：輸入的帳號在系統裡不存在，所以只記下對方輸入的帳號文字，沒有對應的使用者編號，摘要會寫「帳號不存在」。
 
 **問：我改了某人的「管理員」或「啟用」勾選，為什麼摘要裡看不到？**
-答：使用者異動的摘要只記帳號、角色編號與團隊，這兩個勾選的變更不會寫進摘要。你仍然可以從 `User.Update` 看出是誰、在什麼時間改過這個帳號。
+答：使用者異動的摘要只記帳號、角色編號與團隊，在修改窗改這兩個勾選不會寫進摘要。你仍然可以從 `User.Update` 看出是誰、在什麼時間改過這個帳號。想讓停用與啟用留下明確的紀錄，請直接點清單上的狀態標籤（0.9.120 起），會記成 `User.Disable`／`User.Enable`。
 
 **問：為什麼有些紀錄的來源 IP 是「—」？**
 答：系統排程作業自動做的事（例如每天自動清除舊紀錄）沒有人從瀏覽器操作，所以沒有 IP；0.9.117 之前留下的紀錄當時還沒有記 IP，也會顯示「—」。
