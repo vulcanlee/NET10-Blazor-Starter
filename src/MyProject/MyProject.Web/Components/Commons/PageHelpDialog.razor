@@ -19,67 +19,88 @@
            Keyboard="true"
            Footer="null"
            OnCancel="Close">
-        @if (document is not null)
-        {
-            <div class="page-help-layout">
-                <nav class="page-help-nav" aria-label="說明目錄">
-                    <button type="button"
-                            class="@NavCssClass(AllSectionsKey)"
-                            aria-current="@(activeSection == AllSectionsKey ? "true" : null)"
-                            @onclick="@(() => SelectSection(AllSectionsKey))">
-                        全部
-                    </button>
-                    @foreach (var section in document.Sections)
+        <TitleTemplate>
+            @* 字體大小（0.9.121 起）：小／中／大，記在這個瀏覽器，所有頁面的說明窗共用。 *@
+            <div class="page-help-title-bar">
+                <span class="page-help-title-text">@ModalTitle</span>
+                <div class="page-help-font-switch" role="group" aria-label="字體大小">
+                    <span class="page-help-font-switch-label">字體</span>
+                    @foreach (var option in PageHelpFontSizes.Options)
                     {
-                        var heading = section.Heading;
+                        var size = option.Size;
                         <button type="button"
-                                class="@NavCssClass(heading)"
-                                aria-current="@(activeSection == heading ? "true" : null)"
-                                @onclick="@(() => SelectSection(heading))">
-                            @heading
+                                class="@FontButtonCssClass(size)"
+                                aria-pressed="@(fontSize == size ? "true" : "false")"
+                                @onclick="@(() => SetFontSizeAsync(size))">
+                            @option.Label
                         </button>
-                    }
-                </nav>
-
-                @* @key 讓切換章節時整塊重建，捲動位置自然回到頂端。 *@
-                <div class="page-help-content" @key="activeSection">
-                    @if (activeSection == AllSectionsKey && !string.IsNullOrWhiteSpace(document.Preamble))
-                    {
-                        @((MarkupString)HelpMarkdownRenderer.ToHtml(document.Preamble))
-                    }
-
-                    @foreach (var section in VisibleSections)
-                    {
-                        <h2>@section.Heading</h2>
-                        @if (section.Heading == PageHelpMarkdownParser.RelatedPagesHeading)
-                        {
-                            @* 相關頁面不用 Markdown 連結渲染：改成結構化卡片，先關窗再導覽，並依權限過濾。 *@
-                            @((MarkupString)HelpMarkdownRenderer.ToHtml(PageHelpMarkdownParser.RelatedPagesIntro(section.Markdown)))
-                            @if (visibleRelatedPages.Count == 0)
-                            {
-                                <p class="page-help-related-empty">目前沒有你可前往的相關頁面。</p>
-                            }
-                            @foreach (var related in visibleRelatedPages)
-                            {
-                                <div class="page-help-related-item">
-                                    <div class="page-help-related-head">
-                                        <Button Type="ButtonType.Link"
-                                                Class="page-help-related-link"
-                                                OnClick="@(() => NavigateTo(related.Route))">
-                                            @related.Title
-                                        </Button>
-                                    </div>
-                                    <div class="page-help-related-desc">@related.Description</div>
-                                </div>
-                            }
-                        }
-                        else
-                        {
-                            @((MarkupString)HelpMarkdownRenderer.ToHtml(section.Markdown))
-                        }
                     }
                 </div>
             </div>
-        }
+        </TitleTemplate>
+        <ChildContent>
+            @if (document is not null)
+            {
+                <div class="page-help-layout @PageHelpFontSizes.CssClass(fontSize)">
+                    <nav class="page-help-nav" aria-label="說明目錄">
+                        <button type="button"
+                                class="@NavCssClass(AllSectionsKey)"
+                                aria-current="@(activeSection == AllSectionsKey ? "true" : null)"
+                                @onclick="@(() => SelectSection(AllSectionsKey))">
+                            全部
+                        </button>
+                        @foreach (var section in document.Sections)
+                        {
+                            var heading = section.Heading;
+                            <button type="button"
+                                    class="@NavCssClass(heading)"
+                                    aria-current="@(activeSection == heading ? "true" : null)"
+                                    @onclick="@(() => SelectSection(heading))">
+                                @heading
+                            </button>
+                        }
+                    </nav>
+
+                    @* @key 讓切換章節時整塊重建，捲動位置自然回到頂端。 *@
+                    <div class="page-help-content" @key="activeSection">
+                        @if (activeSection == AllSectionsKey && !string.IsNullOrWhiteSpace(document.Preamble))
+                        {
+                            @((MarkupString)HelpMarkdownRenderer.ToHtml(document.Preamble))
+                        }
+
+                        @foreach (var section in VisibleSections)
+                        {
+                            <h2>@section.Heading</h2>
+                            @if (section.Heading == PageHelpMarkdownParser.RelatedPagesHeading)
+                            {
+                                @* 相關頁面不用 Markdown 連結渲染：改成結構化卡片，先關窗再導覽，並依權限過濾。 *@
+                                @((MarkupString)HelpMarkdownRenderer.ToHtml(PageHelpMarkdownParser.RelatedPagesIntro(section.Markdown)))
+                                @if (visibleRelatedPages.Count == 0)
+                                {
+                                    <p class="page-help-related-empty">目前沒有你可前往的相關頁面。</p>
+                                }
+                                @foreach (var related in visibleRelatedPages)
+                                {
+                                    <div class="page-help-related-item">
+                                        <div class="page-help-related-head">
+                                            <Button Type="ButtonType.Link"
+                                                    Class="page-help-related-link"
+                                                    OnClick="@(() => NavigateTo(related.Route))">
+                                                @related.Title
+                                            </Button>
+                                        </div>
+                                        <div class="page-help-related-desc">@related.Description</div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                @((MarkupString)HelpMarkdownRenderer.ToHtml(section.Markdown))
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </ChildContent>
     </Modal>
 }
