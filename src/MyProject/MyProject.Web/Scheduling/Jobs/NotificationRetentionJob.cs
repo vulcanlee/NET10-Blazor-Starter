@@ -7,7 +7,8 @@ using MyProject.Models.Systems;
 namespace MyProject.Web.Scheduling.Jobs;
 
 /// <summary>
-/// 站內通知的保存期限（0.9.100 起）：建立時間早於 <see cref="NotificationSettings.RetentionDays"/> 天前的通知（不論已讀未讀）分批刪除；0＝不清除。
+/// 站內通知的保存期限（0.9.100 起）：建立時間早於 <see cref="NotificationSettings.RetentionDays"/> 天前的通知（不論已讀未讀）分批刪除；
+/// 0.9.125 起另外刪除標為已讀早於 <see cref="NotificationSettings.ReadRetentionDays"/> 天前的通知。兩者各自 0＝不清除。
 /// 通知存 UTC，門檻用 UTC 時鐘算。
 /// </summary>
 public sealed class NotificationRetentionJob : IScheduledJob
@@ -36,23 +37,40 @@ public sealed class NotificationRetentionJob : IScheduledJob
 
     public async Task<ScheduledJobResult> ExecuteAsync(ScheduledJobContext context, CancellationToken cancellationToken)
     {
-        var days = options.CurrentValue.RetentionDays;
-        if (days <= 0)
+        var settings = options.CurrentValue;
+        var days = settings.RetentionDays;
+        var readDays = settings.ReadRetentionDays;
+        if (days <= 0 && readDays <= 0)
         {
             return ScheduledJobResult.Success("保留天數設為 0，不自動清除。");
         }
 
-        var cutoff = timeProvider.GetUtcNow().UtcDateTime.AddDays(-days);
-        var removed = await queryService.PurgeBeforeAsync(cutoff, cancellationToken);
-        logger.LogInformation("Notification retention completed. Rows={Rows}, RetentionDays={RetentionDays}", removed, days);
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+        var removed = days > 0 ? await queryService.PurgeBeforeAsync(nowUtc.AddDays(-days), cancellationToken) : 0;
+        var readRemoved = readDays > 0 ? await queryService.PurgeReadBeforeAsync(nowUtc.AddDays(-readDays), cancellationToken) : 0;
+        logger.LogInformation(
+            "Notification retention completed. Rows={Rows}, RetentionDays={RetentionDays}, ReadRows={ReadRows}, ReadRetentionDays={ReadRetentionDays}",
+            removed, days, readRemoved, readDays);
 
-        if (removed > 0)
+        if (removed + readRemoved > 0)
         {
             await auditLogService.WriteAsync(
                 AuditActions.Notification.AutoPurge, success: true,
-                targetType: "Notification", targetId: "*", detail: $"rows={removed}; days={days}; trigger={context.Trigger}");
+                targetType: "Notification", targetId: "*",
+                detail: $"rows={removed}; days={days}; readRows={readRemoved}; readDays={readDays}; trigger={context.Trigger}");
         }
 
-        return ScheduledJobResult.Success($"刪除 {removed} 則超過 {days} 天的站內通知。");
+        var parts = new List<string>();
+        if (days > 0)
+        {
+            parts.Add($"刪除 {removed} 則建立超過 {days} 天的站內通知");
+        }
+
+        if (readDays > 0)
+        {
+            parts.Add($"刪除 {readRemoved} 則已讀超過 {readDays} 天的站內通知");
+        }
+
+        return ScheduledJobResult.Success(string.Join("；", parts) + "。");
     }
 }

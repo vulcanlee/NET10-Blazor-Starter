@@ -68,6 +68,11 @@
     font-weight: 600;
 }
 
+.notification-bell-actions {
+    display: inline-flex;
+    gap: 0.25rem;
+}
+
 .notification-bell-link {
     background: none;
     border: none;
@@ -87,6 +92,38 @@
     padding: 0.75rem 0.6rem;
 }
 
+.notification-bell-row {
+    align-items: flex-start;
+    border-radius: 12px;
+    display: flex;
+}
+
+.notification-bell-row:hover {
+    background: var(--app-accent-soft);
+}
+
+.notification-bell-delete {
+    background: none;
+    border: none;
+    border-radius: var(--app-radius-pill);
+    color: var(--app-muted);
+    cursor: pointer;
+    flex: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    margin: 0.45rem 0.35rem 0 0;
+    padding: 0.2rem 0.4rem;
+}
+
+.notification-bell-delete:hover {
+    color: var(--app-accent);
+}
+
+.notification-bell-delete:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 1px;
+}
+
 .notification-bell-item {
     background: none;
     border: none;
@@ -97,12 +134,9 @@
     flex-direction: column;
     gap: 0.15rem;
     padding: 0.55rem 0.6rem;
+    flex: 1;
+    min-width: 0;
     text-align: left;
-    width: 100%;
-}
-
-.notification-bell-item:hover {
-    background: var(--app-accent-soft);
 }
 
 .notification-bell-item-unread .notification-bell-item-title {

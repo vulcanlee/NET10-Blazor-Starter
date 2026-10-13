@@ -211,6 +211,46 @@ public sealed class NotificationTests : IDisposable
     }
 
     [Fact]
+    public async Task Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged()
+    {
+        // 0.9.125 起：刪除單則、清除已讀都只動自己的；清除已讀不碰未讀的；有刪到才發訊號。
+        var alice = AddUser("alice");
+        var bob = AddUser("bob");
+        var (sender, _, _) = NewSender();
+        await sender.SendAsync(Request(NotificationTarget.Users(alice, bob)));
+        await sender.SendAsync(Request(NotificationTarget.Users(alice)));
+        await sender.SendAsync(Request(NotificationTarget.Users(alice)));
+        var signal = new NotificationSignal(NullLogger<NotificationSignal>.Instance);
+        var hits = 0;
+        using var subscription = signal.Subscribe(alice, () => { Interlocked.Increment(ref hits); return Task.CompletedTask; });
+        var query = new NotificationQueryService(factory, signal, TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var bobsNotification = (await query.GetLatestAsync(bob)).Single();
+
+        Assert.False(await query.DeleteAsync(alice, bobsNotification.Id));
+        Assert.Single(await query.GetLatestAsync(bob));
+
+        var alices = await query.GetLatestAsync(alice);
+        Assert.True(await query.DeleteAsync(alice, alices[0].Id));
+        await WaitUntilAsync(() => hits == 1);
+        Assert.False(await query.DeleteAsync(alice, alices[0].Id)); // 已刪除：不發
+
+        await query.MarkReadAsync(alice, alices[1].Id);
+        await WaitUntilAsync(() => hits == 2);
+        await query.MarkAllReadAsync(bob);
+        Assert.Equal(1, await query.DeleteReadAsync(alice));
+        await WaitUntilAsync(() => hits == 3);
+        Assert.Equal(0, await query.DeleteReadAsync(alice)); // 沒有已讀：不發
+
+        var remaining = Assert.Single(await query.GetLatestAsync(alice));
+        Assert.Equal(alices[2].Id, remaining.Id);
+        Assert.Null(remaining.ReadAtUtc);
+        Assert.Single(await query.GetLatestAsync(bob)); // bob 已讀的不受 alice 清除影響
+
+        await Task.Delay(100);
+        Assert.Equal(3, hits);
+    }
+
+    [Fact]
     public async Task Latest_ShouldBeNewestFirst_AndPurgeShouldRemoveOldOnes()
     {
         var user = AddUser("u");
@@ -467,13 +507,41 @@ public sealed class NotificationTests : IDisposable
         var audit = new RecordingAuditLogService();
         var context0 = new ScheduledJobContext(1, JobRunTriggers.Schedule, DateTime.UtcNow, null);
 
-        await new NotificationRetentionJob(query, audit, new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 0 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
+        await new NotificationRetentionJob(query, audit, new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 0, ReadRetentionDays = 0 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
             .ExecuteAsync(context0, CancellationToken.None);
         Assert.Equal(2, CountNotifications());
 
         await new NotificationRetentionJob(query, audit, new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 90 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
             .ExecuteAsync(context0, CancellationToken.None);
         Assert.Equal(1, CountNotifications());
+        Assert.Contains(audit.Entries, x => x.Action == AuditActions.Notification.AutoPurge);
+    }
+
+    [Fact]
+    public async Task RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes()
+    {
+        // 0.9.125 起：已讀的從標為已讀的時間起算 ReadRetentionDays；未讀的不受影響；0＝不提早刪除。
+        var user = AddUser("u");
+        await using (var context = factory.CreateDbContext())
+        {
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "read-old", CreatedAtUtc = DateTime.UtcNow.AddDays(-9), ReadAtUtc = DateTime.UtcNow.AddDays(-8) });
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "read-new", CreatedAtUtc = DateTime.UtcNow.AddDays(-30), ReadAtUtc = DateTime.UtcNow.AddDays(-1) });
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "unread", CreatedAtUtc = DateTime.UtcNow.AddDays(-30) });
+            await context.SaveChangesAsync();
+        }
+
+        var query = new NotificationQueryService(factory, new NotificationSignal(NullLogger<NotificationSignal>.Instance), TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var audit = new RecordingAuditLogService();
+        var context0 = new ScheduledJobContext(1, JobRunTriggers.Schedule, DateTime.UtcNow, null);
+
+        await new NotificationRetentionJob(query, audit, new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 90, ReadRetentionDays = 0 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
+            .ExecuteAsync(context0, CancellationToken.None);
+        Assert.Equal(3, CountNotifications());
+
+        await new NotificationRetentionJob(query, audit, new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 90, ReadRetentionDays = 7 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
+            .ExecuteAsync(context0, CancellationToken.None);
+        await using var check = factory.CreateDbContext();
+        Assert.Equal(["read-new", "unread"], await check.Notification.OrderBy(x => x.Title).Select(x => x.Title).ToListAsync());
         Assert.Contains(audit.Entries, x => x.Action == AuditActions.Notification.AutoPurge);
     }
 

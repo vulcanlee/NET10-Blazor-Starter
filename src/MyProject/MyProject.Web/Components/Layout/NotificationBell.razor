@@ -1,4 +1,4 @@
-@* 站內通知的鈴鐺（0.9.100 起）：未讀數、最近 10 則、點選標為已讀並導向、全部標為已讀。 *@
+@* 站內通知的鈴鐺（0.9.100 起）：未讀數、最近 10 則、點選標為已讀並導向、全部標為已讀；0.9.125 起每則可刪除、清除已讀（不跳確認）。 *@
 <div class="notification-bell @(isOpen ? "notification-bell-open" : string.Empty)">
     <button type="button"
             class="notification-bell-trigger"
@@ -18,7 +18,10 @@
         <div class="notification-bell-dropdown" role="menu" aria-label="通知">
             <div class="notification-bell-header">
                 <span class="notification-bell-heading">通知</span>
-                <button type="button" class="notification-bell-link" disabled="@(unreadCount == 0)" @onclick="MarkAllReadAsync">全部標為已讀</button>
+                <span class="notification-bell-actions">
+                    <button type="button" class="notification-bell-link notification-bell-clear-read" disabled="@(!items.Any(x => x.ReadAtUtc is not null))" @onclick="ClearReadAsync">清除已讀</button>
+                    <button type="button" class="notification-bell-link notification-bell-mark-all" disabled="@(unreadCount == 0)" @onclick="MarkAllReadAsync">全部標為已讀</button>
+                </span>
             </div>
             @if (items.Count == 0)
             {
@@ -28,17 +31,24 @@
             {
                 @foreach (var item in items)
                 {
-                    <button type="button"
-                            class="notification-bell-item @(item.ReadAtUtc is null ? "notification-bell-item-unread" : string.Empty)"
-                            role="menuitem"
-                            @onclick="@(() => OpenAsync(item))">
-                        <span class="notification-bell-item-title">@item.Title</span>
-                        @if (!string.IsNullOrWhiteSpace(item.Body))
-                        {
-                            <span class="notification-bell-item-body">@item.Body</span>
-                        }
-                        <span class="notification-bell-item-time">@ToLocalText(item.CreatedAtUtc)</span>
-                    </button>
+                    <div class="notification-bell-row" @key="item.Id">
+                        <button type="button"
+                                class="notification-bell-item @(item.ReadAtUtc is null ? "notification-bell-item-unread" : string.Empty)"
+                                role="menuitem"
+                                @onclick="@(() => OpenAsync(item))">
+                            <span class="notification-bell-item-title">@item.Title</span>
+                            @if (!string.IsNullOrWhiteSpace(item.Body))
+                            {
+                                <span class="notification-bell-item-body">@item.Body</span>
+                            }
+                            <span class="notification-bell-item-time">@ToLocalText(item.CreatedAtUtc)</span>
+                        </button>
+                        <button type="button"
+                                class="notification-bell-delete"
+                                aria-label="刪除這則通知"
+                                title="刪除"
+                                @onclick="@(() => DeleteAsync(item))">×</button>
+                    </div>
                 }
             }
         </div>

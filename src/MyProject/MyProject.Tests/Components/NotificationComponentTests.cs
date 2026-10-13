@@ -58,11 +58,34 @@ public sealed class NotificationComponentTests : ComponentTestBase
         await bell.Find(".notification-bell-trigger").ClickAsync(new());
         bell.WaitForAssertion(() => Assert.Equal(2, bell.FindAll(".notification-bell-item-unread").Count));
 
-        await bell.Find(".notification-bell-header .notification-bell-link").ClickAsync(new());
+        await bell.Find(".notification-bell-mark-all").ClickAsync(new());
         bell.WaitForAssertion(() =>
         {
             Assert.Empty(bell.FindAll(".notification-bell-badge"));
             Assert.Empty(bell.FindAll(".notification-bell-item-unread"));
+        });
+    }
+
+    [Fact]
+    public async Task Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications()
+    {
+        // 0.9.125 起：× 刪除單則；「清除已讀」只刪已讀的，未讀的留著。
+        AddNotification("第一則");
+        AddNotification("第二則", read: true);
+        AddNotification("第三則", read: true);
+        var bell = Render<NotificationBell>();
+        await bell.Find(".notification-bell-trigger").ClickAsync(new());
+        bell.WaitForAssertion(() => Assert.Equal(3, bell.FindAll(".notification-bell-row").Count));
+
+        await bell.FindAll(".notification-bell-delete")[0].ClickAsync(new());
+        bell.WaitForAssertion(() => Assert.Equal(2, bell.FindAll(".notification-bell-row").Count));
+
+        await bell.Find(".notification-bell-clear-read").ClickAsync(new());
+        bell.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(bell.FindAll(".notification-bell-row"));
+            Assert.NotNull(row.QuerySelector(".notification-bell-item-unread"));
+            Assert.True(bell.Find(".notification-bell-clear-read").HasAttribute("disabled"));
         });
     }
 
@@ -96,10 +119,10 @@ public sealed class NotificationComponentTests : ComponentTestBase
         Assert.Equal(1, check.AnnouncementDismissal.Count(x => x.MyUserId == userId));
     }
 
-    private void AddNotification(string title)
+    private void AddNotification(string title, bool read = false)
     {
         using var context = factory.CreateDbContext();
-        context.Notification.Add(new Notification { RecipientUserId = userId, Category = "Test", Title = title, CreatedAtUtc = DateTime.UtcNow });
+        context.Notification.Add(new Notification { RecipientUserId = userId, Category = "Test", Title = title, CreatedAtUtc = DateTime.UtcNow, ReadAtUtc = read ? DateTime.UtcNow : null });
         context.SaveChanges();
     }
 

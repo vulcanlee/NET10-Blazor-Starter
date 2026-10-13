@@ -1,10 +1,10 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.125
 - 首次實作版本：0.9.96
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/13
 
 ## 一、目標與範圍
 
@@ -53,7 +53,7 @@
 | `TokenUsageLogRetention` | Token 用量紀錄清理 | `LogRetentionSettings:TokenUsageLogDays`（365，分批刪除）| `TokenUsage.AutoPurge` |
 | `SystemBackup` | 系統備份（0.9.99 起，預設 `0 2 * * *`）| `BackupSettings:KeepCount`（7 份，成功後才刪舊的）| `Backup.Create`／`Backup.AutoPurge` |
 | `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |
-| `NotificationRetention` | 站內通知清理（0.9.100 起）| `NotificationSettings:RetentionDays`（90，UTC 門檻，分批刪除）| `Notification.AutoPurge` |
+| `NotificationRetention` | 站內通知清理（0.9.100 起）| `NotificationSettings:RetentionDays`（90，UTC 門檻，分批刪除）；0.9.125 起另依 `ReadRetentionDays`（7，從已讀時間起算）刪除已讀的 | `Notification.AutoPurge` |
 | `PasswordExpiryReminder` | 密碼到期提醒（0.9.101 起，預設 `0 8 * * *`）| `PasswordPolicySettings:ExpiryDays`（0＝不過期，此時不動作）；7 天內到期者各通知一次 | —（只發站內通知） |
 
   有刪到資料才寫稽核；天數 0 回成功但不動作。刪檔一律經對應的 file store。
