@@ -1,10 +1,10 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.122
+- 現行系統版本：0.9.125
 - 首次實作版本：0.9.100
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/13
 
 ## 一、目標與範圍
 
@@ -25,7 +25,7 @@
 
 ## 三、畫面與欄位
 
-- **鈴鐺**：未讀數徽章（超過 99 顯示 99+）；下拉列出最新 10 則（未讀以粗體標示）；點一則標為已讀，連結經 `ReturnUrlGuard` 確認是站內網址才導向；「全部標為已讀」。
+- **鈴鐺**：未讀數徽章（超過 99 顯示 99+）；下拉列出最新 10 則（未讀以粗體標示）；點一則標為已讀，連結經 `ReturnUrlGuard` 確認是站內網址才導向；「全部標為已讀」。0.9.125 起每則右邊有 ×（刪除單則）、標題列有「清除已讀」（刪除自己所有已讀的通知，未讀的不動）；都不跳確認、不寫稽核，只刪得到自己的。
 - **公告橫幅**：顯示期間內、對象包含目前使用者、而且他沒有關閉過的公告；標題＋純文字內容（保留換行）；「知道了」只對自己關閉。
 - **公告管理**：表格（標題與內容開頭、狀態未開始／進行中／已結束、期間、對象、建立者）；新增、修改（小型表單窗：標題、內容、開始與結束時間、對象全體／角色／團隊）、刪除（危險確認）。
 
@@ -54,11 +54,11 @@
 | AI 用量達每人上限的 80%／100% | 本人 | 否 | `AiQuota:user:{使用者 Id}:{daily:日期\|monthly:年月}:{80\|100}` | `TokenUsageLogService` 記帳後（0.9.109 起，[AI 用量配額](AI用量配額-prd.md)） |
 | AI 用量達全系統上限的 80%／100% | 管理員 | 100% 時是 | `AiQuota:global:{daily:日期\|monthly:年月}:{80\|100}` | 同上 |
 
-- **清除**：排程作業「站內通知清理」（`NotificationRetention`，`0 3 * * *`）刪除建立超過 `NotificationSettings:RetentionDays`（預設 90，系統參數）天的通知，分批進行，寫 `Notification.AutoPurge`。
+- **清除**：排程作業「站內通知清理」（`NotificationRetention`，`0 3 * * *`）刪除建立超過 `NotificationSettings:RetentionDays`（預設 90，系統參數）天的通知，分批進行，寫 `Notification.AutoPurge`。0.9.125 起同一個作業另外刪除**標為已讀**超過 `NotificationSettings:ReadRetentionDays`（預設 7，系統參數，從 `ReadAtUtc` 起算）天的通知；兩者各自 `0`＝不清除，稽核摘要分列 `rows`／`readRows`。
 
 ## 五、權限與安全
 
-- 通知只看得到自己的；所有標為已讀的 UPDATE 都帶 `RecipientUserId = 目前使用者`。
+- 通知只看得到自己的；所有標為已讀的 UPDATE 與刪除的 DELETE（0.9.125 起）都帶 `RecipientUserId = 目前使用者`。
 - 通知與公告內容一律純文字（不經 Markdown／HTML），連結只導向站內網址。
 - ⚠️ 例外記錄管線內（例外告警服務、例外寫入器）不可發通知：發送失敗會記錯誤，形成遞迴。
 - 稽核：`Announcement.Create`／`Update`／`Delete`、`Notification.AutoPurge`、`Notification.Test`（0.9.122 起）。
@@ -77,6 +77,7 @@
 - `ScheduledJobFrameworkTests`：失敗通知管理員與觸發者並寄信、排程失敗只通知管理員、成功與中斷不通知。
 - `Components/NotificationComponentTests`（bUnit）：鈴鐺收到訊號不重新整理就更新、全部標為已讀；橫幅「知道了」立即隱藏且下一次連線不再出現。
 - 0.9.122 起：`NotificationTests.MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged`（標為已讀才發訊號）、`DashboardTests` 小工具輪詢與 Dispose 停止輪詢、`NotificationTestServiceTests`（測試通知）。
+- 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`DataAccessServiceLifetimeTests`、`LoggingConventionTests`、`PageHelpCatalogTests`。
 
 ## 八、相關程式與文件

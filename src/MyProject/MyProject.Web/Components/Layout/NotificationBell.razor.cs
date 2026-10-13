@@ -12,6 +12,7 @@ namespace MyProject.Web.Components.Layout;
 /// 更新來源有兩個：同一個行程內發出的通知經 <see cref="INotificationSignal"/> 即時推送；別的行程（IIS 重疊回收、多台主機）發的
 /// 靠每 60 秒輪詢補上。⚠️ Dispose 時一定要取消訂閱與停掉計時器（singleton 會讓這個元件一直活著）。
 /// 連結只導向站內網址（經 <see cref="ReturnUrlGuard"/> 檢查，檢查後改變了就不導向）。
+/// 0.9.125 起每則可刪除（×）、「清除已讀」刪除自己所有已讀的通知；都不跳確認（只動自己的，通知本來就會過期）。
 /// </summary>
 public partial class NotificationBell : IDisposable
 {
@@ -128,6 +129,18 @@ public partial class NotificationBell : IDisposable
     private async Task MarkAllReadAsync()
     {
         await QueryService.MarkAllReadAsync(userId);
+        await RefreshAsync();
+    }
+
+    private async Task DeleteAsync(NotificationAdapterModel item)
+    {
+        await QueryService.DeleteAsync(userId, item.Id);
+        await RefreshAsync();
+    }
+
+    private async Task ClearReadAsync()
+    {
+        await QueryService.DeleteReadAsync(userId);
         await RefreshAsync();
     }
 
