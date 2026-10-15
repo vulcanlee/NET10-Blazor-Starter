@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作（本機品質關卡）；§1～§4 的 CI 為參考設計
-- 現行系統版本：0.9.116
+- 現行系統版本：0.9.126
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/10/06
+- 最後核對日期：2026/10/15
 
 > ⚠️ **腳手架目前沒有 CI。** 原本的 GitHub Actions 工作流程 `.github/workflows/dotnet-ci.yml` 已於 **2026-09-20**
 > 由擁有者移除（commit `05cca70`），repo 根目錄也不再有 `.github/` 資料夾。**現在沒有任何機制會自動擋下違規**，
@@ -177,6 +177,8 @@ $stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 �
 > 0.9.59 新增 `MailKit` 4.18.0（寄信服務，只加在 `MyProject.Web`），遞移帶入 `MimeKit` 4.18.0 與
 > `BouncyCastle.Cryptography` 2.7.0。加入當下 `--vulnerable --include-transitive` 對這三個套件**沒有任何諮詢**，
 > 允許清單不需變動。
+> 2026-10-13 起 `MimeKit` 遞移帶入的 `System.Security.Cryptography.Pkcs` 10.0.0 出現弱點諮詢，
+> 0.9.126 以直接參考修補版處理，允許清單仍不需變動（見 §4.3）。
 
 它與 restore/build 階段的 `NU1903` 稽核警告仍是兩條獨立路徑。
 
@@ -206,6 +208,19 @@ $stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 �
 
 > 這是導入 `TreatWarningsAsErrors` 時才浮現的：該弱點以 `NU1903` 警告形式存在，
 > 原本不會讓建置失敗，因此在 0.4.31 之前一直沒被注意到。
+
+### 4.3 已解決：GHSA-2fmv-rv2c-59x7、GHSA-846f-f764-76mx（0.9.126）
+
+| 項目 | 內容 |
+|------|------|
+| 套件 | `System.Security.Cryptography.Pkcs` 10.0.0（受影響範圍 `>= 10.0.0, <= 10.0.12`，修補版 **10.0.13**）|
+| Advisory | [GHSA-2fmv-rv2c-59x7](https://github.com/advisories/GHSA-2fmv-rv2c-59x7)（中，CVE-2026-70162）、[GHSA-846f-f764-76mx](https://github.com/advisories/GHSA-846f-f764-76mx)（高，CVE-2026-84008）—— 兩則都是 .NET 阻斷服務（DoS），2026-10-13 發布 |
+| 引入來源 | 由 `MailKit` 4.18.0 → `MimeKit` 4.18.0 **遞移**引入（`PDFsharp-MigraDoc` 6.2.4 也相依 8.0.1，但 NuGet 解析到最高的 10.0.0）|
+| 症狀 | 還原時出現 `NU1902`／`NU1903`，被 `TreatWarningsAsErrors` 升級成 error，`MyProject.Web` 與參考它的 `MyProject.Tests` 都無法建置（VS 與 `dotnet build` 相同）|
+| 為何不升級 MailKit | `MimeKit` 最新版 4.18.1 仍相依 Pkcs 10.0.0，升級沒有效果 |
+| 處置 | 於 `Directory.Packages.props` 加 `System.Security.Cryptography.Pkcs` 10.0.13，並由 `MyProject.Web.csproj` **直接參考**覆蓋遞移版本（直接參考會流向 `MyProject.Tests`）。不啟用全域 `CentralPackageTransitivePinningEnabled`，避免影響其他遞移套件；不用抑制，因為已有修補版 |
+
+**移除條件**：待 `MailKit`／`MimeKit` 改為相依 Pkcs ≥ 10.0.13 後，升級 `MailKit`，並移除 `Directory.Packages.props` 的 `PackageVersion` 與 `MyProject.Web.csproj` 的 `PackageReference`。
 
 ---
 

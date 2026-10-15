@@ -25,6 +25,8 @@
     <PackageReference Include="NLog.Web.AspNetCore" />
     <PackageReference Include="PDFsharp-MigraDoc" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
+    <!-- 覆蓋 MimeKit 遞移帶入的弱點版本，原因與移除條件見 Directory.Packages.props。 -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 
   <ItemGroup>
