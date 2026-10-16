@@ -879,7 +879,8 @@ namespace MyProject.Web.Components.Views.Admins
             logger.LogInformation("User created by copy. Account={Account}, SourceAccount={SourceAccount}", copyRecord.Account, copySourceAccount);
             ViewNotification.Warning(notificationService, "新增成功");
 
-            copyResultText = $"登入網址：{NavigationManager.BaseUri}Auths/Login{Environment.NewLine}帳號：{copyRecord.Account}{Environment.NewLine}密碼：{copyRecord.Password}"
+            // 給系統根網址就好：未登入的人打開首頁，開場畫面會自動導到登入頁（0.9.128 起）。
+            copyResultText = $"登入網址：{NavigationManager.BaseUri}{Environment.NewLine}帳號：{copyRecord.Account}{Environment.NewLine}密碼：{copyRecord.Password}"
                 + (copyRecord.MustChangePassword ? $"{Environment.NewLine}第一次登入後會要求變更密碼。" : string.Empty);
             copyRecord = new();
             copyDirtyTracker.Clear();
