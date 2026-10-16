@@ -225,7 +225,8 @@ public class MyUserService
         return Mapper.Map<List<RoleViewAdapterModel>>(roleViews);
     }
 
-    public async Task<VerifyRecordResult> AddAsync(MyUserAdapterModel paraObject)
+    /// <param name="copiedFromAccount">由清單「複製」建立時的範本帳號（0.9.127 起），記在稽核 Detail。</param>
+    public async Task<VerifyRecordResult> AddAsync(MyUserAdapterModel paraObject, string? copiedFromAccount = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Creating user. Account={Account}, RoleViewId={RoleViewId}", paraObject.Account, paraObject.RoleViewId);
@@ -263,7 +264,8 @@ public class MyUserService
             await auditLogService.WriteAsync(
                 AuditActions.User.Create, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(MyUser), targetId: itemParameter.Id.ToString(),
-                detail: BuildAssignmentDetail(itemParameter.Account, paraObject));
+                detail: BuildAssignmentDetail(itemParameter.Account, paraObject)
+                    + (copiedFromAccount is null ? string.Empty : $"; copiedFrom={copiedFromAccount}"));
 
             Logger.LogInformation("User created successfully. UserId={UserId}, Account={Account}", itemParameter.Id, itemParameter.Account);
             return VerifyRecordResultFactory.Build(true);
@@ -487,6 +489,64 @@ public class MyUserService
             .ToListAsync();
 
         return (additional, teamNames);
+    }
+
+    /// <summary>
+    /// 清單「複製」的範本（0.9.127 起）：帶入主要角色、額外角色、直接綁定的團隊、啟用狀態與管理員身分，
+    /// 帳號、名稱、密碼、Email 一律留空，登入狀態（Google、兩步驟驗證、鎖定）不帶。
+    /// 已停用的團隊不帶入，放在 SkippedTeamNames 讓畫面註明。來源不存在或是 support 時回 null。
+    /// </summary>
+    public async Task<(MyUserAdapterModel Draft, List<string> SkippedTeamNames)?> BuildCopyDraftAsync(int sourceUserId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var source = await context.MyUser.AsNoTracking().FirstOrDefaultAsync(x => x.Id == sourceUserId);
+        if (source is null || !CanCopy(source.Account))
+        {
+            Logger.LogInformation("User copy draft rejected. SourceUserId={SourceUserId}, Found={Found}", sourceUserId, source is not null);
+            return null;
+        }
+
+        var (additionalRoleIds, teamNames) = await GetUserAssignmentsAsync(sourceUserId);
+        var enabledTeams = await context.Team.AsNoTracking()
+            .Where(t => teamNames.Contains(t.Name) && t.IsEnabled)
+            .Select(t => t.Name)
+            .ToListAsync();
+
+        var draft = new MyUserAdapterModel
+        {
+            RoleViewId = source.RoleViewId,
+            AdditionalRoleIds = additionalRoleIds,
+            TeamNames = teamNames.Where(enabledTeams.Contains).ToList(),
+            Status = source.Status,
+            IsAdmin = source.IsAdmin,
+            MustChangePassword = true,
+        };
+        return (draft, teamNames.Where(x => !enabledTeams.Contains(x)).ToList());
+    }
+
+    /// <summary>畫面用來決定要不要顯示「複製」鈕（0.9.127 起）：support 不可當範本，避免一鍵複製出第二個救援帳號。</summary>
+    public bool CanCopy(MyUserAdapterModel user) => CanCopy(user.Account);
+
+    private bool CanCopy(string account) => !string.Equals(account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 已使用這個 Email 的帳號（未刪除，不分大小寫、忽略前後空白）。Email 不要求唯一，
+    /// 只給「複製」建立前提醒用（0.9.127 起）。
+    /// </summary>
+    public async Task<List<string>> GetAccountsUsingEmailAsync(string email)
+    {
+        var normalized = email.Trim().ToLower();
+        if (normalized.Length == 0)
+        {
+            return [];
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.MyUser.AsNoTracking()
+            .Where(x => x.Email != null && x.Email.Trim().ToLower() == normalized)
+            .OrderBy(x => x.Account)
+            .Select(x => x.Account)
+            .ToListAsync();
     }
 
     public async Task<VerifyRecordResult> DeleteAsync(int id)

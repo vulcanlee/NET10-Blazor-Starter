@@ -95,6 +95,33 @@ public sealed class PasswordPolicyTests : IDisposable
         Assert.Equal("至少 6 個字元。", PasswordTestDefaults.Policy(new PasswordPolicySettings { MinimumLength = 6, RequireLetter = false, RequireDigit = false, HistoryCount = 0 }).Describe());
     }
 
+    /// <summary>「複製使用者」的「產生」鈕（0.9.127 起）：產生的密碼必定通過目前的規則。</summary>
+    [Theory]
+    [InlineData(8, true, true, false, false, 12)]
+    [InlineData(8, true, true, true, true, 12)]
+    [InlineData(20, false, false, false, false, 20)]
+    public void Generate_ShouldAlwaysPassTheCurrentRules(int minimumLength, bool letter, bool digit, bool upper, bool symbol, int expectedLength)
+    {
+        var policy = PasswordTestDefaults.Policy(new PasswordPolicySettings
+        {
+            MinimumLength = minimumLength,
+            RequireLetter = letter,
+            RequireDigit = digit,
+            RequireUppercase = upper,
+            RequireSymbol = symbol,
+        });
+
+        var passwords = Enumerable.Range(0, 50).Select(_ => policy.Generate()).ToList();
+
+        Assert.All(passwords, p =>
+        {
+            Assert.Null(policy.Check(p));
+            Assert.Equal(expectedLength, p.Length);
+            Assert.DoesNotContain(p, c => "0O1lI".Contains(c));
+        });
+        Assert.Equal(passwords.Count, passwords.Distinct().Count());
+    }
+
     // ---------- 歷史 ----------
 
     [Fact]

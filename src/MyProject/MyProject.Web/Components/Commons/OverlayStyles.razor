@@ -980,6 +980,32 @@
         margin: 0 auto !important;
     }
 
+    /* 使用者「複製」建立後的交付窗（0.9.127 起）：登入網址、帳號、密碼，原文保留換行。 */
+    .user-copy-result-modal {
+        width: 560px !important;
+        max-width: 90vw !important;
+        top: 15vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+    .user-copy-result-modal .user-copy-result-text {
+        border: 1px solid var(--ov-line);
+        border-radius: 12px;
+        font-family: var(--app-code-font);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin: 0 0 0.75rem;
+        padding: 0.75rem 1rem;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+    .user-copy-result-modal .user-copy-result-hint {
+        color: var(--ov-muted);
+        font-size: 0.85rem;
+    }
+
     /* about modal: compact, auto height。
        尺寸寫在這裡而不是 Modal 的 Width 參數，見速查表 §6.4。 */
     .about-modal {
