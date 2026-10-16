@@ -117,6 +117,14 @@ else
                                 <CrudActionButton Title="修改" Icon="edit"
                                                   OnClick="@(async () => await OnEditAsync(@context))" />
                             </SpaceItem>
+                            @* support 不可當範本（0.9.127 起）。 *@
+                            @if (myUserService.CanCopy(context))
+                            {
+                                <SpaceItem>
+                                    <CrudActionButton Title="複製" Icon="content_copy"
+                                                      OnClick="@(async () => await OnCopyAsync(@context))" />
+                                </SpaceItem>
+                            }
                             @if (IsLocked(context))
                             {
                                 <SpaceItem>
@@ -265,5 +273,99 @@ else
 
             </AntDesign.Form>
         </EditForm>
+    </Modal>
+
+    @*
+        複製使用者（0.9.127 起）：以清單上的某一列為範本，只填個人資料就建立新帳號；
+        角色、團隊、狀態、管理員照抄來源、唯讀顯示，要改就建完再按「修改」。
+        獨立的 copyRecord，不與修改窗的 CurrentRecord 共用。
+    *@
+    <Modal Title="@copyModalTitle"
+           Class="form-modal"
+           @bind-Visible="@copyModalVisible"
+           Keyboard="true"
+           MaskClosable="false"
+           OkText="@("建立")"
+           CancelText="@("取消")"
+           OnOk="OnCopyModalOKHandleAsync"
+           OnCancel="OnCopyModalCancelHandleAsync">
+        <EditForm Model="@copyRecord" Context="copyFormEditContext">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <InputWatcher EditContextActionChanged="OnCopyEditContextChanged" />
+
+            <AntDesign.Form TModel="MyUserAdapterModel" Model="@copyRecord" Layout="FormLayout.Vertical" Context="copyFormContext">
+
+                <FormSection Title="新帳號">
+                    <FormItem Label="帳號" Required>
+                        <Input @bind-Value="copyRecord.Account" Placeholder="請輸入帳號" />
+                        <ValidationMessage For="() => copyRecord.Account" />
+                    </FormItem>
+
+                    <FormItem Label="名稱" Required>
+                        <Input @bind-Value="copyRecord.Name" Placeholder="請輸入名稱" />
+                        <ValidationMessage For="() => copyRecord.Name" />
+                    </FormItem>
+
+                    <FormItem Label="密碼" Required>
+                        <Input Password="@(!copyPasswordVisible)" @bind-Value="copyRecord.Password" Placeholder="請輸入密碼，或按「產生」" />
+                        <Button Size="ButtonSize.Small" OnClick="OnGeneratePassword">產生</Button>
+                        <div class="form-field-hint">密碼規則：@PasswordPolicy.Describe()</div>
+                    </FormItem>
+
+                    <FormItem Label="Email">
+                        <Input @bind-Value="copyRecord.Email" Placeholder="請輸入 Email" />
+                    </FormItem>
+
+                    <FormItem>
+                        <Checkbox Checked="@copyRecord.MustChangePassword"
+                                  CheckedChanged="@(value => copyRecord.MustChangePassword = value)">
+                            下次登入須變更密碼
+                        </Checkbox>
+                    </FormItem>
+                </FormSection>
+
+                <FormSection Title="將從來源帶入" Hint="要調整請建立後按「修改」">
+                    <FormItem Label="角色">
+                        <div>@CopyRoleSummary</div>
+                    </FormItem>
+                    <FormItem Label="團隊">
+                        <div>@(copyRecord.TeamNames.Count > 0 ? string.Join("、", copyRecord.TeamNames) : "（未直接綁定）")</div>
+                        @if (copySkippedTeams.Count > 0)
+                        {
+                            <div class="form-field-hint">已停用、不帶入：@string.Join("、", copySkippedTeams)</div>
+                        }
+                    </FormItem>
+                    <FormItem Label="狀態">
+                        <div>@copyRecord.StatusText</div>
+                    </FormItem>
+                    <FormItem Label="管理員">
+                        @if (copyRecord.IsAdmin)
+                        {
+                            <strong>是（新帳號將擁有所有權限）</strong>
+                        }
+                        else
+                        {
+                            <div>否</div>
+                        }
+                    </FormItem>
+                </FormSection>
+
+            </AntDesign.Form>
+        </EditForm>
+    </Modal>
+
+    @* 複製建立成功後的交付資訊：建立時已嘗試自動複製；被瀏覽器拒絕時用「複製」再試一次。 *@
+    <Modal Title="@("已建立使用者")"
+           Class="user-copy-result-modal"
+           @bind-Visible="@copyResultVisible"
+           Keyboard="true"
+           MaskClosable="false"
+           OkText="@("複製")"
+           CancelText="@("關閉")"
+           OnOk="OnCopyResultCopyAsync"
+           OnCancel="OnCopyResultClose">
+        <pre class="user-copy-result-text">@copyResultText</pre>
+        <div class="user-copy-result-hint">密碼只會在這裡顯示一次，關閉後就無法再查看。</div>
     </Modal>
 }

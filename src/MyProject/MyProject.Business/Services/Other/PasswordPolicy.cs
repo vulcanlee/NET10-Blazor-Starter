@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
@@ -21,6 +22,9 @@ public interface IPasswordPolicy
 
     /// <summary>給畫面顯示的規則說明，例如「至少 8 個字元，需包含英文字母、數字」。</summary>
     string Describe();
+
+    /// <summary>產生一組必定通過 <see cref="Check"/> 的隨機密碼（「複製使用者」的「產生」鈕，0.9.127 起）。</summary>
+    string Generate();
 
     /// <summary>新密碼是否與目前或最近 N 次用過的密碼相同（<see cref="PasswordPolicySettings.HistoryCount"/> 為 0 時一律 false）。</summary>
     Task<bool> IsReusedAsync(BackendDBContext context, MyUser user, string password, CancellationToken cancellationToken = default);
@@ -210,6 +214,34 @@ public sealed class PasswordPolicy : IPasswordPolicy
     /// </summary>
     private bool IsExempt(string account, bool hasLocalPassword)
         => !hasLocalPassword || string.Equals(account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase);
+
+    public string Generate()
+    {
+        var settings = options.CurrentValue;
+        var length = Math.Max(settings.MinimumLength, GeneratedMinimumLength);
+
+        // 大小寫與數字一律各放一個（不論規則是否要求）；符號只在規則要求時才放，口頭轉交時比較不會念錯。
+        List<string> required = [GeneratedLower, GeneratedUpper, GeneratedDigits];
+        if (settings.RequireSymbol)
+        {
+            required.Add(GeneratedSymbols);
+        }
+
+        var pool = string.Concat(required);
+        var chars = required.Select(set => RandomNumberGenerator.GetItems<char>(set, 1)[0])
+            .Concat(RandomNumberGenerator.GetItems<char>(pool, length - required.Count))
+            .ToArray();
+        RandomNumberGenerator.Shuffle<char>(chars);
+        return new string(chars);
+    }
+
+    private const int GeneratedMinimumLength = 12;
+
+    // 排除容易看錯的 0/O、1/l/I。
+    private const string GeneratedLower = "abcdefghijkmnopqrstuvwxyz";
+    private const string GeneratedUpper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private const string GeneratedDigits = "23456789";
+    private const string GeneratedSymbols = "!@#$%*?-_";
 
     private static bool IsSymbol(char c) => char.IsPunctuation(c) || char.IsSymbol(c);
 }

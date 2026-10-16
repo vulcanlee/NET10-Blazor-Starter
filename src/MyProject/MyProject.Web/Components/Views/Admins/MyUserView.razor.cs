@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
@@ -591,7 +592,7 @@ namespace MyProject.Web.Components.Views.Admins
                 return false;
             }
 
-            if (await ConfirmTeamBindingAsync() == false)
+            if (await ConfirmTeamBindingAsync(CurrentRecord) == false)
             {
                 logger.LogDebug("User save cancelled at team confirmation. UserId={UserId}", CurrentRecord.Id);
                 return false;
@@ -671,17 +672,17 @@ namespace MyProject.Web.Components.Views.Admins
         /// 預設團隊分成兩種措辭。管理員不受團隊行級過濾，提醒對他沒有意義，直接放行。
         /// 回傳 true 表示可以繼續儲存。
         /// </summary>
-        private async Task<bool> ConfirmTeamBindingAsync()
+        private async Task<bool> ConfirmTeamBindingAsync(MyUserAdapterModel record)
         {
-            if (CurrentRecord.TeamNames.Count > 0 || CurrentRecord.IsAdmin)
+            if (record.TeamNames.Count > 0 || record.IsAdmin)
             {
                 return true;
             }
 
-            List<int> roleIds = new(CurrentRecord.AdditionalRoleIds);
-            if (CurrentRecord.RoleViewId.HasValue)
+            List<int> roleIds = new(record.AdditionalRoleIds);
+            if (record.RoleViewId.HasValue)
             {
-                roleIds.Add(CurrentRecord.RoleViewId.Value);
+                roleIds.Add(record.RoleViewId.Value);
             }
 
             List<string> inheritedTeams = roleViewAdapterModels
@@ -731,6 +732,220 @@ namespace MyProject.Web.Components.Views.Admins
         {
             CurrentRecord.TeamNames = values?.ToList() ?? new List<string>();
         }
+
+        #region 複製使用者（0.9.127 起）
+
+        string copyModalTitle = "複製使用者";
+        bool copyModalVisible;
+        MyUserAdapterModel copyRecord = new();
+        string copySourceAccount = string.Empty;
+        List<string> copySkippedTeams = new();
+        EditContext? copyEditContext;
+        bool copyPasswordVisible;
+        bool copyResultVisible;
+        string copyResultText = string.Empty;
+        private readonly FormDirtyTracker copyDirtyTracker = new();
+
+        /// <summary>唯讀摘要的角色欄：主要角色在前、額外角色在後。</summary>
+        string CopyRoleSummary
+        {
+            get
+            {
+                var names = new List<string>();
+                if (roleViewAdapterModels.FirstOrDefault(r => r.Id == copyRecord.RoleViewId) is { } primary)
+                {
+                    names.Add($"{primary.Name}（主）");
+                }
+
+                names.AddRange(roleViewAdapterModels.Where(r => copyRecord.AdditionalRoleIds.Contains(r.Id)).Select(r => r.Name));
+                return names.Count > 0 ? string.Join("、", names) : "（無）";
+            }
+        }
+
+        /// <summary>
+        /// 清單的「複製」：以這一列為範本開精簡窗。角色、團隊、狀態、管理員照抄（唯讀），
+        /// 帳號、名稱、密碼、Email 留空；support 不會有這個按鈕，伺服器端仍會再擋一次。
+        /// </summary>
+        async Task OnCopyAsync(MyUserAdapterModel source)
+        {
+            try
+            {
+                await LoadRoleViewsAsync();
+                var copy = await myUserService.BuildCopyDraftAsync(source.Id);
+                if (copy is null)
+                {
+                    ViewNotification.Warning(notificationService, "這位使用者不能當作複製範本，或已不存在，請重新整理後再試。");
+                    return;
+                }
+
+                copyRecord = copy.Value.Draft;
+                copySkippedTeams = copy.Value.SkippedTeamNames;
+                copySourceAccount = source.Account;
+                copyModalTitle = $"複製使用者（來源：{source.Account} {source.Name}）";
+                copyPasswordVisible = false;
+
+                // ⚠️ 必須是開窗前的最後一步：範本內容不算使用者的變更。
+                copyDirtyTracker.Capture(copyRecord);
+
+                copyModalVisible = true;
+                logger.LogInformation("Opened copy modal for user. SourceUserId={SourceUserId}, SourceAccount={SourceAccount}", source.Id, source.Account);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while opening user copy modal.");
+                ViewNotification.Error(notificationService, "開啟複製視窗時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            }
+        }
+
+        void OnGeneratePassword()
+        {
+            copyRecord.Password = PasswordPolicy.Generate();
+            copyPasswordVisible = true;
+        }
+
+        /// <summary>「建立」：第一行搶回 Visible 的理由同 <see cref="OnModalOKHandleAsync"/>。</summary>
+        private async Task OnCopyModalOKHandleAsync(MouseEventArgs args)
+        {
+            copyModalVisible = true;
+            copyModalVisible = await FormModalFlow.RunOkAsync(
+                SaveCopyAsync,
+                logger,
+                notificationService,
+                "建立使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+        }
+
+        /// <summary>
+        /// 複製建立。刻意省掉一般新增的「確認儲存」：帶入的設定已列在窗內，按「建立」就是確認；
+        /// 只在管理員、團隊留空、Email 已有人用這三種情況多問一次。
+        /// </summary>
+        private async Task<bool> SaveCopyAsync()
+        {
+            if (copyEditContext?.Validate() == false)
+            {
+                foreach (var error in copyEditContext.GetValidationMessages())
+                {
+                    logger.LogInformation("User copy form validation failed. Error={Error}", error);
+                    ViewNotification.ValidationError(notificationService, error);
+                }
+
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(copyRecord.Password))
+            {
+                ViewNotification.ValidationError(notificationService, "新增使用者時必須輸入密碼。");
+                return false;
+            }
+
+            if (copyRecord.IsAdmin && !await ConfirmDialog.AskAsync(modalService, "建立管理員帳號",
+                    $"範本「{copySourceAccount}」是管理員，新帳號也會是管理員：略過所有權限檢查，並能使用「系統管理」底下的所有畫面。確定要建立嗎？", "建立"))
+            {
+                return false;
+            }
+
+            if (await ConfirmTeamBindingAsync(copyRecord) == false)
+            {
+                return false;
+            }
+
+            var beforeAddCheckResult = await myUserService.BeforeAddCheckAsync(copyRecord);
+            if (!beforeAddCheckResult.Success)
+            {
+                logger.LogInformation("User copy pre-check failed. Account={Account}, Message={Message}", copyRecord.Account, beforeAddCheckResult.Message);
+                ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(copyRecord.Email))
+            {
+                var usedBy = await myUserService.GetAccountsUsingEmailAsync(copyRecord.Email);
+                if (usedBy.Count > 0 && !await ConfirmDialog.AskAsync(modalService, "Email 已有人使用",
+                        $"「{copyRecord.Email.Trim()}」已被 {string.Join("、", usedBy)} 使用，忘記密碼的重設信會寄到同一個信箱。仍要建立嗎？", "仍要建立"))
+                {
+                    return false;
+                }
+            }
+
+            copyRecord.CreateAt = DateTime.Now;
+            copyRecord.UpdateAt = DateTime.Now;
+            var actionResult = await myUserService.AddAsync(copyRecord, copySourceAccount);
+            if (!actionResult.Success)
+            {
+                logger.LogInformation("User copy rejected. Account={Account}, Message={Message}", copyRecord.Account, actionResult.Message);
+                ViewNotification.Error(notificationService, actionResult.Message);
+                return false;
+            }
+
+            logger.LogInformation("User created by copy. Account={Account}, SourceAccount={SourceAccount}", copyRecord.Account, copySourceAccount);
+            ViewNotification.Warning(notificationService, "新增成功");
+
+            copyResultText = $"登入網址：{NavigationManager.BaseUri}Auths/Login{Environment.NewLine}帳號：{copyRecord.Account}{Environment.NewLine}密碼：{copyRecord.Password}"
+                + (copyRecord.MustChangePassword ? $"{Environment.NewLine}第一次登入後會要求變更密碼。" : string.Empty);
+            copyRecord = new();
+            copyDirtyTracker.Clear();
+
+            await ReloadAsync();
+            copyResultVisible = true;
+            await CopyResultToClipboardAsync();
+            return true;
+        }
+
+        private async Task OnCopyModalCancelHandleAsync(MouseEventArgs args)
+        {
+            copyModalVisible = true;
+            copyModalVisible = await FormModalFlow.ConfirmCloseAsync(modalService, copyDirtyTracker.IsDirty(copyRecord));
+
+            if (copyModalVisible == false)
+            {
+                copyRecord = new();
+                copyDirtyTracker.Clear();
+            }
+        }
+
+        public void OnCopyEditContextChanged(EditContext context)
+        {
+            copyEditContext = context;
+        }
+
+        /// <summary>交付窗的「複製」：複製後不關窗（第一行搶回 Visible，理由同上）。</summary>
+        private async Task OnCopyResultCopyAsync(MouseEventArgs args)
+        {
+            copyResultVisible = true;
+            await CopyResultToClipboardAsync();
+        }
+
+        /// <summary>關窗時把含明碼的交付文字清掉。</summary>
+        private void OnCopyResultClose(MouseEventArgs args)
+        {
+            copyResultVisible = false;
+            copyResultText = string.Empty;
+        }
+
+        /// <summary>
+        /// 走 appClipboard.copyText。建立成功時的自動複製不是使用者手勢觸發的，部分瀏覽器會拒絕，
+        /// 這時請使用者按交付窗的「複製」再試一次。
+        /// </summary>
+        private async Task CopyResultToClipboardAsync()
+        {
+            try
+            {
+                if (await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", copyResultText))
+                {
+                    ViewNotification.Info(notificationService, "已將登入資訊複製到剪貼簿。");
+                }
+                else
+                {
+                    ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請按「複製」再試一次，或手動選取複製。");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to copy created user credentials to clipboard.");
+                ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請按「複製」再試一次，或手動選取複製。");
+            }
+        }
+
+        #endregion
 
         private async Task LoadRoleViewsAsync()
         {

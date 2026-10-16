@@ -1,10 +1,10 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.120
+- 現行系統版本：0.9.127
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/16
 
 ## 一、目標與範圍
 
@@ -41,12 +41,19 @@
   - 團隊（多選團隊名稱，直接綁定此使用者；不設定則沿用其角色的預設團隊）。**非必填**，但留空時儲存前會跳出確認（見 §六）。
   - 啟用（`Status`）、管理員（`IsAdmin`）核取方塊。
 - 編輯前以 `Clone()` 複製當前列並載入既有指派回填；新增時預設帶入「預設角色」。
+- **複製**（0.9.127 起，操作欄「複製」，support 那一列沒有、已刪除清單沒有）：以這一列為範本開精簡窗（`form-modal`，獨立的 `copyRecord`，不共用修改窗的 `CurrentRecord`）。
+  - 要填：帳號、名稱、密碼（旁邊「產生」鈕呼叫 `IPasswordPolicy.Generate()` 並改顯示明碼）、Email、「下次登入須變更密碼」（預設勾選）。
+  - 唯讀帶入：主要角色＋額外角色、直接綁定的團隊（已停用的不帶並註明）、啟用狀態、管理員身分；Google 綁定、兩步驟驗證、鎖定與密碼不帶。要調整請建立後再「修改」。
+  - 「建立」**省略**一般新增的「確認儲存」，只在三種情況多問：範本是管理員（「建立管理員帳號」）、團隊留空（同 `ConfirmTeamBindingAsync`）、Email 已被其他未刪除帳號使用（「Email 已有人使用」，只提醒不擋）。
+  - 成功後關窗並開「已建立使用者」交付窗（`.user-copy-result-modal`）：登入網址（`NavigationManager.BaseUri` + `Auths/Login`）、帳號、密碼（勾了須變更密碼時加一行提醒），開窗時自動 `appClipboard.copyText`；非使用者手勢觸發的寫入可能被瀏覽器拒絕，故保留「複製」鈕。關窗即清除明碼。
 
 ## 四、內部系統運作
 
 View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
-- **新增**（`AddAsync`）：0.9.101 起先以 `IPasswordPolicy.Check` 檢查規則，再由 `ApplyAsync` 雜湊並寫入設定時間、旗標與歷史；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。
+- **新增**（`AddAsync`）：0.9.101 起先以 `IPasswordPolicy.Check` 檢查規則，再由 `ApplyAsync` 雜湊並寫入設定時間、旗標與歷史；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。0.9.127 起選填參數 `copiedFromAccount`（複製建立時傳範本帳號），稽核 Detail 末尾加 `; copiedFrom=帳號`。
+- **複製範本**（0.9.127 起）：`BuildCopyDraftAsync(sourceUserId)` 讀來源與 `GetUserAssignmentsAsync`，回傳全新的 `MyUserAdapterModel`（Id 0、個人欄位空、新 List）與被略過的停用團隊；來源不存在或為 support（`CanCopy`，不分大小寫）回 null。`GetAccountsUsingEmailAsync(email)` 以 Trim＋不分大小寫比對未刪除使用者，供 Email 重複提醒。
+- **產生密碼**（`IPasswordPolicy.Generate`，0.9.127 起）：`RandomNumberGenerator`，長度 `Max(MinimumLength, 12)`，大小寫與數字各至少一個、`RequireSymbol` 時加符號，排除 0/O/1/l/I；必定通過 `Check`。
 - **修改**（`UpdateAsync`）：以 `Entry(...).State = Modified` 更新；密碼留白時沿用既有 `Password`／`Salt`，否則重新雜湊；再 `SyncAssignmentsAsync`；寫 `User.Update` 稽核。
 - **刪除**（`DeleteAsync`，0.9.95 起為軟刪除）：追蹤載入 → 禁止刪除 support（`BootstrapSettings.SupportAccount`，不分大小寫）與自己（`CurrentUser.Id`，0 時不比對）→ `SoftDeleteHelper.MarkDeleted` → 刪掉該使用者的密碼重設 token；`UserRole`／`UserTeam` 保留（還原後原樣回來）。畫面以 `CanDelete` 隱藏 support 與自己那一列的刪除鈕（伺服器端仍是權威）。
 - **已刪除清單／還原／永久刪除**（`GetDeletedAsync`／`RestoreAsync`／`PurgeAsync`，0.9.95 起）：工具列「顯示已刪除」切換。還原時擋下三種衝突並說明：與有效使用者同帳號（完全比對，與新增檢查一致）、綁定的 GoogleId 已連到別人、主要角色已被刪除（主要角色為 null 允許）。永久刪除只能對已刪除的使用者，`IgnoreQueryFilters` 追蹤載入後 `Remove`，關聯由資料庫 Cascade 刪除（不可用 `ExecuteDelete`，它也套用過濾器而刪 0 筆）。刪除與還原都會換新版本號；登入、權限判斷、下拉選單都經全域過濾器而看不到已刪除的資料。稽核：`User.Delete`（軟刪除）、`User.Restore`、`User.Purge`。
@@ -106,6 +113,8 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：新增與修改套用密碼原則、只勾旗標也會存、設定新密碼解鎖、解鎖不換版本號並寫稽核。
 - `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：管理員重設清除密鑰與備用碼、換版本、稽核。
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：support／自己不可刪、存檔驗證角色、保留指向已刪除角色的連結、還原衝突、永久刪除、已刪除者無法登入。
+- `MyProject.Tests/MyUserServiceCopyTests.cs`（0.9.127）：複製範本帶入角色／團隊／狀態／管理員且個人欄位留空、略過停用團隊、support 與不存在的來源回 null、`CanCopy`、Email 使用者查詢（大小寫、空白、已刪除）、由範本建立後 `UserRole`／`UserTeam` 一致且稽核含 `copiedFrom`。
+- `MyProject.Tests/PasswordPolicyTests.cs` `Generate_ShouldAlwaysPassTheCurrentRules`（0.9.127）：多組規則下產生的密碼都通過 `Check`、長度正確、不含易混淆字元、不重複。
 
 ## 八、相關程式與文件
 
