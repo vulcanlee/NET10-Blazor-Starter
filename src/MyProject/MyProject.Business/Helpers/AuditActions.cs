@@ -56,6 +56,10 @@ public static class AuditActions
         public const string TwoFactorDisable = "User.TwoFactorDisable";
         public const string TwoFactorBackupCodesRegenerate = "User.TwoFactorBackupCodesRegenerate";
         public const string TwoFactorReset = "User.TwoFactorReset";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "User.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "User.View";
     }
 
     public static class Role
@@ -68,6 +72,16 @@ public static class AuditActions
         public const string Purge = "Role.Purge";
         /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
         public const string AutoPurge = "Role.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "Role.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "Role.View";
+    }
+
+    /// <summary>開啟頁面（0.9.131 起）：每次換頁一筆，由 ApplicationCircuitHandler 集中寫入；TargetId 是路徑，Detail 是 from=上一頁。</summary>
+    public static class Page
+    {
+        public const string View = "Page.View";
     }
 
     public static class Permission
@@ -105,6 +119,10 @@ public static class AuditActions
         public const string FileUpload = "Project.FileUpload";
         public const string FileDelete = "Project.FileDelete";
         public const string FileDownload = "Project.FileDownload";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "Project.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "Project.View";
     }
 
     public static class Category
@@ -124,6 +142,10 @@ public static class AuditActions
         public const string Purge = "Category.Purge";
         /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
         public const string AutoPurge = "Category.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "Category.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "Category.View";
     }
 
     public static class Team
@@ -143,6 +165,10 @@ public static class AuditActions
         public const string Purge = "Team.Purge";
         /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
         public const string AutoPurge = "Team.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "Team.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "Team.View";
     }
 
     public static class LogLevel
@@ -156,6 +182,8 @@ public static class AuditActions
         public const string AiAnalyze = "LogViewer.AiAnalyze";
         public const string AiAnalyzeExportPdf = "LogViewer.AiAnalyzeExportPdf";
         public const string Export = "LogViewer.Export";
+        /// <summary>按「查詢」（0.9.131 起）。展開單筆只在瀏覽器端，沒有對應的 View。</summary>
+        public const string Search = "LogViewer.Search";
     }
 
     public static class ExceptionLog
@@ -168,6 +196,10 @@ public static class AuditActions
         public const string ClearAll = "ExceptionLog.ClearAll";
         public const string Export = "ExceptionLog.Export";
         public const string AutoPurge = "ExceptionLog.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "ExceptionLog.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "ExceptionLog.View";
     }
 
     public static class AiCallLog
@@ -179,6 +211,10 @@ public static class AuditActions
 
         /// <summary>排程作業依保留天數自動清除（0.9.96 起；之前自動清除不寫稽核）。</summary>
         public const string AutoPurge = "AiCallLog.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "AiCallLog.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "AiCallLog.View";
     }
 
     public static class TokenUsage
@@ -190,6 +226,10 @@ public static class AuditActions
 
         /// <summary>排程作業依保留天數自動清除（0.9.96 起；之前不會自動清除）。</summary>
         public const string AutoPurge = "TokenUsage.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "TokenUsage.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "TokenUsage.View";
     }
 
     public static class Audit
@@ -198,6 +238,10 @@ public static class AuditActions
         public const string ClearAll = "Audit.ClearAll";
         public const string Export = "Audit.Export";
         public const string AutoPurge = "Audit.AutoPurge";
+        /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
+        public const string Search = "Audit.Search";
+        /// <summary>開啟單筆（0.9.131 起）。</summary>
+        public const string View = "Audit.View";
     }
 
     public static class Email

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MyProject.AccessDatas;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 
 namespace MyProject.Tests;
 
@@ -30,6 +31,8 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(TokenUsageLogService),
         typeof(AiCallLogService),
         typeof(AuditLogQueryService),
+        // 稽核寫入端（0.9.131 起）：換頁稽核是射後不理，共用 scoped context 會和頁面初始化撞在一起。
+        typeof(AuditLogService),
         typeof(ScheduledJobRunService),
         typeof(SoftDeletePurgeService),
         typeof(SystemParameterService),

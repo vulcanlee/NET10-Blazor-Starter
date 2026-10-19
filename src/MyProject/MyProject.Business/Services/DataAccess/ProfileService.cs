@@ -149,6 +149,7 @@ public class ProfileService
             return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
         }
 
+        var diff = new AuditDiff().Value(nameof(MyUser.Name), user.Name, trimmed).Render($"使用者 #{user.Id}（{user.Account}）修改個人資料");
         user.Name = trimmed;
         user.UpdateAt = DateTime.Now;
         var entry = context.Entry(user);
@@ -164,10 +165,10 @@ public class ProfileService
             return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
         }
 
-        // 姓名是個資，稽核與日誌都只記「改了姓名」，不記內容。
+        // 姓名是個資：資料庫摘要與日誌只記「改了姓名」；舊值→新值只寫進稽核的詳細內容檔（0.9.131 起，僅管理員可看）。
         await auditLogService.WriteAsync(
             AuditActions.User.ProfileUpdate, success: true, actorUserId: user.Id, actorAccount: user.Account,
-            targetType: nameof(MyUser), targetId: user.Id.ToString(), detail: "field=Name");
+            targetType: nameof(MyUser), targetId: user.Id.ToString(), detail: "field=Name", content: diff);
         logger.LogInformation("Profile name updated. UserId={UserId}", userId);
 
         // 右上角的姓名與縮寫立即更新（MainLayout 聽 CurrentUserService.Changed）。

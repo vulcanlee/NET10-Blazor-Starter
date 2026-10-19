@@ -812,6 +812,12 @@
         word-break: break-word;
     }
 
+    /* 詳細內容（修改差異、查詢條件；0.9.131 起）可能很長：在窗內捲動，不把整個窗撐高 */
+    .audit-log-modal .audit-log-detail-content {
+        max-height: 45vh;
+        overflow: auto;
+    }
+
     @@media (max-width: 640.98px) {
         /* 窄螢幕沒有 11rem 可以留給標題，改成上下堆疊 */
         .audit-log-modal .audit-log-detail-list > div {

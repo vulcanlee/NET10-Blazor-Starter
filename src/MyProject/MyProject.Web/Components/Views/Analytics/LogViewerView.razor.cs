@@ -213,7 +213,8 @@ namespace MyProject.Web.Components.Views.Analytics
             endTime = DateTime.Now;
             startTime = endTime.Value.AddHours(-1);
 
-            await OnQueryAsync();
+            // 打開頁面的自動查詢不是使用者按的，不寫查詢稽核（開頁本身已有 Page.View）。
+            await OnQueryAsync(audit: false);
         }
 
         /// <summary>快速區間：只改時間並立即查詢，等級、筆數、關鍵字、追蹤碼維持原值。</summary>
@@ -237,7 +238,7 @@ namespace MyProject.Web.Components.Views.Analytics
             await OnQueryAsync();
         }
 
-        private async Task OnQueryAsync()
+        private async Task OnQueryAsync(bool audit = true)
         {
             isLoading = true;
 
@@ -271,6 +272,15 @@ namespace MyProject.Web.Components.Views.Analytics
                 // 條件被夾住時把實際查詢的區間寫回選擇器，讓畫面與結果一致。
                 startTime = result.AppliedStartTime;
                 endTime = result.AppliedEndTime;
+
+                if (audit)
+                {
+                    await ViewAudit.WriteSearchAsync(auditLogService, currentUserService, AuditActions.LogViewer.Search, "LogQuery",
+                        AuditSearchCondition.Of("start", startTime), AuditSearchCondition.Of("end", endTime),
+                        AuditSearchCondition.Of("minimumLevel", minimumLevel), AuditSearchCondition.Of("take", takeCount),
+                        AuditSearchCondition.Text("keyword", keyword), AuditSearchCondition.Text("traceCode", traceCode),
+                        AuditSearchCondition.Of("rows", entriesAscending.Count));
+                }
             }
             catch (Exception ex)
             {

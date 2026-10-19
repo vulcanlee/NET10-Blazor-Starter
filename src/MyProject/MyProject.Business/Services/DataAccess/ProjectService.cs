@@ -213,7 +213,7 @@ public class ProjectService
     /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
     /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
     /// </summary>
-    private Task WriteAuditAsync(string action, int targetId, string detail)
+    private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {
         var user = currentUserService.CurrentUser;
         return auditLogService.WriteAsync(
@@ -223,7 +223,8 @@ public class ProjectService
             actorAccount: user.Id > 0 ? user.Account : null,
             targetType: "Project",
             targetId: targetId.ToString(),
-            detail: detail);
+            detail: detail,
+            content: content);
     }
 
     public async Task<VerifyRecordResult> AddAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
@@ -299,6 +300,9 @@ public class ProjectService
                 return VerifyRecordResultFactory.Build(false, teamError);
             }
 
+            // 修改前的快照（0.9.131 起，給稽核差異用）：要在逐欄指定之前取，之後 currentItem 就是新值了。
+            var before = (Project)context.Entry(currentItem).CurrentValues.ToObject();
+
             currentItem.Title = paraObject.Title;
             currentItem.Description = paraObject.Description;
             currentItem.StartDate = paraObject.StartDate;
@@ -310,6 +314,7 @@ public class ProjectService
             currentItem.Categories = TagStringHelper.ToStored(paraObject.Categories);
             currentItem.Teams = TagStringHelper.ToStored(paraObject.Teams);
             currentItem.UpdatedAt = paraObject.UpdatedAt;
+            var diff = AuditDiff.Compare(before, currentItem).Render($"專案 #{currentItem.Id}（{before.Title}）修改");
 
             // 先載入再複製欄位的寫法：一定要以使用者開窗時的版本號比對，否則永遠偵測不到衝突。
             // 衝突時第一次 SaveChanges 就會失敗，附件的新增與刪除都不會執行。
@@ -330,7 +335,7 @@ public class ProjectService
             }
 
             Logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", currentItem.Id, currentItem.Title);
-            await WriteAuditAsync(AuditActions.Project.Update, currentItem.Id, $"title={currentItem.Title}");
+            await WriteAuditAsync(AuditActions.Project.Update, currentItem.Id, $"title={currentItem.Title}", diff);
             await WriteFileAuditAsync(AuditActions.Project.FileUpload, currentItem.Id, uploadFiles?.Count() ?? 0);
             await WriteFileAuditAsync(AuditActions.Project.FileDelete, currentItem.Id, removedFileIds?.Count() ?? 0);
             return VerifyRecordResultFactory.Build(true);

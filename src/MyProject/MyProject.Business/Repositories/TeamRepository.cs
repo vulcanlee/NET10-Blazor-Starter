@@ -17,7 +17,8 @@ public enum TeamWriteStatus
     Invalid,
 }
 
-public sealed record TeamWriteResult(TeamWriteStatus Status, string? Message = null, Team? Team = null);
+/// <param name="Diff">修改時的前後差異（0.9.131 起），給稽核詳細內容檔；其他情況為 null。</param>
+public sealed record TeamWriteResult(TeamWriteStatus Status, string? Message = null, Team? Team = null, string? Diff = null);
 
 public class TeamRepository
 {
@@ -182,7 +183,10 @@ public class TeamRepository
         team.UpdatedAt = DateTime.Now;
         team.CreatedAt = existing.CreatedAt;
 
+        // 修改前後差異（0.9.131 起）：SetValues 之前先取快照。
+        var before = (Team)context.Entry(existing).CurrentValues.ToObject();
         context.Entry(existing).CurrentValues.SetValues(team);
+        var diff = AuditDiff.Compare(before, existing).Render($"團隊 #{existing.Id}（{before.Name}）修改");
         // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
         // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
         ConcurrencyStampHelper.Apply(context.Entry(existing), team.ConcurrencyStamp);
@@ -191,7 +195,7 @@ public class TeamRepository
         await transaction.CommitAsync();
         teamTree.Invalidate();
 
-        return new TeamWriteResult(TeamWriteStatus.Ok, renamed?.ToString(), existing);
+        return new TeamWriteResult(TeamWriteStatus.Ok, renamed?.ToString(), existing, diff);
     }
 
     /// <summary>

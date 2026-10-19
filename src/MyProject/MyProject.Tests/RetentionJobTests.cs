@@ -292,6 +292,7 @@ public sealed class RetentionJobTests : IAsyncDisposable
         systemSettings.ExternalFileSystem.ExceptionPath = Path.Combine(fileRoot, "exception");
         systemSettings.ExternalFileSystem.TokenUsagePath = Path.Combine(fileRoot, "token");
         systemSettings.ExternalFileSystem.AiCallLogPath = Path.Combine(fileRoot, "ai");
+        systemSettings.ExternalFileSystem.AuditContentPath = Path.Combine(fileRoot, "audit");
         Directory.CreateDirectory(fileRoot);
 
         var collection = new ServiceCollection();
@@ -307,6 +308,7 @@ public sealed class RetentionJobTests : IAsyncDisposable
         collection.AddSingleton<IAiUsageCostCalculator>(new AiUsageCostCalculator(new StaticOptionsMonitor<AiPricingSettings>(new AiPricingSettings())));
         collection.AddScoped<ExceptionStackFileStore>();
         collection.AddScoped<ExceptionLogService>();
+        collection.AddScoped<AuditContentFileStore>();
         collection.AddScoped<AuditLogQueryService>();
         collection.AddScoped<AiCallLogFileStore>();
         collection.AddScoped<AiCallLogService>();

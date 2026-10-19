@@ -227,7 +227,7 @@ public sealed class MyUserServiceLoginTests
                 new ConfigurationBuilder().Build(),
                 loggerFactory.CreateLogger<MyUserServiceLogin>(),
                 new RolePermissionService(),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
+                new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()),
                 PasswordTestDefaults.Lockout(),
                 Notifications,
                 TimeProvider.System,

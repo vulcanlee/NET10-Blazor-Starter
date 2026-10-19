@@ -172,15 +172,15 @@ public class CategoryController : ControllerBase
                 return BadRequest(ApiResult.ValidationError(teamError));
             }
 
-            var success = await categoryRepository.UpdateAsync(category);
-            if (!success)
+            var outcome = await categoryRepository.UpdateAsync(category);
+            if (!outcome.Updated)
             {
                 logger.LogWarning("Category update request could not find record. CategoryId={CategoryId}", id);
                 return NotFound(ApiResult.NotFoundResult($"找不到 ID 為 {id} 的分類"));
             }
 
             logger.LogInformation("Category updated successfully. CategoryId={CategoryId}, Name={Name}", id, categoryDto.Name);
-            await this.WriteAuditAsync(AuditActions.Category.Update, "Category", id.ToString(), $"name={categoryDto.Name}");
+            await this.WriteAuditAsync(AuditActions.Category.Update, "Category", id.ToString(), $"name={categoryDto.Name}", content: outcome.Diff);
             return Ok(ApiResult.SuccessResult("更新分類成功"));
         }
         catch (DbUpdateConcurrencyException)

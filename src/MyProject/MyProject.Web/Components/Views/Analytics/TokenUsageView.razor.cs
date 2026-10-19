@@ -573,6 +573,10 @@ namespace MyProject.Web.Components.Views.Analytics
             _pageIndex = 1;
             logger.LogInformation("Usage search triggered.");
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.TokenUsage.Search, "TokenUsage",
+                AuditSearchCondition.Of("start", startDate), AuditSearchCondition.Of("end", endDate),
+                AuditSearchCondition.Text("account", accountFilter), AuditSearchCondition.Of("operation", selectedOperation),
+                AuditSearchCondition.Of("callKind", selectedCallKind), AuditSearchCondition.Of("model", selectedModel));
         }
 
         private async Task OnRefreshAsync()
@@ -584,6 +588,7 @@ namespace MyProject.Web.Components.Views.Analytics
         /// <summary>開窗當下才讀原始 JSON 檔，清單查詢不會一次把所有檔案讀進記憶體。</summary>
         private async Task OnViewAsync(TokenUsageLogAdapterModel item)
         {
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.TokenUsage.View, "TokenUsage", item.Id.ToString(), null);
             detailItem = item;
             detailRawRows = [];
             detailRawMessage = "讀取中…";

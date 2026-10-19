@@ -101,6 +101,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 稽核的長內容（修改差異、查詢條件）寫成檔案（0.9.131 起）。
+        services.AddScoped<AuditContentFileStore>();
         // 稽核來源 IP（0.9.117 起）：circuit handler 寫入、AuditLogService 讀取，兩者必須拿到同一個實例。
         services.AddScoped<ClientIpProvider>();
         services.AddScoped<IClientIpProvider>(sp => sp.GetRequiredService<ClientIpProvider>());
@@ -168,9 +170,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TeamService>();
         services.AddScoped<TeamRepository>();
 
-        // 稽核紀錄的「讀」端。寫端是 Services/Other 的 AuditLogService，它注入 scoped
-        // BackendDBContext 以便夾在各業務流程的交易裡；讀端只服務 Blazor 畫面，
-        // 因此另開一支並改注入 IDbContextFactory（見 DataAccessServiceLifetimeTests）。
+        // 稽核紀錄的「讀」端。寫端是 Services/Other 的 AuditLogService（0.9.131 起也改用 IDbContextFactory，
+        // 每筆稽核各用一個 context）；讀端只服務 Blazor 畫面（見 DataAccessServiceLifetimeTests）。
         services.AddScoped<AuditLogQueryService>();
 
         #region 系統例外紀錄
@@ -282,7 +283,7 @@ public static class ServiceCollectionExtensions
             "刪除超過保留天數的站內通知（不論已讀未讀；保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
-            "備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
+            "備份資料庫、專案附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
         services.AddScheduledJob<PasswordExpiryReminderJob>(
             PasswordExpiryReminderJob.JobName, "密碼到期提醒",
             "密碼在 7 天內到期的使用者各收到一則站內通知（密碼有效天數在「系統參數」頁設定，預設 0 = 不過期，此時不動作）。", "0 8 * * *");

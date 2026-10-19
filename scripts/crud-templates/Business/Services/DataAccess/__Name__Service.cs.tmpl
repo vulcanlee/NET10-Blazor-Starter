@@ -52,7 +52,7 @@ public class __Name__Service
     }
 
     /// <summary>寫一筆稽核。操作者取自 <see cref="CurrentUserService"/>（本服務只由 Blazor 畫面呼叫；Web API 的稽核寫在 Controller）。</summary>
-    private Task WriteAuditAsync(string action, int targetId, string detail)
+    private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {
         var user = currentUserService.CurrentUser;
         return auditLogService.WriteAsync(
@@ -62,7 +62,8 @@ public class __Name__Service
             actorAccount: user.Id > 0 ? user.Account : null,
             targetType: "__Name__",
             targetId: targetId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            detail: detail);
+            detail: detail,
+            content: content);
     }
 #IF TEAMS
 
@@ -206,6 +207,9 @@ public class __Name__Service
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
+            // 修改前後差異寫進稽核的詳細內容檔；item 是 AsNoTracking 讀出的修改前資料。
+            var diff = AuditDiff.Compare(item, itemData).Render($"__Item__ #{itemData.Id}（{item.Name}）修改");
+
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
@@ -213,7 +217,7 @@ public class __Name__Service
             await context.SaveChangesAsync();
 
             Logger.LogInformation("__Name__ updated. __Name__Id={__Name__Id}", itemData.Id);
-            await WriteAuditAsync(AuditActions.__Name__.Update, itemData.Id, $"name={itemData.Name}");
+            await WriteAuditAsync(AuditActions.__Name__.Update, itemData.Id, $"name={itemData.Name}", diff);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (DbUpdateConcurrencyException ex)

@@ -42,4 +42,9 @@ public class AuditLog
     /// 來源 IP（0.9.117 起）。排程作業與之前的舊紀錄為 null；IPv4-mapped IPv6 已轉回 IPv4。
     /// </summary>
     public string? ClientIp { get; set; }
+    /// <summary>
+    /// 詳細內容檔的相對路徑（0.9.131 起），例如 <c>202610/3f2a….txt</c>。
+    /// 修改前後差異、完整查詢條件這類長內容寫在 <c>AuditContentPath</c> 底下的檔案，不進資料庫；沒有長內容時為 null。
+    /// </summary>
+    public string? ContentFile { get; set; }
 }

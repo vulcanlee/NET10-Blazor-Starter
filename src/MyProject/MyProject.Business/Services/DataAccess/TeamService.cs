@@ -57,7 +57,7 @@ public class TeamService
     /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
     /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
     /// </summary>
-    private Task WriteAuditAsync(string action, int targetId, string detail)
+    private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {
         var user = currentUserService.CurrentUser;
         return auditLogService.WriteAsync(
@@ -67,7 +67,8 @@ public class TeamService
             actorAccount: user.Id > 0 ? user.Account : null,
             targetType: "Team",
             targetId: targetId.ToString(),
-            detail: detail);
+            detail: detail,
+            content: content);
     }
 
     public async Task<DataRequestResult<TeamAdapterModel>> GetAsync(DataRequest dataRequest)
@@ -240,6 +241,9 @@ public class TeamService
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
+            // 修改前後差異（0.9.131 起）寫進稽核的詳細內容檔；item 是 AsNoTracking 讀出的修改前資料。
+            var diff = AuditDiff.Compare(item, itemData).Render($"團隊 #{itemData.Id}（{item.Name}）修改");
+
             // 改名（0.9.105 起）：紀錄以名稱引用團隊，同一個交易內把專案、分類、角色預設團隊的舊名稱一併換掉。
             var renamed = await RenameReferencesAsync(context, item, itemData.Name);
             if (renamed.Error is { } renameError)
@@ -256,7 +260,7 @@ public class TeamService
             teamTree.Invalidate();
 
             Logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={TeamName}", itemData.Id, itemData.Name);
-            await WriteAuditAsync(AuditActions.Team.Update, itemData.Id, $"name={itemData.Name}; parentId={itemData.ParentId}" + (renamed.Result is { } counts ? $"; from={item.Name}; {counts}" : string.Empty));
+            await WriteAuditAsync(AuditActions.Team.Update, itemData.Id, $"name={itemData.Name}; parentId={itemData.ParentId}" + (renamed.Result is { } counts ? $"; from={item.Name}; {counts}" : string.Empty), diff);
             return VerifyRecordResultFactory.Build(true);
         }
         catch (DbUpdateConcurrencyException ex)

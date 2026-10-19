@@ -371,6 +371,8 @@ Update-Source 'MyProject.Business/Helpers/AuditActions.cs' '稽核動作' "     
         public const string Purge = "$Name.Purge";
         public const string AutoPurge = "$Name.AutoPurge";
         public const string Export = "$Name.Export";
+        public const string Search = "$Name.Search";
+        public const string View = "$Name.View";
     }
 
 
@@ -500,6 +502,7 @@ if (-not $SkipMigration) {
             SystemSettings__ExternalFileSystem__ExceptionPath   = (Join-Path $isolated 'Exception')
             SystemSettings__ExternalFileSystem__TokenUsagePath  = (Join-Path $isolated 'TokenUsage')
             SystemSettings__ExternalFileSystem__AiCallLogPath   = (Join-Path $isolated 'AiCallLog')
+            SystemSettings__ExternalFileSystem__AuditContentPath = (Join-Path $isolated 'AuditContent')
             SystemSettings__ExternalFileSystem__DataProtectionKeyPath = (Join-Path $isolated 'Keys')
             SystemSettings__ExternalFileSystem__BackupPath      = (Join-Path $isolated 'Backup')
         }

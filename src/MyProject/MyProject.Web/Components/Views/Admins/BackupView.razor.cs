@@ -221,6 +221,7 @@ namespace MyProject.Web.Components.Views.Admins
             nameof(ExternalFileSystem.ProjectFilePath) => "附件",
             nameof(ExternalFileSystem.ExceptionPath) => "例外堆疊",
             nameof(ExternalFileSystem.TokenUsagePath) => "Token 原始檔",
+            nameof(ExternalFileSystem.AuditContentPath) => "稽核內容",
             nameof(ExternalFileSystem.DataProtectionKeyPath) => "金鑰",
             nameof(ExternalFileSystem.AiCallLogPath) => "AI 對話內容",
             _ => settingKey,

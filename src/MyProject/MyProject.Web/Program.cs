@@ -316,6 +316,7 @@ namespace MyProject.Web
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.ExceptionPath, "exception stack trace");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.TokenUsagePath, "LLM usage raw payload");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.AiCallLogPath, "AI call log");
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.AuditContentPath, "audit content");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.DataProtectionKeyPath, "data protection key");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.BackupPath, "backup");
                 #endregion

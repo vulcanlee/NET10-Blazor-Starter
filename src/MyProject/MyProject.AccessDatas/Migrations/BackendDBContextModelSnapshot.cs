@@ -178,6 +178,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<string>("ClientIp")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ContentFile")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Detail")
                         .HasColumnType("TEXT");
 

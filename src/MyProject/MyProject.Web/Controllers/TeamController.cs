@@ -193,7 +193,8 @@ public class TeamController : ControllerBase
 
             logger.LogInformation("Team updated successfully. TeamId={TeamId}, Name={Name}", id, teamDto.Name);
             await this.WriteAuditAsync(AuditActions.Team.Update, "Team", id.ToString(),
-                $"name={teamDto.Name}; parentId={teamDto.ParentId}" + (outcome.Message is { } renamed ? $"; {renamed}" : string.Empty));
+                $"name={teamDto.Name}; parentId={teamDto.ParentId}" + (outcome.Message is { } renamed ? $"; {renamed}" : string.Empty),
+                content: outcome.Diff);
             return Ok(ApiResult.SuccessResult("更新團隊成功"));
         }
         catch (DbUpdateConcurrencyException)

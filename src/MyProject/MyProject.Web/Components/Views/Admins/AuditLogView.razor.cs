@@ -11,6 +11,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
 using MyProject.Business.Helpers;
 using MyProject.Web.Export;
+using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Views.Admins
 {
@@ -61,6 +62,9 @@ namespace MyProject.Web.Components.Views.Admins
 
         private bool detailVisible;
         private AuditLogAdapterModel? detailItem;
+        /// <summary>明細窗的「詳細內容」（修改差異、查詢條件；0.9.131 起）。null 表示這筆沒有內容檔。</summary>
+        private string? detailContent;
+        private bool isContentLoading;
 
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -219,6 +223,11 @@ namespace MyProject.Web.Components.Views.Admins
             _pageIndex = 1;
             logger.LogInformation("Audit log search triggered.");
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(auditLogService, currentUserService, AuditActions.Audit.Search, "AuditLog",
+                AuditSearchCondition.Of("start", startTime), AuditSearchCondition.Of("end", endTime),
+                AuditSearchCondition.Of("action", selectedAction), AuditSearchCondition.Of("success", selectedSuccess),
+                AuditSearchCondition.Text("account", accountFilter), AuditSearchCondition.Text("ip", ipFilter),
+                AuditSearchCondition.Text("keyword", keyword));
         }
 
         private async Task OnRefreshAsync()
@@ -228,10 +237,36 @@ namespace MyProject.Web.Components.Views.Admins
             await ReloadAsync();
         }
 
-        private void OnView(AuditLogAdapterModel item)
+        /// <summary>
+        /// 先開窗、再讀詳細內容檔（0.9.131 起）：清單查詢不讀檔，檔案可能很大，只在看明細時才讀。
+        /// </summary>
+        private async Task OnViewAsync(AuditLogAdapterModel item)
         {
             detailItem = item;
+            detailContent = null;
+            isContentLoading = item.ContentFile is not null;
             detailVisible = true;
+            StateHasChanged();
+
+            if (item.ContentFile is not null)
+            {
+                try
+                {
+                    detailContent = await auditLogQueryService.GetContentAsync(item.Id)
+                        ?? "內容檔不存在（可能已被清除，或當初寫檔失敗）。";
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to read audit content file. AuditLogId={AuditLogId}", item.Id);
+                    detailContent = "讀取詳細內容失敗。" + TraceCode.Suffix(TraceCode.Current);
+                }
+                finally
+                {
+                    isContentLoading = false;
+                }
+            }
+
+            await ViewAudit.WriteAsync(auditLogService, currentUserService, AuditActions.Audit.View, "AuditLog", item.Id.ToString(), $"action={item.Action}");
         }
 
         private async Task OnPurgeAsync()
@@ -404,6 +439,8 @@ namespace MyProject.Web.Components.Views.Admins
             "Backup" => "orange",
             "Announcement" => "cyan",
             "Notification" => "cyan",
+            // 開頁（0.9.131 起）筆數最多，刻意用灰色，不搶增刪改的視線。
+            "Page" => "default",
             _ => "default",
         };
     }

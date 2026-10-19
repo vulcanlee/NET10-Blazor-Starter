@@ -164,7 +164,7 @@ public sealed class MyUserServicePasswordTests
                 mapper,
                 loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
+                new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()),
                 new CurrentUserService(),
                 Options.Create(new BootstrapSettings()),
                 PasswordTestDefaults.Policy());

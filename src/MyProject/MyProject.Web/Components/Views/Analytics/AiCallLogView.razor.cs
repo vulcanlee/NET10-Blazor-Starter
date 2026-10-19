@@ -247,6 +247,11 @@ namespace MyProject.Web.Components.Views.Analytics
         {
             _pageIndex = 1;
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(auditLogService, currentUserService, AuditActions.AiCallLog.Search, "AiCallLog",
+                AuditSearchCondition.Of("start", startDate), AuditSearchCondition.Of("end", endDate),
+                AuditSearchCondition.Of("operation", selectedOperation), AuditSearchCondition.Of("success", selectedSuccess),
+                AuditSearchCondition.Of("model", selectedModel), AuditSearchCondition.Text("account", accountFilter),
+                AuditSearchCondition.Text("keyword", keyword));
         }
 
         private async Task OnRefreshAsync()

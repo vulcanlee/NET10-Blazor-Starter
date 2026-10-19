@@ -106,7 +106,7 @@ else
                         <Space>
                             <SpaceItem>
                                 <CrudActionButton Title="查看" Icon="visibility"
-                                                  OnClick="@(() => OnView(@context))" />
+                                                  OnClick="@(() => OnViewAsync(@context))" />
                             </SpaceItem>
                         </Space>
                     </ActionColumn>
@@ -148,6 +148,15 @@ else
 
                 <h3 class="audit-log-detail-title">摘要</h3>
                 <pre class="audit-log-detail-text">@(string.IsNullOrWhiteSpace(detailItem.Detail) ? "（無）" : detailItem.Detail)</pre>
+
+                @*
+                    詳細內容（0.9.131 起）：修改前後差異、完整查詢條件。存在 AuditContentPath 底下的檔案，開窗時才讀。
+                *@
+                @if (detailItem.ContentFile is not null)
+                {
+                    <h3 class="audit-log-detail-title">詳細內容</h3>
+                    <pre class="audit-log-detail-text audit-log-detail-content">@(isContentLoading ? "讀取中…" : detailContent)</pre>
+                }
             }
         </Modal>
     </div>

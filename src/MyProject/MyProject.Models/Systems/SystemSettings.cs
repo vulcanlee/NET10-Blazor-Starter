@@ -57,6 +57,14 @@ public class ExternalFileSystem
     public string AiCallLogPath { get; set; } = string.Empty;
 
     /// <summary>
+    /// 稽核紀錄的詳細內容檔存放目錄（0.9.131 起）：修改前後差異、完整查詢條件這類長內容，
+    /// 結構為 <c>{root}/{yyyyMM}/{Guid}.txt</c>；檔案生命週期一律經由 AuditContentFileStore 處理。
+    /// ⚠️ 內容含舊值→新值（可能有 Email、姓名）與搜尋原文，只供管理員查閱；
+    /// <b>絕不可放在 DownloadPath 底下</b>（那裡以靜態檔案對外提供）。
+    /// </summary>
+    public string AuditContentPath { get; set; } = string.Empty;
+
+    /// <summary>
     /// ASP.NET Core Data Protection 的金鑰環存放目錄。
     ///
     /// ⚠️ **這個目錄不見了，等於全站使用者立刻被登出** —— 登入 Cookie 是用這裡的金鑰
@@ -67,7 +75,7 @@ public class ExternalFileSystem
     public string DataProtectionKeyPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// 系統備份 zip 的存放目錄（0.9.99 起）：資料庫快照、專案附件、例外堆疊檔、Token 原始檔與 Data Protection 金鑰環。
+    /// 系統備份 zip 的存放目錄（0.9.99 起）：資料庫快照、專案附件、例外堆疊檔、Token 原始檔、稽核內容檔與 Data Protection 金鑰環。
     ///
     /// ⚠️ 備份含全部資料與金鑰環，拿到的人可以偽造登入 Cookie：目錄權限只給應用程式集區身分與管理員。
     /// 啟動驗證不允許它與其他任何資料目錄重疊（尤其不可放在 <see cref="DownloadPath"/> 底下 —— 那裡以靜態檔案對外提供），

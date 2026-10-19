@@ -240,6 +240,8 @@ namespace MyProject.Web.Components.Views.Teams
             _pageIndex = 1;
             logger.LogInformation("Team search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.Team.Search, "Team",
+                AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
         }
 
         async Task OnRefreshAsync()
@@ -261,6 +263,8 @@ namespace MyProject.Web.Components.Views.Teams
 
             modalVisible = true;
             logger.LogInformation("Opened edit modal for team. TeamId={TeamId}, Name={Name}", teamAdapterModel.Id, teamAdapterModel.Name);
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Team.View, "Team",
+                teamAdapterModel.Id.ToString(), $"name={teamAdapterModel.Name}");
         }
 
         /// <summary>

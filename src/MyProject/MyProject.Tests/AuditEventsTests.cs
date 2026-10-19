@@ -162,7 +162,7 @@ public sealed class AuditEventsTests
             return new Fixture(connection, context, actorId, actorAccount);
         }
 
-        private AuditLogService Audit() => new(Context, loggerFactory.CreateLogger<AuditLogService>());
+        private AuditLogService Audit() => new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>());
 
         public MyUserService CreateUserService()
             => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
