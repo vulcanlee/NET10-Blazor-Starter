@@ -160,7 +160,7 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 logger.LogError(ex, "Failed to load AI call log detail. CallLogId={CallLogId}", id);
                 visible = false;
-                ViewNotification.UnexpectedError(notificationService, $"讀取對話紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"讀取對話紀錄失敗：{ex.GetType().Name}。", ex);
             }
             finally
             {
@@ -325,7 +325,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy AI call log block.");
-                ViewNotification.UnexpectedError(notificationService, $"複製失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"複製失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -363,7 +363,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI call log download failed. CallLogId={CallLogId}", detail.Item.Id);
-                ViewNotification.UnexpectedError(notificationService, $"下載失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"下載失敗：{ex.GetType().Name}。", ex);
             }
             finally
             {
@@ -411,7 +411,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "AI call log PDF export failed because the embedded font is missing.");
-                ViewNotification.Error(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
+                ViewNotification.UnexpectedError(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。", ex);
             }
             catch (JSDisconnectedException ex)
             {
@@ -420,7 +420,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI call log PDF export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。", ex);
             }
             finally
             {

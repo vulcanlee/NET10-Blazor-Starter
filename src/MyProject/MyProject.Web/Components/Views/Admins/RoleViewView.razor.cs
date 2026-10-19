@@ -193,7 +193,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting role.");
-                ViewNotification.Error(notificationService, "刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -259,7 +259,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while restoring role view.");
-                ViewNotification.Error(notificationService, "還原角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "還原角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -292,7 +292,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while purging role view.");
-                ViewNotification.Error(notificationService, "永久刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "永久刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

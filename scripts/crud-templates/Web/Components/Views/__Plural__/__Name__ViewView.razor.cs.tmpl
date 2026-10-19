@@ -223,7 +223,7 @@ public partial class __Name__ViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "__Name__ export failed.");
-            ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+            ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
         }
     }
 #IF TEAMS
@@ -340,7 +340,7 @@ public partial class __Name__ViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while changing __name__ status.");
-            ViewNotification.Error(notificationService, "切換__Item__狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "切換__Item__狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 
@@ -358,7 +358,7 @@ public partial class __Name__ViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while deleting __name__.");
-            ViewNotification.Error(notificationService, "刪除__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "刪除__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 
@@ -376,7 +376,7 @@ public partial class __Name__ViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while restoring __name__.");
-            ViewNotification.Error(notificationService, "還原__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "還原__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 
@@ -394,7 +394,7 @@ public partial class __Name__ViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while purging __name__.");
-            ViewNotification.Error(notificationService, "永久刪除__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "永久刪除__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 

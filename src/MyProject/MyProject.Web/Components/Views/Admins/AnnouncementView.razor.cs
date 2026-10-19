@@ -103,7 +103,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load announcements.");
-                ViewNotification.UnexpectedError(notificationService, "讀取公告時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "讀取公告時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
             finally
             {
@@ -211,7 +211,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting an announcement.");
-                ViewNotification.UnexpectedError(notificationService, "刪除公告時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "刪除公告時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

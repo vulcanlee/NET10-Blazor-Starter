@@ -21,6 +21,9 @@ public sealed class ViewNotificationTests : ComponentTestBase
 {
     private static readonly DateTime OccurredAt = new(2026, 10, 19, 14, 3, 22);
 
+    public ViewNotificationTests()
+        => ToastCopyButtonTests.AddCopyServices(Services);
+
     [Fact]
     public void CopyText_ShouldListTitleTextTraceCodeTimeAndPage()
     {
@@ -68,6 +71,55 @@ public sealed class ViewNotificationTests : ComponentTestBase
     }
 
     [Fact]
+    public void CopyText_WithDetail_ShouldAppendItAsTheLastBlock()
+    {
+        var text = ToastCopyText.Build("系統訊息", "匯出失敗", "ABCD1234", OccurredAt, "https://host/", "System.InvalidOperationException: boom");
+
+        Assert.EndsWith(
+            string.Join(Environment.NewLine,
+                "頁面：https://host/",
+                "",
+                "----- 錯誤詳細資料開始 -----",
+                "System.InvalidOperationException: boom",
+                "----- 錯誤詳細資料結束 -----"),
+            text);
+    }
+
+    [Fact]
+    public void UnexpectedError_ShouldHandTheWholeExceptionToTheButton_ButNotToTheScreenOrTheLog()
+    {
+        var factory = new CapturingLoggerFactory();
+        var notificationService = Services.GetRequiredService<NotificationService>();
+        var container = Render<AntContainer>();
+        Exception exception;
+        try
+        {
+            throw new InvalidOperationException("boom", new TimeoutException("inner"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            exception = ex;
+        }
+
+        ViewNotification.UseLoggerFactory(factory);
+        try
+        {
+            ViewNotification.UnexpectedError(notificationService, "匯出失敗", exception);
+        }
+        finally
+        {
+            ViewNotification.UseLoggerFactory(NullLoggerFactory.Instance);
+        }
+
+        var button = container.WaitForComponent<ToastCopyButton>();
+        Assert.Equal(exception.ToString(), button.Instance.Detail);
+        Assert.Contains("System.TimeoutException: inner", button.Instance.Detail, StringComparison.Ordinal);
+        Assert.Equal("匯出失敗", button.Instance.Description);
+        Assert.DoesNotContain("InvalidOperationException", container.Find(".ant-notification-notice-description").TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("InvalidOperationException", Assert.Single(factory.Messages), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlainConfig_ShouldKeepTheDefaultDuration_AndHaveNoButton()
     {
         var config = ViewNotification.BuildConfig("系統訊息", "新增成功", NotificationType.Warning);
@@ -87,7 +139,7 @@ public sealed class ViewNotificationTests : ComponentTestBase
             ViewNotification.Warning(notificationService, "新增成功");
             ViewNotification.Info(notificationService, "正在送出");
             ViewNotification.Error(notificationService, "名稱重複");
-            ViewNotification.UnexpectedError(notificationService, "匯出失敗");
+            ViewNotification.UnexpectedError(notificationService, "匯出失敗", new InvalidOperationException("boom"));
             ViewNotification.ValidationError(notificationService, "請填寫名稱");
             ViewNotification.Caution(notificationService, "備份已經在執行中");
         }
@@ -158,6 +210,8 @@ public sealed class ViewNotificationTests : ComponentTestBase
     {
         public ConcurrentQueue<(LogLevel Level, string Text)> Entries { get; } = new();
 
+        public ConcurrentQueue<string> Messages { get; } = new();
+
         public ILogger CreateLogger(string categoryName) => this;
 
         public void AddProvider(ILoggerProvider provider)
@@ -179,6 +233,7 @@ public sealed class ViewNotificationTests : ComponentTestBase
                 ? values.FirstOrDefault(pair => pair.Key == "NotificationText").Value as string
                 : null;
             Entries.Enqueue((logLevel, text ?? formatter(state, exception)));
+            Messages.Enqueue(formatter(state, exception));
         }
     }
 }

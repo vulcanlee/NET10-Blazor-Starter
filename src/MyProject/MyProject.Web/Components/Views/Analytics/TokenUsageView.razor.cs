@@ -308,7 +308,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load LLM usage records.");
-                ViewNotification.UnexpectedError(notificationService, $"載入用量紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入用量紀錄失敗：{ex.GetType().Name}。", ex);
                 rows = [];
                 _total = 0;
                 summary = new TokenUsageSummary();
@@ -807,7 +807,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Usage CSV export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -895,7 +895,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "Usage PDF export failed because the embedded font is missing.");
-                ViewNotification.Error(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
+                ViewNotification.UnexpectedError(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。", ex);
             }
             catch (JSDisconnectedException ex)
             {
@@ -904,7 +904,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Usage PDF export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。", ex);
             }
             finally
             {

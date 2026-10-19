@@ -42,16 +42,24 @@ public static class ViewNotification
     public static void Caution(NotificationService notificationService, string description)
         => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Warning, LogLevel.Warning);
 
-    /// <summary>業務規則拒絕（名稱重複、沒有權限…）；日誌記 Warning，Error 等級留給真正的系統故障。</summary>
-    public static void Error(NotificationService notificationService, string description)
-        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Warning);
+    /// <summary>
+    /// 業務規則拒絕（名稱重複、沒有權限…）；日誌記 Warning，Error 等級留給真正的系統故障。
+    /// <paramref name="detail"/>：沒有例外物件、但有技術細節可給管理員的失敗（例如 AI 的 HTTP 狀態與上游代碼），
+    /// 只在按「複製」時附上，不上畫面、不進日誌。catch 到例外請改用 <see cref="UnexpectedError"/>。
+    /// </summary>
+    public static void Error(NotificationService notificationService, string description, string? detail = null)
+        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Warning, detail: detail);
 
     /// <summary>
     /// 未預期例外（catch 到並已 <c>LogError</c>）的錯誤通知：自動附上錯誤追蹤碼（LOG-10），
     /// 讓使用者複製或抄下來回報。「名稱重複」這類一般驗證訊息請用 <see cref="Error"/>，不附追蹤碼。
+    ///
+    /// <paramref name="exception"/> 必填（0.9.130 起）：管理員（或 <c>ExceptionDetailPolicy</c> 允許時）按「複製」會附上
+    /// 完整的 <c>exception.ToString()</c>（類型、訊息、內層例外、堆疊）。畫面與這筆通知日誌都不含它 ——
+    /// 例外本身已由呼叫端的 <c>LogError(ex, …)</c> 記錄。
     /// </summary>
-    public static void UnexpectedError(NotificationService notificationService, string description)
-        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Error, showTraceCode: true);
+    public static void UnexpectedError(NotificationService notificationService, string description, Exception exception)
+        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Error, showTraceCode: true, detail: exception.ToString());
 
     /// <summary>
     /// 進行中或純資訊性的訊息（例如「正在送出，請稍候」）。
@@ -75,14 +83,15 @@ public static class ViewNotification
         string description,
         NotificationType notificationType,
         LogLevel logLevel,
-        bool showTraceCode = false)
+        bool showTraceCode = false,
+        string? detail = null)
     {
         // 在呼叫當下寫：這時 ScopeContext 裡是這次互動的追蹤碼，日誌的 TraceId 欄位才對得上。
         logger.Log(logLevel, "Notification shown to user. Title={Title}, Kind={NotificationKind}, Text={NotificationText}",
             title, notificationType, description);
 
         var traceCode = TraceCode.Current;
-        Open(notificationService, BuildCopyableConfig(title, description, notificationType, traceCode, DateTime.Now, showTraceCode));
+        Open(notificationService, BuildCopyableConfig(title, description, notificationType, traceCode, DateTime.Now, showTraceCode, detail));
     }
 
     internal static NotificationConfig BuildConfig(string title, string description, NotificationType notificationType)
@@ -101,7 +110,8 @@ public static class ViewNotification
         NotificationType notificationType,
         string? traceCode,
         DateTime occurredAt,
-        bool showTraceCode)
+        bool showTraceCode,
+        string? detail = null)
     {
         var shown = showTraceCode ? description + TraceCode.Suffix(traceCode) : description;
         var config = BuildConfig(title, shown, notificationType);
@@ -117,6 +127,7 @@ public static class ViewNotification
             builder.AddComponentParameter(2, nameof(ToastCopyButton.Description), description);
             builder.AddComponentParameter(3, nameof(ToastCopyButton.TraceCode), traceCode);
             builder.AddComponentParameter(4, nameof(ToastCopyButton.OccurredAt), occurredAt);
+            builder.AddComponentParameter(5, nameof(ToastCopyButton.Detail), detail);
             builder.CloseComponent();
         };
 

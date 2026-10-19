@@ -96,7 +96,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load scheduled jobs.");
-                ViewNotification.UnexpectedError(notificationService, "讀取排程作業時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "讀取排程作業時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
             finally
             {
@@ -141,7 +141,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while triggering a scheduled job.");
-                ViewNotification.UnexpectedError(notificationService, "啟動排程作業時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "啟動排程作業時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -162,7 +162,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while changing a scheduled job enabled state.");
-                ViewNotification.UnexpectedError(notificationService, "切換排程作業時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "切換排程作業時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
                 await ReloadAsync();
             }
         }
@@ -179,7 +179,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load scheduled job runs.");
-                ViewNotification.UnexpectedError(notificationService, "讀取執行紀錄時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "讀取執行紀錄時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
             finally
             {

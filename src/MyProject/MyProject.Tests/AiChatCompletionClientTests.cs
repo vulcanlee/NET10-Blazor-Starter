@@ -165,6 +165,20 @@ public sealed class AiChatCompletionClientTests
         Assert.Equal(payload, logged.ResponseBody);
     }
 
+    [Fact]
+    public async Task CompleteAsync_HttpFailure_ShouldGiveStatusAndCodes_ButNotUpstreamMessage()
+    {
+        // 0.9.130 起：管理員按錯誤通知的「複製」會帶上 ErrorDetail。上游的 error.message 可能回吐 prompt，不可放進去。
+        const string payload = """
+            { "error": { "message": "slow down", "type": "too_many_requests", "code": "no_capacity", "param": null } }
+            """;
+        var (client, _, _) = CreateClient(StubHttpMessageHandler.Json(HttpStatusCode.TooManyRequests, payload));
+
+        var result = await client.CompleteAsync(CreateRequest(new AiChatMessage(AiChatRoles.User, "q")));
+
+        Assert.Equal("HTTP 429; code=no_capacity; type=too_many_requests", result.ErrorDetail);
+    }
+
     public static TheoryData<Exception, string> TransportFailures => new()
     {
         { new TaskCanceledException(), nameof(AiAnalysisFailureReason.Timeout) },
@@ -186,6 +200,18 @@ public sealed class AiChatCompletionClientTests
         Assert.Null(logged.HttpStatus);
         Assert.Null(logged.ResponseBody);
         Assert.Equal(Assert.Single(recorder.Entries).CallId, logged.CallId);
+    }
+
+    [Theory]
+    [MemberData(nameof(TransportFailures))]
+    public async Task CompleteAsync_TransportFailure_ShouldGiveTheExceptionAsDetail(Exception exception, string expectedReason)
+    {
+        var (client, _, _) = CreateClient(StubHttpMessageHandler.Throws(exception));
+
+        var result = await client.CompleteAsync(CreateRequest(new AiChatMessage(AiChatRoles.User, "q")));
+
+        Assert.Equal(expectedReason, result.Reason.ToString());
+        Assert.Contains(exception.GetType().FullName!, result.ErrorDetail, StringComparison.Ordinal);
     }
 
     [Fact]

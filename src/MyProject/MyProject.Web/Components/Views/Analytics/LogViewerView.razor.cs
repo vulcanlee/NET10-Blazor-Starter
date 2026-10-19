@@ -316,7 +316,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Log export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -391,7 +391,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy log entries to clipboard. Rows={Rows}", rows);
-                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
+                ViewNotification.UnexpectedError(notificationService, "複製失敗，請手動選取複製。", ex);
             }
         }
 
@@ -406,7 +406,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 logger.LogError(ex, "Unhandled exception while running AI log analysis.");
 
                 // 對話窗此時還停在「分析中」，不收拾的話會永遠轉下去。
-                ShowAiFailure("AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ShowAiFailure("AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex.ToString());
             }
             finally
             {
@@ -473,7 +473,7 @@ namespace MyProject.Web.Components.Views.Analytics
                     "AI log analysis was not successful. Reason={Reason}, Entries={Entries}",
                     result.Reason,
                     result.Prompt.IncludedEntryCount);
-                ShowAiFailure(result.ErrorMessage);
+                ShowAiFailure(result.ErrorMessage, result.ErrorDetail);
                 return;
             }
 
@@ -527,7 +527,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy AI analysis result to clipboard.");
-                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
+                ViewNotification.UnexpectedError(notificationService, "複製失敗，請手動選取複製。", ex);
             }
         }
 
@@ -548,7 +548,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "AI analysis PDF export failed because the embedded font is missing.");
-                ViewNotification.Error(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
+                ViewNotification.UnexpectedError(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。", ex);
             }
             catch (JSDisconnectedException ex)
             {
@@ -557,7 +557,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI analysis PDF export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。", ex);
             }
             finally
             {
@@ -643,7 +643,7 @@ namespace MyProject.Web.Components.Views.Analytics
         /// 0.9.8 起窗不再自動關閉：toast 幾秒就消失，而失敗訊息常常是「要改哪個設定」
         /// 這種需要照著做的內容，看不完就沒了等於沒說。
         /// </summary>
-        private void ShowAiFailure(string message)
+        private void ShowAiFailure(string message, string? detail = null)
         {
             // ⚠️ 使用者已經放棄的話，什麼都不要做。
             // 取消與上游回應之間有空隙：取消在傳輸層可能先變成 HttpRequestException 而不是
@@ -657,7 +657,7 @@ namespace MyProject.Web.Components.Views.Analytics
             aiErrorMessage = message;
             aiModalState = AiModalState.Failed;
             aiModalVisible = true;
-            ViewNotification.Error(notificationService, message);
+            ViewNotification.Error(notificationService, message, detail);
         }
 
         /// <summary>

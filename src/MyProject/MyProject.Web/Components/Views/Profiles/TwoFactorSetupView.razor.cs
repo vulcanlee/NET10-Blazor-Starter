@@ -169,7 +169,7 @@ public partial class TwoFactorSetupView
         catch (Exception ex)
         {
             Logger.LogError(ex, "Two-factor setup action failed unexpectedly. UserId={UserId}", userId);
-            ViewNotification.Error(NotificationService, "處理兩步驟驗證時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(NotificationService, "處理兩步驟驗證時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
         finally
         {

@@ -107,7 +107,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load prompt templates.");
-                ViewNotification.UnexpectedError(notificationService, "讀取 AI 提示詞時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "讀取 AI 提示詞時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
             finally
             {
@@ -211,7 +211,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while activating a prompt template.");
-                ViewNotification.UnexpectedError(notificationService, "切換 AI 提示詞時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "切換 AI 提示詞時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

@@ -174,6 +174,13 @@ public sealed record AiAnalysisResult
     /// </summary>
     public string ErrorMessage { get; init; } = string.Empty;
 
+    /// <summary>
+    /// 失敗的技術細節（0.9.130 起）：上游 HTTP 狀態與 error code／type／param，或例外的 <c>ToString()</c>。
+    /// 不上畫面；只有管理員（或 <c>ExceptionDetailPolicy</c> 允許時）按錯誤通知的「複製」才會帶上。
+    /// ⚠️ 同 <see cref="ErrorMessage"/>，不可放上游回應 body 或 error.message —— 可能回吐整份 prompt。
+    /// </summary>
+    public string? ErrorDetail { get; init; }
+
     public AiTokenUsage? Usage { get; init; }
 
     public AiPromptBuildResult Prompt { get; init; } = new();
@@ -195,12 +202,14 @@ public sealed record AiAnalysisResult
         string message,
         AiPromptBuildResult? prompt = null,
         TimeSpan elapsed = default,
-        AiTokenUsage? usage = null)
+        AiTokenUsage? usage = null,
+        string? detail = null)
         => new()
         {
             Success = false,
             Reason = reason,
             ErrorMessage = message,
+            ErrorDetail = detail,
             Prompt = prompt ?? new AiPromptBuildResult(),
             Elapsed = elapsed,
             Usage = usage,
