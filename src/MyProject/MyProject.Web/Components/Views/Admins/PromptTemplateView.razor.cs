@@ -198,7 +198,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var result = await promptTemplateService.ActivateAsync(key, row.Version);
                 if (!result.Success)
                 {
-                    ViewNotification.Warning(notificationService, result.Message);
+                    ViewNotification.Caution(notificationService, result.Message);
                     await ReloadAsync();
                     return;
                 }

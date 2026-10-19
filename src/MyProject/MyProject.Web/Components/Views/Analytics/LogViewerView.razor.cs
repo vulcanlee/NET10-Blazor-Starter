@@ -494,14 +494,14 @@ namespace MyProject.Web.Components.Views.Analytics
 
             if (result.Prompt.DroppedByEntryLimit)
             {
-                ViewNotification.Warning(notificationService,
+                ViewNotification.Caution(notificationService,
                     $"查詢共 {result.Prompt.TotalEntryCount} 筆，因筆數上限僅分析最新 {result.Prompt.IncludedEntryCount} 筆。");
             }
 
             // 一份看起來完整、實際被切掉結論的分析報告，比明講「可能不完整」更危險。
             if (result.IsTruncatedByLength)
             {
-                ViewNotification.Warning(notificationService,
+                ViewNotification.Caution(notificationService,
                     "回應已達長度上限，結尾可能不完整。請調高 AiSettings:MaxOutputTokens 或將它設為 null。");
             }
 

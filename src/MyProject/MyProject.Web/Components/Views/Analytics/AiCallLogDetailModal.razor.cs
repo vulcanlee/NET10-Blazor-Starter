@@ -150,7 +150,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 if (detail is null)
                 {
                     visible = false;
-                    ViewNotification.Warning(notificationService, "找不到這筆對話紀錄（可能已被刪除）。");
+                    ViewNotification.Caution(notificationService, "找不到這筆對話紀錄（可能已被刪除）。");
                     return;
                 }
 
@@ -342,7 +342,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 var json = await aiCallLogService.ReadContentFileAsync(detail.Item.Id);
                 if (json is null)
                 {
-                    ViewNotification.Warning(notificationService, "內容檔不存在，無法下載。");
+                    ViewNotification.Caution(notificationService, "內容檔不存在，無法下載。");
                     return;
                 }
 

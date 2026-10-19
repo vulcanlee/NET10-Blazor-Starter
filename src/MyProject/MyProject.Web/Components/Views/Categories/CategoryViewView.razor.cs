@@ -40,7 +40,7 @@ namespace MyProject.Web.Components.Views.Categories
                 }, "分類", "categories", BusinessExports.CategoryColumns);
                 if (outcome.Error is { } error)
                 {
-                    ViewNotification.Warning(notificationService, error);
+                    ViewNotification.Caution(notificationService, error);
                     return;
                 }
 

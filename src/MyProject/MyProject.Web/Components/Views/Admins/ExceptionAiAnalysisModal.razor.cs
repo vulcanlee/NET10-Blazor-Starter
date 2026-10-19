@@ -279,7 +279,7 @@ namespace MyProject.Web.Components.Views.Admins
                 // 一份看起來完整、實際被切掉結論的報告，比明講「可能不完整」更危險。
                 if (result.IsTruncatedByLength)
                 {
-                    ViewNotification.Warning(notificationService,
+                    ViewNotification.Caution(notificationService,
                         "回應已達長度上限，結尾可能不完整。請調高 AiSettings:MaxOutputTokens 或將它設為 null。");
                 }
 

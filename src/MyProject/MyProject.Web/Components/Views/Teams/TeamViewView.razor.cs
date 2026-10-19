@@ -45,7 +45,7 @@ namespace MyProject.Web.Components.Views.Teams
                     }, "團隊", "teams", BusinessExports.TeamColumns(ParentNameForExport));
                 if (outcome.Error is { } error)
                 {
-                    ViewNotification.Warning(notificationService, error);
+                    ViewNotification.Caution(notificationService, error);
                     return;
                 }
 

@@ -39,7 +39,7 @@ namespace MyProject.Web.Components.Views.Admins
                 }, "使用者", "users", BusinessExports.UserColumns);
                 if (outcome.Error is { } error)
                 {
-                    ViewNotification.Warning(notificationService, error);
+                    ViewNotification.Caution(notificationService, error);
                     return;
                 }
 
@@ -774,7 +774,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var copy = await myUserService.BuildCopyDraftAsync(source.Id);
                 if (copy is null)
                 {
-                    ViewNotification.Warning(notificationService, "這位使用者不能當作複製範本，或已不存在，請重新整理後再試。");
+                    ViewNotification.Caution(notificationService, "這位使用者不能當作複製範本，或已不存在，請重新整理後再試。");
                     return;
                 }
 

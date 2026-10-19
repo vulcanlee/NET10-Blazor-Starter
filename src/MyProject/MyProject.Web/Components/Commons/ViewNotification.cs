@@ -1,4 +1,5 @@
 using AntDesign;
+using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.Web.Diagnostics;
 
 namespace MyProject.Web.Components.Commons;
@@ -10,29 +11,47 @@ namespace MyProject.Web.Components.Commons;
 /// （共 48 個），只有 Description 與 NotificationType 不同。
 /// 收斂到這裡之後，新模組不需要再靠複製貼上取得一致的通知外觀，
 /// 也不會出現「某個檢視忘了設 Placement」這種只在該頁看得出來的漂移。
+///
+/// 錯誤與警告（<see cref="Error"/>、<see cref="UnexpectedError"/>、<see cref="ValidationError"/>、<see cref="Caution"/>）
+/// 0.9.129 起：附「複製」按鈕、不自動關閉（使用者按 X 關閉），並在顯示當下寫一筆日誌（帶追蹤碼，/logs 查得到）。
+/// 呼叫端原本自己寫的 log 照留：那筆有例外與上下文，這筆記錄的是「使用者實際看到什麼」。
 /// </summary>
 public static class ViewNotification
 {
     private const string SystemTitle = "系統訊息";
     private const string ValidationTitle = "驗證失敗";
 
+    // static 類別拿不到 DI，由 Program.cs 啟動時設定；沒設定（元件測試）就不寫。
+    private static ILogger logger = NullLogger.Instance;
+
+    public static void UseLoggerFactory(ILoggerFactory loggerFactory)
+        => logger = loggerFactory.CreateLogger(typeof(ViewNotification).FullName!);
+
     /// <summary>
     /// 一般系統訊息。注意：本專案的「新增成功／修改成功／刪除成功」等訊息
     /// **沿用 Warning 型別**（既有外觀，非筆誤），因此刻意不提供 Success 多載，
-    /// 以免有人不小心改掉既有的視覺表現。
+    /// 以免有人不小心改掉既有的視覺表現。真正需要使用者注意的警告請用 <see cref="Caution"/>。
     /// </summary>
     public static void Warning(NotificationService notificationService, string description)
-        => Open(notificationService, SystemTitle, description, NotificationType.Warning);
+        => Open(notificationService, BuildConfig(SystemTitle, description, NotificationType.Warning));
 
+    /// <summary>
+    /// 真正的警告（例如「瀏覽器拒絕存取剪貼簿」「部分資料未處理」）：與 <see cref="Warning"/> 同樣是橘色圖示，
+    /// 但附「複製」按鈕、不自動關閉，並寫一筆 Warning 日誌。成功訊息請繼續用 <see cref="Warning"/>。
+    /// </summary>
+    public static void Caution(NotificationService notificationService, string description)
+        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Warning, LogLevel.Warning);
+
+    /// <summary>業務規則拒絕（名稱重複、沒有權限…）；日誌記 Warning，Error 等級留給真正的系統故障。</summary>
     public static void Error(NotificationService notificationService, string description)
-        => Open(notificationService, SystemTitle, description, NotificationType.Error);
+        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Warning);
 
     /// <summary>
     /// 未預期例外（catch 到並已 <c>LogError</c>）的錯誤通知：自動附上錯誤追蹤碼（LOG-10），
-    /// 停留 10 秒讓使用者抄下來回報。「名稱重複」這類一般驗證訊息請用 <see cref="Error"/>，不附追蹤碼。
+    /// 讓使用者複製或抄下來回報。「名稱重複」這類一般驗證訊息請用 <see cref="Error"/>，不附追蹤碼。
     /// </summary>
     public static void UnexpectedError(NotificationService notificationService, string description)
-        => Open(notificationService, SystemTitle, description + TraceCode.Suffix(TraceCode.Current), NotificationType.Error, durationSeconds: 10);
+        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Error, showTraceCode: true);
 
     /// <summary>
     /// 進行中或純資訊性的訊息（例如「正在送出，請稍候」）。
@@ -42,35 +61,68 @@ public static class ViewNotification
     /// 而新增，其他頁面的既有外觀不受影響。
     /// </summary>
     public static void Info(NotificationService notificationService, string description)
-        => Open(notificationService, SystemTitle, description, NotificationType.Info);
+        => Open(notificationService, BuildConfig(SystemTitle, description, NotificationType.Info));
 
     /// <summary>
-    /// 表單驗證失敗。標題與一般系統訊息區隔，讓使用者知道是自己的輸入有問題；
-    /// 停留時間也拉長到 5 秒（驗證訊息通常較長、需要時間讀完）。
+    /// 表單驗證失敗。標題與一般系統訊息區隔，讓使用者知道是自己的輸入有問題。
     /// </summary>
     public static void ValidationError(NotificationService notificationService, string description)
-        => Open(notificationService, ValidationTitle, description, NotificationType.Error, durationSeconds: 5);
+        => OpenCopyable(notificationService, ValidationTitle, description, NotificationType.Error, LogLevel.Warning);
 
-    private static void Open(
+    private static void OpenCopyable(
         NotificationService notificationService,
-        string message,
+        string title,
         string description,
         NotificationType notificationType,
-        double? durationSeconds = null)
+        LogLevel logLevel,
+        bool showTraceCode = false)
     {
-        var config = new NotificationConfig
+        // 在呼叫當下寫：這時 ScopeContext 裡是這次互動的追蹤碼，日誌的 TraceId 欄位才對得上。
+        logger.Log(logLevel, "Notification shown to user. Title={Title}, Kind={NotificationKind}, Text={NotificationText}",
+            title, notificationType, description);
+
+        var traceCode = TraceCode.Current;
+        Open(notificationService, BuildCopyableConfig(title, description, notificationType, traceCode, DateTime.Now, showTraceCode));
+    }
+
+    internal static NotificationConfig BuildConfig(string title, string description, NotificationType notificationType)
+        => new()
         {
-            Message = message,
+            Message = title,
             Description = description,
             NotificationType = notificationType,
             Placement = NotificationPlacement.BottomRight
         };
 
-        if (durationSeconds.HasValue)
-        {
-            config.Duration = durationSeconds.Value;
-        }
+    /// <summary>有「複製」按鈕的版本：Duration = 0（不自動關閉），否則使用者還沒按到複製通知就消失了。</summary>
+    internal static NotificationConfig BuildCopyableConfig(
+        string title,
+        string description,
+        NotificationType notificationType,
+        string? traceCode,
+        DateTime occurredAt,
+        bool showTraceCode)
+    {
+        var shown = showTraceCode ? description + TraceCode.Suffix(traceCode) : description;
+        var config = BuildConfig(title, shown, notificationType);
+        config.Duration = 0;
 
-        _ = notificationService.Open(config);
+        // 每則通知一個 key：AntDesign 重繪通知清單時，「已複製」的狀態不會跑到別則通知的按鈕上。
+        var key = Guid.NewGuid();
+        config.Btn = builder =>
+        {
+            builder.OpenComponent<ToastCopyButton>(0);
+            builder.SetKey(key);
+            builder.AddComponentParameter(1, nameof(ToastCopyButton.Title), title);
+            builder.AddComponentParameter(2, nameof(ToastCopyButton.Description), description);
+            builder.AddComponentParameter(3, nameof(ToastCopyButton.TraceCode), traceCode);
+            builder.AddComponentParameter(4, nameof(ToastCopyButton.OccurredAt), occurredAt);
+            builder.CloseComponent();
+        };
+
+        return config;
     }
+
+    private static void Open(NotificationService notificationService, NotificationConfig config)
+        => _ = notificationService.Open(config);
 }

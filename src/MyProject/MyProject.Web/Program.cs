@@ -17,6 +17,7 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Auth;
 using MyProject.Web.Components;
+using MyProject.Web.Components.Commons;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Parameters;
@@ -338,6 +339,9 @@ namespace MyProject.Web
                 logger = app.Services.GetRequiredService<ILogger<Program>>();
                 logger.LogInformation("Application host built successfully.");
                 exceptionContextAccessor = app.Services.GetRequiredService<ExceptionContextAccessor>();
+
+                // 右下角錯誤／警告通知顯示時寫一筆日誌（ViewNotification 是 static 類別，拿不到 DI）。
+                ViewNotification.UseLoggerFactory(app.Services.GetRequiredService<ILoggerFactory>());
 
                 // 射後不理的 Task 與背景執行緒的未處理例外（LOG-04）。
                 app.Services.GetRequiredService<ProcessExceptionHooks>().Register(app.Lifetime);

@@ -197,7 +197,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var result = await announcementService.DeleteAsync(item.Id, item.ConcurrencyStamp);
                 if (!result.Success)
                 {
-                    ViewNotification.Warning(notificationService, result.Message);
+                    ViewNotification.Caution(notificationService, result.Message);
                     await ReloadAsync();
                     return;
                 }
