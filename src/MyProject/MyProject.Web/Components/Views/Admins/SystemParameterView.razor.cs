@@ -204,7 +204,7 @@ namespace MyProject.Web.Components.Views.Admins
                 var result = await manager.ResetAsync(definition.Key, row.ConcurrencyStamp);
                 if (!result.Success)
                 {
-                    ViewNotification.Warning(notificationService, result.Message);
+                    ViewNotification.Caution(notificationService, result.Message);
                     await ReloadAsync();
                     return;
                 }
@@ -235,9 +235,13 @@ namespace MyProject.Web.Components.Views.Admins
                 if (result.Success)
                 {
                     await WriteAuditAsync(orphan.ParameterKey, result);
+                    ViewNotification.Warning(notificationService, result.Message);
+                }
+                else
+                {
+                    ViewNotification.Caution(notificationService, result.Message);
                 }
 
-                ViewNotification.Warning(notificationService, result.Message);
                 await ReloadAsync();
             }
             catch (Exception ex)

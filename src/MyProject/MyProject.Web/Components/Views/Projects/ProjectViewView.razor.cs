@@ -42,7 +42,7 @@ public partial class ProjectViewView
             }, "專案", "projects", BusinessExports.ProjectColumns);
             if (outcome.Error is { } error)
             {
-                ViewNotification.Warning(notificationService, error);
+                ViewNotification.Caution(notificationService, error);
                 return;
             }
 

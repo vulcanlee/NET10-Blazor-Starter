@@ -133,7 +133,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 var id = await aiCallLogService.FindIdByCallIdAsync(callId);
                 if (id is null)
                 {
-                    ViewNotification.Warning(
+                    ViewNotification.Caution(
                         notificationService,
                         "找不到這次呼叫的對話紀錄（可能已被清除、超過保留天數，或當時未啟用記錄）。");
                     return;

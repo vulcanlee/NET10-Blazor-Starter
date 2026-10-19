@@ -133,7 +133,7 @@ namespace MyProject.Web.Components.Views.Admins
 
                 if (!overviewService.TryTrigger(SystemBackupJob.JobName, CurrentUserService.CurrentUser.Account, CurrentUserService.CurrentUser.Id))
                 {
-                    ViewNotification.Warning(notificationService, "備份已經在執行中，請等它完成。");
+                    ViewNotification.Caution(notificationService, "備份已經在執行中，請等它完成。");
                     return;
                 }
 
@@ -168,7 +168,7 @@ namespace MyProject.Web.Components.Views.Admins
 
                 if (!store.Delete(item.FileName))
                 {
-                    ViewNotification.Warning(notificationService, "找不到這份備份，可能已被刪除。");
+                    ViewNotification.Caution(notificationService, "找不到這份備份，可能已被刪除。");
                     await ReloadAsync();
                     return;
                 }

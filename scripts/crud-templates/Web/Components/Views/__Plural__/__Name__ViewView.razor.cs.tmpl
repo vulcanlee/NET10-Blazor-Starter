@@ -213,7 +213,7 @@ public partial class __Name__ViewView
                 CurrentRequest(), "__Item__", "__RouteKey__", ExportColumns);
             if (outcome.Error is { } error)
             {
-                ViewNotification.Warning(notificationService, error);
+                ViewNotification.Caution(notificationService, error);
                 return;
             }
 
