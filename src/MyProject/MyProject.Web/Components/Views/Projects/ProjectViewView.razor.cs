@@ -53,7 +53,7 @@ public partial class ProjectViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Project export failed.");
-            ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+            ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
         }
     }
 
@@ -333,7 +333,7 @@ public partial class ProjectViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while deleting project.");
-            ViewNotification.Error(notificationService, "刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 
@@ -407,7 +407,7 @@ public partial class ProjectViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while restoring project.");
-            ViewNotification.Error(notificationService, "還原專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "還原專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 
@@ -440,7 +440,7 @@ public partial class ProjectViewView
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception while purging project.");
-            ViewNotification.Error(notificationService, "永久刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(notificationService, "永久刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
     }
 

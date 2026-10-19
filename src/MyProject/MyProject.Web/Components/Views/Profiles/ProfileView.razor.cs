@@ -92,7 +92,7 @@ public partial class ProfileView
         catch (Exception ex)
         {
             Logger.LogError(ex, "Saving the profile failed unexpectedly.");
-            ViewNotification.Error(NotificationService, "儲存個人資料時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+            ViewNotification.UnexpectedError(NotificationService, "儲存個人資料時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
         }
         finally
         {

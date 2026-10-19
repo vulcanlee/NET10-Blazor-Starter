@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.58
+- 文件版本：6.59
 - 文件狀態：維護中
-- 現行系統版本：0.9.129
+- 現行系統版本：0.9.130
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/10/19
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 錯誤通知「複製」附例外詳細資料：管理員（或 `ExceptionDetailPolicy` 允許時）複製時，最後附上完整 `ex.ToString()`；AI 上游失敗附 HTTP 狀態與 code／type／param（不含上游 message）；`UnexpectedError` 改為必填例外參數，76 處呼叫點傳入 `ex`（含 37 處 catch 內原本用 `Error` 的改為 `UnexpectedError`，補上追蹤碼）（0.9.130）| [2026-10-19-通知複製附例外詳細資料](2026-10-19-通知複製附例外詳細資料.md) |
 | 錯誤與警告通知加「複製」並寫入日誌：`Error`／`UnexpectedError`／`ValidationError` 與新增的 `Caution` 附「複製」按鈕（標題、內文、追蹤碼、時間、頁面），不自動關閉，顯示當下寫一筆日誌（`UnexpectedError` 記 Error、其餘 Warning）；26 處真正的警告由 `Warning` 改 `Caution`；變更密碼頁改走 `ViewNotification`（0.9.129）| [2026-10-19-通知複製與日誌](2026-10-19-通知複製與日誌.md) |
 | 修正 Pkcs 弱點造成的還原失敗：`MailKit` → `MimeKit` 遞移帶入的 `System.Security.Cryptography.Pkcs` 10.0.0 命中 GHSA-2fmv-rv2c-59x7、GHSA-846f-f764-76mx（2026-10-13 發布），被 `TreatWarningsAsErrors` 升級成 error 而無法建置；改由 `MyProject.Web` 直接參考修補版 10.0.13（0.9.126）| [2026-10-15-修正Pkcs弱點還原失敗](2026-10-15-修正Pkcs弱點還原失敗.md) |
 | 通知手動清除與已讀保留：鈴鐺每則加 ×（刪除單則）、標題列加「清除已讀」（只刪自己已讀的，不跳確認）；系統參數新增「已讀站內通知保留天數」`NotificationSettings:ReadRetentionDays`（預設 7，從標為已讀起算，0＝不提早刪除），由「站內通知清理」一併執行；未讀的仍依 90 天（0.9.125）| [2026-10-13-通知手動清除與已讀保留](2026-10-13-通知手動清除與已讀保留.md) |

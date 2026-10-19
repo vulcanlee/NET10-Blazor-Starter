@@ -51,7 +51,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Category export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -270,7 +270,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while changing category status.");
-                ViewNotification.Error(notificationService, "切換分類狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "切換分類狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -287,7 +287,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting category.");
-                ViewNotification.Error(notificationService, "刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -353,7 +353,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while restoring category.");
-                ViewNotification.Error(notificationService, "還原分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "還原分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -386,7 +386,7 @@ namespace MyProject.Web.Components.Views.Categories
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while purging category.");
-                ViewNotification.Error(notificationService, "永久刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "永久刪除分類時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

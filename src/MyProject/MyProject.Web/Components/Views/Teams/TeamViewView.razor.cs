@@ -56,7 +56,7 @@ namespace MyProject.Web.Components.Views.Teams
             catch (Exception ex)
             {
                 logger.LogError(ex, "Team export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -293,7 +293,7 @@ namespace MyProject.Web.Components.Views.Teams
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while changing team status.");
-                ViewNotification.Error(notificationService, "切換團隊狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "切換團隊狀態時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -310,7 +310,7 @@ namespace MyProject.Web.Components.Views.Teams
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting team.");
-                ViewNotification.Error(notificationService, "刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -376,7 +376,7 @@ namespace MyProject.Web.Components.Views.Teams
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while restoring team.");
-                ViewNotification.Error(notificationService, "還原團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "還原團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -409,7 +409,7 @@ namespace MyProject.Web.Components.Views.Teams
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while purging team.");
-                ViewNotification.Error(notificationService, "永久刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "永久刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

@@ -163,7 +163,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load exception logs.");
-                ViewNotification.UnexpectedError(notificationService, $"載入例外紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入例外紀錄失敗：{ex.GetType().Name}。", ex);
                 exceptionLogAdapterModels = [];
                 _total = 0;
             }
@@ -263,7 +263,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy exception log to clipboard. ExceptionLogId={ExceptionLogId}", row.Data.Id);
-                ViewNotification.Error(notificationService, "複製失敗，請改按「查看」手動選取複製。");
+                ViewNotification.UnexpectedError(notificationService, "複製失敗，請改按「查看」手動選取複製。", ex);
             }
         }
 
@@ -300,7 +300,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy exception logs to clipboard.");
-                ViewNotification.UnexpectedError(notificationService, $"複製失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"複製失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -325,7 +325,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy exception logs to clipboard. Rows={Rows}", rows);
-                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
+                ViewNotification.UnexpectedError(notificationService, "複製失敗，請手動選取複製。", ex);
             }
         }
 
@@ -439,7 +439,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Exception log export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 

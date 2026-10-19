@@ -295,7 +295,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.Timeout,
                 $"AI 分析逾時（超過 {settings.TimeoutSeconds} 秒），{request.TimeoutHint}",
-                elapsed: stopwatch.Elapsed);
+                elapsed: stopwatch.Elapsed,
+                detail: ex.ToString());
         }
         catch (HttpRequestException ex)
         {
@@ -308,7 +309,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.UpstreamError,
                 "無法連線到 AI 服務，請確認網路連線與 AiSettings:Endpoint 設定。",
-                elapsed: stopwatch.Elapsed);
+                elapsed: stopwatch.Elapsed,
+                detail: ex.ToString());
         }
         catch (Exception ex)
         {
@@ -319,7 +321,8 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             return AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.Unexpected,
                 $"AI 分析失敗：{ex.GetType().Name}。",
-                elapsed: stopwatch.Elapsed);
+                elapsed: stopwatch.Elapsed,
+                detail: ex.ToString());
         }
         finally
         {
@@ -400,7 +403,25 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             upstream.Message,
             characters);
 
-        return AiAnalysisResult.Failure(reason, message, elapsed: elapsed);
+        return AiAnalysisResult.Failure(reason, message, elapsed: elapsed, detail: DescribeHttpFailure(status, upstream));
+    }
+
+    /// <summary>給管理員複製用的 HTTP 失敗摘要：只有狀態碼與上游代碼，刻意不含 error.message（理由同上）。</summary>
+    internal static string DescribeHttpFailure(HttpStatusCode status, AiUpstreamError upstream)
+    {
+        var parts = new List<string> { $"HTTP {(int)status}" };
+        AddIfPresent("code", upstream.Code);
+        AddIfPresent("type", upstream.Type);
+        AddIfPresent("param", upstream.Param);
+        return string.Join("; ", parts);
+
+        void AddIfPresent(string name, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                parts.Add($"{name}={value}");
+            }
+        }
     }
 
     /// <summary>

@@ -96,7 +96,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load system parameters.");
-                ViewNotification.UnexpectedError(notificationService, "讀取系統參數時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "讀取系統參數時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
             finally
             {
@@ -216,7 +216,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while resetting a system parameter.");
-                ViewNotification.UnexpectedError(notificationService, "還原系統參數時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "還原系統參數時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -247,7 +247,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while removing an unknown system parameter.");
-                ViewNotification.UnexpectedError(notificationService, "移除參數時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "移除參數時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

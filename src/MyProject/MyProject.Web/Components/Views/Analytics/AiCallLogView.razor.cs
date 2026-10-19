@@ -144,7 +144,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to open AI call log from deep link.");
-                ViewNotification.UnexpectedError(notificationService, $"開啟對話紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"開啟對話紀錄失敗：{ex.GetType().Name}。", ex);
             }
         }
 
@@ -186,7 +186,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load AI call logs.");
-                ViewNotification.UnexpectedError(notificationService, $"載入對話紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入對話紀錄失敗：{ex.GetType().Name}。", ex);
                 items = [];
                 _total = 0;
             }
@@ -391,7 +391,7 @@ namespace MyProject.Web.Components.Views.Analytics
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI call log export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 

@@ -1,8 +1,14 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
+@using Microsoft.Extensions.Options
+@using MyProject.Business.Services.Other
+@using MyProject.Web.Configuration
 @inject IJSRuntime JSRuntime
 @inject NavigationManager NavigationManager
+@inject CurrentUserService CurrentUserService
+@inject IOptions<SecuritySettings> SecuritySettings
+@inject IWebHostEnvironment HostEnvironment
 @inject ILogger<ToastCopyButton> Logger
 
 @*
@@ -29,6 +35,13 @@
     [Parameter]
     public DateTime OccurredAt { get; set; }
 
+    /// <summary>
+    /// 完整例外或 AI 失敗的技術細節（0.9.130 起）。畫面上不顯示；只有管理員，或 <see cref="ExceptionDetailPolicy"/>
+    /// 允許時（Development 或 <c>Security:ReturnExceptionDetails=true</c>）按複製才會帶上。
+    /// </summary>
+    [Parameter]
+    public string? Detail { get; set; }
+
     private string label = DefaultLabel;
 
     // 通知不會自動關閉，使用者可能換頁後才按複製，所以在通知出現當下就記下頁面網址。
@@ -38,7 +51,7 @@
 
     private async Task CopyAsync()
     {
-        var text = ToastCopyText.Build(Title, Description, TraceCode, OccurredAt, pageUrl);
+        var text = ToastCopyText.Build(Title, Description, TraceCode, OccurredAt, pageUrl, MayCopyDetail() ? Detail : null);
 
         try
         {
@@ -56,4 +69,10 @@
         label = DefaultLabel;
         StateHasChanged();
     }
+
+    // 按下當下才判斷：堆疊只給管理員，一般使用者在正式環境拿到的就是畫面上的內容（日誌與例外處理 PRD）。
+    private bool MayCopyDetail()
+        => Detail is not null
+            && (CurrentUserService.CurrentUser.IsAdmin
+                || ExceptionDetailPolicy.ShouldReturnDetails(SecuritySettings.Value, HostEnvironment));
 }

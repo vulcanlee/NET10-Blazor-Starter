@@ -104,7 +104,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load backups.");
-                ViewNotification.UnexpectedError(notificationService, "讀取備份清單時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "讀取備份清單時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
             finally
             {
@@ -145,7 +145,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while triggering a backup.");
-                ViewNotification.UnexpectedError(notificationService, "啟動備份時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "啟動備份時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 
@@ -181,7 +181,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled exception while deleting a backup.");
-                ViewNotification.UnexpectedError(notificationService, "刪除備份時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ViewNotification.UnexpectedError(notificationService, "刪除備份時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
         }
 

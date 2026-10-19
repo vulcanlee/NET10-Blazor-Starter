@@ -255,7 +255,7 @@ namespace MyProject.Web.Components.Views.Admins
                         result.Reason,
                         round,
                         item?.Id);
-                    ShowFailure(round, result.ErrorMessage);
+                    ShowFailure(round, result.ErrorMessage, result.ErrorDetail);
                     return;
                 }
 
@@ -295,7 +295,7 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogError(ex, "Unhandled exception while running AI exception analysis.");
 
                 // 不收拾的話，對話窗會永遠停在「分析中」。
-                ShowFailure(round, "AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+                ShowFailure(round, "AI 分析發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex.ToString());
             }
             finally
             {
@@ -318,7 +318,7 @@ namespace MyProject.Web.Components.Views.Admins
         /// 追問失敗不毀掉整段對話：那一則提問從對話移除並放回輸入框，使用者可以直接重送，
         /// 失敗原因則以一則錯誤泡泡留在畫面上（不送給 AI）。
         /// </summary>
-        private void ShowFailure(int round, string message)
+        private void ShowFailure(int round, string message, string? detail = null)
         {
             // ⚠️ 使用者已經放棄的話，什麼都不要做。取消在傳輸層可能先變成 HttpRequestException
             // 而不是 OperationCanceledException —— 少了這道閘門，關掉的視窗會自己跳回來。
@@ -346,7 +346,7 @@ namespace MyProject.Web.Components.Views.Admins
                 scrollToLatestPending = true;
             }
 
-            ViewNotification.Error(notificationService, message);
+            ViewNotification.Error(notificationService, message, detail);
         }
 
         private async Task OnCopyAsync()
@@ -367,7 +367,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy AI exception analysis to clipboard.");
-                ViewNotification.Error(notificationService, "複製失敗，請手動選取複製。");
+                ViewNotification.UnexpectedError(notificationService, "複製失敗，請手動選取複製。", ex);
             }
         }
 
@@ -440,7 +440,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "AI exception analysis PDF export failed because the embedded font is missing.");
-                ViewNotification.Error(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。");
+                ViewNotification.UnexpectedError(notificationService, "PDF 匯出失敗：缺少內建中文字型，請確認建置產物完整。", ex);
             }
             catch (JSDisconnectedException ex)
             {
@@ -449,7 +449,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "AI exception analysis PDF export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。", ex);
             }
             finally
             {

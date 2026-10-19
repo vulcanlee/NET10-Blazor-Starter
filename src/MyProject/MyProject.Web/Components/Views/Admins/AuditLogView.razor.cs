@@ -154,7 +154,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load audit logs.");
-                ViewNotification.UnexpectedError(notificationService, $"載入稽核紀錄失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"載入稽核紀錄失敗：{ex.GetType().Name}。", ex);
                 auditLogAdapterModels = [];
                 _total = 0;
             }
@@ -338,7 +338,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Audit log export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。");
+                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
             }
         }
 
