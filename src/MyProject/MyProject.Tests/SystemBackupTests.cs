@@ -45,6 +45,7 @@ public sealed class SystemBackupTests : IDisposable
         paths.ExceptionPath = Dir("Exception");
         paths.TokenUsagePath = Dir("TokenUsage");
         paths.AiCallLogPath = Dir("AiCallLog");
+        paths.AuditContentPath = Dir("AuditContent");
         paths.DataProtectionKeyPath = Dir("Keys");
         paths.BackupPath = Path.Combine(root, "Backup");
         databaseFile = Path.Combine(paths.DatabasePath, "BackendDB.db");
@@ -62,6 +63,8 @@ public sealed class SystemBackupTests : IDisposable
         File.WriteAllText(Path.Combine(paths.TokenUsagePath, "usage.json"), "{}");
         File.WriteAllText(Path.Combine(paths.DataProtectionKeyPath, "key-1.xml"), "<key/>");
         File.WriteAllText(Path.Combine(paths.AiCallLogPath, "call.json"), "secret prompt");
+        Directory.CreateDirectory(Path.Combine(paths.AuditContentPath, "202610"));
+        File.WriteAllText(Path.Combine(paths.AuditContentPath, "202610", "diff.txt"), "Name: A → B");
     }
 
     // ---------- 備份內容 ----------
@@ -99,10 +102,11 @@ public sealed class SystemBackupTests : IDisposable
         Assert.True(Convert.ToInt32(Scalar(snapshot, "SELECT COUNT(*) FROM AuditLog")) >= 50);
 
         Assert.Equal(
-            new[] { "DataProtectionKeyPath", "ExceptionPath", "ProjectFilePath", "TokenUsagePath" },
+            new[] { "AuditContentPath", "DataProtectionKeyPath", "ExceptionPath", "ProjectFilePath", "TokenUsagePath" },
             manifest.Folders.Select(x => x.SettingKey).Order().ToArray());
         Assert.True(File.Exists(Path.Combine(extracted, "files", "ProjectFile", "2026", "10", "b.pdf")));
         Assert.True(File.Exists(Path.Combine(extracted, "files", "Keys", "key-1.xml")));
+        Assert.True(File.Exists(Path.Combine(extracted, "files", "AuditContent", "202610", "diff.txt")));
         Assert.Equal(2, manifest.Folders.Single(x => x.SettingKey == "ProjectFilePath").FileCount);
         Assert.False(Directory.Exists(Path.Combine(extracted, "files", "AiCallLog")), "AI 對話內容預設不備份。");
         AssertNoLeftovers();
@@ -273,7 +277,7 @@ public sealed class SystemBackupTests : IDisposable
     [
         nameof(ExternalFileSystem.DatabasePath), nameof(ExternalFileSystem.DownloadPath), nameof(ExternalFileSystem.UploadPath),
         nameof(ExternalFileSystem.ProjectFilePath), nameof(ExternalFileSystem.ExceptionPath), nameof(ExternalFileSystem.TokenUsagePath),
-        nameof(ExternalFileSystem.AiCallLogPath), nameof(ExternalFileSystem.DataProtectionKeyPath),
+        nameof(ExternalFileSystem.AiCallLogPath), nameof(ExternalFileSystem.AuditContentPath), nameof(ExternalFileSystem.DataProtectionKeyPath),
     ];
 
     [Theory]
@@ -398,6 +402,7 @@ public sealed class SystemBackupTests : IDisposable
         ExceptionPath = @"C:\data\app\Exception",
         TokenUsagePath = @"C:\data\app\TokenUsage",
         AiCallLogPath = @"C:\data\app\AiCallLog",
+        AuditContentPath = @"C:\data\app\AuditContent",
         DataProtectionKeyPath = @"C:\data\app\Keys",
         BackupPath = @"D:\backup\app",
     };
@@ -443,7 +448,7 @@ public sealed class SystemBackupTests : IDisposable
         public List<string> Actions { get; } = [];
 
         public Task WriteAsync(string action, bool success = true, int? actorUserId = null, string? actorAccount = null,
-            string? targetType = null, string? targetId = null, string? detail = null)
+            string? targetType = null, string? targetId = null, string? detail = null, string? content = null)
         {
             Actions.Add(action);
             return Task.CompletedTask;

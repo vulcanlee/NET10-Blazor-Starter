@@ -199,6 +199,9 @@ namespace MyProject.Web.Components.Views.Admins
             _pageIndex = 1;
             logger.LogInformation("Exception log search triggered.");
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.ExceptionLog.Search, "ExceptionLog",
+                AuditSearchCondition.Of("start", startTime), AuditSearchCondition.Of("end", endTime), AuditSearchCondition.Of("source", selectedSource),
+                AuditSearchCondition.Text("account", accountFilter), AuditSearchCondition.Text("keyword", keyword));
         }
 
         private async Task OnRefreshAsync()
@@ -227,6 +230,8 @@ namespace MyProject.Web.Components.Views.Admins
             isStackTraceLoading = false;
 
             StateHasChanged();
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.ExceptionLog.View, "ExceptionLog",
+                item.Id.ToString(), $"type={item.ExceptionType}");
         }
 
         /// <summary>AI 按鈕的 Tooltip。未設定時直接用服務給的原因當標題，讓人知道少填了什麼。</summary>

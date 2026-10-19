@@ -228,25 +228,29 @@ public class ProjectRepository
     /// <summary>
     /// 更新專案
     /// </summary>
-    public async Task<bool> UpdateAsync(Project project)
+    public async Task<UpdateOutcome> UpdateAsync(Project project)
     {
         var existingProject = await context.Project.FindAsync(project.Id);
         if (existingProject == null || !RecordTeamScope.CanAccess(existingProject.Teams, await accessScope.GetAsync()))
         {
-            return false;
+            return UpdateOutcome.NotFound;
         }
+
+        // 修改前的快照（0.9.131 起，給稽核差異用）：SetValues 之後 existingProject 就是新值了。
+        var before = (Project)context.Entry(existingProject).CurrentValues.ToObject();
 
         project.UpdatedAt = DateTime.Now;
         project.CreatedAt = existingProject.CreatedAt; // 保留原建立時間
 
         context.Entry(existingProject).CurrentValues.SetValues(project);
+        var diff = AuditDiff.Compare(before, existingProject).Render($"專案 #{existingProject.Id}（{before.Title}）修改");
         // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
         // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
         ConcurrencyStampHelper.Apply(context.Entry(existingProject), project.ConcurrencyStamp);
         SoftDeleteHelper.ProtectFlags(context.Entry(existingProject));
         await context.SaveChangesAsync();
 
-        return true;
+        return new UpdateOutcome(true, diff);
     }
 
     #endregion

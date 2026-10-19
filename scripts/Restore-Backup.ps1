@@ -21,7 +21,7 @@
     .\Restore-Backup.ps1 -BackupFile D:\Backup\backup-20261004-020000.zip -SitePath C:\inetpub\app
 
 .EXAMPLE
-    .\Restore-Backup.ps1 -BackupFile .\backup-20261004-020000.zip -DatabasePath D:\data\DB -ProjectFilePath D:\data\ProjectFile -ExceptionPath D:\data\Exception -TokenUsagePath D:\data\TokenUsage -DataProtectionKeyPath D:\data\Keys -Yes
+    .\Restore-Backup.ps1 -BackupFile .\backup-20261004-020000.zip -DatabasePath D:\data\DB -ProjectFilePath D:\data\ProjectFile -ExceptionPath D:\data\Exception -TokenUsagePath D:\data\TokenUsage -AuditContentPath D:\data\AuditContent -DataProtectionKeyPath D:\data\Keys -Yes
 #>
 [CmdletBinding()]
 param(
@@ -36,6 +36,7 @@ param(
     [string]$ExceptionPath,
     [string]$TokenUsagePath,
     [string]$AiCallLogPath,
+    [string]$AuditContentPath,
     [string]$DataProtectionKeyPath,
 
     # 目前部署的系統版本（例如 0.9.99）；不給時讀 appsettings 的 SystemVersion。
@@ -101,6 +102,7 @@ $targets = @{
     ExceptionPath         = Resolve-SettingPath $ExceptionPath 'ExceptionPath'
     TokenUsagePath        = Resolve-SettingPath $TokenUsagePath 'TokenUsagePath'
     AiCallLogPath         = Resolve-SettingPath $AiCallLogPath 'AiCallLogPath'
+    AuditContentPath      = Resolve-SettingPath $AuditContentPath 'AuditContentPath'
     DataProtectionKeyPath = Resolve-SettingPath $DataProtectionKeyPath 'DataProtectionKeyPath'
 }
 

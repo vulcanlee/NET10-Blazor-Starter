@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Auth;
 using MyProject.Web.Diagnostics;
@@ -29,6 +31,8 @@ namespace MyProject.Web.Components;
 ///
 /// 稽核紀錄的來源 IP（0.9.117 起）也在這裡取得：circuit 內的元件事件沒有可靠的 HttpContext，
 /// 只有連線建立（與斷線重連）的當下能從 SignalR 連線拿到 IP，存進同一個 scope 的 <see cref="ClientIpProvider"/>。
+///
+/// 開頁稽核（0.9.131 起）也集中在這裡：已登入的使用者每換一頁寫一筆 <c>Page.View</c>，各頁面不用改。
 /// </summary>
 public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
 {
@@ -40,12 +44,14 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
     private readonly ExceptionContextAccessor exceptionContextAccessor;
     private readonly IHttpContextAccessor httpContextAccessor;
     private readonly ClientIpProvider clientIpProvider;
+    private readonly IAuditLogService auditLogService;
 
     private string circuitId = string.Empty;
     private string previousPath = string.Empty;
     private string account = AnonymousAccount;
     private int userId;
     private bool subscribed;
+    private bool entryAudited;
 
     public ApplicationCircuitHandler(
         ILogger<ApplicationCircuitHandler> logger,
@@ -53,7 +59,8 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
         AuthenticationStateProvider authenticationStateProvider,
         ExceptionContextAccessor exceptionContextAccessor,
         IHttpContextAccessor httpContextAccessor,
-        ClientIpProvider clientIpProvider)
+        ClientIpProvider clientIpProvider,
+        IAuditLogService auditLogService)
     {
         this.logger = logger;
         this.navigationManager = navigationManager;
@@ -61,6 +68,7 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
         this.exceptionContextAccessor = exceptionContextAccessor;
         this.httpContextAccessor = httpContextAccessor;
         this.clientIpProvider = clientIpProvider;
+        this.auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -130,6 +138,15 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
         logger.LogDebug(
             "Blazor circuit connection up. CircuitId={CircuitId}, Account={Account}, UserId={UserId}",
             circuit.Id, account, userId);
+
+        // 進入的第一頁不會觸發 LocationChanged。等到第一次連線建立才寫：這時才拿得到 circuit 的來源 IP
+        // （Blazor 的順序是先 Opened 再 ConnectionUp）。斷線重連會再進來一次，所以只寫一次。
+        if (entryAudited == false)
+        {
+            entryAudited = true;
+            AuditPageView(previousPath, "entry");
+        }
+
         return Task.CompletedTask;
     }
 
@@ -166,7 +183,39 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
             "User navigated. Path={Path}, PreviousPath={PreviousPath}, Account={Account}, UserId={UserId}, CircuitId={CircuitId}",
             path, previousPath, account, userId, circuitId);
 
+        // 只改 query string（同一頁換篩選條件）不算換頁。
+        if (path != previousPath)
+        {
+            AuditPageView(path, previousPath);
+        }
+
         previousPath = path;
+    }
+
+    /// <summary>
+    /// 開頁稽核（0.9.131 起）：只記已登入的使用者；路徑已去掉 query string。
+    ///
+    /// 射後不理：換頁事件是同步的，而且不能讓寫資料庫拖慢換頁。<see cref="IAuditLogService.WriteAsync"/> 不拋出、
+    /// 每次各用一個 DbContext，不會和新頁面初始化撞在同一個 context 上。
+    /// </summary>
+    private void AuditPageView(string path, string from)
+    {
+        if (userId <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = auditLogService.WriteAsync(
+                AuditActions.Page.View, success: true, actorUserId: userId, actorAccount: account,
+                targetType: "Page", targetId: path, detail: $"from={from}");
+        }
+        catch (Exception ex)
+        {
+            // 全站每次換頁都經過這裡：稽核失敗不可以弄壞換頁。
+            logger.LogWarning(ex, "Failed to start page view audit. Path={Path}, CircuitId={CircuitId}", path, circuitId);
+        }
     }
 
     /// <summary>

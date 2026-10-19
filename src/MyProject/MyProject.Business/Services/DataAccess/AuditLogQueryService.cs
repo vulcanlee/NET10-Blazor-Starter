@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
+using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -12,10 +13,10 @@ namespace MyProject.Business.Services.DataAccess;
 /// <summary>
 /// 稽核紀錄的讀取端。
 ///
-/// 寫入端是另一支 <c>AuditLogService</c>（<c>Services/Other</c>）：它被各業務流程夾帶呼叫，
-/// 注入的是 scoped <c>BackendDBContext</c>。本服務只服務 Blazor 畫面，
-/// 因此改注入 <see cref="IDbContextFactory{TContext}"/>、每個方法用完即棄
-/// —— Blazor 的 DI scope 等同整條 SignalR circuit，共用 scoped DbContext 會累積追蹤實體。
+/// 寫入端是另一支 <c>AuditLogService</c>（<c>Services/Other</c>）。兩者都注入 <see cref="IDbContextFactory{TContext}"/>、
+/// 每個方法用完即棄 —— Blazor 的 DI scope 等同整條 SignalR circuit，共用 scoped DbContext 會累積追蹤實體。
+///
+/// 詳細內容檔（0.9.131 起）的刪除也在這裡：清除與清空都要連同 <see cref="AuditContentFileStore"/> 的檔案一起處理。
 ///
 /// ⚠️ <b>時區是本服務唯一的職責重點。</b>資料表的 <c>OccurredAt</c> 存的是 UTC
 /// （與帳號鎖定的 <c>LockoutEndUtc</c> 一致），而畫面的 DatePicker 與顯示格式都是本地時間。
@@ -31,6 +32,7 @@ public class AuditLogQueryService
     public const int MaxExportRows = 10000;
 
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
+    private readonly AuditContentFileStore contentFileStore;
 
     public IMapper Mapper { get; }
     public ILogger<AuditLogQueryService> Logger { get; }
@@ -38,11 +40,27 @@ public class AuditLogQueryService
     public AuditLogQueryService(
         IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
-        ILogger<AuditLogQueryService> logger)
+        ILogger<AuditLogQueryService> logger,
+        AuditContentFileStore contentFileStore)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
+        this.contentFileStore = contentFileStore;
+    }
+
+    /// <summary>
+    /// 讀取一筆稽核的詳細內容（修改差異、查詢條件）。沒有內容檔、或檔案已不存在時回 null。
+    /// </summary>
+    public async Task<string?> GetContentAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var relativePath = await context.AuditLog
+            .Where(x => x.Id == id)
+            .Select(x => x.ContentFile)
+            .FirstOrDefaultAsync();
+
+        return await contentFileStore.ReadAsync(relativePath);
     }
 
     /// <summary>本地時間 → UTC。DatePicker 給的 Kind 多半是 Unspecified，先釘成 Local 再換算。</summary>
@@ -199,9 +217,26 @@ public class AuditLogQueryService
     public async Task<int> PurgeBeforeAsync(DateTime thresholdUtc)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        return await context.AuditLog
+
+        // 先記下要刪的內容檔（只取有檔的列：稽核表可能很大），刪完資料列再刪檔 ——
+        // 反過來的話，資料列刪失敗會留下指向不存在檔案的紀錄。
+        var files = await context.AuditLog
+            .Where(x => x.OccurredAt < thresholdUtc && x.ContentFile != null)
+            .Select(x => x.ContentFile!)
+            .ToListAsync();
+
+        var removed = await context.AuditLog
             .Where(x => x.OccurredAt < thresholdUtc)
             .ExecuteDeleteAsync();
+
+        foreach (var file in files)
+        {
+            contentFileStore.Delete(file);
+        }
+
+        // 收尾：空的月份目錄，以及資料列沒建起來時留下的孤兒檔。
+        contentFileStore.DeleteMonthsBefore(thresholdUtc);
+        return removed;
     }
 
     /// <summary>清空全部紀錄。</summary>
@@ -213,6 +248,7 @@ public class AuditLogQueryService
         try
         {
             var removed = await context.AuditLog.ExecuteDeleteAsync();
+            contentFileStore.DeleteAll();
 
             Logger.LogInformation("Cleared all audit logs. Rows={Rows}", removed);
             return VerifyRecordResultFactory.Build(true, $"已清空 {removed} 筆紀錄。");

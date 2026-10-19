@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
@@ -54,6 +55,10 @@ namespace MyProject.Web.Components.Views.Admins
         public AuthenticationStateProvider authStateProvider { get; set; } = default!;
         [Inject]
         public NavigationManager NavigationManager { get; set; } = default!;
+        [Inject]
+        public IAuditLogService AuditLogService { get; set; } = default!;
+        [Inject]
+        public CurrentUserService CurrentUserService { get; set; } = default!;
 
         public RoleViewView(
             ILogger<RoleViewView> logger,
@@ -158,6 +163,8 @@ namespace MyProject.Web.Components.Views.Admins
             _pageIndex = 1;
             logger.LogInformation("Role view search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.Role.Search, "RoleView",
+                AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
         }
 
         async Task OnRefreshAsync()
@@ -178,6 +185,8 @@ namespace MyProject.Web.Components.Views.Admins
 
             modalVisible = true;
             logger.LogInformation("Opened edit modal for role view. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Role.View, "RoleView",
+                roleViewAdapterModel.Id.ToString(), $"name={roleViewAdapterModel.Name}");
         }
 
         /// <summary>

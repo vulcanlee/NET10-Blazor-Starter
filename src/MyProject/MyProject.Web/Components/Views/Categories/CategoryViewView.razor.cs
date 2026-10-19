@@ -209,6 +209,8 @@ namespace MyProject.Web.Components.Views.Categories
             _pageIndex = 1;
             logger.LogInformation("Category search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.Category.Search, "Category",
+                AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
         }
 
         async Task OnRefreshAsync()
@@ -238,6 +240,8 @@ namespace MyProject.Web.Components.Views.Categories
 
             modalVisible = true;
             logger.LogInformation("Opened edit modal for category. CategoryId={CategoryId}, Name={Name}", categoryAdapterModel.Id, categoryAdapterModel.Name);
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Category.View, "Category",
+                categoryAdapterModel.Id.ToString(), $"name={categoryAdapterModel.Name}");
         }
 
         /// <summary>

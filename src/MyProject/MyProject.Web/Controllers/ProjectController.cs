@@ -203,16 +203,16 @@ public class ProjectController : ControllerBase
                 return BadRequest(ApiResult.ValidationError(teamError));
             }
 
-            var success = await projectRepository.UpdateAsync(project);
+            var outcome = await projectRepository.UpdateAsync(project);
 
-            if (!success)
+            if (!outcome.Updated)
             {
                 logger.LogWarning("Project update request could not find record. ProjectId={ProjectId}", id);
                 return NotFound(ApiResult.NotFoundResult($"找不到 ID 為 {id} 的專案"));
             }
 
             logger.LogInformation("Project updated successfully. ProjectId={ProjectId}, Title={Title}", id, projectDto.Title);
-            await this.WriteAuditAsync(AuditActions.Project.Update, "Project", id.ToString(), $"title={projectDto.Title}");
+            await this.WriteAuditAsync(AuditActions.Project.Update, "Project", id.ToString(), $"title={projectDto.Title}", content: outcome.Diff);
             return Ok(ApiResult.SuccessResult("更新專案成功"));
         }
         catch (DbUpdateConcurrencyException)

@@ -142,6 +142,30 @@ public sealed class CategoryServiceTests
         Assert.Equal(1, await fixture.Context.Category.AsNoTracking().CountAsync());
     }
 
+    /// <summary>修改前後差異（0.9.131 起）寫進稽核的詳細內容檔；資料庫的摘要維持原樣。</summary>
+    [Fact]
+    public async Task UpdateAsync_ShouldPassTheDiffToTheAudit()
+    {
+        await using var fixture = await CategoryServiceFixture.CreateAsync();
+        var category = await fixture.AddCategoryAsync("舊名稱");
+        var service = fixture.CreateService();
+        var current = await fixture.Context.Category.AsNoTracking().SingleAsync(x => x.Id == category.Id);
+
+        var result = await service.UpdateAsync(new CategoryAdapterModel
+        {
+            Id = category.Id,
+            Name = "新名稱",
+            ConcurrencyStamp = current.ConcurrencyStamp,
+        });
+
+        Assert.True(result.Success);
+        var audit = Assert.Single(fixture.Audit.Entries);
+        Assert.Equal("name=新名稱", audit.Detail);
+        var content = Assert.Single(fixture.Audit.Contents).Content;
+        Assert.Contains("Name: 舊名稱 → 新名稱", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConcurrencyStamp", content, StringComparison.Ordinal);
+    }
+
     private sealed class CategoryServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
@@ -161,6 +185,8 @@ public sealed class CategoryServiceTests
         }
 
         public BackendDBContext Context { get; }
+
+        public RecordingAuditLogService Audit { get; } = new();
 
         public static async Task<CategoryServiceFixture> CreateAsync()
         {
@@ -185,7 +211,7 @@ public sealed class CategoryServiceTests
                 mapper,
                 loggerFactory.CreateLogger<CategoryService>(),
                 new FakeRecordAccessScopeProvider(isAdmin: true, []),
-                new RecordingAuditLogService(),
+                Audit,
                 new MyProject.Business.Services.Other.CurrentUserService());
         }
 

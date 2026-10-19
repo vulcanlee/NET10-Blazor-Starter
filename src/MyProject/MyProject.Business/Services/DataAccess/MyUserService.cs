@@ -53,6 +53,28 @@ public class MyUserService
         return user.Id > 0 ? (user.Id, user.Account) : (null, null);
     }
 
+    /// <summary>
+    /// 修改使用者的稽核差異（0.9.131 起）。⚠️ 密碼、Salt、SecurityStamp、兩步驟密鑰絕不寫值：密碼只記「已變更」；
+    /// Google 綁定、登入失敗次數、鎖定與密碼時間是系統維護的，不是這次修改改的，不列入。
+    /// </summary>
+    private static string? BuildUpdateDiff(
+        MyUser before,
+        MyUser after,
+        bool passwordChanged,
+        (List<int> AdditionalRoleIds, List<string> TeamNames) beforeAssignments,
+        MyUserAdapterModel paraObject)
+        => AuditDiff.Compare(before, after,
+                nameof(MyUser.Password), nameof(MyUser.Salt), nameof(MyUser.SecurityStamp),
+                nameof(MyUser.TwoFactorSecret), nameof(MyUser.TwoFactorLastStep), nameof(MyUser.TwoFactorEnabled),
+                nameof(MyUser.GoogleId), nameof(MyUser.OAuthProvider),
+                nameof(MyUser.AccessFailedCount), nameof(MyUser.LockoutEndUtc), nameof(MyUser.PasswordChangedAtUtc))
+            .Masked(nameof(MyUser.Password), passwordChanged)
+            .Set("AdditionalRoleIds",
+                beforeAssignments.AdditionalRoleIds.Select(x => x.ToString()),
+                (paraObject.AdditionalRoleIds ?? []).Where(x => x != paraObject.RoleViewId).Select(x => x.ToString()))
+            .Set("Teams", beforeAssignments.TeamNames, paraObject.TeamNames ?? [])
+            .Render($"使用者 #{after.Id}（{before.Account}）修改");
+
     /// <summary>彙整使用者指派摘要（帳號、角色 Id、團隊）供稽核 Detail。</summary>
     private static string BuildAssignmentDetail(string account, MyUserAdapterModel paraObject)
     {
@@ -319,6 +341,10 @@ public class MyUserService
                 || itemData.IsAdmin != paraObject.IsAdmin
                 || !(await GetActiveRoleIdsAsync(context, itemData.Id, itemData.RoleViewId)).SetEquals(DesiredRoleIds(paraObject));
 
+            // 修改前的快照與指派（0.9.131 起，給稽核差異用）：要在逐欄指定與同步指派之前取。
+            var before = (MyUser)context.Entry(itemData).CurrentValues.ToObject();
+            var beforeAssignments = await GetUserAssignmentsAsync(itemData.Id);
+
             // 只複製編輯畫面上有的欄位（0.9.93 起）。0.9.92 之前是整筆覆蓋，而畫面模型沒有登入失敗次數、
             // 鎖定到期、兩步驟驗證、Google 綁定 —— 管理員只改姓名，被鎖定的帳號就解鎖了。
             itemData.Account = paraObject.Account;
@@ -343,6 +369,8 @@ public class MyUserService
                 itemData.SecurityStamp = SecurityStamps.New();
             }
 
+            var diff = BuildUpdateDiff(before, itemData, settingPassword, beforeAssignments, paraObject);
+
             var entry = context.Entry(itemData);
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             SoftDeleteHelper.ProtectFlags(entry);
@@ -354,7 +382,8 @@ public class MyUserService
             await auditLogService.WriteAsync(
                 AuditActions.User.Update, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(MyUser), targetId: itemData.Id.ToString(),
-                detail: BuildAssignmentDetail(itemData.Account, paraObject));
+                detail: BuildAssignmentDetail(itemData.Account, paraObject),
+                content: diff);
 
             Logger.LogInformation("User updated successfully. UserId={UserId}, Account={Account}", itemData.Id, itemData.Account);
             return VerifyRecordResultFactory.Build(true);

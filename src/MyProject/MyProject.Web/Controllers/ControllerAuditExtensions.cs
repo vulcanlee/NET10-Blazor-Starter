@@ -19,7 +19,8 @@ public static class ControllerAuditExtensions
         string targetType,
         string? targetId,
         string? detail = null,
-        bool success = true)
+        bool success = true,
+        string? content = null)
     {
         var (account, userId) = RequestActorResolver.Resolve(controller.User);
         var auditLogService = controller.HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
@@ -31,6 +32,7 @@ public static class ControllerAuditExtensions
             actorAccount: account,
             targetType: targetType,
             targetId: targetId,
-            detail: detail);
+            detail: detail,
+            content: content);
     }
 }

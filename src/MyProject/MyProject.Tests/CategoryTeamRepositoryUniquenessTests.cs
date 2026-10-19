@@ -80,6 +80,23 @@ public sealed class CategoryTeamRepositoryUniquenessTests
         Assert.False(await repository.ExistsByCodeAsync(string.Empty));
     }
 
+    /// <summary>API 路徑的修改也帶回差異（0.9.131 起），由 Controller 寫進稽核的詳細內容檔。</summary>
+    [Fact]
+    public async Task CategoryUpdate_ShouldReturnTheDiff()
+    {
+        await using var fixture = await RepositoryFixture.CreateAsync();
+        var category = new Category { Name = "舊名稱", Description = "說明" };
+        fixture.Context.Category.Add(category);
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var outcome = await fixture.CreateCategoryRepository().UpdateAsync(
+            new Category { Id = category.Id, Name = "新名稱", Description = "說明", ConcurrencyStamp = category.ConcurrencyStamp });
+
+        Assert.True(outcome.Updated);
+        Assert.Equal($"分類 #{category.Id}（舊名稱）修改\nName: 舊名稱 → 新名稱", outcome.Diff);
+    }
+
     private sealed class RepositoryFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;

@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
+using Microsoft.Extensions.Options;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -357,6 +359,59 @@ public sealed class AuditLogQueryServiceTests
     }
 
     // ---------------------------------------------------------------
+    // 詳細內容檔（0.9.131 起）
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task GetContentAsync_ShouldReadTheFile_AndReturnNullWhenMissing()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var store = fixture.CreateContentStore();
+        var file = await store.WriteAsync(DateTime.UtcNow, "Name: A → B");
+        await fixture.SeedAsync(
+            new AuditLog { Action = "Category.Update", OccurredAt = DateTime.UtcNow, ContentFile = file },
+            new AuditLog { Action = "Page.View", OccurredAt = DateTime.UtcNow });
+        var rows = await fixture.ListAsync();
+        var service = fixture.CreateService();
+
+        Assert.Equal("Name: A → B", await service.GetContentAsync(rows.Single(x => x.ContentFile != null).Id));
+        Assert.Null(await service.GetContentAsync(rows.Single(x => x.ContentFile == null).Id));
+    }
+
+    [Fact]
+    public async Task PurgeBeforeAsync_ShouldDeleteTheContentFilesOfRemovedRowsOnly()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var store = fixture.CreateContentStore();
+        var now = DateTime.UtcNow;
+        var oldFile = await store.WriteAsync(now.AddDays(-400), "old");
+        var newFile = await store.WriteAsync(now, "new");
+        await fixture.SeedAsync(
+            new AuditLog { Action = "Category.Update", OccurredAt = now.AddDays(-400), ContentFile = oldFile },
+            new AuditLog { Action = "Category.Update", OccurredAt = now, ContentFile = newFile });
+
+        var removed = await fixture.CreateService().PurgeBeforeAsync(now.AddDays(-365));
+
+        Assert.Equal(1, removed);
+        Assert.Null(await store.ReadAsync(oldFile));
+        Assert.Equal("new", await store.ReadAsync(newFile));
+    }
+
+    [Fact]
+    public async Task ClearAllAsync_ShouldDeleteEveryContentFile()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var store = fixture.CreateContentStore();
+        var file = await store.WriteAsync(DateTime.UtcNow, "content");
+        await fixture.SeedAsync(new AuditLog { Action = "Category.Update", OccurredAt = DateTime.UtcNow, ContentFile = file });
+
+        await fixture.CreateService().ClearAllAsync();
+
+        Assert.Null(await store.ReadAsync(file));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(fixture.ContentRoot));
+    }
+
+    // ---------------------------------------------------------------
     // AdapterModel 的計算屬性
     // ---------------------------------------------------------------
 
@@ -381,6 +436,7 @@ public sealed class AuditLogQueryServiceTests
         private Fixture(SqliteConnection connection)
         {
             this.connection = connection;
+            ContentRoot = Path.Combine(Path.GetTempPath(), "audit-content-" + Guid.NewGuid().ToString("N"));
 
             loggerFactory = LoggerFactory.Create(_ => { });
             var mapperConfiguration = new MapperConfiguration(
@@ -404,11 +460,22 @@ public sealed class AuditLogQueryServiceTests
             return new Fixture(connection);
         }
 
+        /// <summary>詳細內容檔的根目錄（每個測試一個暫存目錄）。</summary>
+        public string ContentRoot { get; }
+
+        public AuditContentFileStore CreateContentStore()
+        {
+            var settings = new SystemSettings();
+            settings.ExternalFileSystem.AuditContentPath = ContentRoot;
+            return new AuditContentFileStore(Options.Create(settings), loggerFactory.CreateLogger<AuditContentFileStore>());
+        }
+
         public AuditLogQueryService CreateService()
             => new(
                 new TestDbContextFactory(connection),
                 mapper,
-                loggerFactory.CreateLogger<AuditLogQueryService>());
+                loggerFactory.CreateLogger<AuditLogQueryService>(),
+                CreateContentStore());
 
         public async Task SeedAsync(params AuditLog[] rows)
         {
@@ -427,6 +494,10 @@ public sealed class AuditLogQueryServiceTests
         {
             loggerFactory.Dispose();
             await connection.DisposeAsync();
+            if (Directory.Exists(ContentRoot))
+            {
+                Directory.Delete(ContentRoot, recursive: true);
+            }
         }
     }
 }

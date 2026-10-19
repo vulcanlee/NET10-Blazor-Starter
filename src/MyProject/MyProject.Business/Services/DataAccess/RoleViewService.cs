@@ -216,6 +216,12 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的角色資料。");
             }
 
+            // 修改前後差異（0.9.131 起）：權限與預設團隊是 JSON，比對解析後的集合（新增／移除哪些鍵），不比 JSON 原文。
+            var diff = AuditDiff.Compare(item, itemData, nameof(RoleView.TabViewJson), nameof(RoleView.DefaultTeamsJson))
+                .Set("Permissions", ParsePermissionKeys(item.TabViewJson), ParsePermissionKeys(itemData.TabViewJson))
+                .Set("DefaultTeams", TeamJsonHelper.Deserialize(item.DefaultTeamsJson), TeamJsonHelper.Deserialize(itemData.DefaultTeamsJson))
+                .Render($"角色 #{itemData.Id}（{item.Name}）修改");
+
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
@@ -229,7 +235,8 @@ public class RoleViewService
             await auditLogService.WriteAsync(
                 AuditActions.Role.Update, success: true, actorUserId: actorUserId, actorAccount: actorAccount,
                 targetType: nameof(RoleView), targetId: itemData.Id.ToString(),
-                detail: $"name={itemData.Name}; permissionKeyCount={permissionKeys.Count}; requireTwoFactor={itemData.RequireTwoFactor}");
+                detail: $"name={itemData.Name}; permissionKeyCount={permissionKeys.Count}; requireTwoFactor={itemData.RequireTwoFactor}",
+                content: diff);
 
             Logger.LogInformation("Role view updated successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemData.Id, itemData.Name);
             return VerifyRecordResultFactory.Build(true);

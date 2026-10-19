@@ -16,7 +16,7 @@ namespace MyProject.Web.Backup;
 public sealed record BackupRunResult(bool Success, string Message, string? FileName = null, long SizeBytes = 0, int MissingFileCount = 0);
 
 /// <summary>
-/// 建立一份系統備份 zip（0.9.99 起）：資料庫快照＋專案附件＋例外堆疊檔＋Token 原始檔＋Data Protection 金鑰環（AI 對話內容可選）。
+/// 建立一份系統備份 zip（0.9.99 起）：資料庫快照＋專案附件＋例外堆疊檔＋Token 原始檔＋稽核內容檔（0.9.131 起）＋Data Protection 金鑰環（AI 對話內容可選）。
 ///
 /// ⚠️ 設計重點（都有測試釘住）：
 /// <list type="bullet">
@@ -154,6 +154,7 @@ public sealed class SystemBackupService
             new("files/ProjectFile", nameof(paths.ProjectFilePath), paths.ProjectFilePath),
             new("files/Exception", nameof(paths.ExceptionPath), paths.ExceptionPath),
             new("files/TokenUsage", nameof(paths.TokenUsagePath), paths.TokenUsagePath),
+            new("files/AuditContent", nameof(paths.AuditContentPath), paths.AuditContentPath),
             new("files/Keys", nameof(paths.DataProtectionKeyPath), paths.DataProtectionKeyPath),
         };
 

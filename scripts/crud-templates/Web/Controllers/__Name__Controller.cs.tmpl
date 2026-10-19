@@ -141,13 +141,14 @@ public class __Name__Controller : ControllerBase
             }
 
 #ENDIF
-            if (!await repository.UpdateAsync(item))
+            var outcome = await repository.UpdateAsync(item);
+            if (!outcome.Updated)
             {
                 return NotFound(ApiResult.NotFoundResult($"找不到 ID 為 {id} 的__Item__"));
             }
 
             logger.LogInformation("__Name__ updated via API. __Name__Id={__Name__Id}", id);
-            await this.WriteAuditAsync(AuditActions.__Name__.Update, "__Name__", id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"name={dto.Name}");
+            await this.WriteAuditAsync(AuditActions.__Name__.Update, "__Name__", id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"name={dto.Name}", content: outcome.Diff);
             return Ok(ApiResult.SuccessResult("更新__Item__成功"));
         }
         catch (DbUpdateConcurrencyException)

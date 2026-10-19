@@ -155,6 +155,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 }
 
                 RebuildBlocks();
+                await ViewAudit.WriteAsync(auditLogService, currentUserService, AuditActions.AiCallLog.View, "AiCallLog", id.ToString(), null);
             }
             catch (Exception ex)
             {

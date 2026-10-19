@@ -205,6 +205,8 @@ namespace MyProject.Web.Components.Views.Admins
             _pageIndex = 1;
             logger.LogInformation("User search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync();
+            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.User.Search, "MyUser",
+                AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
         }
 
         async Task OnRefreshAsync()
@@ -232,6 +234,8 @@ namespace MyProject.Web.Components.Views.Admins
 
             modalVisible = true;
             logger.LogInformation("Opened edit modal for user. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.User.View, "MyUser",
+                myUserAdapterModel.Id.ToString(), $"account={myUserAdapterModel.Account}");
         }
 
         /// <summary>

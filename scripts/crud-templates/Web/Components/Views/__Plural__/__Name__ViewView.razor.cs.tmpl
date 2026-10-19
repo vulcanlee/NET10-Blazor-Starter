@@ -188,6 +188,8 @@ public partial class __Name__ViewView
     {
         _pageIndex = 1;
         await ReloadAsync();
+        await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.__Name__.Search, "__Name__",
+            AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
     }
 
     private async Task OnRefreshAsync()
@@ -243,14 +245,15 @@ public partial class __Name__ViewView
         return Task.CompletedTask;
     }
 
-    private Task OnEditAsync(__Name__AdapterModel record)
+    private async Task OnEditAsync(__Name__AdapterModel record)
     {
         isNewRecordMode = false;
         modalTitle = "修改__Item__";
         CurrentRecord = record.Clone();
         dirtyTracker.Capture(CurrentRecord);
         modalVisible = true;
-        return Task.CompletedTask;
+        await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.__Name__.View, "__Name__",
+            record.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"name={record.Name}");
     }
 
     /// <summary>

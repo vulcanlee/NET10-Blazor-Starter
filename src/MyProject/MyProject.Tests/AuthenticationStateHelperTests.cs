@@ -434,12 +434,12 @@ public sealed class AuthenticationStateHelperTests
             return new AuthenticationStateHelper(
                 loggerFactory.CreateLogger<AuthenticationStateHelper>(),
                 mapper,
-                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy()),
+                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy()),
                 CurrentUserService,
                 rolePermissionService,
                 new EffectiveTeamResolver(Context, new ContextTeamTreeCache(Context), NullLogger<EffectiveTeamResolver>.Instance),
                 new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()),
+                new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()),
                 passwordPolicy ?? PasswordTestDefaults.Policy(),
                 new SecurityStampService(new TestDbContextFactory(connection), TimeProvider.System, NullLogger<SecurityStampService>.Instance),
                 TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), currentUser: CurrentUserService, settings: TwoFactorSettings));

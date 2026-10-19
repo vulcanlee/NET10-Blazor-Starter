@@ -123,25 +123,29 @@ public class CategoryRepository
         return category;
     }
 
-    public async Task<bool> UpdateAsync(Category category)
+    public async Task<UpdateOutcome> UpdateAsync(Category category)
     {
         var existing = await context.Category.FindAsync(category.Id);
         if (existing == null || !RecordTeamScope.CanAccessCategory(existing.Teams, await accessScope.GetAsync()))
         {
-            return false;
+            return UpdateOutcome.NotFound;
         }
+
+        // 修改前的快照（0.9.131 起，給稽核差異用）：SetValues 之後 existing 就是新值了。
+        var before = (Category)context.Entry(existing).CurrentValues.ToObject();
 
         category.UpdatedAt = DateTime.Now;
         category.CreatedAt = existing.CreatedAt;
 
         context.Entry(existing).CurrentValues.SetValues(category);
+        var diff = AuditDiff.Compare(before, existing).Render($"分類 #{existing.Id}（{before.Name}）修改");
         // FindAsync 載入的 OriginalValue 是資料庫目前的版本號，必須改成客戶端帶來的值才比對得出衝突；
         // 衝突時 SaveChanges 丟 DbUpdateConcurrencyException，由 controller 轉成 409。
         ConcurrencyStampHelper.Apply(context.Entry(existing), category.ConcurrencyStamp);
         SoftDeleteHelper.ProtectFlags(context.Entry(existing));
         await context.SaveChangesAsync();
 
-        return true;
+        return new UpdateOutcome(true, diff);
     }
 
     /// <summary>

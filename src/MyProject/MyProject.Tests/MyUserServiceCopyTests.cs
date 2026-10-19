@@ -167,7 +167,7 @@ public sealed class MyUserServiceCopyTests
 
         public MyUserService CreateService()
             => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
-                new AuditLogService(Context, loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
+                new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public async Task<RoleView> AddRoleAsync(string name)
         {

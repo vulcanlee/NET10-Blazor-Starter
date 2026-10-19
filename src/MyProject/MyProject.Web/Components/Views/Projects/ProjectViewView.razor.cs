@@ -290,6 +290,8 @@ public partial class ProjectViewView
         _pageIndex = 1;
         logger.LogInformation("Project search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
         await ReloadAsync();
+        await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.Project.Search, "Project",
+            AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("categories", selectedCategoryFilters), AuditSearchCondition.Of("teams", selectedTeamFilters), AuditSearchCondition.Of("showDeleted", showDeleted));
     }
 
     private async Task OnRefreshAsync()
@@ -318,6 +320,8 @@ public partial class ProjectViewView
 
         modalVisible = true;
         logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}, Title={Title}", projectAdapterModel.Id, projectAdapterModel.Title);
+        await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Project.View, "Project",
+            projectAdapterModel.Id.ToString(), $"title={projectAdapterModel.Title}");
     }
 
     /// <summary>

@@ -132,8 +132,11 @@ public class __Name__Repository
         return item;
     }
 
-    /// <summary>修改；找不到（或已刪除、不在範圍內）回 false。版本號不符時丟 DbUpdateConcurrencyException（controller 回 409）。</summary>
-    public async Task<bool> UpdateAsync(__Name__ item)
+    /// <summary>
+    /// 修改；找不到（或已刪除、不在範圍內）回 <see cref="UpdateOutcome.NotFound"/>。版本號不符時丟 DbUpdateConcurrencyException（controller 回 409）。
+    /// 成功時帶回修改前後差異，給稽核詳細內容檔。
+    /// </summary>
+    public async Task<UpdateOutcome> UpdateAsync(__Name__ item)
     {
         var existing = await context.__Name__.FindAsync(item.Id);
 #IF TEAMS
@@ -142,17 +145,19 @@ public class __Name__Repository
         if (existing == null)
 #ENDIF
         {
-            return false;
+            return UpdateOutcome.NotFound;
         }
 
         item.UpdatedAt = DateTime.Now;
         item.CreatedAt = existing.CreatedAt;
 
+        var before = (__Name__)context.Entry(existing).CurrentValues.ToObject();
         context.Entry(existing).CurrentValues.SetValues(item);
+        var diff = AuditDiff.Compare(before, existing).Render($"__Item__ #{existing.Id}（{before.Name}）修改");
         ConcurrencyStampHelper.Apply(context.Entry(existing), item.ConcurrencyStamp);
         SoftDeleteHelper.ProtectFlags(context.Entry(existing));
         await context.SaveChangesAsync();
-        return true;
+        return new UpdateOutcome(true, diff);
     }
 
     /// <summary>軟刪除；已刪除或找不到回 false（controller 回 404）。</summary>

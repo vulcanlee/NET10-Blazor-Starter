@@ -35,6 +35,12 @@ public class AuditLogAdapterModel
     /// <summary>來源 IP（0.9.117 起）；排程作業與之前的舊紀錄為 null。</summary>
     public string? ClientIp { get; set; }
 
+    /// <summary>
+    /// 詳細內容檔的相對路徑（0.9.131 起）：修改前後差異、完整查詢條件。
+    /// 清單查詢不讀檔，明細窗打開時才經 <c>AuditLogQueryService.GetContentAsync</c> 讀取。
+    /// </summary>
+    public string? ContentFile { get; set; }
+
     /// <summary>動作代碼的第一節（例如 Login.Success → Login），用於清單的分類標籤。</summary>
     public string ActionCategory
     {

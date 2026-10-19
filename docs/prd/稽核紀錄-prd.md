@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.9.123
+- 現行系統版本：0.9.131
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/19
 
 ## 一、目標與範圍
 
@@ -61,6 +61,11 @@
 列出本地時間、**UTC 原值**、結果、動作代碼、操作者、來源 IP、目標類型、目標識別與完整摘要。
 UTC 原值一併呈現是刻意的：跨時區協查或要與日誌檔的時間戳對照時會用到。
 
+**詳細內容（0.9.131 起）**：有內容檔的紀錄在摘要下方多一個「詳細內容」區塊 —— 修改的前後差異（`欄位: 舊值 → 新值`）
+或查詢的完整條件（含搜尋原文）。內容檔存在 `SystemSettings:ExternalFileSystem:AuditContentPath`（`{yyyyMM}/{Guid}.txt`，月份依 UTC），
+資料表只存相對路徑 `ContentFile`；清單查詢不讀檔，開明細窗時才經 `AuditLogQueryService.GetContentAsync` 讀取，檔案不在時顯示說明。
+內容檔不進 CSV、不進日誌；清除 N 天前、清空全部與自動清理都會連同內容檔一起刪（`AuditContentFileStore` 是唯一入口），系統備份也會打包（`files/AuditContent`）。
+
 尺寸與內容樣式寫在 `Components/Commons/OverlayStyles.razor` 的 `.audit-log-modal`，
 **不是** `AuditLogView.razor.css` —— AntDesign 的 `Modal` 渲染在元件 DOM 之外，
 scoped CSS 連 `::deep` 都打不到。
@@ -99,13 +104,30 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 六、資料來源
 
-0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 105 個），呼叫點一律引用常數，
+0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 132 個），呼叫點一律引用常數，
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
 實作 `Web/Auth/ClientIpProvider` 依情境決定 —— SSR 頁面（登入／登出／兩步驟驗證）與 Web API 讀 `HttpContext.Connection.RemoteIpAddress`；
 Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入（circuit 內沒有可靠的 HttpContext）；
 排程作業兩者皆無，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
+
+**0.9.131 起的記錄範圍**：除了改變狀態的動作與安全事件，也記使用者**開了哪些頁、查了什麼、看了哪一筆、改了什麼**：
+
+| 動作代碼 | 來源與內容 |
+| --- | --- |
+| `Page.View` | `ApplicationCircuitHandler`：已登入使用者每換一頁一筆（只改 query string 不算），進入的第一頁在第一次連線建立時寫；`TargetId` 是路徑（不含 query string），Detail `from=上一頁`（第一頁為 `from=entry`）|
+| `Category.Search` / `Project.Search` / `Team.Search` / `User.Search` / `Role.Search` | 五個主要資料頁按「搜尋」（翻頁、排序、清除不記）；Detail 只有短摘要（`hasKeyword=…; showDeleted=…`），完整條件含搜尋原文在內容檔 |
+| `Category.View` / `Project.View` / `Team.View` / `User.View` / `Role.View` | 五個主要資料頁按「修改」開窗（查看那一筆）；Detail 是名稱或帳號 |
+| `LogViewer.Search` / `ExceptionLog.Search` / `AiCallLog.Search` / `TokenUsage.Search` / `Audit.Search` | 管理診斷頁按「查詢」（日誌檢視打開頁面時的自動查詢不記）；條件同上 |
+| `ExceptionLog.View` / `AiCallLog.View` / `TokenUsage.View` / `Audit.View` | 開明細窗。日誌檢視的展開只發生在瀏覽器端，沒有 `LogViewer.View` |
+
+**修改前後差異**：分類、專案、團隊、使用者、角色的修改（Blazor 與 Web API 兩條路徑）以及個人資料改姓名，
+由 `AuditDiff` 比對修改前後的純量欄位寫進內容檔；Detail 維持原本的短摘要。主鍵、版本號、建立／更新時間、軟刪除欄位不比；
+使用者的密碼只記「已變更」，Salt、SecurityStamp、兩步驟密鑰、Google 綁定、鎖定與失敗次數不比；額外角色、團隊、角色權限與預設團隊列出新增與移除。
+
+**同步到日誌**：`AuditLogService` 每寫一筆就記一行 Debug `Audit recorded. Action=…, Detail=…, ContentFile=…`（只有短摘要與檔名，不含內容檔）。
+Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看得到。
 
 下表為 0.9.42 立頁時的寫入端：
 
@@ -147,7 +169,6 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 
 - `OccurredAt` 索引 migration。
 - 稽核事件的告警（例如同一帳號短時間大量 `Login.Failed`）。
-- 稽核記錄修改前後值（目前只記摘要）。
 
 ## 八、測試
 
@@ -158,7 +179,10 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 - `MenuPermissionConsistencyTests`：`AuditLogView.razor.cs` 列於 `AdminOnlyViews`，
   不得使用 `CheckAccessPage`。
 - `MenuIconTests`：`fact_check` 已列入允許的 classic Material Icons。
-- `DataAccessServiceLifetimeTests`：`AuditLogQueryService` 必須注入 `IDbContextFactory`。
+- `DataAccessServiceLifetimeTests`：`AuditLogQueryService` 與 `AuditLogService`（0.9.131 起）必須注入 `IDbContextFactory`。
+- 0.9.131 起：`AuditDiffTests`（比對、排除、遮罩、集合差異）、`AuditContentFileStoreTests`（拒絕根目錄外的路徑）、
+  `AuditLogServiceTests`（內容檔、Debug 同步不含內容）、`AuditLogQueryServiceTests`（清除與清空連同內容檔）、
+  `ViewAuditTests`（查詢摘要不含搜尋原文）、`CategoryServiceTests`／`MyUserServiceAssignmentTests`／`CategoryTeamRepositoryUniquenessTests`（差異內容）。
 - `PageAuthorizationTests`：`/audit-logs` 自動納入受保護路由掃描。
 
 > 返回 [PRD 主控台](README.md)
