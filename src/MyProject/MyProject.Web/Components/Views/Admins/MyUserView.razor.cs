@@ -71,6 +71,8 @@ namespace MyProject.Web.Components.Views.Admins
         string sortDirection = "None";
 
         List<MyUserAdapterModel> myUserAdapterModels = new();
+        IEnumerable<MyUserAdapterModel> selectedRows = [];
+        bool batchDeleting;
         List<RoleViewAdapterModel> roleViewAdapterModels = new();
 
         string modalTitle = "使用者維護";
@@ -147,6 +149,8 @@ namespace MyProject.Web.Components.Views.Admins
 
         public async Task ReloadAsync()
         {
+            // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+            selectedRows = [];
             logger.LogDebug(
                 "Reloading users. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
                 string.IsNullOrWhiteSpace(searchText) == false,
@@ -423,6 +427,37 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 logger.LogError(ex, "Unhandled exception while unlocking user.");
                 ViewNotification.UnexpectedError(notificationService, "解除鎖定時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+        }
+
+        /// <summary>
+        /// 「刪除選取」（0.9.132 起）：逐筆走 <see cref="MyUserService.DeleteAsync"/>，規則與稽核同單筆刪除。
+        /// 清單與結果通知只列帳號：通知內文會寫進日誌，日誌不記姓名。
+        /// </summary>
+        async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var items = selectedRows.ToList();
+                if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(x => x.Account).ToList(), restorable: true))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Account,
+                    x => myUserService.DeleteAsync(x.Id), logger);
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting users.");
+                ViewNotification.UnexpectedError(notificationService, "刪除使用者時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
             }
         }
 

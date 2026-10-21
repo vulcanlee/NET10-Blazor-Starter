@@ -34,6 +34,8 @@ namespace MyProject.Web.Components.Views.Admins
         string sortDirection = "None";
 
         List<RoleViewAdapterModel> roleViewAdapterModels = new();
+        IEnumerable<RoleViewAdapterModel> selectedRows = [];
+        bool batchDeleting;
 
         string modalTitle = "角色維護";
         bool modalVisible = false;
@@ -105,6 +107,8 @@ namespace MyProject.Web.Components.Views.Admins
 
         public async Task ReloadAsync()
         {
+            // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+            selectedRows = [];
             logger.LogDebug(
                 "Reloading role views. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
                 string.IsNullOrWhiteSpace(searchText) == false,
@@ -232,6 +236,34 @@ namespace MyProject.Web.Components.Views.Admins
             ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
+        }
+
+        /// <summary>「刪除選取」（0.9.132 起）：逐筆走 <see cref="RoleViewService.DeleteAsync"/>，規則與稽核同單筆刪除。</summary>
+        async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var items = selectedRows.ToList();
+                if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(x => x.Name).ToList(), restorable: true))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Name,
+                    x => roleViewService.DeleteAsync(x.Id), logger);
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting roles.");
+                ViewNotification.UnexpectedError(notificationService, "刪除角色時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
+            }
         }
 
         bool showDeleted;

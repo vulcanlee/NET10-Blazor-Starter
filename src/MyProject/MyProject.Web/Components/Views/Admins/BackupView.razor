@@ -25,6 +25,8 @@ else
                                    OnClick="@(async () => await OnBackupNowAsync())" />
                 <ToolbarIconButton Title="重新整理" Icon="refresh"
                                    OnClick="@(async () => await OnRefreshAsync())" />
+                <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                   OnClick="@(async () => await OnBatchDeleteAsync())" />
             </div>
         </div>
 
@@ -71,8 +73,11 @@ else
                    DataSource="@backups"
                    Loading="@isLoading"
                    Size="TableSize.Small"
-                   HidePagination="true">
+                   HidePagination="true"
+                   @bind-SelectedRows="selectedRows">
                 <ColumnDefinitions>
+                    @* 0.9.132 起：勾選後可「刪除選取」。備份進行中每 5 秒自動重新整理，勾選會被清掉。 *@
+                    <Selection />
                     <Column TData="string" Title="檔名">
                         <code class="backup-name">@context.FileName</code>
                     </Column>

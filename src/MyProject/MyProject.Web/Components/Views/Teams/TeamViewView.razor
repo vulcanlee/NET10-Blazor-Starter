@@ -25,6 +25,13 @@ else
                 @* 0.9.107 起：依目前的搜尋、篩選、排序與「顯示已刪除」匯出（團隊範圍與畫面相同）。 *@
                 <ToolbarIconButton Title="匯出 Excel" Icon="file_download"
                                    OnClick="@(async () => await OnExportExcelAsync())" />
+                @if (!showDeleted)
+                {
+                    <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Delete">
+                        <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                           OnClick="@(async () => await OnBatchDeleteAsync())" />
+                    </RequirePermission>
+                }
                 <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Delete">
                     @* 0.9.94 起刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除。 *@
                     <ToolbarIconButton Title="@(showDeleted ? "返回清單" : "顯示已刪除")"
@@ -53,8 +60,19 @@ else
                    TreeChildren="ChildrenOf"
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
-                   @bind-Total="_total">
+                   @bind-Total="_total"
+                   @bind-SelectedRows="selectedRows">
                 @* 0.9.105 起：沒有搜尋、不是「顯示已刪除」時是部門樹（下屬部門收在上層底下，分頁以最上層計）；其他時候是平面清單。 *@
+                @*
+                    0.9.132 起：勾選後可「刪除選取」；已刪除的資料不可勾選。
+                    CheckStrictly：勾上層不連帶勾下屬 —— 只刪使用者親手勾的，不會刪到收合在底下沒看到的部門。
+                *@
+                @if (!showDeleted)
+                {
+                    <RequirePermission Page="@MagicObjectHelper.角色_團隊清單" Action="@PermissionActions.Delete">
+                        <Selection CheckStrictly="true" />
+                    </RequirePermission>
+                }
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Name)" Title="名稱" Sortable />
                 @if (!IsTreeMode)
                 {

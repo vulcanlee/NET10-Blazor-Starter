@@ -51,6 +51,8 @@ public partial class __Name__ViewView
     private readonly NotificationService notificationService;
 
     private List<__Name__AdapterModel> records = [];
+    private IEnumerable<__Name__AdapterModel> selectedRows = [];
+    private bool batchDeleting;
 #IF TEAMS
     private List<string> availableTeams = [];
     private RecordAccessScope currentScope = new(false, []);
@@ -159,6 +161,8 @@ public partial class __Name__ViewView
 
     private async Task ReloadAsync()
     {
+        // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效。
+        selectedRows = [];
         var request = CurrentRequest();
         var result = showDeleted ? await __name__Service.GetDeletedAsync(request) : await __name__Service.GetAsync(request);
         records = result.Result.ToList();
@@ -362,6 +366,34 @@ public partial class __Name__ViewView
         {
             logger.LogError(ex, "Unhandled exception while deleting __name__.");
             ViewNotification.UnexpectedError(notificationService, "刪除__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+        }
+    }
+
+    /// <summary>「刪除選取」：逐筆走單筆刪除（規則與稽核相同），能刪的刪、刪不掉的列出原因。</summary>
+    private async Task OnBatchDeleteAsync()
+    {
+        try
+        {
+            var items = selectedRows.ToList();
+            if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(x => x.Name).ToList(), restorable: true))
+            {
+                return;
+            }
+
+            batchDeleting = true;
+            var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Name,
+                x => __name__Service.DeleteAsync(x.Id), logger);
+            BatchDelete.Notify(notificationService, outcome);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while batch deleting __name__.");
+            ViewNotification.UnexpectedError(notificationService, "刪除__Item__時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+        }
+        finally
+        {
+            batchDeleting = false;
         }
     }
 

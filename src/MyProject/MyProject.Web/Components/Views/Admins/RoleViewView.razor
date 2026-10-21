@@ -21,6 +21,11 @@ else
                 }
                 <ToolbarIconButton Title="重新整理" Icon="refresh"
                                    OnClick="@(async () => await OnRefreshAsync())" />
+                @if (!showDeleted)
+                {
+                    <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                       OnClick="@(async () => await OnBatchDeleteAsync())" />
+                }
                 @* 0.9.95 起刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除（本頁只有管理員能進）。 *@
                 <ToolbarIconButton Title="@(showDeleted ? "返回清單" : "顯示已刪除")"
                                    Icon="@(showDeleted ? "arrow_back" : "auto_delete")"
@@ -46,7 +51,16 @@ else
             OnChange=OnTableChange
             @bind-PageIndex="_pageIndex"
             @bind-PageSize="_pageSize"
-            @bind-Total=_total>
+            @bind-Total=_total
+            @bind-SelectedRows="selectedRows">
+                @*
+                    0.9.132 起：勾選後可「刪除選取」；已刪除的資料不可勾選。
+                    預設角色一律不能刪，直接反灰；「仍是某人的主要角色」要查資料庫，交給刪除時的規則擋下並列出原因。
+                *@
+                @if (!showDeleted)
+                {
+                    <Selection Disabled="@(context.Name == MagicObjectHelper.預設角色)" />
+                }
                 <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Ascending" />

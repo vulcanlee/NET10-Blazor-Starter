@@ -26,6 +26,13 @@ else
                 @* 0.9.107 起：依目前的搜尋、篩選、排序與「顯示已刪除」匯出（團隊範圍與畫面相同）。 *@
                 <ToolbarIconButton Title="匯出 Excel" Icon="file_download"
                                    OnClick="@(async () => await OnExportExcelAsync())" />
+                @if (!showDeleted)
+                {
+                    <RequirePermission Page="@MagicObjectHelper.角色_專案項目" Action="@PermissionActions.Delete">
+                        <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                           OnClick="@(async () => await OnBatchDeleteAsync())" />
+                    </RequirePermission>
+                }
                 <RequirePermission Page="@MagicObjectHelper.角色_專案項目" Action="@PermissionActions.Delete">
                     @* 0.9.94 起刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除。 *@
                     <ToolbarIconButton Title="@(showDeleted ? "返回清單" : "顯示已刪除")"
@@ -72,7 +79,15 @@ else
                    OnChange="OnTableChange"
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
-                   @bind-Total="_total">
+                   @bind-Total="_total"
+                   @bind-SelectedRows="selectedRows">
+                @* 0.9.132 起：勾選後可「刪除選取」；已刪除的資料不可勾選。 *@
+                @if (!showDeleted)
+                {
+                    <RequirePermission Page="@MagicObjectHelper.角色_專案項目" Action="@PermissionActions.Delete">
+                        <Selection />
+                    </RequirePermission>
+                }
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Title)" Title="標題" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Description)" Title="描述" />
                 <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.StartDate)" Title="開始日期" Sortable />

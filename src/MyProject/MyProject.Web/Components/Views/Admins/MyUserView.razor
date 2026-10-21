@@ -24,6 +24,11 @@ else
                 @* 0.9.107 起：依目前的搜尋、篩選、排序與「顯示已刪除」匯出（團隊範圍與畫面相同）。 *@
                 <ToolbarIconButton Title="匯出 Excel" Icon="file_download"
                                    OnClick="@(async () => await OnExportExcelAsync())" />
+                @if (!showDeleted)
+                {
+                    <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                       OnClick="@(async () => await OnBatchDeleteAsync())" />
+                }
                 @* 0.9.95 起刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除（本頁只有管理員能進）。 *@
                 <ToolbarIconButton Title="@(showDeleted ? "返回清單" : "顯示已刪除")"
                                    Icon="@(showDeleted ? "arrow_back" : "auto_delete")"
@@ -49,7 +54,13 @@ else
                    OnChange=OnTableChange
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
-                   @bind-Total="_total">
+                   @bind-Total="_total"
+                   @bind-SelectedRows="selectedRows">
+                @* 0.9.132 起：勾選後可「刪除選取」；自己與 support 不可勾（同刪除按鈕），已刪除的資料不可勾選。 *@
+                @if (!showDeleted)
+                {
+                    <Selection Disabled="@(!myUserService.CanDelete(context))" />
+                }
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Sortable />

@@ -74,6 +74,8 @@ namespace MyProject.Web.Components.Views.Analytics
         private string activeTabKey = TabTrend;
 
         private List<TokenUsageLogAdapterModel> rows = [];
+        private IEnumerable<TokenUsageLogAdapterModel> selectedRows = [];
+        private bool batchDeleting;
         private TokenUsageSummary summary = new();
         private TokenUsageFilterOptions filterOptions = new();
 
@@ -283,6 +285,8 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private async Task ReloadAsync()
         {
+            // 換頁、排序、查詢與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+            selectedRows = [];
             isLoading = true;
             StateHasChanged();
 
@@ -694,10 +698,9 @@ namespace MyProject.Web.Components.Views.Analytics
                 return;
             }
 
-            var result = await tokenUsageLogService.DeleteAsync(item.Id);
+            var result = await DeleteOneAsync(item);
             if (result.Success)
             {
-                await WriteAuditAsync(AuditActions.TokenUsage.Delete, item.Id.ToString(), "刪除一筆用量紀錄");
                 ViewNotification.Warning(notificationService, "刪除成功");
                 await ReloadAsync();
             }
@@ -705,6 +708,48 @@ namespace MyProject.Web.Components.Views.Analytics
             {
                 ViewNotification.Error(notificationService, result.Message);
             }
+        }
+
+        /// <summary>刪除一筆並記稽核；單筆刪除與「刪除選取」共用。</summary>
+        private async Task<VerifyRecordResult> DeleteOneAsync(TokenUsageLogAdapterModel item)
+        {
+            var result = await tokenUsageLogService.DeleteAsync(item.Id);
+            if (result.Success)
+            {
+                await WriteAuditAsync(AuditActions.TokenUsage.Delete, item.Id.ToString(), "刪除一筆用量紀錄");
+            }
+
+            return result;
+        }
+
+        /// <summary>「刪除選取」（0.9.132 起）：逐筆走 <see cref="DeleteOneAsync"/>。</summary>
+        private async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var items = selectedRows.ToList();
+                if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(Describe).ToList(), restorable: false,
+                        note: "原始明細檔也會一併移除。"))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), Describe, DeleteOneAsync, logger);
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting token usage logs.");
+                ViewNotification.UnexpectedError(notificationService, "刪除用量紀錄時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
+            }
+
+            static string Describe(TokenUsageLogAdapterModel x) => $"{x.OccurredAt:yyyy-MM-dd HH:mm:ss} {x.Operation}";
         }
 
         private async Task OnPurgeAsync()
