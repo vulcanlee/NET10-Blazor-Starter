@@ -360,12 +360,16 @@ public class TokenUsageLogService : ITokenUsageRecorder
         => x => x.OccurredAt < threshold;
 
     /// <summary>筆數、最舊一筆與自動過期會刪掉的筆數（<paramref name="days"/> 為 0 以下＝不自動清除，回 null）。</summary>
-    public async Task<RetentionStats> GetRetentionStatsAsync(int days, DateTime nowLocal)
+    public Task<RetentionStats> GetRetentionStatsAsync(int days, DateTime nowLocal)
+        => GetRetentionStatsAsync(days > 0 ? ExpiryThreshold(days, nowLocal) : null);
+
+    /// <summary>筆數、最舊一筆與早於 <paramref name="threshold"/>（本地時間；null＝不算）的筆數 —— 「自訂清除」的預覽也用它。</summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var total = await context.TokenUsageLog.CountAsync();
         var oldest = await context.TokenUsageLog.MinAsync(x => (DateTime?)x.OccurredAt);
-        int? expired = days > 0 ? await context.TokenUsageLog.CountAsync(OlderThan(ExpiryThreshold(days, nowLocal))) : null;
+        int? expired = threshold is { } t ? await context.TokenUsageLog.CountAsync(OlderThan(t)) : null;
         return new RetentionStats(total, oldest, expired);
     }
 
@@ -418,7 +422,22 @@ public class TokenUsageLogService : ITokenUsageRecorder
     /// <returns>刪除的資料列數；失敗回 null（已記錄錯誤）。</returns>
     public async Task<int?> PurgeExpiredAsync(int days, DateTime nowLocal, CancellationToken cancellationToken, int batchSize = 500)
     {
-        var threshold = ExpiryThreshold(days, nowLocal);
+        var removed = await PurgeBeforeBatchedAsync(ExpiryThreshold(days, nowLocal), cancellationToken, batchSize);
+        if (removed is not null)
+        {
+            Logger.LogInformation("Expired LLM usage records purged. Rows={Rows}, RetentionDays={RetentionDays}", removed, days);
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// 分批刪除早於 <paramref name="threshold"/>（本地時間）的紀錄與原始檔：自動過期與「資料保留與清理」頁的「自訂清除」共用（0.9.134 起）。
+    /// 做法與注意事項見 <see cref="PurgeExpiredAsync"/>。
+    /// </summary>
+    /// <returns>刪除的資料列數；失敗回 null（已記錄錯誤）。</returns>
+    public async Task<int?> PurgeBeforeBatchedAsync(DateTime threshold, CancellationToken cancellationToken, int batchSize = 500)
+    {
         var removed = 0;
 
         try
@@ -447,7 +466,6 @@ public class TokenUsageLogService : ITokenUsageRecorder
             }
 
             rawStore.DeleteMonthsBefore(threshold);
-            Logger.LogInformation("Expired LLM usage records purged. Rows={Rows}, RetentionDays={RetentionDays}", removed, days);
             return removed;
         }
         catch (OperationCanceledException)

@@ -255,6 +255,9 @@ public static class AuditActions
         public const string Trigger = "Job.Trigger";
         public const string Enable = "Job.Enable";
         public const string Disable = "Job.Disable";
+
+        /// <summary>「資料保留與清理」頁的「自訂清除」刪除排程執行紀錄（0.9.134 起；detail 記條件與筆數）。</summary>
+        public const string PurgeRuns = "Job.PurgeRuns";
     }
 
     /// <summary>公告管理（0.9.100 起）。</summary>
@@ -282,6 +285,9 @@ public static class AuditActions
     public static class Notification
     {
         public const string AutoPurge = "Notification.AutoPurge";
+
+        /// <summary>「資料保留與清理」頁的「自訂清除」依建立時間刪除全體通知（0.9.134 起；detail 記條件與筆數）。</summary>
+        public const string Purge = "Notification.Purge";
 
         /// <summary>管理員在「系統健康監控」發送測試通知給全體管理員（0.9.122 起；detail 為收件人數）。</summary>
         public const string Test = "Notification.Test";

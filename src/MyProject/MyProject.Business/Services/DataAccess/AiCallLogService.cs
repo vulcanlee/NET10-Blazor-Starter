@@ -317,9 +317,15 @@ public class AiCallLogService : IAiCallLogRecorder
     public Task<int?> PurgeExpiredAsync() => PurgeExpiredAsync(DateTime.Now);
 
     /// <summary>同 <see cref="PurgeExpiredAsync()"/>，由呼叫端提供「現在」（本地時間）—— 排程作業傳入 TimeProvider 的時間，測試才控制得了。</summary>
-    public async Task<int?> PurgeExpiredAsync(DateTime nowLocal)
+    public Task<int?> PurgeExpiredAsync(DateTime nowLocal) => PurgeOlderThanAsync(ExpiryThreshold(nowLocal));
+
+    /// <summary>
+    /// 刪除早於 <paramref name="threshold"/>（本地時間）的紀錄與內容檔，並清掉門檻月份之前的月份目錄：
+    /// 自動過期與「資料保留與清理」頁的「自訂清除」共用（0.9.134 起）。
+    /// </summary>
+    /// <returns>刪除的資料列數；失敗回 null。</returns>
+    public async Task<int?> PurgeOlderThanAsync(DateTime threshold)
     {
-        var threshold = ExpiryThreshold(nowLocal);
         var (success, removed) = await PurgeCoreAsync(threshold);
         if (success)
         {
@@ -340,12 +346,16 @@ public class AiCallLogService : IAiCallLogRecorder
         => x => x.OccurredAt < threshold;
 
     /// <summary>筆數、最舊一筆與自動過期會刪掉的筆數（保留天數至少 1 天，一定會自動清理）。</summary>
-    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime nowLocal)
+    public Task<RetentionStats> GetRetentionStatsAsync(DateTime nowLocal)
+        => GetRetentionStatsBeforeAsync(ExpiryThreshold(nowLocal));
+
+    /// <summary>筆數、最舊一筆與早於 <paramref name="threshold"/>（本地時間）的筆數 —— 「自訂清除」的預覽也用它。</summary>
+    public async Task<RetentionStats> GetRetentionStatsBeforeAsync(DateTime threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var total = await context.AiCallLog.CountAsync();
         var oldest = await context.AiCallLog.MinAsync(x => (DateTime?)x.OccurredAt);
-        var expired = await context.AiCallLog.CountAsync(OlderThan(ExpiryThreshold(nowLocal)));
+        var expired = await context.AiCallLog.CountAsync(OlderThan(threshold));
         return new RetentionStats(total, oldest, expired);
     }
 

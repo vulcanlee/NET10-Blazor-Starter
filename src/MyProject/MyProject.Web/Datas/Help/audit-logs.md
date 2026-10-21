@@ -51,11 +51,11 @@
 | 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；執行 AI 例外分析、追問、匯出 AI 分析的 PDF 報告；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge`、`ExceptionLog.AiAnalyze`、`ExceptionLog.AiFollowUp`、`ExceptionLog.AiExportPdf` |
 | AI 對話紀錄 | 在「AI 對話紀錄」刪除、批次清除、清空、匯出清單 CSV 或單筆 JSON／PDF；排程作業每天自動清除（0.9.96 起） | `AiCallLog.Delete`、`AiCallLog.Purge`、`AiCallLog.ClearAll`、`AiCallLog.Export`、`AiCallLog.AutoPurge` |
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
-| 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable` |
+| 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起）；「資料保留與清理」頁的「立即清理」也記 `Job.Trigger`，「自訂清除」刪除執行紀錄記 `Job.PurgeRuns`（0.9.134 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable`、`Job.PurgeRuns` |
 | 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
 | 系統備份 | 建立備份（排程或立即備份）、依保留份數自動刪除、下載、手動刪除（0.9.99 起） | `Backup.Create`、`Backup.AutoPurge`、`Backup.Download`、`Backup.Delete` |
 | 公告 | 在「公告管理」新增、修改、刪除公告（0.9.100 起） | `Announcement.Create`、`Announcement.Update`、`Announcement.Delete` |
-| 站內通知 | 排程作業每天刪除建立超過保留天數的通知（0.9.100 起）；管理員在「系統健康監控」發送測試通知（0.9.122 起，摘要為收件人數） | `Notification.AutoPurge`、`Notification.Test` |
+| 站內通知 | 排程作業每天刪除建立超過保留天數的通知（0.9.100 起）；管理員在「系統健康監控」發送測試通知（0.9.122 起，摘要為收件人數）；「資料保留與清理」頁的「自訂清除」（0.9.134 起） | `Notification.AutoPurge`、`Notification.Test`、`Notification.Purge` |
 | 匯出 | 在「日誌檢視」匯出日誌 | `LogViewer.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |

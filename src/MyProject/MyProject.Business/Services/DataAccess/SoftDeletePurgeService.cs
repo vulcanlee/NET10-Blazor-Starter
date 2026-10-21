@@ -95,28 +95,52 @@ public class SoftDeletePurgeService
     public async Task<SoftDeletePurgeResult> PurgeExpiredAsync(DateTime cutoffLocal, CancellationToken cancellationToken)
     {
         var result = new SoftDeletePurgeResult();
-
-        await PurgeTypeAsync<Project>(result, nameof(Project), cutoffLocal, x => x.Id, x => x.Title,
-            isProtected: null, isInUse: null, include: q => q.Include(x => x.Files),
-            attachmentsOf: x => x.Files.Select(f => f.RelativePath).ToList(), order: null, cancellationToken);
-
-        await PurgeTypeAsync<Category>(result, nameof(Category), cutoffLocal, x => x.Id, x => x.Name,
-            isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);
-
-        // 部門樹（0.9.105 起）：仍被當作上層（含已刪除的下屬）就不能刪（外鍵 Restrict）；先刪最深層，同一次就能把整串清掉。
-        await PurgeTypeAsync<Team>(result, nameof(Team), cutoffLocal, x => x.Id, x => x.Name,
-            isProtected: null, isInUse: IsTeamParentOfAnyAsync, include: null, attachmentsOf: null, order: DeepestTeamsFirstAsync, cancellationToken);
-
-        await PurgeTypeAsync<MyUser>(result, nameof(MyUser), cutoffLocal, x => x.Id, x => x.Account,
-            isProtected: x => string.Equals(x.Account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase),
-            isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);
-
-        await PurgeTypeAsync<RoleView>(result, nameof(RoleView), cutoffLocal, x => x.Id, x => x.Name,
-            isProtected: x => x.Name == MagicObjectHelper.預設角色,
-            isInUse: IsRoleInUseAsync, include: null, attachmentsOf: null, order: null, cancellationToken);
+        foreach (var entityType in EntityTypes)
+        {
+            await PurgeOneTypeAsync(result, entityType, cutoffLocal, cancellationToken);
+        }
 
         return result;
     }
+
+    /// <summary>清除的順序（也是 <see cref="SoftDeletePurgeResult.Types"/> 的順序）：專案 → 分類 → 團隊 → 使用者 → 角色。</summary>
+    public static readonly IReadOnlyList<string> EntityTypes = [nameof(Project), nameof(Category), nameof(Team), nameof(MyUser), nameof(RoleView)];
+
+    /// <summary>
+    /// 只清一種（0.9.134 起，「資料保留與清理」頁的「自訂清除」）：規則與 <see cref="PurgeExpiredAsync"/> 完全相同
+    /// （support、預設角色、使用中的角色、還有下屬的部門照樣留下）。
+    /// </summary>
+    public async Task<SoftDeletePurgeResult> PurgeExpiredTypeAsync(string entityType, DateTime cutoffLocal, CancellationToken cancellationToken)
+    {
+        var result = new SoftDeletePurgeResult();
+        await PurgeOneTypeAsync(result, entityType, cutoffLocal, cancellationToken);
+        return result;
+    }
+
+    private Task PurgeOneTypeAsync(SoftDeletePurgeResult result, string entityType, DateTime cutoffLocal, CancellationToken cancellationToken)
+        => entityType switch
+        {
+            nameof(Project) => PurgeTypeAsync<Project>(result, nameof(Project), cutoffLocal, x => x.Id, x => x.Title,
+                isProtected: null, isInUse: null, include: q => q.Include(x => x.Files),
+                attachmentsOf: x => x.Files.Select(f => f.RelativePath).ToList(), order: null, cancellationToken),
+
+            nameof(Category) => PurgeTypeAsync<Category>(result, nameof(Category), cutoffLocal, x => x.Id, x => x.Name,
+                isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken),
+
+            // 部門樹（0.9.105 起）：仍被當作上層（含已刪除的下屬）就不能刪（外鍵 Restrict）；先刪最深層，同一次就能把整串清掉。
+            nameof(Team) => PurgeTypeAsync<Team>(result, nameof(Team), cutoffLocal, x => x.Id, x => x.Name,
+                isProtected: null, isInUse: IsTeamParentOfAnyAsync, include: null, attachmentsOf: null, order: DeepestTeamsFirstAsync, cancellationToken),
+
+            nameof(MyUser) => PurgeTypeAsync<MyUser>(result, nameof(MyUser), cutoffLocal, x => x.Id, x => x.Account,
+                isProtected: x => string.Equals(x.Account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase),
+                isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken),
+
+            nameof(RoleView) => PurgeTypeAsync<RoleView>(result, nameof(RoleView), cutoffLocal, x => x.Id, x => x.Name,
+                isProtected: x => x.Name == MagicObjectHelper.預設角色,
+                isInUse: IsRoleInUseAsync, include: null, attachmentsOf: null, order: null, cancellationToken),
+
+            _ => throw new ArgumentException($"不認得的資料種類「{entityType}」。", nameof(entityType)),
+        };
 
     /// <summary>
     /// 清理條件：候選查詢、刪除前的重新確認與 <see cref="GetRetentionStatsAsync"/> 共用。
