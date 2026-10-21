@@ -49,6 +49,8 @@ else
                     圖示用 classic Material Icons 世代的名稱。Icon 打錯只會渲染成破圖方塊，
                     而且沒有任何守門測試會抓到（MenuIconTests 只管 Menu.json），改動時請目視確認。
                 *@
+                <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                   OnClick="@(async () => await OnBatchDeleteAsync())" />
                 <ToolbarIconButton Title="@($"清除 {PurgeDays} 天未再發生的紀錄")" Icon="history"
                                    OnClick="@(async () => await OnPurgeAsync())" />
                 <ToolbarIconButton Title="清空全部紀錄" Icon="delete_forever"
@@ -75,8 +77,20 @@ else
                    OnChange="OnTableChange"
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
-                   @bind-Total="_total">
+                   @bind-Total="_total"
+                   @bind-SelectedRows="selectedRows">
                 <ColumnDefinitions>
+                    @*
+                        0.9.132 起：勾選後可「刪除選取」。
+                        點列會複製該筆，勾選框的點擊要在這裡擋掉冒泡（同操作欄），否則勾一下就順便複製一次。
+                    *@
+                    <Selection>
+                        <CellRender Context="cell">
+                            <span @onclick:stopPropagation="true">
+                                <Checkbox Checked="@cell.RowData.Selected" CheckedChanged="@((bool v) => cell.RowData.Selected = v)" />
+                            </span>
+                        </CellRender>
+                    </Selection>
                     @*
                         欄位刻意精簡：只留「誰、在哪一頁、何時、什麼錯、幾次」這幾個掃視得到的，
                         其餘（來源、首次發生、日誌樣板、記錄器、完整堆疊）都收進「查看」明細窗。

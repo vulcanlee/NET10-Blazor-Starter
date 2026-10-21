@@ -74,6 +74,11 @@ namespace MyProject.Web.Components.Views.Teams
         string sortDirection = "None";
 
         List<TeamAdapterModel> teamAdapterModels = new();
+        IEnumerable<TeamAdapterModel> selectedRows = [];
+        bool batchDeleting;
+
+        /// <summary>每個團隊的上層 Id，給「刪除選取」排出先下屬、後上層的順序（0.9.132 起）。</summary>
+        Dictionary<int, int?> parentIds = new();
 
         /// <summary>部門樹（0.9.105 起）：上層 Id → 下屬；名稱查詢給「上層部門」欄與表單用。</summary>
         ILookup<int, TeamAdapterModel> childrenLookup = Enumerable.Empty<TeamAdapterModel>().ToLookup(x => 0);
@@ -154,6 +159,8 @@ namespace MyProject.Web.Components.Views.Teams
 
         public async Task ReloadAsync()
         {
+            // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+            selectedRows = [];
             logger.LogDebug(
                 "Reloading teams. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
                 string.IsNullOrWhiteSpace(searchText) == false,
@@ -175,6 +182,7 @@ namespace MyProject.Web.Components.Views.Teams
 
             var all = await teamService.GetAllAsync();
             teamNames = all.ToDictionary(x => x.Id, x => x.Name);
+            parentIds = all.ToDictionary(x => x.Id, x => x.ParentId);
             if (IsTreeMode)
             {
                 // 一次載入全部在畫面上組樹；上層不存在（資料異常）的當作最上層，不會消失。
@@ -344,6 +352,51 @@ namespace MyProject.Web.Components.Views.Teams
             ViewNotification.Warning(notificationService, "刪除成功");
 
             await ReloadAsync();
+        }
+
+        /// <summary>
+        /// 「刪除選取」（0.9.132 起）：逐筆走 <see cref="TeamService.DeleteAsync"/>，規則與稽核同單筆刪除。
+        /// 由深到淺刪：同時勾了上層與它全部的下屬時，上層不會因「還有下屬部門」被擋下；
+        /// 只勾上層、下屬仍在時照原規則失敗。
+        /// </summary>
+        async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var items = BatchDelete.DeepestFirst(selectedRows, x => DepthOf(x.Id));
+                if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(x => x.Name).ToList(), restorable: true))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Name,
+                    x => teamService.DeleteAsync(x.Id), logger);
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting teams.");
+                ViewNotification.UnexpectedError(notificationService, "刪除團隊時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
+            }
+        }
+
+        /// <summary>往上數到最上層的層數；上限為團隊總數，資料若有循環也不會卡住。</summary>
+        int DepthOf(int id)
+        {
+            var depth = 0;
+            while (parentIds.GetValueOrDefault(id) is { } parent && depth < parentIds.Count)
+            {
+                id = parent;
+                depth++;
+            }
+
+            return depth;
         }
 
         bool showDeleted;

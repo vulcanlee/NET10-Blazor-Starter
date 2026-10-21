@@ -2,6 +2,7 @@ using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Options;
+using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
@@ -30,6 +31,8 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly NotificationService notificationService;
 
         private List<BackupFileInfo> backups = [];
+        private IEnumerable<BackupFileInfo> selectedRows = [];
+        private bool batchDeleting;
         private ScheduledJobOverviewItem? job;
         private int keepCount;
         private bool isLoading;
@@ -94,6 +97,8 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task ReloadAsync()
         {
+            // 重新整理與刪除後都會走到這裡：清單換了，舊的勾選不再有效（0.9.132 起）。
+            selectedRows = [];
             isLoading = true;
             try
             {
@@ -166,15 +171,14 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                if (!store.Delete(item.FileName))
+                var result = await DeleteOneAsync(item);
+                if (!result.Success)
                 {
-                    ViewNotification.Caution(notificationService, "找不到這份備份，可能已被刪除。");
+                    ViewNotification.Caution(notificationService, result.Message);
                     await ReloadAsync();
                     return;
                 }
 
-                await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Backup.Delete, "Backup", item.FileName, $"file={item.FileName}");
-                logger.LogInformation("Backup deleted from the backup page. FileName={FileName}", item.FileName);
                 ViewNotification.Warning(notificationService, $"已刪除「{item.FileName}」。");
                 await ReloadAsync();
             }
@@ -182,6 +186,46 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 logger.LogError(ex, "Unhandled exception while deleting a backup.");
                 ViewNotification.UnexpectedError(notificationService, "刪除備份時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+        }
+
+        /// <summary>刪除一份備份並記稽核；單筆刪除與「刪除選取」共用。</summary>
+        private async Task<VerifyRecordResult> DeleteOneAsync(BackupFileInfo item)
+        {
+            if (!store.Delete(item.FileName))
+            {
+                return VerifyRecordResultFactory.Build(false, "找不到這份備份，可能已被刪除。");
+            }
+
+            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Backup.Delete, "Backup", item.FileName, $"file={item.FileName}");
+            logger.LogInformation("Backup deleted from the backup page. FileName={FileName}", item.FileName);
+            return VerifyRecordResultFactory.Build(true);
+        }
+
+        /// <summary>「刪除選取」（0.9.132 起）：逐筆走 <see cref="DeleteOneAsync"/>。</summary>
+        private async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var selected = selectedRows.ToList();
+                if (selected.Count == 0 || !await BatchDelete.AskAsync(modalService, selected.Select(x => x.FileName).ToList(), restorable: false))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(selected, x => x.FileName, x => x.FileName, DeleteOneAsync, logger);
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting backups.");
+                ViewNotification.UnexpectedError(notificationService, "刪除備份時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
             }
         }
 

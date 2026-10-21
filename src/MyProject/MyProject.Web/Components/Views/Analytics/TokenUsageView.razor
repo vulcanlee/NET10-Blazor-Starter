@@ -115,6 +115,9 @@ else
                         Format="yyyy-MM-dd" Placeholder="@("清除此日之前")" Style="width: 160px;" />
             <Button Danger Disabled="@(purgeBeforeDate is null)"
                     OnClick="@(async () => await OnPurgeAsync())">批次清除</Button>
+            @* 0.9.132 起：「明細」頁籤勾選後出現。 *@
+            <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                               OnClick="@(async () => await OnBatchDeleteAsync())" />
         </div>
 
         @*
@@ -335,7 +338,10 @@ else
                            OnChange="OnTableChange"
                            @bind-PageIndex="_pageIndex"
                            @bind-PageSize="_pageSize"
-                           @bind-Total="_total">
+                           @bind-Total="_total"
+                           @bind-SelectedRows="selectedRows">
+                        @* 0.9.132 起：勾選後可「刪除選取」。 *@
+                        <Selection />
                         <Column TData="DateTime" DataIndex="@nameof(TokenUsageLogAdapterModel.OccurredAt)"
                                 Title="時間" Width="160" Sortable DefaultSortOrder="SortDirection.Descending">
                             @context.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")

@@ -26,6 +26,9 @@ namespace MyProject.Web.Components.Views.Admins
         private readonly NotificationService notificationService;
 
         private List<AnnouncementAdapterModel> items = [];
+        private IEnumerable<AnnouncementAdapterModel> selectedRows = [];
+        private bool batchDeleting;
+        private Table<AnnouncementAdapterModel>? table;
         private List<(int Id, string Name)> roleOptions = [];
         private List<(int Id, string Name)> teamOptions = [];
         private bool isLoading;
@@ -94,6 +97,8 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task ReloadAsync()
         {
+            // 重新整理與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+            selectedRows = [];
             isLoading = true;
             try
             {
@@ -212,6 +217,56 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 logger.LogError(ex, "Unhandled exception while deleting an announcement.");
                 ViewNotification.UnexpectedError(notificationService, "刪除公告時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+        }
+
+        /// <summary>
+        /// 本頁在畫面上分頁（DataSource 不變），換頁時不會經過 <see cref="ReloadAsync"/>，要自己清掉勾選。
+        /// </summary>
+        private void OnPageIndexChange(PaginationEventArgs args) => table?.SetSelection(Array.Empty<AnnouncementAdapterModel>());
+
+        /// <summary>
+        /// 「刪除選取」（0.9.132 起）：逐筆同單筆刪除（帶各自的版本戳記、成功才記稽核）；有刪掉任何一筆才廣播一次。
+        /// </summary>
+        private async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var selected = selectedRows.ToList();
+                if (selected.Count == 0 || !await BatchDelete.AskAsync(modalService, selected.Select(x => x.Title).ToList(), restorable: false,
+                        note: "刪除後立即不再顯示。"))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(selected, x => x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), x => x.Title, async item =>
+                {
+                    var result = await announcementService.DeleteAsync(item.Id, item.ConcurrencyStamp);
+                    if (result.Success)
+                    {
+                        await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Announcement.Delete, "Announcement",
+                            item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"title={item.Title}");
+                    }
+
+                    return result;
+                }, logger);
+                if (outcome.Succeeded > 0)
+                {
+                    Broadcast();
+                }
+
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting announcements.");
+                ViewNotification.UnexpectedError(notificationService, "刪除公告時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
             }
         }
 

@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.0
+- 文件版本：2.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.132
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/21
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（[路線圖](../planning/00-腳手架強化路線圖.md) G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -50,7 +50,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `Business/Services/DataAccess/EquipmentService.cs` | Blazor 的資料服務（`IDbContextFactory`）：清單、已刪除清單、新增、修改（並行比對）、刪除、還原、永久刪除、名稱重複檢查、稽核 |
 | `Web/Controllers/EquipmentController.cs` | GET／search／POST／PUT／DELETE，各自 `[HasPermission]`，回 `ApiResult`；名稱重複 409、並行衝突 409、軟刪除 |
 | `Web/Components/Pages/Equipments/EquipmentPage.razor` | `@page`＋`@layout MainLayout` |
-| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認） |
+| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、勾選多筆「刪除選取」（0.9.132 起，`BatchDelete`；`BatchDeleteConventionTests` 守門）、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認） |
 | `Web/Datas/Help/equipments.md` | 操作說明初稿（固定七段，UTF-8 含 BOM） |
 | `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |
 

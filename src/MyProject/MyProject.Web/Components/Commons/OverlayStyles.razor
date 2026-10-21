@@ -432,9 +432,11 @@
         font-weight: 700 !important;
     }
 
+    /* pre-line：「刪除選取」的確認與結果以換行列出各筆（0.9.132 起）；其他文案沒有換行，不受影響。 */
     .ant-modal-confirm-body .ant-modal-confirm-content {
         color: var(--ov-muted) !important;
         line-height: 1.6;
+        white-space: pre-line;
     }
 
     .ant-modal-confirm-body > .anticon {
@@ -462,6 +464,7 @@
 
     .ant-notification-notice-description {
         color: var(--app-muted) !important;
+        white-space: pre-line;
     }
 
     .ant-message-notice-content {

@@ -55,6 +55,8 @@ namespace MyProject.Web.Components.Views.Admins
         private bool isAccessChecked;
 
         private List<ExceptionLogAdapterModel> exceptionLogAdapterModels = [];
+        private IEnumerable<ExceptionLogAdapterModel> selectedRows = [];
+        private bool batchDeleting;
 
         // 明細窗：清單放不下的欄位與完整堆疊都在這裡看。
         // 一次只會開一筆，所以不需要快取字典 —— 開窗當下才讀檔。
@@ -133,6 +135,8 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task ReloadAsync()
         {
+            // 換頁、排序、查詢與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+            selectedRows = [];
             isLoading = true;
             StateHasChanged();
 
@@ -347,10 +351,9 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            var result = await exceptionLogService.DeleteAsync(item.Id);
+            var result = await DeleteOneAsync(item);
             if (result.Success)
             {
-                await WriteAuditAsync(AuditActions.ExceptionLog.Delete, item.Id.ToString(), $"type={item.ShortExceptionType}");
                 ViewNotification.Warning(notificationService, "刪除成功");
                 await ReloadAsync();
             }
@@ -358,6 +361,48 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 ViewNotification.Error(notificationService, result.Message);
             }
+        }
+
+        /// <summary>刪除一列並記稽核；單筆刪除與「刪除選取」共用。</summary>
+        private async Task<VerifyRecordResult> DeleteOneAsync(ExceptionLogAdapterModel item)
+        {
+            var result = await exceptionLogService.DeleteAsync(item.Id);
+            if (result.Success)
+            {
+                await WriteAuditAsync(AuditActions.ExceptionLog.Delete, item.Id.ToString(), $"type={item.ShortExceptionType}");
+            }
+
+            return result;
+        }
+
+        /// <summary>「刪除選取」（0.9.132 起）：逐筆走 <see cref="DeleteOneAsync"/>。</summary>
+        private async Task OnBatchDeleteAsync()
+        {
+            try
+            {
+                var items = selectedRows.ToList();
+                if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(Describe).ToList(), restorable: false,
+                        note: "相同的例外若再次發生，會重新出現並從 1 次開始計算。"))
+                {
+                    return;
+                }
+
+                batchDeleting = true;
+                var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), Describe, DeleteOneAsync, logger);
+                BatchDelete.Notify(notificationService, outcome);
+                await ReloadAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unhandled exception while batch deleting exception logs.");
+                ViewNotification.UnexpectedError(notificationService, "刪除例外紀錄時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+            }
+            finally
+            {
+                batchDeleting = false;
+            }
+
+            static string Describe(ExceptionLogAdapterModel x) => $"{x.LastOccurredAt:yyyy-MM-dd HH:mm:ss} {x.ShortExceptionType}";
         }
 
         private async Task OnPurgeAsync()

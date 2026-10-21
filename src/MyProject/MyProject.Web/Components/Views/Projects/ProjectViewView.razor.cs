@@ -96,6 +96,8 @@ public partial class ProjectViewView
     private string sortDirection = "None";
 
     private List<ProjectAdapterModel> projectAdapterModels = [];
+    private IEnumerable<ProjectAdapterModel> selectedRows = [];
+    private bool batchDeleting;
     private readonly List<PendingUploadFileItem> pendingUploadFiles = [];
     private readonly HashSet<int> removedFileIds = [];
 
@@ -184,6 +186,8 @@ public partial class ProjectViewView
 
     public async Task ReloadAsync()
     {
+        // 換頁、排序、搜尋、篩選、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
+        selectedRows = [];
         logger.LogDebug(
             "Reloading projects. HasSearch={HasSearch}, SearchLength={SearchLength}, SortField={SortField}, SortDirection={SortDirection}, PageIndex={PageIndex}, PageSize={PageSize}",
             string.IsNullOrWhiteSpace(searchText) == false,
@@ -375,6 +379,40 @@ public partial class ProjectViewView
         ViewNotification.Warning(notificationService, "刪除成功");
 
         await ReloadAsync();
+    }
+
+    /// <summary>
+    /// 「刪除選取」（0.9.132 起）：每筆同單筆刪除，先 <see cref="ProjectService.BeforeDeleteCheckAsync"/> 再刪，
+    /// 規則與稽核都沿用。
+    /// </summary>
+    private async Task OnBatchDeleteAsync()
+    {
+        try
+        {
+            var items = selectedRows.ToList();
+            if (items.Count == 0 || !await BatchDelete.AskAsync(modalService, items.Select(x => x.Title).ToList(), restorable: true))
+            {
+                return;
+            }
+
+            batchDeleting = true;
+            var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Title, async x =>
+            {
+                var check = await projectService.BeforeDeleteCheckAsync(x);
+                return check.Success ? await projectService.DeleteAsync(x.Id) : check;
+            }, logger);
+            BatchDelete.Notify(notificationService, outcome);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unhandled exception while batch deleting projects.");
+            ViewNotification.UnexpectedError(notificationService, "刪除專案時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
+        }
+        finally
+        {
+            batchDeleting = false;
+        }
     }
 
     bool showDeleted;

@@ -22,6 +22,13 @@ else
                 }
                 <ToolbarIconButton Title="重新整理" Icon="refresh" OnClick="@(async () => await OnRefreshAsync())" />
                 <ToolbarIconButton Title="匯出 Excel" Icon="file_download" OnClick="@(async () => await OnExportExcelAsync())" />
+                @if (!showDeleted)
+                {
+                    <RequirePermission Page="@MagicObjectHelper.__PermConst__" Action="@PermissionActions.Delete">
+                        <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
+                                           OnClick="@(async () => await OnBatchDeleteAsync())" />
+                    </RequirePermission>
+                }
                 <RequirePermission Page="@MagicObjectHelper.__PermConst__" Action="@PermissionActions.Delete">
                     @* 刪除為軟刪除：切換到已刪除的資料，可還原或永久刪除。 *@
                     <ToolbarIconButton Title="@(showDeleted ? "返回清單" : "顯示已刪除")"
@@ -46,7 +53,15 @@ else
                    OnChange="OnTableChange"
                    @bind-PageIndex="_pageIndex"
                    @bind-PageSize="_pageSize"
-                   @bind-Total="_total">
+                   @bind-Total="_total"
+                   @bind-SelectedRows="selectedRows">
+                @* 勾選後可「刪除選取」；已刪除的資料不可勾選。 *@
+                @if (!showDeleted)
+                {
+                    <RequirePermission Page="@MagicObjectHelper.__PermConst__" Action="@PermissionActions.Delete">
+                        <Selection />
+                    </RequirePermission>
+                }
                 <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Name)" Title="名稱" Sortable />
                 <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Description)" Title="描述" />
 #IF TEAMS
