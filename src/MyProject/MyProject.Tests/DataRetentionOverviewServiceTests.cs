@@ -1,4 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MyProject.AccessDatas;
+using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
+using MyProject.Models.Systems;
 using MyProject.Web.Components.Views.Admins;
 using MyProject.Web.DataRetention;
 using MyProject.Web.Scheduling.Jobs;
@@ -51,6 +56,97 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
 
         Assert.All(overview.Rows.Where(x => x.Key != "notification"), row => Assert.NotNull(row.ManageUrl));
         Assert.Equal("/projects?deleted=1", overview.Rows.Single(x => x.Key == "deleted-project").ManageUrl);
+    }
+
+    [Fact]
+    public async Task Overview_ShouldOfferCustomPurge_ExceptForBackupLogFilesAndAnnouncements()
+    {
+        using var scope = factory.Services.CreateScope();
+        var overview = await scope.ServiceProvider.GetRequiredService<DataRetentionOverviewService>().GetOverviewAsync();
+
+        Assert.Equal(["backup", "nlog", "announcement"], overview.Rows.Where(x => !x.CanCustomPurge).Select(x => x.Key).ToArray());
+    }
+
+    /// <summary>
+    /// 「自訂清除」（0.9.134 起）：每一種資料塞一筆 2000 年的（遠早於其他測試的資料），
+    /// 預覽「刪除 2001-01-01 之前」必須正好是 1，清除也正好刪掉這 1 筆；已刪除資料只清那一種。
+    /// </summary>
+    [Theory]
+    [InlineData("exception-log")]
+    [InlineData("token-usage")]
+    [InlineData("ai-call-log")]
+    [InlineData("audit-log")]
+    [InlineData("notification")]
+    [InlineData("job-run")]
+    [InlineData("deleted-category")]
+    [InlineData("deleted-team")]
+    public async Task CustomPurge_ShouldRemoveExactlyWhatThePreviewSaid(string rowKey)
+    {
+        var old = new DateTime(2000, 6, 1);
+        await SeedOldRowAsync(rowKey, old);
+        var cutoff = new CustomPurgeCutoff(null, new DateOnly(2001, 1, 1));
+
+        using var scope = factory.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<DataRetentionOverviewService>();
+        var preview = await service.PreviewCustomAsync(rowKey, cutoff);
+        var outcome = await service.PurgeCustomAsync(rowKey, cutoff, CancellationToken.None);
+
+        Assert.Equal(1, preview);
+        Assert.Equal(preview, outcome.Removed);
+        Assert.False(outcome.Failed);
+        Assert.Equal(0, await service.PreviewCustomAsync(rowKey, cutoff));
+    }
+
+    [Fact]
+    public async Task CustomPurge_ForDeletedCategories_ShouldLeaveOtherKindsAlone()
+    {
+        var old = new DateTime(2000, 6, 1);
+        await SeedOldRowAsync("deleted-team", old);
+        await SeedOldRowAsync("deleted-category", old);
+        var cutoff = new CustomPurgeCutoff(null, new DateOnly(2001, 1, 1));
+
+        using var scope = factory.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<DataRetentionOverviewService>();
+        Assert.Equal(1, (await service.PurgeCustomAsync("deleted-category", cutoff, CancellationToken.None)).Removed);
+
+        Assert.Equal(1, await service.PreviewCustomAsync("deleted-team", cutoff));
+        await service.PurgeCustomAsync("deleted-team", cutoff, CancellationToken.None);
+    }
+
+    private async Task SeedOldRowAsync(string rowKey, DateTime old)
+    {
+        await using var db = await factory.Services.GetRequiredService<IDbContextFactory<BackendDBContext>>().CreateDbContextAsync();
+        var tag = Guid.NewGuid().ToString("N");
+        switch (rowKey)
+        {
+            case "exception-log":
+                db.ExceptionLog.Add(new ExceptionLog { Signature = tag, ExceptionType = "System.Exception", Message = "m", Source = ExceptionSources.Unknown, OccurrenceCount = 1, FirstOccurredAt = old, LastOccurredAt = old });
+                break;
+            case "token-usage":
+                db.TokenUsageLog.Add(new TokenUsageLog { OccurredAt = old, Operation = "op", CallKind = "chat", Provider = "p", Model = "m", RawUsageFile = $"200006/{tag}.json" });
+                break;
+            case "ai-call-log":
+                db.AiCallLog.Add(new AiCallLog { CallId = Guid.NewGuid(), OccurredAt = old, Operation = "op", Provider = "p", Model = "m", Success = true });
+                break;
+            case "audit-log":
+                db.AuditLog.Add(new AuditLog { Action = AuditActions.Email.Test, OccurredAt = old, Success = true });
+                break;
+            case "notification":
+                var userId = await db.MyUser.Select(x => x.Id).FirstAsync();
+                db.Notification.Add(new Notification { RecipientUserId = userId, Category = "T", Title = tag, CreatedAtUtc = old });
+                break;
+            case "job-run":
+                db.JobRun.Add(new JobRun { JobName = "Probe", Trigger = JobRunTriggers.Manual, StartedAtUtc = old, Status = JobRunStatuses.Succeeded });
+                break;
+            case "deleted-category":
+                db.Category.Add(new Category { Name = $"舊分類-{tag}", IsDeleted = true, DeletedAt = old });
+                break;
+            case "deleted-team":
+                db.Team.Add(new Team { Name = $"舊團隊-{tag}", IsDeleted = true, DeletedAt = old });
+                break;
+        }
+
+        await db.SaveChangesAsync();
     }
 
     [Theory]

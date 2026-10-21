@@ -35,6 +35,21 @@ namespace MyProject.Web.Components.Views.Admins
         private Timer? autoRefreshTimer;
         private bool disposed;
 
+        // 自訂清除窗（0.9.134 起）。
+        private const string KeepDaysMode = "keepDays";
+        private const string BeforeDateMode = "beforeDate";
+        private bool customVisible;
+        private string customTitle = "自訂清除";
+        private DataRetentionRow? customRow;
+        private string customMode = KeepDaysMode;
+        private int? customDays = 30;
+        private DateTime? customDate;
+        private int? customPreview;
+        private string? customError;
+
+        /// <summary>預覽是非同步的：使用者連續改值時，只採用最後一次的結果。</summary>
+        private int previewVersion;
+
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
 
@@ -49,6 +64,9 @@ namespace MyProject.Web.Components.Views.Admins
 
         [Inject]
         public CurrentUserService CurrentUserService { get; set; } = default!;
+
+        [Inject]
+        public TimeProvider TimeProvider { get; set; } = default!;
 
         public DataRetentionView(
             ILogger<DataRetentionView> logger,
@@ -156,6 +174,112 @@ namespace MyProject.Web.Components.Views.Admins
                 logger.LogError(ex, "Unhandled exception while triggering a data retention purge.");
                 ViewNotification.UnexpectedError(notificationService, "啟動清理時發生未預期的錯誤，請稍後再試或聯絡系統管理員。", ex);
             }
+        }
+
+        /// <summary>已刪除的五種共用一個排程，除了第一列（專案）以外不重複顯示執行訊息。</summary>
+        private static bool IsSoftDeleteFollower(DataRetentionRow row)
+            => row.JobName == SoftDeletePurgeJob.JobName && row.Key != "deleted-project";
+
+        private bool CanRunCustomPurge => customError is null && customPreview > 0;
+
+        private CustomPurgeCutoff CurrentCutoff => customMode == KeepDaysMode
+            ? new CustomPurgeCutoff(customDays, null)
+            : new CustomPurgeCutoff(null, customDate is { } date ? DateOnly.FromDateTime(date) : null);
+
+        private async Task OnOpenCustomPurgeAsync(DataRetentionRow row)
+        {
+            customRow = row;
+            customTitle = $"自訂清除：{row.Label}";
+            customMode = KeepDaysMode;
+            customDays = 30;
+            customDate = TimeProvider.GetLocalNow().DateTime.Date.AddDays(-30);
+            customVisible = true;
+            await UpdatePreviewAsync();
+        }
+
+        private async Task UpdatePreviewAsync()
+        {
+            if (customRow is null)
+            {
+                return;
+            }
+
+            var version = ++previewVersion;
+            var cutoff = CurrentCutoff;
+            customPreview = null;
+            customError = cutoff.Validate(DateOnly.FromDateTime(TimeProvider.GetLocalNow().DateTime));
+            if (customError is not null)
+            {
+                return;
+            }
+
+            try
+            {
+                var count = await overviewService.PreviewCustomAsync(customRow.Key, cutoff);
+                if (version == previewVersion)
+                {
+                    customPreview = count;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to preview a custom purge. RowKey={RowKey}", customRow.Key);
+                customError = $"無法計算會刪除幾筆：{ex.GetType().Name}";
+            }
+        }
+
+        /// <summary>
+        /// 「清除」。⚠️ 第一行的 customVisible = true 不可移動（同 FormModalFlow 的說明）：AntDesign 已先送出關窗，
+        /// 這裡搶回來，之後由 RunOkAsync 的結果決定開關 —— 確認窗按取消時留在這個窗。
+        /// </summary>
+        private async Task OnCustomPurgeOkAsync()
+        {
+            customVisible = true;
+            customVisible = await FormModalFlow.RunOkAsync(
+                RunCustomPurgeAsync,
+                logger,
+                notificationService,
+                "清除資料時發生未預期的錯誤，請稍後再試或聯絡系統管理員。");
+        }
+
+        /// <summary>實際清除；回傳 true 表示完成、可以關窗。</summary>
+        private async Task<bool> RunCustomPurgeAsync()
+        {
+            if (customRow is not { } row || !CanRunCustomPurge)
+            {
+                return false;
+            }
+
+            var cutoff = CurrentCutoff;
+            var expected = await overviewService.PreviewCustomAsync(row.Key, cutoff);
+            if (!await ConfirmDialog.AskDestructiveAsync(modalService, "自訂清除",
+                    $"將依「{cutoff.Describe()}」刪除「{row.Label}」約 {expected:N0} {row.CountUnit}{(row.Note is { } note ? $"，{note}" : string.Empty)}。\n此動作無法復原，也不會改到系統參數的保留天數。",
+                    "清除"))
+            {
+                return false;
+            }
+
+            var outcome = await overviewService.PurgeCustomAsync(row.Key, cutoff, CancellationToken.None);
+            if (outcome.Removed > 0)
+            {
+                await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, outcome.AuditAction, outcome.TargetType, "*", cutoff.AuditDetail(outcome.Removed));
+            }
+
+            logger.LogInformation("Custom purge completed. RowKey={RowKey}, Removed={Removed}, Left={Left}, Failed={Failed}",
+                row.Key, outcome.Removed, outcome.Left, outcome.Failed);
+            var message = $"已刪除 {outcome.Removed:N0} {row.CountUnit}「{row.Label}」"
+                + (outcome.Left > 0 ? $"；{outcome.Left:N0} {row.CountUnit}受保護、仍在使用或中途被還原，留下。" : "。");
+            if (outcome.Failed)
+            {
+                ViewNotification.Error(notificationService, message + "途中有一筆失敗，已停止；詳細內容請看「系統例外紀錄」。");
+            }
+            else
+            {
+                ViewNotification.Warning(notificationService, message);
+            }
+
+            await ReloadAsync();
+            return true;
         }
 
         internal static string BuildConfirmContent(DataRetentionRow row, IReadOnlyList<DataRetentionRow> related, int expected)

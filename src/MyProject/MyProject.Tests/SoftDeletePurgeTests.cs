@@ -85,6 +85,31 @@ public sealed class SoftDeletePurgeTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task PurgeExpiredType_ShouldOnlyTouchThatType_AndKeepTheProtectionRules()
+    {
+        // 「自訂清除」（0.9.134 起）只清按下的那一種；預設角色照樣不刪。
+        await InitializeAsync();
+        await using (var db = NewContext())
+        {
+            db.Category.Add(new Category { Name = "過期分類", IsDeleted = true, DeletedAt = Expired });
+            db.Team.Add(new Team { Name = "過期團隊", IsDeleted = true, DeletedAt = Expired });
+            db.RoleView.AddRange(NewRole("過期角色", Expired), NewRole(MagicObjectHelper.預設角色, Expired));
+            await db.SaveChangesAsync();
+        }
+
+        var categories = await Service().PurgeExpiredTypeAsync("Category", Cutoff, default);
+        var roles = await Service().PurgeExpiredTypeAsync("RoleView", Cutoff, default);
+
+        Assert.Equal("過期分類", Assert.Single(Assert.Single(categories.Types).Removed).Name);
+        var roleType = Assert.Single(roles.Types);
+        Assert.Equal("過期角色", Assert.Single(roleType.Removed).Name);
+        Assert.Equal(1, roleType.Protected);
+        await using var verify = NewContext();
+        Assert.Equal(["過期團隊"], (await All<Team>(verify)).Select(x => x.Name).ToArray());
+        await Assert.ThrowsAsync<ArgumentException>(() => Service().PurgeExpiredTypeAsync("Nope", Cutoff, default));
+    }
+
+    [Fact]
     public async Task RetentionStats_WithoutCutoff_ShouldNotCountExpired_AndSumDeletedProjectFiles()
     {
         await InitializeAsync();

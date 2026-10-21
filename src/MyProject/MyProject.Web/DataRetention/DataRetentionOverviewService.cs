@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.Systems;
 using MyProject.Web.Backup;
@@ -53,11 +54,21 @@ public sealed record DataRetentionRow
 
     public string? ManageUrl { get; init; }
 
+    /// <summary>這一列有「自訂清除」（0.9.134 起）。</summary>
+    public bool CanCustomPurge { get; init; }
+
     /// <summary>這一列讀取失敗時的訊息；其他欄位是預設值。</summary>
     public string? Error { get; init; }
 }
 
 public sealed record DataRetentionOverview(bool SchedulingEnabled, string? SettingsError, IReadOnlyList<DataRetentionRow> Rows);
+
+/// <summary>
+/// 「自訂清除」的結果：刪掉幾筆、留下幾筆（只有已刪除資料會有：受保護、仍在使用、還有下屬或中途被還原），
+/// 以及稽核要記的動作代碼與對象種類（由呼叫端寫，才記得到操作者）。
+/// <paramref name="Failed"/>：已刪除資料途中有一筆失敗（已記錄錯誤），<paramref name="Removed"/> 是失敗前已刪掉的。
+/// </summary>
+public sealed record CustomPurgeOutcome(int Removed, int Left, string AuditAction, string TargetType, bool Failed = false);
 
 /// <summary>
 /// 「資料保留與清理」頁（0.9.133 起）：每種資料目前多少、佔多少空間、最舊到何時、保留規則、下次會清掉幾筆，
@@ -168,6 +179,81 @@ public sealed class DataRetentionOverviewService
     public bool TryTrigger(string jobName, string? account, int? userId)
         => jobOverviewService.TryTrigger(jobName, account, userId);
 
+    /// <summary>「自訂清除」的預覽：依 <paramref name="cutoff"/> 會刪掉幾筆（與清除同一個條件；已刪除資料是「最多」）。</summary>
+    public async Task<int> PreviewCustomAsync(string rowKey, CustomPurgeCutoff cutoff)
+    {
+        var threshold = cutoff.ToThreshold(BasisOf(rowKey), timeProvider);
+        var stats = rowKey switch
+        {
+            "exception-log" => await exceptionLogService.GetRetentionStatsAsync(threshold),
+            "token-usage" => await tokenUsageLogService.GetRetentionStatsAsync(threshold),
+            "ai-call-log" => await aiCallLogService.GetRetentionStatsBeforeAsync(threshold),
+            "audit-log" => await auditLogQueryService.GetRetentionStatsAsync(threshold),
+            "notification" => await notificationQueryService.GetRetentionStatsAsync(threshold, null),
+            "job-run" => await jobRunService.GetRetentionStatsAsync(threshold),
+            _ when SoftDeleteEntityOf(rowKey) is { } entity => (await softDeletePurgeService.GetRetentionStatsAsync(threshold)).Types[entity],
+            _ => throw new ArgumentException($"「{rowKey}」沒有自訂清除。", nameof(rowKey)),
+        };
+        return stats.Expired ?? 0;
+    }
+
+    /// <summary>
+    /// 「自訂清除」：刪除早於 <paramref name="cutoff"/> 的資料（連同檔案），只影響這一次、不改系統參數。
+    /// 已刪除資料只清這一列那一種，保護規則與自動清理相同。失敗時拋出，由呼叫端通知。
+    /// </summary>
+    public async Task<CustomPurgeOutcome> PurgeCustomAsync(string rowKey, CustomPurgeCutoff cutoff, CancellationToken cancellationToken)
+    {
+        var threshold = cutoff.ToThreshold(BasisOf(rowKey), timeProvider);
+        logger.LogInformation("Custom purge requested from the data retention page. RowKey={RowKey}, Threshold={Threshold}", rowKey, threshold);
+        switch (rowKey)
+        {
+            case "exception-log":
+                return new(await exceptionLogService.PurgeBeforeAsync(threshold), 0, AuditActions.ExceptionLog.Purge, "ExceptionLog");
+            case "token-usage":
+                return new(await tokenUsageLogService.PurgeBeforeBatchedAsync(threshold, cancellationToken)
+                    ?? throw new InvalidOperationException("清除 Token 用量紀錄失敗。"), 0, AuditActions.TokenUsage.Purge, "TokenUsageLog");
+            case "ai-call-log":
+                return new(await aiCallLogService.PurgeOlderThanAsync(threshold)
+                    ?? throw new InvalidOperationException("清除 AI 對話紀錄失敗。"), 0, AuditActions.AiCallLog.Purge, "AiCallLog");
+            case "audit-log":
+                return new(await auditLogQueryService.PurgeBeforeAsync(threshold), 0, AuditActions.Audit.Purge, "AuditLog");
+            case "notification":
+                return new(await notificationQueryService.PurgeBeforeAsync(threshold, cancellationToken), 0, AuditActions.Notification.Purge, "Notification");
+            case "job-run":
+                return new(await jobRunService.PruneAsync(threshold), 0, AuditActions.Job.PurgeRuns, "JobRun");
+        }
+
+        var entity = SoftDeleteEntityOf(rowKey) ?? throw new ArgumentException($"「{rowKey}」沒有自訂清除。", nameof(rowKey));
+        var type = (await softDeletePurgeService.PurgeExpiredTypeAsync(entity, threshold, cancellationToken)).Types.Single();
+        return new(type.Removed.Count, type.Protected + type.InUse + type.Skipped, SoftDeletePurgeAuditAction(entity), entity, type.Failed);
+    }
+
+    private static RetentionTimeBasis BasisOf(string rowKey) => rowKey switch
+    {
+        "audit-log" or "notification" or "job-run" => RetentionTimeBasis.Utc,
+        "token-usage" or "ai-call-log" => RetentionTimeBasis.LocalDate,
+        _ => RetentionTimeBasis.Local,
+    };
+
+    private static string? SoftDeleteEntityOf(string rowKey) => rowKey switch
+    {
+        "deleted-project" => nameof(Project),
+        "deleted-category" => nameof(Category),
+        "deleted-team" => nameof(Team),
+        "deleted-user" => nameof(MyUser),
+        "deleted-role" => nameof(RoleView),
+        _ => null,
+    };
+
+    private static string SoftDeletePurgeAuditAction(string entity) => entity switch
+    {
+        nameof(Project) => AuditActions.Project.Purge,
+        nameof(Category) => AuditActions.Category.Purge,
+        nameof(Team) => AuditActions.Team.Purge,
+        nameof(MyUser) => AuditActions.User.Purge,
+        _ => AuditActions.Role.Purge,
+    };
+
     private async Task<DataRetentionRow> RowAsync(string key, string label, Func<Task<DataRetentionRow>> build)
     {
         try
@@ -216,6 +302,7 @@ public sealed class DataRetentionOverviewService
                     Expected = s.Expired,
                     ExpectedNote = s.Expired > 0 ? SoftDeleteNote : null,
                     ManageUrl = kind.Url,
+                    CanCustomPurge = true,
                 }, SoftDeletePurgeJob.JobName, job, days > 0);
             }).ToList();
         }
@@ -242,6 +329,7 @@ public sealed class DataRetentionOverviewService
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
             ManageUrl = "/system-exceptions",
+            CanCustomPurge = true,
         }, ExceptionLogRetentionJob.JobName, jobByName.GetValueOrDefault(ExceptionLogRetentionJob.JobName), days > 0);
     }
 
@@ -261,6 +349,7 @@ public sealed class DataRetentionOverviewService
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
             ManageUrl = "/token-usage",
+            CanCustomPurge = true,
         }, TokenUsageLogRetentionJob.JobName, jobByName.GetValueOrDefault(TokenUsageLogRetentionJob.JobName), days > 0);
     }
 
@@ -279,6 +368,7 @@ public sealed class DataRetentionOverviewService
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
             ManageUrl = "/ai-call-logs",
+            CanCustomPurge = true,
         }, AiCallLogRetentionJob.JobName, jobByName.GetValueOrDefault(AiCallLogRetentionJob.JobName), ruleActive: true);
     }
 
@@ -298,6 +388,7 @@ public sealed class DataRetentionOverviewService
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
             ManageUrl = "/audit-logs",
+            CanCustomPurge = true,
         }, AuditLogRetentionJob.JobName, jobByName.GetValueOrDefault(AuditLogRetentionJob.JobName), days > 0);
     }
 
@@ -329,6 +420,7 @@ public sealed class DataRetentionOverviewService
             RuleText = rules.Count > 0 ? string.Join("；", rules) : "不自動刪除（保留天數皆為 0）",
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
+            CanCustomPurge = true,
         }, NotificationRetentionJob.JobName, jobByName.GetValueOrDefault(NotificationRetentionJob.JobName), rules.Count > 0);
     }
 
@@ -371,6 +463,7 @@ public sealed class DataRetentionOverviewService
             Expected = stats.Expired,
             ScheduleText = "每個排程作業執行完時",
             ManageUrl = "/scheduled-jobs",
+            CanCustomPurge = true,
         };
     }
 

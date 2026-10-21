@@ -945,6 +945,43 @@
         margin: 0 auto !important;
     }
 
+    /* 資料保留與清理的「自訂清除」窗（0.9.134 起）：兩個選項＋預覽，窄窗即可。 */
+    .data-retention-purge-modal {
+        width: 520px !important;
+        max-width: 92vw !important;
+        top: 12vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+    .data-retention-purge-modal .data-retention-purge-option {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .data-retention-purge-modal .data-retention-purge-preview {
+        border-top: 1px solid var(--ov-line);
+        margin-top: 0.5rem;
+        padding-top: 0.75rem;
+    }
+
+    .data-retention-purge-modal .data-retention-muted {
+        color: var(--ov-muted) !important;
+        font-size: 0.85rem;
+        margin-top: 0.25rem;
+    }
+
+    .data-retention-purge-modal .data-retention-error {
+        color: var(--ov-error);
+    }
+
+    .data-retention-purge-modal .data-retention-expected {
+        color: var(--ov-accent);
+    }
+
     /* AI 提示詞的編輯與檢視窗（0.9.108 起）：提示詞動輒數十行，給寬一點；原文保留換行、長行折行。 */
     .prompt-template-modal {
         width: 900px !important;
