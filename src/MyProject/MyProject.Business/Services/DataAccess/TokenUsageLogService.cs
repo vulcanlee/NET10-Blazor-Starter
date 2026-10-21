@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Linq.Expressions;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -348,6 +349,26 @@ public class TokenUsageLogService : ITokenUsageRecorder
         }
     }
 
+    /// <summary>自動過期的門檻：今天往前 <paramref name="days"/> 天的 0 點（本地時間）。</summary>
+    public static DateTime ExpiryThreshold(int days, DateTime nowLocal) => nowLocal.Date.AddDays(-days);
+
+    /// <summary>
+    /// 清理條件：手動清除、自動過期與 <see cref="GetRetentionStatsAsync"/> 共用，
+    /// 「資料保留與清理」頁的「下次會清掉幾筆」才會等於實際刪掉的筆數。
+    /// </summary>
+    private static Expression<Func<TokenUsageLog, bool>> OlderThan(DateTime threshold)
+        => x => x.OccurredAt < threshold;
+
+    /// <summary>筆數、最舊一筆與自動過期會刪掉的筆數（<paramref name="days"/> 為 0 以下＝不自動清除，回 null）。</summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(int days, DateTime nowLocal)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var total = await context.TokenUsageLog.CountAsync();
+        var oldest = await context.TokenUsageLog.MinAsync(x => (DateTime?)x.OccurredAt);
+        int? expired = days > 0 ? await context.TokenUsageLog.CountAsync(OlderThan(ExpiryThreshold(days, nowLocal))) : null;
+        return new RetentionStats(total, oldest, expired);
+    }
+
     /// <summary>刪除指定日期（不含當日）之前的紀錄，連同原始檔一起。</summary>
     public async Task<VerifyRecordResult> PurgeBeforeAsync(DateTime beforeDate)
     {
@@ -358,7 +379,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
         try
         {
             var stale = await context.TokenUsageLog
-                .Where(x => x.OccurredAt < threshold)
+                .Where(OlderThan(threshold))
                 .ToListAsync();
 
             if (stale.Count == 0)
@@ -397,7 +418,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
     /// <returns>刪除的資料列數；失敗回 null（已記錄錯誤）。</returns>
     public async Task<int?> PurgeExpiredAsync(int days, DateTime nowLocal, CancellationToken cancellationToken, int batchSize = 500)
     {
-        var threshold = nowLocal.Date.AddDays(-days);
+        var threshold = ExpiryThreshold(days, nowLocal);
         var removed = 0;
 
         try
@@ -407,7 +428,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
                 cancellationToken.ThrowIfCancellationRequested();
                 await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
                 var batch = await context.TokenUsageLog
-                    .Where(x => x.OccurredAt < threshold)
+                    .Where(OlderThan(threshold))
                     .OrderBy(x => x.Id)
                     .Select(x => new { x.Id, x.RawUsageFile })
                     .Take(batchSize)

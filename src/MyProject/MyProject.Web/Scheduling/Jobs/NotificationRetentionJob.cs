@@ -45,9 +45,8 @@ public sealed class NotificationRetentionJob : IScheduledJob
             return ScheduledJobResult.Success("保留天數設為 0，不自動清除。");
         }
 
-        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-        var removed = days > 0 ? await queryService.PurgeBeforeAsync(nowUtc.AddDays(-days), cancellationToken) : 0;
-        var readRemoved = readDays > 0 ? await queryService.PurgeReadBeforeAsync(nowUtc.AddDays(-readDays), cancellationToken) : 0;
+        var removed = days > 0 ? await queryService.PurgeBeforeAsync(RetentionCutoffs.Notification(days, timeProvider), cancellationToken) : 0;
+        var readRemoved = readDays > 0 ? await queryService.PurgeReadBeforeAsync(RetentionCutoffs.Notification(readDays, timeProvider), cancellationToken) : 0;
         logger.LogInformation(
             "Notification retention completed. Rows={Rows}, RetentionDays={RetentionDays}, ReadRows={ReadRows}, ReadRetentionDays={ReadRetentionDays}",
             removed, days, readRemoved, readDays);

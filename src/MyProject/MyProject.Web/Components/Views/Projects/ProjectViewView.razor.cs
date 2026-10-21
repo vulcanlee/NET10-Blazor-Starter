@@ -153,6 +153,10 @@ public partial class ProjectViewView
         this.accessScope = accessScope;
     }
 
+    /// <summary>「資料保留與清理」頁的「前往」帶 <c>?deleted=1</c> 進來時為 true：一進頁面就顯示已刪除的資料（0.9.133 起）。</summary>
+    [Parameter]
+    public bool InitialShowDeleted { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         logger.LogDebug("Initializing project management view.");
@@ -181,6 +185,8 @@ public partial class ProjectViewView
             .Where(t => !tree.AncestorsAndSelf(t).Skip(1).Any(a => currentScope.Teams.Contains(a, StringComparer.OrdinalIgnoreCase)))
             .ToList();
 
+        // 只有看得到「顯示已刪除」按鈕的人（刪除權限）才套用。
+        showDeleted = InitialShowDeleted && AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete);
         await ReloadAsync();
     }
 

@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Linq.Expressions;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -375,12 +376,29 @@ public class ExceptionLogService
     /// 刪除「最後發生」早於 <paramref name="threshold"/>（本地時間，與 LastOccurredAt 同一個時間基準）的紀錄與堆疊檔，
     /// 回傳刪除筆數。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出，由呼叫端決定如何回報。
     /// </summary>
+    /// <summary>
+    /// 清理條件：<see cref="PurgeBeforeAsync"/> 與 <see cref="GetRetentionStatsAsync"/> 共用，
+    /// 「資料保留與清理」頁的「下次會清掉幾筆」才會等於實際刪掉的筆數。
+    /// </summary>
+    private static Expression<Func<ExceptionLog, bool>> OlderThan(DateTime threshold)
+        => x => x.LastOccurredAt < threshold;
+
+    /// <summary>筆數、最舊一筆（最後發生）與超過 <paramref name="threshold"/>（本地時間；null＝不自動清理）的筆數。</summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? threshold)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var total = await context.ExceptionLog.CountAsync();
+        var oldest = await context.ExceptionLog.MinAsync(x => (DateTime?)x.LastOccurredAt);
+        int? expired = threshold is { } t ? await context.ExceptionLog.CountAsync(OlderThan(t)) : null;
+        return new RetentionStats(total, oldest, expired);
+    }
+
     public async Task<int> PurgeBeforeAsync(DateTime threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
 
         var stale = await context.ExceptionLog
-            .Where(x => x.LastOccurredAt < threshold)
+            .Where(OlderThan(threshold))
             .ToListAsync();
 
         if (stale.Count == 0)

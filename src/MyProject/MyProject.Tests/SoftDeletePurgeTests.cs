@@ -60,6 +60,50 @@ public sealed class SoftDeletePurgeTests : IAsyncDisposable
         Assert.All(result.Types, t => Assert.Single(t.Removed));
     }
 
+    // ================================================================== 資料保留與清理頁的統計（0.9.133 起）
+
+    [Fact]
+    public async Task RetentionStats_ExpiredCount_ShouldEqualWhatThePurgeRemoves()
+    {
+        await InitializeAsync();
+        await using (var db = NewContext())
+        {
+            db.Project.AddRange(NewProject("過期專案", Expired), NewProject("未到期專案", NotYet), NewProject("有效專案", null), NewProject("沒有刪除時間", null, isDeleted: true));
+            db.Category.AddRange(new Category { Name = "過期分類", IsDeleted = true, DeletedAt = Expired }, new Category { Name = "未到期分類", IsDeleted = true, DeletedAt = NotYet });
+            db.Team.AddRange(new Team { Name = "過期團隊", IsDeleted = true, DeletedAt = Expired }, new Team { Name = "未到期團隊", IsDeleted = true, DeletedAt = NotYet });
+            db.MyUser.AddRange(NewUser("expired", Expired), NewUser("notyet", NotYet));
+            db.RoleView.AddRange(NewRole("過期角色", Expired), NewRole("未到期角色", NotYet));
+            await db.SaveChangesAsync();
+        }
+
+        var stats = await Service().GetRetentionStatsAsync(Cutoff);
+        var result = await Service().PurgeExpiredAsync(Cutoff, default);
+
+        Assert.All(result.Types, t => Assert.Equal(t.Removed.Count, stats.Types[t.EntityType].Expired));
+        Assert.Equal(3, stats.Types["Project"].Total);  // 只算已刪除的，「有效專案」不算
+        Assert.Equal(Expired, stats.Types["Category"].Oldest);
+    }
+
+    [Fact]
+    public async Task RetentionStats_WithoutCutoff_ShouldNotCountExpired_AndSumDeletedProjectFiles()
+    {
+        await InitializeAsync();
+        await AddProjectWithFileAsync("已刪除專案", Expired, teams: null);
+        await using (var db = NewContext())
+        {
+            var alive = NewProject("有效專案", null);
+            alive.Files.Add(NewFile(Path.Combine("2026", "07", "alive.txt")));
+            db.Project.Add(alive);
+            await db.SaveChangesAsync();
+        }
+
+        var stats = await Service().GetRetentionStatsAsync(null);
+
+        Assert.Null(stats.Types["Project"].Expired);
+        Assert.Equal(1, stats.Types["Project"].Total);
+        Assert.Equal(1, stats.DeletedProjectFileBytes);  // NewFile 的 FileSize 是 1；有效專案的附件不算
+    }
+
     [Fact]
     public async Task ExpiredProject_ShouldTakeItsAttachmentFiles_AndATeamScopedProjectIsNotExempt()
     {

@@ -24,6 +24,13 @@ namespace MyProject.Web.Components.Views.Admins
 
         private SystemParameterOverview? overview;
         private bool isLoading;
+
+        /// <summary>要捲到的分類（例如「資料保留」）；「資料保留與清理」頁的「修改」帶 <c>?group=</c> 進來（0.9.133 起）。</summary>
+        [Parameter]
+        public string? FocusGroup { get; set; }
+
+        private ElementReference focusGroupHeading;
+        private bool focusDone;
         private string RoleMessage = string.Empty;
         private bool isAccessChecked;
 
@@ -84,6 +91,25 @@ namespace MyProject.Web.Components.Views.Admins
             }
 
             await ReloadAsync();
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            // 資料載入後分類標題才出現：等它渲染出來再聚焦一次（聚焦會把它捲進畫面），之後的重新整理不再搶捲動位置。
+            if (focusDone || string.IsNullOrEmpty(FocusGroup) || focusGroupHeading.Context is null)
+            {
+                return;
+            }
+
+            focusDone = true;
+            try
+            {
+                await focusGroupHeading.FocusAsync();
+            }
+            catch (Exception ex) when (ex is Microsoft.JSInterop.JSException or TaskCanceledException)
+            {
+                logger.LogDebug(ex, "Failed to focus the system parameter group. Group={Group}", FocusGroup);
+            }
         }
 
         private async Task ReloadAsync()

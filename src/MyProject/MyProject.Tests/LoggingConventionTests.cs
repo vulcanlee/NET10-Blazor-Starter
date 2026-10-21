@@ -389,6 +389,9 @@ public sealed class LoggingConventionTests
             "QrCodeImage.cs",               // 文字轉 QR Code 圖片，純函式（0.9.104 起）
             "SystemIdentity.cs",            // 例外告警服務（例外記錄管線內）使用它讀系統名稱；用 ILogger 會遞迴（0.9.98 起）
             "UpdateOutcome.cs",             // Repository 修改結果（record：是否成功＋稽核差異），無行為（0.9.131 起）
+            "RetentionStats.cs",            // 資料保留頁的統計（record：筆數、最舊、過期），無行為（0.9.133 起）
+            "RetentionCutoffs.cs",          // 純函式：各類資料超過保留天數的門檻（0.9.133 起）
+            "CronDescriber.cs",             // 純函式：cron 轉白話（0.9.133 起）
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

@@ -59,7 +59,7 @@ public sealed class SoftDeletePurgeJob : IScheduledJob
             return ScheduledJobResult.Success("保留天數設為 0，不自動永久刪除。");
         }
 
-        var cutoff = timeProvider.GetLocalNow().DateTime.AddDays(-days);
+        var cutoff = RetentionCutoffs.SoftDelete(days, timeProvider);
         var result = await purgeService.PurgeExpiredAsync(cutoff, cancellationToken);
 
         foreach (var type in result.Types.Where(x => x.Removed.Count > 0))

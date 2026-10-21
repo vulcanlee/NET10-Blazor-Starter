@@ -44,7 +44,7 @@ public sealed class ExceptionLogRetentionJob : IScheduledJob
             return ScheduledJobResult.Success("保留天數設為 0，不自動清除。");
         }
 
-        var threshold = timeProvider.GetLocalNow().DateTime.AddDays(-days);
+        var threshold = RetentionCutoffs.ExceptionLog(days, timeProvider);
         var removed = await exceptionLogService.PurgeBeforeAsync(threshold);
         logger.LogInformation("Exception log retention completed. Rows={Rows}, RetentionDays={RetentionDays}", removed, days);
 

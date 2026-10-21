@@ -26,6 +26,7 @@ using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
 using MyProject.Web.Dashboard;
+using MyProject.Web.DataRetention;
 using MyProject.Web.Scheduling;
 using MyProject.Web.Scheduling.Jobs;
 using System.Globalization;
@@ -258,6 +259,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ScheduledJobTriggerQueue>();
         services.AddSingleton<ScheduledJobRunner>();
         services.AddSingleton<ScheduledJobOverviewService>();
+
+        // 「資料保留與清理」頁（0.9.133 起）：用到的資料服務都是 scoped，所以它也是 scoped。
+        services.AddScoped<DataRetentionOverviewService>();
 
         // 首頁儀表板的小工具（0.9.106 起）；新增小工具在 AddDashboard 加一行 AddDashboardWidget。
         services.AddDashboard();

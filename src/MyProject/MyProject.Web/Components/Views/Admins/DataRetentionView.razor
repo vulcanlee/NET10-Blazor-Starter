@@ -1,0 +1,138 @@
+@using MyProject.Share.Helpers
+@using MyProject.Web.DataRetention
+
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="data-retention-toolbar">
+            <div class="data-retention-toolbar-left">
+                <span class="data-retention-hint">每種資料留多久、現在多少、下次自動清理會刪掉多少。保留天數在「系統參數」修改；細部刪除請按「前往」。</span>
+            </div>
+            <div class="data-retention-toolbar-right">
+                <ToolbarIconButton Title="重新整理" Icon="refresh"
+                                   OnClick="@(async () => await OnRefreshAsync())" />
+            </div>
+        </div>
+
+        @if (overview is { SchedulingEnabled: false })
+        {
+            <div class="alert alert-warning data-retention-alert" role="alert">
+                排程總開關已關閉（ScheduledJobSettings:Enabled = false）：不會自動清理；仍可按「立即清理」執行一次。
+            </div>
+        }
+
+        @if (overview?.SettingsError is { } settingsError)
+        {
+            <div class="alert alert-danger data-retention-alert" role="alert">
+                排程設定有誤，目前沿用上一份正確的設定：@settingsError
+            </div>
+        }
+
+        <div class="data-retention-table-wrap">
+            <Table TItem="DataRetentionRow"
+                   Class="data-retention-table"
+                   DataSource="@(overview?.Rows ?? [])"
+                   Loading="@isLoading"
+                   Size="TableSize.Small"
+                   HidePagination="true">
+                <ColumnDefinitions>
+                    <Column TData="string" Title="資料" Width="170">
+                        <div class="data-retention-name">@context.Label</div>
+                        @if (context.Note is { } note)
+                        {
+                            <div class="data-retention-muted">@note</div>
+                        }
+                    </Column>
+                    <Column TData="string" Title="目前數量" Width="100" Align="ColumnAlign.Right">
+                        @if (context.Error is { } error)
+                        {
+                            <span class="data-retention-error">@error</span>
+                        }
+                        else if (context.Count is { } count)
+                        {
+                            @($"{count:N0} {context.CountUnit}")
+                        }
+                        else
+                        {
+                            <span class="data-retention-muted">—</span>
+                        }
+                    </Column>
+                    <Column TData="string" Title="檔案空間" Width="110" Align="ColumnAlign.Right">@FolderText(context.Folder)</Column>
+                    <Column TData="string" Title="最舊一筆" Width="140">
+                        @(context.OldestLocal is { } oldest ? oldest.ToString("yyyy-MM-dd HH:mm") : "—")
+                    </Column>
+                    <Column TData="string" Title="保留規則" Width="200">
+                        <span>@context.RuleText</span>
+                        @if (context.ParameterGroup is { } group)
+                        {
+                            <a class="data-retention-link" href="@ParameterUrl(group)">修改</a>
+                        }
+                    </Column>
+                    <Column TData="string" Title="下次會清掉" Width="150" Align="ColumnAlign.Right">
+                        @if (context.Expected is { } expected)
+                        {
+                            <strong class="@(expected > 0 ? "data-retention-expected" : null)">@($"{expected:N0} {context.CountUnit}")</strong>
+                            @if (context.ExpectedNote is { } expectedNote)
+                            {
+                                <div class="data-retention-muted">@expectedNote</div>
+                            }
+                        }
+                        else
+                        {
+                            <span class="data-retention-muted">—</span>
+                        }
+                    </Column>
+                    <Column TData="string" Title="自動清理" Width="230">
+                        <div>@context.ScheduleText</div>
+                        @if (context.Job is { } job)
+                        {
+                            @if (!job.IsEnabled)
+                            {
+                                <StatusPill Text="已停用" Tone="StatusTone.Muted" />
+                            }
+                            <div class="data-retention-muted">
+                                上次：@(job.LastRun is { } run ? $"{ToLocalText(run.StartedAtUtc)} {StatusText(run.Status)}" : "尚未執行")
+                            </div>
+                            @if (job.LastRun?.Message is { Length: > 0 } message)
+                            {
+                                <div class="data-retention-muted">@message</div>
+                            }
+                            <div class="data-retention-muted">
+                                下次：@(job.NextRunLocal is { } next ? next.ToString("yyyy-MM-dd HH:mm") : "不會自動執行")
+                            </div>
+                        }
+                    </Column>
+                    <ActionColumn Title="操作" Width="110">
+                        <Space>
+                            @if (context.CanPurgeNow || context.PurgeDisabledReason is not null)
+                            {
+                                <SpaceItem>
+                                    <CrudActionButton Title="@(context.PurgeDisabledReason is { } reason ? $"立即清理（{reason}）" : "立即清理")"
+                                                      Icon="cleaning_services" Danger
+                                                      Disabled="@(!context.CanPurgeNow)"
+                                                      OnClick="@(async () => await OnPurgeNowAsync(context))" />
+                                </SpaceItem>
+                            }
+                            @if (context.ManageUrl is { } url)
+                            {
+                                <SpaceItem>
+                                    <CrudActionButton Title="前往" Icon="open_in_new" Href="@url" Target="_self" />
+                                </SpaceItem>
+                            }
+                        </Space>
+                    </ActionColumn>
+                </ColumnDefinitions>
+            </Table>
+        </div>
+    </div>
+}

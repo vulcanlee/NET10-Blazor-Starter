@@ -53,6 +53,7 @@ public sealed class MenuPermissionConsistencyTests
         "ScheduledJobView.razor.cs",
         "SystemParameterView.razor.cs",
         "BackupView.razor.cs",
+        "DataRetentionView.razor.cs",
         "AnnouncementView.razor.cs",
         "PromptTemplateView.razor.cs",
     };

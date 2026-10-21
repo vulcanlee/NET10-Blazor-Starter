@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Linq.Expressions;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -214,6 +215,26 @@ public class AuditLogQueryService
     /// 刪除早於 <paramref name="thresholdUtc"/> 的稽核紀錄，回傳刪除筆數。
     /// ⚠️ 門檻必須是 UTC（資料表存 UTC）。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出。
     /// </summary>
+    /// <summary>
+    /// 清理條件：<see cref="PurgeBeforeAsync"/> 與 <see cref="GetRetentionStatsAsync"/> 共用，
+    /// 「資料保留與清理」頁的「下次會清掉幾筆」才會等於實際刪掉的筆數。
+    /// </summary>
+    private static Expression<Func<AuditLog, bool>> OlderThan(DateTime thresholdUtc)
+        => x => x.OccurredAt < thresholdUtc;
+
+    /// <summary>
+    /// 筆數、最舊一筆與超過 <paramref name="thresholdUtc"/>（UTC；null＝不自動清理）的筆數。
+    /// ⚠️ <see cref="RetentionStats.Oldest"/> 是 UTC，顯示前由呼叫端轉本地時間。
+    /// </summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? thresholdUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var total = await context.AuditLog.CountAsync();
+        var oldest = await context.AuditLog.MinAsync(x => (DateTime?)x.OccurredAt);
+        int? expired = thresholdUtc is { } t ? await context.AuditLog.CountAsync(OlderThan(t)) : null;
+        return new RetentionStats(total, oldest, expired);
+    }
+
     public async Task<int> PurgeBeforeAsync(DateTime thresholdUtc)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -221,12 +242,13 @@ public class AuditLogQueryService
         // 先記下要刪的內容檔（只取有檔的列：稽核表可能很大），刪完資料列再刪檔 ——
         // 反過來的話，資料列刪失敗會留下指向不存在檔案的紀錄。
         var files = await context.AuditLog
-            .Where(x => x.OccurredAt < thresholdUtc && x.ContentFile != null)
+            .Where(OlderThan(thresholdUtc))
+            .Where(x => x.ContentFile != null)
             .Select(x => x.ContentFile!)
             .ToListAsync();
 
         var removed = await context.AuditLog
-            .Where(x => x.OccurredAt < thresholdUtc)
+            .Where(OlderThan(thresholdUtc))
             .ExecuteDeleteAsync();
 
         foreach (var file in files)

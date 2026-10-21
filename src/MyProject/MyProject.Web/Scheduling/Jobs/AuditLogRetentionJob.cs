@@ -44,7 +44,7 @@ public sealed class AuditLogRetentionJob : IScheduledJob
             return ScheduledJobResult.Success("保留天數設為 0，不自動清除。");
         }
 
-        var threshold = timeProvider.GetUtcNow().UtcDateTime.AddDays(-days);
+        var threshold = RetentionCutoffs.AuditLog(days, timeProvider);
         var removed = await auditLogQueryService.PurgeBeforeAsync(threshold);
         logger.LogInformation("Audit log retention completed. Rows={Rows}, RetentionDays={RetentionDays}", removed, days);
 
