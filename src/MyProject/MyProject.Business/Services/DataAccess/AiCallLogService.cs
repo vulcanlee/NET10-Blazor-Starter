@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using AutoMapper;
@@ -318,7 +319,7 @@ public class AiCallLogService : IAiCallLogRecorder
     /// <summary>同 <see cref="PurgeExpiredAsync()"/>，由呼叫端提供「現在」（本地時間）—— 排程作業傳入 TimeProvider 的時間，測試才控制得了。</summary>
     public async Task<int?> PurgeExpiredAsync(DateTime nowLocal)
     {
-        var threshold = nowLocal.Date.AddDays(-RetentionDays);
+        var threshold = ExpiryThreshold(nowLocal);
         var (success, removed) = await PurgeCoreAsync(threshold);
         if (success)
         {
@@ -328,6 +329,26 @@ public class AiCallLogService : IAiCallLogRecorder
         return success ? removed : null;
     }
 
+    /// <summary>自動過期的門檻：今天往前 <c>RetentionDays</c> 天的 0 點（本地時間）。</summary>
+    public DateTime ExpiryThreshold(DateTime nowLocal) => nowLocal.Date.AddDays(-RetentionDays);
+
+    /// <summary>
+    /// 清理條件：手動清除、自動過期與 <see cref="GetRetentionStatsAsync"/> 共用，
+    /// 「資料保留與清理」頁的「下次會清掉幾筆」才會等於實際刪掉的筆數。
+    /// </summary>
+    private static Expression<Func<AiCallLog, bool>> OlderThan(DateTime threshold)
+        => x => x.OccurredAt < threshold;
+
+    /// <summary>筆數、最舊一筆與自動過期會刪掉的筆數（保留天數至少 1 天，一定會自動清理）。</summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime nowLocal)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var total = await context.AiCallLog.CountAsync();
+        var oldest = await context.AiCallLog.MinAsync(x => (DateTime?)x.OccurredAt);
+        var expired = await context.AiCallLog.CountAsync(OlderThan(ExpiryThreshold(nowLocal)));
+        return new RetentionStats(total, oldest, expired);
+    }
+
     private async Task<(bool Success, int Removed)> PurgeCoreAsync(DateTime threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -335,7 +356,7 @@ public class AiCallLogService : IAiCallLogRecorder
 
         try
         {
-            var stale = context.AiCallLog.Where(x => x.OccurredAt < threshold);
+            var stale = context.AiCallLog.Where(OlderThan(threshold));
             var contentFiles = await stale.Select(x => x.ContentFile).ToListAsync();
             if (contentFiles.Count == 0)
             {

@@ -545,6 +545,32 @@ public sealed class NotificationTests : IDisposable
         Assert.Contains(audit.Entries, x => x.Action == AuditActions.Notification.AutoPurge);
     }
 
+    [Fact]
+    public async Task RetentionStats_ShouldCountBothRulesOnce_AndMatchWhatTheJobRemoves()
+    {
+        // 資料保留與清理頁（0.9.133 起）：「建立超過」與「已讀超過」可能命中同一則，只能算一次。
+        var user = AddUser("u");
+        await using (var context = factory.CreateDbContext())
+        {
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "both", CreatedAtUtc = DateTime.UtcNow.AddDays(-100), ReadAtUtc = DateTime.UtcNow.AddDays(-50) });
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "created-only", CreatedAtUtc = DateTime.UtcNow.AddDays(-100) });
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "read-only", CreatedAtUtc = DateTime.UtcNow.AddDays(-30), ReadAtUtc = DateTime.UtcNow.AddDays(-8) });
+            context.Notification.Add(new Notification { RecipientUserId = user, Category = "T", Title = "keep", CreatedAtUtc = DateTime.UtcNow.AddDays(-1) });
+            await context.SaveChangesAsync();
+        }
+
+        var query = new NotificationQueryService(factory, new NotificationSignal(NullLogger<NotificationSignal>.Instance), TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var stats = await query.GetRetentionStatsAsync(
+            RetentionCutoffs.Notification(90, TimeProvider.System), RetentionCutoffs.Notification(7, TimeProvider.System));
+        Assert.Equal(4, stats.Total);
+        Assert.Equal(3, stats.Expired);
+        Assert.Null((await query.GetRetentionStatsAsync(null, null)).Expired);
+
+        await new NotificationRetentionJob(query, new RecordingAuditLogService(), new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 90, ReadRetentionDays = 7 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
+            .ExecuteAsync(new ScheduledJobContext(1, JobRunTriggers.Schedule, DateTime.UtcNow, null), CancellationToken.None);
+        Assert.Equal(stats.Total - stats.Expired, CountNotifications());
+    }
+
     // ---------- 測試工具 ----------
 
     private static NotificationRequest Request(NotificationTarget target, string? sourceKey = null)

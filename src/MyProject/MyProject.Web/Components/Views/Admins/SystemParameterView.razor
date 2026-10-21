@@ -57,7 +57,15 @@ else
 
         @foreach (var group in Groups)
         {
-            <h6 class="system-parameter-group">@group.Key</h6>
+            @* 0.9.133 起：從「資料保留與清理」的「修改」進來（?group=…）時捲到該分類。 *@
+            @if (group.Key == FocusGroup)
+            {
+                <h6 class="system-parameter-group" tabindex="-1" @ref="focusGroupHeading">@group.Key</h6>
+            }
+            else
+            {
+                <h6 class="system-parameter-group">@group.Key</h6>
+            }
             <div class="system-parameter-table-wrap">
                 <Table TItem="SystemParameterOverviewItem"
                        Class="system-parameter-table"

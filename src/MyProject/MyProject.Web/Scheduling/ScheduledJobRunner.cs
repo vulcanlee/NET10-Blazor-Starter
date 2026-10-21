@@ -230,7 +230,7 @@ public sealed class ScheduledJobRunner
             var days = options.CurrentValue.JobRunRetentionDays;
             if (days > 0)
             {
-                await runService.PruneAsync(UtcNow().AddDays(-days));
+                await runService.PruneAsync(RetentionCutoffs.JobRun(days, timeProvider));
             }
         }
         catch (Exception ex)

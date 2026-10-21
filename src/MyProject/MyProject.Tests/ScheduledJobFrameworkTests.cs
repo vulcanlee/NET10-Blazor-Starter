@@ -401,6 +401,24 @@ public sealed class ScheduledJobFrameworkTests : IDisposable
         Assert.Equal(Slot(1), ScheduleCalculator.AsUtc((await context.ScheduledJobState.SingleAsync(x => x.JobName == "Probe")).LastScheduledForUtc!.Value));
     }
 
+    [Fact]
+    public async Task RetentionStats_ShouldCountWhatPruneRemoves_AndSkipRunningOnes()
+    {
+        // 資料保留與清理頁（0.9.133 起）：執行中的紀錄不算進「下次會清掉」，與 PruneAsync 相同。
+        await using var a = await StartProcessAsync();
+        await a.RunService.InsertRunAsync(new JobRun { JobName = "Probe", Trigger = JobRunTriggers.Manual, StartedAtUtc = NowUtc.AddDays(-10), Status = JobRunStatuses.Succeeded }, default);
+        await a.RunService.InsertRunAsync(new JobRun { JobName = "Other", Trigger = JobRunTriggers.Manual, StartedAtUtc = NowUtc.AddDays(-10), Status = JobRunStatuses.Running }, default);
+        await a.RunService.InsertRunAsync(new JobRun { JobName = "Probe", Trigger = JobRunTriggers.Manual, StartedAtUtc = NowUtc, Status = JobRunStatuses.Succeeded }, default);
+        var cutoff = NowUtc.AddDays(-1);
+
+        var stats = await a.RunService.GetRetentionStatsAsync(cutoff);
+
+        Assert.Equal(3, stats.Total);
+        Assert.Equal(1, stats.Expired);
+        Assert.Equal(stats.Expired, await a.RunService.PruneAsync(cutoff));
+        Assert.Null((await a.RunService.GetRetentionStatsAsync(null)).Expired);
+    }
+
     // ================================================================== 排程器
 
     [Fact]

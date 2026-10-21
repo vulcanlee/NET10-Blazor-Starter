@@ -120,11 +120,40 @@ public class NotificationQueryService
 
     /// <summary>刪除建立時間早於門檻的通知（不論已讀未讀），分批進行，批次之間可取消。</summary>
     public Task<int> PurgeBeforeAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
-        => PurgeAsync(x => x.CreatedAtUtc < cutoffUtc, cancellationToken);
+        => PurgeAsync(CreatedBefore(cutoffUtc), cancellationToken);
 
     /// <summary>刪除標為已讀的時間早於門檻的通知（0.9.125 起），分批進行，批次之間可取消。</summary>
     public Task<int> PurgeReadBeforeAsync(DateTime readCutoffUtc, CancellationToken cancellationToken)
-        => PurgeAsync(x => x.ReadAtUtc != null && x.ReadAtUtc < readCutoffUtc, cancellationToken);
+        => PurgeAsync(ReadBefore(readCutoffUtc), cancellationToken);
+
+    // 清理條件：清理方法與 GetRetentionStatsAsync 共用（「資料保留與清理」頁的「下次會清掉幾筆」）。
+    private static Expression<Func<Notification, bool>> CreatedBefore(DateTime cutoffUtc)
+        => x => x.CreatedAtUtc < cutoffUtc;
+
+    private static Expression<Func<Notification, bool>> ReadBefore(DateTime readCutoffUtc)
+        => x => x.ReadAtUtc != null && x.ReadAtUtc < readCutoffUtc;
+
+    /// <summary>
+    /// 全部使用者的通知筆數、最舊一筆（建立時間，UTC）與兩條規則會刪掉的筆數。
+    /// 兩條規則可能命中同一則，取聯集不重複計；兩個門檻都是 null（都不自動清理）時 Expired 為 null。
+    /// </summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? cutoffUtc, DateTime? readCutoffUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var total = await context.Notification.CountAsync();
+        var oldest = await context.Notification.MinAsync(x => (DateTime?)x.CreatedAtUtc);
+
+        int? expired = (cutoffUtc, readCutoffUtc) switch
+        {
+            ({ } c, { } r) => await context.Notification.Where(CreatedBefore(c)).Select(x => x.Id)
+                .Union(context.Notification.Where(ReadBefore(r)).Select(x => x.Id))
+                .CountAsync(),
+            ({ } c, null) => await context.Notification.CountAsync(CreatedBefore(c)),
+            (null, { } r) => await context.Notification.CountAsync(ReadBefore(r)),
+            _ => null,
+        };
+        return new RetentionStats(total, oldest, expired);
+    }
 
     private async Task<int> PurgeAsync(Expression<Func<Notification, bool>> predicate, CancellationToken cancellationToken)
     {

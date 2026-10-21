@@ -157,6 +157,12 @@
             "name": "系統備份",
             "icon": "backup",
             "url": "/backups"
+          },
+          {
+            "id": 68,
+            "name": "資料保留與清理",
+            "icon": "auto_delete",
+            "url": "/data-retention"
           }
         ]
       }

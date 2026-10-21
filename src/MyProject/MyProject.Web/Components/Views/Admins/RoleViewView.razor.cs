@@ -80,6 +80,10 @@ namespace MyProject.Web.Components.Views.Admins
             this.teamService = teamService;
         }
 
+        /// <summary>「資料保留與清理」頁的「前往」帶 <c>?deleted=1</c> 進來時為 true：一進頁面就顯示已刪除的資料（0.9.133 起）。</summary>
+        [Parameter]
+        public bool InitialShowDeleted { get; set; }
+
         protected override async Task OnInitializedAsync()
         {
             logger.LogDebug("Initializing role view management.");
@@ -102,6 +106,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             availableTeams = await teamService.GetAllEnabledNamesAsync();
 
+            showDeleted = InitialShowDeleted;
             await ReloadAsync();
         }
 

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,12 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
+
+/// <summary>
+/// 「資料保留與清理」頁的已刪除資料統計（0.9.133 起）：依實體名稱（<c>nameof(Project)</c> 等）各一份，
+/// 外加已刪除專案的附件總大小（永久刪除時一併移除）。
+/// </summary>
+public sealed record SoftDeleteRetentionStats(IReadOnlyDictionary<string, RetentionStats> Types, long DeletedProjectFileBytes);
 
 /// <summary>被永久刪除的一筆資料（稽核用）。</summary>
 public sealed record PurgedRecord(int Id, string Name);
@@ -111,6 +118,50 @@ public class SoftDeletePurgeService
         return result;
     }
 
+    /// <summary>
+    /// 清理條件：候選查詢、刪除前的重新確認與 <see cref="GetRetentionStatsAsync"/> 共用。
+    /// </summary>
+    private static Expression<Func<TEntity, bool>> Expired<TEntity>(DateTime cutoffLocal)
+        where TEntity : class, ISoftDeletable
+        => x => x.IsDeleted && x.DeletedAt != null && x.DeletedAt < cutoffLocal;
+
+    /// <summary>
+    /// 五種資料各自的已刪除筆數、最早的刪除時間與超過 <paramref name="cutoffLocal"/>（本地時間；null＝不自動清理）的筆數。
+    /// ⚠️ 過期筆數是「最多」：support 帳號、預設角色、仍在使用的角色、還有下屬的部門會被 <see cref="PurgeExpiredAsync"/> 留到下次。
+    /// </summary>
+    public async Task<SoftDeleteRetentionStats> GetRetentionStatsAsync(DateTime? cutoffLocal)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var types = new Dictionary<string, RetentionStats>
+        {
+            [nameof(Project)] = await StatsOfAsync(context.Set<Project>(), cutoffLocal),
+            [nameof(Category)] = await StatsOfAsync(context.Set<Category>(), cutoffLocal),
+            [nameof(Team)] = await StatsOfAsync(context.Set<Team>(), cutoffLocal),
+            [nameof(MyUser)] = await StatsOfAsync(context.Set<MyUser>(), cutoffLocal),
+            [nameof(RoleView)] = await StatsOfAsync(context.Set<RoleView>(), cutoffLocal),
+        };
+
+        // 明確 Join，不走導覽屬性（速查表 §7）：已刪除的專案被全域篩選器擋掉，要先關掉篩選。
+        var deletedProjectIds = context.Set<Project>().IgnoreQueryFilters([ISoftDeletable.FilterName])
+            .Where(x => x.IsDeleted)
+            .Select(x => x.Id);
+        var fileBytes = await context.ProjectFile
+            .Where(x => deletedProjectIds.Contains(x.ProjectId))
+            .SumAsync(x => (long?)x.FileSize) ?? 0;
+
+        return new SoftDeleteRetentionStats(types, fileBytes);
+    }
+
+    private static async Task<RetentionStats> StatsOfAsync<TEntity>(DbSet<TEntity> set, DateTime? cutoffLocal)
+        where TEntity : class, ISoftDeletable
+    {
+        var deleted = set.IgnoreQueryFilters([ISoftDeletable.FilterName]).Where(x => x.IsDeleted);
+        var total = await deleted.CountAsync();
+        var oldest = await deleted.MinAsync(x => x.DeletedAt);
+        int? expired = cutoffLocal is { } c ? await deleted.CountAsync(Expired<TEntity>(c)) : null;
+        return new RetentionStats(total, oldest, expired);
+    }
+
     private async Task PurgeTypeAsync<TEntity>(
         SoftDeletePurgeResult overall,
         string entityType,
@@ -141,7 +192,7 @@ public class SoftDeletePurgeService
                 candidates = await context.Set<TEntity>()
                     .IgnoreQueryFilters([ISoftDeletable.FilterName])
                     .AsNoTracking()
-                    .Where(x => x.IsDeleted && x.DeletedAt != null && x.DeletedAt < cutoffLocal)
+                    .Where(Expired<TEntity>(cutoffLocal))
                     .ToListAsync(CancellationToken.None);
             }
 
@@ -178,7 +229,8 @@ public class SoftDeletePurgeService
 
                 // 重新確認完整條件：候選之後被還原、又被重新刪除（DeletedAt 變新）、或已被手動永久刪除。
                 var tracked = await query
-                    .Where(x => EF.Property<int>(x, "Id") == id && x.IsDeleted && x.DeletedAt != null && x.DeletedAt < cutoffLocal)
+                    .Where(x => EF.Property<int>(x, "Id") == id)
+                    .Where(Expired<TEntity>(cutoffLocal))
                     .FirstOrDefaultAsync(CancellationToken.None);
                 if (tracked is null)
                 {

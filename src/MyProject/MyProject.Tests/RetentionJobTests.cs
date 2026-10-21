@@ -213,7 +213,75 @@ public sealed class RetentionJobTests : IAsyncDisposable
         Assert.Equal(LogRetentionSettings.DefaultAuditLogDays, settings.ManualAuditLogDays);
     }
 
+    // ------------------------------------------------------------------ 資料保留與清理頁的統計（0.9.133 起）
+    // 「下次會清掉幾筆」必須等於作業實際刪掉的筆數：資料放在本地與 UTC 相差的 8 小時內，時鐘用錯就會對不上。
+
+    [Fact]
+    public async Task ExceptionLogStats_ShouldMatchWhatTheJobRemoves()
+    {
+        await InitializeAsync(new LogRetentionSettings { ExceptionLogDays = 90 });
+        await SeedExceptionLogsAsync(new DateTime(2026, 7, 3, 5, 0, 0), new DateTime(2026, 7, 3, 12, 0, 0), new DateTime(2026, 9, 30));
+
+        var stats = await Service<ExceptionLogService>().GetRetentionStatsAsync(RetentionCutoffs.ExceptionLog(90, clock));
+        await RunAsync<ExceptionLogRetentionJob>();
+
+        await using var context = NewContext();
+        Assert.Equal(3, stats.Total);
+        Assert.Equal(new DateTime(2026, 7, 3, 5, 0, 0), stats.Oldest);
+        Assert.Equal(stats.Total - await context.ExceptionLog.CountAsync(), stats.Expired);
+        Assert.Equal(1, stats.Expired);
+    }
+
+    [Fact]
+    public async Task AuditLogStats_ShouldMatchWhatTheJobRemoves()
+    {
+        await InitializeAsync(new LogRetentionSettings { AuditLogDays = 365 });
+        await SeedAuditLogsAsync(new DateTime(2025, 9, 30, 23, 0, 0), new DateTime(2025, 10, 1, 5, 0, 0), new DateTime(2026, 9, 1));
+
+        var stats = await Service<AuditLogQueryService>().GetRetentionStatsAsync(RetentionCutoffs.AuditLog(365, clock));
+        await RunAsync<AuditLogRetentionJob>();
+
+        await using var context = NewContext();
+        Assert.Equal(stats.Total - await context.AuditLog.CountAsync(), stats.Expired);
+        Assert.Equal(1, stats.Expired);
+    }
+
+    [Fact]
+    public async Task TokenUsageStats_ShouldMatchWhatTheJobRemoves()
+    {
+        await InitializeAsync(new LogRetentionSettings { TokenUsageLogDays = 30 });
+        await SeedTokenUsageAsync(new DateTime(2026, 8, 31, 23, 0, 0));
+        await SeedTokenUsageAsync(new DateTime(2026, 9, 1, 1, 0, 0));
+        await SeedTokenUsageAsync(new DateTime(2026, 9, 30));
+
+        var stats = await Service<TokenUsageLogService>().GetRetentionStatsAsync(30, clock.GetLocalNow().DateTime);
+        await RunAsync<TokenUsageLogRetentionJob>();
+
+        await using var context = NewContext();
+        Assert.Equal(stats.Total - await context.TokenUsageLog.CountAsync(), stats.Expired);
+        Assert.Equal(1, stats.Expired);
+        Assert.Null((await Service<TokenUsageLogService>().GetRetentionStatsAsync(0, clock.GetLocalNow().DateTime)).Expired);
+    }
+
+    [Fact]
+    public async Task AiCallLogStats_ShouldMatchWhatTheJobRemoves()
+    {
+        await InitializeAsync(new LogRetentionSettings());
+        await SeedAiCallLogsAsync(new DateTime(2026, 7, 2, 23, 0, 0), new DateTime(2026, 7, 3, 1, 0, 0), new DateTime(2026, 9, 30));
+
+        var stats = await Service<AiCallLogService>().GetRetentionStatsAsync(clock.GetLocalNow().DateTime);
+        await RunAsync<AiCallLogRetentionJob>();
+
+        await using var context = NewContext();
+        Assert.Equal(stats.Total - await context.AiCallLog.CountAsync(), stats.Expired);
+        Assert.Equal(1, stats.Expired);
+    }
+
     // ------------------------------------------------------------------ 測試基礎
+
+    private TService Service<TService>()
+        where TService : notnull
+        => services!.CreateScope().ServiceProvider.GetRequiredService<TService>();
 
     private async Task<ScheduledJobResult> RunAsync<TJob>()
         where TJob : IScheduledJob

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -116,8 +117,25 @@ public class ScheduledJobRunService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         return await context.JobRun
-            .Where(x => x.StartedAtUtc < cutoffUtc && x.Status != JobRunStatuses.Running)
+            .Where(Prunable(cutoffUtc))
             .ExecuteDeleteAsync();
+    }
+
+    /// <summary>清理條件：<see cref="PruneAsync"/> 與 <see cref="GetRetentionStatsAsync"/> 共用（「資料保留與清理」頁）。</summary>
+    private static Expression<Func<JobRun, bool>> Prunable(DateTime cutoffUtc)
+        => x => x.StartedAtUtc < cutoffUtc && x.Status != JobRunStatuses.Running;
+
+    /// <summary>
+    /// 筆數、最舊一筆與超過 <paramref name="cutoffUtc"/>（UTC；null＝不自動清理）的筆數。
+    /// ⚠️ <see cref="RetentionStats.Oldest"/> 是 UTC。
+    /// </summary>
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? cutoffUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var total = await context.JobRun.CountAsync();
+        var oldest = await context.JobRun.MinAsync(x => (DateTime?)x.StartedAtUtc);
+        int? expired = cutoffUtc is { } c ? await context.JobRun.CountAsync(Prunable(c)) : null;
+        return new RetentionStats(total, oldest, expired);
     }
 
     /// <summary>
