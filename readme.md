@@ -25,7 +25,7 @@
 | 資料存取 | Entity Framework Core | 10.0.5 |
 | 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
-| 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete/export`）| — |
+| 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete`）| — |
 | 多語系 | `RequestLocalization` + `AntDesignLocaleFactory` | zh-TW / en-US |
 | 物件對映 | AutoMapper | 16.1.1 |
 | API 文件 | Swashbuckle Swagger UI | 10.2.3 |
@@ -33,8 +33,10 @@
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.3.2 |
 | PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型）| 6.2.4 |
 | 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.0 |
+| 弱點修補 | System.Security.Cryptography.Pkcs（`MyProject.Web` 直接參考，覆蓋 MailKit → MimeKit 遞移帶入的弱點版 10.0.0，0.9.126；MimeKit 改相依修補版後移除）| 10.0.13 |
 | QR Code | QRCoder（兩步驟驗證的設定 QR，0.9.104）| 1.6.0 |
 | Excel 匯出 | ClosedXML（業務頁匯出 .xlsx，0.9.107）| 0.105.1 |
+| 排程 | Cronos（排程作業的 cron 運算式，0.9.96）| 0.13.0 |
 
 ---
 
@@ -76,7 +78,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
 - 系統健康監控頁：`/system-health`，管理員可查看健康百分比、紅黃綠燈號與最近 24 小時 WARN 以上日誌（0.9.111 起）；0.9.59 起含「寄信服務」檢查與寄信測試，
-  0.9.79 起含「日誌管線」自我監控、0.9.96 起含「排程作業」（共 14 項）
+  0.9.79 起含「日誌管線」自我監控、0.9.96 起含「排程作業」（共 14 項）；0.9.122 起可「發送測試通知」給全體管理員
 - 寄信服務：`IEmailSender`（同步）與 `IEmailQueue`（背景佇列）兩個入口，`EmailSettings` 切換不寄／寫 `.eml` 檔（開發）／MailKit SMTP；出貨預設不寄信（0.9.59）
 - 日誌檢視頁：`/logs`，管理員可依等級／關鍵字／時間區間查詢並匯出（0.4.26）；
   0.9.69 起可全部展開／收合、點列複製單筆、一鍵複製查詢結果，0.9.78 起可依錯誤追蹤碼篩選，
@@ -96,14 +98,15 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   - 瀏覽器端 JavaScript 錯誤回報、慢操作 Warning（HTTP、資料庫指令、寄信、AI 呼叫）
 - 稽核紀錄：登入、使用者／角色／權限異動等事件寫入 `AuditLog`，管理員可於 `/audit-logs` 查詢、匯出與清除；
   清除與清空動作本身也會留下紀錄（0.9.42）；0.9.78 起補齊分類／團隊／專案增刪改、專案附件、登出、Google SSO、
-  自行變更密碼、頁面權限拒絕、匯出與自動清理
+  自行變更密碼、頁面權限拒絕、匯出與自動清理；0.9.117 起每筆記錄來源 IP（清單、明細與 CSV 顯示，關鍵字可搜），0.9.123 起可依來源 IP 篩選
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - AI 對話紀錄：保存每次 AI 呼叫實際送出的 Prompt 與取得的 Response（管理員專屬、預設保留 90 天自動過期），五種檢視、JSON／PDF 匯出，並與 Token 用量以呼叫識別碼互相連結（0.9.72）
 - 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 8 個作業：6 個清理作業、系統備份、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
 - 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔與金鑰環成 zip，保留 7 份；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
-- 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）
+- 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）；
+  0.9.125 起鈴鐺每則可刪除、可「清除已讀」，已讀的通知預設 7 天後自動清除（`NotificationSettings:ReadRetentionDays`）
 - 密碼原則與登入鎖定：密碼長度、字元種類、不可重複最近幾組、有效天數與鎖定次數／分鐘都在系統參數調整；「下次登入須變更密碼」旗標；管理員可解鎖、鎖定時通知管理員；登入失敗訊息不透露帳號是否存在（0.9.101）
-- 個人資料：`/Profile` 看自己的角色、團隊、密碼狀態與最近 20 筆登入紀錄，自己修改姓名；右上角改為姓名縮寫（0.9.102）
+- 個人資料：`/Profile` 看自己的角色、團隊、密碼狀態與最近 20 筆登入紀錄，自己修改姓名；右上角改為姓名縮寫（0.9.102）；0.9.123 起登入紀錄與首頁「上一次登入」顯示來源 IP
 - 工作階段失效：改密碼、停用、刪除、改角色或管理員身分、管理員「強制登出」都讓那個人所有已登入的瀏覽器與 API refresh 失效；自己改密碼的這台保持登入；Bearer 只接受 access token（0.9.103）
 - 兩步驟驗證：使用者以驗證器 App 掃 QR 開啟（TOTP），10 組備用碼、記住這台裝置、同一組驗證碼只能用一次；角色或系統參數可強制使用；Google 與 Web API 登入也要第二步；管理員可重設（0.9.104）
 - 部門樹：團隊可設定上層部門，上層看得到所有下屬部門的資料；團隊清單以樹狀顯示；改名自動更新專案、分類與角色預設團隊；Web API 與畫面套用同一套團隊過濾，非管理員只能指派自己範圍內的團隊（0.9.105）
@@ -112,6 +115,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - AI 提示詞：管理員在畫面上修改日誌分析與例外分析的提示詞，存成版本、可切回；防注入與 PDF 格式規則固定附加、改不到（0.9.108）
 - AI 用量上限：全系統與每人的每日、每月新台幣上限（系統參數），達到時不再送出 AI 呼叫，80%／100% 通知本人或管理員；健康檢測記帳不擋（0.9.109）
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
+- 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
 - 系統參數：`/system-parameters`，管理員在畫面上修改系統名稱、保留天數、監控與告警門檻、流量與忘記密碼限制，存檔即生效、不需重啟，每次修改寫稽核（0.9.98）
 - 全站視覺系統：粉梅暖雪色票收斂為 `wwwroot/theme.css` 單一來源，浮層果凍化、深梅側邊欄、共用狀態徽章（0.9.25–0.9.31）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
@@ -121,7 +125,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   並帶出 `PublicBaseUrl` 實際讀到的值
 - Sidebar 導覽：JSON 定義、可收合、自動套用使用者角色權限；0.9.112 起寬螢幕預設展開並記住該瀏覽器上次的選擇（窄螢幕從收合開始）
 - 頁面操作說明：每個登入後頁面的頂欄頁名旁都有說明鈕，開啟近滿版的「〈頁名〉・操作說明」窗（固定七段、相關頁面依權限過濾）；
-  內容在 `Datas/HelpTopics.json` ＋ `Datas/Help/*.md`，由 `PageHelpCatalogTests` 守門（0.9.66–0.9.67）
+  內容在 `Datas/HelpTopics.json` ＋ `Datas/Help/*.md`，由 `PageHelpCatalogTests` 守門（0.9.66–0.9.67）；0.9.121 起說明窗可切換字體「小／中／大」
 - 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
 - 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
 - 全站請求耗時 / 例外統一寫入 NLog
@@ -164,14 +168,12 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ├── .vscode/                        ← VS Code 啟動／任務（提交前四道關卡）／編輯器設定與建議擴充套件
 ├── docs/                           ← 系統設計與規範文件（依特性分類，見第 9 節）
 │   ├── README.md                   ← 文件目錄索引與分類規則
-│   ├── planning/                   ← 專案規劃、TODO、路線圖
 │   ├── architecture/               ← 架構、資料模型、API/DTO 規範、開發慣例速查
 │   ├── security/                   ← 認證、授權、密碼與機密金鑰
-│   ├── features/                   ← 個別功能機制（腳手架總覽、快取、多語系、上傳、健康監控、AI 分析）
+│   ├── features/                   ← 個別功能機制（腳手架總覽、快取、上傳、健康監控、AI 分析）
 │   ├── guides/                     ← 開發/操作教學（VS Code 上手、CRUD、EFCore、測試）
 │   ├── operations/                 ← 維護、部署、設定檔、品質檢查（含 CI 參考設計）
 │   ├── prd/                        ← 產品需求文件（能力覆蓋矩陣 + 各能力 PRD）
-│   ├── superpowers/                ← brainstorming 流程產出的設計規格
 │   └── changelog/                  ← 變更紀錄
 ├── scripts/                        ← Invoke-QualityGate.ps1 / Install-GitHooks.ps1 / New-StarterProject.ps1 / New-CrudModule.ps1（樣板在 crud-templates/）/ Test-CrudGenerator.ps1 / Restore-Backup.ps1 / Test-DocsEncoding.ps1
 └── src/MyProject/
@@ -324,17 +326,15 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 認證與安全（security）
 
-- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie / JWT 雙 scheme、Claims、RBAC 關聯表、動作級授權與稽核事件。
+- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie / JWT 雙 scheme、Claims、RBAC 關聯表與角色／團隊指派、動作級授權、`<RequirePermission>` 與稽核事件。
 - [密碼種類與儲存機制](docs/security/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、種子密碼與機密金鑰。
-- [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控與 API（JWT）。
+- [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控（0.9.63 起不支援 API／JWT）。
 - [記住我登入原理說明](docs/security/記住我登入原理說明.md) — Cookie + RememberMe 完整原理。
-- [權限授權現況評估與改善路線](docs/security/權限授權現況評估與改善路線.md) — RBAC 落地歷程、重構前後對照與尚未納入的項目。
 
 ### 功能機制（features）
 
 - [腳手架總覽與複刻上手](docs/features/腳手架總覽與複刻上手.md) — ⭐ 新手入口：為什麼需要腳手架、已內建的企業共通功能、vibe coding 提示詞、複刻步驟與後續待辦（0.9.82）；0.9.116 起附章節目錄、25 題 FAQ（含用 Claude Code／Codex 開發的注意事項）與名詞解釋附錄。
 - [分散式快取機制](docs/features/分散式快取機制.md) — `ICacheService`、Memory ↔ Redis 切換、選單快取與失效行為。
-- [多語系與本地化](docs/features/多語系與本地化.md) — `RequestLocalization` 設定、`AntDesignLocaleFactory`、支援文化。
 - [檔案上傳機制](docs/features/檔案上傳機制.md) — 專案附件、年月目錄、刪除同步、1GB 上限與副檔名白名單（0.4.35）。
 - [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最近 24 小時 WARN 以上日誌。
 - [AI 日誌分析](docs/features/AI日誌分析.md) — 日誌送 Azure OpenAI／OpenAI 整理、Markdown 安全渲染管線、PDF 報告與內嵌中文字型（0.9.4）。
@@ -357,6 +357,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [維護規範](docs/operations/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
 - [正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目。
 - [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
+- [備份與還原操作手冊](docs/operations/備份與還原操作手冊.md) — 系統備份的範圍與理由、下載、停站後以 `scripts/Restore-Backup.ps1` 還原。
 - [Gmail 寄信設定指南](docs/operations/Gmail寄信設定指南.md) — 用 Gmail 帳號寄信：應用程式密碼、`EmailSettings` 逐值設定與疑難排解。
 - [AI 模型計費更新指南](docs/operations/AI模型計費更新指南.md) — 依 OpenAI 官方頁面更新 `AiPricingSettings` 的逐步流程（調價、新模型、Deprecated）。
 - [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — 提交前本機四道關卡、文件編碼檢查、弱點掃描；並保留已移除之 GitHub Actions 流程作為衍生專案自建 CI 的參考設計。
@@ -365,10 +366,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [PRD 主控台（能力覆蓋矩陣）](docs/prd/README.md) — 以產品能力為單位的單一入口：能力→入口→程式來源→狀態。
 - 各能力 PRD 一律由上方主控台的**能力覆蓋矩陣**索引，避免此處與 `docs/prd/README.md` 長期不同步。
-
-### 設計規格（superpowers）
-
-- [docs/superpowers/](docs/superpowers/) — 以 brainstorming 流程產出的設計規格（分類/團隊頁面、紀錄權控、系統例外紀錄、寄信服務與忘記密碼、AI 例外分析、AI 對話紀錄）。
 
 ### 變更紀錄（changelog）
 

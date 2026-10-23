@@ -2,11 +2,11 @@
 
 - 文件版本：2.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.132
+- 現行系統版本：0.9.135
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/10/21
+- 最後核對日期：2026/10/23
 
-> 0.9.110 起一行指令產生並登記完整的 CRUD 模組（[路線圖](../planning/00-腳手架強化路線圖.md) G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
+> 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
 
 ---
@@ -35,6 +35,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `-AdminOnly` | 關 | 管理員專屬：權限鍵不進角色矩陣，檢視以 `CheckIsAdmin` 判斷（配合上列子群組，例如 `-MenuGroupId 8`） |
 | `-SkipMigration` | 關 | 不自動產生 migration |
 | `-Preview` | 關 | 只產生檔案到 `-OutputPath`，不登記、不產生 migration |
+| `-OutputPath` | `output/crud-modules` | `-Preview` 的輸出目錄（相對 repo 根目錄），檔案寫在 `<OutputPath>/<Name>/` 底下 |
 | `-Force` | 關 | 略過工作目錄檢查；之前產生過的檔案保留不覆蓋（用來重跑登記） |
 
 ## 3. 產生了哪些檔案
@@ -47,12 +48,12 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `Models/AdapterModel/EquipmentAdapterModel.cs` | 畫面模型，`Clone()` |
 | `Dtos/Models/EquipmentDto.cs`、`EquipmentCreateUpdateDto.cs`、`Dtos/Commons/EquipmentSearchRequestDto.cs` | Web API 的 DTO（PUT 必須帶 `concurrencyStamp`） |
 | `Business/Repositories/EquipmentRepository.cs` | Web API 的資料存取（scoped DbContext） |
-| `Business/Services/DataAccess/EquipmentService.cs` | Blazor 的資料服務（`IDbContextFactory`）：清單、已刪除清單、新增、修改（並行比對）、刪除、還原、永久刪除、名稱重複檢查、稽核 |
+| `Business/Services/DataAccess/EquipmentService.cs` | Blazor 的資料服務（`IDbContextFactory`）：清單、已刪除清單、新增、修改（並行比對）、只改啟用狀態的 `SetEnabledAsync`（0.9.120 起：換版本號、已是目標狀態不寫稽核）、刪除、還原、永久刪除、名稱重複檢查、稽核 |
 | `Web/Controllers/EquipmentController.cs` | GET／search／POST／PUT／DELETE，各自 `[HasPermission]`，回 `ApiResult`；名稱重複 409、並行衝突 409、軟刪除 |
 | `Web/Components/Pages/Equipments/EquipmentPage.razor` | `@page`＋`@layout MainLayout` |
-| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、勾選多筆「刪除選取」（0.9.132 起，`BatchDelete`；`BatchDeleteConventionTests` 守門）、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認） |
+| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、勾選多筆「刪除選取」（0.9.132 起，`BatchDelete`；`BatchDeleteConventionTests` 守門）、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認）；「啟用狀態」欄的 `StatusPill` 有編輯權限時可點（0.9.120 起：停用先確認、啟用直接切換；沒有權限經 `<RequirePermission>` 的 `Fallback` 顯示不可點的標籤；顯示已刪除時不可點） |
 | `Web/Datas/Help/equipments.md` | 操作說明初稿（固定七段，UTF-8 含 BOM） |
-| `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |
+| `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、切換啟用狀態（只改狀態、換版本號、稽核）、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |
 
 工具列與表格容器用 `wwwroot/theme.css` 的共用類別（`.view-toolbar`、`.view-table-wrap`），不另產生 `.razor.css`。
 
@@ -66,7 +67,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `AutoMapping` | 實體 ↔ 畫面模型／DTO（名稱正規化、`IgnoreSoftDeleteFields`、團隊字串轉換） |
 | `ServiceCollectionExtensions` | 服務與 Repository 的 DI |
 | `MagicObjectHelper` | 權限鍵常數 |
-| `AuditActions` | `Equipment.Create／Update／Delete／Restore／Purge／AutoPurge／Export` |
+| `AuditActions` | `Equipment.Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export`（`Enable`／`Disable` 0.9.120 起） |
 | `Menu.json` | 指定群組的最後一項，id＝目前最大 id＋1 |
 | `SidebarMenuService.MenuPermissionMap` | 選單 id → 權限鍵 |
 | `RolePermissionService`（一般）或 `AdminOnlyPermissionTests`＋`MenuPermissionConsistencyTests.AdminOnlyViews`（管理員專屬） | 角色權限矩陣；預設角色在下次啟動時自動加入新頁面 |

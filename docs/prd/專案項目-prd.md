@@ -1,10 +1,10 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -32,7 +32,7 @@
 - 工具列：新增（需 `專案項目:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為分類過濾（多選）、團隊過濾（多選）、關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。分類／團隊過濾一變更就回到第 1 頁重新查詢；兩者的選項都只列啟用中的項目（分類另受團隊可見性過濾）。
 - 清單欄位（`ProjectViewView.razor`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間、操作（修改需 `專案項目:edit`、刪除需 `專案項目:delete`，無權限時不顯示按鈕）；標題預設遞增排序。0.9.30 起「狀態」以 `StatusPill` 徽章呈現（已完成＝綠、進行中＝梅、暫緩＝琥珀、未開始＝灰，其他值如「等待」為中性色）。
 - 可排序欄位（`ProjectService.cs`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt；未指定或不認得的排序一律退回 `UpdatedAt` 遞減、再以 `Id` 遞減。
-- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner（關鍵字先去除前後空白）。
+- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner（關鍵字先去除前後空白）；「顯示已刪除」清單只比對 Title、Description、Owner，固定依刪除時間由新到舊。
 - 分頁：`RemoteDataSource`，預設每頁 `MagicObjectHelper.PageSize`（8 筆）。
 - 編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)），分四區（`Project` 實體 / `ProjectCreateUpdateDto`）：
   - 基本資料：標題（必填）、負責人（必填；0.9.107 起 Web API 的 `owner` 也必填，不帶回 400）、描述（獨占整行）。
@@ -45,7 +45,7 @@
   儲存確認「確定要儲存這筆記錄嗎？」（「儲存」／「再檢查」）→ 團隊確認（見下）→ 前置檢查 `BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` → 寫入；任一步失敗都不關窗。
 - 取消／✕／ESC：有未儲存變更時先詢問是否放棄（`FormDirtyTracker`，附件異動也算變更）；點遮罩不會關窗。
 - 刪除：先跑 `BeforeDeleteCheckAsync`，再以 `ConfirmDialog.AskSoftDeleteRecordAsync` 二次確認「確定要刪除這筆紀錄嗎？刪除後可在工具列的「顯示已刪除」中還原。」，並檢查結果。
-- **刪除為軟刪除**（0.9.94 起）：刪除只標記 `IsDeleted`／`DeletedAt`／`DeletedBy`，所有查詢經全域過濾器自動排除；工具列「顯示已刪除」（需刪除權限）列出已刪除的專案，可「還原」或「永久刪除」。還原時重新檢查唯一性，衝突就擋下並說明。刪除與還原都會換新版本號（正在編輯的人存檔會得到衝突訊息）；刪除、還原、永久刪除都在伺服器端檢查團隊範圍。稽核：`*.Delete`（軟刪除）、`*.Restore`、`*.Purge`。Web API 的 `DELETE` 也是軟刪除，之後對它的 GET／PUT／DELETE 回 404；API 不提供還原與永久刪除。
+- **刪除為軟刪除**（0.9.94 起）：刪除只標記 `IsDeleted`／`DeletedAt`／`DeletedBy`，所有查詢經全域過濾器自動排除；工具列「顯示已刪除」（需刪除權限）列出已刪除的專案，可「還原」或「永久刪除」。專案沒有唯一欄位（畫面路徑允許同名），還原不做唯一性檢查。刪除與還原都會換新版本號（正在編輯的人存檔會得到衝突訊息）；刪除、還原、永久刪除都在伺服器端檢查團隊範圍。稽核：`*.Delete`（軟刪除）、`*.Restore`、`*.Purge`。Web API 的 `DELETE` 也是軟刪除，之後對它的 GET／PUT／DELETE 回 404；API 不提供還原與永久刪除。
 - **自動永久刪除**（0.9.97 起）：刪除超過 `SoftDeleteSettings:PurgeAfterDays`（預設 90 天，`0`＝不自動）的專案，由排程作業「已刪除資料清理」（`SoftDeletePurgeService`）永久刪除；系統層級清除，不看團隊範圍。每次有刪到時寫一筆彙總稽核 `Project.AutoPurge`（筆數、天數、觸發方式、`#Id 名稱` 清單）。附件資料列隨 Cascade 刪除，實體檔在提交成功後經 `ProjectFileStore` 刪除；刪不掉只計數（孤兒檔），不算失敗。見 [排程作業 PRD](排程作業-prd.md)。
 - 附件：軟刪除期間**保留**實體檔但無法下載（`GetFileDownloadAsync` 查不到父專案就回 null —— 不能交給團隊檢查，`IsTeamAccessible(null)` 的語意是「公開」）；永久刪除時**先提交資料庫、成功後才刪實體檔**（0.9.93 之前是先刪檔）；編輯時移除附件也改為存檔成功後才刪檔（0.9.97 起，之前是先刪檔）。刪除實體檔一律經 `ProjectFileStore`（0.9.97 起），路徑解析後跑出 `ProjectFilePath` 根目錄就拒絕（之前只有下載有檢查）。軟刪除期間工具列的分類／團隊過濾隱藏。
 - **分類下拉的可選項目（0.4.40 起）**＝「目前使用者可見的分類」∪「本筆專案已貼、但已限定其他團隊的分類」，
@@ -73,7 +73,10 @@
 
   | 事件 | 動作代碼 | 寫入點 | 內容 |
   |------|----------|--------|------|
-  | 新增／修改／刪除專案 | `Project.Create`／`Project.Update`／`Project.Delete` | 畫面：`ProjectService`（操作者取自 `CurrentUserService`）；API：`ProjectController` | `title=標題`；畫面刪除另含 `files=附件數`，API 刪除不帶內容 |
+  | 新增／修改／刪除（軟刪除）專案 | `Project.Create`／`Project.Update`／`Project.Delete` | 畫面：`ProjectService`（操作者取自 `CurrentUserService`）；API：`ProjectController` | `title=標題`；API 刪除不帶內容 |
+  | 還原／永久刪除專案（0.9.94 起）| `Project.Restore`／`Project.Purge` | `ProjectService.RestoreAsync`／`PurgeAsync` | `title=標題`；永久刪除另含 `files=附件數` |
+  | 自動永久刪除（0.9.97 起）| `Project.AutoPurge` | 排程作業「已刪除資料清理」 | 每次一筆彙總（見 §三）|
+  | 匯出 Excel（0.9.107 起）| `Project.Export` | `ProjectViewView`（`BusinessExports.WriteAuditAsync`）| 見[通用匯出](通用匯出-prd.md) |
   | 上傳附件 | `Project.FileUpload` | `ProjectService.AddAsync`／`UpdateAsync` | `count=筆數`，沒有上傳就不寫 |
   | 移除附件 | `Project.FileDelete` | `ProjectService.UpdateAsync` | `count=筆數`，沒有移除就不寫 |
   | 下載附件（0.4.31 起）| `Project.FileDownload` | `ProjectFileController` | 目標 `ProjectFile`、`file=原始檔名` |

@@ -2,9 +2,9 @@
 
 - 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -15,7 +15,6 @@
 - 0.9.78 起：Email 告警（`ExceptionAlertSettings`，預設停用）、自動清除（`LogRetentionSettings:ExceptionLogDays`，預設 90 天）、
   錯誤追蹤碼（`LastTraceId`），見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3。
   告警通知、自動清除、錯誤追蹤碼、瀏覽器端錯誤（0.9.79）等需求（皆已實作）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §六。
-- 設計脈絡見 [系統例外紀錄設計規格](../superpowers/specs/2026-09-16-system-exception-log-design.md)。
 
 ## 二、使用者與入口
 
@@ -222,4 +221,4 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/ExceptionLogPage.razor`、`Components/Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73）
 - `src/MyProject/MyProject.Web/Components/ApplicationCircuitHandler.cs`（情境設定）
 - `src/MyProject/MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor`、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
-- 交叉連結：[設計規格](../superpowers/specs/2026-09-16-system-exception-log-design.md)、[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)
+- 交叉連結：[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

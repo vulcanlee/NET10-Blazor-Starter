@@ -1,22 +1,22 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.120
+- 現行系統版本：0.9.135
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
 提供「團隊（Team）」主資料的維護能力，讓具權限的管理者在 `/teams` 頁面完成團隊的查詢、新增、修改、刪除。`Name` 唯一（不分大小寫），`Code` 為選填、有填則須唯一。亦可透過 `GetAllEnabledNamesAsync()` 供其他頁面下拉選用啟用中的團隊名稱。
-0.9.105 起團隊可以設定「上層部門」（`ParentId`）組成部門樹：上層部門的成員看得到所有下屬部門的資料（[路線圖](../planning/00-腳手架強化路線圖.md) D-13）。
+0.9.105 起團隊可以設定「上層部門」（`ParentId`）組成部門樹：上層部門的成員看得到所有下屬部門的資料（路線圖 D-13；沿革見 [部門樹 changelog](../changelog/2026-10-04-部門樹.md)）。
 
 使用者決定（2026/10/04）：改名時一併更新所有引用；有下屬部門時不可刪除；公告／通知的團隊對象與資料可見範圍同一定義；Web API 補上團隊過濾並修正修改時的檢查；非管理員只能指派自己範圍內的團隊。
 
 非範圍：
 - 不做組織圖、多個上層（矩陣組織）、部門主管欄位。
 - 不做與其他實體的外鍵關聯或參照完整性檢查（刪除前無被引用檢查，`BeforeDeleteCheckAsync` 直接回成功）。
-- 不做匯入／匯出、批次操作。（0.9.94 起刪除為軟刪除，可還原，見 §三。）
+- 不做匯入、批次操作（0.9.107 起有匯出 Excel，見 §三）。（0.9.94 起刪除為軟刪除，可還原，見 §三。）
 
 ## 二、使用者與入口
 
@@ -39,7 +39,7 @@
 - 搜尋：關鍵字比對 `Name`、`Code` 或 `Description`（`Contains`），結果為平面清單並多一欄「上層部門」。
 - 排序：可排序欄位 `Name`、`Code`、`IsEnabled`、`UpdatedAt`；平面清單預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆）；平面清單由服務端分頁。
-- 清單欄位：名稱、代號、描述、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `團隊清單:edit` 時點徽章直接切換，停用先確認，`TeamService.SetEnabledAsync` 只改狀態並換版本號、稽核 `Team.Enable`／`Team.Disable`；下屬部門不連動）、更新時間、操作（修改需 `團隊清單:edit`、刪除需 `團隊清單:delete`，無權限時不顯示按鈕）。
+- 清單欄位：名稱、代號、描述、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `團隊清單:edit` 時點徽章直接切換，停用先確認，`TeamService.SetEnabledAsync` 只改狀態並換版本號、稽核 `Team.Enable`／`Team.Disable`；已是目標狀態時回成功、不寫稽核；已刪除或不存在時失敗；下屬部門不連動；沒有修改權限或在「顯示已刪除」時為不可點的一般標籤）、更新時間、操作（修改需 `團隊清單:edit`、刪除需 `團隊清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「團隊資料」一區）：
   - 名稱 `Name`（必填，最長 100）
   - 上層部門 `ParentId`（0.9.105 起，選填＝最上層）：選項排除自己與自己的所有下屬（`TeamService.GetParentCandidatesAsync`）；修改時名稱欄下方提示「改名時，專案、分類與角色預設團隊裡的這個名稱會一起改。」
@@ -64,13 +64,13 @@
 
 - UI 路徑：`TeamViewView` →（注入）`TeamService` → `BackendDBContext`（Blazor Server 直接呼叫服務，不經 HTTP）。
 - API 路徑：`TeamController` → `TeamRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
-- Entity `Team`（`Id/Name/Code/Description/ParentId/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Team`。`ParentId` 自我參照外鍵（Restrict），沒有導覽屬性；Migration `AddTeamParent` 以單一 `ALTER TABLE … ADD COLUMN … REFERENCES` 加欄位（不重建資料表）。
+- Entity `Team`（`Id/Name/Code/Description/ParentId/IsEnabled/CreatedAt/UpdatedAt`，另有樂觀並行 `ConcurrencyStamp` 與軟刪除 `IsDeleted/DeletedAt/DeletedBy`），DbSet 為 `context.Team`。`ParentId` 自我參照外鍵（Restrict），沒有導覽屬性；Migration `AddTeamParent` 以單一 `ALTER TABLE … ADD COLUMN … REFERENCES` 加欄位（不重建資料表）。
 - 部門樹快取 `ITeamTreeCache`（singleton，60 秒；本行程的新增、修改、刪除、還原，含 Web API，立即失效），供有效團隊展開、反查與表單選項。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `Clone()` 複製記錄；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
 - Web API 的 `POST`／`PUT` 接受 `parentId`；違反部門樹規則（含有下屬時刪除、改成已刪除團隊的名稱）回 400（`TeamRepository` 回 `TeamWriteResult`）。
 - 團隊清單本身**不**套團隊可見性過濾：有權限者看得到全部團隊；`GetAllEnabledNamesAsync()` 回傳所有啟用中的團隊（供分類、專案、使用者、角色等頁面的團隊下拉）。
-- 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Team.Create`／`Team.Update`／`Team.Delete`（代碼定義於 `AuditActions`，目標為 `Team`／Id），可在「稽核紀錄」頁查詢。
+- 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Team.Create`／`Team.Update`／`Team.Delete`（代碼定義於 `AuditActions`，目標為 `Team`／Id），可在「稽核紀錄」頁查詢；點狀態標籤切換另寫 `Team.Enable`／`Team.Disable`（0.9.120 起），匯出寫 `Team.Export`（0.9.107 起）。
   畫面路徑由 `TeamService` 寫入（操作者取自 `CurrentUserService`，內容 `name=團隊名稱`），Web API 路徑由 `TeamController` 寫入（API 刪除不帶名稱）；寫入失敗（含唯一索引擋下）不留稽核。
 - 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
@@ -121,6 +121,8 @@
 
 - `TeamTreeTests.cs`（0.9.105）：樹的展開與上層、資料循環不會無窮迴圈、快取存活與失效、上層不可是自己／下屬／已刪除、⭐ 並行互設上層不會成環、有下屬不可刪、還原與永久刪除規則、排程由深到淺清理、⭐ 改名同步（含已刪除列、換版本號、不動相似名稱）、不可改成已刪除團隊的名稱、Web API 同一套規則；migration 保留既有團隊與成員在 `TeamTreeMigrationTests.cs`（0.9.116 起獨立成檔，衍生專案複刻時刪除）。
 
+- `StatusToggleServiceTests.cs`（0.9.120 新增，與分類、使用者共用）：`Team_SetEnabled_ShouldOnlyChangeStatus_BumpStamp_AndAudit`（只改狀態並換版本號、寫稽核）、`Team_SetEnabled_WhenAlreadyInTargetState_ShouldSucceedWithoutAudit`（重複點不反轉、不寫稽核）、`Team_SetEnabled_ThenSavingAStaleEditForm_ShouldConflict`（停用後舊的修改窗存檔得到並行衝突）、`Team_SetEnabled_WhenDeletedOrMissing_ShouldFail`。
+
 測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper。
 
 ## 八、相關程式與文件
@@ -135,8 +137,8 @@
 - `src/MyProject/MyProject.Dtos/Models/TeamCreateUpdateDto.cs`、`src/MyProject/MyProject.Dtos/Commons/TeamSearchRequestDto.cs`
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`
 - `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`、`src/MyProject/MyProject.Web/Datas/Menu.json`
-- `src/MyProject/MyProject.Tests/TeamServiceTests.cs`
+- `src/MyProject/MyProject.Tests/TeamServiceTests.cs`、`TeamTreeTests.cs`、`TeamTreeMigrationTests.cs`、`StatusToggleServiceTests.cs`
 - `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs`
-- `src/MyProject/MyProject.Business/Helpers/AuditActions.cs`（`Team.Create／Update／Delete` 稽核代碼）
+- `src/MyProject/MyProject.Business/Helpers/AuditActions.cs`（`Team.*` 稽核代碼：Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export）
 - `src/MyProject/MyProject.Web/Datas/Help/teams.md`（頁面操作說明）
-- 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../superpowers/specs/2026-06-22-category-team-pages-design.md](../superpowers/specs/2026-06-22-category-team-pages-design.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)
+- 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)

@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.1
+- 文件版本：3.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.116
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/10/06
+- 最後核對日期：2026/10/23
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -106,7 +106,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
 | `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
 
-`ExternalFileSystem` 的九個目錄（0.9.99 起含 `BackupPath`）若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
+`ExternalFileSystem` 的十個目錄（0.9.99 起含 `BackupPath`、0.9.131 起含 `AuditContentPath`）若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
 
 ### 3.2 建置注意事項
 
@@ -523,7 +523,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - **把 `SystemVersion` 重設為 `1.0.0 (執行當天)`**（0.9.71 起），文件開頭的「現行系統版本」也一併改為 `1.0.0`；「首次實作版本」保留原值（那是功能的歷史）
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs` 與 `TeamTreeMigrationTests.cs`（後者 0.9.116 起），先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
-- **清掉腳手架自己的開發史**：刪掉 `docs/planning/`、`docs/superpowers/`，清空 `docs/changelog/`（保留 `README.md` 當空索引 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
+- **清掉腳手架自己的開發史**：清掉 `docs/changelog/` 的歷史紀錄（保留 `README.md` 當索引骨架 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
 - 最後掃一次殘留字串並警告。正常情況只會出現 5 筆「開發用 JWT 佔位金鑰」的警告：本文 §5.1／§5.5 的說明、腳本自己的兩行、`ApiIntegrationTests.cs` 的測試資料，都是刻意保留的
 
 > `-ProjectName` 每一段都必須是合法的 C# 識別字（0.9.87 起），`Acme..Erp`、`Acme.`、`Acme.1x` 會在一開始就被擋下。
@@ -535,7 +535,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
-| 外部目錄路徑 | `ExternalFileSystem` 九個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
+| 外部目錄路徑 | `ExternalFileSystem` 十個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
 
 即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
@@ -605,7 +605,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 按 `Alt+C` 開啟**大小寫相符**（Match Case），避免誤傷。取代前先看一次結果清單。
 
-> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（24 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 80 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
+> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（25 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 90 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
 >
 > 開了大小寫相符，全小寫的 `myproject`（例如 `docs/operations/Gmail寄信設定指南.md` 的範例信箱）不會被換到，記得另外搜尋一次。
 
@@ -637,7 +637,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 | 鍵 | 建議值 |
 |----|--------|
 | `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議比照腳本重設為 `1.0.0 (當天日期)` |
-| `SystemSettings:ExternalFileSystem:*` | 九個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
+| `SystemSettings:ExternalFileSystem:*` | 十個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
 | `JwtSettings:Issuer` / `Audience` | `Acme.Erp` / `Acme.Erp.WebApi` |
 | `JwtSettings:SigningKey` | 換成你自己的值；建議直接搬進 User Secrets |
 | `BootstrapSettings:*` | 改掉預設的 `support` / `support` |
@@ -655,7 +655,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | 檔案 | 要改什麼 |
 |------|----------|
 | `readme.md` | 系統介紹、架構圖、專案結構樹、快速開始指令 |
-| `docs/**` | 內文敘述（不只代號，還有描述舊系統功能的句子）。`docs/changelog/`、`docs/planning/`、`docs/superpowers/` 腳本已自動清掉，手動更名才需要自己處理 |
+| `docs/**` | 內文敘述（不只代號，還有描述舊系統功能的句子）。`docs/changelog/` 的歷史紀錄腳本已自動清掉（保留 `README.md`），手動更名才需要自己處理 |
 | `CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md` | LLM 協作準則裡的專案描述 |
 | `.vscode/launch.json` / `tasks.json` / `settings.json` | 內含 `src/MyProject/...` 路徑，確認已更新 |
 

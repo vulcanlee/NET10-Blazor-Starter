@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -29,7 +29,7 @@
 
 ## 三、畫面與欄位
 
-- **清單**：遠端分頁 `Table`，欄位 名稱、建立時間、更新時間，可排序；工具列含新增、重新整理、搜尋、清空搜尋（搜尋比對名稱）。
+- **清單**：遠端分頁 `Table`，欄位 名稱、建立時間、更新時間，可排序；工具列含新增、重新整理、「顯示已刪除」切換（0.9.95 起）、搜尋、清空搜尋（搜尋比對名稱）。
 - **維護表單**（Modal）：
   - 名稱（必填，唯一）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。
@@ -52,13 +52,14 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性。
 - **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。0.9.95 起不可刪除；`DefaultRoleViewSeeder` 以 `IgnoreQueryFilters` 查找並優先取未刪除的列，找到已刪除的就還原（不會重建第二個帶全部權限的預設角色）。
 
-> ℹ️ `RbacWriteService` 沿用呼叫端的 `BackendDBContext`（而非自建），
-> 以確保 `TabViewJson` 與 `RolePermissionMap` 的雙寫落在同一個工作單元內。
+> ℹ️ `RbacWriteService` 直接接收 DI 注入的 scoped `BackendDBContext`（不是呼叫端傳入的 context）。
+> ⚠️ 現況：`RoleViewService` 以 `IDbContextFactory` 另建 context 寫入 `TabViewJson` 並先 `SaveChangesAsync`，`RbacWriteService` 再用自己的 context 寫 `RolePermissionMap` 並 `SaveChangesAsync`，
+> 兩者**不是**同一個工作單元（沒有共用交易；與[使用者管理](使用者管理-prd.md)的雙寫相同）。
 
 ## 五、權限與安全
 
 - RBAC 表（`Permission`／`RolePermissionMap`／`UserRole`）為 UI 與 API 共用的**單一權威**；登入後 `AuthenticationStateHelper` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 載入有效權限鍵（多角色聯集）。
-- 動作級授權：API 控制器以 `[HasPermission(頁面, 動作)]` 判權，無權限回 `ApiResult` 403（`ForbiddenResult`）；未登入回 401；管理員短路一律通過。UI 以 `CheckAccessAction` 依動作顯示／停用按鈕（專案項目、分類清單、團隊清單三頁皆有）。⚠️ 頁面進入權由 `CheckAccessPage` 判定，通過條件為「管理員 ∨ 裸頁面鍵 ∨ `頁面鍵:view`」（0.9.37 起）——因此只勾「檢視」的唯讀角色**進得去頁面但按不到任何寫入鈕**。
+- 動作級授權：API 控制器以 `[HasPermission(頁面, 動作)]` 判權，無權限回 `ApiResult` 403（`ForbiddenResult`）；未登入回 401；管理員短路一律通過。UI 以 `RequirePermission` 元件（0.9.110 起，規則在 `PermissionRules.CanAccessAction`，與 `AuthenticationStateHelper.CheckAccessAction` 相同）依動作顯示按鈕，沒有權限時不渲染、或渲染 `Fallback`（0.9.120 起，例如不可點的狀態標籤）；專案項目、分類清單、團隊清單三頁皆有。⚠️ 頁面進入權由 `CheckAccessPage` 判定，通過條件為「管理員 ∨ 裸頁面鍵 ∨ `頁面鍵:view`」（0.9.37 起）——因此只勾「檢視」的唯讀角色**進得去頁面但按不到任何寫入鈕**。
 - 角色本頁僅管理員可進入；不輸出任何機密欄位。
 
 ## 六、錯誤與邊界
@@ -95,4 +96,4 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionActions`／`PermissionKey`）
 - RBAC 資料表：`RoleView`、`Permission`、`RolePermissionMap`、`UserRole`（`src/MyProject/MyProject.AccessDatas/Models/`）
 - 交叉連結：[使用者管理](使用者管理-prd.md)、[登入與帳號流程](登入與帳號流程-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
-- 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)、[權限授權現況評估與改善路線](../security/權限授權現況評估與改善路線.md)
+- 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)

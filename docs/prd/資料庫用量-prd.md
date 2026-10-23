@@ -1,10 +1,10 @@
 ﻿# 資料庫用量 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.4.28
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -50,7 +50,7 @@
 
 ## 四、內部系統運作
 
-1. `DatabaseUsageView.OnInitializedAsync`：先 `AuthenticationStateHelper.Check`，再 `CheckIsAdmin`；非管理員設定 `RoleMessage` 並中止，**權限通過前不觸碰資料庫**。
+1. `DatabaseUsageView.OnInitializedAsync`：先 `AuthenticationStateHelper.Check`，再 `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/database-usage`）並中止，**權限通過前不觸碰資料庫**。
 2. `IDatabaseUsageService.GetReportAsync` 透過 `context.Database.OpenConnectionAsync()` 取得連線後：
    - 由**已開啟連線的 `DataSource`**（即 `sqlite3_db_filename` 解析出的絕對路徑）定位三個檔案並讀取大小。不從組態推導，確保量到的必定是 EF 實際在用的檔案。
    - `PRAGMA page_size` / `page_count` / `freelist_count` 取得頁面統計。

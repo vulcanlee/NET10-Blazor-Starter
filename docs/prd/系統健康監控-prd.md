@@ -1,10 +1,10 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.122
+- 現行系統版本：0.9.135
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -93,6 +93,7 @@
 - `MyProject.Tests/ApiIntegrationTests.cs`：`/health/ready`、`/health/live` 探針回應。
 - `MyProject.Tests/EmailHealthProbeTests.cs`：SMTP 連不上時回報失敗、不拋例外、在上限內結束。
 - `MyProject.Tests/EmailTestServiceTests.cs`：None 拒絕、收件者無效拒絕、成功稽核不含收件者、失敗回型別名並稽核。
+- `MyProject.Tests/NotificationTestServiceTests.cs`（0.9.122 起）：發給全體管理員、不寄信、可重複並寫稽核；沒有管理員、發送失敗時回失敗。
 
 ## 八、相關程式與文件
 

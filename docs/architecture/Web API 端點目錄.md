@@ -1,16 +1,16 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
 ## 一、通則
 
-- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）。
+- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`BackupController` 只有 `api/backups`。
 - 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `ProjectFileController` 與 `BackupController`（見第三節），它們走 Cookie。**
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - 回傳一律包在 `ApiResult<T>`；分頁再包 `PagedResult<T>`。
@@ -23,9 +23,9 @@
 |------|------|------|------|
 | 取得單筆 | `GET {controller}/{id}` | View | `ApiResult<TDto>`（查無回 `NotFound`）|
 | 搜尋分頁 | `POST {controller}/search` | View | `ApiResult<PagedResult<TDto>>` |
-| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
-| 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
-| 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無或已刪除回 `NotFound`）|
+| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`，團隊另檢查代號；指派範圍外的團隊、上層部門不合法回 `BadRequest`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
+| 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；團隊指派或部門樹規則不過回 `BadRequest`；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
+| 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無或已刪除回 `NotFound`；團隊還有未刪除的下屬回 `BadRequest`）|
 
 > **樂觀並行（0.9.93 起）**：`GET` 回傳的 DTO 帶有 `ConcurrencyStamp`。`PUT` 必須把它原樣帶回；伺服器以它比對資料庫目前的值，不同代表別人已先修改或刪除，回 409（訊息「這筆資料在你編輯期間已被其他人修改或刪除…」），用戶端應重新 `GET` 後再決定如何合併。`PUT` 成功後版本號會換新，要再次修改請重新 `GET`。`POST` 會忽略這個欄位。
 >
@@ -65,8 +65,8 @@
 
 | 動作 | 路由 | 授權 | 回傳 |
 |------|------|------|------|
-| 登入 | `POST Auth/login` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（失敗回 `Unauthorized`）|
-| 換發 Token | `POST Auth/refresh` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（Refresh Token 無效回 `Unauthorized`）|
+| 登入 | `POST Auth/login` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（失敗回 `Unauthorized`；已啟用兩步驟驗證要在 body 帶 `TwoFactorCode`，沒帶回 401「需要兩步驟驗證碼。」且不計入失敗次數；必須使用兩步驟驗證卻還沒設定的帳號一律 401，0.9.104 起）|
+| 換發 Token | `POST Auth/refresh` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（Refresh Token 無效、帳號已停用或刪除、工作階段已失效（0.9.103 起比對 `SecurityStamp`）都回 `Unauthorized`，並寫稽核 `Token.RefreshFailed`）|
 | 目前使用者 | `GET Auth/me` | `[Authorize(JwtBearer)]` | `ApiResult<CurrentUserDto>`（讀 JWT Claims）|
 
 ## 五、Google 第三方登入 `ExternalAuthController`
@@ -76,7 +76,7 @@
 | 動作 | 路由 | 說明 |
 |------|------|------|
 | 觸發 Google 驗證 | `GET Auths/Google/Login` | 未設定金鑰時導回 `/Auths/Login`|
-| 驗證回呼 | `GET Auths/Google/Callback` | 查找/建立帳號；停用帳號導向 `/Auths/Pending`，啟用則完成 Cookie 登入 |
+| 驗證回呼 | `GET Auths/Google/Callback` | 查找/建立帳號；依 `ExternalLoginResult.Evaluate` 的順序：已刪除導回 `/Auths/Login?sso=deleted`、停用（待開通）導向 `/Auths/Pending`、鎖定導回 `/Auths/Login?sso=locked`；已啟用兩步驟驗證且這台裝置沒被記住時導向 `/Auths/TwoFactor`，其餘完成 Cookie 登入 |
 
 ## 六、Controller 端預設拒絕（0.4.34 起）
 

@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -66,7 +66,8 @@
   Google 回呼：帳號已啟用時同樣走第二步（稽核 `Login.Sso.Success`，detail 帶 `provider=Google; mfa=…`）。API 登入以 `twoFactorCode` 欄位帶驗證碼。
 - **登入後狀態**（`AuthenticationStateHelper.Check`）：驗證已登入、`Sid` 有效、使用者存在且 `Status` 啟用、具角色；`IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）為真且不在改密碼頁時強制導向 `/ChangePassword`；之後（0.9.104 起）必須使用兩步驟驗證卻還沒設定、而且不在設定頁時導向 `/TwoFactorSetup`。載入 `CurrentUser`，`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync`（RBAC 多角色聯集）為權威、`TeamList` 由 `EffectiveTeamResolver` 決定。
 - **API 登入**（`AuthController`）：`login` 以帳密（已啟用兩步驟驗證時加 `twoFactorCode`）換 `TokenResponseDto`（JWT + Refresh），`refresh` 換新 Token，`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。
-- **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.LockedOut`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
+- **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` / `Login.TwoFactorFailed`，Google 登入寫 `Login.Sso.Success` / `Login.Sso.Failed`，登出寫 `Logout`，工作階段失效被系統登出寫 `Login.SessionExpired`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
+- **登入紀錄的來源 IP**（0.9.117 起寫入，0.9.123 起顯示）：每筆稽核由 `AuditLogService` 經 `IClientIpProvider` 自動帶入 `AuditLog.ClientIp`（登入頁、兩步驟驗證頁、登出是 SSR，取 `HttpContext`；API 登入同），呼叫端不傳。首頁「我的帳號」的「上一次登入」（`ProfileService.GetPreviousLoginAsync`：`Login.Success`／`Login.Sso.Success` 的倒數第二筆）在登入方式後面顯示 IP（有值才顯示）；個人資料頁「最近 20 筆登入紀錄」（`GetRecentLoginsAsync`：`Login.*` 與 `Logout`）欄位為「時間、動作、來源 IP、結果」，0.9.117 之前的舊紀錄顯示「—」。見[個人資料](個人資料-prd.md)、[首頁儀表板](首頁儀表板-prd.md)。
 - **忘記密碼 → 重設**（`PasswordResetService`，0.9.60 起；Business 層、注入 `IDbContextFactory`）：
   1. `RequestAsync(identifier, 重設頁網址)`：先刪所有過期 token；以 `Account` 精確比對（與登入相同），對不到再以 `Email` 不分大小寫比對（可能多筆 → **每個帳號各寄一封**）。
   2. 逐帳號判斷資格：`support`、停用（`Status=false`）、沒有本地密碼（Google-only，`Password=""`）、Email 空白或無效 → 不寄；同帳號 `RequestCooldownSeconds`（預設 60 秒）內已申請過 → 不寄。原因寫進稽核 detail（`reason=NotFound|Support|Disabled|NoLocalPassword|InvalidEmail|Cooldown|QueueFull`），畫面不透露。`RequestAsync` 回傳 `PasswordResetRequestResult`：輸入內建帳號名稱回 `SupportAccountNotAllowed`（大小寫不同也先正規化成 `support`，稽核照記 `reason=Support`），其餘一律 `Accepted`。
@@ -119,6 +120,7 @@
 - `MyProject.Tests/PasswordResetServiceTests.cs`（0.9.60）：帳號比對、Email 不分大小寫、帳號優先、共用 Email 各寄一封、查無只稽核、五種不符資格、Google 有本地密碼允許、冷卻、新申請作廢舊連結、只存雜湊、過期、重設成功（新密碼可驗＋解鎖＋token 清空＋通知信）、同連結第二次失敗、規則不過不消耗 token、申請後停用、刪除使用者連帶刪 token（cascade）。
 - `MyProject.Tests/EmailPagesIntegrationTests.cs`（0.9.60）：Pickup 時登入頁有連結、忘記頁有表單、壞 token 重設頁回 `no-referrer`／`no-store` 且不給表單；None 時沒有連結、兩頁顯示未啟用。
 - `MyProject.Tests/PageAuthorizationTests.cs`：匿名白名單含 `ForgotPassword`、`ResetPassword`、`TwoFactor`。
+- `MyProject.Tests/ProfileTests.cs`、`Components/DashboardTests.cs`（0.9.123）：登入紀錄帶出來源 IP（舊紀錄為 null）、「我的帳號」顯示上一次登入的 IP。
 
 ## 八、相關程式與文件
 
@@ -134,4 +136,4 @@
 - `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（登入後檢查與 RBAC 載入）
 - `src/MyProject/MyProject.Web/Controllers/AuthController.cs`、`ExternalAuthController.cs`
 - 交叉連結：[使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)、[寄信服務](寄信服務-prd.md)
-- 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)、[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)、[Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md)、[記住我登入原理說明](../security/記住我登入原理說明.md)、[權限授權現況評估與改善路線](../security/權限授權現況評估與改善路線.md)
+- 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)、[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)、[Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md)、[記住我登入原理說明](../security/記住我登入原理說明.md)

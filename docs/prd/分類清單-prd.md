@@ -1,10 +1,10 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.120
+- 現行系統版本：0.9.135
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -15,7 +15,7 @@
 非範圍：
 - 不做分類的階層／樹狀結構（純平面清單）。
 - 不做與其他實體的外鍵關聯或參照完整性檢查（刪除前無被引用檢查，`BeforeDeleteCheckAsync` 直接回成功）。
-- 不做匯入／匯出、批次操作。（0.9.94 起刪除為軟刪除，可還原，見 §三。）
+- 不做匯入、批次操作（0.9.107 起有匯出 Excel，見 §三）。（0.9.94 起刪除為軟刪除，可還原，見 §三。）
 
 ## 二、使用者與入口
 
@@ -39,7 +39,7 @@
 - 搜尋：關鍵字比對 `Name` 或 `Description`（`Contains`）。
 - 排序：可排序欄位 `Name`、`IsEnabled`、`UpdatedAt`；預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆），`RemoteDataSource=true` 由服務端分頁。
-- 清單欄位：名稱、描述、適用團隊、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `分類清單:edit` 時點徽章直接切換，停用先確認，`CategoryService.SetEnabledAsync` 只改狀態並換版本號、檢查團隊範圍、稽核 `Category.Enable`／`Category.Disable`）、更新時間、操作（修改需 `分類清單:edit`、刪除需 `分類清單:delete`，無權限時不顯示按鈕）。
+- 清單欄位：名稱、描述、適用團隊、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `分類清單:edit` 時點徽章直接切換，停用先確認，`CategoryService.SetEnabledAsync` 只改狀態並換版本號、檢查團隊範圍、稽核 `Category.Enable`／`Category.Disable`；已是目標狀態時回成功、不寫稽核；沒有修改權限或在「顯示已刪除」時為不可點的一般標籤）、更新時間、操作（修改需 `分類清單:edit`、刪除需 `分類清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「分類資料」一區）：
   - 名稱 `Name`（必填，最長 100）
   - 啟用狀態 `IsEnabled`（Switch，預設啟用）
@@ -61,10 +61,10 @@
 
 - UI 路徑：`CategoryViewView` →（注入）`CategoryService` → `BackendDBContext`（Blazor Server 直接呼叫服務，不經 HTTP）。
 - API 路徑：`CategoryController` → `CategoryRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
-- Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），AutoMapper 以 `ForMember` 在 `List<string>` 與字串間轉換。
+- Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`，另有樂觀並行 `ConcurrencyStamp` 與軟刪除 `IsDeleted/DeletedAt/DeletedBy`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），AutoMapper 以 `ForMember` 在 `List<string>` 與字串間轉換。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `CurrentRecord = model.Clone()` 複製，避免污染清單資料；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
-- 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Category.Create`／`Category.Update`／`Category.Delete`（代碼定義於 `AuditActions`，目標為 `Category`／Id），可在「稽核紀錄」頁查詢。
+- 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Category.Create`／`Category.Update`／`Category.Delete`（代碼定義於 `AuditActions`，目標為 `Category`／Id），可在「稽核紀錄」頁查詢；點狀態標籤切換另寫 `Category.Enable`／`Category.Disable`（0.9.120 起），匯出寫 `Category.Export`（0.9.107 起）。
   畫面路徑由 `CategoryService` 寫入（操作者取自 `CurrentUserService`，內容 `name=分類名稱`），Web API 路徑由 `CategoryController` 寫入（API 刪除不帶名稱）；寫入失敗（含唯一索引擋下）不留稽核。
 - 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
@@ -115,6 +115,11 @@
 - `BeforeAddCheckAsync_WithNameOfInvisibleCategory_ShouldStillFail`：名稱唯一性仍為全域比對。
 - `AddAsync_ShouldRoundTripTeamsBetweenListAndStoredString` / `UpdateAsync_WithEmptyTeams_ShouldStoreNullAsPublicCategory`：`Teams` 的 List↔字串往返。
 
+對應測試檔 `src/MyProject/MyProject.Tests/StatusToggleServiceTests.cs`（0.9.120 新增，與團隊、使用者共用）：
+
+- `Category_SetEnabled_ShouldChangeStatusAndAudit`：只改狀態、換版本號並寫 `Category.Disable`。
+- `Category_SetEnabled_OutsideTeamScope_ShouldBeDenied`：團隊範圍外的分類被擋下。
+
 測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper；存取範圍以 `FakeRecordAccessScopeProvider` 替身指定。
 
 ## 八、分類的團隊可見性（0.4.40 起）
@@ -144,10 +149,10 @@
 - `src/MyProject/MyProject.Dtos/Models/CategoryCreateUpdateDto.cs`、`src/MyProject/MyProject.Dtos/Commons/CategorySearchRequestDto.cs`
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`
 - `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`、`src/MyProject/MyProject.Web/Datas/Menu.json`
-- `src/MyProject/MyProject.Tests/CategoryServiceTests.cs`、`src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs`
+- `src/MyProject/MyProject.Tests/CategoryServiceTests.cs`、`src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs`、`src/MyProject/MyProject.Tests/StatusToggleServiceTests.cs`
 - `src/MyProject/MyProject.Tests/CategoryTeamRepositoryUniquenessTests.cs`、`src/MyProject/MyProject.Tests/CategoryTeamUniqueIndexMigrationTests.cs`
 - `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs`
 - `src/MyProject/MyProject.Web/Components/Commons/TeamBindingConfirm.cs`（儲存前團隊確認對話窗，與專案編輯頁共用）
-- `src/MyProject/MyProject.Business/Helpers/AuditActions.cs`（`Category.Create／Update／Delete` 稽核代碼）
+- `src/MyProject/MyProject.Business/Helpers/AuditActions.cs`（`Category.*` 稽核代碼：Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export）
 - `src/MyProject/MyProject.Web/Datas/Help/categories.md`（頁面操作說明）
-- 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../superpowers/specs/2026-06-22-category-team-pages-design.md](../superpowers/specs/2026-06-22-category-team-pages-design.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)
+- 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)

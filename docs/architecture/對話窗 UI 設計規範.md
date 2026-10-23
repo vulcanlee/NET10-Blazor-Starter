@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：1.9
+- 文件版本：2.0
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 目的
 
@@ -26,7 +26,7 @@
 | 唯讀明細窗 | 只是把一筆記錄攤開來看（例外紀錄、Token 用量、AI 分析） | 各自的 `*-modal` class，不適用本文件 |
 | **小型確認窗** | `ModalService.ConfirmAsync`，只有一句話與兩個按鈕 | 全域 `.ant-modal-confirm`，**不滿版**，見第 9 節 |
 | 通知／消息條 | `NotificationService`（右下角）、`MessageService`（頂部） | 全域選擇器，見第 10 節 |
-| 其餘對話窗 | 關於、變更密碼、唯讀明細窗、AI 分析窗、頁面操作說明窗（`.page-help-modal`，見速查表 §6.14） | 只寫尺寸，果凍由基底提供 |
+| 其餘對話窗 | 關於、唯讀明細窗、AI 分析窗、頁面操作說明窗（`.page-help-modal`，見第 11 節與速查表 §6.14）（變更密碼對話窗已於 0.9.101 移除，只留 `/ChangePassword` 頁） | 只寫尺寸，果凍由基底提供 |
 
 ## 2.1 果凍是共用基底，不是逐窗複製 ⚠️
 
@@ -292,6 +292,13 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 **少設一次 `Danger`，那個窗就不會轉紅調**，這也是為什麼它必須由樣板決定。
 
+### 9.3 哪些動作要確認、哪些不必
+
+| 動作 | 作法 |
+|------|------|
+| 清單上點狀態標籤切換啟用／停用（0.9.120 起，分類、團隊、使用者）| **停用**先 `ConfirmDialog.AskAsync`；**啟用**直接切換、不問 |
+| 鈴鐺的單則 ×、標題列「清除已讀」（0.9.125 起）| 不跳確認：只動自己的通知，「清除已讀」也只刪已讀的 |
+
 ## 10. 通知與消息條
 
 | 浮層 | 選擇器 | 規格 |
@@ -303,6 +310,20 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ⚠️ **圖示的語意色（成功綠／錯誤紅／警告橘／資訊藍）刻意不動。**
 為了視覺統一把錯誤訊息染成粉紅，等於拿掉使用者最先讀到的那個訊號。
+
+## 11. 頁面操作說明窗的字體大小（0.9.121 起）
+
+`Components/Commons/PageHelpDialog`（`.page-help-modal`，尺寸見速查表 §6.4、內容規則見 §6.14）的標題列右側有「字體 小／中／大」：
+
+| 項目 | 規格 |
+|------|------|
+| 內文字級 | 小 **14px**／中 **16px**／大 **20px**（0.9.124 起，預設「中」；0.9.121～0.9.123 為約 13／14／17px）|
+| 實作 | `PageHelpDialog.razor.css` 的 `--page-help-scale`（以 AntDesign 內文 14px 為基準：小 `1`、中 `calc(16 / 14)`、大 `calc(20 / 14)`），class 由 `PageHelpFontSizes.CssClass` 給 `page-help-font-small`／`-medium`／`-large` |
+| 一起縮放 | 內文、各級標題、左側「說明目錄」的字級與寬度（`calc(15rem * var(--page-help-scale))`）|
+| 記住選擇 | 存在這個瀏覽器的 localStorage `app.helpFontSize`（值 `small`／`medium`／`large`），所有頁面的說明窗共用；第一次開窗時讀一次，讀不到、被封鎖或值無效一律回「中」，存不了也不影響目前畫面 |
+
+⚠️ 在說明窗新增帶字級的樣式時，字級一律寫成 `calc(… * var(--page-help-scale))`，否則切換字體時不會跟著縮放。
+由 `PageHelpFontSizesTests` 釘住存值與解析。
 
 ## 延伸閱讀
 
