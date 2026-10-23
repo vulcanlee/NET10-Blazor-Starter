@@ -140,6 +140,47 @@ public sealed class NotificationTests : IDisposable
     }
 
     [Fact]
+    public async Task SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted()
+    {
+        // 0.9.136 起去重看 NotificationDispatch：使用者按 ×、清除已讀，或已讀的被提早清除，同一個鍵都不會再發（之前會重發，AI 用量 100% 還會重寄信）。
+        var admin = AddUser("admin", isAdmin: true);
+        var (sender, _, _) = NewSender();
+        await sender.SendAsync(Request(NotificationTarget.AllAdmins(), sourceKey: "AiQuota:global:monthly:2026-10:100"));
+
+        await using (var context = factory.CreateDbContext())
+        {
+            context.Notification.RemoveRange(context.Notification);
+            await context.SaveChangesAsync();
+        }
+
+        var again = await sender.SendAsync(Request(NotificationTarget.AllAdmins(), sourceKey: "AiQuota:global:monthly:2026-10:100"));
+
+        Assert.Equal(0, again.Recipients);
+        Assert.Equal(0, CountNotifications());
+        Assert.NotEqual(0, admin);
+    }
+
+    [Fact]
+    public async Task RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly()
+    {
+        var user = AddUser("u");
+        await using (var context = factory.CreateDbContext())
+        {
+            context.NotificationDispatch.Add(new NotificationDispatch { SourceKey = "old", RecipientUserId = user, SentAtUtc = DateTime.UtcNow.AddDays(-91) });
+            context.NotificationDispatch.Add(new NotificationDispatch { SourceKey = "recent", RecipientUserId = user, SentAtUtc = DateTime.UtcNow.AddDays(-10) });
+            await context.SaveChangesAsync();
+        }
+
+        var query = new NotificationQueryService(factory, new NotificationSignal(NullLogger<NotificationSignal>.Instance), TimeProvider.System, NullLogger<NotificationQueryService>.Instance);
+        var context0 = new ScheduledJobContext(1, JobRunTriggers.Schedule, DateTime.UtcNow, null);
+        await new NotificationRetentionJob(query, new RecordingAuditLogService(), new StaticOptionsMonitor<NotificationSettings>(new NotificationSettings { RetentionDays = 90, ReadRetentionDays = 7 }), TimeProvider.System, NullLogger<NotificationRetentionJob>.Instance)
+            .ExecuteAsync(context0, CancellationToken.None);
+
+        await using var check = factory.CreateDbContext();
+        Assert.Equal(["recent"], await check.NotificationDispatch.Select(x => x.SourceKey).ToListAsync());
+    }
+
+    [Fact]
     public async Task AlsoEmail_ShouldPassRecipientEmailsToTheMailer_OnlyWhenRequested()
     {
         var withEmail = AddUser("a", email: "a@example.com");

@@ -28,7 +28,7 @@ public static class StartupSafetyValidator
         var supportPassword = configuration["BootstrapSettings:SupportPassword"];
         if (string.IsNullOrWhiteSpace(supportPassword))
         {
-            // 留空不是「不要設定」，而是「把空字串雜湊成管理員密碼」（Program.cs 的 seed），
+            // 留空不是「不要設定」，而是「把空字串雜湊成管理員密碼」（SupportUserSeeder），
             // 而且每次重啟都重新套用一次。必須比照 SigningKey 留空一樣擋下。
             errors.Add("BootstrapSettings:SupportPassword 不可在 Production 留空，否則預設管理者會被設成空密碼。");
         }

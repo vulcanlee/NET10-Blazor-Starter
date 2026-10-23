@@ -556,7 +556,7 @@ public sealed class SystemHealthService : ISystemHealthService
         {
             logger.LogWarning(ex, "Health check failed. Check={Check}", "Ai");
             // AiHealthProbe 內部已全程吞例外，這裡是最後一道保險 ——
-            // 單一項目絕不能讓整份報告掛掉（其餘 7 項檢查都沒有保護）。
+            // 單一項目絕不能讓整份報告掛掉（其他檢查項目沒有這層保護）。
             return CreateItem(
                 "LLM API",
                 "Ai",

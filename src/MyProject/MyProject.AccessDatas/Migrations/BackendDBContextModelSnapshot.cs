@@ -510,6 +510,27 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("Notification");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.NotificationDispatch", b =>
+                {
+                    b.Property<string>("SourceKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecipientUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("SentAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("SourceKey", "RecipientUserId");
+
+                    b.HasIndex("RecipientUserId");
+
+                    b.HasIndex("SentAtUtc");
+
+                    b.ToTable("NotificationDispatch");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.PasswordHistory", b =>
                 {
                     b.Property<int>("Id")
@@ -1129,6 +1150,17 @@ namespace MyProject.AccessDatas.Migrations
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.Notification", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.MyUser", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RecipientUser");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.NotificationDispatch", b =>
                 {
                     b.HasOne("MyProject.AccessDatas.Models.MyUser", "RecipientUser")
                         .WithMany()

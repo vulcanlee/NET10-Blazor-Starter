@@ -174,11 +174,14 @@ public class RoleViewService
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
+            // 主表與權限對應在同一個交易（0.9.136 起）：對應寫入失敗時整筆回復。
+            await using var transaction = await context.Database.BeginTransactionAsync();
             await context.RoleView.AddAsync(itemParameter);
             await context.SaveChangesAsync();
 
             var permissionKeys = ParsePermissionKeys(itemParameter.TabViewJson);
-            await rbacWriteService.SyncRolePermissionsAsync(itemParameter.Id, permissionKeys);
+            await rbacWriteService.SyncRolePermissionsAsync(context, itemParameter.Id, permissionKeys);
+            await transaction.CommitAsync();
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -216,6 +219,12 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要修改的角色資料。");
             }
 
+            if (DefaultRoleRenameMessage(item.Name, paraObject.Name) is { } renameBlocked)
+            {
+                Logger.LogInformation("Role view update rejected because the default role cannot be renamed. RoleViewId={RoleViewId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, renameBlocked);
+            }
+
             // 修改前後差異（0.9.131 起）：權限與預設團隊是 JSON，比對解析後的集合（新增／移除哪些鍵），不比 JSON 原文。
             var diff = AuditDiff.Compare(item, itemData, nameof(RoleView.TabViewJson), nameof(RoleView.DefaultTeamsJson))
                 .Set("Permissions", ParsePermissionKeys(item.TabViewJson), ParsePermissionKeys(itemData.TabViewJson))
@@ -226,10 +235,12 @@ public class RoleViewService
             entry.State = EntityState.Modified;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             SoftDeleteHelper.ProtectFlags(entry);
+            await using var transaction = await context.Database.BeginTransactionAsync();
             await context.SaveChangesAsync();
 
             var permissionKeys = ParsePermissionKeys(itemData.TabViewJson);
-            await rbacWriteService.SyncRolePermissionsAsync(itemData.Id, permissionKeys);
+            await rbacWriteService.SyncRolePermissionsAsync(context, itemData.Id, permissionKeys);
+            await transaction.CommitAsync();
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -505,6 +516,12 @@ public class RoleViewService
             return VerifyRecordResultFactory.Build(false, "要修改的角色資料不存在。");
         }
 
+        if (DefaultRoleRenameMessage(searchItem.Name, paraObject.Name) is { } renameBlocked)
+        {
+            Logger.LogInformation("Pre-update validation failed because the default role cannot be renamed. RoleViewId={RoleViewId}", paraObject.Id);
+            return VerifyRecordResultFactory.Build(false, renameBlocked);
+        }
+
         searchItem = await context.RoleView
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name == paraObject.Name && x.Id != paraObject.Id);
@@ -517,6 +534,15 @@ public class RoleViewService
 
         return VerifyRecordResultFactory.Build(true);
     }
+
+    /// <summary>
+    /// 「預設角色」不可改名（0.9.136 起）：系統以名稱找它（新帳號預帶、Google 自動建帳號），
+    /// 改名後啟動時會重建一個帶全部權限的新「預設角色」。
+    /// </summary>
+    private static string? DefaultRoleRenameMessage(string currentName, string newName)
+        => currentName == MagicObjectHelper.預設角色 && newName != MagicObjectHelper.預設角色
+            ? $"「{MagicObjectHelper.預設角色}」是系統內建的角色，不可改名。"
+            : null;
 
     public Task<VerifyRecordResult> BeforeDeleteCheckAsync(RoleViewAdapterModel paraObject)
     {

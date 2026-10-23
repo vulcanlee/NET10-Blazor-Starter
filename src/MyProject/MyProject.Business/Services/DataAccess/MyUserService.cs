@@ -277,10 +277,13 @@ public class MyUserService
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             await passwordPolicy.ApplyAsync(context, itemParameter, paraObject.Password, paraObject.MustChangePassword);
 
+            // 主表與角色、團隊對應在同一個交易（0.9.136 起）：對應寫入失敗時整筆回復，不留下只存了一半的帳號。
+            await using var transaction = await context.Database.BeginTransactionAsync();
             await context.MyUser.AddAsync(itemParameter);
             await context.SaveChangesAsync();
 
             await SyncAssignmentsAsync(context, rbacWriteService, itemParameter.Id, paraObject);
+            await transaction.CommitAsync();
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -374,9 +377,11 @@ public class MyUserService
             var entry = context.Entry(itemData);
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             SoftDeleteHelper.ProtectFlags(entry);
+            await using var transaction = await context.Database.BeginTransactionAsync();
             await context.SaveChangesAsync();
 
             await SyncAssignmentsAsync(context, rbacWriteService, itemData.Id, paraObject);
+            await transaction.CommitAsync();
 
             var (actorUserId, actorAccount) = ResolveActor();
             await auditLogService.WriteAsync(
@@ -430,11 +435,6 @@ public class MyUserService
         return "選擇的角色已被刪除或不存在，請關閉視窗、重新開啟後再選擇角色。";
     }
 
-    /// <summary>雙寫：同步使用者的角色（主要 + 額外，多角色）與團隊（UserTeam）。</summary>
-    /// <summary>
-    /// 由 Add/Update 呼叫，**必須沿用呼叫端的 context**（同一個工作單元），
-    /// 不可自行 CreateDbContext。
-    /// </summary>
     /// <summary>目前有效的角色：主要角色 ∪ 額外角色，排除已刪除的角色。</summary>
     private static async Task<HashSet<int>> GetActiveRoleIdsAsync(BackendDBContext context, int userId, int? primaryRoleId)
     {
@@ -459,6 +459,10 @@ public class MyUserService
         return ids;
     }
 
+    /// <summary>
+    /// 雙寫：同步使用者的角色（主要 + 額外，多角色）與團隊（UserTeam）。
+    /// 由 Add/Update 呼叫，**必須沿用呼叫端的 context 與交易**，不可自行 CreateDbContext。
+    /// </summary>
     private static async Task SyncAssignmentsAsync(
         BackendDBContext context,
         IRbacWriteService rbacWriteService,
@@ -474,7 +478,7 @@ public class MyUserService
         {
             roleIds.AddRange(paraObject.AdditionalRoleIds);
         }
-        await rbacWriteService.SyncUserRolesAsync(userId, roleIds.Distinct());
+        await rbacWriteService.SyncUserRolesAsync(context, userId, roleIds.Distinct());
 
         var teamNames = (paraObject.TeamNames ?? new List<string>())
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -486,7 +490,7 @@ public class MyUserService
             .Where(t => teamNames.Contains(t.Name))
             .Select(t => t.Id)
             .ToListAsync();
-        await rbacWriteService.SyncUserTeamsAsync(userId, teamIds);
+        await rbacWriteService.SyncUserTeamsAsync(context, userId, teamIds);
     }
 
     /// <summary>載入使用者現有的額外角色（主要角色以外）與團隊名稱，供編輯畫面回填。</summary>

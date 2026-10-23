@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $solution = "src/MyProject/MyProject.slnx"
 
-# restore 是最常被 nuget.org 偶發逾時打到的一步；沿用原 CI 的 180 秒，使用者自己設定過就不覆蓋。
+# restore 是最常被 nuget.org 偶發逾時打到的一步；沿用 2026-09-20 移除的 CI 的 180 秒，使用者自己設定過就不覆蓋。
 if (-not $env:NUGET_HTTP_TIMEOUT_SECONDS) {
     $env:NUGET_HTTP_TIMEOUT_SECONDS = "180"
 }
@@ -55,7 +55,7 @@ function Invoke-VulnerabilityScan {
     Write-Host "Vulnerability scan passed (allow list: $($allowedAdvisories -join ', '))."
 }
 
-# Release：與原 CI 一致；而且開發中的網站鎖住的是 Debug 的 bin，用 Release 建置不會跟它搶檔案。
+# Release：與 2026-09-20 移除的 CI 一致；而且開發中的網站鎖住的是 Debug 的 bin，用 Release 建置不會跟它搶檔案。
 $steps = @(
     @{ Name = "Restore"; Action = { & dotnet restore $solution } },
     @{ Name = "Build"; Action = { & dotnet build $solution --configuration Release --no-restore -v:minimal } },

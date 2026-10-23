@@ -1,5 +1,4 @@
-﻿@using System.Globalization
-@using MyProject.Web.Diagnostics
+﻿@using MyProject.Web.Diagnostics
 @using Microsoft.AspNetCore.Components.Routing
 @implements IDisposable
 @inject NavigationManager NavigationManager
@@ -7,14 +6,11 @@
 @code {
     private LoggingErrorBoundary? overlayBoundary;
 
+    // AntDesign 語系只在啟動時設定一次（AddConfiguredLocalization）。⚠️ 不要在這裡依目前文化呼叫 LocaleProvider.SetLocale：
+    // 它會改到整個行程的預設 UI 文化（0.9.136 前每次渲染都呼叫）。
     protected override void OnInitialized()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
-    }
-
-    protected override void OnParametersSet()
-    {
-        LocaleProvider.SetLocale(CultureInfo.CurrentUICulture.Name);
     }
 
     // 浮層的錯誤邊界一旦觸發，換頁時自動復原，讓對話窗與通知重新可用。

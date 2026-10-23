@@ -229,14 +229,32 @@ namespace MyProject.Web
                         {
                             // ⚠️ 0.9.103 起只接受 access token。之前 refresh token（效期 7 天）也能直接當 Bearer 用，
                             // 等於 access token 的 60 分鐘效期形同虛設。
-                            OnTokenValidated = context =>
+                            // 0.9.136 起也比對工作階段版本（與登入 Cookie 同一套快取，CookieSettings:ValidationIntervalMinutes）：
+                            // 改密碼、強制登出、停用或刪除帳號後，已發出的 access token 立即失效，不再能用到過期。
+                            OnTokenValidated = async context =>
                             {
-                                if (!string.Equals(context.Principal?.FindFirst(JwtTokenService.TokenTypeClaimType)?.Value, JwtTokenService.AccessTokenType, StringComparison.Ordinal))
+                                var principal = context.Principal;
+                                if (!string.Equals(principal?.FindFirst(JwtTokenService.TokenTypeClaimType)?.Value, JwtTokenService.AccessTokenType, StringComparison.Ordinal))
                                 {
                                     context.Fail("Only access tokens are accepted as bearer tokens.");
+                                    return;
                                 }
 
-                                return Task.CompletedTask;
+                                if (!int.TryParse(principal!.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId))
+                                {
+                                    context.Fail("The bearer token has no user id.");
+                                    return;
+                                }
+
+                                var services = context.HttpContext.RequestServices;
+                                var interval = TimeSpan.FromMinutes(services.GetRequiredService<IOptionsMonitor<CookieSettings>>().CurrentValue.ValidationIntervalMinutes);
+                                var stampValid = await services.GetRequiredService<MyProject.Business.Services.Other.ISecurityStampService>().IsValidAsync(
+                                    userId, principal.FindFirst(MagicObjectHelper.SecurityStampClaimType)?.Value, interval,
+                                    cancellationToken: context.HttpContext.RequestAborted);
+                                if (!stampValid)
+                                {
+                                    context.Fail("The session was revoked.");
+                                }
                             },
                             OnChallenge = async context =>
                             {

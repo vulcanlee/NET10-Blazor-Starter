@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.25
+- 文件版本：2.26
 - 文件狀態：維護中
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.136
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/10/23
 
@@ -13,10 +13,10 @@
 | 產品能力 | PRD | 入口／路由 | 主要程式來源 | 狀態 | 核對版本 |
 |----------|-----|-----------|--------------|------|----------|
 | 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Pages/HomeAuthed.razor`、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗）、`PageHelpDialog`／`PageHelpService`／`Datas/HelpTopics.json`＋`Datas/Help/*.md`（頂欄「操作說明」對話窗，每個登入後頁面一份） | 已實作（0.9.66 起含頁面操作說明對話窗；0.9.121 起說明窗可切換字體小／中／大）| 0.9.135 |
-| 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.135 |
-| 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController`、`ProjectFileController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核）| 0.9.135 |
-| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作（0.9.120 起點狀態標籤切換啟用／停用）| 0.9.135 |
-| 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.9.135 |
+| 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.136 |
+| 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController`、`ProjectFileController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核）| 0.9.136 |
+| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作（0.9.120 起點狀態標籤切換啟用／停用）| 0.9.136 |
+| 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.9.136 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用） | 0.9.135 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `Pages/Teams/TeamPage.razor`、`TeamService`、`TeamController` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用）| 0.9.135 |
 | 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、`Health/SystemHealthService` 等 | 已實作（14 項檢查；0.9.59 起含寄信服務項與寄信測試；0.9.79 起含日誌管線項；0.9.96 起含排程作業項；0.9.122 起含站內通知測試）| 0.9.135 |
@@ -29,12 +29,12 @@
 | 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99）| 0.9.135 |
 | 資料保留與清理 | [資料保留與清理](資料保留與清理-prd.md) | `/data-retention` | `Pages/Admins/DataRetentionPage.razor`、`Web/DataRetention/*`、`Scheduling/RetentionCutoffs`、各資料服務的 `GetRetentionStatsAsync` | 已實作（0.9.133；0.9.134 起含自訂清除）| 0.9.134 |
 | 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`ProfileService`、`Layout/UserInitials` | 已實作（0.9.102；0.9.123 起登入紀錄顯示來源 IP）| 0.9.135 |
-| AI 用量配額 | [AI 用量配額](AI用量配額-prd.md) | 全系統與每人的每日、每月新台幣上限，送出前擋下、80%／100% 通知 | `AiQuotaService`、`AiChatCompletionClient` | 已實作（0.9.109）| 0.9.135 |
+| AI 用量配額 | [AI 用量配額](AI用量配額-prd.md) | 全系統與每人的每日、每月新台幣上限，送出前擋下、80%／100% 通知 | `AiQuotaService`、`AiChatCompletionClient` | 已實作（0.9.109）| 0.9.136 |
 | AI 提示詞管理 | [AI 提示詞管理](AI提示詞管理-prd.md) | 管理員修改 AI 日誌分析與例外分析的提示詞，版本保留可切回；固定規則自動附加 | `PromptTemplateService`、`Web/Ai/AiPromptGuardrails.cs` | 已實作（0.9.108）| 0.9.135 |
 | 通用匯出 | [通用匯出](通用匯出-prd.md) | 專案、分類、團隊、使用者頁「匯出 Excel」；診斷頁 CSV | `Web/Export/*` | 已實作（0.9.107）| 0.9.135 |
 | 首頁儀表板 | [首頁儀表板](首頁儀表板-prd.md) | `/App` 的小工具區 | `Web/Dashboard/*`、`Views/Dashboard/*`、`HomeWelcomeView` | 已實作（0.9.106；0.9.122 起「我的通知」每 60 秒更新；0.9.123 起「上一次登入」顯示 IP）| 0.9.135 |
 | 兩步驟驗證 | [兩步驟驗證](兩步驟驗證-prd.md) | `/TwoFactorSetup`（個人資料頁）、`/Auths/TwoFactor` | `TwoFactorService`、`TwoFactorLoginCookies`、`Views/Profiles/TwoFactorSetupView`、`Auths/TwoFactor` | 已實作（0.9.104）| 0.9.135 |
-| 站內通知與公告 | [站內通知與公告](站內通知與公告-prd.md) | 頂欄鈴鐺、頁面上方公告橫幅、`/announcements` | `INotificationSender`、`NotificationSignal`、`Layout/NotificationBell`、`AnnouncementBanner`、`Pages/Admins/AnnouncementPage.razor`、`NotificationRetentionJob` | 已實作（0.9.100；0.9.125 起鈴鐺可刪除單則與清除已讀，已讀通知另依保留天數清除）| 0.9.135 |
+| 站內通知與公告 | [站內通知與公告](站內通知與公告-prd.md) | 頂欄鈴鐺、頁面上方公告橫幅、`/announcements` | `INotificationSender`、`NotificationSignal`、`Layout/NotificationBell`、`AnnouncementBanner`、`Pages/Admins/AnnouncementPage.razor`、`NotificationRetentionJob` | 已實作（0.9.100；0.9.125 起鈴鐺可刪除單則與清除已讀，已讀通知另依保留天數清除）| 0.9.136 |
 | 系統參數 | [系統參數](系統參數-prd.md) | `/system-parameters` | `Pages/Admins/SystemParameterPage.razor`、`Web/Configuration/Parameters/*`、`SystemParameterService`、`SystemIdentity` | 已實作（0.9.98）| 0.9.135 |
 | 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Pages/Admins/ScheduledJobPage.razor`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理）| 0.9.135 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.9.135 |

@@ -16,7 +16,10 @@ public sealed class RbacWriteService : IRbacWriteService
         this.logger = logger;
     }
 
-    public async Task SyncRolePermissionsAsync(int roleViewId, IEnumerable<string> permissionKeys)
+    public Task SyncRolePermissionsAsync(int roleViewId, IEnumerable<string> permissionKeys)
+        => SyncRolePermissionsAsync(context, roleViewId, permissionKeys);
+
+    public async Task SyncRolePermissionsAsync(BackendDBContext context, int roleViewId, IEnumerable<string> permissionKeys)
     {
         var desiredKeys = permissionKeys
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -28,7 +31,7 @@ public sealed class RbacWriteService : IRbacWriteService
             "Syncing role permissions. RoleViewId={RoleViewId}, PermissionKeyCount={PermissionKeyCount}",
             roleViewId, desiredKeys.Count);
 
-        var permissionIdByKey = await EnsurePermissionsAsync(desiredKeys);
+        var permissionIdByKey = await EnsurePermissionsAsync(context, desiredKeys);
         var desiredIds = desiredKeys.Select(k => permissionIdByKey[k]).ToHashSet();
 
         var existing = await context.RolePermissionMap
@@ -49,7 +52,10 @@ public sealed class RbacWriteService : IRbacWriteService
         await context.SaveChangesAsync();
     }
 
-    public async Task SyncUserRolesAsync(int userId, IEnumerable<int> roleViewIds)
+    public Task SyncUserRolesAsync(int userId, IEnumerable<int> roleViewIds)
+        => SyncUserRolesAsync(context, userId, roleViewIds);
+
+    public async Task SyncUserRolesAsync(BackendDBContext context, int userId, IEnumerable<int> roleViewIds)
     {
         var desired = roleViewIds.ToHashSet();
 
@@ -77,7 +83,10 @@ public sealed class RbacWriteService : IRbacWriteService
         await context.SaveChangesAsync();
     }
 
-    public async Task SyncUserTeamsAsync(int userId, IEnumerable<int> teamIds)
+    public Task SyncUserTeamsAsync(int userId, IEnumerable<int> teamIds)
+        => SyncUserTeamsAsync(context, userId, teamIds);
+
+    public async Task SyncUserTeamsAsync(BackendDBContext context, int userId, IEnumerable<int> teamIds)
     {
         var desired = teamIds.ToHashSet();
 
@@ -105,7 +114,7 @@ public sealed class RbacWriteService : IRbacWriteService
         await context.SaveChangesAsync();
     }
 
-    private async Task<Dictionary<string, int>> EnsurePermissionsAsync(IReadOnlyCollection<string> keys)
+    private static async Task<Dictionary<string, int>> EnsurePermissionsAsync(BackendDBContext context, IReadOnlyCollection<string> keys)
     {
         var map = await context.Permission
             .Where(p => keys.Contains(p.Key))

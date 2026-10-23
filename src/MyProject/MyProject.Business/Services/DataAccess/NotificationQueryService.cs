@@ -37,6 +37,13 @@ public class NotificationQueryService
         return await context.Notification.CountAsync(x => x.RecipientUserId == userId && x.ReadAtUtc == null);
     }
 
+    /// <summary>有沒有任何已讀的通知（0.9.136 起鈴鐺的「清除已讀」據此決定能不能按，不只看下拉顯示的那幾則）。</summary>
+    public async Task<bool> HasReadAsync(int userId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.Notification.AnyAsync(x => x.RecipientUserId == userId && x.ReadAtUtc != null);
+    }
+
     /// <summary>最新的幾則（新到舊）。</summary>
     public async Task<List<NotificationAdapterModel>> GetLatestAsync(int userId, int take = 10)
     {
@@ -118,9 +125,18 @@ public class NotificationQueryService
         return changed;
     }
 
-    /// <summary>刪除建立時間早於門檻的通知（不論已讀未讀），分批進行，批次之間可取消。</summary>
-    public Task<int> PurgeBeforeAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
-        => PurgeAsync(CreatedBefore(cutoffUtc), cancellationToken);
+    /// <summary>
+    /// 刪除建立時間早於門檻的通知（不論已讀未讀），分批進行，批次之間可取消。
+    /// 同一個門檻也清掉去重紀錄 <see cref="NotificationDispatch"/>（0.9.136 起），去重的有效期間與通知保存期限相同；回傳值只算通知。
+    /// </summary>
+    public async Task<int> PurgeBeforeAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+    {
+        var total = await PurgeAsync(CreatedBefore(cutoffUtc), cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var dispatches = await context.NotificationDispatch.Where(x => x.SentAtUtc < cutoffUtc).ExecuteDeleteAsync(cancellationToken);
+        logger.LogInformation("Notification dispatch records purged. Rows={Rows}", dispatches);
+        return total;
+    }
 
     /// <summary>刪除標為已讀的時間早於門檻的通知（0.9.125 起），分批進行，批次之間可取消。</summary>
     public Task<int> PurgeReadBeforeAsync(DateTime readCutoffUtc, CancellationToken cancellationToken)
