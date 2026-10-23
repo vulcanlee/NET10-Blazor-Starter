@@ -291,9 +291,11 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -Directory -Force |
     Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force) } |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
 
+# .gitignore 的 Extension 就是 ".gitignore"；它的 !src/MyProject/MyProject.Web/Backup/ 例外不換名，
+# 衍生專案的 Backup/ 程式碼會被 Backup*/ 忽略而提交不進 git，乾淨 clone 建置失敗。
 $textExtensions = @(
     ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js",
-    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl"
+    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props"
 )
 
 # 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。

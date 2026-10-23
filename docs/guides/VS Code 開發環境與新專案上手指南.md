@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.2
+- 文件版本：3.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.137
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/10/23
 
@@ -516,7 +516,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
   有未提交修改或未追蹤檔、不在 origin 的預設分支、落後 origin 任一項就列出並中止（確定要照現狀複製時加 `-AllowUnsyncedSource`）；
   不是 git repo、沒有 origin 或 fetch 失敗只警告。被 `.gitignore` 忽略、卻不在下方排除清單裡的檔案也會列出警告（不中止）
 - 複製整個 repo 到目標路徑，跳過 `.git` / `bin` / `obj` / `.vs` / `.playwright-cli` / `output`，以及開發機上的本機產物 `artifacts` / `.gstack` / `PublishProfiles`、`*.user` / `*.suo`、`.claude\settings.local.json`（0.9.87 起）；複製完會刪掉因此變空的資料夾（例如已移除的 `SqlServerMigrations` 殘骸）
-- 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml`）內的 `MyProject` 全部換成新代號；全小寫的 `myproject`（例如 Gmail 指南的範例信箱）換成新代號的小寫（0.9.87 起）。**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
+- 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml .tmpl .gitignore .props`；`.tmpl` 0.9.136 起、`.gitignore`／`.props` 0.9.137 起）內的 `MyProject` 全部換成新代號；全小寫的 `myproject`（例如 Gmail 指南的範例信箱）換成新代號的小寫（0.9.87 起）。**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
 - **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）。舊埠是從來源的 `launchSettings.json` 讀出來的（0.9.87 起），所以從衍生專案再衍生一次，埠也會換新；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
@@ -524,7 +524,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs` 與 `TeamTreeMigrationTests.cs`（後者 0.9.116 起），先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：清掉 `docs/changelog/` 的歷史紀錄（保留 `README.md` 當索引骨架 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
-- 最後掃一次殘留字串並警告。正常情況只會出現 5 筆「開發用 JWT 佔位金鑰」的警告：本文 §5.1／§5.5 的說明、腳本自己的兩行、`ApiIntegrationTests.cs` 的測試資料，都是刻意保留的
+- 最後掃一次殘留字串並警告。正常情況只會出現一行標題加 5 筆「開發用 JWT 佔位金鑰」的警告：本文 §5.1／§5.5 的說明、腳本自己的兩行、`ApiIntegrationTests.cs` 的測試資料，都是刻意保留的
 
 > `-ProjectName` 每一段都必須是合法的 C# 識別字（0.9.87 起），`Acme..Erp`、`Acme.`、`Acme.1x` 會在一開始就被擋下。
 
@@ -689,7 +689,8 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `BackendDBContext` 類別名 | 本來就沒有品牌字，只是 DbContext 的名字 |
 | `Migrations/` 的檔名（腳手架是 `20260316083639_init.cs` 起的一串；腳本重建後是 `<時間戳記>_Init.cs`） | 檔名是 EF 的時間戳記慣例，與專案名無關 |
 | `launchSettings.json` 的 `http` / `https` profile 名稱 | 兩個 profile 名都是通用字，不含品牌 |
-| `Directory.Build.props` / `Directory.Packages.props` / `global.json` / `.editorconfig` / `.gitignore` | 經確認**都不含** `MyProject` 字串 |
+| `Directory.Build.props` / `global.json` / `.editorconfig` | 經確認**都不含** `MyProject` 字串 |
+| `Directory.Packages.props` / `.gitignore` | 含 `MyProject`（前者是註解；後者是 `!src/MyProject/MyProject.Web/Backup/` 例外規則），0.9.137 起腳本會自動換掉，不必手動改。⚠️ 手動複製時 `.gitignore` 這一行一定要改，否則 `Backup/` 底下的程式碼被 `Backup*/` 忽略，提交不進 git、乾淨 clone 建置失敗 |
 | `Datas/Menu.json` | 選單定義檔不含專案名 |
 | `MagicObjectHelper` 的常數值 | `開發者帳號`、`預設角色`、`NeedChangePassword` 等都是業務語意，不是品牌 |
 
