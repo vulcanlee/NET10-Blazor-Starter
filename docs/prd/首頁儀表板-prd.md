@@ -1,14 +1,14 @@
 ﻿# 首頁儀表板 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.123
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.106
-- 最後核對日期：2026/10/12
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
-登入後首頁 `/App` 原本是靜態的系統介紹；改成「精簡歡迎列＋快速入口＋小工具區」，讓每個人一眼看到與自己有關的狀態，並提供衍生系統擴充小工具的框架（[路線圖](../planning/00-腳手架強化路線圖.md) D-14）。
+登入後首頁 `/App` 原本是靜態的系統介紹；改成「精簡歡迎列＋快速入口＋小工具區」，讓每個人一眼看到與自己有關的狀態，並提供衍生系統擴充小工具的框架（路線圖 D-14）。
 
 使用者決定（2026/10/04）：
 
@@ -18,7 +18,7 @@
 | 內建小工具 | 「我的通知」「排程作業狀態」（管理員）「我的帳號」；不做專案狀態統計 |
 
 - **範圍**：小工具的登記與依權限過濾、每個小工具獨立的錯誤邊界、三個內建小工具。
-- **非範圍**：使用者自訂排版（拖拉、隱藏、大小）、小工具設定、圖表元件（YAGNI，見路線圖）。
+- **非範圍**：使用者自訂排版（拖拉、隱藏、大小）、小工具設定、圖表元件（YAGNI：目前沒有實際需求，有需要時再加）。
 
 ## 二、使用者與入口
 
@@ -38,6 +38,7 @@
 - **快速入口**：專案項目／分類清單／團隊清單，依頁面權限過濾（不變）。
 - **儀表板**（`DashboardGrid`）：自動排列的卡片（最小寬 18rem），每張有圖示與標題。
   - **我的通知**：未讀數、最新 5 則（未讀粗體、時間、站內連結點了標為已讀並前往）；沒有通知顯示「沒有通知。」；說明全部通知在右上角鈴鐺。
+    在鈴鐺標為已讀、刪除或「清除已讀」時立即同步（0.9.122／0.9.125 起）；別的行程（IIS 重疊回收、多台主機）發的通知與鈴鐺一樣每 60 秒輪詢補上（0.9.122 起，之前要重新整理）。
   - **我的帳號**：上一次登入（時間＋「帳號密碼」／「Google 登入」＋來源 IP，0.9.123 起；沒有 IP 的舊紀錄不顯示）、密碼到期（7 天內加「快到期」）、兩步驟驗證「已啟用／未啟用」；沒有本機密碼的人不顯示後兩項；連到個人資料。
   - **排程作業**：總開關關閉時提醒；有異常的作業與原因（上次執行失敗、上次執行被中斷、逾期未執行、已停用）；都沒有時「正常」；連到排程作業頁。
   - 小工具出錯時那張卡片顯示「這個區塊暫時無法顯示，其他區塊不受影響（錯誤追蹤碼：…）」。
@@ -49,7 +50,7 @@
   ⚠️ 只有看得到的小工具會被放進 `DashboardGrid`，沒權限的元件根本不建立、不查資料。
 - **渲染**：`DashboardGrid` 對每個小工具用 `DynamicComponent`，各自包在 `LoggingErrorBoundary`（寫錯誤日誌、附上追蹤碼）。
 - **資料**：小工具只用以 `IDbContextFactory` 為基礎的服務（`NotificationQueryService`、`ProfileService`）或 singleton（`ScheduledJobOverviewService`）—— 同一個連線的共用 DbContext 會與頁面的登入檢查並行衝突。
-  - 我的通知：`GetUnreadCountAsync`、`GetLatestAsync(5)`；訂閱 `INotificationSignal`，⚠️ `Dispose` 時取消訂閱。
+  - 我的通知：`GetUnreadCountAsync`、`GetLatestAsync(5)`；訂閱 `INotificationSignal`（`NotificationQueryService` 的標為已讀、刪除真的改到資料時才 `Publish`）；另以 `PeriodicTimer`（`NotificationBell.PollInterval` 60 秒、注入 `TimeProvider`）輪詢，讀取失敗只記 Warning、不壞首頁。⚠️ `Dispose` 時取消訂閱並停掉計時器。
   - 我的帳號：`ProfileService.GetAsync`（密碼到期、兩步驟驗證）與 `GetPreviousLoginAsync`（`AuditLog` 以精確 `ActorUserId` 取 `Login.Success`／`Login.Sso.Success` 的倒數第二筆 —— 最近一筆通常就是這次登入）。
   - 排程作業：`ScheduledJobOverviewService.GetOverviewAsync` → `ScheduledJobAttention.From`（與排程作業頁、系統健康監控同一份總覽）。
 
@@ -75,7 +76,7 @@
 
 ## 七、驗收與測試
 
-- `MyProject.Tests/Components/DashboardTests.cs`：過濾（管理員、權限鍵、管理員專屬）與排序、代號重複、內建三個小工具的登記、⭐ 沒權限的不建立且壞掉的只影響自己的卡片（bUnit）、我的通知（未讀數、最新 5 則、⭐ 訊號一到就更新、⭐ Dispose 取消訂閱）、我的帳號（上一次登入不是這次、Google 標示、來源 IP、兩步驟驗證、不會到期）、上一次登入的查詢（跳過最近一筆、忽略失敗與別人）、排程作業的異常規則。
+- `MyProject.Tests/Components/DashboardTests.cs`：過濾（管理員、權限鍵、管理員專屬）與排序、代號重複、內建三個小工具的登記、⭐ 沒權限的不建立且壞掉的只影響自己的卡片（bUnit）、我的通知（未讀數、最新 5 則、⭐ 訊號一到就更新、⭐ Dispose 取消訂閱；`Notifications_ShouldPollForChangesFromOtherProcesses_AndStopPollingOnDispose` 以 `TriggerableTimeProvider` 觸發輪詢，0.9.122）、我的帳號（上一次登入不是這次、Google 標示、來源 IP、兩步驟驗證、不會到期）、上一次登入的查詢（跳過最近一筆、忽略失敗與別人）、排程作業的異常規則。
 - 故意改壞 9 處全部被測試抓到（見 [changelog](../changelog/2026-10-04-首頁儀表板.md)）。
 
 ## 八、相關程式與文件

@@ -1,10 +1,10 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
@@ -20,7 +20,7 @@
 - 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）：呼叫 `this.WriteAuditAsync(AuditActions.Xxx.Create, ...)`
   （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT／Cookie 身分解析）。
   動作代碼一律引用 `MyProject.Business/Helpers/AuditActions.cs` 的常數，不可寫字串字面值（`AuditConventionTests` 守門）。
-- 例外：`ProjectFileController`（附件下載）**只收 Cookie 驗證**、路由為 kebab-case 的 `api/project-files`，
+- 例外：`ProjectFileController`（附件下載）**只收 Cookie 驗證**、路由為 kebab-case 的 `api/project-files`（另有 `api/v1/project-files`），
   因為呼叫端是 Blazor 畫面上由瀏覽器直接導覽的連結，帶的是登入 Cookie 而不是 Bearer token。
   `BackupController`（系統備份下載，0.9.99 起）同理只收 Cookie，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權。
 
@@ -51,7 +51,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 狀態碼 | 使用情境 |
 | --- | --- |
 | 200 | 查詢、更新、刪除等成功 |
-| 400 | ModelState 或商業規則驗證失敗 |
+| 400 | ModelState 或商業規則驗證失敗（例：指派了自己範圍外的團隊、部門樹的上層不合法、還有下屬的團隊不可刪除）|
 | 401 | 未登入、未提供 Bearer token、token 無效 |
 | 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生） |
 | 404 | 找不到指定資源 |

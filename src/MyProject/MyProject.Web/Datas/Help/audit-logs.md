@@ -55,7 +55,7 @@
 | 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
 | 系統備份 | 建立備份（排程或立即備份）、依保留份數自動刪除、下載、手動刪除（0.9.99 起） | `Backup.Create`、`Backup.AutoPurge`、`Backup.Download`、`Backup.Delete` |
 | 公告 | 在「公告管理」新增、修改、刪除公告（0.9.100 起） | `Announcement.Create`、`Announcement.Update`、`Announcement.Delete` |
-| 站內通知 | 排程作業每天刪除建立超過保留天數的通知（0.9.100 起）；管理員在「系統健康監控」發送測試通知（0.9.122 起，摘要為收件人數）；「資料保留與清理」頁的「自訂清除」（0.9.134 起） | `Notification.AutoPurge`、`Notification.Test`、`Notification.Purge` |
+| 站內通知 | 排程作業每天刪除建立超過保留天數的通知（0.9.100 起），以及標為已讀超過「已讀站內通知保留天數」的通知（0.9.125 起，同一筆紀錄）；管理員在「系統健康監控」發送測試通知（0.9.122 起，摘要為收件人數）；「資料保留與清理」頁的「自訂清除」（0.9.134 起） | `Notification.AutoPurge`、`Notification.Test`、`Notification.Purge` |
 | 匯出 | 在「日誌檢視」匯出日誌 | `LogViewer.Export` |
 | 郵件 | 在「系統健康監控」按「寄出測試信」 | `Email.Test` |
 | 日誌等級 | 在「日誌等級設定」按「套用」或「還原為系統預設等級」 | `LogLevel.Apply`、`LogLevel.Restore` |
@@ -86,6 +86,7 @@
 - 角色異動只記角色名稱與權限數量，不記勾了哪些權限。
 - 登入失敗會記下累計失敗次數；帳號不存在時記「帳號不存在」。
 - 寄測試信只記寄送方式與成敗，不記收件者。
+- 使用者在右上角鈴鐺刪除自己的通知、按「清除已讀」，不會留下稽核紀錄（只動到自己的通知）。
 
 ### 需要的權限
 

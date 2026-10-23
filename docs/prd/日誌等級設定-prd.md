@@ -1,10 +1,10 @@
 ﻿# 日誌等級設定 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.4.29
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -55,7 +55,7 @@
 
 ## 四、內部系統運作
 
-1. `LogLevelSettingView.OnInitializedAsync`：`Check` → `CheckIsAdmin`；非管理員設定 `RoleMessage` 並中止，**權限通過前不讀取任何設定資訊**。
+1. `LogLevelSettingView.OnInitializedAsync`：`Check` → `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/log-level-setting`）並中止，**權限通過前不讀取任何設定資訊**。
 2. `LogLevelRuntimeState`（Singleton）於**應用程式啟動時**（`Program.cs`，`app.Build()` 之後）呼叫 `Initialize()`：捕捉當下 `*` 規則的 minlevel 作為系統預設等級，並訂閱 `LogManager.ConfigurationChanged`。
 3. 套用時修改 `*` 規則的等級範圍並呼叫 `LogManager.ReconfigExistingLoggers()`。
 4. 變更寫入 `AuditLog`（action 為 `LogLevel.Apply` / `LogLevel.Restore`，detail 含前後等級）。

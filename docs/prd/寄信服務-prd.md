@@ -1,10 +1,10 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.59
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -94,7 +94,7 @@
 - Provider 打錯字、`Smtp` 缺主機或寄件者 → 啟動失敗，訊息指出是哪個鍵。
 - Production 使用 `Smtp` 但 `PublicBaseUrl` 空白或不是 http(s) 網址 → 啟動失敗，訊息帶出讀到的值與範例（0.9.86 起，見 §4.4）。
 - 測試寄信的收件者空白或格式錯誤 → 顯示「請輸入有效的收件者 Email。」，不寄出、不寫稽核。
-- SMTP 連不上或登入失敗 → 健康項紅燈（5 秒內回應），測試寄信顯示「寄送失敗：{例外型別}」。
+- SMTP 連不上或登入失敗 → 健康項紅燈（5 秒內回應），測試寄信顯示「寄送失敗：{例外型別}。詳細原因請查看日誌。」。
 - 背景佇列滿（100 封未寄）→ `TryEnqueue` 回 false，該封信不會寄出。
 
 ## 七、已知限制與規劃中需求
@@ -104,11 +104,11 @@
 - 佇列只在記憶體：程式重啟時尚未寄出的信會遺失。
 - 寄送失敗不重試、沒有寄送紀錄頁（失敗只在系統例外紀錄與日誌裡）。
 - 不支援附件、CC／BCC、多收件者。
+- 套件相依（0.9.126 起）：`MailKit` → `MimeKit` 遞移帶入的 `System.Security.Cryptography.Pkcs` 10.0.0 有已知弱點，由 `MyProject.Web` 直接參考修補版 10.0.13 覆蓋（`Directory.Packages.props`）；MailKit／MimeKit 改為相依修補版後要移除，見 [CI-CD 與品質檢查 §4.3](../operations/CI-CD與品質檢查.md)。
 
 **規劃中需求**
 
-- 無。忘記密碼／重設密碼已於 0.9.60 實作（重設信 `PasswordReset`、密碼已變更通知 `PasswordChanged`），
-  設計見 [設計文件](../superpowers/specs/2026-09-24-email-password-reset-design.md)。
+- 無。忘記密碼／重設密碼已於 0.9.60 實作（重設信 `PasswordReset`、密碼已變更通知 `PasswordChanged`），見[登入與帳號流程 PRD](登入與帳號流程-prd.md)。
 - 0.9.78 新增信件種類 `ExceptionAlert`（系統例外告警），收件人與節流見 `ExceptionAlertSettings`
   與 [日誌與例外處理 PRD](日誌與例外處理-prd.md) LOG-12。寄信背景作業自己的失敗不會觸發告警。
 - 0.9.100 新增信件種類 `Notification`（站內通知的同步信，`NotificationMailer` 經 `IEmailQueue` 入列；寄信停用時只發站內通知、佇列滿就停止並記一筆警告），

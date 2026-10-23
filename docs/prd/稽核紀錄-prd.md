@@ -2,9 +2,9 @@
 
 - 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.9.131
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/19
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -104,7 +104,7 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 六、資料來源
 
-0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 132 個），呼叫點一律引用常數，
+0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 134 個），呼叫點一律引用常數，
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
@@ -173,7 +173,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 ## 八、測試
 
 - `AuditLogServiceTests`、`ClientIpProviderTests`（0.9.117 起）：來源 IP 寫入、IPv4-mapped 轉換、circuit 值優先、無情境時為 null。
-- `AuditLogQueryServiceTests`（25 項）：時區三條、過濾（關鍵字含來源 IP）、排序、同秒分頁不重複、
+- `AuditLogQueryServiceTests`（28 項）：時區三條、過濾（關鍵字含來源 IP、來源 IP 前綴篩選）、排序、同秒分頁不重複、
   總筆數、下拉去重排序、清除門檻以 UTC 計算、清空。
 - `AdminOnlyPermissionTests`：`角色_稽核紀錄` 不得出現在角色矩陣。
 - `MenuPermissionConsistencyTests`：`AuditLogView.razor.cs` 列於 `AdminOnlyViews`，

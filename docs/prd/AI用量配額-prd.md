@@ -1,14 +1,14 @@
 ﻿# AI 用量配額 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.109
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
-改動前「Token 用量」只記帳、不限制，任何人都可以無限次呼叫 AI。0.9.109 起可以設定全系統與每人的每日、每月新台幣上限，達到上限時不再送出 AI 呼叫，並在 80%、100% 時通知（[路線圖](../planning/00-腳手架強化路線圖.md) F-18）。
+改動前「Token 用量」只記帳、不限制，任何人都可以無限次呼叫 AI。0.9.109 起可以設定全系統與每人的每日、每月新台幣上限，達到上限時不再送出 AI 呼叫，並在 80%、100% 時通知（路線圖 F-18）。
 
 使用者決定（2026/10/04）：
 
@@ -44,7 +44,7 @@
 - **計算**：`AiQuotaService`（Business，`IDbContextFactory`）。期間以伺服器本地時間的今天 00:00～明天 00:00、本月 1 日 00:00～下月 1 日 00:00（`TimeProvider`）；`TokenUsageLog.OccurredAt` 存的就是本地時間。加總 `CostTwd`，未定價（空值）以 0 計。每人加總吃新索引 (`UserId`, `OccurredAt`)（migration `AddTokenUsageUserIndex`）。只計算有設定的上限，四個都是 0 時不查資料庫。
 - **攔截**：`AiChatCompletionClient.CompleteAsync` 在設定檢查之後、送出之前呼叫 `CheckAsync(目前使用者)`。已達到（含等於）任一上限 → 不送出、不記用量、回 `AiAnalysisFailureReason.QuotaExceeded`、寫稽核 `Ai.QuotaBlocked`（目標 `AiQuota#User:Daily`，detail `operation=…; limit=…; used=…`）、記警告日誌。同時達到多個時回報**最晚才重置**的那一個。讀不到用量時寫錯誤日誌並放行。
   AI 日誌分析、AI 例外分析（每一輪追問）都經這個 client；系統健康監控的 AI 連線檢查（`AiHealthProbe`）不經它，所以不會被擋。
-- **提醒**：`TokenUsageLogService.RecordAsync` 寫入一筆有台幣費用的用量後呼叫 `NotifyIfReachedAsync(使用者)`（健康檢測也是）。每個有設定的上限：達 100% 發 100% 的通知，否則達 80% 發 80% 的通知；去重鍵 `AiQuota:{global|user:{Id}}:{daily:yyyy-MM-dd|monthly:yyyy-MM}:{80|100}`，同一期間同一門檻只通知一次（`NotificationSender` 依去重鍵略過已收過的人）。每人 → 本人；全系統 → 全體管理員，達 100% 同時寄信。通知分類 `AiQuota`。
+- **提醒**：`TokenUsageLogService.RecordAsync` 寫入一筆有台幣費用的用量後呼叫 `NotifyIfReachedAsync(使用者)`（健康檢測也是）。每個有設定的上限：達 100% 發 100% 的通知，否則達 80% 發 80% 的通知；去重鍵 `AiQuota:{global|user:{Id}}:{daily:yyyy-MM-dd|monthly:yyyy-MM}:{80|100}`，同一期間同一門檻只通知一次（`NotificationSender` 依去重鍵略過**現存通知裡**已有同鍵的人；通知被刪除後會再發，見 §六）。每人 → 本人；全系統 → 全體管理員，達 100% 同時寄信。通知分類 `AiQuota`。
 - **並行**：同時送出的呼叫都通過檢查後才記帳，已用金額可能小幅超過上限（已接受）；下一次呼叫就會被擋。
 
 ## 五、權限與安全
@@ -64,6 +64,7 @@
 | 跨午夜、月初 | 依伺服器本地時間重置 |
 | 讀不到用量（資料庫錯誤） | 放行並寫錯誤日誌 |
 | 通知失敗 | 不影響用量記錄（`NotifyIfReachedAsync` 不丟例外） |
+| 收件人刪掉了那則通知（0.9.125 起：鈴鐺 ×、「清除已讀」，或已讀滿 `NotificationSettings:ReadRetentionDays` 天被排程清除） | 去重是比對收件人現存的通知，刪掉後同一期間再有計費呼叫時會**再收到一次**同一門檻的通知（月上限最容易遇到） |
 
 ## 七、驗收與測試
 

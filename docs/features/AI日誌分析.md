@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 文件目的
 
@@ -156,12 +156,61 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 |------|---------|
 | 沒填金鑰 | AI 分析尚未設定 API 金鑰，請於 User Secrets 或環境變數設定 AiSettings:ApiKey。 |
 | Azure 沒填端點 | AI 分析尚未設定 AiSettings:Endpoint（Azure 入口網站的「Azure OpenAI 端點」）。 |
-| 沒填模型 | AI 分析尚未設定 AiSettings:Model（Azure OpenAI 的部署名稱）。 |
+| 沒填模型 | Azure：AI 分析尚未設定 AiSettings:Model（Azure OpenAI 的部署名稱）。OpenAI：AI 分析尚未設定 AiSettings:Model（OpenAI 模型名稱）。 |
 | `Provider` 打錯字 | 不支援的 AI provider：`<你填的值>` |
 
 ⚠️ 最後一項特別重要：`Validate` 必須把 Provider 解析失敗**接住並回傳訊息**，不能往外丟。
 `IsAvailable` 是在 `LogViewerView.OnInitializedAsync` 裡讀的，外面沒有 try-catch ——
 往外丟會炸掉整個日誌檢視頁，而不只是停用 AI 按鈕。有測試釘住這點。
+
+### 2.7 回應長度與推論模型 ⚠️
+
+`MaxOutputTokens` 對應送出的 `max_completion_tokens`，**預設不送**，由模型自己決定。
+
+這個額度**同時涵蓋推論模型的思考 token**。微軟文件寫得很直接：
+
+> This condition can occur before the model produces any visible output.
+> You pay for input and reasoning tokens but receive no answer.
+>
+> To avoid running out of room, reserve at least 25,000 tokens for reasoning and output.
+
+所以把它設成一個「看起來夠用」的小數字（例如 2000）在推論模型上會出事：思考還沒結束
+額度就用完，拿到空回應而輸入與思考的費用照付。預設不送就能相容所有模型，要控成本的人
+再自己填，而且值要抓在 25000 以上。
+
+系統會分辨這個情況並給出可行動的訊息：
+
+| 情況 | 使用者看到的 |
+|------|--------------|
+| 額度在產出任何內容前就耗盡 | 回應在產出任何內容之前就達到長度上限。請調高 AiSettings:MaxOutputTokens 或將它設為 `null`。 |
+| 有內容但結尾被切掉 | 結果照常顯示，另發一則警告說結尾可能不完整 |
+
+第二種特別重要：一份看起來完整、實際被切掉結論的分析報告，比明講「可能不完整」更危險。
+
+### 2.8 呼叫失敗時怎麼查
+
+錯誤訊息會盡量指名「要改哪裡」，而不是只丟一個代碼。最常見的兩種：
+
+| 情況 | 使用者看到的訊息 |
+|------|------------------|
+| 日誌量超過內容視窗（`context_length_exceeded`）| 送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。 |
+| 模型不接受 `temperature` | 此模型不接受 AiSettings:Temperature 的設定值，請將它設為 `null`（部分推論模型只接受預設值）。 |
+| 其他參數被拒 | AI 服務不接受參數 `<參數名>` 的設定值（代碼 `<code>`），請調整 AiSettings 後再試。 |
+
+第一種在 0.9.7 之後變成**主要**的失敗模式（字元上限全部移除了），而它的上游回應
+**沒有 `param` 欄位** —— 落到通用分支只會回一句代碼，看不出要做什麼，
+所以它有自己的具名分支。
+
+日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiChatCompletionClient`，0.9.68 前為 `AiLogAnalysisService`；
+訊息帶 `Operation=AI 日誌分析`）會記下 `StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
+`ErrorParam` 是出問題的參數名稱，`ErrorDetail` 是上游的說明（已截斷至 300 字元）。
+
+⚠️ `ErrorDetail` 刻意截斷：上游對某些錯誤（例如內容過濾）的說明可能夾帶提示詞片段，
+而提示詞裡是上百筆日誌 —— 不截斷會把日誌檔撐爆，也可能讓同一段內容在日誌裡反覆堆疊。
+`ErrorParam` 則是純參數名稱，結構上不可能夾帶日誌內容，是最安全也最有用的一欄。
+
+> 沿革：0.9.5 以前只記 `ErrorCode`，遇到 400 `unsupported_value` 時完全看不出是哪個
+> 參數出問題。0.9.6 補上 `ErrorParam` 與截斷的 `ErrorDetail`。
 
 ## 3. 權限
 
@@ -289,54 +338,6 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 
 ⚠️ **不要改用插入零寬空格的寫法**：內嵌的 Noto Sans TC 沒有 U+200B 的字圖，
 會在每兩個中文字之間印一個 1 em 寬的方框，而且頁數測試抓不到。理由與數據見速查表 §6.11。
-## 6.2 回應長度與推論模型 ⚠️
-
-`MaxOutputTokens` 對應送出的 `max_completion_tokens`，**預設不送**，由模型自己決定。
-
-這個額度**同時涵蓋推論模型的思考 token**。微軟文件寫得很直接：
-
-> This condition can occur before the model produces any visible output.
-> You pay for input and reasoning tokens but receive no answer.
->
-> To avoid running out of room, reserve at least 25,000 tokens for reasoning and output.
-
-所以把它設成一個「看起來夠用」的小數字（例如 2000）在推論模型上會出事：思考還沒結束
-額度就用完，拿到空回應而輸入與思考的費用照付。預設不送就能相容所有模型，要控成本的人
-再自己填，而且值要抓在 25000 以上。
-
-系統會分辨這個情況並給出可行動的訊息：
-
-| 情況 | 使用者看到的 |
-|------|--------------|
-| 額度在產出任何內容前就耗盡 | 回應在產出任何內容之前就達到長度上限。請調高 AiSettings:MaxOutputTokens 或將它設為 `null`。 |
-| 有內容但結尾被切掉 | 結果照常顯示，另發一則警告說結尾可能不完整 |
-
-第二種特別重要：一份看起來完整、實際被切掉結論的分析報告，比明講「可能不完整」更危險。
-
-## 7.2 呼叫失敗時怎麼查
-
-錯誤訊息會盡量指名「要改哪裡」，而不是只丟一個代碼。最常見的兩種：
-
-| 情況 | 使用者看到的訊息 |
-|------|------------------|
-| 日誌量超過內容視窗（`context_length_exceeded`）| 送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。 |
-| 模型不接受 `temperature` | 此模型不接受 AiSettings:Temperature 的設定值，請將它設為 `null`（部分推論模型只接受預設值）。 |
-| 其他參數被拒 | AI 服務不接受參數 `<參數名>` 的設定值（代碼 `<code>`），請調整 AiSettings 後再試。 |
-
-第一種在 0.9.7 之後變成**主要**的失敗模式（字元上限全部移除了），而它的上游回應
-**沒有 `param` 欄位** —— 落到通用分支只會回一句代碼，看不出要做什麼，
-所以它有自己的具名分支。
-
-日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiChatCompletionClient`，0.9.68 前為 `AiLogAnalysisService`；
-訊息帶 `Operation=AI 日誌分析`）會記下 `StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
-`ErrorParam` 是出問題的參數名稱，`ErrorDetail` 是上游的說明（已截斷至 300 字元）。
-
-⚠️ `ErrorDetail` 刻意截斷：上游對某些錯誤（例如內容過濾）的說明可能夾帶提示詞片段，
-而提示詞裡是上百筆日誌 —— 不截斷會把日誌檔撐爆，也可能讓同一段內容在日誌裡反覆堆疊。
-`ErrorParam` 則是純參數名稱，結構上不可能夾帶日誌內容，是最安全也最有用的一欄。
-
-> 沿革：0.9.5 以前只記 `ErrorCode`，遇到 400 `unsupported_value` 時完全看不出是哪個
-> 參數出問題。0.9.6 補上 `ErrorParam` 與截斷的 `ErrorDetail`。
 
 ## 8. 成本控管
 

@@ -1,17 +1,17 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：2.0
+- 文件版本：2.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.14
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
 觀察系統對 LLM API 的使用情況：**用在什麼地方、用了多少 token、能統計與篩選**。
 
 - 範圍：一套通用的用量記錄基礎設施（任何 LLM 呼叫點都能接）、七個統計頁籤（含折線趨勢圖）、
-  CSV／PDF 匯出、單筆刪除／批次清除／清空全部。
+  CSV／PDF 匯出、單筆刪除／批次清除／清空全部，以及依保留天數自動清除（0.9.96 起，見 §4.8）。
 - 0.9.17 起每一列另有**費用估算**（USD／TWD）。單價與匯率設定、計算規則、模型比對與
   已知限制**一律以 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) 為權威**，本文件只描述
   它在本頁上的呈現。
@@ -247,6 +247,10 @@ AI 例外分析共用）與 `AiHealthProbe.ProbeAsync`。
 | 逾時／傳輸失敗／上游錯誤 | 無 | 上游可能已計費，至少留下次數 |
 | 設定不完整 | — | **不記**，根本沒發出請求 |
 | 使用者取消 | — | **不記**，與例外紀錄不收 `OperationCanceledException` 同一原則 |
+| 非預期錯誤（上面以外的例外） | — | **不記**（寫錯誤日誌） |
+| 被 AI 用量上限擋下（0.9.109 起） | — | **不記**，根本沒發出請求（另寫稽核 `Ai.QuotaBlocked`） |
+
+取消與非預期錯誤的請求若已送出，仍會記在 [AI 對話紀錄](AI對話紀錄-prd.md)，所以兩頁筆數可能不同。
 
 ### 4.4 原始 usage JSON
 
@@ -285,6 +289,14 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
    套不到 `TokenUsageView.razor.css` 裡的 `.token-usage-table-wrap`，所以四個統計頁籤
    會把整頁撐寬。修法是給該元件自己的 `TokenUsageGroupTable.razor.css`。
 
+### 4.8 自動清除與稽核
+
+- 排程作業「Token 用量紀錄清理」（`TokenUsageLogRetentionJob`，0.9.96 起，預設每天 03:00）刪除超過
+  `LogRetentionSettings:TokenUsageLogDays`（預設 365，`0`＝不清除；可在「系統參數」頁「資料保留」覆寫）天的資料列與原始檔；
+  刪到資料時寫 `TokenUsage.AutoPurge`（detail `rows=…; days=…; trigger=…`）。0.9.96 之前不會自動清除。
+- 本頁的刪除、清除此日之前、清空全部與匯出（CSV、PDF）各寫一筆稽核：`TokenUsage.Delete`／`Purge`／`ClearAll`／`Export`
+  （目標 `TokenUsage`，匯出的 detail 記格式、範圍與筆數），不記用量內容。
+
 ## 五、權限與安全
 
 - **管理員專屬**：`CheckIsAdmin()` 守門，`角色_Token用量` **不列入**
@@ -310,6 +322,7 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 手動驗收（0.9.14 實跑結果）：
 
 - 統計與分析 →「Token 用量」可開，`toll` 圖示正常，五個頁籤數字一致，無 console 錯誤。
+  （現況：0.9.113 起選單路徑為「系統管理 → AI 管理 →『Token 用量』」，頁籤共七個，見 §二、§3.3。）
 - 以真實 Azure OpenAI 呼叫驗證：記到 `gpt-5.6-sol-2026-07-09`、輸入 8,122／輸出 1,967／
   合計 10,089、推理 439，使用者 `support`。
 - 檔案內容經檢查**只有 usage 結構**，不含 `choices`／`message`／`content`。
@@ -330,7 +343,8 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 - `MyProject.Business/Services/DataAccess/ITokenUsageRecorder.cs`、`TokenUsageLogService.cs`
 - `MyProject.Business/Services/Other/TokenUsageRawStore.cs`
 - `MyProject.Web/Ai/AiChatCompletionClient.cs`（記錄點，0.9.68 起）、`AiChatResponseParser.ExtractUsageJson`
-- `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs`、`Diagnostics/TokenUsageFormat.cs`
+- `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs`、`Ai/TokenUsageTrendChart.cs`、`Diagnostics/TokenUsageFormat.cs`
+- `MyProject.Web/Scheduling/Jobs/TokenUsageLogRetentionJob.cs`（自動清除）
 - `MyProject.Web/Components/Pages/Analytics/TokenUsagePage.razor`、
   `Components/Views/Analytics/TokenUsageView.razor`、`TokenUsageGroupTable.razor(.css)`
 - 費用估算的程式清單見 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) 第九節

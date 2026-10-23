@@ -13,7 +13,7 @@
 
     [switch]$Force,
 
-    # 預設會清掉腳手架自己的開發史（docs/changelog 內容、docs/planning、docs/superpowers），
+    # 預設會清掉腳手架自己的開發史（docs/changelog 內容），
     # 那些對衍生專案沒有用處。要原封不動整份複製時加這個開關。
     [switch]$KeepStarterHistory,
 
@@ -476,23 +476,13 @@ if ($KeepStarterHistory) {
     Write-Host "Kept the starter's own history docs (-KeepStarterHistory)."
 }
 else {
-    # 整個目錄刪除：腳手架自己的規劃與設計稿，對衍生專案沒有用處。
-    $prunedDocDirectories = @("planning", "superpowers")
     # 只清內容、保留 README.md：docs/operations/維護規範.md 要求每一次異動寫一篇 changelog，
     # 新專案要從自己的第一篇開始，所以目錄與索引骨架必須留著。
     $emptiedDocDirectories = @("changelog")
-    $historyDirectories = $prunedDocDirectories + $emptiedDocDirectories
+    $historyDirectories = $emptiedDocDirectories
 
     $docsRoot = Join-Path $destinationFullPath "docs"
     $removedFiles = 0
-
-    foreach ($name in $prunedDocDirectories) {
-        $path = Join-Path $docsRoot $name
-        if (Test-Path -LiteralPath $path) {
-            $removedFiles += @(Get-ChildItem -LiteralPath $path -Recurse -File).Count
-            Remove-Item -LiteralPath $path -Recurse -Force
-        }
-    }
 
     foreach ($name in $emptiedDocDirectories) {
         $path = Join-Path $docsRoot $name
@@ -506,9 +496,8 @@ else {
         }
     }
 
-    # 清完之後，索引與內文裡會留下指向已刪檔案的連結。一條通則處理三種情況：
-    # 整節被刪的目錄 -> 連標題一起移除；整行只是一條索引項 -> 刪整行；
-    # 夾在敘述句裡 -> 降級為純文字，句子仍然讀得通。
+    # 清完之後，索引與內文裡會留下指向已刪檔案的連結。一條通則處理兩種情況：
+    # 整行只是一條索引項 -> 刪整行；夾在敘述句裡 -> 降級為純文字，句子仍然讀得通。
     $linkPattern = '\[(?<text>[^\]]*)\]\((?<target>[^)\s]+)\)'
     $removedLines = 0
     $downgradedLinks = 0
@@ -525,24 +514,8 @@ else {
         $newline = if ($original.Contains("`r`n")) { "`r`n" } else { "`n" }
 
         $kept = New-Object System.Collections.Generic.List[string]
-        $skipSection = $false
 
         foreach ($line in ($original -split "`r`n|`n")) {
-            if ($line -match '^#{1,6}\s') {
-                $skipSection = $false
-                foreach ($name in $prunedDocDirectories) {
-                    if ($line -match [regex]::Escape($name)) {
-                        $skipSection = $true
-                        break
-                    }
-                }
-            }
-
-            if ($skipSection) {
-                $removedLines++
-                continue
-            }
-
             $links = [regex]::Matches($line, $linkPattern)
             $stale = @($links | Where-Object {
                 Test-StarterHistoryLink -FileDirectory $file.Directory.FullName `
@@ -579,7 +552,7 @@ else {
         }
     }
 
-    Write-Host "Pruned $removedFiles starter history doc files (docs/changelog entries, docs/planning, docs/superpowers)."
+    Write-Host "Pruned $removedFiles starter history doc files (docs/changelog entries)."
     Write-Host "Removed $removedLines stale index lines and downgraded $downgradedLinks stale links. Use -KeepStarterHistory to keep them."
 }
 

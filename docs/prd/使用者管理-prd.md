@@ -1,10 +1,10 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.9.128
+- 現行系統版本：0.9.135
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/16
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -29,7 +29,7 @@
 
 ## 三、畫面與欄位
 
-- **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、匯出 Excel（0.9.107 起，不含密碼與金鑰欄位，見[通用匯出](通用匯出-prd.md)）、搜尋、清空搜尋。.9.120 起點「啟用／停用」徽章直接切換（停用先確認；`MyUserService.SetStatusAsync` 只改狀態，換工作階段版本與版本號、不動角色與團隊，稽核 `User.Enable`／`User.Disable`；support 與自己不可停用，那一列徽章不可點）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
+- **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、匯出 Excel（0.9.107 起，不含密碼與金鑰欄位，見[通用匯出](通用匯出-prd.md)）、搜尋、清空搜尋，以及「顯示已刪除」切換。0.9.120 起點「啟用／停用」徽章直接切換（停用先確認「要停用「帳號」嗎？他所有已登入的瀏覽器與 API 會被登出…」，啟用直接切換，結果以右下角提示「已停用／已啟用「帳號」」顯示；`MyUserService.SetStatusAsync` 以 `ExecuteUpdateAsync` 只改狀態與更新時間，換工作階段版本 `SecurityStamp` 與版本號 `ConcurrencyStamp`、不動角色與團隊，已經是目標值時回成功、不寫稽核，稽核 `User.Enable`／`User.Disable`（detail `account=…`）；support 與自己不可停用，`CanToggleStatus` 為假時那一列徽章不可點（啟用中的 support 與自己），「顯示已刪除」清單中也不可點）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
   0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
   0.9.104 起：已開啟兩步驟驗證的帳號在「狀態」多一個「兩步驟驗證」徽章，操作欄（自己那一列除外）多「重設兩步驟驗證」（確認後清除驗證器設定與備用碼，見[兩步驟驗證](兩步驟驗證-prd.md)）。
 - **維護表單**（Modal）欄位：
@@ -113,17 +113,18 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/PasswordPolicyTests.cs`（0.9.101）：新增與修改套用密碼原則、只勾旗標也會存、設定新密碼解鎖、解鎖不換版本號並寫稽核。
 - `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：管理員重設清除密鑰與備用碼、換版本、稽核。
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：support／自己不可刪、存檔驗證角色、保留指向已刪除角色的連結、還原衝突、永久刪除、已刪除者無法登入。
+- `MyProject.Tests/StatusToggleServiceTests.cs`（0.9.120）：使用者停用後⭐ **角色與團隊仍在**、換工作階段版本與版本號並寫稽核；不可停用 support（不分大小寫）與自己，修改窗存檔也擋。`Components/StatusPillTests.cs`、`Components/RequirePermissionTests.cs`：可點標籤與 `Fallback`。
 - `MyProject.Tests/MyUserServiceCopyTests.cs`（0.9.127）：複製範本帶入角色／團隊／狀態／管理員且個人欄位留空、略過停用團隊、support 與不存在的來源回 null、`CanCopy`、Email 使用者查詢（大小寫、空白、已刪除）、由範本建立後 `UserRole`／`UserTeam` 一致且稽核含 `copiedFrom`。
 - `MyProject.Tests/PasswordPolicyTests.cs` `Generate_ShouldAlwaysPassTheCurrentRules`（0.9.127）：多組規則下產生的密碼都通過 `Check`、長度正確、不含易混淆字元、不重複。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/MyUserPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填 `OnEditAsync`）、`:690`（多角色／團隊變更）
-- `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs`（Add `:228`）、`:278`（Update）、`:424`（雙寫）、`:455`（回填）
-- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncUserRolesAsync` `:52`）、`:80`（`SyncUserTeamsAsync`）
-- `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs`、`:26`（啟動回填 `RunAsync`）
+- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填 `OnEditAsync`、多角色／團隊變更 `OnAdditionalRolesChanged`／`OnUserTeamsChanged`、團隊留空提醒 `ConfirmTeamBindingAsync`、點狀態標籤 `OnToggleStatusAsync`）
+- `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs`（`AddAsync`、`UpdateAsync`、雙寫 `SyncAssignmentsAsync`、回填 `GetUserAssignmentsAsync`、只改狀態 `SetStatusAsync`／`CanToggleStatus`／`GetDisableBlockReason`）
+- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncUserRolesAsync`、`SyncUserTeamsAsync`）
+- `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs`（啟動回填 `RunAsync`）
 - `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs`（有效團隊）
 - RBAC 資料表：`MyUser`、`RoleView`、`UserRole`、`UserTeam`、`RolePermissionMap`、`Permission`（`src/MyProject/MyProject.AccessDatas/Models/`）
 - 交叉連結：[登入與帳號流程](登入與帳號流程-prd.md)、[角色管理](角色管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
-- 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)、[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)、[權限授權現況評估與改善路線](../security/權限授權現況評估與改善路線.md)
+- 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)、[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)

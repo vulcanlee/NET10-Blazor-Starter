@@ -1,10 +1,10 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.4.0
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
@@ -57,7 +57,7 @@
    - Web API／檔案下載情境以 `RequestActorResolver` 取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier），載入使用者並解析有效團隊。
    - 未登入：「非管理員、無團隊」，僅能看到公開紀錄。⚠️ 已登入卻解析不到是誰（0.9.105 起）：`RecordAccessScope.None`（`Denied`），什麼都看不到 —— 0.9.104 之前退回「只看公開」，而 JWT 的 Id 不在 Sid，Web API 等於不過濾，分類更是全部看得到。
 4. 查詢範圍套用：一律經 `RecordTeamScope`（0.9.105 起）—— `Apply`／`CanAccess`（紀錄）、`ApplyCategory`／`CanAccessCategory`（分類的反向規則）、`CheckAssignment`（指派）。
-   Blazor 的 `ProjectService`／`CategoryService` 與 Web API 的 `ProjectRepository`／`CategoryRepository` 共用，清單、單筆、修改、刪除都套用；範圍外的單筆在 API 一律回 404。
+   Blazor 的 `ProjectService`／`CategoryService` 與 Web API 的 `ProjectRepository`／`CategoryRepository` 共用，清單、單筆、修改、刪除都套用（0.9.120 起分類清單點狀態標籤的 `CategoryService.SetEnabledAsync` 也檢查範圍）；範圍外的單筆在 API 一律回 404。
 5. 分類主檔的可見性（0.4.40 起）：`Category` 本身也有 `Teams` 標籤欄位，`CategoryService.ApplyTeamVisibility` 會過濾清單、單筆與下拉來源。⚠️ 其「使用者無團隊」的規則**與紀錄相反**——紀錄是「只看得到公開紀錄」，分類是「視為不受限、看得到全部」。分類可見性只是下拉清單的便利性過濾，安全邊界仍為 RBAC。完整規則見「分類清單 PRD」第八節。
 6. 動作級授權（`HasPermissionAttribute`）：解析呼叫者 userId 後委由 `IPermissionChecker.HasPermissionAsync` 判定；管理員短路，擁有動作鍵「頁面:動作」或裸頁面鍵（舊制＝全動作）即通過。
 
@@ -103,4 +103,4 @@
 - `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`（`[HasPermission]` 動作級標註）
 - `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessAction`）
 - `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionKey.For`／`PageOf`）
-- 交叉連結：[認證授權與權限機制](../security/認證授權與權限機制.md)、[權限授權現況評估與改善路線](../security/權限授權現況評估與改善路線.md)、[紀錄標籤與團隊存取設計](../superpowers/specs/2026-06-22-record-tags-team-access-design.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)
+- 交叉連結：[認證授權與權限機制](../security/認證授權與權限機制.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)

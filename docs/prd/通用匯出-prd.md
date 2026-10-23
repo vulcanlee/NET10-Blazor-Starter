@@ -1,14 +1,14 @@
 ﻿# 通用匯出 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.114
+- 現行系統版本：0.9.135
 - 首次實作版本：0.9.107
-- 最後核對日期：2026/10/05
+- 最後核對日期：2026/10/23
 
 ## 一、目標與範圍
 
-業務頁（專案、分類、團隊、使用者）原本沒有任何匯出；診斷頁的 CSV 匯出各自手寫。0.9.107 起由共用的 `TabularExport` 產生檔案：業務頁匯出 Excel，診斷頁維持 CSV（[路線圖](../planning/00-腳手架強化路線圖.md) E-16）。
+業務頁（專案、分類、團隊、使用者）原本沒有任何匯出；診斷頁的 CSV 匯出各自手寫。0.9.107 起由共用的 `TabularExport` 產生檔案：業務頁匯出 Excel，診斷頁維持 CSV（路線圖 E-16）。
 
 使用者決定（2026/10/04）：
 
@@ -48,7 +48,7 @@
   字串一律寫成文字值，以「=」開頭的內容不會變成公式。
 - `Web/Export/BusinessExports.cs`：`BuildAsync(query, 目前條件, …)` 以第一頁、`PageSize = 10000`、`Take = 1` 呼叫畫面同一個服務方法（`GetAsync`／`GetDeletedAsync`），服務回的總筆數超過上限就不產生檔案；團隊範圍由服務內的 `RecordTeamScope` 套用，與畫面一致。四頁的欄位定義與 `WriteAuditAsync` 也在這裡。
 - 稽核：`Project.Export`／`Category.Export`／`Team.Export`／`User.Export`，目標 `*`，detail `format=xlsx; rows=N`（顯示已刪除時加 `; deleted=true`），不記內容。
-- 診斷頁：四頁的欄位改成各自的 `CsvColumns`（`internal static`），輸出與 0.9.106 之前逐字相同（`ExportTests` 以舊寫法當作對照）。日誌檢視的 `.log` 匯出不變。
+- 診斷頁：四頁的欄位改成各自的 `CsvColumns`（`internal static`），輸出與 0.9.106 之前逐字相同（`ExportTests` 以舊寫法當作對照）。唯一的欄位異動是 0.9.117 起稽核紀錄 CSV 在**最後一欄**加「來源IP」（不打亂依欄位位置讀檔的下游；0.9.123 起「來源 IP」篩選也套用到匯出）。日誌檢視的 `.log` 匯出不變。
 - 套件：`ClosedXML` 0.105.1（MIT）；傳遞相依 `SixLabors.Fonts` 解析到 1.0.0（Apache-2.0；2.x 起改為 Split License，升級前要確認授權）。
 
 ## 五、權限與安全
@@ -65,7 +65,7 @@
 
 ## 七、驗收與測試
 
-- `MyProject.Tests/ExportTests.cs`：四個診斷頁 CSV 與舊寫法逐字相同（含引號、逗號、換行、空值）、BOM、xlsx 讀回（標題、粗體、凍結、篩選、原生日期與數字、是／否、空值、「=」開頭不是公式）、⭐ 非管理員只匯出團隊範圍內的專案、超量拒絕且以目前條件查詢、使用者匯出不含機密、稽核內容；`ProjectApiOwnerTests`：API 建立專案不帶負責人回 400。
+- `MyProject.Tests/ExportTests.cs`：四個診斷頁 CSV 與舊寫法逐字相同（含引號、逗號、換行、空值；稽核紀錄的對照含最後一欄「來源IP」）、BOM、xlsx 讀回（標題、粗體、凍結、篩選、原生日期與數字、是／否、空值、「=」開頭不是公式）、⭐ 非管理員只匯出團隊範圍內的專案、超量拒絕且以目前條件查詢、使用者匯出不含機密、稽核內容；`ProjectApiOwnerTests`：API 建立專案不帶負責人回 400。
 - 故意改壞 9 處全部被測試抓到（見 [changelog](../changelog/2026-10-04-通用匯出.md)）。
 
 ## 八、相關程式與文件
