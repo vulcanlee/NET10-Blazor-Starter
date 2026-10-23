@@ -1,8 +1,8 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.136
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/23
 
@@ -32,7 +32,7 @@
 - 工具列：新增（需 `專案項目:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為分類過濾（多選）、團隊過濾（多選）、關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。分類／團隊過濾一變更就回到第 1 頁重新查詢；兩者的選項都只列啟用中的項目（分類另受團隊可見性過濾）。
 - 清單欄位（`ProjectViewView.razor`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間、操作（修改需 `專案項目:edit`、刪除需 `專案項目:delete`，無權限時不顯示按鈕）；標題預設遞增排序。0.9.30 起「狀態」以 `StatusPill` 徽章呈現（已完成＝綠、進行中＝梅、暫緩＝琥珀、未開始＝灰，其他值如「等待」為中性色）。
 - 可排序欄位（`ProjectService.cs`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt；未指定或不認得的排序一律退回 `UpdatedAt` 遞減、再以 `Id` 遞減。
-- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner（關鍵字先去除前後空白）；「顯示已刪除」清單只比對 Title、Description、Owner，固定依刪除時間由新到舊。
+- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner（關鍵字先去除前後空白）；「顯示已刪除」清單比對相同欄位（0.9.136 起；之前漏了 Status、Priority），固定依刪除時間由新到舊。
 - 分頁：`RemoteDataSource`，預設每頁 `MagicObjectHelper.PageSize`（8 筆）。
 - 編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)），分四區（`Project` 實體 / `ProjectCreateUpdateDto`）：
   - 基本資料：標題（必填）、負責人（必填；0.9.107 起 Web API 的 `owner` 也必填，不帶回 400）、描述（獨占整行）。

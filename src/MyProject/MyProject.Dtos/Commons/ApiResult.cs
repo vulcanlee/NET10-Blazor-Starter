@@ -37,7 +37,7 @@ public class ApiResult<T>
     public string? TraceId { get; set; }
 
     /// <summary>
-    /// 例外資訊。此腳手架依需求完整回傳，正式環境請評估資訊揭露風險。
+    /// 例外資訊。只在 <c>SecuritySettings:ReturnExceptionDetails</c> 為 true（未設定時＝開發環境）才回傳，正式環境預設為 null，見 <c>ExceptionDetailPolicy</c>。
     /// </summary>
     public ApiExceptionInfo? Exception { get; set; }
 

@@ -188,6 +188,62 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.Equal("support", meResult.Data?.Account);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AccessToken_AfterSessionRevokedOrAccountDisabled_ShouldReturnApiResult401(bool disableAccount)
+    {
+        // 0.9.136 起 access token 也比對工作階段版本：改密碼、強制登出、停用帳號後，已發出的 token 立即失效，
+        // 不再能用到過期（最多 60 分鐘）。
+        var account = $"revoke-{Guid.NewGuid():N}";
+        const string password = "revoke-pass";
+        int userId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+            var user = new MyUser
+            {
+                Account = account,
+                Name = "revoke",
+                Status = true,
+                IsAdmin = true,
+                Password = SecurePasswordHasher.HashPassword(password),
+            };
+            db.MyUser.Add(user);
+            await db.SaveChangesAsync();
+            userId = user.Id;
+        }
+
+        using var client = factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = password });
+        var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/Auth/me")).StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var stamps = scope.ServiceProvider.GetRequiredService<MyProject.Business.Services.Other.ISecurityStampService>();
+            if (disableAccount)
+            {
+                var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+                var user = await db.MyUser.SingleAsync(x => x.Id == userId);
+                user.Status = false;
+                await db.SaveChangesAsync();
+                stamps.Invalidate(userId);
+            }
+            else
+            {
+                await stamps.RotateAsync(userId);
+            }
+        }
+
+        var response = await client.GetAsync("/api/Auth/me");
+        var result = await ReadApiResultAsync<CurrentUserDto>(response);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(result.Success);
+    }
+
     [Fact]
     public async Task VersionedAuthEndpoints_ShouldKeepApiResultContract()
     {

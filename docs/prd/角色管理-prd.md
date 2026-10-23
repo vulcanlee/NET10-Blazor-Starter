@@ -1,8 +1,8 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.136
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/23
 
@@ -52,9 +52,10 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性。
 - **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。0.9.95 起不可刪除；`DefaultRoleViewSeeder` 以 `IgnoreQueryFilters` 查找並優先取未刪除的列，找到已刪除的就還原（不會重建第二個帶全部權限的預設角色）。
 
-> ℹ️ `RbacWriteService` 直接接收 DI 注入的 scoped `BackendDBContext`（不是呼叫端傳入的 context）。
-> ⚠️ 現況：`RoleViewService` 以 `IDbContextFactory` 另建 context 寫入 `TabViewJson` 並先 `SaveChangesAsync`，`RbacWriteService` 再用自己的 context 寫 `RolePermissionMap` 並 `SaveChangesAsync`，
-> 兩者**不是**同一個工作單元（沒有共用交易；與[使用者管理](使用者管理-prd.md)的雙寫相同）。
+> ℹ️ 0.9.136 起 `RoleViewService.AddAsync`／`UpdateAsync` 以工廠建立的 context 開一個交易：存 `RoleView`（含 `TabViewJson`）→
+> `RbacWriteService.SyncRolePermissionsAsync(context, …)` 用**同一個 context** 寫 `RolePermissionMap` → 提交；權限對應寫入失敗時整筆回復。
+> 之前兩者各用自己的 context 存檔，可能只成功一半。`RbacWriteService` 不帶 context 的多載仍用 DI 注入的 scoped context（給測試與其他呼叫端）。
+- **「預設角色」不可改名**（0.9.136 起）：`BeforeUpdateCheckAsync` 與 `UpdateAsync` 都擋，訊息「「預設角色」是系統內建的角色，不可改名。」，不換版本號；權限與其他欄位照常可改。原因：系統以名稱找它，改名後啟動時會重建一個帶全部權限的新「預設角色」。
 
 ## 五、權限與安全
 
@@ -80,6 +81,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - `MyProject.Tests/RbacBackfillServiceTests.cs`：建立權限目錄、由 `TabViewJson` 連結角色權限、冪等。
 - `MyProject.Tests/PermissionCheckerTests.cs`：管理員全通過、角色具／缺鍵、裸頁面鍵授予全動作、僅 `view` 不含 `edit`、多角色聯集。
 - `MyProject.Tests/AuditEventsTests.cs`：`Role.Create`／`Role.Delete` 稽核。
+- `MyProject.Tests/RoleViewServiceTests.cs`（0.9.136）：權限對應寫入失敗時新增與修改整筆回復；「預設角色」不可改名且不換版本號、其他欄位照常可改。
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：已刪除的角色不再給權限（含 legacy `RoleViewId`）、仍是主要角色時刪除被擋且不改版本號、存檔後複查、預設角色不可刪、永久刪除的明確訊息、從 Clone 出來的模型可以存檔。
 - `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：主要或額外角色勾了「需要兩步驟驗證」即必須使用、已刪除的角色不算。
 - `MyProject.Tests/AdapterModelCloneTests.cs`（0.9.95）：`Clone()` 複製每個可寫屬性 —— 0.9.93～0.9.94 `RoleViewAdapterModel.Clone()` 漏了版本號，從畫面修改任何角色都被當成並行衝突。
@@ -88,7 +90,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/RoleViewPage.razor`
 - `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動）、`:490`（動作欄定義 `PermissionActionItems`）
-- `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`（Add `:166`）、`:199`（Update）、`:520`（回填矩陣 `OtherDependencyData`）
+- `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`（`AddAsync`、`UpdateAsync`、`DefaultRoleRenameMessage`、回填矩陣 `OtherDependencyData`）
 - `src/MyProject/MyProject.Business/Services/Other/RolePermissionService.cs`（`SetPermissionInput` `:117`）、`:138`（`GetPermissionInput`）
 - `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncRolePermissionsAsync`）、`:108`（`EnsurePermissionsAsync`）
 - `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（判定）、`RbacBackfillService.cs`（權限目錄）

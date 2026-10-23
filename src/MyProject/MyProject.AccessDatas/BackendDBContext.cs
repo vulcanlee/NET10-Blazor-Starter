@@ -35,6 +35,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<ScheduledJobState> ScheduledJobState { get; set; }
     public virtual DbSet<SystemParameter> SystemParameter { get; set; }
     public virtual DbSet<Notification> Notification { get; set; }
+    public virtual DbSet<NotificationDispatch> NotificationDispatch { get; set; }
     public virtual DbSet<Announcement> Announcement { get; set; }
     public virtual DbSet<AnnouncementDismissal> AnnouncementDismissal { get; set; }
     public virtual DbSet<PasswordHistory> PasswordHistory { get; set; }
@@ -213,6 +214,13 @@ public partial class BackendDBContext : DbContext
             entity.HasIndex(x => x.CreatedAtUtc);
 
             // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：永久刪除使用者時不會先刪他的通知。
+            entity.HasOne(x => x.RecipientUser).WithMany().HasForeignKey(x => x.RecipientUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<NotificationDispatch>(entity =>
+        {
+            entity.HasKey(x => new { x.SourceKey, x.RecipientUserId });
+            entity.HasIndex(x => x.SentAtUtc);
             entity.HasOne(x => x.RecipientUser).WithMany().HasForeignKey(x => x.RecipientUserId).OnDelete(DeleteBehavior.Cascade);
         });
 

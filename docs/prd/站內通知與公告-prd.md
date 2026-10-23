@@ -1,8 +1,8 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.136
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/10/23
 
@@ -25,7 +25,7 @@
 
 ## 三、畫面與欄位
 
-- **鈴鐺**：未讀數徽章（超過 99 顯示 99+）；下拉列出最新 10 則（未讀以粗體標示）；點一則標為已讀，連結經 `ReturnUrlGuard` 確認是站內網址才導向；「全部標為已讀」。0.9.125 起每則右邊有 ×（刪除單則）、標題列有「清除已讀」（刪除自己所有已讀的通知，未讀的不動）；都不跳確認、不寫稽核，只刪得到自己的。
+- **鈴鐺**：未讀數徽章（超過 99 顯示 99+）；下拉列出最新 10 則（未讀以粗體標示）；點一則標為已讀，連結經 `ReturnUrlGuard` 確認是站內網址才導向；「全部標為已讀」。0.9.125 起每則右邊有 ×（刪除單則）、標題列有「清除已讀」（刪除自己所有已讀的通知，未讀的不動；0.9.136 起只要有任何已讀的通知就能按，`NotificationQueryService.HasReadAsync`，之前只看下拉顯示的 10 則）；都不跳確認、不寫稽核，只刪得到自己的。
 - **公告橫幅**：顯示期間內、對象包含目前使用者、而且他沒有關閉過的公告；標題＋純文字內容（保留換行）；「知道了」只對自己關閉。
 - **公告管理**：表格（標題與內容開頭、狀態未開始／進行中／已結束、期間、對象、建立者）；新增、修改（小型表單窗：標題、內容、開始與結束時間、對象全體／角色／團隊）、刪除（危險確認）。
 
@@ -37,7 +37,7 @@
   - `AnnouncementDismissal`：(公告, 使用者) 主鍵，兩邊 Cascade。
 - **發送** `NotificationSender`（`INotificationSender.SendAsync(NotificationRequest)`）：
   1. 展開對象：`Users`、`Role`（`UserRole` ∪ 主要角色；已刪除的角色沒有收件人）、`Team`（`IEffectiveTeamResolver.GetUserIdsInTeamAsync`，與列級權控同一個定義；0.9.105 起含被指派到這個團隊**上層部門**的人）、`AllAdmins`（啟用中的管理員），可 `Union`；最後只留啟用、未刪除的帳號。
-  2. 去重：有 `SourceKey` 時，已收過同鍵的收件人不再發。比對的是**現存**的通知列：0.9.125 起通知可手動刪除、已讀的也會依保留天數清除，刪掉之後同一個鍵會再發一次（例如密碼到期提醒在到期前的下一次排程、AI 用量同一期間的同一門檻）。
+  2. 去重：有 `SourceKey` 時，已收過同鍵的收件人不再發。0.9.136 起比對的是 `NotificationDispatch`（發送時一位收件人寫一列，和通知寫在同一次存檔），所以通知被手動刪除或已讀的被提早清除後，同一個鍵**不會**再發；去重紀錄跟著通知的建立保留天數（`RetentionDays`，預設 90 天）由「站內通知清理」清除。0.9.135 以前比對現存的通知列，刪掉之後會重發。
   3. 一位收件人寫一列 → `INotificationSignal.Publish(收件人)` →（`AlsoEmail`）交給 `INotificationMailer`。
   4. ⚠️ 絕不丟例外：失敗記錯誤並回 `Failed`，不中斷登入或排程作業。
 - **寄信** `NotificationMailer`：寄信停用不寄；信箱格式不合（例如 support 預設的 `support`）略過；連結以 `EmailSettings:PublicBaseUrl` 組成完整網址；佇列滿時停止並只記一筆警告；日誌不記信箱。信件種類 `EmailKinds.Notification`。
@@ -77,6 +77,7 @@
 - `ScheduledJobFrameworkTests`：失敗通知管理員與觸發者並寄信、排程失敗只通知管理員、成功與中斷不通知。
 - `Components/NotificationComponentTests`（bUnit）：鈴鐺收到訊號不重新整理就更新、全部標為已讀；橫幅「知道了」立即隱藏且下一次連線不再出現。
 - 0.9.122 起：`NotificationTests.MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged`（標為已讀才發訊號）、`DashboardTests` 小工具輪詢與 Dispose 停止輪詢、`NotificationTestServiceTests`（測試通知）。
+- 0.9.136 起：`NotificationTests.SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted`、`RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly`；`NotificationComponentTests.Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead`。
 - 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`DataAccessServiceLifetimeTests`、`LoggingConventionTests`、`PageHelpCatalogTests`。
 

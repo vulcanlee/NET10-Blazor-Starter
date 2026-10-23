@@ -24,8 +24,8 @@ else
                             Placeholder="@("發生時間（迄）")" Style="width: 190px;" />
 
                 @*
-                    動作清單取自資料庫的 DISTINCT，不寫死：動作代碼目前散落在 15 個呼叫點的
-                    字串字面值裡，沒有集中的常數來源，任何手寫清單都會在下次新增稽核事件時默默過期。
+                    動作清單取自資料庫的 DISTINCT，不寫死：代碼雖已集中在 AuditActions，但資料庫裡還有舊版本寫入、
+                    之後改名或移除的代碼，只列常數會查不到這些舊紀錄。
                 *@
                 <Select TItem="string" TItemValue="string" @bind-Value="selectedAction" Style="width: 190px;">
                     <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="動作：不限" />

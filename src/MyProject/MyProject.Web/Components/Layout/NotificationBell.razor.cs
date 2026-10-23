@@ -26,6 +26,8 @@ public partial class NotificationBell : IDisposable
     private bool isOpen;
     private List<NotificationAdapterModel> items = [];
 
+    private bool hasRead;
+
     [Inject]
     public NotificationQueryService QueryService { get; set; } = default!;
 
@@ -93,6 +95,7 @@ public partial class NotificationBell : IDisposable
             if (isOpen)
             {
                 items = await QueryService.GetLatestAsync(userId, ListSize);
+                hasRead = await QueryService.HasReadAsync(userId);
             }
         }
         catch (Exception ex)

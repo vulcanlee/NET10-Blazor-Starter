@@ -121,13 +121,13 @@ public class MagicObjectHelper
     /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_日誌等級設定 = "日誌等級設定";
 
-    /// <inheritdoc cref="角色_監控與診斷"/>
+    /// <summary>「AI 管理」子群組（0.9.113 起）的管理員專屬頁面；不授予任何角色的機制同 <see cref="角色_監控與診斷"/>。</summary>
     public const string 角色_Token用量 = "Token 用量";
 
-    /// <inheritdoc cref="角色_監控與診斷"/>
+    /// <inheritdoc cref="角色_Token用量"/>
     public const string 角色_AI對話紀錄 = "AI 對話紀錄";
 
-    /// <inheritdoc cref="角色_監控與診斷"/>
+    /// <summary>「系統設定與維運」子群組（0.9.113 起）的管理員專屬頁面；不授予任何角色的機制同 <see cref="角色_監控與診斷"/>。</summary>
     public const string 角色_排程作業 = "排程作業";
     public const string 使用者角色 = "使用者角色";
 

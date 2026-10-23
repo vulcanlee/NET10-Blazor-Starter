@@ -41,10 +41,10 @@ public static class ServiceCollectionExtensions
     {
         services.AddLocalization();
 
+        // 只支援繁體中文（0.9.136 起拿掉 en-US）：英文瀏覽器也拿到 zh-TW。
         var supportedCultures = new[]
         {
-            new CultureInfo("zh-TW"),
-            new CultureInfo("en-US")
+            new CultureInfo("zh-TW")
         };
 
         var defaultCulture = supportedCultures[0];
@@ -284,7 +284,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScheduledJob<NotificationRetentionJob>(
             NotificationRetentionJob.JobName, "站內通知清理",
-            "刪除超過保留天數的站內通知（不論已讀未讀；保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
+            "刪除建立超過保留天數的站內通知（不論已讀未讀，預設 90 天），以及標為已讀超過已讀保留天數的通知（預設 7 天）；兩者都在「系統參數」頁設定，0 = 不清除。", "0 3 * * *");
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
             "備份資料庫、專案附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");

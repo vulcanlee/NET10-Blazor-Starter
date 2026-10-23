@@ -26,7 +26,7 @@
 | 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
 | 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete`）| — |
-| 多語系 | `RequestLocalization` + `AntDesignLocaleFactory` | zh-TW / en-US |
+| 語系 | `RequestLocalization` + `AntDesignLocaleFactory` | 只支援 zh-TW（0.9.136 起）|
 | 物件對映 | AutoMapper | 16.1.1 |
 | API 文件 | Swashbuckle Swagger UI | 10.2.3 |
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |

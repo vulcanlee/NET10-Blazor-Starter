@@ -32,7 +32,7 @@ public partial class SplashView
         if (firstRender)
         {
             Logger.LogDebug("Splash view running authentication check.");
-            await Task.Delay(3000); // Wait for 1 second to show the splash screen
+            await Task.Delay(3000); // 啟動畫面停留 3 秒
             var checkResult = await AuthenticationStateHelper
             .Check(authStateProvider, NavigationManager);
             if (checkResult == AuthenticationCheckResult.Succeeded)

@@ -334,7 +334,7 @@ namespace MyProject.Web.Components.Views.Admins
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to copy exception logs to clipboard. Rows={Rows}", rows);
-                ViewNotification.UnexpectedError(notificationService, "複製失敗，請手動選取複製。", ex);
+                ViewNotification.UnexpectedError(notificationService, rows == 1 ? "複製失敗，請改按「查看」手動選取複製。" : "複製失敗，請手動選取複製。", ex);
             }
         }
 

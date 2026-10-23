@@ -244,6 +244,23 @@ public sealed class SoftDeleteTests
         Assert.Equal(0, await fixture.Context.ProjectFile.CountAsync());
     }
 
+    [Theory]
+    [InlineData("未開始")]
+    [InlineData("中")]
+    public async Task DeletedProjectSearch_ShouldMatchStatusAndPriority_LikeTheNormalList(string search)
+    {
+        // 0.9.136 起「顯示已刪除」的關鍵字與一般清單比對相同欄位（之前漏了狀態與優先級）。
+        await using var fixture = await Fixture.CreateAsync();
+        var (projectId, _, _) = await fixture.AddProjectWithFileAsync(teams: null);
+        var service = fixture.ProjectService();
+        await service.DeleteAsync(projectId);
+
+        var request = AllRows();
+        request.Search = search;
+
+        Assert.Single((await service.GetDeletedAsync(request)).Result);
+    }
+
     // ------------------------------------------------------------------ Web API 的 Repository
 
     [Fact]

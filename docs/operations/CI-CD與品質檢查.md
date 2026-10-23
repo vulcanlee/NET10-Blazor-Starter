@@ -1,8 +1,8 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.136
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/10/23
 
@@ -27,7 +27,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）
 | 1 | Restore | `dotnet restore` | 套件還原失敗（腳本會把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180，見 §4）|
 | 2 | Build | `dotnet build --configuration Release --no-restore` | 編譯錯誤與**任何警告**（`TreatWarningsAsErrors`）|
 | 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
-| 4 | Test | `dotnet test --configuration Release --no-build` | 1759 個測試（0.9.135），含十多組慣例守門測試 |
+| 4 | Test | `dotnet test --configuration Release --no-build` | 1774 個測試（0.9.136），含十多組慣例守門測試 |
 | 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
 | 6 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
 

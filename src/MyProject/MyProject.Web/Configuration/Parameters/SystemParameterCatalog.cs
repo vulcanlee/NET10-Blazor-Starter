@@ -18,7 +18,7 @@ namespace MyProject.Web.Configuration.Parameters;
 /// </list>
 ///
 /// 新增一個鍵：在 <see cref="All"/> 加一行 <see cref="Define{TOptions, TValue}"/>，並寫進
-/// <c>docs/operations/日誌與設定檔說明.md</c> 的系統參數表（<c>SystemParameterCatalogTests</c> 會檢查綁定、範圍、白名單與文件）。
+/// <c>docs/operations/日誌與設定檔說明.md</c> 的系統參數表（<c>SystemParameterTests</c> 會檢查綁定、範圍、白名單與文件）。
 /// </summary>
 public static class SystemParameterCatalog
 {
@@ -130,7 +130,7 @@ public static class SystemParameterCatalog
             "不可重複最近幾次的密碼", "新密碼不可與最近這麼多次用過的密碼相同（含目前的密碼）。",
             NextPasswordSet, unit: "次", zeroMeaning: "不檢查"),
         Define<PasswordPolicySettings, int>(PasswordPolicySettings.SectionName, x => x.ExpiryDays, GroupPassword,
-            "密碼有效天數", "密碼設定後幾天到期；到期後登入會被導去變更密碼，到期前 7 天每天早上會收到站內通知。support 帳號與只用 Google 登入的帳號不受影響。",
+            "密碼有效天數", "密碼設定後幾天到期；到期後登入會被導去變更密碼，到期前 7 天內會收到一次站內通知。support 帳號與只用 Google 登入的帳號不受影響。",
             "立即（已登入的人在下一次換頁時判斷）", unit: "天", zeroMeaning: "不過期"),
         Define<LockoutSettings, int>(LockoutSettings.SectionName, x => x.MaxFailedAttempts, GroupPassword,
             "連續輸錯幾次鎖定", "同一個帳號連續輸錯密碼這麼多次就暫時鎖定，並通知管理員。調高會削弱對猜密碼的防護。",

@@ -414,6 +414,8 @@ public class ProjectService
             dataSource = dataSource.Where(x =>
                 x.Title.Contains(search) ||
                 (x.Description ?? string.Empty).Contains(search) ||
+                x.Status.Contains(search) ||
+                x.Priority.Contains(search) ||
                 x.Owner.Contains(search));
         }
 

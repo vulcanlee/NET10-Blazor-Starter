@@ -19,7 +19,7 @@
             <div class="notification-bell-header">
                 <span class="notification-bell-heading">通知</span>
                 <span class="notification-bell-actions">
-                    <button type="button" class="notification-bell-link notification-bell-clear-read" disabled="@(!items.Any(x => x.ReadAtUtc is not null))" @onclick="ClearReadAsync">清除已讀</button>
+                    <button type="button" class="notification-bell-link notification-bell-clear-read" disabled="@(!hasRead)" @onclick="ClearReadAsync">清除已讀</button>
                     <button type="button" class="notification-bell-link notification-bell-mark-all" disabled="@(unreadCount == 0)" @onclick="MarkAllReadAsync">全部標為已讀</button>
                 </span>
             </div>

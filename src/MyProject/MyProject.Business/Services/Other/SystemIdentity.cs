@@ -14,7 +14,7 @@ public interface ISystemIdentity
 }
 
 /// <summary>
-/// ⚠️ <b>讀系統名稱與簡介的唯一入口</b>（<c>SystemParameterCatalogTests</c> 守門）：以前各處注入 <c>IOptions&lt;SystemSettings&gt;</c>，
+/// ⚠️ <b>讀系統名稱與簡介的唯一入口</b>（<c>SystemParameterTests</c> 守門）：以前各處注入 <c>IOptions&lt;SystemSettings&gt;</c>，
 /// 那是啟動時的快照，改了要重啟才生效。
 ///
 /// 讀 <see cref="IOptionsMonitor{TOptions}"/>；若執行中有人把 appsettings 改壞（例如路徑變成相對路徑），

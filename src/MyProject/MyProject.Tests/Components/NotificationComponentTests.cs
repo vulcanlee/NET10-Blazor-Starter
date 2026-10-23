@@ -90,6 +90,27 @@ public sealed class NotificationComponentTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead()
+    {
+        // 0.9.136 起看「有沒有任何已讀的」，不只看下拉顯示的最新 10 則（之前最新 10 則全未讀時按不了）。
+        AddNotification("很久以前、已讀", read: true, createdAtUtc: DateTime.UtcNow.AddDays(-1));
+        for (var i = 0; i < 10; i++)
+        {
+            AddNotification($"未讀 {i}");
+        }
+
+        var bell = Render<NotificationBell>();
+        await bell.Find(".notification-bell-trigger").ClickAsync(new());
+        bell.WaitForAssertion(() => Assert.Equal(10, bell.FindAll(".notification-bell-item-unread").Count));
+        Assert.False(bell.Find(".notification-bell-clear-read").HasAttribute("disabled"));
+
+        await bell.Find(".notification-bell-clear-read").ClickAsync(new());
+        bell.WaitForAssertion(() => Assert.True(bell.Find(".notification-bell-clear-read").HasAttribute("disabled")));
+        using var check = factory.CreateDbContext();
+        Assert.Equal(10, check.Notification.Count(x => x.RecipientUserId == userId));
+    }
+
+    [Fact]
     public async Task Banner_Dismiss_ShouldHideIt_AndStayHiddenForTheNextConnection()
     {
         using (var context = factory.CreateDbContext())
@@ -119,10 +140,10 @@ public sealed class NotificationComponentTests : ComponentTestBase
         Assert.Equal(1, check.AnnouncementDismissal.Count(x => x.MyUserId == userId));
     }
 
-    private void AddNotification(string title, bool read = false)
+    private void AddNotification(string title, bool read = false, DateTime? createdAtUtc = null)
     {
         using var context = factory.CreateDbContext();
-        context.Notification.Add(new Notification { RecipientUserId = userId, Category = "Test", Title = title, CreatedAtUtc = DateTime.UtcNow, ReadAtUtc = read ? DateTime.UtcNow : null });
+        context.Notification.Add(new Notification { RecipientUserId = userId, Category = "Test", Title = title, CreatedAtUtc = createdAtUtc ?? DateTime.UtcNow, ReadAtUtc = read ? DateTime.UtcNow : null });
         context.SaveChanges();
     }
 

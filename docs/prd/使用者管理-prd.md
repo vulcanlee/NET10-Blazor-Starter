@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.136
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/10/23
 
@@ -68,8 +68,9 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
 > ℹ️ `RbacWriteService` 在 0.4.36 `IDbContextFactory` 遷移後**仍直接接收 DI 注入的 scoped `BackendDBContext`**
 > （`AuditLogService`、`PermissionChecker`、`EffectiveTeamResolver` 等亦同），不在 `DataAccessServiceLifetimeTests` 的守門範圍內。
-> ⚠️ 現況：`MyUserService` 以工廠另建 context 寫入主表並先 `SaveChangesAsync`，`RbacWriteService` 再用自己的 context 各自 `SaveChangesAsync`，
-> 兩者**不是**同一個工作單元（沒有共用交易）。
+> 0.9.136 起 `MyUserService.AddAsync`／`UpdateAsync` 以工廠建立的 context 開一個交易：存主表 → `SyncAssignmentsAsync` 經
+> `RbacWriteService` 帶 context 的多載用**同一個 context** 寫 `UserRole`／`UserTeam` → 提交；對應寫入失敗時整筆回復（`MyUserServiceAssignmentTests`）。
+> 之前兩者各自 `SaveChangesAsync`，可能只成功一半。
 
 ## 五、權限與安全
 
@@ -105,7 +106,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
 ## 七、驗收與測試
 
-- `MyProject.Tests/MyUserServiceAssignmentTests.cs`：`AddAsync_WithMultipleRolesAndTeams_ShouldPersistUserRoleAndUserTeam`（多角色＋團隊落地 `UserRole`／`UserTeam`）。
+- `MyProject.Tests/MyUserServiceAssignmentTests.cs`：`AddAsync_WithMultipleRolesAndTeams_ShouldPersistUserRoleAndUserTeam`（多角色＋團隊落地 `UserRole`／`UserTeam`）；0.9.136 起另有新增與修改在對應寫入失敗時整筆回復的兩支。
 - `MyProject.Tests/RbacWriteServiceTests.cs`：`SyncUserRolesAsync`／`SyncUserTeamsAsync` 差異化增刪對帳。
 - `MyProject.Tests/RbacBackfillServiceTests.cs`：由 `RoleViewId` 建 `UserRole`、由角色預設團隊建 `UserTeam`、冪等。
 - `MyProject.Tests/AuditEventsTests.cs`：`User.Create`／`User.Update`／`User.Delete`（含帳號）與未登入 actor 為 null。

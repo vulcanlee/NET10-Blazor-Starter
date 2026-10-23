@@ -28,11 +28,27 @@ public class Notification
     [MaxLength(200)]
     public string? Link { get; set; }
 
-    /// <summary>去重鍵：同一位收件人已有相同鍵的通知時不再發送（例如 <c>AccountPending:12</c>）。</summary>
+    /// <summary>去重鍵（例如 <c>AccountPending:12</c>）；實際去重看 <see cref="NotificationDispatch"/>。</summary>
     [MaxLength(100)]
     public string? SourceKey { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime? ReadAtUtc { get; set; }
+}
+
+/// <summary>
+/// 帶去重鍵的通知「已經發給誰」（0.9.136 起）。和通知本身分開存：使用者刪掉通知、或已讀的被提早清除，
+/// 這一列仍在，同一個鍵不會再發一次。和通知一樣依 <c>NotificationSettings.RetentionDays</c>（建立時間）清除。
+/// </summary>
+public class NotificationDispatch
+{
+    [MaxLength(100)]
+    public string SourceKey { get; set; } = string.Empty;
+
+    public int RecipientUserId { get; set; }
+
+    public MyUser RecipientUser { get; set; } = null!;
+
+    public DateTime SentAtUtc { get; set; }
 }

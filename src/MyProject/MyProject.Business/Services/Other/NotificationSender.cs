@@ -43,7 +43,7 @@ public sealed class NotificationTarget
 
 /// <summary>
 /// 一則通知。內容一律是純文字；<paramref name="Link"/> 是站內相對網址。
-/// <paramref name="SourceKey"/>：同一位收件人已有相同鍵的通知就不再發（例如 <c>AccountPending:12</c>）。
+/// <paramref name="SourceKey"/>：同一位收件人發過相同鍵就不再發（例如 <c>AccountPending:12</c>）；0.9.136 起看 <c>NotificationDispatch</c>，通知被刪除也不會重發。
 /// <paramref name="AlsoEmail"/>：同時寄信（沒有 Email、格式不合或寄信停用的收件人只收站內通知）。
 /// </summary>
 public sealed record NotificationRequest(
@@ -114,7 +114,7 @@ public sealed class NotificationSender : INotificationSender
             var recipients = await ResolveRecipientsAsync(context, request.Target, cancellationToken);
             if (request.SourceKey is { } sourceKey && recipients.Count > 0)
             {
-                var already = await context.Notification
+                var already = await context.NotificationDispatch
                     .Where(x => x.SourceKey == sourceKey && recipients.Contains(x.RecipientUserId))
                     .Select(x => x.RecipientUserId)
                     .ToListAsync(cancellationToken);
@@ -139,6 +139,11 @@ public sealed class NotificationSender : INotificationSender
                     SourceKey = request.SourceKey,
                     CreatedAtUtc = nowUtc,
                 });
+
+                if (request.SourceKey is { } key)
+                {
+                    context.NotificationDispatch.Add(new NotificationDispatch { SourceKey = key, RecipientUserId = userId, SentAtUtc = nowUtc });
+                }
             }
 
             await context.SaveChangesAsync(cancellationToken);

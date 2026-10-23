@@ -293,7 +293,7 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -Directory -Force |
 
 $textExtensions = @(
     ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js",
-    ".ps1", ".yml", ".yaml", ".config", ".xml"
+    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl"
 )
 
 # 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。

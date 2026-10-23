@@ -81,7 +81,7 @@ public class ProjectAdapterModel : ICloneable, IValidatableObject
     {
         if (StartDate.HasValue && EndDate.HasValue && EndDate.Value < StartDate.Value)
         {
-            yield return new ValidationResult("結束日期 不可早於開始日期", [nameof(EndDate)]);
+            yield return new ValidationResult("結束日期不可早於開始日期。", [nameof(EndDate)]);
         }
     }
 }
