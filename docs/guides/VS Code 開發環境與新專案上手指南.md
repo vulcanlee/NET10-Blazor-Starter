@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.3
+- 文件版本：3.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.137
+- 現行系統版本：0.9.138
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/10/24
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -521,10 +521,10 @@ pwsh ./scripts/New-StarterProject.ps1 `
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
 - **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）。舊埠是從來源的 `launchSettings.json` 讀出來的（0.9.87 起），所以從衍生專案再衍生一次，埠也會換新；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
 - **把 `SystemVersion` 重設為 `1.0.0 (執行當天)`**（0.9.71 起），文件開頭的「現行系統版本」也一併改為 `1.0.0`；「首次實作版本」保留原值（那是功能的歷史）
-- 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
+- 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`，本文 §5.1／§5.5 的範例與整合測試資料也一起換（0.9.138 起）（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
 - **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `CategoryTeamUniqueIndexMigrationTests.cs` 與 `TeamTreeMigrationTests.cs`（後者 0.9.116 起），先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：清掉 `docs/changelog/` 的歷史紀錄（保留 `README.md` 當索引骨架 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
-- 最後掃一次殘留字串並警告。正常情況只會出現一行標題加 5 筆「開發用 JWT 佔位金鑰」的警告：本文 §5.1／§5.5 的說明、腳本自己的兩行、`ApiIntegrationTests.cs` 的測試資料，都是刻意保留的
+- 最後掃一次殘留字串（舊代號、舊 UserSecretsId、舊連接埠、`DevelopmentOnly-…` 金鑰；腳本自己不掃）。**正常情況不會有任何警告**（0.9.138 起；之前固定會有 5 筆不用處理的金鑰命中）；出現警告就代表真的有東西沒換到，見 [腳手架開發指引 §2.4](腳手架開發指引.md#24-腳本跑完的警告訊息怎麼讀-)
 
 > `-ProjectName` 每一段都必須是合法的 C# 識別字（0.9.87 起），`Acme..Erp`、`Acme.`、`Acme.1x` 會在一開始就被擋下。
 
