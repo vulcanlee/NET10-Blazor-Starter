@@ -309,6 +309,10 @@ $initialVersion = "1.0.0"
 $initialVersionDate = (Get-Date).ToString('yyyy/MM/dd', [System.Globalization.CultureInfo]::InvariantCulture)
 $systemVersionPattern = '"SystemVersion"\s*:\s*"[^"]*"'
 
+# 腳本自己也會被複製進新專案。它的 JWT 佔位金鑰取代規則與殘留掃描樣式必須保留字面值，
+# 衍生專案日後才能再往下衍生；所以金鑰取代與殘留掃描都要跳過這一份。
+$scriptCopyPath = [System.IO.Path]::GetFullPath((Join-Path $destinationFullPath ([System.IO.Path]::GetRelativePath($repoRoot.Path, $PSCommandPath))))
+
 function Test-Utf8Bom {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -381,12 +385,16 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         # launchSettings.json 與文件裡的網址一起換；只換帶 localhost: 的形式，避免誤傷其他數字。
         $content = $content.Replace("localhost:$sourceHttpsPort", "localhost:$httpsPort")
         $content = $content.Replace("localhost:$sourceHttpPort", "localhost:$httpPort")
+        # 不只 appsettings.json：文件範例與整合測試資料也一起換，才會和新專案實際出貨的值一致。
+        # 換了前綴仍含 ChangeThisJwtSigningKey 標記，JwtSettings.IsPlaceholderSigningKey 一樣認得出來。
+        if ($_.FullName -ne $scriptCopyPath) {
+            $content = $content.Replace("DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars", "$ProjectName-ChangeThisJwtSigningKey-AtLeast32Chars")
+        }
         if ($_.Name -eq "appsettings.json") {
             # 註：這裡刻意**不**動 BootstrapSettings:SupportPassword。
             # 換成另一個固定佔位值並不會比較安全，只是把弱值換成另一個弱值；
             # 真正的防線是 StartupSafetyValidator —— 本機開發仍可用文件記載的預設帳密登入，
             # Production 則會因為「仍是範本預設密碼」被擋下啟動。
-            $content = $content.Replace("DevelopmentOnly-ChangeThisJwtSigningKey-AtLeast32Chars", "$ProjectName-ChangeThisJwtSigningKey-AtLeast32Chars")
             $content = [regex]::Replace($content, $systemVersionPattern, "`"SystemVersion`": `"$initialVersion ($initialVersionDate)`"")
         }
         if ($_.Extension -eq ".md") {
@@ -559,7 +567,7 @@ else {
 }
 
 $remainingMatches = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
-    Where-Object { $textExtensions -contains $_.Extension } |
+    Where-Object { ($textExtensions -contains $_.Extension) -and ($_.FullName -ne $scriptCopyPath) } |
     Select-String -Pattern $SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", $sourceUserSecretsId, "localhost:$sourceHttpPort", "localhost:$sourceHttpsPort" -SimpleMatch
 
 if ($remainingMatches) {
