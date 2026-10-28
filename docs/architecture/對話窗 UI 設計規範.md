@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.0
+- 文件版本：2.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.139
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/10/28
 
 ## 目的
 
@@ -236,7 +236,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 | `MyUserView`（使用者管理） | ✅ 0.9.25（示範頁） |
 | `CategoryViewView`（分類清單） | ✅ 0.9.25 |
 | `TeamViewView`（團隊清單） | ✅ 0.9.25 |
-| `RoleViewView`（角色管理） | ✅ 0.9.27，權限矩陣走 `SingleColumn` 區塊 |
+| `RoleViewView`（角色管理） | ✅ 0.9.27，權限矩陣走 `SingleColumn` 區塊；0.9.139 起區塊內每個頁面一張卡片、固定兩欄 grid（窄螢幕單欄），群組可摺疊 |
 | `ProjectViewView`（專案項目） | ✅ 0.9.27，含 `UploadStateFingerprint` |
 
 **五個 CRUD 檢視全部遷移完成**，`FormModalConventionTests.PendingMigrationViews` 已清空，

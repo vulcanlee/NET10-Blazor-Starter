@@ -189,6 +189,7 @@ namespace MyProject.Web.Components.Views.Admins
             isNewRecordMode = false;
             modalTitle = "修改角色";
             CurrentRecord = roleViewAdapterModel.Clone();
+            InitExpandedGroups();
             // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
             dirtyTracker.Capture(CurrentRecord);
 
@@ -349,11 +350,30 @@ namespace MyProject.Web.Components.Views.Admins
 
             isNewRecordMode = true;
             modalTitle = "新增角色";
+            InitExpandedGroups();
             // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
             logger.LogInformation("Opened create modal for role view.");
+        }
+
+        /// <summary>
+        /// 清單的「複製」（0.9.139 起）：以這一列為範本開新增視窗，名稱、預設團隊、兩步驟驗證、權限都帶入且可修改，
+        /// 存檔走一般新增流程（確認儲存、名稱重複檢查、Role.Create 稽核）。
+        /// </summary>
+        void OnCopy(RoleViewAdapterModel source)
+        {
+            CurrentRecord = RolePermissionMatrix.CreateCopy(source);
+
+            isNewRecordMode = true;
+            modalTitle = $"複製角色（來源：{source.Name}）";
+            InitExpandedGroups();
+            // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
+            dirtyTracker.Capture(CurrentRecord);
+
+            modalVisible = true;
+            logger.LogInformation("Opened copy modal for role view. SourceRoleViewId={RoleViewId}, SourceName={RoleName}", source.Id, source.Name);
         }
 
         /// <summary>
@@ -507,12 +527,33 @@ namespace MyProject.Web.Components.Views.Admins
             CurrentRecord.DefaultTeams = values?.ToList() ?? [];
         }
 
+        /// <summary>
+        /// 展開中的權限群組。開窗時有勾選的群組展開、完全沒勾的收合；只是畫面狀態，不屬於表單資料。
+        /// </summary>
+        private readonly HashSet<RolePermissionGroup> expandedGroups = [];
+
+        private void InitExpandedGroups()
+        {
+            expandedGroups.Clear();
+            expandedGroups.UnionWith(CurrentRecord.RolePermission.Groups.Where(RolePermissionMatrix.HasAnyGrant));
+        }
+
+        private void ToggleGroup(RolePermissionGroup group)
+        {
+            if (!expandedGroups.Remove(group))
+            {
+                expandedGroups.Add(group);
+            }
+        }
+
         private void OnPermissionGroupChanged(RolePermissionGroup group, bool value)
         {
             group.Enable = value;
 
             if (value)
             {
+                // 勾了群組通常接著要勾底下的項目，順手展開。
+                expandedGroups.Add(group);
                 return;
             }
 
@@ -540,9 +581,6 @@ namespace MyProject.Web.Components.Views.Admins
             (PermissionActions.Edit, "編輯"),
             (PermissionActions.Delete, "刪除"),
         ];
-
-        private static bool GetActionChecked(RolePermissionNode node, string action)
-            => node.Actions is not null && node.Actions.TryGetValue(action, out var enabled) && enabled;
 
         private void OnPermissionActionChanged(RolePermissionGroup group, RolePermissionNode node, string action, bool value)
         {

@@ -91,6 +91,10 @@ else
                                                   OnClick="@(async () => await OnEditAsync(@context))" />
                             </SpaceItem>
                             <SpaceItem>
+                                <CrudActionButton Title="複製" Icon="content_copy"
+                                                  OnClick="@(() => OnCopy(@context))" />
+                            </SpaceItem>
+                            <SpaceItem>
                                 <CrudActionButton Title="刪除" Icon="delete" Danger
                                                   OnClick="@(async () => await OnDeleteAsync(@context))" />
                             </SpaceItem>
@@ -145,35 +149,57 @@ else
                     </FormItem>
                 </FormSection>
 
-                @* 權限矩陣本身就是二維排列，再塞進半欄會變成三層巢狀 —— 整個區塊走單欄。 *@
+                @*
+                    權限矩陣本身就是二維排列，再塞進半欄會變成三層巢狀 —— 整個區塊走單欄。
+                    0.9.139 起：每個頁面一張卡片、固定兩欄（窄螢幕單欄）；群組可摺疊，開窗時只展開有勾選的群組。
+                *@
                 <FormSection Title="權限設定" Hint="勾選「全部」等於該資源的所有動作" SingleColumn="true">
                     <FormItem>
                             @foreach (var group in CurrentRecord.RolePermission.Groups)
                             {
+                                var hasChildren = group.Permissions.Count > 0;
+                                var expanded = hasChildren && expandedGroups.Contains(group);
                                 <div class="role-permission-group">
-                                    <Checkbox Checked="@group.Enable" CheckedChanged="@(value => OnPermissionGroupChanged(group, value))">
-                                        @group.Name
-                                    </Checkbox>
+                                    <div class="role-permission-group-header">
+                                        @if (hasChildren)
+                                        {
+                                            <button type="button" class="role-permission-toggle"
+                                                    aria-expanded="@(expanded ? "true" : "false")"
+                                                    title="@(expanded ? "收合" : "展開")"
+                                                    @onclick="@(() => ToggleGroup(group))">
+                                                <MaterialIcon Theme="@MaterialIcon.Themes.Outlined"
+                                                              Kind="@(expanded ? "expand_more" : "chevron_right")" />
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="role-permission-toggle-spacer"></span>
+                                        }
+                                        <Checkbox Checked="@group.Enable" CheckedChanged="@(value => OnPermissionGroupChanged(group, value))">
+                                            @group.Name
+                                        </Checkbox>
+                                    </div>
 
-                                    @if (group.Permissions.Count > 0)
+                                    @if (expanded)
                                     {
-                                        <div class="role-permission-children">
+                                        <div class="role-permission-cards">
                                             @foreach (var role in group.Permissions)
                                             {
-                                                <div class="role-permission-node">
+                                                <div class="role-permission-card">
                                                     <Checkbox Checked="@role.Enable" CheckedChanged="@(value => OnPermissionItemChanged(group, role, value))">
                                                         @role.Name（全部）
                                                     </Checkbox>
-                                                    <span class="role-permission-actions">
+                                                    @* 勾了「（全部）」時四個動作反灰並顯示打勾（只是顯示，個別勾選的資料不動）。 *@
+                                                    <div class="role-permission-actions">
                                                         @foreach (var action in PermissionActionItems)
                                                         {
                                                             <Checkbox Disabled="@role.Enable"
-                                                                      Checked="@GetActionChecked(role, action.Key)"
+                                                                      Checked="@RolePermissionMatrix.IsActionShownChecked(role, action.Key)"
                                                                       CheckedChanged="@(value => OnPermissionActionChanged(group, role, action.Key, value))">
                                                                 @action.Label
                                                             </Checkbox>
                                                         }
-                                                    </span>
+                                                    </div>
                                                 </div>
                                             }
                                         </div>

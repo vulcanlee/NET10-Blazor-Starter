@@ -36,9 +36,70 @@
     border-top: 1px solid var(--app-line);
 }
 
-.role-permission-children {
+.role-permission-group-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 摺疊箭頭與沒有子項目時的佔位同寬，群組勾選框才會上下對齊。 */
+.role-permission-toggle,
+.role-permission-toggle-spacer {
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+}
+
+.role-permission-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--app-muted);
+    cursor: pointer;
+}
+
+.role-permission-toggle:hover {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+}
+
+/* 固定兩欄：每列剛好兩張卡片、左右對齊（0.9.139 前是 flex 換行，一列 1～3 個不等）。 */
+.role-permission-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    padding-left: 28px;
+}
+
+.role-permission-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+}
+
+/* 縮排到「（全部）」文字的位置，四個動作看起來屬於這一項。 */
+.role-permission-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 16px;
-    padding-left: 28px;
+    gap: 4px 12px;
+    padding-left: 24px;
+}
+
+/* AntDesign 給相鄰勾選框的左邊距會和 gap 疊加，間距交給 gap 統一。 */
+.role-permission-actions ::deep .ant-checkbox-wrapper {
+    margin-inline-start: 0;
+}
+
+@media (max-width: 640px) {
+    .role-permission-cards {
+        grid-template-columns: minmax(0, 1fr);
+        padding-left: 0;
+    }
 }
