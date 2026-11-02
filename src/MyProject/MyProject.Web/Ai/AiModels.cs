@@ -232,11 +232,6 @@ public sealed record AiChatParseResult
 }
 
 /// <summary>
-/// 請求位址與認證標頭。Azure OpenAI 與 OpenAI 的所有差異都收斂在這個型別裡。
-/// </summary>
-public sealed record AiChatEndpointDescriptor(Uri RequestUri, string AuthHeaderName, string AuthHeaderValue);
-
-/// <summary>
 /// 上游回傳的錯誤細節（<c>{"error":{...}}</c>）。
 ///
 /// <para>

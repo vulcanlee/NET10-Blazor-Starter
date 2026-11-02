@@ -4,11 +4,18 @@ using MyProject.Web.Configuration;
 namespace MyProject.Tests;
 
 /// <summary>
-/// Azure OpenAI 與 OpenAI 的位址、認證與設定驗證測試。
+/// Azure OpenAI 與 OpenAI 的位址與設定驗證測試。
 /// 這是兩家唯一真正不同的地方，抽成純函式就能完整覆蓋，不必打真的 API。
+///
+/// 0.9.140 起 HTTP 由 OpenAI SDK 送出，這裡驗的是交給 SDK 的 base URI；SDK 實際接出的完整網址與
+/// 認證標頭（Azure 送 api-key、OpenAI 送 Bearer）由 <see cref="AiLogAnalysisServiceTests"/> 在線路層驗證。
 /// </summary>
 public sealed class AiChatEndpointTests
 {
+    /// <summary>SDK 在 base URI 後面接上 <c>/chat/completions</c>；這裡照同樣方式組出完整網址再斷言。</summary>
+    private static Uri RequestUri(AiSettings settings)
+        => new($"{AiChatEndpoint.GetBaseUri(settings).AbsoluteUri.TrimEnd('/')}/chat/completions");
+
     /// <summary>哨兵金鑰：用來斷言錯誤訊息絕不回吐金鑰。</summary>
     private const string SentinelApiKey = "SENTINEL-DO-NOT-LEAK-abcdef123456";
 
@@ -17,22 +24,22 @@ public sealed class AiChatEndpointTests
     /// 直接接上 chat/completions 即可，不需要 api-version 查詢參數。
     /// </summary>
     [Fact]
-    public void Create_Azure_ShouldComposeV1Path()
+    public void GetBaseUri_Azure_ShouldComposeV1Path()
     {
-        var descriptor = AiChatEndpoint.Create(CreateAzureSettings());
+        var requestUri = RequestUri(CreateAzureSettings());
 
         Assert.Equal(
             "https://contoso.openai.azure.com/openai/v1/chat/completions",
-            descriptor.RequestUri.AbsoluteUri);
+            requestUri.AbsoluteUri);
     }
 
     [Fact]
-    public void Create_Azure_ShouldNotSendApiVersion()
+    public void GetBaseUri_Azure_ShouldNotSendApiVersion()
     {
-        var descriptor = AiChatEndpoint.Create(CreateAzureSettings());
+        var requestUri = RequestUri(CreateAzureSettings());
 
-        Assert.DoesNotContain("api-version", descriptor.RequestUri.AbsoluteUri);
-        Assert.Equal(string.Empty, descriptor.RequestUri.Query);
+        Assert.DoesNotContain("api-version", requestUri.AbsoluteUri);
+        Assert.Equal(string.Empty, requestUri.Query);
     }
 
     /// <summary>
@@ -43,90 +50,72 @@ public sealed class AiChatEndpointTests
     [InlineData("https://contoso.openai.azure.com")]
     [InlineData("https://contoso.openai.azure.com/")]
     [InlineData("https://contoso.services.ai.azure.com")]
-    public void Create_Azure_ShouldAppendV1Suffix_WhenMissing(string endpoint)
+    public void GetBaseUri_Azure_ShouldAppendV1Suffix_WhenMissing(string endpoint)
     {
         var settings = CreateAzureSettings();
         settings.Endpoint = endpoint;
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.EndsWith("/openai/v1/chat/completions", descriptor.RequestUri.AbsoluteUri);
-        Assert.DoesNotContain("/openai/v1/openai/v1", descriptor.RequestUri.AbsoluteUri);
+        Assert.EndsWith("/openai/v1/chat/completions", requestUri.AbsoluteUri);
+        Assert.DoesNotContain("/openai/v1/openai/v1", requestUri.AbsoluteUri);
     }
 
     [Theory]
     [InlineData("https://contoso.openai.azure.com/openai/v1")]
     [InlineData("https://contoso.openai.azure.com/openai/v1/")]
     [InlineData("https://contoso.openai.azure.com/OPENAI/V1")]
-    public void Create_Azure_ShouldNotDuplicateV1Suffix(string endpoint)
+    public void GetBaseUri_Azure_ShouldNotDuplicateV1Suffix(string endpoint)
     {
         var settings = CreateAzureSettings();
         settings.Endpoint = endpoint;
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.EndsWith("/chat/completions", descriptor.RequestUri.AbsoluteUri);
-        Assert.DoesNotContain("v1/openai", descriptor.RequestUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("/chat/completions", requestUri.AbsoluteUri);
+        Assert.DoesNotContain("v1/openai", requestUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Foundry 的「專案端點」是給 Agent SDK 用的，填錯時至少不要組出更奇怪的網址。</summary>
     [Fact]
-    public void Create_Azure_ShouldStillComposeUrl_WhenProjectEndpointPasted()
+    public void GetBaseUri_Azure_ShouldStillComposeUrl_WhenProjectEndpointPasted()
     {
         var settings = CreateAzureSettings();
         settings.Endpoint = "https://contoso.services.ai.azure.com/api/projects/proj-default";
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.EndsWith("/openai/v1/chat/completions", descriptor.RequestUri.AbsoluteUri);
+        Assert.EndsWith("/openai/v1/chat/completions", requestUri.AbsoluteUri);
     }
 
     [Fact]
-    public void Create_Azure_ShouldUseApiKeyHeader()
-    {
-        var descriptor = AiChatEndpoint.Create(CreateAzureSettings());
-
-        Assert.Equal("api-key", descriptor.AuthHeaderName);
-        Assert.Equal(SentinelApiKey, descriptor.AuthHeaderValue);
-    }
-
-    [Fact]
-    public void Create_ShouldTolerateTrailingSlashInEndpoint()
+    public void GetBaseUri_ShouldTolerateTrailingSlashInEndpoint()
     {
         var settings = CreateAzureSettings();
         settings.Endpoint = "https://contoso.openai.azure.com/  ";
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.DoesNotContain("azure.com//", descriptor.RequestUri.AbsoluteUri);
+        Assert.DoesNotContain("azure.com//", requestUri.AbsoluteUri);
     }
 
     [Fact]
-    public void Create_OpenAi_ShouldComposeV1ChatCompletionsPath()
+    public void GetBaseUri_OpenAi_ShouldComposeV1ChatCompletionsPath()
     {
-        var descriptor = AiChatEndpoint.Create(CreateOpenAiSettings());
+        var requestUri = RequestUri(CreateOpenAiSettings());
 
-        Assert.Equal("https://api.openai.com/v1/chat/completions", descriptor.RequestUri.AbsoluteUri);
+        Assert.Equal("https://api.openai.com/v1/chat/completions", requestUri.AbsoluteUri);
     }
 
     [Fact]
-    public void Create_OpenAi_ShouldUseBearerAuthorizationHeader()
-    {
-        var descriptor = AiChatEndpoint.Create(CreateOpenAiSettings());
-
-        Assert.Equal("Authorization", descriptor.AuthHeaderName);
-        Assert.Equal($"Bearer {SentinelApiKey}", descriptor.AuthHeaderValue);
-    }
-
-    [Fact]
-    public void Create_OpenAi_ShouldHonourCustomEndpoint()
+    public void GetBaseUri_OpenAi_ShouldHonourCustomEndpoint()
     {
         var settings = CreateOpenAiSettings();
         settings.Endpoint = "https://gateway.internal/openai";
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.Equal("https://gateway.internal/openai/v1/chat/completions", descriptor.RequestUri.AbsoluteUri);
+        Assert.Equal("https://gateway.internal/openai/v1/chat/completions", requestUri.AbsoluteUri);
     }
 
     /// <summary>
@@ -137,29 +126,29 @@ public sealed class AiChatEndpointTests
     [InlineData("https://api.openai.com/v1")]
     [InlineData("https://api.openai.com/v1/")]
     [InlineData("https://api.openai.com/V1")]
-    public void Create_OpenAi_ShouldNotDuplicateV1Suffix(string endpoint)
+    public void GetBaseUri_OpenAi_ShouldNotDuplicateV1Suffix(string endpoint)
     {
         var settings = CreateOpenAiSettings();
         settings.Endpoint = endpoint;
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.DoesNotContain("/v1/v1", descriptor.RequestUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("/chat/completions", descriptor.RequestUri.AbsoluteUri);
+        Assert.DoesNotContain("/v1/v1", requestUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("/chat/completions", requestUri.AbsoluteUri);
     }
 
     [Theory]
     [InlineData("https://api.openai.com")]
     [InlineData("https://api.openai.com/")]
     [InlineData("  https://api.openai.com  ")]
-    public void Create_OpenAi_ShouldAppendV1Suffix_WhenMissing(string endpoint)
+    public void GetBaseUri_OpenAi_ShouldAppendV1Suffix_WhenMissing(string endpoint)
     {
         var settings = CreateOpenAiSettings();
         settings.Endpoint = endpoint;
 
-        var descriptor = AiChatEndpoint.Create(settings);
+        var requestUri = RequestUri(settings);
 
-        Assert.Equal("https://api.openai.com/v1/chat/completions", descriptor.RequestUri.AbsoluteUri);
+        Assert.Equal("https://api.openai.com/v1/chat/completions", requestUri.AbsoluteUri);
     }
 
     [Fact]

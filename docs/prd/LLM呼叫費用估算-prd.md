@@ -1,10 +1,10 @@
 ﻿# LLM 呼叫費用估算 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.140
 - 首次實作版本：0.9.17
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/02
 
 ## 一、目標與範圍
 
@@ -82,7 +82,8 @@ LLM 呼叫點 → ITokenUsageRecorder.RecordAsync(TokenUsageEntry)
 ```
 
 計算器接在 `TokenUsageLogService.RecordAsync` **內部**，所以**呼叫端一行都不用改** ——
-`AiChatCompletionClient`（0.9.68 起自 `AiLogAnalysisService` 抽出，AI 日誌分析與 AI 例外分析共用）與 `AiHealthProbe` 的記錄分支自動跟著有費用，日後新增的呼叫點也是。
+記帳中介層 `AiAccountingChatClient`（0.9.140 起所有 LLM 呼叫都經過它，含 AI 日誌分析、AI 例外分析與 `AiHealthProbe`；
+0.9.68～0.9.139 的記錄點是 `AiChatCompletionClient` 與 `AiHealthProbe`）的記錄分支自動跟著有費用，日後經 `IAiAgentFactory` 新增的呼叫點也是。
 
 ⚠️ 計算器的呼叫**另包一層 `try/catch`**。外層那個雖然也會吞例外，但它會在 `AddAsync`
 之前就中止 —— 計算器有 bug 會讓每一列用量都靜默消失，那比丟掉費用嚴重得多。
@@ -289,7 +290,7 @@ twd = usd × UsdToTwd
 
 ### 已知限制（需要人為維護或日後補做）
 
-1. **圖片 token 數與字元數目前沒有任何寫入端會填。** 系統的 LLM 呼叫點（`AiChatCompletionClient`、`AiHealthProbe`）只發 Chat 請求。
+1. **圖片 token 數與字元數目前沒有任何寫入端會填。** 系統的 LLM 呼叫點（`AiChatCompletionClient`、`AiHealthProbe`，0.9.140 起都經記帳中介層 `AiAccountingChatClient`）只發 Chat 請求。
    欄位與費率先備齊，等日後接上圖片／TTS／轉錄 API 時就能直接填值。
 2. **長脈絡門檻為 `272000` 輸入 token。** 官方規則是嚴格超過門檻後，整筆請求使用
    長脈絡費率；填 `0` 或省略 `LongContextRates` 即停用該模型的分級。

@@ -294,7 +294,7 @@ public sealed class AiChatCompletionClientTests
         CreateClient(StubHttpMessageHandler handler, AiSettings? settings = null, IAiCallLogRecorder? callLogRecorder = null)
     {
         var recorder = new RecordingTokenUsageRecorder();
-        var client = new AiChatCompletionClient(
+        var client = AiTestAgents.CreateChatClient(
             NullLogger<AiChatCompletionClient>.Instance,
             new StubHttpClientFactory(handler),
             new StaticOptionsMonitor<AiSettings>(settings ?? new AiSettings

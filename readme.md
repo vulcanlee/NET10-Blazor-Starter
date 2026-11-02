@@ -32,6 +32,7 @@
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.3.2 |
 | PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型）| 6.2.4 |
+| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.27.0／2.14.0 |
 | 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.0 |
 | 弱點修補 | System.Security.Cryptography.Pkcs（`MyProject.Web` 直接參考，覆蓋 MailKit → MimeKit 遞移帶入的弱點版 10.0.0，0.9.126；MimeKit 改相依修補版後移除）| 10.0.13 |
 | QR Code | QRCoder（兩步驟驗證的設定 QR，0.9.104）| 1.6.0 |
@@ -316,6 +317,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、DbContextFactory（0.4.36 起取代追蹤清理）、權限同步等不變量速查。
 - [架構總覽](docs/architecture/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
+- [MAF AI 呼叫架構](docs/architecture/MAF-AI呼叫架構.md) — 所有 LLM 呼叫經 Microsoft Agent Framework 送出（0.9.140 起）：管線、記帳中介層、技術決定與後續階段。
 - [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
 - [Web API 設計慣例](docs/architecture/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。

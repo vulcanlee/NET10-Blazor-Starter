@@ -1,8 +1,6 @@
 ﻿using System.Diagnostics;
-using System.Text;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using MyProject.Business.Services.DataAccess;
-using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 
@@ -23,29 +21,17 @@ public sealed class AiHealthProbe : IAiHealthProbe
     private const string ProbeUserMessage = "hello";
 
     private readonly ILogger<AiHealthProbe> logger;
-    private readonly IHttpClientFactory httpClientFactory;
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
-    private readonly ITokenUsageRecorder tokenUsageRecorder;
-    private readonly CurrentUserService currentUserService;
-    private readonly IAiCallLogRecorder aiCallLogRecorder;
-    private readonly IOptionsMonitor<SlowOperationSettings>? slowOptions;
+    private readonly IAiAgentFactory agentFactory;
 
     public AiHealthProbe(
         ILogger<AiHealthProbe> logger,
-        IHttpClientFactory httpClientFactory,
         IOptionsMonitor<AiSettings> optionsMonitor,
-        ITokenUsageRecorder tokenUsageRecorder,
-        CurrentUserService currentUserService,
-        IAiCallLogRecorder aiCallLogRecorder,
-        IOptionsMonitor<SlowOperationSettings>? slowOptions = null)
+        IAiAgentFactory agentFactory)
     {
-        this.slowOptions = slowOptions;
         this.logger = logger;
-        this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
-        this.tokenUsageRecorder = tokenUsageRecorder;
-        this.currentUserService = currentUserService;
-        this.aiCallLogRecorder = aiCallLogRecorder;
+        this.agentFactory = agentFactory;
     }
 
     public async Task<AiHealthProbeResult> ProbeAsync(CancellationToken cancellationToken = default)
@@ -61,204 +47,100 @@ public sealed class AiHealthProbe : IAiHealthProbe
             return AiHealthProbeResult.NotConfigured(invalid);
         }
 
-        var descriptor = AiChatEndpoint.Create(settings);
-        var endpointHost = descriptor.RequestUri.Host;
-        var body = AiChatRequestFactory.CreateRequestJson(settings, ProbeSystemPrompt, ProbeUserMessage);
-
-        var user = currentUserService.CurrentUser;
-        var capture = new AiCallCapture(
-            TokenUsageOperations.SystemHealthCheck,
-            settings.GetProvider().ToString(),
-            settings.Model,
-            user.Account,
-            user.Id,
-            descriptor.RequestUri,
-            body,
-            "系統健康監控 AI 連線探測",
-            conversationId: null);
-
-        // 自己的逾時。linked source 讓呼叫端的取消仍然有效。
-        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(ProbeTimeout);
-
+        var endpointHost = AiChatEndpoint.GetBaseUri(settings).Host;
         var stopwatch = Stopwatch.StartNew();
+
         try
         {
-            var client = httpClientFactory.CreateClient(AiChatCompletionClient.HttpClientName);
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, descriptor.RequestUri)
+            // 記帳與 AI 對話紀錄由 agent 管線上的記帳中介層處理（作業「系統健康檢測」）。
+            // 自己的 30 秒逾時也在那裡；呼叫端的取消仍然有效。
+            var handle = agentFactory.CreateAgent(new AiCallContext
             {
-                Content = new StringContent(body, Encoding.UTF8, "application/json"),
-            };
+                Operation = TokenUsageOperations.SystemHealthCheck,
+                Timeout = ProbeTimeout,
+                RelatedInfo = "系統健康監控 AI 連線探測",
 
-            // ⚠️ 金鑰只掛在「這一次」的請求上，絕不設到 client.DefaultRequestHeaders：
-            // named client 是從池子拿的，設在上面會把金鑰留給後續所有請求。
-            request.Headers.TryAddWithoutValidation(descriptor.AuthHeaderName, descriptor.AuthHeaderValue);
+                // 探測是系統自發、成本固定極低的呼叫；被用量上限擋下會讓健康頁誤報 AI 服務故障。
+                EnforceQuota = false,
+            });
 
-            capture.MarkSent();
-            using var response = await client.SendAsync(request, timeoutSource.Token);
-            capture.HttpStatus = (int)response.StatusCode;
-            var payload = await response.Content.ReadAsStringAsync(timeoutSource.Token);
-            capture.ResponseBody = payload;
+            await handle.Agent.RunAsync(
+                [new ChatMessage(ChatRole.System, ProbeSystemPrompt), new ChatMessage(ChatRole.User, ProbeUserMessage)],
+                cancellationToken: cancellationToken);
+
             stopwatch.Stop();
-
-            if (response.IsSuccessStatusCode == false)
-            {
-                // 只取 error.code，絕不把上游 body 放進訊息或日誌。
-                var code = AiChatResponseParser.TryGetError(payload, out var upstream)
-                    && string.IsNullOrEmpty(upstream.Code) == false
-                        ? $"（{upstream.Code}）"
-                        : string.Empty;
-
-                logger.LogError(
-                    "AI health probe failed. StatusCode={StatusCode}, ElapsedMs={ElapsedMs}",
-                    (int)response.StatusCode,
-                    stopwatch.ElapsedMilliseconds);
-
-                await RecordAsync(capture, settings, settings.Model, null, null, stopwatch, false, "UpstreamError");
-
-                return new AiHealthProbeResult
-                {
-                    IsConfigured = true,
-                    Success = false,
-                    Message = $"上游回應 HTTP {(int)response.StatusCode}{code}。",
-                    ModelName = settings.Model,
-                    EndpointHost = endpointHost,
-                    ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
-                };
-            }
-
-            var parsed = AiChatResponseParser.Parse(payload);
-            capture.ResponseText = parsed.Content ?? string.Empty;
-            capture.FinishReason = parsed.FinishReason;
-            capture.ResponseModel = parsed.ModelName;
-            var modelName = string.IsNullOrEmpty(parsed.ModelName) ? settings.Model : parsed.ModelName;
-            var hasContent = string.IsNullOrWhiteSpace(parsed.Content) == false;
-
+            var outcome = handle.State.LastOutcome;
             logger.LogInformation(
                 "AI health probe completed. HasContent={HasContent}, ElapsedMs={ElapsedMs}",
-                hasContent,
+                true,
                 stopwatch.ElapsedMilliseconds);
-
-            var slowThreshold = slowOptions?.CurrentValue.AiCallMs ?? 0;
-            if (SlowOperationSettings.IsSlow(stopwatch.Elapsed, slowThreshold))
-            {
-                logger.LogWarning(
-                    "Slow AI health probe. ElapsedMilliseconds={ElapsedMilliseconds}, ThresholdMilliseconds={ThresholdMilliseconds}",
-                    stopwatch.ElapsedMilliseconds, slowThreshold);
-            }
-
-            await RecordAsync(
-                capture,
-                settings,
-                parsed.ModelName,
-                parsed.Usage,
-                AiChatResponseParser.ExtractUsageJson(payload),
-                stopwatch,
-                hasContent,
-                hasContent ? null : "EmptyResponse");
 
             return new AiHealthProbeResult
             {
                 IsConfigured = true,
-                Success = hasContent,
-                Message = hasContent ? string.Empty : "上游回應成功，但內容為空。",
-                ModelName = modelName,
+                Success = true,
+                ModelName = outcome?.ModelName ?? settings.Model,
                 EndpointHost = endpointHost,
                 ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // 呼叫端主動放棄（例如使用者離開頁面）。不是故障，比照既有慣例不記帳；
-            // 但請求可能已經送出，AI 對話紀錄照記（沒送出的由 capture.Sent 擋掉）。
+            // 呼叫端主動放棄（例如使用者離開頁面）。不是故障，比照既有慣例不記帳。
             stopwatch.Stop();
-            capture.SetOutcome(false, AiAnalysisFailureReason.Canceled.ToString());
-            return new AiHealthProbeResult
-            {
-                IsConfigured = true,
-                Success = false,
-                Message = "已取消本次探測。",
-                ModelName = settings.Model,
-                EndpointHost = endpointHost,
-                ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
-            };
+            return Failed("已取消本次探測。");
+        }
+        catch (AiCallException ex)
+        {
+            stopwatch.Stop();
+            logger.LogError(
+                "AI health probe failed. Reason={Reason}, StatusCode={StatusCode}, ElapsedMs={ElapsedMs}",
+                ex.Reason,
+                ex.HttpStatus,
+                stopwatch.ElapsedMilliseconds);
+
+            return Failed(DescribeFailure(ex));
         }
         catch (Exception ex)
         {
-            // 逾時（TaskCanceledException）、傳輸失敗（HttpRequestException）與其餘意外
-            // 一律收斂在這裡：健康檢查的單一項目絕不能讓整份報告掛掉。
+            // 健康檢查的單一項目絕不能讓整份報告掛掉。
             stopwatch.Stop();
-            var timedOut = ex is OperationCanceledException;
-            capture.ExceptionType = ex.GetType().Name;
-
-            logger.LogError(
-                ex,
-                "AI health probe failed. TimedOut={TimedOut}, ElapsedMs={ElapsedMs}",
-                timedOut,
-                stopwatch.ElapsedMilliseconds);
-
-            await RecordAsync(
-                capture, settings, settings.Model, null, null, stopwatch, false, timedOut ? "Timeout" : "TransportError");
-
-            return new AiHealthProbeResult
-            {
-                IsConfigured = true,
-                Success = false,
-                Message = timedOut
-                    ? $"探測逾時（超過 {ProbeTimeout.TotalSeconds:N0} 秒）。"
-                    : $"無法連線到 AI 服務（{ex.GetType().Name}）。",
-                ModelName = settings.Model,
-                EndpointHost = endpointHost,
-                ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
-            };
+            logger.LogError(ex, "AI health probe failed unexpectedly. ElapsedMs={ElapsedMs}", stopwatch.ElapsedMilliseconds);
+            return Failed($"無法連線到 AI 服務（{ex.GetType().Name}）。");
         }
-        finally
+
+        AiHealthProbeResult Failed(string message) => new()
         {
-            await AiCallCapture.RecordSafelyAsync(aiCallLogRecorder, capture, stopwatch.Elapsed, logger);
-        }
+            IsConfigured = true,
+            Success = false,
+            Message = message,
+            ModelName = settings.Model,
+            EndpointHost = endpointHost,
+            ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
+        };
     }
 
     /// <summary>
-    /// 把這次探測記進「Token 用量」。
-    ///
-    /// 專案慣例（開發慣例與限制速查 §6.6）：每一個發出 LLM API 呼叫的地方都必須記一筆，
-    /// 成功與失敗都要記，否則 Token 用量頁會漏帳。只有「未設定」與「呼叫端取消」免記。
-    /// 記錄本身絕不影響探測結果（TokenUsageLogService 內部已全程吞例外）。
-    /// 同時把結果寫到 <paramref name="capture"/>，兩邊以同一個 CallId 關聯。
+    /// 健康頁的簡述。⚠️ 只取 HTTP 狀態與 error.code，絕不把上游 body 放進訊息。
     /// </summary>
-    private async Task RecordAsync(
-        AiCallCapture capture,
-        AiSettings settings,
-        string? modelName,
-        AiTokenUsage? usage,
-        string? rawUsageJson,
-        Stopwatch stopwatch,
-        bool success,
-        string? failureReason)
+    private static string DescribeFailure(AiCallException ex)
     {
-        var user = currentUserService.CurrentUser;
-
-        capture.SetOutcome(success, failureReason);
-
-        await tokenUsageRecorder.RecordAsync(new TokenUsageEntry
+        if (ex.Reason == AiAnalysisFailureReason.EmptyResponse)
         {
-            Operation = TokenUsageOperations.SystemHealthCheck,
-            CallKind = TokenUsageCallKinds.Chat,
-            Provider = settings.GetProvider().ToString(),
-            Model = string.IsNullOrWhiteSpace(modelName) ? settings.Model : modelName,
-            Account = string.IsNullOrWhiteSpace(user.Account) ? null : user.Account,
-            UserId = user.Id == 0 ? null : user.Id,
-            InputCount = usage?.InputCount,
-            OutputCount = usage?.OutputCount,
-            TotalCount = usage?.TotalCount,
-            CachedInputCount = usage?.CachedInputCount,
-            ReasoningCount = usage?.ReasoningCount,
-            ElapsedMilliseconds = stopwatch.ElapsedMilliseconds,
-            Success = success,
-            FailureReason = failureReason,
-            RawUsageJson = rawUsageJson,
-            CallId = capture.CallId,
-        });
+            return "上游回應成功，但內容為空。";
+        }
+
+        if (ex.Reason == AiAnalysisFailureReason.Timeout)
+        {
+            return $"探測逾時（超過 {ProbeTimeout.TotalSeconds:N0} 秒）。";
+        }
+
+        if (ex.HttpStatus is int status)
+        {
+            var code = string.IsNullOrEmpty(ex.Upstream.Code) ? string.Empty : $"（{ex.Upstream.Code}）";
+            return $"上游回應 HTTP {status}{code}。";
+        }
+
+        return $"無法連線到 AI 服務（{ex.ExceptionType ?? ex.GetType().Name}）。";
     }
 }
