@@ -1,10 +1,10 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.18
+- 文件版本：1.19
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.140
 - 首次實作版本：0.4.26
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/02
 
 ## 一、目標與範圍
 
@@ -124,7 +124,8 @@
 4. 匯出時將結果的 `Raw` 以換行串接，加上 BOM 後透過 `DotNetStreamReference` 經 SignalR circuit 串流給瀏覽器，由 `wwwroot/js/file-download.js` 組成 Blob 觸發下載；並寫一筆 `LogViewer.Export` 稽核（0.9.78 起，只記筆數）。
 5. AI 分析時 `AiLogPromptBuilder` 只做一道處理 —— 取最新 N 筆（`MaxEntries`），
    內容原封不動（0.9.7 起沒有任何字元上限，理由見 [AI 日誌分析](../features/AI日誌分析.md)），交由
-   `IAiLogAnalysisService` 以 named `HttpClient` 呼叫 Chat Completions。回傳的 Markdown 經
+   `IAiLogAnalysisService` 經共用核心 `IAiChatCompletionClient` 呼叫 Chat Completions（0.9.140 起由 `IAiAgentFactory`
+   建立的 MAF agent 經 OpenAI 官方 SDK 與 named `HttpClient` 送出）。回傳的 Markdown 經
    `AiMarkdownRenderer` 的安全管線轉成 HTML 後才以 `MarkupString` 呈現。PDF 由
    `AiReportPdfBuilder`（PDFsharp + MigraDoc）產生，走與日誌匯出相同的下載機制，
    只是多帶了 `application/pdf` 這個 content type。每次分析與每次 PDF 匯出各寫一筆
@@ -181,7 +182,7 @@
 那個優化的原因（見第五節），該測試與執行時刻無關，修正前必紅。
 快速區間與「查前後 1 分鐘」的區間計算（0.9.111）由 `MyProject.Tests/LogTimeRangesTests.cs`（3 支：`Last_ShouldEndAtNowAndStartSpanEarlier`、`Today_ShouldStartAtMidnightAndEndAtNow`、`Around_ShouldSpanOneMinuteEachSide`）守住。
 
-AI 分析對應八個測試檔（0.9.4 起；部分與 AI 例外分析共用，現行共 118 個測試方法）：`AiSettingsTests`、`AiChatEndpointTests`、
+AI 分析對應八個測試檔（0.9.4 起；部分與 AI 例外分析共用，現行共 116 個測試方法；0.9.140 起 `AiChatEndpointTests` 刪去兩支標頭測試，認證標頭改由 `AiLogAnalysisServiceTests` 在線路層斷言）：`AiSettingsTests`、`AiChatEndpointTests`、
 `AiLogPromptBuilderTests`、`AiChatResponseParserTests`、`AiMarkdownRendererTests`、
 `AiLogAnalysisServiceTests`、`AiReportPdfBuilderTests`、`AiModalStyleConventionTests`（0.9.8）。
 其中五支是安全、成本與行為的守門測試，壞了不要改測試：

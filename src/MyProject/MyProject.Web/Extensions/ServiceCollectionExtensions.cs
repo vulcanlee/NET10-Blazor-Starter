@@ -73,6 +73,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LogLevelRuntimeState>();
         services.AddScoped<INLogFilePathResolver, NLogFilePathResolver>();
         services.AddScoped<ILogQueryService, LogQueryService>();
+        // 所有 LLM 呼叫一律經由這裡建立的 MAF agent（0.9.140 起），記帳與 AI 對話紀錄都掛在它的管線上。
+        services.AddScoped<IAiAgentFactory, AiAgentFactory>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
         services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
@@ -88,13 +90,10 @@ public static class ServiceCollectionExtensions
         //    handler 仍由工廠池化。
         // 3. retry 刻意不做：這是使用者主動觸發的單次動作，失敗讓他再按一次即可。
         //    自動重試只會讓成本加倍，還會掩蓋「設定錯誤」這種重試永遠不會好的問題。
-        services.AddHttpClient(AiChatCompletionClient.HttpClientName, (serviceProvider, client) =>
-        {
-            // 在 CreateClient 時（而非註冊時）讀設定，這樣改 appsettings 不必重啟，
-            // 也不會像急切讀取那樣讓測試的組態覆寫失效。
-            var settings = serviceProvider.GetRequiredService<IOptionsMonitor<AiSettings>>().CurrentValue;
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120);
-        });
+        //    （0.9.140 起由 OpenAI SDK 送出，SDK 自己的重試也在 AiAgentFactory 關掉了。）
+        // 4. 逾時設為無限（0.9.140 起）：改由 AiAccountingChatClient 以 CancelAfter 控管每一次模型呼叫，
+        //    這樣才分得出「使用者取消」與「逾時」，健康探測也能有自己的短逾時。
+        services.AddHttpClient(AiAgentFactory.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddScoped<IDatabaseUsageService, DatabaseUsageService>();
         services.AddScoped<IHealthLogReader, HealthLogReader>();
         services.AddScoped<ISystemHealthService, SystemHealthService>();
@@ -219,7 +218,7 @@ public static class ServiceCollectionExtensions
         // 費用計算器：由 TokenUsageLogService 在寫入前呼叫，呼叫端不必知道它的存在。
         services.AddScoped<IAiUsageCostCalculator, AiUsageCostCalculator>();
         services.AddScoped<TokenUsageLogService>();
-        // AI 用量上限（0.9.109 起）：送出前檢查（AiChatCompletionClient）、記帳後提醒（TokenUsageLogService）。
+        // AI 用量上限（0.9.109 起）：每次模型呼叫前檢查（AiAccountingChatClient，0.9.140 起）、記帳後提醒（TokenUsageLogService）。
         services.AddScoped<IAiQuotaService, AiQuotaService>();
         // 轉發到同一個實例：呼叫端只依賴 ITokenUsageRecorder（只有記錄），
         // 頁面才用得到完整的 TokenUsageLogService（查詢、統計、刪除）。

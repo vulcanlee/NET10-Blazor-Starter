@@ -78,12 +78,10 @@ public sealed class AiCallCaptureTests
     }
 
     [Fact]
-    public void Constructor_ShouldStripQueryStringFromEndpoint_AndNormalizeAnonymousUser()
+    public void SetRequest_ShouldStripQueryStringFromEndpoint_AndConstructorNormalizesAnonymousUser()
     {
-        var capture = new AiCallCapture(
-            "作業", "OpenAI", "gpt-a", " ", 0,
-            new Uri("https://example.invalid:8443/v1/chat/completions?api-key=secret"),
-            "{}", null, null);
+        var capture = new AiCallCapture("作業", "OpenAI", "gpt-a", " ", 0, null, null);
+        capture.SetRequest(new Uri("https://example.invalid:8443/v1/chat/completions?api-key=secret"), "{}");
 
         Assert.Equal("https://example.invalid:8443/v1/chat/completions", capture.Endpoint);
         Assert.Null(capture.Account);
@@ -119,10 +117,12 @@ public sealed class AiCallCaptureTests
         => Assert.Null(AiCallLogMessages.Parse(body));
 
     private static AiCallCapture Create()
-        => new(
-            TokenUsageOperations.AiLogAnalysis, "AzureOpenAI", "gpt-a", "support", 7,
-            new Uri("https://example.invalid/openai/v1/chat/completions"),
-            "{}", "日誌 …", null);
+    {
+        var capture = new AiCallCapture(
+            TokenUsageOperations.AiLogAnalysis, "AzureOpenAI", "gpt-a", "support", 7, "日誌 …", null);
+        capture.SetRequest(new Uri("https://example.invalid/openai/v1/chat/completions"), "{}");
+        return capture;
+    }
 
     private static class NullLoggerFor
     {

@@ -1,10 +1,10 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：2.1
+- 文件版本：2.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.140
 - 首次實作版本：0.9.14
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/02
 
 ## 一、目標與範圍
 
@@ -218,20 +218,23 @@ LLM 呼叫點（發出 HTTP 的那一層）
 
 **⚠️ 記錄點必須放在發出 HTTP 的那一層，不可放畫面層** —— 原始 usage、實際模型名稱與耗時，
 回到畫面之前就已經丟失了。目前的呼叫點是 `AiChatCompletionClient.CompleteAsync`（0.9.68 起由 AI 日誌分析與
-AI 例外分析共用）與 `AiHealthProbe.ProbeAsync`。
+AI 例外分析共用）與 `AiHealthProbe.ProbeAsync`；0.9.140 起兩者都經 `IAiAgentFactory` 建立的 MAF agent 送出，
+實際的記錄點是 agent 管線上的記帳中介層 `AiAccountingChatClient`（每一次模型呼叫記一筆），
+見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
 
 **不需要佇列與背景寫入器**（與系統例外紀錄不同）：LLM 呼叫是使用者主動觸發、一次數秒到數分鐘，
 多一次幾毫秒的資料庫寫入可忽略。
 
 ### 4.2 新增 LLM 呼叫點的擴充方式
 
-1. 注入 `ITokenUsageRecorder`
-2. 在 `TokenUsageOperations`／`TokenUsageCallKinds` 登記常數
-3. 拿到 API 回應後呼叫一次 `RecordAsync`
+0.9.140 起新呼叫點一律經 `IAiChatCompletionClient` 或 `IAiAgentFactory` 建立的 agent 送出，
+記帳中介層會自動呼叫 `ITokenUsageRecorder.RecordAsync`；呼叫端只要在 `TokenUsageOperations` 登記作業名稱常數，
+並在 `AiCallContext`（或 `AiChatCompletionRequest`）帶上 `Operation`。⚠️ 不要自己 `new OpenAIClient`、另建 `IChatClient`
+或直接用 `HttpClient` 打 API —— 那會繞過記帳（[速查表 §6.7](../architecture/開發慣例與限制速查.md)）。
 
 該次呼叫就會自動出現在本頁與所有統計頁籤上，不需要改頁面；費用也會自動算好，
 呼叫端不必知道計算器的存在。0.9.109 起有費用的紀錄也會計入 AI 用量上限並觸發 80%／100% 通知；
-但**送出前的上限檢查在 `AiChatCompletionClient`**，自己發 HTTP 的新呼叫點要先呼叫 `IAiQuotaService.CheckAsync`，否則不會被擋。
+**送出前的上限檢查也在記帳中介層**（每一次模型呼叫前），健康探測以 `AiCallContext.EnforceQuota = false` 略過。
 
 ⚠️ 但**要記得在 `AiPricingSettings.Models` 補上該模型的費率**，否則那些呼叫會全部
 記成「未定價」（有筆數、沒金額）。見 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md)。
@@ -342,7 +345,7 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 - `MyProject.Models/Systems/TokenUsageModels.cs`、`AdapterModel/TokenUsageLogAdapterModel.cs`
 - `MyProject.Business/Services/DataAccess/ITokenUsageRecorder.cs`、`TokenUsageLogService.cs`
 - `MyProject.Business/Services/Other/TokenUsageRawStore.cs`
-- `MyProject.Web/Ai/AiChatCompletionClient.cs`（記錄點，0.9.68 起）、`AiChatResponseParser.ExtractUsageJson`
+- `MyProject.Web/Ai/AiAccountingChatClient.cs`（記錄點，0.9.140 起；0.9.68～0.9.139 為 `AiChatCompletionClient.cs`）、`AiChatResponseParser.ExtractUsageJson`
 - `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs`、`Ai/TokenUsageTrendChart.cs`、`Diagnostics/TokenUsageFormat.cs`
 - `MyProject.Web/Scheduling/Jobs/TokenUsageLogRetentionJob.cs`（自動清除）
 - `MyProject.Web/Components/Pages/Analytics/TokenUsagePage.razor`、

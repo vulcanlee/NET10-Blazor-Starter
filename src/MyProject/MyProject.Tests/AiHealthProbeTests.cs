@@ -92,7 +92,8 @@ public sealed class AiHealthProbeTests
 
         var logged = Assert.Single(callLog.Entries);
         Assert.False(logged.Success);
-        Assert.Equal("TransportError", logged.FailureReason);
+        // 0.9.140 起探測與分析共用記帳中介層，連線失敗統一記為 UpstreamError（原本探測自己記 TransportError）。
+        Assert.Equal(nameof(AiAnalysisFailureReason.UpstreamError), logged.FailureReason);
         Assert.Equal(nameof(HttpRequestException), logged.ExceptionType);
     }
 
@@ -169,7 +170,7 @@ public sealed class AiHealthProbeTests
     {
         var recorder = new FakeRecorder();
 
-        var probe = new AiHealthProbe(
+        var probe = AiTestAgents.CreateProbe(
             NullLogger<AiHealthProbe>.Instance,
             new StubHttpClientFactory(handler),
             new StaticOptionsMonitor<AiSettings>(settings),

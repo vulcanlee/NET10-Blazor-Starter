@@ -1,10 +1,10 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.140
 - 首次實作版本：0.9.72
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/02
 
 ## 一、目標與範圍
 
@@ -49,6 +49,9 @@
 | AI 例外分析 | `AiChatCompletionClient`（經 `AiExceptionAnalysisService`）| 同上 | 第一次：「例外紀錄 #id（例外類型）」；追問：「例外紀錄 #id，追問第 n 輪」|
 | 系統健康檢測 | `AiHealthProbe` | 同上 | 「系統健康監控 AI 連線探測」|
 
+0.9.140 起三個呼叫點都經 `IAiAgentFactory` 建立的 MAF agent 送出，實際寫入本功能的是 agent 管線上的記帳中介層
+`AiAccountingChatClient`（單一 `finally`）；請求與回應原文由 SDK 管線原則 `AiHttpCapturePolicy` 擷取。見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
+
 AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `ExceptionAiAnalysisModal` 開窗時產生，經 `AiExceptionCallContext`
 傳給無狀態的服務），明細窗會列出同一段對話的所有呼叫。本專案的追問與第一次分析共用作業名稱「AI 例外分析」，以關聯說明區分輪數。
 
@@ -63,7 +66,7 @@ AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `E
 
 | 項目 | 說明 |
 |---|---|
-| 原始請求 | `AiChatRequestFactory` 產生的 JSON，**逐字**保存（中文為 `\uXXXX`，畫面另行排版）。**不含 HTTP 標頭與金鑰** |
+| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析）。**不含 HTTP 標頭與金鑰** |
 | 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null |
 | 解析後的回應文字 | `choices[0].message.content` |
 | 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、CallId |
@@ -143,6 +146,7 @@ Token 用量明細窗新增「AI 對話紀錄」列：
 | 記錄、停用、寫檔失敗、截斷、DB 失敗不丟例外、篩選、排序分頁、明細（訊息／用量／對話）、刪除、清除、清空、過期與孤兒目錄 | `AiCallLogServiceTests` |
 | 結果預設值、送出旗標、記錄失敗不外拋、端點去除查詢字串、訊息解析 | `AiCallCaptureTests` |
 | 成功／錯誤 body／逾時／傳輸失敗／取消／非預期錯誤／未設定不記、CallId 與 Token 用量一致、內容不含金鑰、recorder 丟例外不影響結果 | `AiChatCompletionClientTests`、`AiLogAnalysisServiceTests`、`AiHealthProbeTests` |
+| SDK 產生的請求 body 仍能解析成訊息、自己的逾時記一筆（0.9.140 起） | `AiAgentPipelineTests` |
 | 例外分析與追問共用 ConversationId、RelatedInfo | `AiExceptionAnalysisServiceTests` |
 | PDF 產出、中繼資料、角色標示 | `AiCallLogPdfBuilderTests` |
 | 設定預設值與範圍 | `AiCallLogSettingsTests` |

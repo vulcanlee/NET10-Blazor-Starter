@@ -6,8 +6,10 @@ namespace MyProject.Web.Ai;
 /// <summary>
 /// 一次 AI 呼叫的「AI 對話紀錄」擷取狀態（0.9.72 起）。
 ///
-/// 用法：送出前建立並呼叫 <see cref="MarkSent"/>；各分支填入回應與結果；
-/// 在呼叫點的<b>單一 <c>finally</c></b> 裡呼叫 <see cref="RecordSafelyAsync"/>。
+/// 用法（0.9.140 起）：<see cref="AiAccountingChatClient"/> 在每一次模型呼叫前建立；
+/// SDK 管線上的 <see cref="AiHttpCapturePolicy"/> 在真正送出時呼叫 <see cref="SetRequest"/> 與
+/// <see cref="MarkSent"/>、收到回應後填入狀態與原文；各分支填入結果；
+/// 在記帳中介層的<b>單一 <c>finally</c></b> 裡呼叫 <see cref="RecordSafelyAsync"/>。
 /// 這樣連非預期例外與使用者取消都會留下紀錄，而「設定不完整、根本沒送出」不會。
 ///
 /// ⚠️ 只擷取請求 body 與回應，<b>絕不碰 HTTP 標頭</b> —— API 金鑰只在單次請求的標頭上。
@@ -23,8 +25,6 @@ internal sealed class AiCallCapture
         string requestedModel,
         string? account,
         int? userId,
-        Uri endpoint,
-        string requestBody,
         string? relatedInfo,
         Guid? conversationId)
     {
@@ -33,8 +33,6 @@ internal sealed class AiCallCapture
         RequestedModel = requestedModel;
         Account = string.IsNullOrWhiteSpace(account) ? null : account;
         UserId = userId == 0 ? null : userId;
-        Endpoint = DescribeEndpoint(endpoint);
-        RequestBody = requestBody;
         RelatedInfo = relatedInfo;
         ConversationId = conversationId;
     }
@@ -53,9 +51,9 @@ internal sealed class AiCallCapture
 
     public int? UserId { get; }
 
-    public string Endpoint { get; }
+    public string Endpoint { get; private set; } = string.Empty;
 
-    public string RequestBody { get; }
+    public string RequestBody { get; private set; } = string.Empty;
 
     public string? RelatedInfo { get; }
 
@@ -76,7 +74,14 @@ internal sealed class AiCallCapture
 
     public string? ExceptionType { get; set; }
 
-    /// <summary>緊接在 <c>SendAsync</c> 之前呼叫。</summary>
+    /// <summary>填入實際送出的位址與請求 body（由 SDK 管線在送出前呼叫）。</summary>
+    public void SetRequest(Uri endpoint, string requestBody)
+    {
+        Endpoint = DescribeEndpoint(endpoint);
+        RequestBody = requestBody;
+    }
+
+    /// <summary>緊接在真正送出 HTTP 之前呼叫。</summary>
     public void MarkSent() => Sent = true;
 
     /// <summary>設定這次呼叫的結果。從未設定時視為非預期失敗（Unexpected）。</summary>

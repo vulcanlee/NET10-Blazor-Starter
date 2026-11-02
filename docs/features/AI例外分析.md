@@ -1,10 +1,10 @@
 ﻿# AI 例外分析
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.140
 - 首次實作版本：0.9.68
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/02
 
 「系統例外紀錄」（`/system-exceptions`，管理員專屬）的「例外明細」窗上方有一顆「AI 分析」按鈕。
 按下後，系統把這個明細窗的內容送給 AI（Azure OpenAI／OpenAI Chat Completions），在一個幾乎滿版的
@@ -34,7 +34,7 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
 **視窗不保存**：報告與對話只存在元件記憶體，關掉 AI 視窗就丟棄（等待中關窗同時取消在途請求）。
 要留存請複製或下載 PDF。
 
-**AI 對話紀錄**（0.9.72 起）：每一次送出的呼叫（含取消的）另由 `AiChatCompletionClient` 記進管理員專屬的
+**AI 對話紀錄**（0.9.72 起）：每一次送出的呼叫（含取消的）另由記帳中介層 `AiAccountingChatClient`（0.9.140 起；之前為 `AiChatCompletionClient`）記進管理員專屬的
 [AI 對話紀錄](../prd/AI對話紀錄-prd.md)。窗內開窗時產生一個 `ConversationId`，經 `AiExceptionCallContext`
 傳給 `AiExceptionAnalysisService.AskAsync`，第一次分析與每一輪追問因此串成同一段對話；
 關聯說明為「例外紀錄 #id（類型）」／「例外紀錄 #id，追問第 n 輪」。這份情境只用於紀錄，不送交 AI。
@@ -78,10 +78,17 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
 0.9.68 起，HTTP 呼叫、錯誤對應與 Token 用量記錄從 `AiLogAnalysisService` 抽成
 `IAiChatCompletionClient`／`AiChatCompletionClient`，AI 日誌分析與 AI 例外分析共用：
 
+0.9.140 起 `AiChatCompletionClient` 的底層改走 Microsoft Agent Framework，介面與行為不變
+（見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)）：
+
 ```
 AiLogAnalysisService ─┐
-                      ├─→ AiChatCompletionClient ─→ named HttpClient「AiChatCompletions」
-AiExceptionAnalysisService ┘        └─→ ITokenUsageRecorder（成功與失敗都記；取消與設定不完整不記）
+                      ├─→ AiChatCompletionClient ─→ IAiAgentFactory 建立的 MAF agent
+AiExceptionAnalysisService ┘
+      ─→ AiAccountingChatClient（記帳中介層：用量上限、逾時、錯誤對應）
+            ├─→ ITokenUsageRecorder（成功與失敗都記；取消與設定不完整不記）
+            ├─→ IAiCallLogRecorder（AI 對話紀錄）
+            └─→ OpenAI 官方 SDK ─→ named HttpClient「AiChatCompletions」
 ```
 
 - `AiChatCompletionRequest` 帶 `Operation`（用量作業名稱）、完整 `Messages`，以及三段由呼叫端決定措辭的
@@ -89,7 +96,8 @@ AiExceptionAnalysisService ┘        └─→ ITokenUsageRecorder（成功與�
   同一種上游錯誤，日誌分析要說「縮小時間區間」，例外分析沒有範圍可縮。
 - 回傳 `AiAnalysisResult`（`Prompt` 由日誌分析以 `with` 補上）。
 - 用量作業名稱：`TokenUsageOperations.AiExceptionAnalysis = "AI 例外分析"`，初始分析與每一輪追問都記在這個名稱下。
-- 應用程式日誌的記錄器改為 `MyProject.Web.Ai.AiChatCompletionClient`，訊息帶 `Operation=`。
+- 應用程式日誌的記錄器改為 `MyProject.Web.Ai.AiChatCompletionClient`（0.9.140 起呼叫層級的訊息改由
+  `MyProject.Web.Ai.AiAccountingChatClient` 寫），訊息帶 `Operation=`。
 - PDF 同理：樣式、頁首頁尾與 Markdown→MigraDoc 渲染抽成 `AiMarkdownPdfRenderer`，
   `AiReportPdfBuilder`（日誌）與 `AiExceptionReportPdfBuilder`（例外）共用。
 
@@ -114,7 +122,8 @@ AiExceptionAnalysisService ┘        └─→ ITokenUsageRecorder（成功與�
 
 | 檔案 | 職責 |
 |------|------|
-| `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 共用核心：HTTP、錯誤對應、**Token 用量的記錄點** |
+| `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 共用核心：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult` |
+| `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應、**Token 用量與 AI 對話紀錄的記錄點** |
 | `MyProject.Web/Ai/AiExceptionAnalysisService.cs` | 例外分析服務：前置 system prompt、追問上限、情境化錯誤訊息 |
 | `MyProject.Web/Ai/AiExceptionPromptBuilder.cs` | 明細欄位與第一則使用者訊息（不含帳號） |
 | `MyProject.Web/Ai/AiExceptionPromptDefaults.cs` | 系統提示詞的內建預設（分析指示）；固定規則在 `AiPromptGuardrails.cs`，組成在 `AiSystemPromptProvider.cs`（0.9.108 起） |
@@ -128,7 +137,7 @@ AiExceptionAnalysisService ┘        └─→ ITokenUsageRecorder（成功與�
 
 | 測試 | 守什麼 |
 |---|---|
-| `AiChatRequestFactoryTests` | 多訊息 body 依序輸出；舊多載輸出與新多載一字不差 |
+| `AiAgentPipelineTests` | SDK 產生的多訊息 body 依序、仍能由 `AiCallLogMessages.Parse` 解析；SDK 不重試；Azure 送 `api-key`（0.9.140 起） |
 | `AiChatCompletionClientTests` | 多訊息、呼叫端作業名稱、呼叫端的內容視窗訊息、取消不記用量、設定不完整不發請求 |
 | `AiExceptionPromptBuilderTests` | 所有明細欄位與堆疊都在；⭐ 帳號／UserId／Signature／堆疊檔名不外送；堆疊缺失；LF |
 | `AiExceptionAnalysisServiceTests` | system prompt 置首、作業名稱、⭐ 超過追問上限不發請求、設定不完整不發請求 |

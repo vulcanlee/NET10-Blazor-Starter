@@ -163,7 +163,9 @@ public sealed class AiLogAnalysisServiceTests
         using var document = JsonDocument.Parse(handler.RequestBodies.Single());
 
         Assert.False(document.RootElement.TryGetProperty("max_completion_tokens", out _));
-        Assert.False(document.RootElement.GetProperty("stream").GetBoolean());
+        // 0.9.140 起由 OpenAI SDK 送出：非串流時 SDK 直接省略 stream 欄位（預設即不串流），
+        // 與 0.9.139 以前明寫 false 語意相同。這裡守的是「絕不能變成串流」。
+        Assert.False(document.RootElement.TryGetProperty("stream", out var stream) && stream.GetBoolean());
         Assert.False(document.RootElement.TryGetProperty("max_tokens", out _));
     }
 
@@ -732,7 +734,7 @@ public sealed class AiLogAnalysisServiceTests
         // 讓本檔的斷言照舊守住日誌分析的端到端行為。
         var service = new AiLogAnalysisService(
             optionsMonitor,
-            new AiChatCompletionClient(
+            AiTestAgents.CreateChatClient(
                 NullLogger<AiChatCompletionClient>.Instance,
                 new StubHttpClientFactory(handler),
                 optionsMonitor,

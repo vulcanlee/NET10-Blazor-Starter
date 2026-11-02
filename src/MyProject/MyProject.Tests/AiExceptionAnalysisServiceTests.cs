@@ -197,7 +197,7 @@ public sealed class AiExceptionAnalysisServiceTests
         var optionsMonitor = new StaticOptionsMonitor<AiSettings>(settings);
         var service = new AiExceptionAnalysisService(
             optionsMonitor,
-            new AiChatCompletionClient(
+            AiTestAgents.CreateChatClient(
                 NullLogger<AiChatCompletionClient>.Instance,
                 new StubHttpClientFactory(handler),
                 optionsMonitor,

@@ -3,14 +3,14 @@ using MyProject.Web.Configuration;
 namespace MyProject.Web.Ai;
 
 /// <summary>
-/// Azure OpenAI 與 OpenAI 的位址與認證差異全部收斂在此，且刻意做成純函式
-/// —— 這是兩家唯一真正不同的地方，抽出來才測得到（不必真的打 API）。
+/// Azure OpenAI 與 OpenAI 的位址差異全部收斂在此，且刻意做成純函式，不必真的打 API 就測得到。
 ///
-/// <para>Azure 走的是 <b>v1 API</b>：<c>POST {Endpoint}/chat/completions</c>
-/// 搭配標頭 <c>api-key: {ApiKey}</c>，部署名稱放在請求 body 的 <c>model</c> 欄位。
+/// <para>0.9.140 起實際的 HTTP 由 OpenAI 官方 SDK（經 Microsoft Agent Framework）送出，
+/// 這裡只負責產出 SDK 要的 <b>base URI</b>，SDK 再接上 <c>/chat/completions</c>：</para>
+/// <para>Azure 走 <b>v1 API</b>：<c>{Endpoint}/openai/v1</c>，認證改掛 <c>api-key</c> 標頭
+/// （見 <see cref="AzureApiKeyPolicy"/>），部署名稱放在請求 body 的 <c>model</c> 欄位，
 /// v1 路徑採隱含版本，<b>不需要 api-version 查詢參數</b>。</para>
-/// <para>OpenAI：<c>POST {Endpoint}/v1/chat/completions</c>
-/// 搭配標頭 <c>Authorization: Bearer {ApiKey}</c>。</para>
+/// <para>OpenAI：<c>{Endpoint}/v1</c>，認證是 SDK 預設的 <c>Authorization: Bearer {ApiKey}</c>。</para>
 ///
 /// <para>
 /// ⚠️ 刻意<b>不</b>支援 Azure 的傳統路徑（網址含 deployments 與 api-version 的那種）。
@@ -29,7 +29,11 @@ public static class AiChatEndpoint
     /// <summary>OpenAI 的路徑後綴。官方文件的 <c>base_url</c> 就是帶著它的形式。</summary>
     public const string OpenAiV1Suffix = "/v1";
 
-    public static AiChatEndpointDescriptor Create(AiSettings settings)
+    /// <summary>
+    /// SDK 用的 base URI（不含 <c>/chat/completions</c>，結尾不帶斜線）。
+    /// 呼叫前必須先通過 <see cref="Validate"/>。
+    /// </summary>
+    public static Uri GetBaseUri(AiSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
@@ -38,18 +42,7 @@ public static class AiChatEndpoint
             ? (provider == AiProvider.OpenAI ? DefaultOpenAiEndpoint : string.Empty)
             : settings.Endpoint.Trim().TrimEnd('/');
 
-        if (provider == AiProvider.OpenAI)
-        {
-            return new AiChatEndpointDescriptor(
-                new Uri($"{EnsureSuffix(baseUrl, OpenAiV1Suffix)}/chat/completions"),
-                "Authorization",
-                $"Bearer {settings.ApiKey}");
-        }
-
-        return new AiChatEndpointDescriptor(
-            new Uri($"{EnsureSuffix(baseUrl, AzureV1Suffix)}/chat/completions"),
-            "api-key",
-            settings.ApiKey);
+        return new Uri(EnsureSuffix(baseUrl, provider == AiProvider.OpenAI ? OpenAiV1Suffix : AzureV1Suffix));
     }
 
     /// <summary>

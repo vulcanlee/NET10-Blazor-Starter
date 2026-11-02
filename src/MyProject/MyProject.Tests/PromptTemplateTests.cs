@@ -357,7 +357,7 @@ public sealed class PromptTemplateTests : IDisposable
         });
         return new AiLogAnalysisService(
             options,
-            new AiChatCompletionClient(
+            AiTestAgents.CreateChatClient(
                 NullLogger<AiChatCompletionClient>.Instance,
                 new StubHttpClientFactory(handler),
                 options,

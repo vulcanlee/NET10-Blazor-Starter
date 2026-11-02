@@ -346,7 +346,7 @@ public sealed class AiQuotaTests : IDisposable
         var usage = new RecordingTokenUsageRecorder();
         var audit = new RecordingAuditLogService();
         var options = new StaticOptionsMonitor<AiSettings>(new AiSettings { Provider = nameof(AiProvider.OpenAI), ApiKey = "key", Model = "gpt-4o" });
-        var client = new AiChatCompletionClient(
+        var client = AiTestAgents.CreateChatClient(
             NullLogger<AiChatCompletionClient>.Instance,
             new StubHttpClientFactory(handler),
             options,

@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.140
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/02
 
 ## 文件目的
 
@@ -65,7 +65,7 @@
 | `Endpoint` | `""` | ✅ | Azure 必填；OpenAI 留空即用 `https://api.openai.com` |
 | `ApiKey` | `""` | ✅ | **必填，也是功能的開關** —— 沒填就停用 |
 | `Model` | `""` | ✅ | **必填**。Azure 填部署名稱，OpenAI 填模型 id |
-| `TimeoutSeconds` | `600` | ✅ | HTTP 逾時 10 分鐘。推論模型對上百筆日誌可能想很久 |
+| `TimeoutSeconds` | `600` | ✅ | 每次模型呼叫的逾時 10 分鐘（0.9.140 起由記帳中介層控管）。推論模型對上百筆日誌可能想很久 |
 | `MaxEntries` | `100` | ❌ | 送出最新的 100 筆；**這是唯一的送出量防線** |
 | `MaxFollowUpRounds` | `10` | ❌ | 只用於 [AI 例外分析](AI例外分析.md) 的追問輪數上限（0.9.68 起）；日誌分析不支援追問 |
 | `MaxOutputTokens` | `null` | ❌ | 不送 `max_completion_tokens`，由模型決定 |
@@ -144,7 +144,7 @@ Azure OpenAI 有兩套呼叫方式：
 v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，而且 `Endpoint` 直接貼入口網站
 給的值即可。手上是舊資源的人，請到 Azure 入口網站改用 v1 端點。
 
-程式在組網址時會**補上缺少的 `/openai/v1` 後綴**（`AiChatEndpoint.NormalizeAzureBaseUrl`），
+程式在組網址時會**補上缺少的 `/openai/v1` 後綴**（`AiChatEndpoint.GetBaseUri` 內的 `EnsureSuffix`；OpenAI 同理補 `/v1`），
 所以貼入口網站的完整值或只貼資源根網址都能用。少了那段路徑會 404，而 404 的訊息看不出
 是路徑不完整，所以這裡刻意補齊而不是讓它失敗。
 
@@ -201,7 +201,7 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 **沒有 `param` 欄位** —— 落到通用分支只會回一句代碼，看不出要做什麼，
 所以它有自己的具名分支。
 
-日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiChatCompletionClient`，0.9.68 前為 `AiLogAnalysisService`；
+日誌（`ERROR`，記錄器 `MyProject.Web.Ai.AiAccountingChatClient`，0.9.68～0.9.139 為 `AiChatCompletionClient`、0.9.68 前為 `AiLogAnalysisService`；
 訊息帶 `Operation=AI 日誌分析`）會記下 `StatusCode`、`ErrorCode`、**`ErrorParam`**、`ErrorType` 與 **`ErrorDetail`**。
 `ErrorParam` 是出問題的參數名稱，`ErrorDetail` 是上游的說明（已截斷至 300 字元）。
 
@@ -285,7 +285,7 @@ AI 分析後模型照做，管理員一點就發出對外請求；圖片版本�
 
 ### 6.1 金鑰與日誌內容不外洩
 
-- 金鑰只掛在單次 `HttpRequestMessage` 上，絕不設到 `HttpClient.DefaultRequestHeaders`。
+- 金鑰只掛在每次送出的請求上（0.9.140 起由 OpenAI SDK 送 `Authorization: Bearer`，Azure 由 `AzureApiKeyPolicy` 改送 `api-key`），絕不設到 `HttpClient.DefaultRequestHeaders`。
 - 錯誤訊息只能由固定中文字串加上上游的 `error.code` 組成，**絕不回吐上游回應 body**：
   body 可能夾帶整份提示詞，也就是日誌內容。
 - `AuditLog` 的 `Detail` 只寫數量、模型、用量與耗時，**不寫任何日誌內容或 AI 輸出**：
@@ -362,13 +362,15 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 | 檔案 | 職責 |
 |------|------|
 | `MyProject.Web/Configuration/AiSettings.cs` | 設定 POCO 與 provider 解析 |
-| `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的位址、認證標頭、路徑正規化與設定驗證 |
+| `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的 base URI（`GetBaseUri`，含路徑後綴補齊）與設定驗證 |
 | `MyProject.Web/Ai/AiLogPromptBuilder.cs` | 提示詞組裝（只有筆數上限一道） |
-| `MyProject.Web/Ai/AiChatRequestFactory.cs` | 請求 body 組裝 |
-| `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異）；`ExtractUsageJson` 只切出 `usage` 子物件 |
+| `MyProject.Web/Ai/AiAgentFactory.cs` | ★ 0.9.140 起建立 MAF agent 的唯一入口：組 OpenAI 官方 SDK（端點、不重試、逾時、傳輸、管線原則），請求 body 由 SDK 產生 |
+| `MyProject.Web/Ai/AiAccountingChatClient.cs` | ★ 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應；**Token 用量與 AI 對話紀錄的記錄點**（`ITokenUsageRecorder`／`IAiCallLogRecorder`）|
+| `MyProject.Web/Ai/AiPipelinePolicies.cs` | SDK 管線原則：`AiHttpCapturePolicy`（擷取請求／回應原文）、`AzureApiKeyPolicy`（Azure 改送 `api-key` 標頭）|
+| `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異），解析對象是 `AiHttpCapturePolicy` 擷取的回應原文；`ExtractUsageJson` 只切出 `usage` 子物件 |
 | `MyProject.Web/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線 |
 | `MyProject.Web/Ai/AiLogAnalysisService.cs` | 組日誌提示詞與日誌分析專屬的錯誤提示文字，交給共用核心 |
-| `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 0.9.68 起的共用核心（與 [AI 例外分析](AI例外分析.md) 共用）：HTTP 呼叫與錯誤對應；**Token 用量的記錄點**（`ITokenUsageRecorder`）|
+| `MyProject.Web/Ai/AiChatCompletionClient.cs` | 0.9.68 起的共用核心（與 [AI 例外分析](AI例外分析.md) 共用）：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult` |
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | 日誌分析 PDF 的標題、中介資訊與附錄 |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 轉 PDF 的極小渲染器（0.9.68 從上一列抽出）|
