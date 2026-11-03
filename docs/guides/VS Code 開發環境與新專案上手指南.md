@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.4
+- 文件版本：3.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.138
+- 現行系統版本：0.9.143
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/10/24
+- 最後核對日期：2026/11/03
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -102,6 +102,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | `C:\temp\MyProject\DB\BackendDB.db` | SQLite 資料庫 | `SystemSettings:ExternalFileSystem:DatabasePath` |
 | `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
 | `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
+| `C:\temp\MyProject\AiAgentConversation` | Agent 測試台保存的對話（0.9.143 起） | 同上區段的 `AiAgentConversationPath` |
 | `C:\temp\MyProject\Keys` | Data Protection 金鑰環（登入 Cookie 靠它解密，刪掉等於全站登出） | 同上區段的 `DataProtectionKeyPath` |
 | `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
 | `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |

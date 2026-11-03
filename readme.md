@@ -116,6 +116,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - AI 提示詞：管理員在畫面上修改日誌分析與例外分析的提示詞，存成版本、可切回；防注入與 PDF 格式規則固定附加、改不到（0.9.108）
 - AI 用量上限：全系統與每人的每日、每月新台幣上限（系統參數），達到時不再送出 AI 呼叫，80%／100% 通知本人或管理員；健康檢測記帳不擋（0.9.109）
 - Agent 骨架與 Agent 測試台：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型；新選單「AI 助理 › Agent 測試台」（`/agent-playground`，可授權給角色，不自動開給預設角色）以範例 Agent 搜尋專案、核准後修改專案描述（0.9.142）
+- Agent 對話保存：Agent 測試台的對話自動保存在左側「我的對話」，只有本人看得到，可以接續（AI 記得前文、停在核准的重新跳核准窗）、重新命名、刪除；最後一次對話超過保留天數（系統參數，預設 90 天）自動刪除，資料保留頁多一列「Agent 對話」，備份可選擇是否包含（0.9.143）
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
 - 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
 - 系統參數：`/system-parameters`，管理員在畫面上修改系統名稱、保留天數、監控與告警門檻、流量與忘記密碼限制，存檔即生效、不需重啟，每次修改寫稽核（0.9.98）
@@ -259,6 +260,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
 | `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.ExternalFileSystem.AiCallLogPath` | AI 對話紀錄的內容檔目錄（完整 Prompt／Response，0.9.72 起）。⚠️ 內容含日誌與例外堆疊，**絕不可放在 `DownloadPath` 底下**。 |
+| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 測試台保存的對話內容檔目錄（0.9.143 起）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
@@ -266,6 +268,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`，**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
+| `AiAgentConversationSettings` | Agent 對話（0.9.143 起）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `ExceptionAlertSettings` | 系統例外 Email 告警（0.9.78 起）：`Recipients`（預設空清單＝停用）、`BurstThreshold`／`BurstWindowMinutes`（暴增門檻，預設 20 次／10 分）、`PerSignatureCooldownMinutes`（預設 60）、`MaxEmailsPerHour`（預設 20）。需寄信已啟用。見 [日誌與設定檔說明 §4.12](docs/operations/日誌與設定檔說明.md)。 |
 | `SlowOperationSettings` | 慢操作門檻（0.9.79 起，毫秒，超過記 Warning，`0`＝停用）：`HttpRequestMs`（3000）、`DbCommandMs`（1000）、`ExternalCallMs`（寄信，10000）、`AiCallMs`（60000）。見 [日誌與設定檔說明 §4.13](docs/operations/日誌與設定檔說明.md)。 |

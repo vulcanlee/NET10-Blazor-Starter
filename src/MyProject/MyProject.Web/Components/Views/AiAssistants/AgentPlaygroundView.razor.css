@@ -1,10 +1,117 @@
-/* ===== Agent 測試台（0.9.142 起） ===== */
+/* ===== Agent 測試台（0.9.142 起；0.9.143 起左側「我的對話」） ===== */
 /* 顏色一律取 theme.css 的變數（ThemeConventionTests 守門）。泡泡樣式比照 AI 例外分析對話窗。 */
+
+.agent-playground-layout {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.agent-playground-sidebar {
+    flex: 0 0 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-card);
+    background: var(--app-card);
+}
+
+.agent-playground-sidebar-title {
+    font-size: 15px;
+    color: var(--app-text);
+}
+
+.agent-playground-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.agent-playground-list-item {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    border-radius: 6px;
+}
+
+.agent-playground-list-item:hover {
+    background: var(--app-row-hover);
+}
+
+.agent-playground-list-item-current {
+    background: var(--app-accent-soft);
+}
+
+.agent-playground-list-open {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.agent-playground-list-open:disabled {
+    cursor: not-allowed;
+}
+
+.agent-playground-list-title {
+    overflow: hidden;
+    color: var(--app-text);
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.agent-playground-list-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    color: var(--app-muted);
+    font-size: 12px;
+}
+
+.agent-playground-list-pending {
+    padding: 0 6px;
+    border: 1px solid var(--app-warn-line);
+    border-radius: var(--app-radius-pill);
+    background: var(--app-warn-bg);
+    color: var(--app-warn);
+}
+
+.agent-playground-list-actions {
+    display: flex;
+    flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+    .agent-playground-layout {
+        flex-direction: column;
+    }
+
+    .agent-playground-sidebar {
+        flex-basis: auto;
+        width: 100%;
+    }
+}
 
 .agent-playground {
     display: flex;
+    flex: 1;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
     max-width: 960px;
 }
 

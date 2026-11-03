@@ -32,7 +32,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
 
         Assert.Equal(
             ["deleted-project", "deleted-category", "deleted-team", "deleted-user", "deleted-role",
-             "exception-log", "token-usage", "ai-call-log", "audit-log", "notification", "backup", "job-run", "nlog", "announcement"],
+             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "audit-log", "notification", "backup", "job-run", "nlog", "announcement"],
             overview.Rows.Select(x => x.Key).ToArray());
         Assert.All(overview.Rows, row => Assert.Null(row.Error));
 
@@ -41,6 +41,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         Assert.Equal(ExceptionLogRetentionJob.JobName, JobOf("exception-log"));
         Assert.Equal(TokenUsageLogRetentionJob.JobName, JobOf("token-usage"));
         Assert.Equal(AiCallLogRetentionJob.JobName, JobOf("ai-call-log"));
+        Assert.Equal(AiAgentConversationRetentionJob.JobName, JobOf("agent-conversation"));
         Assert.Equal(AuditLogRetentionJob.JobName, JobOf("audit-log"));
         Assert.Equal(NotificationRetentionJob.JobName, JobOf("notification"));
         Assert.Equal(SystemBackupJob.JobName, JobOf("backup"));
@@ -75,6 +76,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
     [InlineData("exception-log")]
     [InlineData("token-usage")]
     [InlineData("ai-call-log")]
+    [InlineData("agent-conversation")]
     [InlineData("audit-log")]
     [InlineData("notification")]
     [InlineData("job-run")]
@@ -127,6 +129,9 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
                 break;
             case "ai-call-log":
                 db.AiCallLog.Add(new AiCallLog { CallId = Guid.NewGuid(), OccurredAt = old, Operation = "op", Provider = "p", Model = "m", Success = true });
+                break;
+            case "agent-conversation":
+                db.AiAgentConversation.Add(new AiAgentConversation { ConversationId = Guid.NewGuid(), UserId = 1, Account = "a", AgentName = "x", Title = tag, CreatedAt = old, UpdatedAt = old });
                 break;
             case "audit-log":
                 db.AuditLog.Add(new AuditLog { Action = AuditActions.Email.Test, OccurredAt = old, Success = true });

@@ -268,6 +268,7 @@ namespace MyProject.Web.Components.Views.Admins
             nameof(ExternalFileSystem.AuditContentPath) => "稽核內容",
             nameof(ExternalFileSystem.DataProtectionKeyPath) => "金鑰",
             nameof(ExternalFileSystem.AiCallLogPath) => "AI 對話內容",
+            nameof(ExternalFileSystem.AiAgentConversationPath) => "Agent 對話",
             _ => settingKey,
         };
 

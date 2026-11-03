@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.143
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/03
 
 ## 一、目標與範圍
 
@@ -104,7 +104,7 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 六、資料來源
 
-0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 134 個），呼叫點一律引用常數，
+0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 140 個），呼叫點一律引用常數，
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
@@ -140,6 +140,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger` |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
+| `AiAgentConversation.Delete` / `AiAgentConversation.Purge` / `AiAgentConversation.AutoPurge` | Agent 對話（0.9.143 起）：`AiAgentConversationService.DeleteAsync`（使用者刪自己的對話，detail `agent=…`）、「資料保留與清理」的自訂清除、排程作業「Agent 對話清理」（detail `rows=N; days=D; trigger=T`）；不記標題與內容，改標題不寫稽核 |
 | `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
 | `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |

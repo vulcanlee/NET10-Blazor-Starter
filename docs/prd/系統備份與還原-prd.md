@@ -1,10 +1,10 @@
 ﻿# 系統備份與還原 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.143
 - 首次實作版本：0.9.99
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/03
 
 ## 一、目標與範圍
 
@@ -35,14 +35,15 @@
   2. 估算大小（資料庫＋`-wal`＋各資料夾，×2）並檢查備份目錄的可用空間。
   3. 資料庫以 `VACUUM INTO` 寫到 `.work/<guid>/BackendDB.db`：不經連線池、不設逾時、唯讀連線；WAL 模式下取得一致快照且不擋寫入。
   4. `PRAGMA quick_check` 不是 ok 就不產出備份；讀最後一筆 migration 與數量、計算 SHA-256。
-  5. 依序打包 `db/BackendDB.db`、`files/ProjectFile`、`files/Exception`、`files/TokenUsage`、`files/Keys`（`IncludeAiCallLogs` 時加 `files/AiCallLog`）、最後 `manifest.json`，寫到 `*.zip.partial`。
+  5. 依序打包 `db/BackendDB.db`、`files/ProjectFile`、`files/Exception`、`files/TokenUsage`、`files/Keys`（`IncludeAiCallLogs` 時加 `files/AiCallLog`；0.9.143 起 `IncludeAiAgentConversations` 時加 `files/AiAgentConversation`）、最後 `manifest.json`，寫到 `*.zip.partial`。
      先資料庫、後檔案；來源檔打不開（被刪或被獨佔）只計數，不中止；檔與檔之間檢查取消。
   6. 原子改名成 `backup-yyyyMMdd-HHmmss[-n].zip`；`finally` 刪掉暫存與 partial。
 - **作業** `SystemBackupJob`（`0 2 * * *`）：成功後寫 `Backup.Create`，再依 `KeepCount` 刪舊備份（寫 `Backup.AutoPurge`）；失敗回 `Failure` 且**不刪舊備份**；取消時記為中斷。
 - **清單** `BackupStore`：只認根目錄下符合檔名規則的 zip；排序以「時間戳＋同秒序號」比較；下載與刪除都先經檔名與根目錄檢查。清單只存在檔案系統（放資料庫的話還原時會倒回去）。
 - **manifest.json**：`formatVersion`、`createdAtUtc`、`systemVersion`、`lastMigration`、`migrationCount`、`databaseEntry`、`databaseSha256`、`folders[]`（zip 資料夾 → `ExternalFileSystem` 設定鍵名與檔案數）、`missingFiles`、`missingFileCount`、`trigger`。
 - **還原腳本**：確認網站已停（獨佔開啟資料庫）→ 解壓並核對格式版本與雜湊 → 備份版本比部署的新時中止（`-Force` 略過）→ 現有資料庫與 `-wal`、`-shm` 改名保留 → 刪鎖檔 → 放入資料庫 → 各資料夾換成備份內容（舊的改名保留）、金鑰合併不覆蓋 → 印出回復步驟。腳本不寫死專案名稱（`New-StarterProject.ps1` 會文字替換）。
-- **設定**：`ExternalFileSystem:BackupPath`（啟動驗證：完整路徑、不與其他 8 個目錄重疊、不在網站目錄底下）、`BackupSettings { KeepCount = 7, IncludeAiCallLogs = false }`（系統參數「備份」分類）。
+- **設定**：`ExternalFileSystem:BackupPath`（啟動驗證：完整路徑、不與其他 10 個目錄重疊、不在網站目錄底下）、`BackupSettings { KeepCount = 7, IncludeAiCallLogs = false, IncludeAiAgentConversations = false }`（系統參數「備份」分類；後者 0.9.143 起，「備份 Agent 對話」）。
+- **Agent 對話不備份時**：還原後資料表 `AiAgentConversation` 的列還在（在資料庫裡），「我的對話」清單照常列出，但點開會提示「這段對話無法接續」，使用者刪除即可。
 
 ## 五、權限與安全
 
@@ -60,7 +61,7 @@
 
 ## 七、驗收與測試
 
-- `SystemBackupTests`：寫入中的 WAL 資料庫快照通過 quick_check 且資料完整、manifest 正確、資料夾內容（含子目錄）、AI 對話預設不含／開啟才含、打不開的檔案只計數、取消與失敗不留殘檔、空間不足先失敗、上次殘檔被清掉、檔名與根目錄檢查、份數刪除（同秒序號）、作業失敗不刪舊備份、備份目錄位置驗證（8 個目錄雙向、大小寫、前綴相近、網站目錄）、續傳只記一次稽核。
+- `SystemBackupTests`：寫入中的 WAL 資料庫快照通過 quick_check 且資料完整、manifest 正確、資料夾內容（含子目錄）、AI 對話預設不含／開啟才含、打不開的檔案只計數、取消與失敗不留殘檔、空間不足先失敗、上次殘檔被清掉、檔名與根目錄檢查、份數刪除（同秒序號）、作業失敗不刪舊備份、備份目錄位置驗證（10 個目錄雙向、大小寫、前綴相近、網站目錄）、續傳只記一次稽核。
 - `BackupDownloadTests`：匿名被擋、非管理員 403、管理員 200 與續傳 206、稽核一筆、路徑穿越 404。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`PageHelpCatalogTests`、`DocumentationConventionTests`。
 

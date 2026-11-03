@@ -18,4 +18,10 @@ public class BackupSettings
     /// 是否一併備份 AI 對話紀錄的內容檔。預設不備份：內容含日誌與例外堆疊、本來就只保留 90 天、檔案又大。
     /// </summary>
     public bool IncludeAiCallLogs { get; set; }
+
+    /// <summary>
+    /// 是否一併備份 Agent 對話的內容檔（0.9.143 起）。預設不備份：內容是使用者與 AI 的對話、本來就會依保留天數過期。
+    /// 不備份時，還原後「我的對話」清單仍在，但點開會提示內容已不存在。
+    /// </summary>
+    public bool IncludeAiAgentConversations { get; set; }
 }

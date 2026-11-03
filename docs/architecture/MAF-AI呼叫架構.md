@@ -1,13 +1,13 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.2
-- 文件狀態：第一、二階段與第三階段 A 已實作（第三階段 B、第四階段規劃中）
-- 現行系統版本：0.9.142
+- 文件版本：1.3
+- 文件狀態：第一、二、三階段已實作（第四階段規劃中）
+- 現行系統版本：0.9.143
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/03
 
 > 系統內**所有** LLM 呼叫都經由 Microsoft Agent Framework（MAF）建立的 agent 送出（0.9.140 起）。
-> 本文件說明管線怎麼組、記帳點在哪裡、為什麼這樣決定、Agent 骨架怎麼用（§6），以及後續階段的範圍。
+> 本文件說明管線怎麼組、記帳點在哪裡、為什麼這樣決定、Agent 骨架怎麼用（§6）、對話怎麼保存與接續（§6.7），以及後續階段的範圍。
 > 新增 LLM 呼叫點的紅線仍以 [開發慣例與限制速查 §6.7](開發慣例與限制速查.md) 為準。
 
 ---
@@ -117,7 +117,7 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 ## 6. Agent 骨架（第三階段 A，0.9.142 起）
 
 第三階段拆成兩步：**A** 先把 agent 的定義方式、工具權限、核准、記帳串接（RunId）與各功能的模型做出來，並以「Agent 測試台」頁驗收；
-**B** 再做對話保存（§7）。0.9.142 的對話只存在記憶體，離開或重新整理頁面就沒了。
+**B** 再做對話保存（§6.7，0.9.143 起）。0.9.142 的對話只存在記憶體，離開或重新整理頁面就沒了。
 
 ### 6.1 定義
 
@@ -175,7 +175,7 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 
 新增設定區段 `AiModelSettings`（`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`），**空字串＝`AiSettings.Model`**，可在系統參數頁「AI 模型」修改。
 呼叫端在 `AiCallContext.ModelKey`（經 `AiChatCompletionClient` 的走 `AiChatCompletionRequest.ModelKey`）帶 `nameof(AiModelSettings.屬性)`，由 `AiAgentFactory.CreateAgent` 以 `AiModelSettings.Resolve` 解析
-（`IOptionsMonitor`，下一次建立 agent 即生效；Agent 測試台在每段對話的第一則訊息建立 agent，所以進行中的對話沿用原本的模型）。
+（`IOptionsMonitor`，下一次建立 agent 即生效；Agent 測試台在每段對話的第一則訊息建立 agent，所以畫面上進行中的對話沿用原本的模型；0.9.143 起接續舊對話時重新建立 agent，改用**目前**的模型）。
 端點與金鑰共用 `AiSettings`，只能換同一個服務裡的模型；不認得的 `ModelKey` 是程式錯誤，丟 `InvalidOperationException`。
 「系統健康監控」的「AI 計費表」檢查預設模型與每一個有覆寫的模型（`OverriddenModels()`），任一查無費率即降級。設定說明見 [日誌與設定檔說明 §4.17](../operations/日誌與設定檔說明.md)。
 
@@ -185,9 +185,27 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 2. `PromptTemplateKeys` 加種類（含 `All`）、`AiPromptGuardrails` 補內建提示詞與「不可信內容」說法、`PromptTemplateView` 補分頁名稱。
 3. `TokenUsageOperations` 加作業名稱；新模型補 `AiPricingSettings.Models` 費率。
 4. `AiModelSettings` 加屬性 → `SystemParameterCatalog.All` 加一行 → appsettings.json 加鍵 → [日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md) 加一列。
-5. 頁面用 `IAiAgentRunner`；頁面權限照新增頁面的四處同步，會花 AI 費用的頁面加進 `RolePermissionService.NotGrantedToDefaultRole`（不自動開給預設角色），並寫操作說明。
+5. 頁面用 `IAiAgentRunner`（對話保存內建，「我的對話」清單、改名、刪除用 `AiAgentConversationService`，見 §6.7）；頁面權限照新增頁面的四處同步，會花 AI 費用的頁面加進 `RolePermissionService.NotGrantedToDefaultRole`（不自動開給預設角色），並寫操作說明。
 
 步驟細節見 [腳手架開發指引 §3.11](../guides/腳手架開發指引.md)「新增一個 Agent」。
+
+### 6.7 對話保存與接續（第三階段 B，0.9.143 起）
+
+「Agent 測試台」的對話會自動保存，左側「我的對話」點一下就能接著聊，AI 記得前文。
+
+**存在哪裡**：資料庫只放清單與清理用的中繼資料，內容一律存檔案系統（同 AI 對話紀錄）。
+
+| 位置 | 內容 |
+|---|---|
+| 資料表 `AiAgentConversation`（migration `AddAiAgentConversation`）| `ConversationId`（唯一，＝AI 對話紀錄的 `ConversationId`）、`UserId`、`Account`、`AgentName`、`Title`、`CreatedAt`、`UpdatedAt`（最後一次對話，排序與過期都依它）、`HasPendingApproval`、`ContentFile` |
+| 內容檔 `{AiAgentConversationPath}/{yyyyMM 建立時間}/{ConversationId:N}.json`，每次儲存整份覆寫 | `AiAgentConversationContent`（`SchemaVersion` 1）：`Session`（MAF `SerializeSessionAsync` 的結果，讓 AI 記得前文，含工具呼叫與結果）、`Transcript`（畫面紀錄：User／Assistant／Tool／Notice／Error）、`PendingApprovals`（等使用者決定的核准請求，或因工具已不存在而自動拒絕的回覆，`AIContent` JSON）|
+
+- **何時存**：`AiAgentChat` 自己維護 `Transcript`，每次執行結束都在 `finally` 存一次（用 `CancellationToken.None`）—— 成功、失敗、使用者停止、停下來等核准，以及呼叫端中途不再讀取（例如離開頁面）；已收到的文字收進紀錄並以 `AiInterruption` 標示不完整。第一則訊息之前不存（只按「新對話」不會多出空白對話）。自動標題是第一則訊息（空白收成一格）的前 40 字＋「…」，只在第一次儲存時寫入。存檔失敗只記警告，不影響對話；寫檔失敗時新的一列 `ContentFile` 為 null。
+- **誰看得到**：**只有本人**。`AiAgentConversationService` 的讀、列（依 `UpdatedAt` 新到舊，最多 100 段）、改名（1～100 字、不更新 `UpdatedAt`、不寫稽核）、刪除（先刪列再刪檔，稽核 `AiAgentConversation.Delete`，detail 只有 `agent=…`）都以目前使用者過濾，別人的對話一律當作找不到。規劃時寫「本人＋管理員可見」，實作改為只限本人：管理員要追查仍可在「AI 對話紀錄」以同一個 `ConversationId` 看到每一次模型呼叫。
+- **過期**：`AiAgentConversationSettings:RetentionDays`（預設 90，1～3650，沒有不清除；系統參數「資料保留」），排程作業「Agent 對話清理」（`AiAgentConversationRetention`，每天 03:00）刪除 `UpdatedAt` 早於「今天 0 點減 N 天」的對話（全體使用者，先刪列再刪檔），稽核 `AiAgentConversation.AutoPurge`；資料保留頁「Agent 對話」列可立即清理或自訂清除（`AiAgentConversation.Purge`）。⚠️ 月份目錄是建立時間、過期看最後一次對話，所以只逐檔刪、最後收掉空的月份目錄，不整個刪舊月份。
+- **接續**：`IAiAgentRunner.ResumeAsync(定義, ConversationId)` 讀回本人的對話 → 重新建立 agent（模型與提示詞用**目前**的設定）→ `DeserializeSessionAsync` → 還原畫面紀錄與待核准。沿用同一個 `ConversationId`，AI 對話紀錄裡前後串成同一段。找不到、不是本人的、不是這個 Agent 的、內容檔不見、`SchemaVersion` 不認得或 session 讀不回來，一律回 null，畫面提示「這段對話無法接續…可以刪除它後開新對話」。
+- **停在核准的對話**：接續時重新跳核准窗。權限**不在還原時檢查**，使用者核准後工具外殼（§6.2）在真正執行前以**現在**的權限再檢查一次。存下來的待核准工具若已不在這個 Agent 上，改成自動拒絕，隨下一則訊息一起送回給模型。
+- **備份**：內容檔預設不備份（`BackupSettings:IncludeAiAgentConversations`，系統參數「備份 Agent 對話」）；不備份時還原後清單仍在、點開提示無法接續。
 
 ## 7. 後續階段
 
@@ -196,8 +214,8 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 | 一 | 換底層，行為不變（本文件）| 0.9.140 已實作 |
 | 二 | 串流：記帳中介層支援串流（串流結束取用量；已收到內容才取消 → 記一筆「已取消」、用量空白）；AI 日誌分析與 AI 例外分析改為逐段顯示，加「停止產生」，停止後保留已產生內容並標示已中止（§2、§4.1）| 0.9.141 已實作 |
 | 三 A | Agent 骨架：C# 定義 agent、每個功能可指定模型（`AiModelSettings`）；工具呼叫逐次記帳並以 RunId 串起（`AiCallLog`／`TokenUsageLog` 加欄位）；工具依使用者 RBAC 執行、會改資料的工具強制核准；以「Agent 測試台」頁驗收，對話只在記憶體（§6）| 0.9.142 已實作 |
-| 三 B | 對話保存：多輪對話存檔案系統、SQLite 只放中繼資料（本人＋管理員可見、保存天數可設定），可接續之前的對話 | 規劃中 |
-| 四 | 多 Agent 工作流程（MAF Workflows）：所有 agent 經 `IAiAgentFactory` 建立、共用一個 RunId；人工介入當下回應，不做跨重開機檢查點 | 規劃中 |
+| 三 B | 對話保存：多輪對話存檔案系統、SQLite 只放中繼資料（只限本人，保存天數可設定、依最後一次對話過期），可接續之前的對話、停在核准的重新跳核准窗（§6.7）| 0.9.143 已實作 |
+| 四 | 多 Agent 工作流程（MAF Workflows）：所有 agent 經 `IAiAgentFactory` 建立、共用一個 RunId；人工介入當下回應，不做跨重開機檢查點 | 規劃中（下一步）|
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。
@@ -214,10 +232,14 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 | `MyProject.Web/Ai/AiCallContext.cs` | `AiCallContext`（0.9.142 起含 `RunId`、`ModelKey`）、`AiCallException`、`AiCallState`（0.9.142 起含 `RunId`）、`AiCallOutcome` |
 | `MyProject.Web/Ai/Agents/AiAgentDefinition.cs` | `AiAgentDefinition`、`AiToolDefinition`（0.9.142 起）|
 | `MyProject.Web/Ai/Agents/AiAgentToolFactory.cs` | `AiAgentToolFactory`、`IAiToolPermissionGuard`／`AiToolPermissionGuard`（權限與稽核）、`PermissionCheckedAIFunction`（0.9.142 起）|
-| `MyProject.Web/Ai/Agents/AiAgentRunner.cs` | `IAiAgentRunner`、`AiAgentChat`（執行、RunId、核准分流）、`AiAgentUpdate`、`AiToolActivity`、`AiToolApprovalRequest`（0.9.142 起）|
+| `MyProject.Web/Ai/Agents/AiAgentRunner.cs` | `IAiAgentRunner`、`AiAgentChat`（執行、RunId、核准分流；0.9.143 起 `Transcript`、存檔、`ResumeAsync`）、`AiAgentUpdate`、`AiToolActivity`、`AiToolApprovalRequest`（0.9.142 起）|
+| `MyProject.Business/Services/DataAccess/AiAgentConversationService.cs` | `IAiAgentConversationStore`（存與讀自己的）、`AiAgentConversationService`（清單、改名、刪除、過期、統計，0.9.143 起）|
+| `MyProject.Business/Services/Other/AiAgentConversationFileStore.cs` | Agent 對話內容檔的唯一入口（絕不拋出、擋 `../`、收空月份目錄，0.9.143 起）|
+| `MyProject.Models/Systems/AiAgentConversationModels.cs`、`AiAgentConversationSettings.cs`；`MyProject.AccessDatas/Models/AiAgentConversation.cs` | 內容檔結構與清單模型、保留天數設定、資料表（0.9.143 起）|
+| `MyProject.Web/Scheduling/Jobs/AiAgentConversationRetentionJob.cs` | 排程作業「Agent 對話清理」（0.9.143 起）|
 | `MyProject.Web/Ai/Agents/AgentPlaygroundAgent.cs`、`ProjectAgentTools.cs` | 範例 Agent 與兩個範例工具（0.9.142 起）|
 | `MyProject.Web/Configuration/AiModelSettings.cs` | 各功能的模型、`Resolve`、`OverriddenModels`（0.9.142 起）|
-| `MyProject.Web/Components/Views/AiAssistants/AgentPlaygroundView.razor(.cs/.css)` | 「Agent 測試台」頁（`/agent-playground`，0.9.142 起）|
+| `MyProject.Web/Components/Views/AiAssistants/AgentPlaygroundView.razor(.cs/.css)` | 「Agent 測試台」頁（`/agent-playground`，0.9.142 起；0.9.143 起左側「我的對話」、重新命名、刪除）|
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的 base URI 與設定驗證 |
 | `MyProject.Web/Ai/AiChatCompletionClient.cs` | 設定檢查 → 建 agent → 執行 → 轉回 `AiAnalysisResult`；`StreamAsync` 轉成 `AiStreamUpdate` 序列（0.9.141 起）|
 | `MyProject.Web/Ai/AiHealthProbe.cs` | 健康探測（30 秒逾時、不檢查用量上限）|
@@ -227,10 +249,11 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 | `MyProject.Tests/Components/ExceptionAiAnalysisModalStreamingTests.cs` | bUnit：逐段顯示與「停止產生」、停止後保留並標示已中止、未收到文字就停止（0.9.141 起）|
 | `MyProject.Tests/AiAgentRunnerTests.cs` | 工具呼叫迴圈每次模型呼叫各記一筆且 RunId 相同、沒權限不執行、異動工具核准後才執行、拒絕與沒權限的稽核、等待核准時不能送訊息、工具有送給模型（0.9.142 起）|
 | `MyProject.Tests/AgentToolsAndModelTests.cs` | 範例工具的團隊範圍、`AiModelSettings` 解析與覆寫清單、日誌分析以覆寫的模型送出並記帳（0.9.142 起）|
+| `MyProject.Tests/AiAgentConversationServiceTests.cs` | 只限本人、存檔 upsert 與標題、清單排序、改名驗證且不寫稽核、刪除與稽核、依最後對話時間過期、寫檔失敗、路徑穿越（0.9.143 起）；`AiAgentRunnerTests` 另加存檔、接續記得前文、接續停在核准、工具已移除自動拒絕、接不下去回 null、第一則訊息前不存、串流途中取消 |
 
 ## 9. 相關文件
 
 - [開發慣例與限制速查 §6.7](開發慣例與限制速查.md)：LLM 用量記錄的擴充點與紅線
 - [架構總覽](架構總覽.md)、[AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)
 - [Token 用量 PRD](../prd/Token用量-prd.md)、[AI 對話紀錄 PRD](../prd/AI對話紀錄-prd.md)、[AI 用量配額 PRD](../prd/AI用量配額-prd.md)
-- [2026-11-02 AI 呼叫改走 MAF](../changelog/2026-11-02-AI呼叫改走MAF.md)、[2026-11-02 AI 串流與停止產生](../changelog/2026-11-02-AI串流與停止產生.md)、[2026-11-03 Agent 骨架與測試台](../changelog/2026-11-03-Agent骨架與測試台.md)
+- [2026-11-02 AI 呼叫改走 MAF](../changelog/2026-11-02-AI呼叫改走MAF.md)、[2026-11-02 AI 串流與停止產生](../changelog/2026-11-02-AI串流與停止產生.md)、[2026-11-03 Agent 骨架與測試台](../changelog/2026-11-03-Agent骨架與測試台.md)、[2026-11-03 Agent 對話保存](../changelog/2026-11-03-Agent對話保存.md)

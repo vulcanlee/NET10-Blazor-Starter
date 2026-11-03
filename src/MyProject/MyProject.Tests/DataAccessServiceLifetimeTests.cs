@@ -30,6 +30,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(ExceptionLogService),
         typeof(TokenUsageLogService),
         typeof(AiCallLogService),
+        typeof(AiAgentConversationService),
         typeof(AuditLogQueryService),
         // 稽核寫入端（0.9.131 起）：換頁稽核是射後不理，共用 scoped context 會和頁面初始化撞在一起。
         typeof(AuditLogService),

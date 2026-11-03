@@ -87,6 +87,7 @@ public sealed class DataRetentionOverviewService
     private readonly ExceptionLogService exceptionLogService;
     private readonly TokenUsageLogService tokenUsageLogService;
     private readonly AiCallLogService aiCallLogService;
+    private readonly AiAgentConversationService agentConversationService;
     private readonly AuditLogQueryService auditLogQueryService;
     private readonly NotificationQueryService notificationQueryService;
     private readonly ScheduledJobRunService jobRunService;
@@ -108,6 +109,7 @@ public sealed class DataRetentionOverviewService
         ExceptionLogService exceptionLogService,
         TokenUsageLogService tokenUsageLogService,
         AiCallLogService aiCallLogService,
+        AiAgentConversationService agentConversationService,
         AuditLogQueryService auditLogQueryService,
         NotificationQueryService notificationQueryService,
         ScheduledJobRunService jobRunService,
@@ -128,6 +130,7 @@ public sealed class DataRetentionOverviewService
         this.exceptionLogService = exceptionLogService;
         this.tokenUsageLogService = tokenUsageLogService;
         this.aiCallLogService = aiCallLogService;
+        this.agentConversationService = agentConversationService;
         this.auditLogQueryService = auditLogQueryService;
         this.notificationQueryService = notificationQueryService;
         this.jobRunService = jobRunService;
@@ -156,6 +159,7 @@ public sealed class DataRetentionOverviewService
         var exceptionFolder = MeasureAsync(paths.ExceptionPath, budget.Token);
         var tokenFolder = MeasureAsync(paths.TokenUsagePath, budget.Token);
         var aiFolder = MeasureAsync(paths.AiCallLogPath, budget.Token);
+        var agentFolder = MeasureAsync(paths.AiAgentConversationPath, budget.Token);
         var auditFolder = MeasureAsync(paths.AuditContentPath, budget.Token);
         var backupFolder = MeasureAsync(paths.BackupPath, budget.Token);
         var nlogFolder = Task.Run(() => DirectorySizeProbe.Measure(nlogDirectory, IsLogFile, budget.Token));
@@ -165,6 +169,7 @@ public sealed class DataRetentionOverviewService
         rows.Add(await RowAsync("exception-log", "系統例外紀錄", () => ExceptionLogRowAsync(jobByName, exceptionFolder)));
         rows.Add(await RowAsync("token-usage", "Token 用量", () => TokenUsageRowAsync(jobByName, tokenFolder)));
         rows.Add(await RowAsync("ai-call-log", "AI 對話紀錄", () => AiCallLogRowAsync(jobByName, aiFolder)));
+        rows.Add(await RowAsync("agent-conversation", "Agent 對話", () => AgentConversationRowAsync(jobByName, agentFolder)));
         rows.Add(await RowAsync("audit-log", "稽核紀錄", () => AuditLogRowAsync(jobByName, auditFolder)));
         rows.Add(await RowAsync("notification", "站內通知", () => NotificationRowAsync(jobByName)));
         rows.Add(await RowAsync("backup", "系統備份", () => BackupRowAsync(jobByName, backupFolder)));
@@ -188,6 +193,7 @@ public sealed class DataRetentionOverviewService
             "exception-log" => await exceptionLogService.GetRetentionStatsAsync(threshold),
             "token-usage" => await tokenUsageLogService.GetRetentionStatsAsync(threshold),
             "ai-call-log" => await aiCallLogService.GetRetentionStatsBeforeAsync(threshold),
+            "agent-conversation" => await agentConversationService.GetRetentionStatsBeforeAsync(threshold),
             "audit-log" => await auditLogQueryService.GetRetentionStatsAsync(threshold),
             "notification" => await notificationQueryService.GetRetentionStatsAsync(threshold, null),
             "job-run" => await jobRunService.GetRetentionStatsAsync(threshold),
@@ -215,6 +221,9 @@ public sealed class DataRetentionOverviewService
             case "ai-call-log":
                 return new(await aiCallLogService.PurgeOlderThanAsync(threshold)
                     ?? throw new InvalidOperationException("清除 AI 對話紀錄失敗。"), 0, AuditActions.AiCallLog.Purge, "AiCallLog");
+            case "agent-conversation":
+                return new(await agentConversationService.PurgeOlderThanAsync(threshold)
+                    ?? throw new InvalidOperationException("清除 Agent 對話失敗。"), 0, AuditActions.AiAgentConversation.Purge, "AiAgentConversation");
             case "audit-log":
                 return new(await auditLogQueryService.PurgeBeforeAsync(threshold), 0, AuditActions.Audit.Purge, "AuditLog");
             case "notification":
@@ -231,7 +240,7 @@ public sealed class DataRetentionOverviewService
     private static RetentionTimeBasis BasisOf(string rowKey) => rowKey switch
     {
         "audit-log" or "notification" or "job-run" => RetentionTimeBasis.Utc,
-        "token-usage" or "ai-call-log" => RetentionTimeBasis.LocalDate,
+        "token-usage" or "ai-call-log" or "agent-conversation" => RetentionTimeBasis.LocalDate,
         _ => RetentionTimeBasis.Local,
     };
 
@@ -370,6 +379,26 @@ public sealed class DataRetentionOverviewService
             ManageUrl = "/ai-call-logs",
             CanCustomPurge = true,
         }, AiCallLogRetentionJob.JobName, jobByName.GetValueOrDefault(AiCallLogRetentionJob.JobName), ruleActive: true);
+    }
+
+    private async Task<DataRetentionRow> AgentConversationRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)
+    {
+        var stats = await agentConversationService.GetRetentionStatsAsync(timeProvider.GetLocalNow().DateTime);
+        return WithJob(new DataRetentionRow
+        {
+            Key = "agent-conversation",
+            Label = "Agent 對話",
+            Note = "全體使用者，連同內容檔；依最後一次對話時間",
+            Count = stats.Total,
+            CountUnit = "段",
+            Folder = await folder,
+            OldestLocal = stats.Oldest,
+            RuleText = $"最後一次對話後保留 {agentConversationService.RetentionDays} 天",
+            ParameterGroup = SystemParameterCatalog.GroupRetention,
+            Expected = stats.Expired,
+            ManageUrl = "/agent-playground",
+            CanCustomPurge = true,
+        }, AiAgentConversationRetentionJob.JobName, jobByName.GetValueOrDefault(AiAgentConversationRetentionJob.JobName), ruleActive: true);
     }
 
     private async Task<DataRetentionRow> AuditLogRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)

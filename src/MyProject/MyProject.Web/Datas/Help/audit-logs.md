@@ -50,6 +50,7 @@
 | 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.AutoPurge`、`Project.FileUpload`、`Project.FileDelete`、`Project.Export` |
 | 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；執行 AI 例外分析、追問、匯出 AI 分析的 PDF 報告；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge`、`ExceptionLog.AiAnalyze`、`ExceptionLog.AiFollowUp`、`ExceptionLog.AiExportPdf` |
 | AI 對話紀錄 | 在「AI 對話紀錄」刪除、批次清除、清空、匯出清單 CSV 或單筆 JSON／PDF；排程作業每天自動清除（0.9.96 起） | `AiCallLog.Delete`、`AiCallLog.Purge`、`AiCallLog.ClearAll`、`AiCallLog.Export`、`AiCallLog.AutoPurge` |
+| Agent 對話 | 使用者在「Agent 測試台」刪除自己的一段對話；「資料保留與清理」頁的「自訂清除」；排程作業每天刪除最後一次對話超過保留天數的對話（0.9.143 起）。摘要只記 AI 助理或筆數與天數，**不記**對話標題與內容；改標題不記 | `AiAgentConversation.Delete`、`AiAgentConversation.Purge`、`AiAgentConversation.AutoPurge` |
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
 | 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起）；「資料保留與清理」頁的「立即清理」也記 `Job.Trigger`，「自訂清除」刪除執行紀錄記 `Job.PurgeRuns`（0.9.134 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable`、`Job.PurgeRuns` |
 | 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
@@ -143,7 +144,7 @@ CSV 的欄位依序是：發生時間（本地）、結果、動作、操作者�
 |---|---|---|---|
 | 發生時間 | 事件發生的本地時間。 | 2026-09-26 14:30:05 | 預設最新的在最上面，點標題可以改變排序。 |
 | 結果 | 綠色「成功」或紅色「失敗」。 | 失敗 | 「失敗」不代表系統壞了，密碼打錯、權限不足也記成失敗。 |
-| 動作 | 動作代碼，依類別上不同顏色的標籤。 | `Login.Failed` | 登入與登出為藍色、使用者為綠色、角色為紫色、權限與 Token 為紅色、密碼與備份為橘色、專案為深藍色、分類為黃綠色、團隊為金色、例外紀錄／AI 對話紀錄／Token 用量為洋紅色、稽核為橘紅色；日誌、郵件、排程作業、系統參數、公告與通知為青色；開啟頁面（筆數最多，刻意不搶眼）與其他（例如 AI 用量上限、AI 提示詞）為灰色。 |
+| 動作 | 動作代碼，依類別上不同顏色的標籤。 | `Login.Failed` | 登入與登出為藍色、使用者為綠色、角色為紫色、權限與 Token 為紅色、密碼與備份為橘色、專案為深藍色、分類為黃綠色、團隊為金色、例外紀錄／AI 對話紀錄／Agent 對話／Token 用量為洋紅色、稽核為橘紅色；日誌、郵件、排程作業、系統參數、公告與通知為青色；開啟頁面（筆數最多，刻意不搶眼）與其他（例如 AI 用量上限、AI 提示詞）為灰色。 |
 | 操作者 | 顯示為「帳號（Id=編號）」。 | `admin`（Id=1） | 沒有帳號的事件顯示「（系統／匿名）」；輸入的帳號不存在時只有帳號、沒有 Id。 |
 | 來源 IP | 做這件事的人當時的 IP 位址。 | `192.168.1.25` | 系統排程作業與 0.9.117 之前的舊紀錄顯示「—」。 |
 | 目標 | 被操作的對象，顯示為「類型#識別」。 | `MyUser#12` | 沒有目標時顯示「—」。 |

@@ -163,6 +163,11 @@ public sealed class SystemBackupService
             folders.Add(new("files/AiCallLog", nameof(paths.AiCallLogPath), paths.AiCallLogPath));
         }
 
+        if (backupSettings.CurrentValue.IncludeAiAgentConversations)
+        {
+            folders.Add(new("files/AiAgentConversation", nameof(paths.AiAgentConversationPath), paths.AiAgentConversationPath));
+        }
+
         return folders;
     }
 
