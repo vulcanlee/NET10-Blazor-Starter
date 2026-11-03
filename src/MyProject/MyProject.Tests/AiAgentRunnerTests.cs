@@ -3,8 +3,10 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Others;
+using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Ai.Agents;
 using MyProject.Web.Configuration;
@@ -21,6 +23,7 @@ public sealed class AiAgentRunnerTests
     private readonly SampleTools sample = new();
     private readonly RecordingTokenUsageRecorder usage = new();
     private readonly FakeAiCallLogRecorder callLog = new();
+    private readonly InMemoryConversationStore store = new();
     private readonly Queue<string> upstream = new();
     private readonly StubHttpMessageHandler handler;
 
@@ -162,10 +165,154 @@ public sealed class AiAgentRunnerTests
         Assert.Contains(SampleTools.Write.Name, body, StringComparison.Ordinal);
     }
 
+    /// <summary>每次執行結束都存檔：畫面紀錄（使用者、工具、AI 回覆）、session 與自動標題。</summary>
+    [Fact]
+    public async Task Run_ShouldPersistTranscriptAndSession()
+    {
+        guard.Allowed.Add(SampleTools.Read.Name);
+        upstream.Enqueue(AiSse.ToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
+        upstream.Enqueue(AiSse.Build(["找到 1 筆。"]));
+        var chat = await StartAsync();
+
+        await CollectAsync(chat.SendAsync("找專案 A"));
+
+        var saved = store.Saved[chat.ConversationId];
+        Assert.Equal("找專案 A", saved.Title);
+        Assert.Equal(SampleTools.Agent.Name, saved.AgentName);
+        Assert.False(saved.HasPendingApproval);
+        Assert.Equal(
+            [(AiAgentTranscriptKinds.User, "找專案 A"), (AiAgentTranscriptKinds.Tool, "呼叫工具：讀取"), (AiAgentTranscriptKinds.Assistant, "找到 1 筆。")],
+            saved.Content.Transcript.Select(entry => (entry.Kind, entry.Text)));
+        Assert.Equal(System.Text.Json.JsonValueKind.Object, saved.Content.Session.ValueKind);
+    }
+
+    /// <summary>接續：另一個執行器（等於重新整理頁面）讀回存檔，模型收到的請求包含之前的對話。</summary>
+    [Fact]
+    public async Task Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns()
+    {
+        upstream.Enqueue(AiSse.Build(["第一輪回覆"]));
+        var first = await StartAsync();
+        await CollectAsync(first.SendAsync("第一輪問題"));
+
+        var resumed = await CreateRunner().ResumeAsync(SampleTools.Agent, first.ConversationId);
+
+        Assert.NotNull(resumed);
+        Assert.Equal(first.ConversationId, resumed.ConversationId);
+        Assert.Equal(2, resumed.Transcript.Count);
+        upstream.Enqueue(AiSse.Build(["第二輪回覆"]));
+        await CollectAsync(resumed.SendAsync("第二輪問題"));
+
+        var body = handler.RequestBodies[^1];
+        Assert.Contains("第一輪問題", body, StringComparison.Ordinal);
+        Assert.Contains("第一輪回覆", body, StringComparison.Ordinal);
+        Assert.Contains("第二輪問題", body, StringComparison.Ordinal);
+        Assert.Equal(4, store.Saved[first.ConversationId].Content.Transcript.Count);
+
+        // 接續沿用原本的 ConversationId，AI 對話紀錄串得起來。
+        Assert.All(callLog.Entries, entry => Assert.Equal(first.ConversationId, entry.ConversationId));
+    }
+
+    /// <summary>停在核准時離開：回來後仍在等核准，核准後工具照常執行。</summary>
+    [Fact]
+    public async Task Resume_WhileAwaitingApproval_ShouldAskAgain_AndRunWhenApproved()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"新內容"}"""));
+        var first = await StartAsync();
+        await CollectAsync(first.SendAsync("把值改成新內容"));
+        Assert.True(store.Saved[first.ConversationId].HasPendingApproval);
+
+        var resumed = await CreateRunner().ResumeAsync(SampleTools.Agent, first.ConversationId);
+
+        Assert.NotNull(resumed);
+        Assert.True(resumed.IsAwaitingApproval);
+        var approval = Assert.Single(resumed.PendingApprovals);
+        Assert.Equal("寫入", approval.DisplayName);
+        Assert.Contains(approval.Arguments, argument => argument.Key == "value" && argument.Value == "新內容");
+
+        upstream.Enqueue(AiSse.Build(["已修改。"]));
+        var updates = await CollectAsync(resumed.RespondAsync([approval.RequestId]));
+
+        Assert.True(updates[^1].Result!.Success);
+        Assert.Equal(["新內容"], sample.WriteCalls);
+        Assert.False(store.Saved[first.ConversationId].HasPendingApproval);
+        Assert.Contains(resumed.Transcript, entry => entry.Kind == AiAgentTranscriptKinds.Notice && entry.Text == "你核准了：寫入");
+    }
+
+    /// <summary>接續時工具已不在這個 Agent 上（程式改版）：不請使用者核准，下一則訊息連同拒絕一起送回去。</summary>
+    [Fact]
+    public async Task Resume_WithRemovedTool_ShouldAutoRejectWithNextMessage()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
+        var first = await StartAsync();
+        await CollectAsync(first.SendAsync("改"));
+        var readOnlyAgent = SampleTools.Agent with { Tools = [SampleTools.Read] };
+
+        var resumed = await CreateRunner().ResumeAsync(readOnlyAgent, first.ConversationId);
+
+        Assert.NotNull(resumed);
+        Assert.False(resumed.IsAwaitingApproval);
+        upstream.Enqueue(AiSse.Build(["好的。"]));
+        var updates = await CollectAsync(resumed.SendAsync("算了"));
+
+        Assert.True(updates[^1].Result!.Success);
+        Assert.Empty(sample.WriteCalls);
+        Assert.Contains("這不是這個 Agent 可以使用的工具", handler.RequestBodies[^1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Resume_ShouldReturnNull_WhenNotFoundOrAnotherAgent()
+    {
+        upstream.Enqueue(AiSse.Build(["你好"]));
+        var chat = await StartAsync();
+        await CollectAsync(chat.SendAsync("嗨"));
+
+        Assert.Null(await CreateRunner().ResumeAsync(SampleTools.Agent, Guid.NewGuid()));
+        Assert.Null(await CreateRunner().ResumeAsync(SampleTools.Agent with { Name = "Other" }, chat.ConversationId));
+    }
+
+    /// <summary>只開新對話、還沒送出任何訊息：不存檔（清單不會多出空白對話）。</summary>
+    [Fact]
+    public async Task Start_WithoutSending_ShouldNotPersist()
+    {
+        await StartAsync();
+
+        Assert.Empty(store.Saved);
+    }
+
+    /// <summary>串流途中停止：已收到的文字收進紀錄並標示不完整，照樣存檔。</summary>
+    [Fact]
+    public async Task Cancel_MidStream_ShouldKeepPartialReplyAndPersist()
+    {
+        upstream.Enqueue(AiSse.Build(["第一段", "第二段"]));
+        var chat = await StartAsync();
+        using var cts = new CancellationTokenSource();
+
+        var updates = new List<AiAgentUpdate>();
+        await foreach (var update in chat.SendAsync("說個故事", cts.Token))
+        {
+            updates.Add(update);
+            if (update.TextDelta.Length > 0)
+            {
+                cts.Cancel();
+            }
+        }
+
+        Assert.Equal(AiAnalysisFailureReason.Canceled, updates[^1].Result!.Reason);
+        var transcript = store.Saved[chat.ConversationId].Content.Transcript;
+        Assert.Equal(AiAgentTranscriptKinds.Assistant, transcript[1].Kind);
+        Assert.Equal(AiInterruption.Annotate("第一段"), transcript[1].Text);
+        Assert.Equal((AiAgentTranscriptKinds.Notice, "已停止產生（上面的回覆不完整）。"), (transcript[^1].Kind, transcript[^1].Text));
+    }
+
     /// <summary>測試替身看得到的「沒有權限」文字開頭（PermissionCheckedAIFunction 是 internal）。</summary>
     private const string PermissionCheckedAIFunctionDeniedPrefix = "使用者沒有執行這個操作的權限";
 
-    private async Task<AiAgentChat> StartAsync()
+    private Task<AiAgentChat> StartAsync() => CreateRunner().StartAsync(SampleTools.Agent);
+
+    /// <summary>每呼叫一次就是一個新的執行器（等於重新整理頁面），共用同一個上游、存檔與記帳替身。</summary>
+    private AiAgentRunner CreateRunner()
     {
         var options = new StaticOptionsMonitor<AiSettings>(new AiSettings
         {
@@ -181,16 +328,15 @@ public sealed class AiAgentRunnerTests
             callLog);
 
         var services = new ServiceCollection().AddSingleton(sample).BuildServiceProvider();
-        var runner = new AiAgentRunner(
+        return new AiAgentRunner(
             factory,
             new AiAgentToolFactory(services, guard),
             guard,
             new StubSystemPromptProvider(),
             options,
             new StaticOptionsMonitor<AiModelSettings>(new AiModelSettings()),
+            store,
             NullLogger<AiAgentRunner>.Instance);
-
-        return await runner.StartAsync(SampleTools.Agent);
     }
 
     private static async Task<List<AiAgentUpdate>> CollectAsync(IAsyncEnumerable<AiAgentUpdate> stream)
@@ -202,6 +348,28 @@ public sealed class AiAgentRunnerTests
         }
 
         return updates;
+    }
+
+    /// <summary>記憶體版的對話存檔：存的時候經過一次 JSON 來回（同真的存檔）；標題只在第一次存時採用（同真的服務）。</summary>
+    private sealed class InMemoryConversationStore : IAiAgentConversationStore
+    {
+        public Dictionary<Guid, AiAgentConversationSnapshot> Saved { get; } = [];
+
+        public Task SaveAsync(AiAgentConversationSnapshot snapshot)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(snapshot.Content, AiAgentConversationService.FileJsonOptions);
+            var content = System.Text.Json.JsonSerializer.Deserialize<AiAgentConversationContent>(json, AiAgentConversationService.FileJsonOptions)!;
+            var title = Saved.TryGetValue(snapshot.ConversationId, out var existing) ? existing.Title : snapshot.Title;
+            Saved[snapshot.ConversationId] = snapshot with { Title = title, Content = content };
+            return Task.CompletedTask;
+        }
+
+        public Task<AiAgentConversationLoaded?> LoadMineAsync(Guid conversationId)
+            => Task.FromResult(Saved.TryGetValue(conversationId, out var saved)
+                ? new AiAgentConversationLoaded(
+                    new AiAgentConversationSummary(saved.ConversationId, saved.AgentName, saved.Title, DateTime.Now, DateTime.Now, saved.HasPendingApproval),
+                    saved.Content)
+                : null);
     }
 
     /// <summary>可控的權限檢查：只有 <see cref="Allowed"/> 裡的工具可以執行；稽核只記下來。</summary>

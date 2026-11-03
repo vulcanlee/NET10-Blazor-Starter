@@ -283,6 +283,17 @@ public static class AuditActions
         public const string ToolRejected = "Ai.ToolRejected";
     }
 
+    /// <summary>
+    /// Agent 對話（0.9.143 起）：使用者刪除自己的對話、資料保留頁自訂清除、排程依保留天數自動清除。
+    /// 改標題不寫稽核（標題只給本人看）；detail 只記 agent 或條件與筆數，不記標題與內容。
+    /// </summary>
+    public static class AiAgentConversation
+    {
+        public const string Delete = "AiAgentConversation.Delete";
+        public const string Purge = "AiAgentConversation.Purge";
+        public const string AutoPurge = "AiAgentConversation.AutoPurge";
+    }
+
     /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>
     public static class Prompt
     {

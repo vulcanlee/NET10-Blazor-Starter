@@ -57,6 +57,13 @@ public class ExternalFileSystem
     public string AiCallLogPath { get; set; } = string.Empty;
 
     /// <summary>
+    /// Agent 對話的內容檔存放目錄（0.9.143 起）：每段對話一個檔，內含 MAF session、畫面上的對話紀錄與待核准的工具。
+    /// 結構為 <c>{root}/{yyyyMM}/{ConversationId}.json</c>；檔案生命週期一律經由 AiAgentConversationFileStore 處理。
+    /// ⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料；<b>絕不可放在 DownloadPath 底下</b>（那裡以靜態檔案對外提供）。
+    /// </summary>
+    public string AiAgentConversationPath { get; set; } = string.Empty;
+
+    /// <summary>
     /// 稽核紀錄的詳細內容檔存放目錄（0.9.131 起）：修改前後差異、完整查詢條件這類長內容，
     /// 結構為 <c>{root}/{yyyyMM}/{Guid}.txt</c>；檔案生命週期一律經由 AuditContentFileStore 處理。
     /// ⚠️ 內容含舊值→新值（可能有 Email、姓名）與搜尋原文，只供管理員查閱；

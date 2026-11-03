@@ -502,6 +502,7 @@ if (-not $SkipMigration) {
             SystemSettings__ExternalFileSystem__ExceptionPath   = (Join-Path $isolated 'Exception')
             SystemSettings__ExternalFileSystem__TokenUsagePath  = (Join-Path $isolated 'TokenUsage')
             SystemSettings__ExternalFileSystem__AiCallLogPath   = (Join-Path $isolated 'AiCallLog')
+            SystemSettings__ExternalFileSystem__AiAgentConversationPath = (Join-Path $isolated 'AiAgentConversation')
             SystemSettings__ExternalFileSystem__AuditContentPath = (Join-Path $isolated 'AuditContent')
             SystemSettings__ExternalFileSystem__DataProtectionKeyPath = (Join-Path $isolated 'Keys')
             SystemSettings__ExternalFileSystem__BackupPath      = (Join-Path $isolated 'Backup')

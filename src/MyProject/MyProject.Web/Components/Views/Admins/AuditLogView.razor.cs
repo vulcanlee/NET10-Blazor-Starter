@@ -429,6 +429,7 @@ namespace MyProject.Web.Components.Views.Admins
             "Team" => "gold",
             "ExceptionLog" => "magenta",
             "AiCallLog" => "magenta",
+            "AiAgentConversation" => "magenta",
             "TokenUsage" => "magenta",
             "LogLevel" => "cyan",
             "LogViewer" => "cyan",

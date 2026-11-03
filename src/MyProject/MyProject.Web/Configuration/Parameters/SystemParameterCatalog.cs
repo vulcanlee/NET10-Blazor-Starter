@@ -61,6 +61,9 @@ public static class SystemParameterCatalog
         Define<AiCallLogSettings, bool>(AiCallLogSettings.SectionName, x => x.Enabled, GroupRetention,
             "記錄 AI 對話內容", "是否把每次 AI 呼叫的完整請求與回應記進「AI 對話紀錄」。關閉後不再記錄，舊紀錄照樣依天數過期。",
             "下一次 AI 呼叫起"),
+        Define<AiAgentConversationSettings, int>(AiAgentConversationSettings.SectionName, x => x.RetentionDays, GroupRetention,
+            "Agent 對話保留天數", "最後一次對話早於這麼多天前的 Agent 對話（連同內容檔）會被自動刪除。對話含工具查到的業務資料，不宜留太久。",
+            NextRetentionRun + "；Agent 畫面上「會保存 N 天」的說明立即", unit: "天", isRetention: true),
         Define<SoftDeleteSettings, int>(SoftDeleteSettings.SectionName, x => x.PurgeAfterDays, GroupRetention,
             "已刪除資料保留天數", "專案、分類、團隊、使用者、角色被刪除超過這麼多天，就永久刪除（專案連同附件檔）。",
             NextRetentionRun, unit: "天", zeroMeaning: "不自動永久刪除", isRetention: true),
@@ -169,13 +172,16 @@ public static class SystemParameterCatalog
             "下一次 AI 呼叫起", maxLength: AiModelSettings.MaxModelLength),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AgentPlayground, GroupAiModel,
             "Agent 測試台使用的模型", "「Agent 測試台」範例 Agent 用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
-            "下一段新對話起（進行中的對話沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
+            "下一段新對話或從「我的對話」接續時（畫面上已開著的對話沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
 
         Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
             "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",
             "下一次備份成功時（預設每天 02:00）", unit: "份", zeroMeaning: "不自動刪除舊備份", isRetention: true),
         Define<BackupSettings, bool>(BackupSettings.SectionName, x => x.IncludeAiCallLogs, GroupBackup,
             "備份 AI 對話內容", "是否一併備份 AI 對話紀錄的內容檔。內容含日誌與例外堆疊、檔案較大，預設不備份。",
+            "下一次備份起"),
+        Define<BackupSettings, bool>(BackupSettings.SectionName, x => x.IncludeAiAgentConversations, GroupBackup,
+            "備份 Agent 對話", "是否一併備份 Agent 對話的內容檔。不備份時，還原後對話清單仍在但點開會提示內容已不存在；預設不備份。",
             "下一次備份起"),
     ];
 

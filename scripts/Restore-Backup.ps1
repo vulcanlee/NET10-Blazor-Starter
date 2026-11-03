@@ -36,6 +36,7 @@ param(
     [string]$ExceptionPath,
     [string]$TokenUsagePath,
     [string]$AiCallLogPath,
+    [string]$AiAgentConversationPath,
     [string]$AuditContentPath,
     [string]$DataProtectionKeyPath,
 
@@ -102,6 +103,7 @@ $targets = @{
     ExceptionPath         = Resolve-SettingPath $ExceptionPath 'ExceptionPath'
     TokenUsagePath        = Resolve-SettingPath $TokenUsagePath 'TokenUsagePath'
     AiCallLogPath         = Resolve-SettingPath $AiCallLogPath 'AiCallLogPath'
+    AiAgentConversationPath = Resolve-SettingPath $AiAgentConversationPath 'AiAgentConversationPath'
     AuditContentPath      = Resolve-SettingPath $AuditContentPath 'AuditContentPath'
     DataProtectionKeyPath = Resolve-SettingPath $DataProtectionKeyPath 'DataProtectionKeyPath'
 }

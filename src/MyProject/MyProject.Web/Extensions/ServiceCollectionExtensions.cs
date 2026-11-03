@@ -240,6 +240,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiCallLogRecorder>(sp => sp.GetRequiredService<AiCallLogService>());
         #endregion
 
+        #region Agent 對話（0.9.143 起）
+        // 執行器只依賴 IAiAgentConversationStore（存與讀自己的），畫面才用完整的服務（清單、改名、刪除）。
+        services.AddScoped<AiAgentConversationFileStore>();
+        services.AddScoped<AiAgentConversationService>();
+        services.AddScoped<IAiAgentConversationStore>(sp => sp.GetRequiredService<AiAgentConversationService>());
+        #endregion
+
         #region 排程作業（0.9.96 起）
         services.AddScheduledJobs();
         #endregion
@@ -281,6 +288,9 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<AiCallLogRetentionJob>(
             AiCallLogRetentionJob.JobName, "AI 對話紀錄清理",
             "刪除超過保留天數的 AI 對話紀錄與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
+        services.AddScheduledJob<AiAgentConversationRetentionJob>(
+            AiAgentConversationRetentionJob.JobName, "Agent 對話清理",
+            "刪除最後一次對話超過保留天數的 Agent 對話與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
         services.AddScheduledJob<TokenUsageLogRetentionJob>(
             TokenUsageLogRetentionJob.JobName, "Token 用量紀錄清理",
             "刪除超過保留天數的 Token 用量紀錄與原始檔（保留天數在「系統參數」頁設定，預設 365 天，0 = 不清除）。", "0 3 * * *");
@@ -339,6 +349,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<AiCallLogSettings>()
             .Bind(configuration.GetSection(AiCallLogSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<AiAgentConversationSettings>()
+            .Bind(configuration.GetSection(AiAgentConversationSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

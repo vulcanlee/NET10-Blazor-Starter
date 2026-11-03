@@ -277,7 +277,8 @@ public sealed class SystemBackupTests : IDisposable
     [
         nameof(ExternalFileSystem.DatabasePath), nameof(ExternalFileSystem.DownloadPath), nameof(ExternalFileSystem.UploadPath),
         nameof(ExternalFileSystem.ProjectFilePath), nameof(ExternalFileSystem.ExceptionPath), nameof(ExternalFileSystem.TokenUsagePath),
-        nameof(ExternalFileSystem.AiCallLogPath), nameof(ExternalFileSystem.AuditContentPath), nameof(ExternalFileSystem.DataProtectionKeyPath),
+        nameof(ExternalFileSystem.AiCallLogPath), nameof(ExternalFileSystem.AiAgentConversationPath), nameof(ExternalFileSystem.AuditContentPath),
+        nameof(ExternalFileSystem.DataProtectionKeyPath),
     ];
 
     [Theory]
@@ -402,6 +403,7 @@ public sealed class SystemBackupTests : IDisposable
         ExceptionPath = @"C:\data\app\Exception",
         TokenUsagePath = @"C:\data\app\TokenUsage",
         AiCallLogPath = @"C:\data\app\AiCallLog",
+        AiAgentConversationPath = @"C:\data\app\AiAgentConversation",
         AuditContentPath = @"C:\data\app\AuditContent",
         DataProtectionKeyPath = @"C:\data\app\Keys",
         BackupPath = @"D:\backup\app",

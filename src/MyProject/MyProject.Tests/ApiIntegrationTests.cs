@@ -1194,6 +1194,8 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             // ⚠️ 同理，而且更危險：AI 對話紀錄的自動過期是背景服務，host 一啟動就會真的去清月份目錄。
             // 漏掉這一行，測試會刪到開發者（或 CI）真正的 AiCallLogPath 內容（0.9.72 起）。
             ["SystemSettings:ExternalFileSystem:AiCallLogPath"] = Path.Combine(rootPath, "AiCallLog"),
+            // 同理：Agent 對話的自動清除會刪檔（0.9.143 起）。
+            ["SystemSettings:ExternalFileSystem:AiAgentConversationPath"] = Path.Combine(rootPath, "AiAgentConversation"),
             // 同理：稽核的詳細內容檔（修改差異、查詢條件）會真的寫到磁碟（0.9.131 起）。
             ["SystemSettings:ExternalFileSystem:AuditContentPath"] = Path.Combine(rootPath, "AuditContent"),
             // 同理：整合測試會啟動真實 host，Data Protection 會真的把金鑰環寫到磁碟。

@@ -26,6 +26,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<ExceptionLog> ExceptionLog { get; set; }
     public virtual DbSet<TokenUsageLog> TokenUsageLog { get; set; }
     public virtual DbSet<AiCallLog> AiCallLog { get; set; }
+    public virtual DbSet<AiAgentConversation> AiAgentConversation { get; set; }
     public virtual DbSet<Permission> Permission { get; set; }
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
@@ -156,6 +157,21 @@ public partial class BackendDBContext : DbContext
             entity.HasIndex(x => x.CallId).IsUnique();
             entity.HasIndex(x => x.ConversationId);
             entity.HasIndex(x => x.RunId);
+        });
+        #endregion
+
+        #region Agent 對話（0.9.143 起）
+        modelBuilder.Entity<AiAgentConversation>(entity =>
+        {
+            entity.HasIndex(x => x.ConversationId).IsUnique();
+
+            // 「我的對話」清單：某人、某個 Agent，依最後對話時間 desc。
+            entity.HasIndex(x => new { x.UserId, x.AgentName, x.UpdatedAt });
+
+            // 自動過期與資料保留頁的統計。
+            entity.HasIndex(x => x.UpdatedAt);
+            entity.Property(x => x.Title).HasMaxLength(100);
+            entity.Property(x => x.AgentName).HasMaxLength(100);
         });
         #endregion
 

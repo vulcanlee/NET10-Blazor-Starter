@@ -3,7 +3,9 @@ using System.Text;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Ai.Agents;
@@ -12,25 +14,12 @@ using MyProject.Web.Components.Commons;
 namespace MyProject.Web.Components.Views.AiAssistants;
 
 /// <summary>
-/// Agent 測試台（0.9.142 起）。畫面只負責呈現：記帳、權限、核准前的權限檢查與稽核都在 <see cref="IAiAgentRunner"/> 與工具外殼裡。
+/// Agent 測試台（0.9.142 起；0.9.143 起對話會保存，左側「我的對話」可以接續、重新命名與刪除）。
+/// 畫面只負責呈現：記帳、權限、核准前的權限檢查、稽核與存檔都在 <see cref="IAiAgentRunner"/>、對話物件與工具外殼裡；
+/// 對話紀錄直接呈現 <see cref="AiAgentChat.Transcript"/>，畫面自己只多了「串流中、還沒成為一則」的那段文字。
 /// </summary>
 public partial class AgentPlaygroundView : IDisposable
 {
-    private enum EntryKind
-    {
-        User,
-        Assistant,
-
-        /// <summary>Agent 呼叫了哪個工具（不含參數與結果，那些在 AI 對話紀錄）。</summary>
-        Tool,
-
-        /// <summary>核准／拒絕、停止等狀態說明。</summary>
-        Notice,
-        Error,
-    }
-
-    private sealed record ChatEntry(EntryKind Kind, string Text, string Html = "");
-
     /// <summary>單則訊息的字數上限。</summary>
     private const int MaxInputLength = 2000;
 
@@ -42,31 +31,43 @@ public partial class AgentPlaygroundView : IDisposable
 
     private readonly ILogger<AgentPlaygroundView> logger;
     private readonly IAiAgentRunner runner;
+    private readonly AiAgentConversationService conversationService;
     private readonly NotificationService notificationService;
-    private readonly List<ChatEntry> entries = [];
+    private readonly ModalService modalService;
+
+    /// <summary>AI 回覆的 HTML（以紀錄物件為鍵，每則只轉一次）；null 表示內容異常龐大、不顯示。</summary>
+    private readonly Dictionary<AiAgentTranscriptEntry, string?> htmlCache = [];
 
     private bool isAccessChecked;
     private string? unavailableReason;
     private AiAgentChat? chat;
     private string modelName = string.Empty;
+    private IReadOnlyList<AiAgentConversationSummary> conversations = [];
     private string inputText = string.Empty;
     private bool isRunning;
-    private bool stopRequested;
+    private bool isOpening;
     private int elapsedSeconds;
     private string streamingHtml = string.Empty;
     private bool approvalVisible;
     private IReadOnlyList<AiToolApprovalRequest> pendingApprovals = [];
+    private bool renameVisible;
+    private Guid renameTarget;
+    private string renameTitle = string.Empty;
     private CancellationTokenSource? cts;
     private bool isDisposed;
 
     public AgentPlaygroundView(
         ILogger<AgentPlaygroundView> logger,
         IAiAgentRunner runner,
-        NotificationService notificationService)
+        AiAgentConversationService conversationService,
+        NotificationService notificationService,
+        ModalService modalService)
     {
         this.logger = logger;
         this.runner = runner;
+        this.conversationService = conversationService;
         this.notificationService = notificationService;
+        this.modalService = modalService;
     }
 
     [Inject]
@@ -81,6 +82,10 @@ public partial class AgentPlaygroundView : IDisposable
     public string RoleMessage { get; set; } = string.Empty;
 
     private bool IsAwaitingApproval => chat?.IsAwaitingApproval == true;
+
+    private bool IsBusy => isRunning || isOpening;
+
+    private IReadOnlyList<AiAgentTranscriptEntry> Entries => chat?.Transcript ?? [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,37 +106,129 @@ public partial class AgentPlaygroundView : IDisposable
         }
 
         unavailableReason = runner.UnavailableReason;
+        await LoadConversationsAsync();
     }
 
     private void OnNewConversation()
     {
-        cts?.Cancel();
-        chat = null;
-        modelName = string.Empty;
-        entries.Clear();
-        inputText = string.Empty;
-        pendingApprovals = [];
-        approvalVisible = false;
+        if (IsBusy)
+        {
+            return;
+        }
+
+        ResetConversation();
         unavailableReason = runner.UnavailableReason;
+    }
+
+    /// <summary>點左側清單的一段對話：接續它（停在核准的重新跳出核准窗）。</summary>
+    private async Task OnOpenConversationAsync(AiAgentConversationSummary summary)
+    {
+        if (IsBusy || chat?.ConversationId == summary.ConversationId || unavailableReason is not null)
+        {
+            return;
+        }
+
+        isOpening = true;
+        try
+        {
+            var resumed = await runner.ResumeAsync(AgentPlaygroundAgent.Definition, summary.ConversationId);
+            if (resumed is null)
+            {
+                ViewNotification.Error(notificationService, "這段對話無法接續：內容可能已被清除，或格式已不相容。可以刪除它後開新對話。");
+                return;
+            }
+
+            ResetConversation();
+            chat = resumed;
+            modelName = resumed.ModelName;
+            if (resumed.IsAwaitingApproval)
+            {
+                pendingApprovals = resumed.PendingApprovals;
+                approvalVisible = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Agent playground failed to resume a conversation. ConversationId={ConversationId}", summary.ConversationId);
+            ViewNotification.UnexpectedError(notificationService, "無法開啟這段對話，請稍後再試。", ex);
+        }
+        finally
+        {
+            isOpening = false;
+        }
+    }
+
+    private void OnRename(AiAgentConversationSummary summary)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        renameTarget = summary.ConversationId;
+        renameTitle = summary.Title;
+        renameVisible = true;
+    }
+
+    private async Task OnRenameSaveAsync()
+    {
+        var result = await conversationService.RenameAsync(renameTarget, renameTitle);
+        if (result.Success == false)
+        {
+            ViewNotification.Error(notificationService, result.Message);
+            return;
+        }
+
+        renameVisible = false;
+        ViewNotification.Warning(notificationService, "已重新命名。");
+        await LoadConversationsAsync();
+    }
+
+    private async Task OnDeleteAsync(AiAgentConversationSummary summary)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmDialog.AskDestructiveAsync(
+            modalService,
+            "刪除對話",
+            $"確定要刪除「{summary.Title}」嗎？對話內容會一併刪除，無法復原（AI 對話紀錄與 Token 用量不受影響）。",
+            "刪除");
+        if (confirmed == false)
+        {
+            return;
+        }
+
+        var result = await conversationService.DeleteAsync(summary.ConversationId);
+        if (result.Success == false)
+        {
+            ViewNotification.Error(notificationService, result.Message);
+            return;
+        }
+
+        if (chat?.ConversationId == summary.ConversationId)
+        {
+            ResetConversation();
+        }
+
+        ViewNotification.Warning(notificationService, "已刪除對話。");
+        await LoadConversationsAsync();
     }
 
     private async Task OnSendAsync()
     {
         var text = inputText.Trim();
-        if (isRunning || IsAwaitingApproval || text.Length == 0 || unavailableReason is not null)
+        if (IsBusy || IsAwaitingApproval || text.Length == 0 || unavailableReason is not null)
         {
             return;
         }
 
         try
         {
-            if (chat is null)
-            {
-                chat = await runner.StartAsync(AgentPlaygroundAgent.Definition);
-                modelName = chat.ModelName;
-            }
-
-            entries.Add(new ChatEntry(EntryKind.User, text));
+            chat ??= await runner.StartAsync(AgentPlaygroundAgent.Definition);
+            modelName = chat.ModelName;
             inputText = string.Empty;
             var current = chat;
             await RunAsync(token => current.SendAsync(text, token));
@@ -143,7 +240,7 @@ public partial class AgentPlaygroundView : IDisposable
         }
     }
 
-    /// <summary>核准或拒絕所有待決定的工具，然後讓 Agent 繼續。</summary>
+    /// <summary>核准或拒絕所有待決定的工具，然後讓 Agent 繼續（核准／拒絕的說明由對話物件記進紀錄）。</summary>
     private async Task OnDecideAsync(bool approve)
     {
         if (chat is null || isRunning)
@@ -152,8 +249,6 @@ public partial class AgentPlaygroundView : IDisposable
         }
 
         approvalVisible = false;
-        var names = string.Join("、", pendingApprovals.Select(item => item.DisplayName));
-        entries.Add(new ChatEntry(EntryKind.Notice, approve ? $"你核准了：{names}" : $"你拒絕了：{names}"));
         var ids = approve ? pendingApprovals.Select(item => item.RequestId).ToList() : [];
         pendingApprovals = [];
 
@@ -165,16 +260,14 @@ public partial class AgentPlaygroundView : IDisposable
     {
         if (isRunning)
         {
-            stopRequested = true;
             cts?.Cancel();
         }
     }
 
-    /// <summary>跑一次執行並把更新畫到對話上（文字逐段長、工具活動另起一行、需要核准就開核准窗）。</summary>
+    /// <summary>跑一次執行：文字逐段長；工具活動、核准、結果出現時，對話物件已把完整的一則記進紀錄，串流區就清掉。</summary>
     private async Task RunAsync(Func<CancellationToken, IAsyncEnumerable<AiAgentUpdate>> start)
     {
         isRunning = true;
-        stopRequested = false;
         elapsedSeconds = 0;
         streamingHtml = string.Empty;
         cts = new CancellationTokenSource();
@@ -192,21 +285,24 @@ public partial class AgentPlaygroundView : IDisposable
             {
                 if (isDisposed)
                 {
+                    // 離開頁面：不再讀取，對話物件會把已收到的內容收進紀錄並存檔。
                     break;
                 }
 
-                if (update.ToolActivity is { Completed: false } activity)
+                if (update.ToolActivity is { } activity)
                 {
-                    // 工具前面若有文字（例如「我來查一下」），先收成一則回覆，順序才對。
-                    FlushAssistant(streamed, interrupted: false);
-                    entries.Add(new ChatEntry(EntryKind.Tool, $"呼叫工具：{activity.DisplayName}"));
-                    StateHasChanged();
+                    if (activity.Completed == false)
+                    {
+                        ClearStreaming(streamed);
+                        StateHasChanged();
+                    }
+
                     continue;
                 }
 
                 if (update.Approvals is { } approvals)
                 {
-                    FlushAssistant(streamed, interrupted: false);
+                    ClearStreaming(streamed);
                     pendingApprovals = approvals;
                     approvalVisible = true;
                     continue;
@@ -214,6 +310,7 @@ public partial class AgentPlaygroundView : IDisposable
 
                 if (update.Result is not null)
                 {
+                    ClearStreaming(streamed);
                     result = update.Result;
                     continue;
                 }
@@ -235,20 +332,14 @@ public partial class AgentPlaygroundView : IDisposable
                 }
             }
 
-            if (isDisposed)
+            if (isDisposed || result is null)
             {
-                return;
-            }
-
-            if (result is null)
-            {
-                // 停在核准：文字已收好，等使用者決定。
+                // 停在核准：等使用者決定。
                 return;
             }
 
             if (result.Success)
             {
-                FlushAssistant(streamed, interrupted: false);
                 if (result.IsTruncatedByLength)
                 {
                     ViewNotification.Caution(notificationService, "回應已達長度上限，結尾可能不完整。");
@@ -257,20 +348,10 @@ public partial class AgentPlaygroundView : IDisposable
                 return;
             }
 
-            if (result.Reason == AiAnalysisFailureReason.Canceled)
+            if (result.Reason != AiAnalysisFailureReason.Canceled)
             {
-                FlushAssistant(streamed, interrupted: streamed.Length > 0);
-                if (stopRequested)
-                {
-                    entries.Add(new ChatEntry(EntryKind.Notice, streamed.Length > 0 ? "已停止產生（上面的回覆不完整）。" : "已停止產生，尚未收到任何內容。"));
-                }
-
-                return;
+                ViewNotification.Error(notificationService, result.ErrorMessage, result.ErrorDetail);
             }
-
-            FlushAssistant(streamed, interrupted: false);
-            entries.Add(new ChatEntry(EntryKind.Error, result.ErrorMessage));
-            ViewNotification.Error(notificationService, result.ErrorMessage, result.ErrorDetail);
         }
         catch (Exception ex)
         {
@@ -286,26 +367,53 @@ public partial class AgentPlaygroundView : IDisposable
             isRunning = false;
             if (isDisposed == false)
             {
+                await LoadConversationsAsync();
                 StateHasChanged();
             }
         }
     }
 
-    /// <summary>把累積的文字收成一則 AI 回覆（中途停止的加註已中止）。</summary>
-    private void FlushAssistant(StringBuilder streamed, bool interrupted)
+    private async Task LoadConversationsAsync()
     {
-        if (streamed.Length == 0)
+        try
         {
-            return;
+            conversations = await conversationService.ListMineAsync(AgentPlaygroundAgent.Definition.Name);
         }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Agent playground failed to load conversations.");
+            ViewNotification.UnexpectedError(notificationService, "無法讀取「我的對話」，請稍後再試。", ex);
+        }
+    }
 
-        var markdown = interrupted ? AiInterruption.Annotate(streamed.ToString()) : streamed.ToString();
-        var html = AiMarkdownRenderer.ToSafeHtml(markdown);
-        entries.Add(html.Length <= MaxRenderedHtmlLength
-            ? new ChatEntry(EntryKind.Assistant, markdown, html)
-            : new ChatEntry(EntryKind.Error, "AI 回傳內容異常龐大，已中止顯示。"));
+    private void ResetConversation()
+    {
+        chat = null;
+        modelName = string.Empty;
+        inputText = string.Empty;
+        pendingApprovals = [];
+        approvalVisible = false;
+        htmlCache.Clear();
+    }
+
+    private void ClearStreaming(StringBuilder streamed)
+    {
         streamed.Clear();
         streamingHtml = string.Empty;
+    }
+
+    /// <summary>AI 回覆的安全 HTML（只轉一次）；超過顯示上限回 null。</summary>
+    private string? HtmlOf(AiAgentTranscriptEntry entry)
+    {
+        if (htmlCache.TryGetValue(entry, out var cached))
+        {
+            return cached;
+        }
+
+        var html = AiMarkdownRenderer.ToSafeHtml(entry.Text);
+        var value = html.Length <= MaxRenderedHtmlLength ? html : null;
+        htmlCache[entry] = value;
+        return value;
     }
 
     /// <summary>每秒更新「已 N 秒」。⚠️ 計時器回呼不在 renderer 的同步內容上，一定要 InvokeAsync。</summary>
@@ -328,7 +436,7 @@ public partial class AgentPlaygroundView : IDisposable
         }
     }
 
-    /// <summary>離開頁面時取消還在跑的執行（已收到文字的會記一筆「已取消」，同其他 AI 畫面）。</summary>
+    /// <summary>離開頁面時取消還在跑的執行（已收到文字的會記一筆「已取消」，同其他 AI 畫面；對話照樣存檔）。</summary>
     public void Dispose()
     {
         isDisposed = true;

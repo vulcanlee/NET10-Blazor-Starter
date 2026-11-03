@@ -19,6 +19,56 @@ namespace MyProject.AccessDatas.Migrations
                 .UseCollation("Chinese_Taiwan_Stroke_CI_AS")
                 .HasAnnotation("ProductVersion", "10.0.5");
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.AiAgentConversation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Account")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgentName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentFile")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("HasPendingApproval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId")
+                        .IsUnique();
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("UserId", "AgentName", "UpdatedAt");
+
+                    b.ToTable("AiAgentConversation");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.AiCallLog", b =>
                 {
                     b.Property<int>("Id")

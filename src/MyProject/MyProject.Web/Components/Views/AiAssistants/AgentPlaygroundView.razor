@@ -1,10 +1,13 @@
+@using MyProject.Business.Services.DataAccess
+@using MyProject.Models.Systems
 @using MyProject.Share.Helpers
 @using MyProject.Web.Ai
 @using MyProject.Web.Ai.Agents
 
 @*
     Agent 測試台（0.9.142 起）：範例 Agent「專案小幫手」，用來驗收 Agent 骨架（工具、權限、核准、記帳），
-    也是日後寫 Agent 畫面的範本。對話只存在這個頁面（記憶體），離開或重新整理就消失。
+    也是日後寫 Agent 畫面的範本。0.9.143 起對話會保存（左側「我的對話」），只有本人看得到，
+    最後一次對話超過保存天數（系統參數「資料保留」群組）自動刪除。
 *@
 @* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
@@ -18,93 +21,142 @@ else if (string.IsNullOrEmpty(RoleMessage) == false)
 }
 else
 {
-    <div class="agent-playground">
-        <div class="agent-playground-intro">
-            <div class="agent-playground-intro-text">
-                <div class="agent-playground-title">@AgentPlaygroundAgent.Definition.DisplayName</div>
-                <div class="agent-playground-hint">
-                    會搜尋專案；要修改專案描述時會先請你核准。工具依<strong>你的權限</strong>執行，你在畫面上做不到的事，它也做不到。
-                    對話只保留在這個頁面，離開或重新整理就會消失。
-                </div>
-                @if (string.IsNullOrEmpty(modelName) == false)
-                {
-                    <div class="agent-playground-hint">使用模型：@modelName</div>
-                }
-            </div>
-            <ToolbarIconButton Title="新對話" Icon="add_comment"
-                               Disabled="@(unavailableReason is not null)"
-                               OnClick="OnNewConversation" />
-        </div>
-
-        @if (unavailableReason is not null)
-        {
-            <div class="alert alert-warning" role="alert">@unavailableReason</div>
-        }
-        else
-        {
-            <div class="agent-playground-conversation">
-                @if (entries.Count == 0 && isRunning == false)
-                {
-                    <div class="agent-playground-empty">試試看：「列出所有專案」、「找出名稱有『測試』的專案」、「把專案 3 的描述改成『已結案』」。</div>
-                }
-
-                @foreach (var entry in entries)
-                {
-                    @switch (entry.Kind)
+    <div class="agent-playground-layout">
+        <aside class="agent-playground-sidebar">
+            <div class="agent-playground-sidebar-title">我的對話</div>
+            @if (conversations.Count == 0)
+            {
+                <div class="agent-playground-empty">還沒有對話。送出第一則訊息後會出現在這裡。</div>
+            }
+            else
+            {
+                <ul class="agent-playground-list">
+                    @foreach (var item in conversations)
                     {
-                        case EntryKind.User:
-                            <div class="agent-playground-entry agent-playground-entry-user">@entry.Text</div>
-                            break;
-                        case EntryKind.Assistant:
-                            @*
-                                AI 輸出受工具回傳的資料（專案名稱、描述可能含使用者輸入）影響，屬不可信輸入，
-                                一律經 AiMarkdownRenderer.ToSafeHtml 的安全管線之後才能用 MarkupString。
-                            *@
-                            <div class="agent-playground-entry agent-playground-entry-assistant">
-                                <div class="agent-playground-report">@((MarkupString)entry.Html)</div>
-                            </div>
-                            break;
-                        case EntryKind.Tool:
-                            <div class="agent-playground-tool">🔧 @entry.Text</div>
-                            break;
-                        case EntryKind.Notice:
-                            <div class="agent-playground-notice">@entry.Text</div>
-                            break;
-                        case EntryKind.Error:
-                            <div class="agent-playground-entry agent-playground-entry-error">@entry.Text</div>
-                            break;
+                        var current = chat?.ConversationId == item.ConversationId;
+                        <li class="@(current ? "agent-playground-list-item agent-playground-list-item-current" : "agent-playground-list-item")">
+                            <button type="button"
+                                    class="agent-playground-list-open"
+                                    disabled="@(IsBusy || unavailableReason is not null)"
+                                    title="@item.Title"
+                                    @onclick="@(async () => await OnOpenConversationAsync(item))">
+                                <span class="agent-playground-list-title">@item.Title</span>
+                                <span class="agent-playground-list-meta">
+                                    @item.UpdatedAt.ToString("yyyy/MM/dd HH:mm")
+                                    @if (item.HasPendingApproval)
+                                    {
+                                        <span class="agent-playground-list-pending">待核准</span>
+                                    }
+                                </span>
+                            </button>
+                            <span class="agent-playground-list-actions">
+                                <CrudActionButton Title="重新命名" Icon="edit" Disabled="@IsBusy"
+                                                  OnClick="@(() => OnRename(item))" />
+                                <CrudActionButton Title="刪除這段對話" Icon="delete" Danger Disabled="@IsBusy"
+                                                  OnClick="@(async () => await OnDeleteAsync(item))" />
+                            </span>
+                        </li>
                     }
-                }
+                </ul>
+            }
+        </aside>
 
-                @if (isRunning)
-                {
-                    @if (streamingHtml.Length > 0)
+        <div class="agent-playground">
+            <div class="agent-playground-intro">
+                <div class="agent-playground-intro-text">
+                    <div class="agent-playground-title">@AgentPlaygroundAgent.Definition.DisplayName</div>
+                    <div class="agent-playground-hint">
+                        會搜尋專案；要修改專案描述時會先請你核准。工具依<strong>你的權限</strong>執行，你在畫面上做不到的事，它也做不到。
+                        對話會自動保存在左側「我的對話」，只有你自己看得到；最後一次對話超過 @conversationService.RetentionDays 天會自動刪除。
+                    </div>
+                    @if (string.IsNullOrEmpty(modelName) == false)
                     {
-                        <div class="agent-playground-entry agent-playground-entry-assistant">
-                            <div class="agent-playground-report">@((MarkupString)streamingHtml)</div>
+                        <div class="agent-playground-hint">使用模型：@modelName</div>
+                    }
+                </div>
+                <ToolbarIconButton Title="新對話" Icon="add_comment"
+                                   Disabled="@(unavailableReason is not null || IsBusy)"
+                                   OnClick="OnNewConversation" />
+            </div>
+
+            @if (unavailableReason is not null)
+            {
+                <div class="alert alert-warning" role="alert">@unavailableReason</div>
+            }
+            else
+            {
+                <div class="agent-playground-conversation">
+                    @if (Entries.Count == 0 && isRunning == false)
+                    {
+                        <div class="agent-playground-empty">試試看：「列出所有專案」、「找出名稱有『測試』的專案」、「把專案 3 的描述改成『已結案』」。</div>
+                    }
+
+                    @foreach (var entry in Entries)
+                    {
+                        @switch (entry.Kind)
+                        {
+                            case AiAgentTranscriptKinds.User:
+                                <div class="agent-playground-entry agent-playground-entry-user">@entry.Text</div>
+                                break;
+                            case AiAgentTranscriptKinds.Assistant:
+                                @*
+                                    AI 輸出受工具回傳的資料（專案名稱、描述可能含使用者輸入）影響，屬不可信輸入，
+                                    一律經 AiMarkdownRenderer.ToSafeHtml 的安全管線之後才能用 MarkupString。
+                                *@
+                                var html = HtmlOf(entry);
+                                @if (html is null)
+                                {
+                                    <div class="agent-playground-entry agent-playground-entry-error">AI 回傳內容異常龐大，已中止顯示。</div>
+                                }
+                                else
+                                {
+                                    <div class="agent-playground-entry agent-playground-entry-assistant">
+                                        <div class="agent-playground-report">@((MarkupString)html)</div>
+                                    </div>
+                                }
+                                break;
+                            case AiAgentTranscriptKinds.Tool:
+                                <div class="agent-playground-tool">🔧 @entry.Text</div>
+                                break;
+                            case AiAgentTranscriptKinds.Notice:
+                                <div class="agent-playground-notice">@entry.Text</div>
+                                break;
+                            case AiAgentTranscriptKinds.Error:
+                                <div class="agent-playground-entry agent-playground-entry-error">@entry.Text</div>
+                                break;
+                        }
+                    }
+
+                    @if (isRunning)
+                    {
+                        @if (streamingHtml.Length > 0)
+                        {
+                            <div class="agent-playground-entry agent-playground-entry-assistant">
+                                <div class="agent-playground-report">@((MarkupString)streamingHtml)</div>
+                            </div>
+                        }
+
+                        <div class="agent-playground-generating">
+                            <Spin Size="@SpinSize.Small" />
+                            <span>@(streamingHtml.Length > 0 ? "產生中" : "思考中")…已 @elapsedSeconds 秒</span>
+                            <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止產生</Button>
                         </div>
                     }
+                </div>
 
-                    <div class="agent-playground-generating">
-                        <Spin Size="@SpinSize.Small" />
-                        <span>@(streamingHtml.Length > 0 ? "產生中" : "思考中")…已 @elapsedSeconds 秒</span>
-                        <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止產生</Button>
-                    </div>
-                }
-            </div>
-
-            <div class="agent-playground-composer">
-                <TextArea @bind-Value="inputText"
-                          Rows="3"
-                          MaxLength="@MaxInputLength"
-                          Disabled="@(isRunning || IsAwaitingApproval)"
-                          Placeholder="輸入問題或指示…" />
-                @* 「送出」刻意不看輸入框有沒有字（同 AI 例外分析）：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
-                <Button Type="@ButtonType.Primary"
-                        Disabled="@(isRunning || IsAwaitingApproval)"
-                        OnClick="@(async () => await OnSendAsync())">送出</Button>
-            </div>
-        }
+                <div class="agent-playground-composer">
+                    <TextArea @bind-Value="inputText"
+                              Rows="3"
+                              MaxLength="@MaxInputLength"
+                              Disabled="@(IsBusy || IsAwaitingApproval)"
+                              Placeholder="輸入問題或指示…" />
+                    @* 「送出」刻意不看輸入框有沒有字（同 AI 例外分析）：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
+                    <Button Type="@ButtonType.Primary"
+                            Disabled="@(IsBusy || IsAwaitingApproval)"
+                            OnClick="@(async () => await OnSendAsync())">送出</Button>
+                </div>
+            }
+        </div>
     </div>
 
     @* 核准窗：會異動資料的工具執行前一定要經過這裡（不能點遮罩或 × 略過，必須選一個）。 *@
@@ -134,5 +186,17 @@ else
                 <Button Type="@ButtonType.Primary" OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
             </div>
         </div>
+    </Modal>
+
+    @* 重新命名：只有一個欄位，不用表單骨架（標題只給本人看，改了不寫稽核）。 *@
+    <Modal Title="重新命名對話"
+           Class="agent-playground-rename-modal"
+           @bind-Visible="@renameVisible"
+           MaskClosable="false"
+           Keyboard="true"
+           OkText="@("儲存")"
+           CancelText="@("取消")"
+           OnOk="@(async () => await OnRenameSaveAsync())">
+        <Input @bind-Value="renameTitle" MaxLength="@AiAgentConversationService.MaxTitleLength" />
     </Modal>
 }

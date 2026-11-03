@@ -135,6 +135,41 @@ public sealed class RetentionJobTests : IAsyncDisposable
         Assert.Empty(audit.Entries);
     }
 
+    // ------------------------------------------------------------------ Agent 對話（0.9.143 起）
+
+    [Fact]
+    public async Task AiAgentConversationJob_ShouldUseLastConversationTime_AndTheInjectedClock()
+    {
+        // 門檻：本地 2026-10-01 往前 90 天 ＝ 07-03 0 點。建立得早但最近還在聊的那一段不能刪。
+        await InitializeAsync(new LogRetentionSettings());
+        await using (var context = NewContext())
+        {
+            context.AiAgentConversation.Add(NewConversation(created: new DateTime(2026, 5, 1), updated: new DateTime(2026, 7, 2)));
+            context.AiAgentConversation.Add(NewConversation(created: new DateTime(2026, 5, 1), updated: new DateTime(2026, 9, 30)));
+            await context.SaveChangesAsync();
+        }
+
+        var result = await RunAsync<AiAgentConversationRetentionJob>();
+
+        Assert.True(result.Succeeded, result.Message);
+        await using var check = NewContext();
+        Assert.Equal(new DateTime(2026, 9, 30), Assert.Single(await check.AiAgentConversation.ToListAsync()).UpdatedAt);
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal(AuditActions.AiAgentConversation.AutoPurge, entry.Action);
+        Assert.Equal("rows=1; days=90; trigger=Schedule", entry.Detail);
+    }
+
+    private static AiAgentConversation NewConversation(DateTime created, DateTime updated) => new()
+    {
+        ConversationId = Guid.NewGuid(),
+        UserId = 1,
+        Account = "a",
+        AgentName = "x",
+        Title = "t",
+        CreatedAt = created,
+        UpdatedAt = updated,
+    };
+
     // ------------------------------------------------------------------ Token 用量
 
     [Fact]
@@ -360,6 +395,7 @@ public sealed class RetentionJobTests : IAsyncDisposable
         systemSettings.ExternalFileSystem.ExceptionPath = Path.Combine(fileRoot, "exception");
         systemSettings.ExternalFileSystem.TokenUsagePath = Path.Combine(fileRoot, "token");
         systemSettings.ExternalFileSystem.AiCallLogPath = Path.Combine(fileRoot, "ai");
+        systemSettings.ExternalFileSystem.AiAgentConversationPath = Path.Combine(fileRoot, "agent");
         systemSettings.ExternalFileSystem.AuditContentPath = Path.Combine(fileRoot, "audit");
         Directory.CreateDirectory(fileRoot);
 
@@ -370,6 +406,8 @@ public sealed class RetentionJobTests : IAsyncDisposable
         collection.AddSingleton(Options.Create(systemSettings));
         collection.AddSingleton<IOptionsMonitor<LogRetentionSettings>>(new StaticOptionsMonitor<LogRetentionSettings>(retention));
         collection.AddSingleton<IOptionsMonitor<AiCallLogSettings>>(new StaticOptionsMonitor<AiCallLogSettings>(new AiCallLogSettings { RetentionDays = 90 }));
+        collection.AddSingleton<IOptionsMonitor<AiAgentConversationSettings>>(new StaticOptionsMonitor<AiAgentConversationSettings>(new AiAgentConversationSettings { RetentionDays = 90 }));
+        collection.AddSingleton(new CurrentUserService());
         collection.AddSingleton<TimeProvider>(clock);
         collection.AddSingleton<IAuditLogService>(audit);
         collection.AddSingleton<IAiQuotaService>(new StubAiQuotaService());
@@ -385,6 +423,9 @@ public sealed class RetentionJobTests : IAsyncDisposable
         collection.AddScoped<ExceptionLogRetentionJob>();
         collection.AddScoped<AuditLogRetentionJob>();
         collection.AddScoped<AiCallLogRetentionJob>();
+        collection.AddScoped<AiAgentConversationFileStore>();
+        collection.AddScoped<AiAgentConversationService>();
+        collection.AddScoped<AiAgentConversationRetentionJob>();
         collection.AddScoped<TokenUsageLogRetentionJob>();
         services = collection.BuildServiceProvider();
     }

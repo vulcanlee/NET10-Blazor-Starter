@@ -6,6 +6,8 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.DataAccess;
+using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 
 namespace MyProject.Web.Ai.Agents;
@@ -20,10 +22,17 @@ public interface IAiAgentRunner
     string? UnavailableReason { get; }
 
     /// <summary>
-    /// 開始一段新對話。0.9.142 起對話只存在記憶體（這個物件），關掉頁面就沒了；保存與接續在下一個版本。
-    /// 呼叫前請先確認 <see cref="UnavailableReason"/> 為 null。
+    /// 開始一段新對話。0.9.143 起每次執行結束（或停下來等核准）都會存起來，之後可用 <see cref="ResumeAsync"/> 接續；
+    /// 第一次執行之前不會存（只按「新對話」不會多出空白對話）。呼叫前請先確認 <see cref="UnavailableReason"/> 為 null。
     /// </summary>
     Task<AiAgentChat> StartAsync(AiAgentDefinition definition, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 接續目前使用者存下的一段對話（0.9.143 起）：AI 記得前文、畫面紀錄還原、停在核准的重新等使用者決定。
+    /// 模型用<b>目前</b>的系統參數設定（可能與上次不同）。
+    /// 不存在、不是本人的、不是這個 Agent 的、內容檔不見或讀不懂時回 null。
+    /// </summary>
+    Task<AiAgentChat?> ResumeAsync(AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc cref="IAiAgentRunner" />
@@ -35,6 +44,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
     private readonly IAiSystemPromptProvider promptProvider;
     private readonly IOptionsMonitor<AiSettings> settingsMonitor;
     private readonly IOptionsMonitor<AiModelSettings> modelMonitor;
+    private readonly IAiAgentConversationStore store;
     private readonly ILogger<AiAgentRunner> logger;
 
     public AiAgentRunner(
@@ -44,6 +54,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
         IAiSystemPromptProvider promptProvider,
         IOptionsMonitor<AiSettings> settingsMonitor,
         IOptionsMonitor<AiModelSettings> modelMonitor,
+        IAiAgentConversationStore store,
         ILogger<AiAgentRunner> logger)
     {
         this.agentFactory = agentFactory;
@@ -52,6 +63,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
         this.promptProvider = promptProvider;
         this.settingsMonitor = settingsMonitor;
         this.modelMonitor = modelMonitor;
+        this.store = store;
         this.logger = logger;
     }
 
@@ -61,11 +73,60 @@ public sealed class AiAgentRunner : IAiAgentRunner
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        var settings = settingsMonitor.CurrentValue;
         var conversationId = Guid.NewGuid();
+        var (handle, modelName) = await CreateAgentAsync(definition, conversationId, cancellationToken);
+        var session = await handle.Agent.CreateSessionAsync(cancellationToken);
+
+        logger.LogInformation(
+            "AI agent conversation started. Agent={Agent}, ConversationId={ConversationId}, Model={Model}",
+            definition.Name, conversationId, modelName);
+
+        return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger);
+    }
+
+    public async Task<AiAgentChat?> ResumeAsync(AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var loaded = await store.LoadMineAsync(conversationId);
+        if (loaded?.Content is not { } content || loaded.Summary.AgentName != definition.Name)
+        {
+            logger.LogWarning(
+                "AI agent conversation cannot be resumed. Agent={Agent}, ConversationId={ConversationId}, Found={Found}",
+                definition.Name, conversationId, loaded is not null);
+            return null;
+        }
+
+        var (handle, modelName) = await CreateAgentAsync(definition, conversationId, cancellationToken);
+        AgentSession session;
+        try
+        {
+            session = await handle.Agent.DeserializeSessionAsync(content.Session, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // MAF 升版改了 session 格式這類情況：接不下去，但不要讓畫面當掉。
+            logger.LogWarning(ex, "AI agent session cannot be restored. Agent={Agent}, ConversationId={ConversationId}", definition.Name, conversationId);
+            return null;
+        }
+
+        logger.LogInformation(
+            "AI agent conversation resumed. Agent={Agent}, ConversationId={ConversationId}, Model={Model}",
+            definition.Name, conversationId, modelName);
+
+        var chat = new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger, loaded.Summary.Title);
+        chat.Restore(content);
+        return chat;
+    }
+
+    /// <summary>建立 agent（工具、提示詞、記帳管線）。開新對話與接續共用；接續沿用原本的 ConversationId，AI 對話紀錄才串得起來。</summary>
+    private async Task<(AiAgentHandle Handle, string ModelName)> CreateAgentAsync(
+        AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken)
+    {
+        var settings = settingsMonitor.CurrentValue;
         var timeoutSeconds = definition.TimeoutSeconds ?? (settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120);
 
-        // 提示詞在開對話時取一次（含固定附加的安全規則）；管理員在對話途中改版本，下一段新對話才生效。
+        // 提示詞在開對話（或接續）時取一次（含固定附加的安全規則）；管理員在對話途中改版本，下一段新對話或下次接續才生效。
         var instructions = await promptProvider.GetAsync(definition.PromptTemplateKey, cancellationToken);
 
         var handle = agentFactory.CreateAgent(
@@ -83,19 +144,12 @@ public sealed class AiAgentRunner : IAiAgentRunner
             instructions,
             toolFactory.Create(definition));
 
-        var session = await handle.Agent.CreateSessionAsync(cancellationToken);
-        var modelName = modelMonitor.CurrentValue.Resolve(definition.ModelKey, settings.Model);
-
-        logger.LogInformation(
-            "AI agent conversation started. Agent={Agent}, ConversationId={ConversationId}, Model={Model}",
-            definition.Name, conversationId, modelName);
-
-        return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, logger);
+        return (handle, modelMonitor.CurrentValue.Resolve(definition.ModelKey, settings.Model));
     }
 }
 
 /// <summary>
-/// 一段 Agent 對話（0.9.142 起只存在記憶體）。
+/// 一段 Agent 對話（0.9.142 起；0.9.143 起會存起來，可以接續）。
 ///
 /// <para>
 /// 每一次 <see cref="SendAsync"/> 或 <see cref="RespondAsync"/> 是<b>一次執行</b>：換一個新的執行編號（RunId），
@@ -106,18 +160,26 @@ public sealed class AiAgentRunner : IAiAgentRunner
 /// 畫面請使用者核准或拒絕後呼叫 <see cref="RespondAsync"/> 繼續。使用者沒有權限的工具不會請他核准：
 /// 直接以「沒有權限」拒絕並寫 <c>Ai.ToolDenied</c>，讓 agent 自己告訴使用者。
 /// </para>
+/// <para>
+/// 畫面上的對話紀錄由這個物件維護（<see cref="Transcript"/>，畫面直接呈現它），
+/// 每次執行結束、停下來等核准、失敗、取消或呼叫端中途放棄時都會連同 MAF session 存起來（<see cref="IAiAgentConversationStore"/>）。
+/// </para>
 /// <para>⚠️ 不是執行緒安全：同一段對話一次只能有一個執行（畫面在執行中停用送出鈕）。</para>
 /// </summary>
 public sealed class AiAgentChat
 {
     private const string NoPermissionReason = "使用者沒有執行這個操作的權限";
     private const string RejectedReason = "使用者拒絕執行";
+    private const string UnknownToolReason = "這不是這個 Agent 可以使用的工具";
 
     private readonly AiAgentHandle handle;
     private readonly AgentSession session;
     private readonly IAiToolPermissionGuard guard;
+    private readonly IAiAgentConversationStore store;
     private readonly ILogger logger;
     private readonly List<PendingApproval> pending = [];
+    private readonly List<AiAgentTranscriptEntry> transcript = [];
+    private string? title;
 
     internal AiAgentChat(
         AiAgentDefinition definition,
@@ -126,7 +188,9 @@ public sealed class AiAgentChat
         AiAgentHandle handle,
         AgentSession session,
         IAiToolPermissionGuard guard,
-        ILogger logger)
+        IAiAgentConversationStore store,
+        ILogger logger,
+        string? title = null)
     {
         Definition = definition;
         ConversationId = conversationId;
@@ -134,7 +198,9 @@ public sealed class AiAgentChat
         this.handle = handle;
         this.session = session;
         this.guard = guard;
+        this.store = store;
         this.logger = logger;
+        this.title = title;
     }
 
     public AiAgentDefinition Definition { get; }
@@ -142,8 +208,11 @@ public sealed class AiAgentChat
     /// <summary>對話識別碼，也是 AI 對話紀錄的 ConversationId（管理員可從 AI 對話紀錄頁查看整段）。</summary>
     public Guid ConversationId { get; }
 
-    /// <summary>開對話時解析出的模型（系統參數覆寫或預設模型）。</summary>
+    /// <summary>開對話（或接續）時解析出的模型（系統參數覆寫或預設模型）。</summary>
     public string ModelName { get; }
+
+    /// <summary>畫面上的對話紀錄（依時間順序）。執行中只會在一則完整之後才加進來，串流中的文字請看 <see cref="AiAgentUpdate.TextDelta"/>。</summary>
+    public IReadOnlyList<AiAgentTranscriptEntry> Transcript => transcript;
 
     /// <summary>等待使用者核准的工具呼叫；沒有時為空。</summary>
     public IReadOnlyList<AiToolApprovalRequest> PendingApprovals
@@ -160,11 +229,20 @@ public sealed class AiAgentChat
             throw new InvalidOperationException("還有待核准的工具，請先核准或拒絕。");
         }
 
-        return RunAsync([new ChatMessage(ChatRole.User, message)], cancellationToken);
+        title ??= AiAgentConversationService.TitleFrom(message);
+        transcript.Add(Entry(AiAgentTranscriptKinds.User, message));
+
+        // 接續時才可能發生：存下來的待核准全都不能再請使用者決定（工具已不在這個 Agent 上）。
+        // 那些拒絕要先送回去，模型才不會一直等著那幾個工具呼叫的結果。
+        var contents = new List<AIContent>(pending.Select(item => item.AutoResponse!)) { new TextContent(message) };
+        pending.Clear();
+
+        return PersistingRunAsync([new ChatMessage(ChatRole.User, contents)], cancellationToken);
     }
 
     /// <summary>
     /// 回覆待核准的工具並繼續執行。<paramref name="approvedRequestIds"/> 裡的核准、其餘一律視為拒絕（寫 <c>Ai.ToolRejected</c>）。
+    /// 核准的工具真正執行時，工具外殼仍會再檢查一次權限（接續舊對話時，權限可能已經變了）。
     /// </summary>
     public async IAsyncEnumerable<AiAgentUpdate> RespondAsync(
         IReadOnlyCollection<string> approvedRequestIds,
@@ -173,6 +251,8 @@ public sealed class AiAgentChat
         ArgumentNullException.ThrowIfNull(approvedRequestIds);
 
         var responses = new List<AIContent>(pending.Count);
+        var approvedNames = new List<string>();
+        var rejectedNames = new List<string>();
         foreach (var item in pending)
         {
             // 因為沒有權限被自動拒絕的那幾個：照原本的拒絕送回去。
@@ -188,14 +268,59 @@ public sealed class AiAgentChat
                 await guard.AuditAsync(AuditActions.Ai.ToolRejected, Definition.Name, item.Tool!, success: false);
             }
 
+            (approved ? approvedNames : rejectedNames).Add(item.Request.DisplayName);
             responses.Add(item.Content!.CreateResponse(approved, approved ? null : RejectedReason));
         }
 
         pending.Clear();
+        if (approvedNames.Count > 0)
+        {
+            transcript.Add(Entry(AiAgentTranscriptKinds.Notice, $"你核准了：{string.Join("、", approvedNames)}"));
+        }
 
-        await foreach (var update in RunAsync([new ChatMessage(ChatRole.User, responses)], cancellationToken))
+        if (rejectedNames.Count > 0)
+        {
+            transcript.Add(Entry(AiAgentTranscriptKinds.Notice, $"你拒絕了：{string.Join("、", rejectedNames)}"));
+        }
+
+        await foreach (var update in PersistingRunAsync([new ChatMessage(ChatRole.User, responses)], cancellationToken))
         {
             yield return update;
+        }
+    }
+
+    /// <summary>接續時還原畫面紀錄與待核准（只在 <see cref="AiAgentRunner.ResumeAsync"/> 呼叫）。</summary>
+    internal void Restore(AiAgentConversationContent content)
+    {
+        transcript.AddRange(content.Transcript);
+        foreach (var record in content.PendingApprovals)
+        {
+            var restored = RestorePending(record);
+            if (restored is not null)
+            {
+                pending.Add(restored);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 跑一次執行，結束時（不論成功、失敗、取消、停在核准，或呼叫端中途不再讀取）存檔。
+    /// 存檔用 <see cref="CancellationToken.None"/>：使用者按停止或離開頁面時，正是最需要存下來的時候。
+    /// </summary>
+    private async IAsyncEnumerable<AiAgentUpdate> PersistingRunAsync(
+        IList<ChatMessage> input,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var update in RunAsync(input, cancellationToken))
+            {
+                yield return update;
+            }
+        }
+        finally
+        {
+            await PersistAsync();
         }
     }
 
@@ -211,6 +336,7 @@ public sealed class AiAgentChat
         var approvals = new List<ToolApprovalRequestContent>();
         var callNames = new Dictionary<string, string>(StringComparer.Ordinal);
         AiAnalysisResult? failure = null;
+        var finished = false;
 
         IAsyncEnumerator<AgentResponseUpdate>? enumerator = null;
         try
@@ -264,6 +390,10 @@ public sealed class AiAgentChat
                             break;
                         case FunctionCallContent call:
                             callNames[call.CallId] = call.Name;
+
+                            // 工具前面若有文字（例如「我來查一下」），先收成一則回覆，順序才對。
+                            FlushAssistant(text, interrupted: false);
+                            transcript.Add(Entry(AiAgentTranscriptKinds.Tool, $"呼叫工具：{DisplayNameOf(call.Name)}"));
                             yield return new AiAgentUpdate { ToolActivity = new AiToolActivity(call.Name, DisplayNameOf(call.Name), Completed: false) };
                             break;
                         case FunctionResultContent result when callNames.TryGetValue(result.CallId, out var name):
@@ -278,6 +408,8 @@ public sealed class AiAgentChat
                     yield return new AiAgentUpdate { TextDelta = update.Text };
                 }
             }
+
+            finished = true;
         }
         finally
         {
@@ -285,13 +417,35 @@ public sealed class AiAgentChat
             {
                 await enumerator.DisposeAsync();
             }
+
+            // 呼叫端中途不再讀取（例如離開頁面）：已收到的文字照樣收進紀錄，標示不完整。
+            if (finished == false && text.Length > 0)
+            {
+                FlushAssistant(text, interrupted: true);
+            }
         }
 
         if (failure is not null)
         {
+            if (failure.Reason == AiAnalysisFailureReason.Canceled)
+            {
+                var hadText = text.Length > 0;
+                FlushAssistant(text, interrupted: hadText);
+                transcript.Add(Entry(AiAgentTranscriptKinds.Notice, hadText ? "已停止產生（上面的回覆不完整）。" : "已停止產生，尚未收到任何內容。"));
+            }
+            else
+            {
+                FlushAssistant(text, interrupted: false);
+                transcript.Add(Entry(AiAgentTranscriptKinds.Error, failure.ErrorMessage));
+            }
+
             yield return new AiAgentUpdate { Result = failure };
             yield break;
         }
+
+        // 收進紀錄會清掉 text，結果要用的全文先留下來。
+        var markdown = text.ToString();
+        FlushAssistant(text, interrupted: false);
 
         if (approvals.Count > 0)
         {
@@ -324,7 +478,7 @@ public sealed class AiAgentChat
             Result = new AiAnalysisResult
             {
                 Success = true,
-                Markdown = text.ToString(),
+                Markdown = markdown,
                 Usage = AiTokenUsage.Sum(outcomes.Select(outcome => outcome.Usage)),
                 ModelName = outcomes.LastOrDefault()?.ModelName ?? ModelName,
                 IsTruncatedByLength = string.Equals(outcomes.LastOrDefault()?.FinishReason, "length", StringComparison.OrdinalIgnoreCase),
@@ -346,7 +500,7 @@ public sealed class AiAgentChat
             var tool = Definition.Tools.FirstOrDefault(item => item.Name == call?.Name);
             if (call is null || tool is null)
             {
-                autoRejected.Add(request.CreateResponse(false, "這不是這個 Agent 可以使用的工具"));
+                autoRejected.Add(request.CreateResponse(false, UnknownToolReason));
                 continue;
             }
 
@@ -357,14 +511,84 @@ public sealed class AiAgentChat
                 continue;
             }
 
-            pending.Add(new PendingApproval(
-                request,
-                tool,
-                new AiToolApprovalRequest(request.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call))));
+            pending.Add(PendingApproval.ForUser(request, tool, call));
         }
 
         return autoRejected;
     }
+
+    /// <summary>把累積的文字收成一則 AI 回覆（中途停止的加註已中止）。</summary>
+    private void FlushAssistant(StringBuilder text, bool interrupted)
+    {
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        var markdown = text.ToString();
+        transcript.Add(Entry(AiAgentTranscriptKinds.Assistant, interrupted ? AiInterruption.Annotate(markdown) : markdown));
+        text.Clear();
+    }
+
+    /// <summary>存檔：session、畫面紀錄與待核准。還沒有任何紀錄（只開了新對話）時不存。失敗只記警告。</summary>
+    private async Task PersistAsync()
+    {
+        if (transcript.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var content = new AiAgentConversationContent
+            {
+                Session = await handle.Agent.SerializeSessionAsync(session, cancellationToken: CancellationToken.None),
+                Transcript = transcript.ToList(),
+                PendingApprovals = pending.Select(item => item.ToRecord()).ToList(),
+            };
+
+            await store.SaveAsync(new AiAgentConversationSnapshot(
+                ConversationId, Definition.Name, title ?? Definition.DisplayName, IsAwaitingApproval, content));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to persist AI agent conversation. Agent={Agent}, ConversationId={ConversationId}", Definition.Name, ConversationId);
+        }
+    }
+
+    /// <summary>
+    /// 從存檔還原一筆待核准。工具已不在這個 Agent 上的改成自動拒絕；內容讀不懂的略過（記警告）。
+    /// 權限不在這裡重新檢查：使用者核准後，工具外殼執行前一定會再檢查一次。
+    /// </summary>
+    private PendingApproval? RestorePending(AiAgentPendingApprovalRecord record)
+    {
+        AIContent? content;
+        try
+        {
+            content = record.Content.Deserialize<AIContent>(AIJsonUtilities.DefaultOptions);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "Failed to restore a pending tool approval. ConversationId={ConversationId}, Tool={Tool}", ConversationId, record.ToolName);
+            return null;
+        }
+
+        switch (content)
+        {
+            case ToolApprovalResponseContent response:
+                return PendingApproval.AutoRejected(response);
+            case ToolApprovalRequestContent request when request.ToolCall is FunctionCallContent call
+                && Definition.Tools.FirstOrDefault(item => item.Name == call.Name) is { } tool:
+                return PendingApproval.ForUser(request, tool, call);
+            case ToolApprovalRequestContent request:
+                return PendingApproval.AutoRejected(request.CreateResponse(false, UnknownToolReason));
+            default:
+                logger.LogWarning("Unexpected pending tool approval content. ConversationId={ConversationId}, Tool={Tool}", ConversationId, record.ToolName);
+                return null;
+        }
+    }
+
+    private static AiAgentTranscriptEntry Entry(string kind, string text) => new() { Kind = kind, Text = text };
 
     private string DisplayNameOf(string toolName)
         => Definition.Tools.FirstOrDefault(tool => tool.Name == toolName)?.DisplayName ?? toolName;
@@ -392,7 +616,7 @@ public sealed class AiAgentChat
     /// <summary>一筆待決定的核准。自動拒絕的也放這裡（<see cref="Request"/> 為 null 的那種不給畫面看）。</summary>
     private sealed class PendingApproval
     {
-        public PendingApproval(ToolApprovalRequestContent content, AiToolDefinition tool, AiToolApprovalRequest request)
+        private PendingApproval(ToolApprovalRequestContent content, AiToolDefinition tool, AiToolApprovalRequest request)
         {
             Content = content;
             Tool = tool;
@@ -412,7 +636,19 @@ public sealed class AiAgentChat
 
         public ToolApprovalResponseContent? AutoResponse { get; }
 
+        public static PendingApproval ForUser(ToolApprovalRequestContent content, AiToolDefinition tool, FunctionCallContent call)
+            => new(content, tool, new AiToolApprovalRequest(content.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call)));
+
         public static PendingApproval AutoRejected(ToolApprovalResponseContent response) => new(response);
+
+        /// <summary>存檔用：MAF 的 AIContent 以 <see cref="AIJsonUtilities.DefaultOptions"/> 序列化（含型別標記，讀得回同一個型別）。</summary>
+        public AiAgentPendingApprovalRecord ToRecord() => new()
+        {
+            ToolName = Tool?.Name ?? (AutoResponse?.ToolCall as FunctionCallContent)?.Name ?? string.Empty,
+            AutoRejected = AutoResponse is not null,
+            Content = JsonSerializer.SerializeToElement<AIContent>(
+                AutoResponse is not null ? AutoResponse : Content!, AIJsonUtilities.DefaultOptions),
+        };
     }
 }
 
