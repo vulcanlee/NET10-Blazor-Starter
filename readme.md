@@ -115,6 +115,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 通用匯出：專案、分類、團隊、使用者頁「匯出 Excel」，依目前條件與團隊範圍、上限 10000 筆、寫稽核；診斷頁的 CSV 匯出收斂到同一個服務（0.9.107）
 - AI 提示詞：管理員在畫面上修改日誌分析與例外分析的提示詞，存成版本、可切回；防注入與 PDF 格式規則固定附加、改不到（0.9.108）
 - AI 用量上限：全系統與每人的每日、每月新台幣上限（系統參數），達到時不再送出 AI 呼叫，80%／100% 通知本人或管理員；健康檢測記帳不擋（0.9.109）
+- Agent 骨架與 Agent 測試台：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型；新選單「AI 助理 › Agent 測試台」（`/agent-playground`，可授權給角色，不自動開給預設角色）以範例 Agent 搜尋專案、核准後修改專案描述（0.9.142）
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
 - 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
 - 系統參數：`/system-parameters`，管理員在畫面上修改系統名稱、保留天數、監控與告警門檻、流量與忘記密碼限制，存檔即生效、不需重啟，每次修改寫稽核（0.9.98）
@@ -262,6 +263,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
+| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`，**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |

@@ -62,7 +62,41 @@
                 <div><dt>關聯說明</dt><dd>@(item.RelatedInfo ?? "—")</dd></div>
                 <div><dt>用量與費用</dt><dd>@UsageText</dd></div>
                 <div><dt>呼叫識別碼</dt><dd class="ai-call-log-mono">@item.CallId</dd></div>
+                @if (item.RunId is { } runId)
+                {
+                    <div><dt>執行編號</dt><dd class="ai-call-log-mono">@runId</dd></div>
+                }
             </dl>
+
+            @*
+                同一次執行（0.9.142 起）：Agent 一次執行裡的工具呼叫迴圈會呼叫模型很多次，
+                每次各一筆紀錄、共用同一個執行編號。只有一筆時不列。
+            *@
+            @if (detail.Run.Count > 1)
+            {
+                <div class="ai-call-log-thread">
+                    <div class="ai-call-log-thread-title">同一次執行（共 @detail.Run.Count 次模型呼叫）</div>
+                    <ol class="ai-call-log-thread-list">
+                        @foreach (var sibling in detail.Run)
+                        {
+                            var current = sibling.Id == item.Id;
+                            <li class="@(current ? "ai-call-log-thread-current" : string.Empty)">
+                                @if (current)
+                                {
+                                    <span>@sibling.OccurredAt.ToString("HH:mm:ss")　@(sibling.FinishReason ?? sibling.Operation)（目前這筆）</span>
+                                }
+                                else
+                                {
+                                    <Button Type="ButtonType.Link" Size="ButtonSize.Small"
+                                            OnClick="@(async () => await OpenAsync(sibling.Id))">
+                                        @sibling.OccurredAt.ToString("HH:mm:ss")　@(sibling.FinishReason ?? sibling.Operation)
+                                    </Button>
+                                }
+                            </li>
+                        }
+                    </ol>
+                </div>
+            }
 
             @if (detail.Conversation.Count > 1)
             {

@@ -149,6 +149,9 @@ public sealed record AiChatCompletionRequest
 
     /// <summary>同一段對話的識別碼（例外分析與其追問共用），0.9.72 起；其他作業為 null。</summary>
     public Guid? ConversationId { get; init; }
+
+    /// <summary>用哪個功能的模型設定（0.9.142 起，見 <see cref="AiCallContext.ModelKey"/>）。</summary>
+    public string? ModelKey { get; init; }
 }
 
 /// <summary>

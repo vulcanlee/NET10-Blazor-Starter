@@ -140,6 +140,9 @@ public partial class BackendDBContext : DbContext
             // 從用量明細找對應的 AI 對話紀錄。
             entity.HasIndex(x => x.CallId);
 
+            // 同一次執行的多筆呼叫（0.9.142 起）。
+            entity.HasIndex(x => x.RunId);
+
             // AI 用量上限（0.9.109 起）：每次 AI 呼叫前加總某人今天、本月的費用。
             entity.HasIndex(x => new { x.UserId, x.OccurredAt });
         });
@@ -152,6 +155,7 @@ public partial class BackendDBContext : DbContext
             entity.HasIndex(x => x.OccurredAt);
             entity.HasIndex(x => x.CallId).IsUnique();
             entity.HasIndex(x => x.ConversationId);
+            entity.HasIndex(x => x.RunId);
         });
         #endregion
 

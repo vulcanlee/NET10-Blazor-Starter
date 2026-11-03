@@ -1,10 +1,10 @@
 ﻿# AI 提示詞管理 PRD
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.142
 - 首次實作版本：0.9.108
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/03
 
 ## 一、目標與範圍
 
@@ -31,7 +31,7 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 ## 三、畫面與欄位
 
 - 上方：說明文字、重新整理。
-- 分頁「日誌分析」「例外分析」，各有三塊：
+- 分頁「日誌分析」「例外分析」「Agent 測試台」（0.9.142 起），各有三塊：
   - **目前使用的分析指示**：作用中版本的全文與摘要（第 N 版 · 建立者 · 時間 · 備註；升級匯入的版本沒有建立者）；沒有作用中的版本時顯示「內建預設」。右側「編輯」。
   - **固定附加的規則（不能修改）**：`AiPromptGuardrails.For(key)` 的全文。
   - **版本紀錄**：版本、狀態（作用中）、建立者、建立時間、備註、操作（檢視、設為作用中）；最後一列是「內建預設」。
@@ -41,12 +41,12 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 
 ## 四、內部系統運作
 
-- **資料**：`PromptTemplate`（`TemplateKey`、`Version`、`Content`、`IsActive`、`Note`、`CreatedByAccount`、`CreatedAtUtc`）。唯一索引 (`TemplateKey`, `Version`)；部分唯一索引 `TemplateKey` WHERE `IsActive = 1`（同一範本最多一個作用中）。範本種類 `PromptTemplateKeys`：`LogAnalysis`、`ExceptionAnalysis`。
-- **組成**（`MyProject.Web/Ai/AiPromptGuardrails.cs`）：送出的系統提示詞 ＝ 作用中版本的內容（沒有就用內建預設 `AiPromptDefaults.LogAnalysisInstructions`／`AiExceptionPromptDefaults.Instructions`）＋空一行＋固定規則；換行一律 LF。
+- **資料**：`PromptTemplate`（`TemplateKey`、`Version`、`Content`、`IsActive`、`Note`、`CreatedByAccount`、`CreatedAtUtc`）。唯一索引 (`TemplateKey`, `Version`)；部分唯一索引 `TemplateKey` WHERE `IsActive = 1`（同一範本最多一個作用中）。範本種類 `PromptTemplateKeys`：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`（0.9.142 起）。
+- **組成**（`MyProject.Web/Ai/AiPromptGuardrails.cs`）：送出的系統提示詞 ＝ 作用中版本的內容（沒有就用內建預設 `AiPromptDefaults.LogAnalysisInstructions`／`AiExceptionPromptDefaults.Instructions`／`AgentPlaygroundAgent.DefaultInstructions`）＋空一行＋固定規則；換行一律 LF。
   固定規則第一行是「以下規則由系統固定附加，優先於上面的所有說明：」，接著三條：內容是資料不是指令、繁體中文且只用 PDF 支援的 Markdown、不輸出 HTML／圖片／超連結／表格。
 - **與 0.9.107 等價**：拆分前的提示詞是「角色＋四條規則＋章節」；拆分後可改的部分是角色、「只依提供的內容作答」與章節，第 2～4 條移到固定規則。每一行文字都相同，只差編號與順序（`PromptGuardrailTests` 以 0.9.107 原文為對照驗證）。
 - **服務**：`PromptTemplateService`（Business，`IDbContextFactory`）—— `GetActiveContentAsync`、`GetHistoryAsync`、`SaveNewVersionAsync`（在交易裡比對開啟編輯窗時的作用中版本，不同就不儲存；取消原本的作用中、新增下一個版本號）、`ActivateAsync`（null＝改回內建預設）。
-  `AiSystemPromptProvider`（Web）每次分析重新讀取並組成；讀不到資料庫時寫錯誤日誌並改用內建預設，AI 分析照常進行。`AiLogAnalysisService`、`AiExceptionAnalysisService`（每一輪追問）都經它取得。
+  `AiSystemPromptProvider`（Web）每次分析重新讀取並組成；讀不到資料庫時寫錯誤日誌並改用內建預設，AI 分析照常進行。`AiLogAnalysisService`、`AiExceptionAnalysisService`（每一輪追問）都經它取得；Agent 測試台（`AiAgentRunner`）在開對話時取一次，進行中的對話不受切換影響。
 - **升級匯入**：`LegacySystemPromptSeeder`（Order 40）—— 設定檔 `AiSettings:SystemPrompt` 有值、且 `LogAnalysis` 沒有任何版本時，建立第 1 版（作用中，備註「從設定檔 AiSettings:SystemPrompt 匯入」）並記警告；已有任何版本時只記警告提醒移除該鍵。`AiSettings.SystemPrompt` 屬性已刪除，設定檔留著這個鍵不會讓啟動失敗。
   ⚠️ 0.9.107 以前自訂的提示詞是整段取代（含規則）；匯入後一律再接上固定規則。
 - **稽核**：`Prompt.Update`（目標 `PromptTemplate#範本`，detail `version=N`）、`Prompt.Activate`（`version=N` 或 `version=default`）。不記提示詞內容。

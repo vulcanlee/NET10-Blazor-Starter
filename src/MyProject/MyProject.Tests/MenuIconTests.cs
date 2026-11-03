@@ -46,6 +46,7 @@ public sealed class MenuIconTests
         "smart_toy",
         "psychology",
         "build",
+        "science",
     };
 
     [Fact]

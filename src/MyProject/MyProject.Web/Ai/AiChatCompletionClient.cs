@@ -180,6 +180,10 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
             Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120),
             RelatedInfo = request.RelatedInfo,
             ConversationId = request.ConversationId,
+
+            // 一次呼叫（一次按鈕、一輪追問）就是一次執行（0.9.142 起）。
+            RunId = Guid.NewGuid(),
+            ModelKey = request.ModelKey,
             ContextLengthExceededMessage = request.ContextLengthExceededMessage,
             TimeoutHint = request.TimeoutHint,
             SubmittedContentLabel = request.SubmittedContentLabel,

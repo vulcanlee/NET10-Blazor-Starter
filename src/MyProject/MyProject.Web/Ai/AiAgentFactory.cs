@@ -28,7 +28,11 @@ public interface IAiAgentFactory
     /// </summary>
     /// <param name="context">呼叫情境：作業名稱、逾時、錯誤訊息用語等。</param>
     /// <param name="instructions">agent 的系統提示詞；呼叫端自己在訊息裡帶 system 訊息時傳 null。</param>
-    AiAgentHandle CreateAgent(AiCallContext context, string? instructions = null);
+    /// <param name="tools">
+    /// agent 可呼叫的工具（0.9.142 起）。由 MAF 的工具呼叫迴圈執行，每一次模型呼叫都經過記帳中介層。
+    /// ⚠️ 請用 <c>AiAgentToolFactory</c> 建立，權限檢查、稽核與異動工具的強制核准都在那裡包上。
+    /// </param>
+    AiAgentHandle CreateAgent(AiCallContext context, string? instructions = null, IList<AITool>? tools = null);
 }
 
 /// <summary>建好的 agent 與它的呼叫狀態（每次成功的模型呼叫結果都在 <see cref="State"/>）。</summary>
@@ -55,6 +59,7 @@ public sealed class AiAgentFactory : IAiAgentFactory
 
     private readonly IHttpClientFactory httpClientFactory;
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
+    private readonly IOptionsMonitor<AiModelSettings>? modelOptions;
     private readonly ILoggerFactory loggerFactory;
     private readonly AiAgentServices services;
 
@@ -67,8 +72,10 @@ public sealed class AiAgentFactory : IAiAgentFactory
         IAiCallLogRecorder aiCallLogRecorder,
         IAiQuotaService quotaService,
         IAuditLogService auditLogService,
-        IOptionsMonitor<SlowOperationSettings>? slowOptions = null)
+        IOptionsMonitor<SlowOperationSettings>? slowOptions = null,
+        IOptionsMonitor<AiModelSettings>? modelOptions = null)
     {
+        this.modelOptions = modelOptions;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
         this.loggerFactory = loggerFactory;
@@ -82,7 +89,7 @@ public sealed class AiAgentFactory : IAiAgentFactory
             slowOptions);
     }
 
-    public AiAgentHandle CreateAgent(AiCallContext context, string? instructions = null)
+    public AiAgentHandle CreateAgent(AiCallContext context, string? instructions = null, IList<AITool>? tools = null)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -90,14 +97,15 @@ public sealed class AiAgentFactory : IAiAgentFactory
         // 等於 SignalR circuit，可存活數小時，IOptions 的一次性快照會讓設定變更永遠吃不到。
         var settings = optionsMonitor.CurrentValue;
         var state = new AiCallState();
-        var model = settings.Model;
+        // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model。
+        var model = modelOptions?.CurrentValue.Resolve(context.ModelKey, settings.Model) ?? settings.Model;
 
         var chatClient = CreateOpenAIClient(settings, state).GetChatClient(model);
 
         var agent = chatClient.AsAIAgent(
             new ChatClientAgentOptions
             {
-                ChatOptions = CreateChatOptions(settings, instructions),
+                ChatOptions = CreateChatOptions(settings, instructions, tools),
             },
             clientFactory: inner => new AiAccountingChatClient(inner, context, state, settings, model, services),
             loggerFactory: loggerFactory);
@@ -137,10 +145,11 @@ public sealed class AiAgentFactory : IAiAgentFactory
         return new OpenAIClient(new ApiKeyCredential(settings.ApiKey), options);
     }
 
-    private static ChatOptions CreateChatOptions(AiSettings settings, string? instructions)
+    private static ChatOptions CreateChatOptions(AiSettings settings, string? instructions, IList<AITool>? tools)
         => new()
         {
             Instructions = instructions,
+            Tools = tools is { Count: > 0 } ? tools : null,
 
             // 送出時對應到 max_completion_tokens（推論模型只接受這個）。
             // ⚠️ 預設不送，由模型自己決定：這個額度同時涵蓋推論模型的思考 token，

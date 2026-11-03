@@ -99,6 +99,7 @@ public class AiCallLogService : IAiCallLogRecorder
                 ResponseCharacters = entry.ResponseText.Length,
                 RelatedInfo = TrimRelatedInfo(entry.RelatedInfo),
                 ConversationId = entry.ConversationId,
+                RunId = entry.RunId,
                 ContentFile = contentFile,
             };
 
@@ -227,6 +228,17 @@ public class AiCallLogService : IAiCallLogRecorder
                 .ToListAsync();
         }
 
+        // 同一次執行（0.9.142 起）：Agent 的工具呼叫迴圈會有多筆。只有一筆時畫面不列。
+        List<AiCallLog> run = [];
+        if (item.RunId is { } runId)
+        {
+            run = await context.AiCallLog.AsNoTracking()
+                .Where(x => x.RunId == runId)
+                .OrderBy(x => x.OccurredAt)
+                .ThenBy(x => x.Id)
+                .ToListAsync();
+        }
+
         return new AiCallLogDetail
         {
             Item = Mapper.Map<AiCallLogAdapterModel>(item),
@@ -234,6 +246,7 @@ public class AiCallLogService : IAiCallLogRecorder
             Messages = AiCallLogMessages.Parse(content?.RequestBody),
             Usage = usage is null ? null : Mapper.Map<TokenUsageLogAdapterModel>(usage),
             Conversation = Mapper.Map<List<AiCallLogAdapterModel>>(conversation),
+            Run = Mapper.Map<List<AiCallLogAdapterModel>>(run),
         };
     }
 

@@ -40,6 +40,9 @@ public class AiCallLogAdapterModel
 
     public Guid? ConversationId { get; set; }
 
+    /// <summary>同一次執行的識別碼（0.9.142 起）。</summary>
+    public Guid? RunId { get; set; }
+
     /// <summary>是否有內容檔（寫檔失敗時為 false）。</summary>
     public bool HasContent { get; set; }
 

@@ -1,0 +1,155 @@
+/* ===== Agent 測試台（0.9.142 起） ===== */
+/* 顏色一律取 theme.css 的變數（ThemeConventionTests 守門）。泡泡樣式比照 AI 例外分析對話窗。 */
+
+.agent-playground {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 960px;
+}
+
+.agent-playground-intro {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.agent-playground-intro-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.agent-playground-title {
+    font-size: 18px;
+    color: var(--app-text);
+}
+
+.agent-playground-hint {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--app-muted);
+}
+
+.agent-playground-conversation {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 240px;
+    padding: 12px;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-card);
+    background: var(--app-page);
+}
+
+.agent-playground-empty {
+    color: var(--app-off);
+    font-size: 13px;
+}
+
+.agent-playground-entry {
+    padding: 10px 14px;
+    border: 1px solid var(--app-line);
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.agent-playground-entry-user {
+    align-self: flex-end;
+    max-width: 80%;
+    background: var(--app-accent-soft);
+    color: var(--app-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.agent-playground-entry-assistant {
+    background: var(--app-card);
+}
+
+.agent-playground-entry-error {
+    background: var(--app-tint);
+    border-color: var(--app-error);
+    color: var(--app-text);
+}
+
+.agent-playground-report {
+    color: var(--app-text);
+}
+
+.agent-playground-report ::deep p {
+    margin: 0 0 8px;
+}
+
+.agent-playground-report ::deep pre {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--app-code-bg);
+    color: var(--app-code-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.agent-playground-tool,
+.agent-playground-notice {
+    font-size: 13px;
+    color: var(--app-muted);
+}
+
+.agent-playground-generating {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    color: var(--app-muted);
+    font-size: 13px;
+}
+
+.agent-playground-composer {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.agent-playground-approval {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.agent-playground-approval-item {
+    padding: 10px 14px;
+    border: 1px solid var(--app-line);
+    border-radius: 6px;
+    background: var(--app-card);
+}
+
+.agent-playground-approval-name {
+    margin-bottom: 6px;
+    color: var(--app-text);
+    font-weight: 600;
+}
+
+.agent-playground-approval-args div {
+    display: flex;
+    gap: 8px;
+}
+
+.agent-playground-approval-args dt {
+    min-width: 96px;
+    color: var(--app-muted);
+}
+
+.agent-playground-approval-args dd {
+    margin: 0;
+    color: var(--app-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.agent-playground-approval-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}

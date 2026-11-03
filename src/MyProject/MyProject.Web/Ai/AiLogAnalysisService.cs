@@ -95,6 +95,7 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
         var request = new AiChatCompletionRequest
         {
             Operation = TokenUsageOperations.AiLogAnalysis,
+            ModelKey = nameof(AiModelSettings.LogAnalysis),
             Messages =
                 [
                     new AiChatMessage(AiChatRoles.System, systemPrompt),

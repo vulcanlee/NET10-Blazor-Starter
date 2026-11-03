@@ -1,10 +1,10 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：2.3
+- 文件版本：2.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.141
+- 現行系統版本：0.9.142
 - 首次實作版本：0.9.14
-- 最後核對日期：2026/11/02
+- 最後核對日期：2026/11/03
 
 ## 一、目標與範圍
 
@@ -17,10 +17,11 @@
   它在本頁上的呈現。
 - 非範圍：不提供 Web API。費用相關的非範圍見該 PRD。
 
-> **現況提醒**：本腳手架目前有**三種**作業會記入本頁：
+> **現況提醒**：本腳手架目前有**四種**作業會記入本頁：
 > 「AI 日誌分析」（日誌檢視頁，使用者主動觸發）、
-> 「AI 例外分析」（0.9.68 起，系統例外紀錄明細窗，使用者主動觸發；初始分析與每一輪追問各記一筆）與
-> 「系統健康檢測」（0.9.24 起，系統健康監控頁每次載入自動發出一句 hello）。
+> 「AI 例外分析」（0.9.68 起，系統例外紀錄明細窗，使用者主動觸發；初始分析與每一輪追問各記一筆）、
+> 「系統健康檢測」（0.9.24 起，系統健康監控頁每次載入自動發出一句 hello）與
+> 「Agent 測試台」（0.9.142 起，使用者主動對話；Agent 一次回覆可能呼叫模型好幾次（工具呼叫迴圈），每一次各記一筆、共用同一個 `RunId`）。
 > 可用「作業」篩選器分開檢視。
 >
 > ⚠️ 健康檢測的**次數**會遠多於日誌分析（每開一次 `/system-health` 就一筆），
@@ -222,7 +223,7 @@ LLM 呼叫點（發出 HTTP 的那一層）
 
 **⚠️ 記錄點必須放在發出 HTTP 的那一層，不可放畫面層** —— 原始 usage、實際模型名稱與耗時，
 回到畫面之前就已經丟失了。目前的呼叫點是 `AiChatCompletionClient.CompleteAsync`（0.9.68 起由 AI 日誌分析與
-AI 例外分析共用）與 `AiHealthProbe.ProbeAsync`；0.9.140 起兩者都經 `IAiAgentFactory` 建立的 MAF agent 送出，
+AI 例外分析共用）、`AiHealthProbe.ProbeAsync` 與 0.9.142 起的 `AiAgentRunner`（Agent 測試台）；0.9.140 起都經 `IAiAgentFactory` 建立的 MAF agent 送出，
 實際的記錄點是 agent 管線上的記帳中介層 `AiAccountingChatClient`（每一次模型呼叫記一筆），
 見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
 
@@ -281,6 +282,8 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 
 0.9.72 起完整內文**只准**存進管理員專屬、會自動過期的 [AI 對話紀錄](AI對話紀錄-prd.md)；
 本表只多一欄 `CallId`（索引）與它對應，明細窗的「AI 對話紀錄」列可直接跳過去看。
+0.9.142 起再多一欄 `RunId`（索引，可為 null）：同一次執行（一次按鈕、一輪追問、Agent 的一則訊息）裡的每一次模型呼叫帶同一個值，
+與 AI 對話紀錄的 `RunId` 相同。本頁畫面與 CSV／Excel／PDF 匯出目前不顯示這一欄；要看同一次執行的所有呼叫，從明細窗跳到 AI 對話紀錄。
 
 `AiChatResponseParser.ExtractUsageJson` 只取 `usage` 那一段，**不可**改成回傳整個回應 body。
 由 `AiLogAnalysisServiceTests.AnalyzeAsync_ShouldRecordOnlyUsageJson_NotTheWholeResponseBody` 守門。
@@ -325,6 +328,8 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 | `TokenUsageRangesTests`（0.9.50 新增）| 「最近 N 天」＝**含今天往前數 N 日**：近 1 天為今天、近 7／30 天的起日與天數、傳入帶時分秒也要得到乾淨日期 |
 | `AiUsageCostCalculatorTests`、`AiPricingSettingsTests` | 費用估算的計算與設定守門，見 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) 第八節 |
 | `AiLogAnalysisServiceTests` | 成功／空回應／上游錯誤三種分支都有記錄；設定不完整不記；**只存 usage JSON、不含回應 body** |
+| `AiAgentRunnerTests`（0.9.142 新增）| Agent 工具呼叫迴圈的兩次模型呼叫各記一筆、成功且 `RunId` 相同 |
+| `AgentToolsAndModelTests`（0.9.142 新增）| 系統參數指定的模型（`AiModelSettings`）真的用在送出與記帳的 `Model` |
 | `AiStreamingTests`、`AiChatStreamParserTests`、`AiInterruptionTests`（0.9.141 新增）| 串流成功記用量；⭐ 已收到文字才停止記一筆 `Canceled`、用量空白，收到前停止不記；串流的空回應、上游錯誤、逾時；SSE 的 usage JSON 只回 usage 子物件；`IsCanceled` 只認 `Canceled` |
 | `TokenUsageReportPdfBuilderTests` | PDF 簽章、無資料、明細上限 200 筆、依時長計費與失敗列都排得出來 |
 | `TokenUsageReportPdfBuilderTests`（0.9.51 新增）| 趨勢區塊真的有排進去（比沒有趨勢時大）、趨勢空陣列不炸、⭐ **全部費用為 0 時不可除以零**、六種範圍都產得出且都小於整份、⭐ **單頁籤仍含條件區**、每個範圍的標題後綴不重複 |

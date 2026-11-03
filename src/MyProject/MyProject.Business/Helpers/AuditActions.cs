@@ -272,6 +272,15 @@ public static class AuditActions
     public static class Ai
     {
         public const string QuotaBlocked = "Ai.QuotaBlocked";
+
+        /// <summary>Agent 執行了工具（0.9.142 起；成功或失敗）。detail 只記 agent、工具與權限，不記參數與回傳內容。</summary>
+        public const string ToolInvoked = "Ai.ToolInvoked";
+
+        /// <summary>Agent 要執行的工具被權限擋下（0.9.142 起），沒有執行。</summary>
+        public const string ToolDenied = "Ai.ToolDenied";
+
+        /// <summary>使用者拒絕核准 Agent 要執行的異動工具（0.9.142 起），沒有執行。</summary>
+        public const string ToolRejected = "Ai.ToolRejected";
     }
 
     /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>

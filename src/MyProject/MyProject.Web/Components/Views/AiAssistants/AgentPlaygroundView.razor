@@ -1,0 +1,138 @@
+@using MyProject.Share.Helpers
+@using MyProject.Web.Ai
+@using MyProject.Web.Ai.Agents
+
+@*
+    Agent 測試台（0.9.142 起）：範例 Agent「專案小幫手」，用來驗收 Agent 骨架（工具、權限、核准、記帳），
+    也是日後寫 Agent 畫面的範本。對話只存在這個頁面（記憶體），離開或重新整理就消失。
+*@
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div class="agent-playground">
+        <div class="agent-playground-intro">
+            <div class="agent-playground-intro-text">
+                <div class="agent-playground-title">@AgentPlaygroundAgent.Definition.DisplayName</div>
+                <div class="agent-playground-hint">
+                    會搜尋專案；要修改專案描述時會先請你核准。工具依<strong>你的權限</strong>執行，你在畫面上做不到的事，它也做不到。
+                    對話只保留在這個頁面，離開或重新整理就會消失。
+                </div>
+                @if (string.IsNullOrEmpty(modelName) == false)
+                {
+                    <div class="agent-playground-hint">使用模型：@modelName</div>
+                }
+            </div>
+            <ToolbarIconButton Title="新對話" Icon="add_comment"
+                               Disabled="@(unavailableReason is not null)"
+                               OnClick="OnNewConversation" />
+        </div>
+
+        @if (unavailableReason is not null)
+        {
+            <div class="alert alert-warning" role="alert">@unavailableReason</div>
+        }
+        else
+        {
+            <div class="agent-playground-conversation">
+                @if (entries.Count == 0 && isRunning == false)
+                {
+                    <div class="agent-playground-empty">試試看：「列出所有專案」、「找出名稱有『測試』的專案」、「把專案 3 的描述改成『已結案』」。</div>
+                }
+
+                @foreach (var entry in entries)
+                {
+                    @switch (entry.Kind)
+                    {
+                        case EntryKind.User:
+                            <div class="agent-playground-entry agent-playground-entry-user">@entry.Text</div>
+                            break;
+                        case EntryKind.Assistant:
+                            @*
+                                AI 輸出受工具回傳的資料（專案名稱、描述可能含使用者輸入）影響，屬不可信輸入，
+                                一律經 AiMarkdownRenderer.ToSafeHtml 的安全管線之後才能用 MarkupString。
+                            *@
+                            <div class="agent-playground-entry agent-playground-entry-assistant">
+                                <div class="agent-playground-report">@((MarkupString)entry.Html)</div>
+                            </div>
+                            break;
+                        case EntryKind.Tool:
+                            <div class="agent-playground-tool">🔧 @entry.Text</div>
+                            break;
+                        case EntryKind.Notice:
+                            <div class="agent-playground-notice">@entry.Text</div>
+                            break;
+                        case EntryKind.Error:
+                            <div class="agent-playground-entry agent-playground-entry-error">@entry.Text</div>
+                            break;
+                    }
+                }
+
+                @if (isRunning)
+                {
+                    @if (streamingHtml.Length > 0)
+                    {
+                        <div class="agent-playground-entry agent-playground-entry-assistant">
+                            <div class="agent-playground-report">@((MarkupString)streamingHtml)</div>
+                        </div>
+                    }
+
+                    <div class="agent-playground-generating">
+                        <Spin Size="@SpinSize.Small" />
+                        <span>@(streamingHtml.Length > 0 ? "產生中" : "思考中")…已 @elapsedSeconds 秒</span>
+                        <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止產生</Button>
+                    </div>
+                }
+            </div>
+
+            <div class="agent-playground-composer">
+                <TextArea @bind-Value="inputText"
+                          Rows="3"
+                          MaxLength="@MaxInputLength"
+                          Disabled="@(isRunning || IsAwaitingApproval)"
+                          Placeholder="輸入問題或指示…" />
+                @* 「送出」刻意不看輸入框有沒有字（同 AI 例外分析）：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
+                <Button Type="@ButtonType.Primary"
+                        Disabled="@(isRunning || IsAwaitingApproval)"
+                        OnClick="@(async () => await OnSendAsync())">送出</Button>
+            </div>
+        }
+    </div>
+
+    @* 核准窗：會異動資料的工具執行前一定要經過這裡（不能點遮罩或 × 略過，必須選一個）。 *@
+    <Modal Title="Agent 要執行會修改資料的操作"
+           Class="agent-playground-approval-modal"
+           @bind-Visible="@approvalVisible"
+           Closable="false"
+           MaskClosable="false"
+           Keyboard="false"
+           Footer="null">
+        <div class="agent-playground-approval">
+            <p>請確認是否允許 Agent 執行下列操作。核准後會以<strong>你的身分</strong>修改資料，並記錄在稽核紀錄。</p>
+            @foreach (var approval in pendingApprovals)
+            {
+                <div class="agent-playground-approval-item">
+                    <div class="agent-playground-approval-name">@approval.DisplayName</div>
+                    <dl class="agent-playground-approval-args">
+                        @foreach (var argument in approval.Arguments)
+                        {
+                            <div><dt>@argument.Key</dt><dd>@argument.Value</dd></div>
+                        }
+                    </dl>
+                </div>
+            }
+            <div class="agent-playground-approval-actions">
+                <Button OnClick="@(async () => await OnDecideAsync(approve: false))">拒絕</Button>
+                <Button Type="@ButtonType.Primary" OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
+            </div>
+        </div>
+    </Modal>
+}

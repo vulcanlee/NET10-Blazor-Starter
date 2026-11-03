@@ -138,4 +138,10 @@ public class TokenUsageLog
 
     /// <summary>呼叫識別碼，對應 <see cref="AiCallLog.CallId"/>（0.9.72 起；之前的紀錄為 null）。</summary>
     public Guid? CallId { get; set; }
+
+    /// <summary>
+    /// 同一次執行的識別碼（0.9.142 起）：Agent 一次執行裡的工具呼叫迴圈會呼叫模型很多次，這幾筆共用同一個 RunId。
+    /// 之前的紀錄為 null。
+    /// </summary>
+    public Guid? RunId { get; set; }
 }

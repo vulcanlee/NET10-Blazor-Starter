@@ -102,6 +102,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
                 CostRateSnapshot = cost?.RateSnapshot,
                 RawUsageFile = rawFile,
                 CallId = entry.CallId,
+                RunId = entry.RunId,
             };
 
             try
