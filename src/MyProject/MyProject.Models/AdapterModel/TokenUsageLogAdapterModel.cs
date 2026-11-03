@@ -69,6 +69,9 @@ public class TokenUsageLogAdapterModel
 
     public string? FailureReason { get; set; }
 
+    /// <summary>同一次執行的識別碼（0.9.142 起）。</summary>
+    public Guid? RunId { get; set; }
+
     /// <summary>
     /// 使用者在串流途中按「停止產生」（0.9.141 起）：已收到文字、上游照樣計費，但拿不到用量。
     /// 頁面以灰色「已取消」顯示，不是紅色「失敗」—— 使用者自己停止不是故障（同 AI 對話紀錄頁）。

@@ -29,9 +29,12 @@ public static class SystemParameterCatalog
     public const string GroupBackup = "備份";
     public const string GroupPassword = "密碼與登入";
     public const string GroupAiQuota = "AI 用量";
+    public const string GroupAiModel = "AI 模型";
 
     private const string NextRetentionRun = "下一次排程清理時（預設每天 03:00）";
     private const string NextPasswordSet = "之後設定的密碼（現有的密碼不受影響）";
+    private const string ModelNote = "空白代表使用 AiSettings:Model（設定檔的預設模型）。Azure OpenAI 請填部署名稱；端點與金鑰共用預設設定。新模型記得在 AiPricingSettings 補費率，否則記為未定價。";
+
     private const string QuotaNote = "以「Token 用量」記錄的台幣費用加總，未定價的模型以 0 計；達 80% 與 100% 各通知一次。";
 
     public static IReadOnlyList<SystemParameterDefinition> All { get; } =
@@ -157,6 +160,16 @@ public static class SystemParameterCatalog
         Define<AiQuotaSettings, int>(AiQuotaSettings.SectionName, x => x.PerUserMonthlyTwd, GroupAiQuota,
             "每人每月上限", "同一個人本月的 AI 費用達到這個金額後，他的 AI 分析暫停到下個月 1 日 00:00。" + QuotaNote + "本人收到通知。",
             "下一次 AI 呼叫起", unit: "元（新台幣）", zeroMeaning: "不限制"),
+
+        Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.LogAnalysis, GroupAiModel,
+            "AI 日誌分析使用的模型", "日誌檢視頁「AI 分析」用的模型。" + ModelNote,
+            "下一次 AI 呼叫起", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.ExceptionAnalysis, GroupAiModel,
+            "AI 例外分析使用的模型", "系統例外紀錄「AI 分析」與追問用的模型。" + ModelNote,
+            "下一次 AI 呼叫起", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AgentPlayground, GroupAiModel,
+            "Agent 測試台使用的模型", "「Agent 測試台」範例 Agent 用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
+            "下一段新對話起（進行中的對話沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
 
         Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
             "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",

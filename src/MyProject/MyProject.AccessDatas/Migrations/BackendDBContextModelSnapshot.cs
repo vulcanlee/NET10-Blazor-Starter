@@ -73,6 +73,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<int>("ResponseCharacters")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("RunId")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("Success")
                         .HasColumnType("INTEGER");
 
@@ -87,6 +90,8 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("ConversationId");
 
                     b.HasIndex("OccurredAt");
+
+                    b.HasIndex("RunId");
 
                     b.ToTable("AiCallLog");
                 });
@@ -1030,6 +1035,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<int?>("ReasoningCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("RunId")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("Success")
                         .HasColumnType("INTEGER");
 
@@ -1044,6 +1052,8 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("CallId");
 
                     b.HasIndex("OccurredAt");
+
+                    b.HasIndex("RunId");
 
                     b.HasIndex("UserId", "OccurredAt");
 

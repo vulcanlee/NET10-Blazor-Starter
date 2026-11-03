@@ -49,6 +49,20 @@ internal static class AiSse
         return builder.ToString();
     }
 
+    /// <summary>
+    /// 模型要求呼叫工具的串流回應（0.9.142 起）：tool_calls 分兩段送（先名稱、再參數），finish_reason 為 tool_calls，沒有文字。
+    /// </summary>
+    public static string ToolCall(string callId, string name, string argumentsJson)
+    {
+        var builder = new StringBuilder();
+        Append(builder, $$$"""{"id":"c2","object":"chat.completion.chunk","created":1,"model":"{{{Model}}}","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"{{{callId}}}","type":"function","function":{"name":"{{{name}}}","arguments":""}}]},"finish_reason":null}]}""");
+        Append(builder, $$$"""{"id":"c2","object":"chat.completion.chunk","created":1,"model":"{{{Model}}}","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":{{{JsonSerializer.Serialize(argumentsJson)}}}}}]},"finish_reason":null}]}""");
+        Append(builder, $$"""{"id":"c2","object":"chat.completion.chunk","created":1,"model":"{{Model}}","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}""");
+        Append(builder, $$"""{"id":"c2","object":"chat.completion.chunk","created":1,"model":"{{Model}}","choices":[],"usage":{{UsageJson}}}""");
+        builder.Append("data: [DONE]\n\n");
+        return builder.ToString();
+    }
+
     /// <summary>中文不跳脫，和 OpenAI 實際送出的一樣，測試也才找得到原文片段。</summary>
     private static readonly JsonSerializerOptions RelaxedJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 

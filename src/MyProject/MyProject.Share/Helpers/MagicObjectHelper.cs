@@ -100,6 +100,12 @@ public class MagicObjectHelper
     public const string 角色_資料定義 = "資料定義管理功能";
     public const string 角色_分類清單 = "分類清單";
     public const string 角色_團隊清單 = "團隊清單";
+
+    /// <summary>「AI 助理」群組（0.9.142 起）。一般頁面群組，可以授權給角色（不同於「AI 管理」）。</summary>
+    public const string 角色_AI助理 = "AI 助理";
+
+    /// <summary>Agent 測試台（0.9.142 起）：範例 Agent，可授權給角色，用來驗證「Agent 也受使用者權限限制」。</summary>
+    public const string 角色_Agent測試台 = "Agent 測試台";
     public const string 角色_登出 = "登出";
 
     /// <summary>

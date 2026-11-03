@@ -43,11 +43,13 @@ public sealed class DatabaseInitializerTests : IDisposable
 
         await using var db = host.CreateDbContext();
         var allPages = new RolePermissionService().GetRolePermissionAllName();
+        var defaultPages = new RolePermissionService().GetDefaultRolePermissionNames();
 
         Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-        Assert.Equal(allPages.Order(), (await RolePagesAsync(db)).Order());
-        Assert.Equal(allPages.Order(), (await RoleMapKeysAsync(db)).Order());
+        Assert.Equal(defaultPages.Order(), (await RolePagesAsync(db)).Order());
+        Assert.Equal(defaultPages.Order(), (await RoleMapKeysAsync(db)).Order());
         Assert.Equal(allPages.Order(), (await db.Permission.Select(x => x.Key).ToListAsync()).Order());
+        Assert.DoesNotContain(MagicObjectHelper.角色_Agent測試台, await RolePagesAsync(db));
 
         var support = await db.MyUser.SingleAsync(x => x.Account == "support");
         Assert.True(support.IsAdmin);
@@ -102,6 +104,29 @@ public sealed class DatabaseInitializerTests : IDisposable
         await using var verify = host.CreateDbContext();
         Assert.Contains(MagicObjectHelper.角色_團隊清單, await RolePagesAsync(verify));
         Assert.Contains(MagicObjectHelper.角色_團隊清單, await RoleMapKeysAsync(verify));
+    }
+
+    /// <summary>會花 AI 費用的 Agent 頁面（0.9.142 起）升級時只進權限目錄，不自動開給預設角色。</summary>
+    [Fact]
+    public async Task NewAgentPage_ShouldNotBeAddedToDefaultRole_ButShouldBeInCatalog()
+    {
+        using var host = CreateHost();
+        await host.InitializeAsync();
+
+        // 模擬「從 0.9.141 升級」：權限目錄裡還沒有 AI 助理群組與 Agent 測試台。
+        await using (var db = host.CreateDbContext())
+        {
+            await db.Permission
+                .Where(x => x.Key == MagicObjectHelper.角色_AI助理 || x.Key == MagicObjectHelper.角色_Agent測試台)
+                .ExecuteDeleteAsync();
+        }
+
+        await host.InitializeAsync();
+
+        await using var verify = host.CreateDbContext();
+        Assert.DoesNotContain(MagicObjectHelper.角色_Agent測試台, await RolePagesAsync(verify));
+        Assert.DoesNotContain(MagicObjectHelper.角色_Agent測試台, await RoleMapKeysAsync(verify));
+        Assert.Contains(MagicObjectHelper.角色_Agent測試台, await verify.Permission.Select(x => x.Key).ToListAsync());
     }
 
     [Fact]

@@ -38,6 +38,19 @@
     ]
   },
   {
+    "id": 9,
+    "name": "AI 助理",
+    "icon": "smart_toy",
+    "subMenu": [
+      {
+        "id": 91,
+        "name": "Agent 測試台",
+        "icon": "science",
+        "url": "/agent-playground"
+      }
+    ]
+  },
+  {
     "id": 3,
     "name": "系統管理",
     "icon": "admin_panel_settings",

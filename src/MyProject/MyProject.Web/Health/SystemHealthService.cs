@@ -40,6 +40,7 @@ public sealed class SystemHealthService : ISystemHealthService
     private readonly ICacheService cacheService;
     private readonly IOptionsMonitor<AiSettings> aiOptions;
     private readonly IOptionsMonitor<AiPricingSettings> aiPricingOptions;
+    private readonly IOptionsMonitor<AiModelSettings> aiModelOptions;
     private readonly IOptions<CacheSettings> cacheOptions;
     private readonly IEmailHealthProbe emailHealthProbe;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
@@ -70,8 +71,10 @@ public sealed class SystemHealthService : ISystemHealthService
         ILogger<SystemHealthService> logger,
         LoggingPipelineMonitor pipelineMonitor,
         ChannelReader<ExceptionLogEntry> exceptionQueue,
-        ScheduledJobOverviewService scheduledJobOverview)
+        ScheduledJobOverviewService scheduledJobOverview,
+        IOptionsMonitor<AiModelSettings> aiModelOptions)
     {
+        this.aiModelOptions = aiModelOptions;
         this.scheduledJobOverview = scheduledJobOverview;
         this.pipelineMonitor = pipelineMonitor;
         this.exceptionQueue = exceptionQueue;
@@ -674,18 +677,26 @@ public sealed class SystemHealthService : ISystemHealthService
                 "UsdToTwd 未設定（小於等於 0），所有呼叫都會記為未定價。");
         }
 
-        var resolved = AiUsageCostCalculator.Resolve(pricing, aiSettings.Model);
-        var status = resolved is null ? SystemHealthStatus.Degraded : SystemHealthStatus.Healthy;
+        // 0.9.142 起各功能可在系統參數指定模型：預設模型與所有覆寫的模型都要查得到費率。
+        var models = new[] { aiSettings.Model }
+            .Concat(aiModelOptions.CurrentValue.OverriddenModels())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var resolved = models
+            .Select(model => (Model: model, Price: AiUsageCostCalculator.Resolve(pricing, model)))
+            .ToList();
+        var unpriced = resolved.Where(x => x.Price is null).Select(x => x.Model).ToList();
+        var status = unpriced.Count > 0 ? SystemHealthStatus.Degraded : SystemHealthStatus.Healthy;
 
         return CreateItem(
             "AI 計費表",
             "AiPricing",
             5,
             status,
-            $"模型：{aiSettings.Model}；計費表筆數：{pricing.Models.Count}；"
-            + $"命中價格鍵：{resolved?.Key ?? "無"}；匯率：{pricing.UsdToTwd}。",
-            resolved is null
-                ? "目前模型在 AiPricingSettings.Models 查無對應價格，費用會估算為 0（記為未定價）。"
+            $"模型：{string.Join("、", resolved.Select(x => $"{x.Model}（{x.Price?.Key ?? "無價格"}）"))}；"
+            + $"計費表筆數：{pricing.Models.Count}；匯率：{pricing.UsdToTwd}。",
+            unpriced.Count > 0
+                ? $"模型 {string.Join("、", unpriced)} 在 AiPricingSettings.Models 查無對應價格，費用會估算為 0（記為未定價）。"
                 : null);
     }
 

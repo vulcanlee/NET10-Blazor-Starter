@@ -15,6 +15,7 @@ using MyProject.Business.Startup;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
+using MyProject.Web.Ai.Agents;
 using MyProject.Web.Auth;
 using MyProject.Web.Backup;
 using MyProject.Web.Caching;
@@ -75,6 +76,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILogQueryService, LogQueryService>();
         // 所有 LLM 呼叫一律經由這裡建立的 MAF agent（0.9.140 起），記帳與 AI 對話紀錄都掛在它的管線上。
         services.AddScoped<IAiAgentFactory, AiAgentFactory>();
+
+        // Agent 骨架（0.9.142 起）：工具的權限檢查與稽核、工具外殼、範例工具、給畫面用的執行器。
+        services.AddScoped<IAiToolPermissionGuard, AiToolPermissionGuard>();
+        services.AddScoped<AiAgentToolFactory>();
+        services.AddScoped<ProjectAgentTools>();
+        services.AddScoped<IAiAgentRunner, AiAgentRunner>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
         services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
@@ -342,6 +349,12 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<NotificationSettings>()
             .Bind(configuration.GetSection(NotificationSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // 各 AI 功能的模型（0.9.142 起，系統參數可改）。
+        services.AddOptions<AiModelSettings>()
+            .Bind(configuration.GetSection(AiModelSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

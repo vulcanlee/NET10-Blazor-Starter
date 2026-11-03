@@ -72,6 +72,9 @@ public sealed class TokenUsageEntry
     /// 0.9.72 之前的紀錄為 null。
     /// </summary>
     public Guid? CallId { get; init; }
+
+    /// <summary>同一次執行的識別碼（0.9.142 起，同 AiCallLogEntry.RunId）；之前的紀錄為 null。</summary>
+    public Guid? RunId { get; init; }
 }
 
 /// <summary>
@@ -94,6 +97,12 @@ public static class TokenUsageOperations
     /// 追問會帶上前文，所以輪數越多、單筆輸入量越大。
     /// </summary>
     public const string AiExceptionAnalysis = "AI 例外分析";
+
+    /// <summary>
+    /// 「Agent 測試台」的範例 Agent（0.9.142 起）。Agent 一次執行可能呼叫模型好幾次（工具呼叫迴圈），
+    /// 每一次各記一筆、共用同一個執行編號（RunId）。
+    /// </summary>
+    public const string AgentPlayground = "Agent 測試台";
 }
 
 /// <summary>

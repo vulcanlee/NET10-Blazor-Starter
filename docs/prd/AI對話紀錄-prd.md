@@ -1,10 +1,10 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.141
+- 現行系統版本：0.9.142
 - 首次實作版本：0.9.72
-- 最後核對日期：2026/11/02
+- 最後核對日期：2026/11/03
 
 ## 一、目標與範圍
 
@@ -49,12 +49,18 @@
 | AI 日誌分析 | `AiChatCompletionClient`（經 `AiLogAnalysisService`）| `CurrentUserService` | 「日誌 起～迄，送出 n／N 筆」（實際送出的最新 n 筆）|
 | AI 例外分析 | `AiChatCompletionClient`（經 `AiExceptionAnalysisService`）| 同上 | 第一次：「例外紀錄 #id（例外類型）」；追問：「例外紀錄 #id，追問第 n 輪」|
 | 系統健康檢測 | `AiHealthProbe` | 同上 | 「系統健康監控 AI 連線探測」|
+| Agent 測試台（0.9.142 起）| `AiAgentRunner`／`AiAgentChat` | 同上 | 「專案小幫手（範例）」（Agent 的顯示名稱）|
 
-0.9.140 起三個呼叫點都經 `IAiAgentFactory` 建立的 MAF agent 送出，實際寫入本功能的是 agent 管線上的記帳中介層
+0.9.140 起所有呼叫點都經 `IAiAgentFactory` 建立的 MAF agent 送出，實際寫入本功能的是 agent 管線上的記帳中介層
 `AiAccountingChatClient`（單一 `finally`）；請求與回應原文由 SDK 管線原則 `AiHttpCapturePolicy` 擷取。見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
 
 AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `ExceptionAiAnalysisModal` 開窗時產生，經 `AiExceptionCallContext`
 傳給無狀態的服務），明細窗會列出同一段對話的所有呼叫。本專案的追問與第一次分析共用作業名稱「AI 例外分析」，以關聯說明區分輪數。
+Agent 測試台的一段對話同樣共用一個 `ConversationId`（開對話時產生）。
+
+**同一次執行（`RunId`，0.9.142 起）**：一次執行（一次按鈕、一輪追問、Agent 的一則訊息或一次核准回覆）一個 `RunId`。
+Agent 一次執行裡的工具呼叫迴圈會呼叫模型好幾次（先決定要用哪個工具、執行後再整理答案），每一次各記一筆、`RunId` 相同；
+Token 用量同一次呼叫也帶同一個 `RunId`。健康探測與 0.9.141 以前的紀錄沒有 `RunId`。見 [MAF AI 呼叫架構 §6.4](../architecture/MAF-AI呼叫架構.md)。
 
 ### 3.2 何時記
 
@@ -71,7 +77,7 @@ AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `E
 | 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`）。**不含 HTTP 標頭與金鑰** |
 | 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null。串流呼叫（0.9.141 起）為 **SSE 原文**（`data: {…}` 逐行，由 `AiCapturingStream` 邊讀邊記）；中途取消或逾時時是已收到的部分 |
 | 解析後的回應文字 | `choices[0].message.content`；串流為各 chunk `delta.content` 串起來；中途取消時是**已收到的部分** |
-| 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、CallId |
+| 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、RunId（0.9.142 起）、CallId |
 
 訊息的角色（system／user／assistant）不另外存，讀取時由原始請求解析（`AiCallLogMessages.Parse`）。
 畫面看到的永遠是實際送出的內容。
@@ -79,7 +85,7 @@ AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `E
 ### 3.4 儲存與生命週期
 
 - 資料表 `AiCallLog`（索引：`OccurredAt`、`CallId` 唯一、`ConversationId`）；`TokenUsageLog` 新增可空欄位 `CallId`（索引），
-  migration `AddAiCallLog`。
+  migration `AddAiCallLog`。0.9.142 起兩表各加可空欄位 `RunId`（索引），migration `AddAiRunId`。
 - 內容檔：`ExternalFileSystem:AiCallLogPath/{yyyyMM}/{CallId:N}.json`，一律經 `AiCallLogFileStore`。
 - 寫入順序：先寫檔再建資料列；資料列建不起來就刪檔。寫檔失敗時仍建資料列（`ContentFile` 為 null，明細顯示檔案不存在）。
 - 設定 `AiCallLogSettings { Enabled = true, RetentionDays = 90 }`（`RetentionDays` 範圍 1～3650，`ValidateOnStart`）：
@@ -114,9 +120,10 @@ UI 依本專案的設計規範：說明框沿用 Token 用量頁的淡色框、�
 
 - **一般／中／大**：窗內字級三段縮放（`--ai-font-scale`），與日誌檢視、例外 AI 分析兩個視窗一致；關窗回到「一般」。
 - **上方資料**：
-  - 基本：送出時間、作業、發起者、結果與例外型別、供應商／模型（要求→實際）、端點、HTTP／結束原因、耗時、關聯說明、呼叫識別碼。
+  - 基本：送出時間、作業、發起者、結果與例外型別、供應商／模型（要求→實際）、端點、HTTP／結束原因、耗時、關聯說明、呼叫識別碼；有 `RunId` 時多一列「執行編號」（0.9.142 起）。
   - **用量與費用**：以 CallId 帶出 Token 用量的輸入／輸出／合計與 NT$／US$。
 - **同一段對話**：ConversationId 相同的其他呼叫，可點選切換。
+- **同一次執行**（0.9.142 起）：RunId 相同的呼叫超過一筆時列出「同一次執行（共 N 次模型呼叫）」，依時間由舊到新，每列顯示時間與結束原因（沒有時顯示作業），目前這筆標「（目前這筆）」，其他筆可點選切換。只有一筆時不列。CSV 匯出欄位不變。
 - **五種檢視**（只渲染目前這一種）：
   1. 完整對話：依序列出送出的每則訊息，最後是 AI 回應。
   2. 送出 Prompt：只列送出的訊息。
@@ -145,7 +152,8 @@ Token 用量明細窗新增「AI 對話紀錄」列：
 
 | 項目 | 守門 |
 |---|---|
-| 記錄、停用、寫檔失敗、截斷、DB 失敗不丟例外、篩選、排序分頁、明細（訊息／用量／對話）、刪除、清除、清空、過期與孤兒目錄 | `AiCallLogServiceTests` |
+| 記錄、停用、寫檔失敗、截斷、DB 失敗不丟例外、篩選、排序分頁、明細（訊息／用量／對話／同一次執行）、刪除、清除、清空、過期與孤兒目錄 | `AiCallLogServiceTests` |
+| Agent 工具呼叫迴圈每次模型呼叫各記一筆且 RunId 相同（0.9.142 起） | `AiAgentRunnerTests` |
 | 結果預設值、送出旗標、記錄失敗不外拋、端點去除查詢字串、訊息解析 | `AiCallCaptureTests` |
 | 成功／錯誤 body／逾時／傳輸失敗／取消／非預期錯誤／未設定不記、CallId 與 Token 用量一致、內容不含金鑰、recorder 丟例外不影響結果 | `AiChatCompletionClientTests`、`AiLogAnalysisServiceTests`、`AiHealthProbeTests` |
 | SDK 產生的請求 body 仍能解析成訊息、自己的逾時記一筆（0.9.140 起） | `AiAgentPipelineTests` |

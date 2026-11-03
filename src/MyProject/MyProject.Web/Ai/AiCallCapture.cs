@@ -27,7 +27,8 @@ internal sealed class AiCallCapture
         string? account,
         int? userId,
         string? relatedInfo,
-        Guid? conversationId)
+        Guid? conversationId,
+        Guid? runId = null)
     {
         Operation = operation;
         Provider = provider;
@@ -36,9 +37,13 @@ internal sealed class AiCallCapture
         UserId = userId == 0 ? null : userId;
         RelatedInfo = relatedInfo;
         ConversationId = conversationId;
+        RunId = runId;
     }
 
     public Guid CallId { get; } = Guid.NewGuid();
+
+    /// <summary>同一次執行的識別碼（0.9.142 起）。</summary>
+    public Guid? RunId { get; }
 
     public DateTime OccurredAt { get; } = DateTime.Now;
 
@@ -120,6 +125,7 @@ internal sealed class AiCallCapture
         Endpoint = Endpoint,
         RelatedInfo = RelatedInfo,
         ConversationId = ConversationId,
+        RunId = RunId,
         RequestBody = RequestBody,
         HttpStatus = HttpStatus,
         ResponseBody = ResponseBody,

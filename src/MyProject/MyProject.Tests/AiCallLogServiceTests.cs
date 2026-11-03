@@ -153,6 +153,25 @@ public sealed class AiCallLogServiceTests
         Assert.Equal([first.CallId, second.CallId], detail.Conversation.Select(x => x.CallId).ToList());
     }
 
+    /// <summary>同一次執行（0.9.142 起）：Agent 工具呼叫迴圈的多次模型呼叫共用 RunId，明細要列出同一次執行的全部。</summary>
+    [Fact]
+    public async Task GetDetailAsync_ShouldListCallsOfTheSameRun()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var runId = Guid.NewGuid();
+        var first = CreateEntry(occurredAt: DateTime.Now.AddSeconds(-5), runId: runId);
+        var second = CreateEntry(runId: runId);
+        await service.RecordAsync(first);
+        await service.RecordAsync(second);
+        await service.RecordAsync(CreateEntry());
+
+        var detail = await service.GetDetailAsync((await service.FindIdByCallIdAsync(second.CallId))!.Value);
+
+        Assert.Equal(runId, detail!.Item.RunId);
+        Assert.Equal([first.CallId, second.CallId], detail.Run.Select(x => x.CallId).ToList());
+    }
+
     [Fact]
     public async Task GetDetailAsync_ShouldReturnNullContent_WhenFileIsMissing()
     {
@@ -271,9 +290,11 @@ public sealed class AiCallLogServiceTests
         Guid? conversationId = null,
         DateTime? occurredAt = null,
         string? requestBody = null,
-        string responseText = "ok")
+        string responseText = "ok",
+        Guid? runId = null)
         => new()
         {
+            RunId = runId,
             CallId = Guid.NewGuid(),
             OccurredAt = occurredAt ?? DateTime.Now,
             Operation = operation,

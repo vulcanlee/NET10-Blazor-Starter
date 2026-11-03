@@ -27,6 +27,18 @@ public sealed record AiCallContext
     /// <summary>同一段對話的識別碼；沒有對話概念的作業為 null。</summary>
     public Guid? ConversationId { get; init; }
 
+    /// <summary>
+    /// 同一次執行的識別碼（0.9.142 起）：一次按鈕、一輪追問或 Agent 的一次執行。
+    /// 這次執行裡每一次模型呼叫（含工具呼叫迴圈）的 Token 用量與 AI 對話紀錄都帶同一個值。
+    /// </summary>
+    public Guid? RunId { get; init; }
+
+    /// <summary>
+    /// 要用哪個功能的模型設定（0.9.142 起）：<c>nameof(AiModelSettings.屬性)</c>。
+    /// null 或該功能在系統參數沒設定時用 <c>AiSettings.Model</c>。
+    /// </summary>
+    public string? ModelKey { get; init; }
+
     /// <summary>上游回 <c>context_length_exceeded</c> 時給使用者看的完整訊息。</summary>
     public string ContextLengthExceededMessage { get; init; } = string.Empty;
 
@@ -110,6 +122,12 @@ public sealed class AiCallState
     private readonly List<AiCallOutcome> outcomes = [];
 
     internal AiCallCapture? Current { get; set; }
+
+    /// <summary>
+    /// 目前這次執行的識別碼（0.9.142 起）。同一個 agent 跑很多次（例如 Agent 對話的每一則訊息）時，
+    /// 由執行器在每次執行前換一個新值；為 null 時用 <see cref="AiCallContext.RunId"/>。
+    /// </summary>
+    public Guid? RunId { get; set; }
 
     /// <summary>這個 agent 所有成功的模型呼叫，依呼叫順序。</summary>
     public IReadOnlyList<AiCallOutcome> Outcomes => outcomes;

@@ -123,6 +123,7 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
         var request = new AiChatCompletionRequest
         {
             Operation = TokenUsageOperations.AiExceptionAnalysis,
+            ModelKey = nameof(AiModelSettings.ExceptionAnalysis),
             Messages = [new AiChatMessage(AiChatRoles.System, systemPrompt), .. conversation],
             ContextLengthExceededMessage = followUps > 0
                     ? "對話內容已超過模型的內容視窗上限。請關閉視窗後重新分析，並減少追問輪數。"

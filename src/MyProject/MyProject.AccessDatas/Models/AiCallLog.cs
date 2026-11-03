@@ -60,6 +60,12 @@ public class AiCallLog
     /// <summary>同一段對話的識別碼（例外分析與其追問共用）。</summary>
     public Guid? ConversationId { get; set; }
 
+    /// <summary>
+    /// 同一次執行的識別碼（0.9.142 起）：Agent 一次執行裡的工具呼叫迴圈會呼叫模型很多次，這幾筆共用同一個 RunId。
+    /// 之前的紀錄為 null。
+    /// </summary>
+    public Guid? RunId { get; set; }
+
     /// <summary>內容檔的相對路徑，例如 202609/ab12….json。寫檔失敗時為 null。</summary>
     public string? ContentFile { get; set; }
 }

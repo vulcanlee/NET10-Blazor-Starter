@@ -258,7 +258,7 @@ public sealed class ProjectServiceTeamAccessTests
         public Task<RecordAccessScope> GetAsync() => Task.FromResult(new RecordAccessScope(isAdmin, teams));
     }
 
-    private sealed class ProjectServiceFixture : IAsyncDisposable
+    internal sealed class ProjectServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
         private readonly IMapper mapper;

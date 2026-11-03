@@ -241,7 +241,8 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
             user.Account,
             user.Id,
             context.RelatedInfo,
-            context.ConversationId);
+            context.ConversationId,
+            state.RunId ?? context.RunId);
     }
 
     private static bool RequestsTools(IEnumerable<AIContent>? contents)
@@ -486,6 +487,7 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
             FailureReason = reason == AiAnalysisFailureReason.None ? null : reason.ToString(),
             RawUsageJson = rawUsageJson,
             CallId = capture.CallId,
+            RunId = capture.RunId,
         });
     }
 

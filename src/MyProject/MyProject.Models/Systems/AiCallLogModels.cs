@@ -45,6 +45,12 @@ public sealed class AiCallLogEntry
     /// <summary>同一段對話的識別碼（例外分析與其追問共用）；其他作業為 null。</summary>
     public Guid? ConversationId { get; init; }
 
+    /// <summary>
+    /// 同一次執行的識別碼（0.9.142 起）：Agent 一次執行裡的工具呼叫迴圈會呼叫模型很多次，這幾筆共用同一個 RunId。
+    /// 0.9.141 之前的紀錄為 null。
+    /// </summary>
+    public Guid? RunId { get; init; }
+
     /// <summary>原始請求 JSON（逐字）。</summary>
     public string RequestBody { get; init; } = string.Empty;
 
@@ -173,4 +179,7 @@ public sealed class AiCallLogDetail
 
     /// <summary>同一對話的所有紀錄（依時間由舊到新）；不屬於任何對話時為空。</summary>
     public IReadOnlyList<AiCallLogAdapterModel> Conversation { get; init; } = [];
+
+    /// <summary>同一次執行的所有紀錄（0.9.142 起，依時間由舊到新）；沒有 RunId 時為空。</summary>
+    public IReadOnlyList<AiCallLogAdapterModel> Run { get; init; } = [];
 }

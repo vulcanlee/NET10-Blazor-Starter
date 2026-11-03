@@ -91,6 +91,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             PromptTemplateKeys.LogAnalysis => "日誌分析",
             PromptTemplateKeys.ExceptionAnalysis => "例外分析",
+            PromptTemplateKeys.AgentPlayground => "Agent 測試台",
             _ => key,
         };
 

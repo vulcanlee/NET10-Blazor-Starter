@@ -38,6 +38,7 @@ public static class AiPromptGuardrails
     {
         PromptTemplateKeys.LogAnalysis => AiPromptDefaults.LogAnalysisInstructions,
         PromptTemplateKeys.ExceptionAnalysis => AiExceptionPromptDefaults.Instructions,
+        PromptTemplateKeys.AgentPlayground => Agents.AgentPlaygroundAgent.DefaultInstructions,
         _ => throw new ArgumentOutOfRangeException(nameof(templateKey), templateKey, "未知的提示詞種類。"),
     };
 
@@ -45,6 +46,7 @@ public static class AiPromptGuardrails
     {
         PromptTemplateKeys.LogAnalysis => "日誌內容",
         PromptTemplateKeys.ExceptionAnalysis => "例外內容（訊息、頁面、堆疊等）",
+        PromptTemplateKeys.AgentPlayground => "使用者的訊息與工具回傳的資料（專案名稱、描述等）",
         _ => throw new ArgumentOutOfRangeException(nameof(templateKey), templateKey, "未知的提示詞種類。"),
     };
 }
