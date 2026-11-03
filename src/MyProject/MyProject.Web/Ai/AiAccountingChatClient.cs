@@ -1,6 +1,8 @@
 using System.ClientModel;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.Extensions.AI;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
@@ -22,6 +24,7 @@ namespace MyProject.Web.Ai;
 /// 這一層做的事就是 0.9.139 以前 <c>AiChatCompletionClient.CompleteAsync</c> 做的事，原樣搬過來：
 /// 用量上限檢查 → 建 <see cref="AiCallCapture"/> → 逾時 → 成功／失敗／空回應／取消分支記 Token 用量 →
 /// 單一 <c>finally</c> 記 AI 對話紀錄。失敗在記帳之後以 <see cref="AiCallException"/> 往外丟。
+/// 0.9.141 起串流（<see cref="GetStreamingResponseAsync"/>）也走同一套規則。
 /// </para>
 /// <para>
 /// ⚠️ 用量、實際模型名稱、finish_reason、內容過濾類別一律從 <b>HTTP 回應原文</b>以
@@ -65,15 +68,7 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
 
         await EnsureQuotaAsync(cancellationToken);
 
-        var user = services.CurrentUserService.CurrentUser;
-        var capture = new AiCallCapture(
-            context.Operation,
-            settings.GetProvider().ToString(),
-            requestedModel,
-            user.Account,
-            user.Id,
-            context.RelatedInfo,
-            context.ConversationId);
+        var capture = CreateCapture();
 
         // 自己控管逾時：具名 HttpClient 與 SDK 的逾時都已關掉（見 AiAgentFactory）。
         // linked source 讓呼叫端的取消仍然有效，而且事後分得出「使用者取消」與「逾時」。
@@ -100,82 +95,32 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
             }
 
             stopwatch.Stop();
-            return await CompleteSuccessAsync(capture, response, messageList.Count, characters, stopwatch.Elapsed);
-        }
-        catch (AiCallException)
-        {
-            throw;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            // 呼叫端主動放棄。這是使用者的決定，不是故障 —— 記 Information 而非 Error。
-            // Token 用量不記取消，但請求確實送出過，AI 對話紀錄照記。
-            stopwatch.Stop();
-            capture.SetOutcome(false, AiAnalysisFailureReason.Canceled.ToString());
-            Logger.LogInformation(
-                "AI chat completion canceled by the caller. Operation={Operation}, ElapsedMs={ElapsedMs}",
-                context.Operation,
-                stopwatch.ElapsedMilliseconds);
-            throw;
-        }
-        catch (OperationCanceledException ex)
-        {
-            // 呼叫端沒有取消卻收到取消 = 逾時（我們的 CancelAfter，或傳輸層自己的逾時）。
-            stopwatch.Stop();
-            capture.ExceptionType = ex.GetType().Name;
-            Logger.LogError(
-                ex,
-                "AI chat completion timed out. Operation={Operation}, TimeoutSeconds={TimeoutSeconds}",
-                context.Operation,
-                (int)context.Timeout.TotalSeconds);
-            await RecordUsageAsync(capture, null, null, null, stopwatch.Elapsed, false, AiAnalysisFailureReason.Timeout);
-            throw new AiCallException(
-                AiAnalysisFailureReason.Timeout,
-                $"AI 分析逾時（超過 {(int)context.Timeout.TotalSeconds} 秒），{context.TimeoutHint}",
-                stopwatch.Elapsed,
-                detail: ex.ToString(),
-                exceptionType: ex.GetType().Name,
-                innerException: ex);
-        }
-        catch (ClientResultException ex) when (ex.GetRawResponse() is not null)
-        {
-            stopwatch.Stop();
-            var status = ex.GetRawResponse()!.Status;
-            var payload = capture.ResponseBody ?? ex.GetRawResponse()!.Content.ToString();
-            var failure = MapHttpFailure((HttpStatusCode)status, payload, characters, stopwatch.Elapsed, ex);
+            var payload = capture.ResponseBody ?? string.Empty;
+            var parsed = await CompleteSuccessAsync(
+                capture,
+                AiChatResponseParser.Parse(payload),
+                AiChatResponseParser.ExtractUsageJson(payload),
+                RequestsTools(response?.Messages.SelectMany(message => message.Contents)),
+                messageList.Count,
+                characters,
+                stopwatch.Elapsed);
 
-            // 沒有用量可記，但呼叫確實發生過、上游也可能已經計費，至少要留下次數。
-            await RecordUsageAsync(capture, null, null, null, stopwatch.Elapsed, false, failure.Reason);
+            return response ?? new ChatResponse(new ChatMessage(ChatRole.Assistant, parsed.Content))
+            {
+                ModelId = string.IsNullOrEmpty(parsed.ModelName) ? requestedModel : parsed.ModelName,
+                FinishReason = string.IsNullOrEmpty(parsed.FinishReason) ? null : new ChatFinishReason(parsed.FinishReason),
+            };
+        }
+        catch (Exception ex) when (ex is not AiCallException)
+        {
+            stopwatch.Stop();
+            var failure = await HandleFailureAsync(ex, capture, string.Empty, characters, stopwatch.Elapsed, cancellationToken);
+            if (failure is null)
+            {
+                throw;
+            }
+
             throw failure;
-        }
-        catch (Exception ex) when (IsTransportFailure(ex))
-        {
-            stopwatch.Stop();
-            var transport = UnwrapTransportException(ex);
-            capture.ExceptionType = transport.GetType().Name;
-            Logger.LogError(ex, "AI chat completion request failed at transport level. Operation={Operation}", context.Operation);
-            await RecordUsageAsync(capture, null, null, null, stopwatch.Elapsed, false, AiAnalysisFailureReason.UpstreamError);
-            throw new AiCallException(
-                AiAnalysisFailureReason.UpstreamError,
-                "無法連線到 AI 服務，請確認網路連線與 AiSettings:Endpoint 設定。",
-                stopwatch.Elapsed,
-                detail: transport.ToString(),
-                exceptionType: transport.GetType().Name,
-                innerException: ex);
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            capture.ExceptionType = ex.GetType().Name;
-            capture.SetOutcome(false, AiAnalysisFailureReason.Unexpected.ToString());
-            Logger.LogError(ex, "AI chat completion failed unexpectedly. Operation={Operation}", context.Operation);
-            throw new AiCallException(
-                AiAnalysisFailureReason.Unexpected,
-                $"AI 分析失敗：{ex.GetType().Name}。",
-                stopwatch.Elapsed,
-                detail: ex.ToString(),
-                exceptionType: ex.GetType().Name,
-                innerException: ex);
         }
         finally
         {
@@ -188,31 +133,241 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
     }
 
     /// <summary>
-    /// 串流在第二階段才接上記帳。在那之前<b>明確拒絕</b>，絕不讓任何呼叫繞過記帳走出去。
+    /// 串流呼叫（0.9.141 起）。記帳規則與 <see cref="GetResponseAsync"/> 相同，差別只在：
+    /// <list type="bullet">
+    /// <item>用量、模型、finish_reason 在串流<b>結束後</b>才從擷取到的 SSE 原文解析（usage 在最後一個 chunk）。</item>
+    /// <item>⚠️ 使用者中途取消時，<b>已經收到文字</b>就記一筆 <c>Canceled</c>、用量空白（有次數無金額）——
+    /// 已產生的字上游照樣收費，而 usage 要等串流完整結束才拿得到。還沒收到任何文字就取消則照舊不記用量。
+    /// AI 對話紀錄兩種都記，回應文字是已收到的部分。</item>
+    /// <item>逾時涵蓋整段串流（<see cref="AiCallContext.Timeout"/>）。</item>
+    /// </list>
     /// </summary>
-    public override IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+    public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default)
-        => throw new NotSupportedException("AI 串流呼叫尚未接上用量記錄，暫不開放。");
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var messageList = messages as IList<ChatMessage> ?? messages.ToList();
+        var characters = messageList.Sum(message => message.Text?.Length ?? 0);
 
-    private async Task<ChatResponse> CompleteSuccessAsync(
+        await EnsureQuotaAsync(cancellationToken);
+
+        var capture = CreateCapture();
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(context.Timeout);
+
+        state.Current = capture;
+        var stopwatch = Stopwatch.StartNew();
+        var received = new StringBuilder();
+        var requestsTools = false;
+        var finished = false;
+        IAsyncEnumerator<ChatResponseUpdate>? enumerator = null;
+        try
+        {
+            enumerator = base.GetStreamingResponseAsync(messageList, options, timeoutSource.Token)
+                .GetAsyncEnumerator(timeoutSource.Token);
+
+            while (true)
+            {
+                // ⚠️ C# 不允許在有 catch 的 try 裡 yield，所以只把「取下一筆」包起來，yield 放在外面。
+                try
+                {
+                    if (await enumerator.MoveNextAsync() == false)
+                    {
+                        break;
+                    }
+                }
+                catch (Exception ex) when (ex is not AiCallException)
+                {
+                    stopwatch.Stop();
+                    finished = true;
+                    capture.CompleteStreamCapture();
+                    var failure = await HandleFailureAsync(
+                        ex, capture, received.ToString(), characters, stopwatch.Elapsed, cancellationToken);
+                    if (failure is null)
+                    {
+                        throw;
+                    }
+
+                    throw failure;
+                }
+
+                var update = enumerator.Current;
+                received.Append(update.Text);
+                requestsTools |= RequestsTools(update.Contents);
+                yield return update;
+            }
+
+            stopwatch.Stop();
+            finished = true;
+            capture.CompleteStreamCapture();
+            var payload = capture.ResponseBody ?? string.Empty;
+            await CompleteSuccessAsync(
+                capture,
+                AiChatResponseParser.ParseStream(payload),
+                AiChatResponseParser.ExtractStreamUsageJson(payload),
+                requestsTools,
+                messageList.Count,
+                characters,
+                stopwatch.Elapsed);
+        }
+        finally
+        {
+            if (enumerator is not null)
+            {
+                await enumerator.DisposeAsync();
+            }
+
+            // 呼叫端沒取消、也沒讀到結尾就停止列舉（例如中途 break）：等同放棄，比照取消記錄。
+            if (finished == false)
+            {
+                stopwatch.Stop();
+                capture.CompleteStreamCapture();
+                await RecordCanceledAsync(capture, received.ToString(), stopwatch.Elapsed);
+            }
+
+            state.Current = null;
+            await AiCallCapture.RecordSafelyAsync(services.AiCallLogRecorder, capture, stopwatch.Elapsed, Logger);
+        }
+    }
+
+    private AiCallCapture CreateCapture()
+    {
+        var user = services.CurrentUserService.CurrentUser;
+        return new AiCallCapture(
+            context.Operation,
+            settings.GetProvider().ToString(),
+            requestedModel,
+            user.Account,
+            user.Id,
+            context.RelatedInfo,
+            context.ConversationId);
+    }
+
+    private static bool RequestsTools(IEnumerable<AIContent>? contents)
+        => contents?.OfType<FunctionCallContent>().Any() == true;
+
+    /// <summary>
+    /// 串流與非串流共用的失敗處理：記帳、寫日誌，回傳要往外丟的 <see cref="AiCallException"/>；
+    /// 回傳 null 代表是呼叫端取消，原例外照原樣往外丟。
+    /// </summary>
+    /// <param name="receivedText">串流已收到的文字（非串流為空字串）。</param>
+    private async Task<AiCallException?> HandleFailureAsync(
+        Exception ex,
         AiCallCapture capture,
-        ChatResponse? response,
+        string receivedText,
+        int characters,
+        TimeSpan elapsed,
+        CancellationToken cancellationToken)
+    {
+        capture.ResponseText = receivedText;
+
+        if (ex is OperationCanceledException && cancellationToken.IsCancellationRequested)
+        {
+            // 呼叫端主動放棄。這是使用者的決定，不是故障 —— 記 Information 而非 Error。
+            await RecordCanceledAsync(capture, receivedText, elapsed);
+            return null;
+        }
+
+        if (ex is OperationCanceledException)
+        {
+            // 呼叫端沒有取消卻收到取消 = 逾時（我們的 CancelAfter，或傳輸層自己的逾時）。
+            capture.ExceptionType = ex.GetType().Name;
+            Logger.LogError(
+                ex,
+                "AI chat completion timed out. Operation={Operation}, TimeoutSeconds={TimeoutSeconds}",
+                context.Operation,
+                (int)context.Timeout.TotalSeconds);
+            await RecordUsageAsync(capture, null, null, null, elapsed, false, AiAnalysisFailureReason.Timeout);
+            return new AiCallException(
+                AiAnalysisFailureReason.Timeout,
+                $"AI 分析逾時（超過 {(int)context.Timeout.TotalSeconds} 秒），{context.TimeoutHint}",
+                elapsed,
+                detail: ex.ToString(),
+                exceptionType: ex.GetType().Name,
+                innerException: ex);
+        }
+
+        if (ex is ClientResultException clientResult && clientResult.GetRawResponse() is { } raw)
+        {
+            var payload = capture.ResponseBody ?? raw.Content.ToString();
+            capture.ResponseBody ??= payload;
+            var failure = MapHttpFailure((HttpStatusCode)raw.Status, payload, characters, elapsed, ex);
+
+            // 沒有用量可記，但呼叫確實發生過、上游也可能已經計費，至少要留下次數。
+            await RecordUsageAsync(capture, null, null, null, elapsed, false, failure.Reason);
+            return failure;
+        }
+
+        if (IsTransportFailure(ex))
+        {
+            var transport = UnwrapTransportException(ex);
+            capture.ExceptionType = transport.GetType().Name;
+            Logger.LogError(ex, "AI chat completion request failed at transport level. Operation={Operation}", context.Operation);
+            await RecordUsageAsync(capture, null, null, null, elapsed, false, AiAnalysisFailureReason.UpstreamError);
+            return new AiCallException(
+                AiAnalysisFailureReason.UpstreamError,
+                "無法連線到 AI 服務，請確認網路連線與 AiSettings:Endpoint 設定。",
+                elapsed,
+                detail: transport.ToString(),
+                exceptionType: transport.GetType().Name,
+                innerException: ex);
+        }
+
+        capture.ExceptionType = ex.GetType().Name;
+        capture.SetOutcome(false, AiAnalysisFailureReason.Unexpected.ToString());
+        Logger.LogError(ex, "AI chat completion failed unexpectedly. Operation={Operation}", context.Operation);
+        return new AiCallException(
+            AiAnalysisFailureReason.Unexpected,
+            $"AI 分析失敗：{ex.GetType().Name}。",
+            elapsed,
+            detail: ex.ToString(),
+            exceptionType: ex.GetType().Name,
+            innerException: ex);
+    }
+
+    /// <summary>
+    /// 呼叫端取消。Token 用量只在「已經收到文字」時記一筆 <c>Canceled</c>、用量空白（0.9.141 起，串流中途停止）：
+    /// 已產生的字上游照樣收費，但 usage 要等串流完整結束才拿得到。還沒收到任何文字（含所有非串流呼叫）就照舊不記用量。
+    /// AI 對話紀錄兩種都記（請求確實送出過）。
+    /// </summary>
+    private async Task RecordCanceledAsync(AiCallCapture capture, string receivedText, TimeSpan elapsed)
+    {
+        capture.ResponseText = receivedText;
+        if (receivedText.Length > 0)
+        {
+            await RecordUsageAsync(capture, null, null, null, elapsed, false, AiAnalysisFailureReason.Canceled);
+        }
+        else
+        {
+            capture.SetOutcome(false, AiAnalysisFailureReason.Canceled.ToString());
+        }
+
+        Logger.LogInformation(
+            "AI chat completion canceled by the caller. Operation={Operation}, ReceivedCharacters={ReceivedCharacters}, ElapsedMs={ElapsedMs}",
+            context.Operation,
+            receivedText.Length,
+            (long)elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>
+    /// 成功收到回應之後：判斷空回應、寫日誌、記帳、記下這次的結果。串流與非串流共用，兩邊的規則才不會漂移。
+    /// 空回應在記帳之後以 <see cref="AiCallException"/> 丟出。
+    /// </summary>
+    private async Task<AiChatParseResult> CompleteSuccessAsync(
+        AiCallCapture capture,
+        AiChatParseResult parsed,
+        string? usageJson,
+        bool requestsTools,
         int messageCount,
         int characters,
         TimeSpan elapsed)
     {
-        var payload = capture.ResponseBody ?? string.Empty;
-        var parsed = AiChatResponseParser.Parse(payload);
         capture.ResponseText = parsed.Content ?? string.Empty;
         capture.FinishReason = parsed.FinishReason;
         capture.ResponseModel = parsed.ModelName;
-        var usageJson = AiChatResponseParser.ExtractUsageJson(payload);
 
         // 要求呼叫工具的回應本來就沒有文字內容，不是「付了錢卻沒拿到東西」。
-        var requestsTools = response?.Messages.Any(message => message.Contents.OfType<FunctionCallContent>().Any()) == true;
-
         if (string.IsNullOrWhiteSpace(parsed.Content) && requestsTools == false)
         {
             Logger.LogWarning(
@@ -256,12 +411,7 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
 
         var modelName = string.IsNullOrEmpty(parsed.ModelName) ? requestedModel : parsed.ModelName;
         state.Add(new AiCallOutcome(parsed.Content ?? string.Empty, modelName, parsed.FinishReason, parsed.Usage, elapsed));
-
-        return response ?? new ChatResponse(new ChatMessage(ChatRole.Assistant, parsed.Content))
-        {
-            ModelId = modelName,
-            FinishReason = string.IsNullOrEmpty(parsed.FinishReason) ? null : new ChatFinishReason(parsed.FinishReason),
-        };
+        return parsed;
     }
 
     /// <summary>

@@ -195,6 +195,13 @@ public sealed record AiAnalysisResult
     /// </summary>
     public bool IsTruncatedByLength { get; init; }
 
+    /// <summary>
+    /// 串流產生途中被使用者停止（0.9.141 起）。此時 <see cref="Reason"/> 為 <c>Canceled</c>，
+    /// <see cref="Markdown"/> 是停止前已收到的部分 —— 畫面要保留並標示「已中止」，不可當成完整報告。
+    /// 還沒收到任何文字就停止時為 false。
+    /// </summary>
+    public bool IsInterrupted { get; init; }
+
     public TimeSpan Elapsed { get; init; }
 
     public static AiAnalysisResult Failure(
@@ -214,6 +221,17 @@ public sealed record AiAnalysisResult
             Elapsed = elapsed,
             Usage = usage,
         };
+}
+
+/// <summary>
+/// 串流的一筆更新（0.9.141 起）：中途是一段段的 <see cref="TextDelta"/>，最後一定有一筆帶 <see cref="Result"/>
+/// （成功、失敗、取消都是），而且只有那一筆帶。
+/// </summary>
+public sealed record AiStreamUpdate
+{
+    public string TextDelta { get; init; } = string.Empty;
+
+    public AiAnalysisResult? Result { get; init; }
 }
 
 /// <summary>Chat Completions 回應的解析結果（純資料，不含任何 I/O）。</summary>

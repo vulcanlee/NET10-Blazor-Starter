@@ -1,3 +1,4 @@
+using System.Text;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.Systems;
 
@@ -79,6 +80,21 @@ internal sealed class AiCallCapture
     {
         Endpoint = DescribeEndpoint(endpoint);
         RequestBody = requestBody;
+    }
+
+    /// <summary>
+    /// 串流回應的原文緩衝（0.9.141 起）。由 <see cref="AiHttpCapturePolicy"/> 換上的 <see cref="AiCapturingStream"/>
+    /// 邊讀邊寫入；串流結束（或中途取消）時呼叫 <see cref="CompleteStreamCapture"/> 轉成 <see cref="ResponseBody"/>。
+    /// </summary>
+    internal MemoryStream? StreamBuffer { get; set; }
+
+    /// <summary>把已讀到的串流原文寫進 <see cref="ResponseBody"/>；非串流或沒收到回應時不動。</summary>
+    public void CompleteStreamCapture()
+    {
+        if (StreamBuffer is not null)
+        {
+            ResponseBody = Encoding.UTF8.GetString(StreamBuffer.GetBuffer(), 0, (int)StreamBuffer.Length);
+        }
     }
 
     /// <summary>緊接在真正送出 HTTP 之前呼叫。</summary>

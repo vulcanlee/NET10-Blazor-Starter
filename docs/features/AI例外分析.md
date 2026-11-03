@@ -1,8 +1,8 @@
 ﻿# AI 例外分析
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.140
+- 現行系統版本：0.9.141
 - 首次實作版本：0.9.68
 - 最後核對日期：2026/11/02
 
@@ -29,14 +29,15 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
    | `## 需要確認的問題` | 兩者 | AI 不確定、需要使用者補充的地方 |
 
 4. 報告下方是對話區與追問輸入框（上限 2,000 字）。每一輪追問都會帶上整段前文送出。
-5. 工具列：字級「一般／中／大」、複製整段對話（Markdown）、產生 PDF 並下載。
+5. 工具列：字級「一般／中／大」、複製整段對話（Markdown）、產生 PDF 並下載（產生中兩者都停用，0.9.141 起）。
+6. 0.9.141 起第一次分析與每一輪追問都以串流**逐段顯示**，可按「停止產生」，見 §4.1。
 
-**視窗不保存**：報告與對話只存在元件記憶體，關掉 AI 視窗就丟棄（等待中關窗同時取消在途請求）。
+**視窗不保存**：報告與對話只存在元件記憶體，關掉 AI 視窗就丟棄（等待中或產生中關窗同時取消在途請求，已產生的內容也丟棄）。
 要留存請複製或下載 PDF。
 
 **AI 對話紀錄**（0.9.72 起）：每一次送出的呼叫（含取消的）另由記帳中介層 `AiAccountingChatClient`（0.9.140 起；之前為 `AiChatCompletionClient`）記進管理員專屬的
 [AI 對話紀錄](../prd/AI對話紀錄-prd.md)。窗內開窗時產生一個 `ConversationId`，經 `AiExceptionCallContext`
-傳給 `AiExceptionAnalysisService.AskAsync`，第一次分析與每一輪追問因此串成同一段對話；
+傳給 `AiExceptionAnalysisService.AskAsync`（畫面 0.9.141 起用串流版 `AskStreamingAsync`），第一次分析與每一輪追問因此串成同一段對話；
 關聯說明為「例外紀錄 #id（類型）」／「例外紀錄 #id，追問第 n 輪」。這份情境只用於紀錄，不送交 AI。
 
 ## 2. 送出內容與個資
@@ -73,6 +74,23 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
 - 追問失敗時，那一則提問從對話移除並放回輸入框，錯誤以紅框泡泡留在畫面上（不送給 AI），前文不受影響。
 - 超過模型內容視窗時的訊息依情境不同：第一次分析說「堆疊太長」，追問時說「請重新分析並減少追問輪數」。
 
+### 4.1 串流與「停止產生」（0.9.141 起）
+
+- 第一段文字一到就顯示在對話裡（標籤「AI 分析報告（產生中）」或「AI 回覆（追問 N，產生中）」），之後約每 150 ms
+  經 `AiMarkdownRenderer.ToSafeHtml` 重轉一次（超過 512 KB 停止更新）。回覆下方一列「產生中…已 N 秒」＋紅色「停止產生」；
+  還沒收到文字時，等待畫面（第一次分析）或「AI 正在回覆…」泡泡（追問）也有「停止產生」。
+- 產生中複製與 PDF 停用：半份回覆被複製或下載後，看起來會像完整的。
+- 「停止產生」與關窗取消的是同一個 token，只靠 `stopRequested` 旗標區分；關窗仍是放棄並丟棄整段對話。
+
+| 時機 | 畫面 | 通知 | Token 用量 |
+|---|---|---|---|
+| 已收到文字 | 保留為一則回覆，開頭加註「⚠️ 本內容於產生途中由使用者停止，可能不完整。」（`AiInterruption.Notice`，複製與 PDF 也帶）；可繼續追問 | 已停止產生，保留已產生的內容（不完整）。 | 記一筆 `Canceled`、用量空白（有次數、沒金額）|
+| 第一次分析還沒收到文字 | 「已停止產生」「尚未收到任何內容，這次沒有產生報告。關閉視窗後可重新分析。」 | 已停止產生，尚未收到任何內容。 | 不記 |
+| 追問還沒收到文字 | 問題移出對話並放回輸入框，紅框泡泡「已停止產生，尚未收到任何內容。問題已放回輸入框。」 | 同上 | 不記 |
+
+⚠️ 註記**只加在給人看的地方**：之後追問送回給 AI 的對話脈絡保留模型原本的部分輸出，不帶這段註記
+（PDF 另以 `interruptedMessageIndexes` 記住哪幾則要加註）。稽核與 AI 對話紀錄照常各記一筆（失敗原因 `Canceled`）。
+
 ## 5. 架構：共用的 Chat Completions 核心
 
 0.9.68 起，HTTP 呼叫、錯誤對應與 Token 用量記錄從 `AiLogAnalysisService` 抽成
@@ -86,7 +104,7 @@ AiLogAnalysisService ─┐
                       ├─→ AiChatCompletionClient ─→ IAiAgentFactory 建立的 MAF agent
 AiExceptionAnalysisService ┘
       ─→ AiAccountingChatClient（記帳中介層：用量上限、逾時、錯誤對應）
-            ├─→ ITokenUsageRecorder（成功與失敗都記；取消與設定不完整不記）
+            ├─→ ITokenUsageRecorder（成功與失敗都記；設定不完整不記；取消不記，但串流已收到文字才停止記一筆 Canceled、用量空白）
             ├─→ IAiCallLogRecorder（AI 對話紀錄）
             └─→ OpenAI 官方 SDK ─→ named HttpClient「AiChatCompletions」
 ```
@@ -94,7 +112,8 @@ AiExceptionAnalysisService ┘
 - `AiChatCompletionRequest` 帶 `Operation`（用量作業名稱）、完整 `Messages`，以及三段由呼叫端決定措辭的
   提示文字（`ContextLengthExceededMessage`、`TimeoutHint`、`SubmittedContentLabel`）——
   同一種上游錯誤，日誌分析要說「縮小時間區間」，例外分析沒有範圍可縮。
-- 回傳 `AiAnalysisResult`（`Prompt` 由日誌分析以 `with` 補上）。
+- 回傳 `AiAnalysisResult`（`Prompt` 由日誌分析以 `with` 補上）。0.9.141 起另有串流版 `StreamAsync`
+  （`IAsyncEnumerable<AiStreamUpdate>`：一段段 `TextDelta`，最後恰好一筆帶 `Result`；不丟例外，取消時 `IsInterrupted` 標示是否已收到文字）。
 - 用量作業名稱：`TokenUsageOperations.AiExceptionAnalysis = "AI 例外分析"`，初始分析與每一輪追問都記在這個名稱下。
 - 應用程式日誌的記錄器改為 `MyProject.Web.Ai.AiChatCompletionClient`（0.9.140 起呼叫層級的訊息改由
   `MyProject.Web.Ai.AiAccountingChatClient` 寫），訊息帶 `Operation=`。
@@ -122,14 +141,15 @@ AiExceptionAnalysisService ┘
 
 | 檔案 | 職責 |
 |------|------|
-| `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 共用核心：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult` |
-| `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應、**Token 用量與 AI 對話紀錄的記錄點** |
-| `MyProject.Web/Ai/AiExceptionAnalysisService.cs` | 例外分析服務：前置 system prompt、追問上限、情境化錯誤訊息 |
+| `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 共用核心：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult`；串流版 `StreamAsync`（0.9.141 起）|
+| `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應、**Token 用量與 AI 對話紀錄的記錄點**；0.9.141 起串流同規則 |
+| `MyProject.Web/Ai/AiExceptionAnalysisService.cs` | 例外分析服務：前置 system prompt、追問上限、情境化錯誤訊息；串流版 `AskStreamingAsync`（0.9.141 起）|
+| `MyProject.Web/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記（畫面、複製、PDF 共用，0.9.141 起）|
 | `MyProject.Web/Ai/AiExceptionPromptBuilder.cs` | 明細欄位與第一則使用者訊息（不含帳號） |
 | `MyProject.Web/Ai/AiExceptionPromptDefaults.cs` | 系統提示詞的內建預設（分析指示）；固定規則在 `AiPromptGuardrails.cs`，組成在 `AiSystemPromptProvider.cs`（0.9.108 起） |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 極小渲染器 |
 | `MyProject.Web/Ai/AiExceptionReportPdfBuilder.cs` | 例外分析 PDF |
-| `MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor(.cs/.css)` | 對話窗：三態、對話、追問、複製、PDF、稽核 |
+| `MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor(.cs/.css)` | 對話窗：狀態（0.9.141 起多「已停止」）、對話、追問、串流顯示與停止產生、複製、PDF、稽核 |
 | `MyProject.Web/Components/Views/Admins/ExceptionLogView.razor(.cs)` | 明細窗的「AI 分析」按鈕 |
 | `MyProject.Web/Components/Commons/OverlayStyles.razor` | `.exception-ai-modal` 尺寸（與 `.log-ai-modal` 共用） |
 
@@ -144,3 +164,7 @@ AiExceptionAnalysisService ┘
 | `AiExceptionReportPdfBuilderTests` | PDF 簽章、無堆疊無追問也能產生、中介資訊、用量累計 |
 | `AiModalStyleConventionTests` | 兩個 AI 對話窗的字級都乘 `--ai-font-scale`、`<Modal>` 不設 `Width` |
 | `AiLogAnalysisServiceTests` | 抽出共用核心後，日誌分析的端到端行為不變（回歸守門） |
+| `AiStreamingTests` | 串流（0.9.141 起）：逐段回傳再一筆成功結果並記用量、送出 `stream` 與 `include_usage`、⭐ 已收到文字才取消記一筆 `Canceled` 用量空白且保留部分文字、收到文字前取消不記用量但記對話紀錄、上游錯誤、空回應、長度截斷、中途卡住逾時、未設定不發請求 |
+| `AiChatStreamParserTests` | SSE 解析（0.9.141 起）：串接 delta、取 finish_reason／模型／用量、Azure 提示過濾 chunk、過濾類別、最後一行不完整、⭐ usage JSON 只回 usage 子物件 |
+| `AiInterruptionTests` | 已中止註記加在開頭且保留原文；`TokenUsageLogAdapterModel.IsCanceled` 只認 `Canceled`（0.9.141 起）|
+| `Components/ExceptionAiAnalysisModalStreamingTests` | bUnit（0.9.141 起）：逐段顯示與「停止產生」按鈕、收到文字後停止保留並標示已中止、收到文字前停止顯示已停止 |

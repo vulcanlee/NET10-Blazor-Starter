@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 
 namespace MyProject.Web.Ai;
 
@@ -127,6 +128,126 @@ public static class AiChatResponseParser
         {
             // 上游可能回 HTML（例如閘道錯誤頁），當作沒有 usage。
             return null;
+        }
+    }
+
+    /// <summary>
+    /// 解析串流回應（Server-Sent Events）的原文（0.9.141 起）。規則與 <see cref="Parse"/> 相同：
+    /// 串接每個 chunk 的 <c>choices[0].delta.content</c>，<c>finish_reason</c>、<c>model</c>、過濾類別取最後一個有值的，
+    /// usage 取自帶 usage 的那個 chunk（OpenAI／Azure 都放在最後、<c>choices</c> 為空）。
+    ///
+    /// ⚠️ 中途取消時原文只有前幾個 chunk，最後一行還可能不完整，所以逐行解析、壞掉的行略過，能讀多少算多少。
+    /// </summary>
+    public static AiChatParseResult ParseStream(string sse)
+    {
+        var content = new StringBuilder();
+        var finishReason = string.Empty;
+        var modelName = string.Empty;
+        var filterCategory = string.Empty;
+        AiTokenUsage? usage = null;
+
+        foreach (var root in EnumerateStreamChunks(sse))
+        {
+            var model = ReadString(root, "model");
+            if (model.Length > 0)
+            {
+                modelName = model;
+            }
+
+            usage = ReadUsage(root) ?? usage;
+
+            if (root.TryGetProperty("choices", out var choices)
+                && choices.ValueKind == JsonValueKind.Array
+                && choices.GetArrayLength() > 0)
+            {
+                var choice = choices[0];
+                if (choice.TryGetProperty("delta", out var delta)
+                    && delta.ValueKind == JsonValueKind.Object
+                    && delta.TryGetProperty("content", out var piece)
+                    && piece.ValueKind == JsonValueKind.String)
+                {
+                    content.Append(piece.GetString());
+                }
+
+                var finish = ReadString(choice, "finish_reason");
+                if (finish.Length > 0)
+                {
+                    finishReason = finish;
+                }
+
+                var category = ReadFilterCategory(choice);
+                if (category.Length > 0)
+                {
+                    filterCategory = category;
+                }
+            }
+        }
+
+        return new AiChatParseResult
+        {
+            Content = content.ToString(),
+            FinishReason = finishReason,
+            ModelName = modelName,
+            Usage = usage,
+            FilterCategory = filterCategory,
+        };
+    }
+
+    /// <summary>
+    /// 串流版的 <see cref="ExtractUsageJson"/>：只回帶 usage 那個 chunk 的 usage 子物件原文。
+    /// ⚠️ 紅線同上：絕不回傳 chunk 或整段原文 —— 裡面有模型產生的內文。
+    /// </summary>
+    public static string? ExtractStreamUsageJson(string sse)
+    {
+        string? usageJson = null;
+        foreach (var root in EnumerateStreamChunks(sse))
+        {
+            if (root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
+            {
+                usageJson = usage.GetRawText();
+            }
+        }
+
+        return usageJson;
+    }
+
+    /// <summary>逐一取出 SSE 裡每個 <c>data:</c> 行的 JSON 物件；<c>[DONE]</c>、非 JSON、不完整的行一律略過。</summary>
+    private static IEnumerable<JsonElement> EnumerateStreamChunks(string sse)
+    {
+        if (string.IsNullOrWhiteSpace(sse))
+        {
+            yield break;
+        }
+
+        foreach (var rawLine in sse.Split('\n'))
+        {
+            var line = rawLine.TrimEnd('\r');
+            if (line.StartsWith("data:", StringComparison.Ordinal) == false)
+            {
+                continue;
+            }
+
+            var payload = line["data:".Length..].Trim();
+            if (payload.Length == 0 || payload == "[DONE]")
+            {
+                continue;
+            }
+
+            JsonElement root;
+            try
+            {
+                using var document = JsonDocument.Parse(payload);
+                root = document.RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                yield return root;
+            }
         }
     }
 

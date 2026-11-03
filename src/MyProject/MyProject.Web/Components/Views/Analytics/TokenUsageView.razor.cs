@@ -833,7 +833,7 @@ namespace MyProject.Web.Components.Views.Analytics
             new("字元數", x => x.CharacterCount?.ToString()),
             new("音訊時長秒", x => x.DurationSeconds?.ToString()),
             new("耗時ms", x => x.ElapsedMilliseconds.ToString()),
-            new("結果", x => x.Success ? "成功" : "失敗"),
+            new("結果", x => x.Success ? "成功" : x.IsCanceled ? "已取消" : "失敗"),
             new("失敗原因", x => x.FailureReason),
         ];
 

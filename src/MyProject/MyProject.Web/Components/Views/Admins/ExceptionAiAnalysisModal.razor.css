@@ -166,6 +166,40 @@
     font-size: calc(13px * var(--ai-font-scale, 1));
 }
 
+/* 產生中（0.9.141 起串流）：跟在回覆文字尾端，連同「停止產生」鈕。 */
+.exception-ai-generating {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+    color: var(--app-muted);
+    font-size: calc(13px * var(--ai-font-scale, 1));
+}
+
+/* 第一次分析還沒收到任何內容就停止。 */
+.exception-ai-stopped {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.exception-ai-stopped-title {
+    margin: 0;
+    font-size: 20px;
+    color: var(--app-text);
+}
+
+.exception-ai-stopped-message {
+    margin: 0;
+    font-size: 15px;
+    color: var(--app-muted);
+}
+
 .exception-ai-entry-label {
     margin-bottom: 6px;
     font-size: calc(12px * var(--ai-font-scale, 1));

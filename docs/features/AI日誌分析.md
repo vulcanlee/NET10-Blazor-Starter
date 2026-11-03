@@ -1,8 +1,8 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.140
+- 現行系統版本：0.9.141
 - 首次實作版本：0.9.4
 - 最後核對日期：2026/11/02
 
@@ -19,15 +19,16 @@
 1. **對話窗立刻打開**，顯示等待畫面（0.9.8 起，見 §10）。
 2. 系統把**目前畫面上已查詢出來的**日誌組成提示詞（不重新查詢）。
 3. 送到設定的 Azure OpenAI 或 OpenAI 的 Chat Completions 端點。
-4. 回傳的 Markdown 經安全管線轉成 HTML，渲染回**同一個**對話窗。
-5. 對話窗可調整字級、複製 Markdown 原文，或匯出成 PDF 報告下載。
+4. 回傳的 Markdown 經安全管線轉成 HTML，渲染回**同一個**對話窗。0.9.141 起以串流**逐段顯示**，
+   產生中可按「停止產生」保留已產生的部分（見 §10.5）。
+5. 對話窗可調整字級、複製 Markdown 原文，或匯出成 PDF 報告下載（產生中停用）。
 
 呼叫前後都會以**右下角通知**告知階段（送出中、完成、被上限截斷、失敗原因）。
 0.9.109 起已達 AI 用量上限（系統參數「AI 用量」）時不送出，失敗原因 `QuotaExceeded`，訊息寫明哪一個上限與重置時間，見 [AI 用量配額 PRD](../prd/AI用量配額-prd.md)。
 每次呼叫與每次 PDF 匯出都會寫入 `AuditLog`；**0.9.14 起，每次實際發出的 HTTP 呼叫另外記一筆 Token 用量**，見 [Token 用量 PRD](../prd/Token用量-prd.md)。
 
-**不做的事**（刻意的取捨）：不支援追問對話、不做串流輸出、不自動重試、不做頻率限制、
-字級選擇不跨工作階段保存。
+**不做的事**（刻意的取捨）：不支援追問對話、不自動重試、不做頻率限制、
+字級選擇不跨工作階段保存。（串流輸出 0.9.141 起已支援。）
 
 ## 2. 設定
 
@@ -65,7 +66,7 @@
 | `Endpoint` | `""` | ✅ | Azure 必填；OpenAI 留空即用 `https://api.openai.com` |
 | `ApiKey` | `""` | ✅ | **必填，也是功能的開關** —— 沒填就停用 |
 | `Model` | `""` | ✅ | **必填**。Azure 填部署名稱，OpenAI 填模型 id |
-| `TimeoutSeconds` | `600` | ✅ | 每次模型呼叫的逾時 10 分鐘（0.9.140 起由記帳中介層控管）。推論模型對上百筆日誌可能想很久 |
+| `TimeoutSeconds` | `600` | ✅ | 每次模型呼叫的逾時 10 分鐘（0.9.140 起由記帳中介層控管；0.9.141 起串流時涵蓋整段串流）。推論模型對上百筆日誌可能想很久 |
 | `MaxEntries` | `100` | ❌ | 送出最新的 100 筆；**這是唯一的送出量防線** |
 | `MaxFollowUpRounds` | `10` | ❌ | 只用於 [AI 例外分析](AI例外分析.md) 的追問輪數上限（0.9.68 起）；日誌分析不支援追問 |
 | `MaxOutputTokens` | `null` | ❌ | 不送 `max_completion_tokens`，由模型決定 |
@@ -365,30 +366,34 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的 base URI（`GetBaseUri`，含路徑後綴補齊）與設定驗證 |
 | `MyProject.Web/Ai/AiLogPromptBuilder.cs` | 提示詞組裝（只有筆數上限一道） |
 | `MyProject.Web/Ai/AiAgentFactory.cs` | ★ 0.9.140 起建立 MAF agent 的唯一入口：組 OpenAI 官方 SDK（端點、不重試、逾時、傳輸、管線原則），請求 body 由 SDK 產生 |
-| `MyProject.Web/Ai/AiAccountingChatClient.cs` | ★ 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應；**Token 用量與 AI 對話紀錄的記錄點**（`ITokenUsageRecorder`／`IAiCallLogRecorder`）|
-| `MyProject.Web/Ai/AiPipelinePolicies.cs` | SDK 管線原則：`AiHttpCapturePolicy`（擷取請求／回應原文）、`AzureApiKeyPolicy`（Azure 改送 `api-key` 標頭）|
-| `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異），解析對象是 `AiHttpCapturePolicy` 擷取的回應原文；`ExtractUsageJson` 只切出 `usage` 子物件 |
+| `MyProject.Web/Ai/AiAccountingChatClient.cs` | ★ 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應；**Token 用量與 AI 對話紀錄的記錄點**（`ITokenUsageRecorder`／`IAiCallLogRecorder`）；0.9.141 起串流同規則 |
+| `MyProject.Web/Ai/AiPipelinePolicies.cs` | SDK 管線原則：`AiHttpCapturePolicy`（擷取請求／回應原文）、`AzureApiKeyPolicy`（Azure 改送 `api-key` 標頭）、`AiCapturingStream`（串流回應邊讀邊記，0.9.141 起）|
+| `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異），解析對象是 `AiHttpCapturePolicy` 擷取的回應原文；`ExtractUsageJson` 只切出 `usage` 子物件；`ParseStream`／`ExtractStreamUsageJson` 解析串流的 SSE 原文（0.9.141 起）|
+| `MyProject.Web/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記（畫面、複製、PDF 共用，0.9.141 起）|
 | `MyProject.Web/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線 |
-| `MyProject.Web/Ai/AiLogAnalysisService.cs` | 組日誌提示詞與日誌分析專屬的錯誤提示文字，交給共用核心 |
-| `MyProject.Web/Ai/AiChatCompletionClient.cs` | 0.9.68 起的共用核心（與 [AI 例外分析](AI例外分析.md) 共用）：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult` |
+| `MyProject.Web/Ai/AiLogAnalysisService.cs` | 組日誌提示詞與日誌分析專屬的錯誤提示文字，交給共用核心；畫面用串流版 `AnalyzeStreamingAsync`（0.9.141 起）|
+| `MyProject.Web/Ai/AiChatCompletionClient.cs` | 0.9.68 起的共用核心（與 [AI 例外分析](AI例外分析.md) 共用）：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult`；串流版 `StreamAsync`（0.9.141 起）|
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | 日誌分析 PDF 的標題、中介資訊與附錄 |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 轉 PDF 的極小渲染器（0.9.68 從上一列抽出）|
-| `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗三態、字級與稽核 |
+| `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗狀態（0.9.141 起含產生中、已停止、已中止）、字級與稽核 |
 | `MyProject.Web/Components/Commons/OverlayStyles.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
 
-## 10. 對話窗的三個狀態（0.9.8 起）
+## 10. 對話窗的狀態（0.9.8 起）
 
 0.9.7 之前，按下按鈕之後畫面只有一則右下角通知，對話窗要等 AI 回來才第一次出現。
 而 `TimeoutSeconds` 是 600 秒，推論模型對上百筆日誌想上幾分鐘是常態 ——
 使用者盯著一個毫無變化的畫面，很容易以為頁面沒在做事而切走，錯過結果。
 
-現在是**按下按鈕就開窗**，同一個窗依序呈現三種狀態：
+現在是**按下按鈕就開窗**，同一個窗依序呈現下列狀態（0.9.141 起多了串流的「產生中」與停止後的兩種，見 §10.5）：
 
 | 狀態 | 標題 | 內容 |
 |------|------|------|
-| 分析中 | AI 日誌分析（進行中）| 轉圈圈、大字「AI 正在分析 N 筆日誌…」、**每秒更新的「已等待 N 秒」**、以及一句「關閉本視窗將放棄這次分析」 |
+| 分析中（還沒收到文字）| AI 日誌分析（進行中）| 轉圈圈、大字「AI 正在分析 N 筆日誌…」、**每秒更新的「已等待 N 秒」**、一句「關閉本視窗將放棄這次分析」，以及紅色「停止產生」按鈕（0.9.141 起）|
+| 產生中（0.9.141 起）| AI 日誌分析（產生中）| 報告逐段長出來；報告下方一列「產生中…已 N 秒」＋紅色「停止產生」；複製與 PDF 按鈕停用 |
 | 成功 | AI 日誌分析結果 | 字級按鈕、複製／PDF 按鈕、meta 資訊表、Markdown 報告 |
+| 已中止（0.9.141 起）| AI 日誌分析結果（已中止）| 停止前已產生的報告，開頭加註「⚠️ 本內容於產生途中由使用者停止，可能不完整。」；meta 多一列「狀態：已中止（產生途中停止，內容可能不完整）」；複製與 PDF 可用，內容都帶註記 |
+| 已停止（0.9.141 起）| AI 日誌分析（已停止）| 「已停止產生」「尚未收到任何內容，這次沒有產生報告。」 |
 | 失敗 | AI 日誌分析失敗 | 錯誤訊息留在窗內，使用者自己關閉 |
 
 「已等待 N 秒」不是裝飾：轉圈圈只證明瀏覽器還活著，跳動的秒數才證明**這次呼叫**
@@ -396,9 +401,11 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 
 ### 10.1 關窗等於放棄 ⚠️
 
-等待中按 X 或 Esc 會**真的取消 HTTP 請求**（`CancellationTokenSource`），不是讓它留在背景。
+等待中（含 0.9.141 起的產生中）按 X 或 Esc 會**真的取消 HTTP 請求**（`CancellationTokenSource`），不是讓它留在背景，
+已產生的內容一併丟棄。想保留已產生的部分要按「停止產生」（§10.5）。
 
-- 服務層回 `AiAnalysisFailureReason.Canceled`，日誌記 **INFO**（`AI log analysis canceled by the caller`），
+- 服務層回 `AiAnalysisFailureReason.Canceled`，日誌記 **INFO**（記錄器 `MyProject.Web.Ai.AiAccountingChatClient`，
+  `AI chat completion canceled by the caller. Operation=…, ReceivedCharacters=…, ElapsedMs=…`），
   不是 ERROR —— 使用者的主動決定不該污染 `/logs` 的錯誤篩選。
 - ⚠️ 這一項要與**逾時**分得清清楚楚：兩者在 .NET 上都是 `TaskCanceledException`，
   唯一的分辨依據是 `cancellationToken.IsCancellationRequested`。守門測試
@@ -445,6 +452,25 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 尺寸寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`，
 **不要**改用 `<Modal Width>` —— 那邊是 `!important`，兩邊都寫只會讓人改錯地方。
 `AiModalStyleConventionTests` 也擋下在標籤上加 `Width` 的寫法。
+
+### 10.5 串流與「停止產生」（0.9.141 起）
+
+改用 `IAiLogAnalysisService.AnalyzeStreamingAsync`：收到第一段文字就從等待畫面切到報告區，之後約每 150 ms
+把累積的 Markdown 重新經 `AiMarkdownRenderer.ToSafeHtml` 轉一次（不是每段都轉，長報告才不會一直整份重送）；
+轉出的 HTML 超過 512 KB 就先停止更新畫面，最後的完整結果仍照常檢查。產生中遮罩一樣點不關。
+
+⚠️ **產生中複製與 PDF 停用**：半份報告被複製或下載後，看起來會像完整的。
+
+「停止產生」與關窗取消的是同一個 token，只靠 `aiStopRequested` 旗標區分：
+
+| 時機 | 畫面 | 通知 | Token 用量 |
+|---|---|---|---|
+| 已收到文字 | 窗留著，報告保留並加註 `AiInterruption.Notice`，標題「AI 日誌分析結果（已中止）」，meta 加「狀態」列；複製與 PDF 的內容也帶註記 | 已停止產生，保留已產生的內容（不完整）。 | 記一筆 `Canceled`、用量空白（有次數、沒金額）—— 已產生的字上游照樣計費，但拿不到 usage |
+| 還沒收到文字 | 窗留著，顯示「已停止產生」「尚未收到任何內容，這次沒有產生報告。」 | 已停止產生，尚未收到任何內容。 | 不記 |
+
+兩種都寫 `LogViewer.AiAnalyze` 稽核（失敗原因 `Canceled`），AI 對話紀錄也都記一筆（回應文字是已收到的部分）。
+規則見 [MAF AI 呼叫架構 §2](../architecture/MAF-AI呼叫架構.md)；守門測試為 `AiStreamingTests`
+（含 `LogAnalysis_AnalyzeStreamingAsync_ShouldAttachPromptToResult`）、`AiChatStreamParserTests`、`AiInterruptionTests`。
 
 ## 11. 延伸閱讀
 

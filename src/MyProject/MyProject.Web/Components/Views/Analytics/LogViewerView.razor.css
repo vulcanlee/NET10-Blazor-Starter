@@ -148,6 +148,41 @@
     color: var(--app-off);
 }
 
+/* ----- 停止產生（0.9.141 起）：還沒收到任何內容就停止 ----- */
+
+.log-ai-stopped {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.log-ai-stopped-title {
+    margin: 0;
+    font-size: 20px;
+    color: var(--app-text);
+}
+
+.log-ai-stopped-message {
+    margin: 0;
+    font-size: 15px;
+    color: var(--app-muted);
+}
+
+/* 產生中：跟在報告文字尾端，連同「停止產生」鈕。 */
+.log-ai-generating {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 12px;
+    color: var(--app-muted);
+    font-size: calc(13px * var(--ai-font-scale, 1));
+}
+
 /* ----- 失敗 ----- */
 
 .log-ai-failed {

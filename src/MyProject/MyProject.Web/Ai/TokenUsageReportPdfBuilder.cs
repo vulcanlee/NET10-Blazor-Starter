@@ -592,7 +592,7 @@ public static class TokenUsageReportPdfBuilder
                 ? $"時長 {item.DurationSeconds:N0} 秒"
                 : TokenUsageFormat.Cell(item.TotalCount));
             SetCell(cells, 8, item.IsUnpriced ? "未定價" : TokenUsageFormat.CostTwdCell(item.CostTwd));
-            SetCell(cells, 9, item.Success ? "成功" : item.FailureReason ?? "失敗");
+            SetCell(cells, 9, item.Success ? "成功" : item.IsCanceled ? "已取消" : item.FailureReason ?? "失敗");
         }
 
         if (details.Count > MaxDetailRows)

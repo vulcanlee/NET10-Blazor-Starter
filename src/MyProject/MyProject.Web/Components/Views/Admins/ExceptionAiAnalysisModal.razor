@@ -26,6 +26,14 @@
                 <p class="exception-ai-loading-hint">
                     推論模型可能需要數十秒到數分鐘。關閉本視窗將放棄這次分析。
                 </p>
+                <Button Danger Icon="stop" OnClick="OnStop">停止產生</Button>
+            </div>
+        }
+        else if (modalState == ModalState.Stopped)
+        {
+            <div class="exception-ai-stopped">
+                <p class="exception-ai-stopped-title">已停止產生</p>
+                <p class="exception-ai-stopped-message">尚未收到任何內容，這次沒有產生報告。關閉視窗後可重新分析。</p>
             </div>
         }
         else if (modalState == ModalState.Failed)
@@ -51,7 +59,9 @@
                     }
                 </div>
                 <div class="exception-ai-actions-right">
+                    @* 產生中不能複製或匯出：半份回覆看起來會像完整的（0.9.141 起）。 *@
                     <ToolbarIconButton Title="複製整段對話（Markdown 原文）" Icon="content_copy"
+                                       Disabled="@isRunning"
                                        OnClick="@(async () => await OnCopyAsync())" />
                     <ToolbarIconButton Title="產生 PDF 報告並下載" Icon="picture_as_pdf"
                                        Disabled="@(isExporting || isRunning)"
@@ -113,10 +123,29 @@
                     @if (isRunning)
                     {
                         <div class="exception-ai-anchor" tabindex="-1" @ref="latestAnchor"></div>
-                        <div class="exception-ai-entry exception-ai-entry-pending">
-                            <Spin Size="@SpinSize.Small" />
-                            <span>AI 正在回覆…已等待 @elapsedSeconds 秒（關閉本視窗將放棄這次追問）</span>
-                        </div>
+                        @if (streamingHtml.Length > 0)
+                        {
+                            @* 產生中的回覆（0.9.141 起串流）。同樣只顯示經 ToSafeHtml 轉過的 HTML。 *@
+                            <div class="exception-ai-entry exception-ai-entry-assistant">
+                                <div class="exception-ai-entry-label">@(runningRound == 0 ? "AI 分析報告（產生中）" : $"AI 回覆（追問 {runningRound}，產生中）")</div>
+                                <div class="exception-ai-report">
+                                    @((MarkupString)streamingHtml)
+                                </div>
+                            </div>
+                            <div class="exception-ai-generating">
+                                <Spin Size="@SpinSize.Small" />
+                                <span>產生中…已 @elapsedSeconds 秒</span>
+                                <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止產生</Button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="exception-ai-entry exception-ai-entry-pending">
+                                <Spin Size="@SpinSize.Small" />
+                                <span>AI 正在回覆…已等待 @elapsedSeconds 秒（關閉本視窗將放棄這次追問）</span>
+                                <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止產生</Button>
+                            </div>
+                        }
                     }
                 </div>
             </div>

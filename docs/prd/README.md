@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.27
+- 文件版本：2.28
 - 文件狀態：維護中
-- 現行系統版本：0.9.140
+- 現行系統版本：0.9.141
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/02
 
@@ -20,12 +20,12 @@
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用） | 0.9.135 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `Pages/Teams/TeamPage.razor`、`TeamService`、`TeamController` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用）| 0.9.135 |
 | 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、`Health/SystemHealthService` 等 | 已實作（14 項檢查；0.9.59 起含寄信服務項與寄信測試；0.9.79 起含日誌管線項；0.9.96 起含排程作業項；0.9.122 起含站內通知測試）| 0.9.135 |
-| 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Pages/Analytics/LogViewerPage.razor`、`LogQueryService`、`NLogFilePathResolver`、`AiLogAnalysisService` | 已實作（0.9.69 起可展開收合與複製；0.9.78 起可依錯誤追蹤碼篩選；0.9.111 起有快速區間與「查前後 1 分鐘」）| 0.9.140 |
+| 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Pages/Analytics/LogViewerPage.razor`、`LogQueryService`、`NLogFilePathResolver`、`AiLogAnalysisService` | 已實作（0.9.69 起可展開收合與複製；0.9.78 起可依錯誤追蹤碼篩選；0.9.111 起有快速區間與「查前後 1 分鐘」；0.9.141 起 AI 分析串流顯示、可停止產生）| 0.9.141 |
 | 資料庫用量 | [資料庫用量](資料庫用量-prd.md) | `/database-usage` | `Pages/Analytics/DatabaseUsagePage.razor`、`DatabaseUsageService` | 已實作 | 0.9.135 |
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.9.135 |
 | 系統例外紀錄 | [系統例外紀錄](系統例外紀錄-prd.md) | `/system-exceptions` | `Pages/Admins/ExceptionLogPage.razor`、`Diagnostics/ExceptionLogProvider`、`ExceptionLogService`、`AiExceptionAnalysisService`、`CrashMarkerStore`、`ProcessExceptionHooks` | 已實作（0.9.77 補齊漏記、重複與帳號；0.9.78 加上錯誤追蹤碼、告警、自動清理）| 0.9.135 |
-| Token 用量 | [Token 用量](Token用量-prd.md) | `/token-usage` | `Pages/Analytics/TokenUsagePage.razor`、`ITokenUsageRecorder`、`TokenUsageLogService`、`TokenUsageRawStore` | 已實作（0.9.17 起每列含費用估算；0.9.50 起有「最近 1／7／30 天」摘要卡與每日費用趨勢；0.9.51 起 PDF 可只匯出目前頁籤且含趨勢；0.9.55 起有折線趨勢圖頁籤，PDF 同步輸出）| 0.9.140 |
-| AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionJob` | 已實作（0.9.72；0.9.96 起自動過期改由排程作業執行）| 0.9.140 |
+| Token 用量 | [Token 用量](Token用量-prd.md) | `/token-usage` | `Pages/Analytics/TokenUsagePage.razor`、`ITokenUsageRecorder`、`TokenUsageLogService`、`TokenUsageRawStore` | 已實作（0.9.17 起每列含費用估算；0.9.50 起有「最近 1／7／30 天」摘要卡與每日費用趨勢；0.9.51 起 PDF 可只匯出目前頁籤且含趨勢；0.9.55 起有折線趨勢圖頁籤，PDF 同步輸出；0.9.141 起串流途中停止的呼叫記一筆「已取消」）| 0.9.141 |
+| AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionJob` | 已實作（0.9.72；0.9.96 起自動過期改由排程作業執行；0.9.141 起串流呼叫保存 SSE 原文）| 0.9.141 |
 | 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99）| 0.9.135 |
 | 資料保留與清理 | [資料保留與清理](資料保留與清理-prd.md) | `/data-retention` | `Pages/Admins/DataRetentionPage.razor`、`Web/DataRetention/*`、`Scheduling/RetentionCutoffs`、各資料服務的 `GetRetentionStatsAsync` | 已實作（0.9.133；0.9.134 起含自訂清除）| 0.9.134 |
 | 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`ProfileService`、`Layout/UserInitials` | 已實作（0.9.102；0.9.123 起登入紀錄顯示來源 IP）| 0.9.135 |

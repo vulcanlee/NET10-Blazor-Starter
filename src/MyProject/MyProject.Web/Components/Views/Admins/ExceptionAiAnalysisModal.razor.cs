@@ -29,6 +29,9 @@ namespace MyProject.Web.Components.Views.Admins
 
             /// <summary>已有報告，可追問（追問進行中也是這個狀態，由 isRunning 區分）。</summary>
             Chatting,
+
+            /// <summary>第一次分析還沒收到任何文字就被使用者按「停止產生」（0.9.141 起）。</summary>
+            Stopped,
         }
 
         private enum EntryKind
@@ -107,6 +110,27 @@ namespace MyProject.Web.Components.Views.Admins
 
         /// <summary>本次呼叫的取消來源。使用者在等待中關窗即取消，等待計時也綁在同一個 token 上。</summary>
         private CancellationTokenSource? cts;
+
+        /// <summary>
+        /// 這次取消是「停止產生」（保留已產生的內容）而不是關窗（放棄並丟棄整段對話）（0.9.141 起）。
+        /// 兩者都是取消同一個 token，只能靠這個旗標區分。
+        /// </summary>
+        private bool stopRequested;
+
+        /// <summary>正在進行的是第幾輪（0 為第一次分析），產生中的泡泡標題用。</summary>
+        private int runningRound;
+
+        /// <summary>產生中逐段長出來的回覆（已轉成安全 HTML）；還沒收到文字時為空字串。</summary>
+        private string streamingHtml = string.Empty;
+
+        /// <summary>
+        /// 產生途中被停止的 AI 回覆在 <see cref="conversation"/> 裡的位置。PDF 要在這些回覆前加註「已中止」，
+        /// 但送回給 AI 的對話脈絡保留原文（見 <see cref="AiInterruption"/>）。
+        /// </summary>
+        private readonly HashSet<int> interruptedMessageIndexes = [];
+
+        /// <summary>串流中重新轉 HTML 的節流，同日誌檢視頁。</summary>
+        private static readonly TimeSpan StreamRenderInterval = TimeSpan.FromMilliseconds(150);
 
         /// <summary>元件已釋放（使用者導航離開）。之後不可再碰任何 scoped 服務。</summary>
         private bool isDisposed;
@@ -215,6 +239,9 @@ namespace MyProject.Web.Components.Views.Admins
         private async Task RunAsync(int round)
         {
             isRunning = true;
+            stopRequested = false;
+            streamingHtml = string.Empty;
+            runningRound = round;
             elapsedSeconds = 0;
             scrollToLatestPending = round > 0;
             StateHasChanged();
@@ -231,20 +258,55 @@ namespace MyProject.Web.Components.Views.Admins
                 var callContext = item is null
                     ? null
                     : new AiExceptionCallContext(item.Id, item.ExceptionType, conversationId);
-                var result = await aiExceptionAnalysisService.AskAsync(conversation.ToList(), callContext, token);
+                // 0.9.141 起串流：第一段文字一到就顯示在對話裡，之後逐段長出來（節流重轉 HTML）。
+                AiAnalysisResult? result = null;
+                var streamed = new StringBuilder();
+                var renderClock = System.Diagnostics.Stopwatch.StartNew();
+                await foreach (var update in aiExceptionAnalysisService.AskStreamingAsync(conversation.ToList(), callContext, token))
+                {
+                    if (update.Result is not null)
+                    {
+                        result = update.Result;
+                        break;
+                    }
+
+                    if (isDisposed)
+                    {
+                        break;
+                    }
+
+                    streamed.Append(update.TextDelta);
+                    if (streamingHtml.Length == 0 || renderClock.Elapsed >= StreamRenderInterval)
+                    {
+                        ShowStreaming(streamed.ToString());
+                        renderClock.Restart();
+                        StateHasChanged();
+                    }
+                }
+
+                streamingHtml = string.Empty;
 
                 // ⚠️ 使用者導航離開時 circuit 已經收掉，連 DbContext 都被釋放了 —— 什麼都不要再碰。
-                if (isDisposed)
+                if (isDisposed || result is null)
                 {
                     return;
                 }
 
                 await WriteAuditAsync(round == 0 ? AuditActions.ExceptionLog.AiAnalyze : AuditActions.ExceptionLog.AiFollowUp, audit, result);
 
-                // 使用者關窗放棄。窗已經關了、對話也清掉了，這裡不要再改任何畫面狀態 ——
-                // 即使回應恰好在取消的同時成功回來，也不能把它塞進已經清空的對話。
-                if (result.Reason == AiAnalysisFailureReason.Canceled || token.IsCancellationRequested)
+                if (stopRequested)
                 {
+                    // 停止產生（0.9.141 起）：窗留著。剛好在按下的同時完成的，就當作正常完成往下走。
+                    if (result.Reason == AiAnalysisFailureReason.Canceled)
+                    {
+                        ShowStopped(round, result);
+                        return;
+                    }
+                }
+                else if (result.Reason == AiAnalysisFailureReason.Canceled || token.IsCancellationRequested)
+                {
+                    // 使用者關窗放棄。窗已經關了、對話也清掉了，這裡不要再改任何畫面狀態 ——
+                    // 即使回應恰好在取消的同時成功回來，也不能把它塞進已經清空的對話。
                     return;
                 }
 
@@ -304,12 +366,86 @@ namespace MyProject.Web.Components.Views.Admins
                 cts?.Dispose();
                 cts = null;
 
+                streamingHtml = string.Empty;
                 isRunning = false;
                 if (isDisposed == false)
                 {
                     StateHasChanged();
                 }
             }
+        }
+
+        /// <summary>產生中逐段顯示（0.9.141 起）。超過顯示上限時先停止更新，最後的完整結果仍會照常檢查。</summary>
+        private void ShowStreaming(string markdown)
+        {
+            var html = AiMarkdownRenderer.ToSafeHtml(markdown);
+            if (html.Length > MaxRenderedHtmlLength)
+            {
+                return;
+            }
+
+            streamingHtml = html;
+            modalState = ModalState.Chatting;
+        }
+
+        /// <summary>
+        /// 「停止產生」（0.9.141 起）：取消這次呼叫，但窗與對話都留著。
+        /// 已收到的文字上游照樣計費，Token 用量會記一筆「已取消」（沒有金額）。
+        /// </summary>
+        private void OnStop()
+        {
+            if (isRunning == false)
+            {
+                return;
+            }
+
+            stopRequested = true;
+            cts?.Cancel();
+        }
+
+        /// <summary>
+        /// 停止產生之後：已收到文字 → 保留為一則回覆並標示已中止（也放進之後追問的脈絡）；
+        /// 還沒收到 → 第一次分析顯示「已停止」，追問則把問題放回輸入框。
+        /// </summary>
+        private void ShowStopped(int round, AiAnalysisResult result)
+        {
+            if (result.IsInterrupted)
+            {
+                var annotated = AiInterruption.Annotate(result.Markdown);
+                var html = AiMarkdownRenderer.ToSafeHtml(annotated);
+                if (html.Length <= MaxRenderedHtmlLength)
+                {
+                    // 送回給 AI 的脈絡保留模型原本的輸出；畫面、複製與 PDF 才加註記。
+                    conversation.Add(new AiChatMessage(AiChatRoles.Assistant, result.Markdown));
+                    interruptedMessageIndexes.Add(conversation.Count - 1);
+                    entries.Add(new ChatEntry(EntryKind.Assistant, round, annotated, html));
+                    totalElapsed += result.Elapsed;
+                    modalState = ModalState.Chatting;
+                    scrollToLatestPending = round > 0;
+                    ViewNotification.Info(notificationService, "已停止產生，保留已產生的內容（不完整）。");
+                    return;
+                }
+            }
+
+            if (round == 0)
+            {
+                modalState = ModalState.Stopped;
+            }
+            else
+            {
+                var last = conversation[^1];
+                if (last.Role == AiChatRoles.User)
+                {
+                    conversation.RemoveAt(conversation.Count - 1);
+                    entries.RemoveAt(entries.Count - 1);
+                    followUpText = last.Content;
+                }
+
+                entries.Add(new ChatEntry(EntryKind.Error, round, "已停止產生，尚未收到任何內容。問題已放回輸入框。", string.Empty));
+                scrollToLatestPending = true;
+            }
+
+            ViewNotification.Info(notificationService, "已停止產生，尚未收到任何內容。");
         }
 
         /// <summary>
@@ -415,7 +551,13 @@ namespace MyProject.Web.Components.Views.Admins
                     GeneratedAt = DateTime.Now,
                     DetailLines = AiExceptionPromptBuilder.BuildDetailLines(item),
                     StackTrace = stackTrace,
-                    Exchanges = conversation.Skip(1).ToList(),
+                    // 產生途中停止的回覆加註「已中止」（0.9.141 起），PDF 才不會被當成完整報告。
+                    Exchanges = conversation
+                        .Select((message, index) => interruptedMessageIndexes.Contains(index)
+                            ? message with { Content = AiInterruption.Annotate(message.Content) }
+                            : message)
+                        .Skip(1)
+                        .ToList(),
                     ModelName = modelName,
                     Usage = AiTokenUsage.Sum(usages),
                 });
@@ -492,6 +634,9 @@ namespace MyProject.Web.Components.Views.Admins
             fontScalePercent = DefaultFontScalePercent;
             elapsedSeconds = 0;
             scrollToLatestPending = false;
+            stopRequested = false;
+            streamingHtml = string.Empty;
+            interruptedMessageIndexes.Clear();
             modalState = ModalState.Chatting;
         }
 

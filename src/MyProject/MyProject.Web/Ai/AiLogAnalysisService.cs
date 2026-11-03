@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
@@ -35,6 +36,41 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
         IReadOnlyList<LogEntry> entriesAscending,
         CancellationToken cancellationToken = default)
     {
+        var (request, failure, prompt) = await PrepareAsync(entriesAscending, cancellationToken);
+        if (request is null)
+        {
+            return failure!;
+        }
+
+        var result = await chatCompletionClient.CompleteAsync(request, cancellationToken);
+        return result with { Prompt = prompt };
+    }
+
+    public async IAsyncEnumerable<AiStreamUpdate> AnalyzeStreamingAsync(
+        IReadOnlyList<LogEntry> entriesAscending,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var (request, failure, prompt) = await PrepareAsync(entriesAscending, cancellationToken);
+        if (request is null)
+        {
+            yield return new AiStreamUpdate { Result = failure };
+            yield break;
+        }
+
+        await foreach (var update in chatCompletionClient.StreamAsync(request, cancellationToken))
+        {
+            yield return update.Result is null ? update : update with { Result = update.Result with { Prompt = prompt } };
+        }
+    }
+
+    /// <summary>
+    /// 設定檢查、組提示詞、組請求。非串流與串流共用。
+    /// 不能送出時 <c>Request</c> 為 null，<c>Failure</c> 是要回給呼叫端的結果。
+    /// </summary>
+    private async Task<(AiChatCompletionRequest? Request, AiAnalysisResult? Failure, AiPromptBuildResult Prompt)> PrepareAsync(
+        IReadOnlyList<LogEntry> entriesAscending,
+        CancellationToken cancellationToken)
+    {
         // ⚠️ 在呼叫時才讀設定（CurrentValue），不在建構時快取：Blazor Server 的 DI scope
         // 等於 SignalR circuit，可存活數小時，IOptions 的一次性快照會讓設定變更永遠吃不到。
         var settings = optionsMonitor.CurrentValue;
@@ -43,38 +79,36 @@ public sealed class AiLogAnalysisService : IAiLogAnalysisService
         var invalid = AiChatEndpoint.Validate(settings);
         if (invalid is not null)
         {
-            return AiAnalysisResult.Failure(AiAnalysisFailureReason.NotConfigured, invalid);
+            return (null, AiAnalysisResult.Failure(AiAnalysisFailureReason.NotConfigured, invalid), new AiPromptBuildResult());
         }
 
         var prompt = AiLogPromptBuilder.Build(entriesAscending, settings.MaxEntries);
 
         if (prompt.IsEmpty)
         {
-            return AiAnalysisResult.Failure(AiAnalysisFailureReason.NoData, "目前沒有可分析的日誌。", prompt);
+            return (null, AiAnalysisResult.Failure(AiAnalysisFailureReason.NoData, "目前沒有可分析的日誌。", prompt), prompt);
         }
 
         // 0.9.108 起提示詞在「AI 提示詞」頁管理（作用中的版本或內建預設＋固定規則）。
         var systemPrompt = await systemPromptProvider.GetAsync(PromptTemplateKeys.LogAnalysis, cancellationToken);
 
-        var result = await chatCompletionClient.CompleteAsync(
-            new AiChatCompletionRequest
-            {
-                Operation = TokenUsageOperations.AiLogAnalysis,
-                Messages =
+        var request = new AiChatCompletionRequest
+        {
+            Operation = TokenUsageOperations.AiLogAnalysis,
+            Messages =
                 [
                     new AiChatMessage(AiChatRoles.System, systemPrompt),
                     new AiChatMessage(AiChatRoles.User, prompt.UserMessage),
                 ],
-                // 0.9.7 起送出的日誌不再有字元上限，所以「內容太長」變成主要的失敗模式。
-                ContextLengthExceededMessage =
+            // 0.9.7 起送出的日誌不再有字元上限，所以「內容太長」變成主要的失敗模式。
+            ContextLengthExceededMessage =
                     "送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。",
-                TimeoutHint = "請縮小查詢範圍後再試。",
-                SubmittedContentLabel = "送出的日誌量",
-                RelatedInfo = BuildRelatedInfo(entriesAscending, prompt),
-            },
-            cancellationToken);
+            TimeoutHint = "請縮小查詢範圍後再試。",
+            SubmittedContentLabel = "送出的日誌量",
+            RelatedInfo = BuildRelatedInfo(entriesAscending, prompt),
+        };
 
-        return result with { Prompt = prompt };
+        return (request, null, prompt);
     }
 
     /// <summary>

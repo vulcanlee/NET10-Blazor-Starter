@@ -62,10 +62,18 @@ internal sealed class AiHttpCapturePolicy : PipelinePolicy
         capture.HttpStatus = message.Response.Status;
 
         // 非串流的回應（含錯誤回應）SDK 會先整段緩衝，這裡讀到的就是完整原文。
-        // 串流回應不緩衝，由記帳中介層自己拼（第二階段）。
         if (message.BufferResponse)
         {
             capture.ResponseBody = message.Response.Content.ToString();
+            return;
+        }
+
+        // 串流回應（0.9.141 起）不緩衝：把回應串流換成「邊讀邊記」的版本，SDK 讀到哪裡就記到哪裡，
+        // 中途取消也留得下已收到的部分。錯誤回應不換 —— SDK 會自己整段讀出來組例外，記帳中介層從例外取原文。
+        if (message.Response.IsError == false && message.Response.ContentStream is { } inner)
+        {
+            capture.StreamBuffer = new MemoryStream();
+            message.Response.ContentStream = new AiCapturingStream(inner, capture.StreamBuffer);
         }
     }
 
@@ -131,5 +139,72 @@ internal sealed class AzureApiKeyPolicy : PipelinePolicy
     {
         message.Request.Headers.Remove("Authorization");
         message.Request.Headers.Set(HeaderName, apiKey);
+    }
+}
+
+/// <summary>
+/// 包住串流回應的唯讀串流：讀到的每個位元組同時寫進擷取緩衝（0.9.141 起，AI 對話紀錄的串流原文）。
+/// 只做這件事，不改變讀到的內容，也不提早讀取。
+/// </summary>
+internal sealed class AiCapturingStream : Stream
+{
+    private readonly Stream inner;
+    private readonly MemoryStream sink;
+
+    public AiCapturingStream(Stream inner, MemoryStream sink)
+    {
+        this.inner = inner;
+        this.sink = sink;
+    }
+
+    public override bool CanRead => true;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => false;
+
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        var read = inner.Read(buffer, offset, count);
+        sink.Write(buffer, offset, read);
+        return read;
+    }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        var read = await inner.ReadAsync(buffer, cancellationToken);
+        sink.Write(buffer.Span[..read]);
+        return read;
+    }
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override void Flush()
+    {
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            inner.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }

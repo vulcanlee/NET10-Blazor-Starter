@@ -1,8 +1,8 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.140
+- 現行系統版本：0.9.141
 - 首次實作版本：0.9.72
 - 最後核對日期：2026/11/02
 
@@ -22,7 +22,8 @@
   - 不能重送或修改對話。
   - 不提供多筆合併 PDF。
   - 不做「一般使用者只看自己的」分權。
-  - 不支援串流（SSE）原文：本專案目前沒有串流呼叫點，ReviewSkills 的 SSE 相關欄位與檢視刻意不移植。
+  - 不做 SSE 專屬的欄位與檢視：ReviewSkills 的 SSE 相關欄位與檢視刻意不移植。0.9.141 起 AI 日誌分析與 AI 例外分析改走串流，
+    串流呼叫的原始回應就是 SSE 原文，照一般原始回應保存與顯示（不是 JSON，所以不排版）。
 
 > ⚠️ **這是對既有紅線的正式修訂。**0.9.71 之前系統承諾「絕不保存提示詞與模型回應內文」。
 > 0.9.72 起修訂為：`TokenUsageLog`／`TokenUsagePath` 仍然絕不存內文；完整內文**只准**存進本功能的專屬儲存區，
@@ -61,14 +62,15 @@ AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `E
 設定不完整（根本沒送出）不記。
 
 ⚠️ Token 用量**不記**使用者取消與非預期錯誤的呼叫（沿用既有規則），所以兩頁筆數可能不同；明細窗的用量區塊會說明原因。
+例外（0.9.141 起）：串流途中使用者按「停止產生」、已經收到文字時，Token 用量也記一筆 `Canceled`（用量空白），兩頁都有。
 
 ### 3.3 保存的內容
 
 | 項目 | 說明 |
 |---|---|
-| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析）。**不含 HTTP 標頭與金鑰** |
-| 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null |
-| 解析後的回應文字 | `choices[0].message.content` |
+| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`）。**不含 HTTP 標頭與金鑰** |
+| 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null。串流呼叫（0.9.141 起）為 **SSE 原文**（`data: {…}` 逐行，由 `AiCapturingStream` 邊讀邊記）；中途取消或逾時時是已收到的部分 |
+| 解析後的回應文字 | `choices[0].message.content`；串流為各 chunk `delta.content` 串起來；中途取消時是**已收到的部分** |
 | 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、CallId |
 
 訊息的角色（system／user／assistant）不另外存，讀取時由原始請求解析（`AiCallLogMessages.Parse`）。
@@ -147,6 +149,7 @@ Token 用量明細窗新增「AI 對話紀錄」列：
 | 結果預設值、送出旗標、記錄失敗不外拋、端點去除查詢字串、訊息解析 | `AiCallCaptureTests` |
 | 成功／錯誤 body／逾時／傳輸失敗／取消／非預期錯誤／未設定不記、CallId 與 Token 用量一致、內容不含金鑰、recorder 丟例外不影響結果 | `AiChatCompletionClientTests`、`AiLogAnalysisServiceTests`、`AiHealthProbeTests` |
 | SDK 產生的請求 body 仍能解析成訊息、自己的逾時記一筆（0.9.140 起） | `AiAgentPipelineTests` |
+| 串流：成功、取消前／後都記一筆且回應文字為已收到的部分、上游錯誤、逾時（0.9.141 起） | `AiStreamingTests` |
 | 例外分析與追問共用 ConversationId、RelatedInfo | `AiExceptionAnalysisServiceTests` |
 | PDF 產出、中繼資料、角色標示 | `AiCallLogPdfBuilderTests` |
 | 設定預設值與範圍 | `AiCallLogSettingsTests` |
