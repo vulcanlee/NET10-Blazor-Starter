@@ -69,6 +69,12 @@ public class TokenUsageLogAdapterModel
 
     public string? FailureReason { get; set; }
 
+    /// <summary>
+    /// 使用者在串流途中按「停止產生」（0.9.141 起）：已收到文字、上游照樣計費，但拿不到用量。
+    /// 頁面以灰色「已取消」顯示，不是紅色「失敗」—— 使用者自己停止不是故障（同 AI 對話紀錄頁）。
+    /// </summary>
+    public bool IsCanceled => string.Equals(FailureReason, "Canceled", StringComparison.Ordinal);
+
     public string? RawUsageFile { get; set; }
 
     /// <summary>呼叫識別碼，對應 AI 對話紀錄；0.9.72 之前的紀錄為 null。</summary>

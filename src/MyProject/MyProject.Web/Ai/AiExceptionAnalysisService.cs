@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
@@ -26,6 +27,15 @@ public interface IAiExceptionAnalysisService
     /// ⚠️ 這個方法<b>不丟例外</b>，所有失敗都以 <see cref="AiAnalysisResult"/> 回報。
     /// </summary>
     Task<AiAnalysisResult> AskAsync(
+        IReadOnlyList<AiChatMessage> conversation,
+        AiExceptionCallContext? callContext = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 串流版（0.9.141 起，AI 例外分析視窗使用）：逐段回傳文字，最後一筆帶結果。
+    /// 規則同 <see cref="IAiChatCompletionClient.StreamAsync"/>：不丟例外，取消也以最後一筆結果回報。
+    /// </summary>
+    IAsyncEnumerable<AiStreamUpdate> AskStreamingAsync(
         IReadOnlyList<AiChatMessage> conversation,
         AiExceptionCallContext? callContext = null,
         CancellationToken cancellationToken = default);
@@ -59,11 +69,42 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
         AiExceptionCallContext? callContext = null,
         CancellationToken cancellationToken = default)
     {
+        var (request, failure) = await PrepareAsync(conversation, callContext, cancellationToken);
+        return request is null ? failure! : await chatCompletionClient.CompleteAsync(request, cancellationToken);
+    }
+
+    public async IAsyncEnumerable<AiStreamUpdate> AskStreamingAsync(
+        IReadOnlyList<AiChatMessage> conversation,
+        AiExceptionCallContext? callContext = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var (request, failure) = await PrepareAsync(conversation, callContext, cancellationToken);
+        if (request is null)
+        {
+            yield return new AiStreamUpdate { Result = failure };
+            yield break;
+        }
+
+        await foreach (var update in chatCompletionClient.StreamAsync(request, cancellationToken))
+        {
+            yield return update;
+        }
+    }
+
+    /// <summary>
+    /// 對話檢查、追問上限、組請求。非串流與串流共用。
+    /// 不能送出時 <c>Request</c> 為 null，<c>Failure</c> 是要回給呼叫端的結果。
+    /// </summary>
+    private async Task<(AiChatCompletionRequest? Request, AiAnalysisResult? Failure)> PrepareAsync(
+        IReadOnlyList<AiChatMessage> conversation,
+        AiExceptionCallContext? callContext,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(conversation);
 
         if (conversation.Count == 0)
         {
-            return AiAnalysisResult.Failure(AiAnalysisFailureReason.NoData, "沒有可分析的例外內容。");
+            return (null, AiAnalysisResult.Failure(AiAnalysisFailureReason.NoData, "沒有可分析的例外內容。"));
         }
 
         // ⚠️ 上限在服務層再擋一次，不只靠畫面停用輸入框：每一輪都帶整段前文，
@@ -71,28 +112,28 @@ public sealed class AiExceptionAnalysisService : IAiExceptionAnalysisService
         var followUps = conversation.Count(message => message.Role == AiChatRoles.User) - 1;
         if (followUps > MaxFollowUpRounds)
         {
-            return AiAnalysisResult.Failure(
+            return (null, AiAnalysisResult.Failure(
                 AiAnalysisFailureReason.FollowUpLimitReached,
-                $"已達追問上限（{MaxFollowUpRounds} 輪）。請關閉視窗後重新分析，或調整 AiSettings:MaxFollowUpRounds。");
+                $"已達追問上限（{MaxFollowUpRounds} 輪）。請關閉視窗後重新分析，或調整 AiSettings:MaxFollowUpRounds。"));
         }
 
         // 每一輪都重新取：管理員在對話途中切換版本，下一輪就用新版（0.9.108 起）。
         var systemPrompt = await systemPromptProvider.GetAsync(PromptTemplateKeys.ExceptionAnalysis, cancellationToken);
 
-        return await chatCompletionClient.CompleteAsync(
-            new AiChatCompletionRequest
-            {
-                Operation = TokenUsageOperations.AiExceptionAnalysis,
-                Messages = [new AiChatMessage(AiChatRoles.System, systemPrompt), .. conversation],
-                ContextLengthExceededMessage = followUps > 0
+        var request = new AiChatCompletionRequest
+        {
+            Operation = TokenUsageOperations.AiExceptionAnalysis,
+            Messages = [new AiChatMessage(AiChatRoles.System, systemPrompt), .. conversation],
+            ContextLengthExceededMessage = followUps > 0
                     ? "對話內容已超過模型的內容視窗上限。請關閉視窗後重新分析，並減少追問輪數。"
                     : "這筆例外的內容（多半是堆疊）超過模型的內容視窗上限，無法送交 AI 分析。",
-                TimeoutHint = "請稍後再試。",
-                SubmittedContentLabel = "送出的例外內容",
-                RelatedInfo = BuildRelatedInfo(callContext, followUps),
-                ConversationId = callContext?.ConversationId,
-            },
-            cancellationToken);
+            TimeoutHint = "請稍後再試。",
+            SubmittedContentLabel = "送出的例外內容",
+            RelatedInfo = BuildRelatedInfo(callContext, followUps),
+            ConversationId = callContext?.ConversationId,
+        };
+
+        return (request, null);
     }
 
     /// <summary>AI 對話紀錄的關聯說明：第一次分析帶例外型別，追問帶輪數（0.9.72 起）。</summary>

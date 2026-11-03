@@ -355,7 +355,13 @@ else
                         <Column TData="string" Title="推理" Width="80" Align="ColumnAlign.Right">@FormatCell(context.ReasoningCount)</Column>
                         <Column TData="string" Title="快取" Width="80" Align="ColumnAlign.Right">@FormatCell(context.CachedInputCount)</Column>
                         <Column TData="string" Title="合計" Width="100" Align="ColumnAlign.Right">
-                            @if (context.Success == false)
+                            @if (context.IsCanceled)
+                            {
+                                <Tooltip Title="@context.FailureReason">
+                                    <Tag>已取消</Tag>
+                                </Tooltip>
+                            }
+                            else if (context.Success == false)
                             {
                                 <Tooltip Title="@context.FailureReason">
                                     <Tag Color=@("red")>失敗</Tag>
@@ -436,6 +442,11 @@ else
                             @if (detailItem.Success)
                             {
                                 <Tag Color=@("green")>成功</Tag>
+                            }
+                            else if (detailItem.IsCanceled)
+                            {
+                                <Tag>已取消</Tag>
+                                <span>使用者停止產生，已產生的部分上游照樣計費，但拿不到用量（沒有金額）</span>
                             }
                             else
                             {

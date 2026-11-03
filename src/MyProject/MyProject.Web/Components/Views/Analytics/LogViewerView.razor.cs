@@ -16,14 +16,19 @@ namespace MyProject.Web.Components.Views.Analytics
 {
     public partial class LogViewerView : IDisposable
     {
-        /// <summary>AI 分析對話窗的三個狀態。</summary>
+        /// <summary>AI 分析對話窗的狀態。</summary>
         private enum AiModalState
         {
-            /// <summary>分析進行中，顯示等待畫面。</summary>
+            /// <summary>已送出、還沒收到任何文字，顯示等待畫面。</summary>
             Running,
 
-            /// <summary>拿到結果，顯示報告。</summary>
+            /// <summary>
+            /// 顯示報告。0.9.141 起串流：<c>isAiRunning</c> 為 true 時代表還在逐段產生中。
+            /// </summary>
             Succeeded,
+
+            /// <summary>還沒收到任何文字就被使用者按「停止產生」（0.9.141 起）。</summary>
+            Stopped,
 
             /// <summary>失敗，把原因留在窗內讓使用者讀完再自己關。</summary>
             Failed,
@@ -129,6 +134,18 @@ namespace MyProject.Web.Components.Views.Analytics
         /// </summary>
         private CancellationTokenSource? aiCts;
 
+        /// <summary>
+        /// 這次取消是「停止產生」（保留已產生的內容）而不是關窗（放棄並丟棄）（0.9.141 起）。
+        /// 兩者都是取消同一個 token，只能靠這個旗標區分。
+        /// </summary>
+        private bool aiStopRequested;
+
+        /// <summary>目前顯示的報告是產生途中停止的（不完整）。</summary>
+        private bool aiInterrupted;
+
+        /// <summary>串流中重新轉 HTML 的節流：太頻繁會讓長報告每一段都整份重轉、重送。</summary>
+        private static readonly TimeSpan AiStreamRenderInterval = TimeSpan.FromMilliseconds(150);
+
         /// <summary>元件已釋放（使用者導航離開）。之後不可再碰任何 scoped 服務。</summary>
         private bool isDisposed;
 
@@ -145,6 +162,9 @@ namespace MyProject.Web.Components.Views.Analytics
         {
             AiModalState.Running => "AI 日誌分析（進行中）",
             AiModalState.Failed => "AI 日誌分析失敗",
+            AiModalState.Stopped => "AI 日誌分析（已停止）",
+            _ when isAiRunning => "AI 日誌分析（產生中）",
+            _ when aiInterrupted => "AI 日誌分析結果（已中止）",
             _ => "AI 日誌分析結果",
         };
 
@@ -459,12 +479,36 @@ namespace MyProject.Web.Components.Views.Analytics
             // 呼叫前先告知階段，AI 回應可能要數十秒，不能讓畫面看起來沒反應。
             ViewNotification.Info(notificationService, $"正在將 {aiSubmittedCount} 筆日誌送給 AI 分析，可能需要數十秒…");
 
-            var result = await aiLogAnalysisService.AnalyzeAsync(entriesAscending, token);
+            // 0.9.141 起串流：收到第一段文字就切到報告區，之後逐段長出來（節流重轉 HTML）。
+            AiAnalysisResult? result = null;
+            var streamed = new StringBuilder();
+            var renderClock = System.Diagnostics.Stopwatch.StartNew();
+            await foreach (var update in aiLogAnalysisService.AnalyzeStreamingAsync(entriesAscending, token))
+            {
+                if (update.Result is not null)
+                {
+                    result = update.Result;
+                    break;
+                }
+
+                if (isDisposed)
+                {
+                    break;
+                }
+
+                streamed.Append(update.TextDelta);
+                if (aiModalState == AiModalState.Running || renderClock.Elapsed >= AiStreamRenderInterval)
+                {
+                    ShowStreamingMarkdown(streamed.ToString());
+                    renderClock.Restart();
+                    StateHasChanged();
+                }
+            }
 
             // ⚠️ 使用者導航離開時 circuit 已經收掉，連 DbContext 都被釋放了 ——
             // 再去寫稽核只會換來一筆 ObjectDisposedException 的警告。
             // 取消這件事服務層已經記在應用程式日誌裡了。
-            if (isDisposed)
+            if (isDisposed || result is null)
             {
                 return;
             }
@@ -473,7 +517,13 @@ namespace MyProject.Web.Components.Views.Analytics
 
             if (result.Reason == AiAnalysisFailureReason.Canceled)
             {
-                // 使用者關窗放棄。窗已經關了、toast 也發過了，這裡不要再改任何畫面狀態。
+                // 關窗放棄：窗已經關了、toast 也發過了，這裡不要再改任何畫面狀態。
+                // 停止產生（0.9.141 起）：已收到文字就保留並標示已中止，沒收到就在窗內說明已停止。
+                if (aiStopRequested)
+                {
+                    ShowStoppedResult(result);
+                }
+
                 return;
             }
 
@@ -593,7 +643,8 @@ namespace MyProject.Web.Components.Views.Analytics
                 QueryEndTime = endTime ?? DateTime.Now,
                 MinimumLevel = minimumLevel,
                 Keyword = keyword,
-                Markdown = result.Markdown,
+                // 用畫面上的那份：停止產生時已加上「已中止」註記（0.9.141 起）。
+                Markdown = aiMarkdown,
                 Prompt = result.Prompt,
                 Usage = result.Usage,
                 ModelName = result.ModelName,
@@ -617,6 +668,72 @@ namespace MyProject.Web.Components.Views.Analytics
         }
 
         /// <summary>
+        /// 產生中逐段顯示（0.9.141 起）。超過顯示上限時先停止更新畫面，最後的完整結果仍會照常檢查。
+        /// </summary>
+        private void ShowStreamingMarkdown(string markdown)
+        {
+            var html = AiMarkdownRenderer.ToSafeHtml(markdown);
+            if (html.Length > MaxRenderedHtmlLength)
+            {
+                return;
+            }
+
+            aiMarkdown = markdown;
+            aiHtml = html;
+            aiModalState = AiModalState.Succeeded;
+        }
+
+        /// <summary>
+        /// 「停止產生」（0.9.141 起）：取消這次呼叫，但窗留著、已產生的內容保留。
+        /// 已收到的文字上游照樣計費，Token 用量會記一筆「已取消」（沒有金額）。
+        /// </summary>
+        private void OnAiStop()
+        {
+            if (isAiRunning == false)
+            {
+                return;
+            }
+
+            aiStopRequested = true;
+            aiCts?.Cancel();
+        }
+
+        /// <summary>停止產生之後的畫面：有內容就保留並標示已中止，沒有內容就說明已停止。</summary>
+        private void ShowStoppedResult(AiAnalysisResult result)
+        {
+            if (result.IsInterrupted == false)
+            {
+                aiModalState = AiModalState.Stopped;
+                ViewNotification.Info(notificationService, "已停止產生，尚未收到任何內容。");
+                return;
+            }
+
+            var markdown = AiInterruption.Annotate(result.Markdown);
+            var html = AiMarkdownRenderer.ToSafeHtml(markdown);
+            if (html.Length > MaxRenderedHtmlLength)
+            {
+                ShowAiFailureAfterStop("AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
+                return;
+            }
+
+            aiResult = result;
+            aiInterrupted = true;
+            aiMarkdown = markdown;
+            aiHtml = html;
+            aiMetaItems = BuildAiMetaItems(result);
+            aiModalState = AiModalState.Succeeded;
+            ViewNotification.Info(notificationService, "已停止產生，保留已產生的內容（不完整）。");
+        }
+
+        /// <summary>停止之後才發現無法顯示：<see cref="ShowAiFailure"/> 會因為 token 已取消而略過，所以另外處理。</summary>
+        private void ShowAiFailureAfterStop(string message)
+        {
+            aiErrorMessage = message;
+            aiModalState = AiModalState.Failed;
+            ViewNotification.Error(notificationService, message);
+        }
+
+        /// <summary>
         /// 使用者關閉對話窗。
         ///
         /// ⚠️ 等待中關窗<b>等於放棄這次分析</b>：真的取消 HTTP 請求，不留在背景。
@@ -637,6 +754,8 @@ namespace MyProject.Web.Components.Views.Analytics
         /// <summary>開新的一輪之前，把上一輪的殘留清乾淨。</summary>
         private void ResetAiModalState()
         {
+            aiStopRequested = false;
+            aiInterrupted = false;
             aiResult = null;
             aiMarkdown = string.Empty;
             aiHtml = string.Empty;
@@ -731,6 +850,11 @@ namespace MyProject.Web.Components.Views.Analytics
             if (string.IsNullOrWhiteSpace(traceCode) == false)
             {
                 items.Add(new KeyValuePair<string, string>("錯誤追蹤碼", traceCode.Trim()));
+            }
+
+            if (result.IsInterrupted)
+            {
+                items.Add(new KeyValuePair<string, string>("狀態", "已中止（產生途中停止，內容可能不完整）"));
             }
 
             var scope = $"分析 {result.Prompt.IncludedEntryCount} 筆／查詢 {result.Prompt.TotalEntryCount} 筆";

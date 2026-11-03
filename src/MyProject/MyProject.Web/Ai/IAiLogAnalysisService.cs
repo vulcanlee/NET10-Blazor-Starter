@@ -20,4 +20,12 @@ public interface IAiLogAnalysisService
     Task<AiAnalysisResult> AnalyzeAsync(
         IReadOnlyList<LogEntry> entriesAscending,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 串流版（0.9.141 起，日誌檢視頁使用）：逐段回傳文字，最後一筆帶結果（含 <see cref="AiAnalysisResult.Prompt"/>）。
+    /// 規則同 <see cref="IAiChatCompletionClient.StreamAsync"/>：不丟例外，取消也以最後一筆結果回報。
+    /// </summary>
+    IAsyncEnumerable<AiStreamUpdate> AnalyzeStreamingAsync(
+        IReadOnlyList<LogEntry> entriesAscending,
+        CancellationToken cancellationToken = default);
 }

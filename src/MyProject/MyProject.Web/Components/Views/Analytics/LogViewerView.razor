@@ -148,6 +148,14 @@ else
                         <p class="log-ai-loading-hint">
                             推論模型可能需要數十秒到數分鐘。關閉本視窗將放棄這次分析。
                         </p>
+                        <Button Danger Icon="stop" OnClick="OnAiStop">停止產生</Button>
+                    </div>
+                }
+                else if (aiModalState == AiModalState.Stopped)
+                {
+                    <div class="log-ai-stopped">
+                        <p class="log-ai-stopped-title">已停止產生</p>
+                        <p class="log-ai-stopped-message">尚未收到任何內容，這次沒有產生報告。</p>
                     </div>
                 }
                 else if (aiModalState == AiModalState.Failed)
@@ -157,7 +165,7 @@ else
                         <p class="log-ai-failed-message">@aiErrorMessage</p>
                         <p class="log-ai-failed-hint">
                             同一則訊息也已寫入應用程式日誌，可在本頁查詢記錄器
-                            MyProject.Web.Ai.AiChatCompletionClient 的紀錄取得完整細節。
+                            MyProject.Web.Ai.AiAccountingChatClient 的紀錄取得完整細節。
                         </p>
                     </div>
                 }
@@ -173,10 +181,12 @@ else
                             }
                         </div>
                         <div class="log-ai-actions-right">
+                            @* 產生中不能複製或匯出：半份報告看起來會像完整的（0.9.141 起）。 *@
                             <ToolbarIconButton Title="複製結果（Markdown 原文）" Icon="content_copy"
+                                               Disabled="@isAiRunning"
                                                OnClick="@(async () => await OnAiCopyAsync())" />
                             <ToolbarIconButton Title="匯出 PDF 報告並下載" Icon="picture_as_pdf"
-                                               Disabled="@isAiExporting"
+                                               Disabled="@(isAiExporting || isAiRunning)"
                                                OnClick="@(async () => await OnAiExportPdfAsync())" />
                         </div>
                     </div>
@@ -199,6 +209,15 @@ else
                     <div class="log-ai-report">
                         @((MarkupString)aiHtml)
                     </div>
+
+                    @if (isAiRunning)
+                    {
+                        <div class="log-ai-generating">
+                            <Spin Size="@SpinSize.Small" />
+                            <span>產生中…已 @aiElapsedSeconds 秒</span>
+                            <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnAiStop">停止產生</Button>
+                        </div>
+                    }
                 }
             </div>
         </Modal>

@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.0
-- 文件狀態：第一階段已實作（第二～四階段規劃中）
-- 現行系統版本：0.9.140
+- 文件版本：1.1
+- 文件狀態：第一、二階段已實作（第三、四階段規劃中）
+- 現行系統版本：0.9.141
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/02
 
@@ -49,7 +49,22 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
   不當成非預期錯誤丟掉這筆帳。
 - **失敗**在記帳之後以 `AiCallException`（帶原因、給使用者看的訊息、HTTP 狀態、上游 error code）往外丟，
   呼叫端再轉成自己的結果型別（`AiAnalysisResult`、`AiHealthProbeResult`）。
-- **串流**：第一階段記帳中介層**明確拒絕**串流呼叫（`NotSupportedException`），絕不讓串流繞過記帳；第二階段接上。
+- **串流**（0.9.141 起，第二階段）：`GetStreamingResponseAsync` 與非串流共用同一套記帳規則（用量上限、逾時、錯誤對應、
+  空回應、單一 `finally` 記 AI 對話紀錄），差別如下。第一階段（0.9.140）記帳中介層曾以 `NotSupportedException` 明確拒絕串流。
+  - **擷取**：串流回應 SDK 不緩衝，所以 `AiHttpCapturePolicy` 在 2xx 串流回應上把 `ContentStream` 換成 `AiCapturingStream`，
+    SDK 讀到哪裡就同時寫進 `AiCallCapture.StreamBuffer`；串流結束或中途取消時 `CompleteStreamCapture()` 轉成 `ResponseBody`，
+    所以 AI 對話紀錄的原始回應是 **SSE 原文**（取消時是已收到的部分）。錯誤回應不換，SDK 自己整段讀出來組例外。
+  - **解析**：用量、實際模型、`finish_reason`、過濾類別在串流**結束後**由 `AiChatResponseParser.ParseStream` 從 SSE 原文解析
+    （逐行讀 `data:`，`[DONE]` 與不完整的行略過）；`ExtractStreamUsageJson` 只回帶 usage 那個 chunk 的 usage 子物件，紅線同非串流。
+    請求由 SDK 帶 `"stream": true` 與 `stream_options.include_usage`，usage 在最後一個 chunk（`choices` 為空）。
+  - **取消**：已經收到文字才取消 → Token 用量記一筆 `Canceled`、用量空白（有次數、沒金額；已產生的字上游照樣計費，usage 卻要等串流完整結束才拿得到）；
+    還沒收到文字就取消（以及所有非串流的取消）照舊不記用量。AI 對話紀錄兩種都記，回應文字是已收到的部分；
+    日誌為 Information `AI chat completion canceled by the caller. Operation=…, ReceivedCharacters=…, ElapsedMs=…`。
+    呼叫端沒取消、只是中途停止列舉，比照取消記錄。
+  - **逾時**：`AiCallContext.Timeout`（`AiSettings.TimeoutSeconds`）涵蓋**整段**串流，不是「等第一個字」。
+  - **呼叫端**：`IAiChatCompletionClient.StreamAsync` 回傳 `IAsyncEnumerable<AiStreamUpdate>` —— 一段段 `TextDelta`，最後**恰好一筆**帶 `Result`；
+    不丟例外，取消時最後一筆是 `Canceled`，已收到文字則 `IsInterrupted = true`、`Markdown` 為已收到的部分。
+    `IAiLogAnalysisService.AnalyzeStreamingAsync`、`IAiExceptionAnalysisService.AskStreamingAsync` 包在它外面；非串流版保留。
 
 ## 3. 技術決定
 
@@ -78,6 +93,18 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 | 健康探測失敗的 Token 用量／對話紀錄「失敗原因」| 連線失敗記 `TransportError`、任何 HTTP 失敗一律 `UpstreamError` | 與分析共用分類：連線失敗 `UpstreamError`、401 `Unauthorized`、429 `RateLimited`、404 `NotConfigured` |
 | 失敗時寫日誌的記錄器 | `MyProject.Web.Ai.AiChatCompletionClient`、`MyProject.Web.Ai.AiHealthProbe` | 呼叫層級的訊息改由 `MyProject.Web.Ai.AiAccountingChatClient` 寫；探測另寫一行摘要 |
 
+### 4.1 與 0.9.140 的差異（第二階段：串流）
+
+| 項目 | 0.9.140 | 0.9.141 |
+|---|---|---|
+| AI 日誌分析、AI 例外分析（含追問）| 等整份回覆回來才顯示 | 逐段顯示（約每 150 ms 經 `AiMarkdownRenderer.ToSafeHtml` 重轉一次、超過 512 KB 停止更新）；產生中顯示「產生中…已 N 秒」與「停止產生」，複製與 PDF 停用 |
+| 停止 | 只能關窗（放棄、丟棄）| 「停止產生」保留已收到內容並加註「⚠️ 本內容於產生途中由使用者停止，可能不完整。」（`AiInterruption.Notice`，畫面、複製、PDF 都有，不送回給 AI）；關窗仍是放棄 |
+| 請求 body | 省略 `stream` | 畫面的呼叫帶 `"stream": true` 與 `stream_options.include_usage`（SDK 產生）；健康探測仍不串流 |
+| AI 對話紀錄的原始回應 | 完整 JSON | 串流呼叫為 SSE 原文；取消時是已收到的部分，回應文字也是已收到的部分 |
+| Token 用量 | 取消一律不記 | 串流途中已收到文字才取消 → 記一筆 `Canceled`、用量空白；頁面以灰色「已取消」標籤顯示（不是紅色「失敗」）|
+| 取消的日誌 | `Operation`、`ElapsedMs` | 多 `ReceivedCharacters` |
+| 日誌檢視 AI 失敗提示的記錄器名稱 | 仍寫 `MyProject.Web.Ai.AiChatCompletionClient`（第一階段漏改）| `MyProject.Web.Ai.AiAccountingChatClient` |
+
 ## 5. 新增 LLM 呼叫點
 
 - 「使用者按按鈕、送一段對話」：照舊用 `IAiChatCompletionClient`，只給 `Operation` 與三段情境化提示文字。
@@ -91,7 +118,7 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 | 階段 | 範圍 | 狀態 |
 |---|---|---|
 | 一 | 換底層，行為不變（本文件）| 0.9.140 已實作 |
-| 二 | 串流：記帳中介層支援串流（串流結束取用量；已收到內容才取消 → 記一筆「已取消」、用量空白）；AI 日誌分析與 AI 例外分析改為逐段顯示，加「停止產生」，停止後保留已產生內容並標示已中止 | 規劃中 |
+| 二 | 串流：記帳中介層支援串流（串流結束取用量；已收到內容才取消 → 記一筆「已取消」、用量空白）；AI 日誌分析與 AI 例外分析改為逐段顯示，加「停止產生」，停止後保留已產生內容並標示已中止（§2、§4.1）| 0.9.141 已實作 |
 | 三 | Agent 骨架：C# 定義 agent、每個 agent 可指定模型；工具呼叫逐次記帳並以 RunId 串起（`AiCallLog`／`TokenUsageLog` 加欄位）；工具依使用者 RBAC 執行、會改資料的工具強制核准；多輪對話存檔案系統、SQLite 只放中繼資料（本人＋管理員可見、保存天數可設定）| 規劃中 |
 | 四 | 多 Agent 工作流程（MAF Workflows）：所有 agent 經 `IAiAgentFactory` 建立、共用一個 RunId；人工介入當下回應，不做跨重開機檢查點 | 規劃中 |
 
@@ -103,18 +130,22 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 | 檔案 | 職責 |
 |---|---|
 | `MyProject.Web/Ai/AiAgentFactory.cs` | `IAiAgentFactory`：組 OpenAI SDK（端點、重試、逾時、傳輸、管線原則）並以 `AsAIAgent(..., clientFactory:)` 掛上記帳中介層 |
-| `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層：用量上限、逾時、錯誤對應、Token 用量、AI 對話紀錄 |
-| `MyProject.Web/Ai/AiPipelinePolicies.cs` | `AiHttpCapturePolicy`（擷取原文）、`AzureApiKeyPolicy`（Azure 認證標頭）|
+| `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層：用量上限、逾時、錯誤對應、Token 用量、AI 對話紀錄（非串流與串流共用，0.9.141 起含 `GetStreamingResponseAsync`）|
+| `MyProject.Web/Ai/AiPipelinePolicies.cs` | `AiHttpCapturePolicy`（擷取原文）、`AzureApiKeyPolicy`（Azure 認證標頭）、`AiCapturingStream`（串流回應邊讀邊記，0.9.141 起）|
+| `MyProject.Web/Ai/AiChatResponseParser.cs` | 從回應原文解析用量、模型、`finish_reason`、過濾類別；`ParseStream`／`ExtractStreamUsageJson` 解析 SSE（0.9.141 起）|
+| `MyProject.Web/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記文字與 `Annotate`（只用在畫面、複製、PDF）|
 | `MyProject.Web/Ai/AiCallContext.cs` | `AiCallContext`、`AiCallException`、`AiCallState`、`AiCallOutcome` |
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的 base URI 與設定驗證 |
-| `MyProject.Web/Ai/AiChatCompletionClient.cs` | 設定檢查 → 建 agent → 執行 → 轉回 `AiAnalysisResult` |
+| `MyProject.Web/Ai/AiChatCompletionClient.cs` | 設定檢查 → 建 agent → 執行 → 轉回 `AiAnalysisResult`；`StreamAsync` 轉成 `AiStreamUpdate` 序列（0.9.141 起）|
 | `MyProject.Web/Ai/AiHealthProbe.cs` | 健康探測（30 秒逾時、不檢查用量上限）|
 | `MyProject.Tests/AiAgentPipelineTests.cs` | SDK 帶來的風險：不重試、Azure 不送 Authorization、自己的逾時、SDK 產生的 body 仍可解析、探測不受上限影響 |
 | `MyProject.Tests/AiTestAgents.cs` | 測試用工廠：沿用舊建構子的參數順序，既有測試只換建立方式、斷言不改 |
+| `MyProject.Tests/AiStreamingTests.cs`、`AiChatStreamParserTests.cs`、`AiInterruptionTests.cs`、`AiSse.cs` | 串流記帳（成功、送出 `stream` 與 `include_usage`、取消前／後、上游錯誤、空回應、長度截斷、中途卡住逾時、未設定）、SSE 解析、已中止註記；`AiSse` 組測試用 SSE（0.9.141 起）|
+| `MyProject.Tests/Components/ExceptionAiAnalysisModalStreamingTests.cs` | bUnit：逐段顯示與「停止產生」、停止後保留並標示已中止、未收到文字就停止（0.9.141 起）|
 
 ## 8. 相關文件
 
 - [開發慣例與限制速查 §6.7](開發慣例與限制速查.md)：LLM 用量記錄的擴充點與紅線
 - [架構總覽](架構總覽.md)、[AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)
 - [Token 用量 PRD](../prd/Token用量-prd.md)、[AI 對話紀錄 PRD](../prd/AI對話紀錄-prd.md)、[AI 用量配額 PRD](../prd/AI用量配額-prd.md)
-- [2026-11-02 AI 呼叫改走 MAF](../changelog/2026-11-02-AI呼叫改走MAF.md)
+- [2026-11-02 AI 呼叫改走 MAF](../changelog/2026-11-02-AI呼叫改走MAF.md)、[2026-11-02 AI 串流與停止產生](../changelog/2026-11-02-AI串流與停止產生.md)
