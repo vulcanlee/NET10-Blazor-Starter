@@ -260,3 +260,43 @@
     gap: 8px;
     justify-content: flex-end;
 }
+
+/* 介紹區右側的按鈕（0.9.145 起多了產生／清除測試專案）。 */
+.agent-playground-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 4px;
+}
+
+/* 產生測試專案後的說明窗內容（窗本身在 AntContainer 底下，但內容是這個元件渲染的，scoped 樣式照樣生效）。 */
+.agent-playground-samples {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--app-text);
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.agent-playground-samples p,
+.agent-playground-samples ul {
+    margin: 0;
+}
+
+.agent-playground-samples-titles {
+    padding: 8px 12px;
+    border: 1px solid var(--app-line);
+    border-radius: 6px;
+    background: var(--app-page);
+    font-size: 13px;
+}
+
+.agent-playground-samples-heading {
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+.agent-playground-samples-note {
+    color: var(--app-muted);
+    font-size: 13px;
+}
