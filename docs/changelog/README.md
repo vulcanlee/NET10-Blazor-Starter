@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.79
+- 文件版本：6.80
 - 文件狀態：維護中
-- 現行系統版本：0.9.150
+- 現行系統版本：0.9.151
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/04
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 新增 AI Agent PRD（Agent 測試台與 Agent 工作流程原本只有架構文件與 changelog，不在 PRD 能力矩陣裡）：目的與範圍、權限、工具與核准、對話保存、兩條工作流程、模型、Responses API、推論等級（預設 `null`，Azure `gpt-6.1-sol` 實際為 `medium`；以設定檔 `AiSettings:AgentReasoningEffort` 全域調整）、記帳與資料生命週期；AI 對話紀錄 PRD 補上 0.9.149 的 Responses 解析與工具結果角色，系統參數 PRD 註明推論等級不在系統參數頁（0.9.151）| [2026-11-04-AI-Agent-PRD](2026-11-04-AI-Agent-PRD.md) |
 | 修正專案清單頁整頁空白：勾選欄 `<Selection />` 包在 `<RequirePermission>` 裡時，AntDesign 從第 3 列起欄位序號錯位，右側固定的操作欄讀到沒寬度的欄而丟 `ArgumentNullException`；專案、分類、團隊頁與 CRUD 樣板改為 code-behind 算 `canDelete`（同一份 `PermissionRules.CanAccessAction`）再用表格內 `@if`；`BatchDeleteConventionTests` 守門、`TableSelectionContractTests` 鎖住 AntDesign 行為（0.9.150）| [2026-11-04-修正勾選欄造成清單頁空白](2026-11-04-修正勾選欄造成清單頁空白.md) |
 | Agent 功能改走 Responses API：Azure `gpt-6.1-sol` 在 Chat Completions 上不論怎麼設推論等級都不能帶工具，Agent 測試台與 Agent 工作流程（含不帶工具的步驟）改走 `/v1/responses`（`AiCallContext.UseResponsesApi`、一律 `store=false`、歷史仍由 MAF session 整段重送），分析功能與健康探測維持 Chat Completions；記帳解析器與 AI 對話紀錄同時看得懂兩種格式（用量含快取／推理、`incomplete`→`length`、工具呼叫與工具結果）；`ToolReasoningEffort` 改名 `AgentReasoningEffort`（只對 Responses 送 `reasoning.effort`）；`OPENAI001` 只在 `AiAgentFactory.cs` 豁免；本機以 gpt-6.1-sol 實測 Agent 測試台、接續、核准與兩條工作流程皆成功（0.9.149）| [2026-11-04-Agent改走ResponsesAPI](2026-11-04-Agent改走ResponsesAPI.md) |
 | 撤回範本的 `"ToolReasoningEffort": "none"`：實測 Azure `gpt-6.1-sol` 不接受 `none`（只接受 low～xhigh）、又不允許工具搭配推論，在 Chat Completions 上無法使用工具，Agent 功能要在系統參數「AI 模型」換模型；400 `reasoning_effort` 依 code 分成兩種訊息（`unsupported_value` 改指向「改為 null 或換模型」，不再叫人設 none）（0.9.148）|

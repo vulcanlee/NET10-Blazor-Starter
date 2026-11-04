@@ -1,8 +1,8 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.151
 - 首次實作版本：0.9.72
 - 最後核對日期：2026/11/04
 
@@ -76,12 +76,13 @@ Token 用量同一次呼叫也帶同一個 `RunId`。健康探測與 0.9.141 以
 
 | 項目 | 說明 |
 |---|---|
-| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`）。**不含 HTTP 標頭與金鑰** |
+| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`；0.9.149 起 Agent 測試台與 Agent 工作流程走 Responses API，請求是 `instructions`＋`input` 格式、帶 `"store": false`）。**不含 HTTP 標頭與金鑰** |
 | 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null。串流呼叫（0.9.141 起）為 **SSE 原文**（`data: {…}` 逐行，由 `AiCapturingStream` 邊讀邊記）；中途取消或逾時時是已收到的部分 |
-| 解析後的回應文字 | `choices[0].message.content`；串流為各 chunk `delta.content` 串起來；中途取消時是**已收到的部分** |
+| 解析後的回應文字 | `choices[0].message.content`；串流為各 chunk `delta.content` 串起來；Responses API（0.9.149 起）為 `output` 裡各 `output_text` 串起來，串流取最後的 `response.completed`，沒有時串起 `response.output_text.delta`；中途取消時是**已收到的部分** |
 | 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、RunId（0.9.142 起）、CallId |
 
-訊息的角色（system／user／assistant）不另外存，讀取時由原始請求解析（`AiCallLogMessages.Parse`）。
+訊息的角色（system／user／assistant／tool）不另外存，讀取時由原始請求解析（`AiCallLogMessages.Parse`）。
+Responses API 的請求（0.9.149 起）：`instructions` 為 system；`input` 為字串時是 user；`input` 陣列裡的訊息保留原角色（`developer` 當作 system）；`function_call` 顯示為 assistant「呼叫工具 名稱：參數」；`function_call_output` 為 tool（畫面與 PDF 標示「工具結果（Tool）」）。認不得的格式不顯示訊息、不丟例外。
 畫面看到的永遠是實際送出的內容。
 
 ### 3.4 儲存與生命週期
@@ -133,7 +134,7 @@ UI 依本專案的設計規範：說明框沿用 Token 用量頁的淡色框、�
   4. 原始 Request：排版後的 JSON。
   5. 原始 Response：排版後的 JSON body；沒有 body 時說明原因。
 - **每段內容**：
-  - 淺色卡片，左側色條標示角色：系統提示（System，灰）／使用者（User，重點色）／AI 助理（Assistant，綠）。
+  - 淺色卡片，左側色條標示角色：系統提示（System，灰）／使用者（User，重點色）／AI 助理（Assistant，綠）；Agent 的工具結果標示「工具結果（Tool）」（0.9.149 起）。
   - 以 `StatusPill` 標示方向：送出／取得。追問時的歷史回答標示「送出（對話歷史）」。
   - 附字元數與複製鈕（複製完整內容）。
   - 原始 Request／Response 用深色原文區塊（`--app-code-*`，與日誌檢視、健康監控、例外堆疊同一組）。

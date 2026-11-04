@@ -1,12 +1,12 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.31
+- 文件版本：2.32
 - 文件狀態：維護中
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.151
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/04
 
-本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）、Token 用量／費用計價與 AI 對話紀錄（0.9.72 起，管理員專屬、保存完整 Prompt／Response）**（見「日誌檢視」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」「AI 對話紀錄」PRD，機制見 [AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
+本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）、Token 用量／費用計價、AI 對話紀錄（0.9.72 起，管理員專屬、保存完整 Prompt／Response）與 AI Agent（0.9.142 起，會呼叫工具的 Agent 與多 Agent 工作流程，見「AI Agent」PRD）**（見「日誌檢視」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」「AI 對話紀錄」PRD，機制見 [AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
 ## 一、能力覆蓋矩陣
 
@@ -25,7 +25,8 @@
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.9.135 |
 | 系統例外紀錄 | [系統例外紀錄](系統例外紀錄-prd.md) | `/system-exceptions` | `Pages/Admins/ExceptionLogPage.razor`、`Diagnostics/ExceptionLogProvider`、`ExceptionLogService`、`AiExceptionAnalysisService`、`CrashMarkerStore`、`ProcessExceptionHooks` | 已實作（0.9.77 補齊漏記、重複與帳號；0.9.78 加上錯誤追蹤碼、告警、自動清理）| 0.9.135 |
 | Token 用量 | [Token 用量](Token用量-prd.md) | `/token-usage` | `Pages/Analytics/TokenUsagePage.razor`、`ITokenUsageRecorder`、`TokenUsageLogService`、`TokenUsageRawStore` | 已實作（0.9.17 起每列含費用估算；0.9.50 起有「最近 1／7／30 天」摘要卡與每日費用趨勢；0.9.51 起 PDF 可只匯出目前頁籤且含趨勢；0.9.55 起有折線趨勢圖頁籤，PDF 同步輸出；0.9.141 起串流途中停止的呼叫記一筆「已取消」；0.9.142 起加 `RunId`、作業「Agent 測試台」；0.9.144 起作業「專案狀態報告」「多觀點審查」）| 0.9.144 |
-| AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionJob` | 已實作（0.9.72；0.9.96 起自動過期改由排程作業執行；0.9.141 起串流呼叫保存 SSE 原文；0.9.142 起明細顯示執行編號與同一次執行；0.9.144 起含 Agent 工作流程）| 0.9.144 |
+| AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionJob` | 已實作（0.9.72；0.9.96 起自動過期改由排程作業執行；0.9.141 起串流呼叫保存 SSE 原文；0.9.142 起明細顯示執行編號與同一次執行；0.9.144 起含 Agent 工作流程；0.9.149 起解析 Responses API 格式、顯示工具呼叫與工具結果）| 0.9.151 |
+| AI Agent | [AI Agent](AI-Agent-prd.md) | `/agent-playground`（Agent 測試台）、`/agent-workflows`（Agent 工作流程）| `Ai/Agents/*`（`AiAgentRunner`、`AiAgentToolFactory`、`AiToolApprovals`）、`Ai/Workflows/*`（`AiWorkflowRunner`、`AiAgentStep`）、`AiAgentFactory`、`AiAgentConversationService` | 已實作（0.9.142 測試台與工具核准；0.9.143 對話保存；0.9.144 工作流程；0.9.145 測試專案；0.9.149 起走 Responses API、推論等級 `AiSettings:AgentReasoningEffort`）| 0.9.151 |
 | 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99；0.9.143 起可選備份 Agent 對話，0.9.144 起含工作流程的執行紀錄）| 0.9.144 |
 | 資料保留與清理 | [資料保留與清理](資料保留與清理-prd.md) | `/data-retention` | `Pages/Admins/DataRetentionPage.razor`、`Web/DataRetention/*`、`Scheduling/RetentionCutoffs`、各資料服務的 `GetRetentionStatsAsync` | 已實作（0.9.133；0.9.134 起含自訂清除；0.9.143 起含 Agent 對話，0.9.144 起含工作流程的執行紀錄）| 0.9.144 |
 | 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`ProfileService`、`Layout/UserInitials` | 已實作（0.9.102；0.9.123 起登入紀錄顯示來源 IP）| 0.9.135 |
