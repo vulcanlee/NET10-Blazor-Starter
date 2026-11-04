@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.142
+- 現行系統版本：0.9.144
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/03
+- 最後核對日期：2026/11/04
 
 ## 一、目標與範圍
 
@@ -35,7 +35,7 @@
   - 名稱（必填，唯一）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。
   - 「需要兩步驟驗證」（0.9.104 起，`RoleView.RequireTwoFactor`）：有這個角色（主要或額外）的人必須開啟兩步驟驗證，還沒設定的人下一次換頁被帶到設定頁；稽核 detail 帶 `requireTwoFactor=`。見[兩步驟驗證](兩步驟驗證-prd.md)。
-  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」，0.9.142 起加「AI 助理」（底下「Agent 測試台」）；系統管理及其子群組不上架矩陣）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
+  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」，0.9.142 起加「AI 助理」（底下「Agent 測試台」；0.9.144 起再加「Agent 工作流程」）；系統管理及其子群組不上架矩陣）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
 - **矩陣呈現**（0.9.139 起）：群組下每個頁面一張卡片、固定兩欄（640px 以下單欄），第一行「（全部）」、第二行四個動作；有子項目的群組可摺疊，開窗時只展開有任何勾選的群組（`RolePermissionMatrix.HasAnyGrant`），勾選群組時自動展開。展開狀態只是畫面狀態，不影響未儲存變更判斷。
 - **矩陣互動語意**：勾「（全部）」等同該頁裸鍵、代表全部動作，並停用個別動作核取方塊（舊制相容），停用的動作顯示為打勾（0.9.139 起，`RolePermissionMatrix.IsActionShownChecked`；`Actions` 不動，取消「（全部）」後回到原本的個別勾選）；勾任一動作或頁面會自動點亮所屬群組；取消群組會連帶清掉其下所有頁面權限。
 
@@ -53,7 +53,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - **權限判定**（`PermissionChecker`）：使用者角色取自 `UserRole`（多角色）並容錯併入 legacy `RoleViewId`；join `RolePermissionMap`／**`RoleView`（0.9.95 起，排除已刪除的角色）**／`Permission` 得有效權限鍵集合；管理員短路回 true；擁有裸頁面鍵者視為具該頁全部動作。
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性。
 - **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。0.9.95 起不可刪除；`DefaultRoleViewSeeder` 以 `IgnoreQueryFilters` 查找並優先取未刪除的列，找到已刪除的就還原（不會重建第二個帶全部權限的預設角色）。
-  0.9.142 起，建立預設角色與升級時自動加入新頁面都略過 `RolePermissionService.NotGrantedToDefaultRole`（「AI 助理」與「Agent 測試台」：會花 AI 費用，由管理員自己決定開給哪些角色）；這些頁面照樣出現在權限矩陣、可勾選授權。
+  0.9.142 起，建立預設角色與升級時自動加入新頁面都略過 `RolePermissionService.NotGrantedToDefaultRole`（「AI 助理」、「Agent 測試台」與 0.9.144 起的「Agent 工作流程」：會花 AI 費用，由管理員自己決定開給哪些角色）；這些頁面照樣出現在權限矩陣、可勾選授權。
 
 > ℹ️ 0.9.136 起 `RoleViewService.AddAsync`／`UpdateAsync` 以工廠建立的 context 開一個交易：存 `RoleView`（含 `TabViewJson`）→
 > `RbacWriteService.SyncRolePermissionsAsync(context, …)` 用**同一個 context** 寫 `RolePermissionMap` → 提交；權限對應寫入失敗時整筆回復。

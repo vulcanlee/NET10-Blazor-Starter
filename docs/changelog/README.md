@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.72
+- 文件版本：6.73
 - 文件狀態：維護中
-- 現行系統版本：0.9.143
+- 現行系統版本：0.9.144
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/03
+- 最後核對日期：2026/11/04
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| Agent 工作流程（MAF 四階段的第四階段）：套件 `Microsoft.Agents.AI.Workflows` 1.27.0；`IAiWorkflowRunner`／`AiWorkflowRun`（`InProcessExecution.OffThread`、`WatchStreamAsync(blockOnPendingRequest: false)`），步驟是自訂 executor `AiAgentStep`（不用 `AIAgent.BindAsExecutor`：它把整段對話含工具呼叫轉給下一個、收齊時下游跑好幾次），步驟之間只傳文字；工具核准、`ask_user` 提問、審閱關卡三種人工介入經 `RequestPort` 在頁面上當下回覆；核准規則抽成 `AiToolApprovals` 與 Agent 測試台共用；一次執行一個 `ConversationId`＋`RunId`，作業名稱是流程名稱（`TokenUsageOperations.ProjectStatusReport`／`MultiPerspectiveReview`）、關聯說明「流程／agent」；新設定 `AiModelSettings:ProjectStatusReport`／`MultiPerspectiveReview`（系統參數共 49 個）、7 個提示詞種類（「AI 提示詞」共 10 個分頁）、範例工具 `get_project_detail` 與異動工具 `append_project_status_summary`；執行紀錄與 Agent 對話共用 `AiAgentConversation`、內容檔目錄、保留天數、清理與備份（`AiAgentTranscriptEntry.Agent`、`Output` 種類，`SchemaVersion` 仍 1），不能從中途接續；新頁面「AI 助理 › Agent 工作流程」（`/agent-workflows`，不自動開給預設角色）（0.9.144）| [2026-11-04-Agent工作流程](2026-11-04-Agent工作流程.md) |
 | Agent 對話保存（MAF 四階段的第三階段 B）：新資料表 `AiAgentConversation`（migration `AddAiAgentConversation`，只放中繼資料）與內容檔 `AiAgentConversationPath/{yyyyMM}/{ConversationId}.json`（MAF session、畫面紀錄、待核准，經 `AiAgentConversationFileStore`）；`AiAgentChat` 每次執行後自動存檔，`IAiAgentRunner.ResumeAsync` 接續（模型用目前設定、沿用 `ConversationId`、停在核准的重新跳核准窗、權限在執行前再檢查）；`AiAgentConversationService` 一律只限本人（清單、改名不寫稽核、刪除寫 `AiAgentConversation.Delete`）；新設定 `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間）與系統參數「Agent 對話保留天數」「備份 Agent 對話」（共 47 個），排程作業「Agent 對話清理」（`AiAgentConversation.AutoPurge`），資料保留頁多一列「Agent 對話」（自訂清除 `AiAgentConversation.Purge`）；Agent 測試台左側「我的對話」、重新命名、刪除（0.9.143）| [2026-11-03-Agent對話保存](2026-11-03-Agent對話保存.md) |
 | Agent 骨架與測試台（MAF 四階段的第三階段 A）：Agent 寫在 C#（`AiAgentDefinition`、`AiToolDefinition`），工具經 `AiAgentToolFactory` 包上權限檢查與稽核（`Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected`，不記參數與結果），異動工具強制使用者核准、沒權限不跳核准窗直接拒絕；`IAiAgentRunner`／`AiAgentChat` 執行與核准流程；`AiCallLog`／`TokenUsageLog` 加 `RunId`（migration `AddAiRunId`），AI 對話紀錄明細顯示執行編號與「同一次執行」；新設定 `AiModelSettings` 與系統參數「AI 模型」三個鍵（共 45 個），健康監控「AI 計費表」檢查所有使用中的模型；新頁面「AI 助理 › Agent 測試台」（範例 Agent 搜尋專案、核准後修改專案描述，對話只在記憶體），可授權給角色但不自動開給預設角色（`NotGrantedToDefaultRole`）；「AI 提示詞」多一個分頁（0.9.142）| [2026-11-03-Agent骨架與測試台](2026-11-03-Agent骨架與測試台.md) |
 | AI 串流與停止產生（MAF 四階段的第二階段）：記帳中介層 `AiAccountingChatClient` 支援串流，規則與非串流共用（`AiCapturingStream` 擷取 SSE 原文、串流結束後由 `ParseStream` 取用量、逾時涵蓋整段串流）；**取消規則修訂**：串流途中已收到文字才取消 → Token 用量記一筆 `Canceled`、用量空白，還沒收到文字照舊不記；AI 日誌分析與 AI 例外分析（含追問）逐段顯示、加「停止產生」，停止後保留已產生內容並加註「可能不完整」（複製與 PDF 也帶、不送回給 AI），產生中停用複製與 PDF；Token 用量頁的 `Canceled` 列顯示灰色「已取消」（0.9.141）| [2026-11-02-AI串流與停止產生](2026-11-02-AI串流與停止產生.md) |

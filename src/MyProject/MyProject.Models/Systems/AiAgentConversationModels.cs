@@ -6,7 +6,10 @@ namespace MyProject.Models.Systems;
 /// Agent 對話內容檔（0.9.143 起）：<c>{AiAgentConversationPath}/{yyyyMM}/{ConversationId:N}.json</c>，每次儲存整份覆寫。
 ///
 /// <para>
-/// 三樣東西缺一不可：<see cref="Session"/> 讓 AI 記得前文，<see cref="Transcript"/> 讓畫面還原，
+/// 0.9.144 起「Agent 工作流程」的執行紀錄也存在這裡（<c>AgentName</c> 是流程名稱）：只用 <see cref="Transcript"/>，
+/// <see cref="Session"/> 為 JSON null、沒有待核准（工作流程不能接續）。
+///
+/// 對話的三樣東西缺一不可：<see cref="Session"/> 讓 AI 記得前文，<see cref="Transcript"/> 讓畫面還原，
 /// <see cref="PendingApprovals"/> 讓停在核准的對話回來時重新跳出核准窗。
 /// 改結構要遞增 <see cref="SchemaVersion"/>，讀取端遇到不認得的版本就當作讀不到（不要猜）。
 /// </para>
@@ -34,6 +37,12 @@ public sealed class AiAgentTranscriptEntry
 
     /// <summary>使用者訊息原文、AI 回覆的 Markdown，或說明文字。</summary>
     public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 工作流程紀錄才有（0.9.144 起）：這一則屬於哪個 agent（或審閱關卡、產出標題）的顯示名稱。
+    /// Agent 測試台的對話為 null。只加不改，所以 <see cref="AiAgentConversationContent.SchemaVersion"/> 不變。
+    /// </summary>
+    public string? Agent { get; set; }
 }
 
 public static class AiAgentTranscriptKinds
@@ -47,6 +56,9 @@ public static class AiAgentTranscriptKinds
     /// <summary>核准／拒絕、停止等狀態說明。</summary>
     public const string Notice = "Notice";
     public const string Error = "Error";
+
+    /// <summary>工作流程的產出（0.9.144 起，例如定稿的報告），<see cref="AiAgentTranscriptEntry.Agent"/> 是產出標題。</summary>
+    public const string Output = "Output";
 }
 
 /// <summary>

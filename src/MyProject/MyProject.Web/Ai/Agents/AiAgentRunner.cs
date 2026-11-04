@@ -168,10 +168,6 @@ public sealed class AiAgentRunner : IAiAgentRunner
 /// </summary>
 public sealed class AiAgentChat
 {
-    private const string NoPermissionReason = "使用者沒有執行這個操作的權限";
-    private const string RejectedReason = "使用者拒絕執行";
-    private const string UnknownToolReason = "這不是這個 Agent 可以使用的工具";
-
     private readonly AiAgentHandle handle;
     private readonly AgentSession session;
     private readonly IAiToolPermissionGuard guard;
@@ -269,7 +265,7 @@ public sealed class AiAgentChat
             }
 
             (approved ? approvedNames : rejectedNames).Add(item.Request.DisplayName);
-            responses.Add(item.Content!.CreateResponse(approved, approved ? null : RejectedReason));
+            responses.Add(item.Content!.CreateResponse(approved, approved ? null : AiToolApprovals.RejectedReason));
         }
 
         pending.Clear();
@@ -493,25 +489,10 @@ public sealed class AiAgentChat
     /// </summary>
     private async Task<List<AIContent>> TriageApprovalsAsync(List<ToolApprovalRequestContent> approvals)
     {
-        var autoRejected = new List<AIContent>();
-        foreach (var request in approvals)
+        var (forUser, autoRejected) = await AiToolApprovals.TriageAsync(Definition, approvals, guard);
+        foreach (var (content, tool, request) in forUser)
         {
-            var call = request.ToolCall as FunctionCallContent;
-            var tool = Definition.Tools.FirstOrDefault(item => item.Name == call?.Name);
-            if (call is null || tool is null)
-            {
-                autoRejected.Add(request.CreateResponse(false, UnknownToolReason));
-                continue;
-            }
-
-            if (await guard.CanInvokeAsync(tool) == false)
-            {
-                await guard.AuditAsync(AuditActions.Ai.ToolDenied, Definition.Name, tool, success: false, note: "stage=approval");
-                autoRejected.Add(request.CreateResponse(false, NoPermissionReason));
-                continue;
-            }
-
-            pending.Add(PendingApproval.ForUser(request, tool, call));
+            pending.Add(PendingApproval.ForUser(content, tool, request));
         }
 
         return autoRejected;
@@ -579,9 +560,9 @@ public sealed class AiAgentChat
                 return PendingApproval.AutoRejected(response);
             case ToolApprovalRequestContent request when request.ToolCall is FunctionCallContent call
                 && Definition.Tools.FirstOrDefault(item => item.Name == call.Name) is { } tool:
-                return PendingApproval.ForUser(request, tool, call);
+                return PendingApproval.ForUser(request, tool, AiToolApprovals.Describe(request, tool, call));
             case ToolApprovalRequestContent request:
-                return PendingApproval.AutoRejected(request.CreateResponse(false, UnknownToolReason));
+                return PendingApproval.AutoRejected(request.CreateResponse(false, AiToolApprovals.UnknownToolReason));
             default:
                 logger.LogWarning("Unexpected pending tool approval content. ConversationId={ConversationId}, Tool={Tool}", ConversationId, record.ToolName);
                 return null;
@@ -592,26 +573,6 @@ public sealed class AiAgentChat
 
     private string DisplayNameOf(string toolName)
         => Definition.Tools.FirstOrDefault(tool => tool.Name == toolName)?.DisplayName ?? toolName;
-
-    /// <summary>核准窗顯示的參數：名稱＝值，值一律轉成文字（太長截斷）。</summary>
-    private static IReadOnlyList<KeyValuePair<string, string>> DescribeArguments(FunctionCallContent call)
-        => (call.Arguments ?? new Dictionary<string, object?>())
-            .Select(argument => new KeyValuePair<string, string>(argument.Key, Describe(argument.Value)))
-            .ToList();
-
-    private static string Describe(object? value)
-    {
-        var text = value switch
-        {
-            null => string.Empty,
-            string s => s,
-            JsonElement { ValueKind: JsonValueKind.String } element => element.GetString() ?? string.Empty,
-            JsonElement element => element.GetRawText(),
-            _ => value.ToString() ?? string.Empty,
-        };
-
-        return text.Length <= 2000 ? text : string.Concat(text.AsSpan(0, 2000), "…");
-    }
 
     /// <summary>一筆待決定的核准。自動拒絕的也放這裡（<see cref="Request"/> 為 null 的那種不給畫面看）。</summary>
     private sealed class PendingApproval
@@ -636,8 +597,8 @@ public sealed class AiAgentChat
 
         public ToolApprovalResponseContent? AutoResponse { get; }
 
-        public static PendingApproval ForUser(ToolApprovalRequestContent content, AiToolDefinition tool, FunctionCallContent call)
-            => new(content, tool, new AiToolApprovalRequest(content.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call)));
+        public static PendingApproval ForUser(ToolApprovalRequestContent content, AiToolDefinition tool, AiToolApprovalRequest request)
+            => new(content, tool, request);
 
         public static PendingApproval AutoRejected(ToolApprovalResponseContent response) => new(response);
 

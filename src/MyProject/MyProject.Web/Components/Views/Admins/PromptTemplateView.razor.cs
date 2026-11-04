@@ -92,6 +92,13 @@ namespace MyProject.Web.Components.Views.Admins
             PromptTemplateKeys.LogAnalysis => "日誌分析",
             PromptTemplateKeys.ExceptionAnalysis => "例外分析",
             PromptTemplateKeys.AgentPlayground => "Agent 測試台",
+            PromptTemplateKeys.ProjectReportGatherer => "狀態報告／蒐集",
+            PromptTemplateKeys.ProjectReportWriter => "狀態報告／撰寫",
+            PromptTemplateKeys.ProjectReportFinalizer => "狀態報告／收尾",
+            PromptTemplateKeys.ReviewRequirements => "審查／需求完整性",
+            PromptTemplateKeys.ReviewTechnical => "審查／技術可行性",
+            PromptTemplateKeys.ReviewUsability => "審查／使用者體驗",
+            PromptTemplateKeys.ReviewAggregator => "審查／彙整",
             _ => key,
         };
 

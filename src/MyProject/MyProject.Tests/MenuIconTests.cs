@@ -47,6 +47,7 @@ public sealed class MenuIconTests
         "psychology",
         "build",
         "science",
+        "account_tree",
     };
 
     [Fact]

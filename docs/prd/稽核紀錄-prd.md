@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.18
+- 文件版本：1.19
 - 文件狀態：已實作
-- 現行系統版本：0.9.143
+- 現行系統版本：0.9.144
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/03
+- 最後核對日期：2026/11/04
 
 ## 一、目標與範圍
 
@@ -140,7 +140,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger` |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
-| `AiAgentConversation.Delete` / `AiAgentConversation.Purge` / `AiAgentConversation.AutoPurge` | Agent 對話（0.9.143 起）：`AiAgentConversationService.DeleteAsync`（使用者刪自己的對話，detail `agent=…`）、「資料保留與清理」的自訂清除、排程作業「Agent 對話清理」（detail `rows=N; days=D; trigger=T`）；不記標題與內容，改標題不寫稽核 |
+| `AiAgentConversation.Delete` / `AiAgentConversation.Purge` / `AiAgentConversation.AutoPurge` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄，`agent=` 為流程名稱）：`AiAgentConversationService.DeleteAsync`（使用者刪自己的對話或執行紀錄，detail `agent=…`）、「資料保留與清理」的自訂清除、排程作業「Agent 對話清理」（detail `rows=N; days=D; trigger=T`）；不記標題與內容，改標題不寫稽核 |
 | `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
 | `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |

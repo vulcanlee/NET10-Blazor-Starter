@@ -23,6 +23,7 @@ public class RolePermissionService
             [
                 MagicObjectHelper.角色_AI助理,
                 MagicObjectHelper.角色_Agent測試台,
+                MagicObjectHelper.角色_Agent工作流程,
             ],
             [MagicObjectHelper.角色_登出],
         ];
@@ -74,6 +75,7 @@ public class RolePermissionService
     {
         MagicObjectHelper.角色_AI助理,
         MagicObjectHelper.角色_Agent測試台,
+        MagicObjectHelper.角色_Agent工作流程,
     };
 
     /// <summary>預設角色應有的頁面：全部頁面扣掉 <see cref="NotGrantedToDefaultRole"/>。</summary>

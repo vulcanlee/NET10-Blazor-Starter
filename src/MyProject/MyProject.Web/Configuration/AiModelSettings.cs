@@ -34,6 +34,14 @@ public class AiModelSettings
     [MaxLength(MaxModelLength)]
     public string AgentPlayground { get; set; } = string.Empty;
 
+    /// <summary>Agent 工作流程「專案狀態報告」（0.9.144 起；流程裡每個 agent 都用它）。</summary>
+    [MaxLength(MaxModelLength)]
+    public string ProjectStatusReport { get; set; } = string.Empty;
+
+    /// <summary>Agent 工作流程「多觀點審查」（0.9.144 起；流程裡每個 agent 都用它）。</summary>
+    [MaxLength(MaxModelLength)]
+    public string MultiPerspectiveReview { get; set; } = string.Empty;
+
     /// <summary>
     /// 解析實際要用的模型。<paramref name="modelKey"/> 為 null 或該功能沒設定時回傳 <paramref name="defaultModel"/>。
     /// </summary>
