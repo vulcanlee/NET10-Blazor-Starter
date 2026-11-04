@@ -172,6 +172,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BackupStore>();
         services.AddScoped<SystemBackupService>();
         services.AddScoped<ProjectService>();
+        // Agent 測試台的「產生／清除測試專案」（0.9.145 起），一律經 ProjectService。
+        services.AddScoped<ProjectSampleDataService>();
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
         services.AddScoped<SoftDeletePurgeService>();
         services.AddScoped<ProjectRepository>();

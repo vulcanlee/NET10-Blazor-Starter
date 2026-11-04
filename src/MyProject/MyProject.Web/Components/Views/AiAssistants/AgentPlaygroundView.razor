@@ -1,4 +1,5 @@
 @using MyProject.Business.Services.DataAccess
+@using MyProject.Business.Services.Other
 @using MyProject.Models.Systems
 @using MyProject.Share.Helpers
 @using MyProject.Web.Ai
@@ -74,9 +75,24 @@ else
                         <div class="agent-playground-hint">使用模型：@modelName</div>
                     }
                 </div>
-                <ToolbarIconButton Title="新對話" Icon="add_comment"
-                                   Disabled="@(unavailableReason is not null || IsBusy)"
-                                   OnClick="OnNewConversation" />
+                <div class="agent-playground-actions">
+                    @* 測試專案（0.9.145 起）：有專案項目新增權限才能產生、有刪除權限才能清除（同專案頁）。 *@
+                    @if (canCreateSamples)
+                    {
+                        <ToolbarIconButton Title="產生 10 筆測試專案" Icon="playlist_add"
+                                           Disabled="@IsBusy"
+                                           OnClick="OnGenerateSamplesAsync" />
+                    }
+                    @if (canClearSamples)
+                    {
+                        <ToolbarIconButton Title="清除測試專案" Icon="delete_sweep"
+                                           Disabled="@IsBusy"
+                                           OnClick="OnClearSamplesAsync" />
+                    }
+                    <ToolbarIconButton Title="新對話" Icon="add_comment"
+                                       Disabled="@(unavailableReason is not null || IsBusy)"
+                                       OnClick="OnNewConversation" />
+                </div>
             </div>
 
             @if (unavailableReason is not null)
@@ -185,6 +201,43 @@ else
                 <Button OnClick="@(async () => await OnDecideAsync(approve: false))">拒絕</Button>
                 <Button Type="@ButtonType.Primary" OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
             </div>
+        </div>
+    </Modal>
+
+    @* 產生測試專案之後的說明（0.9.145 起）：怎麼用 AI Agent 查這些專案。範例問句只用得到搜尋工具回傳的欄位（名稱、狀態、描述）。 *@
+    <Modal Title="已建立 10 筆測試專案"
+           Class="agent-playground-samples-modal"
+           @bind-Visible="@samplesVisible"
+           MaskClosable="false"
+           Keyboard="true"
+           OkText="@("開始試用")"
+           CancelText="@("關閉")"
+           OnOk="@(() => samplesVisible = false)">
+        <div class="agent-playground-samples">
+            <p>
+                已建立下列專案，標題都以「@ProjectSampleDataService.TitlePrefix」開頭，沒有指定團隊，看得到專案的人與 AI Agent 都查得到。
+                日期以今天為基準，有進行中、已完成、暫緩、等待、未開始與已逾期的專案，描述裡寫了進度與風險。
+            </p>
+            <div class="agent-playground-samples-titles">@string.Join("、", sampleTitles)</div>
+
+            <div class="agent-playground-samples-heading">在 Agent 測試台問問看（把句子貼到下方輸入框）</div>
+            <ul>
+                <li>列出所有【測試】專案，依狀態分組</li>
+                <li>哪些測試專案的狀態是「進行中」？各自的風險是什麼？</li>
+                <li>找出描述提到「延遲」或「逾期」的測試專案</li>
+                <li>把【測試】客服機器人的描述改成「已結案，移交客服部維運」（會跳出核准窗，可以試試核准與拒絕）</li>
+            </ul>
+
+            <div class="agent-playground-samples-heading">在 <a href="/agent-workflows">Agent 工作流程</a> 試試看</div>
+            <ul>
+                <li>專案狀態報告：輸入「幫我寫【測試】ERP 系統導入的狀態報告」，AI 會蒐集資料、寫草稿給你審閱，通過後提議附加一行狀態摘要（要你核准）。</li>
+                <li>輸入「幫我寫資料相關專案的報告」會對到兩個專案，AI 會先問你是哪一個。</li>
+                <li>多觀點審查：把任一測試專案的描述貼進去，看三位審查者與彙整意見。</li>
+            </ul>
+
+            <p class="agent-playground-samples-note">
+                每次提問都會產生 AI 費用。測試專案大家都看得到，用完請按「清除測試專案」永久刪除。
+            </p>
         </div>
     </Modal>
 

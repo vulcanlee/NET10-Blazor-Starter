@@ -32,6 +32,8 @@ public partial class AgentPlaygroundView : IDisposable
     private readonly ILogger<AgentPlaygroundView> logger;
     private readonly IAiAgentRunner runner;
     private readonly AiAgentConversationService conversationService;
+    private readonly ProjectSampleDataService sampleDataService;
+    private readonly TimeProvider timeProvider;
     private readonly NotificationService notificationService;
     private readonly ModalService modalService;
 
@@ -55,17 +57,25 @@ public partial class AgentPlaygroundView : IDisposable
     private string renameTitle = string.Empty;
     private CancellationTokenSource? cts;
     private bool isDisposed;
+    private bool canCreateSamples;
+    private bool canClearSamples;
+    private bool samplesVisible;
+    private IReadOnlyList<string> sampleTitles = [];
 
     public AgentPlaygroundView(
         ILogger<AgentPlaygroundView> logger,
         IAiAgentRunner runner,
         AiAgentConversationService conversationService,
+        ProjectSampleDataService sampleDataService,
+        TimeProvider timeProvider,
         NotificationService notificationService,
         ModalService modalService)
     {
         this.logger = logger;
         this.runner = runner;
         this.conversationService = conversationService;
+        this.sampleDataService = sampleDataService;
+        this.timeProvider = timeProvider;
         this.notificationService = notificationService;
         this.modalService = modalService;
     }
@@ -106,7 +116,88 @@ public partial class AgentPlaygroundView : IDisposable
         }
 
         unavailableReason = runner.UnavailableReason;
+        canCreateSamples = AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Create);
+        canClearSamples = AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete);
         await LoadConversationsAsync();
+    }
+
+    /// <summary>產生 10 筆測試專案（0.9.145 起），成功後跳出說明窗；已經有測試專案時提示先清除。</summary>
+    private async Task OnGenerateSamplesAsync()
+    {
+        if (IsBusy || canCreateSamples == false)
+        {
+            return;
+        }
+
+        isOpening = true;
+        try
+        {
+            var result = await sampleDataService.GenerateAsync(timeProvider.GetLocalNow().DateTime);
+            if (result.Success)
+            {
+                sampleTitles = result.Titles;
+                samplesVisible = true;
+            }
+            else if (result.Count == 0)
+            {
+                ViewNotification.Caution(notificationService, result.Message);
+            }
+            else
+            {
+                ViewNotification.Error(notificationService, result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Agent playground failed to generate sample projects.");
+            ViewNotification.UnexpectedError(notificationService, "產生測試專案失敗，請稍後再試。", ex);
+        }
+        finally
+        {
+            isOpening = false;
+        }
+    }
+
+    /// <summary>永久刪除所有測試專案（含已刪除的），刪除前確認。</summary>
+    private async Task OnClearSamplesAsync()
+    {
+        if (IsBusy || canClearSamples == false)
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmDialog.AskDestructiveAsync(
+            modalService,
+            "清除測試專案",
+            $"確定要永久刪除所有標題以「{ProjectSampleDataService.TitlePrefix}」開頭的專案（含已刪除的）嗎？刪除後無法復原。",
+            "永久刪除");
+        if (confirmed == false)
+        {
+            return;
+        }
+
+        isOpening = true;
+        try
+        {
+            var result = await sampleDataService.ClearAsync();
+            if (result.Success)
+            {
+                ViewNotification.Warning(notificationService, result.Message);
+            }
+            else
+            {
+                ViewNotification.Error(notificationService, result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Agent playground failed to clear sample projects.");
+            ViewNotification.UnexpectedError(notificationService, "清除測試專案失敗，請稍後再試。", ex);
+        }
+        finally
+        {
+            isOpening = false;
+        }
     }
 
     private void OnNewConversation()
