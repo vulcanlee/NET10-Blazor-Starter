@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.68
+- 文件版本：6.69
 - 文件狀態：維護中
-- 現行系統版本：0.9.149
+- 現行系統版本：0.9.150
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/04
 
@@ -275,3 +275,4 @@
 - [Agent 測試台的測試專案：一鍵產生 10 筆繁體中文測試專案並跳出 AI Agent 用法說明，一鍵永久清除（0.9.145）](changelog/2026-11-04-Agent測試台測試專案.md)
 - [修正 Agent 帶工具時的 400 reasoning_effort：新增 AiSettings:ToolReasoningEffort，gpt-6.1-sol 這類不允許工具搭配推論的模型設 none，只影響帶工具的 Agent；Azure gpt-6.1-sol 連 none 都不接受，Agent 功能要換模型（0.9.146～0.9.148）](changelog/2026-11-04-Agent工具推論等級設定.md)
 - [Agent 改走 Responses API：Azure gpt-6.1-sol 在 Chat Completions 上不能帶工具，Agent 測試台與 Agent 工作流程改走 Responses（store=false），記帳與 AI 對話紀錄同時支援兩種格式，推論等級設定改名 AgentReasoningEffort（0.9.149）](changelog/2026-11-04-Agent改走ResponsesAPI.md)
+- [修正勾選欄造成清單頁空白：專案、分類、團隊頁資料達 3 列時整頁空白，勾選欄改用表格內 @if 判斷權限（0.9.150）](changelog/2026-11-04-修正勾選欄造成清單頁空白.md)

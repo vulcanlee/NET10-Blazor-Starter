@@ -100,6 +100,72 @@ public sealed class TableSelectionContractTests : ComponentTestBase
         table.WaitForAssertion(() => Assert.Equal([2], selected.Select(x => x.Id)));
     }
 
+    /// <summary>同 RequirePermission：同步判斷、有權限就渲染子內容。</summary>
+    public sealed class Wrapper : ComponentBase
+    {
+        [Parameter] public RenderFragment? ChildContent { get; set; }
+
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+            => builder.AddContent(0, ChildContent);
+    }
+
+    /// <summary>勾選欄＋一般欄＋右側固定的操作欄（各列表頁的形狀）。</summary>
+    private IRenderedComponent<Table<Row>> RenderWithFixedActionColumn(int rowCount, bool wrapSelection)
+        => Render<Table<Row>>(p => p
+            .Add(x => x.DataSource, Enumerable.Range(1, rowCount).Select(i => new Row(i, $"列{i}", false)).ToList())
+            .Add(x => x.ChildContent, row => builder =>
+            {
+                if (wrapSelection)
+                {
+                    builder.OpenComponent<Wrapper>(0);
+                    builder.AddComponentParameter(1, nameof(Wrapper.ChildContent), (RenderFragment)(b =>
+                    {
+                        b.OpenComponent<Selection>(0);
+                        b.CloseComponent();
+                    }));
+                    builder.CloseComponent();
+                }
+                else
+                {
+                    builder.OpenComponent<Selection>(2);
+                    builder.CloseComponent();
+                }
+
+                builder.OpenComponent<Column<string>>(3);
+                builder.AddComponentParameter(4, nameof(Column<string>.Title), "名稱");
+                builder.AddComponentParameter(5, nameof(Column<string>.DataIndex), nameof(Row.Name));
+                builder.CloseComponent();
+
+                builder.OpenComponent<ActionColumn>(6);
+                builder.AddComponentParameter(7, nameof(ActionColumn.Title), "操作");
+                builder.AddComponentParameter(8, nameof(ActionColumn.Fixed), (ColumnFixPlacement?)ColumnFixPlacement.Right);
+                builder.CloseComponent();
+            }));
+
+    /// <summary>各頁的寫法（0.9.150 起）：勾選欄直接放在表格裡（權限用 @if），資料再多也正常。</summary>
+    [Fact]
+    public void SelectionDirectlyInTable_WithRightFixedColumn_ShouldRenderManyRows()
+    {
+        var table = RenderWithFixedActionColumn(10, wrapSelection: false);
+
+        table.WaitForAssertion(() => Assert.Equal(10, table.FindAll("tbody tr.ant-table-row").Count));
+    }
+
+    /// <summary>
+    /// ⚠️ 為什麼勾選欄不能包在 RequirePermission 裡（0.9.150 實際故障：專案清單頁整頁空白）：
+    /// 包起來後第 3 列起欄位序號錯位，右側固定的操作欄計算 sticky 位置時讀到沒寬度的欄 →
+    /// <c>CssSizeLength</c> 丟 ArgumentNullException。2 列以內不會發生，所以資料少時看不出來。
+    /// AntDesign 修好之後這個測試會紅 —— 屆時可以放寬 <c>BatchDeleteConventionTests</c> 的限制。
+    /// </summary>
+    [Fact]
+    public void SelectionWrappedInComponent_WithRightFixedColumn_ShouldThrowFromThirdRow()
+    {
+        var twoRows = RenderWithFixedActionColumn(2, wrapSelection: true);
+        Assert.Equal(2, twoRows.FindAll("tbody tr.ant-table-row").Count);
+
+        Assert.ThrowsAny<ArgumentNullException>(() => RenderWithFixedActionColumn(3, wrapSelection: true));
+    }
+
     [Fact]
     public void ResettingSelectedRows_WithNewData_ShouldClearTheCheckboxes()
     {

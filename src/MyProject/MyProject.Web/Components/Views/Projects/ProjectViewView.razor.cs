@@ -186,7 +186,8 @@ public partial class ProjectViewView
             .ToList();
 
         // 只有看得到「顯示已刪除」按鈕的人（刪除權限）才套用。
-        showDeleted = InitialShowDeleted && AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete);
+        canDelete = AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete);
+        showDeleted = InitialShowDeleted && canDelete;
         await ReloadAsync();
     }
 
@@ -422,6 +423,9 @@ public partial class ProjectViewView
     }
 
     bool showDeleted;
+
+    /// <summary>有刪除權限（勾選欄與「刪除選取」用；0.9.150 起不用 RequirePermission 包勾選欄，見 razor 的註解）。</summary>
+    bool canDelete;
 
     async Task OnToggleDeletedAsync()
     {

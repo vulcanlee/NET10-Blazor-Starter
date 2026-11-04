@@ -82,11 +82,14 @@ else
                    @bind-Total="_total"
                    @bind-SelectedRows="selectedRows">
                 @* 0.9.132 起：勾選後可「刪除選取」；已刪除的資料不可勾選。 *@
-                @if (!showDeleted)
+                @*
+                    ⚠️ 勾選欄不可包在 <RequirePermission> 裡（0.9.150）：AntDesign 會讓第 3 列起的欄位序號錯位，
+                    右側固定的操作欄讀到沒寬度的欄而丟 ArgumentNullException，整頁空白。權限改在 canDelete 判斷
+                    （與 RequirePermission 同一份規則 PermissionRules.CanAccessAction），見 BatchDeleteConventionTests。
+                *@
+                @if (!showDeleted && canDelete)
                 {
-                    <RequirePermission Page="@MagicObjectHelper.角色_專案項目" Action="@PermissionActions.Delete">
-                        <Selection />
-                    </RequirePermission>
+                    <Selection />
                 }
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Title)" Title="標題" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Description)" Title="描述" />
