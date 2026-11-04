@@ -50,7 +50,7 @@
 | 專案 | 新增、修改、刪除專案；在「顯示已刪除」還原或永久刪除；上傳或刪除附件；匯出 Excel（0.9.107 起）；刪除超過保留天數由排程作業自動永久刪除（0.9.97 起） | `Project.Create`、`Project.Update`、`Project.Delete`、`Project.Restore`、`Project.Purge`、`Project.AutoPurge`、`Project.FileUpload`、`Project.FileDelete`、`Project.Export` |
 | 例外紀錄 | 在「系統例外紀錄」刪除、清除、清空、匯出；執行 AI 例外分析、追問、匯出 AI 分析的 PDF 報告；排程作業每天自動清除 | `ExceptionLog.Delete`、`ExceptionLog.Purge`、`ExceptionLog.ClearAll`、`ExceptionLog.Export`、`ExceptionLog.AutoPurge`、`ExceptionLog.AiAnalyze`、`ExceptionLog.AiFollowUp`、`ExceptionLog.AiExportPdf` |
 | AI 對話紀錄 | 在「AI 對話紀錄」刪除、批次清除、清空、匯出清單 CSV 或單筆 JSON／PDF；排程作業每天自動清除（0.9.96 起） | `AiCallLog.Delete`、`AiCallLog.Purge`、`AiCallLog.ClearAll`、`AiCallLog.Export`、`AiCallLog.AutoPurge` |
-| Agent 對話 | 使用者在「Agent 測試台」刪除自己的一段對話；「資料保留與清理」頁的「自訂清除」；排程作業每天刪除最後一次對話超過保留天數的對話（0.9.143 起）。摘要只記 AI 助理或筆數與天數，**不記**對話標題與內容；改標題不記 | `AiAgentConversation.Delete`、`AiAgentConversation.Purge`、`AiAgentConversation.AutoPurge` |
+| Agent 對話 | 使用者在「Agent 測試台」刪除自己的一段對話，或在「Agent 工作流程」刪除自己的一筆執行紀錄（0.9.144 起）；「資料保留與清理」頁的「自訂清除」；排程作業每天刪除最後一次對話超過保留天數的對話（0.9.143 起）。摘要只記 AI 助理或筆數與天數，**不記**對話標題與內容；改標題不記 | `AiAgentConversation.Delete`、`AiAgentConversation.Purge`、`AiAgentConversation.AutoPurge` |
 | Token 用量 | 在「Token 用量」刪除、清除、清空、匯出；排程作業每天自動清除（0.9.96 起） | `TokenUsage.Delete`、`TokenUsage.Purge`、`TokenUsage.ClearAll`、`TokenUsage.Export`、`TokenUsage.AutoPurge` |
 | 排程作業 | 在「排程作業」頁立即執行、啟用或停用作業（0.9.96 起）；「資料保留與清理」頁的「立即清理」也記 `Job.Trigger`，「自訂清除」刪除執行紀錄記 `Job.PurgeRuns`（0.9.134 起） | `Job.Trigger`、`Job.Enable`、`Job.Disable`、`Job.PurgeRuns` |
 | 系統參數 | 在「系統參數」頁修改參數或還原為設定檔值（0.9.98 起）；摘要記參數名稱、舊值與新值 | `SystemParameter.Update`、`SystemParameter.Reset` |
@@ -64,7 +64,7 @@
 | 專案附件 | 在「專案項目」下載附件 | `Project.FileDownload` |
 | AI 用量上限 | AI 呼叫在送出前被「系統參數」設定的用量上限擋下（0.9.109 起，記為失敗；摘要記作業、上限與已用金額） | `Ai.QuotaBlocked` |
 | AI 提示詞 | 在「AI 提示詞」儲存新版本，或切換使用的版本（0.9.108 起；只記範本與版本，不記提示詞內容） | `Prompt.Update`、`Prompt.Activate` |
-| AI 助理的工具 | 「Agent 測試台」的 AI 助理執行了工具（成功或失敗）、因為使用者沒有權限而沒有執行、或使用者在核准窗按「拒絕」（0.9.142 起）；目標是工具名稱，摘要只記 AI 助理、工具與需要的權限，**不記**送給工具的內容與結果（那些在「AI 對話紀錄」）。工具真的修改資料時，另有該功能自己的紀錄（例如 `Project.Update`） | `Ai.ToolInvoked`、`Ai.ToolDenied`、`Ai.ToolRejected` |
+| AI 助理的工具 | 「Agent 測試台」或「Agent 工作流程」（0.9.144 起）的 AI 助理執行了工具（成功或失敗）、因為使用者沒有權限而沒有執行、或使用者在核准窗按「拒絕」（0.9.142 起）；目標是工具名稱，摘要只記 AI 助理、工具與需要的權限，**不記**送給工具的內容與結果（那些在「AI 對話紀錄」）。工具真的修改資料時，另有該功能自己的紀錄（例如 `Project.Update`） | `Ai.ToolInvoked`、`Ai.ToolDenied`、`Ai.ToolRejected` |
 | 稽核 | 在這一頁清除、清空或匯出稽核紀錄；排程作業每天自動清除 | `Audit.Purge`、`Audit.ClearAll`、`Audit.Export`、`Audit.AutoPurge` |
 | 開啟頁面 | 已登入的人每換一頁就記一筆（0.9.131 起）；目標是頁面路徑，摘要是 `from=上一頁`（剛進系統的第一頁為 `from=entry`）。只換篩選條件、沒換頁不記 | `Page.View` |
 | 查詢 | 在分類、專案、團隊、使用者、角色頁按「搜尋」，或在日誌檢視、系統例外紀錄、AI 對話紀錄、Token 用量、這一頁按「查詢」（0.9.131 起）；摘要只記有沒有填關鍵字等條件，完整條件（含輸入的文字）在「詳細內容」。翻頁、排序、清除不記 | `Category.Search`、`Project.Search`、`Team.Search`、`User.Search`、`Role.Search`、`LogViewer.Search`、`ExceptionLog.Search`、`AiCallLog.Search`、`TokenUsage.Search`、`Audit.Search` |

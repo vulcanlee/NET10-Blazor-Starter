@@ -43,10 +43,12 @@
     AI 呼叫（0.9.140 起）：所有 LLM 呼叫一律經 Microsoft Agent Framework（MAF）。
     Azure OpenAI 也走 OpenAI 官方 SDK 指向 v1 端點，刻意不用 Azure.AI.OpenAI（新版仍是預覽）。
     設計見 docs/architecture/MAF-AI呼叫架構.md。
+    0.9.144 起：多 Agent 工作流程用 Microsoft.Agents.AI.Workflows（版本與 Microsoft.Agents.AI 對齊）。
   -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.Agents.AI"            Version="1.27.0" />
     <PackageVersion Include="Microsoft.Agents.AI.OpenAI"     Version="1.27.0" />
+    <PackageVersion Include="Microsoft.Agents.AI.Workflows"  Version="1.27.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
     <PackageVersion Include="OpenAI"                         Version="2.14.0" />
   </ItemGroup>

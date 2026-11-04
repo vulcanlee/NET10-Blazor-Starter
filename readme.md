@@ -32,7 +32,7 @@
 | 日誌 | NLog.Web.AspNetCore | 6.1.2 |
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.3.2 |
 | PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型）| 6.2.4 |
-| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.27.0／2.14.0 |
+| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`；0.9.144 起含 `Microsoft.Agents.AI.Workflows`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.27.0／2.14.0 |
 | 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.0 |
 | 弱點修補 | System.Security.Cryptography.Pkcs（`MyProject.Web` 直接參考，覆蓋 MailKit → MimeKit 遞移帶入的弱點版 10.0.0，0.9.126；MimeKit 改相依修補版後移除）| 10.0.13 |
 | QR Code | QRCoder（兩步驟驗證的設定 QR，0.9.104）| 1.6.0 |
@@ -117,6 +117,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - AI 用量上限：全系統與每人的每日、每月新台幣上限（系統參數），達到時不再送出 AI 呼叫，80%／100% 通知本人或管理員；健康檢測記帳不擋（0.9.109）
 - Agent 骨架與 Agent 測試台：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型；新選單「AI 助理 › Agent 測試台」（`/agent-playground`，可授權給角色，不自動開給預設角色）以範例 Agent 搜尋專案、核准後修改專案描述（0.9.142）
 - Agent 對話保存：Agent 測試台的對話自動保存在左側「我的對話」，只有本人看得到，可以接續（AI 記得前文、停在核准的重新跳核准窗）、重新命名、刪除；最後一次對話超過保留天數（系統參數，預設 90 天）自動刪除，資料保留頁多一列「Agent 對話」，備份可選擇是否包含（0.9.143）
+- Agent 工作流程：新選單「AI 助理 › Agent 工作流程」（`/agent-workflows`，可授權給角色，不自動開給預設角色），多個 Agent 依流程協作的兩個範例 ——「專案狀態報告」（蒐集 → 撰寫 → 你審閱、可退回 3 次 → 核准後把一行狀態摘要附加到專案描述）與「多觀點審查」（三位 AI 審查者同時審查、再彙整）；工具核准、AI 提問、審閱在頁面上當下回覆，一次執行的所有模型呼叫共用一個執行編號、Token 用量記在流程名稱下；執行紀錄存在「我的執行紀錄」只能回顧、不能從中途接續，與 Agent 對話共用保留天數、清理與備份；兩條流程可在系統參數「AI 模型」各自指定模型（0.9.144）
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
 - 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
 - 系統參數：`/system-parameters`，管理員在畫面上修改系統名稱、保留天數、監控與告警門檻、流量與忘記密碼限制，存檔即生效、不需重啟，每次修改寫稽核（0.9.98）
@@ -260,15 +261,15 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
 | `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.ExternalFileSystem.AiCallLogPath` | AI 對話紀錄的內容檔目錄（完整 Prompt／Response，0.9.72 起）。⚠️ 內容含日誌與例外堆疊，**絕不可放在 `DownloadPath` 底下**。 |
-| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 測試台保存的對話內容檔目錄（0.9.143 起）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
+| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 測試台保存的對話內容檔目錄（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
-| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`，**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
+| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`（後兩個 0.9.144 起，Agent 工作流程用），**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
-| `AiAgentConversationSettings` | Agent 對話（0.9.143 起）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
+| `AiAgentConversationSettings` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `ExceptionAlertSettings` | 系統例外 Email 告警（0.9.78 起）：`Recipients`（預設空清單＝停用）、`BurstThreshold`／`BurstWindowMinutes`（暴增門檻，預設 20 次／10 分）、`PerSignatureCooldownMinutes`（預設 60）、`MaxEmailsPerHour`（預設 20）。需寄信已啟用。見 [日誌與設定檔說明 §4.12](docs/operations/日誌與設定檔說明.md)。 |
 | `SlowOperationSettings` | 慢操作門檻（0.9.79 起，毫秒，超過記 Warning，`0`＝停用）：`HttpRequestMs`（3000）、`DbCommandMs`（1000）、`ExternalCallMs`（寄信，10000）、`AiCallMs`（60000）。見 [日誌與設定檔說明 §4.13](docs/operations/日誌與設定檔說明.md)。 |
@@ -322,7 +323,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、DbContextFactory（0.4.36 起取代追蹤清理）、權限同步等不變量速查。
 - [架構總覽](docs/architecture/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
-- [MAF AI 呼叫架構](docs/architecture/MAF-AI呼叫架構.md) — 所有 LLM 呼叫經 Microsoft Agent Framework 送出（0.9.140 起）：管線、記帳中介層、技術決定與後續階段。
+- [MAF AI 呼叫架構](docs/architecture/MAF-AI呼叫架構.md) — 所有 LLM 呼叫經 Microsoft Agent Framework 送出（0.9.140 起）：管線、記帳中介層、技術決定、Agent 骨架、對話保存與多 Agent 工作流程（0.9.144 起）。
 - [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
 - [Web API 設計慣例](docs/architecture/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。

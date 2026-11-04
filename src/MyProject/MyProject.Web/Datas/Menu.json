@@ -47,6 +47,12 @@
         "name": "Agent 測試台",
         "icon": "science",
         "url": "/agent-playground"
+      },
+      {
+        "id": 92,
+        "name": "Agent 工作流程",
+        "icon": "account_tree",
+        "url": "/agent-workflows"
       }
     ]
   },

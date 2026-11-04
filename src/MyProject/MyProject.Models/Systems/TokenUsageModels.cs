@@ -103,6 +103,15 @@ public static class TokenUsageOperations
     /// 每一次各記一筆、共用同一個執行編號（RunId）。
     /// </summary>
     public const string AgentPlayground = "Agent 測試台";
+
+    /// <summary>
+    /// 「Agent 工作流程」的兩條範例（0.9.144 起）。一次執行裡所有 agent 的模型呼叫都記在流程名稱下、共用同一個 RunId；
+    /// 是哪個 agent 呼叫的看 AI 對話紀錄的「關聯說明」（流程／agent）。
+    /// </summary>
+    public const string ProjectStatusReport = "專案狀態報告";
+
+    /// <inheritdoc cref="ProjectStatusReport"/>
+    public const string MultiPerspectiveReview = "多觀點審查";
 }
 
 /// <summary>

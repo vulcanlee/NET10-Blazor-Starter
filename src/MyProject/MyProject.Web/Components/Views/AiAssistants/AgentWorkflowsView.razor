@@ -1,0 +1,253 @@
+@using MyProject.Business.Services.DataAccess
+@using MyProject.Models.Systems
+@using MyProject.Web.Ai
+@using MyProject.Web.Ai.Workflows
+
+@*
+    Agent 工作流程（0.9.144 起）：多個 Agent 依流程協作的兩條範例（專案狀態報告、多觀點審查），
+    用來驗收工作流程骨架（循序、並行、工具核准、Agent 提問、審閱關卡、記帳），也是日後寫工作流程畫面的範本。
+    執行紀錄存在左側「我的執行紀錄」，只能回顧、不能從中途接續。
+*@
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div class="agent-workflow-layout">
+        <aside class="agent-workflow-sidebar">
+            <div class="agent-workflow-sidebar-title">我的執行紀錄</div>
+            @if (records.Count == 0)
+            {
+                <div class="agent-workflow-empty">還沒有紀錄。開始執行後會出現在這裡。</div>
+            }
+            else
+            {
+                <ul class="agent-workflow-list">
+                    @foreach (var item in records)
+                    {
+                        var current = viewingId == item.ConversationId || run?.ConversationId == item.ConversationId;
+                        <li class="@(current ? "agent-workflow-list-item agent-workflow-list-item-current" : "agent-workflow-list-item")">
+                            <button type="button"
+                                    class="agent-workflow-list-open"
+                                    disabled="@IsBusy"
+                                    title="@item.Title"
+                                    @onclick="@(async () => await OnOpenRecordAsync(item))">
+                                <span class="agent-workflow-list-title">@item.Title</span>
+                                <span class="agent-workflow-list-meta">@item.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</span>
+                            </button>
+                            <span class="agent-workflow-list-actions">
+                                <CrudActionButton Title="重新命名" Icon="edit" Disabled="@IsBusy"
+                                                  OnClick="@(() => OnRename(item))" />
+                                <CrudActionButton Title="刪除這筆紀錄" Icon="delete" Danger Disabled="@IsBusy"
+                                                  OnClick="@(async () => await OnDeleteAsync(item))" />
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+        </aside>
+
+        <div class="agent-workflow">
+            <div class="agent-workflow-picker">
+                @foreach (var workflow in AiWorkflowCatalog.All)
+                {
+                    <Button Type="@(workflow == selected ? ButtonType.Primary : ButtonType.Default)"
+                            Disabled="@IsBusy"
+                            OnClick="@(async () => await OnSelectAsync(workflow))">@workflow.DisplayName</Button>
+                }
+            </div>
+
+            <div class="agent-workflow-intro">
+                <div class="agent-workflow-intro-text">
+                    <div class="agent-workflow-title">@selected.DisplayName</div>
+                    <div class="agent-workflow-hint">@selected.Description</div>
+                    <div class="agent-workflow-hint">
+                        工具依<strong>你的權限</strong>執行。執行紀錄只有你自己看得到，可以回顧、不能從中途接續（離開頁面就會中斷）；
+                        最後一次執行超過 @conversationService.RetentionDays 天會自動刪除。
+                    </div>
+                    @if (string.IsNullOrEmpty(modelName) == false)
+                    {
+                        <div class="agent-workflow-hint">使用模型：@modelName</div>
+                    }
+                </div>
+                <ToolbarIconButton Title="新的執行" Icon="add_circle"
+                                   Disabled="@(unavailableReason is not null || IsBusy)"
+                                   OnClick="OnNewRun" />
+            </div>
+
+            @if (unavailableReason is not null)
+            {
+                <div class="alert alert-warning" role="alert">@unavailableReason</div>
+            }
+            else
+            {
+                @if (viewingId is not null)
+                {
+                    <div class="agent-workflow-notice">這是之前的執行紀錄（唯讀）。要再跑一次請按「新的執行」。</div>
+                }
+
+                @if (Entries.Count > 0 || isRunning)
+                {
+                    <div class="agent-workflow-transcript">
+                        @foreach (var entry in Entries)
+                        {
+                            <div class="agent-workflow-row">
+                                @if (string.IsNullOrEmpty(entry.Agent) == false)
+                                {
+                                    <span class="agent-workflow-agent">@entry.Agent</span>
+                                }
+
+                                @switch (entry.Kind)
+                                {
+                                    case AiAgentTranscriptKinds.User:
+                                        <div class="agent-workflow-entry agent-workflow-entry-user">@entry.Text</div>
+                                        break;
+                                    case AiAgentTranscriptKinds.Assistant:
+                                    case AiAgentTranscriptKinds.Output:
+                                        @*
+                                            AI 輸出受工具回傳的資料與使用者貼上的文件影響，屬不可信輸入，
+                                            一律經 AiMarkdownRenderer.ToSafeHtml 的安全管線之後才能用 MarkupString。
+                                        *@
+                                        var html = HtmlOf(entry);
+                                        @if (html is null)
+                                        {
+                                            <div class="agent-workflow-entry agent-workflow-entry-error">AI 回傳內容異常龐大，已中止顯示。</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="@(entry.Kind == AiAgentTranscriptKinds.Output ? "agent-workflow-entry agent-workflow-entry-output" : "agent-workflow-entry agent-workflow-entry-assistant")">
+                                                <div class="agent-workflow-report">@((MarkupString)html)</div>
+                                            </div>
+                                        }
+                                        break;
+                                    case AiAgentTranscriptKinds.Tool:
+                                        <div class="agent-workflow-muted">🔧 @entry.Text</div>
+                                        break;
+                                    case AiAgentTranscriptKinds.Notice:
+                                        <div class="agent-workflow-muted">@entry.Text</div>
+                                        break;
+                                    case AiAgentTranscriptKinds.Error:
+                                        <div class="agent-workflow-entry agent-workflow-entry-error">@entry.Text</div>
+                                        break;
+                                }
+                            </div>
+                        }
+
+                        @foreach (var (agent, html) in streamingHtml)
+                        {
+                            <div class="agent-workflow-row">
+                                <span class="agent-workflow-agent">@agent</span>
+                                <div class="agent-workflow-entry agent-workflow-entry-assistant">
+                                    <div class="agent-workflow-report">@((MarkupString)html)</div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (isRunning)
+                        {
+                            <div class="agent-workflow-generating">
+                                <Spin Size="@SpinSize.Small" />
+                                <span>@(activeAgents.Count > 0 ? $"{string.Join("、", activeAgents)} 進行中" : "處理中")…已 @elapsedSeconds 秒</span>
+                                <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止</Button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @foreach (var pending in PendingRequests)
+                {
+                    var request = pending.Request;
+                    <div class="agent-workflow-request">
+                        @switch (request.Kind)
+                        {
+                            case AiWorkflowRequestKind.ToolApproval:
+                                <div class="agent-workflow-request-title">「@request.Agent」要執行會修改資料的操作</div>
+                                <p>請確認是否允許。核准後會以<strong>你的身分</strong>修改資料，並記錄在稽核紀錄。</p>
+                                @foreach (var approval in request.Approvals)
+                                {
+                                    <div class="agent-workflow-approval-item">
+                                        <div class="agent-workflow-approval-name">@approval.DisplayName</div>
+                                        <dl class="agent-workflow-approval-args">
+                                            @foreach (var argument in approval.Arguments)
+                                            {
+                                                <div><dt>@argument.Key</dt><dd>@argument.Value</dd></div>
+                                            }
+                                        </dl>
+                                    </div>
+                                }
+                                <div class="agent-workflow-request-actions">
+                                    <Button Disabled="@isRunning" OnClick="@(async () => await OnApproveAsync(pending, approve: false))">拒絕</Button>
+                                    <Button Type="@ButtonType.Primary" Disabled="@isRunning" OnClick="@(async () => await OnApproveAsync(pending, approve: true))">核准</Button>
+                                </div>
+                                break;
+
+                            case AiWorkflowRequestKind.Question:
+                                <div class="agent-workflow-request-title">「@request.Agent」想問你</div>
+                                <div class="agent-workflow-question">@request.Question</div>
+                                <TextArea @bind-Value="answerText" Rows="2" MaxLength="@MaxInputLength" Disabled="@isRunning" Placeholder="輸入回答…" />
+                                <div class="agent-workflow-request-actions">
+                                    @* 同測試台：TextArea 失焦才回寫值，空白內容由 OnAnswerAsync 擋下並提示。 *@
+                                    <Button Type="@ButtonType.Primary" Disabled="@isRunning" OnClick="@(async () => await OnAnswerAsync(pending))">送出回答</Button>
+                                </div>
+                                break;
+
+                            case AiWorkflowRequestKind.Review:
+                                <div class="agent-workflow-request-title">@request.Agent：請審閱上面的草稿</div>
+                                <p>
+                                    通過後進入下一步；退回要寫意見，AI 會依意見重寫
+                                    （還可以退回 @request.RejectionsLeft 次）；結束則不定稿。
+                                </p>
+                                @if (request.RejectionsLeft > 0)
+                                {
+                                    <TextArea @bind-Value="commentText" Rows="2" MaxLength="@MaxInputLength" Disabled="@isRunning" Placeholder="退回時請寫下要修改的地方…" />
+                                }
+                                <div class="agent-workflow-request-actions">
+                                    <Button Disabled="@isRunning" OnClick="@(async () => await OnReviewAsync(pending, AiReviewDecision.End))">結束（不定稿）</Button>
+                                    @if (request.RejectionsLeft > 0)
+                                    {
+                                        <Button Disabled="@isRunning" OnClick="@(async () => await OnReviewAsync(pending, AiReviewDecision.Reject))">退回</Button>
+                                    }
+                                    <Button Type="@ButtonType.Primary" Disabled="@isRunning" OnClick="@(async () => await OnReviewAsync(pending, AiReviewDecision.Approve))">通過</Button>
+                                </div>
+                                break;
+                        }
+                    </div>
+                }
+
+                @if (run is null && viewingId is null)
+                {
+                    <div class="agent-workflow-composer">
+                        <TextArea @bind-Value="inputText"
+                                  Rows="@(selected == MultiPerspectiveReviewWorkflow.Definition ? 8u : 3u)"
+                                  MaxLength="@MaxDocumentLength"
+                                  Disabled="@IsBusy"
+                                  Placeholder="@selected.InputPlaceholder" />
+                        @* 「開始執行」刻意不看輸入框有沒有字（同測試台）：TextArea 失焦才回寫值，空白內容由 OnStartAsync 忽略。 *@
+                        <Button Type="@ButtonType.Primary"
+                                Disabled="@IsBusy"
+                                OnClick="@(async () => await OnStartAsync())">開始執行</Button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    @* 重新命名：只有一個欄位，不用表單骨架（標題只給本人看，改了不寫稽核）。 *@
+    <Modal Title="重新命名紀錄"
+           Class="agent-playground-rename-modal"
+           @bind-Visible="@renameVisible"
+           MaskClosable="false"
+           Keyboard="true"
+           OkText="@("儲存")"
+           CancelText="@("取消")"
+           OnOk="@(async () => await OnRenameSaveAsync())">
+        <Input @bind-Value="renameTitle" MaxLength="@AiAgentConversationService.MaxTitleLength" />
+    </Modal>
+}

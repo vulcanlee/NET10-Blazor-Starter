@@ -57,6 +57,7 @@
 | 你想做的事 | 去哪一頁 |
 |---|---|
 | 跟 AI 助理對話、試用工具 | 這一頁 |
+| 讓多個 AI 助理依流程完成一件事（寫專案狀態報告、多觀點審查） | 「Agent 工作流程」 |
 | 直接查詢或修改專案 | 「專案項目」 |
 | 看 AI 每一次實際送出與收到的內容 | 「AI 對話紀錄」（管理員） |
 | 看 AI 花了多少 token 與費用 | 「Token 用量」（管理員） |
@@ -159,6 +160,7 @@ AI 要修改資料時跳出，不能直接關閉，必須選一個。
 以下頁面是否看得到、能不能操作，取決於你的權限設定。
 
 - [專案項目](/projects)：確認 AI 查到的專案、核准後的修改結果。
+- [Agent 工作流程](/agent-workflows)：讓多個 AI 助理依流程合作；「Agent 對話保留天數」也管那裡的執行紀錄。
 - [AI 對話紀錄](/ai-call-logs)：看 AI 每一次實際送出與收到的內容，以及同一次執行的多次呼叫。
 - [Token 用量](/token-usage)：看「Agent 測試台」花了多少 token 與費用。
 - [稽核紀錄](/audit-logs)：查工具的執行、被擋下與被拒絕（`Ai.ToolInvoked`、`Ai.ToolDenied`、`Ai.ToolRejected`），以及刪除對話（`AiAgentConversation.Delete`）。

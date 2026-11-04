@@ -43,5 +43,31 @@ public static class PromptTemplateKeys
     /// <summary>「Agent 測試台」的範例 Agent（0.9.142 起）。</summary>
     public const string AgentPlayground = "AgentPlayground";
 
-    public static readonly IReadOnlyList<string> All = [LogAnalysis, ExceptionAnalysis, AgentPlayground];
+    /// <summary>「Agent 工作流程」專案狀態報告：蒐集（0.9.144 起，以下 7 種同）。</summary>
+    public const string ProjectReportGatherer = "ProjectReportGatherer";
+
+    /// <summary>專案狀態報告：撰寫。</summary>
+    public const string ProjectReportWriter = "ProjectReportWriter";
+
+    /// <summary>專案狀態報告：收尾（附加狀態摘要）。</summary>
+    public const string ProjectReportFinalizer = "ProjectReportFinalizer";
+
+    /// <summary>多觀點審查：需求完整性。</summary>
+    public const string ReviewRequirements = "ReviewRequirements";
+
+    /// <summary>多觀點審查：技術可行性與風險。</summary>
+    public const string ReviewTechnical = "ReviewTechnical";
+
+    /// <summary>多觀點審查：使用者體驗。</summary>
+    public const string ReviewUsability = "ReviewUsability";
+
+    /// <summary>多觀點審查：彙整。</summary>
+    public const string ReviewAggregator = "ReviewAggregator";
+
+    public static readonly IReadOnlyList<string> All =
+    [
+        LogAnalysis, ExceptionAnalysis, AgentPlayground,
+        ProjectReportGatherer, ProjectReportWriter, ProjectReportFinalizer,
+        ReviewRequirements, ReviewTechnical, ReviewUsability, ReviewAggregator,
+    ];
 }

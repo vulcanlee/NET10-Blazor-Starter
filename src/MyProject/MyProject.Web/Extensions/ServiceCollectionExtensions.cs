@@ -16,6 +16,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Ai.Agents;
+using MyProject.Web.Ai.Workflows;
 using MyProject.Web.Auth;
 using MyProject.Web.Backup;
 using MyProject.Web.Caching;
@@ -82,6 +83,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AiAgentToolFactory>();
         services.AddScoped<ProjectAgentTools>();
         services.AddScoped<IAiAgentRunner, AiAgentRunner>();
+        // 多 Agent 工作流程（0.9.144 起）：每個 agent 仍經 IAiAgentFactory 建立，記帳不變。
+        services.AddScoped<IAiWorkflowRunner, AiWorkflowRunner>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
         services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
