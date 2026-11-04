@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.70
+- 文件版本：6.71
 - 文件狀態：維護中
-- 現行系統版本：0.9.151
+- 現行系統版本：0.9.152
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/04
 
@@ -278,3 +278,4 @@
 - [Agent 改走 Responses API：Azure gpt-6.1-sol 在 Chat Completions 上不能帶工具，Agent 測試台與 Agent 工作流程改走 Responses（store=false），記帳與 AI 對話紀錄同時支援兩種格式，推論等級設定改名 AgentReasoningEffort（0.9.149）](changelog/2026-11-04-Agent改走ResponsesAPI.md)
 - [修正勾選欄造成清單頁空白：專案、分類、團隊頁資料達 3 列時整頁空白，勾選欄改用表格內 @if 判斷權限（0.9.150）](changelog/2026-11-04-修正勾選欄造成清單頁空白.md)
 - [新增 AI Agent PRD：Agent 測試台與 Agent 工作流程的產品需求、模型與推論等級（預設 null，gpt-6.1-sol 實際 medium，設定檔全域調整）；AI 對話紀錄與系統參數 PRD 同步（0.9.151）](changelog/2026-11-04-AI-Agent-PRD.md)
+- [修正 CRUD 產生器登記錨點：已刪除資料清理改為三處登記、補登資料保留與清理頁，Test-CrudGenerator 重新通過（0.9.152）](changelog/2026-11-04-修正CRUD產生器登記錨點.md)
