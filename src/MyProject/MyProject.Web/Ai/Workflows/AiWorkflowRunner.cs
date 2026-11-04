@@ -95,6 +95,9 @@ public sealed class AiWorkflowRunner : IAiWorkflowRunner
                     ConversationId = conversationId,
                     RunId = runId,
                     ModelKey = definition.ModelKey,
+
+                    // 流程裡每個 agent（含不帶工具的步驟）都走 Responses API，同一個流程不混用兩種 API（0.9.149 起）。
+                    UseResponsesApi = true,
                     ContextLengthExceededMessage = "內容已超過模型的內容視窗上限，請縮短輸入後重新執行。",
                     TimeoutHint = "請稍後再試。",
                     SubmittedContentLabel = "工作流程內容",

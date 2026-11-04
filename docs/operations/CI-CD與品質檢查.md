@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.9.136
+- 現行系統版本：0.9.149
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/04
 
 > ⚠️ **腳手架沒有 CI。** 原本的 GitHub Actions 工作流程已於 **2026-09-20** 移除，repo 根目錄沒有 `.github/` 資料夾。
 > **沒有任何機制會自動擋下違規**，品質關卡全靠提交前在本機執行 `scripts/Invoke-QualityGate.ps1`（0.9.89 起，見 §1）。
@@ -73,12 +73,16 @@ pwsh ./scripts/Install-GitHooks.ps1 -Uninstall  # 移除
 - **`TreatWarningsAsErrors` = true**：專案長期維持 0 warning，此設定是為了鎖住這個成果、避免警告悄悄回流。
   需要豁免時請針對**單一規則碼**加 `NoWarn` 並註明原因與解除條件（比照 `NuGetAuditSuppress` 的寫法），**不要整包關閉**。
   注意它是 MSBuild 屬性，**不只影響編譯** —— NuGet restore 階段的 `NU****` 警告同樣會被升級為 error。
-- **唯一的警告豁免：`WarningsNotAsErrors` = `NU1900`**（0.4.47 起）。
+- **全方案唯一的警告豁免：`WarningsNotAsErrors` = `NU1900`**（0.4.47 起）。
   `NU1900` 是「**取不到**弱點資料」（NuGet Audit 連不上 nuget.org 弱點索引，逾時／限流／暫時性網路失敗），
   與「發現弱點」無關；被升級成 error 後，nuget.org 抖一下就會讓還原與建置失敗（當時的建置就因此中斷，見
   [changelog 0.4.47](../changelog/2026-08-27-CI還原NU1900失敗修正.md)）。
   用 `WarningsNotAsErrors` 而非 `NoWarn`，是為了讓警告仍印在 log 上、看得出是否常態性連不到來源。
   **真正代表發現弱點的 `NU1901`~`NU1904` 不在豁免清單，維持 error。**
+- **單一檔案的豁免：`OPENAI001`**（0.9.149 起，只在 `MyProject.Web/Ai/AiAgentFactory.cs` 以 `#pragma warning disable` 關閉）。
+  OpenAI .NET SDK 2.14 把 Responses API（`GetResponsesClient`、`CreateResponseOptions`）標為評估用，
+  而 Agent 功能必須走 Responses（Azure `gpt-6.1-sol` 在 Chat Completions 上不能帶工具，見 [MAF AI 呼叫架構 §3](../architecture/MAF-AI呼叫架構.md)）。
+  範圍刻意限縮在建立 agent 的那一個檔案，其他地方用到評估用 API 仍會建置失敗。**解除條件：SDK 拿掉 Responses 的 `[Experimental]` 標記後移除。**
 - **各 `.csproj` 不再寫 `Nullable` / `ImplicitUsings` / 套件 `Version`**，只保留自己特有的設定
   （`TargetFramework`、`UserSecretsId`、`IsPackable` 等）。
 - **`.editorconfig` 的定位是「描述現有慣例」**，不是引入新風格重新格式化整個 repo。

@@ -4,7 +4,8 @@ using System.Text.Json;
 namespace MyProject.Web.Ai;
 
 /// <summary>
-/// Chat Completions 回應的解析。純函式，可用假 JSON 完整測試。
+/// Chat Completions 與 Responses API（0.9.149 起，Agent 功能）回應的解析。純函式，可用假 JSON 完整測試。
+/// 兩種格式由內容自動判斷：根物件有 <c>output</c> 陣列就是 Responses。
 ///
 /// 刻意用 <see cref="JsonDocument"/> 而非 POCO 反序列化：<c>usage</c> 的子物件
 /// （<c>prompt_tokens_details</c> / <c>completion_tokens_details</c>）在不同供應商、
@@ -17,6 +18,10 @@ public static class AiChatResponseParser
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
+        if (IsResponsesObject(root))
+        {
+            return ParseResponsesObject(root);
+        }
 
         var content = string.Empty;
         var finishReason = string.Empty;
@@ -140,6 +145,11 @@ public static class AiChatResponseParser
     /// </summary>
     public static AiChatParseResult ParseStream(string sse)
     {
+        if (IsResponsesStream(sse))
+        {
+            return ParseResponsesStream(sse);
+        }
+
         var content = new StringBuilder();
         var finishReason = string.Empty;
         var modelName = string.Empty;
@@ -202,13 +212,186 @@ public static class AiChatResponseParser
         string? usageJson = null;
         foreach (var root in EnumerateStreamChunks(sse))
         {
-            if (root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
+            // Responses API 的 usage 在結束事件的 response 物件裡（0.9.149 起）。
+            var holder = TryGetEventResponse(root, out var response) ? response : root;
+            if (holder.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
             {
                 usageJson = usage.GetRawText();
             }
         }
 
         return usageJson;
+    }
+
+    // ---------- Responses API（0.9.149 起，Agent 功能） ----------
+
+    private static bool IsResponsesObject(JsonElement root)
+        => root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("output", out var output)
+            && output.ValueKind == JsonValueKind.Array;
+
+    /// <summary>Responses 串流的 data 行都帶 <c>"type":"response.…"</c>；Chat Completions 的 chunk 沒有。</summary>
+    private static bool IsResponsesStream(string sse)
+        => EnumerateStreamChunks(sse).Take(1).Any(root => ReadString(root, "type").StartsWith("response.", StringComparison.Ordinal));
+
+    /// <summary>
+    /// 一個完整的 Responses 物件（非串流回應，或串流結束事件裡的 <c>response</c>）。
+    /// 文字是所有 message 項目裡 output_text 的串接；只要求呼叫工具時為空字串（由記帳層看 SDK 的工具呼叫判斷）。
+    /// </summary>
+    private static AiChatParseResult ParseResponsesObject(JsonElement response)
+    {
+        var content = new StringBuilder();
+        foreach (var item in response.GetProperty("output").EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || ReadString(item, "type") != "message"
+                || item.TryGetProperty("content", out var parts) == false
+                || parts.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var part in parts.EnumerateArray())
+            {
+                if (part.ValueKind == JsonValueKind.Object && ReadString(part, "type") == "output_text")
+                {
+                    content.Append(ReadString(part, "text"));
+                }
+            }
+        }
+
+        var (finishReason, filterCategory) = ReadResponsesFinish(response);
+        return new AiChatParseResult
+        {
+            Content = content.ToString(),
+            FinishReason = finishReason,
+            ModelName = ReadString(response, "model"),
+            Usage = ReadResponsesUsage(response),
+            FilterCategory = filterCategory,
+        };
+    }
+
+    /// <summary>
+    /// Responses 串流：有結束事件（completed／incomplete／failed）就以它帶的完整 response 為準；
+    /// 中途取消沒有結束事件時，內容由已收到的 <c>response.output_text.delta</c> 串起來，用量為空。
+    /// </summary>
+    private static AiChatParseResult ParseResponsesStream(string sse)
+    {
+        var deltas = new StringBuilder();
+        var modelName = string.Empty;
+        AiChatParseResult? final = null;
+
+        foreach (var root in EnumerateStreamChunks(sse))
+        {
+            if (ReadString(root, "type") == "response.output_text.delta")
+            {
+                deltas.Append(ReadString(root, "delta"));
+                continue;
+            }
+
+            if (TryGetEventResponse(root, out var response))
+            {
+                var model = ReadString(response, "model");
+                modelName = model.Length > 0 ? model : modelName;
+                if (IsResponsesObject(response) && IsFinalEvent(ReadString(root, "type")))
+                {
+                    final = ParseResponsesObject(response);
+                }
+            }
+        }
+
+        if (final is null)
+        {
+            return new AiChatParseResult { Content = deltas.ToString(), ModelName = modelName };
+        }
+
+        return string.IsNullOrEmpty(final.Content) && deltas.Length > 0
+            ? final with { Content = deltas.ToString() }
+            : final;
+    }
+
+    private static bool IsFinalEvent(string type)
+        => type is "response.completed" or "response.incomplete" or "response.failed";
+
+    /// <summary>Responses 串流事件裡的 <c>response</c> 物件（created／in_progress／completed…才有）。</summary>
+    private static bool TryGetEventResponse(JsonElement root, out JsonElement response)
+    {
+        response = default;
+        return ReadString(root, "type").StartsWith("response.", StringComparison.Ordinal)
+            && root.TryGetProperty("response", out response)
+            && response.ValueKind == JsonValueKind.Object;
+    }
+
+    /// <summary>
+    /// 把 Responses 的 status 對應成 Chat Completions 的 finish_reason，空回應訊息與「被截斷」判斷才能共用：
+    /// completed→stop；incomplete＋max_output_tokens→length；incomplete＋content_filter→content_filter。
+    /// Azure 另在 <c>content_filters[]</c> 標 <c>blocked</c>，取第一個被過濾的類別。
+    /// </summary>
+    private static (string FinishReason, string FilterCategory) ReadResponsesFinish(JsonElement response)
+    {
+        var status = ReadString(response, "status");
+        var reason = response.TryGetProperty("incomplete_details", out var details) && details.ValueKind == JsonValueKind.Object
+            ? ReadString(details, "reason")
+            : string.Empty;
+
+        var finishReason = status switch
+        {
+            "completed" => "stop",
+            "incomplete" when reason == "max_output_tokens" => "length",
+            "incomplete" when reason.Length > 0 => reason,
+            _ => status,
+        };
+
+        var filterCategory = ReadAzureBlockedCategory(response);
+        if (filterCategory.Length == 0 && finishReason == "content_filter")
+        {
+            filterCategory = "content_filter";
+        }
+
+        return (finishReason, filterCategory);
+    }
+
+    private static string ReadAzureBlockedCategory(JsonElement response)
+    {
+        if (response.TryGetProperty("content_filters", out var filters) == false || filters.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        foreach (var filter in filters.EnumerateArray())
+        {
+            if (filter.ValueKind == JsonValueKind.Object
+                && filter.TryGetProperty("blocked", out var blocked)
+                && blocked.ValueKind == JsonValueKind.True)
+            {
+                var category = ReadFilterCategory(filter);
+                if (category.Length > 0)
+                {
+                    return category;
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static AiTokenUsage? ReadResponsesUsage(JsonElement response)
+    {
+        if (response.TryGetProperty("usage", out var usage) == false || usage.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var result = new AiTokenUsage
+        {
+            InputCount = ReadInt(usage, "input_tokens"),
+            OutputCount = ReadInt(usage, "output_tokens"),
+            TotalCount = ReadInt(usage, "total_tokens"),
+            CachedInputCount = ReadNestedInt(usage, "input_tokens_details", "cached_tokens"),
+            ReasoningCount = ReadNestedInt(usage, "output_tokens_details", "reasoning_tokens"),
+        };
+
+        return result.HasAny ? result : null;
     }
 
     /// <summary>逐一取出 SSE 裡每個 <c>data:</c> 行的 JSON 物件；<c>[DONE]</c>、非 JSON、不完整的行一律略過。</summary>

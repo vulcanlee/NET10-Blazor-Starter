@@ -81,7 +81,10 @@ public sealed record AiCallLogMessage(string Role, string Content);
 /// <summary>從原始請求 JSON 解析出 messages（讀取時才解析，不另外存一份）。</summary>
 public static class AiCallLogMessages
 {
-    /// <summary>解析 <c>messages[].role/content</c>。JSON 無效或沒有 messages 時回 null。</summary>
+    /// <summary>
+    /// 解析 Chat Completions 的 <c>messages[].role/content</c>，或 Responses API（0.9.149 起，Agent 功能）的
+    /// <c>instructions</c>＋<c>input</c>。JSON 無效或兩種都不是時回 null（不丟例外）。
+    /// </summary>
     public static IReadOnlyList<AiCallLogMessage>? Parse(string? requestBody)
     {
         if (string.IsNullOrWhiteSpace(requestBody))
@@ -92,11 +95,15 @@ public static class AiCallLogMessages
         try
         {
             using var document = JsonDocument.Parse(requestBody);
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || document.RootElement.TryGetProperty("messages", out var messages) == false
-                || messages.ValueKind != JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
                 return null;
+            }
+
+            if (document.RootElement.TryGetProperty("messages", out var messages) == false
+                || messages.ValueKind != JsonValueKind.Array)
+            {
+                return ParseResponsesRequest(document.RootElement);
             }
 
             var result = new List<AiCallLogMessage>();
@@ -124,6 +131,94 @@ public static class AiCallLogMessages
             return null;
         }
     }
+
+    /// <summary>
+    /// Responses API 的請求：<c>instructions</c> → system；<c>input</c> 為字串 → user；
+    /// 陣列裡有 role 的 message 照原角色（developer 視為 system），<c>function_call</c> → assistant「呼叫工具 名稱：參數」，
+    /// <c>function_call_output</c> → tool，<c>reasoning</c> 等其他項目略過。
+    /// </summary>
+    private static List<AiCallLogMessage>? ParseResponsesRequest(JsonElement root)
+    {
+        var hasInstructions = root.TryGetProperty("instructions", out var instructions) && instructions.ValueKind == JsonValueKind.String;
+        var hasInput = root.TryGetProperty("input", out var input)
+            && input.ValueKind is JsonValueKind.String or JsonValueKind.Array;
+        if (hasInput == false)
+        {
+            return null;
+        }
+
+        var result = new List<AiCallLogMessage>();
+        if (hasInstructions)
+        {
+            result.Add(new AiCallLogMessage("system", instructions.GetString() ?? string.Empty));
+        }
+
+        if (input.ValueKind == JsonValueKind.String)
+        {
+            result.Add(new AiCallLogMessage("user", input.GetString() ?? string.Empty));
+            return result;
+        }
+
+        foreach (var item in input.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var type = ReadString(item, "type");
+            var role = ReadString(item, "role");
+            if (type == "function_call")
+            {
+                result.Add(new AiCallLogMessage("assistant", $"呼叫工具 {ReadString(item, "name")}：{ReadString(item, "arguments")}"));
+            }
+            else if (type == "function_call_output")
+            {
+                result.Add(new AiCallLogMessage("tool", ReadText(item, "output")));
+            }
+            else if (role.Length > 0 && (type.Length == 0 || type == "message"))
+            {
+                result.Add(new AiCallLogMessage(role == "developer" ? "system" : role, ReadText(item, "content")));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>字串直接取；parts 陣列串接每段的 <c>text</c>（input_text／output_text）；其他形狀保留原始 JSON。</summary>
+    private static string ReadText(JsonElement parent, string name)
+    {
+        if (parent.TryGetProperty(name, out var value) == false)
+        {
+            return string.Empty;
+        }
+
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString() ?? string.Empty;
+        }
+
+        if (value.ValueKind == JsonValueKind.Array)
+        {
+            var texts = value.EnumerateArray()
+                .Where(part => part.ValueKind == JsonValueKind.Object
+                    && part.TryGetProperty("text", out var text)
+                    && text.ValueKind == JsonValueKind.String)
+                .Select(part => part.GetProperty("text").GetString())
+                .ToList();
+            if (texts.Count > 0)
+            {
+                return string.Concat(texts);
+            }
+        }
+
+        return value.GetRawText();
+    }
+
+    private static string ReadString(JsonElement parent, string name)
+        => parent.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : string.Empty;
 }
 
 /// <summary>AI 對話紀錄的查詢條件。比照 <see cref="TokenUsageQuery"/>，不污染共用的 DataRequest。</summary>

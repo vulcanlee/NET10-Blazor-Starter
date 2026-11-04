@@ -9,6 +9,12 @@ using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using OpenAI;
 using OpenAI.Chat;
+using OpenAI.Responses;
+
+// OPENAI001：OpenAI .NET SDK 2.14 把 Responses API（GetResponsesClient、CreateResponseOptions）標為評估用。
+// Agent 功能必須走 Responses（Azure gpt-6.1-sol 在 Chat Completions 上不能帶工具，0.9.149），所以只在這個檔案豁免這一個規則碼。
+// 解除條件：SDK 拿掉 Responses 的 [Experimental] 標記後移除本行。
+#pragma warning disable OPENAI001
 
 namespace MyProject.Web.Ai;
 
@@ -100,15 +106,18 @@ public sealed class AiAgentFactory : IAiAgentFactory
         // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model。
         var model = modelOptions?.CurrentValue.Resolve(context.ModelKey, settings.Model) ?? settings.Model;
 
-        var chatClient = CreateOpenAIClient(settings, state).GetChatClient(model);
+        var openAIClient = CreateOpenAIClient(settings, state);
+        var agentOptions = new ChatClientAgentOptions
+        {
+            ChatOptions = CreateChatOptions(settings, instructions, tools, context.UseResponsesApi),
+        };
+        Func<IChatClient, IChatClient> accounting = inner => new AiAccountingChatClient(inner, context, state, settings, model, services);
 
-        var agent = chatClient.AsAIAgent(
-            new ChatClientAgentOptions
-            {
-                ChatOptions = CreateChatOptions(settings, instructions, tools),
-            },
-            clientFactory: inner => new AiAccountingChatClient(inner, context, state, settings, model, services),
-            loggerFactory: loggerFactory);
+        // Agent 功能走 Responses API（0.9.149 起，見 AiCallContext.UseResponsesApi），其餘維持 Chat Completions。
+        // 兩條路都經過同一個記帳中介層；記帳解析器同時看得懂兩種回應格式。
+        var agent = context.UseResponsesApi
+            ? openAIClient.GetResponsesClient().AsAIAgent(agentOptions, model, clientFactory: accounting, loggerFactory: loggerFactory)
+            : openAIClient.GetChatClient(model).AsAIAgent(agentOptions, clientFactory: accounting, loggerFactory: loggerFactory);
 
         return new AiAgentHandle(agent, state, settings);
     }
@@ -145,7 +154,7 @@ public sealed class AiAgentFactory : IAiAgentFactory
         return new OpenAIClient(new ApiKeyCredential(settings.ApiKey), options);
     }
 
-    private static ChatOptions CreateChatOptions(AiSettings settings, string? instructions, IList<AITool>? tools)
+    private static ChatOptions CreateChatOptions(AiSettings settings, string? instructions, IList<AITool>? tools, bool useResponsesApi)
         => new()
         {
             Instructions = instructions,
@@ -158,5 +167,32 @@ public sealed class AiAgentFactory : IAiAgentFactory
 
             // 推論模型不接受 temperature，所以設定為 null 時整個欄位都不送。
             Temperature = settings.Temperature is double temperature ? (float)temperature : null,
+
+            // 推論等級只給 Agent 功能（Responses 的 reasoning.effort，0.9.149 起）；分析功能一律不送，由模型決定。
+            Reasoning = useResponsesApi && ToReasoningEffort(settings.AgentReasoningEffort) is { } effort
+                ? new ReasoningOptions { Effort = effort }
+                : null,
+
+            // ⚠️ Responses 一律 store=false：對話不留在雲端（企業機敏資料），歷史由 MAF session 每次整段重送。
+            // 推論項目要帶加密內容回來，下一輪才送得回去（store=false 時雲端查不到 id）。
+            RawRepresentationFactory = useResponsesApi ? _ => CreateResponseOptions() : null,
+        };
+
+    private static CreateResponseOptions CreateResponseOptions()
+    {
+        var options = new CreateResponseOptions { StoredOutputEnabled = false };
+        options.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
+        return options;
+    }
+
+    private static ReasoningEffort? ToReasoningEffort(string? value)
+        => value?.ToLowerInvariant() switch
+        {
+            "none" => ReasoningEffort.None,
+            "low" => ReasoningEffort.Low,
+            "medium" => ReasoningEffort.Medium,
+            "high" => ReasoningEffort.High,
+            "xhigh" => ReasoningEffort.ExtraHigh,
+            _ => null,
         };
 }

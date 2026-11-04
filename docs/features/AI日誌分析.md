@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.14
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.9.141
+- 現行系統版本：0.9.149
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/11/02
+- 最後核對日期：2026/11/04
 
 ## 文件目的
 
@@ -71,6 +71,7 @@
 | `MaxFollowUpRounds` | `10` | ❌ | 只用於 [AI 例外分析](AI例外分析.md) 的追問輪數上限（0.9.68 起）；日誌分析不支援追問 |
 | `MaxOutputTokens` | `null` | ❌ | 不送 `max_completion_tokens`，由模型決定 |
 | `Temperature` | `null` | ❌ | 不送 `temperature`，由模型決定 |
+| `AgentReasoningEffort` | `null` | ❌ | 只用於 Agent 功能（Responses API，0.9.149 起）；日誌分析走 Chat Completions，**一律不送**推論等級 |
 
 這張表由 `AiSettingsTests.Defaults_ShouldMatchDocumentedValues` 逐一斷言 ——
 改了 C# 預設值卻沒同步文件時，測試會先紅。
@@ -196,7 +197,8 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 |------|------------------|
 | 日誌量超過內容視窗（`context_length_exceeded`）| 送出的日誌量超過模型的內容視窗上限。請在日誌檢視頁縮小時間區間或減少查詢筆數後再試。 |
 | 模型不接受 `temperature` | 此模型不接受 AiSettings:Temperature 的設定值，請將它設為 `null`（部分推論模型只接受預設值）。 |
-| 其他參數被拒 | AI 服務不接受參數 `<參數名>` 的設定值（代碼 `<code>`），請調整 AiSettings 後再試。 |
+| 模型不接受推論等級（`param=reasoning.effort` 或 `reasoning_effort`；0.9.149 起，只會發生在 Agent 功能）| 此模型不接受 AiSettings:AgentReasoningEffort 的設定值，請改為 null 或此模型接受的值。 |
+| 其他參數被拒 | AI 服務不接受參數 `<參數名>` 的設定值（代碼 `<code>`），請調整 AiSettings 後再試。上游沒給 code 時省略「（代碼 …）」（0.9.146 起）。 |
 
 第一種在 0.9.7 之後變成**主要**的失敗模式（字元上限全部移除了），而它的上游回應
 **沒有 `param` 欄位** —— 落到通用分支只會回一句代碼，看不出要做什麼，

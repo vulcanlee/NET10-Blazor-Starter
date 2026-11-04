@@ -137,6 +137,9 @@ public sealed class AiAgentRunner : IAiAgentRunner
                 RelatedInfo = definition.DisplayName,
                 ConversationId = conversationId,
                 ModelKey = definition.ModelKey,
+
+                // Agent 一律走 Responses API（0.9.149 起；見 AiCallContext.UseResponsesApi）。
+                UseResponsesApi = true,
                 ContextLengthExceededMessage = "對話內容已超過模型的內容視窗上限，請按「新對話」重新開始。",
                 TimeoutHint = "請稍後再試。",
                 SubmittedContentLabel = "對話內容",

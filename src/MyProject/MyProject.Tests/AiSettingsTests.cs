@@ -74,6 +74,8 @@ public sealed class AiSettingsTests
         // 預設不送 temperature：推論模型（o 系列、gpt-5 家族）只接受預設值，
         // 送任何數字都會被回 400 unsupported_value。不送就能相容所有模型。
         Assert.Null(settings.Temperature);
+        // 預設不送 reasoning.effort（0.9.149 起只用於走 Responses API 的 Agent 功能），由模型自己決定。
+        Assert.Null(settings.AgentReasoningEffort);
     }
 
     [Fact]
