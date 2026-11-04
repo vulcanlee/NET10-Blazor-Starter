@@ -63,6 +63,60 @@ internal static class AiSse
         return builder.ToString();
     }
 
+    /// <summary>Responses API 的 usage（0.9.149 起，Agent 功能）。</summary>
+    public const string ResponsesUsageJson = """{"input_tokens":10,"input_tokens_details":{"cached_tokens":4},"output_tokens":2,"output_tokens_details":{"reasoning_tokens":1},"total_tokens":12}""";
+
+    /// <summary>
+    /// Responses API 的文字串流（0.9.149 起，Agent 功能走 Responses），事件順序照 2026/11/04 對 Azure gpt-6.1-sol 實測：
+    /// created → in_progress → output_item.added → content_part.added → output_text.delta… → output_text.done →
+    /// content_part.done → output_item.done → completed（帶完整 response 與 usage）。
+    /// </summary>
+    public static string Responses(IEnumerable<string> deltas, string? usageJson = ResponsesUsageJson)
+    {
+        var parts = deltas.ToList();
+        var text = string.Concat(parts);
+        var builder = new StringBuilder();
+        var sequence = 0;
+        AppendEvent(builder, "response.created", $$"""{"type":"response.created","sequence_number":{{sequence++}},"response":{{ResponseObject("in_progress", "[]", null)}}}""");
+        AppendEvent(builder, "response.in_progress", $$"""{"type":"response.in_progress","sequence_number":{{sequence++}},"response":{{ResponseObject("in_progress", "[]", null)}}}""");
+        AppendEvent(builder, "response.output_item.added", $$$"""{"type":"response.output_item.added","output_index":0,"sequence_number":{{{sequence++}}},"item":{"id":"msg_1","type":"message","status":"in_progress","content":[],"role":"assistant"}}""");
+        AppendEvent(builder, "response.content_part.added", $$$"""{"type":"response.content_part.added","item_id":"msg_1","output_index":0,"content_index":0,"sequence_number":{{{sequence++}}},"part":{"type":"output_text","annotations":[],"text":""}}""");
+        foreach (var delta in parts)
+        {
+            AppendEvent(builder, "response.output_text.delta", $$"""{"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"sequence_number":{{sequence++}},"delta":{{Json(delta)}}}""");
+        }
+
+        AppendEvent(builder, "response.output_text.done", $$"""{"type":"response.output_text.done","item_id":"msg_1","output_index":0,"content_index":0,"sequence_number":{{sequence++}},"text":{{Json(text)}}}""");
+        AppendEvent(builder, "response.content_part.done", $$$"""{"type":"response.content_part.done","item_id":"msg_1","output_index":0,"content_index":0,"sequence_number":{{{sequence++}}},"part":{"type":"output_text","annotations":[],"text":{{{Json(text)}}}}}""");
+        var item = $$"""{"id":"msg_1","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":{{Json(text)}}}],"role":"assistant"}""";
+        AppendEvent(builder, "response.output_item.done", $$"""{"type":"response.output_item.done","output_index":0,"sequence_number":{{sequence++}},"item":{{item}}}""");
+        AppendEvent(builder, "response.completed", $$"""{"type":"response.completed","sequence_number":{{sequence}},"response":{{ResponseObject("completed", $"[{item}]", usageJson)}}}""");
+        return builder.ToString();
+    }
+
+    /// <summary>Responses API 要求呼叫工具的串流（0.9.149 起）：一個 function_call 項目、參數一段送完，沒有文字。</summary>
+    public static string ResponsesToolCall(string callId, string name, string argumentsJson)
+    {
+        var builder = new StringBuilder();
+        var added = $$"""{"id":"fc_1","type":"function_call","status":"in_progress","arguments":"","call_id":"{{callId}}","name":"{{name}}"}""";
+        var done = $$"""{"id":"fc_1","type":"function_call","status":"completed","arguments":{{Json(argumentsJson)}},"call_id":"{{callId}}","name":"{{name}}"}""";
+        AppendEvent(builder, "response.created", $$"""{"type":"response.created","sequence_number":0,"response":{{ResponseObject("in_progress", "[]", null)}}}""");
+        AppendEvent(builder, "response.output_item.added", $$"""{"type":"response.output_item.added","output_index":0,"sequence_number":1,"item":{{added}}}""");
+        AppendEvent(builder, "response.function_call_arguments.delta", $$"""{"type":"response.function_call_arguments.delta","item_id":"fc_1","output_index":0,"sequence_number":2,"delta":{{Json(argumentsJson)}}}""");
+        AppendEvent(builder, "response.function_call_arguments.done", $$"""{"type":"response.function_call_arguments.done","item_id":"fc_1","output_index":0,"sequence_number":3,"arguments":{{Json(argumentsJson)}}}""");
+        AppendEvent(builder, "response.output_item.done", $$"""{"type":"response.output_item.done","output_index":0,"sequence_number":4,"item":{{done}}}""");
+        AppendEvent(builder, "response.completed", $$"""{"type":"response.completed","sequence_number":5,"response":{{ResponseObject("completed", $"[{done}]", ResponsesUsageJson)}}}""");
+        return builder.ToString();
+    }
+
+    private static string ResponseObject(string status, string outputJson, string? usageJson)
+        => $$"""{"id":"resp_1","object":"response","created_at":1,"status":"{{status}}","error":null,"incomplete_details":null,"model":"{{Model}}","output":{{outputJson}},"parallel_tool_calls":true,"store":false,"usage":{{usageJson ?? "null"}}}""";
+
+    private static string Json(string value) => JsonSerializer.Serialize(value, RelaxedJson);
+
+    private static void AppendEvent(StringBuilder builder, string name, string json)
+        => builder.Append("event: ").Append(name).Append('\n').Append("data: ").Append(json).Append("\n\n");
+
     /// <summary>中文不跳脫，和 OpenAI 實際送出的一樣，測試也才找得到原文片段。</summary>
     private static readonly JsonSerializerOptions RelaxedJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 

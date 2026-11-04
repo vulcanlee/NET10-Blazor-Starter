@@ -83,6 +83,18 @@ public class AiSettings
     /// </summary>
     public double? Temperature { get; set; }
 
+    /// <summary>
+    /// Agent 功能（Agent 測試台、Agent 工作流程，0.9.149 起走 Responses API）送出的 <c>reasoning.effort</c>。
+    /// <c>null</c>（預設）代表不送，由模型自己決定。接受 <see cref="AgentReasoningEffortValues"/>（不分大小寫）。
+    /// AI 日誌分析、AI 例外分析走 Chat Completions，一律不送。
+    ///
+    /// ⚠️ 模型不接受的值（例如 Azure 的 <c>gpt-6.1-sol</c> 不接受 <c>none</c>）會回 400，請改為 null 或模型接受的值。
+    /// </summary>
+    public string? AgentReasoningEffort { get; set; }
+
+    /// <summary><see cref="AgentReasoningEffort"/> 可填的值。</summary>
+    public static readonly IReadOnlyList<string> AgentReasoningEffortValues = ["none", "low", "medium", "high", "xhigh"];
+
     /// <summary>把 <see cref="Provider"/> 字串解析成列舉。空字串視為 Azure OpenAI。</summary>
     /// <exception cref="InvalidOperationException">值不是支援的供應商名稱。</exception>
     public AiProvider GetProvider()

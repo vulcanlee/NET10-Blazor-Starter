@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.74
+- 文件版本：6.78
 - 文件狀態：維護中
-- 現行系統版本：0.9.145
+- 現行系統版本：0.9.149
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/04
 
@@ -10,6 +10,10 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| Agent 功能改走 Responses API：Azure `gpt-6.1-sol` 在 Chat Completions 上不論怎麼設推論等級都不能帶工具，Agent 測試台與 Agent 工作流程（含不帶工具的步驟）改走 `/v1/responses`（`AiCallContext.UseResponsesApi`、一律 `store=false`、歷史仍由 MAF session 整段重送），分析功能與健康探測維持 Chat Completions；記帳解析器與 AI 對話紀錄同時看得懂兩種格式（用量含快取／推理、`incomplete`→`length`、工具呼叫與工具結果）；`ToolReasoningEffort` 改名 `AgentReasoningEffort`（只對 Responses 送 `reasoning.effort`）；`OPENAI001` 只在 `AiAgentFactory.cs` 豁免；本機以 gpt-6.1-sol 實測 Agent 測試台、接續、核准與兩條工作流程皆成功（0.9.149）| [2026-11-04-Agent改走ResponsesAPI](2026-11-04-Agent改走ResponsesAPI.md) |
+| 撤回範本的 `"ToolReasoningEffort": "none"`：實測 Azure `gpt-6.1-sol` 不接受 `none`（只接受 low～xhigh）、又不允許工具搭配推論，在 Chat Completions 上無法使用工具，Agent 功能要在系統參數「AI 模型」換模型；400 `reasoning_effort` 依 code 分成兩種訊息（`unsupported_value` 改指向「改為 null 或換模型」，不再叫人設 none）（0.9.148）|
+| `appsettings.json` 範本的 `AiSettings` 加上 `"ToolReasoningEffort": "none"`（0.9.147，0.9.148 撤回）| [2026-11-04-Agent工具推論等級設定](2026-11-04-Agent工具推論等級設定.md) |
+| 修正 Agent 帶工具時 400 `reasoning_effort`：`gpt-6.1-sol` 在 Chat Completions 上不允許工具搭配推論（模型預設推論等級不是 none），Agent 測試台與 Agent 工作流程一呼叫就失敗；新增 `AiSettings:ToolReasoningEffort`（預設 `null` 不送；`none`／`low`／`medium`／`high`／`xhigh`，啟動時驗證），只套用在帶工具的 agent（`ChatOptions.Reasoning`），分析功能不受影響；400 `param=reasoning_effort` 改成指名設定與修法的訊息，上游沒給 code 時不再出現空的「（代碼 ）」（0.9.146）| [2026-11-04-Agent工具推論等級設定](2026-11-04-Agent工具推論等級設定.md) |
 | Agent 測試台的測試專案：右上角「產生 10 筆測試專案」建立固定 10 筆繁體中文專案（標題開頭「【測試】」、不指定團隊、日期以今天推算，含逾期與各種狀態），成功後跳出說明窗列出 Agent 測試台與 Agent 工作流程的範例問句；「清除測試專案」永久刪除所有「【測試】」開頭的專案（含已刪除的）；已有測試專案時不再產生；分別需要「專案項目」新增／刪除權限，全部經 `ProjectService`（`ProjectSampleDataService`）（0.9.145）| [2026-11-04-Agent測試台測試專案](2026-11-04-Agent測試台測試專案.md) |
 | Agent 工作流程（MAF 四階段的第四階段）：套件 `Microsoft.Agents.AI.Workflows` 1.27.0；`IAiWorkflowRunner`／`AiWorkflowRun`（`InProcessExecution.OffThread`、`WatchStreamAsync(blockOnPendingRequest: false)`），步驟是自訂 executor `AiAgentStep`（不用 `AIAgent.BindAsExecutor`：它把整段對話含工具呼叫轉給下一個、收齊時下游跑好幾次），步驟之間只傳文字；工具核准、`ask_user` 提問、審閱關卡三種人工介入經 `RequestPort` 在頁面上當下回覆；核准規則抽成 `AiToolApprovals` 與 Agent 測試台共用；一次執行一個 `ConversationId`＋`RunId`，作業名稱是流程名稱（`TokenUsageOperations.ProjectStatusReport`／`MultiPerspectiveReview`）、關聯說明「流程／agent」；新設定 `AiModelSettings:ProjectStatusReport`／`MultiPerspectiveReview`（系統參數共 49 個）、7 個提示詞種類（「AI 提示詞」共 10 個分頁）、範例工具 `get_project_detail` 與異動工具 `append_project_status_summary`；執行紀錄與 Agent 對話共用 `AiAgentConversation`、內容檔目錄、保留天數、清理與備份（`AiAgentTranscriptEntry.Agent`、`Output` 種類，`SchemaVersion` 仍 1），不能從中途接續；新頁面「AI 助理 › Agent 工作流程」（`/agent-workflows`，不自動開給預設角色）（0.9.144）| [2026-11-04-Agent工作流程](2026-11-04-Agent工作流程.md) |
 | Agent 對話保存（MAF 四階段的第三階段 B）：新資料表 `AiAgentConversation`（migration `AddAiAgentConversation`，只放中繼資料）與內容檔 `AiAgentConversationPath/{yyyyMM}/{ConversationId}.json`（MAF session、畫面紀錄、待核准，經 `AiAgentConversationFileStore`）；`AiAgentChat` 每次執行後自動存檔，`IAiAgentRunner.ResumeAsync` 接續（模型用目前設定、沿用 `ConversationId`、停在核准的重新跳核准窗、權限在執行前再檢查）；`AiAgentConversationService` 一律只限本人（清單、改名不寫稽核、刪除寫 `AiAgentConversation.Delete`）；新設定 `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間）與系統參數「Agent 對話保留天數」「備份 Agent 對話」（共 47 個），排程作業「Agent 對話清理」（`AiAgentConversation.AutoPurge`），資料保留頁多一列「Agent 對話」（自訂清除 `AiAgentConversation.Purge`）；Agent 測試台左側「我的對話」、重新命名、刪除（0.9.143）| [2026-11-03-Agent對話保存](2026-11-03-Agent對話保存.md) |

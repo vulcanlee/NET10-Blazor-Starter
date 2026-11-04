@@ -46,6 +46,9 @@ public static class AiCallLogPdfBuilder
         AiChatRoles.System => "系統提示（System）",
         AiChatRoles.User => "使用者（User）",
         AiChatRoles.Assistant => "AI 助理（Assistant）",
+
+        // Agent 的工具執行結果（0.9.149 起 Responses 的 function_call_output 解析成 tool）。
+        "tool" => "工具結果（Tool）",
         _ => string.IsNullOrWhiteSpace(role) ? "（未標示角色）" : role,
     };
 

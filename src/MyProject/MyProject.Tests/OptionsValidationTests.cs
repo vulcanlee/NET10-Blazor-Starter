@@ -113,6 +113,25 @@ public sealed class OptionsValidationTests
             }),
             key);
 
+    [Theory]
+    [InlineData("extreme")]
+    [InlineData("minimal")]
+    [InlineData(" ")]
+    public void AiSettings_UnknownAgentReasoningEffort_ShouldFail(string value)
+        => AssertInvalid(
+            new AiSettingsValidator().Validate(null, new AiSettings { AgentReasoningEffort = value }),
+            "AiSettings:AgentReasoningEffort");
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("none")]
+    [InlineData("Low")]
+    [InlineData("medium")]
+    [InlineData("HIGH")]
+    [InlineData("xhigh")]
+    public void AiSettings_KnownAgentReasoningEffort_ShouldPass(string? value)
+        => AssertValid(new AiSettingsValidator().Validate(null, new AiSettings { AgentReasoningEffort = value }));
+
     // ---------- AiPricingSettings ----------
 
     [Fact]

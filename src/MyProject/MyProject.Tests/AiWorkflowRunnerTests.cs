@@ -54,13 +54,13 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     {
         var id = projectIds["團隊A專案"];
         Script(PromptTemplateKeys.ProjectReportGatherer,
-            AiSse.ToolCall("call_q", "ask_user", """{"question":"是哪一個專案？"}"""),
-            AiSse.ToolCall("call_d", "get_project_detail", $$"""{"projectId":{{id}}}"""),
-            AiSse.Build(["事實清單"]));
-        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Build(["草稿一"]), AiSse.Build(["草稿二"]));
+            AiSse.ResponsesToolCall("call_q", "ask_user", """{"question":"是哪一個專案？"}"""),
+            AiSse.ResponsesToolCall("call_d", "get_project_detail", $$"""{"projectId":{{id}}}"""),
+            AiSse.Responses(["事實清單"]));
+        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Responses(["草稿一"]), AiSse.Responses(["草稿二"]));
         Script(PromptTemplateKeys.ProjectReportFinalizer,
-            AiSse.ToolCall("call_a", "append_project_status_summary", $$"""{"projectId":{{id}},"summary":"進度正常\n風險低"}"""),
-            AiSse.Build(["已附加摘要。"]));
+            AiSse.ResponsesToolCall("call_a", "append_project_status_summary", $$"""{"projectId":{{id}},"summary":"進度正常\n風險低"}"""),
+            AiSse.Responses(["已附加摘要。"]));
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
 
         var question = await NextRequestAsync(run.RunAsync("幫我寫專案報告"));
@@ -120,8 +120,8 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     [Fact]
     public async Task ProjectReport_AfterThreeRejections_ShouldOnlyAllowApproveOrEnd()
     {
-        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Build(["事實"]));
-        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Build(["v1"]), AiSse.Build(["v2"]), AiSse.Build(["v3"]), AiSse.Build(["v4"]));
+        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Responses(["事實"]));
+        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Responses(["v1"]), AiSse.Responses(["v2"]), AiSse.Responses(["v3"]), AiSse.Responses(["v4"]));
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
 
         var review = await NextRequestAsync(run.RunAsync("報告"));
@@ -144,8 +144,8 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     [Fact]
     public async Task ProjectReport_RejectWithoutComment_ShouldBeRefused()
     {
-        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Build(["事實"]));
-        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Build(["v1"]));
+        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Responses(["事實"]));
+        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Responses(["v1"]));
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
         var review = await NextRequestAsync(run.RunAsync("報告"));
 
@@ -188,10 +188,10 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     [Fact]
     public async Task MultiReview_ShouldRunThreeReviewersThenAggregateAllOpinions()
     {
-        Script(PromptTemplateKeys.ReviewRequirements, AiSse.Build(["意見-需求"]));
-        Script(PromptTemplateKeys.ReviewTechnical, AiSse.Build(["意見-技術"]));
-        Script(PromptTemplateKeys.ReviewUsability, AiSse.Build(["意見-體驗"]));
-        Script(PromptTemplateKeys.ReviewAggregator, AiSse.Build(["彙整結果"]));
+        Script(PromptTemplateKeys.ReviewRequirements, AiSse.Responses(["意見-需求"]));
+        Script(PromptTemplateKeys.ReviewTechnical, AiSse.Responses(["意見-技術"]));
+        Script(PromptTemplateKeys.ReviewUsability, AiSse.Responses(["意見-體驗"]));
+        Script(PromptTemplateKeys.ReviewAggregator, AiSse.Responses(["彙整結果"]));
         var run = await StartAsync(MultiPerspectiveReviewWorkflow.Definition);
 
         var updates = await CollectAsync(run.RunAsync("一份規格"));
@@ -216,7 +216,7 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     [Fact]
     public async Task UpstreamFailure_ShouldEndAsFailedAndPersist()
     {
-        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Build(["事實"]));
+        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Responses(["事實"]));
         scripts[PromptTemplateKeys.ProjectReportWriter] = new Queue<Func<HttpResponseMessage>>(
             [() => new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("{}", Encoding.UTF8, "application/json") }]);
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
@@ -232,8 +232,8 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     [Fact]
     public async Task Stop_ShouldCancelWholeWorkflow()
     {
-        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Build(["事實"]));
-        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Build(["v1"]));
+        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Responses(["事實"]));
+        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Responses(["v1"]));
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
         var review = await NextRequestAsync(run.RunAsync("報告"));
 
@@ -246,8 +246,8 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     [Fact]
     public async Task LeavingWhileWaiting_ShouldPersistAsInterrupted_AndNotBeResumable()
     {
-        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Build(["事實"]));
-        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Build(["v1"]));
+        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Responses(["事實"]));
+        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Responses(["v1"]));
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
         await NextRequestAsync(run.RunAsync("報告"));
 
@@ -269,11 +269,11 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     /// <summary>跑到收尾 agent 要求附加摘要為止（蒐集、撰寫、審閱通過）。</summary>
     private async Task<(AiWorkflowRun Run, IAsyncEnumerable<AiWorkflowUpdate> Pending)> RunToFinalizerAsync(int projectId)
     {
-        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Build(["事實"]));
-        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Build(["報告"]));
+        Script(PromptTemplateKeys.ProjectReportGatherer, AiSse.Responses(["事實"]));
+        Script(PromptTemplateKeys.ProjectReportWriter, AiSse.Responses(["報告"]));
         Script(PromptTemplateKeys.ProjectReportFinalizer,
-            AiSse.ToolCall("call_a", "append_project_status_summary", $$"""{"projectId":{{projectId}},"summary":"摘要"}"""),
-            AiSse.Build(["結果說明"]));
+            AiSse.ResponsesToolCall("call_a", "append_project_status_summary", $$"""{"projectId":{{projectId}},"summary":"摘要"}"""),
+            AiSse.Responses(["結果說明"]));
         var run = await StartAsync(ProjectStatusReportWorkflow.Definition);
         var review = await NextRequestAsync(run.RunAsync("報告"));
         return (run, run.RespondAsync(review.RequestId, new AiWorkflowHumanResponse { Decision = AiReviewDecision.Approve }));

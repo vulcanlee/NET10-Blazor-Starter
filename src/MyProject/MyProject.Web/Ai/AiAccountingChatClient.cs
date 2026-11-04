@@ -628,9 +628,19 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
             return "此模型不接受 AiSettings:Temperature 的設定值，請將它設為 null（部分推論模型只接受預設值）。";
         }
 
+        // 推論等級只有 Agent 功能（Responses API）會送（0.9.149 起），所以被拒就是 AgentReasoningEffort 填了模型不接受的值
+        // （例如 Azure gpt-6.1-sol 不接受 none）。Responses 的 param 是 reasoning.effort，Chat Completions 是 reasoning_effort。
+        if (string.Equals(upstream.Param, "reasoning.effort", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(upstream.Param, "reasoning_effort", StringComparison.OrdinalIgnoreCase))
+        {
+            return "此模型不接受 AiSettings:AgentReasoningEffort 的設定值，請改為 null 或此模型接受的值。";
+        }
+
         if (string.IsNullOrEmpty(upstream.Param) == false)
         {
-            return $"AI 服務不接受參數 {upstream.Param} 的設定值（代碼 {upstream.Code}），請調整 AiSettings 後再試。";
+            return string.IsNullOrEmpty(upstream.Code)
+                ? $"AI 服務不接受參數 {upstream.Param} 的設定值，請調整 AiSettings 後再試。"
+                : $"AI 服務不接受參數 {upstream.Param} 的設定值（代碼 {upstream.Code}），請調整 AiSettings 後再試。";
         }
 
         return string.IsNullOrEmpty(upstream.Code)

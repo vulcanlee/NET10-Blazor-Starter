@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.4
+- 文件版本：1.7
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.149
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/04
 
@@ -70,7 +70,7 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 
 | 決定 | 理由 |
 |---|---|
-| 沿用 **Chat Completions**，不用 Responses API | AI 對話紀錄頁、PDF、`AiCallLogMessages.Parse` 都讀 Chat Completions 格式；Responses API 預設在 OpenAI 端保存對話，企業機敏資料較不放心 |
+| 分析功能（AI 日誌分析、AI 例外分析、健康探測）沿用 **Chat Completions**；**Agent 功能（Agent 測試台、Agent 工作流程）0.9.149 起走 Responses API** | Azure 的 `gpt-6.1-sol` 在 Chat Completions 上**無法帶工具**：不送推論等級回 400「Function tools with reasoning_effort are not supported」，送 `none` 回 400 `unsupported_value`（只接受 low～xhigh），送其他值又是工具搭配推論（2026/11/04 實測）；Responses API 則允許。切換點只有一個：`AiCallContext.UseResponsesApi`（只由 `AiAgentRunner`、`AiWorkflowRunner` 設定，流程裡不帶工具的步驟也走 Responses，同一個流程不混用），`AiAgentFactory` 依它選 `GetResponsesClient()` 或 `GetChatClient()`，兩條路經過同一個記帳中介層。⚠️ **一律 `store=false`**（`CreateResponseOptions.StoredOutputEnabled = false`、帶 `reasoning.encrypted_content`）：對話不留在雲端，歷史仍由 MAF session 每次整段重送、不用 `previous_response_id`（`AiAgentRunnerTests.Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns` 守門）。記帳解析器 `AiChatResponseParser` 依內容自動判斷兩種格式（根物件有 `output` 陣列／串流 data 帶 `type: response.*`），`status: incomplete`＋`max_output_tokens` 對應成 `length`；`AiCallLogMessages.Parse` 讀 `instructions`＋`input`（工具呼叫顯示為 assistant「呼叫工具 名稱：參數」、工具結果為 tool）。`AiSettings:AgentReasoningEffort` 只對 Responses 送 `reasoning.effort`。OpenAI SDK 2.14 把 Responses 標為評估用（`OPENAI001`），只在 `AiAgentFactory.cs` 以 `#pragma` 豁免 |
 | Azure 也用 `OpenAI` 官方 SDK（指向 `{Endpoint}/openai/v1`），**不用** `Azure.AI.OpenAI` | 後者新版（2.9.0-beta）仍是預覽；v1 端點用 OpenAI SDK 即可 |
 | Azure 一律送 **`api-key` 標頭**（`AzureApiKeyPolicy` 移除 `Authorization`）| SDK 預設送 Bearer，官方沒有明文保證 Azure v1 接受；改送 `api-key` 和 0.9.139 以前完全一致 |
 | SDK **重試設 0**（`ClientRetryPolicy(maxRetries: 0)`）| SDK 預設對 408／429／5xx 重試 3 次，每次都可能計費卻只記一筆帳；也會掩蓋設定錯誤 |

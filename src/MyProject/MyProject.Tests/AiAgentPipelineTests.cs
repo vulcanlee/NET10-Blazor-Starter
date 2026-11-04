@@ -26,6 +26,16 @@ public sealed class AiAgentPipelineTests
         }
         """;
 
+    private const string ResponsesSuccessPayload = """
+        {
+          "id": "resp_1", "object": "response", "created_at": 1, "status": "completed", "model": "gpt-6.1-sol",
+          "output": [ { "id": "msg_1", "type": "message", "status": "completed", "role": "assistant",
+                        "content": [ { "type": "output_text", "annotations": [], "text": "ok" } ] } ],
+          "store": false,
+          "usage": { "input_tokens": 10, "output_tokens": 2, "total_tokens": 12 }
+        }
+        """;
+
     /// <summary>Azure 改送 api-key，SDK 預設的 Authorization 必須拿掉，金鑰才不會同時出現在兩個標頭。</summary>
     [Fact]
     public async Task Azure_ShouldSendApiKeyHeader_AndNoAuthorizationHeader()
@@ -137,6 +147,63 @@ public sealed class AiAgentPipelineTests
         Assert.True(result.Success);
         Assert.Equal(1, handler.CallCount);
         Assert.Empty(quota.Checked);
+    }
+
+    /// <summary>
+    /// 0.9.149 起 Agent 功能（<see cref="AiCallContext.UseResponsesApi"/>）走 Responses API：
+    /// 一律 <c>store=false</c>（對話不留雲端），<c>AiSettings:AgentReasoningEffort</c> 有設才送 <c>reasoning.effort</c>。
+    /// 實際故障：Azure gpt-6.1-sol 在 Chat Completions 上帶工具一律 400（不送會因推論被拒、送 none 不被接受）。
+    /// 分析功能仍走 Chat Completions，<b>永遠不送</b> reasoning_effort（回到 0.9.145 的行為）。
+    /// </summary>
+    [Theory]
+    [InlineData(null, true, null)]
+    [InlineData("none", true, "none")]
+    [InlineData("HIGH", true, "high")]
+    [InlineData("xhigh", true, "xhigh")]
+    [InlineData("high", false, null)]
+    public async Task AgentReasoningEffort_ShouldOnlyBeSent_ByResponsesAgents(string? setting, bool useResponses, string? expected)
+    {
+        var handler = StubHttpMessageHandler.Json(HttpStatusCode.OK, useResponses ? ResponsesSuccessPayload : SuccessPayload);
+        var settings = AzureSettings();
+        settings.AgentReasoningEffort = setting;
+        var factory = AiTestAgents.CreateFactory(
+            new StubHttpClientFactory(handler),
+            new StaticOptionsMonitor<AiSettings>(settings),
+            new RecordingTokenUsageRecorder(),
+            User(),
+            new FakeAiCallLogRecorder());
+        var handle = factory.CreateAgent(
+            new AiCallContext
+            {
+                Operation = TokenUsageOperations.AgentPlayground,
+                Timeout = TimeSpan.FromSeconds(30),
+                TimeoutHint = "請稍後再試。",
+                UseResponsesApi = useResponses,
+            },
+            tools: [AIFunctionFactory.Create(() => "ok", "read_things", "讀取資料。")]);
+
+        var response = await handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]);
+
+        Assert.Equal("ok", response.Text);
+        var request = Assert.Single(handler.Requests);
+        Assert.EndsWith(useResponses ? "/responses" : "/chat/completions", request.RequestUri!.AbsolutePath, StringComparison.Ordinal);
+        using var document = System.Text.Json.JsonDocument.Parse(handler.RequestBodies.Single());
+        var root = document.RootElement;
+        Assert.True(root.TryGetProperty("tools", out _));
+        Assert.False(root.TryGetProperty("reasoning_effort", out _));
+        if (useResponses)
+        {
+            Assert.False(root.GetProperty("store").GetBoolean());
+        }
+
+        if (expected is null)
+        {
+            Assert.False(root.TryGetProperty("reasoning", out var reasoning) && reasoning.TryGetProperty("effort", out _));
+        }
+        else
+        {
+            Assert.Equal(expected, root.GetProperty("reasoning").GetProperty("effort").GetString());
+        }
     }
 
     private static AiChatCompletionRequest Request(params AiChatMessage[] messages) => new()

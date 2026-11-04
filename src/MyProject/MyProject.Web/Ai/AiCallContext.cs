@@ -39,6 +39,14 @@ public sealed record AiCallContext
     /// </summary>
     public string? ModelKey { get; init; }
 
+    /// <summary>
+    /// 改走 OpenAI Responses API（0.9.149 起；只有 Agent 測試台與 Agent 工作流程設為 true）。
+    /// 理由：Azure 的 <c>gpt-6.1-sol</c> 在 Chat Completions 上不能帶工具（不送推論等級會因「工具搭配推論」被拒、
+    /// 送 none 又不被接受），Responses API 則允許。一律 <c>store=false</c>，對話不留在雲端、每次送完整歷史。
+    /// AI 日誌分析、AI 例外分析、健康探測維持 Chat Completions。
+    /// </summary>
+    public bool UseResponsesApi { get; init; }
+
     /// <summary>上游回 <c>context_length_exceeded</c> 時給使用者看的完整訊息。</summary>
     public string ContextLengthExceededMessage { get; init; } = string.Empty;
 

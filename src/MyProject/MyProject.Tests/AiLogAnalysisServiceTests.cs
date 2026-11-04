@@ -360,6 +360,54 @@ public sealed class AiLogAnalysisServiceTests
         Assert.Contains("unsupported_parameter", result.ErrorMessage);
     }
 
+    /// <summary>
+    /// reasoning 參數被拒（0.9.149 起）：Agent 改走 Responses API 後只會是 AiSettings:AgentReasoningEffort 填了模型不接受的值
+    /// （Chat Completions 這條已不送）。不論上游的 param 寫成 reasoning_effort 或 reasoning.effort、有沒有 code，
+    /// 訊息都要指名設定並請使用者改為 null，而且不能出現空的「（代碼 ）」。
+    /// </summary>
+    [Theory]
+    [InlineData("reasoning_effort", null)]
+    [InlineData("reasoning_effort", "unsupported_value")]
+    [InlineData("reasoning.effort", "unsupported_value")]
+    public async Task AnalyzeAsync_ShouldTellUserHowToFix_WhenReasoningEffortRejected(string param, string? code)
+    {
+        var payload = $$"""
+            {
+              "error": {
+                "message": "Unsupported value: 'reasoning.effort' does not support 'none' with this model.",
+                "type": "invalid_request_error",
+                "param": "{{param}}",
+                "code": {{(code is null ? "null" : $"\"{code}\"")}}
+              }
+            }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Equal(AiAnalysisFailureReason.UpstreamError, result.Reason);
+        Assert.Contains("AiSettings:AgentReasoningEffort", result.ErrorMessage);
+        Assert.Contains("改為 null", result.ErrorMessage);
+        Assert.DoesNotContain("代碼", result.ErrorMessage);
+    }
+
+    /// <summary>上游沒給 code 時，通用的參數訊息不能組出空的「（代碼 ）」。</summary>
+    [Fact]
+    public async Task AnalyzeAsync_ShouldOmitEmptyErrorCode_WhenNamingRejectedParameter()
+    {
+        const string payload = """
+            { "error": { "message": "Unsupported parameter.", "type": "invalid_request_error", "param": "top_p" } }
+            """;
+        var (service, _) = CreateService(
+            CreateAzureSettings(), StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload));
+
+        var result = await service.AnalyzeAsync(CreateEntries(3));
+
+        Assert.Contains("top_p", result.ErrorMessage);
+        Assert.DoesNotContain("代碼", result.ErrorMessage);
+    }
+
     [Fact]
     public async Task AnalyzeAsync_ShouldMapTimeout()
     {

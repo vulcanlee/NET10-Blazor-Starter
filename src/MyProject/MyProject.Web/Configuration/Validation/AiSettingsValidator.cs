@@ -50,6 +50,14 @@ public sealed class AiSettingsValidator : IValidateOptions<AiSettings>
             errors.Add($"{Section}:Temperature", $"有填時必須介於 0 到 2 之間（留空表示使用模型預設），目前是 {options.Temperature}。");
         }
 
+        if (options.AgentReasoningEffort is { } effort
+            && !AiSettings.AgentReasoningEffortValues.Contains(effort, StringComparer.OrdinalIgnoreCase))
+        {
+            errors.Add(
+                $"{Section}:AgentReasoningEffort",
+                $"有填時只接受 {string.Join("、", AiSettings.AgentReasoningEffortValues)}（留空表示不送），目前是「{effort}」。");
+        }
+
         return errors.ToResult();
     }
 }

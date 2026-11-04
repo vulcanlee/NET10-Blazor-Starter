@@ -58,7 +58,8 @@ public sealed class AiCallLogPdfBuilderTests
     [InlineData("system", "系統提示（System）")]
     [InlineData("user", "使用者（User）")]
     [InlineData("assistant", "AI 助理（Assistant）")]
-    [InlineData("tool", "tool")]
+    [InlineData("tool", "工具結果（Tool）")]
+    [InlineData("developer", "developer")]
     [InlineData("", "（未標示角色）")]
     public void RoleLabel_ShouldNameEachRole(string role, string expected)
         => Assert.Equal(expected, AiCallLogPdfBuilder.RoleLabel(role));

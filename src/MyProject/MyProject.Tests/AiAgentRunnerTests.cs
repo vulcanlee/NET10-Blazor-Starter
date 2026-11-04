@@ -36,8 +36,8 @@ public sealed class AiAgentRunnerTests
     public async Task ReadTool_ShouldRunLoop_RecordEachModelCall_WithSameRunId()
     {
         guard.Allowed.Add(SampleTools.Read.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
-        upstream.Enqueue(AiSse.Build(["找到 1 筆。"]));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
+        upstream.Enqueue(AiSse.Responses(["找到 1 筆。"]));
         var chat = await StartAsync();
 
         var updates = await CollectAsync(chat.SendAsync("找專案 A"));
@@ -61,13 +61,27 @@ public sealed class AiAgentRunnerTests
         });
 
         Assert.Equal([(AuditActions.Ai.ToolInvoked, SampleTools.Read.Name, true)], guard.Audits);
+
+        // 0.9.149 起 Agent 走 Responses API、一律 store=false（Azure gpt-6.1-sol 在 Chat Completions 上不能帶工具）；
+        // 用量照樣從 Responses 原文解析出輸入／輸出／快取／推理。
+        Assert.All(handler.Requests, request => Assert.EndsWith("/responses", request.RequestUri!.AbsolutePath, StringComparison.Ordinal));
+        Assert.All(handler.RequestBodies, body => Assert.Contains("\"store\":false", body, StringComparison.Ordinal));
+        Assert.All(usage.Entries, entry =>
+        {
+            Assert.Equal(10, entry.InputCount);
+            Assert.Equal(2, entry.OutputCount);
+            Assert.Equal(4, entry.CachedInputCount);
+            Assert.Equal(1, entry.ReasoningCount);
+            Assert.Contains("input_tokens", entry.RawUsageJson, StringComparison.Ordinal);
+        });
+        Assert.All(callLog.Entries, entry => Assert.Equal(AiSse.Model, entry.Model));
     }
 
     [Fact]
     public async Task ReadTool_WithoutPermission_ShouldNotRun_AndTellModel()
     {
-        upstream.Enqueue(AiSse.ToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
-        upstream.Enqueue(AiSse.Build(["你沒有權限。"]));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
+        upstream.Enqueue(AiSse.Responses(["你沒有權限。"]));
         var chat = await StartAsync();
 
         var updates = await CollectAsync(chat.SendAsync("找專案 A"));
@@ -82,7 +96,7 @@ public sealed class AiAgentRunnerTests
     public async Task MutatingTool_ShouldPauseForApproval_ThenRunWhenApproved()
     {
         guard.Allowed.Add(SampleTools.Write.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"新內容"}"""));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"新內容"}"""));
         var chat = await StartAsync();
 
         var first = await CollectAsync(chat.SendAsync("把值改成新內容"));
@@ -95,7 +109,7 @@ public sealed class AiAgentRunnerTests
         Assert.True(chat.IsAwaitingApproval);
         Assert.Empty(sample.WriteCalls);
 
-        upstream.Enqueue(AiSse.Build(["已修改。"]));
+        upstream.Enqueue(AiSse.Responses(["已修改。"]));
         var second = await CollectAsync(chat.RespondAsync([approval.RequestId]));
 
         Assert.True(second[^1].Result!.Success);
@@ -111,11 +125,11 @@ public sealed class AiAgentRunnerTests
     public async Task MutatingTool_Rejected_ShouldNotRun_AndAuditRejection()
     {
         guard.Allowed.Add(SampleTools.Write.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
         var chat = await StartAsync();
         await CollectAsync(chat.SendAsync("改"));
 
-        upstream.Enqueue(AiSse.Build(["好的，沒有修改。"]));
+        upstream.Enqueue(AiSse.Responses(["好的，沒有修改。"]));
         var updates = await CollectAsync(chat.RespondAsync([]));
 
         Assert.True(updates[^1].Result!.Success);
@@ -127,8 +141,8 @@ public sealed class AiAgentRunnerTests
     [Fact]
     public async Task MutatingTool_WithoutPermission_ShouldBeRejectedWithoutAskingUser()
     {
-        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
-        upstream.Enqueue(AiSse.Build(["你沒有權限修改。"]));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
+        upstream.Enqueue(AiSse.Responses(["你沒有權限修改。"]));
         var chat = await StartAsync();
 
         var updates = await CollectAsync(chat.SendAsync("改"));
@@ -145,7 +159,7 @@ public sealed class AiAgentRunnerTests
     public async Task SendAsync_WhileAwaitingApproval_ShouldThrow()
     {
         guard.Allowed.Add(SampleTools.Write.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
         var chat = await StartAsync();
         await CollectAsync(chat.SendAsync("改"));
 
@@ -155,7 +169,7 @@ public sealed class AiAgentRunnerTests
     [Fact]
     public async Task Tools_ShouldBeSentToModel()
     {
-        upstream.Enqueue(AiSse.Build(["你好"]));
+        upstream.Enqueue(AiSse.Responses(["你好"]));
         var chat = await StartAsync();
 
         await CollectAsync(chat.SendAsync("嗨"));
@@ -170,8 +184,8 @@ public sealed class AiAgentRunnerTests
     public async Task Run_ShouldPersistTranscriptAndSession()
     {
         guard.Allowed.Add(SampleTools.Read.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
-        upstream.Enqueue(AiSse.Build(["找到 1 筆。"]));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
+        upstream.Enqueue(AiSse.Responses(["找到 1 筆。"]));
         var chat = await StartAsync();
 
         await CollectAsync(chat.SendAsync("找專案 A"));
@@ -190,7 +204,7 @@ public sealed class AiAgentRunnerTests
     [Fact]
     public async Task Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns()
     {
-        upstream.Enqueue(AiSse.Build(["第一輪回覆"]));
+        upstream.Enqueue(AiSse.Responses(["第一輪回覆"]));
         var first = await StartAsync();
         await CollectAsync(first.SendAsync("第一輪問題"));
 
@@ -199,13 +213,15 @@ public sealed class AiAgentRunnerTests
         Assert.NotNull(resumed);
         Assert.Equal(first.ConversationId, resumed.ConversationId);
         Assert.Equal(2, resumed.Transcript.Count);
-        upstream.Enqueue(AiSse.Build(["第二輪回覆"]));
+        upstream.Enqueue(AiSse.Responses(["第二輪回覆"]));
         await CollectAsync(resumed.SendAsync("第二輪問題"));
 
+        // ⚠️ store=false：雲端沒有保存前文，所以必須整段歷史重送，不能靠 previous_response_id（0.9.149 起走 Responses）。
         var body = handler.RequestBodies[^1];
         Assert.Contains("第一輪問題", body, StringComparison.Ordinal);
         Assert.Contains("第一輪回覆", body, StringComparison.Ordinal);
         Assert.Contains("第二輪問題", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("previous_response_id", body, StringComparison.Ordinal);
         Assert.Equal(4, store.Saved[first.ConversationId].Content.Transcript.Count);
 
         // 接續沿用原本的 ConversationId，AI 對話紀錄串得起來。
@@ -217,7 +233,7 @@ public sealed class AiAgentRunnerTests
     public async Task Resume_WhileAwaitingApproval_ShouldAskAgain_AndRunWhenApproved()
     {
         guard.Allowed.Add(SampleTools.Write.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"新內容"}"""));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"新內容"}"""));
         var first = await StartAsync();
         await CollectAsync(first.SendAsync("把值改成新內容"));
         Assert.True(store.Saved[first.ConversationId].HasPendingApproval);
@@ -230,7 +246,7 @@ public sealed class AiAgentRunnerTests
         Assert.Equal("寫入", approval.DisplayName);
         Assert.Contains(approval.Arguments, argument => argument.Key == "value" && argument.Value == "新內容");
 
-        upstream.Enqueue(AiSse.Build(["已修改。"]));
+        upstream.Enqueue(AiSse.Responses(["已修改。"]));
         var updates = await CollectAsync(resumed.RespondAsync([approval.RequestId]));
 
         Assert.True(updates[^1].Result!.Success);
@@ -244,7 +260,7 @@ public sealed class AiAgentRunnerTests
     public async Task Resume_WithRemovedTool_ShouldAutoRejectWithNextMessage()
     {
         guard.Allowed.Add(SampleTools.Write.Name);
-        upstream.Enqueue(AiSse.ToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
         var first = await StartAsync();
         await CollectAsync(first.SendAsync("改"));
         var readOnlyAgent = SampleTools.Agent with { Tools = [SampleTools.Read] };
@@ -253,7 +269,7 @@ public sealed class AiAgentRunnerTests
 
         Assert.NotNull(resumed);
         Assert.False(resumed.IsAwaitingApproval);
-        upstream.Enqueue(AiSse.Build(["好的。"]));
+        upstream.Enqueue(AiSse.Responses(["好的。"]));
         var updates = await CollectAsync(resumed.SendAsync("算了"));
 
         Assert.True(updates[^1].Result!.Success);
@@ -264,7 +280,7 @@ public sealed class AiAgentRunnerTests
     [Fact]
     public async Task Resume_ShouldReturnNull_WhenNotFoundOrAnotherAgent()
     {
-        upstream.Enqueue(AiSse.Build(["你好"]));
+        upstream.Enqueue(AiSse.Responses(["你好"]));
         var chat = await StartAsync();
         await CollectAsync(chat.SendAsync("嗨"));
 
@@ -285,7 +301,7 @@ public sealed class AiAgentRunnerTests
     [Fact]
     public async Task Cancel_MidStream_ShouldKeepPartialReplyAndPersist()
     {
-        upstream.Enqueue(AiSse.Build(["第一段", "第二段"]));
+        upstream.Enqueue(AiSse.Responses(["第一段", "第二段"]));
         var chat = await StartAsync();
         using var cts = new CancellationTokenSource();
 
