@@ -290,6 +290,14 @@ function Insert-After([string]$text, [string]$anchor, [string]$snippet) {
     return $text.Insert($index + $anchor.Length, $snippet)
 }
 
+# 同一個檔案要登記好幾處時用：任一處找不到錨點就停（Insert-After 找不到會原樣回傳，只改一部分時 Update-Source 抓不到）。
+function Insert-AfterRequired([string]$text, [string]$anchor, [string]$snippet, [string]$label) {
+    if ($text.IndexOf($anchor, [StringComparison]::Ordinal) -lt 0) {
+        throw "找不到登記位置：$label（錨點：$($anchor.Trim())）。樣板或錨點需要更新。"
+    }
+    return Insert-After $text $anchor $snippet
+}
+
 function Insert-Before([string]$text, [string]$anchor, [string]$snippet) {
     $index = $text.IndexOf($anchor, [StringComparison]::Ordinal)
     if ($index -lt 0) { return $text }
@@ -442,8 +450,25 @@ Update-Source 'MyProject.Web/Components/_Imports.razor' '_Imports.razor' "@using
 
 Update-Source 'MyProject.Business/Services/DataAccess/SoftDeletePurgeService.cs' '已刪除資料清理（服務）' "PurgeTypeAsync<$Name>(" {
     param($t)
-    $anchor = "        await PurgeTypeAsync<Category>(result, nameof(Category), cutoffLocal, x => x.Id, x => x.Name,`n            isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);`n"
-    Insert-After $t $anchor "`n        await PurgeTypeAsync<$Name>(result, nameof($Name), cutoffLocal, x => x.Id, x => x.Name,`n            isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken);`n"
+    # 0.9.133 起分三處：清除順序（PurgeExpiredAsync 依它逐一清）、只清一種的 switch、資料保留頁的統計。
+    $label = '已刪除資料清理（服務）'
+    $t = Insert-AfterRequired $t 'nameof(Project), nameof(Category), ' "nameof($Name), " $label
+    $t = Insert-AfterRequired $t "            nameof(Category) => PurgeTypeAsync<Category>(result, nameof(Category), cutoffLocal, x => x.Id, x => x.Name,`n                isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken),`n" "`n            nameof($Name) => PurgeTypeAsync<$Name>(result, nameof($Name), cutoffLocal, x => x.Id, x => x.Name,`n                isProtected: null, isInUse: null, include: null, attachmentsOf: null, order: null, cancellationToken),`n" $label
+    Insert-AfterRequired $t "            [nameof(Category)] = await StatsOfAsync(context.Set<Category>(), cutoffLocal),`n" "            [nameof($Name)] = await StatsOfAsync(context.Set<$Name>(), cutoffLocal),`n" $label
+}
+
+Update-Source 'MyProject.Web/DataRetention/DataRetentionOverviewService.cs' '資料保留與清理（已刪除資料）' "`"deleted-$routeKey`"" {
+    param($t)
+    # 產生的頁面不接 ?deleted=1，「前往」連到一般清單。
+    $label = '資料保留與清理（已刪除資料）'
+    $t = Insert-AfterRequired $t "            (nameof(Category), `"deleted-category`", `"已刪除的分類`", `"/categories?deleted=1`"),`n" "            (nameof($Name), `"deleted-$routeKey`", `"已刪除的$item`", `"$Route`"),`n" $label
+    $t = Insert-AfterRequired $t "        `"deleted-category`" => nameof(Category),`n" "        `"deleted-$routeKey`" => nameof($Name),`n" $label
+    Insert-AfterRequired $t "        nameof(Category) => AuditActions.Category.Purge,`n" "        nameof($Name) => AuditActions.$Name.Purge,`n" $label
+}
+
+Update-Source 'MyProject.Tests/DataRetentionOverviewServiceTests.cs' '資料保留與清理測試' "`"deleted-$routeKey`"" {
+    param($t)
+    Insert-AfterRequired $t '["deleted-project", "deleted-category", ' "`"deleted-$routeKey`", " '資料保留與清理測試'
 }
 
 Update-Source 'MyProject.Web/Scheduling/Jobs/SoftDeletePurgeJob.cs' '已刪除資料清理（作業稽核）' "[`"$Name`"] = (AuditActions.$Name.AutoPurge" {

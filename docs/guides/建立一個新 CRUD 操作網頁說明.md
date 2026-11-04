@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.1
+- 文件版本：2.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.152
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/04
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -73,7 +73,8 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `RolePermissionService`（一般）或 `AdminOnlyPermissionTests`＋`MenuPermissionConsistencyTests.AdminOnlyViews`（管理員專屬） | 角色權限矩陣；預設角色在下次啟動時自動加入新頁面 |
 | `MenuPermissionConsistencyTests.ViewToMenuId`（一般） | 檢視檔與選單 id 的對照 |
 | `HelpTopics.json`、`_Imports.razor` | 操作說明目錄、檢視命名空間 |
-| `SoftDeletePurgeService`、`SoftDeletePurgeJob` | 排程作業「已刪除資料清理」與它的稽核 |
+| `SoftDeletePurgeService`、`SoftDeletePurgeJob` | 排程作業「已刪除資料清理」與它的稽核；服務裡有三處：清除順序 `EntityTypes`、只清一種的 switch、資料保留頁的統計（0.9.152 起產生器三處都登記） |
+| `DataRetentionOverviewService`、`DataRetentionOverviewServiceTests` | 「資料保留與清理」頁的「已刪除的…」一列、自訂清除與它的稽核（`<Name>.Purge`）；「前往」連到一般清單（產生的頁面不接 `?deleted=1`）（0.9.152 起） |
 | `OptimisticConcurrencyTests`、`SoftDeleteUserRoleTests`、`SoftDeletePurgeTests` | 並行與軟刪除的實體清單、清理測試 |
 | `DataAccessServiceLifetimeTests`、`AdapterModelCloneTests`、`ApiIntegrationTests`、`MenuIconTests` | 服務生命週期、Clone、API DI 解析、選單圖示 |
 
