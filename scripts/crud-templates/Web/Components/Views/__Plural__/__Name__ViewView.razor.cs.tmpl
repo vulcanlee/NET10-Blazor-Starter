@@ -64,6 +64,9 @@ public partial class __Name__ViewView
     private string sortField = string.Empty;
     private string sortDirection = "None";
     private bool showDeleted;
+
+    /// <summary>有刪除權限（勾選欄與「刪除選取」用；0.9.150 起不用 RequirePermission 包勾選欄，見 razor 的註解）。</summary>
+    private bool canDelete;
     private string RoleMessage = string.Empty;
     private bool isAccessChecked;
 
@@ -130,6 +133,7 @@ public partial class __Name__ViewView
         }
 
         isAccessChecked = true;
+        canDelete = AuthenticationStateHelper.CheckAccessAction(MagicObjectHelper.__PermConst__, PermissionActions.Delete);
 
 #IF ADMIN
         if (AuthenticationStateHelper.CheckIsAdmin() == false)

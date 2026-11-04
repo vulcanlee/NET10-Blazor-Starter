@@ -32,6 +32,57 @@ public sealed class BatchDeleteConventionTests
                 + string.Join(Environment.NewLine, violations));
     }
 
+    /// <summary>
+    /// ⚠️ 勾選欄 <c>&lt;Selection</c> 不可包在 <c>&lt;RequirePermission&gt;</c>（或任何元件）裡，要用表格內的 <c>@if</c>（0.9.150）。
+    /// 包起來時 AntDesign 會讓第 3 列起的欄位序號錯位，右側固定的操作欄讀到沒寬度的欄而丟 ArgumentNullException，
+    /// 整頁空白 —— 資料不到 3 列時看不出來（專案頁有了 10 筆測試專案才爆出來）。
+    /// 行為由 <c>TableSelectionContractTests.SelectionWrappedInComponent_WithRightFixedColumn_ShouldThrowFromThirdRow</c> 鎖住。
+    /// CRUD 產生器的樣板一併檢查，產生出來的新模組才不會帶著這個問題。
+    /// </summary>
+    [Fact]
+    public void Selection_ShouldNotBeWrappedInRequirePermission()
+    {
+        var componentsRoot = FindComponentsRoot();
+        var templateRoot = Path.Combine(componentsRoot, "..", "..", "..", "..", "scripts", "crud-templates");
+        var files = Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories)
+            .Concat(Directory.Exists(templateRoot)
+                ? Directory.EnumerateFiles(templateRoot, "*.razor.tmpl", SearchOption.AllDirectories)
+                : [])
+            .ToList();
+
+        var violations = files
+            .Select(path => (Name: Path.GetFileName(path), Text: File.ReadAllText(path)))
+            .Where(x => IsSelectionInsideRequirePermission(x.Text))
+            .Select(x => $"{x.Name}：<Selection> 包在 <RequirePermission> 裡，請改用表格內的 @if。")
+            .ToList();
+
+        Assert.True(Directory.Exists(templateRoot), $"找不到 CRUD 樣板目錄：{templateRoot}");
+        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 某個 <c>&lt;Selection</c> 之前最近的 <c>&lt;RequirePermission</c> 還沒關閉，就是包在裡面。
+    /// Razor 註解（<c>@* … *@</c>）先拿掉 —— 說明這條規則的註解本身就會提到這兩個標籤。
+    /// </summary>
+    private static bool IsSelectionInsideRequirePermission(string text)
+    {
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"@\*.*?\*@", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
+        var index = 0;
+        while ((index = text.IndexOf("<Selection", index, StringComparison.Ordinal)) >= 0)
+        {
+            var open = text.LastIndexOf("<RequirePermission", index, StringComparison.Ordinal);
+            var close = text.LastIndexOf("</RequirePermission>", index, StringComparison.Ordinal);
+            if (open >= 0 && open > close)
+            {
+                return true;
+            }
+
+            index++;
+        }
+
+        return false;
+    }
+
     private static string FindComponentsRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
