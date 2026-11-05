@@ -1,10 +1,10 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.32
+- 文件版本：2.33
 - 文件狀態：維護中
-- 現行系統版本：0.9.151
+- 現行系統版本：0.9.154
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/05
 
 本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）、Token 用量／費用計價、AI 對話紀錄（0.9.72 起，管理員專屬、保存完整 Prompt／Response）與 AI Agent（0.9.142 起，會呼叫工具的 Agent 與多 Agent 工作流程，見「AI Agent」PRD）**（見「日誌檢視」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」「AI 對話紀錄」PRD，機制見 [AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
@@ -14,7 +14,7 @@
 |----------|-----|-----------|--------------|------|----------|
 | 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Pages/HomeAuthed.razor`、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗）、`PageHelpDialog`／`PageHelpService`／`Datas/HelpTopics.json`＋`Datas/Help/*.md`（頂欄「操作說明」對話窗，每個登入後頁面一份） | 已實作（0.9.66 起含頁面操作說明對話窗；0.9.121 起說明窗可切換字體小／中／大）| 0.9.135 |
 | 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.136 |
-| 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController`、`ProjectFileController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核）| 0.9.136 |
+| 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController`、`ProjectFileController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核；0.9.145 起 Agent 測試台可產生／清除測試專案）| 0.9.145 |
 | 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作（0.9.120 起點狀態標籤切換啟用／停用）| 0.9.136 |
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.9.144 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用） | 0.9.135 |
