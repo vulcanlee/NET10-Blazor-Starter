@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.9.149
+- 現行系統版本：0.9.153
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/05
 
 > ⚠️ **腳手架沒有 CI。** 原本的 GitHub Actions 工作流程已於 **2026-09-20** 移除，repo 根目錄沒有 `.github/` 資料夾。
 > **沒有任何機制會自動擋下違規**，品質關卡全靠提交前在本機執行 `scripts/Invoke-QualityGate.ps1`（0.9.89 起，見 §1）。
@@ -29,7 +29,8 @@ pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）
 | 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
 | 4 | Test | `dotnet test --configuration Release --no-build` | 1774 個測試（0.9.136），含十多組慣例守門測試 |
 | 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
-| 6 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
+| 6 | CRUD anchors | `scripts/New-CrudModule.ps1 -CheckAnchors`（一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒）| CRUD 產生器的登記錨點失效：被登記的檔案改了寫法，產生器下次使用時才會「找不到登記位置」（0.9.153 起；0.9.133 起壞了兩週才發現）。只檢查插得進去、不寫檔；產出的模組能否建置與通過測試仍要跑 `Test-CrudGenerator.ps1`。repo 沒有產生器時略過 |
+| 7 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
 
 **為什麼用 Release**：與部署產物一致；而且開發中的網站鎖住的是 Debug 的 `bin`，
 用 Release 建置不會跟它搶檔案，網站開著也能跑關卡。
@@ -116,7 +117,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 `dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。發現弱點時應升級對應套件版本。
 
-> 現況（0.9.89 起）：已納入本機品質關卡（§1 第 6 步），允許清單是 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`。
+> 現況（0.9.89 起）：已納入本機品質關卡（§1 第 7 步），允許清單是 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`。
 
 為降低 NuGet 來源偶發逾時造成的假失敗，品質關卡在開頭把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180（你自己設定過就不覆蓋），涵蓋其後全部步驟。
 

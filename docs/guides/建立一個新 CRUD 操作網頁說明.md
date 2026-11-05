@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.2
+- 文件版本：2.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.152
+- 現行系統版本：0.9.153
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/05
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -37,6 +37,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `-Preview` | 關 | 只產生檔案到 `-OutputPath`，不登記、不產生 migration |
 | `-OutputPath` | `output/crud-modules` | `-Preview` 的輸出目錄（相對 repo 根目錄），檔案寫在 `<OutputPath>/<Name>/` 底下 |
 | `-Force` | 關 | 略過工作目錄檢查；之前產生過的檔案保留不覆蓋（用來重跑登記） |
+| `-CheckAnchors` | 關 | 只檢查每一項登記都找得到錨點，不寫任何檔案、不產生 migration；`-Name`／`-Icon` 須是不存在的名稱（遇到「已存在」當作失敗）。品質關卡的「CRUD anchors」步驟用它（0.9.153 起） |
 
 ## 3. 產生了哪些檔案
 
@@ -100,7 +101,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1            # 數分鐘；-KeepWorktree 保
 在暫存的 git worktree（以目前工作目錄為準，含未提交的變更；不動你的 index）產生三個範例模組（一般、`-WithTeams`、`-AdminOnly`），
 建置、格式檢查、全部測試、文件編碼，再以 `-Force` 重跑確認沒有任何檔案再被改動。它不在品質關卡裡（太慢），**修改產生器、樣板或任何被登記的檔案的錨點之後必跑**。
 
-⚠️ 登記是以既有程式碼為錨點插入的（例如 `services.AddScoped<CategoryRepository>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`，`Test-CrudGenerator.ps1` 會先失敗告訴你。
+⚠️ 登記是以既有程式碼為錨點插入的（例如 `services.AddScoped<CategoryRepository>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`。0.9.153 起**品質關卡會擋下**（「CRUD anchors」步驟以 `-CheckAnchors` 跑一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒），失敗訊息指名是哪一項登記；它只確認插得進去，產出的模組能不能建置、通過測試，仍要跑 `Test-CrudGenerator.ps1`。
 
 ## 7. 已知限制
 

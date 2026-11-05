@@ -51,6 +51,11 @@
 .PARAMETER Force
     略過「工作目錄必須乾淨」的檢查；之前由本產生器寫出的檔案保留不覆蓋（用來重跑登記）。
 
+.PARAMETER CheckAnchors
+    只檢查每一項登記都找得到錨點（0.9.153 起，品質關卡的「CRUD anchors」）：照常執行每一項登記的插入，
+    但不寫任何檔案、不產生樣板、不產生 migration。-Name／-Icon 請用不存在的名稱，遇到「已存在」會當作失敗。
+    只確認插得進去；產出的模組能不能建置、通過測試，仍要跑 scripts/Test-CrudGenerator.ps1。
+
 .EXAMPLE
     ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 
@@ -86,7 +91,9 @@ param(
 
     [string]$OutputPath = 'output/crud-modules',
 
-    [switch]$Force
+    [switch]$Force,
+
+    [switch]$CheckAnchors
 )
 
 $ErrorActionPreference = 'Stop'
@@ -210,7 +217,7 @@ $outputs = foreach ($template in Get-ChildItem -LiteralPath $templateRoot -Recur
 #endregion
 
 #region 檢查
-if (-not $Preview) {
+if (-not $Preview -and -not $CheckAnchors) {
     if (-not $Force) {
         $dirty = git -C $repoRoot status --porcelain
         if ($dirty) {
@@ -243,7 +250,7 @@ if (-not $Preview) {
 #region 寫檔
 $written = [System.Collections.Generic.List[string]]::new()
 $kept = [System.Collections.Generic.List[string]]::new()
-foreach ($output in $outputs) {
+foreach ($output in $(if ($CheckAnchors) { @() } else { $outputs })) {
     if (-not $Preview -and (Test-Path -LiteralPath $output.Target)) {
         $kept.Add($output.Relative)
         continue
@@ -274,11 +281,17 @@ function Update-Source([string]$relativePath, [string]$label, [string]$marker, [
     $crlf = $original.Contains("`r`n")
     $text = $original.Replace("`r`n", "`n")
     if ($text.Contains($marker)) {
+        # 檢查模式用的是不存在的名稱；「已存在」代表這一項的錨點根本沒被檢查到。
+        if ($CheckAnchors) { throw "錨點檢查遇到已存在的登記：$label（$relativePath）。請換一個不會撞名的 -Name／-Icon。" }
         $report.Add("略過（已存在）：$label")
         return
     }
     $updated = & $transform $text
     if ($updated -eq $text) { throw "找不到登記位置：$label（$relativePath）。樣板或錨點需要更新。" }
+    if ($CheckAnchors) {
+        $report.Add("錨點可用：$label")
+        return
+    }
     if ($crlf) { $updated = $updated.Replace("`n", "`r`n") }
     [IO.File]::WriteAllText($path, $updated, [Text.UTF8Encoding]::new($hasBom))
     $report.Add("已登記：$label")
@@ -503,6 +516,11 @@ Update-Source 'MyProject.Tests/MenuIconTests.cs' "選單圖示允許清單（$Ic
     $setStart = $t.IndexOf('AllowedIcons', [StringComparison]::Ordinal)
     $close = $t.IndexOf("`n    };", $setStart, [StringComparison]::Ordinal)
     $t.Insert($close + 1, "        `"$Icon`",`n")
+}
+
+if ($CheckAnchors) {
+    Write-Host "CRUD 產生器錨點檢查通過（$($report.Count) 項$(if ($AdminOnly) { '，管理員專屬' })$(if ($WithTeams) { '，含團隊' })）。"
+    return
 }
 #endregion
 
