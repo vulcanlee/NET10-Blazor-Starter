@@ -55,6 +55,25 @@ function Invoke-VulnerabilityScan {
     Write-Host "Vulnerability scan passed (allow list: $($allowedAdvisories -join ', '))."
 }
 
+# CRUD 產生器的登記錨點（0.9.153 起）：被登記的檔案改了寫法、錨點對不上時，產生器要到下次有人用才會壞
+# （0.9.133 到 0.9.152 就壞了兩週）。這裡以 -CheckAnchors 跑一次真正的登記邏輯但不寫檔，幾秒內完成；
+# 三種組合涵蓋與 Test-CrudGenerator.ps1 相同的分支。產出的模組能否建置、通過測試仍要跑 Test-CrudGenerator.ps1。
+function Invoke-CrudAnchorCheck {
+    $generator = Join-Path $PSScriptRoot "New-CrudModule.ps1"
+    if (-not (Test-Path -LiteralPath $generator)) {
+        Write-Host "scripts/New-CrudModule.ps1 not found; skipped."
+        return
+    }
+
+    # Icon 用不存在的名稱，「選單圖示允許清單」這一項才會真的檢查到錨點。
+    $probe = @{ Name = "CrudAnchorProbe"; DisplayName = "產生器錨點檢查"; Icon = "crud_anchor_probe"; CheckAnchors = $true }
+    foreach ($extra in @(@{}, @{ WithTeams = $true }, @{ AdminOnly = $true; MenuGroupId = 8 })) {
+        $arguments = $probe.Clone()
+        foreach ($key in $extra.Keys) { $arguments[$key] = $extra[$key] }
+        & $generator @arguments
+    }
+}
+
 # Release：與 2026-09-20 移除的 CI 一致；而且開發中的網站鎖住的是 Debug 的 bin，用 Release 建置不會跟它搶檔案。
 $steps = @(
     @{ Name = "Restore"; Action = { & dotnet restore $solution } },
@@ -62,6 +81,7 @@ $steps = @(
     @{ Name = "Format"; Action = { & dotnet format $solution --verify-no-changes --no-restore } },
     @{ Name = "Test"; Action = { & dotnet test $solution --configuration Release --no-build } },
     @{ Name = "Docs encoding"; Action = { & (Join-Path $PSScriptRoot "Test-DocsEncoding.ps1") } },
+    @{ Name = "CRUD anchors"; Action = { Invoke-CrudAnchorCheck } },
     @{ Name = "Vulnerability"; Action = { Invoke-VulnerabilityScan }; SkipWhenQuick = $true }
 )
 

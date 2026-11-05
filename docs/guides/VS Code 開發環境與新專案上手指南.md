@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.6
+- 文件版本：3.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.153
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/05
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -702,7 +702,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 跑一次品質關卡。本專案**沒有 CI**（`.github/workflows/dotnet-ci.yml` 已於 2026-09-20 移除），所以每次提交前都要自己跑；要自行建立 CI 可參考 [CI-CD 與品質檢查](../operations/CI-CD與品質檢查.md)：
 
 ```powershell
-# restore → Release 建置（任何警告都會失敗）→ format → 測試（守門測試會抓出漏改的專案名）→ 文件編碼 → 弱點掃描
+# restore → Release 建置（任何警告都會失敗）→ format → 測試（守門測試會抓出漏改的專案名）→ 文件編碼 → CRUD 產生器錨點 → 弱點掃描
 pwsh ./scripts/Invoke-QualityGate.ps1
 ```
 

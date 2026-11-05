@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.81
+- 文件版本：6.82
 - 文件狀態：維護中
-- 現行系統版本：0.9.152
+- 現行系統版本：0.9.153
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/05
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 品質關卡加入「CRUD anchors」：`New-CrudModule.ps1` 新增 `-CheckAnchors`（照常執行每一項登記的插入但不寫檔、不產生樣板與 migration，遇到「已存在」當作失敗），品質關卡在文件編碼之後以一般、`-WithTeams`、`-AdminOnly` 三種組合執行（約 1～2 秒），被登記的檔案改寫後錨點對不上時提交前就擋下並指名是哪一項（0.9.153）| [2026-11-05-品質關卡加入CRUD產生器錨點檢查](2026-11-05-品質關卡加入CRUD產生器錨點檢查.md) |
 | 修正 CRUD 產生器：0.9.133～0.9.134 把 `SoftDeletePurgeService` 改成清除順序／switch／統計三處，`New-CrudModule.ps1` 仍找舊的逐行寫法而停在「找不到登記位置：已刪除資料清理（服務）」；三處都登記，並新增「資料保留與清理」頁（`DataRetentionOverviewService` 與其測試）的登記；新增 `Insert-AfterRequired`，同一檔多處登記任一處找不到錨點就停；`Test-CrudGenerator.ps1` 全部通過（含 0.9.150 的勾選欄樣板、重跑冪等）（0.9.152）| [2026-11-04-修正CRUD產生器登記錨點](2026-11-04-修正CRUD產生器登記錨點.md) |
 | 新增 AI Agent PRD（Agent 測試台與 Agent 工作流程原本只有架構文件與 changelog，不在 PRD 能力矩陣裡）：目的與範圍、權限、工具與核准、對話保存、兩條工作流程、模型、Responses API、推論等級（預設 `null`，Azure `gpt-6.1-sol` 實際為 `medium`；以設定檔 `AiSettings:AgentReasoningEffort` 全域調整）、記帳與資料生命週期；AI 對話紀錄 PRD 補上 0.9.149 的 Responses 解析與工具結果角色，系統參數 PRD 註明推論等級不在系統參數頁（0.9.151）| [2026-11-04-AI-Agent-PRD](2026-11-04-AI-Agent-PRD.md) |
 | 修正專案清單頁整頁空白：勾選欄 `<Selection />` 包在 `<RequirePermission>` 裡時，AntDesign 從第 3 列起欄位序號錯位，右側固定的操作欄讀到沒寬度的欄而丟 `ArgumentNullException`；專案、分類、團隊頁與 CRUD 樣板改為 code-behind 算 `canDelete`（同一份 `PermissionRules.CanAccessAction`）再用表格內 `@if`；`BatchDeleteConventionTests` 守門、`TableSelectionContractTests` 鎖住 AntDesign 行為（0.9.150）| [2026-11-04-修正勾選欄造成清單頁空白](2026-11-04-修正勾選欄造成清單頁空白.md) |
