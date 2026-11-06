@@ -70,18 +70,23 @@ public sealed class AdminAssistantAgentTests
         Assert.All(AdminAssistantAgent.ReadTools, tool => Assert.Contains(tool, definition.Tools));
     }
 
-    /// <summary>里程碑 3（0.9.158）：22 個可復原的異動工具（帳號 10、監控 4、AI 2、維運 6），都要核准、都有核准說明，Home 共 48 個。</summary>
+    /// <summary>
+    /// 里程碑 3～4：各領域的異動工具＝可復原（帳號 10、監控 4、AI 2、維運 6）＋不可復原（帳號 4、監控 2、AI 3、維運 5），
+    /// 另有共用的 custom_purge；都要核准、都有核准說明。Home 共 26＋22＋15＝63 個，名稱不重複。
+    /// </summary>
     [Fact]
     public void MutatingTools_PerDomain_AllRequireApprovalWithNote()
     {
         var mutating = AdminAssistantAgent.MutatingTools;
 
-        Assert.Equal(10, mutating[AdminAssistantDomain.Accounts].Count);
-        Assert.Equal(4, mutating[AdminAssistantDomain.Monitoring].Count);
-        Assert.Equal(2, mutating[AdminAssistantDomain.Ai].Count);
-        Assert.Equal(6, mutating[AdminAssistantDomain.Ops].Count);
-        Assert.Equal(48, AdminAssistantAgent.Home.Tools.Count);
-        Assert.All(mutating.Values.SelectMany(tools => tools), tool =>
+        Assert.Equal(14, mutating[AdminAssistantDomain.Accounts].Count);
+        Assert.Equal(6, mutating[AdminAssistantDomain.Monitoring].Count);
+        Assert.Equal(5, mutating[AdminAssistantDomain.Ai].Count);
+        Assert.Equal(11, mutating[AdminAssistantDomain.Ops].Count);
+        Assert.Equal(["custom_purge"], AdminAssistantAgent.SharedMutatingTools.Select(tool => tool.Name));
+        Assert.Equal(63, AdminAssistantAgent.Home.Tools.Count);
+        Assert.Equal(15, AdminAssistantAgent.Home.Tools.Count(tool => tool.IsIrreversible));
+        Assert.All(mutating.Values.SelectMany(tools => tools).Concat(AdminAssistantAgent.SharedMutatingTools), tool =>
         {
             Assert.True(tool.IsMutating, tool.Name);
             Assert.False(string.IsNullOrWhiteSpace(tool.ApprovalNote), tool.Name);
@@ -99,6 +104,41 @@ public sealed class AdminAssistantAgentTests
         Assert.Contains("一次最多 50 筆", text, StringComparison.Ordinal);
         Assert.Contains("不要換個方式再試", text, StringComparison.Ordinal);
         Assert.Contains("不可復原", text, StringComparison.Ordinal);
+
+        // 0.9.159 起不可復原的動作也能做：先列出對象或預覽筆數、提醒無法復原；依天數或日期清除一律用 custom_purge。
+        Assert.Contains("preview_data_purge", text, StringComparison.Ordinal);
+        Assert.Contains("custom_purge", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("目前不能代為操作", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("不能代為操作", AdminAssistantAgent.DefaultOpsInstructions, StringComparison.Ordinal);
+        Assert.Contains("baseVersion", AdminAssistantAgent.DefaultAiInstructions, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 實機發現（0.9.159）：前文一直在談維運時，「徹底刪除 temp-b」被分到 ops，帳號工具沒有載入。
+    /// 分派要以訊息本身提到的對象為準，前文只用來補足「他」「那些」這類指稱。
+    /// </summary>
+    [Fact]
+    public void RouterInstructions_ExplicitTargetsWinOverContext()
+    {
+        var text = AdminAssistantAgent.DefaultRouterInstructions;
+
+        Assert.Contains("以這則訊息本身提到的對象為準", text, StringComparison.Ordinal);
+        Assert.Contains("帳號、角色或 2FA", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>custom_purge 分派到任一專家領域都載入（「清除舊的稽核紀錄」會分到帳號）；跨領域時不重複；巡檢不載入。</summary>
+    [Fact]
+    public void DefinitionFor_SharedPurgeTool_AnyExpertDomain_NoDuplicates()
+    {
+        foreach (var domain in AdminAssistantAgent.ExpertDomains)
+        {
+            Assert.Contains(AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { domain }).Tools, tool => tool.Name == "custom_purge");
+        }
+
+        var all = AdminAssistantAgent.DefinitionFor(AdminAssistantAgent.ExpertDomains.ToHashSet()).Tools;
+        Assert.Equal(all.Count, all.Select(tool => tool.Name).Distinct().Count());
+        Assert.DoesNotContain(AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Patrol }).Tools,
+            tool => tool.Name == "custom_purge");
     }
 
     /// <summary>異動工具只在分派到該領域時載入；巡檢或沒分出領域時只有唯讀工具（巡檢不會順手改東西）。</summary>

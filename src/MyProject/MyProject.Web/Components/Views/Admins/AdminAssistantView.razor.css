@@ -317,3 +317,23 @@
     max-height: 240px;
     overflow-y: auto;
 }
+
+/* 不可復原的動作（0.9.159 起）：紅字警告與「輸入確認」欄位；顏色只用 theme.css 的 token（同 .alert-danger）。 */
+.admin-assistant-approval-irreversible {
+    margin: 4px 0 8px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--app-error);
+    background: var(--app-tint);
+    color: var(--app-error);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.admin-assistant-approval-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+    color: var(--app-error);
+    font-size: 13px;
+}

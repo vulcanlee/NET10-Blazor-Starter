@@ -250,7 +250,7 @@ public sealed class AdminAssistantToolsTests
         var services = new ServiceCollection()
             .AddSingleton(CreateMonitoringTools())
             .AddSingleton(new OpsAssistantTools(null!, null!, null!, null!, null!, null!, audit, currentUser, null!, null!))
-            .AddSingleton(new AccountsAssistantTools(null!, null!, null!, audit, currentUser, null!))
+            .AddSingleton(new AccountsAssistantTools(null!, null!, null!, audit, currentUser, null!, null!))
             .AddSingleton(new AiAssistantTools(null!, null!, null!, null!, audit, currentUser))
             .BuildServiceProvider();
 

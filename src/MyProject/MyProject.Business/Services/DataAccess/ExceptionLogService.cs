@@ -267,6 +267,14 @@ public class ExceptionLogService
         return result;
     }
 
+    /// <summary>用編號讀一筆（0.9.159 起，系統管理助理刪除前取得例外類型寫稽核）；不存在時回 null。</summary>
+    public async Task<ExceptionLogAdapterModel?> GetByIdAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var item = await context.ExceptionLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        return item is null ? null : Mapper.Map<ExceptionLogAdapterModel>(item);
+    }
+
     /// <summary>讀取堆疊全文。檔案不存在時回 null，由畫面顯示友善訊息。</summary>
     public async Task<string?> GetStackTraceAsync(int id)
     {

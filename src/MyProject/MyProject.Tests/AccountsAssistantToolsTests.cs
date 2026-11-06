@@ -170,7 +170,9 @@ public sealed class AccountsAssistantToolsTests
             settings.ExternalFileSystem.AuditContentPath = Path.Combine(Path.GetTempPath(), "aa-audit-" + Guid.NewGuid().ToString("N"));
             var auditQuery = new AuditLogQueryService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<AuditLogQueryService>(),
                 new AuditContentFileStore(Options.Create(settings), loggerFactory.CreateLogger<AuditContentFileStore>()));
-            Tools = new AccountsAssistantTools(users, roles, auditQuery, Audit, Current, new RolePermissionService());
+            var twoFactor = new TwoFactorService(new TestDbContextFactory(connection), null!, null!, null!, null!,
+                Options.Create(new BootstrapSettings()), TimeProvider.System, auditLog, Current, loggerFactory.CreateLogger<TwoFactorService>());
+            Tools = new AccountsAssistantTools(users, roles, auditQuery, Audit, Current, new RolePermissionService(), twoFactor);
         }
 
         public BackendDBContext Context { get; }

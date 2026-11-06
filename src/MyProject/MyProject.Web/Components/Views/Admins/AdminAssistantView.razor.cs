@@ -57,6 +57,9 @@ public partial class AdminAssistantView : IDisposable
     private string streamingHtml = string.Empty;
     private bool approvalVisible;
     private IReadOnlyList<AiToolApprovalRequest> pendingApprovals = [];
+
+    /// <summary>核准窗的確認輸入（0.9.159 起，有不可復原的動作時才出現）；每次決定後清空。</summary>
+    private string confirmInput = string.Empty;
     private bool renameVisible;
     private Guid renameTarget;
     private string renameTitle = string.Empty;
@@ -156,6 +159,7 @@ public partial class AdminAssistantView : IDisposable
             if (resumed.IsAwaitingApproval)
             {
                 pendingApprovals = resumed.PendingApprovals;
+                confirmInput = string.Empty;
                 approvalVisible = true;
             }
         }
@@ -260,9 +264,16 @@ public partial class AdminAssistantView : IDisposable
             return;
         }
 
+        // 按鈕停用之外再擋一次：不可復原的動作沒有輸入「確認」就不核准。
+        if (approve && AdminAssistantApproval.CanApprove(pendingApprovals, confirmInput) == false)
+        {
+            return;
+        }
+
         approvalVisible = false;
         var ids = approve ? pendingApprovals.Select(item => item.RequestId).ToList() : [];
         pendingApprovals = [];
+        confirmInput = string.Empty;
 
         var current = chat;
         await RunAsync(token => current.RespondAsync(ids, token));
@@ -318,6 +329,7 @@ public partial class AdminAssistantView : IDisposable
                 {
                     ClearStreaming(streamed);
                     pendingApprovals = approvals;
+                    confirmInput = string.Empty;
                     approvalVisible = true;
                     continue;
                 }

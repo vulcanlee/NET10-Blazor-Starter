@@ -63,7 +63,7 @@ internal static class AiToolApprovals
     /// 工具的核准說明（<see cref="AiToolDefinition.ApprovalNote"/>）與提出的專家（0.9.158 起）。
     /// </summary>
     public static AiToolApprovalRequest Describe(ToolApprovalRequestContent content, AiToolDefinition tool, FunctionCallContent call, string? label = null)
-        => new(content.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call), tool.ApprovalNote, label);
+        => new(content.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call), tool.ApprovalNote, label, tool.IsIrreversible);
 
     private static IReadOnlyList<KeyValuePair<string, string>> DescribeArguments(FunctionCallContent call)
         => (call.Arguments ?? new Dictionary<string, object?>())

@@ -317,6 +317,11 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   批次參數用 `string[]`，`AdminAssistantMutation.ValidateBatch`（去重、最多 50）、`CheckAdminsRemain`（整批後至少一位 `IsAdmin && Status`）、`BatchResult`（逐筆結果）。
   不可復原的動作由工具拒絕（縮短保留天數、`OpsAssistantTools.PurgeJobNames` 的清理排程立即執行與啟用）；強制登出自己、取消自己的管理員、改自己的角色也由工具擋（服務層沒有擋）。
   稽核：頁面寫的由工具寫同一個代碼加 `via=admin-assistant`；`MyUserService`、`RoleViewService`、`EmailTestService`、`NotificationTestService` 自己寫的不重複寫。
+- **不可復原的工具**（0.9.159 起，15 個）：`AiToolDefinition.IsIrreversible` → `AiToolApprovalRequest.IsIrreversible`（接續時由 `Describe` 從 `Home` 的定義重新帶出），
+  核准窗加紅字、紅色核准鈕，`AdminAssistantApproval.CanApprove` 要求輸入「確認」（按鈕停用＋`OnDecideAsync` 再擋一次；輸入框用 `OnInput`，`BindOnInput` 要等失焦）。
+  依天數或日期的清除一律走 `custom_purge`（`DataRetentionOverviewService.PurgeCustomAsync`＋`CustomPurgeCutoff`），放在 `AdminAssistantAgent.SharedMutatingTools`，分派到任一專家領域就載入。
+  可復原的工具遇到會刪資料的變體（清理排程、縮短保留天數）拒絕並指向不可復原的工具，兩種核准窗不混用。
+  分派說明以訊息本身提到的對象為準，前文只補足指稱（實機發現前文會把「徹底刪除 temp-b」帶到 ops）。
 
 ## 7. 後續階段
 
@@ -330,6 +335,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | 系統管理助理 M1 | 每輪規劃的 Agent：自動分派領域、同一個 session 每輪換工具組與提示詞；監控與診斷、排程的唯讀工具（§6.9）| 0.9.155 已實作 |
 | 系統管理助理 M2 | 四大類共 26 個唯讀工具與巡檢報告；分派專用固定規則、分派 20 秒逾時、稽核註記改 `via=`（§6.9）| 0.9.157 已實作 |
 | 系統管理助理 M3 | 22 個可復原的異動工具：核准窗說明與批次清單、最多 50 筆、自我與最後一位管理員保護、不可復原動作由工具拒絕（§6.9）| 0.9.158 已實作 |
+| 系統管理助理 M4 | 15 個不可復原的異動工具；核准窗紅字警告、輸入「確認」才能核准；自訂清除跨領域共用（§6.9）| 0.9.159 已實作 |
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。

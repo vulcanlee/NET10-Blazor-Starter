@@ -33,6 +33,8 @@ public sealed class AccountsAssistantTools
     public const int AuditDetailMaxLength = 300;
     public const int AuditContentMaxLength = 3000;
     public const int SecuritySampleCount = 5;
+    /// <summary>從已刪除清單（關鍵字包含比對）精確找名稱時讀幾筆：要大到短名稱（例如「u」）也不會被其他包含它的名稱擠出去。</summary>
+    public const int DeletedSearchPageSize = 5000;
     public const string NoLoginRecord = "無登入紀錄（可能超過稽核保留期間）";
 
     /// <summary>安全總覽計數的稽核動作（登入失敗、鎖定、2FA 失敗、Google 登入失敗、權限被拒、Agent 工具被擋）。</summary>
@@ -48,6 +50,7 @@ public sealed class AccountsAssistantTools
     private readonly IAuditLogService audit;
     private readonly CurrentUserService currentUser;
     private readonly RolePermissionService rolePermissions;
+    private readonly ITwoFactorService twoFactor;
 
     public AccountsAssistantTools(
         MyUserService users,
@@ -55,7 +58,8 @@ public sealed class AccountsAssistantTools
         AuditLogQueryService auditLogs,
         IAuditLogService audit,
         CurrentUserService currentUser,
-        RolePermissionService rolePermissions)
+        RolePermissionService rolePermissions,
+        ITwoFactorService twoFactor)
     {
         this.users = users;
         this.roles = roles;
@@ -63,11 +67,12 @@ public sealed class AccountsAssistantTools
         this.audit = audit;
         this.currentUser = currentUser;
         this.rolePermissions = rolePermissions;
+        this.twoFactor = twoFactor;
     }
 
     public static AiToolDefinition SearchUsersTool { get; } = Define(
         "search_users", "搜尋使用者", MagicObjectHelper.角色_使用者管理,
-        $"搜尋使用者帳號（比對帳號、名稱、Email、主要角色），可依狀態（enabled／disabled／locked）與是否為管理員篩選，最多 {MaxUserTake} 筆。"
+        $"搜尋使用者帳號（比對帳號、名稱、Email、主要角色），可依狀態（enabled／disabled／locked／deleted＝已軟刪除）與是否為管理員篩選，最多 {MaxUserTake} 筆。"
         + "回傳帳號、名稱、啟用、管理員、主要角色、是否鎖定、2FA、最後登入（由稽核推算）。",
         tools => tools.SearchUsersAsync);
 
@@ -78,7 +83,7 @@ public sealed class AccountsAssistantTools
 
     public static AiToolDefinition ListRolesTool { get; } = Define(
         "list_roles", "角色清單", MagicObjectHelper.角色_角色管理,
-        "列出所有角色：名稱、是否要求 2FA、預設團隊、權限鍵數量。",
+        "列出所有角色：名稱、是否要求 2FA、預設團隊、權限鍵數量；includeDeleted=true 時也列出已軟刪除的角色（deleted=true）。",
         tools => tools.ListRolesAsync);
 
     public static AiToolDefinition RoleDetailTool { get; } = Define(
@@ -175,20 +180,53 @@ public sealed class AccountsAssistantTools
         SetUserAdminTool, SetUserRolesTool, UpdateRolePermissionsTool, DeleteRolesTool, RestoreRolesTool,
     ];
 
+    // ── 不可復原的工具（0.9.159 起）：核准窗紅字警告並要求輸入「確認」。徹底刪除與重設 2FA 的稽核由服務寫；清空稽核由這裡寫（同稽核紀錄頁）。──
+
+    public static AiToolDefinition PurgeUsersTool { get; } = DefineIrreversible(
+        "purge_users", "徹底刪除帳號", MagicObjectHelper.角色_使用者管理, PermissionActions.Delete,
+        $"徹底刪除已軟刪除的帳號（一次最多 {AdminAssistantMutation.MaxBatch} 個；還沒軟刪除的請先用 delete_users）。角色與團隊設定一併刪除。",
+        "徹底刪除後無法還原，帳號的角色與團隊設定也會一併刪除。只能刪除已在「顯示已刪除」清單中的帳號。",
+        tools => tools.PurgeUsersAsync);
+
+    public static AiToolDefinition PurgeRolesTool { get; } = DefineIrreversible(
+        "purge_roles", "徹底刪除角色", MagicObjectHelper.角色_角色管理, PermissionActions.Delete,
+        $"徹底刪除已軟刪除的角色（一次最多 {AdminAssistantMutation.MaxBatch} 個；還沒軟刪除的請先用 delete_roles）。",
+        "徹底刪除後無法還原，權限設定與「額外角色」關聯也會一併刪除。仍是某個帳號（含已刪除帳號）主要角色的角色不能刪除。",
+        tools => tools.PurgeRolesAsync);
+
+    public static AiToolDefinition ResetTwoFactorTool { get; } = DefineIrreversible(
+        "reset_two_factor", "重設兩步驟驗證", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        $"清除帳號的驗證器設定與備用碼（一次最多 {AdminAssistantMutation.MaxBatch} 個），只對已啟用 2FA 的帳號有效。",
+        "驗證器設定與備用碼會被清除、無法復原；對方所有已登入的地方都會登出，下次登入只需要密碼（角色要求 2FA 時會被帶去重新設定）。不能重設你自己的。",
+        tools => tools.ResetTwoFactorAsync);
+
+    public static AiToolDefinition ClearAuditLogsTool { get; } = DefineIrreversible(
+        "clear_audit_logs", "清空全部稽核紀錄", MagicObjectHelper.角色_稽核紀錄, PermissionActions.Delete,
+        "刪除全部稽核紀錄與內容檔（只清除一段期間的請用 custom_purge 的 audit-log）。清空後會留下一筆清空的稽核。",
+        "會刪除所有稽核紀錄與內容檔，無法復原；稽核是責任證據，有保存規定時請先確認。清空後會另外留下一筆「清空」的稽核。",
+        tools => tools.ClearAuditLogsAsync);
+
+    public static IReadOnlyList<AiToolDefinition> IrreversibleTools { get; } = [PurgeUsersTool, PurgeRolesTool, ResetTwoFactorTool, ClearAuditLogsTool];
+
     public async Task<string> SearchUsersAsync(
         [Description("關鍵字（帳號、名稱、Email、主要角色名稱）；不填＝全部")] string? keyword = null,
-        [Description("狀態：enabled（啟用）、disabled（停用）、locked（被鎖定）、any；不填＝any")] string? status = null,
+        [Description("狀態：enabled（啟用）、disabled（停用）、locked（被鎖定）、deleted（已軟刪除，可還原或徹底刪除）、any；不填＝any")] string? status = null,
         [Description("true＝只列管理員")] bool? adminOnly = null,
         [Description("最多回傳幾筆，1～50，預設 20")] int take = 20)
     {
         var notes = new List<string>();
-        var all = await LoadUsersAsync(keyword, notes);
-        var (filtered, statusNote) = FilterUsers(all, status, adminOnly, DateTime.UtcNow);
+
+        // 已軟刪除的帳號（0.9.159 起）：同使用者管理頁的「顯示已刪除」，徹底刪除或還原前用它確認對象。
+        var showDeleted = string.Equals(status?.Trim(), "deleted", StringComparison.OrdinalIgnoreCase);
+        var (filtered, statusNote) = showDeleted
+            ? ([.. (await users.GetDeletedAsync(new DataRequest { Search = keyword?.Trim() ?? string.Empty, CurrentPage = 1, PageSize = MaxScanUsers, Take = 1 }))
+                .Result.Where(user => adminOnly != true || user.IsAdmin)], null)
+            : FilterUsers(await LoadUsersAsync(keyword, notes), status, adminOnly, DateTime.UtcNow);
         var count = ClampWithNote(take, 1, MaxUserTake, "筆數", notes);
         var lastLogins = await auditLogs.GetLastLoginTimesAsync();
 
         await ViewAudit.WriteSearchAsync(audit, currentUser, AuditActions.User.Search, "MyUser",
-            AuditSearchCondition.Text("keyword", keyword), AuditSearchCondition.Of("showDeleted", false),
+            AuditSearchCondition.Text("keyword", keyword), AuditSearchCondition.Of("showDeleted", showDeleted),
             AuditSearchCondition.Of("via", AuditSource));
 
         var nowUtc = DateTime.UtcNow;
@@ -223,23 +261,29 @@ public sealed class AccountsAssistantTools
         });
     }
 
-    public async Task<string> ListRolesAsync()
+    public async Task<string> ListRolesAsync([Description("true＝也列出已軟刪除的角色（可還原或徹底刪除）")] bool includeDeleted = false)
     {
-        var all = await LoadRolesAsync();
+        var all = (await LoadRolesAsync()).Select(role => (Role: role, Deleted: false)).ToList();
+        if (includeDeleted)
+        {
+            var deleted = await roles.GetDeletedAsync(new DataRequest { CurrentPage = 1, PageSize = DeletedSearchPageSize, Take = 1 });
+            all.AddRange(deleted.Result.Select(role => (Role: role, Deleted: true)));
+        }
 
         await ViewAudit.WriteSearchAsync(audit, currentUser, AuditActions.Role.Search, "RoleView",
-            AuditSearchCondition.Text("keyword", null), AuditSearchCondition.Of("showDeleted", false),
+            AuditSearchCondition.Text("keyword", null), AuditSearchCondition.Of("showDeleted", includeDeleted),
             AuditSearchCondition.Of("via", AuditSource));
 
         return ToJson(new
         {
             count = all.Count,
-            roles = all.Select(role => new
+            roles = all.Select(item => new
             {
-                role.Name,
-                role.RequireTwoFactor,
-                defaultTeams = role.DefaultTeams,
-                permissionCount = ParsePermissionKeys(role.TabViewJson).Count,
+                item.Role.Name,
+                item.Role.RequireTwoFactor,
+                defaultTeams = item.Role.DefaultTeams,
+                permissionCount = ParsePermissionKeys(item.Role.TabViewJson).Count,
+                deleted = item.Deleted ? true : (bool?)null,
             }),
         });
     }
@@ -310,16 +354,21 @@ public sealed class AccountsAssistantTools
 
     public async Task<string> GetAuditLogContentAsync([Description("稽核紀錄編號（search_audit_logs 回傳的 id）")] int id)
     {
-        var content = await auditLogs.GetContentAsync(id);
-        if (string.IsNullOrWhiteSpace(content))
+        var item = await auditLogs.GetByIdAsync(id);
+        if (item is null)
         {
-            return $"稽核紀錄 #{id} 沒有詳細內容（或編號不存在）。";
+            return $"稽核紀錄 #{id} 不存在。";
         }
 
-        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Audit.View, "AuditLog",
-            id.ToString(CultureInfo.InvariantCulture), $"via={AuditSource}");
+        var content = item.ContentFile is null ? null : await auditLogs.GetContentAsync(id);
 
-        return ToJson(new { id, content = Truncate(content, AuditContentMaxLength) });
+        // 同稽核紀錄頁：看明細就寫一筆（不管有沒有內容檔），detail 記動作代碼。
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Audit.View, "AuditLog",
+            id.ToString(CultureInfo.InvariantCulture), $"action={item.Action}; via={AuditSource}");
+
+        return string.IsNullOrWhiteSpace(content)
+            ? $"稽核紀錄 #{id}（{item.Action}）沒有詳細內容{(item.ContentFile is null ? "（這筆本來就沒有內容檔）" : "（內容檔已被清除或寫檔失敗）")}。"
+            : ToJson(new { id, item.Action, content = Truncate(content, AuditContentMaxLength) });
     }
 
     public async Task<string> GetAccountSecurityOverviewAsync(
@@ -368,7 +417,7 @@ public sealed class AccountsAssistantTools
             accounts = new { total = snapshot.TotalCount, disabled = snapshot.DisabledCount },
             lockedAccounts = snapshot.LockedAccounts,
             admins = snapshot.Admins,
-            adminsWithoutTwoFactor = snapshot.Admins.Where(admin => admin.TwoFactorEnabled == false).Select(admin => admin.Account),
+            adminsWithoutTwoFactor = snapshot.AdminsWithoutTwoFactor,
             inactiveAccounts = snapshot.Inactive.Select(item => new
             {
                 item.Account,
@@ -454,6 +503,76 @@ public sealed class AccountsAssistantTools
         return ToJson(result.ToOutput());
     }
 
+    public async Task<string> PurgeUsersAsync([Description("已軟刪除的帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(accounts);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult("徹底刪除帳號");
+        foreach (var target in items)
+        {
+            if (await FindDeletedUserAsync(target) is { } user)
+            {
+                AddOutcome(result, user.Account, await users.PurgeAsync(user.Id));
+            }
+            else
+            {
+                result.Add(target, false, $"已刪除的帳號中找不到「{target}」（只能徹底刪除已軟刪除的帳號）");
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> PurgeRolesAsync([Description("已軟刪除的角色名稱清單，精確比對，最多 50 個")] string[] names)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(names);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult("徹底刪除角色");
+        foreach (var target in items)
+        {
+            if (await FindDeletedRoleAsync(target) is { } role)
+            {
+                AddOutcome(result, role.Name, await roles.PurgeAsync(role.Id));
+            }
+            else
+            {
+                result.Add(target, false, $"已刪除的角色中找不到「{target}」（只能徹底刪除已軟刪除的角色）");
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public Task<string> ResetTwoFactorAsync([Description("帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
+        => ForEachUserAsync(accounts, "重設兩步驟驗證", user =>
+            user.Id == currentUser.CurrentUser.Id
+                ? Task.FromResult(VerifyRecordResultFactory.Build(false, "不能重設你自己的兩步驟驗證，請到個人資料頁操作。"))
+                : user.TwoFactorEnabled == false
+                    ? Task.FromResult(VerifyRecordResultFactory.Build(false, "這個帳號沒有啟用兩步驟驗證，不需要重設。"))
+                    : twoFactor.ResetAsync(user.Id));
+
+    public async Task<string> ClearAuditLogsAsync()
+    {
+        var result = await auditLogs.ClearAllAsync();
+        if (result.Success == false)
+        {
+            return $"沒有清空：{result.Message}";
+        }
+
+        // 同稽核紀錄頁：刪完再寫，這一筆才會留在清空後的資料表裡。
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Audit.ClearAll, "AuditLog", "*",
+            $"清空全部稽核紀錄：{result.Message}; via={AuditSource}");
+        return $"{result.Message}已另外留下一筆「清空全部稽核紀錄」的稽核。";
+    }
+
     public async Task<string> RestoreUsersAsync([Description("已刪除的帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
     {
         var (items, error) = AdminAssistantMutation.ValidateBatch(accounts);
@@ -465,8 +584,7 @@ public sealed class AccountsAssistantTools
         var result = new BatchResult("還原帳號");
         foreach (var target in items)
         {
-            var deleted = await users.GetDeletedAsync(new DataRequest { Search = target, CurrentPage = 1, PageSize = 50, Take = 1 });
-            if (PickByName(deleted.Result, target, item => item.Account) is { } user)
+            if (await FindDeletedUserAsync(target) is { } user)
             {
                 AddOutcome(result, user.Account, await users.RestoreAsync(user.Id));
             }
@@ -661,11 +779,16 @@ public sealed class AccountsAssistantTools
 
         var all = await LoadRolesAsync();
         var result = new BatchResult("刪除角色（可還原）");
+        var seen = new HashSet<int>();
         foreach (var target in items)
         {
             if (PickByName(all, target, role => role.Name) is { } role)
             {
-                AddOutcome(result, role.Name, await roles.DeleteAsync(role.Id));
+                // 只差大小寫、指到同一個角色的名稱只處理一次。
+                if (seen.Add(role.Id))
+                {
+                    AddOutcome(result, role.Name, await roles.DeleteAsync(role.Id));
+                }
             }
             else
             {
@@ -687,8 +810,7 @@ public sealed class AccountsAssistantTools
         var result = new BatchResult("還原角色");
         foreach (var target in items)
         {
-            var deleted = await roles.GetDeletedAsync(new DataRequest { Search = target, CurrentPage = 1, PageSize = 50, Take = 1 });
-            if (PickByName(deleted.Result, target, role => role.Name) is { } role)
+            if (await FindDeletedRoleAsync(target) is { } role)
             {
                 AddOutcome(result, role.Name, await roles.RestoreAsync(role.Id));
             }
@@ -959,7 +1081,7 @@ public sealed class AccountsAssistantTools
             source.Count,
             source.Count(user => user.Status == false),
             source.Where(user => IsLocked(user, nowUtc)).Select(user => user.Account).ToList(),
-            source.Where(user => user.IsAdmin).Select(user => new AdminAccount(user.Account, user.TwoFactorEnabled)).ToList(),
+            source.Where(user => user.IsAdmin).Select(user => new AdminAccount(user.Account, user.TwoFactorEnabled, user.Status, user.IsGoogleAccount)).ToList(),
             inactive);
     }
 
@@ -1040,6 +1162,20 @@ public sealed class AccountsAssistantTools
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<AccountsAssistantTools>()), name, description),
         };
 
+    private static AiToolDefinition DefineIrreversible(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<AccountsAssistantTools, Delegate> method)
+        => DefineMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
+
+    /// <summary>從已刪除清單精確找帳號（只差大小寫有多筆時不猜）。</summary>
+    private async Task<MyUserAdapterModel?> FindDeletedUserAsync(string account)
+        => PickByName((await users.GetDeletedAsync(new DataRequest { Search = account, CurrentPage = 1, PageSize = DeletedSearchPageSize, Take = 1 })).Result,
+            account, item => item.Account);
+
+    private async Task<RoleViewAdapterModel?> FindDeletedRoleAsync(string name)
+        => PickByName((await roles.GetDeletedAsync(new DataRequest { Search = name, CurrentPage = 1, PageSize = DeletedSearchPageSize, Take = 1 })).Result,
+            name, item => item.Name);
+
     private static AiToolDefinition DefineMutating(
         string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
         Func<AccountsAssistantTools, Delegate> method)
@@ -1057,10 +1193,17 @@ public sealed record AccountSecuritySnapshot(
     int DisabledCount,
     IReadOnlyList<string> LockedAccounts,
     IReadOnlyList<AdminAccount> Admins,
-    IReadOnlyList<InactiveAccount> Inactive);
+    IReadOnlyList<InactiveAccount> Inactive)
+{
+    /// <summary>
+    /// 該開而沒開 2FA 的管理員（0.9.159 起）：只算啟用中、用密碼登入的；停用的登不進來，Google 登入由 Google 負責第二道驗證。
+    /// </summary>
+    public IReadOnlyList<string> AdminsWithoutTwoFactor
+        => [.. Admins.Where(admin => admin.TwoFactorEnabled == false && admin.Enabled && admin.UsesGoogle == false).Select(admin => admin.Account)];
+}
 
-/// <summary>一位管理員與是否開了兩步驟驗證。</summary>
-public sealed record AdminAccount(string Account, bool TwoFactorEnabled);
+/// <summary>一位管理員、是否開了兩步驟驗證、是否啟用、是否用 Google 登入。</summary>
+public sealed record AdminAccount(string Account, bool TwoFactorEnabled, bool Enabled = true, bool UsesGoogle = false);
 
 /// <summary>長期未登入的帳號；<see cref="LastLogin"/> 為 null 表示稽核保留期間內沒有登入紀錄。</summary>
 public sealed record InactiveAccount(string Account, DateTime? LastLogin);
