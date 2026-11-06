@@ -56,6 +56,7 @@ public sealed class MenuPermissionConsistencyTests
         "DataRetentionView.razor.cs",
         "AnnouncementView.razor.cs",
         "PromptTemplateView.razor.cs",
+        "AdminAssistantView.razor.cs",
     };
 
     [Fact]

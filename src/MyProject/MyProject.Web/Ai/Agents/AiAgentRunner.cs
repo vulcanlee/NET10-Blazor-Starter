@@ -33,6 +33,15 @@ public interface IAiAgentRunner
     /// 不存在、不是本人的、不是這個 Agent 的、內容檔不見或讀不懂時回 null。
     /// </summary>
     Task<AiAgentChat?> ResumeAsync(AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 開始一段「每輪規劃」的新對話（0.9.155 起，系統管理助理）：開對話用 <see cref="IAiAgentTurnPlanner.HomeTurnAsync"/>，
+    /// 之後每次 <see cref="AiAgentChat.SendAsync"/> 前先由規劃器決定這一輪的定義、提示詞與標籤。
+    /// </summary>
+    Task<AiAgentChat> StartAsync(IAiAgentTurnPlanner planner, CancellationToken cancellationToken = default);
+
+    /// <summary>接續一段「每輪規劃」的對話（0.9.155 起）：以 <see cref="IAiAgentTurnPlanner.HomeTurnAsync"/> 還原（含全部工具，待核准才找得到工具）。</summary>
+    Task<AiAgentChat?> ResumeAsync(IAiAgentTurnPlanner planner, Guid conversationId, CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc cref="IAiAgentRunner" />
@@ -73,21 +82,54 @@ public sealed class AiAgentRunner : IAiAgentRunner
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        var conversationId = Guid.NewGuid();
-        var (handle, modelName) = await CreateAgentAsync(definition, conversationId, cancellationToken);
-        var session = await handle.Agent.CreateSessionAsync(cancellationToken);
+        // 提示詞在開對話（或接續）時取一次（含固定附加的安全規則）；管理員在對話途中改版本，下一段新對話或下次接續才生效。
+        var instructions = await promptProvider.GetAsync(definition.PromptTemplateKey, cancellationToken);
+        return await StartCoreAsync(new AiAgentTurn(definition, instructions, null), planner: null, cancellationToken);
+    }
 
-        logger.LogInformation(
-            "AI agent conversation started. Agent={Agent}, ConversationId={ConversationId}, Model={Model}",
-            definition.Name, conversationId, modelName);
+    public async Task<AiAgentChat> StartAsync(IAiAgentTurnPlanner planner, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(planner);
 
-        return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger);
+        var turn = await planner.HomeTurnAsync(cancellationToken);
+        return await StartCoreAsync(turn, planner, cancellationToken);
     }
 
     public async Task<AiAgentChat?> ResumeAsync(AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
 
+        var instructions = await promptProvider.GetAsync(definition.PromptTemplateKey, cancellationToken);
+        return await ResumeCoreAsync(new AiAgentTurn(definition, instructions, null), planner: null, conversationId, cancellationToken);
+    }
+
+    public async Task<AiAgentChat?> ResumeAsync(IAiAgentTurnPlanner planner, Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(planner);
+
+        var turn = await planner.HomeTurnAsync(cancellationToken);
+        return await ResumeCoreAsync(turn, planner, conversationId, cancellationToken);
+    }
+
+    private async Task<AiAgentChat> StartCoreAsync(AiAgentTurn turn, IAiAgentTurnPlanner? planner, CancellationToken cancellationToken)
+    {
+        var definition = turn.Definition;
+        var conversationId = Guid.NewGuid();
+        var (handle, modelName) = CreateHandle(turn, conversationId);
+        var session = await handle.Agent.CreateSessionAsync(cancellationToken);
+
+        logger.LogInformation(
+            "AI agent conversation started. Agent={Agent}, ConversationId={ConversationId}, Model={Model}",
+            definition.Name, conversationId, modelName);
+
+        return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger,
+            planner: planner, createHandle: next => CreateHandle(next, conversationId).Handle);
+    }
+
+    private async Task<AiAgentChat?> ResumeCoreAsync(
+        AiAgentTurn turn, IAiAgentTurnPlanner? planner, Guid conversationId, CancellationToken cancellationToken)
+    {
+        var definition = turn.Definition;
         var loaded = await store.LoadMineAsync(conversationId);
         if (loaded?.Content is not { } content || loaded.Summary.AgentName != definition.Name)
         {
@@ -97,7 +139,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
             return null;
         }
 
-        var (handle, modelName) = await CreateAgentAsync(definition, conversationId, cancellationToken);
+        var (handle, modelName) = CreateHandle(turn, conversationId);
         AgentSession session;
         try
         {
@@ -114,20 +156,20 @@ public sealed class AiAgentRunner : IAiAgentRunner
             "AI agent conversation resumed. Agent={Agent}, ConversationId={ConversationId}, Model={Model}",
             definition.Name, conversationId, modelName);
 
-        var chat = new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger, loaded.Summary.Title);
+        var chat = new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger, loaded.Summary.Title,
+            planner, next => CreateHandle(next, conversationId).Handle);
         chat.Restore(content);
         return chat;
     }
 
-    /// <summary>建立 agent（工具、提示詞、記帳管線）。開新對話與接續共用；接續沿用原本的 ConversationId，AI 對話紀錄才串得起來。</summary>
-    private async Task<(AiAgentHandle Handle, string ModelName)> CreateAgentAsync(
-        AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken)
+    /// <summary>
+    /// 建立 agent（工具、提示詞、記帳管線）。開新對話、接續與每輪規劃共用；一律沿用同一個 ConversationId，AI 對話紀錄才串得起來。
+    /// </summary>
+    private (AiAgentHandle Handle, string ModelName) CreateHandle(AiAgentTurn turn, Guid conversationId)
     {
+        var definition = turn.Definition;
         var settings = settingsMonitor.CurrentValue;
         var timeoutSeconds = definition.TimeoutSeconds ?? (settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120);
-
-        // 提示詞在開對話（或接續）時取一次（含固定附加的安全規則）；管理員在對話途中改版本，下一段新對話或下次接續才生效。
-        var instructions = await promptProvider.GetAsync(definition.PromptTemplateKey, cancellationToken);
 
         var handle = agentFactory.CreateAgent(
             new AiCallContext
@@ -144,7 +186,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
                 TimeoutHint = "請稍後再試。",
                 SubmittedContentLabel = "對話內容",
             },
-            instructions,
+            turn.Instructions,
             toolFactory.Create(definition));
 
         return (handle, modelMonitor.CurrentValue.Resolve(definition.ModelKey, settings.Model));
@@ -171,8 +213,11 @@ public sealed class AiAgentRunner : IAiAgentRunner
 /// </summary>
 public sealed class AiAgentChat
 {
-    private readonly AiAgentHandle handle;
     private readonly AgentSession session;
+    private readonly IAiAgentTurnPlanner? planner;
+    private readonly Func<AiAgentTurn, AiAgentHandle>? createHandle;
+    private readonly string agentName;
+    private AiAgentHandle handle;
     private readonly IAiToolPermissionGuard guard;
     private readonly IAiAgentConversationStore store;
     private readonly ILogger logger;
@@ -189,9 +234,14 @@ public sealed class AiAgentChat
         IAiToolPermissionGuard guard,
         IAiAgentConversationStore store,
         ILogger logger,
-        string? title = null)
+        string? title = null,
+        IAiAgentTurnPlanner? planner = null,
+        Func<AiAgentTurn, AiAgentHandle>? createHandle = null)
     {
         Definition = definition;
+        this.planner = planner;
+        this.createHandle = createHandle;
+        agentName = planner?.Home.Name ?? definition.Name;
         ConversationId = conversationId;
         ModelName = modelName;
         this.handle = handle;
@@ -202,7 +252,11 @@ public sealed class AiAgentChat
         this.title = title;
     }
 
-    public AiAgentDefinition Definition { get; }
+    /// <summary>目前這一輪的定義（有每輪規劃器時，每次送出訊息前會換）。</summary>
+    public AiAgentDefinition Definition { get; private set; }
+
+    /// <summary>目前這一輪的「由誰回答」標籤（0.9.155 起，由每輪規劃器決定）；沒有規劃器時為 null。</summary>
+    public string? CurrentLabel { get; private set; }
 
     /// <summary>對話識別碼，也是 AI 對話紀錄的 ConversationId（管理員可從 AI 對話紀錄頁查看整段）。</summary>
     public Guid ConversationId { get; }
@@ -228,6 +282,54 @@ public sealed class AiAgentChat
             throw new InvalidOperationException("還有待核准的工具，請先核准或拒絕。");
         }
 
+        return planner is null ? SendCore(message, cancellationToken) : PlanThenSendAsync(message, cancellationToken);
+    }
+
+    /// <summary>
+    /// 先由規劃器決定這一輪（0.9.155 起），換掉 agent 後再送出。session 不換，前後文延續。
+    /// 規劃時傳的是送出前的對話紀錄（這則訊息另外傳）。
+    /// </summary>
+    private async IAsyncEnumerable<AiAgentUpdate> PlanThenSendAsync(
+        string message,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        AiAgentTurn? turn = null;
+        try
+        {
+            turn = await planner!.PlanAsync(ConversationId, message, transcript.ToList(), cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 分派中按「停止產生」（或離開頁面）：同執行中取消，不是錯誤。訊息留在紀錄並存檔，session 沒有變動。
+        }
+
+        if (turn is null)
+        {
+            title ??= AiAgentConversationService.TitleFrom(message);
+            transcript.Add(Entry(AiAgentTranscriptKinds.User, message));
+            transcript.Add(Entry(AiAgentTranscriptKinds.Notice, "已停止產生，尚未收到任何內容。"));
+            await PersistAsync();
+            yield return new AiAgentUpdate { Result = AiAnalysisResult.Failure(AiAnalysisFailureReason.Canceled, "已取消本次執行。") };
+            yield break;
+        }
+
+        if (turn.Definition.Name != agentName)
+        {
+            throw new InvalidOperationException($"規劃器回傳的定義名稱（{turn.Definition.Name}）與對話的 Agent（{agentName}）不同。");
+        }
+
+        handle = createHandle!(turn);
+        Definition = turn.Definition;
+        CurrentLabel = turn.Label;
+
+        await foreach (var update in SendCore(message, cancellationToken))
+        {
+            yield return update;
+        }
+    }
+
+    private IAsyncEnumerable<AiAgentUpdate> SendCore(string message, CancellationToken cancellationToken)
+    {
         title ??= AiAgentConversationService.TitleFrom(message);
         transcript.Add(Entry(AiAgentTranscriptKinds.User, message));
 
@@ -532,7 +634,7 @@ public sealed class AiAgentChat
             };
 
             await store.SaveAsync(new AiAgentConversationSnapshot(
-                ConversationId, Definition.Name, title ?? Definition.DisplayName, IsAwaitingApproval, content));
+                ConversationId, agentName, title ?? Definition.DisplayName, IsAwaitingApproval, content));
         }
         catch (Exception ex)
         {
@@ -572,7 +674,13 @@ public sealed class AiAgentChat
         }
     }
 
-    private static AiAgentTranscriptEntry Entry(string kind, string text) => new() { Kind = kind, Text = text };
+    /// <summary>畫面紀錄的一則。AI 回覆與工具活動標上這一輪的標籤（沒有規劃器時為 null，畫面不標示）。</summary>
+    private AiAgentTranscriptEntry Entry(string kind, string text) => new()
+    {
+        Kind = kind,
+        Text = text,
+        Agent = kind is AiAgentTranscriptKinds.Assistant or AiAgentTranscriptKinds.Tool ? CurrentLabel : null,
+    };
 
     private string DisplayNameOf(string toolName)
         => Definition.Tools.FirstOrDefault(tool => tool.Name == toolName)?.DisplayName ?? toolName;

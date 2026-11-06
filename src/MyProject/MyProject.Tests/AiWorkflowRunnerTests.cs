@@ -361,6 +361,9 @@ public sealed class AiWorkflowRunnerTests : IAsyncLifetime
     {
         public Task<string> GetAsync(string templateKey, CancellationToken cancellationToken = default)
             => Task.FromResult($"AGENT:{templateKey}");
+
+        public Task<string> GetInstructionsAsync(string templateKey, CancellationToken cancellationToken = default)
+            => Task.FromResult($"AGENT:{templateKey}");
     }
 
     /// <summary>記憶體版存檔（經過一次 JSON 來回，同真的存檔）；標題只在第一次存時採用。</summary>

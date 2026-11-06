@@ -290,6 +290,22 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 
 步驟細節見 [腳手架開發指引 §3.11](../guides/腳手架開發指引.md)「新增一個工作流程」。
 
+### 6.9 每輪規劃的 Agent（系統管理助理，0.9.155 起）
+
+需求見 [系統管理助理 PRD](../prd/系統管理助理-prd.md)。單一對話入口，每則訊息先判斷領域，再組出這一輪的 agent。
+
+- **`IAiAgentTurnPlanner`**（`Ai/Agents/AiAgentTurn.cs`）：`Home`（含全部工具，開對話與接續用、也是存檔的 AgentName）、`HomeTurnAsync`、`PlanAsync`（每次 `SendAsync` 前呼叫，不丟例外）。
+  回傳 `AiAgentTurn(Definition, Instructions, Label)`：這一輪的定義、已組好的系統提示詞（含固定規則）、畫面上的「由誰回答」。
+- **`IAiAgentRunner.StartAsync(planner)`／`ResumeAsync(planner, id)`**：`AiAgentChat` 在 `SendAsync` 前依規劃結果重建 agent（`CreateHandle`，同一個 `ConversationId`），
+  **MAF session 不換**，前後文延續；`RespondAsync`（核准回覆）沿用提出核准的那一輪，不重新規劃。每輪定義的 `Name` 必須等於 `Home.Name`。
+  AI 回覆與工具活動的 `AiAgentTranscriptEntry.Agent` 填這一輪的標籤；沒有規劃器時（Agent 測試台）為 null，行為不變。
+- **分派**（`AdminAssistantTurnPlanner`）：用 `IAiChatCompletionClient` 呼叫一次（作業「系統管理助理（分派）」、模型 `AiModelSettings:AdminAssistantRouter`，空白用 `AdminAssistant`），
+  模型只回英文代碼 `accounts, monitoring, ai, ops, patrol`（`AdminAssistantRouting.Parse` 整字比對）；失敗或讀不出代碼時退回全部領域。
+- **組裝**（`AdminAssistantAgent`）：唯讀工具**每一輪都全部載入**（避免分派漏選就查不到），異動工具只載入被選中領域的；
+  提示詞＝共同說明（`AdminAssistant`）＋被選中領域的說明（`AdminAssistantAccounts`／`Monitoring`／`Ai`／`Ops`），以 `IAiSystemPromptProvider.GetInstructionsAsync` 取各段（不含固定規則），最後只 `Compose` 一次。
+- **工具**（`Ai/Agents/AdminAssistant/*AssistantTools.cs`）：權限用原頁面的管理員專屬鍵；原頁面有寫查詢／檢視稽核的，工具寫同一個稽核代碼並加 `source=admin-assistant`；
+  參數不合法時不丟例外，夾住範圍或用預設值並在回覆說明（`AdminAssistantToolText`）。
+
 ## 7. 後續階段
 
 | 階段 | 範圍 | 狀態 |
@@ -299,6 +315,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | 三 A | Agent 骨架：C# 定義 agent、每個功能可指定模型（`AiModelSettings`）；工具呼叫逐次記帳並以 RunId 串起（`AiCallLog`／`TokenUsageLog` 加欄位）；工具依使用者 RBAC 執行、會改資料的工具強制核准；以「Agent 測試台」頁驗收，對話只在記憶體（§6）| 0.9.142 已實作 |
 | 三 B | 對話保存：多輪對話存檔案系統、SQLite 只放中繼資料（只限本人，保存天數可設定、依最後一次對話過期），可接續之前的對話、停在核准的重新跳核准窗（§6.7）| 0.9.143 已實作 |
 | 四 | 多 Agent 工作流程（MAF Workflows）：所有 agent 經 `IAiAgentFactory` 建立、共用一個 RunId；人工介入（工具核准、Agent 提問、審閱關卡）當下回應，不做跨重開機檢查點；以「Agent 工作流程」頁的兩條範例驗收（§6.8）| 0.9.144 已實作 |
+| 系統管理助理 M1 | 每輪規劃的 Agent：自動分派領域、同一個 session 每輪換工具組與提示詞；監控與診斷、排程的唯讀工具（§6.9）| 0.9.155 已實作 |
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。
@@ -321,6 +338,8 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Models/Systems/AiAgentConversationModels.cs`、`AiAgentConversationSettings.cs`；`MyProject.AccessDatas/Models/AiAgentConversation.cs` | 內容檔結構與清單模型、保留天數設定、資料表（0.9.143 起）|
 | `MyProject.Web/Scheduling/Jobs/AiAgentConversationRetentionJob.cs` | 排程作業「Agent 對話清理」（0.9.143 起）|
 | `MyProject.Web/Ai/Agents/AgentPlaygroundAgent.cs`、`ProjectAgentTools.cs` | 範例 Agent 與兩個範例工具（0.9.142 起）；0.9.144 起加 `get_project_detail`（`ProjectDetail`）、`append_project_status_summary`，建構子可選 `TimeProvider` |
+| `MyProject.Web/Ai/Agents/AiAgentTurn.cs` | `AiAgentTurn`、`IAiAgentTurnPlanner`（每輪規劃，0.9.155 起）|
+| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）|
 | `MyProject.Web/Ai/Agents/AiToolApprovals.cs` | 工具核准的共用規則（權限分流、拒絕原因、參數說明），由 `AiAgentChat` 抽出，Agent 測試台與工作流程共用（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowModels.cs` | 步驟間訊息（`AiWorkflowMessage`／`AiWorkflowRevision`／`AiWorkflowOutput`）、人工介入（`AiWorkflowHumanRequest`／`AiWorkflowHumanResponse`）、`AiWorkflowUpdate`、`AiWorkflowResult`／`AiWorkflowOutcome`、`AiWorkflowStepEvent`（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowDefinition.cs` | `AiWorkflowDefinition`、`AiAgentStepSpec`、`AiWorkflowGraph`（接線）、`AiWorkflowCatalog.All`（0.9.144 起）|

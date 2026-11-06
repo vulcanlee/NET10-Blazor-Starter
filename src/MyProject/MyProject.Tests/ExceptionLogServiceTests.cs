@@ -269,7 +269,7 @@ public sealed class ExceptionLogServiceTests
         Assert.Null(result[999]);
     }
 
-    private static ExceptionLogEntry NewEntry(
+    internal static ExceptionLogEntry NewEntry(
         string? page = "/categories",
         string? operation = "Failed to create category. Name={CategoryName}",
         string message = "物件參照未設定",
@@ -295,7 +295,7 @@ public sealed class ExceptionLogServiceTests
             OccurredAt = occurredAt ?? DateTime.Now,
         };
 
-    private sealed class ExceptionLogFixture : IAsyncDisposable
+    internal sealed class ExceptionLogFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
         private readonly IMapper mapper;

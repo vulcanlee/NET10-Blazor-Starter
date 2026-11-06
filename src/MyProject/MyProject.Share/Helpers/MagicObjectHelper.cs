@@ -138,6 +138,12 @@ public class MagicObjectHelper
 
     /// <summary>「系統設定與維運」子群組（0.9.113 起）的管理員專屬頁面；不授予任何角色的機制同 <see cref="角色_監控與診斷"/>。</summary>
     public const string 角色_排程作業 = "排程作業";
+
+    /// <summary>「管理助理」子群組（0.9.155 起）；不授予任何角色的機制同 <see cref="角色_監控與診斷"/>。</summary>
+    public const string 角色_管理助理 = "管理助理功能";
+
+    /// <summary>「系統管理助理」頁（0.9.155 起），管理員專屬；機制同 <see cref="角色_監控與診斷"/>。</summary>
+    public const string 角色_系統管理助理 = "系統管理助理";
     public const string 使用者角色 = "使用者角色";
 
     #endregion

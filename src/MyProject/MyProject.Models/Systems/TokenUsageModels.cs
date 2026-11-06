@@ -112,6 +112,15 @@ public static class TokenUsageOperations
 
     /// <inheritdoc cref="ProjectStatusReport"/>
     public const string MultiPerspectiveReview = "多觀點審查";
+
+    /// <summary>
+    /// 「系統管理助理」的對話（0.9.155 起）。同 <see cref="AgentPlayground"/>，一次執行的每一次模型呼叫各記一筆、共用 RunId；
+    /// 分派判斷另記在 <see cref="AdminAssistantRouter"/>，兩者共用同一個 ConversationId。
+    /// </summary>
+    public const string AdminAssistant = "系統管理助理";
+
+    /// <summary>「系統管理助理」每則訊息前的分派判斷（0.9.155 起）。</summary>
+    public const string AdminAssistantRouter = "系統管理助理（分派）";
 }
 
 /// <summary>

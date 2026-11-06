@@ -184,6 +184,19 @@
             "url": "/data-retention"
           }
         ]
+      },
+      {
+        "id": 10,
+        "name": "管理助理",
+        "icon": "support_agent",
+        "subMenu": [
+          {
+            "id": 101,
+            "name": "系統管理助理",
+            "icon": "assistant",
+            "url": "/admin-assistant"
+          }
+        ]
       }
     ]
   },

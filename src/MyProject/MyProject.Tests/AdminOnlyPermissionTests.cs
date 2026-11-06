@@ -37,6 +37,8 @@ public sealed class AdminOnlyPermissionTests
         MagicObjectHelper.角色_角色管理,
         MagicObjectHelper.角色_系統例外紀錄,
         MagicObjectHelper.角色_稽核紀錄,
+        MagicObjectHelper.角色_管理助理,
+        MagicObjectHelper.角色_系統管理助理,
     ];
 
     [Theory]

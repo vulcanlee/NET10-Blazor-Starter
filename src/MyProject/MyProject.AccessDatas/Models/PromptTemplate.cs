@@ -64,10 +64,29 @@ public static class PromptTemplateKeys
     /// <summary>多觀點審查：彙整。</summary>
     public const string ReviewAggregator = "ReviewAggregator";
 
+    /// <summary>「系統管理助理」的共同說明（0.9.155 起，含巡檢報告格式；以下 5 種同）。</summary>
+    public const string AdminAssistant = "AdminAssistant";
+
+    /// <summary>系統管理助理：分派（判斷這則訊息屬於哪些領域）。</summary>
+    public const string AdminAssistantRouter = "AdminAssistantRouter";
+
+    /// <summary>系統管理助理：帳號與權限專家。</summary>
+    public const string AdminAssistantAccounts = "AdminAssistantAccounts";
+
+    /// <summary>系統管理助理：監控與診斷專家。</summary>
+    public const string AdminAssistantMonitoring = "AdminAssistantMonitoring";
+
+    /// <summary>系統管理助理：AI 管理專家。</summary>
+    public const string AdminAssistantAi = "AdminAssistantAi";
+
+    /// <summary>系統管理助理：系統設定與維運專家。</summary>
+    public const string AdminAssistantOps = "AdminAssistantOps";
+
     public static readonly IReadOnlyList<string> All =
     [
         LogAnalysis, ExceptionAnalysis, AgentPlayground,
         ProjectReportGatherer, ProjectReportWriter, ProjectReportFinalizer,
         ReviewRequirements, ReviewTechnical, ReviewUsability, ReviewAggregator,
+        AdminAssistant, AdminAssistantRouter, AdminAssistantAccounts, AdminAssistantMonitoring, AdminAssistantAi, AdminAssistantOps,
     ];
 }
