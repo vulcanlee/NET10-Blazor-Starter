@@ -89,6 +89,7 @@
 - [Token 用量 PRD](prd/Token用量-prd.md)
 - [AI 對話紀錄 PRD](prd/AI對話紀錄-prd.md)
 - [AI Agent PRD（Agent 測試台與 Agent 工作流程）](prd/AI-Agent-prd.md)
+- [系統管理助理 PRD](prd/系統管理助理-prd.md)
 - [排程作業 PRD](prd/排程作業-prd.md)
 - [系統參數 PRD](prd/系統參數-prd.md)
 - [系統備份與還原 PRD](prd/系統備份與還原-prd.md)
@@ -281,3 +282,4 @@
 - [修正 CRUD 產生器登記錨點：已刪除資料清理改為三處登記、補登資料保留與清理頁，Test-CrudGenerator 重新通過（0.9.152）](changelog/2026-11-04-修正CRUD產生器登記錨點.md)
 - [品質關卡加入 CRUD 產生器錨點檢查：New-CrudModule.ps1 -CheckAnchors，錨點失效時提交前就擋下（0.9.153）](changelog/2026-11-05-品質關卡加入CRUD產生器錨點檢查.md)
 - [今日異動文件補齊：核對 0.9.144～0.9.153 的文件，補上操作說明、PRD 主控台、產生器登記清單與架構文件的缺漏（0.9.154）](changelog/2026-11-05-今日異動文件補齊.md)
+- [系統管理助理（里程碑 1）：系統管理新增「管理助理 › 系統管理助理」，每則訊息自動分派領域、同一段對話每輪換工具組，第一批監控與診斷、排程的唯讀工具（0.9.155）](changelog/2026-11-06-系統管理助理M1.md)

@@ -27,7 +27,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）
 | 1 | Restore | `dotnet restore` | 套件還原失敗（腳本會把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180，見 §4）|
 | 2 | Build | `dotnet build --configuration Release --no-restore` | 編譯錯誤與**任何警告**（`TreatWarningsAsErrors`）|
 | 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
-| 4 | Test | `dotnet test --configuration Release --no-build` | 1910 個測試（0.9.150），含十多組慣例守門測試 |
+| 4 | Test | `dotnet test --configuration Release --no-build` | 1969 個測試（0.9.155），含十多組慣例守門測試 |
 | 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
 | 6 | CRUD anchors | `scripts/New-CrudModule.ps1 -CheckAnchors`（一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒）| CRUD 產生器的登記錨點失效：被登記的檔案改了寫法，產生器下次使用時才會「找不到登記位置」（0.9.153 起；0.9.133 起壞了兩週才發現）。只檢查插得進去、不寫檔；產出的模組能否建置與通過測試仍要跑 `Test-CrudGenerator.ps1`。repo 沒有產生器時略過 |
 | 7 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |

@@ -99,6 +99,12 @@ namespace MyProject.Web.Components.Views.Admins
             PromptTemplateKeys.ReviewTechnical => "審查／技術可行性",
             PromptTemplateKeys.ReviewUsability => "審查／使用者體驗",
             PromptTemplateKeys.ReviewAggregator => "審查／彙整",
+            PromptTemplateKeys.AdminAssistant => "管理助理／共同",
+            PromptTemplateKeys.AdminAssistantRouter => "管理助理／分派",
+            PromptTemplateKeys.AdminAssistantAccounts => "管理助理／帳號與權限",
+            PromptTemplateKeys.AdminAssistantMonitoring => "管理助理／監控與診斷",
+            PromptTemplateKeys.AdminAssistantAi => "管理助理／AI 管理",
+            PromptTemplateKeys.AdminAssistantOps => "管理助理／設定與維運",
             _ => key,
         };
 

@@ -179,6 +179,12 @@ public static class SystemParameterCatalog
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.MultiPerspectiveReview, GroupAiModel,
             "「多觀點審查」工作流程使用的模型", "「Agent 工作流程」的多觀點審查，三個審查 agent 與彙整 agent 都用這個模型。" + ModelNote,
             "下一次執行起（執行中的流程沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AdminAssistant, GroupAiModel,
+            "系統管理助理使用的模型", "「系統管理助理」對話用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
+            "下一則訊息起（每則訊息都重新建立助理；畫面上的「使用模型」在開對話或接續時更新）", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AdminAssistantRouter, GroupAiModel,
+            "系統管理助理分派使用的模型", "「系統管理助理」每則訊息前判斷屬於哪些領域用的模型，可以選便宜的模型。空白時用「系統管理助理使用的模型」。",
+            "下一則訊息起", maxLength: AiModelSettings.MaxModelLength),
 
         Define<BackupSettings, int>(BackupSettings.SectionName, x => x.KeepCount, GroupBackup,
             "備份保留份數", "保留最新幾份系統備份，較舊的在下一次備份成功後刪除（備份失敗時不刪）。",

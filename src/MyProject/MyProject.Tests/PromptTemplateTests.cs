@@ -22,6 +22,9 @@ internal sealed class StubSystemPromptProvider(string? content = null) : IAiSyst
 {
     public Task<string> GetAsync(string templateKey, CancellationToken cancellationToken = default)
         => Task.FromResult(AiPromptGuardrails.Compose(templateKey, content ?? AiPromptGuardrails.DefaultInstructions(templateKey)));
+
+    public Task<string> GetInstructionsAsync(string templateKey, CancellationToken cancellationToken = default)
+        => Task.FromResult(content ?? AiPromptGuardrails.DefaultInstructions(templateKey));
 }
 
 /// <summary>

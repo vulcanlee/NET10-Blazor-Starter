@@ -7,6 +7,12 @@ public interface IAiSystemPromptProvider
 {
     /// <summary>⚠️ 不丟例外：讀不到資料庫時改用內建預設（並寫錯誤日誌），AI 分析照常進行。</summary>
     Task<string> GetAsync(string templateKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 作用中的版本或內建預設，<b>不</b>接上固定規則（0.9.155 起）：給要把好幾段提示詞組成一份的呼叫端（系統管理助理），
+    /// 組好之後再以 <see cref="AiPromptGuardrails.Compose"/> 接上一次規則。同樣不丟例外。
+    /// </summary>
+    Task<string> GetInstructionsAsync(string templateKey, CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc cref="IAiSystemPromptProvider" />
@@ -22,6 +28,9 @@ public sealed class AiSystemPromptProvider : IAiSystemPromptProvider
     }
 
     public async Task<string> GetAsync(string templateKey, CancellationToken cancellationToken = default)
+        => AiPromptGuardrails.Compose(templateKey, await GetInstructionsAsync(templateKey, cancellationToken));
+
+    public async Task<string> GetInstructionsAsync(string templateKey, CancellationToken cancellationToken = default)
     {
         string? content = null;
         try
@@ -34,6 +43,6 @@ public sealed class AiSystemPromptProvider : IAiSystemPromptProvider
             logger.LogError(ex, "Failed to read the active prompt template; using the built-in default. TemplateKey={TemplateKey}", templateKey);
         }
 
-        return AiPromptGuardrails.Compose(templateKey, content ?? AiPromptGuardrails.DefaultInstructions(templateKey));
+        return content ?? AiPromptGuardrails.DefaultInstructions(templateKey);
     }
 }

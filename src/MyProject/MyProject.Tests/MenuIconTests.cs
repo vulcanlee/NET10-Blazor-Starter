@@ -48,6 +48,8 @@ public sealed class MenuIconTests
         "build",
         "science",
         "account_tree",
+        "support_agent",
+        "assistant",
     };
 
     [Fact]

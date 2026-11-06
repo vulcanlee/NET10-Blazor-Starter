@@ -322,6 +322,141 @@ public sealed class AiAgentRunnerTests
         Assert.Equal((AiAgentTranscriptKinds.Notice, "已停止產生（上面的回覆不完整）。"), (transcript[^1].Kind, transcript[^1].Text));
     }
 
+    /// <summary>每輪規劃器（系統管理助理，0.9.155 起）：每次送出前換一組指示、工具與標籤，session 延續。</summary>
+    [Fact]
+    public async Task Planner_EachSend_UsesPlannedInstructionsToolsAndLabel()
+    {
+        guard.Allowed.Add(SampleTools.Read.Name);
+        var planner = new ScriptedPlanner(
+            Turn([SampleTools.Read], "指示甲", "監控與診斷"),
+            Turn([SampleTools.Read, SampleTools.Write], "指示乙", "帳號與權限"));
+        upstream.Enqueue(AiSse.Responses(["第一輪回答"]));
+        upstream.Enqueue(AiSse.Responses(["第二輪回答"]));
+        var chat = await CreateRunner().StartAsync(planner);
+
+        await CollectAsync(chat.SendAsync("第一則訊息"));
+        await CollectAsync(chat.SendAsync("第二則訊息"));
+
+        Assert.Contains("指示甲", handler.RequestBodies[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("write_things", handler.RequestBodies[0], StringComparison.Ordinal);
+        Assert.Contains("指示乙", handler.RequestBodies[1], StringComparison.Ordinal);
+        Assert.Contains("write_things", handler.RequestBodies[1], StringComparison.Ordinal);
+        Assert.Contains("第一則訊息", handler.RequestBodies[1], StringComparison.Ordinal);
+
+        var assistants = chat.Transcript.Where(entry => entry.Kind == AiAgentTranscriptKinds.Assistant).Select(entry => entry.Agent).ToList();
+        Assert.Equal(["監控與診斷", "帳號與權限"], assistants);
+        Assert.Equal("帳號與權限", chat.CurrentLabel);
+        Assert.Equal(ScriptedPlanner.HomeDefinition.Name, store.Saved[chat.ConversationId].AgentName);
+    }
+
+    [Fact]
+    public async Task Planner_ApprovalResponse_DoesNotReplan()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var planner = new ScriptedPlanner(Turn([SampleTools.Read, SampleTools.Write], "指示", "帳號與權限"));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"新內容"}"""));
+        var chat = await CreateRunner().StartAsync(planner);
+        var first = await CollectAsync(chat.SendAsync("改"));
+        var approval = Assert.Single(Assert.Single(first, update => update.Approvals is not null).Approvals!);
+
+        upstream.Enqueue(AiSse.Responses(["已修改。"]));
+        var second = await CollectAsync(chat.RespondAsync([approval.RequestId]));
+
+        Assert.True(second[^1].Result!.Success);
+        Assert.Equal(1, planner.PlanCalls);
+        Assert.Equal(["新內容"], sample.WriteCalls);
+    }
+
+    [Fact]
+    public async Task Planner_Resume_UsesHomeTurn_AndRestoresPendingApproval()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var planner = new ScriptedPlanner(Turn([SampleTools.Read, SampleTools.Write], "指示", "帳號與權限"));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"接續後"}"""));
+        var chat = await CreateRunner().StartAsync(planner);
+        await CollectAsync(chat.SendAsync("改"));
+
+        var resumed = await CreateRunner().ResumeAsync(planner, chat.ConversationId);
+
+        Assert.NotNull(resumed);
+        var approval = Assert.Single(resumed.PendingApprovals);
+        Assert.Equal("寫入", approval.DisplayName);
+        upstream.Enqueue(AiSse.Responses(["已修改。"]));
+        await CollectAsync(resumed.RespondAsync([approval.RequestId]));
+        Assert.Equal(["接續後"], sample.WriteCalls);
+    }
+
+    [Fact]
+    public async Task Planner_TurnWithDifferentName_Throws()
+    {
+        var planner = new ScriptedPlanner(new AiAgentTurn(SampleTools.Agent with { Name = "別的Agent" }, "指示", null));
+        var chat = await CreateRunner().StartAsync(planner);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CollectAsync(chat.SendAsync("你好")));
+    }
+
+    /// <summary>分派中按「停止產生」：不是錯誤，訊息留在紀錄、記「已停止」並存檔，不呼叫模型。</summary>
+    [Fact]
+    public async Task Planner_CanceledWhilePlanning_ReturnsCanceledResult_KeepsMessageAndPersists()
+    {
+        var planner = new BlockingPlanner();
+        var chat = await CreateRunner().StartAsync(planner);
+        using var cts = new CancellationTokenSource();
+
+        var collecting = CollectAsync(chat.SendAsync("你好", cts.Token));
+        await planner.Started.Task;
+        cts.Cancel();
+        var updates = await collecting;
+
+        Assert.Equal(AiAnalysisFailureReason.Canceled, Assert.Single(updates).Result!.Reason);
+        Assert.Empty(handler.Requests);
+        var transcript = store.Saved[chat.ConversationId].Content.Transcript;
+        Assert.Equal((AiAgentTranscriptKinds.User, "你好"), (transcript[0].Kind, transcript[0].Text));
+        Assert.Equal((AiAgentTranscriptKinds.Notice, "已停止產生，尚未收到任何內容。"), (transcript[^1].Kind, transcript[^1].Text));
+    }
+
+    /// <summary>規劃時一直等到被取消（模擬分派呼叫還沒回來）。</summary>
+    private sealed class BlockingPlanner : IAiAgentTurnPlanner
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public AiAgentDefinition Home => SampleTools.Agent;
+
+        public Task<AiAgentTurn> HomeTurnAsync(CancellationToken cancellationToken)
+            => Task.FromResult(new AiAgentTurn(Home, "首頁指示", null));
+
+        public async Task<AiAgentTurn> PlanAsync(Guid conversationId, string message, IReadOnlyList<AiAgentTranscriptEntry> transcript, CancellationToken cancellationToken)
+        {
+            Started.SetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException("不會到這裡");
+        }
+    }
+
+    private static AiAgentTurn Turn(IReadOnlyList<AiToolDefinition> tools, string instructions, string? label)
+        => new(SampleTools.Agent with { Tools = tools }, instructions, label);
+
+    /// <summary>依序回傳預先排好的每一輪；接續與開對話時用含全部工具的 Home。</summary>
+    private sealed class ScriptedPlanner(params AiAgentTurn[] turns) : IAiAgentTurnPlanner
+    {
+        private readonly Queue<AiAgentTurn> queue = new(turns);
+
+        public static AiAgentDefinition HomeDefinition => SampleTools.Agent;
+
+        public int PlanCalls { get; private set; }
+
+        public AiAgentDefinition Home => HomeDefinition;
+
+        public Task<AiAgentTurn> HomeTurnAsync(CancellationToken cancellationToken)
+            => Task.FromResult(new AiAgentTurn(HomeDefinition, "首頁指示", null));
+
+        public Task<AiAgentTurn> PlanAsync(Guid conversationId, string message, IReadOnlyList<AiAgentTranscriptEntry> transcript, CancellationToken cancellationToken)
+        {
+            PlanCalls++;
+            return Task.FromResult(queue.Dequeue());
+        }
+    }
+
     /// <summary>測試替身看得到的「沒有權限」文字開頭（PermissionCheckedAIFunction 是 internal）。</summary>
     private const string PermissionCheckedAIFunctionDeniedPrefix = "使用者沒有執行這個操作的權限";
 

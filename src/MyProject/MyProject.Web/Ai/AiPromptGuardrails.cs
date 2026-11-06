@@ -46,6 +46,12 @@ public static class AiPromptGuardrails
         PromptTemplateKeys.ReviewTechnical => Workflows.MultiPerspectiveReviewWorkflow.TechnicalInstructions,
         PromptTemplateKeys.ReviewUsability => Workflows.MultiPerspectiveReviewWorkflow.UsabilityInstructions,
         PromptTemplateKeys.ReviewAggregator => Workflows.MultiPerspectiveReviewWorkflow.AggregatorInstructions,
+        PromptTemplateKeys.AdminAssistant => Agents.AdminAssistant.AdminAssistantAgent.DefaultCommonInstructions,
+        PromptTemplateKeys.AdminAssistantRouter => Agents.AdminAssistant.AdminAssistantAgent.DefaultRouterInstructions,
+        PromptTemplateKeys.AdminAssistantAccounts => Agents.AdminAssistant.AdminAssistantAgent.DefaultAccountsInstructions,
+        PromptTemplateKeys.AdminAssistantMonitoring => Agents.AdminAssistant.AdminAssistantAgent.DefaultMonitoringInstructions,
+        PromptTemplateKeys.AdminAssistantAi => Agents.AdminAssistant.AdminAssistantAgent.DefaultAiInstructions,
+        PromptTemplateKeys.AdminAssistantOps => Agents.AdminAssistant.AdminAssistantAgent.DefaultOpsInstructions,
         _ => throw new ArgumentOutOfRangeException(nameof(templateKey), templateKey, "未知的提示詞種類。"),
     };
 
@@ -60,6 +66,10 @@ public static class AiPromptGuardrails
         PromptTemplateKeys.ReviewRequirements or PromptTemplateKeys.ReviewTechnical or PromptTemplateKeys.ReviewUsability
             => "待審查的文件",
         PromptTemplateKeys.ReviewAggregator => "審查者的意見（其中引用了待審查的文件）",
+        PromptTemplateKeys.AdminAssistant or PromptTemplateKeys.AdminAssistantAccounts or PromptTemplateKeys.AdminAssistantMonitoring
+            or PromptTemplateKeys.AdminAssistantAi or PromptTemplateKeys.AdminAssistantOps
+            => "使用者的訊息與工具回傳的資料（日誌、例外、稽核紀錄、帳號資料、AI 對話內容等）",
+        PromptTemplateKeys.AdminAssistantRouter => "使用者的訊息與最近的對話",
         _ => throw new ArgumentOutOfRangeException(nameof(templateKey), templateKey, "未知的提示詞種類。"),
     };
 }

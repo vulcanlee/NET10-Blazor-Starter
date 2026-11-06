@@ -42,6 +42,14 @@ public class AiModelSettings
     [MaxLength(MaxModelLength)]
     public string MultiPerspectiveReview { get; set; } = string.Empty;
 
+    /// <summary>系統管理助理（0.9.155 起）的對話。</summary>
+    [MaxLength(MaxModelLength)]
+    public string AdminAssistant { get; set; } = string.Empty;
+
+    /// <summary>系統管理助理每則訊息前的分派判斷（0.9.155 起）；空白時用 <see cref="AdminAssistant"/>。</summary>
+    [MaxLength(MaxModelLength)]
+    public string AdminAssistantRouter { get; set; } = string.Empty;
+
     /// <summary>
     /// 解析實際要用的模型。<paramref name="modelKey"/> 為 null 或該功能沒設定時回傳 <paramref name="defaultModel"/>。
     /// </summary>
