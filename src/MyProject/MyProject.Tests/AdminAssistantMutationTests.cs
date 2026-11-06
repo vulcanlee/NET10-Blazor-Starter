@@ -28,6 +28,17 @@ public sealed class AdminAssistantMutationTests
     }
 
     [Fact]
+    public void ValidateIds_DeduplicatesAndLimits()
+    {
+        var (items, error) = AdminAssistantMutation.ValidateIds([3, 1, 3]);
+        Assert.Null(error);
+        Assert.Equal([3, 1], items);
+
+        Assert.NotNull(AdminAssistantMutation.ValidateIds([]).Error);
+        Assert.Contains("50", AdminAssistantMutation.ValidateIds([.. Enumerable.Range(1, 51)]).Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CheckAdminsRemain_CountsOnlyEnabledAdminsAfterWholeBatch()
     {
         List<MyUserAdapterModel> users =

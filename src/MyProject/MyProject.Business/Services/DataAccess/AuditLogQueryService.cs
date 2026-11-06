@@ -51,6 +51,14 @@ public class AuditLogQueryService
         this.contentFileStore = contentFileStore;
     }
 
+    /// <summary>用編號讀一筆（0.9.159 起，系統管理助理看明細時取動作代碼寫稽核）；不存在時回 null。</summary>
+    public async Task<AuditLogAdapterModel?> GetByIdAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var item = await context.AuditLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        return item is null ? null : Mapper.Map<AuditLogAdapterModel>(item);
+    }
+
     /// <summary>
     /// 讀取一筆稽核的詳細內容（修改差異、查詢條件）。沒有內容檔、或檔案已不存在時回 null。
     /// </summary>

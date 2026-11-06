@@ -116,6 +116,28 @@ public sealed class AiAssistantTools
 
     public static IReadOnlyList<AiToolDefinition> MutatingTools { get; } = [SavePromptVersionTool, ActivatePromptVersionTool];
 
+    // ── 不可復原的工具（0.9.159 起）：稽核同 AI 對話紀錄頁與 Token 用量頁（頁面寫的），成功後才寫並加 via。──
+
+    public static AiToolDefinition DeleteAiCallLogsTool { get; } = DefineIrreversible(
+        "delete_ai_call_logs", "刪除 AI 對話紀錄", MagicObjectHelper.角色_AI對話紀錄, PermissionActions.Delete,
+        $"用 AI 對話紀錄編號（search_ai_call_logs 回傳的 id）刪除紀錄與內容檔，一次最多 {AdminAssistantMutation.MaxBatch} 筆。",
+        "對話紀錄與內容檔會被刪除，無法復原；Token 用量不受影響。",
+        tools => tools.DeleteAiCallLogsAsync);
+
+    public static AiToolDefinition ClearAiCallLogsTool { get; } = DefineIrreversible(
+        "clear_ai_call_logs", "清空全部 AI 對話紀錄", MagicObjectHelper.角色_AI對話紀錄, PermissionActions.Delete,
+        "刪除全部 AI 對話紀錄與內容檔（只清除一段期間的請用 custom_purge 的 ai-call-log）；Token 用量不受影響。",
+        "會刪除所有 AI 對話紀錄與內容檔，無法復原；Token 用量不受影響。",
+        tools => tools.ClearAiCallLogsAsync);
+
+    public static AiToolDefinition ClearTokenUsageTool { get; } = DefineIrreversible(
+        "clear_token_usage", "清空全部 Token 用量", MagicObjectHelper.角色_Token用量, PermissionActions.Delete,
+        "刪除全部 Token 用量紀錄與原始明細檔（只清除一段期間的請用 custom_purge 的 token-usage）。",
+        "會刪除所有 Token 用量紀錄與原始明細，無法復原；費用統計與 AI 用量上限的已用金額也會歸零。",
+        tools => tools.ClearTokenUsageAsync);
+
+    public static IReadOnlyList<AiToolDefinition> IrreversibleTools { get; } = [DeleteAiCallLogsTool, ClearAiCallLogsTool, ClearTokenUsageTool];
+
     public async Task<string> ListPromptTemplatesAsync()
     {
         var items = new List<object>();
@@ -173,6 +195,7 @@ public sealed class AiAssistantTools
     public async Task<string> SavePromptVersionAsync(
         [Description("提示詞種類：英文鍵或中文名稱")] string key,
         [Description("新版本的完整內容（整份取代），最多 8000 字")] string content,
+        [Description("改寫依據的作用中版本：get_prompt_history 讀到的作用中版本號，或 default（目前用內建預設）。別人在這之後另存過就不會儲存")] string baseVersion,
         [Description("版本備註，最多 200 字；可不填")] string? note = null)
     {
         var resolved = ResolvePromptKey(key);
@@ -187,8 +210,12 @@ public sealed class AiAssistantTools
             return $"沒有儲存：提示詞內容最多 {AiToolApprovals.ArgumentMaxLength} 字（含前後空白），這次有 {content!.Length} 字。";
         }
 
-        var activeVersion = (await prompts.GetHistoryAsync(resolved)).FirstOrDefault(version => version.IsActive)?.Version;
-        var (result, version) = await prompts.SaveNewVersionAsync(resolved, content ?? string.Empty, note, activeVersion, currentUser.CurrentUser.Account);
+        if (ParseVersion(baseVersion) is not { } expected)
+        {
+            return $"baseVersion「{baseVersion}」無法辨識，沒有儲存。請先用 get_prompt_history 讀目前的作用中版本，給版本號或 default。";
+        }
+
+        var (result, version) = await prompts.SaveNewVersionAsync(resolved, content ?? string.Empty, note, expected.Version, currentUser.CurrentUser.Account);
         if (result.Success == false)
         {
             return $"沒有儲存：{result.Message}";
@@ -236,8 +263,77 @@ public sealed class AiAssistantTools
         return $"「{PromptTemplateView.TitleOf(resolved)}」已改用{(target is { } v ? $"第 {v} 版" : "內建預設")}，下一次 AI 呼叫就會使用。";
     }
 
+    /// <summary>「default」／「預設」／「內建預設」→ 版本 null；正整數 → 該版本；其他 → null（無法辨識）。</summary>
+    private static (int? Version, bool Ok)? ParseVersion(string? text)
+    {
+        var value = text?.Trim() ?? string.Empty;
+        if (string.Equals(value, "default", StringComparison.OrdinalIgnoreCase) || value is "預設" or "內建預設")
+        {
+            return (null, true);
+        }
+
+        return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) && number > 0 ? (number, true) : null;
+    }
+
     private static string UnknownPromptKey(string? key)
         => $"找不到提示詞種類「{key}」，沒有變更。可用的種類：{string.Join("、", PromptTemplateKeys.All.Select(item => $"{item}（{PromptTemplateView.TitleOf(item)}）"))}。";
+
+    public async Task<string> DeleteAiCallLogsAsync([Description("AI 對話紀錄編號清單（search_ai_call_logs 回傳的 id），最多 50 個")] int[] ids)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateIds(ids);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult("刪除 AI 對話紀錄");
+        foreach (var id in items)
+        {
+            var item = (await callLogs.GetDetailAsync(id))?.Item;
+            if (item is null)
+            {
+                result.Add($"#{id}", false, "找不到這筆 AI 對話紀錄");
+                continue;
+            }
+
+            var outcome = await callLogs.DeleteAsync(id);
+            if (outcome.Success)
+            {
+                await ViewAudit.WriteAsync(audit, currentUser, AuditActions.AiCallLog.Delete, "AiCallLog",
+                    id.ToString(CultureInfo.InvariantCulture), $"刪除 AI 對話紀錄：{item.Operation}; via={AuditSource}");
+            }
+
+            result.Add($"#{id} {item.Operation}", outcome.Success, outcome.Success ? null : outcome.Message);
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> ClearAiCallLogsAsync()
+    {
+        var result = await callLogs.ClearAllAsync();
+        if (result.Success == false)
+        {
+            return $"沒有清空：{result.Message}";
+        }
+
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.AiCallLog.ClearAll, "AiCallLog", "*",
+            $"清空全部 AI 對話紀錄：{result.Message}; via={AuditSource}");
+        return $"{result.Message}Token 用量不受影響。";
+    }
+
+    public async Task<string> ClearTokenUsageAsync()
+    {
+        var result = await tokenUsage.ClearAllAsync();
+        if (result.Success == false)
+        {
+            return $"沒有清空：{result.Message}";
+        }
+
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.TokenUsage.ClearAll, "TokenUsage", "*",
+            $"清空全部用量紀錄：{result.Message}; via={AuditSource}");
+        return string.IsNullOrEmpty(result.Message) ? "已清空全部 Token 用量紀錄與原始明細。" : result.Message;
+    }
 
     public async Task<string> GetTokenUsageAsync(
         [Description("起始日期 yyyy-MM-dd；不填＝結束日往前共 7 天")] string? start = null,
@@ -547,6 +643,11 @@ public sealed class AiAssistantTools
             PermissionAction = PermissionActions.View,
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<AiAssistantTools>()), name, description),
         };
+
+    private static AiToolDefinition DefineIrreversible(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<AiAssistantTools, Delegate> method)
+        => DefineMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
 
     private static AiToolDefinition DefineMutating(
         string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,

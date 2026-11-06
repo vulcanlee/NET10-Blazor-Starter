@@ -121,6 +121,22 @@ public sealed class MonitoringAssistantTools
     public static IReadOnlyList<AiToolDefinition> MutatingTools { get; } =
         [SetLogLevelTool, RestoreLogLevelTool, SendTestEmailTool, SendTestNotificationTool];
 
+    // ── 不可復原的工具（0.9.159 起）：稽核同系統例外紀錄頁（頁面寫的），成功後才寫並加 via。──
+
+    public static AiToolDefinition DeleteExceptionsTool { get; } = DefineIrreversible(
+        "delete_exceptions", "刪除例外紀錄", MagicObjectHelper.角色_系統例外紀錄, PermissionActions.Delete,
+        $"用例外編號（search_exceptions 回傳的 id）刪除例外紀錄與堆疊檔，一次最多 {AdminAssistantMutation.MaxBatch} 筆。",
+        "例外紀錄與堆疊檔會被刪除，無法復原。相同的例外若再次發生，會重新出現並從 1 次開始計算。",
+        tools => tools.DeleteExceptionsAsync);
+
+    public static AiToolDefinition ClearExceptionsTool { get; } = DefineIrreversible(
+        "clear_exceptions", "清空全部例外紀錄", MagicObjectHelper.角色_系統例外紀錄, PermissionActions.Delete,
+        "刪除全部例外紀錄與整個堆疊檔目錄（只清除一段期間的請用 custom_purge 的 exception-log）。",
+        "會刪除所有例外紀錄與整個堆疊檔目錄，無法復原。",
+        tools => tools.ClearExceptionsAsync);
+
+    public static IReadOnlyList<AiToolDefinition> IrreversibleTools { get; } = [DeleteExceptionsTool, ClearExceptionsTool];
+
     public async Task<string> GetSystemHealthAsync(CancellationToken cancellationToken = default)
     {
         var report = await health.GetReportAsync(cancellationToken);
@@ -270,6 +286,50 @@ public sealed class MonitoringAssistantTools
             detail: $"日誌最低等級由 {LogLevelRankHelper.ToLevelText(previous)} 調整為 {LogLevelRankHelper.ToLevelText(current)}（僅執行期有效）。; via={AuditSource}");
     }
 
+    public async Task<string> DeleteExceptionsAsync([Description("例外編號清單（search_exceptions 回傳的 id），最多 50 個")] int[] ids)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateIds(ids);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult("刪除例外紀錄");
+        foreach (var id in items)
+        {
+            var item = await exceptions.GetByIdAsync(id);
+            if (item is null)
+            {
+                result.Add($"#{id}", false, "找不到這筆例外紀錄");
+                continue;
+            }
+
+            var outcome = await exceptions.DeleteAsync(id);
+            if (outcome.Success)
+            {
+                await ViewAudit.WriteAsync(audit, currentUser, AuditActions.ExceptionLog.Delete, "ExceptionLog",
+                    id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"type={item.ShortExceptionType}; via={AuditSource}");
+            }
+
+            result.Add($"#{id} {item.ShortExceptionType}", outcome.Success, outcome.Success ? null : outcome.Message);
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> ClearExceptionsAsync()
+    {
+        var result = await exceptions.ClearAllAsync();
+        if (result.Success == false)
+        {
+            return $"沒有清空：{result.Message}";
+        }
+
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.ExceptionLog.ClearAll, "ExceptionLog", "*",
+            $"清空全部例外紀錄：{result.Message}; via={AuditSource}");
+        return "已清空全部例外紀錄與堆疊檔目錄。";
+    }
+
     public async Task<string> SearchExceptionsAsync(
         [Description("起始時間（最後發生時間），" + TimeFormatHint + "；不填＝往前 7 天")] string? start = null,
         [Description("結束時間，" + TimeFormatHint + "；不填＝現在")] string? end = null,
@@ -364,6 +424,11 @@ public sealed class MonitoringAssistantTools
             PermissionAction = PermissionActions.View,
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<MonitoringAssistantTools>()), name, description),
         };
+
+    private static AiToolDefinition DefineIrreversible(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<MonitoringAssistantTools, Delegate> method)
+        => DefineMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
 
     private static AiToolDefinition DefineMutating(
         string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,

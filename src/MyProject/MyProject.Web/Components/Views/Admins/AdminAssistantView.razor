@@ -190,6 +190,10 @@ else
                             <span class="admin-assistant-agent">由 @approval.Label 提出</span>
                         }
                     </div>
+                    @if (approval.IsIrreversible)
+                    {
+                        <div class="admin-assistant-approval-irreversible" role="alert">⚠ 這個動作無法復原，核准後資料會永久刪除或立即生效。</div>
+                    }
                     @if (string.IsNullOrEmpty(approval.Note) == false)
                     {
                         <div class="admin-assistant-approval-note">@approval.Note</div>
@@ -202,9 +206,23 @@ else
                     </dl>
                 </div>
             }
+            @* 不可復原的動作（0.9.159 起）：要輸入「確認」才能按核准。用 OnInput 邊打邊判斷 ——
+               實測 @bind-Value 加 BindOnInput 要等失焦才回寫，打完字直接按核准會按到停用中的按鈕。 *@
+            @if (AdminAssistantApproval.RequiresConfirmation(pendingApprovals))
+            {
+                <div class="admin-assistant-approval-confirm">
+                    <label for="admin-assistant-confirm-input">請輸入「@AdminAssistantApproval.ConfirmText」以核准無法復原的動作</label>
+                    <Input TValue="string" id="admin-assistant-confirm-input" Value="@confirmInput"
+                           OnInput="@(args => confirmInput = args.Value?.ToString() ?? string.Empty)"
+                           MaxLength="10" Placeholder="@AdminAssistantApproval.ConfirmText" />
+                </div>
+            }
             <div class="agent-playground-approval-actions">
                 <Button OnClick="@(async () => await OnDecideAsync(approve: false))">拒絕</Button>
-                <Button Type="@ButtonType.Primary" OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
+                <Button Type="@ButtonType.Primary"
+                        Danger="@AdminAssistantApproval.RequiresConfirmation(pendingApprovals)"
+                        Disabled="@(AdminAssistantApproval.CanApprove(pendingApprovals, confirmInput) == false)"
+                        OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
             </div>
         </div>
     </Modal>

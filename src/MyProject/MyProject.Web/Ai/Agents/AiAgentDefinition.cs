@@ -74,6 +74,12 @@ public sealed record AiToolDefinition
     public string? ApprovalNote { get; init; }
 
     /// <summary>
+    /// 不可復原的動作（0.9.159 起，例如徹底刪除、清空紀錄）：核准窗加紅字警告、紅色核准鈕，並要求輸入「確認」才能核准。
+    /// 只在 <see cref="IsMutating"/> 的工具上有意義。
+    /// </summary>
+    public bool IsIrreversible { get; init; }
+
+    /// <summary>
     /// 建立實際執行的函式（每段對話建一次，從當下的 scope 取服務）。
     /// 通常是 <c>AIFunctionFactory.Create(sp.GetRequiredService&lt;某工具類別&gt;().方法, Name, Description)</c>。
     /// </summary>

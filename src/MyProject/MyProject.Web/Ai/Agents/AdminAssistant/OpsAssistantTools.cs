@@ -145,8 +145,8 @@ public sealed class OpsAssistantTools
 
     public static AiToolDefinition TriggerScheduledJobTool { get; } = DefineMutating(
         "trigger_scheduled_job", "立即執行排程作業", MagicObjectHelper.角色_排程作業, PermissionActions.Edit,
-        "把一個排程作業排入立即執行（背景進行）。會永久刪除資料的清理類作業不能從這裡立即執行。",
-        "在背景立即執行一次。「系統備份」會依保留份數刪除最舊的備份；清理類作業不能從這裡立即執行。",
+        "把一個排程作業排入立即執行（背景進行）。會永久刪除資料的清理類作業請改用 run_purge_job。",
+        "在背景立即執行一次。「系統備份」會依保留份數刪除最舊的備份；清理類作業要用「立即執行清理排程」（紅字核准）。",
         tools => tools.TriggerScheduledJobAsync);
 
     public static AiToolDefinition SetScheduledJobEnabledTool { get; } = DefineMutating(
@@ -172,6 +172,50 @@ public sealed class OpsAssistantTools
         SetSystemParameterTool, ResetSystemParameterTool, TriggerScheduledJobTool, SetScheduledJobEnabledTool,
         CreateAnnouncementTool, UpdateAnnouncementTool,
     ];
+
+    // ── 不可復原的工具（0.9.159 起）：核准窗紅字警告並要求輸入「確認」；稽核同各頁（頁面寫的），成功後才寫並加 via。──
+
+    public static AiToolDefinition DeleteAnnouncementsTool { get; } = DefineIrreversible(
+        "delete_announcements", "刪除公告", MagicObjectHelper.角色_公告管理, PermissionActions.Delete,
+        $"用公告編號（list_announcements 回傳的 id）刪除公告，一次最多 {AdminAssistantMutation.MaxBatch} 筆。",
+        "公告刪除後立即不再顯示，無法復原。",
+        tools => tools.DeleteAnnouncementsAsync);
+
+    public static AiToolDefinition DeleteBackupsTool { get; } = DefineIrreversible(
+        "delete_backups", "刪除備份", MagicObjectHelper.角色_系統備份, PermissionActions.Delete,
+        $"用檔名（list_backups 回傳的 fileName）刪除備份檔，一次最多 {AdminAssistantMutation.MaxBatch} 個。",
+        "備份檔刪除後無法復原；刪掉最新的一份時，要等下一次備份才有可還原的版本。",
+        tools => tools.DeleteBackupsAsync);
+
+    public static AiToolDefinition RunPurgeJobTool { get; } = DefineIrreversible(
+        "run_purge_job", "立即執行清理排程", MagicObjectHelper.角色_排程作業, PermissionActions.Edit,
+        "把會永久刪除資料的清理類排程（保留期清理、已刪除資料清除）排入立即執行；其他排程請用 trigger_scheduled_job。",
+        "會依目前的保留天數永久刪除超出的資料，無法復原。執行在背景進行，完成後可查執行紀錄看刪了多少。",
+        tools => tools.RunPurgeJobAsync);
+
+    public static AiToolDefinition EnablePurgeJobTool { get; } = DefineIrreversible(
+        "enable_purge_job", "啟用清理排程", MagicObjectHelper.角色_排程作業, PermissionActions.Edit,
+        "啟用一個清理類排程的自動執行；其他排程請用 set_scheduled_job_enabled（停用清理排程也用它）。",
+        "啟用後下一個時段就會依保留天數永久刪除資料（包含停用期間累積的），無法復原。",
+        tools => tools.EnablePurgeJobAsync);
+
+    public static AiToolDefinition ShortenRetentionTool { get; } = DefineIrreversible(
+        "shorten_retention", "縮短保留期限", MagicObjectHelper.角色_系統參數, PermissionActions.Edit,
+        "把保留類參數（資料保留天數、備份保留份數）改短（value 給新的值，或 default＝改回設定檔的值且那樣會縮短時）；"
+        + "呼叫前先用 get_system_parameters 讀目前值，並在回覆寫出「從多少改成多少」。不會縮短的修改請用 set_system_parameter／reset_system_parameter。",
+        "依這個參數的生效時機（保留天數是下一次清理排程、備份份數是下一次備份成功時），永久刪除超出新設定的資料或備份，無法復原。",
+        tools => tools.ShortenRetentionAsync);
+
+    public static IReadOnlyList<AiToolDefinition> IrreversibleTools { get; } =
+        [DeleteAnnouncementsTool, DeleteBackupsTool, RunPurgeJobTool, EnablePurgeJobTool, ShortenRetentionTool];
+
+    /// <summary>自訂清除（0.9.159 起）：依天數或日期清除任一類資料；分派到任何一個專家領域都會載入（「清除舊的稽核紀錄」會分到帳號領域）。</summary>
+    public static AiToolDefinition CustomPurgeTool { get; } = DefineIrreversible(
+        "custom_purge", "自訂清除", MagicObjectHelper.角色_資料保留與清理, PermissionActions.Delete,
+        "依「只留最近 N 天」或「刪除某日之前」永久清除一類資料（同「資料保留與清理」頁的自訂清除），回報刪了幾筆。"
+        + $"資料種類：{string.Join("、", PurgeRowKeys)}。執行前請先用 preview_data_purge 預覽筆數。",
+        "會永久刪除符合條件的資料，無法復原；不會改到系統參數的保留天數。",
+        tools => tools.CustomPurgeAsync);
 
     public async Task<string> GetSystemParametersAsync(
         [Description("只看某個分組（例如「資料保留」「AI 模型」）；不填＝全部")] string? group = null,
@@ -395,7 +439,7 @@ public sealed class OpsAssistantTools
             return $"沒有變更：{parseError}";
         }
 
-        if (definition.IsRetention && SystemParameterView.ShortensRetention(item.EffectiveValue, normalized))
+        if (definition.IsRetention && WouldShortenRetention(item.EffectiveValue, normalized))
         {
             return ShortensRetentionRefusal(definition, item.EffectiveValue, normalized);
         }
@@ -420,7 +464,7 @@ public sealed class OpsAssistantTools
             return $"「{definition.Label}」目前沒有系統參數覆寫（用的就是設定檔的值 {SystemParameterValueCodec.Display(definition, item.BaseValue)}），沒有變更。";
         }
 
-        if (definition.IsRetention && SystemParameterView.ShortensRetention(item.EffectiveValue, item.BaseValue))
+        if (definition.IsRetention && WouldShortenRetention(item.EffectiveValue, item.BaseValue))
         {
             return ShortensRetentionRefusal(definition, item.EffectiveValue, item.BaseValue);
         }
@@ -440,8 +484,7 @@ public sealed class OpsAssistantTools
 
         if (PurgeJobNames.Contains(job.Name))
         {
-            return $"「{job.DisplayName}」是會永久刪除資料的清理作業，這一版的助理不能立即執行，沒有執行。"
-                + "它會依排程自動執行；需要立即清理請到「排程作業」或「資料保留與清理」頁操作。";
+            return $"「{job.DisplayName}」是會永久刪除資料的清理作業，沒有用這個工具執行；請改用 run_purge_job（核准窗會以紅字再確認一次）。";
         }
 
         var user = currentUser.CurrentUser;
@@ -467,7 +510,7 @@ public sealed class OpsAssistantTools
         // 啟用清理類排程＝下一個時段就永久刪除資料（含停用期間累積的），這一版只能停用。
         if (enabled && PurgeJobNames.Contains(job.Name))
         {
-            return $"「{job.DisplayName}」是會永久刪除資料的清理作業，這一版的助理不能啟用它，沒有執行。需要的話請到「排程作業」頁操作。";
+            return $"「{job.DisplayName}」是會永久刪除資料的清理作業，沒有用這個工具啟用；請改用 enable_purge_job（核准窗會以紅字再確認一次）。";
         }
 
         var current = (await overview.GetOverviewAsync()).Items.FirstOrDefault(item => item.Name == job.Name);
@@ -574,6 +617,220 @@ public sealed class OpsAssistantTools
             + $"{(model.EndAt is { } finish ? $"{Format(finish)} 結束" : "不設結束時間")}。";
     }
 
+    public async Task<string> DeleteAnnouncementsAsync([Description("公告編號清單（list_announcements 回傳的 id），最多 50 個")] int[] ids)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateIds(ids);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var all = await announcements.GetAllAsync();
+        var result = new BatchResult("刪除公告");
+        foreach (var id in items)
+        {
+            if (all.FirstOrDefault(row => row.Id == id) is not { } item)
+            {
+                result.Add($"#{id}", false, "找不到這則公告");
+                continue;
+            }
+
+            var outcome = await announcements.DeleteAsync(item.Id, item.ConcurrencyStamp);
+            if (outcome.Success)
+            {
+                await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Announcement.Delete, "Announcement",
+                    item.Id.ToString(CultureInfo.InvariantCulture), $"title={item.Title}; via={AuditSource}");
+            }
+
+            result.Add($"#{id} {item.Title}", outcome.Success, outcome.Success ? null : outcome.Message);
+        }
+
+        if (result.SucceededCount > 0)
+        {
+            announcementCache.Invalidate();
+            signal.PublishAnnouncementsChanged();
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> DeleteBackupsAsync([Description("備份檔名清單（list_backups 回傳的 fileName），最多 50 個")] string[] fileNames)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(fileNames);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var listed = backups.List().Select(file => file.FileName).ToHashSet(StringComparer.Ordinal);
+        var result = new BatchResult("刪除備份");
+        foreach (var name in items)
+        {
+            if (listed.Contains(name) == false)
+            {
+                result.Add(name, false, "備份清單中找不到這個檔名（請用 list_backups 回傳的檔名）");
+                continue;
+            }
+
+            if (backups.Delete(name))
+            {
+                await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Backup.Delete, "Backup", name, $"file={name}; via={AuditSource}");
+                result.Add(name, true, null);
+            }
+            else
+            {
+                result.Add(name, false, "找不到這份備份，可能已被刪除。");
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> RunPurgeJobAsync([Description("清理類排程的名稱（Name）或顯示名稱，例如 AuditLogRetention 或「稽核紀錄保留」")] string jobName)
+    {
+        var job = ResolveJob(overview.Descriptors, jobName);
+        if (job is null)
+        {
+            return UnknownJobMessage(overview.Descriptors, jobName);
+        }
+
+        if (PurgeJobNames.Contains(job.Name) == false)
+        {
+            return $"「{job.DisplayName}」不是清理類排程，沒有執行；請改用 trigger_scheduled_job。";
+        }
+
+        var user = currentUser.CurrentUser;
+        if (overview.TryTrigger(job.Name, user.Account, user.Id) == false)
+        {
+            return $"「{job.DisplayName}」已經在佇列或執行中，沒有重複排入。";
+        }
+
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Job.Trigger, "ScheduledJob", job.Name, $"job={job.Name}; via={AuditSource}");
+        return $"已排入「{job.DisplayName}」，會在背景依目前的保留天數清除資料；稍後可以用 get_job_recent_runs 查看刪了多少。";
+    }
+
+    public async Task<string> EnablePurgeJobAsync([Description("清理類排程的名稱（Name）或顯示名稱")] string jobName)
+    {
+        var job = ResolveJob(overview.Descriptors, jobName);
+        if (job is null)
+        {
+            return UnknownJobMessage(overview.Descriptors, jobName);
+        }
+
+        if (PurgeJobNames.Contains(job.Name) == false)
+        {
+            return $"「{job.DisplayName}」不是清理類排程，沒有執行；請改用 set_scheduled_job_enabled。";
+        }
+
+        var current = (await overview.GetOverviewAsync()).Items.FirstOrDefault(item => item.Name == job.Name);
+        if (current?.IsEnabled == true)
+        {
+            return $"「{job.DisplayName}」原本就是啟用，沒有變更。";
+        }
+
+        await overview.SetEnabledAsync(job.Name, true, currentUser.CurrentUser.Account);
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Job.Enable, "ScheduledJob", job.Name, $"job={job.Name}; via={AuditSource}");
+        return $"已啟用「{job.DisplayName}」，從下一個時段開始依保留天數自動清除資料。";
+    }
+
+    public async Task<string> ShortenRetentionAsync(
+        [Description("保留天數參數的 key 或名稱，例如 LogRetentionSettings:AuditLogDays 或「稽核紀錄保留天數」")] string key,
+        [Description("新的天數；或 default＝改回設定檔的值（那樣會縮短時才用這個工具）")] string value,
+        CancellationToken cancellationToken = default)
+    {
+        var item = ResolveParameter((await parameters.GetOverviewAsync(cancellationToken)).Items, key);
+        if (item is null)
+        {
+            return UnknownParameter(key);
+        }
+
+        var definition = item.Definition;
+        if (definition.IsRetention == false)
+        {
+            return $"「{definition.Label}」不是保留天數參數，沒有變更；請改用 set_system_parameter。";
+        }
+
+        if (string.Equals(value?.Trim(), "default", StringComparison.OrdinalIgnoreCase))
+        {
+            if (item.Override is not { } row)
+            {
+                return $"「{definition.Label}」目前沒有系統參數覆寫，沒有變更。";
+            }
+
+            if (DefinitelyShortensRetention(item.EffectiveValue, item.BaseValue) == false)
+            {
+                return $"改回設定檔的值不會縮短「{definition.Label}」，沒有用這個工具執行；請改用 reset_system_parameter。";
+            }
+
+            return await FinishParameterChangeAsync(definition, await parameters.ResetAsync(definition.Key, row.ConcurrencyStamp, cancellationToken));
+        }
+
+        if (SystemParameterValueCodec.TryNormalize(definition, value, out var normalized, out var parseError) == false)
+        {
+            return $"沒有變更：{parseError}";
+        }
+
+        if (DefinitelyShortensRetention(item.EffectiveValue, normalized) == false)
+        {
+            return $"這個修改不會縮短「{definition.Label}」，沒有用這個工具執行；請改用 set_system_parameter。";
+        }
+
+        var result = await parameters.SaveAsync(definition.Key, normalized, item.Override?.ConcurrencyStamp, currentUser.CurrentUser.Account, cancellationToken);
+        return await FinishParameterChangeAsync(definition, result);
+    }
+
+    public async Task<string> CustomPurgeAsync(
+        [Description("資料種類，例如 audit-log、exception-log、token-usage、ai-call-log、deleted-user")] string rowKey,
+        [Description("只留最近 N 天（1～3650）；與 beforeDate 二選一")] int? keepDays = null,
+        [Description("刪除這一天之前的資料（yyyy-MM-dd，不含當天）；與 keepDays 二選一")] string? beforeDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (cutoff, error) = ParsePurgeRequest(rowKey, keepDays, beforeDate, DateOnly.FromDateTime(DateTime.Today));
+        if (cutoff is null)
+        {
+            return $"沒有清除：{error}";
+        }
+
+        var key = rowKey.Trim();
+        var outcome = await retention.PurgeCustomAsync(key, cutoff, cancellationToken);
+
+        // 同「資料保留與清理」頁：刪到資料就寫稽核 —— 中途失敗也一樣（已經刪掉的要留下紀錄）。
+        if (CustomPurgeAuditDetail(outcome, cutoff) is { } detail)
+        {
+            await ViewAudit.WriteAsync(audit, currentUser, outcome.AuditAction, outcome.TargetType, "*", detail);
+        }
+
+        return outcome.Failed
+            ? $"清除失敗（已刪除 {outcome.Removed} 筆後中斷），詳細原因請查看日誌。"
+            : ToJson(new { rowKey = key, condition = cutoff.Describe(), removed = outcome.Removed, left = outcome.Left });
+    }
+
+    /// <summary>自訂清除的稽核 detail（同資料保留頁，加 via）；中途失敗時加 <c>failed=true</c>；一筆都沒刪時回 null（不寫）。</summary>
+    public static string? CustomPurgeAuditDetail(CustomPurgeOutcome outcome, CustomPurgeCutoff cutoff)
+        => outcome.Removed > 0
+            ? $"{cutoff.AuditDetail(outcome.Removed)}{(outcome.Failed ? "; failed=true" : string.Empty)}; via={AuditSource}"
+            : null;
+
+    /// <summary>
+    /// 保留天數會不會縮短（0.9.159 起）：沿用頁面的 <see cref="SystemParameterView.ShortensRetention"/>，
+    /// 但任一邊不是整數時保守地當作會縮短 —— 頁面另有確認窗兜底，工具是唯一的防線。新值 0（不清除）不算縮短。
+    /// </summary>
+    public static bool WouldShortenRetention(string? currentValue, string? newValue)
+    {
+        var parsable = int.TryParse(currentValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
+            && int.TryParse(newValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _);
+        return parsable == false || SystemParameterView.ShortensRetention(currentValue, newValue);
+    }
+
+    /// <summary>
+    /// 確實會縮短（0.9.159 起，給 shorten_retention 用）：兩邊都是整數而且新值較短。
+    /// 和 <see cref="WouldShortenRetention"/> 方向相反的保守：無法判斷時，可復原的工具要拒絕，不可復原的工具也不能接。
+    /// </summary>
+    public static bool DefinitelyShortensRetention(string? currentValue, string? newValue)
+        => int.TryParse(currentValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
+            && int.TryParse(newValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
+            && SystemParameterView.ShortensRetention(currentValue, newValue);
+
     /// <summary>以 key（不分大小寫）或名稱找系統參數；找不到回 null。</summary>
     public static SystemParameterOverviewItem? ResolveParameter(IReadOnlyList<SystemParameterOverviewItem> items, string? input)
     {
@@ -587,7 +844,7 @@ public sealed class OpsAssistantTools
 
     private static string ShortensRetentionRefusal(SystemParameterDefinition definition, string? from, string? to)
         => $"「{definition.Label}」從 {SystemParameterValueCodec.Display(definition, from)} 改為 {SystemParameterValueCodec.Display(definition, to)} 會縮短保留期限，"
-            + "下一次清理會永久刪除超出的資料、無法復原。這一版的助理不做會刪除資料的變更，沒有執行；需要的話請到「系統參數」頁手動調整。";
+            + "下一次清理會永久刪除超出的資料、無法復原，所以沒有用這個工具修改；請改用 shorten_retention（核准窗會以紅字再確認一次）。";
 
     private async Task<string> FinishParameterChangeAsync(SystemParameterDefinition definition, SystemParameterChangeResult result)
     {
@@ -686,6 +943,11 @@ public sealed class OpsAssistantTools
             PermissionAction = PermissionActions.View,
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<OpsAssistantTools>()), name, description),
         };
+
+    private static AiToolDefinition DefineIrreversible(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<OpsAssistantTools, Delegate> method)
+        => DefineMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
 
     private static AiToolDefinition DefineMutating(
         string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,

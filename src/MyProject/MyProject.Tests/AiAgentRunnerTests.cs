@@ -200,6 +200,22 @@ public sealed class AiAgentRunnerTests
         Assert.Equal(System.Text.Json.JsonValueKind.Object, saved.Content.Session.ValueKind);
     }
 
+    /// <summary>停在不可復原動作的核准時離開再回來（0.9.159 起）：接續後的核准請求仍標示不可復原（紅字與輸入確認才會出現）。</summary>
+    [Fact]
+    public async Task Resume_PendingIrreversibleApproval_KeepsFlag()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var agent = SampleTools.Agent with { Tools = [SampleTools.Read, SampleTools.Write with { IsIrreversible = true }] };
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_x", SampleTools.Write.Name, """{"value":"x"}"""));
+        var first = await CreateRunner().StartAsync(agent);
+        var updates = await CollectAsync(first.SendAsync("刪掉"));
+        Assert.True(Assert.Single(Assert.Single(updates, update => update.Approvals is not null).Approvals!).IsIrreversible);
+
+        var resumed = await CreateRunner().ResumeAsync(agent, first.ConversationId);
+
+        Assert.True(Assert.Single(resumed!.PendingApprovals).IsIrreversible);
+    }
+
     /// <summary>接續：另一個執行器（等於重新整理頁面）讀回存檔，模型收到的請求包含之前的對話。</summary>
     [Fact]
     public async Task Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns()

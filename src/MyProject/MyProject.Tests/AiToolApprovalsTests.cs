@@ -30,6 +30,15 @@ public sealed class AiToolApprovalsTests
     }
 
     [Fact]
+    public void Describe_CarriesIrreversibleFlag()
+    {
+        var irreversible = Tool with { IsIrreversible = true };
+
+        Assert.False(AiToolApprovals.Describe(Request(), Tool, Call()).IsIrreversible);
+        Assert.True(AiToolApprovals.Describe(Request(), irreversible, Call()).IsIrreversible);
+    }
+
+    [Fact]
     public void Describe_ArrayArgument_ListsEachItemWithCount()
     {
         var accounts = JsonSerializer.SerializeToElement(new[] { "temp-a", "temp-b" });

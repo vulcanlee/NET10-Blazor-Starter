@@ -751,10 +751,12 @@ public sealed record AiToolActivity(string ToolName, string DisplayName, bool Co
 /// <summary>一筆待核准的工具呼叫。</summary>
 /// <param name="Note">工具的核准說明（<see cref="AiToolDefinition.ApprovalNote"/>，0.9.158 起）；沒有時為 null。</param>
 /// <param name="Label">提出這次核准的專家（每輪規劃的標籤，0.9.158 起）；沒有規劃器時為 null。</param>
+/// <param name="IsIrreversible">不可復原的動作（<see cref="AiToolDefinition.IsIrreversible"/>，0.9.159 起）：核准窗加紅字警告並要求輸入確認。</param>
 public sealed record AiToolApprovalRequest(
     string RequestId,
     string ToolName,
     string DisplayName,
     IReadOnlyList<KeyValuePair<string, string>> Arguments,
     string? Note = null,
-    string? Label = null);
+    string? Label = null,
+    bool IsIrreversible = false);

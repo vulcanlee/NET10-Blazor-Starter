@@ -30,6 +30,20 @@ public static class AdminAssistantMutation
             : (items, null);
     }
 
+    /// <summary>編號清單：去除重複（保留原順序）；空清單或超過 <paramref name="max"/> 筆時回錯誤說明、不執行任何一筆。</summary>
+    public static (IReadOnlyList<int> Items, string? Error) ValidateIds(IReadOnlyList<int>? source, int max = MaxBatch)
+    {
+        var items = (source ?? []).Distinct().ToList();
+        if (items.Count == 0)
+        {
+            return ([], "請至少指定一個編號。");
+        }
+
+        return items.Count > max
+            ? ([], $"一次最多 {max} 筆，這次有 {items.Count} 筆，沒有執行任何一筆。請分批進行。")
+            : (items, null);
+    }
+
     /// <summary>
     /// 整批做完後（<paramref name="losingAdmin"/> 裡的人不再是可用的管理員）是否還有至少一位啟用中的管理員；
     /// 沒有時回錯誤說明（整批不執行）。只算 <c>IsAdmin &amp;&amp; Status</c>：停用的管理員無法登入。
