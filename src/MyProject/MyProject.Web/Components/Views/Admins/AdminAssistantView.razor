@@ -183,7 +183,17 @@ else
             @foreach (var approval in pendingApprovals)
             {
                 <div class="agent-playground-approval-item">
-                    <div class="agent-playground-approval-name">@approval.DisplayName</div>
+                    <div class="agent-playground-approval-name">
+                        @approval.DisplayName
+                        @if (string.IsNullOrEmpty(approval.Label) == false)
+                        {
+                            <span class="admin-assistant-agent">由 @approval.Label 提出</span>
+                        }
+                    </div>
+                    @if (string.IsNullOrEmpty(approval.Note) == false)
+                    {
+                        <div class="admin-assistant-approval-note">@approval.Note</div>
+                    }
                     <dl class="agent-playground-approval-args">
                         @foreach (var argument in approval.Arguments)
                         {

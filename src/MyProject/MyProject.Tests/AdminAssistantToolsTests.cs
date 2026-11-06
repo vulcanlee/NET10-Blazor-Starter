@@ -249,8 +249,8 @@ public sealed class AdminAssistantToolsTests
     {
         var services = new ServiceCollection()
             .AddSingleton(CreateMonitoringTools())
-            .AddSingleton(new OpsAssistantTools(null!, null!, null!, null!, null!, null!))
-            .AddSingleton(new AccountsAssistantTools(null!, null!, null!, audit, currentUser))
+            .AddSingleton(new OpsAssistantTools(null!, null!, null!, null!, null!, null!, audit, currentUser, null!, null!))
+            .AddSingleton(new AccountsAssistantTools(null!, null!, null!, audit, currentUser, null!))
             .AddSingleton(new AiAssistantTools(null!, null!, null!, null!, audit, currentUser))
             .BuildServiceProvider();
 
@@ -268,7 +268,7 @@ public sealed class AdminAssistantToolsTests
     }
 
     private MonitoringAssistantTools CreateMonitoringTools(ILogQueryService? logs = null, MyProject.Business.Services.DataAccess.ExceptionLogService? exceptions = null, IDatabaseUsageService? databaseUsage = null)
-        => new(health: null!, logs ?? new RecordingLogQueryService(), logLevel: null!, exceptions!, databaseUsage!, audit, currentUser);
+        => new(health: null!, logs ?? new RecordingLogQueryService(), logLevel: null!, exceptions!, databaseUsage!, audit, currentUser, emailTest: null!, notificationTest: null!);
 
     private sealed class FakeDatabaseUsageService(DatabaseUsageReport report) : IDatabaseUsageService
     {

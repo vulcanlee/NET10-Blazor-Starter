@@ -72,6 +72,12 @@ public sealed class AiAgentPendingApprovalRecord
     public bool AutoRejected { get; set; }
 
     public JsonElement Content { get; set; }
+
+    /// <summary>
+    /// 提出這次核准的那一輪標籤（0.9.158 起，系統管理助理）：需要核准的工具不會留下工具活動紀錄，
+    /// 接續時靠它還原「由誰回答」。只加不改，<see cref="AiAgentConversationContent.SchemaVersion"/> 不變。
+    /// </summary>
+    public string? Label { get; set; }
 }
 
 /// <summary>「我的對話」清單的一列。</summary>

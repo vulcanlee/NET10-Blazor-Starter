@@ -302,3 +302,18 @@
     border-color: var(--app-accent);
     color: var(--app-accent);
 }
+
+/* 核准窗（0.9.158 起）：工具的核准說明，以及批次清單太長時捲動。 */
+.admin-assistant-approval-note {
+    margin: 4px 0 8px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--app-accent);
+    background: var(--app-page);
+    color: var(--app-text);
+    font-size: 13px;
+}
+
+.agent-playground-approval-args dd {
+    max-height: 240px;
+    overflow-y: auto;
+}

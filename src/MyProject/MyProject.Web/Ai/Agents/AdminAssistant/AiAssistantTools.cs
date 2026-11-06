@@ -100,6 +100,22 @@ public sealed class AiAssistantTools
     public static IReadOnlyList<AiToolDefinition> ReadTools { get; } =
         [ListPromptsTool, PromptHistoryTool, TokenUsageTool, QuotaTool, SearchCallLogsTool, CallLogDetailTool];
 
+    // ── 異動工具（0.9.158 起）：每一個都要使用者核准；稽核同提示詞頁（Prompt.Update／Prompt.Activate），detail 加 via。──
+
+    public static AiToolDefinition SavePromptVersionTool { get; } = DefineMutating(
+        "save_prompt_version", "儲存提示詞新版本", MagicObjectHelper.角色_AI提示詞, PermissionActions.Edit,
+        "把一種提示詞存成新版本並立即設為作用中（整份內容取代，最多 8000 字；備註最多 200 字）。舊版本保留，可以用 activate_prompt_version 切回。",
+        "新版本立即生效：下一次 AI 呼叫就會使用。舊版本會保留，可以隨時切回。",
+        tools => tools.SavePromptVersionAsync);
+
+    public static AiToolDefinition ActivatePromptVersionTool { get; } = DefineMutating(
+        "activate_prompt_version", "切換提示詞版本", MagicObjectHelper.角色_AI提示詞, PermissionActions.Edit,
+        "讓一種提示詞改用指定的版本號，或用 default 改回內建預設。",
+        "切換後下一次 AI 呼叫就會使用。",
+        tools => tools.ActivatePromptVersionAsync);
+
+    public static IReadOnlyList<AiToolDefinition> MutatingTools { get; } = [SavePromptVersionTool, ActivatePromptVersionTool];
+
     public async Task<string> ListPromptTemplatesAsync()
     {
         var items = new List<object>();
@@ -153,6 +169,75 @@ public sealed class AiAssistantTools
             }),
         });
     }
+
+    public async Task<string> SavePromptVersionAsync(
+        [Description("提示詞種類：英文鍵或中文名稱")] string key,
+        [Description("新版本的完整內容（整份取代），最多 8000 字")] string content,
+        [Description("版本備註，最多 200 字；可不填")] string? note = null)
+    {
+        var resolved = ResolvePromptKey(key);
+        if (resolved is null)
+        {
+            return UnknownPromptKey(key);
+        }
+
+        // 核准窗最多完整顯示 ArgumentMaxLength 字；更長的內容管理員看不完整，不能存（服務 trim 之前就算）。
+        if ((content?.Length ?? 0) > AiToolApprovals.ArgumentMaxLength)
+        {
+            return $"沒有儲存：提示詞內容最多 {AiToolApprovals.ArgumentMaxLength} 字（含前後空白），這次有 {content!.Length} 字。";
+        }
+
+        var activeVersion = (await prompts.GetHistoryAsync(resolved)).FirstOrDefault(version => version.IsActive)?.Version;
+        var (result, version) = await prompts.SaveNewVersionAsync(resolved, content ?? string.Empty, note, activeVersion, currentUser.CurrentUser.Account);
+        if (result.Success == false)
+        {
+            return $"沒有儲存：{result.Message}";
+        }
+
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Prompt.Update, "PromptTemplate", resolved,
+            $"version={version}; via={AuditSource}");
+        return $"已把「{PromptTemplateView.TitleOf(resolved)}」存成第 {version} 版並設為作用中，下一次 AI 呼叫就會使用。";
+    }
+
+    public async Task<string> ActivatePromptVersionAsync(
+        [Description("提示詞種類：英文鍵或中文名稱")] string key,
+        [Description("版本號（例如 3），或 default＝改回內建預設")] string version)
+    {
+        var resolved = ResolvePromptKey(key);
+        if (resolved is null)
+        {
+            return UnknownPromptKey(key);
+        }
+
+        var text = version?.Trim() ?? string.Empty;
+        int? target;
+        if (string.Equals(text, "default", StringComparison.OrdinalIgnoreCase) || text is "預設" or "內建預設")
+        {
+            target = null;
+        }
+        else if (int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var number) && number > 0)
+        {
+            target = number;
+        }
+        else
+        {
+            return $"版本「{version}」無法辨識，沒有變更。請給版本號（例如 3），或 default 改回內建預設。";
+        }
+
+        var result = await prompts.ActivateAsync(resolved, target);
+        if (result.Success == false)
+        {
+            return $"沒有變更：{result.Message}";
+        }
+
+        var label = target is { } n ? n.ToString(CultureInfo.InvariantCulture) : "default";
+        await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Prompt.Activate, "PromptTemplate", resolved,
+            $"version={label}; via={AuditSource}");
+        return $"「{PromptTemplateView.TitleOf(resolved)}」已改用{(target is { } v ? $"第 {v} 版" : "內建預設")}，下一次 AI 呼叫就會使用。";
+    }
+
+    private static string UnknownPromptKey(string? key)
+        => $"找不到提示詞種類「{key}」，沒有變更。可用的種類：{string.Join("、", PromptTemplateKeys.All.Select(item => $"{item}（{PromptTemplateView.TitleOf(item)}）"))}。";
 
     public async Task<string> GetTokenUsageAsync(
         [Description("起始日期 yyyy-MM-dd；不填＝結束日往前共 7 天")] string? start = null,
@@ -461,5 +546,15 @@ public sealed class AiAssistantTools
             PermissionPage = permissionPage,
             PermissionAction = PermissionActions.View,
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<AiAssistantTools>()), name, description),
+        };
+
+    private static AiToolDefinition DefineMutating(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<AiAssistantTools, Delegate> method)
+        => Define(name, displayName, permissionPage, description, method) with
+        {
+            PermissionAction = permissionAction,
+            IsMutating = true,
+            ApprovalNote = approvalNote,
         };
 }

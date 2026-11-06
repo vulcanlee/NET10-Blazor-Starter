@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 using MyProject.Web.Ai.Agents.AdminAssistant;
 using MyProject.Web.Configuration;
 
@@ -67,6 +68,50 @@ public sealed class AdminAssistantAgentTests
         var definition = AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Ops });
 
         Assert.All(AdminAssistantAgent.ReadTools, tool => Assert.Contains(tool, definition.Tools));
+    }
+
+    /// <summary>里程碑 3（0.9.158）：22 個可復原的異動工具（帳號 10、監控 4、AI 2、維運 6），都要核准、都有核准說明，Home 共 48 個。</summary>
+    [Fact]
+    public void MutatingTools_PerDomain_AllRequireApprovalWithNote()
+    {
+        var mutating = AdminAssistantAgent.MutatingTools;
+
+        Assert.Equal(10, mutating[AdminAssistantDomain.Accounts].Count);
+        Assert.Equal(4, mutating[AdminAssistantDomain.Monitoring].Count);
+        Assert.Equal(2, mutating[AdminAssistantDomain.Ai].Count);
+        Assert.Equal(6, mutating[AdminAssistantDomain.Ops].Count);
+        Assert.Equal(48, AdminAssistantAgent.Home.Tools.Count);
+        Assert.All(mutating.Values.SelectMany(tools => tools), tool =>
+        {
+            Assert.True(tool.IsMutating, tool.Name);
+            Assert.False(string.IsNullOrWhiteSpace(tool.ApprovalNote), tool.Name);
+            Assert.NotEqual(PermissionActions.View, tool.PermissionAction);
+        });
+    }
+
+    /// <summary>異動規則（0.9.158 起）：只在明確要求時修改、先確認對象、上限 50 筆、被拒絕不換方式重試、不可復原的動作指向頁面。</summary>
+    [Fact]
+    public void CommonInstructions_StateMutationRules()
+    {
+        var text = AdminAssistantAgent.DefaultCommonInstructions;
+
+        Assert.Contains("明確要求修改", text, StringComparison.Ordinal);
+        Assert.Contains("一次最多 50 筆", text, StringComparison.Ordinal);
+        Assert.Contains("不要換個方式再試", text, StringComparison.Ordinal);
+        Assert.Contains("不可復原", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>異動工具只在分派到該領域時載入；巡檢或沒分出領域時只有唯讀工具（巡檢不會順手改東西）。</summary>
+    [Fact]
+    public void DefinitionFor_LoadsMutatingToolsOnlyForSelectedDomains()
+    {
+        var accounts = AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Accounts }).Tools;
+        var patrol = AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Patrol, AdminAssistantDomain.Accounts }).Tools;
+
+        Assert.Contains(accounts, tool => tool.Name == "set_users_enabled");
+        Assert.DoesNotContain(accounts, tool => tool.Name == "set_log_level");
+        Assert.DoesNotContain(patrol, tool => tool.IsMutating);
+        Assert.DoesNotContain(AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain>()).Tools, tool => tool.IsMutating);
     }
 
     [Fact]
