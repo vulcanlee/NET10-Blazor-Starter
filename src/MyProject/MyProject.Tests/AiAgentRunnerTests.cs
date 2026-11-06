@@ -200,6 +200,51 @@ public sealed class AiAgentRunnerTests
         Assert.Equal(System.Text.Json.JsonValueKind.Object, saved.Content.Session.ValueKind);
     }
 
+    /// <summary>
+    /// 核准窗的「目前狀態」（0.9.160 起）：工具的 ApprovalPreview 在提出核准時算一次，跟著待核准紀錄存起來，接續時照樣顯示（不重算）。
+    /// </summary>
+    [Fact]
+    public async Task Approval_Preview_ShownPersistedAndRestored()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var calls = 0;
+        var write = SampleTools.Write with
+        {
+            ApprovalPreview = (_, arguments, _) =>
+            {
+                calls++;
+                return Task.FromResult<string?>($"目前值 A；改為 {arguments["value"]}");
+            },
+        };
+        var agent = SampleTools.Agent with { Tools = [SampleTools.Read, write] };
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_p", SampleTools.Write.Name, """{"value":"x"}"""));
+        var first = await CreateRunner().StartAsync(agent);
+        var updates = await CollectAsync(first.SendAsync("改"));
+        Assert.Equal("目前值 A；改為 x", Assert.Single(Assert.Single(updates, update => update.Approvals is not null).Approvals!).Preview);
+
+        var resumed = await CreateRunner().ResumeAsync(agent, first.ConversationId);
+
+        Assert.Equal("目前值 A；改為 x", Assert.Single(resumed!.PendingApprovals).Preview);
+        Assert.Equal(1, calls);
+    }
+
+    /// <summary>預覽失敗不能擋住核准：照樣跳核准窗，只是沒有「目前狀態」。</summary>
+    [Fact]
+    public async Task Approval_PreviewThrows_StillAsksWithoutPreview()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var write = SampleTools.Write with { ApprovalPreview = (_, _, _) => throw new InvalidOperationException("boom") };
+        var agent = SampleTools.Agent with { Tools = [SampleTools.Read, write] };
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_q", SampleTools.Write.Name, """{"value":"x"}"""));
+        var first = await CreateRunner().StartAsync(agent);
+
+        var updates = await CollectAsync(first.SendAsync("改"));
+
+        var approval = Assert.Single(Assert.Single(updates, update => update.Approvals is not null).Approvals!);
+        Assert.Null(approval.Preview);
+        Assert.True(first.IsAwaitingApproval);
+    }
+
     /// <summary>停在不可復原動作的核准時離開再回來（0.9.159 起）：接續後的核准請求仍標示不可復原（紅字與輸入確認才會出現）。</summary>
     [Fact]
     public async Task Resume_PendingIrreversibleApproval_KeepsFlag()

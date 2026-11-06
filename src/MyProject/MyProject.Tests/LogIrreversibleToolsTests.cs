@@ -27,6 +27,7 @@ public sealed class LogIrreversibleToolsTests : IAsyncDisposable
     private readonly CurrentUserService currentUser = new() { CurrentUser = new CurrentUser { Id = 7, Account = "admin", IsAdmin = true } };
     private readonly MonitoringAssistantTools monitoring;
     private readonly AiAssistantTools ai;
+    private readonly AiCallLogService callLogs;
 
     public LogIrreversibleToolsTests()
     {
@@ -44,7 +45,7 @@ public sealed class LogIrreversibleToolsTests : IAsyncDisposable
         settings.ExternalFileSystem.TokenUsagePath = Path.Combine(root, "tk");
         var exceptions = new ExceptionLogService(Factory(), mapper, loggerFactory.CreateLogger<ExceptionLogService>(),
             new ExceptionStackFileStore(Options.Create(settings)));
-        var callLogs = new AiCallLogService(Factory(), mapper, loggerFactory.CreateLogger<AiCallLogService>(),
+        callLogs = new AiCallLogService(Factory(), mapper, loggerFactory.CreateLogger<AiCallLogService>(),
             new AiCallLogFileStore(Options.Create(settings), loggerFactory.CreateLogger<AiCallLogFileStore>()),
             new StaticOptionsMonitor<AiCallLogSettings>(new AiCallLogSettings { Enabled = true, RetentionDays = 90 }));
         var tokenUsage = new TokenUsageLogService(Factory(), mapper, loggerFactory.CreateLogger<TokenUsageLogService>(),
@@ -105,6 +106,18 @@ public sealed class LogIrreversibleToolsTests : IAsyncDisposable
         Assert.Contains("\"succeeded\":1", json, StringComparison.Ordinal);
         Assert.False(await Context().AiCallLog.AnyAsync());
         Assert.Equal("刪除 AI 對話紀錄：系統管理助理; via=admin-assistant", Assert.Single(audit.Entries).Detail);
+    }
+
+    /// <summary>刪除前只需要作業名稱：只讀資料列，不讀內容檔（0.9.160 起；原本 50 筆就讀 50 次檔）。</summary>
+    [Fact]
+    public async Task AiCallLogGetById_ReadsRowOnly_MissingReturnsNull()
+    {
+        var id = await AddCallLogAsync("系統管理助理");
+
+        var item = await callLogs.GetByIdAsync(id);
+
+        Assert.Equal("系統管理助理", item!.Operation);
+        Assert.Null(await callLogs.GetByIdAsync(id + 100));
     }
 
     [Fact]

@@ -219,8 +219,7 @@ public sealed class AccountsAssistantTools
         // 已軟刪除的帳號（0.9.159 起）：同使用者管理頁的「顯示已刪除」，徹底刪除或還原前用它確認對象。
         var showDeleted = string.Equals(status?.Trim(), "deleted", StringComparison.OrdinalIgnoreCase);
         var (filtered, statusNote) = showDeleted
-            ? ([.. (await users.GetDeletedAsync(new DataRequest { Search = keyword?.Trim() ?? string.Empty, CurrentPage = 1, PageSize = MaxScanUsers, Take = 1 }))
-                .Result.Where(user => adminOnly != true || user.IsAdmin)], null)
+            ? await LoadDeletedUsersAsync(keyword, adminOnly, notes)
             : FilterUsers(await LoadUsersAsync(keyword, notes), status, adminOnly, DateTime.UtcNow);
         var count = ClampWithNote(take, 1, MaxUserTake, "筆數", notes);
         var lastLogins = await auditLogs.GetLastLoginTimesAsync();
@@ -1123,12 +1122,28 @@ public sealed class AccountsAssistantTools
             Take = 1,
         });
 
-        if (result.Count > MaxScanUsers)
+        if (ScanNote(result.Count, MaxScanUsers, "使用者") is { } note)
         {
-            notes.Add($"使用者共 {result.Count} 位，只檢查前 {MaxScanUsers} 位");
+            notes.Add(note);
         }
 
         return result.Result.ToList();
+    }
+
+    /// <summary>超過讀取上限時給模型的說明（0.9.160 起共用）；沒超過時回 null。</summary>
+    public static string? ScanNote(int total, int limit, string kind)
+        => total > limit ? $"{kind}共 {total} 位，只檢查前 {limit} 位" : null;
+
+    /// <summary>已軟刪除的帳號（同使用者管理頁的「顯示已刪除」）；超過上限時在 <paramref name="notes"/> 註明。</summary>
+    private async Task<(List<MyUserAdapterModel> Users, string? Note)> LoadDeletedUsersAsync(string? keyword, bool? adminOnly, List<string> notes)
+    {
+        var deleted = await users.GetDeletedAsync(new DataRequest { Search = keyword?.Trim() ?? string.Empty, CurrentPage = 1, PageSize = MaxScanUsers, Take = 1 });
+        if (ScanNote(deleted.Count, MaxScanUsers, "已刪除的帳號") is { } note)
+        {
+            notes.Add(note);
+        }
+
+        return ([.. deleted.Result.Where(user => adminOnly != true || user.IsAdmin)], null);
     }
 
     private async Task<MyUserAdapterModel?> FindUserAsync(string account)

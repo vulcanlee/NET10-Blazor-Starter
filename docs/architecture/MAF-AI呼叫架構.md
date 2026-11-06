@@ -322,6 +322,8 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   依天數或日期的清除一律走 `custom_purge`（`DataRetentionOverviewService.PurgeCustomAsync`＋`CustomPurgeCutoff`），放在 `AdminAssistantAgent.SharedMutatingTools`，分派到任一專家領域就載入。
   可復原的工具遇到會刪資料的變體（清理排程、縮短保留天數）拒絕並指向不可復原的工具，兩種核准窗不混用。
   分派說明以訊息本身提到的對象為準，前文只補足指稱（實機發現前文會把「徹底刪除 temp-b」帶到 ops）。
+- **核准窗的目前狀態**（0.9.160 起）：`AiToolDefinition.ApprovalPreview` 由 `AiAgentToolFactory.PreviewAsync` 在提出核准時算（最多 5 秒、失敗回 null），經 `AiToolApprovals.TriageAsync` 帶到 `AiToolApprovalRequest.Preview`，
+  存進 `AiAgentPendingApprovalRecord.Preview`、接續時不重算。工作流程不傳預覽，行為不變。目前掛在修改系統參數的三個工具（`OpsAssistantTools.PreviewParameterChangeAsync`）。
 
 ## 7. 後續階段
 

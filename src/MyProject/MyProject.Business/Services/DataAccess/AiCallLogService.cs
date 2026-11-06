@@ -201,6 +201,14 @@ public class AiCallLogService : IAiCallLogRecorder
         return await context.AiCallLog.AsNoTracking().AnyAsync(x => x.CallId == callId);
     }
 
+    /// <summary>只讀資料列（0.9.160 起，系統管理助理刪除前取作業名稱寫稽核用）：不讀內容檔。找不到回 null。</summary>
+    public async Task<AiCallLogAdapterModel?> GetByIdAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var item = await context.AiCallLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        return item is null ? null : Mapper.Map<AiCallLogAdapterModel>(item);
+    }
+
     /// <summary>明細：資料列、內容檔、解析後的訊息、對應用量與同一對話的其他紀錄。找不到回 null。</summary>
     public async Task<AiCallLogDetail?> GetDetailAsync(int id)
     {

@@ -198,6 +198,11 @@ else
                     {
                         <div class="admin-assistant-approval-note">@approval.Note</div>
                     }
+                    @* 目前狀態（0.9.160 起）：提出核准時算的（例如系統參數的目前值），接續時照樣顯示。 *@
+                    @if (string.IsNullOrEmpty(approval.Preview) == false)
+                    {
+                        <div class="admin-assistant-approval-note"><strong>目前狀態：</strong>@approval.Preview</div>
+                    }
                     <dl class="agent-playground-approval-args">
                         @foreach (var argument in approval.Arguments)
                         {

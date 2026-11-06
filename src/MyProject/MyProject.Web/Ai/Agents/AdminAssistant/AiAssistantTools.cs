@@ -289,7 +289,7 @@ public sealed class AiAssistantTools
         var result = new BatchResult("刪除 AI 對話紀錄");
         foreach (var id in items)
         {
-            var item = (await callLogs.GetDetailAsync(id))?.Item;
+            var item = await callLogs.GetByIdAsync(id);
             if (item is null)
             {
                 result.Add($"#{id}", false, "找不到這筆 AI 對話紀錄");

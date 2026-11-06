@@ -44,6 +44,27 @@ public sealed class OpsMutationToolsTests : IDisposable
 
     public void Dispose() => harness.Dispose();
 
+    /// <summary>修改系統參數的核准窗顯示目前值與會不會縮短（0.9.160 起）；找不到參數時不顯示。</summary>
+    [Fact]
+    public async Task PreviewParameterChange_ShowsCurrentValueAndShortening()
+    {
+        var shorten = await OpsAssistantTools.PreviewParameterChangeAsync(harness.Services,
+            new Dictionary<string, object?> { ["key"] = RetentionKey, ["value"] = "30" }, CancellationToken.None);
+        var normal = await OpsAssistantTools.PreviewParameterChangeAsync(harness.Services,
+            new Dictionary<string, object?> { ["key"] = NormalKey, ["value"] = System.Text.Json.JsonSerializer.SerializeToElement("800") }, CancellationToken.None);
+        var reset = await OpsAssistantTools.PreviewParameterChangeAsync(harness.Services,
+            new Dictionary<string, object?> { ["key"] = NormalKey }, CancellationToken.None);
+        var unknown = await OpsAssistantTools.PreviewParameterChangeAsync(harness.Services,
+            new Dictionary<string, object?> { ["key"] = "NoSuch:Key", ["value"] = "1" }, CancellationToken.None);
+
+        Assert.Contains("目前 365", shorten, StringComparison.Ordinal);
+        Assert.Contains("會縮短保留期限", shorten, StringComparison.Ordinal);
+        Assert.Contains("改為 800", normal, StringComparison.Ordinal);
+        Assert.DoesNotContain("縮短", normal, StringComparison.Ordinal);
+        Assert.Contains("改回設定檔值", reset, StringComparison.Ordinal);
+        Assert.Null(unknown);
+    }
+
     [Fact]
     public async Task SetSystemParameter_SavesAndAuditsWithVia()
     {

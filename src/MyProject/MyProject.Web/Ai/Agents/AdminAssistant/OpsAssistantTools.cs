@@ -133,15 +133,21 @@ public sealed class OpsAssistantTools
 
     public static AiToolDefinition SetSystemParameterTool { get; } = DefineMutating(
         "set_system_parameter", "修改系統參數", MagicObjectHelper.角色_系統參數, PermissionActions.Edit,
-        "修改一個系統參數（用 get_system_parameters 回傳的 key 或名稱指定），值的格式同「系統參數」頁。會縮短資料保留天數的修改不會執行。",
-        "立即寫入並套用（生效時機依參數而定）；之後可以改回設定檔的值。會縮短資料保留天數的修改不在這一版處理。",
-        tools => tools.SetSystemParameterAsync);
+        "修改一個系統參數（用 get_system_parameters 回傳的 key 或名稱指定），值的格式同「系統參數」頁。會縮短保留期限的修改請改用 shorten_retention。",
+        "立即寫入並套用（生效時機依參數而定）；之後可以改回設定檔的值。會縮短保留期限的修改要用「縮短保留期限」（紅字核准）。",
+        tools => tools.SetSystemParameterAsync) with
+    {
+        ApprovalPreview = PreviewParameterChangeAsync,
+    };
 
     public static AiToolDefinition ResetSystemParameterTool { get; } = DefineMutating(
         "reset_system_parameter", "系統參數改回設定檔值", MagicObjectHelper.角色_系統參數, PermissionActions.Edit,
-        "刪除一個系統參數的覆寫，改回設定檔（appsettings.json）的值。會縮短資料保留天數時不會執行。",
+        "刪除一個系統參數的覆寫，改回設定檔（appsettings.json）的值。改回後會縮短保留期限時請改用 shorten_retention（value=default）。",
         "改回設定檔（appsettings.json）的值，立即套用。",
-        tools => tools.ResetSystemParameterAsync);
+        tools => tools.ResetSystemParameterAsync) with
+    {
+        ApprovalPreview = PreviewParameterChangeAsync,
+    };
 
     public static AiToolDefinition TriggerScheduledJobTool { get; } = DefineMutating(
         "trigger_scheduled_job", "立即執行排程作業", MagicObjectHelper.角色_排程作業, PermissionActions.Edit,
@@ -204,7 +210,10 @@ public sealed class OpsAssistantTools
         "把保留類參數（資料保留天數、備份保留份數）改短（value 給新的值，或 default＝改回設定檔的值且那樣會縮短時）；"
         + "呼叫前先用 get_system_parameters 讀目前值，並在回覆寫出「從多少改成多少」。不會縮短的修改請用 set_system_parameter／reset_system_parameter。",
         "依這個參數的生效時機（保留天數是下一次清理排程、備份份數是下一次備份成功時），永久刪除超出新設定的資料或備份，無法復原。",
-        tools => tools.ShortenRetentionAsync);
+        tools => tools.ShortenRetentionAsync) with
+    {
+        ApprovalPreview = PreviewParameterChangeAsync,
+    };
 
     public static IReadOnlyList<AiToolDefinition> IrreversibleTools { get; } =
         [DeleteAnnouncementsTool, DeleteBackupsTool, RunPurgeJobTool, EnablePurgeJobTool, ShortenRetentionTool];
@@ -830,6 +839,65 @@ public sealed class OpsAssistantTools
         => int.TryParse(currentValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
             && int.TryParse(newValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
             && SystemParameterView.ShortensRetention(currentValue, newValue);
+
+    /// <summary>
+    /// 修改系統參數的核准窗「目前狀態」（0.9.160 起）：目前值與來源、設定檔值、要改成什麼；保留類參數再說明會不會縮短。
+    /// 參數有 value 就是設定，沒有（或 default）就是改回設定檔值。找不到參數時回 null（不顯示）。
+    /// </summary>
+    public static async Task<string?> PreviewParameterChangeAsync(
+        IServiceProvider services, IReadOnlyDictionary<string, object?> arguments, CancellationToken cancellationToken)
+    {
+        var overview = await services.GetRequiredService<SystemParameterManager>().GetOverviewAsync(cancellationToken);
+        if (ResolveParameter(overview.Items, ArgumentText(arguments, "key")) is not { } item)
+        {
+            return null;
+        }
+
+        var definition = item.Definition;
+        var text = $"{definition.Label}：目前 {SystemParameterValueCodec.Display(definition, item.EffectiveValue)}（{SourceText(item.Source)}）"
+            + $"；設定檔值 {SystemParameterValueCodec.Display(definition, item.BaseValue)}";
+        var raw = ArgumentText(arguments, "value");
+        string? target;
+        if (raw is null || string.Equals(raw, "default", StringComparison.OrdinalIgnoreCase))
+        {
+            target = item.BaseValue;
+            text += "；改回設定檔值";
+        }
+        else if (SystemParameterValueCodec.TryNormalize(definition, raw, out var normalized, out _))
+        {
+            target = normalized;
+            text += $"；改為 {SystemParameterValueCodec.Display(definition, normalized)}";
+        }
+        else
+        {
+            return text + $"；新的值「{raw}」看不懂，工具會拒絕。";
+        }
+
+        return definition.IsRetention
+            ? text + (WouldShortenRetention(item.EffectiveValue, target) ? "。⚠ 會縮短保留期限。" : "。不縮短保留期限。")
+            : text + "。";
+    }
+
+    private static string SourceText(SystemParameterSource source) => source switch
+    {
+        SystemParameterSource.Override => "系統參數",
+        SystemParameterSource.NotApplied => "設定檔；資料庫的覆寫不合法、沒有套用",
+        _ => "設定檔",
+    };
+
+    /// <summary>模型給的參數值轉成文字（JSON 字串、數字或一般物件）；沒有或空白時回 null。</summary>
+    private static string? ArgumentText(IReadOnlyDictionary<string, object?> arguments, string name)
+    {
+        if (arguments.TryGetValue(name, out var value) == false || value is null)
+        {
+            return null;
+        }
+
+        var text = value is System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } element
+            ? element.GetString()
+            : value.ToString();
+        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+    }
 
     /// <summary>以 key（不分大小寫）或名稱找系統參數；找不到回 null。</summary>
     public static SystemParameterOverviewItem? ResolveParameter(IReadOnlyList<SystemParameterOverviewItem> items, string? input)

@@ -126,6 +126,15 @@ public sealed class AdminAssistantAgentTests
         Assert.Contains("帳號、角色或 2FA", text, StringComparison.Ordinal);
     }
 
+    /// <summary>核准窗的「目前狀態」只掛在異動工具上；修改系統參數的三個工具都有（0.9.160 起）。</summary>
+    [Fact]
+    public void ApprovalPreview_OnlyOnMutatingTools()
+    {
+        Assert.All(AdminAssistantAgent.Home.Tools.Where(tool => tool.ApprovalPreview is not null), tool => Assert.True(tool.IsMutating, tool.Name));
+        string[] expected = ["set_system_parameter", "reset_system_parameter", "shorten_retention"];
+        Assert.All(expected, name => Assert.NotNull(AdminAssistantAgent.Home.Tools.Single(tool => tool.Name == name).ApprovalPreview));
+    }
+
     /// <summary>custom_purge 分派到任一專家領域都載入（「清除舊的稽核紀錄」會分到帳號）；跨領域時不重複；巡檢不載入。</summary>
     [Fact]
     public void DefinitionFor_SharedPurgeTool_AnyExpertDomain_NoDuplicates()

@@ -80,6 +80,12 @@ public sealed record AiToolDefinition
     public bool IsIrreversible { get; init; }
 
     /// <summary>
+    /// 核准窗的「目前狀態」（0.9.160 起，選填）：提出核准時以模型給的參數算一段說明（例如系統參數的目前值與會不會縮短），
+    /// 跟著待核准紀錄存起來。只在 <see cref="IsMutating"/> 的工具上有意義；回 null 或丟例外時就不顯示（不擋核准）。
+    /// </summary>
+    public Func<IServiceProvider, IReadOnlyDictionary<string, object?>, CancellationToken, Task<string?>>? ApprovalPreview { get; init; }
+
+    /// <summary>
     /// 建立實際執行的函式（每段對話建一次，從當下的 scope 取服務）。
     /// 通常是 <c>AIFunctionFactory.Create(sp.GetRequiredService&lt;某工具類別&gt;().方法, Name, Description)</c>。
     /// </summary>

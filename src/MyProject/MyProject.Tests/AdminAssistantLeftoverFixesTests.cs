@@ -44,6 +44,14 @@ public sealed class AdminAssistantLeftoverFixesTests
         Assert.Null(none);
     }
 
+    /// <summary>只檢查前 N 位時要說明（0.9.160 起，已刪除帳號也一樣）；沒超過時不加說明。</summary>
+    [Fact]
+    public void ScanNote_OnlyWhenOverLimit()
+    {
+        Assert.Equal("已刪除的帳號共 5001 位，只檢查前 5000 位", AccountsAssistantTools.ScanNote(5001, 5000, "已刪除的帳號"));
+        Assert.Null(AccountsAssistantTools.ScanNote(5000, 5000, "已刪除的帳號"));
+    }
+
     [Fact]
     public async Task RestoreUsers_ExactNameBeyondFirstFiftyMatches_Found()
     {

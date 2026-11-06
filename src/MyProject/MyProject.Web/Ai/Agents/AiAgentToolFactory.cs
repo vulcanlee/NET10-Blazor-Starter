@@ -40,6 +40,32 @@ public sealed class AiAgentToolFactory
 
         return tools;
     }
+
+    /// <summary>預覽最多等多久（0.9.160 起）：只是給人看的說明，不能讓核准窗遲遲不出現。</summary>
+    public static readonly TimeSpan PreviewTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// 算核准窗的「目前狀態」（<see cref="AiToolDefinition.ApprovalPreview"/>，0.9.160 起）。
+    /// 沒有預覽、逾時或丟例外時回 null（記警告）—— 預覽失敗不能擋住核准。
+    /// </summary>
+    public async Task<string?> PreviewAsync(AiToolDefinition tool, FunctionCallContent call)
+    {
+        if (tool.ApprovalPreview is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(PreviewTimeout);
+            return await tool.ApprovalPreview(services, call.Arguments?.AsReadOnly() ?? new Dictionary<string, object?>().AsReadOnly(), timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            services.GetService<ILogger<AiAgentToolFactory>>()?.LogWarning(ex, "Approval preview failed. Tool={Tool}", tool.Name);
+            return null;
+        }
+    }
 }
 
 /// <summary>工具的權限檢查與稽核（0.9.142 起）。執行器在核准之前也用它先檢查，沒權限就不必請使用者核准。</summary>
