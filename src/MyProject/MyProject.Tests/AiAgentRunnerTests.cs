@@ -409,6 +409,30 @@ public sealed class AiAgentRunnerTests
         Assert.Equal("帳號與權限", resumed!.CurrentLabel);
     }
 
+    /// <summary>
+    /// 停在核准的那一輪若模型直接呼叫工具、沒有先講話，就沒有 AI 回覆可取標籤（0.9.158 起）：
+    /// 接續時改從最後一則有標籤的紀錄（工具活動也算）還原，核准回覆與核准窗才標得對；核准窗也帶出提出的專家。
+    /// </summary>
+    [Fact]
+    public async Task Planner_Resume_LabelFromToolEntry_WhenTurnHadNoText()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var planner = new ScriptedPlanner(
+            Turn([SampleTools.Read], "指示", "監控與診斷"),
+            Turn([SampleTools.Read, SampleTools.Write], "指示", "帳號與權限"));
+        upstream.Enqueue(AiSse.Responses(["先回答一次"]));
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"x"}"""));
+        var chat = await CreateRunner().StartAsync(planner);
+        await CollectAsync(chat.SendAsync("第一則"));
+        var second = await CollectAsync(chat.SendAsync("改"));
+        Assert.Equal("帳號與權限", Assert.Single(Assert.Single(second, update => update.Approvals is not null).Approvals!).Label);
+
+        var resumed = await CreateRunner().ResumeAsync(planner, chat.ConversationId);
+
+        Assert.Equal("帳號與權限", resumed!.CurrentLabel);
+        Assert.Equal("帳號與權限", Assert.Single(resumed.PendingApprovals).Label);
+    }
+
     /// <summary>分派中按「停止產生」：不是錯誤，訊息留在紀錄、記「已停止」並存檔，不呼叫模型。</summary>
     [Fact]
     public async Task Planner_CanceledWhilePlanning_ReturnsCanceledResult_KeepsMessageAndPersists()

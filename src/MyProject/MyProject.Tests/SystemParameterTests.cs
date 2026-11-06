@@ -480,7 +480,7 @@ public sealed class SystemParameterTests
     }
 
     /// <summary>出貨的 appsettings ＋（測試要的）設定檔層覆寫 ＋ 系統參數覆寫層，註冊方式與 Program.cs 相同。</summary>
-    private sealed class Harness : IDisposable
+    internal sealed class Harness : IDisposable
     {
         private readonly SqliteConnection connection;
 

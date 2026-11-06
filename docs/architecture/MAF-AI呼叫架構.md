@@ -310,6 +310,13 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   參數不合法時不丟例外，夾住範圍或用預設值並在回覆的 `note` 說明（`AdminAssistantToolText.ClampWithNote`、`ParseRange`）。
   最後登入由 `AuditLogQueryService.GetLastLoginTimesAsync` 從稽核推算；使用者輸出絕不含密碼與 Salt，系統參數的孤兒鍵只列鍵名。
 - **巡檢**：分派到 `patrol` 時只用唯讀工具，共同說明列出巡檢要呼叫的 9 個工具與七段報告格式（預設最近 24 小時，不呼叫耗時的資料保留總覽）。
+- **異動工具**（0.9.158 起，22 個：帳號 10、監控 4、AI 2、維運 6）：`AdminAssistantAgent.MutatingTools[領域]`，`IsMutating = true`（包成 `ApprovalRequiredAIFunction`），
+  `AiToolDefinition.ApprovalNote` 顯示在核准窗；`AiToolApprovalRequest` 帶 `Note` 與 `Label`（提出的專家），`Label` 也存進 `AiAgentPendingApprovalRecord`，接續時優先用它還原標籤。
+  陣列參數在核准窗列成「共 N 筆」加逐行（最多 50 行），單一值上限 8000 字（`AiToolApprovals.ArgumentMaxLength`，容得下整份提示詞；更長的值工具自己拒絕）。
+  2026/11/06 實測：Responses API（`store=false`）歷史中有本輪清單沒有的工具時**仍接受**，所以每輪只給被分派領域的異動工具；換模型或 API 後若回 400，要改成累積工具聯集。
+  批次參數用 `string[]`，`AdminAssistantMutation.ValidateBatch`（去重、最多 50）、`CheckAdminsRemain`（整批後至少一位 `IsAdmin && Status`）、`BatchResult`（逐筆結果）。
+  不可復原的動作由工具拒絕（縮短保留天數、`OpsAssistantTools.PurgeJobNames` 的清理排程立即執行與啟用）；強制登出自己、取消自己的管理員、改自己的角色也由工具擋（服務層沒有擋）。
+  稽核：頁面寫的由工具寫同一個代碼加 `via=admin-assistant`；`MyUserService`、`RoleViewService`、`EmailTestService`、`NotificationTestService` 自己寫的不重複寫。
 
 ## 7. 後續階段
 
@@ -322,6 +329,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | 四 | 多 Agent 工作流程（MAF Workflows）：所有 agent 經 `IAiAgentFactory` 建立、共用一個 RunId；人工介入（工具核准、Agent 提問、審閱關卡）當下回應，不做跨重開機檢查點；以「Agent 工作流程」頁的兩條範例驗收（§6.8）| 0.9.144 已實作 |
 | 系統管理助理 M1 | 每輪規劃的 Agent：自動分派領域、同一個 session 每輪換工具組與提示詞；監控與診斷、排程的唯讀工具（§6.9）| 0.9.155 已實作 |
 | 系統管理助理 M2 | 四大類共 26 個唯讀工具與巡檢報告；分派專用固定規則、分派 20 秒逾時、稽核註記改 `via=`（§6.9）| 0.9.157 已實作 |
+| 系統管理助理 M3 | 22 個可復原的異動工具：核准窗說明與批次清單、最多 50 筆、自我與最後一位管理員保護、不可復原動作由工具拒絕（§6.9）| 0.9.158 已實作 |
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。
@@ -345,7 +353,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Web/Scheduling/Jobs/AiAgentConversationRetentionJob.cs` | 排程作業「Agent 對話清理」（0.9.143 起）|
 | `MyProject.Web/Ai/Agents/AgentPlaygroundAgent.cs`、`ProjectAgentTools.cs` | 範例 Agent 與兩個範例工具（0.9.142 起）；0.9.144 起加 `get_project_detail`（`ProjectDetail`）、`append_project_status_summary`，建構子可選 `TimeProvider` |
 | `MyProject.Web/Ai/Agents/AiAgentTurn.cs` | `AiAgentTurn`、`IAiAgentTurnPlanner`（每輪規劃，0.9.155 起）|
-| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）|
+| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）|
 | `MyProject.Web/Ai/Agents/AiToolApprovals.cs` | 工具核准的共用規則（權限分流、拒絕原因、參數說明），由 `AiAgentChat` 抽出，Agent 測試台與工作流程共用（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowModels.cs` | 步驟間訊息（`AiWorkflowMessage`／`AiWorkflowRevision`／`AiWorkflowOutput`）、人工介入（`AiWorkflowHumanRequest`／`AiWorkflowHumanResponse`）、`AiWorkflowUpdate`、`AiWorkflowResult`／`AiWorkflowOutcome`、`AiWorkflowStepEvent`（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowDefinition.cs` | `AiWorkflowDefinition`、`AiAgentStepSpec`、`AiWorkflowGraph`（接線）、`AiWorkflowCatalog.All`（0.9.144 起）|

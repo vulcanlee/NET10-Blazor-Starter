@@ -68,6 +68,12 @@ public sealed record AiToolDefinition
     public bool IsMutating { get; init; }
 
     /// <summary>
+    /// 核准窗上給人看的補充說明（0.9.158 起，選填），例如「停用後對方會被登出」「會依保留份數刪除最舊的備份」。
+    /// 只在 <see cref="IsMutating"/> 的工具上有意義。
+    /// </summary>
+    public string? ApprovalNote { get; init; }
+
+    /// <summary>
     /// 建立實際執行的函式（每段對話建一次，從當下的 scope 取服務）。
     /// 通常是 <c>AIFunctionFactory.Create(sp.GetRequiredService&lt;某工具類別&gt;().方法, Name, Description)</c>。
     /// </summary>

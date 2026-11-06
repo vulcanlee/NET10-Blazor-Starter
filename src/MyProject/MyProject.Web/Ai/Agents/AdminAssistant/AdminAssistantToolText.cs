@@ -111,6 +111,22 @@ public static class AdminAssistantToolText
 
     public static string ToJson<T>(T value) => JsonSerializer.Serialize(value, Json);
 
+    /// <summary>
+    /// 異動工具用的時間（0.9.158 起）：不填回 (null, null)；只給日期時視為當天 00:00，<paramref name="endOfDay"/> 時視為當天 23:59:59
+    /// （「公告到 11/10」指的是那一整天）；解析不了回錯誤說明（不像查詢區間會改用預設 —— 寫入資料時猜錯比拒絕更糟）。
+    /// </summary>
+    public static (DateTime? Value, string? Error) ParseTime(string? text, string name, bool endOfDay = false)
+    {
+        var notes = new List<string>();
+        var value = Parse(text, name, notes, out var isDateOnly);
+        if (notes.Count > 0)
+        {
+            return (null, $"{name}「{text}」無法解析（格式：{TimeFormatHint}）。");
+        }
+
+        return (endOfDay && isDateOnly && value is { } date ? date.Date.AddDays(1).AddSeconds(-1) : value, null);
+    }
+
     private static DateTime? Parse(string? text, string name, List<string> notes, out bool isDateOnly)
     {
         isDateOnly = false;

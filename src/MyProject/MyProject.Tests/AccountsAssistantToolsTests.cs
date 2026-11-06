@@ -144,33 +144,41 @@ public sealed class AccountsAssistantToolsTests
         new() { Id = 4, Account = "locked1", Name = "Locked", Status = true, LockoutEndUtc = NowUtc.AddMinutes(10), CreateAt = NowLocal.AddDays(-400) },
     ];
 
-    /// <summary>真的 SQLite：MyUserService＋AuditLogQueryService；稽核用記錄替身。</summary>
-    private sealed class DbFixture : IAsyncDisposable
+    /// <summary>
+    /// 真的 SQLite：MyUserService、RoleViewService、AuditLogQueryService；工具自己寫的稽核用記錄替身（服務自己寫的稽核進資料庫）。
+    /// 服務與工具共用同一個「目前使用者」（<see cref="Current"/>），自我保護才測得到。
+    /// </summary>
+    internal sealed class DbFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
         private readonly ILoggerFactory loggerFactory = LoggerFactory.Create(_ => { });
         private readonly MyUserService users;
-        private readonly int roleId;
 
         private DbFixture(SqliteConnection connection, BackendDBContext context, int roleId)
         {
             this.connection = connection;
             Context = context;
-            this.roleId = roleId;
+            DefaultRoleId = roleId;
             var mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
+            var auditLog = new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>());
             users = new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(),
-                new RbacWriteService(context, NullLogger<RbacWriteService>.Instance),
-                new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()),
-                new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
+                new RbacWriteService(context, NullLogger<RbacWriteService>.Instance), auditLog,
+                Current, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
+            var roles = new RoleViewService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<RoleViewService>(),
+                new RolePermissionService(), new RbacWriteService(context, NullLogger<RbacWriteService>.Instance), auditLog, Current);
             var settings = new SystemSettings();
             settings.ExternalFileSystem.AuditContentPath = Path.Combine(Path.GetTempPath(), "aa-audit-" + Guid.NewGuid().ToString("N"));
             var auditQuery = new AuditLogQueryService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<AuditLogQueryService>(),
                 new AuditContentFileStore(Options.Create(settings), loggerFactory.CreateLogger<AuditContentFileStore>()));
-            Tools = new AccountsAssistantTools(users, roles: null!, auditQuery, Audit,
-                new CurrentUserService { CurrentUser = new CurrentUser { Id = 99, Account = "support" } });
+            Tools = new AccountsAssistantTools(users, roles, auditQuery, Audit, Current, new RolePermissionService());
         }
 
         public BackendDBContext Context { get; }
+
+        public int DefaultRoleId { get; }
+
+        /// <summary>目前登入的使用者（預設是不存在的 Id 99；測「自己」時改成某個帳號的 Id）。</summary>
+        public CurrentUserService Current { get; } = new() { CurrentUser = new CurrentUser { Id = 99, Account = "operator", IsAdmin = true } };
 
         public RecordingAuditLogService Audit { get; } = new();
 
@@ -189,7 +197,8 @@ public sealed class AccountsAssistantToolsTests
             return new DbFixture(connection, context, role.Id);
         }
 
-        public async Task<int> AddUserAsync(string account, bool status = true)
+        public async Task<int> AddUserAsync(string account, bool status = true, bool isAdmin = false,
+            List<int>? additionalRoleIds = null, List<string>? teamNames = null)
         {
             var result = await users.AddAsync(new MyUserAdapterModel
             {
@@ -197,12 +206,37 @@ public sealed class AccountsAssistantToolsTests
                 Name = account,
                 Password = "Passw0rd",
                 Status = status,
-                RoleViewId = roleId,
+                IsAdmin = isAdmin,
+                RoleViewId = DefaultRoleId,
+                AdditionalRoleIds = additionalRoleIds ?? [],
+                TeamNames = teamNames ?? [],
             });
             Assert.True(result.Success, result.Message);
             Context.ChangeTracker.Clear();
             return await Context.MyUser.AsNoTracking().Where(x => x.Account == account).Select(x => x.Id).SingleAsync();
         }
+
+        public async Task<int> AddRoleAsync(string name)
+        {
+            var role = new RoleView { Name = name, TabViewJson = "[]" };
+            Context.RoleView.Add(role);
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
+            return role.Id;
+        }
+
+        public async Task AddTeamAsync(string name)
+        {
+            Context.Team.Add(new Team { Name = name, IsEnabled = true });
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
+        }
+
+        public async Task<MyUser> UserAsync(string account)
+            => await Context.MyUser.IgnoreQueryFilters().AsNoTracking().SingleAsync(x => x.Account == account);
+
+        public async Task<(List<int> AdditionalRoleIds, List<string> TeamNames)> AssignmentsAsync(int userId)
+            => await users.GetUserAssignmentsAsync(userId);
 
         public async ValueTask DisposeAsync()
         {

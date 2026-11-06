@@ -2,10 +2,12 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
+using MyProject.Models.Admins;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
@@ -45,19 +47,22 @@ public sealed class AccountsAssistantTools
     private readonly AuditLogQueryService auditLogs;
     private readonly IAuditLogService audit;
     private readonly CurrentUserService currentUser;
+    private readonly RolePermissionService rolePermissions;
 
     public AccountsAssistantTools(
         MyUserService users,
         RoleViewService roles,
         AuditLogQueryService auditLogs,
         IAuditLogService audit,
-        CurrentUserService currentUser)
+        CurrentUserService currentUser,
+        RolePermissionService rolePermissions)
     {
         this.users = users;
         this.roles = roles;
         this.auditLogs = auditLogs;
         this.audit = audit;
         this.currentUser = currentUser;
+        this.rolePermissions = rolePermissions;
     }
 
     public static AiToolDefinition SearchUsersTool { get; } = Define(
@@ -100,6 +105,75 @@ public sealed class AccountsAssistantTools
 
     public static IReadOnlyList<AiToolDefinition> ReadTools { get; } =
         [SearchUsersTool, UserDetailTool, ListRolesTool, RoleDetailTool, SearchAuditLogsTool, AuditLogContentTool, AccountSecurityTool];
+
+    // ── 異動工具（0.9.158 起）：每一個都要使用者核准；稽核由 MyUserService／RoleViewService 自己寫，這裡不重複寫。──
+
+    public static AiToolDefinition SetUsersEnabledTool { get; } = DefineMutating(
+        "set_users_enabled", "啟用／停用帳號", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        $"批次啟用或停用帳號（一次最多 {AdminAssistantMutation.MaxBatch} 個），逐筆回報成敗。",
+        "停用後對方所有已登入的工作階段會失效，啟用後可以立刻登入。support 帳號與你自己不能停用；不能讓系統沒有啟用中的管理員。",
+        tools => tools.SetUsersEnabledAsync);
+
+    public static AiToolDefinition UnlockUsersTool { get; } = DefineMutating(
+        "unlock_users", "解除帳號鎖定", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        $"批次解除因登入失敗被鎖定的帳號（一次最多 {AdminAssistantMutation.MaxBatch} 個），逐筆回報成敗。",
+        "清除登入失敗次數與鎖定時間，對方可以立刻再登入。",
+        tools => tools.UnlockUsersAsync);
+
+    public static AiToolDefinition ForceLogoutUsersTool { get; } = DefineMutating(
+        "force_logout_users", "強制登出", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        $"批次強制登出帳號（一次最多 {AdminAssistantMutation.MaxBatch} 個）：對方所有已登入的瀏覽器在下一次換頁時被登出。",
+        "對方正在進行的操作會中斷、需要重新登入。不能強制登出你自己。",
+        tools => tools.ForceLogoutUsersAsync);
+
+    public static AiToolDefinition DeleteUsersTool { get; } = DefineMutating(
+        "delete_users", "刪除帳號（可還原）", MagicObjectHelper.角色_使用者管理, PermissionActions.Delete,
+        $"批次軟刪除帳號（一次最多 {AdminAssistantMutation.MaxBatch} 個），之後可以用 restore_users 還原。",
+        "軟刪除：帳號會從清單消失、無法登入，可在使用者管理的「顯示已刪除」還原。support 與你自己不能刪除；不能刪掉最後一位啟用中的管理員。",
+        tools => tools.DeleteUsersAsync);
+
+    public static AiToolDefinition RestoreUsersTool { get; } = DefineMutating(
+        "restore_users", "還原已刪除的帳號", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        $"批次還原已軟刪除的帳號（一次最多 {AdminAssistantMutation.MaxBatch} 個），逐筆回報成敗。",
+        "帳號在刪除期間若已被別人使用，該筆會還原失敗。",
+        tools => tools.RestoreUsersAsync);
+
+    public static AiToolDefinition SetUserAdminTool { get; } = DefineMutating(
+        "set_user_admin", "設定管理員身分", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        "把一位使用者設為管理員或取消管理員身分；角色與團隊維持不變。",
+        "管理員擁有系統全部權限；身分變更後對方需要重新登入。不能取消你自己的管理員身分，也不能讓系統沒有啟用中的管理員。",
+        tools => tools.SetUserAdminAsync);
+
+    public static AiToolDefinition SetUserRolesTool { get; } = DefineMutating(
+        "set_user_roles", "變更使用者角色", MagicObjectHelper.角色_使用者管理, PermissionActions.Edit,
+        "變更一位使用者的主要角色與（或）額外角色；用角色名稱指定，團隊維持不變。",
+        "角色變更後對方需要重新登入才會套用新權限；團隊不變。",
+        tools => tools.SetUserRolesAsync);
+
+    public static AiToolDefinition UpdateRolePermissionsTool { get; } = DefineMutating(
+        "update_role_permissions", "調整角色權限", MagicObjectHelper.角色_角色管理, PermissionActions.Edit,
+        "替一個角色加入或移除權限鍵（「頁面」＝該頁全部動作，「頁面:view／create／edit／delete」＝單一動作），"
+        + "回報實際加入、移除與不認得而略過的鍵。",
+        "會影響所有使用這個角色的人；權限鍵必須在權限目錄中，不認得的鍵不會套用。",
+        tools => tools.UpdateRolePermissionsAsync);
+
+    public static AiToolDefinition DeleteRolesTool { get; } = DefineMutating(
+        "delete_roles", "刪除角色（可還原）", MagicObjectHelper.角色_角色管理, PermissionActions.Delete,
+        $"批次軟刪除角色（一次最多 {AdminAssistantMutation.MaxBatch} 個），之後可以用 restore_roles 還原。",
+        "軟刪除，可在角色管理的「顯示已刪除」還原。預設角色、仍是某人主要角色的角色不能刪除。",
+        tools => tools.DeleteRolesAsync);
+
+    public static AiToolDefinition RestoreRolesTool { get; } = DefineMutating(
+        "restore_roles", "還原已刪除的角色", MagicObjectHelper.角色_角色管理, PermissionActions.Edit,
+        $"批次還原已軟刪除的角色（一次最多 {AdminAssistantMutation.MaxBatch} 個），逐筆回報成敗。",
+        "角色名稱在刪除期間若已被別的角色使用，該筆會還原失敗。",
+        tools => tools.RestoreRolesAsync);
+
+    public static IReadOnlyList<AiToolDefinition> MutatingTools { get; } =
+    [
+        SetUsersEnabledTool, UnlockUsersTool, ForceLogoutUsersTool, DeleteUsersTool, RestoreUsersTool,
+        SetUserAdminTool, SetUserRolesTool, UpdateRolePermissionsTool, DeleteRolesTool, RestoreRolesTool,
+    ];
 
     public async Task<string> SearchUsersAsync(
         [Description("關鍵字（帳號、名稱、Email、主要角色名稱）；不填＝全部")] string? keyword = null,
@@ -304,6 +378,504 @@ public sealed class AccountsAssistantTools
         });
     }
 
+    public async Task<string> SetUsersEnabledAsync(
+        [Description("帳號清單（Account，精確比對），最多 50 個")] string[] accounts,
+        [Description("true＝啟用、false＝停用")] bool enabled)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(accounts);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var all = await LoadUsersAsync(null, []);
+        var resolved = ResolveUsers(all, items);
+        if (enabled == false && CheckLosingAdmins(all, resolved.Select(item => item.User)) is { } adminError)
+        {
+            return adminError;
+        }
+
+        var result = new BatchResult(enabled ? "啟用帳號" : "停用帳號");
+        foreach (var (target, user) in resolved)
+        {
+            if (user is null)
+            {
+                result.Add(target, false, UserNotFound(target));
+            }
+            else if (user.Status == enabled)
+            {
+                result.Add(user.Account, true, enabled ? "原本就是啟用，沒有變更" : "原本就是停用，沒有變更");
+            }
+            else
+            {
+                AddOutcome(result, user.Account, await users.SetStatusAsync(user.Id, enabled));
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public Task<string> UnlockUsersAsync([Description("帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
+        => ForEachUserAsync(accounts, "解除鎖定", user => users.UnlockAsync(user.Id));
+
+    public Task<string> ForceLogoutUsersAsync([Description("帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
+        => ForEachUserAsync(accounts, "強制登出", user => user.Id == currentUser.CurrentUser.Id
+            ? Task.FromResult(VerifyRecordResultFactory.Build(false, "不能強制登出你自己（會連你目前的工作階段一起登出）。"))
+            : users.ForceLogoutAsync(user.Id));
+
+    public async Task<string> DeleteUsersAsync([Description("帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(accounts);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var all = await LoadUsersAsync(null, []);
+        var resolved = ResolveUsers(all, items);
+        if (CheckLosingAdmins(all, resolved.Select(item => item.User)) is { } adminError)
+        {
+            return adminError;
+        }
+
+        var result = new BatchResult("刪除帳號（可還原）");
+        foreach (var (target, user) in resolved)
+        {
+            if (user is null)
+            {
+                result.Add(target, false, UserNotFound(target));
+            }
+            else
+            {
+                AddOutcome(result, user.Account, await users.DeleteAsync(user.Id));
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> RestoreUsersAsync([Description("已刪除的帳號清單（Account，精確比對），最多 50 個")] string[] accounts)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(accounts);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult("還原帳號");
+        foreach (var target in items)
+        {
+            var deleted = await users.GetDeletedAsync(new DataRequest { Search = target, CurrentPage = 1, PageSize = 50, Take = 1 });
+            if (PickByName(deleted.Result, target, item => item.Account) is { } user)
+            {
+                AddOutcome(result, user.Account, await users.RestoreAsync(user.Id));
+            }
+            else
+            {
+                result.Add(target, false, $"已刪除的帳號中找不到「{target}」");
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> SetUserAdminAsync(
+        [Description("帳號（Account），精確比對")] string account,
+        [Description("true＝設為管理員、false＝取消管理員身分")] bool isAdmin)
+    {
+        var all = await LoadUsersAsync(null, []);
+        var user = PickByName(all, account, item => item.Account);
+        if (user is null)
+        {
+            return UserNotFound(account) + "。可以先用 search_users 搜尋。";
+        }
+
+        if (user.IsAdmin == isAdmin)
+        {
+            return $"「{user.Account}」原本就{(isAdmin ? "是" : "不是")}管理員，沒有變更。";
+        }
+
+        if (isAdmin == false)
+        {
+            if (user.Id == currentUser.CurrentUser.Id)
+            {
+                return "不能取消你自己的管理員身分，沒有執行。請由另一位管理員處理。";
+            }
+
+            if (CheckLosingAdmins(all, [user]) is { } adminError)
+            {
+                return adminError;
+            }
+        }
+
+        var outcome = await UpdateUserAsync(user.Id, model => model.IsAdmin = isAdmin);
+        if (outcome.Success == false)
+        {
+            return $"沒有變更：{outcome.Message}";
+        }
+
+        return isAdmin
+            ? $"已將「{user.Account}」設為管理員（對方需要重新登入才會套用）。"
+            : $"已取消「{user.Account}」的管理員身分（對方需要重新登入才會套用）。";
+    }
+
+    public async Task<string> SetUserRolesAsync(
+        [Description("帳號（Account），精確比對")] string account,
+        [Description("新的主要角色名稱；不填＝不變")] string? primaryRole = null,
+        [Description("新的額外角色名稱清單（整份取代）；不填＝不變，給空清單＝清除所有額外角色")] string[]? additionalRoles = null)
+    {
+        if (string.IsNullOrWhiteSpace(primaryRole) && additionalRoles is null)
+        {
+            return "請至少指定主要角色或額外角色。";
+        }
+
+        var user = PickByName(await LoadUsersAsync(null, []), account, item => item.Account);
+        if (user is null)
+        {
+            return UserNotFound(account) + "。可以先用 search_users 搜尋。";
+        }
+
+        // 角色一變，服務就換掉工作階段版本：改自己的角色等於把自己強制登出（頁面存檔後會換發 Cookie，工具做不到）。
+        if (user.Id == currentUser.CurrentUser.Id)
+        {
+            return "不能用助理變更你自己的角色（變更後你目前的工作階段會失效），沒有執行。請到「使用者管理」頁自己修改。";
+        }
+
+        var roleViews = await users.GetRoleViewsAsync();
+        var unknown = new List<string>();
+        int? primaryId = null;
+        if (string.IsNullOrWhiteSpace(primaryRole) == false)
+        {
+            primaryId = PickByName(roleViews, primaryRole, role => role.Name)?.Id;
+            if (primaryId is null)
+            {
+                unknown.Add(primaryRole.Trim());
+            }
+        }
+
+        List<int>? additionalIds = null;
+        if (additionalRoles is not null)
+        {
+            additionalIds = [];
+            foreach (var name in additionalRoles.Where(name => string.IsNullOrWhiteSpace(name) == false))
+            {
+                if (PickByName(roleViews, name, role => role.Name) is { } role)
+                {
+                    additionalIds.Add(role.Id);
+                }
+                else
+                {
+                    unknown.Add(name.Trim());
+                }
+            }
+        }
+
+        if (unknown.Count > 0)
+        {
+            return $"找不到角色：{string.Join("、", unknown)}，沒有變更。現有角色：{string.Join("、", roleViews.Select(role => role.Name))}。";
+        }
+
+        var outcome = await UpdateUserAsync(user.Id, model =>
+        {
+            model.RoleViewId = primaryId ?? model.RoleViewId;
+            model.AdditionalRoleIds = additionalIds?.Distinct().ToList() ?? model.AdditionalRoleIds;
+        });
+        if (outcome.Success == false)
+        {
+            return $"沒有變更：{outcome.Message}";
+        }
+
+        var names = roleViews.ToDictionary(role => role.Id, role => role.Name);
+        string NameOf(int id) => names.GetValueOrDefault(id, $"#{id}");
+        var (afterAdditional, _) = await users.GetUserAssignmentsAsync(user.Id);
+        var afterPrimary = (await users.GetAsync(user.Id)).RoleViewId;
+        return $"已更新「{user.Account}」的角色：主要角色 {(afterPrimary is { } primary ? NameOf(primary) : "（無）")}；"
+            + $"額外角色 {(afterAdditional.Count == 0 ? "（無）" : string.Join("、", afterAdditional.Select(NameOf)))}。"
+            + "團隊不變；對方需要重新登入才會套用新權限。";
+    }
+
+    public async Task<string> UpdateRolePermissionsAsync(
+        [Description("角色名稱，精確比對")] string roleName,
+        [Description("要加入的權限鍵清單，例如 專案項目、專案項目:edit")] string[]? addKeys = null,
+        [Description("要移除的權限鍵清單")] string[]? removeKeys = null)
+    {
+        var (adds, _) = AdminAssistantMutation.ValidateBatch(addKeys, int.MaxValue);
+        var (removes, _) = AdminAssistantMutation.ValidateBatch(removeKeys, int.MaxValue);
+        if (adds.Count == 0 && removes.Count == 0)
+        {
+            return "請至少指定一個要加入或移除的權限鍵。";
+        }
+
+        var all = await LoadRolesAsync();
+        var found = PickByName(all, roleName, role => role.Name);
+        if (found is null)
+        {
+            return $"找不到角色「{roleName}」，沒有變更。現有角色：{string.Join("、", all.Select(item => item.Name))}。";
+        }
+
+        var model = (await roles.GetAsync(found.Id)).Clone();
+        var valid = ValidPermissionKeys(model.RolePermission);
+        var before = rolePermissions.GetPermissionInput(model.RolePermission);
+        var unknown = adds.Concat(removes).Where(key => valid.Contains(key) == false).Distinct(StringComparer.Ordinal).ToList();
+        var (next, added, removed, notPresent, alreadyCovered) = ApplyPermissionChanges(
+            before, [.. adds.Where(valid.Contains)], [.. removes.Where(valid.Contains)]);
+
+        var applied = false;
+        string message;
+        if (added.Count == 0 && removed.Count == 0)
+        {
+            message = "沒有任何需要變更的權限鍵，沒有修改角色。";
+        }
+        else
+        {
+            rolePermissions.SetPermissionInput(model.RolePermission, next);
+            model.UpdateAt = DateTime.Now;
+            var check = await roles.BeforeUpdateCheckAsync(model);
+            var outcome = check.Success ? await roles.UpdateAsync(model) : check;
+            applied = outcome.Success;
+            message = outcome.Success ? "已更新；使用這個角色的人重新登入後套用。" : $"沒有變更：{outcome.Message}";
+        }
+
+        return ToJson(new
+        {
+            role = found.Name,
+            applied,
+            message,
+            added = applied ? added : [],
+            removed = applied ? removed : [],
+            notPresent = notPresent.Count == 0 ? null : notPresent,
+            alreadyCovered = alreadyCovered.Count == 0 ? null : alreadyCovered,
+            ignoredUnknownKeys = unknown.Count == 0 ? null : unknown,
+            beforeCount = before.Count,
+            afterCount = applied ? rolePermissions.GetPermissionInput(model.RolePermission).Count : before.Count,
+        });
+    }
+
+    public async Task<string> DeleteRolesAsync([Description("角色名稱清單，精確比對，最多 50 個")] string[] names)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(names);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var all = await LoadRolesAsync();
+        var result = new BatchResult("刪除角色（可還原）");
+        foreach (var target in items)
+        {
+            if (PickByName(all, target, role => role.Name) is { } role)
+            {
+                AddOutcome(result, role.Name, await roles.DeleteAsync(role.Id));
+            }
+            else
+            {
+                result.Add(target, false, $"找不到角色「{target}」");
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    public async Task<string> RestoreRolesAsync([Description("已刪除的角色名稱清單，精確比對，最多 50 個")] string[] names)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(names);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult("還原角色");
+        foreach (var target in items)
+        {
+            var deleted = await roles.GetDeletedAsync(new DataRequest { Search = target, CurrentPage = 1, PageSize = 50, Take = 1 });
+            if (PickByName(deleted.Result, target, role => role.Name) is { } role)
+            {
+                AddOutcome(result, role.Name, await roles.RestoreAsync(role.Id));
+            }
+            else
+            {
+                result.Add(target, false, $"已刪除的角色中找不到「{target}」");
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    private static readonly string[] PermissionActionNames =
+        [PermissionActions.View, PermissionActions.Create, PermissionActions.Edit, PermissionActions.Delete];
+
+    /// <summary>
+    /// 套用加入與移除（鍵都已確認在目錄內）。頁面鍵代表該頁全部動作，所以：
+    /// 移除單一動作而目前是頁面鍵時，展開成其餘動作；加入單一動作而已有頁面鍵時，算「已涵蓋」、不變更。
+    /// </summary>
+    public static (List<string> Next, List<string> Added, List<string> Removed, List<string> NotPresent, List<string> AlreadyCovered)
+        ApplyPermissionChanges(IReadOnlyList<string> before, IReadOnlyList<string> adds, IReadOnlyList<string> removes)
+    {
+        var current = new List<string>(before);
+        List<string> added = [], removed = [], notPresent = [], covered = [];
+        foreach (var key in removes)
+        {
+            if (current.Remove(key))
+            {
+                removed.Add(key);
+            }
+            else if (SplitActionKey(key) is { } split && current.Remove(split.Page))
+            {
+                current.AddRange(PermissionActionNames.Where(action => action != split.Action).Select(action => PermissionKey.For(split.Page, action)));
+                removed.Add(key);
+            }
+            else
+            {
+                notPresent.Add(key);
+            }
+        }
+
+        foreach (var key in adds)
+        {
+            if (current.Contains(key) || (SplitActionKey(key) is { } split && current.Contains(split.Page)))
+            {
+                covered.Add(key);
+            }
+            else
+            {
+                current.Add(key);
+                added.Add(key);
+            }
+        }
+
+        return (current, added, removed, notPresent, covered);
+    }
+
+    /// <summary>「頁面:動作」拆成頁面與動作；不是這個形式時回 null。</summary>
+    private static (string Page, string Action)? SplitActionKey(string key)
+    {
+        var index = key.LastIndexOf(':');
+        if (index <= 0)
+        {
+            return null;
+        }
+
+        var action = key[(index + 1)..];
+        return PermissionActionNames.Contains(action, StringComparer.Ordinal) && PermissionKey.For(key[..index], action) == key
+            ? (key[..index], action)
+            : null;
+    }
+
+    /// <summary>權限目錄認得的鍵：群組名稱、頁面（＝該頁全部動作），以及「頁面:動作」。</summary>
+    public static HashSet<string> ValidPermissionKeys(RolePermission permission)
+    {
+        string[] actions = PermissionActionNames;
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var group in permission.Groups)
+        {
+            keys.Add(group.Name);
+            foreach (var item in group.Permissions)
+            {
+                keys.Add(item.Name);
+                foreach (var action in actions)
+                {
+                    keys.Add(PermissionKey.For(item.Name, action));
+                }
+            }
+        }
+
+        return keys;
+    }
+
+    private static string UserNotFound(string account) => $"找不到帳號「{account}」（或有多個只差大小寫的帳號，請給完全正確的帳號）";
+
+    private static void AddOutcome(BatchResult result, string target, VerifyRecordResult outcome)
+        => result.Add(target, outcome.Success, outcome.Success ? null : outcome.Message);
+
+    /// <summary>
+    /// 名稱精確比對；找不到時才忽略大小寫，而且只在剛好一筆時採用。帳號與角色名稱區分大小寫（Bob 與 bob 可以並存），
+    /// 核准窗只顯示模型給的字串，猜錯就會改到別人。
+    /// </summary>
+    private static T? PickByName<T>(IEnumerable<T> source, string? name, Func<T, string> nameOf)
+        where T : class
+    {
+        var text = name?.Trim() ?? string.Empty;
+        var list = source as IReadOnlyList<T> ?? source.ToList();
+        if (list.FirstOrDefault(item => string.Equals(nameOf(item), text, StringComparison.Ordinal)) is { } exact)
+        {
+            return exact;
+        }
+
+        var loose = list.Where(item => string.Equals(nameOf(item), text, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+        return loose.Count == 1 ? loose[0] : null;
+    }
+
+    /// <summary>逐一對應帳號；同一位使用者被列兩次（大小寫不同）只處理第一次。</summary>
+    private static List<(string Target, MyUserAdapterModel? User)> ResolveUsers(IReadOnlyList<MyUserAdapterModel> all, IReadOnlyList<string> accounts)
+    {
+        var seen = new HashSet<int>();
+        var resolved = new List<(string Target, MyUserAdapterModel? User)>();
+        foreach (var account in accounts)
+        {
+            var user = PickByName(all, account, item => item.Account);
+            if (user is null || seen.Add(user.Id))
+            {
+                resolved.Add((account, user));
+            }
+        }
+
+        return resolved;
+    }
+
+    /// <summary>這批裡啟用中的管理員全部失去管理能力後，是否還剩至少一位（整批檢查，不能逐筆判斷）。</summary>
+    private static string? CheckLosingAdmins(IReadOnlyList<MyUserAdapterModel> all, IEnumerable<MyUserAdapterModel?> targets)
+    {
+        var losing = targets.OfType<MyUserAdapterModel>().Where(user => user.IsAdmin && user.Status).Select(user => user.Id).ToHashSet();
+        return losing.Count == 0 ? null : AdminAssistantMutation.CheckAdminsRemain(all, losing);
+    }
+
+    private async Task<string> ForEachUserAsync(string[] accounts, string action, Func<MyUserAdapterModel, Task<VerifyRecordResult>> run)
+    {
+        var (items, error) = AdminAssistantMutation.ValidateBatch(accounts);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var result = new BatchResult(action);
+        foreach (var (target, user) in ResolveUsers(await LoadUsersAsync(null, []), items))
+        {
+            if (user is null)
+            {
+                result.Add(target, false, UserNotFound(target));
+            }
+            else
+            {
+                AddOutcome(result, user.Account, await run(user));
+            }
+        }
+
+        return ToJson(result.ToOutput());
+    }
+
+    /// <summary>
+    /// 走和使用者管理頁「修改」相同的路徑：讀出最新資料（含版本戳記）→ 帶回額外角色與團隊（否則會被清掉）→
+    /// 密碼留空（保留原密碼）→ 修改 → <c>BeforeUpdateCheckAsync</c> → <c>UpdateAsync</c>（服務寫 <c>User.Update</c> 稽核）。
+    /// </summary>
+    private async Task<VerifyRecordResult> UpdateUserAsync(int id, Action<MyUserAdapterModel> change)
+    {
+        var model = (await users.GetAsync(id)).Clone();
+        if (model.Id != id)
+        {
+            return VerifyRecordResultFactory.Build(false, "找不到這位使用者，可能已被刪除。");
+        }
+
+        var (additionalRoleIds, teamNames) = await users.GetUserAssignmentsAsync(id);
+        model.AdditionalRoleIds = additionalRoleIds;
+        model.TeamNames = teamNames;
+        model.Password = string.Empty;
+        model.UpdateAt = DateTime.Now;
+        change(model);
+
+        var check = await users.BeforeUpdateCheckAsync(model);
+        return check.Success ? await users.UpdateAsync(model) : check;
+    }
+
     /// <summary>依狀態與是否管理員篩選（記憶體內）；狀態無法辨識時視為 any 並回說明。</summary>
     public static (List<MyUserAdapterModel> Users, string? Note) FilterUsers(
         IEnumerable<MyUserAdapterModel> source, string? status, bool? adminOnly, DateTime nowUtc)
@@ -466,6 +1038,16 @@ public sealed class AccountsAssistantTools
             PermissionPage = permissionPage,
             PermissionAction = PermissionActions.View,
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<AccountsAssistantTools>()), name, description),
+        };
+
+    private static AiToolDefinition DefineMutating(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<AccountsAssistantTools, Delegate> method)
+        => Define(name, displayName, permissionPage, description, method) with
+        {
+            PermissionAction = permissionAction,
+            IsMutating = true,
+            ApprovalNote = approvalNote,
         };
 }
 

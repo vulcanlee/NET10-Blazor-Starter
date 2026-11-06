@@ -396,7 +396,10 @@ public sealed class AiAgentChat
         transcript.AddRange(content.Transcript);
 
         // 還原「由誰回答」（0.9.157 起）：停在核准的對話接續後，核准回覆的那則才標得上原本那一輪的標籤。
-        CurrentLabel = content.Transcript.LastOrDefault(entry => entry.Kind == AiAgentTranscriptKinds.Assistant)?.Agent;
+        // 0.9.158 起取最後一則「有標籤」的紀錄（工具活動也算）：停在核准的那一輪若模型直接呼叫工具、沒有先講話，就沒有 AI 回覆可取。
+        // 停在核准時以待核准紀錄上的標籤為準（需要核准的工具不會留下工具活動紀錄）。
+        CurrentLabel = content.PendingApprovals.Select(record => record.Label).FirstOrDefault(label => string.IsNullOrEmpty(label) == false)
+            ?? content.Transcript.LastOrDefault(entry => string.IsNullOrEmpty(entry.Agent) == false)?.Agent;
         foreach (var record in content.PendingApprovals)
         {
             var restored = RestorePending(record);
@@ -597,7 +600,7 @@ public sealed class AiAgentChat
     /// </summary>
     private async Task<List<AIContent>> TriageApprovalsAsync(List<ToolApprovalRequestContent> approvals)
     {
-        var (forUser, autoRejected) = await AiToolApprovals.TriageAsync(Definition, approvals, guard);
+        var (forUser, autoRejected) = await AiToolApprovals.TriageAsync(Definition, approvals, guard, CurrentLabel);
         foreach (var (content, tool, request) in forUser)
         {
             pending.Add(PendingApproval.ForUser(content, tool, request));
@@ -668,7 +671,7 @@ public sealed class AiAgentChat
                 return PendingApproval.AutoRejected(response);
             case ToolApprovalRequestContent request when request.ToolCall is FunctionCallContent call
                 && Definition.Tools.FirstOrDefault(item => item.Name == call.Name) is { } tool:
-                return PendingApproval.ForUser(request, tool, AiToolApprovals.Describe(request, tool, call));
+                return PendingApproval.ForUser(request, tool, AiToolApprovals.Describe(request, tool, call, CurrentLabel));
             case ToolApprovalRequestContent request:
                 return PendingApproval.AutoRejected(request.CreateResponse(false, AiToolApprovals.UnknownToolReason));
             default:
@@ -721,6 +724,7 @@ public sealed class AiAgentChat
         {
             ToolName = Tool?.Name ?? (AutoResponse?.ToolCall as FunctionCallContent)?.Name ?? string.Empty,
             AutoRejected = AutoResponse is not null,
+            Label = Request?.Label,
             Content = JsonSerializer.SerializeToElement<AIContent>(
                 AutoResponse is not null ? AutoResponse : Content!, AIJsonUtilities.DefaultOptions),
         };
@@ -745,8 +749,12 @@ public sealed record AiAgentUpdate
 public sealed record AiToolActivity(string ToolName, string DisplayName, bool Completed);
 
 /// <summary>一筆待核准的工具呼叫。</summary>
+/// <param name="Note">工具的核准說明（<see cref="AiToolDefinition.ApprovalNote"/>，0.9.158 起）；沒有時為 null。</param>
+/// <param name="Label">提出這次核准的專家（每輪規劃的標籤，0.9.158 起）；沒有規劃器時為 null。</param>
 public sealed record AiToolApprovalRequest(
     string RequestId,
     string ToolName,
     string DisplayName,
-    IReadOnlyList<KeyValuePair<string, string>> Arguments);
+    IReadOnlyList<KeyValuePair<string, string>> Arguments,
+    string? Note = null,
+    string? Label = null);

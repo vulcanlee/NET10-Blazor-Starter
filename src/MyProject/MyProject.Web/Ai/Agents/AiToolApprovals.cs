@@ -21,7 +21,8 @@ internal static class AiToolApprovals
     public static async Task<(List<(ToolApprovalRequestContent Content, AiToolDefinition Tool, AiToolApprovalRequest Request)> ForUser, List<AIContent> AutoRejected)> TriageAsync(
         AiAgentDefinition definition,
         IEnumerable<ToolApprovalRequestContent> approvals,
-        IAiToolPermissionGuard guard)
+        IAiToolPermissionGuard guard,
+        string? label = null)
     {
         var forUser = new List<(ToolApprovalRequestContent, AiToolDefinition, AiToolApprovalRequest)>();
         var autoRejected = new List<AIContent>();
@@ -42,15 +43,27 @@ internal static class AiToolApprovals
                 continue;
             }
 
-            forUser.Add((request, tool, Describe(request, tool, call)));
+            forUser.Add((request, tool, Describe(request, tool, call, label)));
         }
 
         return (forUser, autoRejected);
     }
 
-    /// <summary>給畫面的一筆待核准：工具名稱與參數（名稱＝值，值一律轉成文字、太長截斷）。</summary>
-    public static AiToolApprovalRequest Describe(ToolApprovalRequestContent content, AiToolDefinition tool, FunctionCallContent call)
-        => new(content.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call));
+    /// <summary>
+    /// 核准窗裡每個參數值的字數上限（0.9.158 起由 2000 放寬）：容得下 50 筆的批次清單與整份提示詞（最多 8000 字）。
+    /// ⚠️ 會被截斷的參數，工具自己要拒絕超過這個長度的值，否則管理員核准的不是實際會寫入的內容。
+    /// </summary>
+    public const int ArgumentMaxLength = 8000;
+
+    /// <summary>批次清單在核准窗最多逐行列出幾筆（同批次工具的上限）。</summary>
+    public const int ListedItemLimit = 50;
+
+    /// <summary>
+    /// 給畫面的一筆待核准：工具名稱、參數（名稱＝值，值一律轉成文字、太長截斷；陣列逐行列出並標筆數）、
+    /// 工具的核准說明（<see cref="AiToolDefinition.ApprovalNote"/>）與提出的專家（0.9.158 起）。
+    /// </summary>
+    public static AiToolApprovalRequest Describe(ToolApprovalRequestContent content, AiToolDefinition tool, FunctionCallContent call, string? label = null)
+        => new(content.RequestId, tool.Name, tool.DisplayName, DescribeArguments(call), tool.ApprovalNote, label);
 
     private static IReadOnlyList<KeyValuePair<string, string>> DescribeArguments(FunctionCallContent call)
         => (call.Arguments ?? new Dictionary<string, object?>())
@@ -64,10 +77,23 @@ internal static class AiToolApprovals
             null => string.Empty,
             string s => s,
             JsonElement { ValueKind: JsonValueKind.String } element => element.GetString() ?? string.Empty,
+            JsonElement { ValueKind: JsonValueKind.Array } element => DescribeList(element.EnumerateArray().Select(DescribeItem).ToList()),
             JsonElement element => element.GetRawText(),
+            IEnumerable<string> items => DescribeList(items.ToList()),
             _ => value.ToString() ?? string.Empty,
         };
 
-        return text.Length <= 2000 ? text : string.Concat(text.AsSpan(0, 2000), "…");
+        return text.Length <= ArgumentMaxLength ? text : string.Concat(text.AsSpan(0, ArgumentMaxLength), "…");
     }
+
+    /// <summary>批次清單：「共 N 筆：」加上逐行對象，超過 <see cref="ListedItemLimit"/> 筆只列前面的並註明。</summary>
+    private static string DescribeList(IReadOnlyList<string> items)
+    {
+        var lines = items.Take(ListedItemLimit).ToList();
+        var text = $"共 {items.Count} 筆：\n" + string.Join("\n", lines);
+        return items.Count > ListedItemLimit ? text + $"\n…另有 {items.Count - ListedItemLimit} 筆" : text;
+    }
+
+    private static string DescribeItem(JsonElement item)
+        => item.ValueKind == JsonValueKind.String ? item.GetString() ?? string.Empty : item.GetRawText();
 }

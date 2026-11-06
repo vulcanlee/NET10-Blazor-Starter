@@ -7,6 +7,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Diagnostics;
+using MyProject.Web.Email;
 using MyProject.Web.Health;
 using static MyProject.Web.Ai.Agents.AdminAssistant.AdminAssistantToolText;
 
@@ -32,6 +33,8 @@ public sealed class MonitoringAssistantTools
     private readonly IDatabaseUsageService databaseUsage;
     private readonly IAuditLogService audit;
     private readonly CurrentUserService currentUser;
+    private readonly EmailTestService emailTest;
+    private readonly NotificationTestService notificationTest;
 
     public MonitoringAssistantTools(
         ISystemHealthService health,
@@ -40,7 +43,9 @@ public sealed class MonitoringAssistantTools
         ExceptionLogService exceptions,
         IDatabaseUsageService databaseUsage,
         IAuditLogService audit,
-        CurrentUserService currentUser)
+        CurrentUserService currentUser,
+        EmailTestService emailTest,
+        NotificationTestService notificationTest)
     {
         this.health = health;
         this.logs = logs;
@@ -49,6 +54,8 @@ public sealed class MonitoringAssistantTools
         this.databaseUsage = databaseUsage;
         this.audit = audit;
         this.currentUser = currentUser;
+        this.emailTest = emailTest;
+        this.notificationTest = notificationTest;
     }
 
     public static AiToolDefinition SystemHealthTool { get; } = Define(
@@ -84,6 +91,35 @@ public sealed class MonitoringAssistantTools
 
     public static IReadOnlyList<AiToolDefinition> ReadTools { get; } =
         [SystemHealthTool, QueryLogsTool, LogLevelTool, SearchExceptionsTool, ExceptionDetailTool, DatabaseUsageTool];
+
+    // ── 異動工具（0.9.158 起）：每一個都要使用者核准。日誌等級的稽核由這裡寫（同日誌等級頁，加 via）；測試信與測試通知由服務寫。──
+
+    public static AiToolDefinition SetLogLevelTool { get; } = DefineMutating(
+        "set_log_level", "調整日誌等級", MagicObjectHelper.角色_日誌等級設定, PermissionActions.Edit,
+        "暫時調整系統日誌的最低等級（TRACE、DEBUG、INFO、WARN、ERROR、FATAL），只在執行期有效，重新啟動後回到 nlog.config 的設定。",
+        "只在執行期有效（重新啟動後回到預設）。調成 TRACE／DEBUG 會大幅增加日誌量，排查完請記得調回來。",
+        tools => tools.SetLogLevelAsync);
+
+    public static AiToolDefinition RestoreLogLevelTool { get; } = DefineMutating(
+        "restore_log_level", "日誌等級還原預設", MagicObjectHelper.角色_日誌等級設定, PermissionActions.Edit,
+        "取消執行期的日誌等級覆寫，回到 nlog.config 的系統預設等級。",
+        "回到 nlog.config 的系統預設等級。",
+        tools => tools.RestoreLogLevelAsync);
+
+    public static AiToolDefinition SendTestEmailTool { get; } = DefineMutating(
+        "send_test_email", "寄送測試信", MagicObjectHelper.角色_系統健康監控, PermissionActions.Edit,
+        "用目前的寄信設定寄一封測試信到指定的 Email，確認寄信功能正常。",
+        "會真的寄出一封信（Pickup 模式只寫入資料夾）。稽核只記寄信方式與成敗，不記收件者。",
+        tools => tools.SendTestEmailAsync);
+
+    public static AiToolDefinition SendTestNotificationTool { get; } = DefineMutating(
+        "send_test_notification", "發送測試通知", MagicObjectHelper.角色_系統健康監控, PermissionActions.Edit,
+        "發一則測試通知給所有啟用中的管理員，確認右上角鈴鐺與即時更新正常。",
+        "所有啟用中的管理員都會收到這則通知。",
+        tools => tools.SendTestNotificationAsync);
+
+    public static IReadOnlyList<AiToolDefinition> MutatingTools { get; } =
+        [SetLogLevelTool, RestoreLogLevelTool, SendTestEmailTool, SendTestNotificationTool];
 
     public async Task<string> GetSystemHealthAsync(CancellationToken cancellationToken = default)
     {
@@ -169,6 +205,70 @@ public sealed class MonitoringAssistantTools
         effective = logLevel.EffectiveLevel,
         logLevel.IsAvailable,
     });
+
+    public async Task<string> SetLogLevelAsync([Description("新的最低等級：TRACE、DEBUG、INFO、WARN、ERROR、FATAL")] string level)
+    {
+        var target = LogLevelRankHelper.FromLevelText(level?.Trim().ToUpperInvariant() ?? string.Empty, LogLevelRank.Unknown);
+        if (LogLevelRankHelper.IsRealLevel(target) == false)
+        {
+            return $"等級「{level}」無法辨識，沒有變更。可用：TRACE、DEBUG、INFO、WARN、ERROR、FATAL。";
+        }
+
+        var previous = logLevel.EffectiveLevel;
+        if (logLevel.OverrideLevel == target)
+        {
+            return $"目前已經是 {LogLevelRankHelper.ToLevelText(target)}，沒有變更。";
+        }
+
+        if (logLevel.Apply(target) == false)
+        {
+            return "套用失敗（NLog 設定無法使用），沒有變更。請查看日誌等級設定頁。";
+        }
+
+        await WriteLogLevelAuditAsync(AuditActions.LogLevel.Apply, previous, target);
+        return $"已將日誌最低等級由 {LogLevelRankHelper.ToLevelText(previous)} 調整為 {LogLevelRankHelper.ToLevelText(target)}（只在執行期有效，重新啟動後回到預設）。";
+    }
+
+    public async Task<string> RestoreLogLevelAsync()
+    {
+        if (logLevel.OverrideLevel is null)
+        {
+            return $"目前沒有執行期覆寫，已經是系統預設等級 {LogLevelRankHelper.ToLevelText(logLevel.SystemDefaultLevel)}，沒有變更。";
+        }
+
+        var previous = logLevel.EffectiveLevel;
+        if (logLevel.RestoreDefault() == false)
+        {
+            return "還原失敗（NLog 設定無法使用），沒有變更。請查看日誌等級設定頁。";
+        }
+
+        await WriteLogLevelAuditAsync(AuditActions.LogLevel.Restore, previous, logLevel.EffectiveLevel);
+        return $"已還原為系統預設等級 {LogLevelRankHelper.ToLevelText(logLevel.EffectiveLevel)}。";
+    }
+
+    public async Task<string> SendTestEmailAsync([Description("收件者 Email")] string to, CancellationToken cancellationToken = default)
+    {
+        var user = currentUser.CurrentUser;
+        var result = await emailTest.SendAsync(to, user.Id, user.Account, cancellationToken);
+        return result.Success ? result.Message : $"沒有寄出：{result.Message}";
+    }
+
+    public async Task<string> SendTestNotificationAsync(CancellationToken cancellationToken = default)
+    {
+        var user = currentUser.CurrentUser;
+        var result = await notificationTest.SendAsync(user.Id, user.Account, cancellationToken);
+        return result.Success ? result.Message : $"沒有發送成功：{result.Message}";
+    }
+
+    /// <summary>同日誌等級設定頁的稽核（代碼、目標、文字都相同），detail 另加 <c>via=admin-assistant</c>。</summary>
+    private Task WriteLogLevelAuditAsync(string action, LogLevelRank previous, LogLevelRank current)
+    {
+        var user = currentUser.CurrentUser;
+        return audit.WriteAsync(
+            action, success: true, actorUserId: user.Id, actorAccount: user.Account,
+            targetType: "NLog", targetId: "logger:*",
+            detail: $"日誌最低等級由 {LogLevelRankHelper.ToLevelText(previous)} 調整為 {LogLevelRankHelper.ToLevelText(current)}（僅執行期有效）。; via={AuditSource}");
+    }
 
     public async Task<string> SearchExceptionsAsync(
         [Description("起始時間（最後發生時間），" + TimeFormatHint + "；不填＝往前 7 天")] string? start = null,
@@ -263,5 +363,15 @@ public sealed class MonitoringAssistantTools
             PermissionPage = permissionPage,
             PermissionAction = PermissionActions.View,
             Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<MonitoringAssistantTools>()), name, description),
+        };
+
+    private static AiToolDefinition DefineMutating(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<MonitoringAssistantTools, Delegate> method)
+        => Define(name, displayName, permissionPage, description, method) with
+        {
+            PermissionAction = permissionAction,
+            IsMutating = true,
+            ApprovalNote = approvalNote,
         };
 }
