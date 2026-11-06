@@ -14,7 +14,7 @@ namespace MyProject.Web.Ai.Agents.AdminAssistant;
 
 /// <summary>
 /// 系統管理助理「監控與診斷」的唯讀工具（0.9.155 起）。權限沿用各頁的管理員專屬鍵；
-/// 原頁面有寫查詢／檢視稽核的（日誌查詢、例外查詢與明細），這裡用同一個稽核代碼寫，detail 加 <c>source=admin-assistant</c>。
+/// 原頁面有寫查詢／檢視稽核的（日誌查詢、例外查詢與明細），這裡用同一個稽核代碼寫，detail 加 <c>via=admin-assistant</c>（0.9.157 起；之前是 source=）。
 /// </summary>
 public sealed class MonitoringAssistantTools
 {
@@ -115,13 +115,20 @@ public sealed class MonitoringAssistantTools
         [Description("最多回傳幾筆（最新的），1～200，預設 50")] int take = 50,
         CancellationToken cancellationToken = default)
     {
-        var (startTime, endTime, note) = ParseRange(start, end, DateTime.Now, TimeSpan.FromHours(24), LogQueryRequest.MaxSpan);
+        var (startTime, endTime, rangeNote) = ParseRange(start, end, DateTime.Now, TimeSpan.FromHours(24), LogQueryRequest.MaxSpan);
+        var notes = new List<string>();
         var level = ParseLevel(minimumLevel);
+        if (level == LogLevelRank.Any && string.IsNullOrWhiteSpace(minimumLevel) == false
+            && string.Equals(minimumLevel.Trim(), "any", StringComparison.OrdinalIgnoreCase) == false)
+        {
+            notes.Add($"最低等級「{minimumLevel}」無法辨識（可用 trace、debug、info、warn、error、fatal），改為不限等級");
+        }
+
         var request = new LogQueryRequest
         {
             StartTime = startTime,
             EndTime = endTime,
-            Take = Clamp(take, 1, MaxLogTake),
+            Take = ClampWithNote(take, 1, MaxLogTake, "筆數", notes),
             MinimumLevel = level,
             Keyword = keyword?.Trim() ?? string.Empty,
             TraceCode = traceCode?.Trim() ?? string.Empty,
@@ -133,13 +140,13 @@ public sealed class MonitoringAssistantTools
             AuditSearchCondition.Of("start", result.AppliedStartTime), AuditSearchCondition.Of("end", result.AppliedEndTime),
             AuditSearchCondition.Of("minimumLevel", level), AuditSearchCondition.Of("take", request.Take),
             AuditSearchCondition.Text("keyword", request.Keyword), AuditSearchCondition.Text("traceCode", request.TraceCode),
-            AuditSearchCondition.Of("rows", result.Entries.Count), AuditSearchCondition.Of("source", AuditSource));
+            AuditSearchCondition.Of("rows", result.Entries.Count), AuditSearchCondition.Of("via", AuditSource));
 
         return ToJson(new
         {
             appliedStart = Format(result.AppliedStartTime),
             appliedEnd = Format(result.AppliedEndTime),
-            note,
+            note = JoinNotes([rangeNote, .. notes]),
             message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message,
             warnings = result.Warnings.Count == 0 ? null : result.Warnings,
             count = result.Entries.Count,
@@ -168,9 +175,12 @@ public sealed class MonitoringAssistantTools
         [Description("結束時間，" + TimeFormatHint + "；不填＝現在")] string? end = null,
         [Description("關鍵字（例外類型、訊息、頁面等）")] string? keyword = null,
         [Description("發生時的登入帳號")] string? account = null,
-        [Description("最多回傳幾筆，1～50，預設 20")] int take = 20)
+        [Description("最多回傳幾筆，1～50，預設 20")] int take = 20,
+        [Description("沒給起始時間時，查結束時間往前幾小時（1～8760），例如巡檢用 24；不填＝往前 7 天")] int? hours = null)
     {
-        var (startTime, endTime, note) = ParseRange(start, end, DateTime.Now, TimeSpan.FromDays(7), TimeSpan.FromDays(366));
+        var notes = new List<string>();
+        var defaultSpan = hours is { } h ? TimeSpan.FromHours(ClampWithNote(h, 1, 8760, "小時數", notes)) : TimeSpan.FromDays(7);
+        var (startTime, endTime, rangeNote) = ParseRange(start, end, DateTime.Now, defaultSpan, TimeSpan.FromDays(366));
         var query = new ExceptionLogQuery
         {
             StartTime = startTime,
@@ -178,7 +188,7 @@ public sealed class MonitoringAssistantTools
             Keyword = keyword?.Trim() ?? string.Empty,
             Account = account?.Trim() ?? string.Empty,
             CurrentPage = 1,
-            PageSize = Clamp(take, 1, MaxExceptionTake),
+            PageSize = ClampWithNote(take, 1, MaxExceptionTake, "筆數", notes),
         };
 
         var result = await exceptions.GetAsync(query);
@@ -186,13 +196,13 @@ public sealed class MonitoringAssistantTools
         await ViewAudit.WriteSearchAsync(audit, currentUser, AuditActions.ExceptionLog.Search, "ExceptionLog",
             AuditSearchCondition.Of("start", startTime), AuditSearchCondition.Of("end", endTime),
             AuditSearchCondition.Text("account", query.Account), AuditSearchCondition.Text("keyword", query.Keyword),
-            AuditSearchCondition.Of("source", AuditSource));
+            AuditSearchCondition.Of("via", AuditSource));
 
         return ToJson(new
         {
             appliedStart = Format(startTime),
             appliedEnd = Format(endTime),
-            note,
+            note = JoinNotes([rangeNote, .. notes]),
             totalCount = result.Count,
             items = result.Result.Select(item => new
             {
@@ -219,13 +229,18 @@ public sealed class MonitoringAssistantTools
         }
 
         await ViewAudit.WriteAsync(audit, currentUser, AuditActions.ExceptionLog.View, "ExceptionLog",
-            id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"source={AuditSource}");
+            id.ToString(System.Globalization.CultureInfo.InvariantCulture), $"via={AuditSource}");
 
         return ToJson(new { id, stackTrace = Truncate(stackTrace, StackTraceMaxLength) });
     }
 
+    /// <summary>資料庫用量。0.9.157 起不送出 <see cref="DatabaseUsageReport.DatabaseFilePath"/>（伺服器完整路徑），只給檔名。</summary>
     public async Task<string> GetDatabaseUsageAsync(CancellationToken cancellationToken = default)
-        => ToJson(await databaseUsage.GetReportAsync(cancellationToken));
+    {
+        var report = await databaseUsage.GetReportAsync(cancellationToken);
+        report.DatabaseFilePath = string.Empty;
+        return ToJson(report);
+    }
 
     private static LogLevelRank ParseLevel(string? text) => text?.Trim().ToLowerInvariant() switch
     {

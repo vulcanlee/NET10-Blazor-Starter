@@ -281,6 +281,45 @@ public sealed class AiChatCompletionClientTests
         Assert.Empty(callLog.Entries);
     }
 
+    /// <summary>呼叫端指定的逾時優先於 AiSettings:TimeoutSeconds（0.9.157 起，系統管理助理的分派用 20 秒）。</summary>
+    [Fact]
+    public async Task CompleteAsync_ShouldUseRequestTimeout_WhenGiven()
+    {
+        var recorder = new RecordingTokenUsageRecorder();
+        var client = AiTestAgents.CreateChatClient(
+            NullLogger<AiChatCompletionClient>.Instance,
+            new StubHttpClientFactory(new SlowHandler()),
+            new StaticOptionsMonitor<AiSettings>(new AiSettings
+            {
+                Provider = nameof(AiProvider.OpenAI),
+                ApiKey = "key",
+                Model = "gpt-4o",
+                TimeoutSeconds = 120,
+            }),
+            recorder,
+            new CurrentUserService { CurrentUser = new CurrentUser { Id = 7, Account = "support" } },
+            new FakeAiCallLogRecorder(),
+            new StubAiQuotaService(),
+            new RecordingAuditLogService());
+        var request = CreateRequest(new AiChatMessage(AiChatRoles.User, "q")) with { Timeout = TimeSpan.FromMilliseconds(300) };
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = await client.CompleteAsync(request);
+
+        Assert.Equal(AiAnalysisFailureReason.Timeout, result.Reason);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"took {stopwatch.Elapsed}");
+    }
+
+    /// <summary>一直等到被取消的上游。</summary>
+    private sealed class SlowHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
     private static AiChatCompletionRequest CreateRequest(params AiChatMessage[] messages) => new()
     {
         Operation = TokenUsageOperations.AiExceptionAnalysis,

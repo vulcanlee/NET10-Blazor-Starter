@@ -50,6 +50,32 @@ public sealed class AuditLogQueryServiceTests
         Assert.Equal(expected, local);
     }
 
+    /// <summary>
+    /// 每位使用者最後一次成功登入（0.9.157 起，系統管理助理的「長期未登入」）：取最新一筆、只算成功、Google 登入也算、
+    /// 失敗與其他動作不算，時間換回本地時間。
+    /// </summary>
+    [Fact]
+    public async Task GetLastLoginTimesAsync_ShouldTakeLatestSuccessfulLoginPerUser()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var older = DateTime.UtcNow.AddDays(-10);
+        var newer = DateTime.UtcNow.AddDays(-2);
+        var sso = DateTime.UtcNow.AddDays(-1);
+        await fixture.SeedAsync(
+            new AuditLog { OccurredAt = older, Action = "Login.Success", ActorUserId = 1, Success = true },
+            new AuditLog { OccurredAt = newer, Action = "Login.Success", ActorUserId = 1, Success = true },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Login.Failed", ActorUserId = 1, Success = false },
+            new AuditLog { OccurredAt = sso, Action = "Login.Sso.Success", ActorUserId = 2, Success = true },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "User.Update", ActorUserId = 3, Success = true },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Login.Success", ActorUserId = null, Success = true });
+
+        var result = await fixture.CreateService().GetLastLoginTimesAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(AuditLogQueryService.ToLocal(newer), result[1], TimeSpan.FromSeconds(1));
+        Assert.Equal(AuditLogQueryService.ToLocal(sso), result[2], TimeSpan.FromSeconds(1));
+    }
+
     [Fact]
     public async Task GetAsync_ShouldReturnOccurredAtAsLocalTime()
     {

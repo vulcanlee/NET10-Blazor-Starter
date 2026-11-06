@@ -11,6 +11,9 @@ namespace MyProject.Web.Ai.Agents.AdminAssistant;
 /// </summary>
 public sealed class AdminAssistantTurnPlanner : IAiAgentTurnPlanner
 {
+    /// <summary>分派呼叫的逾時（0.9.157 起）。分派只回幾個字，等太久不如直接退回全部領域。</summary>
+    public static readonly TimeSpan RouterTimeout = TimeSpan.FromSeconds(20);
+
     private readonly IAiChatCompletionClient client;
     private readonly IAiSystemPromptProvider prompts;
     private readonly IOptionsMonitor<AiModelSettings> models;
@@ -62,6 +65,7 @@ public sealed class AdminAssistantTurnPlanner : IAiAgentTurnPlanner
                     ? nameof(AiModelSettings.AdminAssistant)
                     : nameof(AiModelSettings.AdminAssistantRouter),
                 RelatedInfo = TokenUsageOperations.AdminAssistantRouter,
+                Timeout = RouterTimeout,
                 ContextLengthExceededMessage = "對話內容太長，無法判斷領域。",
                 TimeoutHint = "請稍後再試。",
                 SubmittedContentLabel = "對話內容",

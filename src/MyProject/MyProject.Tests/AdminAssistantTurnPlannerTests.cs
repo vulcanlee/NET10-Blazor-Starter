@@ -44,6 +44,8 @@ public sealed class AdminAssistantTurnPlannerTests
         Assert.Equal(TokenUsageOperations.AdminAssistantRouter, request.Operation);
         Assert.Equal(conversationId, request.ConversationId);
         Assert.Equal(expectedModelKey, request.ModelKey);
+        Assert.Equal(AdminAssistantTurnPlanner.RouterTimeout, request.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(20), AdminAssistantTurnPlanner.RouterTimeout);
         Assert.Equal(2, request.Messages.Count);
         Assert.Equal(AiChatRoles.System, request.Messages[0].Role);
         Assert.Contains("[AdminAssistantRouter]", request.Messages[0].Content, StringComparison.Ordinal);

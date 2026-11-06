@@ -301,10 +301,15 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   AI 回覆與工具活動的 `AiAgentTranscriptEntry.Agent` 填這一輪的標籤；沒有規劃器時（Agent 測試台）為 null，行為不變。
 - **分派**（`AdminAssistantTurnPlanner`）：用 `IAiChatCompletionClient` 呼叫一次（作業「系統管理助理（分派）」、模型 `AiModelSettings:AdminAssistantRouter`，空白用 `AdminAssistant`），
   模型只回英文代碼 `accounts, monitoring, ai, ops, patrol`（`AdminAssistantRouting.Parse` 整字比對）；失敗或讀不出代碼時退回全部領域。
+  0.9.157 起：分派用專用的固定規則（`AiPromptGuardrails.For(AdminAssistantRouter)`：保留 prompt injection 第 1 條、只要求英文代碼、不套 Markdown 規則），
+  並以 `AiChatCompletionRequest.Timeout` 限制 20 秒（`AdminAssistantTurnPlanner.RouterTimeout`），逾時同樣退回全部領域。
 - **組裝**（`AdminAssistantAgent`）：唯讀工具**每一輪都全部載入**（避免分派漏選就查不到），異動工具只載入被選中領域的；
   提示詞＝共同說明（`AdminAssistant`）＋被選中領域的說明（`AdminAssistantAccounts`／`Monitoring`／`Ai`／`Ops`），以 `IAiSystemPromptProvider.GetInstructionsAsync` 取各段（不含固定規則），最後只 `Compose` 一次。
-- **工具**（`Ai/Agents/AdminAssistant/*AssistantTools.cs`）：權限用原頁面的管理員專屬鍵；原頁面有寫查詢／檢視稽核的，工具寫同一個稽核代碼並加 `source=admin-assistant`；
-  參數不合法時不丟例外，夾住範圍或用預設值並在回覆說明（`AdminAssistantToolText`）。
+- **工具**（`Ai/Agents/AdminAssistant/*AssistantTools.cs`，0.9.157 起四類共 26 個：監控 6、維運 7、帳號 7、AI 6）：權限用原頁面的管理員專屬鍵；
+  原頁面有寫查詢／檢視稽核的，工具寫同一個稽核代碼並加 `via=admin-assistant`（0.9.155～0.9.156 是 `source=`）；
+  參數不合法時不丟例外，夾住範圍或用預設值並在回覆的 `note` 說明（`AdminAssistantToolText.ClampWithNote`、`ParseRange`）。
+  最後登入由 `AuditLogQueryService.GetLastLoginTimesAsync` 從稽核推算；使用者輸出絕不含密碼與 Salt，系統參數的孤兒鍵只列鍵名。
+- **巡檢**：分派到 `patrol` 時只用唯讀工具，共同說明列出巡檢要呼叫的 9 個工具與七段報告格式（預設最近 24 小時，不呼叫耗時的資料保留總覽）。
 
 ## 7. 後續階段
 
@@ -316,6 +321,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | 三 B | 對話保存：多輪對話存檔案系統、SQLite 只放中繼資料（只限本人，保存天數可設定、依最後一次對話過期），可接續之前的對話、停在核准的重新跳核准窗（§6.7）| 0.9.143 已實作 |
 | 四 | 多 Agent 工作流程（MAF Workflows）：所有 agent 經 `IAiAgentFactory` 建立、共用一個 RunId；人工介入（工具核准、Agent 提問、審閱關卡）當下回應，不做跨重開機檢查點；以「Agent 工作流程」頁的兩條範例驗收（§6.8）| 0.9.144 已實作 |
 | 系統管理助理 M1 | 每輪規劃的 Agent：自動分派領域、同一個 session 每輪換工具組與提示詞；監控與診斷、排程的唯讀工具（§6.9）| 0.9.155 已實作 |
+| 系統管理助理 M2 | 四大類共 26 個唯讀工具與巡檢報告；分派專用固定規則、分派 20 秒逾時、稽核註記改 `via=`（§6.9）| 0.9.157 已實作 |
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。

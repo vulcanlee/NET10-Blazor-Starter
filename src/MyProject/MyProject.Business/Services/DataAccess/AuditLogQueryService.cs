@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -62,6 +63,24 @@ public class AuditLogQueryService
             .FirstOrDefaultAsync();
 
         return await contentFileStore.ReadAsync(relativePath);
+    }
+
+    /// <summary>
+    /// 每位使用者最後一次成功登入（本地時間，0.9.157 起，系統管理助理判斷「長期未登入」用）。
+    /// 使用者資料表沒有最後登入欄位，登入只記在稽核（<c>Login.Success</c>、<c>Login.Sso.Success</c>），
+    /// 所以只看得到稽核保留期間內的登入；沒有出現在結果裡的使用者＝保留期間內沒有登入紀錄。
+    /// </summary>
+    public async Task<Dictionary<int, DateTime>> GetLastLoginTimesAsync()
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var rows = await context.AuditLog.AsNoTracking()
+            .Where(x => x.ActorUserId != null && x.Success
+                && (x.Action == AuditActions.Login.Success || x.Action == AuditActions.Login.SsoSuccess))
+            .GroupBy(x => x.ActorUserId!.Value)
+            .Select(group => new { UserId = group.Key, Last = group.Max(x => x.OccurredAt) })
+            .ToListAsync();
+
+        return rows.ToDictionary(row => row.UserId, row => ToLocal(row.Last));
     }
 
     /// <summary>本地時間 → UTC。DatePicker 給的 Kind 多半是 Unspecified，先釘成 Local 再換算。</summary>
