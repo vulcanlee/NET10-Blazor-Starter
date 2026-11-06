@@ -123,7 +123,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
             definition.Name, conversationId, modelName);
 
         return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger,
-            planner: planner, createHandle: next => CreateHandle(next, conversationId).Handle);
+            planner: planner, createHandle: next => CreateHandle(next, conversationId).Handle, approvalPreview: toolFactory.PreviewAsync);
     }
 
     private async Task<AiAgentChat?> ResumeCoreAsync(
@@ -157,7 +157,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
             definition.Name, conversationId, modelName);
 
         var chat = new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger, loaded.Summary.Title,
-            planner, next => CreateHandle(next, conversationId).Handle);
+            planner, next => CreateHandle(next, conversationId).Handle, toolFactory.PreviewAsync);
         chat.Restore(content);
         return chat;
     }
@@ -224,6 +224,7 @@ public sealed class AiAgentChat
     private readonly List<PendingApproval> pending = [];
     private readonly List<AiAgentTranscriptEntry> transcript = [];
     private string? title;
+    private readonly Func<AiToolDefinition, FunctionCallContent, Task<string?>>? approvalPreview;
 
     internal AiAgentChat(
         AiAgentDefinition definition,
@@ -236,9 +237,11 @@ public sealed class AiAgentChat
         ILogger logger,
         string? title = null,
         IAiAgentTurnPlanner? planner = null,
-        Func<AiAgentTurn, AiAgentHandle>? createHandle = null)
+        Func<AiAgentTurn, AiAgentHandle>? createHandle = null,
+        Func<AiToolDefinition, FunctionCallContent, Task<string?>>? approvalPreview = null)
     {
         Definition = definition;
+        this.approvalPreview = approvalPreview;
         this.planner = planner;
         this.createHandle = createHandle;
         agentName = planner?.Home.Name ?? definition.Name;
@@ -600,7 +603,7 @@ public sealed class AiAgentChat
     /// </summary>
     private async Task<List<AIContent>> TriageApprovalsAsync(List<ToolApprovalRequestContent> approvals)
     {
-        var (forUser, autoRejected) = await AiToolApprovals.TriageAsync(Definition, approvals, guard, CurrentLabel);
+        var (forUser, autoRejected) = await AiToolApprovals.TriageAsync(Definition, approvals, guard, CurrentLabel, approvalPreview);
         foreach (var (content, tool, request) in forUser)
         {
             pending.Add(PendingApproval.ForUser(content, tool, request));
@@ -671,7 +674,8 @@ public sealed class AiAgentChat
                 return PendingApproval.AutoRejected(response);
             case ToolApprovalRequestContent request when request.ToolCall is FunctionCallContent call
                 && Definition.Tools.FirstOrDefault(item => item.Name == call.Name) is { } tool:
-                return PendingApproval.ForUser(request, tool, AiToolApprovals.Describe(request, tool, call, CurrentLabel));
+                // 「目前狀態」用提出當時存下的（0.9.160 起），不重算：執行時工具本來就會重讀最新資料。
+                return PendingApproval.ForUser(request, tool, AiToolApprovals.Describe(request, tool, call, CurrentLabel) with { Preview = record.Preview });
             case ToolApprovalRequestContent request:
                 return PendingApproval.AutoRejected(request.CreateResponse(false, AiToolApprovals.UnknownToolReason));
             default:
@@ -725,6 +729,7 @@ public sealed class AiAgentChat
             ToolName = Tool?.Name ?? (AutoResponse?.ToolCall as FunctionCallContent)?.Name ?? string.Empty,
             AutoRejected = AutoResponse is not null,
             Label = Request?.Label,
+            Preview = Request?.Preview,
             Content = JsonSerializer.SerializeToElement<AIContent>(
                 AutoResponse is not null ? AutoResponse : Content!, AIJsonUtilities.DefaultOptions),
         };
@@ -752,6 +757,7 @@ public sealed record AiToolActivity(string ToolName, string DisplayName, bool Co
 /// <param name="Note">工具的核准說明（<see cref="AiToolDefinition.ApprovalNote"/>，0.9.158 起）；沒有時為 null。</param>
 /// <param name="Label">提出這次核准的專家（每輪規劃的標籤，0.9.158 起）；沒有規劃器時為 null。</param>
 /// <param name="IsIrreversible">不可復原的動作（<see cref="AiToolDefinition.IsIrreversible"/>，0.9.159 起）：核准窗加紅字警告並要求輸入確認。</param>
+/// <param name="Preview">核准窗的「目前狀態」（<see cref="AiToolDefinition.ApprovalPreview"/>，0.9.160 起）；提出時算一次，接續時從紀錄還原。</param>
 public sealed record AiToolApprovalRequest(
     string RequestId,
     string ToolName,
@@ -759,4 +765,5 @@ public sealed record AiToolApprovalRequest(
     IReadOnlyList<KeyValuePair<string, string>> Arguments,
     string? Note = null,
     string? Label = null,
-    bool IsIrreversible = false);
+    bool IsIrreversible = false,
+    string? Preview = null);

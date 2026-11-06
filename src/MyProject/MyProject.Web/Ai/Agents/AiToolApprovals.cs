@@ -22,7 +22,8 @@ internal static class AiToolApprovals
         AiAgentDefinition definition,
         IEnumerable<ToolApprovalRequestContent> approvals,
         IAiToolPermissionGuard guard,
-        string? label = null)
+        string? label = null,
+        Func<AiToolDefinition, FunctionCallContent, Task<string?>>? preview = null)
     {
         var forUser = new List<(ToolApprovalRequestContent, AiToolDefinition, AiToolApprovalRequest)>();
         var autoRejected = new List<AIContent>();
@@ -43,7 +44,13 @@ internal static class AiToolApprovals
                 continue;
             }
 
-            forUser.Add((request, tool, Describe(request, tool, call, label)));
+            var described = Describe(request, tool, call, label);
+            if (preview is not null && tool.ApprovalPreview is not null)
+            {
+                described = described with { Preview = await preview(tool, call) };
+            }
+
+            forUser.Add((request, tool, described));
         }
 
         return (forUser, autoRejected);

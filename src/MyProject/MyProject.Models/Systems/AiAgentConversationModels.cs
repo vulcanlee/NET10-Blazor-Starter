@@ -78,6 +78,12 @@ public sealed class AiAgentPendingApprovalRecord
     /// 接續時靠它還原「由誰回答」。只加不改，<see cref="AiAgentConversationContent.SchemaVersion"/> 不變。
     /// </summary>
     public string? Label { get; set; }
+
+    /// <summary>
+    /// 核准窗的「目前狀態」（0.9.160 起，例如系統參數的目前值）：提出時算一次，接續時照樣顯示。
+    /// 只加不改，<see cref="AiAgentConversationContent.SchemaVersion"/> 不變。
+    /// </summary>
+    public string? Preview { get; set; }
 }
 
 /// <summary>「我的對話」清單的一列。</summary>
