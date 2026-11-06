@@ -9,6 +9,8 @@
 
 .agent-playground-sidebar {
     flex: 0 0 240px;
+    /* 不設 min-width: 0 時，不換行的長標題會把側欄撐開（flex 項目預設 min-width: auto），右側對話區被擠窄。 */
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
