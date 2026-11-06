@@ -91,6 +91,7 @@
 - [AI 對話紀錄 PRD](prd/AI對話紀錄-prd.md)
 - [AI Agent PRD（Agent 測試台與 Agent 工作流程）](prd/AI-Agent-prd.md)
 - [系統管理助理 PRD](prd/系統管理助理-prd.md)
+- [軟體專案交接知識助理：方向、價值說明與開發計畫（草稿，尚未開發）](prd/軟體專案交接知識助理-方向價值與開發計畫.md)
 - [排程作業 PRD](prd/排程作業-prd.md)
 - [系統參數 PRD](prd/系統參數-prd.md)
 - [系統備份與還原 PRD](prd/系統備份與還原-prd.md)
