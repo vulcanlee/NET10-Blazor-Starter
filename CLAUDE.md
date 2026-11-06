@@ -1,5 +1,7 @@
 ﻿# CLAUDE.md
 
+> ⚠️ 暫時：換電腦交接中（2026/11/06）。開始工作前先讀 repo 根目錄的 **`HANDOFF.md`**（未完成工作、工作慣例、環境準備，以及何時清理這份文件與這一行）。
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
