@@ -394,6 +394,9 @@ public sealed class AiAgentChat
     internal void Restore(AiAgentConversationContent content)
     {
         transcript.AddRange(content.Transcript);
+
+        // 還原「由誰回答」（0.9.157 起）：停在核准的對話接續後，核准回覆的那則才標得上原本那一輪的標籤。
+        CurrentLabel = content.Transcript.LastOrDefault(entry => entry.Kind == AiAgentTranscriptKinds.Assistant)?.Agent;
         foreach (var record in content.PendingApprovals)
         {
             var restored = RestorePending(record);

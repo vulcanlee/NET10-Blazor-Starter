@@ -177,7 +177,7 @@ public sealed class AiChatCompletionClient : IAiChatCompletionClient
         return agentFactory.CreateAgent(new AiCallContext
         {
             Operation = request.Operation,
-            Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120),
+            Timeout = request.Timeout ?? TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 120),
             RelatedInfo = request.RelatedInfo,
             ConversationId = request.ConversationId,
 

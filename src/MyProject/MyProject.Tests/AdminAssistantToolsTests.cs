@@ -73,6 +73,84 @@ public sealed class AdminAssistantToolsTests
         Assert.NotNull(note);
     }
 
+    /// <summary>筆數被夾住時要說明（0.9.157 起）；沒被夾住不加說明。</summary>
+    [Fact]
+    public void ClampWithNote_AddsNoteOnlyWhenClamped()
+    {
+        var notes = new List<string>();
+
+        Assert.Equal(50, AdminAssistantToolText.ClampWithNote(50, 1, 200, "筆數", notes));
+        Assert.Empty(notes);
+        Assert.Equal(200, AdminAssistantToolText.ClampWithNote(999, 1, 200, "筆數", notes));
+        var note = Assert.Single(notes);
+        Assert.Contains("999", note, StringComparison.Ordinal);
+        Assert.Contains("200", note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task QueryLogs_UnknownLevelAndClampedTake_AreExplainedInNote()
+    {
+        var tools = CreateMonitoringTools();
+
+        var json = await tools.QueryLogsAsync(null, null, "verbose", null, null, take: 999);
+
+        Assert.Contains("verbose", json, StringComparison.Ordinal);
+        Assert.Contains("200", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 模型給的「選項值」（動作代碼、作業名稱）要先比對已知清單（0.9.157 起）：在清單內照頁面用 Of 記值；
+    /// 不在清單內就當自由文字（稽核只記有沒有填），並說明可能查不到。
+    /// </summary>
+    [Fact]
+    public void ChoiceCondition_KnownValueRecorded_UnknownTreatedAsFreeTextWithNote()
+    {
+        var notes = new List<string>();
+        string[] known = ["Login.Failed", "User.Update"];
+
+        var ok = AdminAssistantToolText.ChoiceCondition("action", "Login.Failed", known, notes);
+        var empty = AdminAssistantToolText.ChoiceCondition("action", string.Empty, known, notes);
+        Assert.False(ok.IsFreeText);
+        Assert.False(empty.IsFreeText);
+        Assert.Empty(notes);
+
+        var unknown = AdminAssistantToolText.ChoiceCondition("action", "Login.Fail", known, notes);
+        Assert.True(unknown.IsFreeText);
+        Assert.Contains("Login.Fail", Assert.Single(notes), StringComparison.Ordinal);
+    }
+
+    /// <summary>巡檢要的是最近 24 小時：search_exceptions 接受 hours（0.9.157 起），起點＝結束往前 N 小時。</summary>
+    [Fact]
+    public async Task SearchExceptions_Hours_SetsRelativeRange()
+    {
+        await using var fixture = await ExceptionLogServiceTests.ExceptionLogFixture.CreateAsync();
+        var tools = CreateMonitoringTools(exceptions: fixture.CreateService());
+
+        var json = await tools.SearchExceptionsAsync(hours: 24);
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var start = DateTime.ParseExact(document.RootElement.GetProperty("appliedStart").GetString()!, "yyyy/MM/dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+        var end = DateTime.ParseExact(document.RootElement.GetProperty("appliedEnd").GetString()!, "yyyy/MM/dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+        Assert.True(Math.Abs(((end - start) - TimeSpan.FromHours(24)).TotalSeconds) <= 2, $"range {end - start}");
+    }
+
+    /// <summary>資料庫用量不送出完整路徑（0.9.157 起），只給檔名。</summary>
+    [Fact]
+    public async Task GetDatabaseUsage_OmitsFullPath()
+    {
+        var tools = CreateMonitoringTools(databaseUsage: new FakeDatabaseUsageService(new DatabaseUsageReport
+        {
+            DatabaseFilePath = @"C:\secret-folder\MyProject.db",
+            DatabaseFileName = "MyProject.db",
+            MainDbBytes = 1024,
+        }));
+
+        var json = await tools.GetDatabaseUsageAsync();
+
+        Assert.DoesNotContain("secret-folder", json, StringComparison.Ordinal);
+        Assert.Contains("MyProject.db", json, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(50, 50)]
@@ -105,7 +183,7 @@ public sealed class AdminAssistantToolsTests
         var entry = Assert.Single(audit.Entries);
         Assert.Equal(AuditActions.LogViewer.Search, entry.Action);
         Assert.Equal("support", entry.ActorAccount);
-        Assert.Contains("source=admin-assistant", entry.Detail, StringComparison.Ordinal);
+        Assert.Contains("via=admin-assistant", entry.Detail, StringComparison.Ordinal);
         Assert.DoesNotContain("逾時", entry.Detail, StringComparison.Ordinal);
     }
 
@@ -134,7 +212,7 @@ public sealed class AdminAssistantToolsTests
         Assert.DoesNotContain(new string('S', 4001), json, StringComparison.Ordinal);
         var entry = Assert.Single(audit.Entries);
         Assert.Equal(AuditActions.ExceptionLog.View, entry.Action);
-        Assert.Contains("source=admin-assistant", entry.Detail, StringComparison.Ordinal);
+        Assert.Contains("via=admin-assistant", entry.Detail, StringComparison.Ordinal);
         Assert.Equal(outcome.Id.ToString(), audit.Contents[0].TargetId);
     }
 
@@ -171,7 +249,9 @@ public sealed class AdminAssistantToolsTests
     {
         var services = new ServiceCollection()
             .AddSingleton(CreateMonitoringTools())
-            .AddSingleton(new OpsAssistantTools(null!))
+            .AddSingleton(new OpsAssistantTools(null!, null!, null!, null!, null!, null!))
+            .AddSingleton(new AccountsAssistantTools(null!, null!, null!, audit, currentUser))
+            .AddSingleton(new AiAssistantTools(null!, null!, null!, null!, audit, currentUser))
             .BuildServiceProvider();
 
         foreach (var tool in AdminAssistantAgent.Home.Tools)
@@ -187,8 +267,13 @@ public sealed class AdminAssistantToolsTests
         Assert.DoesNotContain("cancellationToken", schema, StringComparison.Ordinal);
     }
 
-    private MonitoringAssistantTools CreateMonitoringTools(ILogQueryService? logs = null, MyProject.Business.Services.DataAccess.ExceptionLogService? exceptions = null)
-        => new(health: null!, logs ?? new RecordingLogQueryService(), logLevel: null!, exceptions!, databaseUsage: null!, audit, currentUser);
+    private MonitoringAssistantTools CreateMonitoringTools(ILogQueryService? logs = null, MyProject.Business.Services.DataAccess.ExceptionLogService? exceptions = null, IDatabaseUsageService? databaseUsage = null)
+        => new(health: null!, logs ?? new RecordingLogQueryService(), logLevel: null!, exceptions!, databaseUsage!, audit, currentUser);
+
+    private sealed class FakeDatabaseUsageService(DatabaseUsageReport report) : IDatabaseUsageService
+    {
+        public Task<DatabaseUsageReport> GetReportAsync(CancellationToken cancellationToken = default) => Task.FromResult(report);
+    }
 
     private sealed class RecordingLogQueryService : ILogQueryService
     {

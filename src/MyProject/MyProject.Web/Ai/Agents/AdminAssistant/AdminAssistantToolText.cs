@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Ai.Agents.AdminAssistant;
 
@@ -11,7 +12,7 @@ namespace MyProject.Web.Ai.Agents.AdminAssistant;
 /// </summary>
 public static class AdminAssistantToolText
 {
-    /// <summary>給工具稽核 detail 的來源註記。</summary>
+    /// <summary>給工具稽核 detail 的來源註記（條件名稱 <c>via</c>，0.9.157 起；0.9.155～0.9.156 的舊紀錄是 <c>source=</c>）。</summary>
     public const string AuditSource = "admin-assistant";
 
     /// <summary>模型可用的時間格式（伺服器本地時間）。</summary>
@@ -63,6 +64,41 @@ public static class AdminAssistantToolText
     }
 
     public static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
+
+    /// <summary>夾住範圍；有被夾住時在 <paramref name="notes"/> 加一句說明（0.9.157 起，讓模型照實告訴使用者實際查了幾筆）。</summary>
+    public static int ClampWithNote(int value, int min, int max, string name, List<string> notes)
+    {
+        var clamped = Clamp(value, min, max);
+        if (clamped != value)
+        {
+            notes.Add($"{name} {value} 超出範圍 {min}～{max}，改用 {clamped}");
+        }
+
+        return clamped;
+    }
+
+    /// <summary>
+    /// 原頁面是下拉選單的條件（動作代碼、作業名稱），在工具裡是模型給的文字（0.9.157 起）：
+    /// 在已知清單內就照頁面用 <see cref="AuditSearchCondition.Of"/> 記值；不在清單內改用 <see cref="AuditSearchCondition.Text"/>
+    /// （稽核 detail 只記有沒有填，不讓任意文字進資料庫），並說明可能查不到資料。空白照常用 Of。
+    /// </summary>
+    public static AuditSearchCondition ChoiceCondition(string name, string value, IEnumerable<string> known, List<string> notes)
+    {
+        if (string.IsNullOrEmpty(value) || known.Contains(value, StringComparer.Ordinal))
+        {
+            return AuditSearchCondition.Of(name, value);
+        }
+
+        notes.Add($"{name}「{value}」不在系統已知的清單裡，可能查不到資料；請確認名稱是否正確");
+        return AuditSearchCondition.Text(name, value);
+    }
+
+    /// <summary>把多段說明合成一句；沒有時為 null（JSON 不輸出）。</summary>
+    public static string? JoinNotes(IEnumerable<string?> notes)
+    {
+        var list = notes.Where(note => string.IsNullOrWhiteSpace(note) == false).Select(note => note!.TrimEnd('。')).ToList();
+        return list.Count == 0 ? null : string.Join("；", list) + "。";
+    }
 
     /// <summary>超過 <paramref name="max"/> 字就截斷並加「…」；null 回空字串。</summary>
     public static string Truncate(string? text, int max)

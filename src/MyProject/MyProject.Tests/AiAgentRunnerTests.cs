@@ -395,6 +395,20 @@ public sealed class AiAgentRunnerTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => CollectAsync(chat.SendAsync("你好")));
     }
 
+    /// <summary>接續時從最後一則 AI 回覆還原「由誰回答」（0.9.157 起），核准回覆的那則才標得上。</summary>
+    [Fact]
+    public async Task Planner_Resume_RestoresCurrentLabelFromLastAssistant()
+    {
+        var planner = new ScriptedPlanner(Turn([SampleTools.Read], "指示", "帳號與權限"));
+        upstream.Enqueue(AiSse.Responses(["回答"]));
+        var chat = await CreateRunner().StartAsync(planner);
+        await CollectAsync(chat.SendAsync("你好"));
+
+        var resumed = await CreateRunner().ResumeAsync(planner, chat.ConversationId);
+
+        Assert.Equal("帳號與權限", resumed!.CurrentLabel);
+    }
+
     /// <summary>分派中按「停止產生」：不是錯誤，訊息留在紀錄、記「已停止」並存檔，不呼叫模型。</summary>
     [Fact]
     public async Task Planner_CanceledWhilePlanning_ReturnsCanceledResult_KeepsMessageAndPersists()

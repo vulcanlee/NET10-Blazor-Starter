@@ -86,6 +86,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Ai.Agents.AdminAssistant.AdminAssistantTurnPlanner>();
         services.AddScoped<Ai.Agents.AdminAssistant.MonitoringAssistantTools>();
         services.AddScoped<Ai.Agents.AdminAssistant.OpsAssistantTools>();
+        services.AddScoped<Ai.Agents.AdminAssistant.AccountsAssistantTools>();
+        services.AddScoped<Ai.Agents.AdminAssistant.AiAssistantTools>();
         // 多 Agent 工作流程（0.9.144 起）：每個 agent 仍經 IAiAgentFactory 建立，記帳不變。
         services.AddScoped<IAiWorkflowRunner, AiWorkflowRunner>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
