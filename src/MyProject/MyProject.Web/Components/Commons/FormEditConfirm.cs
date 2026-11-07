@@ -33,7 +33,7 @@ public static class FormEditConfirm
         => ConfirmDialog.AskAsync(
             modalService,
             "確認儲存",
-            "確定要儲存這筆記錄嗎？",
+            "確定要儲存這筆紀錄嗎？",
             "儲存",
             "再檢查");
 }

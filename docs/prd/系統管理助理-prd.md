@@ -1,8 +1,8 @@
 ﻿# 系統管理助理 PRD
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作（里程碑 1～4、第二版定時巡檢）
-- 現行系統版本：0.9.161
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.155
 - 最後核對日期：2026/11/07
 
@@ -54,7 +54,7 @@
 |---|---|
 | 模型 | `AiModelSettings:AdminAssistant`（空白時用 `AiSettings:Model`）、`AiModelSettings:AdminAssistantRouter`（空白時用 AdminAssistant） |
 | 提示詞（「AI 提示詞」頁可改） | `AdminAssistant`（共同說明，含巡檢報告格式）、`AdminAssistantRouter`、`AdminAssistantAccounts`、`AdminAssistantMonitoring`、`AdminAssistantAi`、`AdminAssistantOps` |
-| Token 用量作業名稱 | 「系統管理助理」、「系統管理助理（分派）」 |
+| Token 用量作業名稱 | 「系統管理助理」、「系統管理助理（分派）」；0.9.161 起定時巡檢另記「系統管理助理（排程巡檢）」（沒有登入使用者，只受全系統上限） |
 | 對話保存 | 沿用 `AiAgentConversation`，AgentName 為 `AdminAssistant`，只限本人 |
 
 分派呼叫與主呼叫都照常記 Token 用量、寫 AI 對話紀錄、檢查用量上限，並共用同一個 ConversationId。

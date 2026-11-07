@@ -104,7 +104,7 @@ namespace MyProject.Web.Components.Views.Admins
             PromptTemplateKeys.AdminAssistantAccounts => "管理助理／帳號與權限",
             PromptTemplateKeys.AdminAssistantMonitoring => "管理助理／監控與診斷",
             PromptTemplateKeys.AdminAssistantAi => "管理助理／AI 管理",
-            PromptTemplateKeys.AdminAssistantOps => "管理助理／設定與維運",
+            PromptTemplateKeys.AdminAssistantOps => "管理助理／系統設定與維運",
             _ => key,
         };
 

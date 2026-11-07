@@ -4,7 +4,7 @@ using MyProject.Share.Helpers;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 「系統管理」群組（含帳號與權限、監控與診斷、AI 管理、系統設定與維運四個子群組）的頁面刻意設計為管理員專屬：權限鍵不列入
+/// 「系統管理」群組（含帳號與權限、監控與診斷、AI 管理、系統設定與維運、管理助理五個子群組）的頁面刻意設計為管理員專屬：權限鍵不列入
 /// <see cref="RolePermissionService.GetRoleListPermissionAllName"/>，因此不會種出
 /// Permission 資料列、角色矩陣不顯示、任何角色都無法被授予，只有
 /// AuthenticationStateHelper.CheckAccessPage 的管理員短路能通過。

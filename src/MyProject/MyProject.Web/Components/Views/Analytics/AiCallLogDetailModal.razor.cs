@@ -316,7 +316,7 @@ namespace MyProject.Web.Components.Views.Analytics
                 }
                 else
                 {
-                    ViewNotification.Warning(notificationService, "瀏覽器拒絕寫入剪貼簿，請改用下載 JSON。");
+                    ViewNotification.Caution(notificationService, "瀏覽器拒絕寫入剪貼簿，請改用下載 JSON。");
                 }
             }
             catch (JSDisconnectedException)

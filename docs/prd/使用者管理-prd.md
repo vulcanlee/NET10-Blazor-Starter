@@ -1,10 +1,10 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.18
+- 文件版本：1.19
 - 文件狀態：已實作
-- 現行系統版本：0.9.136
+- 現行系統版本：0.9.163
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -67,7 +67,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - **稽核 actor**：`ResolveActor` 取目前登入者；未登入時 actor 為 null。
 
 > ℹ️ `RbacWriteService` 在 0.4.36 `IDbContextFactory` 遷移後**仍直接接收 DI 注入的 scoped `BackendDBContext`**
-> （`AuditLogService`、`PermissionChecker`、`EffectiveTeamResolver` 等亦同），不在 `DataAccessServiceLifetimeTests` 的守門範圍內。
+> （`PermissionChecker`、`EffectiveTeamResolver` 等亦同），不在 `DataAccessServiceLifetimeTests` 的守門範圍內。
 > 0.9.136 起 `MyUserService.AddAsync`／`UpdateAsync` 以工廠建立的 context 開一個交易：存主表 → `SyncAssignmentsAsync` 經
 > `RbacWriteService` 帶 context 的多載用**同一個 context** 寫 `UserRole`／`UserTeam` → 提交；對應寫入失敗時整筆回復（`MyUserServiceAssignmentTests`）。
 > 之前兩者各自 `SaveChangesAsync`，可能只成功一半。

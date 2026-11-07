@@ -71,7 +71,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   - 表格操作欄（修改／刪除／移除）→ `<CrudActionButton Title="…" Icon="…" [Danger] OnClick="…" />`
   - 兩者皆自帶 `<Tooltip>` 與無障礙隱藏標籤，外層不需再包 `<Tooltip>`。
   - `MyProject.Tests/ButtonIconConventionTests.cs` 會擋下 emoji 圖示。
-- 此 Blazor 專案的 sidebar 視覺偏好使用亮灰色底與深色字體，圖示同樣使用 BlazorMaterialIcons。
+- 側邊欄是深梅底、淡色字，顏色一律取 theme.css 的 `--app-rail*` 色票，不要自行寫色碼；圖示同樣使用 BlazorMaterialIcons。
 - **日誌是本系統可觀測性的唯一來源，寫程式時一併把日誌寫好**：
   - 選等級問三個問題：使用者正常操作的後果 → **Information**（純查詢 → Debug）；非預期但已處理（授權被拒、設定異常）→ **Warning**；操作失敗需要介入 → **Error**。
   - **使用者操作一律 Information**（新增／修改／刪除／匯出／登入登出），記「意圖」與「結果」兩筆。畫面切換由 `ApplicationCircuitHandler` 集中處理，**頁面不要自己寫**。

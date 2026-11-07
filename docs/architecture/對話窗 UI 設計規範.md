@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.1
+- 文件版本：2.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.139
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/10/28
+- 最後核對日期：2026/11/07
 
 ## 目的
 
@@ -15,7 +15,7 @@
 速查表 [§6.3](開發慣例與限制速查.md)（鍵盤事件）與 §6.4（尺寸來源）仍是硬性紅線，
 本文件是它們的展開版。
 
-## 1. 三種對話窗，只有一種適用本規範
+## 1. 對話窗的種類，只有表單窗適用本規範
 
 **所有**對話窗共用同一層果凍基底（`.ant-modal .ant-modal-content`），
 差異只在尺寸與版型 —— 見第 2.1 節。下表是各類型的差異：
@@ -27,6 +27,20 @@
 | **小型確認窗** | `ModalService.ConfirmAsync`，只有一句話與兩個按鈕 | 全域 `.ant-modal-confirm`，**不滿版**，見第 9 節 |
 | 通知／消息條 | `NotificationService`（右下角）、`MessageService`（頂部） | 全域選擇器，見第 10 節 |
 | 其餘對話窗 | 關於、唯讀明細窗、AI 分析窗、頁面操作說明窗（`.page-help-modal`，見第 11 節與速查表 §6.14）（變更密碼對話窗已於 0.9.101 移除，只留 `/ChangePassword` 頁） | 只寫尺寸，果凍由基底提供 |
+
+## 2. 版型
+
+| 項目 | 規格 |
+|------|------|
+| 寬高 | `95vw` × `95vh`，`max-width: 1400px`，`top: 2.5vh` |
+| 為什麼不是 100% | 上下留 2.5vh 讓遮罩透出來，果凍與毛玻璃才看得出來；`max-width` 避免超寬螢幕把欄位拉成難讀的長條 |
+| 結構 | 標題列固定、**中間內容區是唯一會捲動的地方**、按鈕列固定 |
+| 欄位排列 | 2 欄 CSS Grid（`repeat(2, minmax(0, 1fr))`），由左而右 |
+| 分組 | `<FormSection Title="...">`，每組一個小標題 |
+| 窄螢幕 | ≤ 767.98px 塌成單欄，窗擴成 `100vw` × `100svh`、無圓角無邊框 |
+
+尺寸與版型**只寫在** `src/MyProject/MyProject.Web/Components/Commons/OverlayStyles.razor` 的
+`.form-modal` 區塊。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
 
 ## 2.1 果凍是共用基底，不是逐窗複製 ⚠️
 
@@ -51,20 +65,6 @@
 
 要調整單一窗的果凍強度，覆寫 `--ov-radius` / `--ov-blur` / `--ov-tint-glass` 等變數即可，
 不要整段重寫 `.ant-modal-content`。
-
-## 2. 版型
-
-| 項目 | 規格 |
-|------|------|
-| 寬高 | `95vw` × `95vh`，`max-width: 1400px`，`top: 2.5vh` |
-| 為什麼不是 100% | 上下留 2.5vh 讓遮罩透出來，果凍與毛玻璃才看得出來；`max-width` 避免超寬螢幕把欄位拉成難讀的長條 |
-| 結構 | 標題列固定、**中間內容區是唯一會捲動的地方**、按鈕列固定 |
-| 欄位排列 | 2 欄 CSS Grid（`repeat(2, minmax(0, 1fr))`），由左而右 |
-| 分組 | `<FormSection Title="...">`，每組一個小標題 |
-| 窄螢幕 | ≤ 767.98px 塌成單欄，窗擴成 `100vw` × `100svh`、無圓角無邊框 |
-
-尺寸與版型**只寫在** `src/MyProject/MyProject.Web/Components/Commons/OverlayStyles.razor` 的
-`.form-modal` 區塊。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
 
 ## 3. 欄位排版規則
 
@@ -298,6 +298,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 |------|------|
 | 清單上點狀態標籤切換啟用／停用（0.9.120 起，分類、團隊、使用者）| **停用**先 `ConfirmDialog.AskAsync`；**啟用**直接切換、不問 |
 | 鈴鐺的單則 ×、標題列「清除已讀」（0.9.125 起）| 不跳確認：只動自己的通知，「清除已讀」也只刪已讀的 |
+| 系統管理助理要執行不可復原的工具（0.9.159 起）| 不走 `ConfirmDialog`：核准窗（`.agent-playground-approval-modal`）逐筆加紅字警告、「核准」鈕轉為 Danger，必須輸入「確認」才能按（`AdminAssistantApproval.CanApprove`），見 [MAF AI 呼叫架構 §6.9](MAF-AI呼叫架構.md) |
 
 ## 10. 通知與消息條
 

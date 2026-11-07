@@ -1,10 +1,10 @@
 ﻿# AI Agent PRD（Agent 測試台與 Agent 工作流程）
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：已實作
-- 現行系統版本：0.9.151
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.142
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -87,7 +87,7 @@
 | 審閱 | 結束（不定稿）／退回／通過，並顯示還能退回幾次 |
 
 - 「停止」會取消整個工作流程。執行結果分為完成、結束（審閱時選結束）、失敗、已取消、中斷五種。
-- 輸入最多 20000 字。
+- 開始執行的輸入最多 20000 字；回答 Agent 提問與退回意見各最多 2000 字。
 
 ### 4.3 執行紀錄
 
@@ -111,10 +111,10 @@
 
 ### 5.2 走 Responses API（0.9.149 起）
 
-- Agent 測試台與 Agent 工作流程的**所有** agent 都走 OpenAI Responses API（`/v1/responses`），包含流程裡不帶工具的步驟。AI 日誌分析、AI 例外分析與健康探測仍走 Chat Completions。
+- Agent 測試台與 Agent 工作流程的**所有** agent 都走 OpenAI Responses API（`/v1/responses`），包含流程裡不帶工具的步驟；0.9.155 起系統管理助理每一輪的主呼叫（經 `AiAgentRunner`）、0.9.161 起定時巡檢（`AdminPatrolRunner`）也一樣。AI 日誌分析、AI 例外分析、健康探測與系統管理助理的分派判斷仍走 Chat Completions。
 - **原因**：Azure 的 `gpt-6.1-sol` 在 Chat Completions 上無法搭配工具。不送推論等級會回 400「Function tools with reasoning_effort are not supported」，送 `none` 會回 400 `unsupported_value`。Responses API 則允許（2026/11/04 實測）。
 - **一律 `store=false`**，對話不留在雲端。歷史由 MAF session 每次整段重送，不使用 `previous_response_id`。
-- 切換點只有一個：`AiCallContext.UseResponsesApi`，只由 `AiAgentRunner` 與 `AiWorkflowRunner` 設定。
+- 切換點只有一個：`AiCallContext.UseResponsesApi`，只由 `AiAgentRunner`、`AiWorkflowRunner` 與 `AdminPatrolRunner`（0.9.161）設定。
 
 ### 5.3 推論等級（reasoning effort）
 
@@ -125,7 +125,7 @@
 | 可填值 | `none`、`low`、`medium`、`high`、`xhigh`（不分大小寫，其他值啟動時驗證失敗）。實際接受哪些值依模型而定：`gpt-6.1-sol` 只接受 `low`～`xhigh`，填 `none` 會被拒 |
 | 怎麼改 | 開發環境改 User Secrets，正式環境改 `appsettings.json` 或環境變數，例如 `"AiSettings": { "AgentReasoningEffort": "high" }` |
 | 生效時機 | 每次建立 agent 時都讀取目前設定（`IOptionsMonitor`）。存檔後，Agent 測試台的下一則訊息、工作流程的下一次執行就生效，不必重啟 |
-| 適用範圍 | **全域一個值**：Agent 測試台與兩條工作流程的所有 agent 共用。分析功能（Chat Completions）一律不送推論等級 |
+| 適用範圍 | **全域一個值**：Agent 測試台、兩條工作流程的所有 agent、系統管理助理（分派判斷除外）與定時巡檢共用。分析功能與分派判斷（Chat Completions）一律不送推論等級 |
 | 被拒時 | 400 `param=reasoning.effort`，畫面與日誌顯示「此模型不接受 AiSettings:AgentReasoningEffort 的設定值，請改為 null 或此模型接受的值。」|
 
 推論等級越高，回答通常越周全，但等待時間與推理 Token（費用）也越多。費用依實際用量記在 Token 用量頁，推理 Token 另列。

@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.161
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/07
 
@@ -25,7 +25,7 @@
 ## 2. 管線
 
 ```
-呼叫端（AiChatCompletionClient／AiHealthProbe／AiAgentRunner）
+呼叫端（AiChatCompletionClient／AiHealthProbe／AiAgentRunner／AiWorkflowRunner／AdminPatrolRunner）
   │  IAiAgentFactory.CreateAgent(AiCallContext, instructions, tools)   ← 唯一入口
   ▼
 ChatClientAgent（MAF）
@@ -71,7 +71,7 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 
 | 決定 | 理由 |
 |---|---|
-| 分析功能（AI 日誌分析、AI 例外分析、健康探測）沿用 **Chat Completions**；**Agent 功能（Agent 測試台、Agent 工作流程）0.9.149 起走 Responses API** | Azure 的 `gpt-6.1-sol` 在 Chat Completions 上**無法帶工具**：不送推論等級回 400「Function tools with reasoning_effort are not supported」，送 `none` 回 400 `unsupported_value`（只接受 low～xhigh），送其他值又是工具搭配推論（2026/11/04 實測）；Responses API 則允許。切換點只有一個：`AiCallContext.UseResponsesApi`（只由 `AiAgentRunner`、`AiWorkflowRunner` 設定，流程裡不帶工具的步驟也走 Responses，同一個流程不混用），`AiAgentFactory` 依它選 `GetResponsesClient()` 或 `GetChatClient()`，兩條路經過同一個記帳中介層。⚠️ **一律 `store=false`**（`CreateResponseOptions.StoredOutputEnabled = false`、帶 `reasoning.encrypted_content`）：對話不留在雲端，歷史仍由 MAF session 每次整段重送、不用 `previous_response_id`（`AiAgentRunnerTests.Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns` 守門）。記帳解析器 `AiChatResponseParser` 依內容自動判斷兩種格式（根物件有 `output` 陣列／串流 data 帶 `type: response.*`），`status: incomplete`＋`max_output_tokens` 對應成 `length`；`AiCallLogMessages.Parse` 讀 `instructions`＋`input`（工具呼叫顯示為 assistant「呼叫工具 名稱：參數」、工具結果為 tool）。`AiSettings:AgentReasoningEffort` 只對 Responses 送 `reasoning.effort`。OpenAI SDK 2.14 把 Responses 標為評估用（`OPENAI001`），只在 `AiAgentFactory.cs` 以 `#pragma` 豁免 |
+| 分析功能（AI 日誌分析、AI 例外分析、健康探測）沿用 **Chat Completions**；**Agent 功能（Agent 測試台、Agent 工作流程）0.9.149 起走 Responses API** | Azure 的 `gpt-6.1-sol` 在 Chat Completions 上**無法帶工具**：不送推論等級回 400「Function tools with reasoning_effort are not supported」，送 `none` 回 400 `unsupported_value`（只接受 low～xhigh），送其他值又是工具搭配推論（2026/11/04 實測）；Responses API 則允許。切換點只有一個：`AiCallContext.UseResponsesApi`（只由 `AiAgentRunner`、`AiWorkflowRunner` 與 `AdminPatrolRunner`（0.9.161 起）設定，流程裡不帶工具的步驟也走 Responses，同一個流程不混用），`AiAgentFactory` 依它選 `GetResponsesClient()` 或 `GetChatClient()`，兩條路經過同一個記帳中介層。⚠️ **一律 `store=false`**（`CreateResponseOptions.StoredOutputEnabled = false`、帶 `reasoning.encrypted_content`）：對話不留在雲端，歷史仍由 MAF session 每次整段重送、不用 `previous_response_id`（`AiAgentRunnerTests.Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns` 守門）。記帳解析器 `AiChatResponseParser` 依內容自動判斷兩種格式（根物件有 `output` 陣列／串流 data 帶 `type: response.*`），`status: incomplete`＋`max_output_tokens` 對應成 `length`；`AiCallLogMessages.Parse` 讀 `instructions`＋`input`（工具呼叫顯示為 assistant「呼叫工具 名稱：參數」、工具結果為 tool）。`AiSettings:AgentReasoningEffort` 只對 Responses 送 `reasoning.effort`。OpenAI SDK 2.14 把 Responses 標為評估用（`OPENAI001`），只在 `AiAgentFactory.cs` 以 `#pragma` 豁免 |
 | Azure 也用 `OpenAI` 官方 SDK（指向 `{Endpoint}/openai/v1`），**不用** `Azure.AI.OpenAI` | 後者新版（2.9.0-beta）仍是預覽；v1 端點用 OpenAI SDK 即可 |
 | Azure 一律送 **`api-key` 標頭**（`AzureApiKeyPolicy` 移除 `Authorization`）| SDK 預設送 Bearer，官方沒有明文保證 Azure v1 接受；改送 `api-key` 和 0.9.139 以前完全一致 |
 | SDK **重試設 0**（`ClientRetryPolicy(maxRetries: 0)`）| SDK 預設對 408／429／5xx 重試 3 次，每次都可能計費卻只記一筆帳；也會掩蓋設定錯誤 |
@@ -174,7 +174,7 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 
 ### 6.5 各功能的模型（`AiModelSettings`）
 
-新增設定區段 `AiModelSettings`（`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`；0.9.144 起加工作流程用的 `ProjectStatusReport`、`MultiPerspectiveReview`），**空字串＝`AiSettings.Model`**，可在系統參數頁「AI 模型」修改。
+新增設定區段 `AiModelSettings`（`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`；0.9.144 起加工作流程用的 `ProjectStatusReport`、`MultiPerspectiveReview`；0.9.155 起加系統管理助理的 `AdminAssistant`、`AdminAssistantRouter`（空白退回 `AdminAssistant`）），**空字串＝`AiSettings.Model`**，可在系統參數頁「AI 模型」修改。
 呼叫端在 `AiCallContext.ModelKey`（經 `AiChatCompletionClient` 的走 `AiChatCompletionRequest.ModelKey`）帶 `nameof(AiModelSettings.屬性)`，由 `AiAgentFactory.CreateAgent` 以 `AiModelSettings.Resolve` 解析
 （`IOptionsMonitor`，下一次建立 agent 即生效；Agent 測試台在每段對話的第一則訊息建立 agent，所以畫面上進行中的對話沿用原本的模型；0.9.143 起接續舊對話時重新建立 agent，改用**目前**的模型）。
 端點與金鑰共用 `AiSettings`，只能換同一個服務裡的模型；不認得的 `ModelKey` 是程式錯誤，丟 `InvalidOperationException`。
@@ -369,7 +369,8 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Web/Scheduling/Jobs/AiAgentConversationRetentionJob.cs` | 排程作業「Agent 對話清理」（0.9.143 起）|
 | `MyProject.Web/Ai/Agents/AgentPlaygroundAgent.cs`、`ProjectAgentTools.cs` | 範例 Agent 與兩個範例工具（0.9.142 起）；0.9.144 起加 `get_project_detail`（`ProjectDetail`）、`append_project_status_summary`，建構子可選 `TimeProvider` |
 | `MyProject.Web/Ai/Agents/AiAgentTurn.cs` | `AiAgentTurn`、`IAiAgentTurnPlanner`（每輪規劃，0.9.155 起）|
-| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）|
+| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）、`AdminAssistantApproval`（0.9.159 起，有不可復原的動作時要輸入「確認」才能核准）|
+| `MyProject.Web/Components/Pages/Admins/AdminAssistantPage.razor`、`Components/Views/Admins/AdminAssistantView.razor(.cs/.css)` | 「系統管理助理」頁（`/admin-assistant`，0.9.155 起）|
 | `MyProject.Web/Ai/Agents/AdminAssistant/AdminPatrolRunner.cs`、`ScheduledPatrolToolGuard.cs`、`AdminPatrolReportParser.cs` | 定時巡檢（0.9.161 起）：`IAdminPatrolRunner`／`AdminPatrolRunner`（不存對話、不分派）、權限窄門、報告判讀與通知內容（`AdminPatrolNotification`）|
 | `MyProject.Business/Services/DataAccess/AdminPatrolReportService.cs`、`Services/Other/AdminPatrolReportFileStore.cs`；`MyProject.AccessDatas/Models/AdminPatrolReport.cs` | 巡檢報告的存放（內容檔在 `AiAgentConversationPath\AdminPatrol`）、清單、讀取、過期與統計（0.9.161 起）|
 | `MyProject.Web/Scheduling/Jobs/AdminPatrolJob.cs`、`AdminPatrolReportRetentionJob.cs` | 排程作業「系統管理助理巡檢」與「巡檢報告清理」（0.9.161 起）|

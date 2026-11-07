@@ -1,10 +1,10 @@
 ﻿# LLM 呼叫費用估算 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.140
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.17
-- 最後核對日期：2026/11/02
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -290,7 +290,7 @@ twd = usd × UsdToTwd
 
 ### 已知限制（需要人為維護或日後補做）
 
-1. **圖片 token 數與字元數目前沒有任何寫入端會填。** 系統的 LLM 呼叫點（`AiChatCompletionClient`、`AiHealthProbe`，0.9.140 起都經記帳中介層 `AiAccountingChatClient`）只發 Chat 請求。
+1. **圖片 token 數與字元數目前沒有任何寫入端會填。** 系統所有的 LLM 呼叫點（`AiChatCompletionClient`、`AiHealthProbe` 走 Chat Completions；Agent 測試台、工作流程、系統管理助理與定時巡檢經 `IAiAgentFactory` 走 0.9.149 起的 Responses API；0.9.140 起都經記帳中介層 `AiAccountingChatClient`）都只有文字，`CallKind` 一律記 `Chat`。
    欄位與費率先備齊，等日後接上圖片／TTS／轉錄 API 時就能直接填值。
 2. **長脈絡門檻為 `272000` 輸入 token。** 官方規則是嚴格超過門檻後，整筆請求使用
    長脈絡費率；填 `0` 或省略 `LongContextRates` 即停用該模型的分級。

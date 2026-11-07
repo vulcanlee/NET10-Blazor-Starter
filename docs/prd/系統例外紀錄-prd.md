@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.135
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -133,6 +133,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | Blazor 互動 | `ApplicationCircuitHandler.CreateInboundActivityHandler` | `畫面` |
 | HTTP／API | `ApplicationBuilderExtensions.UseHttpRequestLogging`；帳號由 `UseExceptionContextUser` 在 `UseAuthorization` 之後補上（0.9.77 前恆為空） | `/api` 開頭→`WebAPI`，否則`畫面` |
 | 系統啟動 | `Program.cs` 的 migrate／seed／RBAC 回填區段；啟動失敗經補登檔補進 | `系統啟動` |
+| 背景作業 | `ScheduledJobRunner`（頁面欄位是作業名稱，手動觸發時帶觸發者帳號）、`EmailDispatchWorker`（`EmailDispatch`）、`SystemParameterRefreshWorker`（`SystemParameterRefresh`）| `背景作業` |
 | 程序層級 | `ProcessExceptionHooks`：射後不理的 Task（`UnobservedTaskException`）、其他執行緒的未處理例外（0.9.77） | `系統` |
 | 瀏覽器 | `BrowserErrorReporter`：登入後頁面的 JavaScript 錯誤經 circuit 回報（0.9.79），例外型別 `BrowserScriptException`，堆疊是瀏覽器端的呼叫路徑；每個 circuit 每分鐘最多 10 筆 | `瀏覽器` |
 | 其他 | 未設定時 | `未知` |

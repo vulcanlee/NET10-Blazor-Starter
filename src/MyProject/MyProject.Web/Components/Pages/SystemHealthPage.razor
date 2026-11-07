@@ -199,7 +199,7 @@ else
 
         if (!AuthenticationStateHelper.CheckIsAdmin())
         {
-            roleMessage = "您沒有權限檢視系統健康監控。";
+            roleMessage = MagicObjectHelper.你沒有權限存取此頁面;
             await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/system-health");
             Logger.LogWarning("System health page denied because current user is not an administrator.");
             return;

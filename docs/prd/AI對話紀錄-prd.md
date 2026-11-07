@@ -1,10 +1,10 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.151
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.72
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -12,7 +12,7 @@
 用來排查 AI 結果不如預期、失敗或花費異常的原因，而不必重現一次。本功能複刻自 ReviewSkills.AI 1.0.34 的同名頁，UI 改用本專案的設計規範。
 
 - 範圍：
-  - 全部 AI 呼叫點（3 種作業，見 §三）的完整請求與回應記錄。內文寫在檔案系統，SQLite 只存可篩選的索引。
+  - 全部 AI 呼叫點（作業見 §3.1）的完整請求與回應記錄。內文寫在檔案系統，SQLite 只存可篩選的索引。
   - 管理員專屬頁面 `/ai-call-logs`：篩選、清單、五種檢視的明細視窗、JSON 下載、PDF 匯出、CSV（僅中繼資料）。
   - 單筆刪除、清除此日之前、清空全部，以及依保留天數自動過期。
   - 與 [Token 用量](Token用量-prd.md) 以呼叫識別碼（CallId）雙向連結。
@@ -51,6 +51,9 @@
 | 系統健康檢測 | `AiHealthProbe` | 同上 | 「系統健康監控 AI 連線探測」|
 | Agent 測試台（0.9.142 起）| `AiAgentRunner`／`AiAgentChat` | 同上 | 「專案小幫手（範例）」（Agent 的顯示名稱）|
 | 專案狀態報告、多觀點審查（0.9.144 起，Agent 工作流程）| `AiWorkflowRunner`／`AiWorkflowRun` | 同上 | 「流程／agent」，例如「專案狀態報告／撰寫」「多觀點審查／彙整」|
+| 系統管理助理（0.9.155 起）| `AiAgentRunner`／`AiAgentChat`（經 `AdminAssistantTurnPlanner`）| 同上 | 「系統管理助理」|
+| 系統管理助理（分派）（0.9.155 起）| `AiChatCompletionClient`（經 `AdminAssistantTurnPlanner`），與主呼叫共用同一個 `ConversationId` | 同上 | 「系統管理助理（分派）」|
+| 系統管理助理（排程巡檢）（0.9.161 起）| `AdminPatrolRunner`（排程作業「系統管理助理巡檢」）| 無（沒有登入使用者）| 「系統管理助理（排程巡檢）」；`ConversationId` 是巡檢報告編號 |
 
 0.9.140 起所有呼叫點都經 `IAiAgentFactory` 建立的 MAF agent 送出，實際寫入本功能的是 agent 管線上的記帳中介層
 `AiAccountingChatClient`（單一 `finally`）；請求與回應原文由 SDK 管線原則 `AiHttpCapturePolicy` 擷取。見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
@@ -76,7 +79,7 @@ Token 用量同一次呼叫也帶同一個 `RunId`。健康探測與 0.9.141 以
 
 | 項目 | 說明 |
 |---|---|
-| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`；0.9.149 起 Agent 測試台與 Agent 工作流程走 Responses API，請求是 `instructions`＋`input` 格式、帶 `"store": false`）。**不含 HTTP 標頭與金鑰** |
+| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`；0.9.149 起 Agent 測試台與 Agent 工作流程、0.9.155 起系統管理助理（分派除外）、0.9.161 起定時巡檢走 Responses API，請求是 `instructions`＋`input` 格式、帶 `"store": false`）。**不含 HTTP 標頭與金鑰** |
 | 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null。串流呼叫（0.9.141 起）為 **SSE 原文**（`data: {…}` 逐行，由 `AiCapturingStream` 邊讀邊記）；中途取消或逾時時是已收到的部分 |
 | 解析後的回應文字 | `choices[0].message.content`；串流為各 chunk `delta.content` 串起來；Responses API（0.9.149 起）為 `output` 裡各 `output_text` 串起來，串流取最後的 `response.completed`，沒有時串起 `response.output_text.delta`；中途取消時是**已收到的部分** |
 | 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、RunId（0.9.142 起）、CallId |

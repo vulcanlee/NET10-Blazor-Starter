@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.7
+- 文件版本：3.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.153
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/05
+- 最後核對日期：2026/11/07
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -103,11 +103,12 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
 | `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
 | `C:\temp\MyProject\AiAgentConversation` | Agent 測試台保存的對話（0.9.143 起）與 Agent 工作流程的執行紀錄（0.9.144 起） | 同上區段的 `AiAgentConversationPath` |
+| `C:\temp\MyProject\AuditContent` | 稽核紀錄的詳細內容檔（0.9.131 起） | 同上區段的 `AuditContentPath` |
 | `C:\temp\MyProject\Keys` | Data Protection 金鑰環（登入 Cookie 靠它解密，刪掉等於全站登出） | 同上區段的 `DataProtectionKeyPath` |
 | `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
 | `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
 
-`ExternalFileSystem` 的十個目錄（0.9.99 起含 `BackupPath`、0.9.131 起含 `AuditContentPath`）若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
+`ExternalFileSystem` 的十一個目錄（0.9.99 起含 `BackupPath`、0.9.131 起含 `AuditContentPath`、0.9.143 起含 `AiAgentConversationPath`）若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
 
 ### 3.2 建置注意事項
 
@@ -436,13 +437,13 @@ ffmpeg -i images/brand-logo.png \
 |------|------|------|
 | `SystemName` | 4–10 字 | 兩頁都是最大的標題字（啟動頁 `.splash-title`、登入頁 `.app-title`），過長會換行擠壓版面。側邊欄（展開寬 300px）約可容納 10 字，超出會以刪節號收尾，完整名稱放在 `title` 屬性 |
 | `SystemDescription` | 30–40 字 | 啟動頁單行可容納約 40 字；登入頁面板較窄會折成兩行。超過約 60 字會開始破版 |
-| `SystemVersion` | — | 格式固定為 `Major.Minor.Patch (YYYY/MM/DD)`。用 `New-StarterProject.ps1` 複製時已自動重設為 `1.0.0 (執行當天)`，之後每次異動 Patch +1；**留空**會讓「系統健康監控」頁把應用程式判為 Degraded 並顯示「SystemVersion 未設定。」 |
+| `SystemVersion` | — | 格式固定為 `Major.Minor.Patch (YYYY/MM/DD)`。用 `New-StarterProject.ps1` 複製時已自動重設為 `1.0.0 (執行當天)`，之後有建置內容（程式、設定、會隨網站發佈的檔案）才把 Patch +1，只改 `docs/` 或根目錄文件不升版；**留空**會讓「系統健康監控」頁把應用程式判為 Degraded 並顯示「SystemVersion 未設定。」 |
 
 ### 7.5 ⚠️ 瀏覽器分頁標題是另一件事
 
 `Components/App.razor` **沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
 
-全專案 31 個 `<PageTitle>`（0.9.114）中只剩一處是範本殘留的英文：
+全專案 35 個 `<PageTitle>`（0.9.163）中只剩一處是範本殘留的英文：
 
 | 檔案 | 目前標題 |
 |------|------|
@@ -536,7 +537,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
-| 外部目錄路徑 | `ExternalFileSystem` 十個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
+| 外部目錄路徑 | `ExternalFileSystem` 十一個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
 
 即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
@@ -638,7 +639,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 | 鍵 | 建議值 |
 |----|--------|
 | `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議比照腳本重設為 `1.0.0 (當天日期)` |
-| `SystemSettings:ExternalFileSystem:*` | 十個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
+| `SystemSettings:ExternalFileSystem:*` | 十一個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
 | `JwtSettings:Issuer` / `Audience` | `Acme.Erp` / `Acme.Erp.WebApi` |
 | `JwtSettings:SigningKey` | 換成你自己的值；建議直接搬進 User Secrets |
 | `BootstrapSettings:*` | 改掉預設的 `support` / `support` |
@@ -706,7 +707,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 pwsh ./scripts/Invoke-QualityGate.ps1
 ```
 
-遇到失敗就停，結尾的摘要會指出停在哪一步；下表是各步驟常見的失敗原因。
+遇到失敗就停，結尾的摘要會指出停在哪一步；各步驟常見的失敗原因見 [§10](#10-常見疑難排解)。
 
 手動驗收項目：
 
@@ -714,7 +715,7 @@ pwsh ./scripts/Invoke-QualityGate.ps1
 - [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
-- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,Keys,Backup}` 已正確產生
+- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,AiAgentConversation,AuditContent,Keys,Backup}` 已正確產生
 - [ ] `C:\temp\Logs\Acme.Erp.Web\` 有新日誌檔產生，且系統內的「日誌檢視」頁讀得到
 - [ ] 全文搜尋（排除 `bin`/`obj`）已無任何 `MyProject` 殘留
 - [ ] `git grep -i "DevelopmentOnly-ChangeThis"` 無殘留，或已改用 User Secrets
