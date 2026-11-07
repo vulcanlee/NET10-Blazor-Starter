@@ -39,6 +39,7 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
     private readonly AiSettings settings;
     private readonly string requestedModel;
     private readonly AiAgentServices services;
+    private readonly AiReasoningEffortSource reasoning;
 
     public AiAccountingChatClient(
         IChatClient innerClient,
@@ -46,7 +47,8 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
         AiCallState state,
         AiSettings settings,
         string requestedModel,
-        AiAgentServices services)
+        AiAgentServices services,
+        AiReasoningEffortSource reasoning)
         : base(innerClient)
     {
         this.context = context;
@@ -54,6 +56,7 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
         this.settings = settings;
         this.requestedModel = requestedModel;
         this.services = services;
+        this.reasoning = reasoning;
     }
 
     private ILogger Logger => services.Logger;
@@ -628,12 +631,20 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
             return "此模型不接受 AiSettings:Temperature 的設定值，請將它設為 null（部分推論模型只接受預設值）。";
         }
 
-        // 推論等級只有 Agent 功能（Responses API）會送（0.9.149 起），所以被拒就是 AgentReasoningEffort 填了模型不接受的值
+        // 推論等級只有 Agent 功能（Responses API）會送（0.9.149 起），所以被拒就是推論等級填了模型不接受的值
         // （例如 Azure gpt-6.1-sol 不接受 none）。Responses 的 param 是 reasoning.effort，Chat Completions 是 reasoning_effort。
+        // 0.9.168 起各功能可在系統參數覆寫，訊息指名實際用到的那個設定（見 AiAgentFactory）。
         if (string.Equals(upstream.Param, "reasoning.effort", StringComparison.OrdinalIgnoreCase)
             || string.Equals(upstream.Param, "reasoning_effort", StringComparison.OrdinalIgnoreCase))
         {
-            return "此模型不接受 AiSettings:AgentReasoningEffort 的設定值，請改為 null 或此模型接受的值。";
+            if (reasoning.IsFeatureOverride)
+            {
+                return $"此模型不接受推論等級「{reasoning.Effort}」（{reasoning.Source}），請改為空白或此模型接受的值。";
+            }
+
+            return string.IsNullOrEmpty(reasoning.Effort)
+                ? $"此模型不接受 {reasoning.Source} 的設定值，請改為 null 或此模型接受的值。"
+                : $"此模型不接受推論等級「{reasoning.Effort}」（{reasoning.Source} 的設定值），請改為 null 或此模型接受的值。";
         }
 
         if (string.IsNullOrEmpty(upstream.Param) == false)

@@ -63,7 +63,7 @@
 | 看 AI 每一次實際送出與收到的內容 | 「AI 對話紀錄」（管理員） |
 | 看 AI 花了多少 token 與費用 | 「Token 用量」（管理員） |
 | 調整 AI 助理的指示 | 「AI 提示詞」的「Agent 測試台」分頁（管理員） |
-| 換 AI 助理使用的模型 | 「系統參數」的「AI 模型」（管理員） |
+| 換 AI 助理使用的模型或推論等級 | 「系統參數」的「AI 模型」（管理員） |
 
 ## 三、畫面上有哪些按鈕、各自做什麼
 
@@ -182,7 +182,7 @@ AI 要修改資料時跳出，不能直接關閉，必須選一個。
 - [Token 用量](/token-usage)：看「Agent 測試台」花了多少 token 與費用。
 - [稽核紀錄](/audit-logs)：查工具的執行、被擋下與被拒絕（`Ai.ToolInvoked`、`Ai.ToolDenied`、`Ai.ToolRejected`），以及刪除對話（`AiAgentConversation.Delete`）。
 - [AI 提示詞](/prompt-templates)：調整 AI 助理的指示。
-- [系統參數](/system-parameters)：在「AI 模型」指定 AI 助理使用的模型；在「資料保留」設定「Agent 對話保留天數」。
+- [系統參數](/system-parameters)：在「AI 模型」指定 AI 助理使用的模型與推論等級；在「資料保留」設定「Agent 對話保留天數」。
 - [資料保留與清理](/data-retention)：看全體使用者的 Agent 對話佔用與到期狀況（管理員）。
 
 ## 七、常見問題

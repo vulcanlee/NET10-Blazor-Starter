@@ -206,6 +206,87 @@ public sealed class AiAgentPipelineTests
         }
     }
 
+    /// <summary>
+    /// 0.9.168 起各 Agent 功能可在系統參數設自己的推論等級（<see cref="AiReasoningSettings"/>，以 <c>ModelKey</c> 對應），
+    /// 空白時沿用 <c>AiSettings:AgentReasoningEffort</c>；分析功能（Chat Completions）有設定也不送。
+    /// </summary>
+    [Theory]
+    [InlineData("low", "high", true, "low")]
+    [InlineData("", "high", true, "high")]
+    [InlineData("", null, true, null)]
+    [InlineData("xhigh", null, true, "xhigh")]
+    [InlineData("low", "high", false, null)]
+    public async Task FeatureReasoningEffort_ShouldOverrideTheGlobalValue(string feature, string? global, bool useResponses, string? expected)
+    {
+        var handler = StubHttpMessageHandler.Json(HttpStatusCode.OK, useResponses ? ResponsesSuccessPayload : SuccessPayload);
+        var settings = AzureSettings();
+        settings.AgentReasoningEffort = global;
+        var factory = CreateFactory(handler, settings, new AiReasoningSettings { AgentPlayground = feature, AdminAssistant = "medium" });
+        var handle = factory.CreateAgent(PlaygroundContext(useResponses));
+
+        await handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]);
+
+        using var document = System.Text.Json.JsonDocument.Parse(handler.RequestBodies.Single());
+        var root = document.RootElement;
+        Assert.False(root.TryGetProperty("reasoning_effort", out _));
+        if (expected is null)
+        {
+            Assert.False(root.TryGetProperty("reasoning", out var reasoning) && reasoning.TryGetProperty("effort", out _));
+        }
+        else
+        {
+            Assert.Equal(expected, root.GetProperty("reasoning").GetProperty("effort").GetString());
+        }
+    }
+
+    /// <summary>
+    /// 推論等級被模型拒絕時，訊息要指出是哪個設定：用到功能自己的值就指名系統參數，空白沿用時指名 <c>AiSettings:AgentReasoningEffort</c>。
+    /// </summary>
+    [Theory]
+    [InlineData("none", "high", "系統參數「Agent 測試台的推論等級」")]
+    [InlineData("", "none", "AiSettings:AgentReasoningEffort")]
+    public async Task RejectedReasoningEffort_ShouldNameTheSettingThatWasUsed(string feature, string? global, string expectedSource)
+    {
+        const string payload = """
+            {
+              "error": {
+                "message": "Unsupported value: 'reasoning.effort' does not support 'none' with this model.",
+                "type": "invalid_request_error",
+                "param": "reasoning.effort",
+                "code": "unsupported_value"
+              }
+            }
+            """;
+        var settings = AzureSettings();
+        settings.AgentReasoningEffort = global;
+        var factory = CreateFactory(
+            StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload), settings, new AiReasoningSettings { AgentPlayground = feature });
+        var handle = factory.CreateAgent(PlaygroundContext(useResponses: true));
+
+        var exception = await Assert.ThrowsAsync<AiCallException>(() => handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]));
+
+        Assert.Contains(expectedSource, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("「none」", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static AiCallContext PlaygroundContext(bool useResponses) => new()
+    {
+        Operation = TokenUsageOperations.AgentPlayground,
+        Timeout = TimeSpan.FromSeconds(30),
+        TimeoutHint = "請稍後再試。",
+        UseResponsesApi = useResponses,
+        ModelKey = nameof(AiModelSettings.AgentPlayground),
+    };
+
+    private static AiAgentFactory CreateFactory(StubHttpMessageHandler handler, AiSettings settings, AiReasoningSettings reasoning)
+        => AiTestAgents.CreateFactory(
+            new StubHttpClientFactory(handler),
+            new StaticOptionsMonitor<AiSettings>(settings),
+            new RecordingTokenUsageRecorder(),
+            User(),
+            new FakeAiCallLogRecorder(),
+            reasoningOptions: new StaticOptionsMonitor<AiReasoningSettings>(reasoning));
+
     private static AiChatCompletionRequest Request(params AiChatMessage[] messages) => new()
     {
         Operation = TokenUsageOperations.AiLogAnalysis,

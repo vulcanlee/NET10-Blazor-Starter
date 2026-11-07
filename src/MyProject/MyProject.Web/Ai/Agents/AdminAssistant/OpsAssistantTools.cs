@@ -344,6 +344,8 @@ public sealed class OpsAssistantTools
                 source = item.Source,
                 unit = item.Definition.Unit,
                 zeroMeaning = item.Definition.ZeroMeaning,
+                allowedValues = item.Definition.AllowedValues,
+                blankMeaning = item.Definition.BlankMeaning,
                 isRetention = item.Definition.IsRetention ? true : (bool?)null,
                 effect = item.Definition.EffectNote,
                 problem = item.Problem,

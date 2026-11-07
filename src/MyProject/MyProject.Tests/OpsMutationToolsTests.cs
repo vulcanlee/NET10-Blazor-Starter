@@ -65,6 +65,24 @@ public sealed class OpsMutationToolsTests : IDisposable
         Assert.Null(unknown);
     }
 
+    /// <summary>
+    /// 審查發現（0.9.168）：限定選項的參數（推論等級）要把可填的值與空白的意義告訴助理，
+    /// 否則助理會填「高」這類值，被拒後才知道該填什麼。
+    /// </summary>
+    [Fact]
+    public async Task GetSystemParameters_ShouldListAllowedValuesAndBlankMeaning()
+    {
+        var text = await tools.GetSystemParametersAsync("AI 模型");
+
+        using var document = System.Text.Json.JsonDocument.Parse(text);
+        var reasoning = document.RootElement.GetProperty("parameters").EnumerateArray()
+            .Single(item => item.GetProperty("key").GetString() == "AiReasoningSettings:AgentPlayground");
+        Assert.Equal(
+            new[] { "none", "low", "medium", "high", "xhigh" },
+            reasoning.GetProperty("allowedValues").EnumerateArray().Select(x => x.GetString()!).ToArray());
+        Assert.Contains("AgentReasoningEffort", reasoning.GetProperty("blankMeaning").GetString(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SetSystemParameter_SavesAndAuditsWithVia()
     {

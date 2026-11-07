@@ -45,6 +45,15 @@ public sealed class SystemParameterDefinition
 
     public int? MaxLength { get; init; }
 
+    /// <summary>
+    /// 限定選項的文字參數（0.9.168 起，例如推論等級）：只接受空白或清單裡的值（不分大小寫，存成清單裡的寫法），
+    /// 頁面用下拉選單編輯。null 代表不限定。
+    /// </summary>
+    public IReadOnlyList<string>? AllowedValues { get; init; }
+
+    /// <summary>限定選項時，空白那一項在下拉選單上的說明，例如「沿用全域設定」。</summary>
+    public string? BlankMeaning { get; init; }
+
     public bool Required { get; init; }
 
     /// <summary>調小這個值會讓排程永久刪除更多資料：存檔前要危險確認。</summary>

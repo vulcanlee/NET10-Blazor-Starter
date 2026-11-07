@@ -22,7 +22,8 @@ internal static class AiTestAgents
         CurrentUserService currentUserService,
         IAiCallLogRecorder aiCallLogRecorder,
         IAiQuotaService? quotaService = null,
-        IAuditLogService? auditLogService = null)
+        IAuditLogService? auditLogService = null,
+        IOptionsMonitor<AiReasoningSettings>? reasoningOptions = null)
         => new(
             httpClientFactory,
             optionsMonitor,
@@ -31,7 +32,8 @@ internal static class AiTestAgents
             currentUserService,
             aiCallLogRecorder,
             quotaService ?? new StubAiQuotaService(),
-            auditLogService ?? new RecordingAuditLogService());
+            auditLogService ?? new RecordingAuditLogService(),
+            reasoningOptions: reasoningOptions);
 
     public static AiChatCompletionClient CreateChatClient(
         ILogger<AiChatCompletionClient> logger,
