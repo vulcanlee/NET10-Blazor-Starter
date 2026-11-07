@@ -20,22 +20,21 @@
 |------|----------|------|
 | 框架 | .NET / ASP.NET Core | 10.0 |
 | 前端 | Blazor Server（Interactive Server）+ 全域 SSR 渲染 | — |
-| UI 元件庫 | AntDesign Blazor | 1.6.0 |
+| UI 元件庫 | AntDesign Blazor | 1.6.2 |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
-| 資料存取 | Entity Framework Core | 10.0.5 |
+| 資料存取 | Entity Framework Core | 10.0.14 |
 | 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
 | 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
 | 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete`）| — |
 | 語系 | `RequestLocalization` + `AntDesignLocaleFactory` | 只支援 zh-TW（0.9.136 起）|
-| 物件對映 | AutoMapper | 16.1.1 |
-| API 文件 | Swashbuckle Swagger UI | 10.2.3 |
-| 日誌 | NLog.Web.AspNetCore | 6.1.2 |
-| Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.3.2 |
-| PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型）| 6.2.4 |
-| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`；0.9.144 起含 `Microsoft.Agents.AI.Workflows`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.27.0／2.14.0 |
-| 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.0 |
-| 弱點修補 | System.Security.Cryptography.Pkcs（`MyProject.Web` 直接參考，覆蓋 MailKit → MimeKit 遞移帶入的弱點版 10.0.0，0.9.126；MimeKit 改相依修補版後移除）| 10.0.13 |
-| QR Code | QRCoder（兩步驟驗證的設定 QR，0.9.104）| 1.6.0 |
+| 物件對映 | AutoMapper | 16.3.0 |
+| API 文件 | Swashbuckle Swagger UI | 10.3.1 |
+| 日誌 | NLog.Web.AspNetCore | 6.2.2 |
+| Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.6.0 |
+| PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型；6.5 起改為 AGPL／商業授權，刻意停在 MIT 的 6.2.4）| 6.2.4 |
+| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`；0.9.144 起含 `Microsoft.Agents.AI.Workflows`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.28.0／2.14.0 |
+| 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.2 |
+| QR Code | QRCoder（兩步驟驗證的設定 QR，0.9.104）| 1.8.1 |
 | Excel 匯出 | ClosedXML（業務頁匯出 .xlsx，0.9.107）| 0.105.1 |
 | 排程 | Cronos（排程作業的 cron 運算式，0.9.96）| 0.13.0 |
 
