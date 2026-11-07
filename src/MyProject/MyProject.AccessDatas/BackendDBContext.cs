@@ -27,6 +27,8 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<TokenUsageLog> TokenUsageLog { get; set; }
     public virtual DbSet<AiCallLog> AiCallLog { get; set; }
     public virtual DbSet<AiAgentConversation> AiAgentConversation { get; set; }
+
+    public virtual DbSet<AdminPatrolReport> AdminPatrolReport { get; set; }
     public virtual DbSet<Permission> Permission { get; set; }
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
@@ -172,6 +174,22 @@ public partial class BackendDBContext : DbContext
             entity.HasIndex(x => x.UpdatedAt);
             entity.Property(x => x.Title).HasMaxLength(100);
             entity.Property(x => x.AgentName).HasMaxLength(100);
+        });
+        #endregion
+
+        #region 定時巡檢報告（0.9.161 起）
+        modelBuilder.Entity<AdminPatrolReport>(entity =>
+        {
+            entity.HasIndex(x => x.ReportId).IsUnique();
+
+            // 清單（最新的在前）、自動過期與資料保留頁的統計。
+            entity.HasIndex(x => x.CreatedAt);
+            entity.Property(x => x.Status).HasMaxLength(10);
+            entity.Property(x => x.AttentionSections).HasMaxLength(200);
+            entity.Property(x => x.Trigger).HasMaxLength(20);
+            entity.Property(x => x.TriggeredByAccount).HasMaxLength(100);
+            entity.Property(x => x.ModelName).HasMaxLength(100);
+            entity.Property(x => x.ContentFile).HasMaxLength(200);
         });
         #endregion
 

@@ -20,4 +20,7 @@ public static class NotificationCategories
 
     /// <summary>管理員在「系統健康監控」按「發送測試通知」→ 全體管理員（不寄信；0.9.122 起）。</summary>
     public const string Test = "Test";
+
+    /// <summary>定時巡檢的報告有「注意」「異常」或無法判讀 → 全體管理員（同時寄信；0.9.161 起）。</summary>
+    public const string AdminPatrol = "AdminPatrol";
 }

@@ -26,6 +26,26 @@ public sealed class AdminAssistantAgentTests
         [AdminAssistantDomain.Accounts, AdminAssistantDomain.Monitoring, AdminAssistantDomain.Ai, AdminAssistantDomain.Ops],
     ];
 
+    /// <summary>定時巡檢（0.9.161 起）：只有唯讀工具、同名（工具稽核的 agent 名稱一致）、用量記在獨立的作業名稱。</summary>
+    [Fact]
+    public void ScheduledPatrol_ReadToolsOnly_SameName_OwnOperation()
+    {
+        var definition = AdminAssistantAgent.ScheduledPatrol;
+
+        Assert.Equal(AdminAssistantAgent.Name, definition.Name);
+        Assert.Equal(AdminAssistantAgent.PatrolToolNames, definition.Tools.Select(tool => tool.Name));
+        Assert.All(definition.Tools, tool => Assert.Contains(tool, AdminAssistantAgent.ReadTools));
+        Assert.DoesNotContain(definition.Tools, tool => tool.IsMutating);
+
+        // 巡檢指示列的工具就是這 9 個（指示改了要一起改，窄門才不會擋掉巡檢要用的工具）。
+        Assert.Equal(9, AdminAssistantAgent.PatrolToolNames.Count);
+        Assert.All(AdminAssistantAgent.PatrolToolNames, name => Assert.Contains(name, AdminAssistantAgent.DefaultCommonInstructions, StringComparison.Ordinal));
+        Assert.Equal(TokenUsageOperations.AdminAssistantPatrol, definition.Operation);
+        Assert.Equal("系統管理助理（排程巡檢）", TokenUsageOperations.AdminAssistantPatrol);
+        Assert.Equal(PromptTemplateKeys.AdminAssistant, definition.PromptTemplateKey);
+        Assert.Equal(nameof(AiModelSettings.AdminAssistant), definition.ModelKey);
+    }
+
     [Theory]
     [MemberData(nameof(DomainSets))]
     public void DefinitionFor_AnyDomains_SharesNameOperationPromptAndModel(AdminAssistantDomain[] domains)

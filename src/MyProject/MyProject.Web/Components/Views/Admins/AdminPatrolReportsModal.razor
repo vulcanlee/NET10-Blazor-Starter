@@ -1,0 +1,88 @@
+@using MyProject.Models.Systems
+
+@*
+    系統管理助理頁的「巡檢報告」視窗（0.9.161 起）：定時巡檢產出的報告，全體管理員都看得到。
+    尺寸寫在 Components/Commons/OverlayStyles.razor 的 .admin-patrol-report-modal（Modal 外框渲染在元件 DOM 之外，見速查 §6.4）；
+    窗內內容的樣式在本元件的 .razor.css。純唯讀，Esc 直接關閉。
+*@
+<Modal Title="巡檢報告"
+       Class="admin-patrol-report-modal"
+       @bind-Visible="@visible"
+       Keyboard="true"
+       Footer="null">
+    <div class="admin-patrol-report-body">
+        <div class="admin-patrol-report-hint">
+            系統每天自動巡檢一次（可在「排程作業」頁停用「系統管理助理巡檢」或按「立即執行」），有「注意」或「異常」時會通知所有管理員並寄信。
+            報告全體管理員都看得到，保存 @reportService.RetentionDays 天。
+        </div>
+        @if (isLoading)
+        {
+            <div class="admin-patrol-report-empty"><Spin Tip="讀取中…" /></div>
+        }
+        else if (reports.Count == 0)
+        {
+            <div class="admin-patrol-report-empty">還沒有巡檢報告。第一次排程執行後會出現在這裡。</div>
+        }
+        else
+        {
+            <div class="admin-patrol-report-layout">
+                <ul class="admin-patrol-report-list">
+                    @foreach (var item in reports)
+                    {
+                        var current = item.ReportId == SelectedReportId;
+                        <li>
+                            <button type="button"
+                                    class="@(current ? "admin-patrol-report-item admin-patrol-report-item-current" : "admin-patrol-report-item")"
+                                    @onclick="@(async () => await SelectAsync(item.ReportId))">
+                                <span class="admin-patrol-report-item-title">
+                                    @item.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                                    <Tag Color="@StatusColor(item.Status)">@item.Status</Tag>
+                                </span>
+                                <span class="admin-patrol-report-item-meta">@TriggerText(item)</span>
+                                @if (string.IsNullOrEmpty(item.AttentionSections) == false)
+                                {
+                                    <span class="admin-patrol-report-item-meta">需注意：@item.AttentionSections</span>
+                                }
+                            </button>
+                        </li>
+                    }
+                </ul>
+                <div class="admin-patrol-report-detail">
+                    @if (detail is null)
+                    {
+                        <div class="admin-patrol-report-empty">請從左側選一份報告。</div>
+                    }
+                    else
+                    {
+                        <div class="admin-patrol-report-meta">
+                            @detail.Summary.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                            <Tag Color="@StatusColor(detail.Summary.Status)">@detail.Summary.Status</Tag>
+                            @TriggerText(detail.Summary)
+                            @if (string.IsNullOrEmpty(detail.Summary.ModelName) == false)
+                            {
+                                <span>・模型：@detail.Summary.ModelName</span>
+                            }
+                        </div>
+                        @if (detail.Summary.IsTruncated)
+                        {
+                            <div class="alert alert-warning" role="alert">AI 的回應達到長度上限被截斷，這份報告可能不完整。</div>
+                        }
+                        @if (detail.Markdown is null)
+                        {
+                            <div class="alert alert-warning" role="alert">找不到這份報告的內容檔（可能已被刪除或搬移）。</div>
+                        }
+                        else if (detailHtml is null)
+                        {
+                            <div class="alert alert-warning" role="alert">報告內容異常龐大，已中止顯示。</div>
+                        }
+                        else
+                        {
+                            @* AI 產出屬不可信輸入（工具回傳的日誌、例外、帳號資料可能含使用者輸入），只能經 AiMarkdownRenderer.ToSafeHtml 之後用 MarkupString。 *@
+                            <div class="admin-patrol-report-markdown">@((MarkupString)detailHtml)</div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</Modal>

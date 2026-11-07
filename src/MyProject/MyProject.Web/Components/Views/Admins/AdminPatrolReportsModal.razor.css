@@ -1,0 +1,118 @@
+/* 「巡檢報告」視窗（0.9.161 起）的窗內內容。視窗尺寸在 OverlayStyles.razor 的 .admin-patrol-report-modal。 */
+
+.admin-patrol-report-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+}
+
+.admin-patrol-report-hint {
+    font-size: 13px;
+    color: var(--app-muted);
+}
+
+.admin-patrol-report-empty {
+    padding: 24px 0;
+    text-align: center;
+    color: var(--app-muted);
+}
+
+.admin-patrol-report-layout {
+    display: flex;
+    flex: 1;
+    gap: 16px;
+    min-height: 0;
+}
+
+.admin-patrol-report-list {
+    flex: 0 0 260px;
+    min-width: 0;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+    overflow-y: auto;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-card);
+}
+
+.admin-patrol-report-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--app-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.admin-patrol-report-item:hover {
+    background: var(--app-row-hover);
+}
+
+.admin-patrol-report-item-current {
+    background: var(--app-accent-soft);
+}
+
+.admin-patrol-report-item-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.admin-patrol-report-item-meta {
+    font-size: 12px;
+    color: var(--app-muted);
+}
+
+.admin-patrol-report-detail {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+.admin-patrol-report-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--app-muted);
+}
+
+.admin-patrol-report-markdown {
+    color: var(--app-text);
+}
+
+.admin-patrol-report-markdown ::deep p {
+    margin: 0 0 8px;
+}
+
+.admin-patrol-report-markdown ::deep pre {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--app-code-bg);
+    color: var(--app-code-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (max-width: 768px) {
+    .admin-patrol-report-layout {
+        flex-direction: column;
+    }
+
+    .admin-patrol-report-list {
+        flex-basis: auto;
+        max-height: 30vh;
+    }
+}

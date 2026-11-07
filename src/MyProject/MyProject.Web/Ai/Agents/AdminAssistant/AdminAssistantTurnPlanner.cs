@@ -36,6 +36,16 @@ public sealed class AdminAssistantTurnPlanner : IAiAgentTurnPlanner
     public async Task<AiAgentTurn> HomeTurnAsync(CancellationToken cancellationToken)
         => new(Home, await ComposeAsync(new HashSet<AdminAssistantDomain>(), cancellationToken), null);
 
+    /// <summary>
+    /// 定時巡檢這一輪（0.9.161 起）：不呼叫分派模型，直接用 <see cref="AdminAssistantAgent.ScheduledPatrol"/>（只有唯讀工具）
+    /// 與巡檢提示詞（共同說明＋四個領域＋巡檢那一行）。提示詞照樣讀「AI 提示詞」頁的作用中版本。
+    /// </summary>
+    public async Task<AiAgentTurn> PatrolTurnAsync(CancellationToken cancellationToken)
+    {
+        var domains = new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Patrol };
+        return new AiAgentTurn(AdminAssistantAgent.ScheduledPatrol, await ComposeAsync(domains, cancellationToken), AdminAssistantRouting.LabelOf(domains));
+    }
+
     public async Task<AiAgentTurn> PlanAsync(
         Guid conversationId,
         string message,
