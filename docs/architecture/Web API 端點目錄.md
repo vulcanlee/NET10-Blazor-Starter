@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.165
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/07
 
@@ -23,8 +23,8 @@
 |------|------|------|------|
 | 取得單筆 | `GET {controller}/{id}` | View | `ApiResult<TDto>`（查無回 `NotFound`）|
 | 搜尋分頁 | `POST {controller}/search` | View | `ApiResult<PagedResult<TDto>>` |
-| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`，團隊另檢查代號；指派範圍外的團隊、上層部門不合法回 `BadRequest`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
-| 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；團隊指派或部門樹規則不過回 `BadRequest`；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
+| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`，團隊另檢查代號；指派範圍外的團隊、上層團隊不合法回 `BadRequest`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
+| 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；團隊指派或團隊樹規則不過回 `BadRequest`；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
 | 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無或已刪除回 `NotFound`；團隊還有未刪除的下屬回 `BadRequest`）|
 
 > **樂觀並行（0.9.93 起）**：`GET` 回傳的 DTO 帶有 `ConcurrencyStamp`。`PUT` 必須把它原樣帶回；伺服器以它比對資料庫目前的值，不同代表別人已先修改或刪除，回 409（訊息「這筆資料在你編輯期間已被其他人修改或刪除…」），用戶端應重新 `GET` 後再決定如何合併。`PUT` 成功後版本號會換新，要再次修改請重新 `GET`。`POST` 會忽略這個欄位。

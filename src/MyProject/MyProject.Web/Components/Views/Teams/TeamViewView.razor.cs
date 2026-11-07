@@ -28,7 +28,7 @@ namespace MyProject.Web.Components.Views.Teams
         public CurrentUserService CurrentUserService { get; set; } = default!;
 
         /// <summary>匯出的「上層部門」欄：已刪除的上層顯示「（已刪除的部門）」。</summary>
-        private string? ParentNameForExport(int? parentId) => parentId is { } id ? teamNames.GetValueOrDefault(id, "（已刪除的部門）") : null;
+        private string? ParentNameForExport(int? parentId) => parentId is { } id ? teamNames.GetValueOrDefault(id, "（已刪除的團隊）") : null;
 
         /// <summary>匯出 Excel（0.9.107 起）：與清單同一個查詢，超過 <see cref="BusinessExports.MaxRows"/> 筆不匯出。</summary>
         private async Task OnExportExcelAsync()
@@ -90,7 +90,7 @@ namespace MyProject.Web.Components.Views.Teams
         IEnumerable<TeamAdapterModel> ChildrenOf(TeamAdapterModel item) => IsTreeMode ? childrenLookup[item.Id] : [];
 
         string ParentNameOf(TeamAdapterModel item)
-            => item.ParentId is { } parentId ? teamNames.GetValueOrDefault(parentId, "（已刪除的部門）") : "—";
+            => item.ParentId is { } parentId ? teamNames.GetValueOrDefault(parentId, "（已刪除的團隊）") : "—";
 
         /// <summary>下拉以字串綁定（與其他表單的多選一致），留白＝最上層。</summary>
         string? ParentIdText

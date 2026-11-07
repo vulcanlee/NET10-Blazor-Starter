@@ -79,7 +79,7 @@ else
                 <Column TData="string" DataIndex="@nameof(TeamAdapterModel.Name)" Title="名稱" Sortable />
                 @if (!IsTreeMode)
                 {
-                    <Column TData="int?" DataIndex="@nameof(TeamAdapterModel.ParentId)" Title="上層部門">
+                    <Column TData="int?" DataIndex="@nameof(TeamAdapterModel.ParentId)" Title="上層團隊">
                         @ParentNameOf(context)
                     </Column>
                 }
@@ -181,7 +181,7 @@ else
                         }
                     </FormItem>
 
-                    <FormItem Label="上層部門">
+                    <FormItem Label="上層團隊">
                         <Select TItem="string" TItemValue="string" @bind-Value="ParentIdText"
                                 Placeholder="（最上層）" AllowClear EnableSearch Style="width: 100%;">
                             @foreach (var candidate in parentCandidates)
@@ -189,7 +189,7 @@ else
                                 <SelectOption TItemValue="string" TItem="string" Value="@candidate.Id.ToString()">@candidate.Name</SelectOption>
                             }
                         </Select>
-                        <div class="team-view-hint">上層部門的成員看得到這個部門與它所有下屬部門的資料。自己和自己的下屬部門不在選項裡。</div>
+                        <div class="team-view-hint">上層團隊的成員看得到這個團隊與它所有下屬團隊的資料。自己和自己的下屬團隊不在選項裡。</div>
                     </FormItem>
 
                     <FormItem Label="代號">

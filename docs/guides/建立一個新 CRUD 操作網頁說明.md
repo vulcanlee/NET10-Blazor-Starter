@@ -1,8 +1,8 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.4
+- 文件版本：2.5
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.165
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
 - 最後核對日期：2026/11/07
 
@@ -74,6 +74,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `RolePermissionService`（一般）或 `AdminOnlyPermissionTests`＋`MenuPermissionConsistencyTests.AdminOnlyViews`（管理員專屬） | 角色權限矩陣；預設角色在下次啟動時自動加入新頁面 |
 | `MenuPermissionConsistencyTests.ViewToMenuId`（一般） | 檢視檔與選單 id 的對照 |
 | `HelpTopics.json`、`_Imports.razor` | 操作說明目錄、檢視命名空間 |
+| `docs/guides/新手完整操作指南.md` | 使用手冊第六章最後加一節「6.N 顯示名稱 `/路由`」（樣板 `scripts/crud-manual-section.md.tmpl`，0.9.165 起），`UserManualCoverageTests` 要求每個有操作說明的路由都有手冊章節 |
 | `SoftDeletePurgeService`、`SoftDeletePurgeJob` | 排程作業「已刪除資料清理」與它的稽核；服務裡有三處：清除順序 `EntityTypes`、只清一種的 switch、資料保留頁的統計（0.9.152 起產生器三處都登記） |
 | `DataRetentionOverviewService`、`DataRetentionOverviewServiceTests` | 「資料保留與清理」頁的「已刪除的…」一列、自訂清除與它的稽核（`<Name>.Purge`）；「前往」連到一般清單（產生的頁面不接 `?deleted=1`）（0.9.152 起） |
 | `OptimisticConcurrencyTests`、`SoftDeleteUserRoleTests`、`SoftDeletePurgeTests` | 並行與軟刪除的實體清單、清理測試 |
@@ -86,6 +87,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 1. [ ] **補上實際欄位**：實體、畫面模型、兩個 DTO、`AutoMapping`（有需要轉換時）、表單（短欄位自動兩欄，多行或多選加 `Class="form-field-full"`）、表格欄位、`ExportColumns`、服務的搜尋與排序、Repository 的搜尋與排序、測試。
 2. [ ] **改了欄位就重新產生 migration**：刪掉產生器建立的 `Add<Name>` 再執行 `dotnet ef migrations add Add<Name>`（隔離路徑的做法見[開發指引](腳手架開發指引.md)），或另外加一個 migration。
 3. [ ] **操作說明**：把 `Datas/Help/<路由>.md` 第二段（這個頁面在做什麼）與第四段（建議操作）改成實際的業務說明；改了按鈕或欄位要同步改第三段（[速查 §6.14](../architecture/開發慣例與限制速查.md)）。
+   **使用手冊**：改寫產生器在《新手完整操作指南》第六章加的那一節（「為什麼需要它」、欄位表與按鈕表），並把畫面加進 3.2 全畫面總覽表（[使用手冊寫作規範](使用手冊寫作規範.md)）。
 4. [ ] **被其他資料引用時**：在服務的刪除與永久刪除加上「仍被使用就不能刪」的檢查，並在 `SoftDeletePurgeService` 的這一行加上 `isInUse`。
 5. [ ] **權限**：一般頁面在「角色管理」把新頁面的動作授予需要的角色（預設角色已自動加入）。
 6. [ ] `pwsh ./scripts/Invoke-QualityGate.ps1` 全綠。

@@ -197,7 +197,7 @@ public sealed class TeamTreeTests : IDisposable
 
         // 外鍵本身也會擋下，但只會得到「永久刪除團隊失敗。」；要的是說明原因的訊息。
         Assert.False(result.Success);
-        Assert.Contains("以它為上層部門", result.Message, StringComparison.Ordinal);
+        Assert.Contains("以它為上層團隊", result.Message, StringComparison.Ordinal);
         Assert.NotNull(await LoadTeamAsync(root, ignoreFilters: true));
     }
 

@@ -189,7 +189,7 @@ else
                         <span>會刪除 <strong class="@(preview > 0 ? "data-retention-expected" : null)">@($"{preview:N0}")</strong> @customRow?.CountUnit。</span>
                         @if (customRow?.JobName == SoftDeletePurgeJob.JobName)
                         {
-                            <div class="data-retention-muted">這是最多的數字：support 帳號、預設角色、仍在使用的角色與還有下屬的部門會留下。</div>
+                            <div class="data-retention-muted">這是最多的數字：support 帳號、預設角色、仍在使用的角色與還有下屬的團隊會留下。</div>
                         }
                     }
                     <div class="data-retention-muted">只影響這一次，不會改到系統參數的保留天數；刪除後無法復原。</div>

@@ -1,20 +1,20 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.165
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
 提供「團隊（Team）」主資料的維護能力，讓具權限的管理者在 `/teams` 頁面完成團隊的查詢、新增、修改、刪除。`Name` 唯一（不分大小寫），`Code` 為選填、有填則須唯一。亦可透過 `GetAllEnabledNamesAsync()` 供其他頁面下拉選用啟用中的團隊名稱。
-0.9.105 起團隊可以設定「上層部門」（`ParentId`）組成部門樹：上層部門的成員看得到所有下屬部門的資料（路線圖 D-13；沿革見 [部門樹 changelog](../changelog/2026-10-04-部門樹.md)）。
+0.9.105 起團隊可以設定「上層團隊」（`ParentId`）組成團隊樹：上層團隊的成員看得到所有下屬團隊的資料（路線圖 D-13；沿革見 [部門樹 changelog](../changelog/2026-10-04-部門樹.md)）。
 
-使用者決定（2026/10/04）：改名時一併更新所有引用；有下屬部門時不可刪除；公告／通知的團隊對象與資料可見範圍同一定義；Web API 補上團隊過濾並修正修改時的檢查；非管理員只能指派自己範圍內的團隊。
+使用者決定（2026/10/04）：改名時一併更新所有引用；有下屬團隊時不可刪除；公告／通知的團隊對象與資料可見範圍同一定義；Web API 補上團隊過濾並修正修改時的檢查；非管理員只能指派自己範圍內的團隊。
 
 非範圍：
-- 不做組織圖、多個上層（矩陣組織）、部門主管欄位。
+- 不做組織圖、多個上層（矩陣組織）、團隊主管欄位。
 - 不做與其他實體的外鍵關聯或參照完整性檢查（刪除前無被引用檢查，`BeforeDeleteCheckAsync` 直接回成功）。
 - 不做匯入、批次操作（0.9.107 起有匯出 Excel，見 §三）。（0.9.94 起刪除為軟刪除，可還原，見 §三。）
 
@@ -34,15 +34,15 @@
 
 單頁清單 + Modal 表單（`TeamViewView`）：
 
-- 工具列：新增（需 `團隊清單:create`）、重新整理、匯出 Excel（0.9.107 起；樹狀模式匯出全部並含「上層部門」，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
-- **部門樹**（0.9.105 起）：沒有搜尋、不是「顯示已刪除」時，一次載入全部部門在畫面上組樹（`TreeChildren`），下屬收在上層底下、可展開收合；分頁以最上層計，排序作用在最上層（預設依名稱），下屬一律依名稱。上層不存在（資料異常）的部門當作最上層顯示。
-- 搜尋：關鍵字比對 `Name`、`Code` 或 `Description`（`Contains`），結果為平面清單並多一欄「上層部門」。
+- 工具列：新增（需 `團隊清單:create`）、重新整理、匯出 Excel（0.9.107 起；樹狀模式匯出全部並含「上層團隊」，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
+- **團隊樹**（0.9.105 起）：沒有搜尋、不是「顯示已刪除」時，一次載入全部團隊在畫面上組樹（`TreeChildren`），下屬收在上層底下、可展開收合；分頁以最上層計，排序作用在最上層（預設依名稱），下屬一律依名稱。上層不存在（資料異常）的團隊當作最上層顯示。
+- 搜尋：關鍵字比對 `Name`、`Code` 或 `Description`（`Contains`），結果為平面清單並多一欄「上層團隊」。
 - 排序：可排序欄位 `Name`、`Code`、`IsEnabled`、`UpdatedAt`；平面清單預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆）；平面清單由服務端分頁。
-- 清單欄位：名稱、代號、描述、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `團隊清單:edit` 時點徽章直接切換，停用先確認，`TeamService.SetEnabledAsync` 只改狀態並換版本號、稽核 `Team.Enable`／`Team.Disable`；已是目標狀態時回成功、不寫稽核；已刪除或不存在時失敗；下屬部門不連動；沒有修改權限或在「顯示已刪除」時為不可點的一般標籤）、更新時間、操作（修改需 `團隊清單:edit`、刪除需 `團隊清單:delete`，無權限時不顯示按鈕）。
+- 清單欄位：名稱、代號、描述、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `團隊清單:edit` 時點徽章直接切換，停用先確認，`TeamService.SetEnabledAsync` 只改狀態並換版本號、稽核 `Team.Enable`／`Team.Disable`；已是目標狀態時回成功、不寫稽核；已刪除或不存在時失敗；下屬團隊不連動；沒有修改權限或在「顯示已刪除」時為不可點的一般標籤）、更新時間、操作（修改需 `團隊清單:edit`、刪除需 `團隊清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「團隊資料」一區）：
   - 名稱 `Name`（必填，最長 100）
-  - 上層部門 `ParentId`（0.9.105 起，選填＝最上層）：選項排除自己與自己的所有下屬（`TeamService.GetParentCandidatesAsync`）；修改時名稱欄下方提示「改名時，專案、分類與角色預設團隊裡的這個名稱會一起改。」
+  - 上層團隊 `ParentId`（0.9.105 起，選填＝最上層）：選項排除自己與自己的所有下屬（`TeamService.GetParentCandidatesAsync`）；修改時名稱欄下方提示「改名時，專案、分類與角色預設團隊裡的這個名稱會一起改。」
   - 代號 `Code`（選填，最長 50，有填須唯一）
   - 描述 `Description`（選填，最長 2000，獨占整行）
   - 啟用狀態 `IsEnabled`（Switch，預設啟用）
@@ -56,8 +56,8 @@
 - 唯一索引 `IX_Team_Name`、`IX_Team_Code` 為部分索引（`WHERE "IsDeleted" = 0`）。
 - ⚠️ 停用或刪除團隊不會連動清掉 `Category.Teams`／`Project.Teams` 上已記錄的團隊名稱（兩者以團隊名稱字串比對）。
 - **改名同步**（0.9.105 起，使用者決定）：同一個交易內把專案、分類的「團隊」與角色的「預設團隊」裡的舊名稱換成新名稱（都含已刪除的；不分大小寫、去空白比對），被改的列換版本號；稽核 detail 帶 `from=舊名稱; renamedProjects=N; renamedCategories=N; renamedRoles=N`。
-  ⚠️ 不可改成**已刪除**團隊用過的名稱（那個團隊留下的資料會被這個部門的人看到）：「已刪除的團隊用過「X」這個名稱…」。0.9.104 之前改名不同步，改名後原本的紀錄等於失去團隊限制。
-- **部門樹規則**（0.9.105 起，`TeamHierarchy`，Blazor 與 Web API 共用、在交易內檢查）：上層不可是自己、自己的下屬、已刪除或不存在的部門（層級上限 32）；**有未刪除的下屬時不可刪除**（「這個部門底下還有 N 個下屬部門…」）；還原時上層仍是已刪除就擋下；仍被當作上層（含已刪除的下屬）時不可永久刪除，排程清理由最深層開始，同一次就能清掉整串。
+  ⚠️ 不可改成**已刪除**團隊用過的名稱（那個團隊留下的資料會被這個團隊的人看到）：「已刪除的團隊用過「X」這個名稱…」。0.9.104 之前改名不同步，改名後原本的紀錄等於失去團隊限制。
+- **團隊樹規則**（0.9.105 起，`TeamHierarchy`，Blazor 與 Web API 共用、在交易內檢查）：上層不可是自己、自己的下屬、已刪除或不存在的團隊（層級上限 32）；**有未刪除的下屬時不可刪除**（「這個團隊底下還有 N 個下屬團隊…」）；還原時上層仍是已刪除就擋下；仍被當作上層（含已刪除的下屬）時不可永久刪除，排程清理由最深層開始，同一次就能清掉整串。
   停用的上層照樣展開下屬（「啟用」只影響下拉選項，不影響權限，與之前相同）。
 
 ## 四、內部系統運作
@@ -65,10 +65,10 @@
 - UI 路徑：`TeamViewView` →（注入）`TeamService` → `BackendDBContext`（Blazor Server 直接呼叫服務，不經 HTTP）。
 - API 路徑：`TeamController` → `TeamRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
 - Entity `Team`（`Id/Name/Code/Description/ParentId/IsEnabled/CreatedAt/UpdatedAt`，另有樂觀並行 `ConcurrencyStamp` 與軟刪除 `IsDeleted/DeletedAt/DeletedBy`），DbSet 為 `context.Team`。`ParentId` 自我參照外鍵（Restrict），沒有導覽屬性；Migration `AddTeamParent` 以單一 `ALTER TABLE … ADD COLUMN … REFERENCES` 加欄位（不重建資料表）。
-- 部門樹快取 `ITeamTreeCache`（singleton，60 秒；本行程的新增、修改、刪除、還原，含 Web API，立即失效），供有效團隊展開、反查與表單選項。
+- 團隊樹快取 `ITeamTreeCache`（singleton，60 秒；本行程的新增、修改、刪除、還原，含 Web API，立即失效），供有效團隊展開、反查與表單選項。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `Clone()` 複製記錄；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
-- Web API 的 `POST`／`PUT` 接受 `parentId`；違反部門樹規則（含有下屬時刪除、改成已刪除團隊的名稱）回 400（`TeamRepository` 回 `TeamWriteResult`）。
+- Web API 的 `POST`／`PUT` 接受 `parentId`；違反團隊樹規則（含有下屬時刪除、改成已刪除團隊的名稱）回 400（`TeamRepository` 回 `TeamWriteResult`）。
 - 團隊清單本身**不**套團隊可見性過濾：有權限者看得到全部團隊；`GetAllEnabledNamesAsync()` 回傳所有啟用中的團隊（供分類、專案、使用者、角色等頁面的團隊下拉）。
 - 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Team.Create`／`Team.Update`／`Team.Delete`（代碼定義於 `AuditActions`，目標為 `Team`／Id），可在「稽核紀錄」頁查詢；點狀態標籤切換另寫 `Team.Enable`／`Team.Disable`（0.9.120 起），匯出寫 `Team.Export`（0.9.107 起）。
   畫面路徑由 `TeamService` 寫入（操作者取自 `CurrentUserService`，內容 `name=團隊名稱`），Web API 路徑由 `TeamController` 寫入（API 刪除不帶名稱）；寫入失敗（含唯一索引擋下）不留稽核。
@@ -131,7 +131,7 @@
 - `src/MyProject/MyProject.Web/Components/Views/Teams/TeamViewView.razor`
 - `src/MyProject/MyProject.Web/Components/Views/Teams/TeamViewView.razor.cs`（頁面權限檢查）
 - `src/MyProject/MyProject.Web/Controllers/TeamController.cs`（`[HasPermission]` 動作鍵）
-- `src/MyProject/MyProject.Business/Services/DataAccess/TeamService.cs`（AddAsync / 前置檢查含代號唯一 / 部門樹規則）
+- `src/MyProject/MyProject.Business/Services/DataAccess/TeamService.cs`（AddAsync / 前置檢查含代號唯一 / 團隊樹規則）
 - `src/MyProject/MyProject.Business/Helpers/TeamHierarchy.cs`（上層檢查、刪除規則、改名同步）、`Services/Other/TeamTree.cs`（`TeamTree`、`ITeamTreeCache`）
 - `src/MyProject/MyProject.AccessDatas/Models/Team.cs`（Entity 欄位）
 - `src/MyProject/MyProject.Dtos/Models/TeamCreateUpdateDto.cs`、`src/MyProject/MyProject.Dtos/Commons/TeamSearchRequestDto.cs`

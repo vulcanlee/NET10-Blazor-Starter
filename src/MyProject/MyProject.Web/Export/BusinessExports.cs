@@ -102,7 +102,7 @@ public static class BusinessExports
     public static IReadOnlyList<ExportColumn<TeamAdapterModel>> TeamColumns(Func<int?, string?> parentName) =>
     [
         new("名稱", x => x.Name, Width: 24),
-        new("上層部門", x => parentName(x.ParentId), Width: 24),
+        new("上層團隊", x => parentName(x.ParentId), Width: 24),
         new("代號", x => x.Code, Width: 12),
         new("描述", x => x.Description, Width: 40),
         new("啟用", x => x.IsEnabled, Width: 8),
