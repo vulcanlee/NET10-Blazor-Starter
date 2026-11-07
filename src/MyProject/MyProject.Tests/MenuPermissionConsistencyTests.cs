@@ -45,6 +45,7 @@ public sealed class MenuPermissionConsistencyTests
         "RoleViewView.razor.cs",
         "LogViewerView.razor.cs",
         "DatabaseUsageView.razor.cs",
+        "EmailLogView.razor.cs",
         "LogLevelSettingView.razor.cs",
         "ExceptionLogView.razor.cs",
         "TokenUsageView.razor.cs",

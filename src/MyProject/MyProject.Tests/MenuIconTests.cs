@@ -50,6 +50,7 @@ public sealed class MenuIconTests
         "account_tree",
         "support_agent",
         "assistant",
+        "email",
     };
 
     [Fact]

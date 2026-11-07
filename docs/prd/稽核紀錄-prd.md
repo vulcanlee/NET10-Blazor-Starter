@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.21
+- 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.9.166
+- 現行系統版本：0.9.167
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/07
 
@@ -144,6 +144,8 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
 | `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |
+| `EmailLog.AutoPurge` | 排程作業「寄信紀錄清理」（0.9.167 起；detail `rows=N; days=D; trigger=T`）|
+| `EmailLog.Purge` | 「資料保留與清理」頁的自訂清除寄信紀錄（0.9.167 起） |
 | `Notification.Test` | `NotificationTestService`（「系統健康監控」的發送測試通知，0.9.122 起；detail `recipients=N`，發送失敗加 `; failed`） |
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |

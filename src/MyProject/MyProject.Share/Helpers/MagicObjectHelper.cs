@@ -128,6 +128,9 @@ public class MagicObjectHelper
     public const string 角色_資料庫用量 = "資料庫用量";
 
     /// <inheritdoc cref="角色_監控與診斷"/>
+    public const string 角色_寄信紀錄 = "寄信紀錄";
+
+    /// <inheritdoc cref="角色_監控與診斷"/>
     public const string 角色_日誌等級設定 = "日誌等級設定";
 
     /// <summary>「AI 管理」子群組（0.9.113 起）的管理員專屬頁面；不授予任何角色的機制同 <see cref="角色_監控與診斷"/>。</summary>

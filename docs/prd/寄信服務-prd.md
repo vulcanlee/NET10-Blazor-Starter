@@ -1,8 +1,8 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.164
+- 現行系統版本：0.9.167
 - 首次實作版本：0.9.59
 - 最後核對日期：2026/11/07
 
@@ -58,10 +58,10 @@
 | 介面 | 行為 | 何時用 |
 |---|---|---|
 | `IEmailSender.SendAsync` | 同步寄出，失敗拋例外 | 呼叫端要當場知道成敗（測試寄信）|
-| `IEmailQueue.TryEnqueue` | 入列即返回；`EmailDispatchWorker` 在背景逐封建立 scope、以 `IEmailSender` 寄出 | 匿名流程（忘記密碼）—— 避免回應時間洩漏帳號是否存在 |
+| `IEmailQueue.TryEnqueue` | 入列即返回；`EmailDispatchWorker` 在背景先存進 `EmailOutbox`（0.9.167 起），再由 `EmailOutboxProcessor` 逐封建立 scope、以 `IEmailSender` 寄出 | 匿名流程（忘記密碼）—— 避免回應時間洩漏帳號是否存在 |
 
 - 佇列：有界 `Channel`，容量 100，`FullMode = Wait` ＋ `TryWrite`，滿了回 `false` 並記 Warning。
-- 單封信上限為 `TimeoutSeconds × 2`；失敗**不重試**，記 Error（進系統例外紀錄，來源＝背景作業）。
+- 單封信上限為 `TimeoutSeconds × 2`；0.9.167 起暫時性失敗重試（記 Warning），放棄時記 Error（進系統例外紀錄，來源＝背景作業），見 §七。
 
 ### 4.3 信件內容
 
@@ -113,8 +113,15 @@
 
 **已知限制**
 
-- 佇列只在記憶體：程式重啟時尚未寄出的信會遺失。
-- 寄送失敗不重試、沒有寄送紀錄頁（失敗只在系統例外紀錄與日誌裡）。
+- ~~佇列只在記憶體、寄送失敗不重試、沒有寄送紀錄頁~~ —— 0.9.167 起：
+  - 背景寄信器把記憶體交接區（容量 100）取出的信先存進 `EmailOutbox`（內文以 Data Protection 加密），再寄出到期的「待寄」，程式重新啟動後接著寄。
+  - 暫時性失敗（`SmtpCommandException` 4xx、`SocketException`、`IOException`、`SmtpProtocolException`、逾時、未知例外）依 `EmailDeliverySettings:MaxRetries`（預設 3，0～5）重試，間隔 1、5、15、30、60 分鐘；永久性失敗（5xx、`AuthenticationException`、`SslHandshakeException`、`ParseException`、`UnauthorizedAccessException`、解密失敗）直接記「失敗」。分類在 `EmailFailureClassifier`。
+  - 寄出、失敗或未寄出（`Provider=None`）後清除內文；狀態 Pending／Sent／Failed／Skipped。
+  - 呼叫端（`IEmailQueue.TryEnqueue`）不碰資料庫：例外告警信是在例外記錄管線的鎖定區段內入列的。寫入資料庫失敗時退回直接寄一次（不留紀錄）。
+  - 寄送前以條件更新佔住這一列（下次嘗試推到現在＋15 分鐘租約），避免存檔失敗或 IIS 回收新舊程序並存時重複寄送；每寄完一封就把交接區的新信存進資料庫，一批寄滿 20 封就直接寄下一批。關機時先關閉交接區（之後入列回 false），再把剩下的信存進資料庫。
+  - 管理員專屬「寄信紀錄」頁（`/email-logs`，選單 id 69，監控與診斷）唯讀列出收件者、主旨、狀態、嘗試次數、下次嘗試、寄出時間與錯誤摘要；排程作業「寄信紀錄清理」（`EmailLogRetention`）依 `EmailDeliverySettings:RetentionDays`（預設 90）刪除，「待寄」不刪，稽核 `EmailLog.AutoPurge`／`EmailLog.Purge`。
+- 崩潰（不是正常關機）時，記憶體交接區裡還沒存進資料庫的那幾毫秒的信會遺失；正常關機時會先存進資料庫。
+- 系統健康監控的測試信直接寄出（`EmailTestService` → `IEmailSender`），不經佇列、不記寄信紀錄。
 - 不支援附件、CC／BCC、多收件者。
 - 套件相依：0.9.126～0.9.163 曾由 `MyProject.Web` 直接參考修補版 `System.Security.Cryptography.Pkcs` 10.0.13，覆蓋 `MimeKit` 遞移帶入的弱點版；0.9.164 升到 `MailKit` 4.18.2（`MimeKit` 改相依 10.0.13）後已移除，見 [CI-CD 與品質檢查 §4.3](../operations/CI-CD與品質檢查.md)。
 

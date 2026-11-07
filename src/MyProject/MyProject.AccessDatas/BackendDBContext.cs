@@ -38,6 +38,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<ScheduledJobState> ScheduledJobState { get; set; }
     public virtual DbSet<SystemParameter> SystemParameter { get; set; }
     public virtual DbSet<Notification> Notification { get; set; }
+    public virtual DbSet<EmailOutbox> EmailOutbox { get; set; }
     public virtual DbSet<NotificationDispatch> NotificationDispatch { get; set; }
     public virtual DbSet<Announcement> Announcement { get; set; }
     public virtual DbSet<AnnouncementDismissal> AnnouncementDismissal { get; set; }
@@ -243,6 +244,15 @@ public partial class BackendDBContext : DbContext
         #endregion
 
         #region 站內通知與公告（0.9.100 起）
+        #region 寄信佇列與紀錄（0.9.167 起）
+        modelBuilder.Entity<EmailOutbox>(entity =>
+        {
+            // 背景寄信器找「待寄且到期」的信；紀錄頁與清理依建立時間。
+            entity.HasIndex(x => new { x.Status, x.NextAttemptAtUtc });
+            entity.HasIndex(x => x.CreatedAtUtc);
+        });
+        #endregion
+
         modelBuilder.Entity<Notification>(entity =>
         {
             // 鈴鐺的未讀數與最近清單、去重各吃一個索引。

@@ -319,6 +319,15 @@ public static class AuditActions
         public const string Test = "Notification.Test";
     }
 
+    /// <summary>寄信紀錄（0.9.167 起）：排程依保留天數自動清除、「資料保留與清理」頁的自訂清除（待寄的不刪）。</summary>
+    public static class EmailLog
+    {
+        public const string AutoPurge = "EmailLog.AutoPurge";
+
+        /// <summary>「資料保留與清理」頁的「自訂清除」（detail 記條件與筆數）。</summary>
+        public const string Purge = "EmailLog.Purge";
+    }
+
     /// <summary>系統備份（0.9.99 起）：建立（排程或立即備份）、依份數自動刪除、下載、手動刪除。</summary>
     public static class Backup
     {

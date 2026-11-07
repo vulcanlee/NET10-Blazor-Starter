@@ -280,6 +280,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `SoftDeleteSettings` | 已刪除資料（0.9.97 起）：`PurgeAfterDays`（預設 90，`0`＝不自動永久刪除），專案、分類、團隊、使用者、角色刪除超過天數後永久刪除。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `BackupSettings` | 系統備份（0.9.99 起）：`KeepCount`（保留份數，預設 7）、`IncludeAiCallLogs`、`IncludeAiAgentConversations`（是否納入 AI 對話紀錄與 Agent 對話，預設 `false`）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `EmailDeliverySettings` | 寄信佇列（0.9.167 起）：`MaxRetries`（暫時性失敗重試次數，預設 3）、`RetentionDays`（寄信紀錄保留天數，預設 90，待寄的不刪）。見 [日誌與設定檔說明 §4.3.2.2](docs/operations/日誌與設定檔說明.md) |
 | `NotificationSettings` | 站內通知（0.9.100 起）：`RetentionDays`（預設 90）、`ReadRetentionDays`（已讀後保留天數，預設 7，0.9.125 起）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `PasswordPolicySettings` | 密碼原則（0.9.101 起）：最少字元數、字元種類、不可重複最近幾組、有效天數（`ExpiryDays`，預設 0＝不過期）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `LoginFailureAlertSettings` | 登入失敗告警（0.9.166 起）：全系統 `WindowMinutes`（預設 10）分鐘內登入失敗達 `Threshold`（預設 20，`0`＝不告警）次就通知全體管理員並寄信，`CooldownMinutes`（預設 60）內不重發。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md) |

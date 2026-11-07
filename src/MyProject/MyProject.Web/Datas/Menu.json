@@ -120,6 +120,12 @@
             "name": "資料庫用量",
             "icon": "data_usage",
             "url": "/database-usage"
+          },
+          {
+            "id": 69,
+            "name": "寄信紀錄",
+            "icon": "email",
+            "url": "/email-logs"
           }
         ]
       },

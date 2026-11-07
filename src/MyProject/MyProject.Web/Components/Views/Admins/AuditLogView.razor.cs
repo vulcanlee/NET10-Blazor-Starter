@@ -428,6 +428,7 @@ namespace MyProject.Web.Components.Views.Admins
             "Category" => "lime",
             "Team" => "gold",
             "ExceptionLog" => "magenta",
+            "EmailLog" => "magenta",
             "AiCallLog" => "magenta",
             "AiAgentConversation" => "magenta",
             "AdminPatrol" => "magenta",
