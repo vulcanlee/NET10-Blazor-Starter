@@ -128,6 +128,192 @@ public sealed class AiCallLogServiceTests
         Assert.Equal(["#2", "#3"], page.Result.Select(x => x.RelatedInfo).ToList());
     }
 
+    // ---------- 內文搜尋（0.9.169 起） ----------
+
+    /// <summary>比對畫面看得到的文字：每則訊息與 AI 回答，不分大小寫；JSON 欄位名稱不算。</summary>
+    [Fact]
+    public async Task FindContentMatchesAsync_ShouldMatchMessagesAndResponse_CaseInsensitively()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var now = DateTime.Now;
+        var inPrompt = CreateEntry(requestBody: RequestWithMessages("系統提示", "請分析 NullReferenceException"), occurredAt: now.AddMinutes(-3));
+        var inResponse = CreateEntry(responseText: "原因是 nullreferenceexception 沒有處理", occurredAt: now.AddMinutes(-2));
+        var other = CreateEntry(requestBody: RequestWithMessages("系統提示", "別的內容"), responseText: "無關", occurredAt: now.AddMinutes(-1));
+        foreach (var entry in new[] { inPrompt, inResponse, other })
+        {
+            await service.RecordAsync(entry);
+        }
+
+        var found = await service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "  NullReferenceException " });
+        var fieldName = await service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "messages" });
+
+        Assert.Equal(await IdsOf(service, inResponse, inPrompt), found.Ids);
+        Assert.Equal(3, found.Scanned);
+        Assert.False(found.Truncated);
+        Assert.Empty(fieldName.Ids);
+    }
+
+    /// <summary>失敗而沒有回答時，比對錯誤 body（使用者在「原始 Response」看得到的內容）。</summary>
+    [Fact]
+    public async Task FindContentMatchesAsync_ShouldMatchErrorBody_WhenThereIsNoResponseText()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var failed = CreateEntry(success: false, responseText: string.Empty, responseBody: """{"error":{"message":"Rate limit exceeded"}}""");
+        var succeeded = CreateEntry(responseText: "ok", responseBody: """{"note":"rate limit exceeded"}""");
+        await service.RecordAsync(failed);
+        await service.RecordAsync(succeeded);
+
+        var found = await service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "rate limit" });
+
+        Assert.Equal(await IdsOf(service, failed), found.Ids);
+    }
+
+    /// <summary>
+    /// 審查發現（0.9.169）：請求格式解析不出訊息時改比對原始請求，請求內容才不會整段漏掉；
+    /// 成功但只有工具呼叫（沒有回答文字）的回應不可退回比對原始回應，否則搜 function 這類字幾乎每筆都中。
+    /// </summary>
+    [Fact]
+    public async Task FindContentMatchesAsync_ShouldFallBackToRawRequest_AndOnlyUseRawResponseWhenFailed()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var unparsable = CreateEntry(requestBody: "不是 JSON 的請求：關鍵字在這裡");
+        var toolCallOnly = CreateEntry(responseText: string.Empty, responseBody: """{"output":[{"type":"function_call","name":"search_projects"}]}""");
+        await service.RecordAsync(unparsable);
+        await service.RecordAsync(toolCallOnly);
+
+        var inRequest = await service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "關鍵字在這裡" });
+        var functionWord = await service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "function_call" });
+
+        Assert.Equal(await IdsOf(service, unparsable), inRequest.Ids);
+        Assert.Empty(functionWord.Ids);
+    }
+
+    /// <summary>審查發現（0.9.169）：使用者離開頁面時要能停下掃描。</summary>
+    [Fact]
+    public async Task FindContentMatchesAsync_ShouldStop_WhenCanceled()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        await service.RecordAsync(CreateEntry(responseText: "關鍵字"));
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "關鍵字" }, cancellationToken: cancellation.Token));
+    }
+
+    [Fact]
+    public async Task FindContentMatchesAsync_ShouldApplyFilters_AndSkipMissingFiles()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var kept = CreateEntry(operation: TokenUsageOperations.AiLogAnalysis, responseText: "關鍵字");
+        var otherOperation = CreateEntry(operation: TokenUsageOperations.AiExceptionAnalysis, responseText: "關鍵字");
+        var missing = CreateEntry(operation: TokenUsageOperations.AiLogAnalysis, responseText: "關鍵字");
+        foreach (var entry in new[] { kept, otherOperation, missing })
+        {
+            await service.RecordAsync(entry);
+        }
+
+        var missingRow = (await fixture.ListAsync()).Single(x => x.CallId == missing.CallId);
+        File.Delete(fixture.FullPath(missingRow.ContentFile!));
+
+        var found = await service.FindContentMatchesAsync(new AiCallLogQuery { Operation = TokenUsageOperations.AiLogAnalysis, ContentKeyword = "關鍵字" });
+
+        Assert.Equal(await IdsOf(service, kept), found.Ids);
+        Assert.Equal(2, found.Scanned);
+    }
+
+    /// <summary>超過掃描上限時只掃最新的幾筆，並告訴畫面較舊的沒掃到。</summary>
+    [Fact]
+    public async Task FindContentMatchesAsync_ShouldScanOnlyTheNewest_WhenOverTheLimit()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var now = DateTime.Now;
+        var entries = Enumerable.Range(0, 4).Select(index => CreateEntry(responseText: "關鍵字", occurredAt: now.AddMinutes(-index))).ToList();
+        foreach (var entry in entries)
+        {
+            await service.RecordAsync(entry);
+        }
+
+        var found = await service.FindContentMatchesAsync(new AiCallLogQuery { ContentKeyword = "關鍵字" }, scanLimit: 2);
+
+        Assert.Equal(await IdsOf(service, entries[0], entries[1]), found.Ids);
+        Assert.Equal(2, found.Scanned);
+        Assert.True(found.Truncated);
+        Assert.Equal(1000, AiCallLogService.ContentScanLimit);
+    }
+
+    /// <summary>內文搜尋的結果以 Id 清單交回查詢：換頁、排序、匯出 CSV 都不必重新掃描。</summary>
+    [Fact]
+    public async Task GetAsync_ShouldLimitToIds_AndStillSortAndPage()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var now = DateTime.Now;
+        for (var index = 0; index < 5; index++)
+        {
+            await service.RecordAsync(CreateEntry(occurredAt: now.AddMinutes(-index), relatedInfo: $"#{index}"));
+        }
+
+        var rows = await fixture.ListAsync();
+        var ids = rows.Where(x => x.RelatedInfo is "#1" or "#3" or "#4").Select(x => x.Id).ToList();
+
+        var page = await service.GetAsync(new AiCallLogQuery { Ids = ids, CurrentPage = 1, PageSize = 2 });
+        var none = await service.GetAsync(new AiCallLogQuery { Ids = [] });
+
+        Assert.Equal(3, page.Count);
+        Assert.Equal(["#1", "#3"], page.Result.Select(x => x.RelatedInfo).ToList());
+        Assert.Equal(0, none.Count);
+    }
+
+    // ---------- 合併匯出（0.9.169 起） ----------
+
+    [Fact]
+    public async Task GetExportItemsAsync_ShouldOrderOldestFirst_WithMessagesUsageAndMissingContent()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var service = fixture.CreateService();
+        var now = DateTime.Now;
+        var newer = CreateEntry(requestBody: RequestWithMessages("sys", "第二則"), responseText: "回答二", occurredAt: now);
+        var older = CreateEntry(requestBody: RequestWithMessages("sys", "第一則"), responseText: "回答一", occurredAt: now.AddMinutes(-5));
+        var missing = CreateEntry(occurredAt: now.AddMinutes(-1));
+        foreach (var entry in new[] { newer, older, missing })
+        {
+            await service.RecordAsync(entry);
+        }
+
+        await fixture.AddUsageAsync(older.CallId);
+        var rows = await fixture.ListAsync();
+        File.Delete(fixture.FullPath(rows.Single(x => x.CallId == missing.CallId).ContentFile!));
+
+        var items = await service.GetExportItemsAsync(rows.Select(x => x.Id).ToList());
+
+        Assert.Equal([older.CallId, missing.CallId, newer.CallId], items.Select(x => x.Item.CallId).ToList());
+        Assert.Equal("第一則", items[0].Messages[1].Content);
+        Assert.Equal("回答一", items[0].ResponseText);
+        Assert.NotNull(items[0].Usage);
+        Assert.False(items[0].ContentMissing);
+        Assert.True(items[1].ContentMissing);
+        Assert.Empty(items[1].Messages);
+        Assert.Null(items[2].Usage);
+    }
+
+    private static async Task<List<int>> IdsOf(AiCallLogService service, params AiCallLogEntry[] entries)
+    {
+        var ids = new List<int>();
+        foreach (var entry in entries)
+        {
+            ids.Add((await service.FindIdByCallIdAsync(entry.CallId))!.Value);
+        }
+
+        return ids;
+    }
+
     [Fact]
     public async Task GetDetailAsync_ShouldParseMessages_AndLinkUsageAndConversation()
     {
@@ -291,7 +477,8 @@ public sealed class AiCallLogServiceTests
         DateTime? occurredAt = null,
         string? requestBody = null,
         string responseText = "ok",
-        Guid? runId = null)
+        Guid? runId = null,
+        string responseBody = "{}")
         => new()
         {
             RunId = runId,
@@ -308,7 +495,7 @@ public sealed class AiCallLogServiceTests
             ConversationId = conversationId,
             RequestBody = requestBody ?? RequestWithMessages("s", "u"),
             HttpStatus = 200,
-            ResponseBody = "{}",
+            ResponseBody = responseBody,
             ResponseText = responseText,
             FinishReason = "stop",
             Success = success,

@@ -42,6 +42,17 @@ namespace MyProject.Web.Components.Views.Analytics
         private string accountFilter = string.Empty;
         private string keyword = string.Empty;
 
+        // 內文搜尋（0.9.169 起）：按「查詢」或「重新整理」時掃描一次，記下符合的 Id；換頁、排序、匯出都用這份結果。
+        private string contentKeyword = string.Empty;
+        private string searchedContentKeyword = string.Empty;
+        private AiCallLogContentSearchResult? contentSearch;
+        private string scannedSignature = string.Empty;
+        private CancellationTokenSource? scanCancellation;
+        private bool isScanning;
+        private bool mergedExporting;
+
+        private static int ContentScanLimit => AiCallLogService.ContentScanLimit;
+
         private AiCallLogFilterOptions filterOptions = new();
 
         private int _pageIndex = 1;
@@ -73,6 +84,9 @@ namespace MyProject.Web.Components.Views.Analytics
 
         [Inject]
         public IJSRuntime JSRuntime { get; set; } = default!;
+
+        [Inject]
+        public ISystemIdentity SystemIdentity { get; set; } = default!;
 
         public AiCallLogView(
             ILogger<AiCallLogView> logger,
@@ -118,6 +132,92 @@ namespace MyProject.Web.Components.Views.Analytics
 
             await ReloadFilterOptionsAsync();
             await ReloadAsync();
+        }
+
+        /// <summary>
+        /// 內文搜尋（0.9.169 起）：有填內文關鍵字才掃描；掃描結果的 Id 交給 <see cref="BuildQuery"/>。
+        /// 掃描失敗時清掉結果並提示，清單退回只用其他條件。
+        /// </summary>
+        private async Task RunContentSearchAsync()
+        {
+            scanCancellation?.Cancel();
+            scanCancellation?.Dispose();
+            scanCancellation = null;
+            contentSearch = null;
+            searchedContentKeyword = contentKeyword?.Trim() ?? string.Empty;
+            if (searchedContentKeyword.Length == 0)
+            {
+                return;
+            }
+
+            // 掃描期間停用「查詢」「重新整理」（審查發現：連按兩次會讓兩次掃描互相覆蓋）；離開頁面時取消。
+            var cancellation = new CancellationTokenSource();
+            scanCancellation = cancellation;
+            isScanning = true;
+            isLoading = true;
+            StateHasChanged();
+            try
+            {
+                var query = BuildQuery(1, _pageSize);
+                query.ContentKeyword = searchedContentKeyword;
+                var signature = FilterSignature();
+
+                // 讀檔與解析放到背景執行緒，畫面才不會在掃描大量內容檔時卡住。
+                contentSearch = await Task.Run(
+                    () => aiCallLogService.FindContentMatchesAsync(query, cancellationToken: cancellation.Token), cancellation.Token);
+                scannedSignature = signature;
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                contentSearch = null;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "AI call log content search failed.");
+                ViewNotification.UnexpectedError(notificationService, $"內文搜尋失敗：{ex.GetType().Name}。", ex);
+                contentSearch = null;
+            }
+            finally
+            {
+                isScanning = false;
+            }
+        }
+
+        /// <summary>
+        /// 這次內文搜尋時的條件。之後改了任何條件（含內文關鍵字）卻沒按「查詢」，清單上方會提示結果已過期，
+        /// 匯出也會先請使用者重新查詢（審查發現：舊的符合清單會和新條件取交集，放寬日期後漏掉紀錄）。
+        /// </summary>
+        private string FilterSignature()
+            => string.Join(
+                "\u001f",
+                startDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+                endDate?.ToString("yyyy-MM-dd") ?? string.Empty,
+                selectedOperation,
+                selectedSuccess,
+                selectedModel,
+                accountFilter?.Trim() ?? string.Empty,
+                keyword?.Trim() ?? string.Empty,
+                contentKeyword?.Trim() ?? string.Empty);
+
+        private bool IsContentSearchStale => contentSearch is not null && FilterSignature() != scannedSignature;
+
+        /// <summary>內文搜尋結果已過期時提示並回 true（匯出前呼叫）。</summary>
+        private bool WarnIfContentSearchStale()
+        {
+            if (IsContentSearchStale == false)
+            {
+                return false;
+            }
+
+            ViewNotification.Caution(notificationService, "條件已變更，請先按「查詢」重新搜尋內文再匯出。");
+            return true;
+        }
+
+        public void Dispose()
+        {
+            scanCancellation?.Cancel();
+            scanCancellation?.Dispose();
+            scanCancellation = null;
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -216,6 +316,7 @@ namespace MyProject.Web.Components.Views.Analytics
             },
             Model = selectedModel,
             Keyword = keyword,
+            Ids = contentSearch?.Ids,
             CurrentPage = currentPage,
             PageSize = pageSize,
             SortField = sortField,
@@ -249,19 +350,89 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private async Task OnSearchAsync()
         {
+            if (isScanning)
+            {
+                return;
+            }
+
             _pageIndex = 1;
+            await RunContentSearchAsync();
             await ReloadAsync();
             await ViewAudit.WriteSearchAsync(auditLogService, currentUserService, AuditActions.AiCallLog.Search, "AiCallLog",
                 AuditSearchCondition.Of("start", startDate), AuditSearchCondition.Of("end", endDate),
                 AuditSearchCondition.Of("operation", selectedOperation), AuditSearchCondition.Of("success", selectedSuccess),
                 AuditSearchCondition.Of("model", selectedModel), AuditSearchCondition.Text("account", accountFilter),
-                AuditSearchCondition.Text("keyword", keyword));
+                AuditSearchCondition.Text("keyword", keyword), AuditSearchCondition.Text("content", contentKeyword));
         }
 
         private async Task OnRefreshAsync()
         {
+            if (isScanning)
+            {
+                return;
+            }
+
             await ReloadFilterOptionsAsync();
+
+            // 重新整理要看到新的紀錄：有內文關鍵字時重新掃描。
+            if (contentSearch is not null || string.IsNullOrWhiteSpace(contentKeyword) == false)
+            {
+                await RunContentSearchAsync();
+            }
+
             await ReloadAsync();
+        }
+
+        private AiCallLogMergedPdfServices MergedPdfServices()
+            => new(aiCallLogService, auditLogService, currentUserService, SystemIdentity, JSRuntime, notificationService, logger);
+
+        /// <summary>合併匯出勾選的紀錄（0.9.169 起）。</summary>
+        private async Task OnExportSelectedPdfAsync()
+        {
+            mergedExporting = true;
+            try
+            {
+                await AiCallLogMergedPdfExport.ExportAsync(
+                    MergedPdfServices(), selectedRows.Select(x => x.Id).ToList(), AiCallLogMergedPdfExport.SourceSelected);
+            }
+            finally
+            {
+                mergedExporting = false;
+            }
+        }
+
+        /// <summary>合併匯出目前查詢結果（0.9.169 起）：最多 50 筆；有內文搜尋時只含符合的。</summary>
+        private async Task OnExportQueryPdfAsync()
+        {
+            if (WarnIfContentSearchStale())
+            {
+                return;
+            }
+
+            mergedExporting = true;
+            try
+            {
+                var result = await aiCallLogService.GetAsync(BuildQuery(1, AiCallLogPdfBuilder.MaxMergedRecords));
+                if (result.Count > AiCallLogPdfBuilder.MaxMergedRecords)
+                {
+                    ViewNotification.Caution(
+                        notificationService,
+                        AiCallLogMergedPdfExport.TooManyMessage(result.Count, "請縮小日期或其他條件，或勾選要匯出的紀錄。"));
+                    return;
+                }
+
+                await AiCallLogMergedPdfExport.ExportAsync(
+                    MergedPdfServices(), result.Result.Select(x => x.Id).ToList(), AiCallLogMergedPdfExport.SourceQuery);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "AI call log query PDF export failed.");
+                ViewNotification.UnexpectedError(notificationService, $"PDF 匯出失敗：{ex.GetType().Name}。", ex);
+            }
+            finally
+            {
+                mergedExporting = false;
+            }
         }
 
         private async Task OnViewAsync(int id)
@@ -426,6 +597,11 @@ namespace MyProject.Web.Components.Views.Analytics
 
         private async Task OnExportAsync()
         {
+            if (WarnIfContentSearchStale())
+            {
+                return;
+            }
+
             try
             {
                 var result = await aiCallLogService.GetAsync(BuildQuery(1, AiCallLogService.MaxExportRows));
