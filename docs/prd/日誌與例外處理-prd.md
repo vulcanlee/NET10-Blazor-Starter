@@ -1,8 +1,8 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.172
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/11/07
 
@@ -254,7 +254,7 @@
 | LOG-04 | 射後不理的 Task、背景執行緒的未處理例外完全不留紀錄 | `ProcessExceptionHooks` 訂閱 `TaskScheduler.UnobservedTaskException`（記 Error、標記已觀察、還原情境）與 `AppDomain.UnhandledException`（寫補登檔、抑制收錄下記 Critical）；新增來源 `系統`（`ExceptionSources.Process`）；`ApplicationStopped` 時取消訂閱 | `ProcessExceptionHooksTests` |
 | LOG-05 | 關機時佇列中的例外遺失 | `ExceptionLogWriter` 收到停止訊號後清空佇列，上限 5 秒；逾時剩餘筆數輸出到 InternalLogger | `ExceptionLogWriterTests` |
 | LOG-06 | 啟動失敗只進日誌檔；host 建立前的失敗連日誌檔都沒有 | `StartupSafetyValidator` 移到 NLog 設定之後；host 建立前的失敗直接經 NLog 寫檔；所有啟動失敗寫入**補登檔**（`{ExceptionPath}/pending/*.json`，`CrashMarkerStore`），下次成功啟動於遷移後補進例外紀錄（來源 `系統啟動`）。`HostAbortedException`（`dotnet ef` 的正常中止）排除在外 | `CrashMarkerStoreTests`；實機驗證：以 Production 設定啟動失敗一次 → 日誌檔有 FATAL、產生補登檔 → 正常啟動後例外紀錄出現該列、補登檔已刪 |
-| LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10 | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門；瀏覽器內的實際觸發尚未人工驗收） |
+| LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10 | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門）；2026/11/08 瀏覽器人工驗收通過（驗收時發現並修正追蹤碼沒顯示，0.9.172） |
 | LOG-08 | 查詢關鍵字記錄原文；多處 JSON 解析失敗與情境設定失敗的 catch 不留紀錄 | 17 處改記 `HasSearch`／`SearchLength`（API 為 `HasKeyword`／`KeywordLength`、專案擁有者篩選為 `HasOwner`）；團隊／權限 JSON 解析失敗、健康檢查失敗、例外情境設定失敗補記 Warning；Try 型 API（回傳 false／null 即結果）維持不動 | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`、`LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（取消／斷線類例外與管線類別列白名單並附理由） |
 
 ### 6.3 已實作 —— P1：可追蹤性與主動通知（0.9.78）
@@ -315,11 +315,11 @@
 | §三、§四 規範 | `LoggingConventionTests`（自動）＋ Code Review 依本文件判斷等級 |
 | LOG-01、LOG-03（0.9.77 已實作）、LOG-10、LOG-16（0.9.78 已實作） | `ApiIntegrationTests` 整合測試 |
 | LOG-02、LOG-05（0.9.77 已實作） | `ExceptionLogProviderTests`、`ExceptionLogWriterTests` |
-| LOG-04、LOG-06、LOG-07（0.9.77 已實作） | `ProcessExceptionHooksTests`、`CrashMarkerStoreTests`、`FormModalConventionTests`＋人工驗收（啟動失敗已實機驗證；浮層例外待瀏覽器手動重現） |
+| LOG-04、LOG-06、LOG-07（0.9.77 已實作） | `ProcessExceptionHooksTests`、`CrashMarkerStoreTests`、`FormModalConventionTests`＋人工驗收：啟動失敗已實機驗證；**浮層例外 2026/11/08 已在瀏覽器驗收**（暫時讓危險確認窗丟例外：底部出現「畫面元件發生錯誤，已記錄」與追蹤碼、連線沒斷、系統例外有同一個追蹤碼的紀錄、換頁後浮層復原，驗完還原） |
 | LOG-08（0.9.77 已實作）、LOG-14、LOG-15（0.9.78 已實作） | 慣例測試＋各事件單元測試 |
 | LOG-11（0.9.78 已實作） | `ExceptionLogServiceTests`、服務測試 |
 | LOG-12、LOG-13（0.9.78 已實作） | 以假時鐘的單元測試（`ManualTimeProvider`） |
-| LOG-20、LOG-21、LOG-22（0.9.79 已實作） | `BrowserErrorReporterTests`、`LoggingPipelineHealthTests`；瀏覽器內實際觸發 JS 錯誤、健康監控頁顯示仍需人工驗收 |
+| LOG-20、LOG-21、LOG-22（0.9.79 已實作） | `BrowserErrorReporterTests`、`LoggingPipelineHealthTests`；**2026/11/08 已在瀏覽器驗收**：同步錯誤與未處理的 Promise 各記一筆（來源「瀏覽器」、`BrowserScriptException`）；一分鐘內共 14 筆時記 10 筆、丟棄 4 筆；健康監控「日誌管線」顯示「前端錯誤回報因限流丟棄 4」；門檻設 1 ms 時日誌有慢請求與慢資料庫指令的 Warning（資料庫只記指令類型） |
 
 每一項實作完成後，須把該項從「規劃中」移到「已實作」（如 §6.2），並更新文件版本與現行系統版本。
 
@@ -327,6 +327,7 @@
 
 - **Google SSO 使用者的 Account 就是 Email**：記 Account 等於記 Email，為既有且已接受的取捨（見操作文件 §2.4）。
 - ~~**稽核不記修改前後值**~~（**0.9.131 已實作**）：`AuditDiff` 比對分類、專案、團隊、使用者、角色與個人資料修改前後的純量欄位，寫進稽核的詳細內容檔，見稽核紀錄 PRD §六。
+- **連線中斷後的 JS 呼叫失敗不收錄**（0.9.172 起）：使用者關掉分頁時，還在路上的 JS 呼叫會變成一批沒人等的 `JSDisconnectedException`（實測每次 13～48 筆），以前記成系統例外、也計入暴增告警。現在由 `CircuitDisconnect.IsOnlyDisconnect` 判斷，未觀察 Task 只記 Debug、`ExceptionLogProvider` 不收錄；同一批裡混了別的例外就照常記錄。
 - **單機設計**：例外合併、告警節流、前端回報計數都在單一程序的記憶體中；未來若改為多台主機需重新設計。
 - **時區**：例外紀錄與日誌檔使用伺服器本地時間，稽核使用 UTC（見稽核紀錄 PRD §四），跨表比對時須注意。
 - **告警只有 Email**：Teams、Slack、LINE 等通道不在本次範圍。

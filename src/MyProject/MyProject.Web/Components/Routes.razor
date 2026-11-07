@@ -48,7 +48,7 @@
                 <ErrorContent Context="exception">
                     <div class="alert alert-danger" role="alert">
                         <strong>這個頁面發生未預期的錯誤。</strong>
-                        錯誤已記錄，請重新整理頁面；若持續發生請聯絡系統管理員@TraceCode.Suffix(TraceCode.FromException(exception))。
+                        錯誤已記錄，請重新整理頁面；若持續發生請聯絡系統管理員@(TraceCode.Suffix(TraceCode.FromException(exception)))。
                     </div>
                 </ErrorContent>
             </LoggingErrorBoundary>
@@ -76,7 +76,7 @@
         <ErrorContent Context="exception">
             <div class="alert alert-danger overlay-error-banner" role="alert">
                 <strong>畫面元件發生錯誤，已記錄。</strong>
-                請<a href="" @onclick="ReloadPage" @onclick:preventDefault>重新整理頁面</a>；若持續發生請聯絡系統管理員@TraceCode.Suffix(TraceCode.FromException(exception))。
+                請<a href="" @onclick="ReloadPage" @onclick:preventDefault>重新整理頁面</a>；若持續發生請聯絡系統管理員@(TraceCode.Suffix(TraceCode.FromException(exception)))。
             </div>
         </ErrorContent>
     </LoggingErrorBoundary>

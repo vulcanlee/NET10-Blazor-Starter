@@ -37,6 +37,38 @@ public sealed class ProcessExceptionHooksTests : IDisposable
         Assert.True(args.Observed);
     }
 
+    /// <summary>
+    /// 0.9.172 起（瀏覽器人工驗收時發現）：使用者關掉分頁時，還在路上的 JS 呼叫會變成一批沒人等的
+    /// JSDisconnectedException（實測每次 13～48 筆）。連線斷了本來就呼叫不到，是預期情況：只記 Debug，
+    /// 不進系統例外、不計入暴增告警；但同一批裡只要混了別的例外就照常記 Error。
+    /// </summary>
+    [Fact]
+    public void UnobservedTaskException_WithOnlyCircuitDisconnects_ShouldBeLoggedAsDebug()
+    {
+        var disconnected = new UnobservedTaskExceptionEventArgs(new AggregateException(
+            new Microsoft.JSInterop.JSDisconnectedException("circuit gone"),
+            new AggregateException(new Microsoft.JSInterop.JSDisconnectedException("circuit gone"))));
+        var mixed = new UnobservedTaskExceptionEventArgs(new AggregateException(
+            new Microsoft.JSInterop.JSDisconnectedException("circuit gone"), new InvalidOperationException("real bug")));
+
+        hooks.OnUnobservedTaskException(null, disconnected);
+        hooks.OnUnobservedTaskException(null, mixed);
+
+        Assert.Equal([LogLevel.Debug, LogLevel.Error], logger.Entries.Select(x => x.Level).ToList());
+        Assert.True(disconnected.Observed);
+        Assert.True(mixed.Observed);
+    }
+
+    /// <summary>判斷偏保守（審查建議補上）：沒有內層例外、真正的 JS 錯誤、被包在別種例外裡的，都不算連線中斷。</summary>
+    [Fact]
+    public void CircuitDisconnect_ShouldOnlyMatchPureDisconnects()
+    {
+        Assert.True(CircuitDisconnect.IsOnlyDisconnect(new Microsoft.JSInterop.JSDisconnectedException("gone")));
+        Assert.False(CircuitDisconnect.IsOnlyDisconnect(new AggregateException()));
+        Assert.False(CircuitDisconnect.IsOnlyDisconnect(new Microsoft.JSInterop.JSException("real js error")));
+        Assert.False(CircuitDisconnect.IsOnlyDisconnect(new InvalidOperationException("wrapped", new Microsoft.JSInterop.JSDisconnectedException("gone"))));
+    }
+
     [Fact]
     public void UnobservedTaskException_ShouldRestorePreviousContext()
     {

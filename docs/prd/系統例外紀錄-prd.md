@@ -1,8 +1,8 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.172
 - 首次實作版本：0.9.11
 - 最後核對日期：2026/11/07
 
@@ -120,6 +120,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 **不收**：
 - `OperationCanceledException`／`TaskCanceledException` —— 使用者取消、正常關機。
+- 只是連線中斷造成的 `JSDisconnectedException`（本身，或 `AggregateException` 展開後全部都是）—— 使用者關掉分頁（0.9.172 起，`CircuitDisconnect`）。
 - 本子系統自己的記錄器（`ExceptionLogProvider`／`ExceptionLogWriter`／`ExceptionLogService`／`ExceptionStackFileStore`）。
 - `AsyncLocal` 抑制旗標開啟時（寫入器執行期間全程開啟）。
 - 同一個例外實例的第二次以後（0.9.77）。
