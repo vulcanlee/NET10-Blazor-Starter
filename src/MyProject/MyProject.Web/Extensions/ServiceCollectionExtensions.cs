@@ -355,6 +355,7 @@ public static class ServiceCollectionExtensions
         services.AddValidatedOptions<CacheSettings, CacheSettingsValidator>(configuration, CacheSettings.SectionName);
         services.AddValidatedOptions<RateLimitSettings, RateLimitSettingsValidator>(configuration, RateLimitSettings.SectionName);
         services.AddValidatedOptions<AiSettings, AiSettingsValidator>(configuration, AiSettings.SectionName);
+        services.AddValidatedOptions<AiReasoningSettings, AiReasoningSettingsValidator>(configuration, AiReasoningSettings.SectionName);
         services.AddValidatedOptions<AiPricingSettings, AiPricingSettingsValidator>(configuration, AiPricingSettings.SectionName);
         services.AddValidatedOptions<ForwardedHeadersSettings, ForwardedHeadersSettingsValidator>(configuration, ForwardedHeadersSettings.SectionName);
         services.AddValidatedOptions<ScheduledJobSettings, ScheduledJobSettingsValidator>(configuration, ScheduledJobSettings.SectionName);

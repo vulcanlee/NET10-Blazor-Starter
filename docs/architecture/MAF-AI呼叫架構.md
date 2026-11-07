@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.164
+- 現行系統版本：0.9.168
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/07
 
@@ -183,12 +183,17 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 端點與金鑰共用 `AiSettings`，只能換同一個服務裡的模型；不認得的 `ModelKey` 是程式錯誤，丟 `InvalidOperationException`。
 「系統健康監控」的「AI 計費表」檢查預設模型與每一個有覆寫的模型（`OverriddenModels()`），任一查無費率即降級。設定說明見 [日誌與設定檔說明 §4.17](../operations/日誌與設定檔說明.md)。
 
+**各功能的推論等級（`AiReasoningSettings`，0.9.168 起）**：鍵名和 `AiModelSettings` 的 Agent 功能同名（`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`、`AdminAssistant`），
+同樣以 `AiCallContext.ModelKey` 對應；`AiAgentFactory.CreateAgent` 每次讀 `GetOverride(ModelKey)`，空白（或沒有對應的鍵）時用 `AiSettings.AgentReasoningEffort`，仍只在 `UseResponsesApi` 時送 `reasoning.effort`。
+工廠把實際送出的值與設定來源（系統參數的名稱或 `AiSettings:AgentReasoningEffort`）交給記帳中介層，模型以 400 `reasoning.effort` 拒絕時，訊息指名要改的那一個設定。
+不放進 `AiModelSettings`：`OverriddenModels()` 會把每個 string 屬性當成模型名稱拿去查費率。`AiReasoningSettingsTests` 守門：每個走 Responses 的 Agent 都有自己的推論等級設定，也都在系統參數頁。設定說明見 [日誌與設定檔說明 §4.18](../operations/日誌與設定檔說明.md)。
+
 ### 6.6 新增一個 Agent
 
 1. `AiAgentDefinition` ＋ 每個工具一個 `AiToolDefinition`（權限必填、異動工具設 `IsMutating`；工具方法呼叫既有服務、回給模型的欄位精簡），工具類別註冊到 DI。
 2. `PromptTemplateKeys` 加種類（含 `All`）、`AiPromptGuardrails` 補內建提示詞與「不可信內容」說法、`PromptTemplateView` 補分頁名稱。
 3. `TokenUsageOperations` 加作業名稱；新模型補 `AiPricingSettings.Models` 費率。
-4. `AiModelSettings` 加屬性 → `SystemParameterCatalog.All` 加一行 → appsettings.json 加鍵 → [日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md) 加一列。
+4. `AiModelSettings` 加屬性 → `SystemParameterCatalog.All` 加一行 → appsettings.json 加鍵 → [日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md) 加一列；`AiReasoningSettings` 照樣加同名的推論等級（0.9.168 起）。
 5. 頁面用 `IAiAgentRunner`（對話保存內建，「我的對話」清單、改名、刪除用 `AiAgentConversationService`，見 §6.7）；頁面權限照新增頁面的四處同步，會花 AI 費用的頁面加進 `RolePermissionService.NotGrantedToDefaultRole`（不自動開給預設角色），並寫操作說明。
 
 步驟細節見 [腳手架開發指引 §3.11](../guides/腳手架開發指引.md)「新增一個 Agent」。
@@ -386,11 +391,13 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Web/Ai/Workflows/ProjectStatusReportWorkflow.cs`、`MultiPerspectiveReviewWorkflow.cs` | 兩條範例工作流程與內建提示詞（0.9.144 起）|
 | `MyProject.Web/Components/Pages/AiAssistants/AgentWorkflowsPage.razor`、`Components/Views/AiAssistants/AgentWorkflowsView.razor(.cs/.css)` | 「Agent 工作流程」頁（`/agent-workflows`，0.9.144 起；重新命名窗沿用 `OverlayStyles` 的 `.agent-playground-rename-modal`）|
 | `MyProject.Web/Configuration/AiModelSettings.cs` | 各功能的模型、`Resolve`、`OverriddenModels`（0.9.142 起）|
+| `MyProject.Web/Configuration/AiReasoningSettings.cs`、`Validation/AiReasoningSettingsValidator.cs` | 各 Agent 功能的推論等級、`GetOverride` 與驗證（0.9.168 起）|
 | `MyProject.Web/Components/Views/AiAssistants/AgentPlaygroundView.razor(.cs/.css)` | 「Agent 測試台」頁（`/agent-playground`，0.9.142 起；0.9.143 起左側「我的對話」、重新命名、刪除）|
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的 base URI 與設定驗證 |
 | `MyProject.Web/Ai/AiChatCompletionClient.cs` | 設定檢查 → 建 agent → 執行 → 轉回 `AiAnalysisResult`；`StreamAsync` 轉成 `AiStreamUpdate` 序列（0.9.141 起）|
 | `MyProject.Web/Ai/AiHealthProbe.cs` | 健康探測（30 秒逾時、不檢查用量上限）|
-| `MyProject.Tests/AiAgentPipelineTests.cs` | SDK 帶來的風險：不重試、Azure 不送 Authorization、自己的逾時、SDK 產生的 body 仍可解析、探測不受上限影響 |
+| `MyProject.Tests/AiAgentPipelineTests.cs` | SDK 帶來的風險：不重試、Azure 不送 Authorization、自己的逾時、SDK 產生的 body 仍可解析、探測不受上限影響；推論等級只對 Responses 送、功能的值蓋過全域值、被拒訊息指名設定（0.9.168）|
+| `MyProject.Tests/AiReasoningSettingsTests.cs` | 推論等級的解析與驗證、每個走 Responses 的 Agent 都有推論等級設定（0.9.168 起）|
 | `MyProject.Tests/AiTestAgents.cs` | 測試用工廠：沿用舊建構子的參數順序，既有測試只換建立方式、斷言不改 |
 | `MyProject.Tests/AiStreamingTests.cs`、`AiChatStreamParserTests.cs`、`AiInterruptionTests.cs`、`AiSse.cs` | 串流記帳（成功、送出 `stream` 與 `include_usage`、取消前／後、上游錯誤、空回應、長度截斷、中途卡住逾時、未設定）、SSE 解析、已中止註記；`AiSse` 組測試用 SSE（0.9.141 起）|
 | `MyProject.Tests/Components/ExceptionAiAnalysisModalStreamingTests.cs` | bUnit：逐段顯示與「停止產生」、停止後保留並標示已中止、未收到文字就停止（0.9.141 起）|

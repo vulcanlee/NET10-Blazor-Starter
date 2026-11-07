@@ -84,7 +84,8 @@ public class AiSettings
     public double? Temperature { get; set; }
 
     /// <summary>
-    /// Agent 功能（Agent 測試台、Agent 工作流程，0.9.149 起走 Responses API）送出的 <c>reasoning.effort</c>。
+    /// Agent 功能（Agent 測試台、Agent 工作流程、系統管理助理，0.9.149 起走 Responses API）送出的 <c>reasoning.effort</c> 的<b>全域預設</b>。
+    /// 0.9.168 起各功能可在 <see cref="AiReasoningSettings"/>（系統參數頁）覆寫，空白的功能才用這個值。
     /// <c>null</c>（預設）代表不送，由模型自己決定。接受 <see cref="AgentReasoningEffortValues"/>（不分大小寫）。
     /// AI 日誌分析、AI 例外分析走 Chat Completions，一律不送。
     ///

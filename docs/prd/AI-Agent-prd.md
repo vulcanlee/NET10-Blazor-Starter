@@ -1,8 +1,8 @@
 ﻿# AI Agent PRD（Agent 測試台與 Agent 工作流程）
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.168
 - 首次實作版本：0.9.142
 - 最後核對日期：2026/11/07
 
@@ -17,7 +17,7 @@
 | 單一 Agent 對話：逐段顯示、工具呼叫、異動工具需核准、停止產生、對話保存與接續 | RAG／向量檢索、檔案或網頁知識庫 |
 | 多 Agent 工作流程：循序＋審閱關卡、並行＋收齊、三種人工介入、執行紀錄 | 通用對話機器人（Agent 只能用定義好的工具） |
 | 每一次模型呼叫照常記帳、記對話紀錄、檢查用量上限 | 對話存在雲端（一律 `store=false`，見 §5.2） |
-| 各功能分設模型；Agent 推論等級以設定檔調整 | 在畫面上或系統參數頁切換推論等級（見 §5.3、§十） |
+| 各功能分設模型與推論等級（系統參數頁，推論等級 0.9.168 起）| 在對話畫面上切換推論等級（見 §5.3、§十） |
 | 範例工具：搜尋專案、讀取專案明細、修改描述、附加狀態摘要 | 工作流程從中途接續（沒有跨重開機的檢查點） |
 
 設計細節見 [MAF AI 呼叫架構 §3、§6](../architecture/MAF-AI呼叫架構.md)。
@@ -120,13 +120,13 @@
 
 | 項目 | 說明 |
 |---|---|
-| 設定鍵 | `AiSettings:AgentReasoningEffort`（0.9.146～0.9.148 名為 `ToolReasoningEffort`）|
+| 設定鍵 | 各功能：`AiReasoningSettings:AgentPlayground`／`ProjectStatusReport`／`MultiPerspectiveReview`／`AdminAssistant`（0.9.168 起，系統參數「AI 模型」分類）；空白時沿用全域的 `AiSettings:AgentReasoningEffort`（0.9.146～0.9.148 名為 `ToolReasoningEffort`）|
 | 預設值 | `null`：不送 `reasoning.effort`，由模型自己決定。**Azure `gpt-6.1-sol` 實際採用 `medium`**（2026/11/04 實測，回應的 `reasoning.effort` 皆為 `medium`）|
-| 可填值 | `none`、`low`、`medium`、`high`、`xhigh`（不分大小寫，其他值啟動時驗證失敗）。實際接受哪些值依模型而定：`gpt-6.1-sol` 只接受 `low`～`xhigh`，填 `none` 會被拒 |
-| 怎麼改 | 開發環境改 User Secrets，正式環境改 `appsettings.json` 或環境變數，例如 `"AiSettings": { "AgentReasoningEffort": "high" }` |
-| 生效時機 | 每次建立 agent 時都讀取目前設定（`IOptionsMonitor`）。存檔後，Agent 測試台的下一則訊息、工作流程的下一次執行就生效，不必重啟 |
-| 適用範圍 | **全域一個值**：Agent 測試台、兩條工作流程的所有 agent、系統管理助理（分派判斷除外）與定時巡檢共用。分析功能與分派判斷（Chat Completions）一律不送推論等級 |
-| 被拒時 | 400 `param=reasoning.effort`，畫面與日誌顯示「此模型不接受 AiSettings:AgentReasoningEffort 的設定值，請改為 null 或此模型接受的值。」|
+| 可填值 | 空白（只限各功能，表示沿用全域值）、`none`、`low`、`medium`、`high`、`xhigh`（不分大小寫，其他值啟動時驗證失敗；系統參數頁用下拉選單）。實際接受哪些值依模型而定：`gpt-6.1-sol` 只接受 `low`～`xhigh`，填 `none` 會被拒 |
+| 怎麼改 | 各功能：「系統參數」頁「AI 模型」分類的「◯◯的推論等級」。全域值：開發環境改 User Secrets，正式環境改 `appsettings.json` 或環境變數，例如 `"AiSettings": { "AgentReasoningEffort": "high" }` |
+| 生效時機 | 每次建立 agent 時都讀取目前設定（`IOptionsMonitor`），不必重啟：Agent 測試台在開對話或接續時建立 agent，所以是下一段新對話（或從「我的對話」接續）起；系統管理助理每則訊息都重建，下一則訊息起；工作流程下一次執行起；定時巡檢下一次巡檢起 |
+| 適用範圍 | Agent 測試台、兩條工作流程（流程裡每個 agent 共用該流程的值）、系統管理助理（定時巡檢共用，分派判斷除外）各一個值。分析功能與分派判斷（Chat Completions）一律不送推論等級 |
+| 被拒時 | 400 `param=reasoning.effort`，畫面與日誌指名用到的設定：功能自己的值是「此模型不接受推論等級「none」（系統參數「Agent 測試台的推論等級」），請改為空白或此模型接受的值。」；沿用全域值是「此模型不接受推論等級「none」（AiSettings:AgentReasoningEffort 的設定值），請改為 null 或此模型接受的值。」|
 
 推論等級越高，回答通常越周全，但等待時間與推理 Token（費用）也越多。費用依實際用量記在 Token 用量頁，推理 Token 另列。
 
@@ -162,7 +162,7 @@
 
 | 情況 | 行為 |
 |---|---|
-| 推論等級不被模型接受 | 400，訊息指名 `AiSettings:AgentReasoningEffort`（§5.3）|
+| 推論等級不被模型接受 | 400，訊息指名用到的設定（功能的系統參數或 `AiSettings:AgentReasoningEffort`，§5.3）|
 | 用量達上限 | 送出前擋下，見 [AI 用量配額](AI用量配額-prd.md) |
 | 逾時 | 單次模型呼叫逾時預設 `AiSettings:TimeoutSeconds`（600 秒），記一筆 Timeout |
 | 輸出達上限（Responses `status: incomplete`、`max_output_tokens`）| 結束原因記為 `length` |
@@ -178,7 +178,8 @@
 | `AiAgentRunnerTests` | 執行器、工具權限與稽核、核准與拒絕、接續（`Resume_ShouldRestoreHistory_SoModelRemembersEarlierTurns` 證明 `store=false` 仍送完整歷史）、Responses 請求 |
 | `AiWorkflowRunnerTests` | 兩條工作流程、三種人工介入、退回上限、收尾沒權限或被拒、上游失敗、停止、離開頁面存成中斷 |
 | `AgentToolsAndModelTests` | 範例工具的團隊範圍與內容處理、各功能模型的解析 |
-| `AiAgentPipelineTests` | SDK 管線、送到 `/responses` 並帶 `store:false`、`AgentReasoningEffort` 只對 Responses 送 |
+| `AiAgentPipelineTests` | SDK 管線、送到 `/responses` 並帶 `store:false`、推論等級只對 Responses 送、功能的值蓋過全域值、被拒時訊息指名用到的設定 |
+| `AiReasoningSettingsTests` | 各功能推論等級的解析與驗證；每個走 Responses 的 Agent 都有自己的推論等級設定，也都在系統參數頁 |
 | `AiResponsesFormatTests` | Responses 非串流與串流的內容、用量、結束原因解析 |
 | `AiAgentConversationServiceTests` | 對話保存、只限本人、改名、刪除與稽核、依最後對話時間清理、內容檔路徑防護 |
 
@@ -188,13 +189,12 @@
 
 **已知限制**
 
-- 推論等級是全域設定：無法依功能或依 agent 分設，也不能在「系統參數」頁或對話畫面上切換。
+- 推論等級依功能設定（0.9.168 起），不能在對話畫面上依對話切換；工作流程裡的 agent 共用該流程的值，不能逐一分設。
 - 工作流程不能從中途接續。
 - 範例工具只涵蓋專案項目。
 
 **規劃中需求**（尚未提供，不屬於目前的驗收範圍）
 
-- 依功能分設推論等級：仿照「AI 模型」在系統參數頁新增各功能的推論等級，空白時沿用 `AgentReasoningEffort`。
 - 在 Agent 測試台畫面上依對話選擇推論等級。
 
 ## 十一、相關程式與文件

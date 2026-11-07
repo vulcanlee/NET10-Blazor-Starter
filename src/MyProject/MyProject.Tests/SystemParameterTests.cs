@@ -92,7 +92,7 @@ public sealed class SystemParameterTests
             ScheduledJobSettings.SectionName, SlowOperationSettings.SectionName, ExceptionAlertSettings.SectionName,
             ClientErrorReportingSettings.SectionName, RateLimitSettings.SectionName, PasswordResetSettings.SectionName,
             BackupSettings.SectionName, NotificationSettings.SectionName, PasswordPolicySettings.SectionName, LockoutSettings.SectionName, LoginFailureAlertSettings.SectionName, EmailDeliverySettings.SectionName, TwoFactorSettings.SectionName,
-            AiQuotaSettings.SectionName, AiModelSettings.SectionName, AiAgentConversationSettings.SectionName, AdminPatrolSettings.SectionName,
+            AiQuotaSettings.SectionName, AiModelSettings.SectionName, AiReasoningSettings.SectionName, AiAgentConversationSettings.SectionName, AdminPatrolSettings.SectionName,
         };
         var secretLike = new Regex("password|secret|apikey|signingkey|connection|licensekey|recipients|path", RegexOptions.IgnoreCase);
 
@@ -197,6 +197,7 @@ public sealed class SystemParameterTests
     [InlineData("SystemSettings:SystemInformation:SystemName", "   ")]
     [InlineData("SystemSettings:SystemInformation:SystemName", "第一行\n第二行")]
     [InlineData("JwtSettings:SigningKey", "anything")]
+    [InlineData("AiReasoningSettings:AgentPlayground", "ultra")]
     public async Task InvalidValues_ShouldBeRejected_AndNothingSaved(string key, string value)
     {
         using var harness = Harness.Create();
@@ -208,6 +209,29 @@ public sealed class SystemParameterTests
         Assert.Empty(await harness.Service.GetAllAsync());
         Assert.Empty(harness.Provider.Snapshot);
         Assert.Equal(before, harness.Configuration[key]);
+    }
+
+    /// <summary>限定選項的文字參數（0.9.168 起，例如推論等級）：不分大小寫比對，存成清單裡的寫法；空白可以。</summary>
+    [Theory]
+    [InlineData("HIGH", true, "high")]
+    [InlineData(" low ", true, "low")]
+    [InlineData("", true, "")]
+    [InlineData("ultra", false, "")]
+    public void AllowedValues_ShouldBeMatchedCaseInsensitively(string raw, bool ok, string expected)
+    {
+        var definition = SystemParameterCatalog.Find("AiReasoningSettings:AgentPlayground")!;
+
+        var success = SystemParameterValueCodec.TryNormalize(definition, raw, out var normalized, out var error);
+
+        Assert.Equal(ok, success);
+        if (ok)
+        {
+            Assert.Equal(expected, normalized);
+        }
+        else
+        {
+            Assert.Contains("none、low、medium、high、xhigh", error, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -422,7 +446,10 @@ public sealed class SystemParameterTests
                     ? candidate + 1
                     : candidate).ToString(System.Globalization.CultureInfo.InvariantCulture);
             default:
-                return "哨兵值";
+                // 限定選項：挑一個和目前不同的合法值。
+                return definition.AllowedValues is { } allowed
+                    ? allowed.First(x => x != SystemParameterValueCodec.Canonical(definition, current))
+                    : "哨兵值";
         }
     }
 

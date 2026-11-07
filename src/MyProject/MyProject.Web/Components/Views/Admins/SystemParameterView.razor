@@ -158,6 +158,15 @@ else
                             case SystemParameterKind.Bool:
                                 <Switch @bind-Value="editForm.Flag" CheckedChildren="開啟" UnCheckedChildren="關閉" />
                                 break;
+                            case SystemParameterKind.String when item.Definition.AllowedValues is { } allowed:
+                                <Select TItem="string" TItemValue="string" @bind-Value="editForm.Text" Style="width: 100%;">
+                                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="@($"（空白：{item.Definition.BlankMeaning ?? "不設定"}）")" />
+                                    @foreach (var value in allowed)
+                                    {
+                                        <SelectOption TItemValue="string" TItem="string" Value="@value" Label="@value" />
+                                    }
+                                </Select>
+                                break;
                             default:
                                 <Input @bind-Value="editForm.Text" MaxLength="@(item.Definition.MaxLength ?? 2000)" />
                                 break;

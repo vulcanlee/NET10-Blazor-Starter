@@ -63,6 +63,18 @@ public static class SystemParameterValueCodec
                     return false;
                 }
 
+                if (definition.AllowedValues is { } allowed && text.Length > 0)
+                {
+                    var match = allowed.FirstOrDefault(x => string.Equals(x, text, StringComparison.OrdinalIgnoreCase));
+                    if (match is null)
+                    {
+                        error = $"只接受空白或 {string.Join("、", allowed)}。";
+                        return false;
+                    }
+
+                    text = match;
+                }
+
                 normalized = text;
                 return true;
         }
@@ -81,6 +93,8 @@ public static class SystemParameterValueCodec
             SystemParameterKind.Int when int.TryParse(value.Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var n)
                 => n.ToString(CultureInfo.InvariantCulture),
             SystemParameterKind.Bool when bool.TryParse(value.Trim(), out var b) => b ? "true" : "false",
+            SystemParameterKind.String when definition.AllowedValues is { } allowed
+                => allowed.FirstOrDefault(x => string.Equals(x, value.Trim(), StringComparison.OrdinalIgnoreCase)) ?? value.Trim(),
             SystemParameterKind.String => value.Trim(),
             _ => value,
         };
@@ -109,7 +123,12 @@ public static class SystemParameterValueCodec
                     ? $"{n.ToString("N0", CultureInfo.InvariantCulture)}{(definition.Unit is null ? string.Empty : " " + definition.Unit)}"
                     : canonical;
             default:
-                return canonical.Length == 0 ? "（空白）" : canonical;
+                if (canonical.Length == 0)
+                {
+                    return definition.BlankMeaning is { } blankMeaning ? $"（空白：{blankMeaning}）" : "（空白）";
+                }
+
+                return canonical;
         }
     }
 }

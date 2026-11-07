@@ -33,6 +33,10 @@ public static class SystemParameterCatalog
 
     private const string NextRetentionRun = "下一次排程清理時（預設每天 03:00）";
     private const string NextPasswordSet = "之後設定的密碼（現有的密碼不受影響）";
+    private const string ReasoningNote = "推論等級越高，回答通常越周全，但等待越久、推理 Token（費用）越多。空白代表沿用設定檔的 AiSettings:AgentReasoningEffort（預設不送，由模型自己決定）。實際接受哪些值依模型而定，模型不接受的值會在送出時被拒（例如 Azure gpt-6.1-sol 不接受 none）。";
+
+    private const string ReasoningBlank = "沿用 AiSettings:AgentReasoningEffort";
+
     private const string ModelNote = "空白代表使用 AiSettings:Model（設定檔的預設模型）。Azure OpenAI 請填部署名稱；端點與金鑰共用預設設定。新模型記得在 AiPricingSettings 補費率，否則記為未定價。";
 
     private const string QuotaNote = "以「Token 用量」記錄的台幣費用加總，未定價的模型以 0 計；達 80% 與 100% 各通知一次。";
@@ -191,15 +195,27 @@ public static class SystemParameterCatalog
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AgentPlayground, GroupAiModel,
             "Agent 測試台使用的模型", "「Agent 測試台」範例 Agent 用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
             "下一段新對話或從「我的對話」接續時（畫面上已開著的對話沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiReasoningSettings, string>(AiReasoningSettings.SectionName, x => x.AgentPlayground, GroupAiModel,
+            "Agent 測試台的推論等級", "「Agent 測試台」範例 Agent 送出的推論等級。" + ReasoningNote,
+            "下一段新對話或從「我的對話」接續時（畫面上已開著的對話沿用開始時的推論等級）", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.ProjectStatusReport, GroupAiModel,
             "「專案狀態報告」工作流程使用的模型", "「Agent 工作流程」的專案狀態報告，流程裡每個 agent 都用這個模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
             "下一次執行起（執行中的流程沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiReasoningSettings, string>(AiReasoningSettings.SectionName, x => x.ProjectStatusReport, GroupAiModel,
+            "「專案狀態報告」工作流程的推論等級", "「Agent 工作流程」的專案狀態報告，流程裡每個 agent 都送這個推論等級。" + ReasoningNote,
+            "下一次執行起", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.MultiPerspectiveReview, GroupAiModel,
             "「多觀點審查」工作流程使用的模型", "「Agent 工作流程」的多觀點審查，三個審查 agent 與彙整 agent 都用這個模型。" + ModelNote,
             "下一次執行起（執行中的流程沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiReasoningSettings, string>(AiReasoningSettings.SectionName, x => x.MultiPerspectiveReview, GroupAiModel,
+            "「多觀點審查」工作流程的推論等級", "「Agent 工作流程」的多觀點審查，三個審查 agent 與彙整 agent 都送這個推論等級。" + ReasoningNote,
+            "下一次執行起", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AdminAssistant, GroupAiModel,
             "系統管理助理使用的模型", "「系統管理助理」對話用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
             "下一則訊息起（每則訊息都重新建立助理；畫面上的「使用模型」在開對話或接續時更新）", maxLength: AiModelSettings.MaxModelLength),
+        Define<AiReasoningSettings, string>(AiReasoningSettings.SectionName, x => x.AdminAssistant, GroupAiModel,
+            "系統管理助理的推論等級", "「系統管理助理」對話與定時巡檢送出的推論等級（每則訊息前的分派判斷不送）。" + ReasoningNote,
+            "下一則訊息、下一次巡檢起", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AdminAssistantRouter, GroupAiModel,
             "系統管理助理分派使用的模型", "「系統管理助理」每則訊息前判斷屬於哪些領域用的模型，可以選便宜的模型。空白時用「系統管理助理使用的模型」。",
             "下一則訊息起", maxLength: AiModelSettings.MaxModelLength),
@@ -235,7 +251,9 @@ public static class SystemParameterCatalog
         int? max = null,
         int? maxLength = null,
         bool required = false,
-        bool isRetention = false)
+        bool isRetention = false,
+        IReadOnlyList<string>? allowedValues = null,
+        string? blankMeaning = null)
         where TOptions : class
     {
         var members = new Stack<PropertyInfo>();
@@ -270,6 +288,8 @@ public static class SystemParameterCatalog
             MaxLength = maxLength,
             Required = required,
             IsRetention = isRetention,
+            AllowedValues = allowedValues,
+            BlankMeaning = blankMeaning,
             ValidateSection = ValidateWithOptionsPipeline<TOptions>,
         };
     }

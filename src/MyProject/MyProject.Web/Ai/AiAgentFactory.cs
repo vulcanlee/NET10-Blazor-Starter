@@ -7,6 +7,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
+using MyProject.Web.Configuration.Parameters;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Responses;
@@ -44,6 +45,9 @@ public interface IAiAgentFactory
 /// <summary>建好的 agent 與它的呼叫狀態（每次成功的模型呼叫結果都在 <see cref="State"/>）。</summary>
 public sealed record AiAgentHandle(AIAgent Agent, AiCallState State, AiSettings Settings);
 
+/// <summary>這次送出的推論等級與它的設定來源（0.9.168 起），模型拒絕時錯誤訊息用來指出要改哪一個設定。</summary>
+internal sealed record AiReasoningEffortSource(string? Effort, string Source, bool IsFeatureOverride);
+
 /// <summary>記帳中介層需要的服務，打包成一份以免建構子參數爆量。</summary>
 internal sealed record AiAgentServices(
     ILogger Logger,
@@ -66,6 +70,7 @@ public sealed class AiAgentFactory : IAiAgentFactory
     private readonly IHttpClientFactory httpClientFactory;
     private readonly IOptionsMonitor<AiSettings> optionsMonitor;
     private readonly IOptionsMonitor<AiModelSettings>? modelOptions;
+    private readonly IOptionsMonitor<AiReasoningSettings>? reasoningOptions;
     private readonly ILoggerFactory loggerFactory;
     private readonly AiAgentServices services;
 
@@ -79,9 +84,11 @@ public sealed class AiAgentFactory : IAiAgentFactory
         IAiQuotaService quotaService,
         IAuditLogService auditLogService,
         IOptionsMonitor<SlowOperationSettings>? slowOptions = null,
-        IOptionsMonitor<AiModelSettings>? modelOptions = null)
+        IOptionsMonitor<AiModelSettings>? modelOptions = null,
+        IOptionsMonitor<AiReasoningSettings>? reasoningOptions = null)
     {
         this.modelOptions = modelOptions;
+        this.reasoningOptions = reasoningOptions;
         this.httpClientFactory = httpClientFactory;
         this.optionsMonitor = optionsMonitor;
         this.loggerFactory = loggerFactory;
@@ -106,12 +113,22 @@ public sealed class AiAgentFactory : IAiAgentFactory
         // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model。
         var model = modelOptions?.CurrentValue.Resolve(context.ModelKey, settings.Model) ?? settings.Model;
 
+        // 推論等級（0.9.168 起）：功能自己在系統參數設了就用它，空白沿用 AiSettings:AgentReasoningEffort。
+        // 記下來源，模型拒絕這個值時，錯誤訊息才指得出要改哪一個設定。
+        var effortOverride = reasoningOptions?.CurrentValue.GetOverride(context.ModelKey);
+        var effort = effortOverride ?? settings.AgentReasoningEffort;
+        var featureKey = $"{AiReasoningSettings.SectionName}:{context.ModelKey}";
+        var effortSource = effortOverride is null
+            ? $"{AiSettings.SectionName}:{nameof(AiSettings.AgentReasoningEffort)}"
+            : SystemParameterCatalog.Find(featureKey) is { } parameter ? $"系統參數「{parameter.Label}」" : featureKey;
+
         var openAIClient = CreateOpenAIClient(settings, state);
         var agentOptions = new ChatClientAgentOptions
         {
-            ChatOptions = CreateChatOptions(settings, instructions, tools, context.UseResponsesApi),
+            ChatOptions = CreateChatOptions(settings, effort, instructions, tools, context.UseResponsesApi),
         };
-        Func<IChatClient, IChatClient> accounting = inner => new AiAccountingChatClient(inner, context, state, settings, model, services);
+        var reasoning = new AiReasoningEffortSource(context.UseResponsesApi ? effort : null, effortSource, effortOverride is not null);
+        Func<IChatClient, IChatClient> accounting = inner => new AiAccountingChatClient(inner, context, state, settings, model, services, reasoning);
 
         // Agent 功能走 Responses API（0.9.149 起，見 AiCallContext.UseResponsesApi），其餘維持 Chat Completions。
         // 兩條路都經過同一個記帳中介層；記帳解析器同時看得懂兩種回應格式。
@@ -154,7 +171,7 @@ public sealed class AiAgentFactory : IAiAgentFactory
         return new OpenAIClient(new ApiKeyCredential(settings.ApiKey), options);
     }
 
-    private static ChatOptions CreateChatOptions(AiSettings settings, string? instructions, IList<AITool>? tools, bool useResponsesApi)
+    private static ChatOptions CreateChatOptions(AiSettings settings, string? reasoningEffort, string? instructions, IList<AITool>? tools, bool useResponsesApi)
         => new()
         {
             Instructions = instructions,
@@ -169,7 +186,7 @@ public sealed class AiAgentFactory : IAiAgentFactory
             Temperature = settings.Temperature is double temperature ? (float)temperature : null,
 
             // 推論等級只給 Agent 功能（Responses 的 reasoning.effort，0.9.149 起）；分析功能一律不送，由模型決定。
-            Reasoning = useResponsesApi && ToReasoningEffort(settings.AgentReasoningEffort) is { } effort
+            Reasoning = useResponsesApi && ToReasoningEffort(reasoningEffort) is { } effort
                 ? new ReasoningOptions { Effort = effort }
                 : null,
 
