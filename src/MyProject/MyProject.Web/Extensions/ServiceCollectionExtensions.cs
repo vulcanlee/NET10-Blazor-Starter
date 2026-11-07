@@ -126,6 +126,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AnnouncementCache>();
         services.AddScoped<INotificationMailer, NotificationMailer>();
         services.AddScoped<INotificationSender, NotificationSender>();
+        // 登入失敗告警（0.9.166 起）：AuditLogService 寫完登入失敗的稽核後評估；冷卻狀態跨連線共用。
+        services.AddSingleton<LoginFailureAlertState>();
+        services.AddScoped<ILoginFailureAlert, LoginFailureAlertService>();
         services.AddScoped<NotificationQueryService>();
         services.AddScoped<AnnouncementService>();
 
@@ -418,6 +421,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<LockoutSettings>()
             .Bind(configuration.GetSection(LockoutSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<LoginFailureAlertSettings>()
+            .Bind(configuration.GetSection(LoginFailureAlertSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

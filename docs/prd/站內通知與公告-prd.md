@@ -1,8 +1,8 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.9.166
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/11/07
 
@@ -50,6 +50,7 @@
 | Google 第一次登入建立待開通帳號 | 管理員 | 否 | `AccountPending:{使用者 Id}` | `ExternalLoginService` |
 | 排程作業失敗（不含中斷、略過；含系統備份） | 管理員＋手動觸發者 | 是 | — | `ScheduledJobRunner`（結束後以新 scope 發送） |
 | 帳號被鎖定 | 管理員 | 是 | 每次鎖定（不設去重鍵） | `MyUserServiceLogin`（0.9.101 起） |
+| 全系統短時間內登入失敗次數達門檻 | 管理員 | 是 | 不設去重鍵；`LoginFailureAlertSettings:CooldownMinutes`（預設 60）內不重發（記憶體） | `LoginFailureAlertService`（0.9.166 起，寫完登入失敗稽核後評估） |
 | 密碼即將到期（7 天內） | 本人 | 否 | `PasswordExpiring:{使用者 Id}:{到期時間}` | 排程作業「密碼到期提醒」（`PasswordExpiryReminder`，`0 8 * * *`，0.9.101 起） |
 | AI 用量達每人上限的 80%／100% | 本人 | 否 | `AiQuota:user:{使用者 Id}:{daily:日期\|monthly:年月}:{80\|100}` | `TokenUsageLogService` 記帳後（0.9.109 起，[AI 用量配額](AI用量配額-prd.md)） |
 | AI 用量達全系統上限的 80%／100% | 管理員 | 100% 時是 | `AiQuota:global:{daily:日期\|monthly:年月}:{80\|100}` | 同上 |

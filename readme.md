@@ -282,6 +282,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `BackupSettings` | 系統備份（0.9.99 起）：`KeepCount`（保留份數，預設 7）、`IncludeAiCallLogs`、`IncludeAiAgentConversations`（是否納入 AI 對話紀錄與 Agent 對話，預設 `false`）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `NotificationSettings` | 站內通知（0.9.100 起）：`RetentionDays`（預設 90）、`ReadRetentionDays`（已讀後保留天數，預設 7，0.9.125 起）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `PasswordPolicySettings` | 密碼原則（0.9.101 起）：最少字元數、字元種類、不可重複最近幾組、有效天數（`ExpiryDays`，預設 0＝不過期）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `LoginFailureAlertSettings` | 登入失敗告警（0.9.166 起）：全系統 `WindowMinutes`（預設 10）分鐘內登入失敗達 `Threshold`（預設 20，`0`＝不告警）次就通知全體管理員並寄信，`CooldownMinutes`（預設 60）內不重發。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md) |
 | `LockoutSettings` | 登入鎖定（0.9.101 起）：`MaxFailedAttempts`（預設 5）、`LockoutMinutes`（預設 15）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `TwoFactorSettings` | 兩步驟驗證（0.9.104 起）：`RequireForAdmins`（預設 `false`）、`RememberDeviceDays`（預設 30）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `ScheduledJobSettings` | 排程作業（0.9.96 起）：`Enabled`（總開關）、`JobRunRetentionDays`（執行紀錄保留天數，預設 90）、`Jobs:{作業}:Cron`（各作業執行時間）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |

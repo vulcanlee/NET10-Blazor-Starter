@@ -17,7 +17,7 @@ namespace MyProject.AccessDatas.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .UseCollation("Chinese_Taiwan_Stroke_CI_AS")
-                .HasAnnotation("ProductVersion", "10.0.5");
+                .HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.AdminPatrolReport", b =>
                 {
@@ -307,6 +307,8 @@ namespace MyProject.AccessDatas.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt");
 
                     b.HasIndex("ActorUserId", "OccurredAt");
 

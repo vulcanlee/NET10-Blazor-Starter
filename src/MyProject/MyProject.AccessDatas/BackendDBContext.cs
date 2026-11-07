@@ -273,6 +273,8 @@ public partial class BackendDBContext : DbContext
         #region 稽核紀錄（0.9.102 起）
         // 個人資料頁依「操作者 Id」取最近的登入紀錄；稽核表會無限長大，沒有索引就是整表掃描。
         modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.ActorUserId, x.OccurredAt });
+        // 依時間範圍查詢與統計（0.9.166 起）：稽核紀錄頁的時間條件、保留期限清理、登入失敗告警的時間窗計數。
+        modelBuilder.Entity<AuditLog>().HasIndex(x => x.OccurredAt);
         #endregion
 
         #region 兩步驟驗證備用碼（0.9.104 起）

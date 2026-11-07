@@ -23,4 +23,7 @@ public static class NotificationCategories
 
     /// <summary>定時巡檢的報告有「注意」「異常」或無法判讀 → 全體管理員（同時寄信；0.9.161 起）。</summary>
     public const string AdminPatrol = "AdminPatrol";
+
+    /// <summary>全系統短時間內登入失敗次數達門檻 → 全體管理員（同時寄信；0.9.166 起）。</summary>
+    public const string LoginFailureBurst = "LoginFailureBurst";
 }

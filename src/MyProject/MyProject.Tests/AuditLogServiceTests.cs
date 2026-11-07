@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 
@@ -11,6 +12,37 @@ namespace MyProject.Tests;
 
 public sealed class AuditLogServiceTests
 {
+    /// <summary>登入失敗寫完稽核後要評估登入失敗告警（0.9.166）：Blazor、Web API、Google 登入都經過這裡。</summary>
+    [Theory]
+    [InlineData(AuditActions.Login.Failed)]
+    [InlineData(AuditActions.Login.LockedOut)]
+    [InlineData(AuditActions.Login.TwoFactorFailed)]
+    [InlineData(AuditActions.Login.SsoFailed)]
+    public async Task WriteAsync_LoginFailure_EvaluatesLoginFailureAlert(string action)
+    {
+        await using var fixture = await AuditFixture.CreateAsync();
+        var alert = new CountingLoginFailureAlert();
+
+        await fixture.CreateService(loginFailureAlert: alert).WriteAsync(action, success: false, actorAccount: "guess");
+
+        Assert.Equal(1, alert.Calls);
+        Assert.Equal(1, await fixture.Context.AuditLog.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(AuditActions.Login.Success)]
+    [InlineData(AuditActions.Login.Disabled)]
+    [InlineData(AuditActions.Permission.Denied)]
+    public async Task WriteAsync_OtherActions_DoNotEvaluateLoginFailureAlert(string action)
+    {
+        await using var fixture = await AuditFixture.CreateAsync();
+        var alert = new CountingLoginFailureAlert();
+
+        await fixture.CreateService(loginFailureAlert: alert).WriteAsync(action, success: false, actorAccount: "alice");
+
+        Assert.Equal(0, alert.Calls);
+    }
+
     [Fact]
     public async Task WriteAsync_ShouldPersistAuditRow()
     {
@@ -143,13 +175,15 @@ public sealed class AuditLogServiceTests
         public AuditLogService CreateService(
             IClientIpProvider? clientIpProvider = null,
             AuditContentFileStore? contentFileStore = null,
-            ILogger<AuditLogService>? logger = null)
+            ILogger<AuditLogService>? logger = null,
+            ILoginFailureAlert? loginFailureAlert = null)
         {
             return new AuditLogService(
                 new TestDbContextFactory(connection),
                 logger ?? loggerFactory.CreateLogger<AuditLogService>(),
                 contentFileStore,
-                clientIpProvider);
+                clientIpProvider,
+                loginFailureAlert);
         }
 
         public async ValueTask DisposeAsync()
@@ -168,5 +202,16 @@ public sealed class AuditLogServiceTests
     private sealed class FixedClientIpProvider(string? ip) : IClientIpProvider
     {
         public string? GetClientIp() => ip;
+    }
+
+    private sealed class CountingLoginFailureAlert : ILoginFailureAlert
+    {
+        public int Calls { get; private set; }
+
+        public Task EvaluateAsync()
+        {
+            Calls++;
+            return Task.CompletedTask;
+        }
     }
 }

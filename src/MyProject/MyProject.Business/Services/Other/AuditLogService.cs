@@ -11,6 +11,7 @@ public sealed class AuditLogService : IAuditLogService
     private readonly ILogger<AuditLogService> logger;
     private readonly AuditContentFileStore? contentFileStore;
     private readonly IClientIpProvider? clientIpProvider;
+    private readonly ILoginFailureAlert? loginFailureAlert;
 
     /// <param name="contextFactory">
     /// 每筆稽核各用一個 context（0.9.131 起）。之前注入的 scoped context 在 Blazor 裡活得和整條 circuit 一樣久：
@@ -20,16 +21,22 @@ public sealed class AuditLogService : IAuditLogService
     /// <param name="clientIpProvider">
     /// 來源 IP 在這裡集中取得，各呼叫點不必傳；未註冊（單元測試）時不記 IP。
     /// </param>
+    /// <param name="loginFailureAlert">
+    /// 登入失敗告警（0.9.166 起）：寫完登入失敗的稽核後評估。所有登入路徑（Blazor、Web API、Google）都寫稽核，
+    /// 所以掛在這裡一處就涵蓋全部；未註冊（單元測試）時不評估。
+    /// </param>
     public AuditLogService(
         IDbContextFactory<BackendDBContext> contextFactory,
         ILogger<AuditLogService> logger,
         AuditContentFileStore? contentFileStore = null,
-        IClientIpProvider? clientIpProvider = null)
+        IClientIpProvider? clientIpProvider = null,
+        ILoginFailureAlert? loginFailureAlert = null)
     {
         this.contextFactory = contextFactory;
         this.logger = logger;
         this.contentFileStore = contentFileStore;
         this.clientIpProvider = clientIpProvider;
+        this.loginFailureAlert = loginFailureAlert;
     }
 
     public async Task WriteAsync(
@@ -82,6 +89,12 @@ public sealed class AuditLogService : IAuditLogService
 
             // 資料列沒建起來，內容檔就成了孤兒。
             contentFileStore?.Delete(contentFile);
+            return;
+        }
+
+        if (loginFailureAlert is not null && LoginFailureAlertService.CountedActions.Contains(action))
+        {
+            await loginFailureAlert.EvaluateAsync();
         }
     }
 }

@@ -1,8 +1,8 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.166
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/07
 
@@ -41,6 +41,7 @@
 ## 四、內部系統運作
 
 - **本地登入**（`MyUserServiceLogin.LoginAsync`，View → Service → `BackendDBContext`）：以 `Account` 查 `MyUser`；帳號不存在、密碼錯誤、鎖定中一律回 `InvalidCredentialsMessage`「帳號或密碼不正確，或帳號已被暫時鎖定。」（0.9.101 起；不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
+- **登入失敗告警**（0.9.166 起，`LoginFailureAlertSettings`，系統參數可調）：全系統最近 10 分鐘（預設）內登入失敗達 20 次（預設，含不存在的帳號、驗證碼錯誤、Google 登入失敗）就通知全體管理員並寄信，60 分鐘內不重發；不分帳號、不分 IP，抓的是帳號鎖定擋不到的橫向猜測。見 [稽核紀錄 PRD](稽核紀錄-prd.md) §七。
 - **帳號鎖定**（0.9.101 起讀 `LockoutSettings`，系統參數可調）：失敗時 `AccessFailedCount++`，達 `MaxFailedAttempts`（預設 5）設 `LockoutEndUtc = UtcNow + LockoutMinutes`（預設 15 分）並通知全體管理員（同時寄信）；
   鎖定期間不驗證密碼、不累加次數，稽核記 `Login.Failed`（`reason=Locked`），`Login.LockedOut` 只記造成鎖定的那一次。⚠️ 鎖定**到期時先歸零再驗證**（之前到期後錯一次就再鎖）。成功登入後 `AccessFailedCount` 歸零。
 - **舊的 123456**：登入成功時明文是 `123456` 就設 `MustChangePassword`（舊資料只有雜湊，無法用 SQL 轉換）。
