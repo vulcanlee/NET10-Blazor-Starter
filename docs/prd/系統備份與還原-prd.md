@@ -1,10 +1,10 @@
 ﻿# 系統備份與還原 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.99
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -13,7 +13,7 @@
 - **範圍**：備份內容與格式（zip＋manifest）、排程作業 `SystemBackup`、依份數自動刪除、管理頁 `/backups`（立即備份、清單、下載、刪除）、下載端點、還原腳本 `scripts/Restore-Backup.ps1`、備份目錄的啟動驗證。
 - **非範圍**：線上還原（網站執行中替換資料庫檔不安全）；備份加密；備份到雲端或遠端主機（由維運流程把下載的檔案搬走）；日誌檔與網站程式本身；`DownloadPath`／`UploadPath`（腳手架不寫入要長期保存的檔案，附件一律放 `ProjectFilePath`）。各項不備份的理由見[備份與還原操作手冊](../operations/備份與還原操作手冊.md) §1。
 
-使用者決定（2026/10/04）：備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環，預設不含 AI 對話內容；不加密；新增 `BackupPath`、管理員可下載；每天 02:00、保留 7 份。
+使用者決定（2026/10/04）：備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環（0.9.131 起另含稽核詳細內容檔），預設不含 AI 對話內容；不加密；新增 `BackupPath`、管理員可下載；每天 02:00、保留 7 份。
 
 ## 二、使用者與入口
 
@@ -35,7 +35,7 @@
   2. 估算大小（資料庫＋`-wal`＋各資料夾，×2）並檢查備份目錄的可用空間。
   3. 資料庫以 `VACUUM INTO` 寫到 `.work/<guid>/BackendDB.db`：不經連線池、不設逾時、唯讀連線；WAL 模式下取得一致快照且不擋寫入。
   4. `PRAGMA quick_check` 不是 ok 就不產出備份；讀最後一筆 migration 與數量、計算 SHA-256。
-  5. 依序打包 `db/BackendDB.db`、`files/ProjectFile`、`files/Exception`、`files/TokenUsage`、`files/Keys`（`IncludeAiCallLogs` 時加 `files/AiCallLog`；0.9.143 起 `IncludeAiAgentConversations` 時加 `files/AiAgentConversation`）、最後 `manifest.json`，寫到 `*.zip.partial`。
+  5. 依序打包 `db/BackendDB.db`、`files/ProjectFile`、`files/Exception`、`files/TokenUsage`、`files/AuditContent`（`AuditContentPath`，0.9.131 起）、`files/Keys`（`IncludeAiCallLogs` 時加 `files/AiCallLog`；0.9.143 起 `IncludeAiAgentConversations` 時加 `files/AiAgentConversation`）、最後 `manifest.json`，寫到 `*.zip.partial`。
      先資料庫、後檔案；來源檔打不開（被刪或被獨佔）只計數，不中止；檔與檔之間檢查取消。
   6. 原子改名成 `backup-yyyyMMdd-HHmmss[-n].zip`；`finally` 刪掉暫存與 partial。
 - **作業** `SystemBackupJob`（`0 2 * * *`）：成功後寫 `Backup.Create`，再依 `KeepCount` 刪舊備份（寫 `Backup.AutoPurge`）；失敗回 `Failure` 且**不刪舊備份**；取消時記為中斷。
@@ -43,7 +43,7 @@
 - **manifest.json**：`formatVersion`、`createdAtUtc`、`systemVersion`、`lastMigration`、`migrationCount`、`databaseEntry`、`databaseSha256`、`folders[]`（zip 資料夾 → `ExternalFileSystem` 設定鍵名與檔案數）、`missingFiles`、`missingFileCount`、`trigger`。
 - **還原腳本**：確認網站已停（獨佔開啟資料庫）→ 解壓並核對格式版本與雜湊 → 備份版本比部署的新時中止（`-Force` 略過）→ 現有資料庫與 `-wal`、`-shm` 改名保留 → 刪鎖檔 → 放入資料庫 → 各資料夾換成備份內容（舊的改名保留）、金鑰合併不覆蓋 → 印出回復步驟。腳本不寫死專案名稱（`New-StarterProject.ps1` 會文字替換）。
 - **設定**：`ExternalFileSystem:BackupPath`（啟動驗證：完整路徑、不與其他 10 個目錄重疊、不在網站目錄底下）、`BackupSettings { KeepCount = 7, IncludeAiCallLogs = false, IncludeAiAgentConversations = false }`（系統參數「備份」分類；後者 0.9.143 起，「備份 Agent 對話」）。
-- **Agent 對話不備份時**：還原後資料表 `AiAgentConversation` 的列還在（在資料庫裡），「我的對話」清單照常列出，但點開會提示「這段對話無法接續」，使用者刪除即可。0.9.144 起 Agent 工作流程的執行紀錄也在同一處、跟著同一個開關；不備份時「我的執行紀錄」清單照常列出，點開提示內容已不存在。
+- **Agent 對話不備份時**：還原後資料表 `AiAgentConversation` 的列還在（在資料庫裡），「我的對話」清單照常列出，但點開會提示「這段對話無法接續」，使用者刪除即可。0.9.144 起 Agent 工作流程的執行紀錄也在同一處、跟著同一個開關；不備份時「我的執行紀錄」清單照常列出，點開提示內容已不存在。0.9.161 起定時巡檢報告的內容檔也放在 `{AiAgentConversationPath}\AdminPatrol`、跟著同一個開關；不備份時還原後巡檢報告清單照常列出，內容檔不見。
 
 ## 五、權限與安全
 

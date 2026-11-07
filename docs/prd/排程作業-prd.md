@@ -1,10 +1,10 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.96
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -87,7 +87,8 @@
 ## 七、驗收與測試
 
 - `ScheduledJobFrameworkTests`：排程計算、設定驗證、跨行程只跑一次（暫存檔案資料庫＋兩個 DI 容器）、鎖、殘留回收、錯誤與取消、追蹤碼與 scope、排程器、健康監控判斷。
-- `RetentionJobTests`：四個清理作業（時區、0 天、無資料、失敗回報、分批、取消、月份目錄）。
+- `RetentionJobTests`：五個清理作業（稽核、例外、AI 對話紀錄、Agent 對話、Token 用量；時區、0 天、無資料、失敗回報、分批、取消、月份目錄）。
+- `AdminPatrolJobTests`（0.9.161）：系統管理助理巡檢與巡檢報告清理；巡檢的窄門、判讀與通知另見 `ScheduledPatrolToolGuardTests`、`AdminPatrolReportParserTests`、`AdminPatrolNotificationTests`。
 - `SoftDeletePurgeTests`（0.9.97）：五種資料的門檻邊界、附件實體檔與根目錄檢查、提交後才刪檔、中途還原與並行衝突、角色使用中與刪除當下被指派、同輪使用者與角色、受保護、Cascade 範圍、單一種類失敗、取消、本地時鐘、稽核內容與截斷。
 - `ScheduledJobWiringTests`：真正的主機中作業已註冊、舊計時器已移除、排程器註冊順序。
 - 守門：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`LoggingConventionTests`、`DataAccessServiceLifetimeTests`、`OptionsValidationTests`、`DocumentationConventionTests`。

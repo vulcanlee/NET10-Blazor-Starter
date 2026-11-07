@@ -1,10 +1,10 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.143
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
-- 最後核對日期：2026/11/03
+- 最後核對日期：2026/11/07
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
@@ -25,7 +25,7 @@
   - 集中式日誌平台（Seq／ELK／Loki／Application Insights）與結構化 JSON 輸出 —— 本系統以**系統內頁面**
     （`/logs`、`/system-exceptions`、`/audit-logs`、AI 分析）為主要分析方式，日誌檔維持現有純文字格式，
     因為 `/logs` 檢視器與 AI 日誌分析都依賴這個格式解析。
-  - 稽核記錄「修改前後值」（diff）。
+  - ~~稽核記錄「修改前後值」（diff）~~（0.9.131 起已實作，見 [稽核紀錄 PRD](稽核紀錄-prd.md) §六）。
   - APM、分散式追蹤、多台主機的日誌彙整。
 - **與其他文件的分工**
 
@@ -235,7 +235,7 @@
 | 全域請求日誌 | 方法、路徑、狀態碼、耗時 | `ApplicationBuilderExtensions.UseHttpRequestLogging` |
 | 例外自動收錄 | 任何 `LogError/LogCritical(ex, …)` 自動進例外紀錄表；相同簽章合併計次；堆疊另存檔案；上限 5000 列 | `ExceptionLogProvider`、`ExceptionLogWriter`、`ExceptionLogService` |
 | 例外情境 | 來源、頁面、帳號由 `ExceptionContextAccessor` 提供（HTTP、circuit 互動、啟動、背景作業） | `ApplicationCircuitHandler`、`UseHttpRequestLogging` |
-| 稽核 | 動作代碼 0.9.78 起收斂到 `AuditActions`（當時約 31 種，現行共 140 個常數）：登入、使用者／角色異動、密碼重設、檔案下載、日誌與 AI 相關操作、清除動作、清單點狀態標籤的啟用／停用（0.9.120）、測試通知（0.9.122）；0.9.117 起每筆自動記來源 IP（`AuditLogService` 經 `IClientIpProvider` 取得，呼叫端不傳；排程作業為空）；0.9.131 起加上開頁（`Page.View`）、查詢（`*.Search`）、查看單筆（`*.View`）與修改前後差異（寫在詳細內容檔）。每筆同步記一行 Debug `Audit recorded.`（只有短摘要與檔名，不含內容檔） | `AuditLogService` |
+| 稽核 | 動作代碼 0.9.78 起收斂到 `AuditActions`（0.9.78 時 59 個，現行共 141 個常數，以 `AuditActions` 為準）：登入、使用者／角色異動、密碼重設、檔案下載、日誌與 AI 相關操作、清除動作、清單點狀態標籤的啟用／停用（0.9.120）、測試通知（0.9.122）；0.9.117 起每筆自動記來源 IP（`AuditLogService` 經 `IClientIpProvider` 取得，呼叫端不傳；排程作業為空）；0.9.131 起加上開頁（`Page.View`）、查詢（`*.Search`）、查看單筆（`*.View`）與修改前後差異（寫在詳細內容檔）。每筆同步記一行 Debug `Audit recorded.`（只有短摘要與檔名，不含內容檔） | `AuditLogService` |
 | API 錯誤回應 | `ApiResult` 500 附 `TraceId`，正式環境不帶例外細節 | `ApiExceptionFilterAttribute`、`ExceptionDetailPolicy` |
 | 啟動保護 | 整段 try/catch，失敗記 Critical 並 `LogManager.Shutdown()` | `Program.cs` |
 | Blazor 錯誤邊界 | `LoggingErrorBoundary` | `Routes.razor` |
@@ -326,7 +326,7 @@
 ## 十、已知限制與待決事項
 
 - **Google SSO 使用者的 Account 就是 Email**：記 Account 等於記 Email，為既有且已接受的取捨（見操作文件 §2.4）。
-- **稽核不記修改前後值**：只記變更了哪些欄位名稱；需要還原「從 A 改成 B」時須另立需求。
+- ~~**稽核不記修改前後值**~~（**0.9.131 已實作**）：`AuditDiff` 比對分類、專案、團隊、使用者、角色與個人資料修改前後的純量欄位，寫進稽核的詳細內容檔，見稽核紀錄 PRD §六。
 - **單機設計**：例外合併、告警節流、前端回報計數都在單一程序的記憶體中；未來若改為多台主機需重新設計。
 - **時區**：例外紀錄與日誌檔使用伺服器本地時間，稽核使用 UTC（見稽核紀錄 PRD §四），跨表比對時須注意。
 - **告警只有 Email**：Teams、Slack、LINE 等通道不在本次範圍。

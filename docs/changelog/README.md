@@ -1,24 +1,31 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.83
+- 文件版本：6.84
 - 文件狀態：維護中
-- 現行系統版本：0.9.154
+- 現行系統版本：0.9.163
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/05
+- 最後核對日期：2026/11/07
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 文件全面對版：repo 內所有文件逐一對照程式碼，241 筆發現全部處理（事實不符、新功能沒寫到、互相矛盾、可讀性、失效連結），刪除 docs/superpowers，版本號規則改為「有建置內容才升版」，AGENTS.md 與 CLAUDE.md 恢復一致，順手修正 10 處程式文字與註解（0.9.163） | [2026-11-07-文件全面對版](2026-11-07-文件全面對版.md)
+| 使用手冊與寫作規範：新增《新手完整操作指南》（寫給使用系統的人，每個畫面都有欄位表與按鈕表）與《使用手冊寫作規範》（複刻的新系統照它改寫手冊），加上守門測試 UserManualCoverageTests；順手修正 7 處過時的操作說明（0.9.162）| [2026-11-07-使用手冊與寫作規範](2026-11-07-使用手冊與寫作規範.md) |
+| 系統管理助理第二版：定時巡檢：排程作業每天 07:30 以「系統排程身分＋窄門」只用 9 個唯讀工具巡檢，判讀狀態、存進系統管理助理頁的「巡檢報告」（保留 90 天可調），有「注意」「異常」時通知全體管理員並寄信（摘要＋連結）（0.9.161）| [2026-11-07-系統管理助理定時巡檢](2026-11-07-系統管理助理定時巡檢.md) |
+| 系統管理助理（里程碑 4 後續修正）：修改系統參數時核准窗顯示「目前狀態」（目前值與會不會縮短保留期限）、刪除 AI 對話紀錄只讀資料列、已刪除帳號超過上限時說明（0.9.160）| [2026-11-06-系統管理助理M4後續](2026-11-06-系統管理助理M4後續.md) |
+| 系統管理助理（里程碑 4）：15 個不可復原的工具（徹底刪除帳號與角色、重設 2FA、清空紀錄、刪除公告與備份、自訂清除、清理排程、縮短保留天數），核准窗紅字警告並要求輸入「確認」；一併處理審查留下的小問題（0.9.159）| [2026-11-06-系統管理助理M4](2026-11-06-系統管理助理M4.md) |
+| 系統管理助理（里程碑 3）：22 個經核准才執行的可復原異動工具（帳號、日誌等級、測試信與通知、提示詞版本、系統參數、排程、公告），核准窗顯示說明與批次清單（最多 50 筆），工具層擋下對自己的操作、最後一位管理員、縮短保留天數與清理排程（0.9.158）| [2026-11-06-系統管理助理M3](2026-11-06-系統管理助理M3.md) |
+| 系統管理助理（里程碑 2）：補齊帳號與權限、AI 管理、維運的查詢工具（共 26 個），「幫我巡一下系統」七段式巡檢報告，並修正里程碑 1 審查留下的 6 個小問題（稽核註記改 via=、分派 20 秒逾時等）（0.9.157）| [2026-11-06-系統管理助理M2](2026-11-06-系統管理助理M2.md) |
+| 系統管理助理使用手冊：給主管、管理員、維運三種讀者的功能說明與操作手冊，附 11 張實機截圖與測試報告；修正「我的對話」長標題撐寬側欄（0.9.156）| [2026-11-06-系統管理助理使用手冊](2026-11-06-系統管理助理使用手冊.md) |
+| 系統管理助理（里程碑 1）：系統管理新增「管理助理 › 系統管理助理」，每則訊息自動分派領域、同一段對話每輪換工具組，第一批監控與診斷、排程的唯讀工具（0.9.155）| [2026-11-06-系統管理助理M1](2026-11-06-系統管理助理M1.md) |
 | 今日異動文件補齊：核對 11/04～11/05 的 8 個 commit（0.9.144～0.9.153），補上 AI 對話紀錄操作說明的「工具結果」角色與「呼叫工具」顯示、PRD 主控台專案項目列的核對版本、腳手架開發指引與產生器說明的「資料保留與清理」登記、MAF AI 呼叫架構連到 AI Agent PRD、CI-CD 文件的測試數（0.9.154）| [2026-11-05-今日異動文件補齊](2026-11-05-今日異動文件補齊.md) |
 | 品質關卡加入「CRUD anchors」：`New-CrudModule.ps1` 新增 `-CheckAnchors`（照常執行每一項登記的插入但不寫檔、不產生樣板與 migration，遇到「已存在」當作失敗），品質關卡在文件編碼之後以一般、`-WithTeams`、`-AdminOnly` 三種組合執行（約 1～2 秒），被登記的檔案改寫後錨點對不上時提交前就擋下並指名是哪一項（0.9.153）| [2026-11-05-品質關卡加入CRUD產生器錨點檢查](2026-11-05-品質關卡加入CRUD產生器錨點檢查.md) |
 | 修正 CRUD 產生器：0.9.133～0.9.134 把 `SoftDeletePurgeService` 改成清除順序／switch／統計三處，`New-CrudModule.ps1` 仍找舊的逐行寫法而停在「找不到登記位置：已刪除資料清理（服務）」；三處都登記，並新增「資料保留與清理」頁（`DataRetentionOverviewService` 與其測試）的登記；新增 `Insert-AfterRequired`，同一檔多處登記任一處找不到錨點就停；`Test-CrudGenerator.ps1` 全部通過（含 0.9.150 的勾選欄樣板、重跑冪等）（0.9.152）| [2026-11-04-修正CRUD產生器登記錨點](2026-11-04-修正CRUD產生器登記錨點.md) |
 | 新增 AI Agent PRD（Agent 測試台與 Agent 工作流程原本只有架構文件與 changelog，不在 PRD 能力矩陣裡）：目的與範圍、權限、工具與核准、對話保存、兩條工作流程、模型、Responses API、推論等級（預設 `null`，Azure `gpt-6.1-sol` 實際為 `medium`；以設定檔 `AiSettings:AgentReasoningEffort` 全域調整）、記帳與資料生命週期；AI 對話紀錄 PRD 補上 0.9.149 的 Responses 解析與工具結果角色，系統參數 PRD 註明推論等級不在系統參數頁（0.9.151）| [2026-11-04-AI-Agent-PRD](2026-11-04-AI-Agent-PRD.md) |
 | 修正專案清單頁整頁空白：勾選欄 `<Selection />` 包在 `<RequirePermission>` 裡時，AntDesign 從第 3 列起欄位序號錯位，右側固定的操作欄讀到沒寬度的欄而丟 `ArgumentNullException`；專案、分類、團隊頁與 CRUD 樣板改為 code-behind 算 `canDelete`（同一份 `PermissionRules.CanAccessAction`）再用表格內 `@if`；`BatchDeleteConventionTests` 守門、`TableSelectionContractTests` 鎖住 AntDesign 行為（0.9.150）| [2026-11-04-修正勾選欄造成清單頁空白](2026-11-04-修正勾選欄造成清單頁空白.md) |
 | Agent 功能改走 Responses API：Azure `gpt-6.1-sol` 在 Chat Completions 上不論怎麼設推論等級都不能帶工具，Agent 測試台與 Agent 工作流程（含不帶工具的步驟）改走 `/v1/responses`（`AiCallContext.UseResponsesApi`、一律 `store=false`、歷史仍由 MAF session 整段重送），分析功能與健康探測維持 Chat Completions；記帳解析器與 AI 對話紀錄同時看得懂兩種格式（用量含快取／推理、`incomplete`→`length`、工具呼叫與工具結果）；`ToolReasoningEffort` 改名 `AgentReasoningEffort`（只對 Responses 送 `reasoning.effort`）；`OPENAI001` 只在 `AiAgentFactory.cs` 豁免；本機以 gpt-6.1-sol 實測 Agent 測試台、接續、核准與兩條工作流程皆成功（0.9.149）| [2026-11-04-Agent改走ResponsesAPI](2026-11-04-Agent改走ResponsesAPI.md) |
-| 撤回範本的 `"ToolReasoningEffort": "none"`：實測 Azure `gpt-6.1-sol` 不接受 `none`（只接受 low～xhigh）、又不允許工具搭配推論，在 Chat Completions 上無法使用工具，Agent 功能要在系統參數「AI 模型」換模型；400 `reasoning_effort` 依 code 分成兩種訊息（`unsupported_value` 改指向「改為 null 或換模型」，不再叫人設 none）（0.9.148）|
-| `appsettings.json` 範本的 `AiSettings` 加上 `"ToolReasoningEffort": "none"`（0.9.147，0.9.148 撤回）| [2026-11-04-Agent工具推論等級設定](2026-11-04-Agent工具推論等級設定.md) |
-| 修正 Agent 帶工具時 400 `reasoning_effort`：`gpt-6.1-sol` 在 Chat Completions 上不允許工具搭配推論（模型預設推論等級不是 none），Agent 測試台與 Agent 工作流程一呼叫就失敗；新增 `AiSettings:ToolReasoningEffort`（預設 `null` 不送；`none`／`low`／`medium`／`high`／`xhigh`，啟動時驗證），只套用在帶工具的 agent（`ChatOptions.Reasoning`），分析功能不受影響；400 `param=reasoning_effort` 改成指名設定與修法的訊息，上游沒給 code 時不再出現空的「（代碼 ）」（0.9.146）| [2026-11-04-Agent工具推論等級設定](2026-11-04-Agent工具推論等級設定.md) |
+| 修正 Agent 帶工具時 400 `reasoning_effort`：`gpt-6.1-sol` 在 Chat Completions 上不允許工具搭配推論（模型預設推論等級不是 none），Agent 測試台與 Agent 工作流程一呼叫就失敗；新增 `AiSettings:ToolReasoningEffort`（預設 `null` 不送；`none`／`low`／`medium`／`high`／`xhigh`，啟動時驗證），只套用在帶工具的 agent（`ChatOptions.Reasoning`），分析功能不受影響；400 `param=reasoning_effort` 改成指名設定與修法的訊息，上游沒給 code 時不再出現空的「（代碼 ）」；0.9.147 在 `appsettings.json` 範本的 `AiSettings` 加上 `"ToolReasoningEffort": "none"`；0.9.148 撤回範本的 `"ToolReasoningEffort": "none"`：實測 Azure `gpt-6.1-sol` 不接受 `none`（只接受 low～xhigh）、又不允許工具搭配推論，在 Chat Completions 上無法使用工具，Agent 功能要在系統參數「AI 模型」換模型；400 `reasoning_effort` 依 code 分成兩種訊息（`unsupported_value` 改指向「改為 null 或換模型」，不再叫人設 none）（0.9.146～0.9.148）| [2026-11-04-Agent工具推論等級設定](2026-11-04-Agent工具推論等級設定.md) |
 | Agent 測試台的測試專案：右上角「產生 10 筆測試專案」建立固定 10 筆繁體中文專案（標題開頭「【測試】」、不指定團隊、日期以今天推算，含逾期與各種狀態），成功後跳出說明窗列出 Agent 測試台與 Agent 工作流程的範例問句；「清除測試專案」永久刪除所有「【測試】」開頭的專案（含已刪除的）；已有測試專案時不再產生；分別需要「專案項目」新增／刪除權限，全部經 `ProjectService`（`ProjectSampleDataService`）（0.9.145）| [2026-11-04-Agent測試台測試專案](2026-11-04-Agent測試台測試專案.md) |
 | Agent 工作流程（MAF 四階段的第四階段）：套件 `Microsoft.Agents.AI.Workflows` 1.27.0；`IAiWorkflowRunner`／`AiWorkflowRun`（`InProcessExecution.OffThread`、`WatchStreamAsync(blockOnPendingRequest: false)`），步驟是自訂 executor `AiAgentStep`（不用 `AIAgent.BindAsExecutor`：它把整段對話含工具呼叫轉給下一個、收齊時下游跑好幾次），步驟之間只傳文字；工具核准、`ask_user` 提問、審閱關卡三種人工介入經 `RequestPort` 在頁面上當下回覆；核准規則抽成 `AiToolApprovals` 與 Agent 測試台共用；一次執行一個 `ConversationId`＋`RunId`，作業名稱是流程名稱（`TokenUsageOperations.ProjectStatusReport`／`MultiPerspectiveReview`）、關聯說明「流程／agent」；新設定 `AiModelSettings:ProjectStatusReport`／`MultiPerspectiveReview`（系統參數共 49 個）、7 個提示詞種類（「AI 提示詞」共 10 個分頁）、範例工具 `get_project_detail` 與異動工具 `append_project_status_summary`；執行紀錄與 Agent 對話共用 `AiAgentConversation`、內容檔目錄、保留天數、清理與備份（`AiAgentTranscriptEntry.Agent`、`Output` 種類，`SchemaVersion` 仍 1），不能從中途接續；新頁面「AI 助理 › Agent 工作流程」（`/agent-workflows`，不自動開給預設角色）（0.9.144）| [2026-11-04-Agent工作流程](2026-11-04-Agent工作流程.md) |
 | Agent 對話保存（MAF 四階段的第三階段 B）：新資料表 `AiAgentConversation`（migration `AddAiAgentConversation`，只放中繼資料）與內容檔 `AiAgentConversationPath/{yyyyMM}/{ConversationId}.json`（MAF session、畫面紀錄、待核准，經 `AiAgentConversationFileStore`）；`AiAgentChat` 每次執行後自動存檔，`IAiAgentRunner.ResumeAsync` 接續（模型用目前設定、沿用 `ConversationId`、停在核准的重新跳核准窗、權限在執行前再檢查）；`AiAgentConversationService` 一律只限本人（清單、改名不寫稽核、刪除寫 `AiAgentConversation.Delete`）；新設定 `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間）與系統參數「Agent 對話保留天數」「備份 Agent 對話」（共 47 個），排程作業「Agent 對話清理」（`AiAgentConversation.AutoPurge`），資料保留頁多一列「Agent 對話」（自訂清除 `AiAgentConversation.Purge`）；Agent 測試台左側「我的對話」、重新命名、刪除（0.9.143）| [2026-11-03-Agent對話保存](2026-11-03-Agent對話保存.md) |
@@ -133,6 +140,7 @@
 | 小型浮層果凍化：確認窗、通知與消息條（0.9.26）| [2026-09-18-小型浮層果凍化](2026-09-18-小型浮層果凍化.md) |
 | 大量資料輸入對話窗：滿版 2 欄版型、未儲存保護與果凍視覺（0.9.25）| [2026-09-18-對話窗UI設計規範](2026-09-18-對話窗UI設計規範.md) |
 | 系統健康監控新增三項檢查：LLM API、快取服務、AI 計費表（0.9.24）| [2026-09-18-健康監控新增LLM與快取檢查](2026-09-18-健康監控新增LLM與快取檢查.md) |
+| 登入頁改版紀錄：粉梅暖雪、RWD 與果凍動畫（0.9.23）| [login-redesign](login-redesign.md) |
 | 系統健康監控頁列入側邊選單（0.9.22）| [2026-09-18-系統健康監控上選單](2026-09-18-系統健康監控上選單.md) |
 | 側邊欄選單階層重組：統計與分析／權限管理 收納進系統管理（0.9.21）| [2026-09-18-側邊欄選單階層重組](2026-09-18-側邊欄選單階層重組.md) |
 | 側邊欄移除左上品牌圖示（0.9.19）| [2026-09-18-側邊欄移除品牌圖示](2026-09-18-側邊欄移除品牌圖示.md) |
@@ -189,6 +197,5 @@
 | 紀錄分類/團隊標籤與團隊權控（0.4.0）| [2026-06-22-紀錄分類團隊與權控](2026-06-22-紀錄分類團隊與權控.md) |
 | 新增「分類清單」與「團隊清單」管理頁面（0.3.0）| [2026-06-22-分類與團隊清單](2026-06-22-分類與團隊清單.md) |
 | 抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）| [2026-06-22-抑制SQLite-CVE-2025-6965](2026-06-22-抑制SQLite-CVE-2025-6965.md) |
-| Login 頁面改版紀錄 | [login-redesign](login-redesign.md) |
 
 > 返回 [文件總索引](../README.md)

@@ -1,6 +1,6 @@
 ﻿# NET10-Blazor-Starter
 
-一份基於 **.NET 10** 與 **Blazor Server**（全域 SSR）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Cookie 認證、角色權限、多語系、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
+一份基於 **.NET 10** 與 **Blazor Server**（全域 SSR）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Cookie 認證、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
 當前版本資訊定義在 [`src/MyProject/MyProject.Web/appsettings.json`](src/MyProject/MyProject.Web/appsettings.json) 之 `SystemSettings.SystemInformation.SystemVersion` 欄位。
 
@@ -102,8 +102,8 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   自行變更密碼、頁面權限拒絕、匯出與自動清理；0.9.117 起每筆記錄來源 IP（清單、明細與 CSV 顯示，關鍵字可搜），0.9.123 起可依來源 IP 篩選
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - AI 對話紀錄：保存每次 AI 呼叫實際送出的 Prompt 與取得的 Response（管理員專屬、預設保留 90 天自動過期），五種檢視、JSON／PDF 匯出，並與 Token 用量以呼叫識別碼互相連結（0.9.72）
-- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 8 個作業：6 個清理作業、系統備份、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
-- 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔與金鑰環成 zip，保留 7 份；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
+- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 11 個作業：8 個清理作業、系統備份、系統管理助理巡檢（0.9.161）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
+- 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環成 zip，保留 7 份（AI 對話紀錄與 Agent 對話可在系統參數選擇是否納入）；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
 - 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）；
   0.9.125 起鈴鐺每則可刪除、可「清除已讀」，已讀的通知預設 7 天後自動清除（`NotificationSettings:ReadRetentionDays`）
 - 密碼原則與登入鎖定：密碼長度、字元種類、不可重複最近幾組、有效天數與鎖定次數／分鐘都在系統參數調整；「下次登入須變更密碼」旗標；管理員可解鎖、鎖定時通知管理員；登入失敗訊息不透露帳號是否存在（0.9.101）
@@ -118,8 +118,12 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Agent 骨架與 Agent 測試台：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型；新選單「AI 助理 › Agent 測試台」（`/agent-playground`，可授權給角色，不自動開給預設角色）以範例 Agent 搜尋專案、核准後修改專案描述（0.9.142）
 - Agent 對話保存：Agent 測試台的對話自動保存在左側「我的對話」，只有本人看得到，可以接續（AI 記得前文、停在核准的重新跳核准窗）、重新命名、刪除；最後一次對話超過保留天數（系統參數，預設 90 天）自動刪除，資料保留頁多一列「Agent 對話」，備份可選擇是否包含（0.9.143）
 - Agent 工作流程：新選單「AI 助理 › Agent 工作流程」（`/agent-workflows`，可授權給角色，不自動開給預設角色），多個 Agent 依流程協作的兩個範例 ——「專案狀態報告」（蒐集 → 撰寫 → 你審閱、可退回 3 次 → 核准後把一行狀態摘要附加到專案描述）與「多觀點審查」（三位 AI 審查者同時審查、再彙整）；工具核准、AI 提問、審閱在頁面上當下回覆，一次執行的所有模型呼叫共用一個執行編號、Token 用量記在流程名稱下；執行紀錄存在「我的執行紀錄」只能回顧、不能從中途接續，與 Agent 對話共用保留天數、清理與備份；兩條流程可在系統參數「AI 模型」各自指定模型（0.9.144）
+- 系統管理助理（0.9.155 起）：新選單「系統管理 › 管理助理 › 系統管理助理」（`/admin-assistant`，只限管理員），管理員以對話查詢系統狀態（健康、錯誤、排程、備份、用量、帳號安全），每則訊息先分派給帳號與權限、監控與診斷、AI 管理、系統設定與維運四位專家；要修改時一律先跳核准窗，無法復原的動作要紅字確認；0.9.161 起每天 07:30 由排程作業定時巡檢，報告存在「巡檢報告」，有注意／異常時通知所有管理員並寄信
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
 - 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
+- 列表多筆刪除：列表工具列勾選後出現「刪除選取（N）」，先列出要刪的項目再逐筆刪除，刪不掉的列出原因、每筆各記稽核（0.9.132）
+- 資料保留與清理：`/data-retention`，一頁列出每種會自動刪除的資料的數量、檔案空間、最舊一筆、保留規則與下次會清掉多少，可「立即清理」（0.9.133）；0.9.134 起可「自訂清除」
+- AI 停止產生：日誌 AI 分析與 AI 例外分析的對話窗可在回覆途中按「停止產生」，保留已產生的內容（0.9.141）
 - 系統參數：`/system-parameters`，管理員在畫面上修改系統名稱、保留天數、監控與告警門檻、流量與忘記密碼限制，存檔即生效、不需重啟，每次修改寫稽核（0.9.98）
 - 全站視覺系統：粉梅暖雪色票收斂為 `wwwroot/theme.css` 單一來源，浮層果凍化、深梅側邊欄、共用狀態徽章（0.9.25–0.9.31）
 - API 安全基礎設施：依呼叫端分割的速率限制、安全回應標頭、上傳副檔名白名單（0.4.35）
@@ -131,7 +135,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 頁面操作說明：每個登入後頁面的頂欄頁名旁都有說明鈕，開啟近滿版的「〈頁名〉・操作說明」窗（固定七段、相關頁面依權限過濾）；
   內容在 `Datas/HelpTopics.json` ＋ `Datas/Help/*.md`，由 `PageHelpCatalogTests` 守門（0.9.66–0.9.67）；0.9.121 起說明窗可切換字體「小／中／大」
 - 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
-- 多語系：以瀏覽器 `Accept-Language` 自動切換，AntDesign 元件本地化
+- 語系固定 zh-TW（0.9.136 起移除 en-US），AntDesign 元件以繁中本地化
 - 全站請求耗時 / 例外統一寫入 NLog
 - 靜態資源外部對應（`/UploadFiles` → 實體下載目錄；**0.4.35 起需登入**才可取用）
 
@@ -169,7 +173,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ├── AGENTS.md / CLAUDE.md           ← LLM 協作行為準則與專案速查入口
 ├── .editorconfig                   ← 程式碼格式規則（提交前以 dotnet format --verify-no-changes 檢查）
 ├── global.json                     ← 鎖定 .NET SDK 版本
-├── .vscode/                        ← VS Code 啟動／任務（提交前四道關卡）／編輯器設定與建議擴充套件
+├── .vscode/                        ← VS Code 啟動／任務（單步任務與 quality-gate 一鍵關卡）／編輯器設定與建議擴充套件
 ├── docs/                           ← 系統設計與規範文件（依特性分類，見第 9 節）
 │   ├── README.md                   ← 文件目錄索引與分類規則
 │   ├── architecture/               ← 架構、資料模型、API/DTO 規範、開發慣例速查
@@ -190,10 +194,11 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、CookieSettings
-    │   ├── Ai/                     ← LLM 日誌／例外分析、安全 Markdown 渲染、PDF 報告、用量與計價
+    │   ├── Ai/                     ← LLM 日誌／例外分析、安全 Markdown 渲染、PDF 報告、用量與計價、Agent 與工作流程（Agents/、Workflows/）
     │   ├── Backup/                 ← 系統備份（VACUUM INTO 快照＋檔案打包成 zip）
     │   ├── Caching/                ← ICacheService（Memory ↔ Redis）
     │   ├── Dashboard/              ← 首頁儀表板小工具登記
+    │   ├── DataRetention/          ← 資料保留與清理總覽
     │   ├── Diagnostics/            ← 例外紀錄管線、日誌查詢、錯誤追蹤碼、告警、保存期限、慢操作、瀏覽器錯誤回報
     │   ├── Email/                  ← 寄信實作（None／Pickup／Smtp）、背景寄信佇列
     │   ├── Export/                 ← 通用匯出（TabularExport、業務頁 Excel）
@@ -253,7 +258,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
 | `SystemSettings.SystemInformation.SystemName` | 顯示用系統名稱。 |
 | `SystemSettings.SystemInformation.SystemDescription` | 顯示用系統描述。 |
-| **`SystemSettings.SystemInformation.SystemVersion`** | **唯一版本來源**，每次完成異動必須遞增（見第 8 節）。 |
+| **`SystemSettings.SystemInformation.SystemVersion`** | **唯一版本來源**，有建置內容的異動必須遞增（見第 8 節）。 |
 | `SystemSettings.ExternalFileSystem.DatabasePath` | SQLite 資料庫檔放置目錄。 |
 | `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
@@ -262,15 +267,25 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.ExternalFileSystem.AiCallLogPath` | AI 對話紀錄的內容檔目錄（完整 Prompt／Response，0.9.72 起）。⚠️ 內容含日誌與例外堆疊，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 測試台保存的對話內容檔目錄（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
+| `SystemSettings.ExternalFileSystem.AuditContentPath` | 稽核紀錄的詳細內容檔目錄（0.9.131 起）：修改前後差異與完整查詢條件，系統備份會打包、清除時同步刪檔。⚠️ 可能含 Email、姓名與搜尋原文，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
-| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`（後兩個 0.9.144 起，Agent 工作流程用），**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
+| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`（這兩個 0.9.144 起，Agent 工作流程用）、`AdminAssistant`、`AdminAssistantRouter`（系統管理助理與其路由判斷，0.9.155 起），**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
+| `AiQuotaSettings` | AI 用量上限（0.9.109 起）：全系統與每人的每日、每月新台幣上限（`GlobalDailyTwd`、`GlobalMonthlyTwd`、`PerUserDailyTwd`、`PerUserMonthlyTwd`，`0`＝不限制）；通常在系統參數頁「AI 用量」調整。見 [日誌與設定檔說明 §4.16](docs/operations/日誌與設定檔說明.md)。 |
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
 | `AiAgentConversationSettings` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
+| `AdminPatrolSettings` | 系統管理助理定時巡檢報告（0.9.161 起）：`RetentionDays`（預設 90，範圍 1～3650），產出超過天數的報告連同內容檔刪除；巡檢執行時間在 `ScheduledJobSettings`。見 [日誌與設定檔說明 §4.10.2](docs/operations/日誌與設定檔說明.md)。 |
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `SoftDeleteSettings` | 已刪除資料（0.9.97 起）：`PurgeAfterDays`（預設 90，`0`＝不自動永久刪除），專案、分類、團隊、使用者、角色刪除超過天數後永久刪除。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `BackupSettings` | 系統備份（0.9.99 起）：`KeepCount`（保留份數，預設 7）、`IncludeAiCallLogs`、`IncludeAiAgentConversations`（是否納入 AI 對話紀錄與 Agent 對話，預設 `false`）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `NotificationSettings` | 站內通知（0.9.100 起）：`RetentionDays`（預設 90）、`ReadRetentionDays`（已讀後保留天數，預設 7，0.9.125 起）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `PasswordPolicySettings` | 密碼原則（0.9.101 起）：最少字元數、字元種類、不可重複最近幾組、有效天數（`ExpiryDays`，預設 0＝不過期）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `LockoutSettings` | 登入鎖定（0.9.101 起）：`MaxFailedAttempts`（預設 5）、`LockoutMinutes`（預設 15）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `TwoFactorSettings` | 兩步驟驗證（0.9.104 起）：`RequireForAdmins`（預設 `false`）、`RememberDeviceDays`（預設 30）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `ScheduledJobSettings` | 排程作業（0.9.96 起）：`Enabled`（總開關）、`JobRunRetentionDays`（執行紀錄保留天數，預設 90）、`Jobs:{作業}:Cron`（各作業執行時間）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `ExceptionAlertSettings` | 系統例外 Email 告警（0.9.78 起）：`Recipients`（預設空清單＝停用）、`BurstThreshold`／`BurstWindowMinutes`（暴增門檻，預設 20 次／10 分）、`PerSignatureCooldownMinutes`（預設 60）、`MaxEmailsPerHour`（預設 20）。需寄信已啟用。見 [日誌與設定檔說明 §4.12](docs/operations/日誌與設定檔說明.md)。 |
 | `SlowOperationSettings` | 慢操作門檻（0.9.79 起，毫秒，超過記 Warning，`0`＝停用）：`HttpRequestMs`（3000）、`DbCommandMs`（1000）、`ExternalCallMs`（寄信，10000）、`AiCallMs`（60000）。見 [日誌與設定檔說明 §4.13](docs/operations/日誌與設定檔說明.md)。 |
 | `ClientErrorReporting` | 瀏覽器端 JavaScript 錯誤回報（0.9.79 起）：`Enabled`（預設 `true`）、`MaxPerCircuitPerMinute`（預設 10，範圍 1～1000）。見 [日誌與設定檔說明 §4.14](docs/operations/日誌與設定檔說明.md)。 |
@@ -285,14 +300,14 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 本專案採用單一版本來源策略。請務必遵守下列規範：
 
-1. **每次更新完成必須 bump 版本**：
-   每次異動一律將 `appsettings.json` 之 `SystemSettings.SystemInformation.SystemVersion` 的**最後一碼（Patch）+1**（例：`0.4.0 → 0.4.1`，不進位、不依異動性質區分），並把括號內日期更新為當天。
+1. **有建置內容就必須 bump 版本**：
+   有建置內容（程式、設定、會隨網站發佈的檔案，例如 `Datas/Help` 的操作說明）時，將 `appsettings.json` 之 `SystemSettings.SystemInformation.SystemVersion` 的**最後一碼（Patch）+1**（例：`0.4.0 → 0.4.1`，不進位、不依異動性質區分），並把括號內日期更新為當天；只改 `docs/` 或根目錄文件不升版。
 
    ```json
    "SystemVersion": "0.4.1 (2026/06/22)"
    ```
 
-   `SystemVersion` 為任何提交都應 bump 的最小單位。版號顯示格式為 `Major.Minor.Patch (YYYY/MM/DD)`；遞增規則詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md) 第 1.2 節。
+   `SystemVersion` 為有建置內容的提交都應 bump 的最小單位。版號顯示格式為 `Major.Minor.Patch (YYYY/MM/DD)`；遞增規則詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md) 第 1.2 節。
 
 2. **影響到既有文件就必須同步更新**：
    只要本次異動會改變既有功能、模組、API、資料表、設定欄位或 UI 行為，必須同步修訂相關文件。對應表詳見 [docs/operations/維護規範.md](docs/operations/維護規範.md)。
@@ -304,7 +319,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 1600 個測試、文件編碼、弱點掃描，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 2280 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell
@@ -347,6 +362,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最近 24 小時 WARN 以上日誌。
 - [AI 日誌分析](docs/features/AI日誌分析.md) — 日誌送 Azure OpenAI／OpenAI 整理、Markdown 安全渲染管線、PDF 報告與內嵌中文字型（0.9.4）。
 - [AI 例外分析](docs/features/AI例外分析.md) — 例外明細送 AI 產生分析報告、多輪追問、複製對話與 PDF 下載（0.9.68）。
+- [系統管理助理](docs/features/系統管理助理.md) — 管理員以對話查詢與管理系統、分派給四位專家、修改前核准與無法復原動作的紅字確認（0.9.155 起；0.9.161 定時巡檢）。
 
 ### 開發與操作指南（guides）
 
@@ -370,7 +386,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [備份與還原操作手冊](docs/operations/備份與還原操作手冊.md) — 系統備份的範圍與理由、下載、停站後以 `scripts/Restore-Backup.ps1` 還原。
 - [Gmail 寄信設定指南](docs/operations/Gmail寄信設定指南.md) — 用 Gmail 帳號寄信：應用程式密碼、`EmailSettings` 逐值設定與疑難排解。
 - [AI 模型計費更新指南](docs/operations/AI模型計費更新指南.md) — 依 OpenAI 官方頁面更新 `AiPricingSettings` 的逐步流程（調價、新模型、Deprecated）。
-- [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — 提交前本機四道關卡、文件編碼檢查、弱點掃描；並保留已移除之 GitHub Actions 流程作為衍生專案自建 CI 的參考設計。
+- [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — 提交前本機品質關卡（7 步，`Invoke-QualityGate.ps1`）、文件編碼檢查、弱點掃描；並保留已移除之 GitHub Actions 流程作為衍生專案自建 CI 的參考設計。
 
 ### 產品需求文件（prd）
 

@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.19
+- 文件版本：1.20
 - 文件狀態：已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -104,7 +104,7 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 六、資料來源
 
-0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時約 55 個，現行 140 個），呼叫點一律引用常數，
+0.9.78 起所有動作代碼集中在 `MyProject.Business/Helpers/AuditActions.cs`（0.9.78 時 59 個，現行 141 個，以 `AuditActions` 為準），呼叫點一律引用常數，
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
@@ -153,6 +153,12 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
 | `Audit.Purge` / `Audit.ClearAll` | `AuditLogView`（0.9.42 起）|
 | `Email.Test` | `EmailTestService`（系統健康監控頁的寄信測試，0.9.59 起；detail 只有 provider 與成敗，不含收件者）|
+| `Ai.QuotaBlocked` | `AiAccountingChatClient`（AI 用量上限在送出前擋下，0.9.109 起；detail `operation=…; limit=…; used=…`）|
+| `Ai.ToolInvoked` / `Ai.ToolDenied` / `Ai.ToolRejected` | Agent 工具（0.9.142 起）：`AiAgentToolFactory`（執行成功或失敗、權限擋下）、`AiToolApprovals`（核准時權限擋下，detail 加 `stage=approval`）、`AiAgentRunner`／`AiAgentStep`（使用者拒絕核准）；detail `agent=…; tool=…; permission=…`，不記參數與回傳內容 |
+| `Prompt.Update` / `Prompt.Activate` | `PromptTemplateView`（「AI 提示詞」頁，0.9.108 起）與系統管理助理的 `AiAssistantTools`；detail 記 `version=…`（經系統管理助理時另加 `via=`），不記提示詞內容 |
+| `AdminPatrol.AutoPurge` | 排程作業「巡檢報告清理」（0.9.161 起；detail `rows=N; days=D; trigger=T`，不記報告內容）|
+
+**系統管理助理與定時巡檢**：系統管理助理（0.9.155 起）執行的查詢與異動沿用原頁面的動作代碼（例如 `User.Search`、`Prompt.Activate`），detail 加 `via=admin-assistant`（0.9.155～0.9.156 的舊紀錄是 `source=`），工具本身另記 `Ai.ToolInvoked` 等。定時巡檢（0.9.161 起）沒有登入使用者，工具稽核的操作者留空（清單顯示「（系統／匿名）」），detail 最後註明「排程巡檢」。
 
 ## 七、已知限制與規劃中需求
 

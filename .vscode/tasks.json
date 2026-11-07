@@ -1,5 +1,5 @@
 {
-  // 提交前跑 quality-gate（= scripts/Invoke-QualityGate.ps1：restore → build → format → test → 文件編碼 → 弱點掃描）。
+  // 提交前跑 quality-gate（= scripts/Invoke-QualityGate.ps1：restore → build → format → test → 文件編碼 → CRUD 產生器錨點 → 弱點掃描）。
   // 專案沒有 CI，這就是唯一的關卡。build／format-check／test／docs-encoding 保留給單獨執行某一道時使用。
   // 更名專案時，本檔的 MyProject 路徑必須一併更新。
   "version": "2.0.0",
@@ -64,7 +64,7 @@
     },
     {
       "label": "quality-gate",
-      "detail": "提交前的品質關卡：restore、Release 建置、format、test、文件編碼、弱點掃描，遇到失敗就停。",
+      "detail": "提交前的品質關卡：restore、Release 建置、format、test、文件編碼、CRUD 產生器錨點、弱點掃描，遇到失敗就停。",
       "command": "pwsh",
       "type": "process",
       "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/Invoke-QualityGate.ps1"],

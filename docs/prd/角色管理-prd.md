@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.144
+- 現行系統版本：0.9.163
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/04
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -92,10 +92,10 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/Admins/RoleViewPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動）、`:490`（動作欄定義 `PermissionActionItems`）
+- `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動；動作欄定義 `PermissionActionItems`）
 - `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`（`AddAsync`、`UpdateAsync`、`DefaultRoleRenameMessage`、回填矩陣 `OtherDependencyData`）
-- `src/MyProject/MyProject.Business/Services/Other/RolePermissionService.cs`（`SetPermissionInput` `:117`）、`:138`（`GetPermissionInput`）
-- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncRolePermissionsAsync`）、`:108`（`EnsurePermissionsAsync`）
+- `src/MyProject/MyProject.Business/Services/Other/RolePermissionService.cs`（`SetPermissionInput`、`GetPermissionInput`）
+- `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncRolePermissionsAsync`、`EnsurePermissionsAsync`）
 - `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（判定）、`RbacBackfillService.cs`（權限目錄）
 - `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（API 403）
 - `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionActions`／`PermissionKey`）

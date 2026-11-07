@@ -1,10 +1,10 @@
 ﻿# AI 用量配額 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.140
+- 現行系統版本：0.9.163
 - 首次實作版本：0.9.109
-- 最後核對日期：2026/11/02
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -28,7 +28,7 @@
 |---|---|---|
 | 管理員 | 「系統參數」→ 分類「AI 用量」 | 四個上限（0＝不限制），修改立即生效 |
 | 管理員 | 「Token 用量」上方「AI 用量上限」 | 全系統今日、本月已用 vs 上限；每人上限的設定值 |
-| 使用 AI 分析的人 | 日誌檢視、系統例外紀錄的 AI 分析 | 被擋下時的原因與重置時間；鈴鐺收到 80%／100% 通知 |
+| 使用 AI 分析的人 | 日誌檢視、系統例外紀錄的 AI 分析；Agent 測試台、Agent 工作流程、系統管理助理（含分派）| 被擋下時的原因與重置時間；鈴鐺收到 80%／100% 通知 |
 | 管理員 | 鈴鐺、信箱 | 全系統 80%／100% 通知；全系統達 100% 另寄信 |
 
 ## 三、畫面與欄位
@@ -43,8 +43,8 @@
 - **設定**：`AiQuotaSettings`（`MyProject.Models/Systems`；`GlobalDailyTwd`、`GlobalMonthlyTwd`、`PerUserDailyTwd`、`PerUserMonthlyTwd`，int、`[Range(0, 100000000)]`），以 `IOptionsMonitor` 讀取，是系統參數。
 - **計算**：`AiQuotaService`（Business，`IDbContextFactory`）。期間以伺服器本地時間的今天 00:00～明天 00:00、本月 1 日 00:00～下月 1 日 00:00（`TimeProvider`）；`TokenUsageLog.OccurredAt` 存的就是本地時間。加總 `CostTwd`，未定價（空值）以 0 計。每人加總吃新索引 (`UserId`, `OccurredAt`)（migration `AddTokenUsageUserIndex`）。只計算有設定的上限，四個都是 0 時不查資料庫。
 - **攔截**：記帳中介層 `AiAccountingChatClient`（0.9.140 起；之前在 `AiChatCompletionClient.CompleteAsync`）在**每一次**模型呼叫送出之前呼叫 `CheckAsync(目前使用者)`（設定檢查由 `AiChatCompletionClient` 先做）。已達到（含等於）任一上限 → 不送出、不記用量、回 `AiAnalysisFailureReason.QuotaExceeded`、寫稽核 `Ai.QuotaBlocked`（目標 `AiQuota#User:Daily`，detail `operation=…; limit=…; used=…`）、記警告日誌。同時達到多個時回報**最晚才重置**的那一個。讀不到用量時寫錯誤日誌並放行。
-  所有 LLM 呼叫都經 `IAiAgentFactory` 建立的 agent，所以 AI 日誌分析、AI 例外分析（每一輪追問）都會被檢查；系統健康監控的 AI 連線檢查（`AiHealthProbe`）以 `AiCallContext.EnforceQuota = false` 略過檢查，所以不會被擋（`AiAgentPipelineTests.HealthProbe_ShouldIgnoreQuota` 守門）。
-- **提醒**：`TokenUsageLogService.RecordAsync` 寫入一筆有台幣費用的用量後呼叫 `NotifyIfReachedAsync(使用者)`（健康檢測也是）。每個有設定的上限：達 100% 發 100% 的通知，否則達 80% 發 80% 的通知；去重鍵 `AiQuota:{global|user:{Id}}:{daily:yyyy-MM-dd|monthly:yyyy-MM}:{80|100}`，同一期間同一門檻只通知一次（`NotificationSender` 依去重鍵略過**現存通知裡**已有同鍵的人；通知被刪除後會再發，見 §六）。每人 → 本人；全系統 → 全體管理員，達 100% 同時寄信。通知分類 `AiQuota`。
+  所有 LLM 呼叫都經 `IAiAgentFactory` 建立的 agent，所以 AI 日誌分析、AI 例外分析（每一輪追問）、Agent 測試台、Agent 工作流程與系統管理助理（含分派）都會被檢查，定時巡檢（0.9.161 起）沒有登入使用者、只受全系統上限；系統健康監控的 AI 連線檢查（`AiHealthProbe`）以 `AiCallContext.EnforceQuota = false` 略過檢查，所以不會被擋（`AiAgentPipelineTests.HealthProbe_ShouldIgnoreQuota` 守門）。
+- **提醒**：`TokenUsageLogService.RecordAsync` 寫入一筆有台幣費用的用量後呼叫 `NotifyIfReachedAsync(使用者)`（健康檢測也是）。每個有設定的上限：達 100% 發 100% 的通知，否則達 80% 發 80% 的通知；去重鍵 `AiQuota:{global|user:{Id}}:{daily:yyyy-MM-dd|monthly:yyyy-MM}:{80|100}`，同一期間同一門檻只通知一次（`NotificationSender` 依去重鍵比對發送紀錄 `NotificationDispatch`（0.9.136 起），通知被刪除後也不會再發，見 §六）。每人 → 本人；全系統 → 全體管理員，達 100% 同時寄信。通知分類 `AiQuota`。
 - **並行**：同時送出的呼叫都通過檢查後才記帳，已用金額可能小幅超過上限（已接受）；下一次呼叫就會被擋。
 
 ## 五、權限與安全
@@ -60,7 +60,7 @@
 | 上限 0 | 不限制 |
 | 已用剛好等於上限 | 視為已達上限，擋下 |
 | 模型未定價 | 費用以 0 計，不會讓人被擋；Token 用量頁照樣提示「未定價」 |
-| 沒有登入者的呼叫（使用者 Id 為 0） | 只看全系統上限 |
+| 沒有登入者的呼叫（使用者 Id 為 0，例如定時巡檢） | 只看全系統上限 |
 | 跨午夜、月初 | 依伺服器本地時間重置 |
 | 讀不到用量（資料庫錯誤） | 放行並寫錯誤日誌 |
 | 通知失敗 | 不影響用量記錄（`NotifyIfReachedAsync` 不丟例外） |

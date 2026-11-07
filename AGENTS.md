@@ -64,9 +64,9 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
-* 每次產生出一個建置內容後，appsettings.json 內的版本編號，都要把**最後一碼（Patch）加 1**（例：`0.4.0 → 0.4.1`，不進位、不分異動性質），並且在 commit message 中說明版本編號的變更。
+* 有建置內容（程式、設定、會隨網站發佈的檔案，例如 `Datas/Help` 的操作說明）才把 appsettings.json 內的版本編號**最後一碼（Patch）加 1**（例：`0.4.0 → 0.4.1`，不進位、不分異動性質），並且在 commit message 中說明版本編號的變更；只改 `docs/` 或根目錄文件不升版。
 
-* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下與根目錄的 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機跑 `pwsh ./scripts/Invoke-QualityGate.ps1`，它依序執行建置、格式、測試、文件編碼與弱點掃描）
+* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下與根目錄的 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機跑 `pwsh ./scripts/Invoke-QualityGate.ps1`，它依序執行建置、格式、測試、文件編碼、CRUD 產生器錨點與弱點掃描）
 
 * 需要 commit 的時候，不能自動去做 commit
 
@@ -87,13 +87,13 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Blazor 檢視編輯前 `Clone()`。**不再需要手動清除 EF 追蹤** —— 0.4.36 起 Blazor 路徑的資料服務
   改注入 `IDbContextFactory<BackendDBContext>`，每個方法用完即棄，`CleanTrackingHelper` 已移除。
 - 新增頁面權限採**宣告式**：`Menu.json`（每項唯一 `id`）＋ `SidebarMenuService.MenuPermissionMap`（`id→權限鍵`）＋ `MagicObjectHelper` 權限鍵常數；以 id 對應、重排 `Menu.json` 不錯位（舊「位置索引三處同步」已移除）。
-- 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（每次異動一律 Patch +1，例：`0.4.0 → 0.4.1`；格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
+- 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（有建置內容〔程式、設定、會隨網站發佈的檔案，例如 `Datas/Help` 的操作說明〕才 Patch +1，例：`0.4.0 → 0.4.1`；只改 `docs/` 或根目錄文件不升版；格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
 - **全站色票的唯一來源是 `src/MyProject/MyProject.Web/wwwroot/theme.css` 的 `:root`**；`--ov-*`（浮層）與
   `--login-*`（登入頁）只是別名層。樣式要寫哪裡的判準是 **DOM 位置**不是元件名稱：AntDesign 渲染在
   `AntContainer` 底下的浮層 → `OverlayStyles.razor`；渲染在頁面內的（Table／Pagination／Input／Tag）→
   `theme.css`。見速查表 §6.9 與 `docs/architecture/介面視覺設計規範.md`。由 `ThemeConventionTests` 守門。
 - **每個登入後頁面都有「操作說明」**：新增 `@page` 必須登記 `MyProject.Web/Datas/HelpTopics.json` 並寫
   `Datas/Help/<路由>.md`（UTF-8 含 BOM、固定七段），或列入 `PageHelpCatalogTests.RoutesWithoutHelp`；
-  改了頁面的按鈕／欄位要同步改說明第三段。見速查表 §6.14。
+  並在 `docs/guides/新手完整操作指南.md` 新增標題含 `` `/路由` `` 的章節（`UserManualCoverageTests` 守門）；
+  改了頁面的按鈕／欄位要同步改說明第三段，手冊也要同步。見速查表 §6.14。
 - `docs/*.md` 與根目錄 `*.md` 須 UTF-8 **含 BOM**（`scripts/Test-DocsEncoding.ps1` 檢查，已含在 `Invoke-QualityGate.ps1` 內）。
-
