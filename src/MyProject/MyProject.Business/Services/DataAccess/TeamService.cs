@@ -490,7 +490,7 @@ public class TeamService
             if (await TeamHierarchy.IsParentOfAnyAsync(context, id))
             {
                 Logger.LogInformation("Team purge rejected because other teams still use it as parent. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, "還有其他部門（含已刪除的）以它為上層部門，請先永久刪除那些部門。");
+                return VerifyRecordResultFactory.Build(false, "還有其他團隊（含已刪除的）以它為上層團隊，請先永久刪除那些團隊。");
             }
 
             context.Team.Remove(item);
@@ -615,7 +615,7 @@ public class TeamService
     }
 
     public static string DeletedNameMessage(string name)
-        => $"已刪除的團隊用過「{name}」這個名稱，改成它會讓那個團隊留下的資料被這個部門看到。請換一個名稱，或先永久刪除那個團隊。";
+        => $"已刪除的團隊用過「{name}」這個名稱，改成它會讓那個團隊留下的資料被這個團隊看到。請換一個名稱，或先永久刪除那個團隊。";
 
     /// <summary>
     /// 取得所有啟用中的團隊名稱（依名稱排序），供其他頁面下拉選取使用。

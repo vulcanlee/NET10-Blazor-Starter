@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.165
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/11/07
 
@@ -131,7 +131,7 @@
 | 使用者未綁定任何團隊 | 看得到全部分類 |
 | 使用者有團隊 | 看得到「公用分類」＋「適用團隊與自己所屬團隊有交集」的分類 |
 
-- 「使用者的團隊」＝其**所有**所屬團隊的聯集（`UserTeam` ∪ 角色 `DefaultTeamsJson`），0.9.105 起再加上它們所有的下屬部門，由 `IEffectiveTeamResolver` 計算、經 `IRecordAccessScopeProvider` 取得。系統沒有「目前團隊／切換團隊」的概念。
+- 「使用者的團隊」＝其**所有**所屬團隊的聯集（`UserTeam` ∪ 角色 `DefaultTeamsJson`），0.9.105 起再加上它們所有的下屬團隊，由 `IEffectiveTeamResolver` 計算、經 `IRecordAccessScopeProvider` 取得。系統沒有「目前團隊／切換團隊」的概念。
 - 規則集中在 `RecordTeamScope.ApplyCategory`／`CanAccessCategory`（0.9.105 起；`CategoryService.ApplyTeamVisibility`／`IsVisible` 轉呼叫它們）。修改也檢查既有分類在範圍內；非管理員新加的適用團隊必須在自己範圍內、有指定的不可改成留空（`RecordTeamScope.CheckAssignment`）。
 - ⚠️ **「未綁團隊的使用者看得到全部」與紀錄（Project）的規則相反** —— 紀錄是「只看得到公開紀錄」。分類可見性是下拉清單的便利性過濾，不是安全邊界（安全邊界為 RBAC），故刻意採寬鬆規則。
 - 名稱唯一性檢查**不**套團隊過濾，避免「看不到卻建得出同名分類」。

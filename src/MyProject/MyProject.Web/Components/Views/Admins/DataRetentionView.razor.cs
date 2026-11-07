@@ -289,7 +289,7 @@ namespace MyProject.Web.Components.Views.Admins
             {
                 lines.Add($"已刪除資料是一起清理的，會同時永久刪除這五種中超過保留期限的資料（{row.RuleText}）：");
                 lines.AddRange(related.Select(x => $"・{x.Label}：{x.Expected ?? 0:N0} {x.CountUnit}"));
-                lines.Add($"共最多 {expected:N0} 筆；support 帳號、預設角色、仍在使用的角色與還有下屬的部門會留到下次。");
+                lines.Add($"共最多 {expected:N0} 筆；support 帳號、預設角色、仍在使用的角色與還有下屬的團隊會留到下次。");
             }
             else
             {

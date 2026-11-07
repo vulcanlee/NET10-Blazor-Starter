@@ -81,7 +81,7 @@ public sealed class DataRetentionOverviewService
     /// <summary>資料夾大小加總的時間上限：超過就顯示「至少」，不讓整頁卡住。</summary>
     private static readonly TimeSpan FolderBudget = TimeSpan.FromSeconds(10);
 
-    private const string SoftDeleteNote = "最多；support 帳號、預設角色、仍在使用的角色與還有下屬的部門會留到下次";
+    private const string SoftDeleteNote = "最多；support 帳號、預設角色、仍在使用的角色與還有下屬的團隊會留到下次";
 
     private readonly ScheduledJobOverviewService jobOverviewService;
     private readonly SoftDeletePurgeService softDeletePurgeService;

@@ -62,7 +62,7 @@ else
                     <Selection Disabled="@(!myUserService.CanDelete(context))" />
                 }
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Sortable DefaultSortOrder="SortDirection.Ascending" />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable>
@@ -100,8 +100,8 @@ else
                         <span>—</span>
                     }
                 </Column>
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Sortable />
+                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Sortable />
                 @if (showDeleted)
                 {
                     <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" />

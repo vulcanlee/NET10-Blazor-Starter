@@ -1,8 +1,8 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.165
 - 首次實作版本：0.4.0
 - 最後核對日期：2026/11/07
 
@@ -40,7 +40,7 @@
 - 可見範圍規則（非管理員）：
   - 無團隊（null 或空）＝ 公開，任何人可見。
   - 有團隊＝ 僅當紀錄團隊與使用者「有效團隊」有交集才可見。
-  - 0.9.105 起「有效團隊」含所有下屬部門：被指派到上層部門的人看得到下屬部門的紀錄；反過來，下屬看不到上層或同層部門的紀錄。
+  - 0.9.105 起「有效團隊」含所有下屬團隊：被指派到上層團隊的人看得到下屬團隊的紀錄；反過來，下屬看不到上層或同層團隊的紀錄。
   - 管理員一律可見全部。
 - 指派規則（0.9.105 起，非管理員）：新加上的團隊必須在自己的範圍內（原本就有的可以保留或拿掉）；原本有團隊的紀錄不可改成公開。表單的「團隊」選項只列範圍內的團隊（加上這筆原本就有的）；新增專案時預設帶入範圍裡最上層的團隊。
 
@@ -48,10 +48,10 @@
 
 1. 標籤字串（`TagStringHelper`）：多值以換行分隔並前後包夾，例 `"\n團隊A\n團隊B\n"`。此格式可用 `Contains("\n團隊A\n")` 在 SQLite 上做「精確成員」比對，避免子字串誤判（如「團隊」誤中「團隊2」）。
    - `ToStored` 去空白／去重（忽略大小寫，保留順序）；`ToList` 還原；`Wrap` 包單一名稱。
-2. 使用者有效團隊（`EffectiveTeamResolver.GetEffectiveTeamNamesAsync`）：指派的團隊（`GetAssignedTeamNamesAsync`，聯集兩來源並去重）再加上它們所有的下屬部門（0.9.105 起，`ITeamTreeCache`）——
+2. 使用者有效團隊（`EffectiveTeamResolver.GetEffectiveTeamNamesAsync`）：指派的團隊（`GetAssignedTeamNamesAsync`，聯集兩來源並去重）再加上它們所有的下屬團隊（0.9.105 起，`ITeamTreeCache`）——
    - 直接綁定使用者的團隊（`UserTeam`）。
    - 使用者角色（`UserRole` ∪ legacy `RoleViewId`）的預設團隊（`RoleView.DefaultTeamsJson`）。
-   - 反查 `GetUserIdsInTeamAsync(團隊)`（發通知、公告用）＝ 被指派了這個團隊或它任一個上層部門的人，與正向定義相同（測試互相對照）。
+   - 反查 `GetUserIdsInTeamAsync(團隊)`（發通知、公告用）＝ 被指派了這個團隊或它任一個上層團隊的人，與正向定義相同（測試互相對照）。
 3. 存取範圍解析（`RecordAccessScopeProvider.GetAsync` → `RecordAccessScope(IsAdmin, Teams)`）：
    - Blazor 互動情境用已填入的 `CurrentUserService`。
    - Web API／檔案下載情境以 `RequestActorResolver` 取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier），載入使用者並解析有效團隊。
@@ -96,7 +96,7 @@
 - `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs`（有效團隊解析）
 - `src/MyProject/MyProject.Web/Auth/RecordAccessScopeProvider.cs`（存取範圍解析）
 - `src/MyProject/MyProject.Business/Services/Other/IRecordAccessScopeProvider.cs`（`RecordAccessScope`）
-- `src/MyProject/MyProject.Business/Helpers/RecordTeamScope.cs`（0.9.105 起的共用可見性與指派規則）、`Services/Other/TeamTree.cs`（部門樹與快取）
+- `src/MyProject/MyProject.Business/Helpers/RecordTeamScope.cs`（0.9.105 起的共用可見性與指派規則）、`Services/Other/TeamTree.cs`（團隊樹與快取）
 - `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`、`CategoryService.cs`、`Repositories/ProjectRepository.cs`、`CategoryRepository.cs`（查詢範圍套用）
 - `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（`HasPermissionAsync`，管理員短路 `:33`）
 - `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（401/403 與 `ApiResult`）

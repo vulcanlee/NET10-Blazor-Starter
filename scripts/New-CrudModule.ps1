@@ -458,6 +458,17 @@ Update-Source 'MyProject.Web/Datas/HelpTopics.json' '操作說明目錄' "`"rout
     $t.Insert($end + 1, ",`n  { `"route`": `"$Route`", `"title`": `"$DisplayName`", `"file`": `"$routeKey.md`" }")
 }
 
+# 使用手冊（0.9.165 起）：UserManualCoverageTests 要求 HelpTopics.json 的每個路由都有標題含 `/路由` 的手冊章節。
+# 插在第六章（業務資料）最後、第七章前的分隔線之前；節號接在第六章現有最大的節號後面。
+$manualTemplate = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'crud-manual-section.md.tmpl') -Raw -Encoding utf8
+Update-Source '../../docs/guides/新手完整操作指南.md' '使用手冊章節' "``$Route``" {
+    param($t)
+    $numbers = @([regex]::Matches($t, '(?m)^### 6\.(\d+) ') | ForEach-Object { [int]$_.Groups[1].Value })
+    $next = (($numbers + 0) | Measure-Object -Maximum).Maximum + 1
+    $section = (Expand-Template $manualTemplate).Replace('__Section__', "$next").Trim()
+    Insert-Before $t "`n---`n`n## 七、AI 功能`n" "`n$section`n`n---`n"
+}
+
 Update-Source 'MyProject.Web/Components/_Imports.razor' '_Imports.razor' "@using MyProject.Web.Components.Views.$Plural`n" {
     param($t)
     Insert-After $t "@using MyProject.Web.Components.Views.Teams`n" "@using MyProject.Web.Components.Views.$Plural`n"

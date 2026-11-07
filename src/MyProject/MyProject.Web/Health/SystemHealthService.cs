@@ -265,15 +265,25 @@ public sealed class SystemHealthService : ISystemHealthService
             status == SystemHealthStatus.Healthy ? null : "Cookie/JWT 設定不完整，或 Production 仍使用開發用 JWT key。");
     }
 
+    /// <summary>「檔案系統」要檢查的目錄（鍵是報告裡顯示的名稱）。</summary>
+    internal static IReadOnlyList<KeyValuePair<string, string>> FileSystemPaths(ExternalFileSystem fs) =>
+    [
+        new("Database", fs.DatabasePath),
+        new("Download", fs.DownloadPath),
+        new("Upload", fs.UploadPath),
+        new("ProjectFile", fs.ProjectFilePath),
+        new("Exception", fs.ExceptionPath),
+        new("TokenUsage", fs.TokenUsagePath),
+        new("AiCallLog", fs.AiCallLogPath),
+        new("AiAgentConversation", fs.AiAgentConversationPath),
+        new("AuditContent", fs.AuditContentPath),
+        new("DataProtectionKey", fs.DataProtectionKeyPath),
+        new("Backup", fs.BackupPath),
+    ];
+
     private SystemHealthItem CheckFileSystem()
     {
-        var paths = new Dictionary<string, string>
-        {
-            ["Database"] = systemSettingsOptions.Value.ExternalFileSystem.DatabasePath,
-            ["Download"] = systemSettingsOptions.Value.ExternalFileSystem.DownloadPath,
-            ["Upload"] = systemSettingsOptions.Value.ExternalFileSystem.UploadPath,
-            ["ProjectFile"] = systemSettingsOptions.Value.ExternalFileSystem.ProjectFilePath
-        };
+        var paths = FileSystemPaths(systemSettingsOptions.Value.ExternalFileSystem);
 
         var failures = paths
             .Where(path => string.IsNullOrWhiteSpace(path.Value) || !Directory.Exists(path.Value) || !DirectoryIsWritable(path.Value))

@@ -365,7 +365,7 @@ namespace MyProject.Web.Components.Views.Admins
                 }
 
                 logger.LogInformation("User force logout requested from list. UserId={UserId}", record.Id);
-                ViewNotification.Warning(notificationService, $"已強制登出「{record.Account}」");
+                ViewNotification.Warning(notificationService, $"已強制登出「{record.Account}」。");
             }
             catch (Exception ex)
             {
@@ -395,7 +395,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                ViewNotification.Warning(notificationService, $"已重設「{record.Account}」的兩步驟驗證");
+                ViewNotification.Warning(notificationService, $"已重設「{record.Account}」的兩步驟驗證。");
                 await ReloadAsync();
             }
             catch (Exception ex)
@@ -423,7 +423,7 @@ namespace MyProject.Web.Components.Views.Admins
                 else
                 {
                     logger.LogInformation("User unlocked from list. UserId={UserId}", record.Id);
-                    ViewNotification.Warning(notificationService, $"已解除「{record.Account}」的鎖定");
+                    ViewNotification.Warning(notificationService, $"已解除「{record.Account}」的鎖定。");
                 }
 
                 await ReloadAsync();

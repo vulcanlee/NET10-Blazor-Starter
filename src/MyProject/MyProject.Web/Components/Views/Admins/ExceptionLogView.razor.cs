@@ -448,7 +448,7 @@ namespace MyProject.Web.Components.Views.Admins
             if (result.Success)
             {
                 await WriteAuditAsync(AuditActions.ExceptionLog.ClearAll, "*", $"清空全部例外紀錄：{result.Message}");
-                ViewNotification.Warning(notificationService, "已清空全部例外紀錄");
+                ViewNotification.Warning(notificationService, "已清空全部例外紀錄。");
                 await ReloadAsync();
             }
             else

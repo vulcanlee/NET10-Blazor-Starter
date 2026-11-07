@@ -17,10 +17,10 @@ public sealed record TeamRenameResult(int Projects, int Categories, int Roles)
 /// </summary>
 public static class TeamHierarchy
 {
-    public const string ParentIsSelfMessage = "上層部門不能是自己。";
-    public const string ParentIsDescendantMessage = "上層部門不能是自己的下屬部門。";
-    public const string ParentNotFoundMessage = "找不到選擇的上層部門，可能已被刪除。";
-    public const string TooDeepMessage = "部門層級太深或資料有誤，請選擇其他上層部門。";
+    public const string ParentIsSelfMessage = "上層團隊不能是自己。";
+    public const string ParentIsDescendantMessage = "上層團隊不能是自己的下屬團隊。";
+    public const string ParentNotFoundMessage = "找不到選擇的上層團隊，可能已被刪除。";
+    public const string TooDeepMessage = "團隊層級太深或資料有誤，請選擇其他上層團隊。";
 
     /// <summary>上層部門不可是自己、自己的下屬、已刪除或不存在的部門；回傳錯誤訊息，沒問題回 null。新增時 <paramref name="teamId"/> 傳 0。</summary>
     public static async Task<string?> ValidateParentAsync(BackendDBContext context, int teamId, int? parentId)
@@ -66,7 +66,7 @@ public static class TeamHierarchy
     public static Task<int> CountActiveChildrenAsync(BackendDBContext context, int teamId)
         => context.Team.CountAsync(x => x.ParentId == teamId);
 
-    public static string HasChildrenMessage(int count) => $"這個部門底下還有 {count} 個下屬部門，請先把它們移到其他上層部門或刪除後再刪除。";
+    public static string HasChildrenMessage(int count) => $"這個團隊底下還有 {count} 個下屬團隊，請先把它們移到其他上層團隊或刪除後再刪除。";
 
     /// <summary>還原時上層部門仍是已刪除：擋下（否則還原出一個掛在已刪除部門底下的部門）。</summary>
     public static async Task<string?> ValidateRestoreAsync(BackendDBContext context, Team item)
@@ -79,7 +79,7 @@ public static class TeamHierarchy
         var parent = await context.Team.IgnoreQueryFilters([ISoftDeletable.FilterName]).AsNoTracking()
             .Where(x => x.Id == parentId).Select(x => new { x.Name, x.IsDeleted }).FirstOrDefaultAsync();
         return parent is { IsDeleted: true }
-            ? $"上層部門「{parent.Name}」也在已刪除清單中，請先還原上層部門。"
+            ? $"上層團隊「{parent.Name}」也在已刪除清單中，請先還原上層團隊。"
             : null;
     }
 

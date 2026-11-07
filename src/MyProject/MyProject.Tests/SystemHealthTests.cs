@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.Web.Health;
 using MyProject.Web.Diagnostics;
+using MyProject.Models.Systems;
 
 namespace MyProject.Tests;
 
@@ -224,5 +225,32 @@ public sealed class SystemHealthTests
         public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
         public string ContentRootPath { get; set; } = string.Empty;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    /// <summary>
+    /// 「檔案系統」要檢查 <see cref="ExternalFileSystem"/> 的每一個目錄（0.9.165）。
+    /// 之前只查 11 個中的 4 個：備份、Data Protection 金鑰等目錄不可寫入時，健康頁仍是綠燈。
+    /// 新增目錄屬性卻忘了加進檢查清單時，這個測試會紅。
+    /// </summary>
+    [Fact]
+    public void FileSystemPaths_ShouldCoverEveryExternalFileSystemDirectory()
+    {
+        var properties = typeof(ExternalFileSystem).GetProperties()
+            .Where(p => p.PropertyType == typeof(string))
+            .ToList();
+        var fs = new ExternalFileSystem();
+        foreach (var property in properties)
+        {
+            property.SetValue(fs, $@"X:\{property.Name}");
+        }
+
+        var paths = SystemHealthService.FileSystemPaths(fs);
+
+        Assert.Equal(properties.Count, paths.Count);
+        Assert.Equal(paths.Count, paths.Select(p => p.Key).Distinct(StringComparer.Ordinal).Count());
+        foreach (var property in properties)
+        {
+            Assert.Contains(paths, p => p.Value == $@"X:\{property.Name}");
+        }
     }
 }

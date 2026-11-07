@@ -31,6 +31,8 @@ public static class ViewNotification
     /// 一般系統訊息。注意：本專案的「新增成功／修改成功／刪除成功」等訊息
     /// **沿用 Warning 型別**（既有外觀，非筆誤），因此刻意不提供 Success 多載，
     /// 以免有人不小心改掉既有的視覺表現。真正需要使用者注意的警告請用 <see cref="Caution"/>。
+    /// 標點（0.9.165）：CRUD 清單的短狀態訊息不加句號（新增成功、修改成功、刪除成功、已更新最新資料、
+    /// 已永久刪除、已啟用／已停用、批次「已刪除 N 筆」，CRUD 產生器範本也是這樣寫）；其他敘述句一律以句號結尾。
     /// </summary>
     public static void Warning(NotificationService notificationService, string description)
         => Open(notificationService, BuildConfig(SystemTitle, description, NotificationType.Warning));

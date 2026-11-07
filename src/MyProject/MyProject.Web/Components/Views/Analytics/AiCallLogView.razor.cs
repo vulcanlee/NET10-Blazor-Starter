@@ -288,7 +288,7 @@ namespace MyProject.Web.Components.Views.Analytics
             var result = await DeleteOneAsync(item);
             if (result.Success)
             {
-                ViewNotification.Warning(notificationService, "已刪除對話紀錄");
+                ViewNotification.Warning(notificationService, "已刪除對話紀錄。");
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
             }
@@ -390,7 +390,7 @@ namespace MyProject.Web.Components.Views.Analytics
             if (result.Success)
             {
                 await WriteSelfAuditAsync(AuditActions.AiCallLog.ClearAll, "*", $"清空全部 AI 對話紀錄：{result.Message}");
-                ViewNotification.Warning(notificationService, "已清空全部對話紀錄");
+                ViewNotification.Warning(notificationService, "已清空全部對話紀錄。");
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
             }

@@ -316,7 +316,7 @@ namespace MyProject.Web.Components.Views.Admins
             if (result.Success)
             {
                 await WriteSelfAuditAsync(AuditActions.Audit.ClearAll, $"清空全部稽核紀錄：{result.Message}");
-                ViewNotification.Warning(notificationService, "已清空全部稽核紀錄");
+                ViewNotification.Warning(notificationService, "已清空全部稽核紀錄。");
                 await ReloadActionOptionsAsync();
                 await ReloadAsync();
             }
