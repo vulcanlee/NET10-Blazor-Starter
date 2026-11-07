@@ -24,12 +24,14 @@ public interface IAiAgentRunner
     /// <summary>
     /// 開始一段新對話。0.9.143 起每次執行結束（或停下來等核准）都會存起來，之後可用 <see cref="ResumeAsync"/> 接續；
     /// 第一次執行之前不會存（只按「新對話」不會多出空白對話）。呼叫前請先確認 <see cref="UnavailableReason"/> 為 null。
+    /// <paramref name="reasoningEffort"/>：這段對話選的推論等級（0.9.170 起；null＝系統預設），之後可用 <see cref="AiAgentChat.SetReasoningEffort"/> 改。
     /// </summary>
-    Task<AiAgentChat> StartAsync(AiAgentDefinition definition, CancellationToken cancellationToken = default);
+    /// <exception cref="ArgumentException"><paramref name="reasoningEffort"/> 不是 <c>AiSettings.AgentReasoningEffortValues</c> 之一。</exception>
+    Task<AiAgentChat> StartAsync(AiAgentDefinition definition, string? reasoningEffort = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 接續目前使用者存下的一段對話（0.9.143 起）：AI 記得前文、畫面紀錄還原、停在核准的重新等使用者決定。
-    /// 模型用<b>目前</b>的系統參數設定（可能與上次不同）。
+    /// 模型用<b>目前</b>的系統參數設定（可能與上次不同）；推論等級沿用那段對話存的選擇（0.9.170 起）。
     /// 不存在、不是本人的、不是這個 Agent 的、內容檔不見或讀不懂時回 null。
     /// </summary>
     Task<AiAgentChat?> ResumeAsync(AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken = default);
@@ -78,13 +80,19 @@ public sealed class AiAgentRunner : IAiAgentRunner
 
     public string? UnavailableReason => AiChatEndpoint.Validate(settingsMonitor.CurrentValue);
 
-    public async Task<AiAgentChat> StartAsync(AiAgentDefinition definition, CancellationToken cancellationToken = default)
+    public async Task<AiAgentChat> StartAsync(AiAgentDefinition definition, string? reasoningEffort = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        if (AiAgentChat.IsValidReasoningEffort(reasoningEffort) == false)
+        {
+            throw new ArgumentException(
+                $"推論等級只接受 {string.Join("、", AiSettings.AgentReasoningEffortValues)} 或 null（系統預設），目前是「{reasoningEffort}」。", nameof(reasoningEffort));
+        }
 
         // 提示詞在開對話（或接續）時取一次（含固定附加的安全規則）；管理員在對話途中改版本，下一段新對話或下次接續才生效。
         var instructions = await promptProvider.GetAsync(definition.PromptTemplateKey, cancellationToken);
-        return await StartCoreAsync(new AiAgentTurn(definition, instructions, null), planner: null, cancellationToken);
+        return await StartCoreAsync(
+            new AiAgentTurn(definition, instructions, null), planner: null, AiAgentChat.Normalize(reasoningEffort), cancellationToken);
     }
 
     public async Task<AiAgentChat> StartAsync(IAiAgentTurnPlanner planner, CancellationToken cancellationToken = default)
@@ -92,7 +100,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
         ArgumentNullException.ThrowIfNull(planner);
 
         var turn = await planner.HomeTurnAsync(cancellationToken);
-        return await StartCoreAsync(turn, planner, cancellationToken);
+        return await StartCoreAsync(turn, planner, reasoningEffort: null, cancellationToken);
     }
 
     public async Task<AiAgentChat?> ResumeAsync(AiAgentDefinition definition, Guid conversationId, CancellationToken cancellationToken = default)
@@ -111,11 +119,12 @@ public sealed class AiAgentRunner : IAiAgentRunner
         return await ResumeCoreAsync(turn, planner, conversationId, cancellationToken);
     }
 
-    private async Task<AiAgentChat> StartCoreAsync(AiAgentTurn turn, IAiAgentTurnPlanner? planner, CancellationToken cancellationToken)
+    private async Task<AiAgentChat> StartCoreAsync(
+        AiAgentTurn turn, IAiAgentTurnPlanner? planner, string? reasoningEffort, CancellationToken cancellationToken)
     {
         var definition = turn.Definition;
         var conversationId = Guid.NewGuid();
-        var (handle, modelName) = CreateHandle(turn, conversationId);
+        var (handle, modelName) = CreateHandle(turn, conversationId, reasoningEffort);
         var session = await handle.Agent.CreateSessionAsync(cancellationToken);
 
         logger.LogInformation(
@@ -123,7 +132,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
             definition.Name, conversationId, modelName);
 
         return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger,
-            planner: planner, createHandle: next => CreateHandle(next, conversationId).Handle, approvalPreview: toolFactory.PreviewAsync);
+            planner: planner, createHandle: (next, effort, pinnedModel) => CreateHandle(next, conversationId, effort, pinnedModel).Handle, approvalPreview: toolFactory.PreviewAsync,
+            turn: turn, reasoningEffort: reasoningEffort);
     }
 
     private async Task<AiAgentChat?> ResumeCoreAsync(
@@ -139,7 +149,17 @@ public sealed class AiAgentRunner : IAiAgentRunner
             return null;
         }
 
-        var (handle, modelName) = CreateHandle(turn, conversationId);
+        // 推論等級沿用那段對話存的選擇（0.9.170 起）；值不合法（例如手動改壞）就當作系統預設。
+        var reasoningEffort = content.ReasoningEffort;
+        if (reasoningEffort is not null && AiAgentChat.IsValidReasoningEffort(reasoningEffort) == false)
+        {
+            logger.LogWarning(
+                "Saved reasoning effort is not valid and is ignored. Agent={Agent}, ConversationId={ConversationId}", definition.Name, conversationId);
+            reasoningEffort = null;
+        }
+
+        reasoningEffort = AiAgentChat.Normalize(reasoningEffort);
+        var (handle, modelName) = CreateHandle(turn, conversationId, reasoningEffort);
         AgentSession session;
         try
         {
@@ -157,7 +177,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
             definition.Name, conversationId, modelName);
 
         var chat = new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger, loaded.Summary.Title,
-            planner, next => CreateHandle(next, conversationId).Handle, toolFactory.PreviewAsync);
+            planner, (next, effort, pinnedModel) => CreateHandle(next, conversationId, effort, pinnedModel).Handle, toolFactory.PreviewAsync,
+            turn: turn, reasoningEffort: reasoningEffort);
         chat.Restore(content);
         return chat;
     }
@@ -165,7 +186,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
     /// <summary>
     /// 建立 agent（工具、提示詞、記帳管線）。開新對話、接續與每輪規劃共用；一律沿用同一個 ConversationId，AI 對話紀錄才串得起來。
     /// </summary>
-    private (AiAgentHandle Handle, string ModelName) CreateHandle(AiAgentTurn turn, Guid conversationId)
+    /// <param name="pinnedModel">沿用的模型（0.9.170 起，只改推論等級時帶開對話時的模型）；null 依系統參數解析。</param>
+    private (AiAgentHandle Handle, string ModelName) CreateHandle(AiAgentTurn turn, Guid conversationId, string? reasoningEffort, string? pinnedModel = null)
     {
         var definition = turn.Definition;
         var settings = settingsMonitor.CurrentValue;
@@ -182,6 +204,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
 
                 // Agent 一律走 Responses API（0.9.149 起；見 AiCallContext.UseResponsesApi）。
                 UseResponsesApi = true,
+                ReasoningEffortOverride = reasoningEffort,
+                ModelOverride = pinnedModel,
                 ContextLengthExceededMessage = "對話內容已超過模型的內容視窗上限，請按「新對話」重新開始。",
                 TimeoutHint = "請稍後再試。",
                 SubmittedContentLabel = "對話內容",
@@ -189,7 +213,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
             turn.Instructions,
             toolFactory.Create(definition));
 
-        return (handle, modelMonitor.CurrentValue.Resolve(definition.ModelKey, settings.Model));
+        return (handle, pinnedModel ?? modelMonitor.CurrentValue.Resolve(definition.ModelKey, settings.Model));
     }
 }
 
@@ -215,9 +239,12 @@ public sealed class AiAgentChat
 {
     private readonly AgentSession session;
     private readonly IAiAgentTurnPlanner? planner;
-    private readonly Func<AiAgentTurn, AiAgentHandle>? createHandle;
+    /// <summary>重建 agent：這一輪的定義、推論等級、沿用的模型（null＝依系統參數；每輪規劃時換模型是預期行為）。</summary>
+    private readonly Func<AiAgentTurn, string?, string?, AiAgentHandle>? createHandle;
     private readonly string agentName;
     private AiAgentHandle handle;
+    private AiAgentTurn? currentTurn;
+    private bool running;
     private readonly IAiToolPermissionGuard guard;
     private readonly IAiAgentConversationStore store;
     private readonly ILogger logger;
@@ -237,10 +264,19 @@ public sealed class AiAgentChat
         ILogger logger,
         string? title = null,
         IAiAgentTurnPlanner? planner = null,
-        Func<AiAgentTurn, AiAgentHandle>? createHandle = null,
-        Func<AiToolDefinition, FunctionCallContent, Task<string?>>? approvalPreview = null)
+        Func<AiAgentTurn, string?, string?, AiAgentHandle>? createHandle = null,
+        Func<AiToolDefinition, FunctionCallContent, Task<string?>>? approvalPreview = null,
+        AiAgentTurn? turn = null,
+        string? reasoningEffort = null)
     {
+        if (IsValidReasoningEffort(reasoningEffort) == false)
+        {
+            throw new ArgumentException($"推論等級只接受 {string.Join("、", AiSettings.AgentReasoningEffortValues)} 或 null（系統預設），目前是「{reasoningEffort}」。", nameof(reasoningEffort));
+        }
+
         Definition = definition;
+        currentTurn = turn;
+        ReasoningEffort = Normalize(reasoningEffort);
         this.approvalPreview = approvalPreview;
         this.planner = planner;
         this.createHandle = createHandle;
@@ -266,6 +302,51 @@ public sealed class AiAgentChat
 
     /// <summary>開對話（或接續）時解析出的模型（系統參數覆寫或預設模型）。</summary>
     public string ModelName { get; }
+
+    /// <summary>這段對話選的推論等級（0.9.170 起，小寫）；null＝系統預設（系統參數或設定檔）。會跟著對話存起來。</summary>
+    public string? ReasoningEffort { get; private set; }
+
+    /// <summary>
+    /// 改這段對話的推論等級（0.9.170 起），下一則訊息起生效：用同一個 session 重建 agent，前文照樣帶著。
+    /// 重建時沿用開對話時的模型（<see cref="ModelName"/>），管理員途中改了模型也不會因此悄悄換掉。
+    /// </summary>
+    /// <exception cref="ArgumentException">不是 <c>AiSettings.AgentReasoningEffortValues</c> 之一（null＝系統預設）。</exception>
+    /// <exception cref="InvalidOperationException">執行中或等待核准時（待核准的工具要用原本的 agent 回覆）。</exception>
+    public void SetReasoningEffort(string? reasoningEffort)
+    {
+        if (IsValidReasoningEffort(reasoningEffort) == false)
+        {
+            throw new ArgumentException($"推論等級只接受 {string.Join("、", AiSettings.AgentReasoningEffortValues)} 或 null（系統預設），目前是「{reasoningEffort}」。", nameof(reasoningEffort));
+        }
+
+        if (running || IsAwaitingApproval)
+        {
+            throw new InvalidOperationException("執行中或等待核准時不能改推論等級。");
+        }
+
+        var normalized = Normalize(reasoningEffort);
+        if (normalized == ReasoningEffort)
+        {
+            return;
+        }
+
+        if (createHandle is null || currentTurn is null)
+        {
+            throw new InvalidOperationException("這段對話不能改推論等級。");
+        }
+
+        handle = createHandle(currentTurn, normalized, ModelName);
+        ReasoningEffort = normalized;
+        logger.LogInformation(
+            "AI agent reasoning effort changed. Agent={Agent}, ConversationId={ConversationId}, Effort={Effort}",
+            Definition.Name, ConversationId, normalized ?? "(default)");
+    }
+
+    internal static bool IsValidReasoningEffort(string? value)
+        => string.IsNullOrWhiteSpace(value) || AiSettings.AgentReasoningEffortValues.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    internal static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
 
     /// <summary>畫面上的對話紀錄（依時間順序）。執行中只會在一則完整之後才加進來，串流中的文字請看 <see cref="AiAgentUpdate.TextDelta"/>。</summary>
     public IReadOnlyList<AiAgentTranscriptEntry> Transcript => transcript;
@@ -321,7 +402,8 @@ public sealed class AiAgentChat
             throw new InvalidOperationException($"規劃器回傳的定義名稱（{turn.Definition.Name}）與對話的 Agent（{agentName}）不同。");
         }
 
-        handle = createHandle!(turn);
+        handle = createHandle!(turn, ReasoningEffort, null);
+        currentTurn = turn;
         Definition = turn.Definition;
         CurrentLabel = turn.Label;
 
@@ -421,6 +503,7 @@ public sealed class AiAgentChat
         IList<ChatMessage> input,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        running = true;
         try
         {
             await foreach (var update in RunAsync(input, cancellationToken))
@@ -430,6 +513,7 @@ public sealed class AiAgentChat
         }
         finally
         {
+            running = false;
             await PersistAsync();
         }
     }
@@ -640,6 +724,7 @@ public sealed class AiAgentChat
                 Session = await handle.Agent.SerializeSessionAsync(session, cancellationToken: CancellationToken.None),
                 Transcript = transcript.ToList(),
                 PendingApprovals = pending.Select(item => item.ToRecord()).ToList(),
+                ReasoningEffort = ReasoningEffort,
             };
 
             await store.SaveAsync(new AiAgentConversationSnapshot(

@@ -289,6 +289,100 @@ public sealed class AiAgentRunnerTests
         Assert.All(callLog.Entries, entry => Assert.Equal(first.ConversationId, entry.ConversationId));
     }
 
+    // ---------- 依對話選擇推論等級（0.9.170 起） ----------
+
+    /// <summary>開對話時選的推論等級會送出；之後改了，下一則訊息起生效，前文照樣帶著。</summary>
+    [Fact]
+    public async Task ReasoningEffort_ChosenAtStart_AndChangedMidConversation()
+    {
+        upstream.Enqueue(AiSse.Responses(["第一輪回覆"]));
+        upstream.Enqueue(AiSse.Responses(["第二輪回覆"]));
+        var chat = await CreateRunner().StartAsync(SampleTools.Agent, reasoningEffort: "high");
+
+        await CollectAsync(chat.SendAsync("第一輪問題"));
+        chat.SetReasoningEffort("LOW");
+        await CollectAsync(chat.SendAsync("第二輪問題"));
+
+        Assert.Equal("high", EffortOf(handler.RequestBodies[0]));
+        Assert.Equal("low", EffortOf(handler.RequestBodies[1]));
+        Assert.Contains("第一輪回覆", handler.RequestBodies[1], StringComparison.Ordinal);
+        Assert.Equal("low", chat.ReasoningEffort);
+        Assert.Equal("low", store.Saved[chat.ConversationId].Content.ReasoningEffort);
+    }
+
+    /// <summary>改回「系統預設」（null）就不再帶對話的值。</summary>
+    [Fact]
+    public async Task ReasoningEffort_SetBackToSystemDefault_ShouldNotSendIt()
+    {
+        upstream.Enqueue(AiSse.Responses(["回覆"]));
+        var chat = await CreateRunner().StartAsync(SampleTools.Agent, reasoningEffort: "high");
+
+        chat.SetReasoningEffort(null);
+        await CollectAsync(chat.SendAsync("問題"));
+
+        Assert.Null(EffortOf(handler.RequestBodies[0]));
+        Assert.Null(store.Saved[chat.ConversationId].Content.ReasoningEffort);
+    }
+
+    /// <summary>接續時沿用那段對話存的推論等級；存的值不合法（例如手動改壞）就當作系統預設。</summary>
+    [Theory]
+    [InlineData("medium", "medium")]
+    [InlineData("ultra", null)]
+    public async Task ReasoningEffort_ShouldBeRestoredOnResume(string saved, string? expected)
+    {
+        upstream.Enqueue(AiSse.Responses(["第一輪回覆"]));
+        var first = await CreateRunner().StartAsync(SampleTools.Agent, reasoningEffort: "medium");
+        await CollectAsync(first.SendAsync("第一輪問題"));
+        store.Saved[first.ConversationId].Content.ReasoningEffort = saved;
+
+        var resumed = await CreateRunner().ResumeAsync(SampleTools.Agent, first.ConversationId);
+        upstream.Enqueue(AiSse.Responses(["第二輪回覆"]));
+        await CollectAsync(resumed!.SendAsync("第二輪問題"));
+
+        Assert.Equal(expected, resumed.ReasoningEffort);
+        Assert.Equal(expected, EffortOf(handler.RequestBodies[^1]));
+    }
+
+    /// <summary>
+    /// 審查發現（0.9.170）：只改推論等級時，重建的 agent 要沿用開對話時的模型；
+    /// 否則管理員途中改了模型，使用者一改推論等級就悄悄換模型，畫面上的「使用模型」卻還是舊的。
+    /// </summary>
+    [Fact]
+    public async Task ReasoningEffort_ChangeShouldKeepTheModelChosenAtStart()
+    {
+        upstream.Enqueue(AiSse.Responses(["回覆"]));
+        var chat = await StartAsync();
+        runnerSettings.Model = "gpt-changed-later";
+
+        chat.SetReasoningEffort("low");
+        await CollectAsync(chat.SendAsync("問題"));
+
+        using var document = System.Text.Json.JsonDocument.Parse(handler.RequestBodies[^1]);
+        Assert.Equal("gpt-4o", document.RootElement.GetProperty("model").GetString());
+        Assert.Equal("gpt-4o", chat.ModelName);
+    }
+
+    [Fact]
+    public async Task ReasoningEffort_ShouldRejectUnknownValues_AndChangesWhileAwaitingApproval()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_7", SampleTools.Write.Name, """{"value":"x"}"""));
+        var chat = await StartAsync();
+
+        Assert.Throws<ArgumentException>(() => chat.SetReasoningEffort("ultra"));
+        await CollectAsync(chat.SendAsync("把值改成 x"));
+        Assert.True(chat.IsAwaitingApproval);
+        Assert.Throws<InvalidOperationException>(() => chat.SetReasoningEffort("high"));
+    }
+
+    private static string? EffortOf(string requestBody)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(requestBody);
+        return document.RootElement.TryGetProperty("reasoning", out var reasoning) && reasoning.TryGetProperty("effort", out var effort)
+            ? effort.GetString()
+            : null;
+    }
+
     /// <summary>停在核准時離開：回來後仍在等核准，核准後工具照常執行。</summary>
     [Fact]
     public async Task Resume_WhileAwaitingApproval_ShouldAskAgain_AndRunWhenApproved()
@@ -561,15 +655,18 @@ public sealed class AiAgentRunnerTests
 
     private Task<AiAgentChat> StartAsync() => CreateRunner().StartAsync(SampleTools.Agent);
 
+    /// <summary>所有執行器共用的 AI 設定（測試可以在對話途中改它，模擬管理員改系統參數）。</summary>
+    private readonly AiSettings runnerSettings = new()
+    {
+        Provider = nameof(AiProvider.OpenAI),
+        ApiKey = "key",
+        Model = "gpt-4o",
+    };
+
     /// <summary>每呼叫一次就是一個新的執行器（等於重新整理頁面），共用同一個上游、存檔與記帳替身。</summary>
     private AiAgentRunner CreateRunner()
     {
-        var options = new StaticOptionsMonitor<AiSettings>(new AiSettings
-        {
-            Provider = nameof(AiProvider.OpenAI),
-            ApiKey = "key",
-            Model = "gpt-4o",
-        });
+        var options = new StaticOptionsMonitor<AiSettings>(runnerSettings);
         var factory = AiTestAgents.CreateFactory(
             new StubHttpClientFactory(handler),
             options,

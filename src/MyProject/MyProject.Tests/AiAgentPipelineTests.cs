@@ -269,6 +269,46 @@ public sealed class AiAgentPipelineTests
         Assert.Contains("「none」", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Agent 測試台依對話選的推論等級（0.9.170 起，<see cref="AiCallContext.ReasoningEffortOverride"/>）優先於系統參數與全域值；
+    /// 被拒時訊息請使用者在對話上方改選，而不是去改設定。
+    /// </summary>
+    [Fact]
+    public async Task ConversationReasoningEffort_ShouldWin_AndBeNamedWhenRejected()
+    {
+        var okHandler = StubHttpMessageHandler.Json(HttpStatusCode.OK, ResponsesSuccessPayload);
+        var settings = AzureSettings();
+        settings.AgentReasoningEffort = "medium";
+        var factory = CreateFactory(okHandler, settings, new AiReasoningSettings { AgentPlayground = "low" });
+
+        await factory.CreateAgent(PlaygroundContext(useResponses: true) with { ReasoningEffortOverride = "XHIGH" })
+            .Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]);
+
+        using (var document = System.Text.Json.JsonDocument.Parse(okHandler.RequestBodies.Single()))
+        {
+            Assert.Equal("xhigh", document.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+        }
+
+        const string payload = """
+            {
+              "error": {
+                "message": "Unsupported value: 'reasoning.effort' does not support 'none' with this model.",
+                "type": "invalid_request_error",
+                "param": "reasoning.effort",
+                "code": "unsupported_value"
+              }
+            }
+            """;
+        var rejecting = CreateFactory(
+            StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload), settings, new AiReasoningSettings { AgentPlayground = "low" });
+        var handle = rejecting.CreateAgent(PlaygroundContext(useResponses: true) with { ReasoningEffortOverride = "none" });
+
+        var exception = await Assert.ThrowsAsync<AiCallException>(() => handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]));
+
+        Assert.Contains("「none」（這段對話選的推論等級）", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("對話上方", exception.Message, StringComparison.Ordinal);
+    }
+
     private static AiCallContext PlaygroundContext(bool useResponses) => new()
     {
         Operation = TokenUsageOperations.AgentPlayground,

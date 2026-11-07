@@ -4,6 +4,7 @@
 @using MyProject.Share.Helpers
 @using MyProject.Web.Ai
 @using MyProject.Web.Ai.Agents
+@using MyProject.Web.Configuration
 
 @*
     Agent 測試台（0.9.142 起）：範例 Agent「專案小幫手」，用來驗收 Agent 骨架（工具、權限、核准、記帳），
@@ -74,6 +75,21 @@ else
                     {
                         <div class="agent-playground-hint">使用模型：@modelName</div>
                     }
+                    @* 0.9.170 起：這段對話的推論等級，隨時可改、下一則訊息起生效，跟著對話存起來。 *@
+                    <div class="agent-playground-hint agent-playground-reasoning">
+                        <span>推論等級：</span>
+                        <Select @key="reasoningSelectKey" TItem="string" TItemValue="string"
+                                Value="@reasoningChoice"
+                                ValueChanged="@((string value) => OnReasoningChanged(value))"
+                                Disabled="@(IsBusy || IsAwaitingApproval || unavailableReason is not null)"
+                                Style="width: 260px;">
+                            <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="@SystemDefaultReasoningLabel" />
+                            @foreach (var value in AiSettings.AgentReasoningEffortValues)
+                            {
+                                <SelectOption TItemValue="string" TItem="string" Value="@value" Label="@value" />
+                            }
+                        </Select>
+                    </div>
                 </div>
                 <div class="agent-playground-actions">
                     @* 測試專案（0.9.145 起）：有專案項目新增權限才能產生、有刪除權限才能清除（同專案頁）。 *@

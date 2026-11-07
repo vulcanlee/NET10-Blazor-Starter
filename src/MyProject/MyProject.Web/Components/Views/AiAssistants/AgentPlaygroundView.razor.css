@@ -141,6 +141,15 @@
     color: var(--app-muted);
 }
 
+/* 推論等級下拉（0.9.170 起）。 */
+.agent-playground-reasoning {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+
 .agent-playground-conversation {
     display: flex;
     flex-direction: column;

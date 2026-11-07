@@ -45,8 +45,16 @@ public interface IAiAgentFactory
 /// <summary>建好的 agent 與它的呼叫狀態（每次成功的模型呼叫結果都在 <see cref="State"/>）。</summary>
 public sealed record AiAgentHandle(AIAgent Agent, AiCallState State, AiSettings Settings);
 
+/// <summary>推論等級從哪裡來（0.9.170 起分三種）：設定檔的全域值、系統參數的功能值、這段對話選的。</summary>
+internal enum AiReasoningEffortOrigin
+{
+    Global,
+    Feature,
+    Conversation,
+}
+
 /// <summary>這次送出的推論等級與它的設定來源（0.9.168 起），模型拒絕時錯誤訊息用來指出要改哪一個設定。</summary>
-internal sealed record AiReasoningEffortSource(string? Effort, string Source, bool IsFeatureOverride);
+internal sealed record AiReasoningEffortSource(string? Effort, string Source, AiReasoningEffortOrigin Origin);
 
 /// <summary>記帳中介層需要的服務，打包成一份以免建構子參數爆量。</summary>
 internal sealed record AiAgentServices(
@@ -111,23 +119,21 @@ public sealed class AiAgentFactory : IAiAgentFactory
         var settings = optionsMonitor.CurrentValue;
         var state = new AiCallState();
         // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model。
-        var model = modelOptions?.CurrentValue.Resolve(context.ModelKey, settings.Model) ?? settings.Model;
+        var model = string.IsNullOrWhiteSpace(context.ModelOverride)
+            ? modelOptions?.CurrentValue.Resolve(context.ModelKey, settings.Model) ?? settings.Model
+            : context.ModelOverride.Trim();
 
-        // 推論等級（0.9.168 起）：功能自己在系統參數設了就用它，空白沿用 AiSettings:AgentReasoningEffort。
+        // 推論等級：這段對話選的（0.9.170 起）優先；其次是功能自己在系統參數設的（0.9.168 起）；都空白沿用 AiSettings:AgentReasoningEffort。
         // 記下來源，模型拒絕這個值時，錯誤訊息才指得出要改哪一個設定。
-        var effortOverride = reasoningOptions?.CurrentValue.GetOverride(context.ModelKey);
-        var effort = effortOverride ?? settings.AgentReasoningEffort;
-        var featureKey = $"{AiReasoningSettings.SectionName}:{context.ModelKey}";
-        var effortSource = effortOverride is null
-            ? $"{AiSettings.SectionName}:{nameof(AiSettings.AgentReasoningEffort)}"
-            : SystemParameterCatalog.Find(featureKey) is { } parameter ? $"系統參數「{parameter.Label}」" : featureKey;
+        var reasoning = ResolveReasoning(context, settings);
+        var effort = reasoning.Effort;
 
         var openAIClient = CreateOpenAIClient(settings, state);
         var agentOptions = new ChatClientAgentOptions
         {
             ChatOptions = CreateChatOptions(settings, effort, instructions, tools, context.UseResponsesApi),
         };
-        var reasoning = new AiReasoningEffortSource(context.UseResponsesApi ? effort : null, effortSource, effortOverride is not null);
+        reasoning = reasoning with { Effort = context.UseResponsesApi ? effort : null };
         Func<IChatClient, IChatClient> accounting = inner => new AiAccountingChatClient(inner, context, state, settings, model, services, reasoning);
 
         // Agent 功能走 Responses API（0.9.149 起，見 AiCallContext.UseResponsesApi），其餘維持 Chat Completions。
@@ -169,6 +175,25 @@ public sealed class AiAgentFactory : IAiAgentFactory
         options.AddPolicy(new AiHttpCapturePolicy(state), PipelinePosition.BeforeTransport);
 
         return new OpenAIClient(new ApiKeyCredential(settings.ApiKey), options);
+    }
+
+    private AiReasoningEffortSource ResolveReasoning(AiCallContext context, AiSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(context.ReasoningEffortOverride) == false)
+        {
+            return new AiReasoningEffortSource(context.ReasoningEffortOverride.Trim().ToLowerInvariant(), "這段對話選的推論等級", AiReasoningEffortOrigin.Conversation);
+        }
+
+        var featureValue = reasoningOptions?.CurrentValue.GetOverride(context.ModelKey);
+        if (featureValue is not null)
+        {
+            var featureKey = $"{AiReasoningSettings.SectionName}:{context.ModelKey}";
+            var source = SystemParameterCatalog.Find(featureKey) is { } parameter ? $"系統參數「{parameter.Label}」" : featureKey;
+            return new AiReasoningEffortSource(featureValue, source, AiReasoningEffortOrigin.Feature);
+        }
+
+        return new AiReasoningEffortSource(
+            settings.AgentReasoningEffort, $"{AiSettings.SectionName}:{nameof(AiSettings.AgentReasoningEffort)}", AiReasoningEffortOrigin.Global);
     }
 
     private static ChatOptions CreateChatOptions(AiSettings settings, string? reasoningEffort, string? instructions, IList<AITool>? tools, bool useResponsesApi)

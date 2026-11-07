@@ -196,7 +196,7 @@ public static class SystemParameterCatalog
             "Agent 測試台使用的模型", "「Agent 測試台」範例 Agent 用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
             "下一段新對話或從「我的對話」接續時（畫面上已開著的對話沿用開始時的模型）", maxLength: AiModelSettings.MaxModelLength),
         Define<AiReasoningSettings, string>(AiReasoningSettings.SectionName, x => x.AgentPlayground, GroupAiModel,
-            "Agent 測試台的推論等級", "「Agent 測試台」範例 Agent 送出的推論等級。" + ReasoningNote,
+            "Agent 測試台的推論等級", "「Agent 測試台」範例 Agent 送出的推論等級。" + ReasoningNote + "使用者在測試台畫面上替某段對話選了推論等級時，那段對話以畫面為準。",
             "下一段新對話或從「我的對話」接續時（畫面上已開著的對話沿用開始時的推論等級）", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.ProjectStatusReport, GroupAiModel,
             "「專案狀態報告」工作流程使用的模型", "「Agent 工作流程」的專案狀態報告，流程裡每個 agent 都用這個模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
