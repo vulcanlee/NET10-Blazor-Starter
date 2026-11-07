@@ -323,7 +323,7 @@ public static class ServiceCollectionExtensions
             "刪除產出超過保留天數的系統管理助理巡檢報告與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
         services.AddScheduledJob<AdminPatrolJob>(
             AdminPatrolJob.JobName, "系統管理助理巡檢",
-            "每天以系統管理助理巡檢一次系統（只用查詢工具，約 NT$ 1～2）；報告存在系統管理助理頁的「巡檢報告」，有「注意」或「異常」時通知所有管理員並寄信。AI 未設定時略過。", "30 7 * * *");
+            "每天以系統管理助理巡檢一次系統（只用查詢工具，每次約 NT$ 3）；報告存在系統管理助理頁的「巡檢報告」，有「注意」或「異常」時通知所有管理員並寄信。AI 未設定時略過。", "30 7 * * *");
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
             "備份資料庫、專案附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
