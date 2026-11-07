@@ -32,7 +32,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
 
         Assert.Equal(
             ["deleted-project", "deleted-category", "deleted-team", "deleted-user", "deleted-role",
-             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "audit-log", "notification", "backup", "job-run", "nlog", "announcement"],
+             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "admin-patrol-report", "audit-log", "notification", "backup", "job-run", "nlog", "announcement"],
             overview.Rows.Select(x => x.Key).ToArray());
         Assert.All(overview.Rows, row => Assert.Null(row.Error));
 
@@ -42,6 +42,8 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         Assert.Equal(TokenUsageLogRetentionJob.JobName, JobOf("token-usage"));
         Assert.Equal(AiCallLogRetentionJob.JobName, JobOf("ai-call-log"));
         Assert.Equal(AiAgentConversationRetentionJob.JobName, JobOf("agent-conversation"));
+        Assert.Equal(AdminPatrolReportRetentionJob.JobName, JobOf("admin-patrol-report"));
+        Assert.Equal("/admin-assistant", overview.Rows.Single(x => x.Key == "admin-patrol-report").ManageUrl);
         Assert.Equal(AuditLogRetentionJob.JobName, JobOf("audit-log"));
         Assert.Equal(NotificationRetentionJob.JobName, JobOf("notification"));
         Assert.Equal(SystemBackupJob.JobName, JobOf("backup"));
@@ -65,7 +67,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         using var scope = factory.Services.CreateScope();
         var overview = await scope.ServiceProvider.GetRequiredService<DataRetentionOverviewService>().GetOverviewAsync();
 
-        Assert.Equal(["backup", "nlog", "announcement"], overview.Rows.Where(x => !x.CanCustomPurge).Select(x => x.Key).ToArray());
+        Assert.Equal(["admin-patrol-report", "backup", "nlog", "announcement"], overview.Rows.Where(x => !x.CanCustomPurge).Select(x => x.Key).ToArray());
     }
 
     /// <summary>

@@ -1,10 +1,10 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.154
+- 現行系統版本：0.9.161
 - 首次實作版本：0.9.140
-- 最後核對日期：2026/11/05
+- 最後核對日期：2026/11/07
 
 > 系統內**所有** LLM 呼叫都經由 Microsoft Agent Framework（MAF）建立的 agent 送出（0.9.140 起）。
 > 本文件說明管線怎麼組、記帳點在哪裡、為什麼這樣決定、Agent 骨架怎麼用（§6）、對話怎麼保存與接續（§6.7）、多 Agent 工作流程（§6.8），以及各階段的範圍。
@@ -324,6 +324,13 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   分派說明以訊息本身提到的對象為準，前文只補足指稱（實機發現前文會把「徹底刪除 temp-b」帶到 ops）。
 - **核准窗的目前狀態**（0.9.160 起）：`AiToolDefinition.ApprovalPreview` 由 `AiAgentToolFactory.PreviewAsync` 在提出核准時算（最多 5 秒、失敗回 null），經 `AiToolApprovals.TriageAsync` 帶到 `AiToolApprovalRequest.Preview`，
   存進 `AiAgentPendingApprovalRecord.Preview`、接續時不重算。工作流程不傳預覽，行為不變。目前掛在修改系統參數的三個工具（`OpsAssistantTools.PreviewParameterChangeAsync`）。
+- **定時巡檢**（0.9.161 起，第二版）：排程作業 `AdminPatrolJob`（預設每天 07:30）沒有登入的使用者，所以**不走** `AiAgentRunner`：
+  - `AdminPatrolRunner` 直接用 `IAiAgentFactory` 建 agent（作業 `系統管理助理（排程巡檢）`、`ConversationId` 是報告編號、一個 RunId），送一則固定訊息、收齊文字；不存對話、不分派。
+  - 定義與提示詞由 `AdminAssistantTurnPlanner.PatrolTurnAsync` 給（`AdminAssistantAgent.ScheduledPatrol`：只有巡檢用的 9 個唯讀工具、同名；提示詞同對話中的巡檢，仍讀「AI 提示詞」的作用中版本）。
+  - 權限：一般的 `AiToolPermissionGuard` 在 `CurrentUser.Id == 0` 時拒絕所有工具，所以執行器自己建 `ScheduledPatrolToolGuard`（不註冊 DI），只放行「不會異動且名稱在 `PatrolToolNames`」的工具（巡檢指示列的 9 個，定義上也只給這 9 個）；
+    稽核轉給原本的 guard（操作者留空），detail 加「排程巡檢」。有登入使用者的 scope 呼叫 `RunAsync` 會丟例外。出現核准請求（理論上不會）就判失敗。
+  - `AdminPatrolReportParser` 從每段第一行「狀態：正常／注意／異常」判讀整體狀態（沒寫狀態算注意、寫「目前無法查詢」至少注意、截斷至少注意、完全判讀不出來是「無法判讀」）；
+    報告存 `AdminPatrolReportService`（內文只進內容檔，資料表只存固定用語），需要注意時 `AdminPatrolNotification.Build` 組通知（全體管理員、寄信、摘要＋連結，§6.7 的明文例外）。
 
 ## 7. 後續階段
 
@@ -338,6 +345,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | 系統管理助理 M2 | 四大類共 26 個唯讀工具與巡檢報告；分派專用固定規則、分派 20 秒逾時、稽核註記改 `via=`（§6.9）| 0.9.157 已實作 |
 | 系統管理助理 M3 | 22 個可復原的異動工具：核准窗說明與批次清單、最多 50 筆、自我與最後一位管理員保護、不可復原動作由工具拒絕（§6.9）| 0.9.158 已實作 |
 | 系統管理助理 M4 | 15 個不可復原的異動工具；核准窗紅字警告、輸入「確認」才能核准；自訂清除跨領域共用（§6.9）| 0.9.159 已實作 |
+| 系統管理助理第二版 | 定時巡檢：排程作業以「系統排程身分＋窄門」只跑唯讀工具、判讀狀態、存報告、需要注意時通知全體管理員（§6.9）| 0.9.161 已實作 |
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。
@@ -362,6 +370,10 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Web/Ai/Agents/AgentPlaygroundAgent.cs`、`ProjectAgentTools.cs` | 範例 Agent 與兩個範例工具（0.9.142 起）；0.9.144 起加 `get_project_detail`（`ProjectDetail`）、`append_project_status_summary`，建構子可選 `TimeProvider` |
 | `MyProject.Web/Ai/Agents/AiAgentTurn.cs` | `AiAgentTurn`、`IAiAgentTurnPlanner`（每輪規劃，0.9.155 起）|
 | `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）|
+| `MyProject.Web/Ai/Agents/AdminAssistant/AdminPatrolRunner.cs`、`ScheduledPatrolToolGuard.cs`、`AdminPatrolReportParser.cs` | 定時巡檢（0.9.161 起）：`IAdminPatrolRunner`／`AdminPatrolRunner`（不存對話、不分派）、權限窄門、報告判讀與通知內容（`AdminPatrolNotification`）|
+| `MyProject.Business/Services/DataAccess/AdminPatrolReportService.cs`、`Services/Other/AdminPatrolReportFileStore.cs`；`MyProject.AccessDatas/Models/AdminPatrolReport.cs` | 巡檢報告的存放（內容檔在 `AiAgentConversationPath\AdminPatrol`）、清單、讀取、過期與統計（0.9.161 起）|
+| `MyProject.Web/Scheduling/Jobs/AdminPatrolJob.cs`、`AdminPatrolReportRetentionJob.cs` | 排程作業「系統管理助理巡檢」與「巡檢報告清理」（0.9.161 起）|
+| `MyProject.Web/Components/Views/Admins/AdminPatrolReportsModal.razor(.cs/.css)` | 系統管理助理頁的「巡檢報告」視窗（0.9.161 起，深連結 `?patrolReport=`）|
 | `MyProject.Web/Ai/Agents/AiToolApprovals.cs` | 工具核准的共用規則（權限分流、拒絕原因、參數說明），由 `AiAgentChat` 抽出，Agent 測試台與工作流程共用（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowModels.cs` | 步驟間訊息（`AiWorkflowMessage`／`AiWorkflowRevision`／`AiWorkflowOutput`）、人工介入（`AiWorkflowHumanRequest`／`AiWorkflowHumanResponse`）、`AiWorkflowUpdate`、`AiWorkflowResult`／`AiWorkflowOutcome`、`AiWorkflowStepEvent`（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowDefinition.cs` | `AiWorkflowDefinition`、`AiAgentStepSpec`、`AiWorkflowGraph`（接線）、`AiWorkflowCatalog.All`（0.9.144 起）|

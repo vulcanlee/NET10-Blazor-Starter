@@ -60,6 +60,24 @@ public static class AdminAssistantAgent
     public static AiAgentDefinition Home { get; } =
         Build([.. ReadTools, .. MutatingTools.Values.SelectMany(tools => tools), .. SharedMutatingTools]);
 
+    /// <summary>
+    /// 巡檢指示（<see cref="DefaultCommonInstructions"/>）列出的 9 個工具，依呼叫順序。
+    /// 定時巡檢只給模型、也只放行這幾個（0.9.161 起）：巡檢用不到的唯讀工具（例如讀 AI 對話內文）不開放，
+    /// 降低工具讀到的資料裡夾帶指示（提示注入）、把內文帶進通知信的風險。改巡檢指示時要一起改。
+    /// </summary>
+    public static IReadOnlyList<string> PatrolToolNames { get; } =
+    [
+        "get_system_health", "query_logs", "search_exceptions", "get_scheduled_jobs_overview", "list_backups",
+        "get_database_usage", "get_token_usage", "get_ai_quota_status", "get_account_security_overview",
+    ];
+
+    /// <summary>
+    /// 定時巡檢（0.9.161 起，排程作業「系統管理助理巡檢」）：只有 <see cref="PatrolToolNames"/> 這幾個唯讀工具，同名（工具稽核的 agent 名稱一致），
+    /// 用量記在 <see cref="TokenUsageOperations.AdminAssistantPatrol"/>。
+    /// </summary>
+    public static AiAgentDefinition ScheduledPatrol { get; } =
+        Build([.. PatrolToolNames.Select(name => ReadTools.Single(tool => tool.Name == name))]) with { Operation = TokenUsageOperations.AdminAssistantPatrol };
+
     /// <summary>這一輪的定義：全部唯讀工具＋被選中領域的異動工具＋共用異動工具；巡檢或沒有分出領域時只有唯讀工具。</summary>
     public static AiAgentDefinition DefinitionFor(IReadOnlySet<AdminAssistantDomain> domains)
     {

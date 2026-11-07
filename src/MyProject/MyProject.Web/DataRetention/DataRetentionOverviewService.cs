@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Backup;
 using MyProject.Web.Configuration;
@@ -88,6 +89,7 @@ public sealed class DataRetentionOverviewService
     private readonly TokenUsageLogService tokenUsageLogService;
     private readonly AiCallLogService aiCallLogService;
     private readonly AiAgentConversationService agentConversationService;
+    private readonly AdminPatrolReportService adminPatrolReportService;
     private readonly AuditLogQueryService auditLogQueryService;
     private readonly NotificationQueryService notificationQueryService;
     private readonly ScheduledJobRunService jobRunService;
@@ -110,6 +112,7 @@ public sealed class DataRetentionOverviewService
         TokenUsageLogService tokenUsageLogService,
         AiCallLogService aiCallLogService,
         AiAgentConversationService agentConversationService,
+        AdminPatrolReportService adminPatrolReportService,
         AuditLogQueryService auditLogQueryService,
         NotificationQueryService notificationQueryService,
         ScheduledJobRunService jobRunService,
@@ -131,6 +134,7 @@ public sealed class DataRetentionOverviewService
         this.tokenUsageLogService = tokenUsageLogService;
         this.aiCallLogService = aiCallLogService;
         this.agentConversationService = agentConversationService;
+        this.adminPatrolReportService = adminPatrolReportService;
         this.auditLogQueryService = auditLogQueryService;
         this.notificationQueryService = notificationQueryService;
         this.jobRunService = jobRunService;
@@ -160,6 +164,7 @@ public sealed class DataRetentionOverviewService
         var tokenFolder = MeasureAsync(paths.TokenUsagePath, budget.Token);
         var aiFolder = MeasureAsync(paths.AiCallLogPath, budget.Token);
         var agentFolder = MeasureAsync(paths.AiAgentConversationPath, budget.Token);
+        var patrolFolder = MeasureAsync(AdminPatrolReportFileStore.RootOf(paths), budget.Token);
         var auditFolder = MeasureAsync(paths.AuditContentPath, budget.Token);
         var backupFolder = MeasureAsync(paths.BackupPath, budget.Token);
         var nlogFolder = Task.Run(() => DirectorySizeProbe.Measure(nlogDirectory, IsLogFile, budget.Token));
@@ -170,6 +175,7 @@ public sealed class DataRetentionOverviewService
         rows.Add(await RowAsync("token-usage", "Token 用量", () => TokenUsageRowAsync(jobByName, tokenFolder)));
         rows.Add(await RowAsync("ai-call-log", "AI 對話紀錄", () => AiCallLogRowAsync(jobByName, aiFolder)));
         rows.Add(await RowAsync("agent-conversation", "Agent 對話", () => AgentConversationRowAsync(jobByName, agentFolder)));
+        rows.Add(await RowAsync("admin-patrol-report", "巡檢報告", () => AdminPatrolReportRowAsync(jobByName, patrolFolder)));
         rows.Add(await RowAsync("audit-log", "稽核紀錄", () => AuditLogRowAsync(jobByName, auditFolder)));
         rows.Add(await RowAsync("notification", "站內通知", () => NotificationRowAsync(jobByName)));
         rows.Add(await RowAsync("backup", "系統備份", () => BackupRowAsync(jobByName, backupFolder)));
@@ -399,6 +405,30 @@ public sealed class DataRetentionOverviewService
             ManageUrl = "/agent-playground",
             CanCustomPurge = true,
         }, AiAgentConversationRetentionJob.JobName, jobByName.GetValueOrDefault(AiAgentConversationRetentionJob.JobName), ruleActive: true);
+    }
+
+    /// <summary>
+    /// 定時巡檢報告（0.9.161 起）。內容檔放在 Agent 對話目錄底下的 AdminPatrol 子目錄，所以「Agent 對話」那一列的資料夾大小也包含它。
+    /// 沒有自訂清除（報告小、一天一份，依天數過期就夠了）。
+    /// </summary>
+    private async Task<DataRetentionRow> AdminPatrolReportRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)
+    {
+        var stats = await adminPatrolReportService.GetRetentionStatsAsync(timeProvider.GetLocalNow().DateTime);
+        return WithJob(new DataRetentionRow
+        {
+            Key = "admin-patrol-report",
+            Label = "巡檢報告",
+            Note = "系統管理助理的定時巡檢，連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」",
+            Count = stats.Total,
+            CountUnit = "份",
+            Folder = await folder,
+            OldestLocal = stats.Oldest,
+            RuleText = $"產出後保留 {adminPatrolReportService.RetentionDays} 天",
+            ParameterGroup = SystemParameterCatalog.GroupRetention,
+            Expected = stats.Expired,
+            ManageUrl = "/admin-assistant",
+            CanCustomPurge = false,
+        }, AdminPatrolReportRetentionJob.JobName, jobByName.GetValueOrDefault(AdminPatrolReportRetentionJob.JobName), ruleActive: true);
     }
 
     private async Task<DataRetentionRow> AuditLogRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)

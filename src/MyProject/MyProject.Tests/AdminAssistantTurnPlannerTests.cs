@@ -85,6 +85,24 @@ public sealed class AdminAssistantTurnPlannerTests
         Assert.Same(AdminAssistantAgent.Home, planner.Home);
     }
 
+    /// <summary>定時巡檢（0.9.161 起）：不呼叫分派模型，直接組出巡檢的定義與提示詞。</summary>
+    [Fact]
+    public async Task PatrolTurn_DoesNotCallRouter_UsesPatrolDefinitionAndAllDomains()
+    {
+        var turn = await CreatePlanner().PatrolTurnAsync(CancellationToken.None);
+
+        Assert.Empty(client.Requests);
+        Assert.Same(AdminAssistantAgent.ScheduledPatrol, turn.Definition);
+        Assert.Equal(AdminAssistantRouting.NameOf(AdminAssistantDomain.Patrol), turn.Label);
+        foreach (var key in AdminAssistantAgent.DomainPromptKeys.Values)
+        {
+            Assert.Contains($"[{key}]", turn.Instructions, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("這一則是巡檢", turn.Instructions, StringComparison.Ordinal);
+        Assert.EndsWith(AiPromptGuardrails.For(PromptTemplateKeys.AdminAssistant), turn.Instructions, StringComparison.Ordinal);
+    }
+
     private static void AssertAllDomains(MyProject.Web.Ai.Agents.AiAgentTurn turn)
     {
         Assert.Equal(AdminAssistantRouting.DefaultLabel, turn.Label);

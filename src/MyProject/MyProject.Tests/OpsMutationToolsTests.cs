@@ -171,7 +171,7 @@ public sealed class OpsMutationToolsTests : IDisposable
     public void PurgeJobNames_CoverEveryJobExceptBackupAndReminder()
     {
         var names = harness.Services.GetRequiredService<ScheduledJobOverviewService>().Descriptors.Select(job => job.Name).ToHashSet();
-        string[] allowed = ["SystemBackup", "PasswordExpiryReminder"];
+        string[] allowed = ["SystemBackup", "PasswordExpiryReminder", "AdminPatrol"];
 
         Assert.Equal(names.Except(allowed).Order(), OpsAssistantTools.PurgeJobNames.Order());
     }

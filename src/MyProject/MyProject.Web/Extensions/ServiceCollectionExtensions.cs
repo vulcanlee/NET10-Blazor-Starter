@@ -257,6 +257,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiAgentConversationStore>(sp => sp.GetRequiredService<AiAgentConversationService>());
         #endregion
 
+        #region 定時巡檢報告（0.9.161 起）
+        // 執行器只給排程作業用（沒有登入的使用者時才肯跑，見 AdminPatrolRunner）；報告服務給作業與系統管理助理頁。
+        services.AddScoped<AdminPatrolReportFileStore>();
+        services.AddScoped<AdminPatrolReportService>();
+        services.AddScoped<Ai.Agents.AdminAssistant.IAdminPatrolRunner, Ai.Agents.AdminAssistant.AdminPatrolRunner>();
+        #endregion
+
         #region 排程作業（0.9.96 起）
         services.AddScheduledJobs();
         #endregion
@@ -311,6 +318,12 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<NotificationRetentionJob>(
             NotificationRetentionJob.JobName, "站內通知清理",
             "刪除建立超過保留天數的站內通知（不論已讀未讀，預設 90 天），以及標為已讀超過已讀保留天數的通知（預設 7 天）；兩者都在「系統參數」頁設定，0 = 不清除。", "0 3 * * *");
+        services.AddScheduledJob<AdminPatrolReportRetentionJob>(
+            AdminPatrolReportRetentionJob.JobName, "巡檢報告清理",
+            "刪除產出超過保留天數的系統管理助理巡檢報告與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
+        services.AddScheduledJob<AdminPatrolJob>(
+            AdminPatrolJob.JobName, "系統管理助理巡檢",
+            "每天以系統管理助理巡檢一次系統（只用查詢工具，約 NT$ 1～2）；報告存在系統管理助理頁的「巡檢報告」，有「注意」或「異常」時通知所有管理員並寄信。AI 未設定時略過。", "30 7 * * *");
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
             "備份資料庫、專案附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
@@ -364,6 +377,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<AiAgentConversationSettings>()
             .Bind(configuration.GetSection(AiAgentConversationSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<AdminPatrolSettings>()
+            .Bind(configuration.GetSection(AdminPatrolSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

@@ -121,6 +121,12 @@ public static class TokenUsageOperations
 
     /// <summary>「系統管理助理」每則訊息前的分派判斷（0.9.155 起）。</summary>
     public const string AdminAssistantRouter = "系統管理助理（分派）";
+
+    /// <summary>
+    /// 排程作業「系統管理助理巡檢」的定時巡檢（0.9.161 起）。一次巡檢的每一次模型呼叫各記一筆、共用 RunId，
+    /// ConversationId 是巡檢報告編號；沒有登入的使用者，所以用量不屬於任何人、只受全系統上限限制。
+    /// </summary>
+    public const string AdminAssistantPatrol = "系統管理助理（排程巡檢）";
 }
 
 /// <summary>

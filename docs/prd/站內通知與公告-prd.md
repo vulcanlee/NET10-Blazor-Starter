@@ -1,10 +1,10 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.136
+- 現行系統版本：0.9.161
 - 首次實作版本：0.9.100
-- 最後核對日期：2026/10/23
+- 最後核對日期：2026/11/07
 
 ## 一、目標與範圍
 
@@ -53,6 +53,7 @@
 | 密碼即將到期（7 天內） | 本人 | 否 | `PasswordExpiring:{使用者 Id}:{到期時間}` | 排程作業「密碼到期提醒」（`PasswordExpiryReminder`，`0 8 * * *`，0.9.101 起） |
 | AI 用量達每人上限的 80%／100% | 本人 | 否 | `AiQuota:user:{使用者 Id}:{daily:日期\|monthly:年月}:{80\|100}` | `TokenUsageLogService` 記帳後（0.9.109 起，[AI 用量配額](AI用量配額-prd.md)） |
 | AI 用量達全系統上限的 80%／100% | 管理員 | 100% 時是 | `AiQuota:global:{daily:日期\|monthly:年月}:{80\|100}` | 同上 |
+| 定時巡檢有「注意」「異常」或無法判讀 | 管理員 | 是 | `AdminPatrol:{報告編號}`（每份報告一次） | 排程作業「系統管理助理巡檢」（`AdminPatrol`，`30 7 * * *`，0.9.161 起，[系統管理助理 PRD](系統管理助理-prd.md)）；內文是摘要（純文字、1000 字內），連結 `/admin-assistant?patrolReport={報告編號}` |
 
 - **清除**：排程作業「站內通知清理」（`NotificationRetention`，`0 3 * * *`）刪除建立超過 `NotificationSettings:RetentionDays`（預設 90，系統參數）天的通知，分批進行，寫 `Notification.AutoPurge`。0.9.125 起同一個作業另外刪除**標為已讀**超過 `NotificationSettings:ReadRetentionDays`（預設 7，系統參數，從 `ReadAtUtc` 起算）天的通知；兩者各自 `0`＝不清除，稽核摘要分列 `rows`／`readRows`。
 

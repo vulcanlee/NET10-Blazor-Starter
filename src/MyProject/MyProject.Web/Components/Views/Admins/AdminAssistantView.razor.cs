@@ -66,6 +66,9 @@ public partial class AdminAssistantView : IDisposable
     private CancellationTokenSource? cts;
     private bool isDisposed;
 
+    /// <summary>「巡檢報告」視窗（0.9.161 起）；只在管理員分支裡渲染，非管理員永遠打不開。</summary>
+    private AdminPatrolReportsModal? patrolReportsModal;
+
     public AdminAssistantView(
         ILogger<AdminAssistantView> logger,
         IAiAgentRunner runner,
@@ -92,6 +95,10 @@ public partial class AdminAssistantView : IDisposable
     public NavigationManager NavigationManager { get; set; } = default!;
 
     public string RoleMessage { get; set; } = string.Empty;
+
+    /// <summary>定時巡檢通知的連結帶過來的報告編號（0.9.161 起）；有值時自動打開「巡檢報告」並選那一份。</summary>
+    [Parameter]
+    public Guid? InitialPatrolReportId { get; set; }
 
     private bool IsAwaitingApproval => chat?.IsAwaitingApproval == true;
 
@@ -122,6 +129,29 @@ public partial class AdminAssistantView : IDisposable
 
         unavailableReason = runner.UnavailableReason;
         await LoadConversationsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // 深連結（同 AI 對話紀錄頁）：等畫面渲染完才開，視窗的 @ref 才有值；只開一次。
+        if (InitialPatrolReportId is not { } reportId || patrolReportsModal is null)
+        {
+            return;
+        }
+
+        InitialPatrolReportId = null;
+        if (await patrolReportsModal.OpenAsync(reportId) == false)
+        {
+            ViewNotification.Caution(notificationService, "找不到這份巡檢報告，可能已超過保存期限被清除。");
+        }
+    }
+
+    private async Task OnOpenPatrolReportsAsync()
+    {
+        if (patrolReportsModal is not null)
+        {
+            await patrolReportsModal.OpenAsync();
+        }
     }
 
     private void OnNewConversation()

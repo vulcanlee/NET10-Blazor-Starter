@@ -51,6 +51,8 @@
 | `ExceptionLogRetention` | 系統例外紀錄清理 | `LogRetentionSettings:ExceptionLogDays`（90，本地門檻）| `ExceptionLog.AutoPurge` |
 | `AiCallLogRetention` | AI 對話紀錄清理 | `AiCallLogSettings:RetentionDays`（90）| `AiCallLog.AutoPurge` |
 | `AiAgentConversationRetention` | Agent 對話清理（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）| `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間 `UpdatedAt`，全體使用者）| `AiAgentConversation.AutoPurge` |
+| `AdminPatrolReportRetention` | 巡檢報告清理（0.9.161 起）| `AdminPatrolSettings:RetentionDays`（90，依產出時間 `CreatedAt`）| `AdminPatrol.AutoPurge` |
+| `AdminPatrol` | 系統管理助理巡檢（0.9.161 起，預設 `30 7 * * *`）| `AdminPatrolSettings:RetentionDays`（報告保留天數）；AI 未設定時回成功並略過 | —（工具呼叫寫 `Ai.ToolInvoked`，操作者留空、註明「排程巡檢」；需要注意時發站內通知＋寄信） |
 | `TokenUsageLogRetention` | Token 用量紀錄清理 | `LogRetentionSettings:TokenUsageLogDays`（365，分批刪除）| `TokenUsage.AutoPurge` |
 | `SystemBackup` | 系統備份（0.9.99 起，預設 `0 2 * * *`）| `BackupSettings:KeepCount`（7 份，成功後才刪舊的）| `Backup.Create`／`Backup.AutoPurge` |
 | `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |

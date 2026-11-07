@@ -294,6 +294,12 @@ public static class AuditActions
         public const string AutoPurge = "AiAgentConversation.AutoPurge";
     }
 
+    /// <summary>定時巡檢報告（0.9.161 起）：排程依保留天數自動清除。detail 只記筆數與天數，不記報告內容。</summary>
+    public static class AdminPatrol
+    {
+        public const string AutoPurge = "AdminPatrol.AutoPurge";
+    }
+
     /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>
     public static class Prompt
     {

@@ -19,6 +19,61 @@ namespace MyProject.AccessDatas.Migrations
                 .UseCollation("Chinese_Taiwan_Stroke_CI_AS")
                 .HasAnnotation("ProductVersion", "10.0.5");
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.AdminPatrolReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AttentionSections")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentFile")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsTruncated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("JobRunId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TriggeredByAccount")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ReportId")
+                        .IsUnique();
+
+                    b.ToTable("AdminPatrolReport");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.AiAgentConversation", b =>
                 {
                     b.Property<int>("Id")

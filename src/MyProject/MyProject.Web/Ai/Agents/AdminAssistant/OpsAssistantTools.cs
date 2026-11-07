@@ -128,7 +128,7 @@ public sealed class OpsAssistantTools
     {
         AuditLogRetentionJob.JobName, ExceptionLogRetentionJob.JobName, AiCallLogRetentionJob.JobName,
         AiAgentConversationRetentionJob.JobName, TokenUsageLogRetentionJob.JobName, NotificationRetentionJob.JobName,
-        SoftDeletePurgeJob.JobName,
+        SoftDeletePurgeJob.JobName, AdminPatrolReportRetentionJob.JobName,
     };
 
     public static AiToolDefinition SetSystemParameterTool { get; } = DefineMutating(
