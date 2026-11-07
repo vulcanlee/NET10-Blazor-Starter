@@ -92,6 +92,7 @@ namespace MyProject.Web.Components.Auths
             {
                 "deleted" => "此帳號已被刪除，請洽系統管理員。",
                 "locked" => "此帳號因連續輸錯密碼已暫時鎖定，請稍後再試，或請系統管理員解鎖。",
+                "account-taken" => "這個 Email 已經是其他使用者的帳號名稱，無法自動建立帳號。如果那就是你的帳號，請系統管理員在帳號資料補上這個 Email，再用 Google 登入即可連結。",
                 _ => null,
             };
 

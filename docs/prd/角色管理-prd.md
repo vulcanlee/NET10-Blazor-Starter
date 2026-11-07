@@ -1,8 +1,8 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.171
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/07
 
@@ -32,7 +32,7 @@
 - **清單**：遠端分頁 `Table`，欄位 名稱、建立時間、更新時間，可排序；工具列含新增、重新整理、「顯示已刪除」切換（0.9.95 起）、搜尋、清空搜尋（搜尋比對名稱）；每列操作為修改、複製（0.9.139 起）、刪除。
 - **複製**（0.9.139 起）：以該列為範本開啟新增視窗（標題「複製角色（來源：…）」），`RolePermissionMatrix.CreateCopy` 帶入名稱「原名稱 - 複本」、預設團隊、需要兩步驟驗證與權限（深複製），不帶 Id、版本號與軟刪除欄位；全部欄位可修改，存檔走一般新增流程（確認儲存、`BeforeAddCheckAsync` 名稱唯一、`Role.Create` 稽核）。「預設角色」也可以當範本。
 - **維護表單**（Modal）：
-  - 名稱（必填，唯一）。
+  - 名稱（必填，唯一；0.9.171 起去頭尾空白、不分大小寫）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。
   - 「需要兩步驟驗證」（0.9.104 起，`RoleView.RequireTwoFactor`）：有這個角色（主要或額外）的人必須開啟兩步驟驗證，還沒設定的人下一次換頁被帶到設定頁；稽核 detail 帶 `requireTwoFactor=`。見[兩步驟驗證](兩步驟驗證-prd.md)。
   - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」，0.9.142 起加「AI 助理」（底下「Agent 測試台」；0.9.144 起再加「Agent 工作流程」）；系統管理及其子群組不上架矩陣）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
@@ -51,7 +51,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - **自動永久刪除**（0.9.97 起）：刪除超過 `SoftDeleteSettings:PurgeAfterDays`（預設 90 天，`0`＝不自動）的角色，由排程作業「已刪除資料清理」（`SoftDeletePurgeService`）永久刪除；系統層級清除，不看團隊範圍。每次有刪到時寫一筆彙總稽核 `Role.AutoPurge`（筆數、天數、觸發方式、`#Id 名稱` 清單）。「預設角色」永遠不刪；任何使用者（含尚未到期的已刪除使用者）仍以它為主要角色時留到之後再刪，同一輪中使用者先於角色處理。見 [排程作業 PRD](排程作業-prd.md)。
 - **啟動回填**（`RbacBackfillService.RunAsync`）：開機時由 `RolePermissionService` 建立權限目錄（`Permission`，含 `GroupName`／`SortOrder`），並依各角色 `TabViewJson` 補寫 `RolePermissionMap`，冪等。
 - **權限判定**（`PermissionChecker`）：使用者角色取自 `UserRole`（多角色）並容錯併入 legacy `RoleViewId`；join `RolePermissionMap`／**`RoleView`（0.9.95 起，排除已刪除的角色）**／`Permission` 得有效權限鍵集合；管理員短路回 true；擁有裸頁面鍵者視為具該頁全部動作。
-- **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性。
+- **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性（0.9.171 起去頭尾空白、不分大小寫，還原時同規則）。資料庫有部分唯一索引 `IX_RoleView_Name` 兜底，違反時回「角色名稱已存在（不分大小寫），無法儲存。」；升級時既有的重複名稱，後建的改名為「原名 (重複-Id)」。
 - **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。0.9.95 起不可刪除；`DefaultRoleViewSeeder` 以 `IgnoreQueryFilters` 查找並優先取未刪除的列，找到已刪除的就還原（不會重建第二個帶全部權限的預設角色）。
   0.9.142 起，建立預設角色與升級時自動加入新頁面都略過 `RolePermissionService.NotGrantedToDefaultRole`（「AI 助理」、「Agent 測試台」與 0.9.144 起的「Agent 工作流程」：會花 AI 費用，由管理員自己決定開給哪些角色）；這些頁面照樣出現在權限矩陣、可勾選授權。
 

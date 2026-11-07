@@ -11,6 +11,7 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Startup;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Others;
 using MyProject.Models.Systems;
@@ -121,6 +122,161 @@ public sealed class SoftDeleteUserRoleTests
         Assert.False(result.Success);
         Assert.Contains(MagicObjectHelper.預設角色, result.Message, StringComparison.Ordinal);
     }
+
+    // ------------------------------------------------------------------ 帳號與角色名稱唯一性（0.9.171 起）
+
+    /// <summary>帳號去頭尾空白、不分大小寫不能重複；存的是去掉空白後的值；修改自己不會撞到自己。</summary>
+    [Fact]
+    public async Task Account_ShouldBeTrimmed_AndUniqueCaseInsensitively()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync("一般", "PermA");
+        var users = fixture.UserService();
+        await fixture.AddUserAsync("admin", role);
+
+        Assert.False((await users.BeforeAddCheckAsync(NewUser(" ADMIN ", role))).Success);
+        Assert.True((await users.BeforeAddCheckAsync(NewUser(" Tester ", role))).Success);
+        Assert.True((await users.AddAsync(NewUser(" Tester ", role))).Success);
+        var tester = await fixture.Context.MyUser.AsNoTracking().SingleAsync(x => x.Name == "Tester");
+        Assert.Equal("Tester", tester.Account);
+
+        var renamed = NewUser("Admin", role);
+        renamed.Id = tester.Id;
+        Assert.False((await users.BeforeUpdateCheckAsync(renamed)).Success);
+        var self = NewUser(" tester ", role);
+        self.Id = tester.Id;
+        Assert.True((await users.BeforeUpdateCheckAsync(self)).Success);
+    }
+
+    [Fact]
+    public async Task RoleName_ShouldBeTrimmed_AndUniqueCaseInsensitively()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var roles = fixture.RoleService();
+        var manager = await fixture.AddRoleAsync("Manager", "PermA");
+
+        Assert.False((await roles.BeforeAddCheckAsync(new RoleViewAdapterModel { Name = " manager " })).Success);
+        Assert.False((await roles.BeforeUpdateCheckAsync(new RoleViewAdapterModel { Id = await fixture.AddRoleAsync("Viewer", "PermB"), Name = "MANAGER" })).Success);
+        Assert.True((await roles.BeforeUpdateCheckAsync(new RoleViewAdapterModel { Id = manager, Name = " manager " })).Success);
+
+        Assert.True((await roles.DeleteAsync(manager)).Success);
+        await fixture.AddRoleAsync("MANAGER", "PermC");
+        var restore = await roles.RestoreAsync(manager);
+        Assert.False(restore.Success);
+        Assert.Contains("同名", restore.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>登入不分大小寫、去頭尾空白（0.9.171 起）；輸入「ADMIN」也登得進 admin。</summary>
+    [Fact]
+    public async Task Login_ShouldMatchAccountCaseInsensitively()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync("一般", "PermA");
+        await fixture.AddUserAsync("admin", role);
+        var hash = SecurePasswordHasher.HashPassword("pass-word-123");
+        await fixture.Context.MyUser.Where(x => x.Account == "admin")
+            .ExecuteUpdateAsync(x => x.SetProperty(u => u.Password, hash).SetProperty(u => u.Salt, (string?)null));
+
+        var upper = await fixture.LoginService().LoginAsync("ADMIN", "pass-word-123");
+        var spaced = await fixture.LoginService().LoginAsync(" admin ", "pass-word-123");
+        var wrong = await fixture.LoginService().LoginAsync("ADMIN", "wrong");
+
+        Assert.Equal("admin", upper.User?.Account);
+        Assert.Equal("admin", spaced.User?.Account);
+        Assert.Null(wrong.User);
+    }
+
+    /// <summary>
+    /// Google 登入要建立新帳號時，帳號（email）已被別的使用者用（大小寫不同也算）：拒絕，不建立新使用者、不自動合併。
+    /// </summary>
+    [Fact]
+    public async Task ExternalLogin_WhenAccountIsTakenByAnotherUser_ShouldRefuseWithoutCreating()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync(MagicObjectHelper.預設角色, "PermA");
+        await fixture.AddUserAsync("Pat@Example.com", role, email: "someone-else@example.com");
+        var before = await fixture.Context.MyUser.CountAsync();
+
+        var result = await fixture.ExternalLogin("sub-pat", "pat@example.com");
+
+        Assert.Equal(ExternalLoginOutcome.AccountTaken, result.Evaluate(DateTime.UtcNow));
+        Assert.Equal(before, await fixture.Context.MyUser.CountAsync());
+    }
+
+    /// <summary>
+    /// 審查發現：SQLite 的 lower() 只折疊 A-Z，C# 的 ToLower() 會折疊所有字母。兩邊要用同一套（都在 SQL 端），
+    /// 否則「Émile」這類帳號連大小寫完全照打都登不進去（升級前是精確比對，登得進去）。
+    /// </summary>
+    [Fact]
+    public async Task NonAsciiAccount_ShouldStillLogIn_AndBeCheckedForDuplicates()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync("一般", "PermA");
+        await fixture.AddUserAsync("Émile", role);
+        var hash = SecurePasswordHasher.HashPassword("pass-word-123");
+        await fixture.Context.MyUser.Where(x => x.Account == "Émile")
+            .ExecuteUpdateAsync(x => x.SetProperty(u => u.Password, hash).SetProperty(u => u.Salt, (string?)null));
+
+        var login = await fixture.LoginService().LoginAsync("Émile", "pass-word-123");
+
+        Assert.Equal("Émile", login.User?.Account);
+        Assert.False((await fixture.UserService().BeforeAddCheckAsync(NewUser("Émile", role))).Success);
+    }
+
+    /// <summary>
+    /// 審查發現：support 種子不分大小寫比對時，可能找到另一位只差大小寫的「一般」使用者並把他提升成管理員、改掉他的密碼。
+    /// 這種情況要拒絕並讓啟動停下來；大小寫不同但本來就是管理員（設定檔改了大小寫）則視為同一個 support。
+    /// </summary>
+    [Fact]
+    public async Task SupportSeeder_ShouldNotPromoteANonAdminWhoseAccountOnlyDiffersInCase()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync(MagicObjectHelper.預設角色, "PermA");
+        await fixture.AddUserAsync("Support", role);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.SeedSupportAsync("support"));
+
+        var user = await fixture.Context.MyUser.AsNoTracking().SingleAsync();
+        Assert.False(user.IsAdmin);
+        Assert.Equal("x", user.Password);
+    }
+
+    [Fact]
+    public async Task SupportSeeder_ShouldReuseAnAdminWhoseAccountOnlyDiffersInCase()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync(MagicObjectHelper.預設角色, "PermA");
+        var id = await fixture.AddUserAsync("Support", role);
+        await fixture.Context.MyUser.Where(x => x.Id == id).ExecuteUpdateAsync(x => x.SetProperty(u => u.IsAdmin, true));
+
+        await fixture.SeedSupportAsync("support");
+
+        Assert.Equal(1, await fixture.Context.MyUser.CountAsync());
+    }
+
+    /// <summary>審查發現：已刪除的使用者帳號名稱就是這個 Email 時也要拒絕，否則新建之後那位已刪除的使用者就還原不了。</summary>
+    [Fact]
+    public async Task ExternalLogin_WhenADeletedUserHasThatAccount_ShouldAlsoRefuse()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var role = await fixture.AddRoleAsync(MagicObjectHelper.預設角色, "PermA");
+        var pat = await fixture.AddUserAsync("pat@example.com", role, email: "other@example.com");
+        Assert.True((await fixture.UserService().DeleteAsync(pat)).Success);
+
+        var result = await fixture.ExternalLogin("sub-pat", "PAT@example.com");
+
+        Assert.Equal(ExternalLoginOutcome.AccountTaken, result.Evaluate(DateTime.UtcNow));
+        Assert.Equal(1, await fixture.Context.MyUser.IgnoreQueryFilters().CountAsync());
+    }
+
+    private static MyUserAdapterModel NewUser(string account, int roleId) => new()
+    {
+        Account = account,
+        Name = account.Trim(),
+        Password = "Pass-word-1234!",
+        RoleViewId = roleId,
+        Status = true,
+    };
 
     [Fact]
     public async Task RoleRestore_WithSameNameActiveRole_ShouldBeRejected()
@@ -270,14 +426,14 @@ public sealed class SoftDeleteUserRoleTests
         var role = await fixture.AddRoleAsync("一般", "PermA");
         var users = fixture.UserService();
 
-        // 帳號衝突（完全比對：大小寫不同不算衝突，與新增時的檢查一致）
+        // 帳號衝突（0.9.171 起不分大小寫：大小寫不同也算衝突，與新增時的檢查一致）
         var alice = await fixture.AddUserAsync("alice", role);
         Assert.True((await users.DeleteAsync(alice)).Success);
-        var newAlice = await fixture.AddUserAsync("alice", role);
+        var newAlice = await fixture.AddUserAsync("Alice", role);
         var accountConflict = await users.RestoreAsync(alice);
         Assert.False(accountConflict.Success);
-        Assert.Contains("alice", accountConflict.Message, StringComparison.Ordinal);
-        await fixture.Context.MyUser.Where(x => x.Id == newAlice).ExecuteUpdateAsync(x => x.SetProperty(u => u.Account, "Alice"));
+        Assert.Contains("alice", accountConflict.Message, StringComparison.OrdinalIgnoreCase);
+        await fixture.Context.MyUser.Where(x => x.Id == newAlice).ExecuteUpdateAsync(x => x.SetProperty(u => u.Account, "alice2"));
         Assert.True((await users.RestoreAsync(alice)).Success);
 
         // GoogleId 衝突
@@ -572,6 +728,16 @@ public sealed class SoftDeleteUserRoleTests
             => new(NewContext(), mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
                 new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
                 TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), supportAccount: bootstrapSettings.SupportAccount));
+
+        public async Task SeedSupportAsync(string supportAccount)
+        {
+            await using var context = NewContext();
+            await new SupportUserSeeder(
+                    context,
+                    Options.Create(new BootstrapSettings { SupportAccount = supportAccount, SupportPassword = "Seed-Pass-1234!", SupportName = "support" }),
+                    NullLogger<SupportUserSeeder>.Instance)
+                .SeedAsync(CancellationToken.None);
+        }
 
         public Task<ExternalLoginResult> ExternalLogin(string subject, string email)
             => new ExternalLoginService(NewContext(), NullLogger<ExternalLoginService>.Instance, new RecordingAuditLogService(), new RecordingNotificationSender())

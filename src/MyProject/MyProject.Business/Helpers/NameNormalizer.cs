@@ -30,4 +30,23 @@ public static class NameNormalizer
         var trimmed = Normalize(value);
         return trimmed.Length == 0 ? null : trimmed;
     }
+
+    /// <summary>
+    /// 只把 A-Z 轉成小寫（0.9.171 起）：和 SQLite 的 <c>lower()</c> 一樣。查詢寫成
+    /// <c>x.Account.ToLower() == NameNormalizer.ToLowerAscii(input)</c>，資料庫端與程式端才是同一套規則。
+    /// ⚠️ 不可用 C# 的 <c>ToLower()</c>：它會折疊所有字母（「É」→「é」），但 SQLite 不會，「Émile」連大小寫完全照打都比對不到。
+    /// EF 會在程式端先算好不含欄位的運算式，所以 <c>input.ToLower()</c> 寫在 lambda 裡也一樣是 C# 的規則。
+    /// </summary>
+    public static string ToLowerAscii(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return string.Create(value.Length, value, static (span, source) =>
+        {
+            for (var i = 0; i < source.Length; i++)
+            {
+                var c = source[i];
+                span[i] = c is >= 'A' and <= 'Z' ? (char)(c + 32) : c;
+            }
+        });
+    }
 }

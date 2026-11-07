@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.19
+- 文件版本：1.20
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.171
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/07
 
@@ -33,7 +33,7 @@
   0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
   0.9.104 起：已開啟兩步驟驗證的帳號在「狀態」多一個「兩步驟驗證」徽章，操作欄（自己那一列除外）多「重設兩步驟驗證」（確認後清除驗證器設定與備用碼，見[兩步驟驗證](兩步驟驗證-prd.md)）。
 - **維護表單**（Modal）欄位：
-  - 帳號（必填，唯一）、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
+  - 帳號（必填，唯一；0.9.171 起去頭尾空白、不分大小寫）、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
   - 「下次登入須變更密碼」核取方塊（0.9.101 起，`MustChangePassword`）：新增時預設勾選；編輯時輸入新密碼會自動勾選（仍可取消）；也可以不改密碼只勾選，要求對方下次登入先換密碼。
     ⚠️ 0.9.60 起 **Email 是「忘記密碼」寄信的收件者**：留空的帳號無法自助重設密碼（只記在稽核 `Password.ResetRequested` 的 `reason=InvalidEmail`）。0.9.85 起 `BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查格式（`MailAddress.TryCreate`，與 `PasswordResetService` 判斷能否寄信的規則相同）：有填但不合法時擋下並顯示「Email 格式不正確；不使用可留空。」。既有錯誤資料不自動修正（例如出貨預設 `BootstrapSettings:SupportEmail = "support"`），修改該帳號時須改正或清空。多個帳號可以共用同一個 Email，申請時每個帳號各收一封。
   - 角色（必填，單選主要角色 `RoleViewId`）。
@@ -63,7 +63,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - **存檔驗證角色**（0.9.95 起）：新增與修改時，主要角色與額外角色必須存在且未刪除（null 跳過），否則回「選擇的角色已被刪除或不存在，請關閉視窗、重新開啟後再選擇角色。」—— 編輯視窗開著的期間角色可能被刪掉，存進去的話那個人每次換頁都會被登出。`SyncUserRolesAsync` 只在有效角色之間計算差異，指向已刪除角色的連結保留。
 - **啟動回填**（`RbacBackfillService.RunAsync`）：開機時將既有 `MyUser.RoleViewId` 補寫成 `UserRole`、角色預設團隊補寫成 `UserTeam`，冪等執行，確保舊資料進入 RBAC 表。
 - **有效團隊**：登入後由 `EffectiveTeamResolver` 決定（使用者直綁團隊優先，否則沿用角色預設團隊）。
-- **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查帳號唯一性。
+- **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查帳號唯一性（0.9.171 起 `NameNormalizer` 後以 `ToLower()` 比對，還原時同規則）；寫入前 `AutoMapping` 與 `UpdateAsync` 都去頭尾空白。資料庫有部分唯一索引 `IX_MyUser_Account`（`WHERE "IsDeleted" = 0`）兜底，違反時經 `UniqueConstraintHelper` 回「帳號已存在（不分大小寫），無法儲存。」。
 - **稽核 actor**：`ResolveActor` 取目前登入者；未登入時 actor 為 null。
 
 > ℹ️ `RbacWriteService` 在 0.4.36 `IDbContextFactory` 遷移後**仍直接接收 DI 注入的 scoped `BackendDBContext`**
@@ -82,7 +82,8 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 ## 六、錯誤與邊界
 
 - 新增未輸入密碼：前端與 `AddAsync` 皆拒絕（「新增使用者時必須輸入密碼。」）。
-- 帳號重複：新增／修改前置檢查回「帳號已存在，無法新增／修改。」
+- 帳號重複（不分大小寫）：新增／修改前置檢查回「帳號已存在，無法新增／修改。」
+- 升級到 0.9.171 時既有資料有不分大小寫重複的帳號：migration `AddUserAccountRoleNameUniqueIndex` 保留管理員（其次 Id 最小的；support 不能被停用），其他改名為「原帳號 (重複-Id)」、停用並換 SecurityStamp，每筆稽核 `User.DuplicateAccountRenamed`。
 - 修改對象不存在：回「找不到要修改的使用者資料。」；刪除同理。
 - **已刪除的使用者**（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息、忘記密碼維持中性訊息、既有 Cookie 在下一次換頁被登出、JWT 更新失敗、API 權限判斷回 false（403）。已知殘留：在**目前這一頁**仍有效（與停用相同）；已簽發的 JWT access token 到期前打 `/api/Auth/me` 仍會回傳 claims（不碰資料庫）。
 - 已刪除的使用者用 Google 登入：見 [登入與帳號流程](登入與帳號流程-prd.md)。

@@ -1,8 +1,8 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.18
+- 文件版本：1.19
 - 文件狀態：已實作
-- 現行系統版本：0.9.167
+- 現行系統版本：0.9.171
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/07
 
@@ -40,7 +40,7 @@
 
 ## 四、內部系統運作
 
-- **本地登入**（`MyUserServiceLogin.LoginAsync`，View → Service → `BackendDBContext`）：以 `Account` 查 `MyUser`；帳號不存在、密碼錯誤、鎖定中一律回 `InvalidCredentialsMessage`「帳號或密碼不正確，或帳號已被暫時鎖定。」（0.9.101 起；不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
+- **本地登入**（`MyUserServiceLogin.LoginAsync`，View → Service → `BackendDBContext`）：以 `Account` 查 `MyUser`（0.9.171 起去頭尾空白、不分大小寫；萬一多筆符合優先取大小寫完全相同的）；帳號不存在、密碼錯誤、鎖定中一律回 `InvalidCredentialsMessage`「帳號或密碼不正確，或帳號已被暫時鎖定。」（0.9.101 起；不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
 - **登入失敗告警**（0.9.166 起，`LoginFailureAlertSettings`，系統參數可調）：全系統最近 10 分鐘（預設）內登入失敗達 20 次（預設，含不存在的帳號、驗證碼錯誤、Google 登入失敗）就通知全體管理員並寄信，60 分鐘內不重發；不分帳號、不分 IP，抓的是帳號鎖定擋不到的橫向猜測。見 [稽核紀錄 PRD](稽核紀錄-prd.md) §七。
 - **帳號鎖定**（0.9.101 起讀 `LockoutSettings`，系統參數可調）：失敗時 `AccessFailedCount++`，達 `MaxFailedAttempts`（預設 5）設 `LockoutEndUtc = UtcNow + LockoutMinutes`（預設 15 分）並通知全體管理員（同時寄信）；
   鎖定期間不驗證密碼、不累加次數，稽核記 `Login.Failed`（`reason=Locked`），`Login.LockedOut` 只記造成鎖定的那一次。⚠️ 鎖定**到期時先歸零再驗證**（之前到期後錯一次就再鎖）。成功登入後 `AccessFailedCount` 歸零。
@@ -70,7 +70,7 @@
 - **稽核**：登入寫入 `Login.Success` / `Login.Failed` / `Login.Disabled` / `Login.LockedOut` / `Login.TwoFactorFailed`，Google 登入寫 `Login.Sso.Success` / `Login.Sso.Failed`，登出寫 `Logout`，工作階段失效被系統登出寫 `Login.SessionExpired`（`AuditLog`）；忘記密碼寫入 `Password.ResetRequested` / `Password.ResetCompleted` / `Password.ResetFailed`（見下）。
 - **登入紀錄的來源 IP**（0.9.117 起寫入，0.9.123 起顯示）：每筆稽核由 `AuditLogService` 經 `IClientIpProvider` 自動帶入 `AuditLog.ClientIp`（登入頁、兩步驟驗證頁、登出是 SSR，取 `HttpContext`；API 登入同），呼叫端不傳。首頁「我的帳號」的「上一次登入」（`ProfileService.GetPreviousLoginAsync`：`Login.Success`／`Login.Sso.Success` 的倒數第二筆）在登入方式後面顯示 IP（有值才顯示）；個人資料頁「最近 20 筆登入紀錄」（`GetRecentLoginsAsync`：`Login.*` 與 `Logout`）欄位為「時間、動作、來源 IP、結果」，0.9.117 之前的舊紀錄顯示「—」。見[個人資料](個人資料-prd.md)、[首頁儀表板](首頁儀表板-prd.md)。
 - **忘記密碼 → 重設**（`PasswordResetService`，0.9.60 起；Business 層、注入 `IDbContextFactory`）：
-  1. `RequestAsync(identifier, 重設頁網址)`：先刪所有過期 token；以 `Account` 精確比對（與登入相同），對不到再以 `Email` 不分大小寫比對（可能多筆 → **每個帳號各寄一封**）。
+  1. `RequestAsync(identifier, 重設頁網址)`：先刪所有過期 token；以 `Account` 比對（與登入相同：0.9.171 起去頭尾空白、不分大小寫），對不到再以 `Email` 不分大小寫比對（可能多筆 → **每個帳號各寄一封**）。
   2. 逐帳號判斷資格：`support`、停用（`Status=false`）、沒有本地密碼（Google-only，`Password=""`）、Email 空白或無效 → 不寄；同帳號 `RequestCooldownSeconds`（預設 60 秒）內已申請過 → 不寄。原因寫進稽核 detail（`reason=NotFound|Support|Disabled|NoLocalPassword|InvalidEmail|Cooldown|QueueFull`），畫面不透露。`RequestAsync` 回傳 `PasswordResetRequestResult`：輸入內建帳號名稱回 `SupportAccountNotAllowed`（大小寫不同也先正規化成 `support`，稽核照記 `reason=Support`），其餘一律 `Accepted`。
   3. 符合資格：刪掉該帳號舊 token → 產生 32 bytes 亂數（Base64Url）→ **資料表 `PasswordResetToken` 只存 SHA-256** 與到期時間（`TokenLifetimeMinutes`，預設 30 分；0.9.98 起可在「系統參數」頁修改，`PasswordResetService` 以 `IOptionsMonitor` 即時讀取，只影響之後寄出的連結）→ 重設信交給 `IEmailQueue` 背景寄出（回應時間不因「有寄信」而變長）。
   4. 重設頁開啟：`ValidateTokenAsync` 只讀不寫，決定顯示表單或「連結無效」。
@@ -91,6 +91,7 @@
 - 驗證碼錯誤／欄位空白：停留登入頁並重新產生驗證碼。
 - 連續輸錯 `MaxFailedAttempts` 次鎖定 `LockoutMinutes` 分鐘（預設 5 次、15 分鐘）；鎖定到期後可再次登入，失敗次數從 0 重新算；管理員可在使用者清單立即解鎖。
 - 兩步驟驗證：驗證碼錯、備用碼用過、同一組驗證碼第二次使用 → 「驗證碼不正確，或帳號已被暫時鎖定。」並計入鎖定次數；待驗證 Cookie 超過 5 分鐘或被竄改 → 回登入頁重新輸入密碼。
+- Google 登入要自動建立新帳號，但帳號（Email）已是別的使用者的帳號名稱（0.9.171 起，不分大小寫）：含已刪除的使用者；不建立、不合併，導回 `/Auths/Login?sso=account-taken`，顯示「這個 Email 已經是其他使用者的帳號名稱，無法自動建立帳號。如果那就是你的帳號，請系統管理員在帳號資料補上這個 Email，再用 Google 登入即可連結。」；兩個回呼同時建立同一個帳號時，撞到唯一索引的那一個也照這個結果處理，稽核 `Login.Sso.Failed`（`reason=AccountTaken`）。
 - 帳號被鎖定時用 Google 登入：導回 `/Auths/Login?sso=locked`，顯示「此帳號因連續輸錯密碼已暫時鎖定…」（Google 已驗證身分，明確告知無洩漏疑慮）。
 - Google Callback 缺 `subject`／`email`：登出外部身分並導回登入頁。
 - 已刪除的使用者（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息（不透露帳號曾存在）；Google 登入導回 `/Auths/Login?sso=deleted`（Google 已驗證身分，告知原因無洩漏疑慮）。

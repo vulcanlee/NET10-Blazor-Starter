@@ -24,6 +24,8 @@ public static class UniqueConstraintHelper
         ("Category.Name", "分類名稱已存在，無法儲存。"),
         ("Team.Name", "團隊名稱已存在，無法儲存。"),
         ("Team.Code", "團隊代號已存在，無法儲存。"),
+        ("MyUser.Account", "帳號已存在（不分大小寫），無法儲存。"),
+        ("RoleView.Name", "角色名稱已存在（不分大小寫），無法儲存。"),
     ];
 
     /// <summary>

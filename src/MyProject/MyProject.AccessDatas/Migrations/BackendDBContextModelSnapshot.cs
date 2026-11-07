@@ -621,6 +621,10 @@ namespace MyProject.AccessDatas.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Account")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = 0");
+
                     b.HasIndex("RoleViewId");
 
                     b.ToTable("MyUser");
@@ -991,6 +995,10 @@ namespace MyProject.AccessDatas.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = 0");
 
                     b.ToTable("RoleView");
                 });

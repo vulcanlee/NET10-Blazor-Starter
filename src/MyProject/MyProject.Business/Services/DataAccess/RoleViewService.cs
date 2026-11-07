@@ -194,6 +194,12 @@ public class RoleViewService
         }
         catch (Exception ex)
         {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("Role view creation rejected by unique constraint. Name={RoleName}", paraObject.Name);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             Logger.LogError(ex, "Failed to create role view. Name={RoleName}", paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "新增角色失敗。", ex);
         }
@@ -260,6 +266,12 @@ public class RoleViewService
         }
         catch (Exception ex)
         {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("Role view update rejected by unique constraint. RoleViewId={RoleViewId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             Logger.LogError(ex, "Failed to update role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Build(false, "修改角色失敗。", ex);
         }
@@ -400,8 +412,10 @@ public class RoleViewService
                 return VerifyRecordResultFactory.Build(false, "找不到要還原的角色（可能已被還原或永久刪除）。");
             }
 
-            // 刪除期間可能有人建立了同名角色；比對規則與新增時相同（完全比對）。
-            if (await context.RoleView.AnyAsync(x => x.Id != id && x.Name == item.Name))
+            // 刪除期間可能有人建立了同名角色；比對規則與新增時相同（0.9.171 起去頭尾空白、不分大小寫）。
+            // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+            var name = NameNormalizer.Normalize(item.Name);
+            if (await context.RoleView.AnyAsync(x => x.Id != id && x.Name.ToLower() == NameNormalizer.ToLowerAscii(name)))
             {
                 Logger.LogInformation("Role view restore rejected because an active role has the same name. RoleViewId={RoleViewId}", id);
                 return VerifyRecordResultFactory.Build(false, $"已有同名的角色「{item.Name}」，無法還原。請先將現有的同名角色改名後再還原。");
@@ -426,6 +440,12 @@ public class RoleViewService
         }
         catch (Exception ex)
         {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("Role view restore rejected by unique constraint. RoleViewId={RoleViewId}", id);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             Logger.LogError(ex, "Failed to restore role view. RoleViewId={RoleViewId}", id);
             return VerifyRecordResultFactory.Build(false, "還原角色失敗。", ex);
         }
@@ -488,9 +508,12 @@ public class RoleViewService
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for role view. Name={RoleName}", paraObject.Name);
 
+        // 0.9.171 起去頭尾空白、不分大小寫（同分類名稱，速查表 §4.2）。
+        // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+        var name = NameNormalizer.Normalize(paraObject.Name);
         var searchItem = await context.RoleView
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Name == paraObject.Name);
+            .FirstOrDefaultAsync(x => x.Name.ToLower() == NameNormalizer.ToLowerAscii(name));
 
         if (searchItem != null)
         {
@@ -522,9 +545,10 @@ public class RoleViewService
             return VerifyRecordResultFactory.Build(false, renameBlocked);
         }
 
+        var name = NameNormalizer.Normalize(paraObject.Name);
         searchItem = await context.RoleView
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Name == paraObject.Name && x.Id != paraObject.Id);
+            .FirstOrDefaultAsync(x => x.Name.ToLower() == NameNormalizer.ToLowerAscii(name) && x.Id != paraObject.Id);
 
         if (searchItem != null)
         {

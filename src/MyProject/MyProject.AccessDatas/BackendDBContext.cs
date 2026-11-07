@@ -111,6 +111,17 @@ public partial class BackendDBContext : DbContext
             entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);
         });
 
+        // 帳號與角色名稱（0.9.171 起，migration AddUserAccountRoleNameUniqueIndex）：同上，服務層以去頭尾空白、不分大小寫先擋。
+        modelBuilder.Entity<MyUser>(entity =>
+        {
+            entity.HasIndex(x => x.Account).IsUnique().HasFilter(ActiveRowsOnly);
+        });
+
+        modelBuilder.Entity<RoleView>(entity =>
+        {
+            entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);
+        });
+
         modelBuilder.Entity<Team>(entity =>
         {
             entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);

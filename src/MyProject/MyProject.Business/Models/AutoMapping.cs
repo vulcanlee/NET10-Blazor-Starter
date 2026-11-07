@@ -33,6 +33,7 @@ public class AutoMapping : Profile
         CreateMap<RoleView, RoleViewAdapterModel>()
             .ForMember(d => d.DefaultTeams, o => o.MapFrom(s => TeamJsonHelper.Deserialize(s.DefaultTeamsJson)));
         CreateMap<RoleViewAdapterModel, RoleView>().IgnoreSoftDeleteFields()
+            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))
             .ForMember(d => d.DefaultTeamsJson, o => o.MapFrom(s => TeamJsonHelper.Serialize(s.DefaultTeams)));
         #endregion
 
@@ -99,7 +100,9 @@ public class AutoMapping : Profile
         CreateMap<MyUser, MyUserAdapterModel>()
             .ForMember(dest => dest.HasLocalPassword, opt => opt.MapFrom(src => !string.IsNullOrEmpty(src.Password)));
         // 鎖定與密碼設定時間只由登入、解鎖與密碼原則寫入，畫面模型上的值不寫回實體（0.9.101 起）。
+        // 帳號去頭尾空白（0.9.171 起，同分類名稱）：檢查與儲存必須比對同一個字串。
         CreateMap<MyUserAdapterModel, MyUser>().IgnoreSoftDeleteFields()
+            .ForMember(dest => dest.Account, opt => opt.MapFrom(src => NameNormalizer.Normalize(src.Account)))
             .ForMember(dest => dest.LockoutEndUtc, opt => opt.Ignore())
             .ForMember(dest => dest.PasswordChangedAtUtc, opt => opt.Ignore())
             .ForMember(dest => dest.SecurityStamp, opt => opt.Ignore())

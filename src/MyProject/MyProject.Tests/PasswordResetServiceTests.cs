@@ -42,6 +42,18 @@ public sealed class PasswordResetServiceTests
         Assert.Contains(fixture.Audit.Entries, e => e.Action == "Password.ResetRequested" && e.Success);
     }
 
+    /// <summary>帳號與登入一樣不分大小寫、去頭尾空白（0.9.171 起）。</summary>
+    [Fact]
+    public async Task RequestAsync_ByAccount_ShouldMatchCaseInsensitively()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.AddUserAsync("alice", email: "alice@example.com");
+
+        await fixture.Service.RequestAsync(" ALICE ", ResetPageUrl);
+
+        Assert.Equal("alice@example.com", Assert.Single(fixture.Queue.Enqueued).To);
+    }
+
     [Fact]
     public async Task RequestAsync_ByEmail_ShouldMatchCaseInsensitively()
     {
