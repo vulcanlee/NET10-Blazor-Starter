@@ -23,6 +23,22 @@ public sealed record AiCallLogPdfRequest
     public string ResponseText { get; init; } = string.Empty;
 
     public TokenUsageLogAdapterModel? Usage { get; init; }
+
+    /// <summary>內容檔不存在（0.9.169 起，合併匯出時仍列入這一筆，PDF 上註明）。</summary>
+    public bool ContentMissing { get; init; }
+}
+
+/// <summary>
+/// 多筆合併成一份 PDF 的輸入（0.9.169 起）。每筆的 <see cref="AiCallLogPdfRequest.Item"/>、訊息、回應與用量有效；
+/// 系統名稱、匯出者、產生時間以這裡為準。
+/// </summary>
+public sealed record AiCallLogMergedPdfRequest
+{
+    public string SystemName { get; init; } = string.Empty;
+    public string SystemVersion { get; init; } = string.Empty;
+    public string OperatorAccount { get; init; } = string.Empty;
+    public DateTime GeneratedAt { get; init; }
+    public IReadOnlyList<AiCallLogPdfRequest> Items { get; init; } = [];
 }
 
 /// <summary>
@@ -36,6 +52,53 @@ public static class AiCallLogPdfBuilder
 {
     /// <summary>單段內容的上限；超過截斷並註明（日誌分析的提示詞可能是整份日誌）。</summary>
     public const int MaxPdfBlockCharacters = 200_000;
+
+    /// <summary>合併匯出一次最多幾筆（0.9.169 起）。</summary>
+    public const int MaxMergedRecords = 50;
+
+    /// <summary>合併匯出時每段內容的上限（0.9.169 起）：50 筆都是整份日誌時，單筆的 20 萬字上限會讓 PDF 大到難以開啟。</summary>
+    public const int MaxMergedBlockCharacters = 50_000;
+
+    /// <summary>
+    /// 合併匯出整份 PDF 的內容總字數上限（0.9.169 起）：Agent 對話每次呼叫都重送整段歷史，
+    /// 「整段對話」合併時內容會隨呼叫次數平方成長，只限每段不夠。用完之後的內容段只留一行註明。
+    /// </summary>
+    public const int MaxMergedTotalCharacters = 1_000_000;
+
+    /// <summary>合併匯出的字數預算（0.9.169 起）：每段最多 <see cref="MaxMergedBlockCharacters"/>，整份最多建構時給的總數。</summary>
+    public sealed class MergedContentBudget
+    {
+        private readonly int totalCharacters;
+
+        public MergedContentBudget(int totalCharacters)
+        {
+            this.totalCharacters = totalCharacters;
+            Remaining = totalCharacters;
+        }
+
+        public int Remaining { get; private set; }
+
+        /// <summary>取這一段要放進 PDF 的文字與註明（沒截斷時為 null）；預算用完時文字為空字串。</summary>
+        public (string Text, string? Note) Take(string content)
+        {
+            var wholeNote = $"（已達整份 PDF 的內容上限 {totalCharacters:N0} 字元，以下內容省略；完整內容請開啟單筆紀錄或下載 JSON。）";
+            if (Remaining <= 0)
+            {
+                return (string.Empty, wholeNote);
+            }
+
+            if (content.Length > Remaining && Remaining < MaxMergedBlockCharacters)
+            {
+                var partial = content[..Remaining];
+                Remaining = 0;
+                return (partial, wholeNote);
+            }
+
+            var (text, note) = ClipContent(content, merged: true);
+            Remaining -= text.Length;
+            return (text, note);
+        }
+    }
 
     private const string Title = "AI 對話紀錄";
     private const string Disclaimer = "本文件包含實際送出給 AI 的內容與 AI 的回應，可能含日誌、例外堆疊或使用者帳號，請依內部規範保管。";
@@ -70,9 +133,123 @@ public static class AiCallLogPdfBuilder
 
         AiMarkdownPdfRenderer.AddTitle(section, Title);
         AiMarkdownPdfRenderer.AddMetadata(section, BuildMetadataLines(request), Disclaimer);
-        AddConversation(section, request);
+        AddConversation(section, request, budget: null);
 
         return AiMarkdownPdfRenderer.Render(document);
+    }
+
+    /// <summary>
+    /// 多筆合併成一份 PDF（0.9.169 起）：開頭是索引表，之後每筆一節（換頁），依送出時間由舊到新。
+    /// </summary>
+    /// <exception cref="ArgumentException">沒有任何一筆，或超過 <see cref="MaxMergedRecords"/> 筆（畫面應先擋下）。</exception>
+    /// <exception cref="InvalidOperationException">內嵌中文字型資源缺失。</exception>
+    public static byte[] BuildMerged(AiCallLogMergedPdfRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Items.Count == 0 || request.Items.Count > MaxMergedRecords)
+        {
+            throw new ArgumentException($"合併匯出需要 1～{MaxMergedRecords} 筆，目前是 {request.Items.Count} 筆。", nameof(request));
+        }
+
+        var systemName = string.IsNullOrWhiteSpace(request.SystemName) ? "MyProject" : request.SystemName;
+        var title = $"{Title}（共 {request.Items.Count} 筆）";
+        var document = AiMarkdownPdfRenderer.CreateDocument(
+            title: title,
+            subject: Title,
+            author: systemName,
+            headerText: $"{systemName}｜{title}",
+            generatedAt: request.GeneratedAt,
+            operatorAccount: request.OperatorAccount);
+        var section = document.LastSection;
+
+        AiMarkdownPdfRenderer.AddTitle(section, title);
+        AiMarkdownPdfRenderer.AddMetadata(section, BuildMergedMetadataLines(request), Disclaimer);
+        AddSectionHeading(section, "索引");
+        foreach (var row in BuildIndexRows(request))
+        {
+            var paragraph = section.AddParagraph();
+            paragraph.Style = AiMarkdownPdfRenderer.MetaStyleName;
+            CjkLineBreak.AddTo(paragraph.Elements, $"{row[0]}．{row[1]}　{row[2]}　{row[3]}　{row[4]}");
+        }
+
+        var budget = new MergedContentBudget(MaxMergedTotalCharacters);
+        var number = 0;
+        foreach (var item in Ordered(request))
+        {
+            number++;
+            section.AddPageBreak();
+            AddSectionHeading(section, $"第 {number} 筆");
+
+            // 系統、產生時間、匯出者已在開頭，每筆只列這筆自己的資料。
+            foreach (var line in BuildMetadataLines(item).Where(x => x.Key is not ("系統" or "產生時間" or "匯出者")))
+            {
+                var paragraph = section.AddParagraph();
+                paragraph.Style = AiMarkdownPdfRenderer.MetaStyleName;
+                CjkLineBreak.AddTo(paragraph.Elements, $"{line.Key}：{line.Value}");
+            }
+
+            AddConversation(section, item, budget);
+        }
+
+        return AiMarkdownPdfRenderer.Render(document);
+    }
+
+    /// <summary>合併 PDF 開頭的索引：序號、送出時間、作業、發起者、結果，依送出時間由舊到新。純函式，讓測試直接斷言。</summary>
+    public static List<IReadOnlyList<string>> BuildIndexRows(AiCallLogMergedPdfRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Ordered(request)
+            .Select((item, index) => (IReadOnlyList<string>)
+            [
+                (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                $"{item.Item.OccurredAt:yyyy-MM-dd HH:mm:ss}",
+                item.Item.Operation,
+                string.IsNullOrWhiteSpace(item.Item.Account) ? "（系統自動）" : item.Item.Account,
+                DescribeOutcome(item.Item),
+            ])
+            .ToList();
+    }
+
+    /// <summary>
+    /// 一段內容依上限截斷：回傳要放進 PDF 的文字，以及截斷時的註明（沒截斷時為 null）。
+    /// 單筆 PDF 上限 <see cref="MaxPdfBlockCharacters"/>，合併匯出 <see cref="MaxMergedBlockCharacters"/>。
+    /// </summary>
+    public static (string Text, string? Note) ClipContent(string content, bool merged)
+    {
+        var limit = merged ? MaxMergedBlockCharacters : MaxPdfBlockCharacters;
+        if (content.Length <= limit)
+        {
+            return (content, null);
+        }
+
+        var where = merged ? "完整內容請開啟單筆紀錄或下載 JSON" : "完整內容請於畫面下載 JSON";
+        return (content[..limit], $"（本段共 {content.Length:N0} 字元，PDF 只收錄前 {limit:N0} 字元；{where}。）");
+    }
+
+    private static IEnumerable<AiCallLogPdfRequest> Ordered(AiCallLogMergedPdfRequest request)
+        => request.Items.OrderBy(x => x.Item.OccurredAt).ThenBy(x => x.Item.Id);
+
+    private static List<KeyValuePair<string, string>> BuildMergedMetadataLines(AiCallLogMergedPdfRequest request)
+    {
+        var lines = new List<KeyValuePair<string, string>>();
+        if (string.IsNullOrWhiteSpace(request.SystemName) == false)
+        {
+            var system = string.IsNullOrWhiteSpace(request.SystemVersion)
+                ? request.SystemName
+                : $"{request.SystemName}　版本 {request.SystemVersion}";
+            lines.Add(new KeyValuePair<string, string>("系統", system));
+        }
+
+        lines.Add(new KeyValuePair<string, string>("產生時間", $"{request.GeneratedAt:yyyy-MM-dd HH:mm:ss}"));
+        if (string.IsNullOrWhiteSpace(request.OperatorAccount) == false)
+        {
+            lines.Add(new KeyValuePair<string, string>("匯出者", request.OperatorAccount));
+        }
+
+        var ordered = Ordered(request).ToList();
+        lines.Add(new KeyValuePair<string, string>("筆數", request.Items.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        lines.Add(new KeyValuePair<string, string>("送出時間範圍", $"{ordered[0].Item.OccurredAt:yyyy-MM-dd HH:mm:ss} ～ {ordered[^1].Item.OccurredAt:yyyy-MM-dd HH:mm:ss}"));
+        return lines;
     }
 
     /// <summary>中介資訊行。抽成純函式讓測試直接斷言（方案內沒有 PDF 文字抽取相依）。</summary>
@@ -138,14 +315,22 @@ public static class AiCallLogPdfBuilder
         return string.IsNullOrWhiteSpace(item.FailureReason) ? "失敗" : $"失敗（{item.FailureReason}）";
     }
 
-    private static void AddConversation(Section section, AiCallLogPdfRequest request)
+    private static void AddConversation(Section section, AiCallLogPdfRequest request, MergedContentBudget? budget)
     {
+        if (request.ContentMissing)
+        {
+            var missing = section.AddParagraph();
+            missing.Style = AiMarkdownPdfRenderer.MetaStyleName;
+            CjkLineBreak.AddTo(missing.Elements, "內容檔不存在或無法讀取（可能已清除、還原的備份沒有包含 AI 對話內容，或檔案損毀），只有上方的中繼資料。");
+            return;
+        }
+
         var number = 0;
         foreach (var message in request.Messages)
         {
             number++;
             AddSectionHeading(section, $"#{number} {RoleLabel(message.Role)}．送出");
-            AddContent(section, message.Content, asMarkdown: message.Role == AiChatRoles.Assistant);
+            AddContent(section, message.Content, asMarkdown: message.Role == AiChatRoles.Assistant, budget);
         }
 
         AddSectionHeading(section, "AI 回應（Assistant）．取得");
@@ -158,7 +343,7 @@ public static class AiCallLogPdfBuilder
             return;
         }
 
-        AddContent(section, request.ResponseText, asMarkdown: true);
+        AddContent(section, request.ResponseText, asMarkdown: true, budget);
     }
 
     /// <summary>
@@ -171,12 +356,15 @@ public static class AiCallLogPdfBuilder
         heading.Style = StyleNames.Heading1;
     }
 
-    private static void AddContent(Section section, string content, bool asMarkdown)
+    private static void AddContent(Section section, string content, bool asMarkdown, MergedContentBudget? budget)
     {
-        var truncated = content.Length > MaxPdfBlockCharacters;
-        var text = truncated ? content[..MaxPdfBlockCharacters] : content;
+        var (text, truncatedNote) = budget is null ? ClipContent(content, merged: false) : budget.Take(content);
 
-        if (asMarkdown)
+        if (text.Length == 0)
+        {
+            // 合併匯出的總字數用完：只留註明。
+        }
+        else if (asMarkdown)
         {
             AiMarkdownPdfRenderer.RenderMarkdown(section, text);
         }
@@ -185,13 +373,11 @@ public static class AiCallLogPdfBuilder
             AiMarkdownPdfRenderer.AddCodeParagraph(section, text);
         }
 
-        if (truncated)
+        if (truncatedNote is not null)
         {
             var note = section.AddParagraph();
             note.Style = AiMarkdownPdfRenderer.MetaStyleName;
-            CjkLineBreak.AddTo(
-                note.Elements,
-                $"（本段共 {content.Length:N0} 字元，PDF 只收錄前 {MaxPdfBlockCharacters:N0} 字元；完整內容請於畫面下載 JSON。）");
+            CjkLineBreak.AddTo(note.Elements, truncatedNote);
         }
     }
 }

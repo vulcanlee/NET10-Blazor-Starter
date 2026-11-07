@@ -42,6 +42,13 @@
     margin-bottom: 0.6rem;
 }
 
+/* 內文搜尋的掃描說明（0.9.169 起）。 */
+.ai-call-log-content-search {
+    color: var(--app-muted);
+    font-size: 0.9rem;
+    margin-bottom: 0.6rem;
+}
+
 /* 欄位多，窄螢幕一定會超出，讓表格自己橫向捲動而不是把整頁撐寬。 */
 .ai-call-log-table-wrap {
     overflow-x: auto;

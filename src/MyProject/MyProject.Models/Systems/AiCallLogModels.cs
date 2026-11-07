@@ -241,6 +241,15 @@ public class AiCallLogQuery
     /// <summary>關聯說明關鍵字，部分比對。</summary>
     public string Keyword { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 內文關鍵字（0.9.169 起），只給 <c>AiCallLogService.FindContentMatchesAsync</c> 用：逐檔掃描，不分大小寫。
+    /// 一般查詢（<c>GetAsync</c>）不看這個欄位，改用掃描結果的 <see cref="Ids"/>。
+    /// </summary>
+    public string ContentKeyword { get; set; } = string.Empty;
+
+    /// <summary>只取這些 Id（0.9.169 起，內文搜尋的結果）；null 代表不限，空集合代表一筆都沒有。</summary>
+    public IReadOnlyCollection<int>? Ids { get; set; }
+
     public int CurrentPage { get; set; } = 1;
 
     public int PageSize { get; set; } = MagicObjectHelper.PageSize;
@@ -256,6 +265,36 @@ public class AiCallLogFilterOptions
     public List<string> Operations { get; set; } = new();
 
     public List<string> Models { get; set; } = new();
+}
+
+/// <summary>內文搜尋的結果（0.9.169 起）。</summary>
+public sealed class AiCallLogContentSearchResult
+{
+    /// <summary>內文符合的紀錄 Id，依送出時間由新到舊。</summary>
+    public IReadOnlyList<int> Ids { get; init; } = [];
+
+    /// <summary>掃描了幾筆（篩選結果中最新的幾筆；內容檔不存在的也算，只是不會符合）。</summary>
+    public int Scanned { get; init; }
+
+    /// <summary>篩選結果超過掃描上限，較舊的沒有掃到。</summary>
+    public bool Truncated { get; init; }
+}
+
+/// <summary>合併匯出 PDF 的一筆（0.9.169 起）。</summary>
+public sealed class AiCallLogExportItem
+{
+    public AiCallLogAdapterModel Item { get; init; } = new();
+
+    /// <summary>由原始請求解析出的訊息；內容檔不存在時為空。</summary>
+    public IReadOnlyList<AiCallLogMessage> Messages { get; init; } = [];
+
+    /// <summary>取得的回應文字；沒有時為空字串。</summary>
+    public string ResponseText { get; init; } = string.Empty;
+
+    public TokenUsageLogAdapterModel? Usage { get; init; }
+
+    /// <summary>內容檔不存在或無法讀取（已清除、還原的備份沒含內容檔，或檔案損毀）。</summary>
+    public bool ContentMissing { get; init; }
 }
 
 /// <summary>明細視窗需要的全部資料。</summary>

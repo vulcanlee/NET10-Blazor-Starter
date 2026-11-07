@@ -38,6 +38,13 @@
                     <ToolbarIconButton Title="匯出 PDF（中繼資料＋完整對話，不含原始 JSON）" Icon="picture_as_pdf"
                                        Disabled="@(detail.Content is null || isExporting)"
                                        OnClick="@(async () => await OnExportPdfAsync())" />
+                    @if (detail.Conversation.Count > 1)
+                    {
+                        @* 0.9.169 起：同一段對話的所有呼叫合併成一份 PDF。 *@
+                        <ToolbarIconButton Title="@($"匯出整段對話 PDF（共 {detail.Conversation.Count} 次呼叫）")" Icon="library_books"
+                                           Disabled="@isExporting"
+                                           OnClick="@(async () => await OnExportConversationPdfAsync())" />
+                    }
                 </div>
             </div>
 

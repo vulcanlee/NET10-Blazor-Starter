@@ -25,6 +25,12 @@ public class AiCallLogService : IAiCallLogRecorder
     /// <summary>CSV 匯出的筆數上限。</summary>
     public const int MaxExportRows = 10000;
 
+    /// <summary>
+    /// 內文搜尋一次最多掃描幾筆（0.9.169 起）：內文只在內容檔裡（不建索引，內文不進資料庫），
+    /// 所以逐檔讀取比對；超過時只掃最新的，畫面請使用者縮小範圍。
+    /// </summary>
+    public const int ContentScanLimit = 1000;
+
     /// <summary>關聯說明的長度上限（超過截斷）。</summary>
     public const int MaxRelatedInfoLength = 500;
 
@@ -258,6 +264,88 @@ public class AiCallLogService : IAiCallLogRecorder
         };
     }
 
+    /// <summary>
+    /// 內文搜尋（0.9.169 起）：在現有篩選結果裡，依送出時間由新到舊取最多 <paramref name="scanLimit"/> 筆，逐一讀內容檔比對
+    /// <see cref="AiCallLogQuery.ContentKeyword"/>（不分大小寫）。比對畫面看得到的文字：每則送出的訊息與 AI 回答；
+    /// 請求解析不出訊息時改比對原始請求；呼叫失敗而沒有回答時改比對原始回應（錯誤 body）。內容檔不存在的略過。
+    /// ⚠️ 不建索引：內文只准存在內容檔（速查表 §6.7），也不可因此寫進日誌。
+    /// 內容檔可能數 MB：一律 <c>ConfigureAwait(false)</c>，解析不佔畫面連線的執行緒；離開頁面時以 <paramref name="cancellationToken"/> 停止。
+    /// </summary>
+    public async Task<AiCallLogContentSearchResult> FindContentMatchesAsync(
+        AiCallLogQuery query, int scanLimit = ContentScanLimit, CancellationToken cancellationToken = default)
+    {
+        var keyword = query.ContentKeyword?.Trim() ?? string.Empty;
+        if (keyword.Length == 0)
+        {
+            return new AiCallLogContentSearchResult();
+        }
+
+        List<(int Id, Guid CallId, string? ContentFile)> candidates;
+        var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            var rows = await ApplyFilters(context.AiCallLog.AsNoTracking(), query)
+                .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+                .Take(scanLimit + 1)
+                .Select(x => new { x.Id, x.CallId, x.ContentFile })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            candidates = rows.Select(x => (x.Id, x.CallId, x.ContentFile)).ToList();
+        }
+
+        var truncated = candidates.Count > scanLimit;
+        var ids = new List<int>();
+        var toScan = candidates.Take(scanLimit).ToList();
+        foreach (var candidate in toScan)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var content = Deserialize(await fileStore.ReadAsync(candidate.ContentFile).ConfigureAwait(false), candidate.CallId);
+            if (content is not null && ContentContains(content, keyword))
+            {
+                ids.Add(candidate.Id);
+            }
+        }
+
+        return new AiCallLogContentSearchResult { Ids = ids, Scanned = toScan.Count, Truncated = truncated };
+    }
+
+    /// <summary>
+    /// 合併匯出 PDF 的資料（0.9.169 起）：依送出時間由舊到新，帶出訊息、回應文字與對應用量。
+    /// 內容檔不存在的仍列入（<see cref="AiCallLogExportItem.ContentMissing"/>），PDF 上註明。
+    /// </summary>
+    public async Task<List<AiCallLogExportItem>> GetExportItemsAsync(IReadOnlyCollection<int> ids)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var rows = await context.AiCallLog.AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
+            .ToListAsync();
+
+        var callIds = rows.Select(x => (Guid?)x.CallId).ToList();
+        var usages = (await context.TokenUsageLog.AsNoTracking()
+                .Where(x => callIds.Contains(x.CallId))
+                .OrderBy(x => x.Id)
+                .ToListAsync())
+            .GroupBy(x => x.CallId!.Value)
+            .ToDictionary(x => x.Key, x => x.First());
+
+        var items = new List<AiCallLogExportItem>(rows.Count);
+        foreach (var row in rows)
+        {
+            var content = Deserialize(await fileStore.ReadAsync(row.ContentFile), row.CallId);
+            items.Add(new AiCallLogExportItem
+            {
+                Item = Mapper.Map<AiCallLogAdapterModel>(row),
+                Messages = content is null ? [] : AiCallLogMessages.Parse(content.RequestBody) ?? [],
+                ResponseText = content?.ResponseText ?? string.Empty,
+                Usage = usages.TryGetValue(row.CallId, out var usage) ? Mapper.Map<TokenUsageLogAdapterModel>(usage) : null,
+                ContentMissing = content is null,
+            });
+        }
+
+        return items;
+    }
+
     /// <summary>內容檔原文（下載 JSON 用）。檔案不存在時回 null。</summary>
     public async Task<string?> ReadContentFileAsync(int id)
     {
@@ -430,6 +518,32 @@ public class AiCallLogService : IAiCallLogRecorder
         }
     }
 
+    private static bool ContentContains(AiCallLogEntry content, string keyword)
+    {
+        // 請求：解析得出訊息就只比對訊息內文（JSON 欄位名稱不算）；解析不出來（不認得的格式）就比對原始請求，免得整段漏掉。
+        var messages = AiCallLogMessages.Parse(content.RequestBody);
+        if (messages is null)
+        {
+            if (content.RequestBody?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return true;
+            }
+        }
+        else if (messages.Any(message => message.Content.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        // 回應：有回答文字就比對它；只有失敗時才退回原始回應（錯誤 body）。
+        // 成功但只有工具呼叫的回應沒有回答文字，不比對原始 JSON，否則搜 function 這類字幾乎每筆都中。
+        if (string.IsNullOrEmpty(content.ResponseText) == false)
+        {
+            return content.ResponseText.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return content.Success == false && content.ResponseBody?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
     private static string? TrimRelatedInfo(string? relatedInfo)
     {
         if (string.IsNullOrWhiteSpace(relatedInfo))
@@ -480,6 +594,11 @@ public class AiCallLogService : IAiCallLogRecorder
         if (string.IsNullOrWhiteSpace(query.Keyword) == false)
         {
             source = source.Where(x => x.RelatedInfo != null && x.RelatedInfo.Contains(query.Keyword));
+        }
+
+        if (query.Ids is { } ids)
+        {
+            source = source.Where(x => ids.Contains(x.Id));
         }
 
         return source;

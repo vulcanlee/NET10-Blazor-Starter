@@ -430,6 +430,30 @@ namespace MyProject.Web.Components.Views.Analytics
             }
         }
 
+        /// <summary>同一段對話的所有呼叫合併成一份 PDF（0.9.169 起），超過 50 筆時提示。</summary>
+        private async Task OnExportConversationPdfAsync()
+        {
+            if (detail is null || detail.Conversation.Count == 0)
+            {
+                return;
+            }
+
+            isExporting = true;
+            StateHasChanged();
+            try
+            {
+                await AiCallLogMergedPdfExport.ExportAsync(
+                    new AiCallLogMergedPdfServices(aiCallLogService, auditLogService, currentUserService, systemIdentity, jsRuntime, notificationService, logger),
+                    detail.Conversation.Select(x => x.Id).ToList(),
+                    AiCallLogMergedPdfExport.SourceConversation);
+            }
+            finally
+            {
+                isExporting = false;
+                StateHasChanged();
+            }
+        }
+
         /// <summary>匯出內容本身留下一筆稽核紀錄（只記紀錄 Id 與格式，絕不記內容）。</summary>
         private async Task WriteExportAuditAsync(string format)
         {

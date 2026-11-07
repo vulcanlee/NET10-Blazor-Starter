@@ -1,5 +1,6 @@
 @using MyProject.Models.Systems
 @using MyProject.Web.Ai
+@implements IDisposable
 
 @* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
@@ -64,15 +65,20 @@ else
 
                 <Input @bind-Value="accountFilter" Placeholder="帳號" Style="width: 140px;" />
                 <Input @bind-Value="keyword" Placeholder="關聯說明關鍵字（例外 #、日誌區間…）" Style="width: 280px;" />
+                @* 0.9.169 起：逐檔掃描內容，按「查詢」或「重新整理」時才掃描。 *@
+                <Input @bind-Value="contentKeyword" Placeholder="內文關鍵字（送出內容與 AI 回答）" Style="width: 240px;" />
             </div>
             <div class="ai-call-log-toolbar-right">
-                <ToolbarIconButton Title="查詢" Icon="search"
+                <ToolbarIconButton Title="查詢" Icon="search" Disabled="@isScanning"
                                    OnClick="@(async () => await OnSearchAsync())" />
-                <ToolbarIconButton Title="重新整理" Icon="refresh"
+                <ToolbarIconButton Title="重新整理" Icon="refresh" Disabled="@isScanning"
                                    OnClick="@(async () => await OnRefreshAsync())" />
                 <ToolbarIconButton Title="匯出目前查詢結果（CSV，不含內文）" Icon="file_download"
                                    Disabled="@(_total == 0)"
                                    OnClick="@(async () => await OnExportAsync())" />
+                <ToolbarIconButton Title="匯出目前查詢結果（PDF，最多 50 筆）" Icon="picture_as_pdf"
+                                   Disabled="@(_total == 0 || mergedExporting)"
+                                   OnClick="@(async () => await OnExportQueryPdfAsync())" />
                 <ToolbarIconButton Title="清空全部紀錄" Icon="delete_forever"
                                    OnClick="@(async () => await OnClearAllAsync())" />
             </div>
@@ -86,7 +92,33 @@ else
             @* 0.9.132 起：勾選後出現。 *@
             <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
                                OnClick="@(async () => await OnBatchDeleteAsync())" />
+            @* 0.9.169 起：勾選後可合併匯出成一份 PDF。 *@
+            @if (selectedRows.Any())
+            {
+                <Button Loading="@mergedExporting" OnClick="@(async () => await OnExportSelectedPdfAsync())">
+                    合併匯出 PDF（@selectedRows.Count()）
+                </Button>
+            }
         </div>
+
+        @if (isScanning)
+        {
+            <div class="ai-call-log-content-search">內文搜尋「@searchedContentKeyword」：正在逐筆比對內容檔…</div>
+        }
+        else if (contentSearch is { } search)
+        {
+            <div class="ai-call-log-content-search">
+                內文搜尋「@searchedContentKeyword」：掃描 @search.Scanned.ToString("N0") 筆，符合 @search.Ids.Count.ToString("N0") 筆。
+                @if (search.Truncated)
+                {
+                    <span>篩選結果超過 @ContentScanLimit.ToString("N0") 筆，只掃描最新的 @ContentScanLimit.ToString("N0") 筆；請縮小日期或其他條件。</span>
+                }
+                @if (IsContentSearchStale)
+                {
+                    <strong>條件已變更，按「查詢」重新搜尋內文；目前清單仍是上次的搜尋結果。</strong>
+                }
+            </div>
+        }
 
         <div class="ai-call-log-table-wrap">
             <Table @ref="table"
