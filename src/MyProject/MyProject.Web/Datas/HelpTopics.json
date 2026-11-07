@@ -14,6 +14,7 @@
   { "route": "/log-level-setting", "title": "日誌等級設定", "file": "log-level-setting.md" },
   { "route": "/scheduled-jobs", "title": "排程作業", "file": "scheduled-jobs.md" },
   { "route": "/system-exceptions", "title": "系統例外紀錄", "file": "system-exceptions.md" },
+  { "route": "/email-logs", "title": "寄信紀錄", "file": "email-logs.md" },
   { "route": "/database-usage", "title": "資料庫用量", "file": "database-usage.md" },
   { "route": "/token-usage", "title": "Token 用量", "file": "token-usage.md" },
   { "route": "/ai-call-logs", "title": "AI 對話紀錄", "file": "ai-call-logs.md" },

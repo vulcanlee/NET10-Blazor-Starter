@@ -1,0 +1,93 @@
+@using MyProject.Business.Services.DataAccess
+
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="email-log-toolbar">
+            <div class="email-log-toolbar-left">
+                <DatePicker TValue="DateTime?" @bind-Value="startTime"
+                            ShowTime="@true" Format="yyyy-MM-dd HH:mm:ss"
+                            Placeholder="@("建立時間（起）")" Style="width: 190px;" />
+                <span class="email-log-range-separator">～</span>
+                <DatePicker TValue="DateTime?" @bind-Value="endTime"
+                            ShowTime="@true" Format="yyyy-MM-dd HH:mm:ss"
+                            Placeholder="@("建立時間（迄）")" Style="width: 190px;" />
+
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedStatus" Style="width: 170px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="狀態：不限" />
+                    @foreach (var status in Statuses)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@status.Value" Label="@status.Label" />
+                    }
+                </Select>
+
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedKind" Style="width: 150px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="種類：不限" />
+                    @foreach (var kind in Kinds)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@kind.Value" Label="@kind.Label" />
+                    }
+                </Select>
+
+                <Input class="email-log-search-input" @bind-Value="keyword" Placeholder="關鍵字（收件者／主旨）" />
+            </div>
+            <div class="email-log-toolbar-right">
+                <ToolbarIconButton Title="查詢" Icon="search"
+                                   OnClick="@(async () => await OnSearchAsync())" />
+                <ToolbarIconButton Title="重新整理" Icon="refresh"
+                                   OnClick="@(async () => await OnRefreshAsync())" />
+            </div>
+        </div>
+
+        <div class="alert alert-info email-log-alert" role="alert">
+            每一封系統寄出的信都記在這裡（系統健康監控的測試信除外）。信件內容加密存放，寄出或放棄後就清除，這裡只看得到收件者、主旨與結果。
+            連線失敗、逾時這類暫時性失敗會自動重試；帳密錯誤、收件者被拒則直接記「失敗」。
+        </div>
+
+        <div class="email-log-table-wrap">
+            <Table TItem="EmailLogItem"
+                   Class="email-log-table"
+                   RemoteDataSource="true"
+                   DataSource="@items"
+                   Loading="@isLoading"
+                   Size="TableSize.Small"
+                   OnChange="OnTableChange"
+                   @bind-PageIndex="_pageIndex"
+                   @bind-PageSize="_pageSize"
+                   @bind-Total="_total">
+                <ColumnDefinitions>
+                    <Column TData="DateTime" Title="建立時間" Width="165">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</Column>
+                    <Column TData="string" Title="種類" Width="110">@KindLabel(context.Kind)</Column>
+                    <Column TData="string" Title="收件者" Width="200" Ellipsis>@context.To</Column>
+                    <Column TData="string" Title="主旨" Ellipsis>@context.Subject</Column>
+                    <Column TData="string" Title="狀態" Width="150">
+                        <Tag Color="@StatusColor(context.Status)">@StatusLabel(context.Status)</Tag>
+                    </Column>
+                    <Column TData="int" Title="嘗試次數" Width="90" Align="ColumnAlign.Right">@context.Attempts</Column>
+                    <Column TData="string" Title="下次嘗試" Width="165">@(context.NextAttemptAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</Column>
+                    <Column TData="string" Title="寄出時間" Width="165">@(context.SentAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</Column>
+                    <Column TData="string" Title="錯誤摘要" Width="220" Ellipsis>
+                        @if (string.IsNullOrEmpty(context.LastError))
+                        {
+                            <span>—</span>
+                        }
+                        else
+                        {
+                            <Tooltip Title="@context.LastError"><span>@context.LastError</span></Tooltip>
+                        }
+                    </Column>
+                </ColumnDefinitions>
+            </Table>
+        </div>
+    </div>
+}

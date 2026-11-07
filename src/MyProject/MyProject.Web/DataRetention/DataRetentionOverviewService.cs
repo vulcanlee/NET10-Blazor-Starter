@@ -92,6 +92,7 @@ public sealed class DataRetentionOverviewService
     private readonly AdminPatrolReportService adminPatrolReportService;
     private readonly AuditLogQueryService auditLogQueryService;
     private readonly NotificationQueryService notificationQueryService;
+    private readonly EmailOutboxQueryService emailOutboxQueryService;
     private readonly ScheduledJobRunService jobRunService;
     private readonly AnnouncementService announcementService;
     private readonly BackupStore backupStore;
@@ -100,6 +101,7 @@ public sealed class DataRetentionOverviewService
     private readonly IOptionsMonitor<LogRetentionSettings> logRetention;
     private readonly IOptionsMonitor<SoftDeleteSettings> softDelete;
     private readonly IOptionsMonitor<NotificationSettings> notification;
+    private readonly IOptionsMonitor<EmailDeliverySettings> emailDelivery;
     private readonly IOptionsMonitor<BackupSettings> backup;
     private readonly IOptionsMonitor<ScheduledJobSettings> scheduledJob;
     private readonly TimeProvider timeProvider;
@@ -115,6 +117,7 @@ public sealed class DataRetentionOverviewService
         AdminPatrolReportService adminPatrolReportService,
         AuditLogQueryService auditLogQueryService,
         NotificationQueryService notificationQueryService,
+        EmailOutboxQueryService emailOutboxQueryService,
         ScheduledJobRunService jobRunService,
         AnnouncementService announcementService,
         BackupStore backupStore,
@@ -123,6 +126,7 @@ public sealed class DataRetentionOverviewService
         IOptionsMonitor<LogRetentionSettings> logRetention,
         IOptionsMonitor<SoftDeleteSettings> softDelete,
         IOptionsMonitor<NotificationSettings> notification,
+        IOptionsMonitor<EmailDeliverySettings> emailDelivery,
         IOptionsMonitor<BackupSettings> backup,
         IOptionsMonitor<ScheduledJobSettings> scheduledJob,
         TimeProvider timeProvider,
@@ -137,6 +141,7 @@ public sealed class DataRetentionOverviewService
         this.adminPatrolReportService = adminPatrolReportService;
         this.auditLogQueryService = auditLogQueryService;
         this.notificationQueryService = notificationQueryService;
+        this.emailOutboxQueryService = emailOutboxQueryService;
         this.jobRunService = jobRunService;
         this.announcementService = announcementService;
         this.backupStore = backupStore;
@@ -145,6 +150,7 @@ public sealed class DataRetentionOverviewService
         this.logRetention = logRetention;
         this.softDelete = softDelete;
         this.notification = notification;
+        this.emailDelivery = emailDelivery;
         this.backup = backup;
         this.scheduledJob = scheduledJob;
         this.timeProvider = timeProvider;
@@ -178,6 +184,7 @@ public sealed class DataRetentionOverviewService
         rows.Add(await RowAsync("admin-patrol-report", "巡檢報告", () => AdminPatrolReportRowAsync(jobByName, patrolFolder)));
         rows.Add(await RowAsync("audit-log", "稽核紀錄", () => AuditLogRowAsync(jobByName, auditFolder)));
         rows.Add(await RowAsync("notification", "站內通知", () => NotificationRowAsync(jobByName)));
+        rows.Add(await RowAsync("email-log", "寄信紀錄", () => EmailLogRowAsync(jobByName)));
         rows.Add(await RowAsync("backup", "系統備份", () => BackupRowAsync(jobByName, backupFolder)));
         rows.Add(await RowAsync("job-run", "排程執行紀錄", JobRunRowAsync));
         rows.Add(await RowAsync("nlog", "日誌檔", () => NLogRowAsync(nlogDirectory, nlogFolder)));
@@ -202,6 +209,7 @@ public sealed class DataRetentionOverviewService
             "agent-conversation" => await agentConversationService.GetRetentionStatsBeforeAsync(threshold),
             "audit-log" => await auditLogQueryService.GetRetentionStatsAsync(threshold),
             "notification" => await notificationQueryService.GetRetentionStatsAsync(threshold, null),
+            "email-log" => await emailOutboxQueryService.GetRetentionStatsAsync(threshold),
             "job-run" => await jobRunService.GetRetentionStatsAsync(threshold),
             _ when SoftDeleteEntityOf(rowKey) is { } entity => (await softDeletePurgeService.GetRetentionStatsAsync(threshold)).Types[entity],
             _ => throw new ArgumentException($"「{rowKey}」沒有自訂清除。", nameof(rowKey)),
@@ -234,6 +242,8 @@ public sealed class DataRetentionOverviewService
                 return new(await auditLogQueryService.PurgeBeforeAsync(threshold), 0, AuditActions.Audit.Purge, "AuditLog");
             case "notification":
                 return new(await notificationQueryService.PurgeBeforeAsync(threshold, cancellationToken), 0, AuditActions.Notification.Purge, "Notification");
+            case "email-log":
+                return new(await emailOutboxQueryService.PurgeBeforeAsync(threshold, cancellationToken), 0, AuditActions.EmailLog.Purge, "EmailOutbox");
             case "job-run":
                 return new(await jobRunService.PruneAsync(threshold), 0, AuditActions.Job.PurgeRuns, "JobRun");
         }
@@ -245,7 +255,7 @@ public sealed class DataRetentionOverviewService
 
     private static RetentionTimeBasis BasisOf(string rowKey) => rowKey switch
     {
-        "audit-log" or "notification" or "job-run" => RetentionTimeBasis.Utc,
+        "audit-log" or "notification" or "email-log" or "job-run" => RetentionTimeBasis.Utc,
         "token-usage" or "ai-call-log" or "agent-conversation" => RetentionTimeBasis.LocalDate,
         _ => RetentionTimeBasis.Local,
     };
@@ -481,6 +491,26 @@ public sealed class DataRetentionOverviewService
             Expected = stats.Expired,
             CanCustomPurge = true,
         }, NotificationRetentionJob.JobName, jobByName.GetValueOrDefault(NotificationRetentionJob.JobName), rules.Count > 0);
+    }
+
+    /// <summary>寄信紀錄（0.9.167 起）：「待寄」的信不清，所以「下次會清掉幾筆」也不算它們。</summary>
+    private async Task<DataRetentionRow> EmailLogRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName)
+    {
+        var days = emailDelivery.CurrentValue.RetentionDays;
+        var stats = await emailOutboxQueryService.GetRetentionStatsAsync(days > 0 ? RetentionCutoffs.EmailLog(days, timeProvider) : null);
+        return WithJob(new DataRetentionRow
+        {
+            Key = "email-log",
+            Label = "寄信紀錄",
+            Note = "等待寄出或重試的信不刪",
+            Count = stats.Total,
+            OldestLocal = ToLocal(stats.Oldest),
+            RuleText = days > 0 ? $"保留 {days} 天" : "不自動刪除（保留天數為 0）",
+            ParameterGroup = SystemParameterCatalog.GroupRetention,
+            Expected = stats.Expired,
+            ManageUrl = "/email-logs",
+            CanCustomPurge = true,
+        }, EmailLogRetentionJob.JobName, jobByName.GetValueOrDefault(EmailLogRetentionJob.JobName), days > 0);
     }
 
     private async Task<DataRetentionRow> BackupRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)

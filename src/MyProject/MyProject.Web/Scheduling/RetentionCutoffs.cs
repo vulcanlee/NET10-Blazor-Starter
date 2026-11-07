@@ -19,6 +19,9 @@ public static class RetentionCutoffs
     /// <summary>站內通知（建立或已讀時間）：存 UTC。</summary>
     public static DateTime Notification(int days, TimeProvider timeProvider) => Utc(days, timeProvider);
 
+    /// <summary>寄信紀錄（0.9.167 起）：<c>CreatedAtUtc</c>。</summary>
+    public static DateTime EmailLog(int days, TimeProvider timeProvider) => Utc(days, timeProvider);
+
     /// <summary>排程執行紀錄：<c>StartedAtUtc</c>。</summary>
     public static DateTime JobRun(int days, TimeProvider timeProvider) => Utc(days, timeProvider);
 

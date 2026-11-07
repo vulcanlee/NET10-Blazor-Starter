@@ -32,7 +32,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
 
         Assert.Equal(
             ["deleted-project", "deleted-category", "deleted-team", "deleted-user", "deleted-role",
-             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "admin-patrol-report", "audit-log", "notification", "backup", "job-run", "nlog", "announcement"],
+             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "admin-patrol-report", "audit-log", "notification", "email-log", "backup", "job-run", "nlog", "announcement"],
             overview.Rows.Select(x => x.Key).ToArray());
         Assert.All(overview.Rows, row => Assert.Null(row.Error));
 
@@ -46,6 +46,8 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         Assert.Equal("/admin-assistant", overview.Rows.Single(x => x.Key == "admin-patrol-report").ManageUrl);
         Assert.Equal(AuditLogRetentionJob.JobName, JobOf("audit-log"));
         Assert.Equal(NotificationRetentionJob.JobName, JobOf("notification"));
+        Assert.Equal(EmailLogRetentionJob.JobName, JobOf("email-log"));
+        Assert.Equal("/email-logs", overview.Rows.Single(x => x.Key == "email-log").ManageUrl);
         Assert.Equal(SystemBackupJob.JobName, JobOf("backup"));
         Assert.All(overview.Rows.Where(x => x.JobName is not null), row => Assert.NotNull(row.Job));
 
@@ -81,6 +83,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
     [InlineData("agent-conversation")]
     [InlineData("audit-log")]
     [InlineData("notification")]
+    [InlineData("email-log")]
     [InlineData("job-run")]
     [InlineData("deleted-category")]
     [InlineData("deleted-team")]
@@ -141,6 +144,10 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
             case "notification":
                 var userId = await db.MyUser.Select(x => x.Id).FirstAsync();
                 db.Notification.Add(new Notification { RecipientUserId = userId, Category = "T", Title = tag, CreatedAtUtc = old });
+                break;
+            case "email-log":
+                db.EmailOutbox.Add(new EmailOutbox { CreatedAtUtc = old, Kind = "Test", To = "a@example.com", Subject = tag, Status = EmailOutboxStatus.Sent });
+                db.EmailOutbox.Add(new EmailOutbox { CreatedAtUtc = old, Kind = "Test", To = "b@example.com", Subject = tag, Status = EmailOutboxStatus.Pending }); // 待寄的不清
                 break;
             case "job-run":
                 db.JobRun.Add(new JobRun { JobName = "Probe", Trigger = JobRunTriggers.Manual, StartedAtUtc = old, Status = JobRunStatuses.Succeeded });

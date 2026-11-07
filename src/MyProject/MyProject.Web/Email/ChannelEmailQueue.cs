@@ -36,6 +36,8 @@ public sealed class ChannelEmailQueue : IEmailQueue
         });
     }
 
+    private volatile bool completed;
+
     public ChannelReader<EmailMessage> Reader => channel.Reader;
 
     public bool TryEnqueue(EmailMessage message)
@@ -45,7 +47,22 @@ public sealed class ChannelEmailQueue : IEmailQueue
             return true;
         }
 
-        logger.LogWarning("Email queue is full and the message was dropped. Kind={Kind}, Capacity={Capacity}", message.Kind, capacity);
+        if (completed)
+        {
+            logger.LogWarning("Email queue is closed because the application is shutting down; the message was dropped. Kind={Kind}", message.Kind);
+        }
+        else
+        {
+            logger.LogWarning("Email queue is full and the message was dropped. Kind={Kind}, Capacity={Capacity}", message.Kind, capacity);
+        }
+
         return false;
+    }
+
+    /// <summary>關機時由背景寄信器呼叫（0.9.167 起）：之後的入列一律回 false，不會有「回成功卻沒人處理」的信。</summary>
+    public void Complete()
+    {
+        completed = true;
+        channel.Writer.TryComplete();
     }
 }

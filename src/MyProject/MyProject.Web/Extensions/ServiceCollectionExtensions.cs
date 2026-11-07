@@ -130,6 +130,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LoginFailureAlertState>();
         services.AddScoped<ILoginFailureAlert, LoginFailureAlertService>();
         services.AddScoped<NotificationQueryService>();
+        services.AddScoped<EmailOutboxQueryService>();
         services.AddScoped<AnnouncementService>();
 
         // AI 提示詞（0.9.108 起）。
@@ -321,6 +322,9 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<NotificationRetentionJob>(
             NotificationRetentionJob.JobName, "站內通知清理",
             "刪除建立超過保留天數的站內通知（不論已讀未讀，預設 90 天），以及標為已讀超過已讀保留天數的通知（預設 7 天）；兩者都在「系統參數」頁設定，0 = 不清除。", "0 3 * * *");
+        services.AddScheduledJob<EmailLogRetentionJob>(
+            EmailLogRetentionJob.JobName, "寄信紀錄清理",
+            "刪除建立超過保留天數的寄信紀錄（預設 90 天，「系統參數」頁設定，0 = 不清除）；還在等待寄出或重試的信不會被刪。", "0 3 * * *");
         services.AddScheduledJob<AdminPatrolReportRetentionJob>(
             AdminPatrolReportRetentionJob.JobName, "巡檢報告清理",
             "刪除產出超過保留天數的系統管理助理巡檢報告與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
@@ -395,6 +399,11 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<NotificationSettings>()
             .Bind(configuration.GetSection(NotificationSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<EmailDeliverySettings>()
+            .Bind(configuration.GetSection(EmailDeliverySettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
@@ -596,10 +605,12 @@ public static class ServiceCollectionExtensions
                 _ => sp.GetRequiredService<NullEmailSender>(),
             });
 
-        // 佇列是 singleton（全站共用一條），消費端是背景服務；兩者都不持有 scoped 服務，
-        // 寄送時才由 EmailDispatchWorker 逐封建立 scope 解析 IEmailSender。
+        // 記憶體交接區是 singleton（全站共用一條），消費端是背景服務；0.9.167 起背景服務先把信存進資料庫
+        // （EmailOutbox，內文加密）再寄，暫時性失敗會重試。寄送時才由 EmailOutboxProcessor 逐封建立 scope 解析 IEmailSender。
         services.AddSingleton<ChannelEmailQueue>();
         services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<ChannelEmailQueue>());
+        services.AddSingleton<EmailBodyProtector>();
+        services.AddSingleton<EmailOutboxProcessor>();
         services.AddHostedService<EmailDispatchWorker>();
 
         services.AddScoped<IEmailHealthProbe, EmailHealthProbe>();

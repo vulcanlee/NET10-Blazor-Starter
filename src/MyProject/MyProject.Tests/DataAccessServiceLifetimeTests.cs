@@ -39,6 +39,7 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(SoftDeletePurgeService),
         typeof(SystemParameterService),
         typeof(NotificationQueryService),
+        typeof(EmailOutboxQueryService),
         typeof(AnnouncementService),
         typeof(PromptTemplateService),
     ];
