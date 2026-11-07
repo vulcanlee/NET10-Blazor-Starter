@@ -53,7 +53,16 @@ public sealed class ProcessExceptionHooks
         try
         {
             contextAccessor.Set(new ExceptionContext(ExceptionSources.Process, null, null, null));
-            logger.LogError(e.Exception, "Unobserved task exception.");
+
+            // 使用者關掉分頁時那一批 JS 呼叫失敗（0.9.172 起）：預期情況，只記 Debug，不進系統例外、不計入告警。
+            if (CircuitDisconnect.IsOnlyDisconnect(e.Exception))
+            {
+                logger.LogDebug(e.Exception, "Unobserved task exception after the circuit disconnected; ignored.");
+            }
+            else
+            {
+                logger.LogError(e.Exception, "Unobserved task exception.");
+            }
         }
         catch (Exception ex)
         {

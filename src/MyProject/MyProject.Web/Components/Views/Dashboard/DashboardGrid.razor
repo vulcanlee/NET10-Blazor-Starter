@@ -22,7 +22,7 @@
                     </ChildContent>
                     <ErrorContent Context="exception">
                         <div class="dashboard-card-error" role="alert">
-                            這個區塊暫時無法顯示，其他區塊不受影響@TraceCode.Suffix(TraceCode.FromException(exception))。
+                            這個區塊暫時無法顯示，其他區塊不受影響@(TraceCode.Suffix(TraceCode.FromException(exception)))。
                         </div>
                     </ErrorContent>
                 </LoggingErrorBoundary>
