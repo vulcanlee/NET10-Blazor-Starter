@@ -24,6 +24,19 @@ namespace MyProject.Tests;
 /// </summary>
 public sealed class AiAgentConversationServiceTests
 {
+    /// <summary>0.9.170 起內容多了 ReasoningEffort（只加不改，SchemaVersion 不變）：舊檔讀得到，值為 null（系統預設）。</summary>
+    [Fact]
+    public void Content_WithoutReasoningEffort_ShouldStillBeReadable()
+    {
+        const string oldJson = """{"SchemaVersion":1,"Session":{},"Transcript":[],"PendingApprovals":[]}""";
+
+        var content = System.Text.Json.JsonSerializer.Deserialize<AiAgentConversationContent>(oldJson, AiAgentConversationService.FileJsonOptions);
+
+        Assert.NotNull(content);
+        Assert.Equal(AiAgentConversationContent.CurrentSchemaVersion, content!.SchemaVersion);
+        Assert.Null(content.ReasoningEffort);
+    }
+
     private const int Alice = 7;
     private const int Bob = 8;
 

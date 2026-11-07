@@ -28,6 +28,12 @@ public sealed class AiAgentConversationContent
 
     /// <summary>停下來等使用者核准的工具；沒有時為空。</summary>
     public List<AiAgentPendingApprovalRecord> PendingApprovals { get; set; } = [];
+
+    /// <summary>
+    /// 這段對話選的推論等級（0.9.170 起，Agent 測試台）；null＝系統預設。接續時沿用。
+    /// 只加不改，所以 <see cref="SchemaVersion"/> 不變（舊檔讀出來是 null）。
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
 }
 
 /// <summary>畫面上的一則。<see cref="Kind"/> 見 <see cref="AiAgentTranscriptKinds"/>。</summary>

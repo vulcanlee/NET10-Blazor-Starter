@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.168
+- 現行系統版本：0.9.170
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/07
 
@@ -186,6 +186,7 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 **各功能的推論等級（`AiReasoningSettings`，0.9.168 起）**：鍵名和 `AiModelSettings` 的 Agent 功能同名（`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`、`AdminAssistant`），
 同樣以 `AiCallContext.ModelKey` 對應；`AiAgentFactory.CreateAgent` 每次讀 `GetOverride(ModelKey)`，空白（或沒有對應的鍵）時用 `AiSettings.AgentReasoningEffort`，仍只在 `UseResponsesApi` 時送 `reasoning.effort`。
 工廠把實際送出的值與設定來源（系統參數的名稱或 `AiSettings:AgentReasoningEffort`）交給記帳中介層，模型以 400 `reasoning.effort` 拒絕時，訊息指名要改的那一個設定。
+0.9.170 起 `AiCallContext.ReasoningEffortOverride` 優先於上述兩者（來源 `AiReasoningEffortOrigin.Conversation`）：Agent 測試台依對話選的推論等級，`AiAgentRunner.StartAsync(definition, reasoningEffort)` 帶入、`AiAgentChat.SetReasoningEffort` 以同一個 session 重建 agent（以 `AiCallContext.ModelOverride` 沿用開對話時的模型），值存進 `AiAgentConversationContent.ReasoningEffort`，接續時沿用。
 不放進 `AiModelSettings`：`OverriddenModels()` 會把每個 string 屬性當成模型名稱拿去查費率。`AiReasoningSettingsTests` 守門：每個走 Responses 的 Agent 都有自己的推論等級設定，也都在系統參數頁。設定說明見 [日誌與設定檔說明 §4.18](../operations/日誌與設定檔說明.md)。
 
 ### 6.6 新增一個 Agent

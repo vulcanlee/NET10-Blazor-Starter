@@ -637,7 +637,12 @@ internal sealed class AiAccountingChatClient : DelegatingChatClient
         if (string.Equals(upstream.Param, "reasoning.effort", StringComparison.OrdinalIgnoreCase)
             || string.Equals(upstream.Param, "reasoning_effort", StringComparison.OrdinalIgnoreCase))
         {
-            if (reasoning.IsFeatureOverride)
+            if (reasoning.Origin == AiReasoningEffortOrigin.Conversation)
+            {
+                return $"此模型不接受推論等級「{reasoning.Effort}」（{reasoning.Source}），請在對話上方改選其他等級或「系統預設」。";
+            }
+
+            if (reasoning.Origin == AiReasoningEffortOrigin.Feature)
             {
                 return $"此模型不接受推論等級「{reasoning.Effort}」（{reasoning.Source}），請改為空白或此模型接受的值。";
             }

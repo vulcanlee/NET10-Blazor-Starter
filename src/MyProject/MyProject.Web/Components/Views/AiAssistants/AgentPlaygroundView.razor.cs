@@ -10,6 +10,8 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Ai.Agents;
 using MyProject.Web.Components.Commons;
+using MyProject.Web.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace MyProject.Web.Components.Views.AiAssistants;
 
@@ -61,6 +63,31 @@ public partial class AgentPlaygroundView : IDisposable
     private bool canClearSamples;
     private bool samplesVisible;
     private IReadOnlyList<string> sampleTitles = [];
+
+    /// <summary>畫面上選的推論等級（0.9.170 起）；空字串＝系統預設。</summary>
+    private string reasoningChoice = string.Empty;
+
+    /// <summary>改值失敗退回舊值時換一個 key，強制 Select 重新渲染（參數沒變時 AntDesign 不會自己同步回去）。</summary>
+    private int reasoningSelectKey;
+
+    [Inject]
+    public IOptionsMonitor<AiReasoningSettings> ReasoningSettings { get; set; } = default!;
+
+    [Inject]
+    public IOptionsMonitor<AiSettings> AiSettingsMonitor { get; set; } = default!;
+
+    /// <summary>
+    /// 下拉第一項：系統參數「Agent 測試台的推論等級」，空白時是設定檔的 AiSettings:AgentReasoningEffort；都沒有就不送。
+    /// </summary>
+    private string SystemDefaultReasoningLabel
+    {
+        get
+        {
+            var value = ReasoningSettings.CurrentValue.GetOverride(AgentPlaygroundAgent.Definition.ModelKey)
+                ?? AiSettingsMonitor.CurrentValue.AgentReasoningEffort?.Trim().ToLowerInvariant();
+            return string.IsNullOrEmpty(value) ? "系統預設（不指定，由模型決定）" : $"系統預設（目前：{value}）";
+        }
+    }
 
     public AgentPlaygroundView(
         ILogger<AgentPlaygroundView> logger,
@@ -232,6 +259,7 @@ public partial class AgentPlaygroundView : IDisposable
             ResetConversation();
             chat = resumed;
             modelName = resumed.ModelName;
+            reasoningChoice = resumed.ReasoningEffort ?? string.Empty;
             if (resumed.IsAwaitingApproval)
             {
                 pendingApprovals = resumed.PendingApprovals;
@@ -318,7 +346,8 @@ public partial class AgentPlaygroundView : IDisposable
 
         try
         {
-            chat ??= await runner.StartAsync(AgentPlaygroundAgent.Definition);
+            chat ??= await runner.StartAsync(
+                AgentPlaygroundAgent.Definition, string.IsNullOrEmpty(reasoningChoice) ? null : reasoningChoice);
             modelName = chat.ModelName;
             inputText = string.Empty;
             var current = chat;
@@ -477,10 +506,48 @@ public partial class AgentPlaygroundView : IDisposable
         }
     }
 
+    /// <summary>
+    /// 改推論等級（0.9.170 起）：還沒有對話時只記在畫面上，送出第一則訊息時帶進去；已有對話時下一則訊息起生效。
+    /// </summary>
+    private void OnReasoningChanged(string? value)
+    {
+        reasoningChoice = value ?? string.Empty;
+        if (chat is null)
+        {
+            return;
+        }
+
+        try
+        {
+            chat.SetReasoningEffort(string.IsNullOrEmpty(reasoningChoice) ? null : reasoningChoice);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // 畫面在執行中與等待核准時已停用選單，這裡只是保險：退回這段對話目前的值。
+            logger.LogWarning(ex, "Agent playground could not change the reasoning effort. ConversationId={ConversationId}", chat.ConversationId);
+            RevertReasoningChoice();
+            ViewNotification.Caution(notificationService, "目前不能改推論等級，請等這次回覆結束或先處理核准。");
+        }
+        catch (Exception ex)
+        {
+            // 重建 agent 失敗（例如對話途中 AI 設定被改壞）：這段對話維持原本的推論等級。
+            logger.LogError(ex, "Agent playground failed to rebuild the agent for a new reasoning effort. ConversationId={ConversationId}", chat.ConversationId);
+            RevertReasoningChoice();
+            ViewNotification.UnexpectedError(notificationService, "無法改推論等級，請稍後再試；這段對話維持原本的設定。", ex);
+        }
+    }
+
+    private void RevertReasoningChoice()
+    {
+        reasoningChoice = chat?.ReasoningEffort ?? string.Empty;
+        reasoningSelectKey++;
+    }
+
     private void ResetConversation()
     {
         chat = null;
         modelName = string.Empty;
+        reasoningChoice = string.Empty;
         inputText = string.Empty;
         pendingApprovals = [];
         approvalVisible = false;
