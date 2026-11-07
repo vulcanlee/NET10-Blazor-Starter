@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.20
+- 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.166
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/07
 
@@ -166,16 +166,23 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 
 1. ~~動作代碼沒有單一來源~~ —— 0.9.78 已收斂到 `AuditActions` 並以測試守門。
    下拉選單仍讀資料庫 DISTINCT：舊資料可能有已更名或移除的代碼。
-2. **`AuditLog.OccurredAt` 沒有單欄索引**：`ExceptionLog.LastOccurredAt` 與 `TokenUsageLog.OccurredAt`
-   在 `BackendDBContext` 都建了索引，`AuditLog` 只有 0.9.102 為個人資料頁加的複合索引 `(ActorUserId, OccurredAt)`
-   （以操作者開頭，本頁依時間範圍查詢用不到）。資料量大到影響查詢時應補一支 migration。
+2. ~~`AuditLog.OccurredAt` 沒有單欄索引~~ —— 0.9.166 起有 `IX_AuditLog_OccurredAt`（migration `AddAuditLogOccurredAtIndex`），
+   本頁的時間條件、保留期限清理與登入失敗告警的時間窗計數都用得到。
 3. 時區以伺服器為準（見 §四）。
 4. ~~清除與清空沒有保留期限的自動化~~ —— 0.9.78 起每日自動清理，0.9.96 起改由排程作業執行（§五）。
 
+**已實作（0.9.166）**
+
+- `OccurredAt` 索引 migration（見上方第 2 點）。
+- 登入失敗告警：寫完 `Login.Failed`、`Login.LockedOut`、`Login.TwoFactorFailed`、`Login.Sso.Failed` 的稽核後，
+  `AuditLogService` 呼叫 `LoginFailureAlertService` 統計全系統最近 `LoginFailureAlertSettings:WindowMinutes`（預設 10）分鐘內的失敗，
+  達 `Threshold`（預設 20，`0`＝不告警）次就通知全體管理員並寄信（分類 `LoginFailureBurst`），內文列出最常被試的帳號與 IP，
+  `CooldownMinutes`（預設 60）內不重發。原規劃的「同一帳號短時間大量失敗」由帳號鎖定涵蓋（鎖定時已通知管理員），
+  所以告警改抓不分帳號、不分 IP 的橫向猜測。
+
 **規劃中需求**（不屬於目前驗收範圍）
 
-- `OccurredAt` 索引 migration。
-- 稽核事件的告警（例如同一帳號短時間大量 `Login.Failed`）。
+- 無。
 
 ## 八、測試
 
