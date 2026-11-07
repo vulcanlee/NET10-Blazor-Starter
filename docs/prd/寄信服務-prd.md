@@ -1,8 +1,8 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.164
 - 首次實作版本：0.9.59
 - 最後核對日期：2026/11/07
 
@@ -116,7 +116,7 @@
 - 佇列只在記憶體：程式重啟時尚未寄出的信會遺失。
 - 寄送失敗不重試、沒有寄送紀錄頁（失敗只在系統例外紀錄與日誌裡）。
 - 不支援附件、CC／BCC、多收件者。
-- 套件相依（0.9.126 起）：`MailKit` → `MimeKit` 遞移帶入的 `System.Security.Cryptography.Pkcs` 10.0.0 有已知弱點，由 `MyProject.Web` 直接參考修補版 10.0.13 覆蓋（`Directory.Packages.props`）；MailKit／MimeKit 改為相依修補版後要移除，見 [CI-CD 與品質檢查 §4.3](../operations/CI-CD與品質檢查.md)。
+- 套件相依：0.9.126～0.9.163 曾由 `MyProject.Web` 直接參考修補版 `System.Security.Cryptography.Pkcs` 10.0.13，覆蓋 `MimeKit` 遞移帶入的弱點版；0.9.164 升到 `MailKit` 4.18.2（`MimeKit` 改相依 10.0.13）後已移除，見 [CI-CD 與品質檢查 §4.3](../operations/CI-CD與品質檢查.md)。
 
 **規劃中需求**
 

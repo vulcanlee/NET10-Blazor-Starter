@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.164
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/07
 
@@ -79,8 +79,11 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
 | `AiHttpCapturePolicy` 放在 **SDK 管線**而不是 HttpClient 的 DelegatingHandler | 管線是我們在 `AiAgentFactory` 自己組的，正式環境與測試（假的 `HttpMessageHandler`）走同一條路 |
 | 每個作業各建一個 agent，`AiCallState` 交接「目前這一次呼叫」的擷取物件 | 同一個 agent 的模型呼叫是循序的，不需要 AsyncLocal |
 
-套件版本集中在 `src/MyProject/Directory.Packages.props`：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.OpenAI` 1.27.0、
-`Microsoft.Agents.AI.Workflows` 1.27.0（0.9.144 起，工作流程用）、`Microsoft.Extensions.AI.OpenAI` 10.11.0、`OpenAI` 2.14.0，只有 `MyProject.Web` 參考。
+套件版本集中在 `src/MyProject/Directory.Packages.props`：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.OpenAI` 1.28.0、
+`Microsoft.Agents.AI.Workflows` 1.28.0（0.9.144 起，工作流程用）、`Microsoft.Extensions.AI.OpenAI` 10.11.0、`OpenAI` 2.14.0，只有 `MyProject.Web` 參考。
+⚠️ `OpenAI` 刻意停在 2.14.0（0.9.164）：2.15.0 改了 `ResponsesClient.CreateResponseStreamingAsync` 的簽章，
+`Microsoft.Extensions.AI.OpenAI` 10.11.0 執行時會丟 `MissingMethodException`（編譯不會發現，測試才抓得到）。
+要等 `Microsoft.Extensions.AI.OpenAI` 改相依 2.15 以上再一起升。
 
 ## 4. 與 0.9.139 的差異（第一階段）
 

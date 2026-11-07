@@ -19,7 +19,7 @@ if (-not $env:NUGET_HTTP_TIMEOUT_SECONDS) {
 
 # 弱點掃描的允許清單：只放已經記錄決議的諮詢代號（決議見 docs/operations/CI-CD與品質檢查.md §4.1）。
 # 清單只能縮短：某筆諮詢不再出現（上游修好了）時關卡會失敗，要求把它移除，避免豁免變成永久的。
-$allowedAdvisories = @('GHSA-2m69-gcr7-jv3q')
+$allowedAdvisories = @()
 
 function Invoke-VulnerabilityScan {
     # ⚠️ dotnet list package --vulnerable 找到弱點時**仍然回傳 0**，必須自己解析輸出。

@@ -1,8 +1,8 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.164
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/07
 
@@ -131,14 +131,14 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 | 允許清單中某筆**已不再出現**（上游修好了）| ❌ 失敗，要求你把它從清單與本文件移除 |
 
 最後一列是刻意的：豁免只能是暫時的。清單在 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`，
-目前只有一筆 `GHSA-2m69-gcr7-jv3q`（見 §4.1）。
+0.9.164 起清單是**空的**：掃描到任何諮詢都會失敗（§4.1 的 SQLite 弱點已隨 EF Core 10.0.14 解決）。
 **新增或移除清單項目時，本節與 §4.1 要一起改。**
 比對用諮詢代號而非訊息文字 —— dotnet CLI 的輸出會隨執行環境語系改變。
 
 核心邏輯如下（完整版見 `Invoke-QualityGate.ps1` 的 `Invoke-VulnerabilityScan`，它另外在擷取輸出時暫時把 `[Console]::OutputEncoding` 改成 UTF-8，避免繁中 Windows 上的中文訊息變亂碼）：
 
 ```powershell
-$allowed = @('GHSA-2m69-gcr7-jv3q')
+$allowed = @()   # 0.9.164 起是空的
 $output = dotnet list src/MyProject/MyProject.slnx package --vulnerable --include-transitive 2>&1 | Out-String
 $found = [regex]::Matches($output, 'advisories/(?<id>[A-Za-z0-9-]+)') |
   ForEach-Object { $_.Groups['id'].Value } | Sort-Object -Unique
@@ -150,24 +150,19 @@ $stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 �
 > `BouncyCastle.Cryptography` 2.7.0。加入當下 `--vulnerable --include-transitive` 對這三個套件**沒有任何諮詢**，
 > 允許清單不需變動。
 > 2026-10-13 起 `MimeKit` 遞移帶入的 `System.Security.Cryptography.Pkcs` 10.0.0 出現弱點諮詢，
-> 0.9.126 以直接參考修補版處理，允許清單仍不需變動（見 §4.3）。
+> 0.9.126 以直接參考修補版處理，允許清單仍不需變動（見 §4.3）；0.9.164 起 MimeKit 4.18.2 改相依修補版，直接參考已移除。
 
 它與 restore/build 階段的 `NU1903` 稽核警告仍是兩條獨立路徑。
 
-### 4.1 已知並已抑制的弱點：CVE-2025-6965
+### 4.1 已解決：CVE-2025-6965（0.9.164）
 
 | 項目 | 內容 |
 |------|------|
-| 套件 | `SQLitePCLRaw.lib.e_sqlite3` 2.1.11（bundled SQLite < 3.50.2） |
+| 套件 | `SQLitePCLRaw.lib.e_sqlite3` 2.1.11（bundled SQLite < 3.50.2；受影響範圍 `<= 2.1.11`） |
 | Advisory | [GHSA-2m69-gcr7-jv3q](https://github.com/advisories/GHSA-2m69-gcr7-jv3q) / CVE-2025-6965（High，CVSS 7.2） |
-| 引入來源 | 由 `Microsoft.EntityFrameworkCore.Sqlite 10.0.5` **遞移**引入（EF Core Sqlite → Microsoft.Data.Sqlite.Core → SQLitePCLRaw.bundle_e_sqlite3 → lib.e_sqlite3） |
-| 為何不升級 | NuGet 上 `SQLitePCLRaw.*` 最新即 2.1.11，**尚無修補版**（無 2.1.12 / 2.2.x），EF Core 亦未帶入新版，目前無從升級 |
-| 風險評估 | 低：EF Core 採參數化查詢，無未受信任的原始 SQL 進入 SQLite（0.4.24 起 SQLite 為唯一支援的資料庫） |
-| 處置 | 於 [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) 以 `NuGetAuditSuppress` 抑制該 advisory，消除 restore/build 的 `NU1903` 警告 |
-
-**重要行為差異**：`NuGetAuditSuppress` 只抑制 **restore/build 的 `NU1903` 警告**；`dotnet list package --vulnerable` 是獨立查詢，**仍會列出**此 advisory。因此掃描時看到它屬預期；它必須同時出現在 `Invoke-QualityGate.ps1` 的 `$allowedAdvisories` 允許清單中，兩處缺一不可。
-
-**移除條件**：待 `SQLitePCLRaw`（或 `Microsoft.EntityFrameworkCore.Sqlite`）釋出 bundled SQLite ≥ 3.50.2 的版本後，升級套件、移除 `Directory.Build.props` 內的 `NuGetAuditSuppress`、並刪除本小節。
+| 引入來源 | 由 `Microsoft.EntityFrameworkCore.Sqlite` **遞移**引入（EF Core Sqlite → Microsoft.Data.Sqlite.Core → SQLitePCLRaw.bundle_e_sqlite3 → lib.e_sqlite3） |
+| 當時的處置 | 上游沒有修補版，以 `Directory.Build.props` 的 `NuGetAuditSuppress` 抑制 restore／build 的 `NU1903`，並列入品質關卡的允許清單（兩處缺一不可：`NuGetAuditSuppress` 不影響 `dotnet list package --vulnerable`） |
+| 解決 | **升級 EF Core 10.0.5 → 10.0.14**，遞移帶入 `SQLitePCLRaw.*` 2.1.13，不在受影響範圍。`NuGetAuditSuppress` 與允許清單都已移除 |
 
 ### 4.2 已解決：GHSA-v5pm-xwqc-g5wc（0.4.32）
 
@@ -192,7 +187,16 @@ $stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 �
 | 為何不升級 MailKit | `MimeKit` 最新版 4.18.1 仍相依 Pkcs 10.0.0，升級沒有效果 |
 | 處置 | 於 `Directory.Packages.props` 加 `System.Security.Cryptography.Pkcs` 10.0.13，並由 `MyProject.Web.csproj` **直接參考**覆蓋遞移版本（直接參考會流向 `MyProject.Tests`）。不啟用全域 `CentralPackageTransitivePinningEnabled`，避免影響其他遞移套件；不用抑制，因為已有修補版 |
 
-**移除條件**：待 `MailKit`／`MimeKit` 改為相依 Pkcs ≥ 10.0.13 後，升級 `MailKit`，並移除 `Directory.Packages.props` 的 `PackageVersion` 與 `MyProject.Web.csproj` 的 `PackageReference`。
+**已移除（0.9.164）**：`MailKit` 4.18.2 → `MimeKit` 4.18.2 改相依 Pkcs 10.0.13，`Directory.Packages.props` 的 `PackageVersion` 與 `MyProject.Web.csproj` 的 `PackageReference` 都已拿掉。
+
+### 4.4 刻意不升到最新版的套件（0.9.164）
+
+0.9.164 把套件全部升到最新，只有下面兩個例外。原因與升級條件也寫在 `Directory.Packages.props` 的註解；兩者都是**編譯通過、執行才出錯**，只有完整測試抓得到。
+
+| 套件 | 停在 | 不升的原因 | 什麼時候可以升 |
+|------|------|------|------|
+| `PDFsharp-MigraDoc` | 6.2.4（MIT） | 6.5.0 起授權改為 **AGPL-3.0 或商業授權**，程式必須呼叫 `PdfSharpLicense.SetAgplLicense()` 或載入商業授權碼，否則產生 PDF 時丟 `PdfSharpLicenseException`。AGPL 會要求公開衍生產品的原始碼 | 決定授權方式（購買商業授權，或接受 AGPL）之後 |
+| `OpenAI` | 2.14.0 | 2.15.0 改了 `ResponsesClient.CreateResponseStreamingAsync` 的簽章；`Microsoft.Extensions.AI.OpenAI` 10.11.0 是對著 2.14 編譯的，執行時丟 `MissingMethodException`（MAF 1.28 也相依 2.14.0） | `Microsoft.Extensions.AI.OpenAI` 釋出相依 2.15 以上的版本後，一起升 |
 
 ---
 
