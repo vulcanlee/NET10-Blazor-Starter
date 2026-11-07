@@ -91,8 +91,14 @@ public class MyUserServiceLogin
 
         try
         {
+            // 0.9.171 起去頭尾空白、不分大小寫（帳號不會只差大小寫，見速查表 §4.2）；萬一還有舊資料多筆符合，優先取大小寫完全相同的。
+            // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+            var account = NameNormalizer.Normalize(username);
             MyUser? item = await context.MyUser
-                .FirstOrDefaultAsync(x => x.Account == username);
+                .Where(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(account))
+                .OrderBy(x => x.Account == account ? 0 : 1)
+                .ThenBy(x => x.Id)
+                .FirstOrDefaultAsync();
 
             if (item is null)
             {

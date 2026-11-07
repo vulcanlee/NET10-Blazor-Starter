@@ -297,6 +297,12 @@ public class MyUserService
         }
         catch (Exception ex)
         {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("User creation rejected by unique constraint. Account={Account}", paraObject.Account);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             Logger.LogError(ex, "Failed to create user. Account={Account}", paraObject.Account);
             return VerifyRecordResultFactory.Build(false, "新增使用者失敗。", ex);
         }
@@ -350,7 +356,7 @@ public class MyUserService
 
             // 只複製編輯畫面上有的欄位（0.9.93 起）。0.9.92 之前是整筆覆蓋，而畫面模型沒有登入失敗次數、
             // 鎖定到期、兩步驟驗證、Google 綁定 —— 管理員只改姓名，被鎖定的帳號就解鎖了。
-            itemData.Account = paraObject.Account;
+            itemData.Account = NameNormalizer.Normalize(paraObject.Account);
             itemData.Name = paraObject.Name;
             itemData.Email = paraObject.Email;
             itemData.Status = paraObject.Status;
@@ -401,6 +407,12 @@ public class MyUserService
         }
         catch (Exception ex)
         {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("User update rejected by unique constraint. UserId={UserId}", paraObject.Id);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             Logger.LogError(ex, "Failed to update user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
             return VerifyRecordResultFactory.Build(false, "修改使用者失敗。", ex);
         }
@@ -777,8 +789,10 @@ public class MyUserService
                 return VerifyRecordResultFactory.Build(false, "找不到要還原的使用者（可能已被還原或永久刪除）。");
             }
 
-            // 刪除期間帳號可能已被別人使用；比對規則與新增時相同（完全比對，區分大小寫）。
-            if (await context.MyUser.AnyAsync(x => x.Id != id && x.Account == item.Account))
+            // 刪除期間帳號可能已被別人使用；比對規則與新增時相同（0.9.171 起去頭尾空白、不分大小寫）。
+            // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+            var account = NameNormalizer.Normalize(item.Account);
+            if (await context.MyUser.AnyAsync(x => x.Id != id && x.Account.ToLower() == NameNormalizer.ToLowerAscii(account)))
             {
                 Logger.LogInformation("User restore rejected because an active user has the same account. UserId={UserId}", id);
                 return VerifyRecordResultFactory.Build(false, $"已有帳號為「{item.Account}」的使用者，無法還原。請先將現有的那位使用者改用其他帳號後再還原。");
@@ -828,6 +842,12 @@ public class MyUserService
         }
         catch (Exception ex)
         {
+            if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
+            {
+                Logger.LogInformation("User restore rejected by unique constraint. UserId={UserId}", id);
+                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+            }
+
             Logger.LogError(ex, "Failed to restore user. UserId={UserId}", id);
             return VerifyRecordResultFactory.Build(false, "還原使用者失敗。", ex);
         }
@@ -883,9 +903,12 @@ public class MyUserService
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug("Running pre-create validation for Account={Account}", paraObject.Account);
 
+        // 0.9.171 起去頭尾空白、不分大小寫（同分類名稱，速查表 §4.2）。
+        // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+        var account = NameNormalizer.Normalize(paraObject.Account);
         MyUser? searchItem = await context.MyUser
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Account == paraObject.Account);
+            .FirstOrDefaultAsync(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(account));
 
         if (searchItem != null)
         {
@@ -911,9 +934,10 @@ public class MyUserService
             return VerifyRecordResultFactory.Build(false, "要修改的使用者資料不存在。");
         }
 
+        var account = NameNormalizer.Normalize(paraObject.Account);
         searchItem = await context.MyUser
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Account == paraObject.Account && x.Id != paraObject.Id);
+            .FirstOrDefaultAsync(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(account) && x.Id != paraObject.Id);
 
         if (searchItem != null)
         {

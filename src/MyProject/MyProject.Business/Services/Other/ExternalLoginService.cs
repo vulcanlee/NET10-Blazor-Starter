@@ -10,14 +10,15 @@ namespace MyProject.Business.Services.Other;
 /// <summary>
 /// Google 登入查找的結果；<see cref="IsDeleted"/> 為 true 表示命中的是已刪除的使用者，呼叫端必須拒絕登入（0.9.95 起）。
 /// </summary>
-public sealed record ExternalLoginResult(MyUser User, bool IsDeleted)
+public sealed record ExternalLoginResult(MyUser User, bool IsDeleted, bool AccountTaken = false)
 {
     /// <summary>
     /// 這次 Google 登入該怎麼處理（0.9.101 起集中在這裡，回呼端只依結果導向）。順序有意義：已刪除 → 待開通（停用）→ 鎖定 → 登入。
     /// ⚠️ 鎖定一定要檢查：之前 Google 登入不看鎖定，密碼被猜到鎖住的帳號可以改用 Google 進來。
     /// </summary>
     public ExternalLoginOutcome Evaluate(DateTime nowUtc)
-        => IsDeleted ? ExternalLoginOutcome.Deleted
+        => AccountTaken ? ExternalLoginOutcome.AccountTaken
+            : IsDeleted ? ExternalLoginOutcome.Deleted
             : !User.Status ? ExternalLoginOutcome.Pending
             : User.LockoutEndUtc is { } lockoutEndUtc && lockoutEndUtc > nowUtc ? ExternalLoginOutcome.Locked
             : ExternalLoginOutcome.SignIn;
@@ -29,6 +30,12 @@ public enum ExternalLoginOutcome
     Deleted,
     Pending,
     Locked,
+
+    /// <summary>
+    /// 要自動建立新帳號，但帳號（Email）已被別的使用者當成帳號名稱使用（0.9.171 起，不分大小寫）。
+    /// 不建立、不自動合併（否則會登入到別人的帳號）；<see cref="ExternalLoginResult.User"/> 是沒有存進資料庫的暫時物件。
+    /// </summary>
+    AccountTaken,
 }
 
 /// <summary>
@@ -112,7 +119,17 @@ public class ExternalLoginService
             }
         }
 
-        // 5) 自動建立新帳號（預設停用，待管理者啟用）
+        // 5) 自動建立新帳號（預設停用，待管理者啟用）。
+        // 0.9.171 起帳號不分大小寫唯一：Email 已是別人的帳號名稱（例如管理員先建了帳號「pat@example.com」、Email 填別的）時拒絕。
+        // 已刪除的也算：否則新建之後，那位已刪除的使用者就還原不了。
+        // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+        var newAccount = NameNormalizer.Normalize(email);
+        if (await context.MyUser.IgnoreQueryFilters([ISoftDeletable.FilterName]).AnyAsync(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(newAccount)))
+        {
+            logger.LogWarning("External login refused because the account name is already used by another user. Provider={Provider}.", provider);
+            return new ExternalLoginResult(new MyUser { Account = newAccount, Email = email }, IsDeleted: false, AccountTaken: true);
+        }
+
         int? defaultRoleId = await context.RoleView
             .Where(x => x.Name == defaultRoleName)
             .Select(x => (int?)x.Id)
@@ -125,7 +142,7 @@ public class ExternalLoginService
 
         var newUser = new MyUser
         {
-            Account = email,
+            Account = newAccount,
             Name = string.IsNullOrWhiteSpace(displayName) ? email : displayName,
             Email = email,
             Password = string.Empty,
@@ -140,7 +157,17 @@ public class ExternalLoginService
         };
 
         await context.MyUser.AddAsync(newUser);
-        await context.SaveChangesAsync();
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out _))
+        {
+            // 同一個 Email 的兩個回呼同時建立帳號：第二個撞到唯一索引，照「帳號已被使用」處理，不回 500。
+            logger.LogWarning(ex, "External login lost a race creating the account; treating it as already taken. Provider={Provider}.", provider);
+            context.Entry(newUser).State = EntityState.Detached;
+            return new ExternalLoginResult(new MyUser { Account = newAccount, Email = email }, IsDeleted: false, AccountTaken: true);
+        }
 
         logger.LogInformation(
             "External login created new disabled account awaiting approval. UserId={UserId}, Provider={Provider}.",

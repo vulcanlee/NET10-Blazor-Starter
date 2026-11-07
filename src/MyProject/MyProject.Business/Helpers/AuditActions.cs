@@ -44,6 +44,12 @@ public static class AuditActions
         /// <summary>排程作業「已刪除資料清理」依保留天數自動永久刪除（0.9.97 起；每次一筆彙總）。</summary>
         public const string AutoPurge = "User.AutoPurge";
         public const string SsoCreate = "User.SsoCreate";
+
+        /// <summary>
+        /// 升級時發現不分大小寫重複的帳號（0.9.171 起，migration AddUserAccountRoleNameUniqueIndex）：
+        /// 保留 Id 最小的，其他改名為「原帳號 (重複-Id)」並停用。由 migration 直接寫入，管理員在稽核紀錄查得到。
+        /// </summary>
+        public const string DuplicateAccountRenamed = "User.DuplicateAccountRenamed";
         public const string SsoLink = "User.SsoLink";
         /// <summary>管理員在使用者清單解除登入鎖定（0.9.101 起）。</summary>
         public const string Unlock = "User.Unlock";

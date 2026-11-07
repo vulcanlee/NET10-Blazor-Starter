@@ -80,7 +80,7 @@ public sealed class PasswordResetService
         }
 
         // 照常往下走：support 帳號由 GetIneligibleReason 擋下並以 UserId 寫稽核，這裡只決定畫面要不要明說。
-        // 帳號比對區分大小寫，先正規化成內建名稱，「SUPPORT」才會記成 reason=Support 而不是 NotFound。
+        // 先正規化成內建名稱（0.9.171 起帳號比對本身也不分大小寫；這裡保留，讓稽核裡的帳號寫法一致）。
         var result = PasswordResetRequestResult.Accepted;
         if (string.Equals(input, MagicObjectHelper.開發者帳號, StringComparison.OrdinalIgnoreCase))
         {
@@ -314,11 +314,13 @@ public sealed class PasswordResetService
         return null;
     }
 
-    /// <summary>先比帳號（與登入相同，區分大小寫）；對不到再比 Email（不分大小寫，可能多筆）。</summary>
+    /// <summary>先比帳號（與登入相同：0.9.171 起去頭尾空白、不分大小寫）；對不到再比 Email（不分大小寫，可能多筆）。</summary>
     private static async Task<List<MyUser>> FindUsersAsync(BackendDBContext context, string input, CancellationToken cancellationToken)
     {
+        // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
+        var account = NameNormalizer.Normalize(input);
         var byAccount = await context.MyUser.AsNoTracking()
-            .Where(x => x.Account == input)
+            .Where(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(account))
             .OrderBy(x => x.Id)
             .ToListAsync(cancellationToken);
         if (byAccount.Count > 0)

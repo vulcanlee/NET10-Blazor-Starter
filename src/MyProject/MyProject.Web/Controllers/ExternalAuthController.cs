@@ -109,6 +109,15 @@ public class ExternalAuthController : Controller
 
         var outcome = lookup.Evaluate(DateTime.UtcNow);
 
+        // 帳號名稱已被別人使用（0.9.171 起帳號不分大小寫唯一）：不建立、不合併，回登入頁請使用者洽管理員。
+        if (outcome == ExternalLoginOutcome.AccountTaken)
+        {
+            logger.LogWarning("Google login refused because the account name is already used by another user.");
+            await auditLogService.WriteAsync(
+                AuditActions.Login.SsoFailed, success: false, actorAccount: user.Account, detail: "provider=Google; reason=AccountTaken");
+            return Redirect("/Auths/Login?sso=account-taken");
+        }
+
         // 已刪除的使用者（0.9.95 起）：不登入、不建新帳號，回登入頁顯示固定訊息；管理員還原後即可再登入。
         if (outcome == ExternalLoginOutcome.Deleted)
         {

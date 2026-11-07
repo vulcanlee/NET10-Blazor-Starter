@@ -8,7 +8,8 @@ namespace MyProject.Business.Startup;
 /// 跨行程的初始化鎖：對資料庫檔旁的 <c>&lt;資料庫檔&gt;.migration.lock</c> 開啟獨佔（<see cref="FileShare.None"/>）的檔案控制代碼。
 ///
 /// 為什麼需要：EF Core 9 起 <c>Migrate()</c> 自己有鎖，但之後的 seed 沒有 ——
-/// <c>RoleView.Name</c> 與 <c>MyUser.Account</c> 沒有唯一索引，兩個行程同時 seed 會建出重複的預設角色與 support 帳號。
+/// 兩個行程同時 seed 會建出重複的預設角色與 support 帳號。0.9.171 起 <c>RoleView.Name</c> 與 <c>MyUser.Account</c> 有唯一索引，
+/// 第二個行程會被索引擋下而啟動失敗；鎖讓它們依序執行，第二個看到已存在就不再建立。
 /// 會同時啟動兩個行程的情況：IIS web garden、兩個站台共用同一個資料庫、短時間內連續回收、手動多開。
 ///
 /// 為什麼是檔案鎖：named Mutex 只在同一台機器的同一個工作階段有效，檔案鎖則與行程類型無關；

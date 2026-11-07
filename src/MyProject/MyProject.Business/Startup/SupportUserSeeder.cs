@@ -48,12 +48,26 @@ public sealed class SupportUserSeeder : IDatabaseSeeder
 
         // 連已刪除的一起找、優先取未刪除的（0.9.95 起）：只看有過濾的集合的話，被軟刪除的 support 會被當成不存在，
         // 建出第二個 support。服務層禁止刪除它，這裡是最後一道防線。
+        // 0.9.171 起帳號不分大小寫：設定檔寫「Support」也找得到既有的 support，不會再建一個（唯一索引也不允許）。
+        // 大小寫完全相同的優先；⚠️ 只差大小寫的那一筆如果不是管理員，代表是另一位使用者，絕不可把他提升成 support、改掉他的密碼
+        // （知道 support 密碼的人就會登入成他）——讓啟動停下來，請管理員處理。
+        var supportAccount = NameNormalizer.Normalize(bootstrapSettings.SupportAccount);
         var support = await dbContext.MyUser
             .IgnoreQueryFilters([ISoftDeletable.FilterName])
-            .Where(x => x.Account == bootstrapSettings.SupportAccount)
-            .OrderBy(x => x.IsDeleted)
+            .Where(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(supportAccount))
+            .OrderBy(x => x.Account == supportAccount ? 0 : 1)
+            .ThenBy(x => x.IsDeleted)
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (support is not null && support.Account != supportAccount && support.IsAdmin == false)
+        {
+            logger.LogCritical(
+                "Support account only matches a non-admin user whose account differs in case; refusing to promote it. UserId={UserId}", support.Id);
+            throw new InvalidOperationException(
+                $"設定檔的 support 帳號「{supportAccount}」與既有的一般使用者「{support.Account}」只差大小寫。為避免把那位使用者提升成管理員，"
+                + "請先把那位使用者改用其他帳號，或把設定檔的 BootstrapSettings:SupportAccount 改成既有 support 帳號的寫法後再啟動。");
+        }
 
         if (support is { IsDeleted: true })
         {
