@@ -67,7 +67,7 @@ else
                     圖示用 classic Material Icons 世代的名稱。Icon 打錯只會渲染成破圖方塊，
                     而且沒有任何守門測試會抓到（MenuIconTests 只管 Menu.json），改動時請目視確認。
                 *@
-                <ToolbarIconButton Title="@($"清除 {PurgeDays} 天前的紀錄")" Icon="history"
+                <ToolbarIconButton Title="@($"清除超過保留天數的紀錄（異動 {PurgeDays} 天、瀏覽 {BrowsingPurgeDays} 天）")" Icon="history"
                                    OnClick="@(async () => await OnPurgeAsync())" />
                 <ToolbarIconButton Title="清空全部紀錄" Icon="delete_forever"
                                    OnClick="@(async () => await OnClearAllAsync())" />
@@ -78,6 +78,12 @@ else
             本頁記錄「誰、何時、對什麼、做了什麼、結果如何」，涵蓋登入、使用者與角色異動、權限拒絕等事件。
             時間以<strong>伺服器本地時區</strong>顯示（資料庫存的是 UTC）。
             清除與清空動作本身也會留下一筆紀錄。
+            @* 記錄範圍的兩個開關（0.9.174 起，預設都關）：看不到換頁、搜尋紀錄或修改差異時，先從這裡知道原因。 *@
+            @if (ScopeNotice is { } notice)
+            {
+                <br />
+                @notice
+            }
         </div>
 
         <div class="audit-log-table-wrap">

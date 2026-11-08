@@ -443,8 +443,13 @@ public sealed class DataRetentionOverviewService
 
     private async Task<DataRetentionRow> AuditLogRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)
     {
+        // 0.9.174 起兩類各有保留天數（異動與安全、瀏覽類），「下次會清掉幾筆」是兩類相加，與排程作業刪的一致。
         var days = logRetention.CurrentValue.AuditLogDays;
-        var stats = await auditLogQueryService.GetRetentionStatsAsync(days > 0 ? RetentionCutoffs.AuditLog(days, timeProvider) : null);
+        var browsingDays = logRetention.CurrentValue.AuditBrowsingLogDays;
+        var stats = await auditLogQueryService.GetRetentionStatsAsync(null);
+        int? expected = days <= 0 && browsingDays <= 0 ? null
+            : (days > 0 ? await auditLogQueryService.CountExpiredAsync(RetentionCutoffs.AuditLog(days, timeProvider), AuditLogKind.Change) : 0)
+              + (browsingDays > 0 ? await auditLogQueryService.CountExpiredAsync(RetentionCutoffs.AuditLog(browsingDays, timeProvider), AuditLogKind.Browsing) : 0);
         return WithJob(new DataRetentionRow
         {
             Key = "audit-log",
@@ -453,12 +458,14 @@ public sealed class DataRetentionOverviewService
             Count = stats.Total,
             Folder = await folder,
             OldestLocal = ToLocal(stats.Oldest),
-            RuleText = days > 0 ? $"保留 {days} 天" : "不自動刪除（保留天數為 0）",
+            RuleText = $"異動與安全事件{RuleOf(days)}；瀏覽類（換頁、搜尋、查看）{RuleOf(browsingDays)}",
             ParameterGroup = SystemParameterCatalog.GroupRetention,
-            Expected = stats.Expired,
+            Expected = expected,
             ManageUrl = "/audit-logs",
             CanCustomPurge = true,
-        }, AuditLogRetentionJob.JobName, jobByName.GetValueOrDefault(AuditLogRetentionJob.JobName), days > 0);
+        }, AuditLogRetentionJob.JobName, jobByName.GetValueOrDefault(AuditLogRetentionJob.JobName), days > 0 || browsingDays > 0);
+
+        static string RuleOf(int d) => d > 0 ? $"保留 {d} 天" : "不自動刪除（保留天數為 0）";
     }
 
     private async Task<DataRetentionRow> NotificationRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName)

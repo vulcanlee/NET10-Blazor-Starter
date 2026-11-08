@@ -16,6 +16,7 @@ public class LogRetentionSettings
     public const int DefaultExceptionLogDays = 90;
     public const int DefaultAuditLogDays = 365;
     public const int DefaultTokenUsageLogDays = 365;
+    public const int DefaultAuditBrowsingLogDays = 90;
 
     /// <summary>例外紀錄「最後發生」超過幾天就刪除（連同堆疊檔）。0＝不自動清理。</summary>
     [Range(0, 36500)]
@@ -29,6 +30,13 @@ public class LogRetentionSettings
     public int AuditLogDays { get; set; } = DefaultAuditLogDays;
 
     /// <summary>
+    /// 瀏覽類稽核（換頁、搜尋、查看；0.9.174 起）超過幾天就刪除。0＝不自動清理。
+    /// 這類事件只在 <see cref="AuditLogSettings.RecordBrowsing"/> 開啟時才會寫入，筆數最多，所以比 <see cref="AuditLogDays"/> 短。
+    /// </summary>
+    [Range(0, 36500)]
+    public int AuditBrowsingLogDays { get; set; } = DefaultAuditBrowsingLogDays;
+
+    /// <summary>
     /// Token 用量紀錄超過幾天就刪除（連同原始 JSON 檔）。0＝不自動清理（0.9.96 起；之前完全不會自動清除）。
     /// 預設一年：費用資料常需要做年度統計。
     /// </summary>
@@ -40,4 +48,7 @@ public class LogRetentionSettings
 
     /// <summary>頁面手動清除用的天數：停用自動清理時仍需要一個合理的門檻。</summary>
     public int ManualAuditLogDays => AuditLogDays > 0 ? AuditLogDays : DefaultAuditLogDays;
+
+    /// <summary>頁面手動清除用的天數（瀏覽類）：停用自動清理時仍需要一個合理的門檻。</summary>
+    public int ManualAuditBrowsingLogDays => AuditBrowsingLogDays > 0 ? AuditBrowsingLogDays : DefaultAuditBrowsingLogDays;
 }

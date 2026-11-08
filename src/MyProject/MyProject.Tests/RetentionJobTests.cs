@@ -70,6 +70,70 @@ public sealed class RetentionJobTests : IAsyncDisposable
         Assert.Equal(AuditActions.Audit.AutoPurge, Assert.Single(audit.Entries).Action);
     }
 
+    /// <summary>
+    /// 瀏覽類（換頁、搜尋、查看）另有保留天數（0.9.174 起，預設 90）：兩類各用自己的天數、各寫一筆 Audit.AutoPurge（摘要帶 kind）。
+    /// </summary>
+    [Fact]
+    public async Task AuditLogJob_ShouldPurgeEachKindWithItsOwnDays()
+    {
+        await InitializeAsync(new LogRetentionSettings { AuditLogDays = 365, AuditBrowsingLogDays = 90 });
+        var now = clock.GetUtcNow().UtcDateTime;
+        await SeedAuditAsync(AuditActions.Category.Update, now.AddDays(-400));
+        await SeedAuditAsync(AuditActions.Category.Update, now.AddDays(-200));
+        await SeedAuditAsync(AuditActions.Page.View, now.AddDays(-100));
+        await SeedAuditAsync(AuditActions.Category.Search, now.AddDays(-10));
+
+        var result = await RunAsync<AuditLogRetentionJob>();
+
+        Assert.True(result.Succeeded, result.Message);
+        await using var context = NewContext();
+        Assert.Equal(new[] { AuditActions.Category.Update, AuditActions.Category.Search },
+            await context.AuditLog.OrderBy(x => x.OccurredAt).Select(x => x.Action).ToListAsync());
+        Assert.Equal(
+            new[] { "rows=1; days=365; kind=change; trigger=Schedule", "rows=1; days=90; kind=browsing; trigger=Schedule" },
+            audit.Entries.Select(e => e.Detail));
+        Assert.All(audit.Entries, e => Assert.Equal(AuditActions.Audit.AutoPurge, e.Action));
+    }
+
+    [Fact]
+    public async Task AuditLogJob_BrowsingDaysZero_ShouldKeepBrowsingRows()
+    {
+        await InitializeAsync(new LogRetentionSettings { AuditLogDays = 365, AuditBrowsingLogDays = 0 });
+        var now = clock.GetUtcNow().UtcDateTime;
+        await SeedAuditAsync(AuditActions.Page.View, now.AddDays(-400));
+        await SeedAuditAsync(AuditActions.Category.Update, now.AddDays(-400));
+
+        await RunAsync<AuditLogRetentionJob>();
+
+        await using var context = NewContext();
+        Assert.Equal(AuditActions.Page.View, Assert.Single(await context.AuditLog.ToListAsync()).Action);
+    }
+
+    /// <summary>
+    /// 月份目錄（空目錄與孤兒檔）只用兩類中較舊的門檻收：用瀏覽類的 90 天收，會刪掉 90～365 天前的修改差異檔。
+    /// </summary>
+    [Fact]
+    public async Task AuditLogJob_ShouldCollectMonthFoldersOnlyBeforeTheOlderThreshold()
+    {
+        await InitializeAsync(new LogRetentionSettings { AuditLogDays = 365, AuditBrowsingLogDays = 90 });
+        var now = clock.GetUtcNow().UtcDateTime;
+        var root = Path.Combine(fileRoot, "audit");
+        var diffMonth = Path.Combine(root, now.AddDays(-200).ToString("yyyyMM"));
+        var orphanMonth = Path.Combine(root, now.AddDays(-420).ToString("yyyyMM"));
+        Directory.CreateDirectory(diffMonth);
+        Directory.CreateDirectory(orphanMonth);
+        var diffFile = Path.Combine(diffMonth, "diff.txt");
+        await File.WriteAllTextAsync(diffFile, "Name: A → B");
+        await File.WriteAllTextAsync(Path.Combine(orphanMonth, "orphan.txt"), "x");
+        await SeedAuditAsync(AuditActions.Category.Update, now.AddDays(-200), $"{Path.GetFileName(diffMonth)}/diff.txt");
+        await SeedAuditAsync(AuditActions.Page.View, now.AddDays(-100));
+
+        await RunAsync<AuditLogRetentionJob>();
+
+        Assert.True(File.Exists(diffFile));
+        Assert.False(Directory.Exists(orphanMonth));
+    }
+
     [Fact]
     public async Task Jobs_WithZeroDays_ShouldNotPurgeOrAudit()
     {
@@ -355,6 +419,13 @@ public sealed class RetentionJobTests : IAsyncDisposable
             context.AuditLog.Add(new AuditLog { Action = AuditActions.Email.Test, OccurredAt = occurredAt, Success = true });
         }
 
+        await context.SaveChangesAsync();
+    }
+
+    private async Task SeedAuditAsync(string action, DateTime occurredUtc, string? contentFile = null)
+    {
+        await using var context = NewContext();
+        context.AuditLog.Add(new AuditLog { Action = action, OccurredAt = occurredUtc, Success = true, ContentFile = contentFile });
         await context.SaveChangesAsync();
     }
 

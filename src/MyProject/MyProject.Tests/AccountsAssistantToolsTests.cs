@@ -143,6 +143,28 @@ public sealed class AccountsAssistantToolsTests
         Assert.Contains("\"erin\"", viewed, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 稽核記錄範圍的開關（0.9.174 起預設都關）：模型不能把「沒有記錄」當成「沒有發生」。
+    /// 查瀏覽類（誰看過）時 note 要說明沒有記錄；修改沒有差異時要說明是開關關閉。
+    /// </summary>
+    [Fact]
+    public async Task AuditTools_WhenSwitchesAreOff_ShouldExplainWhatIsNotRecorded()
+    {
+        await using var fixture = await DbFixture.CreateAsync();
+        var update = new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Update", TargetType = "Category", TargetId = "5" };
+        fixture.Context.AuditLog.Add(update);
+        await fixture.Context.SaveChangesAsync();
+
+        var viewed = await fixture.Tools.SearchAuditLogsAsync(action: "Category.View", targetType: "Category", targetId: "5");
+        var changed = await fixture.Tools.SearchAuditLogsAsync(action: "Category.Update");
+        var content = await fixture.Tools.GetAuditLogContentAsync(update.Id);
+
+        Assert.Contains("目前沒有記錄瀏覽類事件", viewed, StringComparison.Ordinal);
+        Assert.DoesNotContain("目前沒有記錄瀏覽類事件", changed, StringComparison.Ordinal);
+        Assert.Contains("稽核：記錄修改前後差異", content, StringComparison.Ordinal);
+        Assert.Contains("目前關閉", content, StringComparison.Ordinal);
+    }
+
     /// <summary>動作代碼是 User.*，目標類型卻是 MyUser：模型猜錯時要提醒，而且猜的文字不進資料庫摘要。</summary>
     [Fact]
     public async Task SearchAuditLogs_UnknownTargetType_ShouldWarnAndNotStoreTheText()

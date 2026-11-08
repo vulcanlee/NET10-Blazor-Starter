@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
@@ -51,6 +52,7 @@ public sealed class AccountsAssistantTools
     private readonly CurrentUserService currentUser;
     private readonly RolePermissionService rolePermissions;
     private readonly ITwoFactorService twoFactor;
+    private readonly IOptionsMonitor<AuditLogSettings>? auditSettings;
 
     public AccountsAssistantTools(
         MyUserService users,
@@ -59,7 +61,8 @@ public sealed class AccountsAssistantTools
         IAuditLogService audit,
         CurrentUserService currentUser,
         RolePermissionService rolePermissions,
-        ITwoFactorService twoFactor)
+        ITwoFactorService twoFactor,
+        IOptionsMonitor<AuditLogSettings>? auditSettings = null)
     {
         this.users = users;
         this.roles = roles;
@@ -68,7 +71,14 @@ public sealed class AccountsAssistantTools
         this.currentUser = currentUser;
         this.rolePermissions = rolePermissions;
         this.twoFactor = twoFactor;
+        this.auditSettings = auditSettings;
     }
+
+    /// <summary>
+    /// 稽核記錄範圍的兩個開關（0.9.174 起，預設都關）。模型要知道「沒有記錄」不等於「沒有發生」：
+    /// 瀏覽關閉時查不到誰看過，差異關閉時看不到改了什麼。未注入（單元測試）時等同預設。
+    /// </summary>
+    private AuditLogSettings AuditScope => auditSettings?.CurrentValue ?? new AuditLogSettings();
 
     public static AiToolDefinition SearchUsersTool { get; } = Define(
         "search_users", "搜尋使用者", MagicObjectHelper.角色_使用者管理,
@@ -95,12 +105,14 @@ public sealed class AccountsAssistantTools
         "search_audit_logs", "查詢稽核紀錄", MagicObjectHelper.角色_稽核紀錄,
         $"查詢稽核紀錄（誰在何時對什麼做了什麼、成功與否），可依時間、動作代碼（例如 Login.Failed、User.Update、Permission.Denied）、操作者帳號、成敗、關鍵字篩選；"
         + "查某一筆資料的異動歷程用 targetType＋targetId（精確比對；給了目標且沒指定 action 時不含換頁、搜尋、查看這類瀏覽紀錄，要查誰看過請指定 action，例如 Category.View）。"
+        + "瀏覽類（換頁、搜尋、查看）只在系統參數「稽核：記錄瀏覽類事件」開啟時才有紀錄，查不到不代表沒有人看過；回傳的 note 會說明。"
         + $"預設最近 24 小時（有給目標時一年），最多 {MaxAuditTake} 筆，由新到舊。",
         tools => tools.SearchAuditLogsAsync);
 
     public static AiToolDefinition AuditLogContentTool { get; } = Define(
         "get_audit_log_content", "稽核紀錄內容", MagicObjectHelper.角色_稽核紀錄,
-        $"用稽核紀錄編號讀取詳細內容（修改前後差異、查詢條件），超過 {AuditContentMaxLength} 字會截斷。",
+        $"用稽核紀錄編號讀取詳細內容（修改前後差異、查詢條件），超過 {AuditContentMaxLength} 字會截斷。"
+        + "修改前後差異只在系統參數「稽核：記錄修改前後差異」開啟時才有；沒有時回傳會說明原因。",
         tools => tools.GetAuditLogContentAsync);
 
     public static AiToolDefinition AccountSecurityTool { get; } = Define(
@@ -344,6 +356,12 @@ public sealed class AccountsAssistantTools
 
         var result = await auditLogs.GetAsync(query);
 
+        // 查「誰看過」時，瀏覽類沒有記錄的話，0 筆不代表沒有人看過（0.9.174 起預設不記）。
+        if (AuditActions.IsBrowsing(query.Action) && AuditScope.RecordBrowsing == false)
+        {
+            notes.Add("目前沒有記錄瀏覽類事件（換頁、搜尋、查看；系統參數「稽核：記錄瀏覽類事件」關閉中），查不到不代表沒有人看過");
+        }
+
         await ViewAudit.WriteSearchAsync(audit, currentUser, AuditActions.Audit.Search, "AuditLog",
             AuditSearchCondition.Of("start", startTime), AuditSearchCondition.Of("end", endTime),
             ChoiceCondition("action", query.Action, await auditLogs.GetDistinctActionsAsync(), notes),
@@ -379,9 +397,16 @@ public sealed class AccountsAssistantTools
         await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Audit.View, "AuditLog",
             id.ToString(CultureInfo.InvariantCulture), $"action={item.Action}; via={AuditSource}");
 
-        return string.IsNullOrWhiteSpace(content)
-            ? $"稽核紀錄 #{id}（{item.Action}）沒有詳細內容{(item.ContentFile is null ? "（這筆本來就沒有內容檔）" : "（內容檔已被清除或寫檔失敗）")}。"
-            : ToJson(new { id, item.Action, content = Truncate(content, AuditContentMaxLength) });
+        if (string.IsNullOrWhiteSpace(content) == false)
+        {
+            return ToJson(new { id, item.Action, content = Truncate(content, AuditContentMaxLength) });
+        }
+
+        var reason = item.ContentFile is not null ? "內容檔已被清除或寫檔失敗"
+            : AuditActions.CarriesFieldDiff(item.Action)
+                ? $"修改前後差異只在系統參數「稽核：記錄修改前後差異」開啟時記錄，目前{(AuditScope.RecordFieldChanges ? "開啟（這筆可能是開啟前寫的）" : "關閉")}"
+                : "這筆本來就沒有內容檔";
+        return $"稽核紀錄 #{id}（{item.Action}）沒有詳細內容（{reason}）。";
     }
 
     public async Task<string> GetAccountSecurityOverviewAsync(

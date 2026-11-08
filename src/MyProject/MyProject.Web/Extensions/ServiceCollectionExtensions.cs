@@ -302,7 +302,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScheduledJob<AuditLogRetentionJob>(
             AuditLogRetentionJob.JobName, "稽核紀錄清理",
-            "刪除超過保留天數的稽核紀錄（保留天數在「系統參數」頁設定，預設 365 天，0 = 不清除）。", "0 3 * * *");
+            "刪除超過保留天數的稽核紀錄：異動與安全事件預設 365 天、瀏覽類（換頁、搜尋、查看）預設 90 天，在「系統參數」頁設定，0 = 不清除。", "0 3 * * *");
         services.AddScheduledJob<ExceptionLogRetentionJob>(
             ExceptionLogRetentionJob.JobName, "系統例外紀錄清理",
             "刪除超過保留天數的系統例外紀錄與堆疊檔（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");
@@ -375,6 +375,12 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<LogRetentionSettings>()
             .Bind(configuration.GetSection(LogRetentionSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // 稽核紀錄的記錄範圍（0.9.174 起）：兩個開關預設都關，AuditLogService 每次寫入讀 CurrentValue。
+        services.AddOptions<AuditLogSettings>()
+            .Bind(configuration.GetSection(AuditLogSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

@@ -26,8 +26,37 @@ namespace MyProject.Web.Components.Views.Admins
         /// </summary>
         private int PurgeDays => RetentionOptions.CurrentValue.ManualAuditLogDays;
 
+        /// <summary>瀏覽類（換頁、搜尋、查看）的清除門檻（0.9.174 起），讀 <see cref="LogRetentionSettings.AuditBrowsingLogDays"/>。</summary>
+        private int BrowsingPurgeDays => RetentionOptions.CurrentValue.ManualAuditBrowsingLogDays;
+
         [Inject]
         public Microsoft.Extensions.Options.IOptionsMonitor<LogRetentionSettings> RetentionOptions { get; set; } = default!;
+
+        [Inject]
+        public Microsoft.Extensions.Options.IOptionsMonitor<AuditLogSettings> ScopeOptions { get; set; } = default!;
+
+        /// <summary>目前沒有記錄的範圍（0.9.174 起，兩個開關預設都關）；都有記錄時為 null。</summary>
+        private string? ScopeNotice
+        {
+            get
+            {
+                var scope = ScopeOptions.CurrentValue;
+                var off = new List<string>();
+                if (scope.RecordFieldChanges == false)
+                {
+                    off.Add("修改前後差異");
+                }
+
+                if (scope.RecordBrowsing == false)
+                {
+                    off.Add("瀏覽類事件（換頁、搜尋、查看）");
+                }
+
+                return off.Count == 0
+                    ? null
+                    : $"目前沒有記錄{string.Join("與", off)}，可在「系統參數」頁開啟。";
+            }
+        }
 
         private readonly ILogger<AuditLogView> logger;
         private readonly AuditLogQueryService auditLogQueryService;
@@ -286,11 +315,12 @@ namespace MyProject.Web.Components.Views.Admins
 
         private async Task OnPurgeAsync()
         {
+            // 0.9.174 起兩類各用自己的保留天數：異動與安全事件 PurgeDays、瀏覽類（換頁、搜尋、查看）BrowsingPurgeDays。
             var confirmed = await ConfirmDialog.AskDestructiveAsync(
                 modalService,
-                $"清除 {PurgeDays} 天前的紀錄",
-                $"將刪除發生時間早於 {PurgeDays} 天前的所有稽核紀錄。此動作無法復原，"
-                    + "且本次清除會另外留下一筆稽核紀錄。",
+                "清除超過保留天數的紀錄",
+                $"將刪除早於 {PurgeDays} 天前的異動與安全紀錄，以及早於 {BrowsingPurgeDays} 天前的瀏覽紀錄（換頁、搜尋、查看）。"
+                    + "此動作無法復原，且本次清除會另外留下稽核紀錄。",
                 "清除");
 
             if (confirmed == false)
@@ -298,19 +328,33 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            var result = await auditLogQueryService.PurgeAsync(PurgeDays);
-            if (result.Success)
+            var change = await auditLogQueryService.PurgeAsync(PurgeDays, AuditLogKind.Change);
+            var browsing = change.Success
+                ? await auditLogQueryService.PurgeAsync(BrowsingPurgeDays, AuditLogKind.Browsing)
+                : change;
+            if (change.Success)
             {
-                await WriteSelfAuditAsync(AuditActions.Audit.Purge, $"清除 {PurgeDays} 天前的稽核紀錄：{result.Message}");
-                ViewNotification.Warning(
-                    notificationService,
-                    string.IsNullOrWhiteSpace(result.Message) ? "清除完成" : result.Message);
-                await ReloadActionOptionsAsync();
-                await ReloadAsync();
+                await WriteSelfAuditAsync(AuditActions.Audit.Purge, $"清除 {PurgeDays} 天前的異動與安全紀錄：{change.Message}");
+            }
+
+            if (change.Success && browsing.Success)
+            {
+                await WriteSelfAuditAsync(AuditActions.Audit.Purge, $"清除 {BrowsingPurgeDays} 天前的瀏覽紀錄：{browsing.Message}");
+
+                // 兩類都清過，才用較舊的門檻收空月份目錄與孤兒檔（手動天數一定大於 0，所以一定安全）。
+                auditLogQueryService.DeleteContentMonthsBefore(DateTime.UtcNow.AddDays(-Math.Max(PurgeDays, BrowsingPurgeDays)));
+                ViewNotification.Warning(notificationService, $"異動與安全紀錄：{change.Message}瀏覽紀錄：{browsing.Message}");
             }
             else
             {
-                ViewNotification.Error(notificationService, result.Message);
+                ViewNotification.Error(notificationService, browsing.Message);
+            }
+
+            // 只要有一段刪到資料，清單就要重新整理，不能留著已刪掉的列。
+            if (change.Success)
+            {
+                await ReloadActionOptionsAsync();
+                await ReloadAsync();
             }
         }
 

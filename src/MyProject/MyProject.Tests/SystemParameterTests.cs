@@ -93,6 +93,7 @@ public sealed class SystemParameterTests
             ClientErrorReportingSettings.SectionName, RateLimitSettings.SectionName, PasswordResetSettings.SectionName,
             BackupSettings.SectionName, NotificationSettings.SectionName, PasswordPolicySettings.SectionName, LockoutSettings.SectionName, LoginFailureAlertSettings.SectionName, EmailDeliverySettings.SectionName, TwoFactorSettings.SectionName,
             AiQuotaSettings.SectionName, AiModelSettings.SectionName, AiReasoningSettings.SectionName, AiAgentConversationSettings.SectionName, AdminPatrolSettings.SectionName,
+            AuditLogSettings.SectionName,
         };
         var secretLike = new Regex("password|secret|apikey|signingkey|connection|licensekey|recipients|path", RegexOptions.IgnoreCase);
 
