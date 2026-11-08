@@ -99,7 +99,7 @@ public sealed class AiSettingsTests
         var appSettingsPath = Path.Combine(FindSourceRoot(), "MyProject.Web", "appsettings.json");
         Assert.True(File.Exists(appSettingsPath), $"找不到 {appSettingsPath}");
 
-        using var document = JsonDocument.Parse(File.ReadAllText(appSettingsPath));
+        using var document = JsonDocument.Parse(File.ReadAllText(appSettingsPath), ShippedAppSettings.JsonOptions);
         Assert.True(
             document.RootElement.TryGetProperty(AiSettings.SectionName, out var section),
             $"appsettings.json 缺少 {AiSettings.SectionName} 區段。");

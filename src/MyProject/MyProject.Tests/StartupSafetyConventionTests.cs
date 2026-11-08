@@ -51,7 +51,7 @@ public sealed class StartupSafetyConventionTests
         var path = Path.Combine(FindWebRoot(), "appsettings.json");
         Assert.True(File.Exists(path), $"找不到 {path}。");
 
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        using var document = JsonDocument.Parse(File.ReadAllText(path), ShippedAppSettings.JsonOptions);
         Assert.True(
             document.RootElement.TryGetProperty(section, out var sectionElement),
             $"appsettings.json 沒有 {section} 區段。區段若改名，請一併更新這條測試。");
