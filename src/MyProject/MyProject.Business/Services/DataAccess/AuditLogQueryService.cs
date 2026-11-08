@@ -141,6 +141,24 @@ public class AuditLogQueryService
             dataSource = dataSource.Where(x => x.ClientIp != null && x.ClientIp.StartsWith(ip));
         }
 
+        // 目標類型與目標識別是精確比對（0.9.173 起）：關鍵字的 Contains 查 12 會混到 112。
+        if (string.IsNullOrWhiteSpace(query.TargetType) == false)
+        {
+            var targetType = query.TargetType.Trim();
+            dataSource = dataSource.Where(x => x.TargetType == targetType);
+        }
+
+        if (string.IsNullOrWhiteSpace(query.TargetId) == false)
+        {
+            var targetId = query.TargetId.Trim();
+            dataSource = dataSource.Where(x => x.TargetId == targetId);
+        }
+
+        if (query.ExcludeBrowsing)
+        {
+            dataSource = dataSource.Where(NotBrowsing);
+        }
+
         if (query.Success.HasValue)
         {
             var success = query.Success.Value;
@@ -206,6 +224,54 @@ public class AuditLogQueryService
             .Distinct()
             .OrderBy(x => x)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// 不是瀏覽類（0.9.173 起）：<see cref="AuditActions.IsBrowsing"/> 的 SQL 版本，異動歷程與 <see cref="AuditLogQuery.ExcludeBrowsing"/> 共用。
+    /// 兩份規則一致由 <c>AuditLogQueryServiceTests.NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode</c> 守門。
+    /// </summary>
+    private static readonly Expression<Func<AuditLog, bool>> NotBrowsing = x =>
+        x.Action != AuditActions.Page.View
+        && !x.Action.EndsWith(AuditActions.SearchSuffix)
+        && !x.Action.EndsWith(AuditActions.ViewSuffix);
+
+    /// <summary>篩選下拉用的目標類型清單（0.9.173 起），同樣取自資料；沒有目標的事件（例如登入）不列。</summary>
+    public async Task<List<string>> GetDistinctTargetTypesAsync()
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        return await context.AuditLog
+            .AsNoTracking()
+            .Where(x => x.TargetType != null && x.TargetType != string.Empty)
+            .Select(x => x.TargetType!)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// 某一筆資料的異動歷程（0.9.173 起，資料頁的「異動歷程」）：目標類型＋目標識別精確比對，
+    /// 排除瀏覽類（換頁、搜尋、查看，見 <see cref="AuditActions.IsBrowsing"/>），新的在前；時間已轉成本地時間。
+    /// </summary>
+    public async Task<DataRequestResult<AuditLogAdapterModel>> GetTargetHistoryAsync(
+        string targetType, string targetId, int currentPage, int pageSize)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        var dataSource = context.AuditLog.AsNoTracking()
+            .Where(x => x.TargetType == targetType && x.TargetId == targetId)
+            .Where(NotBrowsing)
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id);
+
+        DataRequestResult<AuditLogAdapterModel> result = new() { Count = await dataSource.CountAsync() };
+        var records = await dataSource.Skip((currentPage - 1) * pageSize).Take(pageSize).ToListAsync();
+        result.Result = Mapper.Map<List<AuditLogAdapterModel>>(records);
+        foreach (var item in result.Result)
+        {
+            item.OccurredAt = ToLocal(item.OccurredAt);
+        }
+
+        return result;
     }
 
     /// <summary>

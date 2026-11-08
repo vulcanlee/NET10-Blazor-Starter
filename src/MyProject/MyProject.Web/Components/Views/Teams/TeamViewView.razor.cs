@@ -66,6 +66,8 @@ namespace MyProject.Web.Components.Views.Teams
         private readonly MessageService messageService;
         private readonly NotificationService notificationService;
         ITable? table;
+        /// <summary>「異動歷程」對話窗（0.9.173 起），由每列的 AuditHistoryButton 叫出。</summary>
+        AuditHistoryDialog historyDialog = default!;
         int _pageIndex = 1;
         int _pageSize = MagicObjectHelper.PageSize;
         int _total = 0;

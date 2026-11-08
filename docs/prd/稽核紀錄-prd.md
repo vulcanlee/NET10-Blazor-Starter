@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.23
+- 文件版本：1.24
 - 文件狀態：已實作
-- 現行系統版本：0.9.171
+- 現行系統版本：0.9.173
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -12,7 +12,7 @@
 有資料表、有服務、有測試，沒有畫面也沒有選單項。客戶問「誰把這個角色的權限改掉了」時，
 只能直接開 SQLite 檔查。0.9.42 補上查詢畫面，讓這條軌跡拿得出來。
 
-- 範圍：管理員專屬的稽核事件檢視／查詢／明細／CSV 匯出／清除與清空。
+- 範圍：管理員專屬的稽核事件檢視／查詢／明細／CSV 匯出／清除與清空；0.9.173 起另有五個資料頁每列的「異動歷程」（§3.4）。
 - 非範圍：**不提供 Web API**（內部管理頁）；不做告警通知；
   不修改既有的稽核寫入點。
 - 相關：寫入端的事件涵蓋範圍見 [使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md)、
@@ -34,7 +34,13 @@
 ### 3.1 工具列
 
 - 篩選：發生時間範圍（兩個 `DatePicker`）、動作下拉、結果下拉（不限／成功／失敗）、
-  操作者帳號、來源 IP（0.9.123 起，前綴比對，沒有 IP 的舊紀錄不符合；匯出 CSV 同條件）、關鍵字（比對動作／操作者／目標類型／目標識別／摘要／來源 IP，0.9.117 起含 IP）。
+  目標類型下拉、目標識別（精確）（0.9.173 起，見下）、
+  操作者帳號、來源 IP（0.9.123 起，前綴比對，沒有 IP 的舊紀錄不符合；匯出 CSV 同條件）、關鍵字（比對動作／操作者／目標類型／目標識別／摘要／來源 IP，0.9.117 起含 IP；部分比對）。
+- **精確查詢（0.9.173 起）**：放在「結果」之後、「操作者帳號」之前。
+  - 「目標類型」下拉第一項「目標類型：不限」，其餘取自 `AuditLogQueryService.GetDistinctTargetTypesAsync`（`SELECT DISTINCT TargetType`，排除 null 與空字串，排序），與動作下拉同時載入，按「重新整理」更新；選中的值已不在選項裡時清回不限。
+  - 「目標識別（精確）」輸入框：`AuditLogQuery.TargetId`，去前後空白後**完全相同**才符合。原因：關鍵字是 `Contains`，查 `12` 會混到 `112`、`120`，追某一筆資料時不能用。
+  - 兩欄各自獨立，可只填一個；建議一起填（不同類型可能有相同編號）。查詢有索引 `IX_AuditLog_TargetType_TargetId_OccurredAt`（§七）。
+  - 匯出 CSV 套用同樣條件；按「查詢」寫的 `Audit.Search` 多記 `targetType`（下拉值，摘要直接記）與 `targetId`（自由輸入，摘要只記有沒有填、原文在內容檔）。
 - **動作下拉的選項取自資料庫的 `SELECT DISTINCT Action`**，不寫死清單：0.9.42 立頁時動作代碼散落在
   15 個呼叫點的字串字面值裡，沒有集中的常數來源，任何手寫清單都會在下次新增稽核事件時默默過期
   （0.9.78 起已收斂到 `AuditActions`，下拉仍讀 DISTINCT，見 §七）。
@@ -69,6 +75,26 @@ UTC 原值一併呈現是刻意的：跨時區協查或要與日誌檔的時間�
 尺寸與內容樣式寫在 `Components/Commons/OverlayStyles.razor` 的 `.audit-log-modal`，
 **不是** `AuditLogView.razor.css` —— AntDesign 的 `Modal` 渲染在元件 DOM 之外，
 scoped CSS 連 `::deep` 都打不到。
+
+### 3.4 異動歷程（0.9.173 起）
+
+**問題**：「這一筆分類是誰改的、改了什麼」是最常被問的稽核問題，但要先記下編號、切到稽核紀錄頁、再用關鍵字查 —— 而關鍵字的部分比對會把 12 和 112 混在一起。
+**做法**：在資料所在的清單上直接看那一筆的異動。
+
+- **位置**：分類清單 `/categories`、專案項目 `/projects`、團隊清單 `/teams`、使用者管理 `/myusers`、角色管理 `/roleviews` 每列操作欄的最後一顆「異動歷程」（`CrudActionButton`，圖示 `history`），一般清單與「顯示已刪除」兩個分支都有（已刪除的資料更需要查是誰刪的）。`New-CrudModule.ps1` 產生的頁面也有，目標類型＝模組名稱。
+- **權限：只有管理員**。稽核紀錄含來源 IP 與別人的操作，與本頁同樣只給管理員、權限鍵不上架角色矩陣。`AuditHistoryButton` 以 `CurrentUser.IsAdmin` 決定渲染（非管理員連 `SpaceItem` 都不留，分類／專案／團隊頁的一般使用者也看不到），`AuditHistoryDialog.ShowAsync` 再擋一次並記警告日誌。
+- **元件**：`Components/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
+- **標題**：「異動歷程：<名稱>」，使用者頁顯示帳號（不顯示姓名）、專案頁顯示 `Title`、其他顯示 `Name`。上方說明：「這一筆資料（<類型> #<編號>）在稽核紀錄裡的異動，新的在上面；時間為伺服器本地時間。稽核紀錄保留期限之前的異動已被清除。要看誰開過、查過這一筆，請到「稽核紀錄」頁查詢。」
+- **左側清單**：`AuditLogQueryService.GetTargetHistoryAsync(targetType, targetId, page, 10)` —— 目標類型＋目標識別精確比對，**排除瀏覽類**（`Page.View`、以 `.Search` 或 `.View` 結尾；SQL 版本是共用的 `NotBrowsing` 條件，與 `AuditActions.IsBrowsing` 同一規則，也給 `AuditLogQuery.ExcludeBrowsing` 用），依 `OccurredAt`、`Id` 遞減，時間轉本地。每筆顯示時間、動作代碼 `Tag`（顏色同本頁）、失敗多一個紅色「失敗」、操作者「帳號（Id=N）」；超過 10 筆出現小型分頁。目標是 `MyUser` 的密碼重設、兩步驟驗證、解鎖、強制登出、本人改姓名等也會列出；登入事件沒有目標，不列。
+- **右側明細**：點一筆後顯示發生時間、動作代碼、結果、操作者、來源 IP、摘要（空的「（無）」）、詳細內容（點選才經 `GetContentAsync` 讀檔）。沒有內容檔：「（這一筆沒有詳細內容。只有「修改」會記錄改了哪些欄位）」；檔案不在：「內容檔不存在（可能已被清除，或當初寫檔失敗）。」；讀檔失敗：「讀取詳細內容失敗。」附追蹤碼。還沒選時：「請從左側選一筆，查看摘要與修改前後差異。」
+- **空狀態與錯誤**：沒有任何異動：「這一筆資料在稽核紀錄的保留期間內沒有異動紀錄。」；載入失敗：右下角 `ViewNotification.UnexpectedError`「載入異動歷程失敗：<例外類型>。」
+- **稽核**：打開寫 `Audit.Search`（`TargetType=AuditLog`，摘要 `targetType=…; targetId=…; via=history`）；點一筆寫 `Audit.View`（`TargetId` 是那一筆稽核的 Id，摘要 `action=…; via=history`）。這兩筆屬瀏覽類，不會出現在任何資料的異動歷程裡。
+- **尺寸**：`OverlayStyles.razor` 的 `.audit-history-modal`（86vw、max-width 1280px、高 88vh，body 不捲、清單與明細各自捲動）；窗內樣式在 `AuditHistoryDialog.razor.css`。純唯讀、不含 `EditForm`，× 或 Esc 關閉。
+- **為什麼排除瀏覽類**：0.9.131 起每次按「修改」開窗都會記 `*.View`，熱門資料一天幾十筆，會把真正的異動淹掉。要看「誰開過、查過」請到本頁用目標類型＋目標識別查（`*.View` 的目標就是那一筆）。
+
+⚠️ 異動歷程靠動作代碼的結尾判斷瀏覽類，所以**瀏覽類動作的常數必須叫 `Search`／`View`，改了資料的動作值不可以 `.Search`／`.View` 結尾**（`AuditConventionTests.IsBrowsing_ShouldBeTrueExactlyForSearchAndViewConstants` 守門，CRUD 產生器的新模組自動相容；C# 與 SQL 兩份規則由 `AuditLogQueryServiceTests.NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode` 對每個動作代碼比對；速查表 §6.6）。
+
+**`AuditLogQuery.ExcludeBrowsing`**（0.9.173 起）：查詢條件可排除瀏覽類，規則同上。稽核紀錄頁沒有這個選項（頁面上要看得到誰開過、查過）；系統管理助理的 `search_audit_logs` 在給了目標、沒指定動作時自動打開它（見 [系統管理助理 PRD](系統管理助理-prd.md)）。
 
 ## 四、⚠️ 時區：本頁最關鍵的設計
 
@@ -186,6 +212,13 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 
 - `User.DuplicateAccountRenamed`：升級到 0.9.171 時，migration 發現不分大小寫重複的帳號，保留管理員（其次 Id 最小的），其他改名為「原帳號 (重複-Id)」並停用，每筆寫一列（由 migration 直接寫入，沒有操作者）。
 
+**0.9.173 新增**
+
+- 本頁工具列的「目標類型」「目標識別（精確）」（§3.1）與五個資料頁的「異動歷程」（§3.4）。
+- 索引 `IX_AuditLog_TargetType_TargetId_OccurredAt`（migration `AddAuditLogTargetIndex`）：精確查詢與異動歷程都以 (`TargetType`, `TargetId`) 等值比對、依 `OccurredAt` 排序。
+- 系統管理助理的 `search_audit_logs` 多了 `targetType`、`targetId` 參數（精確比對；有給目標、沒給起始時間時預設往前查 366 天；有給目標、沒指定動作時排除瀏覽類），見 [系統管理助理 PRD](系統管理助理-prd.md)。
+- 已知限制：異動歷程只看得到保留期限（`LogRetentionSettings:AuditLogDays`，預設 365 天）內的紀錄；0.9.78 之前分類、團隊、專案的異動沒有稽核，看不到。`*.Export` 的目標不是單一筆資料，不會出現在異動歷程。
+
 **規劃中需求**（不屬於目前驗收範圍）
 
 - 無。
@@ -204,5 +237,10 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
   `AuditLogServiceTests`（內容檔、Debug 同步不含內容）、`AuditLogQueryServiceTests`（清除與清空連同內容檔）、
   `ViewAuditTests`（查詢摘要不含搜尋原文）、`CategoryServiceTests`／`MyUserServiceAssignmentTests`／`CategoryTeamRepositoryUniquenessTests`（差異內容）。
 - `PageAuthorizationTests`：`/audit-logs` 自動納入受保護路由掃描。
+- 0.9.173 起：`AuditLogQueryServiceTests` 多 7 項（目標精確比對、只給目標類型或只給目標識別、目標類型清單去重排序、異動歷程只列異動且新的在前、異動歷程分頁、模型有目標索引、`NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode`）；
+  `AuditConventionTests.IsBrowsing_ShouldBeTrueExactlyForSearchAndViewConstants`（只有常數名稱叫 Search／View 的才是瀏覽類）；
+  `Components/AuditHistoryTests` 5 項（按鈕只給管理員、只列這一筆的異動並在點選時讀內容與寫 `Audit.View`、空狀態、非管理員不載入）；
+  `AuditHistoryConventionTests` 6 項（五個資料頁與 CRUD 樣板都有兩顆按鈕、一個對話窗、正確的目標類型）；
+  `AccountsAssistantToolsTests.SearchAuditLogs_ByTarget_IsExact_AndLooksBackAYearByDefault`、`SearchAuditLogs_UnknownTargetType_ShouldWarnAndNotStoreTheText`。
 
 > 返回 [PRD 主控台](README.md)

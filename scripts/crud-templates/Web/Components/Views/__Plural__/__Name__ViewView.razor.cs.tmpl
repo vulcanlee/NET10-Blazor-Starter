@@ -53,6 +53,8 @@ public partial class __Name__ViewView
     private List<__Name__AdapterModel> records = [];
     private IEnumerable<__Name__AdapterModel> selectedRows = [];
     private bool batchDeleting;
+    /// <summary>「異動歷程」對話窗（0.9.173 起），由每列的 AuditHistoryButton 叫出。</summary>
+    private AuditHistoryDialog historyDialog = default!;
 #IF TEAMS
     private List<string> availableTeams = [];
     private RecordAccessScope currentScope = new(false, []);

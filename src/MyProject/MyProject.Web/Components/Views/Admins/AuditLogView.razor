@@ -41,6 +41,16 @@ else
                     <SelectOption TItemValue="string" TItem="string" Value="@("false")" Label="失敗" />
                 </Select>
 
+                @* 目標類型＋目標識別是精確比對（0.9.173 起）：查某一筆資料的歷程時，關鍵字查 12 會混到 112。 *@
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedTargetType" Style="width: 170px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="目標類型：不限" />
+                    @foreach (var targetType in targetTypeOptions)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@targetType" Label="@targetType" />
+                    }
+                </Select>
+                <Input class="audit-log-target-id-input" @bind-Value="targetIdFilter" Placeholder="目標識別（精確）" />
+
                 <Input class="audit-log-account-input" @bind-Value="accountFilter" Placeholder="操作者帳號" />
                 <Input class="audit-log-ip-input" @bind-Value="ipFilter" Placeholder="來源 IP" />
                 <Input class="audit-log-search-input" @bind-Value="keyword" Placeholder="關鍵字（動作／目標／摘要／IP）" />

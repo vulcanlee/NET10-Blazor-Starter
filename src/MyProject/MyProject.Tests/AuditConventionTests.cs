@@ -73,6 +73,35 @@ public sealed class AuditConventionTests
         Assert.All(codes, code => Assert.Matches(@"^[A-Z][A-Za-z]*(\.[A-Z][A-Za-z]*)*$", code));
     }
 
+    /// <summary>
+    /// 瀏覽類（0.9.173 起）：換頁、搜尋、開單筆來看，不改變任何資料。資料頁的「異動歷程」排除它們。
+    /// 規則：只有常數名稱叫 <c>Search</c>／<c>View</c> 的才是瀏覽類。改了資料的動作（例如 <c>ReviewView</c> 這種名字）
+    /// 值若剛好以 <c>.View</c> 結尾，會被異動歷程漏掉，這條就會轉紅。
+    /// 以常數名稱比對而不是明列清單：CRUD 產生器每個新模組都會加 <c>Search</c>／<c>View</c>，明列會讓產生的模組必紅。
+    /// </summary>
+    [Fact]
+    public void IsBrowsing_ShouldBeTrueExactlyForSearchAndViewConstants()
+    {
+        var violations = AllActionFields()
+            .Where(field => AuditActions.IsBrowsing(field.Value) != (field.Name is "Search" or "View"))
+            .Select(field => $"{field.Name} = {field.Value}")
+            .ToList();
+
+        Assert.True(violations.Count == 0,
+            "瀏覽類動作的常數必須叫 Search／View，其他動作的值不可以 .Search／.View 結尾："
+                + Environment.NewLine + string.Join(Environment.NewLine, violations));
+        Assert.True(AuditActions.IsBrowsing(AuditActions.Page.View));
+        Assert.False(AuditActions.IsBrowsing(null));
+    }
+
+    private static IEnumerable<(string Name, string Value)> AllActionFields()
+        => typeof(AuditActions)
+            .GetNestedTypes()
+            .Append(typeof(AuditActions))
+            .SelectMany(type => type.GetFields(BindingFlags.Public | BindingFlags.Static))
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .Select(field => (field.Name, (string)field.GetRawConstantValue()!));
+
     private static List<string> AllActionCodes()
         => typeof(AuditActions)
             .GetNestedTypes()

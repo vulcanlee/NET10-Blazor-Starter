@@ -66,6 +66,8 @@ public partial class ProjectViewView
     private readonly NotificationService notificationService;
     private readonly IRecordAccessScopeProvider accessScope;
     private ITable? table;
+    /// <summary>「異動歷程」對話窗（0.9.173 起），由每列的 AuditHistoryButton 叫出。</summary>
+    private AuditHistoryDialog historyDialog = default!;
 
     /// <summary>目前使用者的有效團隊；新增專案時用來預填團隊欄位。</summary>
     private RecordAccessScope currentScope = new(false, []);

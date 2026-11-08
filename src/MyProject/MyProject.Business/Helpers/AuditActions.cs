@@ -11,6 +11,23 @@ namespace MyProject.Business.Helpers;
 /// </summary>
 public static class AuditActions
 {
+    /// <summary>瀏覽類動作的結尾（0.9.173 起）；查詢服務的 SQL 條件也用這兩個值，兩邊不會分岔。不是動作代碼，所以是 internal（守門測試只列 public 常數）。</summary>
+    internal const string SearchSuffix = ".Search";
+
+    /// <inheritdoc cref="SearchSuffix"/>
+    internal const string ViewSuffix = ".View";
+
+    /// <summary>
+    /// 是否為瀏覽類（0.9.173 起）：換頁（<see cref="Page.View"/>）、按搜尋（<c>*.Search</c>）、開單筆來看（<c>*.View</c>），
+    /// 不改變任何資料。資料頁的「異動歷程」排除它們。
+    /// ⚠️ 新增動作時，只是看資料的請以 <c>.Search</c>／<c>.View</c> 結尾；改了資料的不可用這兩個結尾。
+    /// </summary>
+    public static bool IsBrowsing(string? action)
+        => action is not null
+           && (action == Page.View
+               || action.EndsWith(SearchSuffix, StringComparison.Ordinal)
+               || action.EndsWith(ViewSuffix, StringComparison.Ordinal));
+
     public static class Login
     {
         public const string Success = "Login.Success";

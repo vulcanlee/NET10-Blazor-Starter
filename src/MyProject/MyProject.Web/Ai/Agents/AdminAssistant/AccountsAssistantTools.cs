@@ -93,8 +93,9 @@ public sealed class AccountsAssistantTools
 
     public static AiToolDefinition SearchAuditLogsTool { get; } = Define(
         "search_audit_logs", "查詢稽核紀錄", MagicObjectHelper.角色_稽核紀錄,
-        $"查詢稽核紀錄（誰在何時對什麼做了什麼、成功與否），可依時間、動作代碼（例如 Login.Failed、User.Update、Permission.Denied）、操作者帳號、成敗、關鍵字篩選。"
-        + $"預設最近 24 小時，最多 {MaxAuditTake} 筆，由新到舊。",
+        $"查詢稽核紀錄（誰在何時對什麼做了什麼、成功與否），可依時間、動作代碼（例如 Login.Failed、User.Update、Permission.Denied）、操作者帳號、成敗、關鍵字篩選；"
+        + "查某一筆資料的異動歷程用 targetType＋targetId（精確比對；給了目標且沒指定 action 時不含換頁、搜尋、查看這類瀏覽紀錄，要查誰看過請指定 action，例如 Category.View）。"
+        + $"預設最近 24 小時（有給目標時一年），最多 {MaxAuditTake} 筆，由新到舊。",
         tools => tools.SearchAuditLogsAsync);
 
     public static AiToolDefinition AuditLogContentTool { get; } = Define(
@@ -310,15 +311,20 @@ public sealed class AccountsAssistantTools
     }
 
     public async Task<string> SearchAuditLogsAsync(
-        [Description("起始時間，" + TimeFormatHint + "；不填＝結束時間往前 24 小時")] string? start = null,
+        [Description("起始時間，" + TimeFormatHint + "；不填＝結束時間往前 24 小時（有給 targetType／targetId 時往前一年）")] string? start = null,
         [Description("結束時間，" + TimeFormatHint + "；不填＝現在")] string? end = null,
         [Description("動作代碼，完全相同才符合，例如 Login.Failed、User.Update、Permission.Denied；不填＝全部")] string? action = null,
         [Description("操作者帳號（部分比對）")] string? account = null,
         [Description("true＝只看成功、false＝只看失敗；不填＝全部")] bool? success = null,
         [Description("關鍵字（比對動作、帳號、目標、摘要、IP）")] string? keyword = null,
-        [Description("最多回傳幾筆，1～50，預設 20")] int take = 20)
+        [Description("最多回傳幾筆，1～50，預設 20")] int take = 20,
+        [Description("目標類型，完全相同才符合：Category（分類）、Project（專案）、Team（團隊）、MyUser（使用者）、RoleView（角色）；查某一筆資料的異動歷程時與 targetId 一起給")] string? targetType = null,
+        [Description("目標識別（資料的編號），完全相同才符合，12 不會混到 112")] string? targetId = null)
     {
-        var (startTime, endTime, rangeNote) = ParseRange(start, end, DateTime.Now, TimeSpan.FromHours(24), TimeSpan.FromDays(366));
+        // 查某一筆資料是誰改的（0.9.173 起）通常不是最近 24 小時的事：有給目標時預設往前查一年。
+        var hasTarget = string.IsNullOrWhiteSpace(targetType) == false || string.IsNullOrWhiteSpace(targetId) == false;
+        var defaultSpan = hasTarget ? TimeSpan.FromDays(366) : TimeSpan.FromHours(24);
+        var (startTime, endTime, rangeNote) = ParseRange(start, end, DateTime.Now, defaultSpan, TimeSpan.FromDays(366));
         var notes = new List<string>();
         var query = new AuditLogQuery
         {
@@ -328,6 +334,10 @@ public sealed class AccountsAssistantTools
             Account = account?.Trim() ?? string.Empty,
             Success = success,
             Keyword = keyword?.Trim() ?? string.Empty,
+            TargetType = targetType?.Trim() ?? string.Empty,
+            TargetId = targetId?.Trim() ?? string.Empty,
+            // 查「某一筆是誰改的」：常被打開來看的資料，查看紀錄會把真正的修改擠出前 20 筆（與資料頁「異動歷程」同規則）。
+            ExcludeBrowsing = hasTarget && string.IsNullOrWhiteSpace(action),
             CurrentPage = 1,
             PageSize = ClampWithNote(take, 1, MaxAuditTake, "筆數", notes),
         };
@@ -339,7 +349,11 @@ public sealed class AccountsAssistantTools
             ChoiceCondition("action", query.Action, await auditLogs.GetDistinctActionsAsync(), notes),
             AuditSearchCondition.Of("success", SuccessText(success)),
             AuditSearchCondition.Text("account", query.Account), AuditSearchCondition.Text("ip", null),
-            AuditSearchCondition.Text("keyword", query.Keyword), AuditSearchCondition.Of("via", AuditSource));
+            AuditSearchCondition.Text("keyword", query.Keyword),
+            // 模型給的文字：目標類型不在已知清單（例如把 MyUser 猜成 User）時只記有沒有填並提醒；目標識別比照稽核頁只記有沒有填。
+            ChoiceCondition("targetType", query.TargetType, await auditLogs.GetDistinctTargetTypesAsync(), notes),
+            AuditSearchCondition.Text("targetId", query.TargetId),
+            AuditSearchCondition.Of("via", AuditSource));
 
         return ToJson(new
         {

@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.171
+- 現行系統版本：0.9.173
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -38,6 +38,7 @@
   - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」，0.9.142 起加「AI 助理」（底下「Agent 測試台」；0.9.144 起再加「Agent 工作流程」）；系統管理及其子群組不上架矩陣）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
 - **矩陣呈現**（0.9.139 起）：群組下每個頁面一張卡片、固定兩欄（640px 以下單欄），第一行「（全部）」、第二行四個動作；有子項目的群組可摺疊，開窗時只展開有任何勾選的群組（`RolePermissionMatrix.HasAnyGrant`），勾選群組時自動展開。展開狀態只是畫面狀態，不影響未儲存變更判斷。
 - **矩陣互動語意**：勾「（全部）」等同該頁裸鍵、代表全部動作，並停用個別動作核取方塊（舊制相容），停用的動作顯示為打勾（0.9.139 起，`RolePermissionMatrix.IsActionShownChecked`；`Actions` 不動，取消「（全部）」後回到原本的個別勾選）；勾任一動作或頁面會自動點亮所屬群組；取消群組會連帶清掉其下所有頁面權限。
+- **異動歷程**（0.9.173 起）：每列操作欄最後一顆「異動歷程」（`AuditHistoryButton`，圖示 `history`），一般清單與「顯示已刪除」都有；**只有管理員看得到**（這一頁本來就只有管理員能進來）。按下開「異動歷程：<名稱>」窗（`AuditHistoryDialog.ShowAsync("RoleView", Id, 名稱)`，標題顯示角色名稱（`Name`）），左側列出這一筆的異動（排除換頁、搜尋、查看等瀏覽類，每頁 10 筆），右側顯示點選那一筆的摘要與修改前後差異；打開寫 `Audit.Search`、點一筆寫 `Audit.View`（摘要含 `via=history`）。目標類型 `RoleView` 必須與服務寫稽核的 `TargetType` 相同。詳見 [稽核紀錄 PRD §3.4](稽核紀錄-prd.md)。
 
 ## 四、內部系統運作
 
@@ -88,6 +89,7 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - `MyProject.Tests/SoftDeleteUserRoleTests.cs`（0.9.95）：已刪除的角色不再給權限（含 legacy `RoleViewId`）、仍是主要角色時刪除被擋且不改版本號、存檔後複查、預設角色不可刪、永久刪除的明確訊息、從 Clone 出來的模型可以存檔。
 - `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：主要或額外角色勾了「需要兩步驟驗證」即必須使用、已刪除的角色不算。
 - `MyProject.Tests/AdapterModelCloneTests.cs`（0.9.95）：`Clone()` 複製每個可寫屬性 —— 0.9.93～0.9.94 `RoleViewAdapterModel.Clone()` 漏了版本號，從畫面修改任何角色都被當成並行衝突。
+- `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `RoleView`；元件行為見 `Components/AuditHistoryTests`。
 
 ## 八、相關程式與文件
 
