@@ -457,8 +457,8 @@ if (Test-Path -LiteralPath $migrationsDirectory) {
 }
 
 # 這些測試寫死了腳手架的舊 migration 名稱（驗證腳手架自己的升級路徑），重建後在新專案必定失效。
-# 新增這類測試時請獨立成檔並加進這份清單，否則衍生專案一複刻就有測試失敗。
-$starterMigrationTests = @("CategoryTeamUniqueIndexMigrationTests.cs", "TeamTreeMigrationTests.cs")
+# 新增這類測試時請獨立成檔並加進這份清單，否則衍生專案一複刻就有測試失敗（ScaffoldScriptConventionTests 守門）。
+$starterMigrationTests = @("AccountRoleUniqueIndexMigrationTests.cs", "CategoryTeamUniqueIndexMigrationTests.cs", "TeamTreeMigrationTests.cs")
 foreach ($testFile in $starterMigrationTests) {
     $starterMigrationTest = Join-Path $projectRoot "$ProjectName.Tests/$testFile"
     if (Test-Path -LiteralPath $starterMigrationTest) {
@@ -475,8 +475,43 @@ if ($LASTEXITCODE -ne 0) {
 
 $migrationCommand = "dotnet ef migrations add Init --project `"$accessDatasCsproj`" --startup-project `"$webCsprojPath`""
 Write-Host "Creating initial migration: $migrationCommand"
-& dotnet ef migrations add Init --project $accessDatasCsproj --startup-project $webCsprojPath
-if ($LASTEXITCODE -ne 0) {
+
+# dotnet ef 會執行 Program.cs 到 Build() 為止，途中依設定檔建立所有外部目錄並寫日誌：
+# 外部路徑與日誌一律導到暫存目錄，不在開發機的 C:\temp 建目錄（與 New-CrudModule.ps1 相同；
+# 新增 ExternalFileSystem 路徑時兩邊都要加，ScriptIsolationConventionTests 守門）。
+$isolated = Join-Path ([IO.Path]::GetTempPath()) ("starter-ef-" + [guid]::NewGuid().ToString('N'))
+$environment = @{
+    ASPNETCORE_ENVIRONMENT                               = 'Development'
+    BootstrapSettings__SupportPassword                  = 'support'
+    NLog__BasePath                                      = (Join-Path $isolated 'logs')
+    SystemSettings__ExternalFileSystem__DatabasePath    = (Join-Path $isolated 'DB')
+    SystemSettings__ExternalFileSystem__DownloadPath    = (Join-Path $isolated 'Download')
+    SystemSettings__ExternalFileSystem__UploadPath      = (Join-Path $isolated 'Upload')
+    SystemSettings__ExternalFileSystem__ProjectFilePath = (Join-Path $isolated 'ProjectFile')
+    SystemSettings__ExternalFileSystem__ExceptionPath   = (Join-Path $isolated 'Exception')
+    SystemSettings__ExternalFileSystem__TokenUsagePath  = (Join-Path $isolated 'TokenUsage')
+    SystemSettings__ExternalFileSystem__AiCallLogPath   = (Join-Path $isolated 'AiCallLog')
+    SystemSettings__ExternalFileSystem__AiAgentConversationPath = (Join-Path $isolated 'AiAgentConversation')
+    SystemSettings__ExternalFileSystem__AuditContentPath = (Join-Path $isolated 'AuditContent')
+    SystemSettings__ExternalFileSystem__DataProtectionKeyPath = (Join-Path $isolated 'Keys')
+    SystemSettings__ExternalFileSystem__BackupPath      = (Join-Path $isolated 'Backup')
+    SystemSettings__ExternalFileSystem__AuditKeyPath    = (Join-Path $isolated 'AuditKey')
+}
+$savedEnvironment = @{}
+foreach ($key in $environment.Keys) {
+    $savedEnvironment[$key] = [Environment]::GetEnvironmentVariable($key)
+    [Environment]::SetEnvironmentVariable($key, $environment[$key])
+}
+try {
+    & dotnet ef migrations add Init --project $accessDatasCsproj --startup-project $webCsprojPath
+    $migrationExitCode = $LASTEXITCODE
+}
+finally {
+    foreach ($key in $environment.Keys) { [Environment]::SetEnvironmentVariable($key, $savedEnvironment[$key]) }
+    Remove-Item -LiteralPath $isolated -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+if ($migrationExitCode -ne 0) {
     throw "Failed to create the initial migration. Fix the error above, then run manually: $migrationCommand"
 }
 

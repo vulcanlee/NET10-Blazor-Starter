@@ -131,22 +131,32 @@ public sealed class AuditIntegrityKeyStore : IAuditIntegrityKeyStore
         var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         var temp = Path.Combine(directory, $"{KeyFileName}.{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(temp, Convert.ToBase64String(bytes));
+        WithRetry(() => File.WriteAllText(temp, Convert.ToBase64String(bytes)));
         try
         {
-            File.Move(temp, path, overwrite: false);
-            return true;
+            return WithRetry(() =>
+            {
+                try
+                {
+                    File.Move(temp, path, overwrite: false);
+                    return true;
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    // 被別的行程（或執行緒）搶先建立：改用它的。
+                    return false;
+                }
+            });
         }
-        catch (IOException) when (File.Exists(path))
+        finally
         {
-            File.Delete(temp);
-            return false;
+            WithRetry(() => File.Delete(temp));
         }
     }
 
     private static byte[] Read(string path)
     {
-        var bytes = Convert.FromBase64String(File.ReadAllText(path).Trim());
+        var bytes = Convert.FromBase64String(WithRetry(() => File.ReadAllText(path)).Trim());
         if (bytes.Length != KeyLength)
         {
             throw new InvalidOperationException($"稽核金鑰檔格式不正確（應為 {KeyLength} bytes）：{path}");
@@ -154,4 +164,29 @@ public sealed class AuditIntegrityKeyStore : IAuditIntegrityKeyStore
 
         return bytes;
     }
+
+    /// <summary>
+    /// 剛建立的檔案可能被防毒軟體或另一個行程短暫鎖住（共用違規），讀寫失敗時稍等重試幾次；
+    /// 不重試的話，那一筆稽核會因為取不到金鑰而寫不進去。
+    /// </summary>
+    private static T WithRetry<T>(Func<T> action)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return action();
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Thread.Sleep(50 * attempt);
+            }
+        }
+    }
+
+    private static void WithRetry(Action action) => WithRetry(() =>
+    {
+        action();
+        return true;
+    });
 }
