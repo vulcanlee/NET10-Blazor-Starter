@@ -119,6 +119,7 @@ else
                                 <CrudActionButton Title="永久刪除" Icon="delete_forever" Danger
                                                   OnClick="@(async () => await OnPurgeAsync(@context))" />
                             </SpaceItem>
+                            <AuditHistoryButton OnClick="@(async () => await historyDialog.ShowAsync("MyUser", context.Id.ToString(), context.Account))" />
                         </Space>
                     }
                     else
@@ -165,6 +166,7 @@ else
                                                       OnClick="@(async () => await OnDeleteAsync(@context))" />
                                 </SpaceItem>
                             }
+                            <AuditHistoryButton OnClick="@(async () => await historyDialog.ShowAsync("MyUser", context.Id.ToString(), context.Account))" />
                         </Space>
                     }
                 </ActionColumn>
@@ -379,4 +381,7 @@ else
         <pre class="user-copy-result-text">@copyResultText</pre>
         <div class="user-copy-result-hint">密碼只會在這裡顯示一次，關閉後就無法再查看。</div>
     </Modal>
+
+    @* 異動歷程（0.9.173 起）：只有管理員看得到按鈕，一頁一個對話窗。 *@
+    <AuditHistoryDialog @ref="historyDialog" />
 }

@@ -108,6 +108,7 @@ else
                                     <CrudActionButton Title="永久刪除" Icon="delete_forever" Danger OnClick="@(async () => await OnPurgeAsync(context))" />
                                 </SpaceItem>
                             </RequirePermission>
+                            <AuditHistoryButton OnClick="@(async () => await historyDialog.ShowAsync("__Name__", context.Id.ToString(), context.Name))" />
                         }
                         else
                         {
@@ -121,6 +122,7 @@ else
                                     <CrudActionButton Title="刪除" Icon="delete" Danger OnClick="@(async () => await OnDeleteAsync(context))" />
                                 </SpaceItem>
                             </RequirePermission>
+                            <AuditHistoryButton OnClick="@(async () => await historyDialog.ShowAsync("__Name__", context.Id.ToString(), context.Name))" />
                         }
                     </Space>
                 </ActionColumn>
@@ -179,4 +181,7 @@ else
             </AntDesign.Form>
         </EditForm>
     </Modal>
+
+    @* 異動歷程（0.9.173 起）：只有管理員看得到按鈕，一頁一個對話窗。 *@
+    <AuditHistoryDialog @ref="historyDialog" />
 }

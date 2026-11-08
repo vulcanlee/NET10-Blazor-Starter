@@ -108,6 +108,56 @@ public sealed class AccountsAssistantToolsTests
         Assert.Contains("via=admin-assistant", entry.Detail, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 查某一筆資料的異動歷程（0.9.173 起）：targetType／targetId 精確比對（12 不會混到 112）；
+    /// 有給目標、沒給起始時間時預設查 366 天（「這筆是誰改的」通常不是最近 24 小時的事）。
+    /// </summary>
+    [Fact]
+    public async Task SearchAuditLogs_ByTarget_IsExact_AndLooksBackAYearByDefault()
+    {
+        await using var fixture = await DbFixture.CreateAsync();
+        fixture.Context.AuditLog.AddRange(
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddDays(-100), Action = "Category.Update", TargetType = "Category", TargetId = "12", ActorAccount = "alice" },
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddHours(-1), Action = "Category.Update", TargetType = "Category", TargetId = "112", ActorAccount = "bob" },
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddHours(-1), Action = "Team.Update", TargetType = "Team", TargetId = "12", ActorAccount = "carol" },
+            // 查看紀錄比修改新：沒指定 action 時要排除，否則常被打開的資料，真正的修改會被擠出前幾筆。
+            new AuditLog { OccurredAt = DateTime.UtcNow.AddMinutes(-5), Action = "Category.View", TargetType = "Category", TargetId = "12", ActorAccount = "erin" });
+        await fixture.Context.SaveChangesAsync();
+
+        var json = await fixture.Tools.SearchAuditLogsAsync(targetType: "Category", targetId: "12");
+
+        Assert.Contains("\"alice\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"bob\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"carol\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"erin\"", json, StringComparison.Ordinal);
+        var content = Assert.Single(fixture.Audit.Contents).Content!;
+        Assert.Contains("targetType: Category", content, StringComparison.Ordinal);
+        Assert.Contains("targetId: 12", content, StringComparison.Ordinal);
+        // 模型給的目標識別比照稽核頁：資料庫摘要只記有沒有填。
+        var detail = Assert.Single(fixture.Audit.Entries).Detail!;
+        Assert.Contains("hasTargetId=True", detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("targetId=12", detail, StringComparison.Ordinal);
+
+        // 指定 action 時照指定的查（要看誰開過這一筆）。
+        var viewed = await fixture.Tools.SearchAuditLogsAsync(action: "Category.View", targetType: "Category", targetId: "12");
+        Assert.Contains("\"erin\"", viewed, StringComparison.Ordinal);
+    }
+
+    /// <summary>動作代碼是 User.*，目標類型卻是 MyUser：模型猜錯時要提醒，而且猜的文字不進資料庫摘要。</summary>
+    [Fact]
+    public async Task SearchAuditLogs_UnknownTargetType_ShouldWarnAndNotStoreTheText()
+    {
+        await using var fixture = await DbFixture.CreateAsync();
+        fixture.Context.AuditLog.Add(new AuditLog { OccurredAt = DateTime.UtcNow, Action = "User.Update", TargetType = "MyUser", TargetId = "3" });
+        await fixture.Context.SaveChangesAsync();
+
+        var json = await fixture.Tools.SearchAuditLogsAsync(targetType: "User", targetId: "3");
+
+        Assert.Contains("不在系統已知的清單裡", json, StringComparison.Ordinal);
+        Assert.Contains("\"totalCount\":0", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("targetType=User", fixture.Audit.Entries.Single().Detail!, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task GetUserDetail_ExactAccountMatch_AndAuditsView()
     {

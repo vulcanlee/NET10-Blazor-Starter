@@ -1,10 +1,10 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.34
+- 文件版本：2.35
 - 文件狀態：維護中
-- 現行系統版本：0.9.163
+- 現行系統版本：0.9.173
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）、Token 用量／費用計價、AI 對話紀錄（0.9.72 起，管理員專屬、保存完整 Prompt／Response）、AI Agent（0.9.142 起，會呼叫工具的 Agent 與多 Agent 工作流程，見「AI Agent」PRD）與系統管理助理（0.9.155 起，管理員專屬的 AI 代理人，異動須經核准；0.9.161 起每天定時巡檢，見「系統管理助理」PRD）**（見「日誌檢視」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」「AI 對話紀錄」PRD，機制見 [AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
@@ -40,7 +40,7 @@
 | 系統參數 | [系統參數](系統參數-prd.md) | `/system-parameters` | `Pages/Admins/SystemParameterPage.razor`、`Web/Configuration/Parameters/*`、`SystemParameterService`、`SystemIdentity` | 已實作（0.9.98；0.9.142 起含「AI 模型」；0.9.143 起含 Agent 對話保留與備份；0.9.144 起含工作流程的模型；0.9.155 起含系統管理助理的模型；0.9.161 起含巡檢報告保留天數）| 0.9.163 |
 | 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Pages/Admins/ScheduledJobPage.razor`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理；0.9.143 起含 Agent 對話清理，0.9.144 起含工作流程的執行紀錄；0.9.161 起含系統管理助理巡檢與巡檢報告清理）| 0.9.163 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.9.163 |
-| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選）| 0.9.163 |
+| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選；0.9.173 起可依目標類型＋目標識別精確查詢，五個資料頁每列有管理員專用的「異動歷程」）| 0.9.173 |
 
 ## 二、無選單入口的核心能力
 

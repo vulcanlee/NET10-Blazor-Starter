@@ -1,10 +1,10 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.9.173
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -59,6 +59,7 @@
   ⚠️ 不可改成**已刪除**團隊用過的名稱（那個團隊留下的資料會被這個團隊的人看到）：「已刪除的團隊用過「X」這個名稱…」。0.9.104 之前改名不同步，改名後原本的紀錄等於失去團隊限制。
 - **團隊樹規則**（0.9.105 起，`TeamHierarchy`，Blazor 與 Web API 共用、在交易內檢查）：上層不可是自己、自己的下屬、已刪除或不存在的團隊（層級上限 32）；**有未刪除的下屬時不可刪除**（「這個團隊底下還有 N 個下屬團隊…」）；還原時上層仍是已刪除就擋下；仍被當作上層（含已刪除的下屬）時不可永久刪除，排程清理由最深層開始，同一次就能清掉整串。
   停用的上層照樣展開下屬（「啟用」只影響下拉選項，不影響權限，與之前相同）。
+- **異動歷程**（0.9.173 起）：每列操作欄最後一顆「異動歷程」（`AuditHistoryButton`，圖示 `history`），一般清單與「顯示已刪除」都有；**只有管理員看得到**（有本頁權限的一般使用者也看不到；權限鍵不上架角色矩陣）。按下開「異動歷程：<名稱>」窗（`AuditHistoryDialog.ShowAsync("Team", Id, 名稱)`，標題顯示團隊名稱（`Name`）），左側列出這一筆的異動（排除換頁、搜尋、查看等瀏覽類，每頁 10 筆），右側顯示點選那一筆的摘要與修改前後差異；打開寫 `Audit.Search`、點一筆寫 `Audit.View`（摘要含 `via=history`）。目標類型 `Team` 必須與服務寫稽核的 `TargetType` 相同。詳見 [稽核紀錄 PRD §3.4](稽核紀錄-prd.md)。
 
 ## 四、內部系統運作
 
@@ -124,6 +125,8 @@
 - `StatusToggleServiceTests.cs`（0.9.120 新增，與分類、使用者共用）：`Team_SetEnabled_ShouldOnlyChangeStatus_BumpStamp_AndAudit`（只改狀態並換版本號、寫稽核）、`Team_SetEnabled_WhenAlreadyInTargetState_ShouldSucceedWithoutAudit`（重複點不反轉、不寫稽核）、`Team_SetEnabled_ThenSavingAStaleEditForm_ShouldConflict`（停用後舊的修改窗存檔得到並行衝突）、`Team_SetEnabled_WhenDeletedOrMissing_ShouldFail`。
 
 測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper。
+
+- `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `Team`；元件行為見 `Components/AuditHistoryTests`。
 
 ## 八、相關程式與文件
 

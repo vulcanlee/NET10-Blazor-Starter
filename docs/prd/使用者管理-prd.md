@@ -1,10 +1,10 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.20
+- 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.9.171
+- 現行系統版本：0.9.173
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -46,6 +46,7 @@
   - 唯讀帶入：主要角色＋額外角色、直接綁定的團隊（已停用的不帶並註明）、啟用狀態、管理員身分；Google 綁定、兩步驟驗證、鎖定與密碼不帶。要調整請建立後再「修改」。
   - 「建立」**省略**一般新增的「確認儲存」，只在三種情況多問：範本是管理員（「建立管理員帳號」）、團隊留空（同 `ConfirmTeamBindingAsync`）、Email 已被其他未刪除帳號使用（「Email 已有人使用」，只提醒不擋）。
   - 成功後關窗並開「已建立使用者」交付窗（`.user-copy-result-modal`）：登入網址（0.9.128 起為系統根網址 `NavigationManager.BaseUri`：未登入開啟時由首頁開場畫面導到登入頁）、帳號、密碼（勾了須變更密碼時加一行提醒），開窗時自動 `appClipboard.copyText`；非使用者手勢觸發的寫入可能被瀏覽器拒絕，故保留「複製」鈕。關窗即清除明碼。
+- **異動歷程**（0.9.173 起）：每列操作欄最後一顆「異動歷程」（`AuditHistoryButton`，圖示 `history`），一般清單與「顯示已刪除」都有；**只有管理員看得到**（這一頁本來就只有管理員能進來）。按下開「異動歷程：<名稱>」窗（`AuditHistoryDialog.ShowAsync("MyUser", Id, 名稱)`，標題顯示帳號（`Account`，不顯示姓名）），左側列出這一筆的異動（排除換頁、搜尋、查看等瀏覽類，每頁 10 筆），右側顯示點選那一筆的摘要與修改前後差異；打開寫 `Audit.Search`、點一筆寫 `Audit.View`（摘要含 `via=history`）。目標類型 `MyUser` 必須與服務寫稽核的 `TargetType` 相同。詳見 [稽核紀錄 PRD §3.4](稽核紀錄-prd.md)。
 
 ## 四、內部系統運作
 
@@ -118,6 +119,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/StatusToggleServiceTests.cs`（0.9.120）：使用者停用後⭐ **角色與團隊仍在**、換工作階段版本與版本號並寫稽核；不可停用 support（不分大小寫）與自己，修改窗存檔也擋。`Components/StatusPillTests.cs`、`Components/RequirePermissionTests.cs`：可點標籤與 `Fallback`。
 - `MyProject.Tests/MyUserServiceCopyTests.cs`（0.9.127）：複製範本帶入角色／團隊／狀態／管理員且個人欄位留空、略過停用團隊、support 與不存在的來源回 null、`CanCopy`、Email 使用者查詢（大小寫、空白、已刪除）、由範本建立後 `UserRole`／`UserTeam` 一致且稽核含 `copiedFrom`。
 - `MyProject.Tests/PasswordPolicyTests.cs` `Generate_ShouldAlwaysPassTheCurrentRules`（0.9.127）：多組規則下產生的密碼都通過 `Check`、長度正確、不含易混淆字元、不重複。
+- `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `MyUser`；元件行為見 `Components/AuditHistoryTests`。
 
 ## 八、相關程式與文件
 

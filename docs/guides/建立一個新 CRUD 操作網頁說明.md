@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.5
+- 文件版本：2.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.9.173
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -52,7 +52,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `Business/Services/DataAccess/EquipmentService.cs` | Blazor 的資料服務（`IDbContextFactory`）：清單、已刪除清單、新增、修改（並行比對）、只改啟用狀態的 `SetEnabledAsync`（0.9.120 起：換版本號、已是目標狀態不寫稽核）、刪除、還原、永久刪除、名稱重複檢查、稽核 |
 | `Web/Controllers/EquipmentController.cs` | GET／search／POST／PUT／DELETE，各自 `[HasPermission]`，回 `ApiResult`；名稱重複 409、並行衝突 409、軟刪除 |
 | `Web/Components/Pages/Equipments/EquipmentPage.razor` | `@page`＋`@layout MainLayout` |
-| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、勾選多筆「刪除選取」（0.9.132 起，`BatchDelete`；`BatchDeleteConventionTests` 守門）、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認）；「啟用狀態」欄的 `StatusPill` 有編輯權限時可點（0.9.120 起：停用先確認、啟用直接切換；沒有權限經 `<RequirePermission>` 的 `Fallback` 顯示不可點的標籤；顯示已刪除時不可點） |
+| `Web/Components/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、勾選多筆「刪除選取」（0.9.132 起，`BatchDelete`；`BatchDeleteConventionTests` 守門）、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認）；「啟用狀態」欄的 `StatusPill` 有編輯權限時可點（0.9.120 起：停用先確認、啟用直接切換；沒有權限經 `<RequirePermission>` 的 `Fallback` 顯示不可點的標籤；顯示已刪除時不可點）；每列最後的「異動歷程」（0.9.173 起，`AuditHistoryButton`＋一頁一個 `AuditHistoryDialog`，目標類型＝模組名稱 `Equipment`，只有管理員看得到；`AuditHistoryConventionTests` 守門） |
 | `Web/Datas/Help/equipments.md` | 操作說明初稿（固定七段，UTF-8 含 BOM） |
 | `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、切換啟用狀態（只改狀態、換版本號、稽核）、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |
 
@@ -88,6 +88,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 2. [ ] **改了欄位就重新產生 migration**：刪掉產生器建立的 `Add<Name>` 再執行 `dotnet ef migrations add Add<Name>`（隔離路徑的做法見[開發指引](腳手架開發指引.md)），或另外加一個 migration。
 3. [ ] **操作說明**：把 `Datas/Help/<路由>.md` 第二段（這個頁面在做什麼）與第四段（建議操作）改成實際的業務說明；改了按鈕或欄位要同步改第三段（[速查 §6.14](../architecture/開發慣例與限制速查.md)）。
    **使用手冊**：改寫產生器在《新手完整操作指南》第六章加的那一節（「為什麼需要它」、欄位表與按鈕表），並把畫面加進 3.2 全畫面總覽表（[使用手冊寫作規範](使用手冊寫作規範.md)）。
+   **異動歷程**：類別改名或服務寫稽核的 `TargetType` 改了，`historyDialog.ShowAsync("…")` 的第一個參數要一起改，否則按鈕打開的歷程永遠是空的（0.9.173 起）。新增稽核動作時，瀏覽類動作的常數必須叫 `Search`／`View`，改了資料的動作值不可以 `.Search`／`.View` 結尾（產生器內建的動作已符合）（[速查 §6.6](../architecture/開發慣例與限制速查.md)）。
 4. [ ] **被其他資料引用時**：在服務的刪除與永久刪除加上「仍被使用就不能刪」的檢查，並在 `SoftDeletePurgeService` 的這一行加上 `isInUse`。
 5. [ ] **權限**：一般頁面在「角色管理」把新頁面的動作授予需要的角色（預設角色已自動加入）。
 6. [ ] `pwsh ./scripts/Invoke-QualityGate.ps1` 全綠。

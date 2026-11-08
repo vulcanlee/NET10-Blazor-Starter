@@ -1,10 +1,10 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.9.173
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -63,6 +63,7 @@
   不採用呼叫端提供的值（避免偽裝）。白名單可經 `SystemSettings.Upload.AllowedExtensions` 覆寫，
   留空則採內建預設（不含 `.html`／`.svg`／`.exe` 等可執行或可內嵌腳本的型別）。
   詳見 [檔案上傳機制](../features/檔案上傳機制.md)。
+- **異動歷程**（0.9.173 起）：每列操作欄最後一顆「異動歷程」（`AuditHistoryButton`，圖示 `history`），一般清單與「顯示已刪除」都有；**只有管理員看得到**（有本頁權限的一般使用者也看不到；權限鍵不上架角色矩陣）。按下開「異動歷程：<名稱>」窗（`AuditHistoryDialog.ShowAsync("Project", Id, 名稱)`，標題顯示專案標題（`Title`）），左側列出這一筆的異動（排除換頁、搜尋、查看等瀏覽類，每頁 10 筆），右側顯示點選那一筆的摘要與修改前後差異；打開寫 `Audit.Search`、點一筆寫 `Audit.View`（摘要含 `via=history`）。目標類型 `Project` 必須與服務寫稽核的 `TargetType` 相同。詳見 [稽核紀錄 PRD §3.4](稽核紀錄-prd.md)。
 
 ## 四、內部系統運作
 
@@ -120,6 +121,7 @@
   含 `DefaultAllowedExtensions_ShouldNotContainScriptableTypes`。
 - `MyProject.Tests/DataAccessServiceLifetimeTests.cs`：`ProjectService` 不得注入 `BackendDBContext`（須走 `IDbContextFactory`）。
 - `MyProject.Tests/PermissionCheckerTests.cs`、`RbacBackfillServiceTests.cs`：動作級授權鍵與 RBAC 回填涵蓋「專案項目」。
+- `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `Project`；元件行為見 `Components/AuditHistoryTests`。
 
 ## 八、相關程式與文件
 

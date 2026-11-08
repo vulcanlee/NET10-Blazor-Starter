@@ -1,0 +1,145 @@
+/* 「異動歷程」視窗（0.9.173 起）的窗內內容。視窗尺寸在 OverlayStyles.razor 的 .audit-history-modal。 */
+
+.audit-history-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+}
+
+.audit-history-hint {
+    font-size: 13px;
+    color: var(--app-muted);
+}
+
+.audit-history-empty {
+    padding: 24px 0;
+    text-align: center;
+    color: var(--app-muted);
+}
+
+.audit-history-layout {
+    display: flex;
+    flex: 1;
+    gap: 16px;
+    min-height: 0;
+}
+
+.audit-history-list-pane {
+    display: flex;
+    flex: 0 0 340px;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.audit-history-list {
+    flex: 1;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+    overflow-y: auto;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-card);
+}
+
+.audit-history-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--app-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.audit-history-item:hover {
+    background: var(--app-row-hover);
+}
+
+.audit-history-item-current {
+    background: var(--app-accent-soft);
+}
+
+.audit-history-item-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.audit-history-item-meta {
+    font-size: 12px;
+    color: var(--app-muted);
+}
+
+.audit-history-detail {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+.audit-history-detail-list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0 0 0.5rem;
+}
+
+.audit-history-detail-list > div {
+    display: grid;
+    gap: 0.25rem 1rem;
+    grid-template-columns: 7rem 1fr;
+}
+
+.audit-history-detail-list dt {
+    color: var(--app-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.audit-history-detail-list dd {
+    margin: 0;
+    color: var(--app-text);
+    font-size: 0.9rem;
+    word-break: break-word;
+}
+
+.audit-history-detail-title {
+    margin: 0;
+    color: var(--app-accent);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.audit-history-detail-text {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--app-code-bg);
+    color: var(--app-code-text);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (max-width: 768px) {
+    .audit-history-layout {
+        flex-direction: column;
+    }
+
+    .audit-history-list-pane {
+        flex-basis: auto;
+        max-height: 35vh;
+    }
+}

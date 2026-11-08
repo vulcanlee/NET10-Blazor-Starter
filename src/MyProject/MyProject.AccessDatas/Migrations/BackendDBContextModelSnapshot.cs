@@ -312,6 +312,8 @@ namespace MyProject.AccessDatas.Migrations
 
                     b.HasIndex("ActorUserId", "OccurredAt");
 
+                    b.HasIndex("TargetType", "TargetId", "OccurredAt");
+
                     b.ToTable("AuditLog");
                 });
 

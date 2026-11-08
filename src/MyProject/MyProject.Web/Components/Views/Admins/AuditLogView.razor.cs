@@ -45,8 +45,11 @@ namespace MyProject.Web.Components.Views.Admins
         private string accountFilter = string.Empty;
         private string ipFilter = string.Empty;
         private string keyword = string.Empty;
+        private string selectedTargetType = string.Empty;
+        private string targetIdFilter = string.Empty;
 
         private List<string> actionOptions = [];
+        private List<string> targetTypeOptions = [];
 
         private int _pageIndex = 1;
         private int _pageSize = MagicObjectHelper.PageSize;
@@ -134,11 +137,20 @@ namespace MyProject.Web.Components.Views.Admins
                 {
                     selectedAction = string.Empty;
                 }
+
+                // 目標類型（0.9.173 起）同理。
+                targetTypeOptions = await auditLogQueryService.GetDistinctTargetTypesAsync();
+                if (string.IsNullOrEmpty(selectedTargetType) == false
+                    && targetTypeOptions.Contains(selectedTargetType) == false)
+                {
+                    selectedTargetType = string.Empty;
+                }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to load audit log action options.");
                 actionOptions = [];
+                targetTypeOptions = [];
             }
         }
 
@@ -187,6 +199,8 @@ namespace MyProject.Web.Components.Views.Admins
                 _ => null,
             },
             Keyword = keyword,
+            TargetType = selectedTargetType,
+            TargetId = targetIdFilter,
             CurrentPage = currentPage,
             PageSize = pageSize,
             SortField = sortField,
@@ -227,7 +241,8 @@ namespace MyProject.Web.Components.Views.Admins
                 AuditSearchCondition.Of("start", startTime), AuditSearchCondition.Of("end", endTime),
                 AuditSearchCondition.Of("action", selectedAction), AuditSearchCondition.Of("success", selectedSuccess),
                 AuditSearchCondition.Text("account", accountFilter), AuditSearchCondition.Text("ip", ipFilter),
-                AuditSearchCondition.Text("keyword", keyword));
+                AuditSearchCondition.Text("keyword", keyword),
+                AuditSearchCondition.Of("targetType", selectedTargetType), AuditSearchCondition.Text("targetId", targetIdFilter));
         }
 
         private async Task OnRefreshAsync()
@@ -393,7 +408,7 @@ namespace MyProject.Web.Components.Views.Admins
         ];
 
         /// <summary>操作者顯示文字；系統或匿名事件（例如帳號不存在的登入失敗）沒有 Id。</summary>
-        private static string ActorText(AuditLogAdapterModel item)
+        internal static string ActorText(AuditLogAdapterModel item)
         {
             var account = string.IsNullOrWhiteSpace(item.ActorAccount) ? "（系統／匿名）" : item.ActorAccount;
             return item.ActorUserId is null ? account : $"{account}（Id={item.ActorUserId}）";
@@ -415,7 +430,7 @@ namespace MyProject.Web.Components.Views.Admins
         /// 依動作的第一節上色，讓「登入」「帳號異動」「權限拒絕」三類一眼分得開。
         /// 用 AntDesign Tag 的具名顏色，不寫色碼字面值（ThemeConventionTests 守門）。
         /// </summary>
-        private static string GetActionColor(string category) => category switch
+        internal static string GetActionColor(string category) => category switch
         {
             "Login" => "blue",
             "User" => "green",

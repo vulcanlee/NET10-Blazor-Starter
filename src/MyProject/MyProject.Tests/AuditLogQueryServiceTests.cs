@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using Microsoft.Extensions.Options;
@@ -170,6 +171,43 @@ public sealed class AuditLogQueryServiceTests
         Assert.Equal("Login.Success", item.Action);
     }
 
+    /// <summary>
+    /// 目標類型與目標識別是精確比對（0.9.173 起）：關鍵字用 Contains，查 12 會混到 112、120。
+    /// </summary>
+    [Fact]
+    public async Task GetAsync_ShouldFilterByTarget_ExactMatch()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.SeedAsync(
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Update", TargetType = "Category", TargetId = "12" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Update", TargetType = "Category", TargetId = "112" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Update", TargetType = "Category", TargetId = "120" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Team.Update", TargetType = "Team", TargetId = "12" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Project.Update", TargetType = "CategoryX", TargetId = "12" });
+
+        var result = await fixture.CreateService().GetAsync(new AuditLogQuery { TargetType = "Category", TargetId = "12" });
+
+        var item = Assert.Single(result.Result);
+        Assert.Equal(("Category", "12"), (item.TargetType, item.TargetId));
+    }
+
+    [Fact]
+    public async Task GetAsync_ShouldFilterByTargetType_AloneOrTargetId_Alone()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.SeedAsync(
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Update", TargetType = "Category", TargetId = "12" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Team.Update", TargetType = "Team", TargetId = "12" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Team.Update", TargetType = "Team", TargetId = "5" });
+
+        var service = fixture.CreateService();
+        var byType = await service.GetAsync(new AuditLogQuery { TargetType = "Team" });
+        var byId = await service.GetAsync(new AuditLogQuery { TargetId = " 12 " });
+
+        Assert.Equal(2, byType.Count);
+        Assert.Equal(2, byId.Count);
+    }
+
     [Theory]
     [InlineData(true, "User.Create")]
     [InlineData(false, "Login.Failed")]
@@ -328,6 +366,104 @@ public sealed class AuditLogQueryServiceTests
         var actions = await fixture.CreateService().GetDistinctActionsAsync();
 
         Assert.Equal(new[] { "Login.Success", "User.Create" }, actions);
+    }
+
+    [Fact]
+    public async Task GetDistinctTargetTypesAsync_ShouldReturnSortedUniqueNonEmptyTypes()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.SeedAsync(
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Team.Update", TargetType = "Team" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Update", TargetType = "Category" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Category.Delete", TargetType = "Category" },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Login.Success", TargetType = null },
+            new AuditLog { OccurredAt = DateTime.UtcNow, Action = "Logout", TargetType = "" });
+
+        var types = await fixture.CreateService().GetDistinctTargetTypesAsync();
+
+        Assert.Equal(new[] { "Category", "Team" }, types);
+    }
+
+    // ---------------------------------------------------------------
+    // 單筆資料的異動歷程（0.9.173 起，資料頁的「異動歷程」按鈕）
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public async Task GetTargetHistoryAsync_ShouldListOnlyChangesOfThatRecord_NewestFirst()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var t0 = DateTime.UtcNow.AddHours(-3);
+        await fixture.SeedAsync(
+            new AuditLog { OccurredAt = t0, Action = "Category.Create", TargetType = "Category", TargetId = "12" },
+            new AuditLog { OccurredAt = t0.AddHours(1), Action = "Category.Update", TargetType = "Category", TargetId = "12" },
+            new AuditLog { OccurredAt = t0.AddHours(1), Action = "Category.Disable", TargetType = "Category", TargetId = "12" },
+            // 瀏覽類不列
+            new AuditLog { OccurredAt = t0.AddHours(2), Action = "Category.View", TargetType = "Category", TargetId = "12" },
+            new AuditLog { OccurredAt = t0.AddHours(2), Action = "Category.Search", TargetType = "Category", TargetId = "12" },
+            new AuditLog { OccurredAt = t0.AddHours(2), Action = "Page.View", TargetType = "Category", TargetId = "12" },
+            // 別筆、別種資料不列
+            new AuditLog { OccurredAt = t0.AddHours(2), Action = "Category.Update", TargetType = "Category", TargetId = "112" },
+            new AuditLog { OccurredAt = t0.AddHours(2), Action = "Team.Update", TargetType = "Team", TargetId = "12" });
+
+        var result = await fixture.CreateService().GetTargetHistoryAsync("Category", "12", currentPage: 1, pageSize: 10);
+
+        Assert.Equal(3, result.Count);
+        // 同一時間的兩筆以 Id 遞減排（後寫的在上面）。
+        Assert.Equal(new[] { "Category.Disable", "Category.Update", "Category.Create" }, result.Result.Select(x => x.Action));
+        Assert.Equal(AuditLogQueryService.ToLocal(t0), result.Result.Last().OccurredAt, TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>單筆歷程與精確查詢都靠這個索引，否則稽核表長大後每次都是整表掃描。</summary>
+    [Fact]
+    public void Model_ShouldIndexTargetTypeTargetIdOccurredAt()
+    {
+        using var context = new BackendDBContext(new DbContextOptionsBuilder<BackendDBContext>().UseSqlite("Data Source=:memory:").Options);
+        var indexes = context.Model.FindEntityType(typeof(AuditLog))!.GetIndexes()
+            .Select(index => string.Join(",", index.Properties.Select(p => p.Name)));
+
+        Assert.Contains("TargetType,TargetId,OccurredAt", indexes);
+    }
+
+    [Fact]
+    public async Task GetTargetHistoryAsync_ShouldPage()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var t0 = DateTime.UtcNow.AddHours(-5);
+        await fixture.SeedAsync(Enumerable.Range(0, 5)
+            .Select(i => new AuditLog { OccurredAt = t0.AddMinutes(i), Action = "Team.Update", TargetType = "Team", TargetId = "3", Detail = $"#{i}" })
+            .ToArray());
+
+        var page2 = await fixture.CreateService().GetTargetHistoryAsync("Team", "3", currentPage: 2, pageSize: 2);
+
+        Assert.Equal(5, page2.Count);
+        Assert.Equal(new[] { "#2", "#1" }, page2.Result.Select(x => x.Detail));
+    }
+
+    /// <summary>
+    /// 「排除瀏覽類」有 C#（<c>AuditActions.IsBrowsing</c>）與 SQL（查詢服務）兩份：每一個動作代碼都種一筆，
+    /// 異動歷程與 <c>ExcludeBrowsing</c> 留下的必須正好是 IsBrowsing 為 false 的那些。只改一邊就會轉紅。
+    /// </summary>
+    [Fact]
+    public async Task NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var codes = typeof(AuditActions).GetNestedTypes().Append(typeof(AuditActions))
+            .SelectMany(type => type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .ToList();
+        await fixture.SeedAsync(codes
+            .Select(code => new AuditLog { OccurredAt = DateTime.UtcNow, Action = code, TargetType = "Category", TargetId = "1" })
+            .ToArray());
+        var expected = codes.Where(code => AuditActions.IsBrowsing(code) == false).Order(StringComparer.Ordinal).ToList();
+        var service = fixture.CreateService();
+
+        var history = await service.GetTargetHistoryAsync("Category", "1", currentPage: 1, pageSize: 1000);
+        var excluded = await service.GetAsync(new AuditLogQuery { ExcludeBrowsing = true, PageSize = 1000 });
+
+        Assert.Equal(expected, history.Result.Select(x => x.Action).Order(StringComparer.Ordinal));
+        Assert.Equal(expected, excluded.Result.Select(x => x.Action).Order(StringComparer.Ordinal));
+        Assert.Contains(AuditActions.Page.View, codes.Except(expected));
     }
 
     // ---------------------------------------------------------------

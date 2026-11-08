@@ -296,6 +296,8 @@ public partial class BackendDBContext : DbContext
         modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.ActorUserId, x.OccurredAt });
         // 依時間範圍查詢與統計（0.9.166 起）：稽核紀錄頁的時間條件、保留期限清理、登入失敗告警的時間窗計數。
         modelBuilder.Entity<AuditLog>().HasIndex(x => x.OccurredAt);
+        // 某一筆資料的異動歷程與精確查詢（0.9.173 起）：資料頁的「異動歷程」、稽核頁的目標類型＋目標識別條件。
+        modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TargetType, x.TargetId, x.OccurredAt });
         #endregion
 
         #region 兩步驟驗證備用碼（0.9.104 起）

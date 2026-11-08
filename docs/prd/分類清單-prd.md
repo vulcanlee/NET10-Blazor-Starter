@@ -1,10 +1,10 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.9.173
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -56,6 +56,7 @@
   確認鈕為「仍要儲存」、取消鈕為「回去編輯」（取消時 Modal 保持開啟、表單內容不消失）：
   1. 完全未指定適用團隊 —— 這筆會成為所有人都看得到的公用分類。
   2. 指定的團隊與自己所屬團隊沒有交集 —— 存檔後自己就會在清單上看不到它。
+- **異動歷程**（0.9.173 起）：每列操作欄最後一顆「異動歷程」（`AuditHistoryButton`，圖示 `history`），一般清單與「顯示已刪除」都有；**只有管理員看得到**（有本頁權限的一般使用者也看不到；權限鍵不上架角色矩陣）。按下開「異動歷程：<名稱>」窗（`AuditHistoryDialog.ShowAsync("Category", Id, 名稱)`，標題顯示分類名稱（`Name`）），左側列出這一筆的異動（排除換頁、搜尋、查看等瀏覽類，每頁 10 筆），右側顯示點選那一筆的摘要與修改前後差異；打開寫 `Audit.Search`、點一筆寫 `Audit.View`（摘要含 `via=history`）。目標類型 `Category` 必須與服務寫稽核的 `TargetType` 相同。詳見 [稽核紀錄 PRD §3.4](稽核紀錄-prd.md)。
 
 ## 四、內部系統運作
 
@@ -121,6 +122,8 @@
 - `Category_SetEnabled_OutsideTeamScope_ShouldBeDenied`：團隊範圍外的分類被擋下。
 
 測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper；存取範圍以 `FakeRecordAccessScopeProvider` 替身指定。
+
+- `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `Category`；元件行為見 `Components/AuditHistoryTests`。
 
 ## 八、分類的團隊可見性（0.4.40 起）
 

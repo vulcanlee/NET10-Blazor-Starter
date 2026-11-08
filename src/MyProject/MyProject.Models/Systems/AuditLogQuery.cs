@@ -35,6 +35,18 @@ public class AuditLogQuery
     /// <summary>來源 IP，前綴比對（輸入前幾段即可，例如 <c>192.168.1</c>）；沒有記錄 IP 的舊紀錄不會符合（0.9.123 起）。</summary>
     public string ClientIp { get; set; } = string.Empty;
 
+    /// <summary>目標類型，精確比對；空字串表示不限（0.9.173 起）。例如 <c>Category</c>、<c>MyUser</c>。</summary>
+    public string TargetType { get; set; } = string.Empty;
+
+    /// <summary>目標識別，精確比對（查 12 不會混到 112）；空字串表示不限（0.9.173 起）。</summary>
+    public string TargetId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 排除瀏覽類（換頁、搜尋、查看；0.9.173 起）。查「某一筆是誰改的」時用：常被打開來看的資料，
+    /// 查看紀錄會把真正的修改擠出第一頁。規則與資料頁「異動歷程」相同。
+    /// </summary>
+    public bool ExcludeBrowsing { get; set; }
+
     public int CurrentPage { get; set; } = 1;
 
     public int PageSize { get; set; } = MagicObjectHelper.PageSize;
