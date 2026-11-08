@@ -281,13 +281,13 @@ public class AuditLogQueryService
     /// 「系統例外紀錄」的同名方法用的是 <c>DateTime.Now</c>，因為那張表存本地時間；
     /// 照抄過來會讓清除範圍整整偏掉一個時區。
     /// </summary>
-    public async Task<VerifyRecordResult> PurgeAsync(int days)
+    public async Task<VerifyRecordResult> PurgeAsync(int days, AuditLogKind kind = AuditLogKind.All)
     {
-        Logger.LogInformation("Purging audit logs older than {Days} days.", days);
+        Logger.LogInformation("Purging audit logs older than {Days} days. Kind={Kind}", days, kind);
 
         try
         {
-            var removed = await PurgeBeforeAsync(DateTime.UtcNow.AddDays(-days));
+            var removed = await PurgeBeforeAsync(DateTime.UtcNow.AddDays(-days), kind);
 
             if (removed == 0)
             {
@@ -315,44 +315,81 @@ public class AuditLogQueryService
     private static Expression<Func<AuditLog, bool>> OlderThan(DateTime thresholdUtc)
         => x => x.OccurredAt < thresholdUtc;
 
+    /// <summary>瀏覽類（<see cref="NotBrowsing"/> 的反面）。</summary>
+    private static readonly Expression<Func<AuditLog, bool>> Browsing = x =>
+        x.Action == AuditActions.Page.View
+        || x.Action.EndsWith(AuditActions.SearchSuffix)
+        || x.Action.EndsWith(AuditActions.ViewSuffix);
+
+    /// <summary>依清除範圍（0.9.174 起）篩選：瀏覽類與其他各有保留天數。</summary>
+    private static IQueryable<AuditLog> OfKind(IQueryable<AuditLog> source, AuditLogKind kind) => kind switch
+    {
+        AuditLogKind.Browsing => source.Where(Browsing),
+        AuditLogKind.Change => source.Where(NotBrowsing),
+        _ => source,
+    };
+
     /// <summary>
-    /// 筆數、最舊一筆與超過 <paramref name="thresholdUtc"/>（UTC；null＝不自動清理）的筆數。
+    /// 筆數、最舊一筆與超過 <paramref name="thresholdUtc"/>（UTC；null＝不自動清理）的筆數，只算 <paramref name="kind"/> 那一類。
     /// ⚠️ <see cref="RetentionStats.Oldest"/> 是 UTC，顯示前由呼叫端轉本地時間。
     /// </summary>
-    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? thresholdUtc)
+    public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? thresholdUtc, AuditLogKind kind = AuditLogKind.All)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.AuditLog.CountAsync();
-        var oldest = await context.AuditLog.MinAsync(x => (DateTime?)x.OccurredAt);
-        int? expired = thresholdUtc is { } t ? await context.AuditLog.CountAsync(OlderThan(t)) : null;
+        var source = OfKind(context.AuditLog, kind);
+        var total = await source.CountAsync();
+        var oldest = await source.MinAsync(x => (DateTime?)x.OccurredAt);
+        int? expired = thresholdUtc is { } t ? await source.CountAsync(OlderThan(t)) : null;
         return new RetentionStats(total, oldest, expired);
     }
 
-    public async Task<int> PurgeBeforeAsync(DateTime thresholdUtc)
+    /// <summary>
+    /// 只算 <paramref name="kind"/> 那一類早於 <paramref name="thresholdUtc"/> 的筆數（與 <see cref="PurgeBeforeAsync(DateTime, AuditLogKind)"/> 同條件）。
+    /// 總筆數與最舊一筆不分類，用 <see cref="GetRetentionStatsAsync"/> 一次取得即可，不必每類各掃一次。
+    /// </summary>
+    public async Task<int> CountExpiredAsync(DateTime thresholdUtc, AuditLogKind kind)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
+        return await OfKind(context.AuditLog, kind).CountAsync(OlderThan(thresholdUtc));
+    }
+
+    public Task<int> PurgeBeforeAsync(DateTime thresholdUtc) => PurgeBeforeAsync(thresholdUtc, AuditLogKind.All);
+
+    /// <summary>
+    /// 刪除 <paramref name="kind"/> 那一類、早於 <paramref name="thresholdUtc"/> 的紀錄與它們的內容檔，回傳筆數。
+    /// ⚠️ 只清單一類時不收月份目錄：瀏覽類的門檻（90 天）收月份目錄，會連 90～365 天前的修改差異檔一起刪掉；
+    /// 排程作業清完兩類後，用較舊的門檻另外呼叫 <see cref="DeleteContentMonthsBefore"/>。
+    /// </summary>
+    public async Task<int> PurgeBeforeAsync(DateTime thresholdUtc, AuditLogKind kind)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var expired = OfKind(context.AuditLog, kind).Where(OlderThan(thresholdUtc));
 
         // 先記下要刪的內容檔（只取有檔的列：稽核表可能很大），刪完資料列再刪檔 ——
         // 反過來的話，資料列刪失敗會留下指向不存在檔案的紀錄。
-        var files = await context.AuditLog
-            .Where(OlderThan(thresholdUtc))
+        var files = await expired
             .Where(x => x.ContentFile != null)
             .Select(x => x.ContentFile!)
             .ToListAsync();
 
-        var removed = await context.AuditLog
-            .Where(OlderThan(thresholdUtc))
-            .ExecuteDeleteAsync();
+        var removed = await expired.ExecuteDeleteAsync();
 
         foreach (var file in files)
         {
             contentFileStore.Delete(file);
         }
 
-        // 收尾：空的月份目錄，以及資料列沒建起來時留下的孤兒檔。
-        contentFileStore.DeleteMonthsBefore(thresholdUtc);
+        if (kind == AuditLogKind.All)
+        {
+            // 收尾：空的月份目錄，以及資料列沒建起來時留下的孤兒檔。
+            contentFileStore.DeleteMonthsBefore(thresholdUtc);
+        }
+
         return removed;
     }
+
+    /// <summary>收掉 <paramref name="thresholdUtc"/> 所在月份之前的內容檔月份目錄（空目錄與孤兒檔）。門檻要用兩類中較舊的那個。</summary>
+    public void DeleteContentMonthsBefore(DateTime thresholdUtc) => contentFileStore.DeleteMonthsBefore(thresholdUtc);
 
     /// <summary>清空全部紀錄。</summary>
     public async Task<VerifyRecordResult> ClearAllAsync()

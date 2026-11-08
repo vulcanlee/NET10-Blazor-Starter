@@ -94,6 +94,24 @@ public sealed class AuditConventionTests
         Assert.False(AuditActions.IsBrowsing(null));
     }
 
+    /// <summary>
+    /// 帶「修改前後差異」的動作（0.9.174 起，受「記錄修改前後差異」開關管）：常數名稱叫 <c>Update</c> 的，加上本人改姓名的
+    /// <c>User.ProfileUpdate</c>。CRUD 產生器的新模組也是 <c>Update</c>，自動適用。其他動作帶的內容（例如匯出了哪些 Id）不是差異、不受開關影響。
+    /// </summary>
+    [Fact]
+    public void CarriesFieldDiff_ShouldBeTrueExactlyForUpdateConstants()
+    {
+        var violations = AllActionFields()
+            .Where(field => AuditActions.CarriesFieldDiff(field.Value)
+                != (field.Name == "Update" || field.Value == AuditActions.User.ProfileUpdate))
+            .Select(field => $"{field.Name} = {field.Value}")
+            .ToList();
+
+        Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+        Assert.False(AuditActions.CarriesFieldDiff(AuditActions.AiCallLog.Export));
+        Assert.False(AuditActions.CarriesFieldDiff(null));
+    }
+
     private static IEnumerable<(string Name, string Value)> AllActionFields()
         => typeof(AuditActions)
             .GetNestedTypes()

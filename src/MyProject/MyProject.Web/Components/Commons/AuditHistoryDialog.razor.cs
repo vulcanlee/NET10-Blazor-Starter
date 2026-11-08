@@ -41,7 +41,7 @@ public partial class AuditHistoryDialog
     private int loadRequest;
 
     private string ContentText => selected?.ContentFile is null
-        ? "（這一筆沒有詳細內容。只有「修改」會記錄改了哪些欄位）"
+        ? "（這一筆沒有詳細內容。修改前後差異只在「修改」、而且系統參數「稽核：記錄修改前後差異」開啟時才會記錄）"
         : isContentLoading ? "讀取中…" : content ?? string.Empty;
 
     /// <summary>

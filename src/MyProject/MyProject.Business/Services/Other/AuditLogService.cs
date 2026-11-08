@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
+using MyProject.Models.Systems;
 
 namespace MyProject.Business.Services.Other;
 
@@ -12,6 +15,7 @@ public sealed class AuditLogService : IAuditLogService
     private readonly AuditContentFileStore? contentFileStore;
     private readonly IClientIpProvider? clientIpProvider;
     private readonly ILoginFailureAlert? loginFailureAlert;
+    private readonly IOptionsMonitor<AuditLogSettings>? settings;
 
     /// <param name="contextFactory">
     /// 每筆稽核各用一個 context（0.9.131 起）。之前注入的 scoped context 在 Blazor 裡活得和整條 circuit 一樣久：
@@ -25,18 +29,40 @@ public sealed class AuditLogService : IAuditLogService
     /// 登入失敗告警（0.9.166 起）：寫完登入失敗的稽核後評估。所有登入路徑（Blazor、Web API、Google）都寫稽核，
     /// 所以掛在這裡一處就涵蓋全部；未註冊（單元測試）時不評估。
     /// </param>
+    /// <param name="settings">
+    /// 記錄範圍的兩個開關（0.9.174 起，預設都關）。每次寫入都讀 <c>CurrentValue</c>，「系統參數」頁切換後立即生效；
+    /// 未註冊（單元測試）時等同預設。
+    /// </param>
     public AuditLogService(
         IDbContextFactory<BackendDBContext> contextFactory,
         ILogger<AuditLogService> logger,
         AuditContentFileStore? contentFileStore = null,
         IClientIpProvider? clientIpProvider = null,
-        ILoginFailureAlert? loginFailureAlert = null)
+        ILoginFailureAlert? loginFailureAlert = null,
+        IOptionsMonitor<AuditLogSettings>? settings = null)
     {
         this.contextFactory = contextFactory;
         this.logger = logger;
         this.contentFileStore = contentFileStore;
         this.clientIpProvider = clientIpProvider;
         this.loginFailureAlert = loginFailureAlert;
+        this.settings = settings;
+    }
+
+    /// <summary>
+    /// 目前的開關。讀設定失敗時當作全關（預設值）：瀏覽類與差異少記不要緊，但異動與安全事件照樣要寫。
+    /// </summary>
+    private AuditLogSettings CurrentSettings()
+    {
+        try
+        {
+            return settings?.CurrentValue ?? new AuditLogSettings();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to read audit log settings; using defaults.");
+            return new AuditLogSettings();
+        }
     }
 
     public async Task WriteAsync(
@@ -49,6 +75,18 @@ public sealed class AuditLogService : IAuditLogService
         string? detail = null,
         string? content = null)
     {
+        // 記錄範圍的開關（0.9.174 起）只在這裡判斷（速查表 §6.30）。
+        var current = CurrentSettings();
+        if (current.RecordBrowsing == false && AuditActions.IsBrowsing(action))
+        {
+            return;
+        }
+
+        if (current.RecordFieldChanges == false && AuditActions.CarriesFieldDiff(action))
+        {
+            content = null;
+        }
+
         string? contentFile = null;
         try
         {

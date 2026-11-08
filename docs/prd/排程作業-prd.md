@@ -1,8 +1,8 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.167
+- 現行系統版本：0.9.174
 - 首次實作版本：0.9.96
 - 最後核對日期：2026/11/07
 
@@ -47,7 +47,7 @@
 
 | 名稱 | 顯示名稱 | 天數設定 | 稽核 |
 |---|---|---|---|
-| `AuditLogRetention` | 稽核紀錄清理 | `LogRetentionSettings:AuditLogDays`（365，UTC 門檻）| `Audit.AutoPurge` |
+| `AuditLogRetention` | 稽核紀錄清理 | `LogRetentionSettings:AuditLogDays`（365，UTC 門檻，異動與安全事件）；0.9.174 起另有 `AuditBrowsingLogDays`（90，瀏覽類）分段清，各自 0 就略過；兩類都 >0 時才用較舊的門檻收內容檔月份目錄；兩類都 0 時結果「保留天數都設為 0，不自動清除。」| `Audit.AutoPurge`（每一類一筆，detail `rows=N; days=D; kind=change` 或 `kind=browsing`、`trigger=T`）|
 | `ExceptionLogRetention` | 系統例外紀錄清理 | `LogRetentionSettings:ExceptionLogDays`（90，本地門檻）| `ExceptionLog.AutoPurge` |
 | `AiCallLogRetention` | AI 對話紀錄清理 | `AiCallLogSettings:RetentionDays`（90）| `AiCallLog.AutoPurge` |
 | `AiAgentConversationRetention` | Agent 對話清理（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）| `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間 `UpdatedAt`，全體使用者）| `AiAgentConversation.AutoPurge` |

@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.24
+- 文件版本：1.25
 - 文件狀態：已實作
-- 現行系統版本：0.9.173
+- 現行系統版本：0.9.174
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/08
 
@@ -45,7 +45,8 @@
   15 個呼叫點的字串字面值裡，沒有集中的常數來源，任何手寫清單都會在下次新增稽核事件時默默過期
   （0.9.78 起已收斂到 `AuditActions`，下拉仍讀 DISTINCT，見 §七）。
 - 動作（`ToolbarIconButton`）：查詢 `search`、重新整理 `refresh`、匯出 CSV `file_download`、
-  清除 N 天前 `history`、清空全部 `delete_forever`。匯出 CSV 0.9.78 起寫一筆 `Audit.Export` 稽核。
+  清除超過保留天數 `history`（0.9.174 起提示文字「清除超過保留天數的紀錄（異動 N 天、瀏覽 M 天）」，見 §五）、清空全部 `delete_forever`。匯出 CSV 0.9.78 起寫一筆 `Audit.Export` 稽核。
+- 頁首藍色說明框（0.9.174 起）：`AuditLogSettings` 的開關有關閉時多一行「目前沒有記錄修改前後差異與瀏覽類事件（換頁、搜尋、查看），可在「系統參數」頁開啟。」，只關一個時只列那一個，都開時不顯示（§六）。
 - 兩個破壞性動作以 `ConfirmDialog.AskDestructiveAsync` 二次確認。
 - 匯出的 CSV 為 **UTF-8 含 BOM**（走 `TextDownloadPayload.Utf8WithBom`，`ExportEncodingConventionTests` 守門）。
 
@@ -86,9 +87,9 @@ scoped CSS 連 `::deep` 都打不到。
 - **元件**：`Components/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
 - **標題**：「異動歷程：<名稱>」，使用者頁顯示帳號（不顯示姓名）、專案頁顯示 `Title`、其他顯示 `Name`。上方說明：「這一筆資料（<類型> #<編號>）在稽核紀錄裡的異動，新的在上面；時間為伺服器本地時間。稽核紀錄保留期限之前的異動已被清除。要看誰開過、查過這一筆，請到「稽核紀錄」頁查詢。」
 - **左側清單**：`AuditLogQueryService.GetTargetHistoryAsync(targetType, targetId, page, 10)` —— 目標類型＋目標識別精確比對，**排除瀏覽類**（`Page.View`、以 `.Search` 或 `.View` 結尾；SQL 版本是共用的 `NotBrowsing` 條件，與 `AuditActions.IsBrowsing` 同一規則，也給 `AuditLogQuery.ExcludeBrowsing` 用），依 `OccurredAt`、`Id` 遞減，時間轉本地。每筆顯示時間、動作代碼 `Tag`（顏色同本頁）、失敗多一個紅色「失敗」、操作者「帳號（Id=N）」；超過 10 筆出現小型分頁。目標是 `MyUser` 的密碼重設、兩步驟驗證、解鎖、強制登出、本人改姓名等也會列出；登入事件沒有目標，不列。
-- **右側明細**：點一筆後顯示發生時間、動作代碼、結果、操作者、來源 IP、摘要（空的「（無）」）、詳細內容（點選才經 `GetContentAsync` 讀檔）。沒有內容檔：「（這一筆沒有詳細內容。只有「修改」會記錄改了哪些欄位）」；檔案不在：「內容檔不存在（可能已被清除，或當初寫檔失敗）。」；讀檔失敗：「讀取詳細內容失敗。」附追蹤碼。還沒選時：「請從左側選一筆，查看摘要與修改前後差異。」
+- **右側明細**：點一筆後顯示發生時間、動作代碼、結果、操作者、來源 IP、摘要（空的「（無）」）、詳細內容（點選才經 `GetContentAsync` 讀檔）。沒有內容檔：「（這一筆沒有詳細內容。修改前後差異只在「修改」、而且系統參數「稽核：記錄修改前後差異」開啟時才會記錄）」（0.9.174 起改字）；檔案不在：「內容檔不存在（可能已被清除，或當初寫檔失敗）。」；讀檔失敗：「讀取詳細內容失敗。」附追蹤碼。還沒選時：「請從左側選一筆，查看摘要與修改前後差異。」
 - **空狀態與錯誤**：沒有任何異動：「這一筆資料在稽核紀錄的保留期間內沒有異動紀錄。」；載入失敗：右下角 `ViewNotification.UnexpectedError`「載入異動歷程失敗：<例外類型>。」
-- **稽核**：打開寫 `Audit.Search`（`TargetType=AuditLog`，摘要 `targetType=…; targetId=…; via=history`）；點一筆寫 `Audit.View`（`TargetId` 是那一筆稽核的 Id，摘要 `action=…; via=history`）。這兩筆屬瀏覽類，不會出現在任何資料的異動歷程裡。
+- **稽核**：打開寫 `Audit.Search`（`TargetType=AuditLog`，摘要 `targetType=…; targetId=…; via=history`）；點一筆寫 `Audit.View`（`TargetId` 是那一筆稽核的 Id，摘要 `action=…; via=history`）。這兩筆屬瀏覽類，不會出現在任何資料的異動歷程裡；0.9.174 起只在 `AuditLogSettings:RecordBrowsing` 開啟時才寫。
 - **尺寸**：`OverlayStyles.razor` 的 `.audit-history-modal`（86vw、max-width 1280px、高 88vh，body 不捲、清單與明細各自捲動）；窗內樣式在 `AuditHistoryDialog.razor.css`。純唯讀、不含 `EditForm`，× 或 Esc 關閉。
 - **為什麼排除瀏覽類**：0.9.131 起每次按「修改」開窗都會記 `*.View`，熱門資料一天幾十筆，會把真正的異動淹掉。要看「誰開過、查過」請到本頁用目標類型＋目標識別查（`*.View` 的目標就是那一筆）。
 
@@ -119,11 +120,24 @@ scoped CSS 連 `::deep` 都打不到。
 
 ## 五、清除與保存
 
-- 「清除 N 天前」的 N 讀 `LogRetentionSettings:AuditLogDays`（0.9.78 起，原為程式常數 365）；設 0 停用自動清理時退回 365。
-  預設 365 天而非例外紀錄的 90 天：例外紀錄清的是噪音，稽核軌跡清的是責任證據。
-- **自動清理**（0.9.78 起）：排程作業「稽核紀錄清理」（0.9.96 起預設每天 03:00；之前是 `LogRetentionWorker` 啟動時與每日）刪除早於 N 天（UTC）的紀錄，
-  刪到資料時寫一筆 `Audit.AutoPurge`（操作者顯示「（系統／匿名）」）。有法規或內控保存要求時請調大天數或設 0。
-- **清除與清空動作本身會各寫一筆稽核紀錄**（`Audit.Purge` / `Audit.ClearAll`，含操作者與筆數）。
+0.9.174 起稽核分兩類保留（`AuditLogKind`：`All`／`Change`／`Browsing`，瀏覽類由 `AuditActions.IsBrowsing` 判斷，沒有加欄位、沒有 migration）：
+
+| 類別 | 範圍 | 保留天數 | 預設 |
+| --- | --- | --- | --- |
+| 異動與安全（`Change`） | 瀏覽類以外的全部：登入、權限拒絕、新增、修改、刪除、清除… | `LogRetentionSettings:AuditLogDays` | 365 |
+| 瀏覽類（`Browsing`） | `Page.View`、`*.Search`、`*.View` | `LogRetentionSettings:AuditBrowsingLogDays`（0～36500，0＝不自動清除） | 90 |
+
+- 預設 365 天而非例外紀錄的 90 天：例外紀錄清的是噪音，稽核軌跡清的是責任證據。瀏覽類筆數最多、證據價值較低，所以另給較短的 90 天。
+- **頁面清除按鈕**：提示文字「清除超過保留天數的紀錄（異動 N 天、瀏覽 M 天）」，N 讀 `ManualAuditLogDays`（`AuditLogDays`，0 時退回 365）、M 讀 `ManualAuditBrowsingLogDays`（`AuditBrowsingLogDays`，0 時退回 90）。
+  確認窗標題「清除超過保留天數的紀錄」，內文「將刪除早於 N 天前的異動與安全紀錄，以及早於 M 天前的瀏覽紀錄（換頁、搜尋、查看）。此動作無法復原，且本次清除會另外留下稽核紀錄。」
+  按「清除」後 `PurgeAsync(N, Change)`、`PurgeAsync(M, Browsing)` 各一次，各寫一筆 `Audit.Purge`；通知「異動與安全紀錄：<結果>瀏覽紀錄：<結果>」，每段是「已清除 N 筆紀錄。」或「沒有符合條件的紀錄。」。
+  0.9.78～0.9.173 是單一門檻「清除 N 天前的紀錄」（N 讀 `AuditLogDays`，0.9.78 前為程式常數 365）。
+- **自動清理**（0.9.78 起）：排程作業「稽核紀錄清理」（`AuditLogRetentionJob`，0.9.96 起預設每天 03:00；之前是 `LogRetentionWorker` 啟動時與每日）。
+  0.9.174 起分兩段：異動與安全用 `AuditLogDays`、瀏覽類用 `AuditBrowsingLogDays`，各自 0 就略過；每段刪到資料各寫一筆 `Audit.AutoPurge`（操作者顯示「（系統／匿名）」，摘要 `rows=N; days=D; kind=change|browsing; trigger=T`）。
+  結果訊息「刪除 N 筆超過 D 天的異動與安全紀錄；刪除 M 筆超過 E 天的瀏覽紀錄。」（某一類為 0 時那一段改為「…不自動清除（保留天數為 0）」）；兩類都 0 時「保留天數都設為 0，不自動清除。」。有法規或內控保存要求時請調大天數或設 0。
+- ⚠️ **內容檔月份目錄**：`PurgeBeforeAsync(threshold, kind)` 只刪該類資料列各自的內容檔；空的月份目錄與孤兒檔由 `DeleteContentMonthsBefore` 收，而且**只在兩類天數都大於 0 時、用較舊的門檻**收。只清單一類時不收：用 90 天門檻收會誤刪 90～365 天前的修改差異檔（速查表 §6.30）。
+- 「資料保留與清理」頁：稽核那一列的總筆數、最舊一筆與「下次會清掉」是兩類合計（`GetRetentionStatsAsync(threshold, kind)` 各算一次）；「自訂清除」不分類（`AuditLogKind.All`）。
+- **清除與清空動作本身會寫稽核紀錄**（`Audit.Purge`〔0.9.174 起每一類一筆〕/ `Audit.ClearAll`，含操作者與筆數）。
   寫入排在刪除之後，所以那一筆會留在清空後的資料表裡。
   ⚠️ 這是刻意的：稽核軌跡可被管理員一鍵抹除，若不記錄，「誰抹除了稽核紀錄」會是系統裡唯一查不到的事。
 - 稽核寫入失敗只記錯誤、不向使用者報錯 —— 不應推翻「已經刪除」這個事實。
@@ -138,7 +152,19 @@ Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌�
 Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入（circuit 內沒有可靠的 HttpContext）；
 排程作業兩者皆無，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
 
-**0.9.131 起的記錄範圍**：除了改變狀態的動作與安全事件，也記使用者**開了哪些頁、查了什麼、看了哪一筆、改了什麼**：
+**記錄範圍：可設定、預設關閉（0.9.174 起）**。0.9.131～0.9.173 一律記錄下表的瀏覽類事件與修改前後差異；0.9.174 起由 `AuditLogSettings` 兩個開關決定，**預設都關**，可在「系統參數」頁「資料保留」分類即時切換（改了寫 `SystemParameter.Update`）：
+
+| 設定鍵 | 預設 | 系統參數名稱 | 生效 | 關閉時 |
+| --- | --- | --- | --- | --- |
+| `AuditLogSettings:RecordBrowsing` | false | 稽核：記錄瀏覽類事件 | 下一次換頁或搜尋起 | 瀏覽類（`Page.View`、`*.Search`、`*.View`，**含 `Audit.Search`／`Audit.View`＝誰看過稽核紀錄**）整筆不寫：不寫資料列、不寫內容檔，也不記 NLog Debug 行 |
+| `AuditLogSettings:RecordFieldChanges` | false | 稽核：記錄修改前後差異 | 下一次修改起 | `*.Update` 與 `User.ProfileUpdate`（`AuditActions.CarriesFieldDiff`）照寫資料列，只丟掉內容檔（差異）；其他動作帶的內容（例如 `AiCallLog.Export` 匯出了哪些 Id）不受影響 |
+
+- 登入、權限拒絕、新增、修改、刪除等安全與異動事件**永遠照記**。
+- 判斷只在 `AuditLogService.WriteAsync` 一處，呼叫端照常傳 `content`；每次寫入讀 `IOptionsMonitor<AuditLogSettings>.CurrentValue`，切換立即生效；讀設定失敗時當作全關，但異動事件照寫。設定類別 `MyProject.Models/Systems/AuditLogSettings.cs`，已註冊 `ValidateOnStart`。
+- 預設關閉的理由：瀏覽類是稽核表膨脹的主因，差異可能含個人資料；兩者都屬「需要時再開」。
+- ⚠️ 瀏覽開關關閉時，資料頁「異動歷程」的打開與點選、系統管理助理查稽核，也都不會留下紀錄。
+
+開關開啟時，除了改變狀態的動作與安全事件，也記使用者**開了哪些頁、查了什麼、看了哪一筆、改了什麼**：
 
 | 動作代碼 | 來源與內容 |
 | --- | --- |
@@ -148,11 +174,11 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 | `LogViewer.Search` / `ExceptionLog.Search` / `AiCallLog.Search` / `TokenUsage.Search` / `Audit.Search` | 管理診斷頁按「查詢」（日誌檢視打開頁面時的自動查詢不記）；條件同上 |
 | `ExceptionLog.View` / `AiCallLog.View` / `TokenUsage.View` / `Audit.View` | 開明細窗。日誌檢視的展開只發生在瀏覽器端，沒有 `LogViewer.View` |
 
-**修改前後差異**：分類、專案、團隊、使用者、角色的修改（Blazor 與 Web API 兩條路徑）以及個人資料改姓名，
+**修改前後差異**（0.9.174 起要開 `RecordFieldChanges`）：分類、專案、團隊、使用者、角色的修改（Blazor 與 Web API 兩條路徑）以及個人資料改姓名，
 由 `AuditDiff` 比對修改前後的純量欄位寫進內容檔；Detail 維持原本的短摘要。主鍵、版本號、建立／更新時間、軟刪除欄位不比；
 使用者的密碼只記「已變更」，Salt、SecurityStamp、兩步驟密鑰、Google 綁定、鎖定與失敗次數不比；額外角色、團隊、角色權限與預設團隊列出新增與移除。
 
-**同步到日誌**：`AuditLogService` 每寫一筆就記一行 Debug `Audit recorded. Action=…, Detail=…, ContentFile=…`（只有短摘要與檔名，不含內容檔）。
+**同步到日誌**：`AuditLogService` 每寫一筆就記一行 Debug `Audit recorded. Action=…, Detail=…, ContentFile=…`（只有短摘要與檔名，不含內容檔）；因瀏覽開關關閉而沒寫進資料庫的事件不記（0.9.174）。
 Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看得到。
 
 下表為 0.9.42 立頁時的寫入端：
@@ -219,6 +245,12 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 - 系統管理助理的 `search_audit_logs` 多了 `targetType`、`targetId` 參數（精確比對；有給目標、沒給起始時間時預設往前查 366 天；有給目標、沒指定動作時排除瀏覽類），見 [系統管理助理 PRD](系統管理助理-prd.md)。
 - 已知限制：異動歷程只看得到保留期限（`LogRetentionSettings:AuditLogDays`，預設 365 天）內的紀錄；0.9.78 之前分類、團隊、專案的異動沒有稽核，看不到。`*.Export` 的目標不是單一筆資料，不會出現在異動歷程。
 
+**0.9.174 新增**
+
+- 記錄範圍開關 `AuditLogSettings:RecordFieldChanges`／`RecordBrowsing`（預設都關，§六）與瀏覽類保留天數 `LogRetentionSettings:AuditBrowsingLogDays`（預設 90，§五）；三者都在「系統參數」。
+- ⚠️ 升級影響：(1) 升級後立刻停止記錄修改前後差異與瀏覽類事件，需要時到「系統參數」打開；(2) 升級後第一次排程（03:00）會刪掉超過 90 天的舊瀏覽類紀錄；(3) 瀏覽開關關閉時，誰看過稽核紀錄、異動歷程的打開與點選、系統管理助理的查詢稽核都不會留下紀錄。
+- 已知限制：開關打開前的瀏覽與差異不會補記；瀏覽類與異動類靠動作代碼區分，常數取錯名字會被歸錯類（`AuditConventionTests` 守門）。
+
 **規劃中需求**（不屬於目前驗收範圍）
 
 - 無。
@@ -242,5 +274,9 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
   `Components/AuditHistoryTests` 5 項（按鈕只給管理員、只列這一筆的異動並在點選時讀內容與寫 `Audit.View`、空狀態、非管理員不載入）；
   `AuditHistoryConventionTests` 6 項（五個資料頁與 CRUD 樣板都有兩顆按鈕、一個對話窗、正確的目標類型）；
   `AccountsAssistantToolsTests.SearchAuditLogs_ByTarget_IsExact_AndLooksBackAYearByDefault`、`SearchAuditLogs_UnknownTargetType_ShouldWarnAndNotStoreTheText`。
+- 0.9.174 起：`AuditLogServiceTests` 多 8 項（瀏覽開關關閉時 `Page.View`／`Category.Search`／`Audit.View` 什麼都不寫、開啟時寫列與內容檔、差異開關關閉時保留列丟掉差異、沒注入設定時等同預設、每次寫入重讀開關、讀設定丟例外時異動照寫）；
+  `AuditConventionTests.CarriesFieldDiff_ShouldBeTrueExactlyForUpdateConstants`；
+  `AuditLogQueryServiceTests` 多 2 項（只清瀏覽類時保留更舊的異動列與差異檔、只清異動類時不動瀏覽列）；
+  `RetentionJobTests` 多 3 項（兩類各用自己的天數、瀏覽類天數 0 時保留瀏覽列、月份目錄只依較舊的門檻收）。
 
 > 返回 [PRD 主控台](README.md)

@@ -559,6 +559,59 @@ public sealed class AuditLogQueryServiceTests
         Assert.Equal("new", await store.ReadAsync(newFile));
     }
 
+    /// <summary>
+    /// 分類別清除（0.9.174 起，瀏覽類另有較短的保留天數）：只刪那一類、只刪那幾筆的內容檔。
+    /// ⚠️ 不可順手收整個月份目錄：用瀏覽類 90 天的門檻收，會把 90～365 天前的修改差異檔一起刪掉。
+    /// </summary>
+    [Fact]
+    public async Task PurgeBeforeAsync_BrowsingOnly_ShouldKeepOlderChangeRowsAndTheirDiffFiles()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var store = fixture.CreateContentStore();
+        var now = DateTime.UtcNow;
+        var diff = await store.WriteAsync(now.AddDays(-200), "Name: A → B");
+        var oldSearch = await store.WriteAsync(now.AddDays(-100), "keyword: x");
+        var newSearch = await store.WriteAsync(now.AddDays(-10), "keyword: y");
+        await fixture.SeedAsync(
+            new AuditLog { Action = "Category.Update", OccurredAt = now.AddDays(-200), ContentFile = diff },
+            new AuditLog { Action = "Category.Search", OccurredAt = now.AddDays(-100), ContentFile = oldSearch },
+            new AuditLog { Action = "Page.View", OccurredAt = now.AddDays(-100) },
+            new AuditLog { Action = "Category.Search", OccurredAt = now.AddDays(-10), ContentFile = newSearch });
+        var service = fixture.CreateService();
+        var threshold = now.AddDays(-90);
+
+        var stats = await service.GetRetentionStatsAsync(threshold, AuditLogKind.Browsing);
+        var removed = await service.PurgeBeforeAsync(threshold, AuditLogKind.Browsing);
+
+        Assert.Equal(2, removed);
+        Assert.Equal(removed, stats.Expired);
+        Assert.Equal(3, stats.Total);
+        Assert.Equal(new[] { "Category.Update", "Category.Search" }, (await fixture.ListAsync()).OrderBy(x => x.Id).Select(x => x.Action));
+        Assert.Equal("Name: A → B", await store.ReadAsync(diff));
+        Assert.Null(await store.ReadAsync(oldSearch));
+        Assert.Equal("keyword: y", await store.ReadAsync(newSearch));
+    }
+
+    [Fact]
+    public async Task PurgeBeforeAsync_ChangeOnly_ShouldLeaveBrowsingRows()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var now = DateTime.UtcNow;
+        await fixture.SeedAsync(
+            new AuditLog { Action = "Category.Update", OccurredAt = now.AddDays(-400) },
+            new AuditLog { Action = "Login.Success", OccurredAt = now.AddDays(-400) },
+            new AuditLog { Action = "Page.View", OccurredAt = now.AddDays(-400) },
+            new AuditLog { Action = "Category.Update", OccurredAt = now });
+        var service = fixture.CreateService();
+
+        var stats = await service.GetRetentionStatsAsync(now.AddDays(-365), AuditLogKind.Change);
+        var removed = await service.PurgeBeforeAsync(now.AddDays(-365), AuditLogKind.Change);
+
+        Assert.Equal(2, removed);
+        Assert.Equal(removed, stats.Expired);
+        Assert.Equal(new[] { "Page.View", "Category.Update" }, (await fixture.ListAsync()).OrderBy(x => x.Id).Select(x => x.Action));
+    }
+
     [Fact]
     public async Task ClearAllAsync_ShouldDeleteEveryContentFile()
     {

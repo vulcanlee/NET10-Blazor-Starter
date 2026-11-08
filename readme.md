@@ -279,7 +279,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
 | `AiAgentConversationSettings` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
 | `AdminPatrolSettings` | 系統管理助理定時巡檢報告（0.9.161 起）：`RetentionDays`（預設 90，範圍 1～3650），產出超過天數的報告連同內容檔刪除；巡檢執行時間在 `ScheduledJobSettings`。見 [日誌與設定檔說明 §4.10.2](docs/operations/日誌與設定檔說明.md)。 |
-| `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.174 起另有 `AuditBrowsingLogDays`（瀏覽類稽核，預設 90）；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
+| `AuditLogSettings` | 稽核記錄範圍（0.9.174 起）：`RecordFieldChanges`（記錄修改前後差異）、`RecordBrowsing`（記錄換頁、搜尋、查看等瀏覽類事件），預設都 `false`；登入、權限拒絕、新增、修改、刪除永遠照記；通常在系統參數頁「資料保留」切換。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `SoftDeleteSettings` | 已刪除資料（0.9.97 起）：`PurgeAfterDays`（預設 90，`0`＝不自動永久刪除），專案、分類、團隊、使用者、角色刪除超過天數後永久刪除。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `BackupSettings` | 系統備份（0.9.99 起）：`KeepCount`（保留份數，預設 7）、`IncludeAiCallLogs`、`IncludeAiAgentConversations`（是否納入 AI 對話紀錄與 Agent 對話，預設 `false`）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `EmailDeliverySettings` | 寄信佇列（0.9.167 起）：`MaxRetries`（暫時性失敗重試次數，預設 3）、`RetentionDays`（寄信紀錄保留天數，預設 90，待寄的不刪）。見 [日誌與設定檔說明 §4.3.2.2](docs/operations/日誌與設定檔說明.md) |

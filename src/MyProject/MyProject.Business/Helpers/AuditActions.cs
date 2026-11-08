@@ -28,6 +28,14 @@ public static class AuditActions
                || action.EndsWith(SearchSuffix, StringComparison.Ordinal)
                || action.EndsWith(ViewSuffix, StringComparison.Ordinal));
 
+    /// <summary>
+    /// 是否帶「修改前後差異」（0.9.174 起，受 <c>AuditLogSettings.RecordFieldChanges</c> 管）：<c>*.Update</c> 與本人改姓名的
+    /// <see cref="User.ProfileUpdate"/>。其他動作帶的內容（例如匯出了哪些 Id）不是差異，不受這個開關影響。
+    /// </summary>
+    public static bool CarriesFieldDiff(string? action)
+        => action is not null
+           && (action == User.ProfileUpdate || action.EndsWith(".Update", StringComparison.Ordinal));
+
     public static class Login
     {
         public const string Success = "Login.Success";
