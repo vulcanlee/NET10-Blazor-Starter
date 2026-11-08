@@ -156,6 +156,8 @@ public sealed class SystemBackupService
             new("files/TokenUsage", nameof(paths.TokenUsagePath), paths.TokenUsagePath),
             new("files/AuditContent", nameof(paths.AuditContentPath), paths.AuditContentPath),
             new("files/Keys", nameof(paths.DataProtectionKeyPath), paths.DataProtectionKeyPath),
+            // ⚠️ 刻意不打包 AuditKeyPath（稽核防竄改金鑰，0.9.175 起）：金鑰和資料庫放在同一份備份，
+            // 拿到備份的人就能改紀錄再重算簽章。金鑰請另外離線保存（見備份與還原操作手冊）。
         };
 
         if (backupSettings.CurrentValue.IncludeAiCallLogs)

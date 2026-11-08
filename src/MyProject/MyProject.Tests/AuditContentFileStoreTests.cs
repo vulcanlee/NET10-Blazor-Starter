@@ -23,7 +23,7 @@ public sealed class AuditContentFileStoreTests : IDisposable
     [Fact]
     public async Task WriteAsync_ShouldUseUtcMonthFolder_AndReadBack()
     {
-        var path = await store.WriteAsync(new DateTime(2026, 10, 19, 1, 0, 0, DateTimeKind.Utc), "Name: A → B");
+        var path = (await store.WriteAsync(new DateTime(2026, 10, 19, 1, 0, 0, DateTimeKind.Utc), "Name: A → B"))?.RelativePath;
 
         Assert.NotNull(path);
         Assert.StartsWith("202610/", path, StringComparison.Ordinal);
@@ -34,7 +34,7 @@ public sealed class AuditContentFileStoreTests : IDisposable
     [Fact]
     public async Task Delete_ShouldRemoveTheFile()
     {
-        var path = await store.WriteAsync(DateTime.UtcNow, "content");
+        var path = (await store.WriteAsync(DateTime.UtcNow, "content"))?.RelativePath;
 
         store.Delete(path);
 
@@ -60,8 +60,8 @@ public sealed class AuditContentFileStoreTests : IDisposable
     [Fact]
     public async Task DeleteMonthsBefore_ShouldKeepTheThresholdMonth()
     {
-        var old = await store.WriteAsync(new DateTime(2026, 8, 31, 0, 0, 0, DateTimeKind.Utc), "old");
-        var kept = await store.WriteAsync(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), "kept");
+        var old = (await store.WriteAsync(new DateTime(2026, 8, 31, 0, 0, 0, DateTimeKind.Utc), "old"))?.RelativePath;
+        var kept = (await store.WriteAsync(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), "kept"))?.RelativePath;
 
         store.DeleteMonthsBefore(new DateTime(2026, 9, 15, 0, 0, 0, DateTimeKind.Utc));
 

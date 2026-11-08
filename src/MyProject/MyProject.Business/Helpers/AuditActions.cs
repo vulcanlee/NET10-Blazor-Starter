@@ -269,6 +269,8 @@ public static class AuditActions
         public const string ClearAll = "Audit.ClearAll";
         public const string Export = "Audit.Export";
         public const string AutoPurge = "Audit.AutoPurge";
+        /// <summary>驗證稽核紀錄完整性（0.9.175 起）：手動按「驗證完整性」或每天的排程；Detail 記結果與筆數。</summary>
+        public const string Verify = "Audit.Verify";
         /// <summary>按「搜尋」（0.9.131 起）；完整條件在稽核的詳細內容檔，Detail 只有短摘要。</summary>
         public const string Search = "Audit.Search";
         /// <summary>開啟單筆（0.9.131 起）。</summary>

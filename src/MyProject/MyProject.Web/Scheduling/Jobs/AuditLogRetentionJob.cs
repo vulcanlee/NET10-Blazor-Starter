@@ -56,7 +56,7 @@ public sealed class AuditLogRetentionJob : IScheduledJob
         // 兩類都會清時，才用較舊的門檻收月份目錄（空目錄與孤兒檔）；任一類不清理，就沒有「一定可以收」的門檻。
         if (changeDays > 0 && browsingDays > 0)
         {
-            auditLogQueryService.DeleteContentMonthsBefore(RetentionCutoffs.AuditLog(Math.Max(changeDays, browsingDays), timeProvider));
+            await auditLogQueryService.DeleteContentMonthsBeforeAsync(RetentionCutoffs.AuditLog(Math.Max(changeDays, browsingDays), timeProvider));
         }
 
         return ScheduledJobResult.Success(

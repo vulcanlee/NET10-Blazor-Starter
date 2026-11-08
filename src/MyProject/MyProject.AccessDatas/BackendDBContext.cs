@@ -23,6 +23,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<Category> Category { get; set; }
     public virtual DbSet<Team> Team { get; set; }
     public virtual DbSet<AuditLog> AuditLog { get; set; }
+    public virtual DbSet<AuditChainHead> AuditChainHead { get; set; }
     public virtual DbSet<ExceptionLog> ExceptionLog { get; set; }
     public virtual DbSet<TokenUsageLog> TokenUsageLog { get; set; }
     public virtual DbSet<AiCallLog> AiCallLog { get; set; }
@@ -298,6 +299,10 @@ public partial class BackendDBContext : DbContext
         modelBuilder.Entity<AuditLog>().HasIndex(x => x.OccurredAt);
         // 某一筆資料的異動歷程與精確查詢（0.9.173 起）：資料頁的「異動歷程」、稽核頁的目標類型＋目標識別條件。
         modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TargetType, x.TargetId, x.OccurredAt });
+        // 防竄改雜湊鏈（0.9.175 起）：同一條鏈的序號不可重複；驗證與清除都依鏈別＋序號順序讀。
+        modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.Chain, x.Seq }).IsUnique();
+        modelBuilder.Entity<AuditChainHead>().HasKey(x => x.Chain);
+        modelBuilder.Entity<AuditChainHead>().Property(x => x.Chain).ValueGeneratedNever();
         #endregion
 
         #region 兩步驟驗證備用碼（0.9.104 起）

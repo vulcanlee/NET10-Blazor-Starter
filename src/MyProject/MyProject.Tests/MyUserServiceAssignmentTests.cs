@@ -193,7 +193,7 @@ public sealed class MyUserServiceAssignmentTests
         {
             IRbacWriteService rbac = new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance);
             return new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), failTeamSync ? new FailingTeamSyncRbacWriteService(rbac) : rbac,
-                auditLogService ?? new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
+                auditLogService ?? new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
         }
 
         public async Task<RoleView> AddRoleAsync(string name)

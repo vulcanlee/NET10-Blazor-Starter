@@ -232,7 +232,7 @@ public sealed class AccountsAssistantToolsTests
             Context = context;
             DefaultRoleId = roleId;
             var mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
-            var auditLog = new AuditLogService(new TestDbContextFactory(connection), loggerFactory.CreateLogger<AuditLogService>());
+            var auditLog = new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>());
             users = new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(context, NullLogger<RbacWriteService>.Instance), auditLog,
                 Current, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
@@ -241,7 +241,8 @@ public sealed class AccountsAssistantToolsTests
             var settings = new SystemSettings();
             settings.ExternalFileSystem.AuditContentPath = Path.Combine(Path.GetTempPath(), "aa-audit-" + Guid.NewGuid().ToString("N"));
             var auditQuery = new AuditLogQueryService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<AuditLogQueryService>(),
-                new AuditContentFileStore(Options.Create(settings), loggerFactory.CreateLogger<AuditContentFileStore>()));
+                new AuditContentFileStore(Options.Create(settings), loggerFactory.CreateLogger<AuditContentFileStore>()),
+                TestAuditChain.Create(connection));
             var twoFactor = new TwoFactorService(new TestDbContextFactory(connection), null!, null!, null!, null!,
                 Options.Create(new BootstrapSettings()), TimeProvider.System, auditLog, Current, loggerFactory.CreateLogger<TwoFactorService>());
             Tools = new AccountsAssistantTools(users, roles, auditQuery, Audit, Current, new RolePermissionService(), twoFactor);

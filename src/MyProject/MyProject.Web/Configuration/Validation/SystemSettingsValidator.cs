@@ -28,7 +28,9 @@ public sealed class SystemSettingsValidator : IValidateOptions<SystemSettings>
         RequirePath(errors, nameof(paths.AuditContentPath), paths.AuditContentPath);
         RequirePath(errors, nameof(paths.DataProtectionKeyPath), paths.DataProtectionKeyPath);
         RequirePath(errors, nameof(paths.BackupPath), paths.BackupPath);
+        RequirePath(errors, nameof(paths.AuditKeyPath), paths.AuditKeyPath);
         RequireBackupPathIsolated(errors, paths);
+        RequireAuditKeyPathIsolated(errors, paths);
 
         errors.RequireText(
             "SystemSettings:SystemInformation:SystemName",
@@ -63,6 +65,7 @@ public sealed class SystemSettingsValidator : IValidateOptions<SystemSettings>
             (nameof(paths.AiAgentConversationPath), paths.AiAgentConversationPath),
             (nameof(paths.AuditContentPath), paths.AuditContentPath),
             (nameof(paths.DataProtectionKeyPath), paths.DataProtectionKeyPath),
+            (nameof(paths.AuditKeyPath), paths.AuditKeyPath),
         };
 
         foreach (var (name, value) in others.Where(x => Path.IsPathFullyQualified(x.Value)))
@@ -75,6 +78,48 @@ public sealed class SystemSettingsValidator : IValidateOptions<SystemSettings>
         }
 
         if (IsSameOrInside(backup, Normalize(AppContext.BaseDirectory)))
+        {
+            errors.Add(key, "不可放在網站目錄底下（重新部署會覆蓋或刪除，也可能被當成網站內容提供）。");
+        }
+    }
+
+    /// <summary>
+    /// 稽核金鑰目錄（0.9.175 起）不可與其他資料目錄重疊：那些目錄會被系統備份整個打包（金鑰進了備份，拿到備份的人就能重算簽章），
+    /// 或以靜態檔案對外提供（DownloadPath）。也不可在網站目錄底下。和 BackupPath 的重疊由 <see cref="RequireBackupPathIsolated"/> 檢查。
+    /// </summary>
+    private static void RequireAuditKeyPathIsolated(OptionsErrors errors, ExternalFileSystem paths)
+    {
+        const string key = "SystemSettings:ExternalFileSystem:AuditKeyPath";
+        if (!Path.IsPathFullyQualified(paths.AuditKeyPath))
+        {
+            return;
+        }
+
+        var auditKey = Normalize(paths.AuditKeyPath);
+        var others = new (string Name, string Value)[]
+        {
+            (nameof(paths.DatabasePath), paths.DatabasePath),
+            (nameof(paths.DownloadPath), paths.DownloadPath),
+            (nameof(paths.UploadPath), paths.UploadPath),
+            (nameof(paths.ProjectFilePath), paths.ProjectFilePath),
+            (nameof(paths.ExceptionPath), paths.ExceptionPath),
+            (nameof(paths.TokenUsagePath), paths.TokenUsagePath),
+            (nameof(paths.AiCallLogPath), paths.AiCallLogPath),
+            (nameof(paths.AiAgentConversationPath), paths.AiAgentConversationPath),
+            (nameof(paths.AuditContentPath), paths.AuditContentPath),
+            (nameof(paths.DataProtectionKeyPath), paths.DataProtectionKeyPath),
+        };
+
+        foreach (var (name, value) in others.Where(x => Path.IsPathFullyQualified(x.Value)))
+        {
+            var other = Normalize(value);
+            if (IsSameOrInside(auditKey, other) || IsSameOrInside(other, auditKey))
+            {
+                errors.Add(key, $"不可與 {name} 重疊（相同、位於其下或包含它）。稽核金鑰刻意不進備份，請放在獨立的目錄。");
+            }
+        }
+
+        if (IsSameOrInside(auditKey, Normalize(AppContext.BaseDirectory)))
         {
             errors.Add(key, "不可放在網站目錄底下（重新部署會覆蓋或刪除，也可能被當成網站內容提供）。");
         }

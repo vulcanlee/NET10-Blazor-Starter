@@ -279,6 +279,7 @@ public sealed class SystemHealthService : ISystemHealthService
         new("AuditContent", fs.AuditContentPath),
         new("DataProtectionKey", fs.DataProtectionKeyPath),
         new("Backup", fs.BackupPath),
+        new("AuditKey", fs.AuditKeyPath),
     ];
 
     private SystemHealthItem CheckFileSystem()

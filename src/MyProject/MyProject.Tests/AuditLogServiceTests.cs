@@ -294,7 +294,7 @@ public sealed class AuditLogServiceTests
             IOptionsMonitor<AuditLogSettings>? settings = null)
         {
             return new AuditLogService(
-                new TestDbContextFactory(connection),
+                TestAuditChain.Create(connection),
                 logger ?? loggerFactory.CreateLogger<AuditLogService>(),
                 contentFileStore,
                 clientIpProvider,

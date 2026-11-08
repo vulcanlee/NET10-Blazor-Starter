@@ -1,10 +1,10 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.9.175
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -48,7 +48,7 @@
    - 資料庫：`Database.CanConnectAsync`（false→Unhealthy）、待套用 migration 數（>0→Degraded）。
    - 日誌：目錄可寫入與今日檔案讀取筆數（不可寫→Unhealthy；可寫但無內容→Degraded）。
    - 身分驗證：Cookie 與 JWT scheme 是否註冊、JWT 設定完整度、Production 是否仍用開發用 key。
-   - 檔案系統：`ExternalFileSystem` 的 11 個目錄（資料庫、下載、上傳、專案附件、例外堆疊、Token 用量、AI 對話紀錄、Agent 對話、稽核內容、Data Protection 金鑰、備份）都存在且可寫入（0.9.165 起；之前只查前 4 個）。
+   - 檔案系統：`ExternalFileSystem` 的 12 個目錄（資料庫、下載、上傳、專案附件、例外堆疊、Token 用量、AI 對話紀錄、Agent 對話、稽核內容、Data Protection 金鑰、備份、稽核防竄改金鑰 `AuditKey`）都存在且可寫入（0.9.165 起；之前只查前 4 個；`AuditKey` 0.9.175 起）。
    - 主機資源：Working set 與磁碟可用空間（<1GB→Degraded）。
    - 安全設定：Production 是否開啟 Swagger 或回傳例外細節（風險→Degraded）。
    - LLM API：`IAiHealthProbe` 送一句 `hello`（30 秒上限）；未設定→Degraded，失敗→Unhealthy。

@@ -384,6 +384,7 @@ public sealed class LoggingConventionTests
             "ScheduleCalculator.cs",        // 純函式：cron 的下次時段與補跑時段
             "ScheduledJobTriggerQueue.cs",  // 「立即執行」請求的佇列與去重，無 I/O
             "NotificationCategories.cs",    // 通知分類常數，無行為（0.9.100 起）
+            "AuditHashV1.cs",               // 稽核簽章格式與鏈別常數：純函式，無 I/O（0.9.175 起）
             "PasswordPolicy.cs",            // 密碼原則：純規則計算與雜湊，失敗由呼叫端記錄（0.9.101 起）
             "CookieClaims.cs",              // 登入 Cookie 的 claims 組裝，純函式（0.9.103 起）
             "ClientIpProvider.cs",          // 稽核來源 IP：持有 circuit 的 IP 並格式化，無 I/O；失敗由 circuit handler 記錄（0.9.117 起）

@@ -44,7 +44,8 @@ public sealed class AuditHistoryTests : ComponentTestBase
 
         Services.AddLogging();
         Services.AddSingleton(new AuditLogQueryService(
-            new TestDbContextFactory(connection), mapper, NullLogger<AuditLogQueryService>.Instance, contentStore));
+            new TestDbContextFactory(connection), mapper, NullLogger<AuditLogQueryService>.Instance, contentStore,
+            TestAuditChain.Create(connection)));
         Services.AddSingleton<IAuditLogService>(audit);
     }
 
@@ -79,7 +80,7 @@ public sealed class AuditHistoryTests : ComponentTestBase
     public async Task Dialog_ShouldListOnlyChangesOfThatRecord_AndReadContentOnSelect()
     {
         SignIn(isAdmin: true);
-        var diffFile = await contentStore.WriteAsync(DateTime.UtcNow, "Name: 分類A → 分類B");
+        var diffFile = (await contentStore.WriteAsync(DateTime.UtcNow, "Name: 分類A → 分類B"))?.RelativePath;
         await SeedAsync(
             new AuditLog { OccurredAt = DateTime.UtcNow.AddHours(-2), Action = "Category.Create", TargetType = "Category", TargetId = "12", ActorAccount = "alice", ActorUserId = 2, Detail = "name=分類A" },
             new AuditLog { OccurredAt = DateTime.UtcNow.AddHours(-1), Action = "Category.Update", TargetType = "Category", TargetId = "12", ActorAccount = "bob", ActorUserId = 3, Detail = "name=分類B", ContentFile = diffFile },

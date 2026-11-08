@@ -2,6 +2,7 @@
 using MyProject.AccessDatas;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Services.Other.AuditIntegrity;
 
 namespace MyProject.Tests;
 
@@ -34,7 +35,9 @@ public sealed class DataAccessServiceLifetimeTests
         typeof(AdminPatrolReportService),
         typeof(AuditLogQueryService),
         // 稽核寫入端（0.9.131 起）：換頁稽核是射後不理，共用 scoped context 會和頁面初始化撞在一起。
-        typeof(AuditLogService),
+        // 0.9.175 起實際寫資料庫的是雜湊鏈寫入端（AuditLogService 改注入它），完整性檢查也在這裡。
+        typeof(AuditChainStore),
+        typeof(AuditIntegrityVerifier),
         typeof(ScheduledJobRunService),
         typeof(SoftDeletePurgeService),
         typeof(SystemParameterService),

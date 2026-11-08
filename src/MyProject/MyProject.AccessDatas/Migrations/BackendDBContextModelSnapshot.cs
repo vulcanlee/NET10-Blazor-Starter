@@ -269,6 +269,50 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("AnnouncementDismissal");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.AuditChainHead", b =>
+                {
+                    b.Property<int>("Chain")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeyId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("KeySinceSeq")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("LastSeq")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LegacyMaxId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Mac")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RebuiltAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartPrevHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("StartSeq")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Chain");
+
+                    b.ToTable("AuditChainHead");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.AuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -285,17 +329,35 @@ namespace MyProject.AccessDatas.Migrations
                     b.Property<int?>("ActorUserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("Chain")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ClientIp")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ContentFile")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ContentHash")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Detail")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hash")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeyId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("OccurredAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("PrevHash")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("Seq")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("Success")
                         .HasColumnType("INTEGER");
@@ -311,6 +373,9 @@ namespace MyProject.AccessDatas.Migrations
                     b.HasIndex("OccurredAt");
 
                     b.HasIndex("ActorUserId", "OccurredAt");
+
+                    b.HasIndex("Chain", "Seq")
+                        .IsUnique();
 
                     b.HasIndex("TargetType", "TargetId", "OccurredAt");
 

@@ -893,6 +893,22 @@
         overflow: auto;
     }
 
+    /* 完整性驗證結果（0.9.175 起）：問題清單與說明 */
+    .audit-log-modal .audit-log-verify-issues {
+        color: var(--ov-text);
+        font-size: 0.85rem;
+        line-height: 1.6;
+        margin: 0 0 12px;
+        padding-left: 1.25rem;
+    }
+
+    .audit-log-modal .audit-log-verify-note {
+        color: var(--ov-muted);
+        font-size: 0.8rem;
+        line-height: 1.6;
+        margin: 12px 0 0;
+    }
+
     @@media (max-width: 640.98px) {
         /* 窄螢幕沒有 11rem 可以留給標題，改成上下堆疊 */
         .audit-log-modal .audit-log-detail-list > div {

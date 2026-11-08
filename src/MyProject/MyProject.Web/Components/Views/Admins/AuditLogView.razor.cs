@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
@@ -97,6 +98,14 @@ namespace MyProject.Web.Components.Views.Admins
         /// <summary>明細窗的「詳細內容」（修改差異、查詢條件；0.9.131 起）。null 表示這筆沒有內容檔。</summary>
         private string? detailContent;
         private bool isContentLoading;
+
+        private bool verifyVisible;
+        private bool isVerifying;
+        private AuditIntegrityReport? verifyReport;
+
+        /// <summary>完整性驗證（0.9.175 起）。</summary>
+        [Inject]
+        public AuditIntegrityVerifier IntegrityVerifier { get; set; } = default!;
 
         [Inject]
         public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
@@ -342,7 +351,7 @@ namespace MyProject.Web.Components.Views.Admins
                 await WriteSelfAuditAsync(AuditActions.Audit.Purge, $"清除 {BrowsingPurgeDays} 天前的瀏覽紀錄：{browsing.Message}");
 
                 // 兩類都清過，才用較舊的門檻收空月份目錄與孤兒檔（手動天數一定大於 0，所以一定安全）。
-                auditLogQueryService.DeleteContentMonthsBefore(DateTime.UtcNow.AddDays(-Math.Max(PurgeDays, BrowsingPurgeDays)));
+                await auditLogQueryService.DeleteContentMonthsBeforeAsync(DateTime.UtcNow.AddDays(-Math.Max(PurgeDays, BrowsingPurgeDays)));
                 ViewNotification.Warning(notificationService, $"異動與安全紀錄：{change.Message}瀏覽紀錄：{browsing.Message}");
             }
             else
@@ -363,7 +372,7 @@ namespace MyProject.Web.Components.Views.Admins
             var confirmed = await ConfirmDialog.AskDestructiveAsync(
                 modalService,
                 "清空全部稽核紀錄",
-                "將刪除所有稽核紀錄。此動作無法復原，且本次清空會另外留下一筆稽核紀錄。",
+                "將刪除所有稽核紀錄。此動作無法復原，且本次清空會另外留下一筆稽核紀錄；完整性驗證會從下一筆紀錄重新起算。",
                 "清空");
 
             if (confirmed == false)
@@ -384,6 +393,43 @@ namespace MyProject.Web.Components.Views.Admins
                 ViewNotification.Error(notificationService, result.Message);
             }
         }
+
+        /// <summary>
+        /// 驗證完整性（0.9.175 起）：重算全部簽章，結果顯示在視窗；只比對、不更新檢查點（檢查點只由每天的排程更新）。
+        /// 驗證本身寫一筆 <c>Audit.Verify</c>。
+        /// </summary>
+        private async Task OnVerifyAsync()
+        {
+            verifyReport = null;
+            isVerifying = true;
+            verifyVisible = true;
+            StateHasChanged();
+
+            try
+            {
+                verifyReport = await IntegrityVerifier.VerifyAsync(updateCheckpoint: false);
+                await WriteSelfAuditAsync(
+                    AuditActions.Audit.Verify,
+                    $"result={(verifyReport.HasIssues ? "failed" : "ok")}; signed={verifyReport.SignedRows}; issues={verifyReport.IssueCount}; "
+                    + $"legacy={verifyReport.LegacyRows}; keyMismatch={verifyReport.KeyMismatchRows}; trigger=manual");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to verify audit log integrity.");
+                verifyVisible = false;
+                ViewNotification.Error(notificationService, "驗證完整性失敗，詳細原因已記錄在系統日誌。");
+            }
+            finally
+            {
+                isVerifying = false;
+            }
+        }
+
+        /// <summary>明細窗的「簽章」欄（0.9.175 起）。</summary>
+        private static string SignatureText(AuditLogAdapterModel item)
+            => item.Seq is { } seq && item.Chain is { } chain
+                ? $"已簽章，{AuditChains.Name(chain)} #{seq}"
+                : "升級前的紀錄，未納入完整性驗證";
 
         /// <summary>
         /// 把「清除／清空稽核紀錄」這件事本身寫成一筆稽核紀錄。

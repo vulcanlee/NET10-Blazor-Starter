@@ -338,6 +338,8 @@ namespace MyProject.Web
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.AuditContentPath, "audit content");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.DataProtectionKeyPath, "data protection key");
                 EnsureDirectoryExists(systemSettings.ExternalFileSystem.BackupPath, "backup");
+                // 只建目錄；稽核金鑰在第一次寫稽核時才產生（AuditIntegrityKeyStore），dotnet ef 不會產生金鑰。
+                EnsureDirectoryExists(systemSettings.ExternalFileSystem.AuditKeyPath, "audit integrity key");
                 #endregion
 
                 #region Data Protection 金鑰環

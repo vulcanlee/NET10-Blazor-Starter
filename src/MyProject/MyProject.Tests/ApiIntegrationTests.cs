@@ -1203,6 +1203,8 @@ public class ApiTestApplicationFactory : WebApplicationFactory<Program>
             ["SystemSettings:ExternalFileSystem:DataProtectionKeyPath"] = Path.Combine(rootPath, "Keys"),
             // 同理：備份作業會把資料庫與檔案打包寫到這裡（0.9.99 起）。
             ["SystemSettings:ExternalFileSystem:BackupPath"] = Path.Combine(rootPath, "Backup"),
+            // 同理：第一次寫稽核就會產生防竄改金鑰檔，每日檢查也會寫檢查點（0.9.175 起）。
+            ["SystemSettings:ExternalFileSystem:AuditKeyPath"] = Path.Combine(rootPath, "AuditKey"),
             // 明寫 None：開發者本機若用 User Secrets／環境變數開了 Smtp，整合測試也不可以真的寄信。
             // Pickup 資料夾同樣指到 rootPath，切換 provider 的子類才不會寫進真正的信件資料夾。
             ["EmailSettings:Provider"] = "None",

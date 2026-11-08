@@ -41,6 +41,12 @@ public class AuditLogAdapterModel
     /// </summary>
     public string? ContentFile { get; set; }
 
+    /// <summary>所屬的雜湊鏈（0.9.175 起）：0＝異動與安全事件，1＝瀏覽類；升級前的舊紀錄為 null。</summary>
+    public int? Chain { get; set; }
+
+    /// <summary>鏈內序號（0.9.175 起）；升級前的舊紀錄為 null（未納入完整性驗證）。</summary>
+    public long? Seq { get; set; }
+
     /// <summary>動作代碼的第一節（例如 Login.Success → Login），用於清單的分類標籤。</summary>
     public string ActionCategory
     {

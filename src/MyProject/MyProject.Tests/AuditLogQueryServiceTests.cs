@@ -529,7 +529,7 @@ public sealed class AuditLogQueryServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var store = fixture.CreateContentStore();
-        var file = await store.WriteAsync(DateTime.UtcNow, "Name: A → B");
+        var file = (await store.WriteAsync(DateTime.UtcNow, "Name: A → B"))?.RelativePath;
         await fixture.SeedAsync(
             new AuditLog { Action = "Category.Update", OccurredAt = DateTime.UtcNow, ContentFile = file },
             new AuditLog { Action = "Page.View", OccurredAt = DateTime.UtcNow });
@@ -546,8 +546,8 @@ public sealed class AuditLogQueryServiceTests
         await using var fixture = await Fixture.CreateAsync();
         var store = fixture.CreateContentStore();
         var now = DateTime.UtcNow;
-        var oldFile = await store.WriteAsync(now.AddDays(-400), "old");
-        var newFile = await store.WriteAsync(now, "new");
+        var oldFile = (await store.WriteAsync(now.AddDays(-400), "old"))?.RelativePath;
+        var newFile = (await store.WriteAsync(now, "new"))?.RelativePath;
         await fixture.SeedAsync(
             new AuditLog { Action = "Category.Update", OccurredAt = now.AddDays(-400), ContentFile = oldFile },
             new AuditLog { Action = "Category.Update", OccurredAt = now, ContentFile = newFile });
@@ -569,9 +569,9 @@ public sealed class AuditLogQueryServiceTests
         await using var fixture = await Fixture.CreateAsync();
         var store = fixture.CreateContentStore();
         var now = DateTime.UtcNow;
-        var diff = await store.WriteAsync(now.AddDays(-200), "Name: A → B");
-        var oldSearch = await store.WriteAsync(now.AddDays(-100), "keyword: x");
-        var newSearch = await store.WriteAsync(now.AddDays(-10), "keyword: y");
+        var diff = (await store.WriteAsync(now.AddDays(-200), "Name: A → B"))?.RelativePath;
+        var oldSearch = (await store.WriteAsync(now.AddDays(-100), "keyword: x"))?.RelativePath;
+        var newSearch = (await store.WriteAsync(now.AddDays(-10), "keyword: y"))?.RelativePath;
         await fixture.SeedAsync(
             new AuditLog { Action = "Category.Update", OccurredAt = now.AddDays(-200), ContentFile = diff },
             new AuditLog { Action = "Category.Search", OccurredAt = now.AddDays(-100), ContentFile = oldSearch },
@@ -617,13 +617,14 @@ public sealed class AuditLogQueryServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var store = fixture.CreateContentStore();
-        var file = await store.WriteAsync(DateTime.UtcNow, "content");
+        var file = (await store.WriteAsync(DateTime.UtcNow, "content"))?.RelativePath;
         await fixture.SeedAsync(new AuditLog { Action = "Category.Update", OccurredAt = DateTime.UtcNow, ContentFile = file });
 
         await fixture.CreateService().ClearAllAsync();
 
         Assert.Null(await store.ReadAsync(file));
-        Assert.Empty(Directory.EnumerateFileSystemEntries(fixture.ContentRoot));
+        // 0.9.175 起只刪被清掉的紀錄的檔（同時寫入的內容檔不可被刪），當月的空目錄會留著。
+        Assert.Empty(Directory.EnumerateFiles(fixture.ContentRoot, "*", SearchOption.AllDirectories));
     }
 
     // ---------------------------------------------------------------
@@ -690,7 +691,8 @@ public sealed class AuditLogQueryServiceTests
                 new TestDbContextFactory(connection),
                 mapper,
                 loggerFactory.CreateLogger<AuditLogQueryService>(),
-                CreateContentStore());
+                CreateContentStore(),
+                TestAuditChain.Create(connection));
 
         public async Task SeedAsync(params AuditLog[] rows)
         {
