@@ -56,9 +56,51 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $DatabaseFileName = 'BackendDB.db'
 $SupportedFormatVersion = 1
 
+# 去掉 // 與 /* */ 註解（0.9.176 起 appsettings.json 每個屬性都有註解）。
+# Windows PowerShell 5.1 的 ConvertFrom-Json 不接受註解，所以先自己去掉；字串裡的 //（例如 https://）與跳脫字元保留。
+function Remove-JsonComments([string]$text) {
+    $builder = New-Object System.Text.StringBuilder
+    $inString = $false
+    $i = 0
+    while ($i -lt $text.Length) {
+        $ch = $text[$i]
+        if ($inString) {
+            [void]$builder.Append($ch)
+            if ($ch -eq '\' -and $i + 1 -lt $text.Length) {
+                [void]$builder.Append($text[$i + 1])
+                $i += 2
+                continue
+            }
+            if ($ch -eq '"') { $inString = $false }
+            $i++
+            continue
+        }
+        if ($ch -eq '"') {
+            $inString = $true
+            [void]$builder.Append($ch)
+            $i++
+            continue
+        }
+        if ($ch -eq '/' -and $i + 1 -lt $text.Length -and $text[$i + 1] -eq '/') {
+            while ($i -lt $text.Length -and $text[$i] -ne "`n") { $i++ }
+            continue
+        }
+        if ($ch -eq '/' -and $i + 1 -lt $text.Length -and $text[$i + 1] -eq '*') {
+            $end = $text.IndexOf('*/', $i + 2)
+            $i = if ($end -lt 0) { $text.Length } else { $end + 2 }
+            continue
+        }
+        [void]$builder.Append($ch)
+        $i++
+    }
+    return $builder.ToString()
+}
+
 function Read-JsonFile([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { return $null }
-    return (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json)
+    $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+    if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+    return (Remove-JsonComments $text | ConvertFrom-Json)
 }
 
 function Get-SettingValue($settings, [string[]]$names) {

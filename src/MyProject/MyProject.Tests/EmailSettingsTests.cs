@@ -72,7 +72,7 @@ public sealed class EmailSettingsTests
     public void ShippedSettings_ShouldBeDisabledWithoutSecrets()
     {
         var path = Path.Combine(FindWebRoot(), "appsettings.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        using var document = JsonDocument.Parse(File.ReadAllText(path), ShippedAppSettings.JsonOptions);
         var section = document.RootElement.GetProperty(EmailSettings.SectionName);
 
         Assert.Equal("None", section.GetProperty("Provider").GetString());

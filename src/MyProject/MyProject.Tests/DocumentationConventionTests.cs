@@ -31,7 +31,7 @@ public sealed class DocumentationConventionTests
         var appSettingsPath = Path.Combine(webRoot, "appsettings.json");
         Assert.True(File.Exists(appSettingsPath), $"找不到 {appSettingsPath}。");
 
-        using var document = JsonDocument.Parse(File.ReadAllText(appSettingsPath));
+        using var document = JsonDocument.Parse(File.ReadAllText(appSettingsPath), ShippedAppSettings.JsonOptions);
         var sections = document.RootElement
             .EnumerateObject()
             .Select(property => property.Name)

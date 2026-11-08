@@ -197,13 +197,13 @@ public sealed class AiPricingSettingsTests
 
     private static JsonElement LoadSection()
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(AppSettingsPath()));
+        using var document = JsonDocument.Parse(File.ReadAllText(AppSettingsPath()), ShippedAppSettings.JsonOptions);
         Assert.True(
             document.RootElement.TryGetProperty(AiPricingSettings.SectionName, out var section),
             $"appsettings.json 缺少 {AiPricingSettings.SectionName} 區段。");
 
         // JsonDocument 會被 Dispose，複製一份出來。
-        return JsonDocument.Parse(section.GetRawText()).RootElement;
+        return JsonDocument.Parse(section.GetRawText(), ShippedAppSettings.JsonOptions).RootElement;
     }
 
     private static AiPricingSettings Bind()
