@@ -7,6 +7,7 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -35,6 +36,7 @@ public class AuditLogQueryService
 
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly AuditContentFileStore contentFileStore;
+    private readonly AuditChainStore chainStore;
 
     public IMapper Mapper { get; }
     public ILogger<AuditLogQueryService> Logger { get; }
@@ -43,12 +45,14 @@ public class AuditLogQueryService
         IDbContextFactory<BackendDBContext> contextFactory,
         IMapper mapper,
         ILogger<AuditLogQueryService> logger,
-        AuditContentFileStore contentFileStore)
+        AuditContentFileStore contentFileStore,
+        AuditChainStore chainStore)
     {
         this.contextFactory = contextFactory;
         Mapper = mapper;
         Logger = logger;
         this.contentFileStore = contentFileStore;
+        this.chainStore = chainStore;
     }
 
     /// <summary>用編號讀一筆（0.9.159 起，系統管理助理看明細時取動作代碼寫稽核）；不存在時回 null。</summary>
@@ -321,8 +325,8 @@ public class AuditLogQueryService
         || x.Action.EndsWith(AuditActions.SearchSuffix)
         || x.Action.EndsWith(AuditActions.ViewSuffix);
 
-    /// <summary>依清除範圍（0.9.174 起）篩選：瀏覽類與其他各有保留天數。</summary>
-    private static IQueryable<AuditLog> OfKind(IQueryable<AuditLog> source, AuditLogKind kind) => kind switch
+    /// <summary>依清除範圍（0.9.174 起）篩選：瀏覽類與其他各有保留天數。0.9.175 起 AuditChainStore 清升級前的舊紀錄也用它。</summary>
+    internal static IQueryable<AuditLog> OfKind(IQueryable<AuditLog> source, AuditLogKind kind) => kind switch
     {
         AuditLogKind.Browsing => source.Where(Browsing),
         AuditLogKind.Change => source.Where(NotBrowsing),
@@ -339,8 +343,21 @@ public class AuditLogQueryService
         var source = OfKind(context.AuditLog, kind);
         var total = await source.CountAsync();
         var oldest = await source.MinAsync(x => (DateTime?)x.OccurredAt);
-        int? expired = thresholdUtc is { } t ? await source.CountAsync(OlderThan(t)) : null;
+        int? expired = thresholdUtc is { } t ? await CountExpiredAsync(context, t, kind) : null;
         return new RetentionStats(total, oldest, expired);
+    }
+
+    /// <summary>和清除同一個範圍（<see cref="AuditChainStore.ResolveExpiredAsync"/>）：已簽章的紀錄只算每條鏈最舊一端會被刪的那段。</summary>
+    private static async Task<int> CountExpiredAsync(BackendDBContext context, DateTime thresholdUtc, AuditLogKind kind)
+    {
+        var expired = await AuditChainStore.ResolveExpiredAsync(context, thresholdUtc, kind, CancellationToken.None);
+        var count = 0;
+        foreach (var scope in expired.Scopes)
+        {
+            count += await scope.CountAsync();
+        }
+
+        return count;
     }
 
     /// <summary>
@@ -350,7 +367,7 @@ public class AuditLogQueryService
     public async Task<int> CountExpiredAsync(DateTime thresholdUtc, AuditLogKind kind)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        return await OfKind(context.AuditLog, kind).CountAsync(OlderThan(thresholdUtc));
+        return await CountExpiredAsync(context, thresholdUtc, kind);
     }
 
     public Task<int> PurgeBeforeAsync(DateTime thresholdUtc) => PurgeBeforeAsync(thresholdUtc, AuditLogKind.All);
@@ -358,21 +375,13 @@ public class AuditLogQueryService
     /// <summary>
     /// 刪除 <paramref name="kind"/> 那一類、早於 <paramref name="thresholdUtc"/> 的紀錄與它們的內容檔，回傳筆數。
     /// ⚠️ 只清單一類時不收月份目錄：瀏覽類的門檻（90 天）收月份目錄，會連 90～365 天前的修改差異檔一起刪掉；
-    /// 排程作業清完兩類後，用較舊的門檻另外呼叫 <see cref="DeleteContentMonthsBefore"/>。
+    /// 排程作業清完兩類後，用較舊的門檻另外呼叫 <see cref="DeleteContentMonthsBeforeAsync"/>。
     /// </summary>
     public async Task<int> PurgeBeforeAsync(DateTime thresholdUtc, AuditLogKind kind)
     {
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var expired = OfKind(context.AuditLog, kind).Where(OlderThan(thresholdUtc));
-
-        // 先記下要刪的內容檔（只取有檔的列：稽核表可能很大），刪完資料列再刪檔 ——
-        // 反過來的話，資料列刪失敗會留下指向不存在檔案的紀錄。
-        var files = await expired
-            .Where(x => x.ContentFile != null)
-            .Select(x => x.ContentFile!)
-            .ToListAsync();
-
-        var removed = await expired.ExecuteDeleteAsync();
+        // 刪除與鏈頭起點在 AuditChainStore 的同一個交易裡完成（0.9.175 起）。
+        // 內容檔等資料列刪成功後才刪 —— 反過來的話，資料列刪失敗會留下指向不存在檔案的紀錄。
+        var (removed, files) = await chainStore.PurgeAsync(thresholdUtc, kind);
 
         foreach (var file in files)
         {
@@ -382,25 +391,46 @@ public class AuditLogQueryService
         if (kind == AuditLogKind.All)
         {
             // 收尾：空的月份目錄，以及資料列沒建起來時留下的孤兒檔。
-            contentFileStore.DeleteMonthsBefore(thresholdUtc);
+            await DeleteContentMonthsBeforeAsync(thresholdUtc);
         }
 
         return removed;
     }
 
-    /// <summary>收掉 <paramref name="thresholdUtc"/> 所在月份之前的內容檔月份目錄（空目錄與孤兒檔）。門檻要用兩類中較舊的那個。</summary>
-    public void DeleteContentMonthsBefore(DateTime thresholdUtc) => contentFileStore.DeleteMonthsBefore(thresholdUtc);
+    /// <summary>
+    /// 收掉 <paramref name="thresholdUtc"/> 所在月份之前的內容檔月份目錄（空目錄與孤兒檔）。門檻要用兩類中較舊的那個。
+    ///
+    /// 邊界保護（0.9.175 起）：清除為了不在鏈中間刪出缺口會少刪幾筆，時鐘被調過也會留下時間較舊的紀錄；
+    /// 邊界取「門檻」與「仍有內容檔的紀錄中最早的時間」較早者，月份目錄名稱和紀錄時間是同一個值，
+    /// 所以還在的紀錄不會被收掉內容檔（否則完整性檢查會報「內容檔遺失」）。
+    /// </summary>
+    public async Task DeleteContentMonthsBeforeAsync(DateTime thresholdUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var oldestWithContent = await context.AuditLog
+            .Where(x => x.ContentFile != null)
+            .MinAsync(x => (DateTime?)x.OccurredAt);
+
+        var boundary = oldestWithContent is { } oldest && oldest < thresholdUtc ? oldest : thresholdUtc;
+        contentFileStore.DeleteMonthsBefore(boundary);
+    }
 
     /// <summary>清空全部紀錄。</summary>
     public async Task<VerifyRecordResult> ClearAllAsync()
     {
-        await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogInformation("Clearing all audit logs.");
 
         try
         {
-            var removed = await context.AuditLog.ExecuteDeleteAsync();
-            contentFileStore.DeleteAll();
+            // 兩條雜湊鏈都從下一筆重新起算（0.9.175 起），見 AuditChainStore.ClearAllAsync。
+            // 只刪被清掉的紀錄的內容檔，不清整個目錄：同時可能有寫入已寫好內容檔、正在等鎖，整個清掉會讓它指向不存在的檔。
+            var (removed, files) = await chainStore.ClearAllAsync();
+            foreach (var file in files)
+            {
+                contentFileStore.Delete(file);
+            }
+
+            await DeleteContentMonthsBeforeAsync(DateTime.UtcNow);
 
             Logger.LogInformation("Cleared all audit logs. Rows={Rows}", removed);
             return VerifyRecordResultFactory.Build(true, $"已清空 {removed} 筆紀錄。");

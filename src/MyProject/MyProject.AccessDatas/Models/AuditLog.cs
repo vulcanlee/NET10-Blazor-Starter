@@ -47,4 +47,19 @@ public class AuditLog
     /// 修改前後差異、完整查詢條件這類長內容寫在 <c>AuditContentPath</c> 底下的檔案，不進資料庫；沒有長內容時為 null。
     /// </summary>
     public string? ContentFile { get; set; }
+
+    // ── 防竄改雜湊鏈（0.9.175 起）：以下欄位由 AuditChainStore 填寫，升級前的舊紀錄全部為 null（「升級前、未納入驗證」）。
+
+    /// <summary>所屬的鏈：0＝異動與安全事件，1＝瀏覽類（換頁、搜尋、查看）。兩類保留天數不同，各自只從最舊的一端刪。</summary>
+    public int? Chain { get; set; }
+    /// <summary>鏈內序號，從 1 起連續遞增；缺號代表有紀錄被刪。</summary>
+    public long? Seq { get; set; }
+    /// <summary>同一條鏈上一筆的 <see cref="Hash"/>（第一筆為 64 個 0）。</summary>
+    public string? PrevHash { get; set; }
+    /// <summary>這一筆的 HMAC-SHA256（十六進位小寫），涵蓋全部欄位、內容檔雜湊與 <see cref="PrevHash"/>，不含 <see cref="Id"/>。</summary>
+    public string? Hash { get; set; }
+    /// <summary>內容檔位元組的 SHA-256（十六進位小寫）；沒有內容檔時為 null。</summary>
+    public string? ContentHash { get; set; }
+    /// <summary>簽章金鑰的代號（金鑰本身在資料庫以外的金鑰檔）。</summary>
+    public string? KeyId { get; set; }
 }

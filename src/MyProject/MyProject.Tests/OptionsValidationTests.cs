@@ -342,6 +342,7 @@ public sealed class OptionsValidationTests
         paths.AuditContentPath = @"C:\temp\app\AuditContent";
         paths.DataProtectionKeyPath = @"\\fileserver\share\Keys";
         paths.BackupPath = @"D:\backup\app";
+        paths.AuditKeyPath = @"D:\secrets\AuditKey";
         return settings;
     }
 

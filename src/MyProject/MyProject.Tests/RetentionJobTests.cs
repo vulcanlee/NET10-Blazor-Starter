@@ -10,6 +10,7 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Models.Systems;
 using MyProject.Web.Scheduling;
 using MyProject.Web.Scheduling.Jobs;
@@ -487,6 +488,9 @@ public sealed class RetentionJobTests : IAsyncDisposable
         collection.AddScoped<ExceptionLogService>();
         collection.AddScoped<AuditContentFileStore>();
         collection.AddScoped<AuditLogQueryService>();
+        collection.AddSingleton<IAuditIntegrityKeyStore>(new FixedAuditKeyStore());
+        collection.AddSingleton<AuditChainCheckpointStore>();
+        collection.AddSingleton<AuditChainStore>();
         collection.AddScoped<AiCallLogFileStore>();
         collection.AddScoped<AiCallLogService>();
         collection.AddScoped<TokenUsageRawStore>();

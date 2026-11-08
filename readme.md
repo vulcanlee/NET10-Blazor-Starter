@@ -99,10 +99,11 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 稽核紀錄：登入、使用者／角色／權限異動等事件寫入 `AuditLog`，管理員可於 `/audit-logs` 查詢、匯出與清除；
   清除與清空動作本身也會留下紀錄（0.9.42）；0.9.78 起補齊分類／團隊／專案增刪改、專案附件、登出、Google SSO、
   自行變更密碼、頁面權限拒絕、匯出與自動清理；0.9.117 起每筆記錄來源 IP（清單、明細與 CSV 顯示，關鍵字可搜），0.9.123 起可依來源 IP 篩選；
-  0.9.173 起可依目標類型＋目標識別精確查詢，分類、專案、團隊、使用者、角色清單每列有管理員專用的「異動歷程」（那一筆被誰新增、修改、刪除，含修改前後差異）
+  0.9.173 起可依目標類型＋目標識別精確查詢，分類、專案、團隊、使用者、角色清單每列有管理員專用的「異動歷程」（那一筆被誰新增、修改、刪除，含修改前後差異）；
+  0.9.175 起每筆紀錄以 HMAC 雜湊鏈簽章防竄改，稽核頁可「驗證完整性」，每天 03:30 的排程發現被改、被刪就通知全體管理員（金鑰放 `AuditKeyPath`，刻意不進備份）
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - AI 對話紀錄：保存每次 AI 呼叫實際送出的 Prompt 與取得的 Response（管理員專屬、預設保留 90 天自動過期），五種檢視、JSON／PDF 匯出，並與 Token 用量以呼叫識別碼互相連結（0.9.72）
-- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 11 個作業：8 個清理作業、系統備份、系統管理助理巡檢（0.9.161）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
+- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 13 個作業：9 個清理作業、系統備份、稽核紀錄完整性檢查（0.9.175）、系統管理助理巡檢（0.9.161）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
 - 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環成 zip，保留 7 份（AI 對話紀錄與 Agent 對話可在系統參數選擇是否納入）；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
 - 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）；
   0.9.125 起鈴鐺每則可刪除、可「清除已讀」，已讀的通知預設 7 天後自動清除（`NotificationSettings:ReadRetentionDays`）
@@ -270,6 +271,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.AuditContentPath` | 稽核紀錄的詳細內容檔目錄（0.9.131 起）：修改前後差異與完整查詢條件，系統備份會打包、清除時同步刪檔。⚠️ 可能含 Email、姓名與搜尋原文，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
+| `SystemSettings.ExternalFileSystem.AuditKeyPath` | 稽核紀錄防竄改金鑰目錄（0.9.175 起）：`audit-hmac.key`（第一次寫稽核時自動產生）與每天檢查留下的檢查點。⚠️ **刻意不進系統備份**，不可與其他資料目錄重疊、不可在網站目錄底下（啟動時檢查）；請另外離線保存金鑰檔，換主機時一起帶過去。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
 | `AiReasoningSettings` | 各 Agent 功能的推論等級（0.9.168 起）：`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`、`AdminAssistant`，空白＝沿用 `AiSettings:AgentReasoningEffort`；系統參數頁「AI 模型」分類可改 |
@@ -323,7 +325,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 2280 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 2480 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell

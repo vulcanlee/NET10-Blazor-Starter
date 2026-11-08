@@ -72,6 +72,15 @@ public class ExternalFileSystem
     public string AuditContentPath { get; set; } = string.Empty;
 
     /// <summary>
+    /// 稽核紀錄防竄改金鑰的存放目錄（0.9.175 起）：<c>audit-hmac.key</c>（第一次寫稽核時自動產生）與
+    /// <c>audit-chain-checkpoint.json</c>（每天的完整性檢查留下的檢查點）。
+    /// ⚠️ <b>刻意不進系統備份</b>：金鑰和資料庫放在一起，拿到備份的人就能重算簽章。
+    /// 必須和所有會被備份的資料夾（含 DataProtectionKeyPath）、BackupPath、DownloadPath 分開（設定驗證會擋）；
+    /// 請另外離線保存一份，換主機時一起帶過去，否則舊紀錄只能顯示「金鑰不同」。
+    /// </summary>
+    public string AuditKeyPath { get; set; } = string.Empty;
+
+    /// <summary>
     /// ASP.NET Core Data Protection 的金鑰環存放目錄。
     ///
     /// ⚠️ **這個目錄不見了，等於全站使用者立刻被登出** —— 登入 Cookie 是用這裡的金鑰

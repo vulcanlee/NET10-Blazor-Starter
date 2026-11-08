@@ -562,6 +562,7 @@ if (-not $SkipMigration) {
             SystemSettings__ExternalFileSystem__AuditContentPath = (Join-Path $isolated 'AuditContent')
             SystemSettings__ExternalFileSystem__DataProtectionKeyPath = (Join-Path $isolated 'Keys')
             SystemSettings__ExternalFileSystem__BackupPath      = (Join-Path $isolated 'Backup')
+            SystemSettings__ExternalFileSystem__AuditKeyPath    = (Join-Path $isolated 'AuditKey')
         }
         $saved = @{}
         foreach ($key in $environment.Keys) {

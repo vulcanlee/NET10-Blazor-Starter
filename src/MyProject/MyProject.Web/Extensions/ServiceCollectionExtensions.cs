@@ -11,6 +11,7 @@ using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Business.Startup;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
@@ -116,6 +117,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        // 稽核防竄改雜湊鏈（0.9.175 起）：金鑰、寫入端與檢查點跨連線共用（singleton），換頁稽核射後不理時 circuit 結束也寫得完。
+        services.AddSingleton<IAuditIntegrityKeyStore, AuditIntegrityKeyStore>();
+        services.AddSingleton<AuditChainStore>();
+        services.AddSingleton<AuditChainCheckpointStore>();
+        services.AddScoped<AuditIntegrityVerifier>();
         // 稽核的長內容（修改差異、查詢條件）寫成檔案（0.9.131 起）。
         services.AddScoped<AuditContentFileStore>();
         // 稽核來源 IP（0.9.117 起）：circuit handler 寫入、AuditLogService 讀取，兩者必須拿到同一個實例。
@@ -303,6 +309,9 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<AuditLogRetentionJob>(
             AuditLogRetentionJob.JobName, "稽核紀錄清理",
             "刪除超過保留天數的稽核紀錄：異動與安全事件預設 365 天、瀏覽類（換頁、搜尋、查看）預設 90 天，在「系統參數」頁設定，0 = 不清除。", "0 3 * * *");
+        services.AddScheduledJob<AuditIntegrityVerifyJob>(
+            AuditIntegrityVerifyJob.JobName, "稽核紀錄完整性檢查",
+            "重算每一筆稽核紀錄的簽章，檢查有沒有被改、被刪或繞過系統塞入；發現問題時作業結果為失敗，並通知全體管理員（含電子郵件）。", "30 3 * * *");
         services.AddScheduledJob<ExceptionLogRetentionJob>(
             ExceptionLogRetentionJob.JobName, "系統例外紀錄清理",
             "刪除超過保留天數的系統例外紀錄與堆疊檔（保留天數在「系統參數」頁設定，預設 90 天，0 = 不清除）。", "0 3 * * *");

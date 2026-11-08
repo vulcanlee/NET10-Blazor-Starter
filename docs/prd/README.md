@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.36
+- 文件版本：2.37
 - 文件狀態：維護中
-- 現行系統版本：0.9.174
+- 現行系統版本：0.9.175
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/08
 
@@ -19,7 +19,7 @@
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.9.163 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `Pages/Categories/CategoryPage.razor`、`CategoryService`、`CategoryController` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用） | 0.9.163 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `Pages/Teams/TeamPage.razor`、`TeamService`、`TeamController` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用）| 0.9.163 |
-| 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、`Health/SystemHealthService` 等 | 已實作（14 項檢查；0.9.59 起含寄信服務項與寄信測試；0.9.79 起含日誌管線項；0.9.96 起含排程作業項；0.9.122 起含站內通知測試）| 0.9.163 |
+| 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、`Health/SystemHealthService` 等 | 已實作（14 項檢查；0.9.59 起含寄信服務項與寄信測試；0.9.79 起含日誌管線項；0.9.96 起含排程作業項；0.9.122 起含站內通知測試；0.9.175 起檔案系統項含稽核金鑰目錄）| 0.9.175 |
 | 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Pages/Analytics/LogViewerPage.razor`、`LogQueryService`、`NLogFilePathResolver`、`AiLogAnalysisService` | 已實作（0.9.69 起可展開收合與複製；0.9.78 起可依錯誤追蹤碼篩選；0.9.111 起有快速區間與「查前後 1 分鐘」；0.9.141 起 AI 分析串流顯示、可停止產生）| 0.9.163 |
 | 資料庫用量 | [資料庫用量](資料庫用量-prd.md) | `/database-usage` | `Pages/Analytics/DatabaseUsagePage.razor`、`DatabaseUsageService` | 已實作 | 0.9.163 |
 | 日誌等級設定 | [日誌等級設定](日誌等級設定-prd.md) | `/log-level-setting` | `Pages/Analytics/LogLevelSettingPage.razor`、`LogLevelRuntimeState` | 已實作 | 0.9.163 |
@@ -28,7 +28,7 @@
 | AI 對話紀錄 | [AI 對話紀錄](AI對話紀錄-prd.md) | `/ai-call-logs`（`?callId=` 深連結）| `Pages/Analytics/AiCallLogPage.razor`、`IAiCallLogRecorder`、`AiCallLogService`、`AiCallLogFileStore`、`AiCallCapture`、`AiCallLogRetentionJob` | 已實作（0.9.72；0.9.96 起自動過期改由排程作業執行；0.9.141 起串流呼叫保存 SSE 原文；0.9.142 起明細顯示執行編號與同一次執行；0.9.144 起含 Agent 工作流程；0.9.149 起解析 Responses API 格式、顯示工具呼叫與工具結果；0.9.155 起含系統管理助理與分派，0.9.161 起含定時巡檢）| 0.9.163 |
 | 系統管理助理 | [系統管理助理](系統管理助理-prd.md) | `/admin-assistant`（管理員專屬）| `Ai/Agents/AdminAssistant/*`（`AdminAssistantTurnPlanner`、`AdminAssistantAgent`、`MonitoringAssistantTools`、`OpsAssistantTools`、`AccountsAssistantTools`、`AiAssistantTools`、`AdminAssistantMutation`、`AdminPatrolRunner`、`ScheduledPatrolToolGuard`、`AdminPatrolReportParser`）、`Scheduling/Jobs/AdminPatrolJob`、`Ai/Agents/AiAgentTurn.cs`、`Views/Admins/AdminAssistantView` | 已實作（0.9.155 里程碑 1：自動分派領域、監控與診斷及排程的唯讀工具；0.9.157 里程碑 2：四大類共 26 個唯讀工具與巡檢報告；0.9.158 里程碑 3：22 個經核准才執行的可復原異動工具；0.9.159 里程碑 4：15 個不可復原的異動工具與紅字＋輸入確認的核准窗；0.9.161 第二版定時巡檢：排程作業 `AdminPatrol` 預設每天 07:30、存「巡檢報告」、需要注意時站內＋Email 通知全體管理員）| 0.9.163 |
 | AI Agent | [AI Agent](AI-Agent-prd.md) | `/agent-playground`（Agent 測試台）、`/agent-workflows`（Agent 工作流程）| `Ai/Agents/*`（`AiAgentRunner`、`AiAgentToolFactory`、`AiToolApprovals`）、`Ai/Workflows/*`（`AiWorkflowRunner`、`AiAgentStep`）、`AiAgentFactory`、`AiAgentConversationService` | 已實作（0.9.142 測試台與工具核准；0.9.143 對話保存；0.9.144 工作流程；0.9.145 測試專案；0.9.149 起走 Responses API、推論等級 `AiSettings:AgentReasoningEffort`）| 0.9.163 |
-| 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99；0.9.143 起可選備份 Agent 對話，0.9.144 起含工作流程的執行紀錄，0.9.161 起含巡檢報告的內容檔）| 0.9.163 |
+| 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99；0.9.143 起可選備份 Agent 對話，0.9.144 起含工作流程的執行紀錄，0.9.161 起含巡檢報告的內容檔；0.9.175 起刻意不含稽核防竄改金鑰）| 0.9.175 |
 | 資料保留與清理 | [資料保留與清理](資料保留與清理-prd.md) | `/data-retention` | `Pages/Admins/DataRetentionPage.razor`、`Web/DataRetention/*`、`Scheduling/RetentionCutoffs`、各資料服務的 `GetRetentionStatsAsync` | 已實作（0.9.133；0.9.134 起含自訂清除；0.9.143 起含 Agent 對話，0.9.144 起含工作流程的執行紀錄；0.9.161 起含巡檢報告；0.9.174 起稽核分兩類保留天數）| 0.9.174 |
 | 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`ProfileService`、`Layout/UserInitials` | 已實作（0.9.102；0.9.123 起登入紀錄顯示來源 IP）| 0.9.163 |
 | AI 用量配額 | [AI 用量配額](AI用量配額-prd.md) | 全系統與每人的每日、每月新台幣上限，送出前擋下、80%／100% 通知 | `AiQuotaService`、`AiAccountingChatClient` | 已實作（0.9.109；0.9.140 起攔截移至記帳中介層，Agent 與系統管理助理的每一次模型呼叫都檢查；沒有登入使用者的定時巡檢只受全系統上限）| 0.9.163 |
@@ -38,9 +38,9 @@
 | 兩步驟驗證 | [兩步驟驗證](兩步驟驗證-prd.md) | `/TwoFactorSetup`（個人資料頁）、`/Auths/TwoFactor` | `TwoFactorService`、`TwoFactorLoginCookies`、`Views/Profiles/TwoFactorSetupView`、`Auths/TwoFactor` | 已實作（0.9.104）| 0.9.163 |
 | 站內通知與公告 | [站內通知與公告](站內通知與公告-prd.md) | 頂欄鈴鐺、頁面上方公告橫幅、`/announcements` | `INotificationSender`、`NotificationSignal`、`Layout/NotificationBell`、`AnnouncementBanner`、`Pages/Admins/AnnouncementPage.razor`、`NotificationRetentionJob` | 已實作（0.9.100；0.9.125 起鈴鐺可刪除單則與清除已讀，已讀通知另依保留天數清除；0.9.161 起定時巡檢需要注意時通知管理員）| 0.9.163 |
 | 系統參數 | [系統參數](系統參數-prd.md) | `/system-parameters` | `Pages/Admins/SystemParameterPage.razor`、`Web/Configuration/Parameters/*`、`SystemParameterService`、`SystemIdentity` | 已實作（0.9.98；0.9.142 起含「AI 模型」；0.9.143 起含 Agent 對話保留與備份；0.9.144 起含工作流程的模型；0.9.155 起含系統管理助理的模型；0.9.161 起含巡檢報告保留天數；0.9.174 起含稽核記錄範圍的兩個開關與瀏覽類保留天數）| 0.9.174 |
-| 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Pages/Admins/ScheduledJobPage.razor`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理；0.9.143 起含 Agent 對話清理，0.9.144 起含工作流程的執行紀錄；0.9.161 起含系統管理助理巡檢與巡檢報告清理；0.9.174 起稽核紀錄清理分兩類）| 0.9.174 |
+| 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Pages/Admins/ScheduledJobPage.razor`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理；0.9.143 起含 Agent 對話清理，0.9.144 起含工作流程的執行紀錄；0.9.161 起含系統管理助理巡檢與巡檢報告清理；0.9.174 起稽核紀錄清理分兩類；0.9.175 起含稽核紀錄完整性檢查）| 0.9.175 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.9.163 |
-| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選；0.9.173 起可依目標類型＋目標識別精確查詢，五個資料頁每列有管理員專用的「異動歷程」；0.9.174 起修改前後差異與瀏覽類事件改為可設定、預設不記，瀏覽類另有保留天數）| 0.9.174 |
+| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選；0.9.173 起可依目標類型＋目標識別精確查詢，五個資料頁每列有管理員專用的「異動歷程」；0.9.174 起修改前後差異與瀏覽類事件改為可設定、預設不記，瀏覽類另有保留天數；0.9.175 起防竄改簽章（雜湊鏈）與完整性驗證）| 0.9.175 |
 
 ## 二、無選單入口的核心能力
 

@@ -48,6 +48,7 @@ public sealed class SystemBackupTests : IDisposable
         paths.AuditContentPath = Dir("AuditContent");
         paths.DataProtectionKeyPath = Dir("Keys");
         paths.BackupPath = Path.Combine(root, "Backup");
+        paths.AuditKeyPath = Dir("AuditKey");
         databaseFile = Path.Combine(paths.DatabasePath, "BackendDB.db");
 
         using (var context = NewContext())
@@ -63,6 +64,7 @@ public sealed class SystemBackupTests : IDisposable
         File.WriteAllText(Path.Combine(paths.TokenUsagePath, "usage.json"), "{}");
         File.WriteAllText(Path.Combine(paths.DataProtectionKeyPath, "key-1.xml"), "<key/>");
         File.WriteAllText(Path.Combine(paths.AiCallLogPath, "call.json"), "secret prompt");
+        File.WriteAllText(Path.Combine(paths.AuditKeyPath, "audit-hmac.key"), "secret key");
         Directory.CreateDirectory(Path.Combine(paths.AuditContentPath, "202610"));
         File.WriteAllText(Path.Combine(paths.AuditContentPath, "202610", "diff.txt"), "Name: A → B");
     }
@@ -109,6 +111,8 @@ public sealed class SystemBackupTests : IDisposable
         Assert.True(File.Exists(Path.Combine(extracted, "files", "AuditContent", "202610", "diff.txt")));
         Assert.Equal(2, manifest.Folders.Single(x => x.SettingKey == "ProjectFilePath").FileCount);
         Assert.False(Directory.Exists(Path.Combine(extracted, "files", "AiCallLog")), "AI 對話內容預設不備份。");
+        // 稽核防竄改金鑰刻意不進備份（0.9.175 起）：和資料庫放在一起，拿到備份的人就能重算簽章。
+        Assert.Empty(Directory.EnumerateFiles(extracted, "audit-hmac.key", SearchOption.AllDirectories));
         AssertNoLeftovers();
     }
 
@@ -278,7 +282,7 @@ public sealed class SystemBackupTests : IDisposable
         nameof(ExternalFileSystem.DatabasePath), nameof(ExternalFileSystem.DownloadPath), nameof(ExternalFileSystem.UploadPath),
         nameof(ExternalFileSystem.ProjectFilePath), nameof(ExternalFileSystem.ExceptionPath), nameof(ExternalFileSystem.TokenUsagePath),
         nameof(ExternalFileSystem.AiCallLogPath), nameof(ExternalFileSystem.AiAgentConversationPath), nameof(ExternalFileSystem.AuditContentPath),
-        nameof(ExternalFileSystem.DataProtectionKeyPath),
+        nameof(ExternalFileSystem.DataProtectionKeyPath), nameof(ExternalFileSystem.AuditKeyPath),
     ];
 
     [Theory]
@@ -407,6 +411,7 @@ public sealed class SystemBackupTests : IDisposable
         AuditContentPath = @"C:\data\app\AuditContent",
         DataProtectionKeyPath = @"C:\data\app\Keys",
         BackupPath = @"D:\backup\app",
+        AuditKeyPath = @"D:\secrets\AuditKey",
     };
 
     private static string GetPath(ExternalFileSystem paths, string key)

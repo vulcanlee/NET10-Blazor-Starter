@@ -71,6 +71,9 @@ else
                                    OnClick="@(async () => await OnPurgeAsync())" />
                 <ToolbarIconButton Title="清空全部紀錄" Icon="delete_forever"
                                    OnClick="@(async () => await OnClearAllAsync())" />
+                <ToolbarIconButton Title="驗證完整性（檢查有沒有被改、被刪）" Icon="verified_user"
+                                   Disabled="@isVerifying"
+                                   OnClick="@(async () => await OnVerifyAsync())" />
             </div>
         </div>
 
@@ -160,6 +163,8 @@ else
                     <div><dt>來源 IP</dt><dd>@(detailItem.ClientIp ?? "—")</dd></div>
                     <div><dt>目標類型</dt><dd>@(detailItem.TargetType ?? "—")</dd></div>
                     <div><dt>目標識別</dt><dd>@(detailItem.TargetId ?? "—")</dd></div>
+                    @* 防竄改簽章（0.9.175 起）：升級前的舊紀錄沒有簽章，不納入「驗證完整性」。 *@
+                    <div><dt>簽章</dt><dd>@SignatureText(detailItem)</dd></div>
                 </dl>
 
                 <h3 class="audit-log-detail-title">摘要</h3>
@@ -173,6 +178,42 @@ else
                     <h3 class="audit-log-detail-title">詳細內容</h3>
                     <pre class="audit-log-detail-text audit-log-detail-content">@(isContentLoading ? "讀取中…" : detailContent)</pre>
                 }
+            }
+        </Modal>
+
+        @*
+            完整性驗證結果（0.9.175 起）。尺寸共用 .audit-log-modal（OverlayStyles.razor）；純唯讀，Esc 直接關閉。
+        *@
+        <Modal Title="稽核紀錄完整性驗證"
+               Class="audit-log-modal"
+               @bind-Visible="@verifyVisible"
+               Keyboard="true"
+               Footer="null"
+               OnCancel="@(() => verifyVisible = false)">
+            @if (isVerifying)
+            {
+                <p>驗證中，紀錄多時需要一點時間…</p>
+            }
+            else if (verifyReport is { } report)
+            {
+                <p>
+                    <Tag Color="@(report.HasIssues ? "red" : "green")">@(report.HasIssues ? "發現問題" : "全部正確")</Tag>
+                    @report.Summary()
+                </p>
+                @if (report.HasIssues)
+                {
+                    <h3 class="audit-log-detail-title">問題清單@(report.IssueCount > report.Issues.Count ? $"（列出前 {report.Issues.Count} 個，共 {report.IssueCount} 個）" : string.Empty)</h3>
+                    <ul class="audit-log-verify-issues">
+                        @foreach (var issue in report.Issues)
+                        {
+                            <li>@issue.Message</li>
+                        }
+                    </ul>
+                }
+                <p class="audit-log-verify-note">
+                    這裡只比對、不更新檢查點；每天 03:30 的排程「稽核紀錄完整性檢查」發現問題時會通知全體管理員並寄信。
+                    「金鑰不同」是金鑰遺失或換主機沒帶金鑰造成的，只能確認序號連續、無法驗證內容，不算問題。
+                </p>
             }
         </Modal>
     </div>

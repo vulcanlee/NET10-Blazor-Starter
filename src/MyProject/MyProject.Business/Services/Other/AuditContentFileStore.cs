@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Models.Systems;
 
 namespace MyProject.Business.Services.Other;
@@ -32,8 +34,11 @@ public class AuditContentFileStore
     private string RootPath => systemSettingsOptions.Value.ExternalFileSystem.AuditContentPath;
 
     /// <summary>寫入內容檔。</summary>
-    /// <returns>成功時回傳相對路徑；失敗回 null（稽核資料列照樣寫，只是沒有詳細內容）。</returns>
-    public async Task<string?> WriteAsync(DateTime occurredAtUtc, string content)
+    /// <returns>
+    /// 成功時回傳相對路徑與寫進磁碟那份位元組的 SHA-256（0.9.175 起，納入稽核簽章）；
+    /// 失敗回 null（稽核資料列照樣寫，只是沒有詳細內容）。
+    /// </returns>
+    public async Task<AuditContentWriteResult?> WriteAsync(DateTime occurredAtUtc, string content)
     {
         if (string.IsNullOrWhiteSpace(RootPath) || string.IsNullOrEmpty(content))
         {
@@ -46,8 +51,10 @@ public class AuditContentFileStore
         {
             var fullPath = TryResolveFullPath(relativePath)!;
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            await File.WriteAllTextAsync(fullPath, content);
-            return relativePath;
+            // 雜湊與寫入用同一份位元組，不必寫完再讀回來；UTF-8 無 BOM，和之前的 WriteAllTextAsync 相同。
+            var bytes = Encoding.UTF8.GetBytes(content);
+            await File.WriteAllBytesAsync(fullPath, bytes);
+            return new AuditContentWriteResult(relativePath, AuditHashV1.Sha256Hex(bytes));
         }
         catch (Exception ex)
         {
@@ -76,6 +83,26 @@ public class AuditContentFileStore
         }
     }
 
+    /// <summary>讀取內容檔的原始位元組（0.9.175 起，完整性檢查比對雜湊用）。檔案不存在、路徑不合法或讀取失敗回 null。</summary>
+    public async Task<byte[]?> ReadBytesAsync(string? relativePath)
+    {
+        var fullPath = TryResolveFullPath(relativePath);
+        if (fullPath is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.Exists(fullPath) == false ? null : await File.ReadAllBytesAsync(fullPath);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to read audit content file. Path={RelativePath}", relativePath);
+            return null;
+        }
+    }
+
     /// <summary>刪除單一檔案。檔案不存在視為成功。</summary>
     public void Delete(string? relativePath)
     {
@@ -95,35 +122,6 @@ public class AuditContentFileStore
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to delete audit content file. Path={RelativePath}", relativePath);
-        }
-    }
-
-    /// <summary>
-    /// 清空整個目錄（供「清空全部」使用）。
-    /// 刻意刪內容而非刪目錄本身，因為目錄由 Program.cs 啟動時建立，刪掉就不會再有人補。
-    /// </summary>
-    public void DeleteAll()
-    {
-        if (string.IsNullOrWhiteSpace(RootPath) || Directory.Exists(RootPath) == false)
-        {
-            return;
-        }
-
-        try
-        {
-            foreach (var directory in Directory.EnumerateDirectories(RootPath))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-
-            foreach (var file in Directory.EnumerateFiles(RootPath))
-            {
-                File.Delete(file);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to clear the audit content directory.");
         }
     }
 
@@ -175,3 +173,6 @@ public class AuditContentFileStore
         return fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
     }
 }
+
+/// <summary>內容檔寫入結果：相對路徑與位元組的 SHA-256。</summary>
+public sealed record AuditContentWriteResult(string RelativePath, string Sha256);

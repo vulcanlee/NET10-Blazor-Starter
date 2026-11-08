@@ -1,25 +1,25 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Models.Systems;
 
 namespace MyProject.Business.Services.Other;
 
 public sealed class AuditLogService : IAuditLogService
 {
-    private readonly IDbContextFactory<BackendDBContext> contextFactory;
+    private readonly AuditChainStore chainStore;
     private readonly ILogger<AuditLogService> logger;
     private readonly AuditContentFileStore? contentFileStore;
     private readonly IClientIpProvider? clientIpProvider;
     private readonly ILoginFailureAlert? loginFailureAlert;
     private readonly IOptionsMonitor<AuditLogSettings>? settings;
 
-    /// <param name="contextFactory">
-    /// 每筆稽核各用一個 context（0.9.131 起）。之前注入的 scoped context 在 Blazor 裡活得和整條 circuit 一樣久：
-    /// 換頁稽核（fire-and-forget）會和頁面初始化同時用到它而撞上「second operation」，寫進去的實體也只增不減。
+    /// <param name="chainStore">
+    /// 簽章並寫入（0.9.175 起，防竄改雜湊鏈）。必要參數：正式程式沒有「不簽章」的寫入路徑。
+    /// 它每筆各用一個 context（0.9.131 起的作法）：scoped context 在 Blazor 裡活得和整條 circuit 一樣久，
+    /// 換頁稽核（fire-and-forget）會和頁面初始化同時用到它而撞上「second operation」。
     /// </param>
     /// <param name="contentFileStore">長內容（修改差異、查詢條件）的檔案存放；未註冊（單元測試）時只寫資料列。</param>
     /// <param name="clientIpProvider">
@@ -34,14 +34,14 @@ public sealed class AuditLogService : IAuditLogService
     /// 未註冊（單元測試）時等同預設。
     /// </param>
     public AuditLogService(
-        IDbContextFactory<BackendDBContext> contextFactory,
+        AuditChainStore chainStore,
         ILogger<AuditLogService> logger,
         AuditContentFileStore? contentFileStore = null,
         IClientIpProvider? clientIpProvider = null,
         ILoginFailureAlert? loginFailureAlert = null,
         IOptionsMonitor<AuditLogSettings>? settings = null)
     {
-        this.contextFactory = contextFactory;
+        this.chainStore = chainStore;
         this.logger = logger;
         this.contentFileStore = contentFileStore;
         this.clientIpProvider = clientIpProvider;
@@ -91,9 +91,12 @@ public sealed class AuditLogService : IAuditLogService
         try
         {
             var occurredAt = DateTime.UtcNow;
-            if (contentFileStore is not null && string.IsNullOrEmpty(content) == false)
+            string? contentHash = null;
+            if (contentFileStore is not null && string.IsNullOrEmpty(content) == false
+                && await contentFileStore.WriteAsync(occurredAt, content) is { } written)
             {
-                contentFile = await contentFileStore.WriteAsync(occurredAt, content);
+                contentFile = written.RelativePath;
+                contentHash = written.Sha256;
             }
 
             var entry = new AuditLog
@@ -108,11 +111,10 @@ public sealed class AuditLogService : IAuditLogService
                 Detail = detail,
                 ClientIp = clientIpProvider?.GetClientIp(),
                 ContentFile = contentFile,
+                ContentHash = contentHash,
             };
 
-            await using var context = await contextFactory.CreateDbContextAsync();
-            context.AuditLog.Add(entry);
-            await context.SaveChangesAsync();
+            await chainStore.AppendAsync(entry);
 
             // 稽核同步到日誌（0.9.131 起）：只記資料庫裡的短摘要與檔名，內容檔本身（差異、搜尋原文）不進日誌。
             // 記 Debug：Information 已有各服務自己的操作日誌，這一行是排查時才打開的完整稽核軌跡。
@@ -123,7 +125,8 @@ public sealed class AuditLogService : IAuditLogService
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to write audit log. Action={Action}", action);
+            // 0.9.175 起記 Error：稽核寫不進去（例如鏈頭被竄改、鎖逾時）必須讓人看得到，不能只是一行警告。
+            logger.LogError(ex, "Failed to write audit log. Action={Action}", action);
 
             // 資料列沒建起來，內容檔就成了孤兒。
             contentFileStore?.Delete(contentFile);

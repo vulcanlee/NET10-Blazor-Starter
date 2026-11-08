@@ -1,10 +1,10 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.9.174
+- 現行系統版本：0.9.175
 - 首次實作版本：0.9.96
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/08
 
 ## 一、目標與範圍
 
@@ -48,6 +48,7 @@
 | 名稱 | 顯示名稱 | 天數設定 | 稽核 |
 |---|---|---|---|
 | `AuditLogRetention` | 稽核紀錄清理 | `LogRetentionSettings:AuditLogDays`（365，UTC 門檻，異動與安全事件）；0.9.174 起另有 `AuditBrowsingLogDays`（90，瀏覽類）分段清，各自 0 就略過；兩類都 >0 時才用較舊的門檻收內容檔月份目錄；兩類都 0 時結果「保留天數都設為 0，不自動清除。」| `Audit.AutoPurge`（每一類一筆，detail `rows=N; days=D; kind=change` 或 `kind=browsing`、`trigger=T`）|
+| `AuditIntegrityVerify` | 稽核紀錄完整性檢查（0.9.175 起，預設 `30 3 * * *`，避開 02:00 的備份與 03:00 的清理）| —（不刪資料）：重算每一筆稽核紀錄的簽章並更新資料庫以外的檢查點；**發現問題時回 Failure**，由下方的失敗通知送全體管理員＋寄信（不另設通知分類）；問題另以 ERROR 寫進 NLog。一次性事件（金鑰變更、鏈頭重建、資料庫倒回）只報一次，持續性損壞每天報。見[稽核紀錄 PRD §九](稽核紀錄-prd.md) | `Audit.Verify`（每次都寫，detail `result=ok\|failed; signed=N; issues=M; legacy=L; keyMismatch=K; trigger=T`）|
 | `ExceptionLogRetention` | 系統例外紀錄清理 | `LogRetentionSettings:ExceptionLogDays`（90，本地門檻）| `ExceptionLog.AutoPurge` |
 | `AiCallLogRetention` | AI 對話紀錄清理 | `AiCallLogSettings:RetentionDays`（90）| `AiCallLog.AutoPurge` |
 | `AiAgentConversationRetention` | Agent 對話清理（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）| `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間 `UpdatedAt`，全體使用者）| `AiAgentConversation.AutoPurge` |
@@ -60,7 +61,7 @@
 | `EmailLogRetention` | 寄信紀錄清理（0.9.167 起）| `EmailDeliverySettings:RetentionDays`（90，UTC 門檻，分批刪除；「待寄」不刪）| `EmailLog.AutoPurge` |
 | `PasswordExpiryReminder` | 密碼到期提醒（0.9.101 起，預設 `0 8 * * *`）| `PasswordPolicySettings:ExpiryDays`（0＝不過期，此時不動作）；7 天內到期者各通知一次 | —（只發站內通知） |
 
-  有刪到資料才寫稽核；天數 0 回成功但不動作。刪檔一律經對應的 file store。
+  清理類有刪到資料才寫稽核；天數 0 回成功但不動作（稽核紀錄完整性檢查每次都寫 `Audit.Verify`）。內建作業 0.9.175 起共 13 個。刪檔一律經對應的 file store。
 
 - **失敗通知**（0.9.100 起）：結果為 **Failed** 時（不含中斷、略過），`ScheduledJobRunner` 在寫回結果之後以新的 scope 經 `INotificationSender` 通知全體管理員＋手動觸發者（觸發者 Id 經 `ScheduledJobTriggerQueue` 與 `ScheduledJobContext.TriggeredByUserId` 傳遞），同時寄信、連結 `/scheduled-jobs`；通知失敗不影響作業結果。見 [站內通知與公告 PRD](站內通知與公告-prd.md)。
 
@@ -91,7 +92,8 @@
 - `RetentionJobTests`：五個清理作業（稽核、例外、AI 對話紀錄、Agent 對話、Token 用量；時區、0 天、無資料、失敗回報、分批、取消、月份目錄）。
 - `AdminPatrolJobTests`（0.9.161）：系統管理助理巡檢與巡檢報告清理；巡檢的窄門、判讀與通知另見 `ScheduledPatrolToolGuardTests`、`AdminPatrolReportParserTests`、`AdminPatrolNotificationTests`。
 - `SoftDeletePurgeTests`（0.9.97）：五種資料的門檻邊界、附件實體檔與根目錄檢查、提交後才刪檔、中途還原與並行衝突、角色使用中與刪除當下被指派、同輪使用者與角色、受保護、Cascade 範圍、單一種類失敗、取消、本地時鐘、稽核內容與截斷。
-- `ScheduledJobWiringTests`：真正的主機中作業已註冊、舊計時器已移除、排程器註冊順序。
+- `AuditIntegrityVerifierTests`（0.9.175）：完整性檢查抓得到各種竄改、一次性事件只由排程報一次、正常清除不誤報。
+- `ScheduledJobWiringTests`：真正的主機中作業已註冊（0.9.175 起 13 個）、舊計時器已移除、排程器註冊順序。
 - 守門：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`LoggingConventionTests`、`DataAccessServiceLifetimeTests`、`OptionsValidationTests`、`DocumentationConventionTests`。
 
 ## 八、相關程式與文件
