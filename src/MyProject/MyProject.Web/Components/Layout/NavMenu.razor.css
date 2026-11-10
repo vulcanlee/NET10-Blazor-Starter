@@ -34,7 +34,7 @@
 }
 
 /* ⚠️ 圖示大小只能從 MaterialIcon 的 Size 參數改（側邊欄選單走
-   Components/Layout/MaterialIconOpticalSize.cs）：該元件會輸出行內的
+   MyProject.Web.Client/Layout/MaterialIconOpticalSize.cs）：該元件會輸出行內的
    style="font-size:…"，CSS 的 font-size 蓋不過去。
    0.9.16 已把本檔原本無效的 font-size 宣告全數移除。 */
 

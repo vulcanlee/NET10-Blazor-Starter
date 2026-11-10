@@ -10,7 +10,7 @@ namespace MyProject.Tests;
 /// 從另外兩個登出仍然會無聲登出，而那種缺失只有實際點到才會發現。
 ///
 /// 因此規則是：**razor 裡不得出現寫死的登出網址連結**，
-/// 一律走 <c>Components/Commons/LogoutConfirm.cs</c>。
+/// 一律走 <c>MyProject.Web.Client/Commons/LogoutConfirm.cs</c>。
 ///
 /// ⚠️ 這條規則只管 UI 入口。<c>AuthenticationStateHelper</c> 的六處程式化強制登出
 /// （未登入、找不到使用者、角色遺失…）**刻意不確認** —— 那是系統行為不是使用者意圖，
@@ -53,7 +53,7 @@ public sealed class LogoutConfirmationConventionTests
         Assert.True(
             violations.Count == 0,
             "UI 上的登出入口不得直接連到登出網址 —— 那樣按下去就登出，沒有二次確認。"
-                + "請改用 Components/Commons/LogoutConfirm.RequestAsync，"
+                + "請改用 LogoutConfirm.RequestAsync（MyProject.Web.Client/Commons/LogoutConfirm.cs），"
                 + "並以 LogoutConfirm.IsLogoutUrl 判斷選單項是不是登出。"
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));

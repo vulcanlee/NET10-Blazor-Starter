@@ -1,4 +1,6 @@
-﻿<style>
+﻿@namespace MyProject.Web.Components.Commons
+@* 0.10.1 起放在 MyProject.Web.Client（WASM 遷移 M2），Server 與 WASM 頁面共用同一份；命名空間維持不變。 *@
+<style>
 
     /* ══════════════════════════════════════════════════════════════════
        AntDesign 浮層的全域樣式 —— 粉梅暖雪果凍
@@ -466,7 +468,7 @@
 
     /* ══════════════════════════════════════════════════════════════════
        小型確認窗（ModalService.ConfirmAsync）—— 不滿版
-       文案與參數一律由 Components/Commons/ConfirmDialog.cs 樣板決定。
+       文案與參數一律由 MyProject.Web.Client/Commons/ConfirmDialog.cs 樣板決定。
 
        ⚠️ 這裡的選擇器只能是全域的 .ant-modal-confirm：
           AntDesign 的 Confirm 在內部把 ConfirmOptions.ClassName 無條件覆寫成

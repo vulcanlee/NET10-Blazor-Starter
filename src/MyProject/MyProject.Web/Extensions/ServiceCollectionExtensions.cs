@@ -514,6 +514,7 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<SlowDbCommandInterceptor>();
         services.AddSingleton<SecurityStampCache>();
+        services.AddSingleton<PerUserRateLimiter>();
         services.AddSingleton<SecurityStampInvalidationInterceptor>();
 
         services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<BackendDBContext>>().CreateDbContext());

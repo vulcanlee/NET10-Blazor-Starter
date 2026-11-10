@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.20
+- 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.9.168
+- 現行系統版本：0.10.1
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 文件目的
 
@@ -383,7 +383,7 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | 日誌分析 PDF 的標題、中介資訊與附錄 |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 轉 PDF 的極小渲染器（0.9.68 從上一列抽出）|
 | `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗狀態（0.9.141 起含產生中、已停止、已中止）、字級與稽核 |
-| `MyProject.Web/Components/Commons/OverlayStyles.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
+| `MyProject.Web.Client/Commons/OverlayStyles.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
 
 ## 10. 對話窗的狀態（0.9.8 起）
 
@@ -455,7 +455,7 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 ### 10.4 尺寸
 
 對話窗是 **96vw × 96vh**（`top: 2vh`，上下各留 2vh）。
-尺寸寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`，
+尺寸寫在 `MyProject.Web.Client/Commons/OverlayStyles.razor` 的全域 `<style>`，
 **不要**改用 `<Modal Width>` —— 那邊是 `!important`，兩邊都寫只會讓人改錯地方。
 `AiModalStyleConventionTests` 也擋下在標籤上加 `Width` 的寫法。
 

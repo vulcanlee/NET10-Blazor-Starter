@@ -1,10 +1,10 @@
 ﻿# AI 例外分析
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.1
 - 首次實作版本：0.9.68
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 「系統例外紀錄」（`/system-exceptions`，管理員專屬）的「例外明細」窗上方有一顆「AI 分析」按鈕。
 按下後，系統把這個明細窗的內容送給 AI（Azure OpenAI／OpenAI Chat Completions），在一個幾乎滿版的
@@ -152,7 +152,7 @@ AiExceptionAnalysisService ┘
 | `MyProject.Web/Ai/AiExceptionReportPdfBuilder.cs` | 例外分析 PDF |
 | `MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor(.cs/.css)` | 對話窗：狀態（0.9.141 起多「已停止」）、對話、追問、串流顯示與停止產生、複製、PDF、稽核 |
 | `MyProject.Web/Components/Views/Admins/ExceptionLogView.razor(.cs)` | 明細窗的「AI 分析」按鈕 |
-| `MyProject.Web/Components/Commons/OverlayStyles.razor` | `.exception-ai-modal` 尺寸（與 `.log-ai-modal` 共用） |
+| `MyProject.Web.Client/Commons/OverlayStyles.razor` | `.exception-ai-modal` 尺寸（與 `.log-ai-modal` 共用） |
 
 ## 9. 測試
 

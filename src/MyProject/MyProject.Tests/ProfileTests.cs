@@ -9,7 +9,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Others;
 using MyProject.Models.Systems;
 using MyProject.Web.Components.Layout;
-using MyProject.Web.Components.Views.Profiles;
+using MyProject.Web.Controllers;
 
 namespace MyProject.Tests;
 
@@ -70,11 +70,11 @@ public sealed class ProfileTests : IDisposable
     [Fact]
     public void DescribeAction_ShouldTranslateLoginEvents()
     {
-        Assert.Equal("登入", ProfileView.DescribeAction(AuditActions.Login.Success));
-        Assert.Equal("連續輸錯，帳號被鎖定", ProfileView.DescribeAction(AuditActions.Login.LockedOut));
-        Assert.Equal("Google 登入", ProfileView.DescribeAction(AuditActions.Login.SsoSuccess));
-        Assert.Equal("登出", ProfileView.DescribeAction(AuditActions.Logout));
-        Assert.Equal("Something.Else", ProfileView.DescribeAction("Something.Else"));
+        Assert.Equal("登入", ProfileController.DescribeLoginAction(AuditActions.Login.Success));
+        Assert.Equal("連續輸錯，帳號被鎖定", ProfileController.DescribeLoginAction(AuditActions.Login.LockedOut));
+        Assert.Equal("Google 登入", ProfileController.DescribeLoginAction(AuditActions.Login.SsoSuccess));
+        Assert.Equal("登出", ProfileController.DescribeLoginAction(AuditActions.Logout));
+        Assert.Equal("Something.Else", ProfileController.DescribeLoginAction("Something.Else"));
     }
 
     // ---------- 改姓名 ----------

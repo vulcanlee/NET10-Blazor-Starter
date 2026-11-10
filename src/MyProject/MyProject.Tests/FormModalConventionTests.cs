@@ -94,7 +94,7 @@ public sealed class FormModalConventionTests
     [Fact]
     public void EveryModalClass_ShouldHaveRulesInOverlayStyles()
     {
-        var helper = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Commons", "OverlayStyles.razor"));
+        var helper = File.ReadAllText(OverlayStylesPath);
         var violations = new List<string>();
 
         foreach (var (file, openTag, _) in EnumerateModals())
@@ -171,7 +171,7 @@ public sealed class FormModalConventionTests
     }
 
     /// <summary>
-    /// 確認窗一律走 <c>Components/Commons/ConfirmDialog.cs</c> 樣板，各檢視不得自己寫
+    /// 確認窗一律走 <c>MyProject.Web.Client/Commons/ConfirmDialog.cs</c> 樣板，各檢視不得自己寫
     /// <c>ConfirmAsync</c>。
     ///
     /// 這不只是文案一致的問題：自己寫必定會漏參數。0.9.25 之前，例外紀錄與 Token 用量
@@ -328,7 +328,7 @@ public sealed class FormModalConventionTests
     public void JellyStyles_ShouldLiveOnTheSharedModalBase()
     {
         var overlayStyles = File.ReadAllText(
-            Path.Combine(FindComponentsRoot(), "Commons", "OverlayStyles.razor"));
+            OverlayStylesPath);
 
         Assert.Contains(".ant-modal .ant-modal-content", overlayStyles, StringComparison.Ordinal);
         Assert.Contains("@keyframes ov-arrive", overlayStyles, StringComparison.Ordinal);
@@ -365,4 +365,7 @@ public sealed class FormModalConventionTests
     }
 
     private static string FindComponentsRoot() => SourceTree.Components;
+
+    /// <summary>浮層全域樣式（0.10.1 起放在 MyProject.Web.Client，Server 與 WASM 頁面共用同一份）。</summary>
+    private static string OverlayStylesPath => Path.Combine(SourceTree.Client, "Commons", "OverlayStyles.razor");
 }

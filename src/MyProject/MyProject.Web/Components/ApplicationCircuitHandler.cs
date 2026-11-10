@@ -184,7 +184,8 @@ public sealed class ApplicationCircuitHandler : CircuitHandler, IDisposable
             path, previousPath, account, userId, circuitId);
 
         // 只改 query string（同一頁換篩選條件）不算換頁。
-        if (path != previousPath)
+        // 導向已搬到 WASM 的頁面（0.10.1 起）時不記：接著會整頁載入，由 WASM 頁面自己記一筆（避免同一次換頁兩筆）。
+        if (path != previousPath && !MyProject.Web.Client.ClientRouteTable.IsClientRoute(path))
         {
             AuditPageView(path, previousPath);
         }

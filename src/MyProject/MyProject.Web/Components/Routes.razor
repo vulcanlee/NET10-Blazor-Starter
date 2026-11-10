@@ -21,6 +21,23 @@
 
     private void ReloadPage() => NavigationManager.Refresh(forceReload: true);
 
+    /// <summary>
+    /// 已搬到 WASM 的頁面（0.10.1 起，例如個人資料）不歸這個路由器管：改成整頁載入，主機會以 WebAssembly 渲染它。
+    /// 少了這一步，從 Server 頁面點過去會顯示「找不到頁面」。
+    /// </summary>
+    private bool isInitialNavigation = true;
+
+    /// <remarks>用 NavigationManager.Uri（本站的完整網址）整頁載入，不從路徑重組；剛整頁載入的第一次導覽不重載（避免與主機判斷不一致時無限迴圈）。</remarks>
+    private void OnNavigate(NavigationContext context)
+    {
+        var isInitial = isInitialNavigation;
+        isInitialNavigation = false;
+        if (!isInitial && MyProject.Web.Client.ClientRouteTable.IsClientRoute(context.Path))
+        {
+            NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        }
+    }
+
     public void Dispose()
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
@@ -28,7 +45,7 @@
 }
 
 <ConfigProvider>
-    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)" OnNavigateAsync="OnNavigate">
         <Found Context="routeData">
             @* 最後一道網：接住並記錄所有元件內未處理的例外，避免使用者只看到空白畫面而日誌毫無痕跡。 *@
             <LoggingErrorBoundary>

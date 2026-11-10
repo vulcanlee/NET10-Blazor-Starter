@@ -209,13 +209,13 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Scheduling/             ← 排程作業框架與內建作業（Jobs/）
     │   ├── wwwroot/                ← 靜態資源
     │   ├── nlog.config
-    │   ├── Localization/           ← AntDesignLocaleFactory
     │   ├── Datas/Menu.json         ← Sidebar 導覽與權限定義
     │   ├── Datas/HelpTopics.json   ← 頁面操作說明索引（路由 → 標題 → 檔名）
     │   ├── Datas/Help/             ← 各頁操作說明內容（*.md，UTF-8 含 BOM）
     │   ├── Filters/                ← ApiValidationFilter 等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views／Layout（WASM 版外框）、Api、Auth；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、LogoutConfirm、AntDesignLocaleFactory …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← AuthenticationStateHelper 等

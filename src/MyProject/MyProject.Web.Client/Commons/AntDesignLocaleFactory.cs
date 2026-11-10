@@ -3,7 +3,7 @@ using AntDesign.Locales;
 
 namespace MyProject.Web.Localization
 {
-    internal static class AntDesignLocaleFactory
+    public static class AntDesignLocaleFactory
     {
         public static Locale Create(string cultureName)
         {

@@ -19,7 +19,7 @@
 
 /*
    原本這裡有 .my-user-password-hint。0.9.25 起改用全域的 .form-field-hint
-   （寫在 Components/Commons/OverlayStyles.razor），讓各檢視的欄位提示長得一樣。
+   （寫在 MyProject.Web.Client/Commons/OverlayStyles.razor），讓各檢視的欄位提示長得一樣。
 
    訂正：0.9.25 的紀錄曾說這條規則「從來沒有生效過」，那是錯的 ——
    檢視自己寫的元素即使位於 Modal 內容中，仍會拿到 scope 屬性，規則本來就有效。

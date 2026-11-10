@@ -6,6 +6,7 @@
     所有外部路徑（資料庫、上傳、日誌、金鑰環、備份……共 12 個 ExternalFileSystem 路徑）與 NLog 日誌
     一律導到暫存資料夾，不會寫進開發機的 C:\temp 或正式路徑；每次都是全新的資料庫。
     support 帳號的密碼由 -SupportPassword 指定，沒指定時產生一組隨機的暫時密碼，只印在主控台、不寫入任何檔案。
+    另外開啟瀏覽類稽核（AuditLogSettings:RecordBrowsing），讓情境腳本能檢查開頁稽核。
 
     網站以前景執行（Ctrl+C 結束）；結束後資料夾保留，方便查資料庫與日誌，-Cleanup 則結束時刪除。
     實機驗證腳本在 scripts/e2e/，用法見該資料夾的 README.md。
@@ -49,6 +50,8 @@ if (-not $SupportPassword) {
 $environment = @{
     ASPNETCORE_ENVIRONMENT                               = 'Development'
     BootstrapSettings__SupportPassword                  = $SupportPassword
+    # 開啟瀏覽類稽核（換頁、搜尋、查看；正式預設關閉），讓情境腳本驗證開頁稽核（0.10.1 起）。
+    AuditLogSettings__RecordBrowsing                    = 'true'
     NLog__BasePath                                      = (Join-Path $Root 'logs')
     SystemSettings__ExternalFileSystem__DatabasePath    = (Join-Path $Root 'DB')
     SystemSettings__ExternalFileSystem__DownloadPath    = (Join-Path $Root 'Download')

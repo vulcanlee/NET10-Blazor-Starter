@@ -43,6 +43,26 @@ public static class LogoutConfirm
     }
 
     /// <summary>
+    /// WASM 頁面的登出入口（0.10.1 起）：問過之後交給 <paramref name="signOut"/>（先撤銷 Token、清掉瀏覽器存的 Token，再導去登出頁）。
+    /// 文案與 Server 頁面相同。
+    /// </summary>
+    public static async Task<bool> RequestAsync(ModalService modalService, Func<Task> signOut)
+    {
+        var confirmed = await ConfirmDialog.AskAsync(
+            modalService,
+            "確認登出",
+            "確定要登出嗎？",
+            "登出");
+        if (confirmed == false)
+        {
+            return false;
+        }
+
+        await signOut();
+        return true;
+    }
+
+    /// <summary>
     /// 這個選單項是不是登出？三個入口共用同一個判斷，不要各自硬寫網址字串。
     /// </summary>
     public static bool IsLogoutUrl(string? url)

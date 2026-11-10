@@ -1,3 +1,4 @@
+@* WASM 版的個人資料頁（0.10.1 起，WASM 遷移 M2）：標記與搬遷前相同，資料來自 /api/v1/profile。 *@
 @* 權限判定完成前不渲染任何內容，否則會先閃出頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
 {
@@ -87,11 +88,11 @@ else
             {
                 <div class="profile-row">
                     <span class="profile-label">上次變更</span>
-                    <span>@(profile.PasswordChangedAtUtc is { } changed ? ToLocalText(changed) : "（沒有紀錄）")</span>
+                    <span>@(profile.PasswordChangedAtLocal is { } changed ? ToText(changed) : "（沒有紀錄）")</span>
                 </div>
                 <div class="profile-row">
                     <span class="profile-label">到期</span>
-                    <span>@(profile.PasswordExpiresAtUtc is { } expires ? ToLocalText(expires) : "不會到期")</span>
+                    <span>@(profile.PasswordExpiresAtLocal is { } expires ? ToText(expires) : "不會到期")</span>
                 </div>
                 @if (profile.MustChangePassword)
                 {
@@ -137,8 +138,8 @@ else
                         @foreach (var item in logins)
                         {
                             <tr>
-                                <td>@ToLocalText(item.OccurredAtUtc)</td>
-                                <td>@DescribeAction(item.Action)</td>
+                                <td>@ToText(item.OccurredAtLocal)</td>
+                                <td>@item.Action</td>
                                 @* 0.9.123 起；0.9.117 之前的舊紀錄沒有 IP。 *@
                                 <td class="profile-login-ip">@(item.ClientIp ?? "—")</td>
                                 <td><StatusPill Text="@(item.Success ? "成功" : "失敗")" Tone="@(item.Success ? StatusTone.Positive : StatusTone.Warning)" /></td>

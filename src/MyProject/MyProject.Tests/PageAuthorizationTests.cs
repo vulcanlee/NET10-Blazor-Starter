@@ -316,10 +316,11 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         Assert.Equal(requestedPath, returnUrl);
     }
 
+    /// <summary>Server（MyProject.Web）與 WASM（MyProject.Web.Client，0.10.1 起）兩個組件裡的所有頁面。</summary>
     private static List<Type> GetRoutablePages()
     {
-        return typeof(ReturnUrlGuard).Assembly
-            .GetTypes()
+        return new[] { typeof(ReturnUrlGuard).Assembly, typeof(MyProject.Web.Client.ClientRouteTable).Assembly }
+            .SelectMany(assembly => assembly.GetTypes())
             .Where(type => typeof(IComponent).IsAssignableFrom(type)
                 && type.GetCustomAttributes<RouteAttribute>().Any())
             .ToList();

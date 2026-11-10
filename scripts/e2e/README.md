@@ -29,6 +29,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    $env:E2E_DB_FILE = '<隔離資料夾>\DB\BackendDB.db'
    $env:E2E_OUT_DIR = '<放結果與截圖的資料夾>'
    node ./scripts/e2e/m01-tokens.mjs        # M1 情境＋全部路由煙霧測試
+   node ./scripts/e2e/m02-shell.mjs         # M2 情境＋全部路由煙霧測試
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -51,3 +52,4 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
 | `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果 |
 | `smoke-routes.mjs` | 全部 37 個路由的煙霧測試：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖 |
 | `m01-tokens.mjs` | M1 情境：Cookie 換 Token、刷新輪替與重用偵測、登出撤銷、強制改密碼擋 API、改密碼後其他登入立即失效、登入 Token 清理排程 |
+| `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |
