@@ -1,10 +1,10 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.37
+- 文件版本：2.38
 - 文件狀態：維護中
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.1
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/10
 
 本目錄是產品需求的單一入口。PRD 以**產品能力**為單位；「已實作／部分實作」描述程式現況，「規劃中」必須獨立分區，不代表系統已提供。本專案為通用 Blazor 腳手架，**內建 LLM 日誌分析、AI 例外分析（0.9.68 起，系統例外紀錄明細窗，含針對單筆例外的多輪追問）、Token 用量／費用計價、AI 對話紀錄（0.9.72 起，管理員專屬、保存完整 Prompt／Response）、AI Agent（0.9.142 起，會呼叫工具的 Agent 與多 Agent 工作流程，見「AI Agent」PRD）與系統管理助理（0.9.155 起，管理員專屬的 AI 代理人，異動須經核准；0.9.161 起每天定時巡檢，見「系統管理助理」PRD）**（見「日誌檢視」「系統例外紀錄」「Token 用量」「LLM 呼叫費用估算」「AI 對話紀錄」PRD，機制見 [AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)），但**不含 RAG／向量檢索／通用對話機器人**；PRD 內容一律以程式碼、`Menu.json` 與測試為準。
 
@@ -30,7 +30,7 @@
 | AI Agent | [AI Agent](AI-Agent-prd.md) | `/agent-playground`（Agent 測試台）、`/agent-workflows`（Agent 工作流程）| `Ai/Agents/*`（`AiAgentRunner`、`AiAgentToolFactory`、`AiToolApprovals`）、`Ai/Workflows/*`（`AiWorkflowRunner`、`AiAgentStep`）、`AiAgentFactory`、`AiAgentConversationService` | 已實作（0.9.142 測試台與工具核准；0.9.143 對話保存；0.9.144 工作流程；0.9.145 測試專案；0.9.149 起走 Responses API、推論等級 `AiSettings:AgentReasoningEffort`）| 0.9.163 |
 | 系統備份與還原 | [系統備份與還原](系統備份與還原-prd.md) | `/backups`、`GET /api/backups/{檔名}/download` | `Pages/Admins/BackupPage.razor`、`Web/Backup/*`、`SystemBackupJob`、`BackupController`、`scripts/Restore-Backup.ps1` | 已實作（0.9.99；0.9.143 起可選備份 Agent 對話，0.9.144 起含工作流程的執行紀錄，0.9.161 起含巡檢報告的內容檔；0.9.175 起刻意不含稽核防竄改金鑰）| 0.9.175 |
 | 資料保留與清理 | [資料保留與清理](資料保留與清理-prd.md) | `/data-retention` | `Pages/Admins/DataRetentionPage.razor`、`Web/DataRetention/*`、`Scheduling/RetentionCutoffs`、各資料服務的 `GetRetentionStatsAsync` | 已實作（0.9.133；0.9.134 起含自訂清除；0.9.143 起含 Agent 對話，0.9.144 起含工作流程的執行紀錄；0.9.161 起含巡檢報告；0.9.174 起稽核分兩類保留天數）| 0.9.174 |
-| 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`ProfileService`、`Layout/UserInitials` | 已實作（0.9.102；0.9.123 起登入紀錄顯示來源 IP）| 0.9.163 |
+| 個人資料 | [個人資料](個人資料-prd.md) | `/Profile`（右上角使用者選單）| `MyProject.Web.Client` 的 `Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`、`Layout/UserInitials`；`ProfileController`（`GET`／`PUT /api/v1/profile`）、`ProfileService` | 已實作（0.9.102；0.9.123 起登入紀錄顯示來源 IP；0.10.1 起在 WebAssembly 執行，WASM 遷移 M2 試點）| 0.10.1 |
 | AI 用量配額 | [AI 用量配額](AI用量配額-prd.md) | 全系統與每人的每日、每月新台幣上限，送出前擋下、80%／100% 通知 | `AiQuotaService`、`AiAccountingChatClient` | 已實作（0.9.109；0.9.140 起攔截移至記帳中介層，Agent 與系統管理助理的每一次模型呼叫都檢查；沒有登入使用者的定時巡檢只受全系統上限）| 0.9.163 |
 | AI 提示詞管理 | [AI 提示詞管理](AI提示詞管理-prd.md) | 管理員修改 AI 日誌分析、例外分析、Agent 測試台（0.9.142 起）、Agent 工作流程各 agent（0.9.144 起）與系統管理助理（0.9.155 起，6 個）的提示詞，版本保留可切回；固定規則自動附加 | `PromptTemplateService`、`Web/Ai/AiPromptGuardrails.cs` | 已實作（0.9.108）| 0.9.163 |
 | 通用匯出 | [通用匯出](通用匯出-prd.md) | 專案、分類、團隊、使用者頁「匯出 Excel」；診斷頁 CSV | `Web/Export/*` | 已實作（0.9.107）| 0.9.163 |

@@ -17,12 +17,18 @@ export const anonymousRoutes = ['/Auths/Login', '/Auths/ForgotPassword', '/Auths
 // 登出頁最後跑（會登出）。
 export const logoutRoute = '/Auths/Logout';
 
+// 以 WebAssembly 執行的頁面（0.10.1 起）：等到這個元素出現才算載入完成，再截圖。
+const readySelectors = { '/Profile': '.profile-page' };
+
 async function visit(page, route, recorder, index) {
   const errors = [];
   const onError = (error) => errors.push(error.message);
   page.on('pageerror', onError);
   try {
     const response = await page.goto(route, { waitUntil: 'load', timeout: 45000 });
+    if (readySelectors[route]) {
+      await page.locator(readySelectors[route]).waitFor({ timeout: 60000 }).catch(() => {});
+    }
     await page.waitForTimeout(2500);
     const status = response?.status() ?? 0;
     const blazorError = await page.locator('#blazor-error-ui').isVisible().catch(() => false);

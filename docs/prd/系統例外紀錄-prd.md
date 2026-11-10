@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.172
+- 現行系統版本：0.10.1
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 一、目標與範圍
 
@@ -79,7 +79,7 @@
 同一窗的分析與追問共用一個 `ConversationId`，關聯說明為「例外紀錄 #id（類型）」／「例外紀錄 #id，追問第 n 輪」。
 細節見 [AI 例外分析](../features/AI例外分析.md)。
 
-⚠️ **明細窗的尺寸與內容樣式都寫在 `Components/Commons/OverlayStyles.razor` 的全域 `<style>`**。
+⚠️ **明細窗的尺寸與內容樣式都寫在 `MyProject.Web.Client/Commons/OverlayStyles.razor` 的全域 `<style>`**。
 AntDesign 的 `Modal` 會把內容渲染到元件 DOM 範圍之外，`ExceptionLogView.razor.css`
 的 scoped CSS（連 `::deep`）都打不到。另注意 `.razor` 檔的 `<style>` 裡 `@media` 必須寫成 `@@media`，
 否則 Razor 會當成程式碼轉換而編譯失敗。

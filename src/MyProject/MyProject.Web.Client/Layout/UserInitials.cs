@@ -6,7 +6,7 @@ namespace MyProject.Web.Components.Layout;
 /// 右上角圓形縮寫的文字（0.9.102 起，取代頭像）：姓名的第一個字；英文姓名（含空白、以英文字母開頭）取第一個與最後一個字的字首。
 /// 沒有姓名時用帳號。例：「王小明」→「王」、「John Smith」→「JS」、「Mary Ann Lee」→「ML」、「alice」→「A」。
 /// </summary>
-internal static class UserInitials
+public static class UserInitials
 {
     public static string From(string? name, string? account)
     {

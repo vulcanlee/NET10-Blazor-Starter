@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.19
+- 文件版本：1.20
 - 文件狀態：已實作
-- 現行系統版本：0.9.171
+- 現行系統版本：0.10.1
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 一、目標與範圍
 
@@ -51,7 +51,7 @@
 - **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`，否則簽發 Cookie 並導回本地安全的 `returnUrl`。
 - **登出**：`SignOutAsync(CookieScheme)` 後 `NavigateTo("/Auths/Login", forceLoad: true)`。
   - **使用者主動登出**（0.9.29 起）先經二次確認：三個 UI 入口都走
-    `Components/Commons/LogoutConfirm.cs`，確認後才導向 `/Auths/Logout`。
+    `MyProject.Web.Client/Commons/LogoutConfirm.cs`，確認後才導向 `/Auths/Logout`。
   - ⚠️ **系統強制登出不確認**：`AuthenticationStateHelper` 的六處
     `NavigateTo("/Auths/Logout", true, true)`（無效 Sid／查無使用者／工作階段版本不符（`?reason=session`）／停用／無角色／壞 RoleJson；
     未驗證則導向 `/Auths/Login`、不清 Cookie，0.9.39 起）是系統行為，直接登出 —— 對 session 已經失效的人跳「確定要登出嗎？」只會讓他卡住。

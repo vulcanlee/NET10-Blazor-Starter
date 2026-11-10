@@ -1,0 +1,8 @@
+@page "/Profile"
+@attribute [Authorize]
+@using MyProject.Web.Client.Views.Profiles
+
+@* 0.10.1 起在 WASM 執行（WASM 遷移 M2 試點）。版面 ClientMainLayout 由 ClientRoutes 指定；[Authorize] 讓伺服器在整頁請求時先擋未登入者。 *@
+<PageTitle>個人資料</PageTitle>
+
+<ProfileView />

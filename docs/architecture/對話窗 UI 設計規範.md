@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.2
+- 文件版本：2.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.1
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 目的
 
@@ -39,8 +39,8 @@
 | 分組 | `<FormSection Title="...">`，每組一個小標題 |
 | 窄螢幕 | ≤ 767.98px 塌成單欄，窗擴成 `100vw` × `100svh`、無圓角無邊框 |
 
-尺寸與版型**只寫在** `src/MyProject/MyProject.Web/Components/Commons/OverlayStyles.razor` 的
-`.form-modal` 區塊。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
+尺寸與版型**只寫在** `src/MyProject/MyProject.Web.Client/Commons/OverlayStyles.razor` 的
+`.form-modal` 區塊（0.10.1 起此檔放在 `MyProject.Web.Client`，Server 與 WASM 頁面共用，命名空間不變）。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
 
 ## 2.1 果凍是共用基底，不是逐窗複製 ⚠️
 
@@ -259,7 +259,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ### 9.1 一律走 `ConfirmDialog` 樣板 ⚠️
 
-`Components/Commons/ConfirmDialog.cs`：
+`MyProject.Web.Client/Commons/ConfirmDialog.cs`：
 
 | 方法 | 用途 | 自動帶入 |
 |------|------|----------|

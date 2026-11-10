@@ -2,7 +2,7 @@
 @using MyProject.Web.Ai
 
 @*
-    AI 對話紀錄明細（0.9.72 起）。尺寸寫在 Components/Commons/OverlayStyles.razor 的 .ai-call-log-modal
+    AI 對話紀錄明細（0.9.72 起）。尺寸寫在 MyProject.Web.Client/Commons/OverlayStyles.razor 的 .ai-call-log-modal
     （AntDesign 的 Modal 外框渲染在元件 DOM 之外），刻意不設 Width（見速查 §6.4）；
     窗內內容是本元件自己的標記，樣式在本元件的 .razor.css。
     純唯讀、不含 EditForm，所以 Esc 直接交給 Modal 的 Keyboard 處理。

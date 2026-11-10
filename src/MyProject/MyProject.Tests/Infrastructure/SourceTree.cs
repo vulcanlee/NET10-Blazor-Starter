@@ -25,6 +25,12 @@ internal static class SourceTree
     /// <summary><c>MyProject.Web/Components</c>。</summary>
     public static string Components => Path.Combine(Web, "Components");
 
+    /// <summary>
+    /// 所有畫面程式的根目錄（0.10.1 起）：Server 版的 <c>MyProject.Web/Components</c> 與 WASM 的 <c>MyProject.Web.Client</c>。
+    /// 「每個頁面都要…」這類規則要掃這兩處；WASM 遷移期間頁面會逐批從前者搬到後者。
+    /// </summary>
+    public static IReadOnlyList<string> UiRoots => [Components, Client];
+
     /// <summary>repo 的 <c>docs</c> 目錄。</summary>
     public static string Docs => Path.Combine(RepoRoot, "docs");
 

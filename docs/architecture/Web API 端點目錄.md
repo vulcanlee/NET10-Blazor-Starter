@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.10.0
+- 現行系統版本：0.10.1
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/10
 
@@ -79,6 +79,26 @@
 |------|------|------|
 | 觸發 Google 驗證 | `GET Auths/Google/Login` | 未設定金鑰時導回 `/Auths/Login`|
 | 驗證回呼 | `GET Auths/Google/Callback` | 查找/建立帳號；依 `ExternalLoginResult.Evaluate` 的順序：已刪除導回 `/Auths/Login?sso=deleted`、停用（待開通）導向 `/Auths/Pending`、鎖定導回 `/Auths/Login?sso=locked`；已啟用兩步驟驗證且這台裝置沒被記住時導向 `/Auths/TwoFactor`，其餘完成 Cookie 登入 |
+
+## 五之一、WASM 外框與個人資料（0.10.1 起，WASM 遷移 M2）
+
+只有 `api/v1` 路由；一律 `[Authorize(JwtBearer)]`，只能讀改**自己**的資料（使用者一律取自 `CurrentUserService`，由 `ApiActorMiddleware` 依存取 Token 載入），回傳 `ApiResult<T>`。
+時間欄位（`*Local`）已換成伺服器的本地時間，前端照字面顯示。DTO 在 `MyProject.Dtos/Shell`。
+
+| 控制器 | 動作 | 路由 | 回傳／說明 |
+|---|---|---|---|
+| `ShellController` | 系統資訊 | `GET shell/info` | `ShellInfoDto`：系統名稱、描述、版本、環境、啟動時間、各頁說明主題（路由、標題）|
+| | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（規則同 Server 版側邊欄的 `CheckAccessPage`），以及全部選單網址 |
+| | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
+| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 Server 版電路）。只接受已搬到 WASM 的頁面路徑（`ClientRouteTable`），每位使用者每分鐘最多 60 筆，超過的不記 |
+| | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數），超過回 `accepted=false` |
+| `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
+| | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
+| | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |
+| `AnnouncementsController` | 目前公告 | `GET announcements/active` | 挑選規則與 Server 版公告橫幅共用 `AnnouncementBanner.Select`（時間、對象、沒被關閉）|
+| | 關閉 | `POST announcements/{id}/dismiss` | |
+| `ProfileController` | 個人資料 | `GET profile` | `ProfileDto`：帳號、姓名、Email、角色、團隊、密碼與兩步驟驗證狀態、最近 20 筆登入紀錄（動作已轉成中文）|
+| | 改姓名 | `PUT profile/name` | body 帶 `ConcurrencyStamp`；別人同時改過或姓名不合規則回 400 |
 
 ## 六、Controller 端預設拒絕（0.4.34 起）
 

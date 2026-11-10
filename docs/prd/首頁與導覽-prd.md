@@ -1,10 +1,10 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.27
+- 文件版本：1.28
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.1
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 一、目標與範圍
 
@@ -55,7 +55,7 @@
   > 0.9.16 已把 `NavMenu.razor.css`／`MainLayout.razor.css` 與兩個按鈕元件裡
   > 那些無效的 `font-size` 清掉，**不要再往那裡加**。
   >
-  > 0.9.15 起另有**光學尺寸補正**（`Components/Layout/MaterialIconOpticalSize.cs`）：
+  > 0.9.15 起另有**光學尺寸補正**（`MyProject.Web.Client/Layout/MaterialIconOpticalSize.cs`）：
   > 各字面的墨跡在同一個 em 方框內佔的高度不同，字級一樣不代表看起來一樣大。
   > 以 100px 字級實測，`home` 只有 72、`work` 80、`admin_panel_settings` 84，
   > 所以「首頁」的房子補到 27px 才與鄰居視覺齊平。
@@ -74,7 +74,7 @@
 - 頂欄頁名（`MainLayout.ResolvePageTitle`）：先找選單；不在選單的登入後頁面用 `HelpTopics.json` 的頁名（0.9.102 起，之前顯示「系統首頁」）。
 - **登出需二次確認**（0.9.29 起）：三個登出入口（右上角使用者選單、側邊欄展開、側邊欄收合）
   按下後都先跳確認窗「確認登出／確定要登出嗎？」，選「登出」才真的登出，選「取消」留在原頁。
-  行為收斂在 `Components/Commons/LogoutConfirm.cs`，由 `MyProject.Tests/LogoutConfirmationConventionTests.cs` 守門。
+  行為收斂在 `MyProject.Web.Client/Commons/LogoutConfirm.cs`，由 `MyProject.Tests/LogoutConfirmationConventionTests.cs` 守門。
   ⚠️ 系統的**強制登出**（session 失效、查無使用者、角色遺失…）刻意**不確認** ——
   那是系統行為不是使用者意圖。詳見 [登入與帳號流程 PRD](登入與帳號流程-prd.md)。
   - ⚠️ **版面層級**（0.4.44 修正）：`.top-row` 帶 `z-index` 即建立 stacking context，選單自己的 `z-index: 20` 只在其內部有效，整個頂部列是以 `.top-row` 的數值參與根層級堆疊。該值必須高於 AntDesign 表格的固定欄／sticky 標頭（2–4），否則「關於」「登出」會被有固定「操作」欄的頁面蓋住。詳見 [開發慣例與限制速查 §6.2](../architecture/開發慣例與限制速查.md)。

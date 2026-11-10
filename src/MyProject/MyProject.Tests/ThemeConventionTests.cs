@@ -85,9 +85,11 @@ public sealed class ThemeConventionTests
 
         Assert.True(File.Exists(themeCss), $"找不到色票檔 {themeCss}。");
 
-        var files = Directory
-            .EnumerateFiles(Path.Combine(webRoot, "Components"), "*.css", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(Path.Combine(webRoot, "Components"), "*.razor", SearchOption.AllDirectories))
+        // 0.10.1 起 WASM 頁面在 MyProject.Web.Client，同樣只能用 theme.css 的色票。
+        var files = SourceTree.UiRoots
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.css", SearchOption.AllDirectories)
+                .Concat(Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories)))
+            .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(x => x is "bin" or "obj" or "wwwroot"))
             .Concat([Path.Combine(webRoot, "wwwroot", "app.css")])
             .Where(File.Exists)
             .ToList();

@@ -1,10 +1,10 @@
 ﻿# 個人資料 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.10.1
 - 首次實作版本：0.9.102
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 一、目標與範圍
 
@@ -15,12 +15,13 @@
   `/ChangePassword` 保留為獨立頁。
 
 > 歷史：0.9.63 之前 `/Profile` 是「設定 API 密碼」頁，已移除；0.9.102 起同一個路由改為個人資料頁，與 API 密碼無關。
+> 0.10.1 起（WASM 遷移 M2 試點）本頁改在 **WebAssembly** 執行：畫面放在 `MyProject.Web.Client`，資料改由 `GET`／`PUT /api/v1/profile`（`ProfileController`）取得與存檔；畫面、欄位與規則不變。
 
 ## 二、使用者與入口
 
 | 入口 | 位置 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
-| `/Profile` | 右上角使用者選單「個人資料」（不在左側選單）| 登入即可（`Pages/_Imports.razor` 的 `[Authorize]`；比照 `/ChangePassword` 不經選單權限）| 所有登入者 |
+| `/Profile` | 右上角使用者選單「個人資料」（不在左側選單）| 登入即可（0.10.1 起頁面自帶 `[Authorize]`，伺服器在整頁請求時先擋未登入者；比照 `/ChangePassword` 不經選單權限）| 所有登入者 |
 
 ## 三、畫面與欄位
 
@@ -42,6 +43,10 @@
     成功且是目前使用者時更新 `CurrentUserService.CurrentUser.Name` 並 `NotifyChanged()`。
 - `CurrentUserService.Changed`：`AuthenticationStateHelper.Check`（每個頁面初始化時）載入最新資料後觸發、個人資料存檔後觸發；`MainLayout` 聽它更新姓名與縮寫。
   ⚠️ 不能改聽換頁事件（`LocationChanged`）：它在新頁面的登入檢查之前觸發，讀到的還是舊資料。管理員改了別人的姓名，對方在下一次換頁時更新。
+- **WASM 執行（0.10.1 起）**：`ProfileView` 經 `ApiClient`（帶 Bearer Token）呼叫 `ProfileController`（`[Authorize(JwtBearer)]`，使用者一律取自 `CurrentUserService`，只能讀改自己）：
+  - `GET /api/v1/profile` → `ProfileDto`：`ProfileService.GetAsync` 與 `GetRecentLoginsAsync` 的結果，時間已換成伺服器本地時間（`*Local`），登入動作已由 `ProfileController.DescribeLoginAction` 轉成中文。
+  - `PUT /api/v1/profile/name`（body 帶 `ConcurrencyStamp`）→ `ProfileService.UpdateNameAsync`；姓名不合規則或版本號不符回 400。
+  - 存檔成功後重新讀取，並以 `ClientSession.UpdateName` 通知 WASM 版外框（`ClientMainLayout`）更新右上角姓名與縮寫。
 
 ## 五、權限與安全
 
@@ -61,5 +66,6 @@
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Business/Services/DataAccess/ProfileService.cs`、`Services/Other/CurrentUserService.cs`
-- `src/MyProject/MyProject.Web/Components/Pages/ProfilePage.razor`、`Components/Views/Profiles/ProfileView`、`Components/Layout/UserInitials.cs`、`MainLayout`
+- `src/MyProject/MyProject.Web/Controllers/ProfileController.cs`（0.10.1 起；含 `DescribeLoginAction`）、DTO 在 `MyProject.Dtos/Shell`（`ProfileDto`、`UpdateProfileNameDto`）
+- `src/MyProject/MyProject.Web.Client/Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`（`.razor`／`.razor.cs`／`.razor.css`）、`Layout/UserInitials.cs`、`Layout/ClientMainLayout`（0.10.1 起；Server 頁面仍用 `MyProject.Web` 的 `MainLayout`）
 - 操作說明 `profile.md`；[登入與帳號流程](登入與帳號流程-prd.md)、[使用者管理](使用者管理-prd.md)

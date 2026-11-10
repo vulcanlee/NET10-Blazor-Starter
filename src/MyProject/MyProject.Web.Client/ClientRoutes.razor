@@ -1,0 +1,87 @@
+@using MyProject.Web.Client.Commons
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject MyProject.Web.Client.Auth.ClientSession Session
+
+@*
+    WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；對應 Server 版的 Routes.razor）。
+    只認得本組件的頁面（ClientRouteTable）；導向其他網址時改成整頁載入，交給 Server 版處理。
+*@
+<ConfigProvider>
+    <Router AppAssembly="typeof(ClientRoutes).Assembly" OnNavigateAsync="OnNavigateAsync">
+        <Found Context="routeData">
+            <ClientErrorBoundary>
+                <ChildContent>
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(ClientMainLayout)" />
+                    <FocusOnNavigate RouteData="routeData" Selector="h1" />
+                </ChildContent>
+                <ErrorContent Context="exception">
+                    <div class="alert alert-danger" role="alert">
+                        <strong>這個頁面發生未預期的錯誤。</strong>
+                        錯誤已記錄，請重新整理頁面；若持續發生請聯絡系統管理員。
+                    </div>
+                </ErrorContent>
+            </ClientErrorBoundary>
+        </Found>
+        <NotFound>
+            <div class="alert alert-warning" role="alert">找不到這個頁面。<a href="/App">回首頁</a></div>
+        </NotFound>
+    </Router>
+
+    @* 浮層全域樣式與 AntContainer：與 Server 版相同的位置與錯誤邊界（見 Routes.razor 的說明）。 *@
+    <OverlayStyles />
+
+    <ClientErrorBoundary @ref="overlayBoundary">
+        <ChildContent>
+            <AntContainer />
+        </ChildContent>
+        <ErrorContent Context="exception">
+            <div class="alert alert-danger overlay-error-banner" role="alert">
+                <strong>畫面元件發生錯誤，已記錄。</strong>
+                請<a href="" @onclick="ReloadPage" @onclick:preventDefault>重新整理頁面</a>；若持續發生請聯絡系統管理員。
+            </div>
+        </ErrorContent>
+    </ClientErrorBoundary>
+</ConfigProvider>
+
+@code {
+    private ClientErrorBoundary? overlayBoundary;
+    private bool isInitialNavigation = true;
+
+    /// <summary>這個頁面是誰的網頁登入（主機從 Cookie 取出；瀏覽器存的 Token 必須屬於這個人，見 ClientSession.ExpectedUserId）。</summary>
+    [Parameter]
+    public int ExpectedUserId { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Session.ExpectedUserId = ExpectedUserId;
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    /// <summary>
+    /// 不是 WASM 頁面的網址（例如側邊欄連到 Server 頁面）：整頁載入目前的網址，交給 Server 版。
+    /// ⚠️ 用 NavigationManager.Uri（本站的完整網址），不從路徑重組（避免 //evil.com 被當成別的網站）；
+    /// 剛整頁載入的第一次導覽不再重載 —— 主機判定是 WASM 頁面、這裡卻不認得時，重載只會無限迴圈，改顯示找不到頁面。
+    /// </summary>
+    private void OnNavigateAsync(NavigationContext context)
+    {
+        var isInitial = isInitialNavigation;
+        isInitialNavigation = false;
+        if (!isInitial && !ClientRouteTable.IsClientRoute(context.Path))
+        {
+            NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(() => overlayBoundary?.Recover());
+    }
+
+    private void ReloadPage() => NavigationManager.Refresh(forceReload: true);
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

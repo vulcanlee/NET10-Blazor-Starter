@@ -26,7 +26,18 @@
 </head>
 
 <body>
-    <Routes @rendermode="@RenderModeForPage()" />
+    @*
+        WASM 遷移（0.10.1 起）：已搬到 MyProject.Web.Client 的頁面（ClientRouteTable）以 WebAssembly 執行，根元件換成 ClientRoutes；
+        其餘維持 Server。兩邊的路由器遇到不歸自己管的網址時都改成整頁載入。
+    *@
+    @if (IsClientPage)
+    {
+        <MyProject.Web.Client.ClientRoutes @rendermode="@RenderModeForPage()" ExpectedUserId="@SignedInUserId" />
+    }
+    else
+    {
+        <Routes @rendermode="@RenderModeForPage()" />
+    }
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 
@@ -36,6 +47,11 @@
     <script src="@Assets["js/clipboard.js"]"></script>
     <script src="@Assets["js/nav-state.js"]"></script>
     <script src="@Assets["js/client-error-reporter.js"]"></script>
+    @if (IsLoginPage)
+    {
+        @* 換人登入前清掉 WASM 頁面存在瀏覽器的 Token（0.10.1 起），不會沿用上一個人的登入。 *@
+        <script src="@Assets["js/auth-reset.js"]"></script>
+    }
 </body>
 
 </html>

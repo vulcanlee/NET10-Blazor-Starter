@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.26
+- 文件版本：1.27
 - 文件狀態：已實作
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.1
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/10
 
 ## 一、目標與範圍
 
@@ -74,7 +74,7 @@ UTC 原值一併呈現是刻意的：跨時區協查或要與日誌檔的時間�
 資料表只存相對路徑 `ContentFile`；清單查詢不讀檔，開明細窗時才經 `AuditLogQueryService.GetContentAsync` 讀取，檔案不在時顯示說明。
 內容檔不進 CSV、不進日誌；清除 N 天前、清空全部與自動清理都會連同內容檔一起刪（`AuditContentFileStore` 是唯一入口），系統備份也會打包（`files/AuditContent`）。
 
-尺寸與內容樣式寫在 `Components/Commons/OverlayStyles.razor` 的 `.audit-log-modal`，
+尺寸與內容樣式寫在 `MyProject.Web.Client/Commons/OverlayStyles.razor` 的 `.audit-log-modal`，
 **不是** `AuditLogView.razor.css` —— AntDesign 的 `Modal` 渲染在元件 DOM 之外，
 scoped CSS 連 `::deep` 都打不到。
 
