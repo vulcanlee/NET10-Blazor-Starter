@@ -431,18 +431,24 @@ public sealed class AuthenticationStateHelperTests
         {
             var rolePermissionService = new RolePermissionService();
 
-            return new AuthenticationStateHelper(
-                loggerFactory.CreateLogger<AuthenticationStateHelper>(),
+            var myUserService = new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
+            var loader = new CurrentUserLoader(
+                loggerFactory.CreateLogger<CurrentUserLoader>(),
                 mapper,
-                new MyUserService(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()), CurrentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy()),
-                CurrentUserService,
+                myUserService,
                 rolePermissionService,
                 new EffectiveTeamResolver(Context, new ContextTeamTreeCache(Context), NullLogger<EffectiveTeamResolver>.Instance),
                 new PermissionChecker(Context, NullLogger<PermissionChecker>.Instance),
-                new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()),
                 passwordPolicy ?? PasswordTestDefaults.Policy(),
-                new SecurityStampService(new TestDbContextFactory(connection), TimeProvider.System, NullLogger<SecurityStampService>.Instance),
+                new SecurityStampService(new TestDbContextFactory(connection), new SecurityStampCache(), TimeProvider.System, NullLogger<SecurityStampService>.Instance),
                 TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), currentUser: CurrentUserService, settings: TwoFactorSettings));
+
+            return new AuthenticationStateHelper(
+                loggerFactory.CreateLogger<AuthenticationStateHelper>(),
+                loader,
+                myUserService,
+                CurrentUserService,
+                new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()));
         }
 
         public async Task<MyUser> AddUserAsync(

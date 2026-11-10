@@ -526,21 +526,5 @@ public sealed class PageHelpCatalogTests
 
     private static string LocateHelpDirectory() => LocateWebPath(Path.Combine("Datas", "Help"));
 
-    private static string LocateWebPath(string relativePath)
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web", relativePath);
-            if (File.Exists(candidate) || Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException($"找不到 MyProject.Web 底下的 {relativePath}（從 {AppContext.BaseDirectory} 往上找）。");
-    }
+    private static string LocateWebPath(string relativePath) => SourceTree.WebFile(relativePath);
 }

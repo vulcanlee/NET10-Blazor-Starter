@@ -364,26 +364,5 @@ public sealed class FormModalConventionTests
         return results;
     }
 
-    private static string FindComponentsRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web", "Components");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "Components");
-            if (Directory.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web/Components。");
-    }
+    private static string FindComponentsRoot() => SourceTree.Components;
 }

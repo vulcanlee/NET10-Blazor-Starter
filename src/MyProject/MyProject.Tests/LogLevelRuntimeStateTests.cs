@@ -218,22 +218,7 @@ public sealed class LogLevelRuntimeStateTests : IDisposable
         Assert.DoesNotContain(memory.Logs, line => line.Contains("MS-DEBUG"));
     }
 
-    private static string FindRealNlogConfig()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "nlog.config");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new FileNotFoundException("找不到 MyProject.Web/nlog.config。");
-    }
+    private static string FindRealNlogConfig() => SourceTree.WebFile("nlog.config");
 
     [Theory]
     [InlineData(LogLevelRank.Trace, 0)]

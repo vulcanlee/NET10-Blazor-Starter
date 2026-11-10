@@ -39,7 +39,8 @@ public sealed class ScaffoldScriptConventionTests
         Assert.True(offenders.Count == 0, "這些檔案只寫了 JWT 佔位金鑰的前綴，複刻新專案時殘留掃描會固定印出警告（請改寫成「DevelopmentOnly-…」）：" + string.Join("、", offenders));
     }
 
-    public static TheoryData<string> Scripts => ["New-CrudModule.ps1", "New-StarterProject.ps1"];
+    /// <summary>會啟動主機的腳本（dotnet ef 與實機驗證用的 Start-E2EHost.ps1，0.10.0 起）。</summary>
+    public static TheoryData<string> Scripts => ["New-CrudModule.ps1", "New-StarterProject.ps1", "Start-E2EHost.ps1"];
 
     [Theory]
     [MemberData(nameof(Scripts))]
@@ -87,19 +88,5 @@ public sealed class ScaffoldScriptConventionTests
         Assert.True(missing.Count == 0, "這些測試依賴腳手架自己的 migration 歷史，請加進 New-StarterProject.ps1 的 $starterMigrationTests：" + string.Join("、", missing));
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "scripts", "New-StarterProject.ps1")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到含 scripts/New-StarterProject.ps1 的 repo 根目錄。");
-    }
+    private static string FindRepoRoot() => SourceTree.RepoRoot;
 }

@@ -35,6 +35,7 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<UserRole> UserRole { get; set; }
     public virtual DbSet<UserTeam> UserTeam { get; set; }
     public virtual DbSet<PasswordResetToken> PasswordResetToken { get; set; }
+    public virtual DbSet<RefreshSession> RefreshSession { get; set; }
     public virtual DbSet<JobRun> JobRun { get; set; }
     public virtual DbSet<ScheduledJobState> ScheduledJobState { get; set; }
     public virtual DbSet<SystemParameter> SystemParameter { get; set; }
@@ -242,6 +243,20 @@ public partial class BackendDBContext : DbContext
 
             // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：MyUserService.DeleteAsync
             // 不會先刪相依資料，Restrict 會讓「有未用 token 的使用者」刪除失敗。
+            entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        #endregion
+
+        #region 刷新 Token（0.10.0 起）
+        modelBuilder.Entity<RefreshSession>(entity =>
+        {
+            // 以雜湊查 Token；唯一索引同時是「兩次產生出同一個值」的最後防線。
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => x.FamilyId);
+            entity.HasIndex(x => x.LoginSessionId);
+            entity.HasIndex(x => x.ExpiresAtUtc);
+
+            // ⚠️ 必須寫在上方 Restrict 迴圈之後並明確設 Cascade：徹底刪除使用者時一併刪掉他的刷新 Token。
             entity.HasOne(x => x.MyUser).WithMany().HasForeignKey(x => x.MyUserId).OnDelete(DeleteBehavior.Cascade);
         });
         #endregion

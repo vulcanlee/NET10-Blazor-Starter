@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.10.0
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -61,13 +61,15 @@
 
 ## 四、認證控制器 `AuthController`
 
-`src/MyProject/MyProject.Web/Controllers/AuthController.cs`，路由 `api/Auth`、`api/v1/Auth`；帳密換 JWT。
+`src/MyProject/MyProject.Web/Controllers/AuthController.cs`，路由 `api/Auth`、`api/v1/Auth`；帳密換 token。0.10.0 起刷新 token 存在伺服器端、每次使用就輪替（規則見《[認證授權與權限機制](../security/認證授權與權限機制.md)》「刷新 Token」）。
 
 | 動作 | 路由 | 授權 | 回傳 |
 |------|------|------|------|
-| 登入 | `POST Auth/login` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（失敗回 `Unauthorized`；已啟用兩步驟驗證要在 body 帶 `TwoFactorCode`，沒帶回 401「需要兩步驟驗證碼。」且不計入失敗次數；必須使用兩步驟驗證卻還沒設定的帳號一律 401，0.9.104 起）|
-| 換發 Token | `POST Auth/refresh` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（Refresh Token 無效、帳號已停用或刪除、工作階段已失效（0.9.103 起比對 `SecurityStamp`）都回 `Unauthorized`，並寫稽核 `Token.RefreshFailed`）|
-| 目前使用者 | `GET Auth/me` | `[Authorize(JwtBearer)]` | `ApiResult<CurrentUserDto>`（讀 JWT Claims）|
+| 登入 | `POST Auth/login` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`（失敗回 `Unauthorized`；已啟用兩步驟驗證要在 body 帶 `TwoFactorCode`，沒帶回 401「需要兩步驟驗證碼。」且不計入失敗次數；必須使用兩步驟驗證卻還沒設定的帳號一律 401，0.9.104 起）。0.10.0 起 `refreshToken` 是不透明字串、`isPersistent=true` |
+| 換發 Token | `POST Auth/refresh` | `[AllowAnonymous]` | `ApiResult<TokenResponseDto>`，回傳新的一組 token，舊的刷新 token 隨即失效（0.10.0 起輪替）。不認得、已過期或已撤銷、帳號已停用或刪除、工作階段已失效都回 `Unauthorized`「Refresh Token 無效或已過期。」並寫稽核 `Token.RefreshFailed`；已被換掉的舊 token 又被使用時整串撤銷並寫 `Token.ReuseDetected` |
+| 登出 | `POST Auth/logout` | `[AllowAnonymous]`＋`[AllowDuringForcedSetup]` | 0.10.0 起。body 帶 `RefreshToken`，撤銷所屬整串；一律回 `ApiResult` 成功（避免試探），認得時寫稽核 `Logout`（`via=api`） |
+| 網頁 Cookie 換 Token | `POST Auth/bridge` | `[AllowAnonymous]`（自己驗證 Cookie）＋`[AllowDuringForcedSetup]` | 0.10.0 起，WASM 遷移過渡期。必須帶標頭 `X-MyProject-Client`，沒帶回 400；Cookie 無效回 401。回 `ApiResult<TokenResponseDto>`，`isPersistent` 沿用 Cookie 的「記住我」|
+| 目前使用者 | `GET Auth/me` | `[Authorize(JwtBearer)]`＋`[AllowDuringForcedSetup]` | 0.10.0 起 `ApiResult<SessionInfoDto>`（從資料庫讀：身分、有效權限、有效團隊、`mustChangePassword`、`requiresTwoFactorSetup`、`twoFactorEnabled`；以前是 `CurrentUserDto`、只讀 JWT Claims）|
 
 ## 五、Google 第三方登入 `ExternalAuthController`
 
@@ -81,7 +83,9 @@
 ## 六、Controller 端預設拒絕（0.4.34 起）
 
 `Program.cs` 的 `app.MapControllers().RequireAuthorization()` 讓**未明確標註授權的 Controller 一律拒絕**。
-需要匿名存取的端點必須自己標 `[AllowAnonymous]`（目前為 `AuthController` 的 login/refresh 與整個 `ExternalAuthController`）。
+需要匿名存取的端點必須自己標 `[AllowAnonymous]`（目前為 `AuthController` 的 login/refresh/logout/bridge 與整個 `ExternalAuthController`）。
+
+0.10.0 起，以 access token 呼叫且使用者被要求先改密碼或先設定兩步驟驗證時，全域的 `ApiSessionGateFilter` 讓業務 API 一律回 403 `ApiResult`（`errorCode`：`PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`），只有標 `[AllowDuringForcedSetup]` 的端點放行。
 
 > 刻意**只**套在 Controller 上，不使用 `AuthorizationOptions.FallbackPolicy`。Blazor 頁面另有自己的
 > 「預設需登入」機制（0.9.41 起）：`Components/Pages/_Imports.razor` 對整個 `Pages/` 標 `[Authorize]`，

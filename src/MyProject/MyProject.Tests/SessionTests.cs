@@ -262,7 +262,7 @@ public sealed class SessionTests : IDisposable
     private SessionRefreshTicketService Tickets(TimeProvider? timeProvider = null)
         => new(DataProtectionProvider.Create("SessionTests"), timeProvider ?? TimeProvider.System, NullLogger<SessionRefreshTicketService>.Instance);
 
-    private SecurityStampService StampService() => new(factory, time, NullLogger<SecurityStampService>.Instance);
+    private SecurityStampService StampService() => new(factory, new SecurityStampCache(), time, NullLogger<SecurityStampService>.Instance);
 
     private MyUserService UserService()
     {
@@ -400,8 +400,10 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
         var refreshed = await client.PostAsJsonAsync("/api/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = tokens.RefreshToken });
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
 
+        // 0.10.0 起刷新 Token 每次使用就輪替：接下來要用的是剛換到的新 Token（再用舊的會被判定為重用，見 TokenApiIntegrationTests）。
+        var current = (await refreshed.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!.RefreshToken;
         await factory.Services.GetRequiredService<ISecurityStampService>().RotateAsync(user.Id);
-        var rejected = await client.PostAsJsonAsync("/api/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = tokens.RefreshToken });
+        var rejected = await client.PostAsJsonAsync("/api/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = current });
         Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
 
         using var scope = factory.Services.CreateScope();

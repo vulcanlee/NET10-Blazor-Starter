@@ -111,23 +111,5 @@ public sealed class AdminPatrolNotificationTests
         Assert.Equal(ReportId, parsed);
     }
 
-    private static string FindWebProjectDirectory()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            foreach (var prefix in new[] { "", Path.Combine("src", "MyProject") })
-            {
-                var candidate = Path.Combine(dir.FullName, prefix, "MyProject.Web");
-                if (File.Exists(Path.Combine(candidate, "MyProject.Web.csproj")))
-                {
-                    return candidate;
-                }
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web 專案目錄。");
-    }
+    private static string FindWebProjectDirectory() => SourceTree.Web;
 }

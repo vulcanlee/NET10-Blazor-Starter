@@ -469,16 +469,7 @@ public sealed class SystemParameterTests
         }
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "docs")))
-        {
-            dir = dir.Parent;
-        }
-
-        return dir?.FullName ?? throw new DirectoryNotFoundException("找不到 repo 根目錄（含 docs）。");
-    }
+    private static string FindRepoRoot() => SourceTree.RepoRoot;
 
     private sealed class RejectValue(int rejected) : IValidateOptions<SlowOperationSettings>
     {

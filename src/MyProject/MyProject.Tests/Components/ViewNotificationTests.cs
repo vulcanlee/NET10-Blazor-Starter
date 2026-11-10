@@ -182,28 +182,7 @@ public sealed class ViewNotificationTests : ComponentTestBase
                 + Environment.NewLine + string.Join(Environment.NewLine, violations));
     }
 
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web");
-            if (Directory.Exists(candidate))
-            {
-                return dir.FullName;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(srcCandidate, "MyProject.Web")))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 src/MyProject。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 
     /// <summary>記下每一筆日誌的等級與通知內文（結構化參數 NotificationText）。</summary>
     private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger

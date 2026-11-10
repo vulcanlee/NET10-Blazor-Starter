@@ -79,26 +79,5 @@ public sealed class DatabaseInitializerConventionTests
             || relative.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
     }
 
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web");
-            if (Directory.Exists(candidate))
-            {
-                return dir.FullName;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(srcCandidate, "MyProject.Web")))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 src/MyProject。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 }

@@ -11,6 +11,12 @@ namespace MyProject.Web.Auth;
 /// </summary>
 public static class CookieClaims
 {
+    /// <summary>
+    /// 這次網頁登入的識別（0.10.0 起，Guid "N"）。WASM 頁面以 Cookie 換 Token 時記在刷新 Token 紀錄上，
+    /// 從網頁登出時依它撤銷這次登入換出的 Token。
+    /// </summary>
+    public const string LoginSessionClaimType = "login_session";
+
     public static ClaimsPrincipal Create(MyUser user)
     {
         var claims = new List<Claim>
@@ -20,6 +26,7 @@ public static class CookieClaims
             new(ClaimTypes.NameIdentifier, user.Account),
             new(ClaimTypes.Sid, user.Id.ToString()),
             new(MagicObjectHelper.SecurityStampClaimType, user.SecurityStamp),
+            new(LoginSessionClaimType, Guid.NewGuid().ToString("N")),
         };
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, MagicObjectHelper.CookieScheme));

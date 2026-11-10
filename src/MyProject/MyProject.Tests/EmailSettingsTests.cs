@@ -204,26 +204,5 @@ public sealed class EmailSettingsTests
         return services.BuildServiceProvider();
     }
 
-    private static string FindWebRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            foreach (var candidate in new[]
-            {
-                Path.Combine(dir.FullName, "MyProject.Web"),
-                Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web"),
-            })
-            {
-                if (File.Exists(Path.Combine(candidate, "appsettings.json")))
-                {
-                    return candidate;
-                }
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web。");
-    }
+    private static string FindWebRoot() => SourceTree.Web;
 }

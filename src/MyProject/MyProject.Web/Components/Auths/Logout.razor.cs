@@ -11,12 +11,14 @@ namespace MyProject.Web.Components.Auths
     {
         private readonly ILogger<Logout> logger;
         private readonly IAuditLogService auditLogService;
+        private readonly IRefreshTokenStore refreshTokenStore;
         string errorMessage = string.Empty;
 
-        public Logout(ILogger<Logout> logger, IAuditLogService auditLogService)
+        public Logout(ILogger<Logout> logger, IAuditLogService auditLogService, IRefreshTokenStore refreshTokenStore)
         {
             this.logger = logger;
             this.auditLogService = auditLogService;
+            this.refreshTokenStore = refreshTokenStore;
         }
 
         [CascadingParameter]
@@ -38,6 +40,13 @@ namespace MyProject.Web.Components.Auths
             {
                 // 登出後 User 就清空了，身分必須在 SignOut 之前取（LOG-15）。
                 var (account, userId) = RequestActorResolver.Resolve(HttpContext.User);
+
+                // 這次網頁登入換給 WASM 頁面的 Token 一併撤銷（0.10.0 起），登出後 Token 就不能再刷新。
+                var loginSessionId = HttpContext.User.FindFirst(CookieClaims.LoginSessionClaimType)?.Value;
+                if (!string.IsNullOrEmpty(loginSessionId))
+                {
+                    await refreshTokenStore.RevokeByLoginSessionAsync(loginSessionId, "WebLogout");
+                }
 
                 await HttpContext.SignOutAsync(MagicObjectHelper.CookieScheme);
                 await Task.Delay(200);

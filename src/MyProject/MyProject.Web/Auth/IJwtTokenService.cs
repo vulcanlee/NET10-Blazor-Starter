@@ -1,14 +1,14 @@
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Services.Other;
 using MyProject.Dtos.Auths;
 
 namespace MyProject.Web.Auth;
 
 public interface IJwtTokenService
 {
-    TokenResponseDto CreateTokenResponse(MyUser user);
-
-    RefreshTokenIdentity ValidateRefreshToken(string refreshToken);
+    /// <summary>
+    /// 簽發存取 Token，並與 <see cref="IRefreshTokenStore"/> 發出的刷新 Token 組成回應（0.10.0 起）。
+    /// 刷新 Token 不再是 JWT，而是存在伺服器端、可輪替與撤銷的不透明字串。
+    /// </summary>
+    TokenResponseDto CreateTokenResponse(MyUser user, IssuedRefreshToken refreshToken, bool isPersistent);
 }
-
-/// <summary>refresh token 驗證後的身分與它簽發時的工作階段版本（0.9.103 起）。</summary>
-public sealed record RefreshTokenIdentity(CurrentUserDto User, string SecurityStamp);

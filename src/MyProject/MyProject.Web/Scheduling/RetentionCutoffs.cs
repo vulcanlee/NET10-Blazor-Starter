@@ -22,6 +22,9 @@ public static class RetentionCutoffs
     /// <summary>寄信紀錄（0.9.167 起）：<c>CreatedAtUtc</c>。</summary>
     public static DateTime EmailLog(int days, TimeProvider timeProvider) => Utc(days, timeProvider);
 
+    /// <summary>刷新 Token 紀錄（0.10.0 起）：<c>ExpiresAtUtc</c> 已過就清，沒有保留天數。</summary>
+    public static DateTime RefreshSession(TimeProvider timeProvider) => timeProvider.GetUtcNow().UtcDateTime;
+
     /// <summary>排程執行紀錄：<c>StartedAtUtc</c>。</summary>
     public static DateTime JobRun(int days, TimeProvider timeProvider) => Utc(days, timeProvider);
 

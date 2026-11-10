@@ -1,10 +1,10 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.10.0
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/10
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
@@ -43,6 +43,7 @@
 相容欄位：
 - `ErrorMessage`：舊版錯誤訊息欄位，暫時保留。
 - `ErrorDetail`：舊版錯誤詳細欄位，暫時保留。
+- `ErrorCode`（0.10.0 起）：機器可判讀的錯誤代碼，讓 WASM 前端與 App 不必比對中文訊息就能決定下一步；可能的值集中在 `MyProject.Dtos.Commons.ApiErrorCodes`（目前是 `PASSWORD_CHANGE_REQUIRED`、`TWO_FACTOR_SETUP_REQUIRED`），沒有特別代碼時為 `null`。新增代碼時加在 `ApiErrorCodes`，不要在各處寫字串。
 - `Timestamp`：舊版時間戳欄位，暫時保留。
 
 ## HTTP 狀態碼

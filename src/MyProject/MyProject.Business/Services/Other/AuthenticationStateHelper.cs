@@ -1,62 +1,39 @@
-using AutoMapper;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
-using MyProject.Models.Admins;
 using MyProject.Models.Others;
 using MyProject.Share.Helpers;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace MyProject.Business.Services.Other;
 
+/// <summary>
+/// Blazor 換頁時的登入檢查：帳號與權限的載入規則在 <see cref="ICurrentUserLoader"/>（0.10.0 起與 Web API 共用），
+/// 這裡負責依結果導頁、寫入電路範圍的 <see cref="CurrentUserService"/>，以及頁面層級的權限判斷。
+/// </summary>
 public class AuthenticationStateHelper
 {
     private readonly ILogger<AuthenticationStateHelper> logger;
-    private readonly IMapper mapper;
+    private readonly ICurrentUserLoader currentUserLoader;
     private readonly MyUserService myUserService;
     private readonly CurrentUserService currentUserService;
-    private readonly RolePermissionService rolePermissionService;
-    private readonly IEffectiveTeamResolver effectiveTeamResolver;
-    private readonly IPermissionChecker permissionChecker;
     private readonly IAuditLogService auditLogService;
-    private readonly IPasswordPolicy passwordPolicy;
-    private readonly ISecurityStampService securityStampService;
-    private readonly ITwoFactorService twoFactorService;
-
-    /// <summary>
-    /// 換頁時工作階段版本的查詢可以沿用幾秒內的結果：同一次換頁裡版面、選單、頁面各檢查一次，不必各查一次資料庫。
-    /// 同一個行程的強制登出會立即清掉快取，所以這段時間只影響別的行程。
-    /// </summary>
-    private static readonly TimeSpan SessionRecheckWindow = TimeSpan.FromSeconds(5);
 
     public AuthenticationStateHelper(
         ILogger<AuthenticationStateHelper> logger,
-        IMapper mapper,
+        ICurrentUserLoader currentUserLoader,
         MyUserService myUserService,
         CurrentUserService currentUserService,
-        RolePermissionService rolePermissionService,
-        IEffectiveTeamResolver effectiveTeamResolver,
-        IPermissionChecker permissionChecker,
-        IAuditLogService auditLogService,
-        IPasswordPolicy passwordPolicy,
-        ISecurityStampService securityStampService,
-        ITwoFactorService twoFactorService)
+        IAuditLogService auditLogService)
     {
         this.logger = logger;
-        this.mapper = mapper;
+        this.currentUserLoader = currentUserLoader;
         this.myUserService = myUserService;
         this.currentUserService = currentUserService;
-        this.rolePermissionService = rolePermissionService;
-        this.effectiveTeamResolver = effectiveTeamResolver;
-        this.permissionChecker = permissionChecker;
         this.auditLogService = auditLogService;
-        this.passwordPolicy = passwordPolicy;
-        this.securityStampService = securityStampService;
-        this.twoFactorService = twoFactorService;
     }
 
     public async Task<AuthenticationCheckResult> Check(AuthenticationStateProvider authStateProvider, NavigationManager navigationManager)
@@ -97,40 +74,26 @@ public class AuthenticationStateHelper
             return AuthenticationCheckResult.InvalidUser;
         }
 
-        var myUser = await myUserService.GetAsync(id);
-        if (myUser.Id == 0)
+        var loaded = await currentUserLoader.LoadAsync(id, user.FindFirst(MagicObjectHelper.SecurityStampClaimType)?.Value);
+        switch (loaded.Status)
         {
-            logger.LogWarning("Authentication check failed because UserId={UserId} was not found.", id);
-            await Task.Delay(200);
-            navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return AuthenticationCheckResult.InvalidUser;
-        }
+            case CurrentUserLoadStatus.NotFound:
+            case CurrentUserLoadStatus.Disabled:
+                await Task.Delay(200);
+                navigationManager.NavigateTo("/Auths/Logout", true, true);
+                return AuthenticationCheckResult.InvalidUser;
 
-        // ⚠️ 工作階段版本在「帳號存在」之後、其他檢查之前比（0.9.103 起）：改密碼、停用、角色變更、強制登出之後，已開著的頁面在下一次換頁被登出。
-        // 已開著的 Blazor 連線不經過 Cookie 驗證器，只能靠這裡。升級前簽發的 Cookie 沒有這個 claim，會被登出一次。
-        // 這裡只比版本；停用由下方的檢查處理（結果不同：InvalidUser）。
-        if (!await securityStampService.IsValidAsync(id, user.FindFirst(MagicObjectHelper.SecurityStampClaimType)?.Value, SessionRecheckWindow, requireActive: false))
-        {
-            logger.LogInformation("Authentication check failed because the session was revoked. UserId={UserId}", id);
-            await auditLogService.WriteAsync(
-                AuditActions.Login.SessionExpired, success: false, actorUserId: id, actorAccount: user.FindFirst(ClaimTypes.NameIdentifier)?.Value, detail: "reason=SessionRevoked");
-            navigationManager.NavigateTo("/Auths/Logout?reason=session", true, true);
-            return AuthenticationCheckResult.SessionRevoked;
-        }
-
-        if (!myUser.Status)
-        {
-            logger.LogWarning("Authentication check failed because UserId={UserId} is disabled.", id);
-            await Task.Delay(200);
-            navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return AuthenticationCheckResult.InvalidUser;
+            // 已開著的 Blazor 連線不經過 Cookie 驗證器，只能靠這裡（0.9.103 起）。升級前簽發的 Cookie 沒有版本 claim，會被登出一次。
+            case CurrentUserLoadStatus.SessionRevoked:
+                await auditLogService.WriteAsync(
+                    AuditActions.Login.SessionExpired, success: false, actorUserId: id, actorAccount: user.FindFirst(ClaimTypes.NameIdentifier)?.Value, detail: "reason=SessionRevoked");
+                navigationManager.NavigateTo("/Auths/Logout?reason=session", true, true);
+                return AuthenticationCheckResult.SessionRevoked;
         }
 
         logger.LogDebug("Resolved authenticated user information for UserId={UserId}.", id);
 
-        // 0.9.101 起只看旗標與到期時間（不再每次換頁都以 PBKDF2 比對 123456）。
-        bool needChangePassword = passwordPolicy.RequiresChange(myUser.Account, myUser.HasLocalPassword, myUser.MustChangePassword, myUser.PasswordChangedAtUtc);
-        if (needChangePassword && !IsChangePasswordPage(navigationManager))
+        if (loaded.MustChangePassword && !IsChangePasswordPage(navigationManager))
         {
             logger.LogWarning("User {UserId} is required to change password before continuing.", id);
             await Task.Delay(200);
@@ -138,57 +101,33 @@ public class AuthenticationStateHelper
             return AuthenticationCheckResult.RequiresPasswordChange;
         }
 
-        // 必須使用兩步驟驗證卻還沒設定（0.9.104 起）：在改密碼之後判斷，而且兩個頁面互不導向，否則會來回跳。
-        if (!needChangePassword && !myUser.TwoFactorEnabled && !IsPage(navigationManager, "TwoFactorSetup")
-            && await twoFactorService.IsRequiredAsync(id))
+        // 兩個頁面互不導向，否則會來回跳（必須改密碼時 RequiresTwoFactorSetup 一律為 false）。
+        if (loaded.RequiresTwoFactorSetup && !IsPage(navigationManager, "TwoFactorSetup"))
         {
             logger.LogInformation("User {UserId} must set up two-factor authentication before continuing.", id);
             navigationManager.NavigateTo("/TwoFactorSetup", true);
             return AuthenticationCheckResult.RequiresTwoFactorSetup;
         }
 
-        CurrentUser currentUser = mapper.Map<CurrentUser>(myUser);
-        RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();
-
-        if (myUser.RoleView == null)
+        // 沒有主要角色的帳號不能使用網頁（與 0.10.0 之前相同）；權限資料讀不出來時一樣登出。
+        if (!loaded.HasPrimaryRole || loaded.CurrentUser is null)
         {
-            logger.LogWarning("User {UserId} does not have a role view assigned. Redirecting to logout.", id);
             await Task.Delay(200);
             navigationManager.NavigateTo("/Auths/Logout", true, true);
             return AuthenticationCheckResult.InvalidUser;
         }
 
-        try
-        {
-            List<string> permissions = JsonSerializer.Deserialize<List<string>>(myUser.RoleView.TabViewJson) ?? [];
-            rolePermissionService.SetPermissionInput(rolePermission, permissions);
-            currentUser.RoleJson = myUser.RoleView.TabViewJson;
-            currentUser.TeamList = (await effectiveTeamResolver.GetEffectiveTeamNamesAsync(myUser.Id)).ToList();
-            currentUser.IsAuthenticated = true;
-            currentUserService.CurrentUser.CopyFrom(currentUser);
+        CurrentUserLoader.ApplyTo(currentUserService, loaded.CurrentUser);
+        currentUserService.NotifyChanged();
 
-            // UI 權限判定改以 RBAC 表為單一權威來源（含多角色聯集），與 API 端 IPermissionChecker 對齊；
-            // 覆寫 CopyFrom 由 TabViewJson 反序列化得到的 RoleList。TabViewJson 僅保留供角色編輯畫面回填。
-            currentUserService.CurrentUser.RoleList =
-                (await permissionChecker.GetEffectivePermissionKeysAsync(myUser.Id)).ToList();
-            currentUserService.NotifyChanged();
+        // 每次導覽都會跑，屬於流程細節而非使用者意圖，因此記在 Debug。
+        logger.LogDebug(
+            "Authentication state initialized for UserId={UserId}, Account={Account}, IsAdmin={IsAdmin}.",
+            loaded.CurrentUser.Id,
+            loaded.CurrentUser.Account,
+            loaded.CurrentUser.IsAdmin);
 
-            // 每次導覽都會跑，屬於流程細節而非使用者意圖，因此記在 Debug。
-            logger.LogDebug(
-                "Authentication state initialized for UserId={UserId}, Account={Account}, IsAdmin={IsAdmin}.",
-                myUser.Id,
-                myUser.Account,
-                myUser.IsAdmin);
-
-            return AuthenticationCheckResult.Succeeded;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to initialize permission data for UserId={UserId}.", id);
-            await Task.Delay(200);
-            navigationManager.NavigateTo("/Auths/Logout", true, true);
-            return AuthenticationCheckResult.InvalidUser;
-        }
+        return AuthenticationCheckResult.Succeeded;
     }
 
     private static bool IsChangePasswordPage(NavigationManager navigationManager) => IsPage(navigationManager, "ChangePassword");

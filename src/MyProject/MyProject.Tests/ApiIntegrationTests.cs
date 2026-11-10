@@ -390,7 +390,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
 
     // 0.9.95 起使用者是軟刪除：已簽發的 JWT 在到期前仍然有效，權限判斷必須查不到已刪除的人（連管理員也一樣）。
     [Fact]
-    public async Task SoftDeletedUsersToken_ShouldBeForbidden()
+    public async Task SoftDeletedUsersToken_ShouldBeRejected()
     {
         var account = $"deleted-{Guid.NewGuid():N}";
         const string password = "deleted-pass";
@@ -414,8 +414,10 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
             await db.MyUser.Where(x => x.Account == account).ExecuteUpdateAsync(x => x.SetProperty(u => u.IsDeleted, true));
         }
 
+        // 0.10.0 起每個 API 請求都從資料庫載入目前使用者（ApiActorMiddleware）：帳號已刪除＝工作階段失效，回 401
+        //（以前要到權限檢查才擋下、回 403）。與停用帳號的 Token 一致，見 AccessToken_AfterSessionRevokedOrAccountDisabled_ShouldReturnApiResult401。
         var afterDelete = await client.PostAsJsonAsync("/api/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除後 {Guid.NewGuid():N}", IsEnabled = true });
-        Assert.Equal(HttpStatusCode.Forbidden, afterDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterDelete.StatusCode);
     }
 
     // 0.9.93 之前 POST 會直接採用客戶端傳來的 Id，同一個 Id 第二次建立就撞主鍵回 500。

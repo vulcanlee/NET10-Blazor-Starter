@@ -1,49 +1,51 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Services.Other;
+using MyProject.Share.Helpers;
 using MyProject.Web.Auth;
 
 namespace MyProject.Tests;
 
+/// <summary>
+/// 0.10.0 起 <see cref="JwtTokenService"/> 只簽發存取 Token；刷新 Token 由 <c>RefreshTokenStore</c> 發出、存在伺服器端，
+/// 這裡只負責原樣帶進回應（見 <c>RefreshTokenStoreTests</c>、<c>TokenApiIntegrationTests</c>）。
+/// </summary>
 public class JwtTokenServiceTests
 {
     [Fact]
-    public void CreateTokenResponse_ShouldCreateAccessAndRefreshTokens()
+    public void CreateTokenResponse_ShouldSignAnAccessToken_AndPassTheStoredRefreshTokenThrough()
     {
         var service = CreateService();
         var user = CreateUser();
+        var refresh = new IssuedRefreshToken("opaque-refresh", DateTime.UtcNow.AddDays(7));
 
-        var result = service.CreateTokenResponse(user);
+        var result = service.CreateTokenResponse(user, refresh, isPersistent: true);
 
         Assert.Equal("Bearer", result.TokenType);
         Assert.False(string.IsNullOrWhiteSpace(result.AccessToken));
-        Assert.False(string.IsNullOrWhiteSpace(result.RefreshToken));
+        Assert.Equal("opaque-refresh", result.RefreshToken);
+        Assert.Equal(refresh.ExpiresAtUtc, result.RefreshTokenExpiresAt);
+        Assert.True(result.IsPersistent);
         Assert.Equal(user.Account, result.User.Account);
         Assert.True(result.AccessTokenExpiresAt > DateTime.UtcNow);
-        Assert.True(result.RefreshTokenExpiresAt > result.AccessTokenExpiresAt);
     }
 
     [Fact]
-    public void ValidateRefreshToken_ShouldReturnCurrentUser()
+    public void AccessToken_ShouldCarryTheUserTheStampAndTheAccessType()
     {
         var service = CreateService();
-        var tokenResponse = service.CreateTokenResponse(CreateUser());
+        var result = service.CreateTokenResponse(CreateUser(), new IssuedRefreshToken("r", DateTime.UtcNow.AddDays(7)), isPersistent: false);
 
-        var (user, stamp) = service.ValidateRefreshToken(tokenResponse.RefreshToken);
+        var principal = new JwtSecurityTokenHandler().ValidateToken(result.AccessToken, service.CreateValidationParameters(validateLifetime: true), out _);
 
-        Assert.Equal("stamp-1", stamp);
-        Assert.Equal(7, user.Id);
-        Assert.Equal("api-user", user.Account);
-        Assert.True(user.IsAdmin);
-    }
-
-    [Fact]
-    public void ValidateRefreshToken_ShouldRejectAccessToken()
-    {
-        var service = CreateService();
-        var tokenResponse = service.CreateTokenResponse(CreateUser());
-
-        Assert.ThrowsAny<Exception>(() => service.ValidateRefreshToken(tokenResponse.AccessToken));
+        Assert.Equal("7", principal.FindFirstValue(ClaimTypes.NameIdentifier));
+        Assert.Equal("api-user", principal.FindFirstValue(ClaimTypes.Name));
+        Assert.Equal("stamp-1", principal.FindFirstValue(MagicObjectHelper.SecurityStampClaimType));
+        Assert.Equal(JwtTokenService.AccessTokenType, principal.FindFirstValue(JwtTokenService.TokenTypeClaimType));
+        Assert.False(result.IsPersistent);
     }
 
     private static JwtTokenService CreateService()
