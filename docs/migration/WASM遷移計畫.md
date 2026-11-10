@@ -1,9 +1,9 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.0
-- 文件狀態：規劃中
-- 現行系統版本：0.9.177
-- 首次實作版本：—（尚未實作，預計 0.10.0 起）
+- 文件版本：1.1
+- 文件狀態：進行中
+- 現行系統版本：0.10.0
+- 首次實作版本：0.10.0
 - 最後核對日期：2026/11/10
 
 ## 文件目的
@@ -17,7 +17,7 @@
 | # | 版本 | 內容 | 狀態 | 測試報告 |
 |---|---|---|---|---|
 | M0 | — | 可行性分析報告與本計畫（只動文件） | 完成 | — |
-| M1 | 0.10.0 | 基礎建設 | 未開始 | — |
+| M1 | 0.10.0 | 基礎建設 | 完成 | [M01-基礎建設](測試報告/M01-基礎建設.md) |
 | M2 | 0.10.1 | 共用外框雙模式＋試點 `/Profile` | 未開始 | — |
 | M3 | 0.10.2 | 分類、團隊、CRUD 產生器 | 未開始 | — |
 | M4 | 0.10.3 | 專案、附件、下載票證 | 未開始 | — |
@@ -77,7 +77,17 @@
 - 測試路徑統一（`SourceTree`）、E2E 工具（`scripts/e2e/`、`Start-E2EHost.ps1`）、複刻腳本試跑。
 - **實機情境**：記住我有／無時 Token 落點；舊刷新 Token 重用被撤銷；改密碼後刷新被拒；登出撤銷；37 路由煙霧測試。
 
+> **M1 實際做法與計畫的差異**：`PermissionRules`、`AuthenticationCheckResult` 移到 Models 延到 M2（M1 沒有前端程式用到）；
+> 版本快取改以資料庫攔截器即時清除（使用者要求一併修正「強制登出最多延遲 5 分鐘」）；
+> 依獨立審查加上刷新 Token 的 30 秒寬限期、bridge 換出的 Token 不比 Cookie 活得久、bridge 以資料庫比對 Cookie 版本。
+
 ### M2 共用外框雙模式＋試點 `/Profile`（0.10.1）
+
+- **M1 留下的必辦**（來自 M1 獨立審查與 A.6）：
+  - 前端刷新 Token 要讓多個分頁排隊（Web Locks），拿到 401 時先重讀 storage 看別的分頁是否已換到新 Token，避免互相觸發重用偵測。
+  - 刷新失敗（含 bridge 換出的 Token 到了 Cookie 的上限）時，Cookie 仍有效就重新呼叫 bridge；Cookie 也失效才導回登入頁。
+  - 從 WASM 頁登出時，先呼叫 `/api/v1/Auth/logout` 並清掉 localStorage／sessionStorage，再導向 `/Auths/Logout`。
+  - `PermissionRules`、`AuthenticationCheckResult` 移到 Models（Client 共用）。
 
 - 外框（版面、側邊選單、通知鈴鐺、公告、操作說明）、共用元件、`theme.css`／`app.css`／`js` 移到 Client。
 - 各區 `IXxxApi`：Client 用 HTTP 實作，Server 頁用行程內實作，讓外框在兩種模式都能渲染。

@@ -97,6 +97,7 @@ public sealed class DataRetentionOverviewService
     private readonly AnnouncementService announcementService;
     private readonly BackupStore backupStore;
     private readonly INLogFilePathResolver nlogPathResolver;
+    private readonly IRefreshTokenStore refreshTokenStore;
     private readonly IOptions<SystemSettings> systemSettings;
     private readonly IOptionsMonitor<LogRetentionSettings> logRetention;
     private readonly IOptionsMonitor<SoftDeleteSettings> softDelete;
@@ -118,6 +119,7 @@ public sealed class DataRetentionOverviewService
         AuditLogQueryService auditLogQueryService,
         NotificationQueryService notificationQueryService,
         EmailOutboxQueryService emailOutboxQueryService,
+        IRefreshTokenStore refreshTokenStore,
         ScheduledJobRunService jobRunService,
         AnnouncementService announcementService,
         BackupStore backupStore,
@@ -142,6 +144,7 @@ public sealed class DataRetentionOverviewService
         this.auditLogQueryService = auditLogQueryService;
         this.notificationQueryService = notificationQueryService;
         this.emailOutboxQueryService = emailOutboxQueryService;
+        this.refreshTokenStore = refreshTokenStore;
         this.jobRunService = jobRunService;
         this.announcementService = announcementService;
         this.backupStore = backupStore;
@@ -185,6 +188,7 @@ public sealed class DataRetentionOverviewService
         rows.Add(await RowAsync("audit-log", "稽核紀錄", () => AuditLogRowAsync(jobByName, auditFolder)));
         rows.Add(await RowAsync("notification", "站內通知", () => NotificationRowAsync(jobByName)));
         rows.Add(await RowAsync("email-log", "寄信紀錄", () => EmailLogRowAsync(jobByName)));
+        rows.Add(await RowAsync("refresh-session", "登入 Token", () => RefreshSessionRowAsync(jobByName)));
         rows.Add(await RowAsync("backup", "系統備份", () => BackupRowAsync(jobByName, backupFolder)));
         rows.Add(await RowAsync("job-run", "排程執行紀錄", JobRunRowAsync));
         rows.Add(await RowAsync("nlog", "日誌檔", () => NLogRowAsync(nlogDirectory, nlogFolder)));
@@ -518,6 +522,26 @@ public sealed class DataRetentionOverviewService
             ManageUrl = "/email-logs",
             CanCustomPurge = true,
         }, EmailLogRetentionJob.JobName, jobByName.GetValueOrDefault(EmailLogRetentionJob.JobName), days > 0);
+    }
+
+    /// <summary>
+    /// 登入 Token（刷新 Token 紀錄，0.10.0 起）：到期就清，沒有保留天數也不提供自訂清除。
+    /// 要讓某人的 Token 立刻失效，在「使用者管理」強制登出（換工作階段版本，之後的刷新一律被拒）。
+    /// </summary>
+    private async Task<DataRetentionRow> RefreshSessionRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName)
+    {
+        var stats = await refreshTokenStore.GetRetentionStatsAsync(RetentionCutoffs.RefreshSession(timeProvider));
+        return WithJob(new DataRetentionRow
+        {
+            Key = "refresh-session",
+            Label = "登入 Token",
+            Note = "已撤銷但未到期的保留，用來偵測重複使用",
+            Count = stats.Total,
+            OldestLocal = ToLocal(stats.Oldest),
+            RuleText = "到期即清除",
+            Expected = stats.Expired,
+            ManageUrl = "/myusers",
+        }, RefreshSessionRetentionJob.JobName, jobByName.GetValueOrDefault(RefreshSessionRetentionJob.JobName), true);
     }
 
     private async Task<DataRetentionRow> BackupRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)

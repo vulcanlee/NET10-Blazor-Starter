@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -21,8 +20,9 @@ public sealed record UserSessionState(string SecurityStamp, bool IsActive);
 /// <summary>
 /// 工作階段版本的讀取、輪替與快取（0.9.103 起，singleton）。
 ///
-/// Cookie 驗證器每次 HTTP 請求都會問一次，所以讀取有快取（存活時間由呼叫端決定）；
-/// ⚠️ 輪替一律經 <see cref="RotateAsync"/> 或在實體上設定後呼叫 <see cref="Invalidate"/>，同一個行程的快取立即失效。
+/// Cookie 驗證器每次 HTTP 請求都會問一次，所以讀取有快取（存活時間由呼叫端決定，快取本體是 <see cref="SecurityStampCache"/>）。
+/// 版本一換，同一個行程的快取立即失效（0.10.0 起）：任何改到 <c>MyUser.SecurityStamp</c> 的 UPDATE／DELETE
+/// 都會被 <see cref="SecurityStampInvalidationInterceptor"/> 攔到並清快取，所以直接在實體上換版本、或用 ExecuteUpdate 換版本都不必再手動清。
 /// 別的行程（IIS 重疊回收、多台主機）最晚在快取存活時間後看到新版本。
 /// </summary>
 public interface ISecurityStampService
@@ -52,11 +52,12 @@ public sealed class SecurityStampService : ISecurityStampService
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<SecurityStampService> logger;
-    private readonly ConcurrentDictionary<int, (UserSessionState State, DateTimeOffset FetchedAt)> cache = new();
+    private readonly SecurityStampCache cache;
 
-    public SecurityStampService(IDbContextFactory<BackendDBContext> contextFactory, TimeProvider timeProvider, ILogger<SecurityStampService> logger)
+    public SecurityStampService(IDbContextFactory<BackendDBContext> contextFactory, SecurityStampCache cache, TimeProvider timeProvider, ILogger<SecurityStampService> logger)
     {
         this.contextFactory = contextFactory;
+        this.cache = cache;
         this.timeProvider = timeProvider;
         this.logger = logger;
     }
@@ -64,18 +65,20 @@ public sealed class SecurityStampService : ISecurityStampService
     public async Task<UserSessionState> GetStateAsync(int userId, TimeSpan maxAge, CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
-        if (maxAge > TimeSpan.Zero && cache.TryGetValue(userId, out var cached) && now - cached.FetchedAt < maxAge)
+        if (maxAge > TimeSpan.Zero && cache.TryGet(userId, out var cachedState, out var fetchedAt) && now - fetchedAt < maxAge)
         {
-            return cached.State;
+            return cachedState;
         }
 
+        // 先記下世代：查詢途中版本被換掉、快取被清過，讀到的舊版本就不寫回（見 SecurityStampCache）。
+        var generation = cache.Generation;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var row = await context.MyUser.AsNoTracking()
             .Where(x => x.Id == userId)
             .Select(x => new { x.SecurityStamp, x.Status })
             .FirstOrDefaultAsync(cancellationToken);
         var state = row is null ? new UserSessionState(string.Empty, false) : new UserSessionState(row.SecurityStamp, row.Status);
-        cache[userId] = (state, now);
+        cache.TrySet(userId, state, now, generation);
         return state;
     }
 
@@ -122,5 +125,5 @@ public sealed class SecurityStampService : ISecurityStampService
         return await context.MyUser.AsNoTracking().Where(x => x.Id == userId).Select(x => x.SecurityStamp).FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
     }
 
-    public void Invalidate(int userId) => cache.TryRemove(userId, out _);
+    public void Invalidate(int userId) => cache.Remove(userId);
 }

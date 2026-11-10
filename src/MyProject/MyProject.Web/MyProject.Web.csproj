@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="AntDesign" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="BlazorMaterialIcons" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="MailKit" />
@@ -34,6 +35,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyProject.Business\MyProject.Business.csproj" />
+    <!-- WASM 前端（0.10.0 起）：遷移期間由這個主機一併提供，見 docs/migration/WASM遷移計畫.md。 -->
+    <ProjectReference Include="..\MyProject.Web.Client\MyProject.Web.Client.csproj" />
   </ItemGroup>
 
   <!--

@@ -52,6 +52,12 @@ public class ApiResult<T>
     public string? ErrorDetail { get; set; }
 
     /// <summary>
+    /// 機器可判讀的錯誤代碼（0.10.0 起），讓前端與 App 不必比對中文訊息就能決定下一步；
+    /// 可能的值見 <see cref="ApiErrorCodes"/>，沒有特別代碼時為 null。
+    /// </summary>
+    public string? ErrorCode { get; set; }
+
+    /// <summary>
     /// 時間戳記
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.Now;

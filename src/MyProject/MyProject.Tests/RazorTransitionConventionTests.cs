@@ -57,26 +57,5 @@ public sealed class RazorTransitionConventionTests
         Assert.DoesNotMatch(EmailLikeTransition, "系統管理員 @(TraceCode.Suffix(x))");
     }
 
-    private static string FindComponentsRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "Components");
-            if (Directory.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web", "Components");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web/Components。");
-    }
+    private static string FindComponentsRoot() => SourceTree.Components;
 }

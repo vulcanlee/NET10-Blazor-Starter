@@ -122,25 +122,5 @@ public sealed class AiSettingsTests
     }
 
     /// <summary>與 LoggingConventionTests 相同的作法，往上找到 src/MyProject。</summary>
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, "MyProject.Web")))
-            {
-                return dir.FullName;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(srcCandidate, "MyProject.Web")))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 src/MyProject。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 }

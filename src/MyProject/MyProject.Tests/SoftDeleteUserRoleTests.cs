@@ -633,27 +633,7 @@ public sealed class SoftDeleteUserRoleTests
         return count;
     }
 
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, "MyProject.Business")))
-            {
-                return dir.FullName;
-            }
-
-            var src = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(src, "MyProject.Business")))
-            {
-                return src;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject 原始碼目錄。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 
     private static DataRequest AllRows() => new() { CurrentPage = 1, PageSize = 100, Take = 0 };
 

@@ -131,6 +131,9 @@ public static class AuditActions
     public static class Token
     {
         public const string RefreshFailed = "Token.RefreshFailed";
+
+        /// <summary>已被換掉的刷新 Token 又被使用，整串撤銷（0.10.0 起）。</summary>
+        public const string ReuseDetected = "Token.ReuseDetected";
     }
 
     public static class Project
@@ -350,6 +353,12 @@ public static class AuditActions
 
         /// <summary>管理員在「系統健康監控」發送測試通知給全體管理員（0.9.122 起；detail 為收件人數）。</summary>
         public const string Test = "Notification.Test";
+    }
+
+    /// <summary>刷新 Token 紀錄（0.10.0 起）。</summary>
+    public static class RefreshSession
+    {
+        public const string AutoPurge = "RefreshSession.AutoPurge";
     }
 
     /// <summary>寄信紀錄（0.9.167 起）：排程依保留天數自動清除、「資料保留與清理」頁的自訂清除（待寄的不刪）。</summary>

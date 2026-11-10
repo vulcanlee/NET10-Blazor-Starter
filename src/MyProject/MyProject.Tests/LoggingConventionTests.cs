@@ -361,6 +361,8 @@ public sealed class LoggingConventionTests
             "TotpService.cs",               // 純密碼學運算；所有輸入輸出都是機密，加 logger 只會誘使人記錄它
             "DatabaseInitializerOptions.cs", // 設定
             "DatabaseInitializationLock.cs", // 由 DatabaseInitializer 傳入 logger（靜態輔助類別無法注入）
+            "SecurityStampCache.cs",        // 僅持有工作階段版本快取，無行為（讀寫與清除的日誌在 SecurityStampService 與攔截器）
+            "AllowDuringForcedSetupAttribute.cs", // 標記屬性，無行為
 
             // ⚠️ 以下四支位在「系統例外紀錄」的記錄管線之內，**刻意不得注入 ILogger**。
             // 它們一旦用 ILogger 記錄自己的失敗，那筆記錄會再被管線收進來、再嘗試寫入、再失敗 ——
@@ -407,26 +409,5 @@ public sealed class LoggingConventionTests
             || name.EndsWith("Dto.cs", StringComparison.Ordinal);
     }
 
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web");
-            if (Directory.Exists(candidate))
-            {
-                return dir.FullName;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(srcCandidate, "MyProject.Web")))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 src/MyProject。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 }

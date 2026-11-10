@@ -322,20 +322,5 @@ public sealed class AppSettingsCommentConventionTests
         return builder.ToString();
     }
 
-    private static string AppSettingsPath()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "appsettings.json");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new FileNotFoundException("找不到 src/MyProject/MyProject.Web/appsettings.json。");
-    }
+    private static string AppSettingsPath() => SourceTree.WebFile("appsettings.json");
 }

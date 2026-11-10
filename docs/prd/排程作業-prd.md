@@ -1,10 +1,10 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.0
 - 首次實作版本：0.9.96
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/10
 
 ## 一、目標與範圍
 
@@ -59,9 +59,10 @@
 | `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |
 | `NotificationRetention` | 站內通知清理（0.9.100 起）| `NotificationSettings:RetentionDays`（90，UTC 門檻，分批刪除）；0.9.125 起另依 `ReadRetentionDays`（7，從已讀時間起算）刪除已讀的 | `Notification.AutoPurge` |
 | `EmailLogRetention` | 寄信紀錄清理（0.9.167 起）| `EmailDeliverySettings:RetentionDays`（90，UTC 門檻，分批刪除；「待寄」不刪）| `EmailLog.AutoPurge` |
+| `RefreshSessionRetention` | 登入 Token 清理（0.10.0 起）| —（沒有保留天數可設，不在系統參數頁）：刪除已到期的刷新 Token 紀錄（`RefreshSession`），有效期由 `JwtSettings:RefreshTokenDays`（7）決定；已撤銷但未到期的保留，用來偵測舊 Token 被重複使用 | `RefreshSession.AutoPurge`（detail `rows=N; trigger=T`）|
 | `PasswordExpiryReminder` | 密碼到期提醒（0.9.101 起，預設 `0 8 * * *`）| `PasswordPolicySettings:ExpiryDays`（0＝不過期，此時不動作）；7 天內到期者各通知一次 | —（只發站內通知） |
 
-  清理類有刪到資料才寫稽核；天數 0 回成功但不動作（稽核紀錄完整性檢查每次都寫 `Audit.Verify`）。內建作業 0.9.175 起共 13 個。刪檔一律經對應的 file store。
+  清理類有刪到資料才寫稽核；天數 0 回成功但不動作（稽核紀錄完整性檢查每次都寫 `Audit.Verify`）。內建作業 0.10.0 起共 14 個（0.9.175 為 13 個）。刪檔一律經對應的 file store。
 
 - **失敗通知**（0.9.100 起）：結果為 **Failed** 時（不含中斷、略過），`ScheduledJobRunner` 在寫回結果之後以新的 scope 經 `INotificationSender` 通知全體管理員＋手動觸發者（觸發者 Id 經 `ScheduledJobTriggerQueue` 與 `ScheduledJobContext.TriggeredByUserId` 傳遞），同時寄信、連結 `/scheduled-jobs`；通知失敗不影響作業結果。見 [站內通知與公告 PRD](站內通知與公告-prd.md)。
 
@@ -93,7 +94,7 @@
 - `AdminPatrolJobTests`（0.9.161）：系統管理助理巡檢與巡檢報告清理；巡檢的窄門、判讀與通知另見 `ScheduledPatrolToolGuardTests`、`AdminPatrolReportParserTests`、`AdminPatrolNotificationTests`。
 - `SoftDeletePurgeTests`（0.9.97）：五種資料的門檻邊界、附件實體檔與根目錄檢查、提交後才刪檔、中途還原與並行衝突、角色使用中與刪除當下被指派、同輪使用者與角色、受保護、Cascade 範圍、單一種類失敗、取消、本地時鐘、稽核內容與截斷。
 - `AuditIntegrityVerifierTests`（0.9.175）：完整性檢查抓得到各種竄改、一次性事件只由排程報一次、正常清除不誤報。
-- `ScheduledJobWiringTests`：真正的主機中作業已註冊（0.9.175 起 13 個）、舊計時器已移除、排程器註冊順序。
+- `ScheduledJobWiringTests`：真正的主機中作業已註冊（0.10.0 起 14 個）、舊計時器已移除、排程器註冊順序。
 - 守門：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`LoggingConventionTests`、`DataAccessServiceLifetimeTests`、`OptionsValidationTests`、`DocumentationConventionTests`。
 
 ## 八、相關程式與文件

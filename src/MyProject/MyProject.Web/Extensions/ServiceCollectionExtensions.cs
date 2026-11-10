@@ -115,6 +115,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISystemHealthService, SystemHealthService>();
         services.AddScoped<NotificationTestService>();
         services.AddScoped<AuthenticationStateHelper>();
+        services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
+        services.AddSingleton<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<CurrentUserService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         // 稽核防竄改雜湊鏈（0.9.175 起）：金鑰、寫入端與檢查點跨連線共用（singleton），換頁稽核射後不理時 circuit 結束也寫得完。
@@ -334,6 +336,9 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<EmailLogRetentionJob>(
             EmailLogRetentionJob.JobName, "寄信紀錄清理",
             "刪除建立超過保留天數的寄信紀錄（預設 90 天，「系統參數」頁設定，0 = 不清除）；還在等待寄出或重試的信不會被刪。", "0 3 * * *");
+        services.AddScheduledJob<RefreshSessionRetentionJob>(
+            RefreshSessionRetentionJob.JobName, "登入 Token 清理",
+            "刪除已到期的登入 Token（刷新 Token）紀錄；已撤銷但還沒到期的會保留，用來偵測舊 Token 被重複使用。有效期由 JwtSettings.RefreshTokenDays 決定（預設 7 天）。", "0 3 * * *");
         services.AddScheduledJob<AdminPatrolReportRetentionJob>(
             AdminPatrolReportRetentionJob.JobName, "巡檢報告清理",
             "刪除產出超過保留天數的系統管理助理巡檢報告與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
@@ -503,8 +508,13 @@ public static class ServiceCollectionExtensions
 
             // 慢資料庫指令（LOG-21）：只記指令類型與耗時，不記 SQL 與參數。
             options.AddInterceptors(sp.GetRequiredService<SlowDbCommandInterceptor>());
+
+            // 工作階段版本一被改就清快取（0.10.0 起）：強制登出、停用、改密碼等立即生效。
+            options.AddInterceptors(sp.GetRequiredService<SecurityStampInvalidationInterceptor>());
         });
         services.AddSingleton<SlowDbCommandInterceptor>();
+        services.AddSingleton<SecurityStampCache>();
+        services.AddSingleton<SecurityStampInvalidationInterceptor>();
 
         services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<BackendDBContext>>().CreateDbContext());
 

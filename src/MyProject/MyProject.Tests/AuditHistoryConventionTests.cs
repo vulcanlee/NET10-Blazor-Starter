@@ -56,20 +56,5 @@ public sealed class AuditHistoryConventionTests
         return count;
     }
 
-    private static string FindComponentsRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "Components");
-            if (Directory.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 src/MyProject/MyProject.Web/Components。");
-    }
+    private static string FindComponentsRoot() => SourceTree.Components;
 }

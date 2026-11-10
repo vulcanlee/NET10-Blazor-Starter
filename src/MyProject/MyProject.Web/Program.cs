@@ -102,7 +102,10 @@ namespace MyProject.Web
 
                 #region 系統使用服務
                 // Add services to the container.
+                // WASM 遷移（0.10.0 起）：同時支援 Server 與 WebAssembly 兩種互動模式，頁面逐批搬到 MyProject.Web.Client，
+                // 每頁用哪一種由 App.razor.cs 決定。計畫見 docs/migration/WASM遷移計畫.md。
                 builder.Services.AddRazorComponents()
+                .AddInteractiveWebAssemblyComponents()
                 .AddInteractiveServerComponents()
                 .AddHubOptions(hubOptions =>
                 {
@@ -115,6 +118,9 @@ namespace MyProject.Web
                 builder.Services.AddControllers(options =>
                 {
                     options.Filters.Add<ApiExceptionFilterAttribute>();
+
+                    // 強制改密碼／設定兩步驟驗證期間擋下 API（0.10.0 起）。
+                    options.Filters.Add<ApiSessionGateFilter>();
                 });
                 builder.Services.Configure<ApiBehaviorOptions>(options =>
                 {
@@ -470,6 +476,10 @@ namespace MyProject.Web
                 // ⚠️ 必須在 UseAuthorization 之後：JWT 端點的 User 要到授權中介軟體才驗證出來。
                 app.UseExceptionContextUser();
 
+                // 以存取 Token 呼叫 API 時，每個請求載入目前使用者（0.10.0 起，WASM 遷移 M1）。
+                // ⚠️ 與上一行同理，必須在 UseAuthorization 之後。
+                app.UseMiddleware<ApiActorMiddleware>();
+
                 #region 綁定靜態資源
                 // ⚠️ 一定要放在 UseAuthentication/UseAuthorization 之後。
                 // 0.4.34 之前它掛在兩者之前，等於 DownloadPath 目錄匿名可讀 ——
@@ -496,7 +506,9 @@ namespace MyProject.Web
                     Predicate = check => check.Tags.Contains("ready")
                 });
                 app.MapRazorComponents<App>()
-                    .AddInteractiveServerRenderMode();
+                    .AddInteractiveServerRenderMode()
+                    .AddInteractiveWebAssemblyRenderMode()
+                    .AddAdditionalAssemblies(typeof(MyProject.Web.Client._Imports).Assembly);
                 #endregion
 
                 logger.LogInformation("Application startup completed. Listening for requests.");

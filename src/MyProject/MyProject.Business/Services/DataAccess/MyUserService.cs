@@ -1064,7 +1064,7 @@ public class MyUserService
     }
 
     /// <summary>
-    /// 管理員強制登出（0.9.103 起）：換掉工作階段版本，這個人所有已登入的瀏覽器在下一次換頁（最晚數分鐘）被登出、API 無法再 refresh。
+    /// 管理員強制登出（0.9.103 起）：換掉工作階段版本，這個人所有已登入的瀏覽器在下一次換頁或請求就被登出（0.10.0 起快取立即失效，見 <see cref="SecurityStampInvalidationInterceptor"/>）、API 無法再 refresh。
     /// 只更新這一欄，不換 <c>ConcurrencyStamp</c>（別人開著這個人的編輯窗不會衝突）。
     /// </summary>
     public async Task<VerifyRecordResult> ForceLogoutAsync(int userId)

@@ -184,30 +184,7 @@ public sealed class MenuPermissionConsistencyTests
         return matches[0];
     }
 
-    private static string FindRepoFile(string relativePath) => Locate(relativePath, File.Exists);
+    private static string FindRepoFile(string relativePath) => Path.Combine(SourceTree.SourceRoot, relativePath);
 
-    private static string FindRepoDirectory(string relativePath) => Locate(relativePath, Directory.Exists);
-
-    private static string Locate(string relativePath, Func<string, bool> exists)
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, relativePath);
-            if (exists(candidate))
-            {
-                return candidate;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", relativePath);
-            if (exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException($"找不到 {relativePath}。");
-    }
+    private static string FindRepoDirectory(string relativePath) => Path.Combine(SourceTree.SourceRoot, relativePath);
 }

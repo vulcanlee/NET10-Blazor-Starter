@@ -126,26 +126,5 @@ public sealed class DocumentationConventionTests
 
     private static string FindDocsRoot() => FindUp("docs");
 
-    private static string FindUp(string relativeName)
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, relativeName);
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", relativeName);
-            if (Directory.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException($"找不到 {relativeName}。");
-    }
+    private static string FindUp(string relativeName) => SourceTree.Resolve(relativeName);
 }

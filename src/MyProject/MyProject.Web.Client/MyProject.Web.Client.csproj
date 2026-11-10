@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!--
+    WASM 前端（0.10.0 起，WASM 遷移 M1 建立空殼）。在使用者的瀏覽器執行：
+    ⚠️ 只能參考 Dtos、Models、Share（ClientProjectBoundaryTests 守門），不可參考 Business、AccessDatas 或 Web。
+    遷移期間由 MyProject.Web 一併提供（Blazor Web App 的 InteractiveWebAssembly 渲染模式），
+    M11 起改為獨立的靜態站台。計畫見 docs/migration/WASM遷移計畫.md。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyProject.Dtos\MyProject.Dtos.csproj" />
+    <ProjectReference Include="..\MyProject.Models\MyProject.Models.csproj" />
+    <ProjectReference Include="..\MyProject.Share\MyProject.Share.csproj" />
+  </ItemGroup>
+
+</Project>

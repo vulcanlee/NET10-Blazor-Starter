@@ -103,7 +103,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   0.9.175 起每筆紀錄以 HMAC 雜湊鏈簽章防竄改，稽核頁可「驗證完整性」，每天 03:30 的排程發現被改、被刪就通知全體管理員（金鑰放 `AuditKeyPath`，刻意不進備份）
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - AI 對話紀錄：保存每次 AI 呼叫實際送出的 Prompt 與取得的 Response（管理員專屬、預設保留 90 天自動過期），五種檢視、JSON／PDF 匯出，並與 Token 用量以呼叫識別碼互相連結（0.9.72）
-- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 13 個作業：9 個清理作業、系統備份、稽核紀錄完整性檢查（0.9.175）、系統管理助理巡檢（0.9.161）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
+- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 14 個作業：10 個清理作業（含登入 Token 清理，0.10.0）、系統備份、稽核紀錄完整性檢查（0.9.175）、系統管理助理巡檢（0.9.161）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
 - 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環成 zip，保留 7 份（AI 對話紀錄與 Agent 對話可在系統參數選擇是否納入）；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
 - 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）；
   0.9.125 起鈴鐺每則可刪除、可「清除已讀」，已讀的通知預設 7 天後自動清除（`NotificationSettings:ReadRetentionDays`）
@@ -343,7 +343,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 架構與設計（architecture）
 
 - [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、DbContextFactory（0.4.36 起取代追蹤清理）、權限同步等不變量速查。
-- [架構總覽](docs/architecture/架構總覽.md) — 6 個專案分層、依賴方向、啟動流程、DI 註冊清單。
+- [架構總覽](docs/architecture/架構總覽.md) — 8 個專案（0.10.0 起含 WASM 前端 MyProject.Web.Client）分層、依賴方向、啟動流程、DI 註冊清單。
 - [MAF AI 呼叫架構](docs/architecture/MAF-AI呼叫架構.md) — 所有 LLM 呼叫經 Microsoft Agent Framework 送出（0.9.140 起）：管線、記帳中介層、技術決定、Agent 骨架、對話保存與多 Agent 工作流程（0.9.144 起）。
 - [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
@@ -381,7 +381,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [腳手架新專案啟動流程](docs/guides/腳手架新專案啟動流程.md) — 從本腳手架複製成新系統的改名與設定檢查清單（操作細節見上方上手指南）。
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
-- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 7 個專案會一起改名；0.9.116 起開跑前會確認腳手架來源是最新的（工作目錄乾淨、在 `main`、不落後 origin），否則中止（`-AllowUnsyncedSource` 可放行）。
+- `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 8 個專案（0.10.0 起含 `MyProject.Web.Client`）會一起改名；0.9.116 起開跑前會確認腳手架來源是最新的（工作目錄乾淨、在 `main`、不落後 origin），否則中止（`-AllowUnsyncedSource` 可放行）。
 - `scripts/New-CrudModule.ps1` — 一行產生新 CRUD 模組（13 個樣板檔，含操作說明初稿與服務測試，對齊現行慣例），並自動完成所有登記與 migration（0.9.110 起）；改了樣板跑 `scripts/Test-CrudGenerator.ps1` 驗證。
 
 ### 維運與部署（operations）

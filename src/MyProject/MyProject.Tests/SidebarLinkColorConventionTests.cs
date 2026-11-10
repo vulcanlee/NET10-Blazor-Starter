@@ -86,26 +86,5 @@ public sealed class SidebarLinkColorConventionTests
     private static string StripBlockComments(string text)
         => Regex.Replace(text, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
 
-    private static string FindWebRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web");
-            if (Directory.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("找不到 MyProject.Web 目錄。");
-    }
+    private static string FindWebRoot() => SourceTree.Web;
 }

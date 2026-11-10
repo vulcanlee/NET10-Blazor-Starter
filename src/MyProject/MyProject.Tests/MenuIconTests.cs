@@ -93,26 +93,5 @@ public sealed class MenuIconTests
         }
     }
 
-    private static string FindMenuJsonPath()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web", "Datas", "Menu.json");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "Datas", "Menu.json");
-            if (File.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new FileNotFoundException("找不到 MyProject.Web/Datas/Menu.json。");
-    }
+    private static string FindMenuJsonPath() => SourceTree.WebFile(Path.Combine("Datas", "Menu.json"));
 }

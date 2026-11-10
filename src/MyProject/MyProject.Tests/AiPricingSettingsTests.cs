@@ -224,25 +224,5 @@ public sealed class AiPricingSettingsTests
         return path;
     }
 
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (Directory.Exists(Path.Combine(dir.FullName, "MyProject.Web")))
-            {
-                return dir.FullName;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(srcCandidate, "MyProject.Web")))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 src/MyProject。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 }

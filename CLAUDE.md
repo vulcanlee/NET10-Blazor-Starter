@@ -83,6 +83,9 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 最關鍵的不變量（違反會改壞功能或留下隱患）：
 - 本系統**只支援 SQLite**；模型變更要在 `MyProject.AccessDatas/Migrations/` 產生 migration（0.4.24 起已移除 SQL Server 軌道）。
 - 分層依賴一律向上：Web → Business → AccessDatas；`Share` 不相依其他專案，`Models`/`Dtos` 只相依 `Share`；UI 不直接 `using BackendDBContext`。
+  0.10.0 起進行 WASM 改寫（計畫與各里程碑測試報告在 `docs/migration/`）：WASM 前端 `MyProject.Web.Client` 只能參考 Dtos／Models／Share；
+  刷新 Token 一律經 `IRefreshTokenStore`（落庫、輪替、重用撤銷）；API 的目前使用者由 `ApiActorMiddleware`＋`ICurrentUserLoader` 載入（與網頁共用規則）；
+  測試讀原始碼一律經 `SourceTree`。見速查表 §1、§6.20、§6.33。
 - Web API 一律回傳 `ApiResult<T>`，分頁包 `PagedResult<T>`；UI 用 Cookie 驗證、API 用 JWT Bearer。受保護 CRUD 另以 `[HasPermission("resource:action")]` + `IPermissionChecker` 做動作級授權（無權限回 403，維持 `ApiResult`；管理員短路）；UI 與 API 共用此單一 RBAC 權威來源。
 - Blazor 檢視編輯前 `Clone()`。**不再需要手動清除 EF 追蹤** —— 0.4.36 起 Blazor 路徑的資料服務
   改注入 `IDbContextFactory<BackendDBContext>`，每個方法用完即棄，`CleanTrackingHelper` 已移除。

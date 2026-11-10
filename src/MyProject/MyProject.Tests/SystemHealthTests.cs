@@ -166,29 +166,7 @@ public sealed class SystemHealthTests
         }
     }
 
-    private static string FindHealthServicePath()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            foreach (var relative in new[]
-            {
-                Path.Combine("MyProject.Web", "Health", "SystemHealthService.cs"),
-                Path.Combine("src", "MyProject", "MyProject.Web", "Health", "SystemHealthService.cs"),
-            })
-            {
-                var candidate = Path.Combine(dir.FullName, relative);
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new FileNotFoundException("找不到 SystemHealthService.cs。");
-    }
+    private static string FindHealthServicePath() => SourceTree.WebFile(Path.Combine("Health", "SystemHealthService.cs"));
 
     private static SystemHealthItem CreateItem(string name, int weight, SystemHealthStatus status)
     {

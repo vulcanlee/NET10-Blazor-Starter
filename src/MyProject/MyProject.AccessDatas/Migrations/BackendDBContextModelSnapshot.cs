@@ -997,6 +997,84 @@ namespace MyProject.AccessDatas.Migrations
                     b.ToTable("PromptTemplate");
                 });
 
+            modelBuilder.Entity("MyProject.AccessDatas.Models.RefreshSession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("AbsoluteExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClientKind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FamilyId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsPersistent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastUsedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LoginSessionId")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MyUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ReplacedById")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RevokedReason")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("LoginSessionId");
+
+                    b.HasIndex("MyUserId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("RefreshSession");
+                });
+
             modelBuilder.Entity("MyProject.AccessDatas.Models.RolePermissionMap", b =>
                 {
                     b.Property<int>("Id")
@@ -1448,6 +1526,17 @@ namespace MyProject.AccessDatas.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("MyProject.AccessDatas.Models.RefreshSession", b =>
+                {
+                    b.HasOne("MyProject.AccessDatas.Models.MyUser", "MyUser")
+                        .WithMany()
+                        .HasForeignKey("MyUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MyUser");
                 });
 
             modelBuilder.Entity("MyProject.AccessDatas.Models.RolePermissionMap", b =>

@@ -604,27 +604,7 @@ public sealed class PasswordPolicyTests : IDisposable
         return await context.PasswordHistory.CountAsync(x => x.MyUserId == id);
     }
 
-    private static string FindSourceRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "src", "MyProject");
-            if (Directory.Exists(Path.Combine(candidate, "MyProject.Web")))
-            {
-                return candidate;
-            }
-
-            if (Directory.Exists(Path.Combine(dir.FullName, "MyProject.Web")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web 所在的原始碼目錄。");
-    }
+    private static string FindSourceRoot() => SourceTree.SourceRoot;
 
     public void Dispose()
     {

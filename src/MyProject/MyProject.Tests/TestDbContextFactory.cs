@@ -18,10 +18,13 @@ namespace MyProject.Tests;
 public sealed class TestDbContextFactory : IDbContextFactory<BackendDBContext>
 {
     private readonly SqliteConnection connection;
+    private readonly IInterceptor[] interceptors;
 
-    public TestDbContextFactory(SqliteConnection connection)
+    /// <param name="interceptors">要掛上的 EF 攔截器（例如 <c>SecurityStampInvalidationInterceptor</c>）；正式環境由 DI 掛上。</param>
+    public TestDbContextFactory(SqliteConnection connection, params IInterceptor[] interceptors)
     {
         this.connection = connection;
+        this.interceptors = interceptors;
     }
 
     public BackendDBContext CreateDbContext()
@@ -31,6 +34,7 @@ public sealed class TestDbContextFactory : IDbContextFactory<BackendDBContext>
             // 測試環境把「Skip/Take 沒有 OrderBy」直接視為錯誤：這個警告代表分頁順序不保證，
             // 同一筆資料可能重複出現或整批漏掉，必須在測試就擋下，不要留到執行期日誌。
             .ConfigureWarnings(w => w.Throw(CoreEventId.RowLimitingOperationWithoutOrderByWarning))
+            .AddInterceptors(interceptors)
             .Options;
 
         return new BackendDBContext(options);

@@ -77,26 +77,5 @@ public sealed class StartupSafetyConventionTests
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }
 
-    private static string FindWebRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "MyProject.Web");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            var srcCandidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web");
-            if (Directory.Exists(srcCandidate))
-            {
-                return srcCandidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web。");
-    }
+    private static string FindWebRoot() => SourceTree.Web;
 }

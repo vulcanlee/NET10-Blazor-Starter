@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.9
+- 文件版本：3.10
 - 文件狀態：已實作
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.0
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/10
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -504,9 +504,9 @@ pwsh ./scripts/New-StarterProject.ps1 `
 ```
 
 > **整個方案跑這一次就好。** `-ProjectName` 是整份腳手架的代號，不是單一專案名：
-> `.slnx` 內的 7 個專案、方案檔本身，以及外層 `src/MyProject/` 目錄，都在這一次執行中一起改名。
+> `.slnx` 內的 8 個專案（0.10.0 起含 WASM 前端 `MyProject.Web.Client`）、方案檔本身，以及外層 `src/MyProject/` 目錄，都在這一次執行中一起改名。
 > 對照 [§8.2 步驟 2](#步驟-2改資料夾名稱由深到淺) 的資料夾對照表 —— **那整張表腳本會一次做完**，
-> 不需要為了七個專案跑七次。
+> 不需要為了八個專案跑八次。
 
 > 完整參數（`-Force`、`-SourceProjectName`、`-UserSecretsId`、`-KeepStarterHistory`、`-AllowUnsyncedSource`）見 [腳手架開發指引 §2.1](腳手架開發指引.md#21-建議順序)。
 
@@ -576,11 +576,12 @@ src/MyProject/.claude/settings.local.json                 ← 個人的 Claude C
 | 5 | `src/MyProject/MyProject.Business` | `src/MyProject/Acme.Erp.Business` |
 | 6 | `src/MyProject/MyProject.Web` | `src/MyProject/Acme.Erp.Web` |
 | 7 | `src/MyProject/MyProject.Tests` | `src/MyProject/Acme.Erp.Tests` |
-| 8 | `src/MyProject` | `src/Acme.Erp` |
+| 8 | `src/MyProject/MyProject.Web.Client` | `src/MyProject/Acme.Erp.Web.Client` |
+| 9 | `src/MyProject` | `src/Acme.Erp` |
 
 #### 步驟 3：改檔案名稱
 
-7 個 `.csproj` 加 1 個方案檔：
+8 個 `.csproj` 加 1 個方案檔：
 
 ```
 Acme.Erp.Share/MyProject.Share.csproj             → Acme.Erp.Share.csproj
@@ -590,6 +591,7 @@ Acme.Erp.AccessDatas/MyProject.AccessDatas.csproj → Acme.Erp.AccessDatas.cspro
 Acme.Erp.Business/MyProject.Business.csproj       → Acme.Erp.Business.csproj
 Acme.Erp.Web/MyProject.Web.csproj                 → Acme.Erp.Web.csproj
 Acme.Erp.Tests/MyProject.Tests.csproj             → Acme.Erp.Tests.csproj
+Acme.Erp.Web.Client/MyProject.Web.Client.csproj   → Acme.Erp.Web.Client.csproj
 MyProject.slnx                                    → Acme.Erp.slnx
 ```
 

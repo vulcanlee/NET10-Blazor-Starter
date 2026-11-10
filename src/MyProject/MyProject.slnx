@@ -6,4 +6,5 @@
   <Project Path="MyProject.Share/MyProject.Share.csproj" Id="910209cd-aa86-4120-82a5-755e5d61c837" />
   <Project Path="MyProject.Tests/MyProject.Tests.csproj" />
   <Project Path="MyProject.Web/MyProject.Web.csproj" />
+  <Project Path="MyProject.Web.Client/MyProject.Web.Client.csproj" />
 </Solution>

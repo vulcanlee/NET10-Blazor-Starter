@@ -32,7 +32,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
 
         Assert.Equal(
             ["deleted-project", "deleted-category", "deleted-team", "deleted-user", "deleted-role",
-             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "admin-patrol-report", "audit-log", "notification", "email-log", "backup", "job-run", "nlog", "announcement"],
+             "exception-log", "token-usage", "ai-call-log", "agent-conversation", "admin-patrol-report", "audit-log", "notification", "email-log", "refresh-session", "backup", "job-run", "nlog", "announcement"],
             overview.Rows.Select(x => x.Key).ToArray());
         Assert.All(overview.Rows, row => Assert.Null(row.Error));
 
@@ -48,6 +48,8 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         Assert.Equal(NotificationRetentionJob.JobName, JobOf("notification"));
         Assert.Equal(EmailLogRetentionJob.JobName, JobOf("email-log"));
         Assert.Equal("/email-logs", overview.Rows.Single(x => x.Key == "email-log").ManageUrl);
+        Assert.Equal(RefreshSessionRetentionJob.JobName, JobOf("refresh-session"));
+        Assert.Equal("/myusers", overview.Rows.Single(x => x.Key == "refresh-session").ManageUrl);
         Assert.Equal(SystemBackupJob.JobName, JobOf("backup"));
         Assert.All(overview.Rows.Where(x => x.JobName is not null), row => Assert.NotNull(row.Job));
 
@@ -69,7 +71,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         using var scope = factory.Services.CreateScope();
         var overview = await scope.ServiceProvider.GetRequiredService<DataRetentionOverviewService>().GetOverviewAsync();
 
-        Assert.Equal(["admin-patrol-report", "backup", "nlog", "announcement"], overview.Rows.Where(x => !x.CanCustomPurge).Select(x => x.Key).ToArray());
+        Assert.Equal(["admin-patrol-report", "refresh-session", "backup", "nlog", "announcement"], overview.Rows.Where(x => !x.CanCustomPurge).Select(x => x.Key).ToArray());
     }
 
     /// <summary>
@@ -206,26 +208,5 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         Assert.StartsWith("將依目前的保留規則（保留 365 天）刪除「稽核紀錄」中約 87 筆，連同詳細內容檔。", content, StringComparison.Ordinal);
     }
 
-    private static string FindPagesRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "src", "MyProject", "MyProject.Web", "Components", "Pages");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            candidate = Path.Combine(dir.FullName, "MyProject.Web", "Components", "Pages");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("找不到 MyProject.Web/Components/Pages。");
-    }
+    private static string FindPagesRoot() => Path.Combine(SourceTree.Components, "Pages");
 }
