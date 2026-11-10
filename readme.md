@@ -399,6 +399,11 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [PRD 主控台（能力覆蓋矩陣）](docs/prd/README.md) — 以產品能力為單位的單一入口：能力→入口→程式來源→狀態。
 - 各能力 PRD 一律由上方主控台的**能力覆蓋矩陣**索引，避免此處與 `docs/prd/README.md` 長期不同步。
 
+### 架構遷移（migration）
+
+- [WASM 改寫可行性分析報告](docs/migration/WASM改寫可行性分析報告.md) — Blazor Server → WebAssembly＋獨立 Web API 的可行性結論、現況盤點、37 個路由功能對照、技術決策與風險。
+- [WASM 遷移計畫](docs/migration/WASM遷移計畫.md) — 12 個里程碑的範圍、固定流程、實機情境、進度與各里程碑測試報告。
+
 ### 變更紀錄（changelog）
 
 - [docs/changelog/](docs/changelog/README.md) — 全部改版紀錄的單一索引（依版本新→舊）。
