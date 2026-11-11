@@ -1,0 +1,15 @@
+﻿@page "/agent-playground"
+@attribute [Authorize]
+@using MyProject.Web.Client.Views.AiAssistants
+
+@* 0.10.7 起在 WASM 執行（WASM 遷移 M8）。版面 ClientMainLayout 由 ClientRoutes 指定；[Authorize] 讓伺服器在整頁請求時先擋未登入者。
+   網址可帶 ?conversation={id}：重新整理後回到同一段對話（Server 版沒有）。 *@
+<PageTitle>Agent 測試台</PageTitle>
+
+<AgentPlaygroundView InitialConversationId="@Conversation" />
+
+@code {
+    /// <summary>重新整理前開著的那段對話（畫面在開對話、送出第一則訊息時把它寫進網址）。</summary>
+    [SupplyParameterFromQuery(Name = "conversation")]
+    public Guid? Conversation { get; set; }
+}

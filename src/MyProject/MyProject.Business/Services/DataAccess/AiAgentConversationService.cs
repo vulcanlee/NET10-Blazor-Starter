@@ -38,7 +38,7 @@ public class AiAgentConversationService : IAiAgentConversationStore
     public const int AutoTitleLength = 40;
 
     /// <summary>標題長度上限（改名時檢查）。</summary>
-    public const int MaxTitleLength = 100;
+    public const int MaxTitleLength = MyProject.Dtos.Ai.AgentConversationLimits.MaxTitleLength;
 
     /// <summary>「我的對話」清單最多列幾段（依最後對話時間 desc）。</summary>
     public const int MaxListCount = 100;
@@ -183,12 +183,12 @@ public class AiAgentConversationService : IAiAgentConversationStore
         var trimmed = title?.Trim() ?? string.Empty;
         if (trimmed.Length == 0)
         {
-            return VerifyRecordResultFactory.Build(false, "標題不可空白。");
+            return VerifyRecordResultFactory.Invalid("標題不可空白。");
         }
 
         if (trimmed.Length > MaxTitleLength)
         {
-            return VerifyRecordResultFactory.Build(false, $"標題最多 {MaxTitleLength} 個字。");
+            return VerifyRecordResultFactory.Invalid($"標題最多 {MaxTitleLength} 個字。");
         }
 
         try
@@ -197,7 +197,7 @@ public class AiAgentConversationService : IAiAgentConversationStore
             var item = await Mine(context).FirstOrDefaultAsync(x => x.ConversationId == conversationId);
             if (item is null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到這段對話。");
+                return VerifyRecordResultFactory.NotFound("找不到這段對話。");
             }
 
             item.Title = trimmed;
@@ -207,7 +207,7 @@ public class AiAgentConversationService : IAiAgentConversationStore
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to rename AI agent conversation. ConversationId={ConversationId}", conversationId);
-            return VerifyRecordResultFactory.Build(false, "重新命名失敗。", ex);
+            return VerifyRecordResultFactory.Error("重新命名失敗。", ex);
         }
     }
 
@@ -220,7 +220,7 @@ public class AiAgentConversationService : IAiAgentConversationStore
             var item = await Mine(context).FirstOrDefaultAsync(x => x.ConversationId == conversationId);
             if (item is null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到這段對話。");
+                return VerifyRecordResultFactory.NotFound("找不到這段對話。");
             }
 
             var contentFile = item.ContentFile;
@@ -242,8 +242,22 @@ public class AiAgentConversationService : IAiAgentConversationStore
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to delete AI agent conversation. ConversationId={ConversationId}", conversationId);
-            return VerifyRecordResultFactory.Build(false, "刪除對話失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除對話失敗。", ex);
         }
+    }
+
+    /// <summary>
+    /// 搶下一段自己的、停在核准的對話（0.10.7 起，WASM 遷移 M8 的核准 API）：以一個條件式 UPDATE 把 <c>HasPendingApproval</c> 從 true 改成 false，
+    /// 改到一列才回 true。同一批核准從兩個分頁（甚至兩個行程）同時送來時只有一個搶得到，工具不會執行兩次；
+    /// 執行結束存檔時會依實際狀態再寫回這個欄位。
+    /// </summary>
+    public async Task<bool> TryClaimPendingApprovalAsync(Guid conversationId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var claimed = await Mine(context)
+            .Where(x => x.ConversationId == conversationId && x.HasPendingApproval)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.HasPendingApproval, false));
+        return claimed == 1;
     }
 
     /// <summary>自動過期：刪除最後對話早於 <c>RetentionDays</c> 天前（當天 0 點）的對話與內容檔。失敗回 null。</summary>

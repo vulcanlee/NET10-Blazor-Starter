@@ -1,65 +1,45 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Bunit;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using MyProject.AccessDatas;
-using MyProject.Business.Services.DataAccess;
-using MyProject.Business.Services.Other;
+using Microsoft.JSInterop;
+using MyProject.Dtos.Admins;
+using MyProject.Dtos.Commons;
 using MyProject.Models.Systems;
-using MyProject.Web.Components.Views.Admins;
+using MyProject.Web.Client.Api;
+using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Views.Admins;
 
 namespace MyProject.Tests.Components;
 
 /// <summary>
-/// 系統管理助理頁的「巡檢報告」視窗（0.9.161 起）：清單、打開一份報告（AI 產出經安全管線）、深連結找不到報告。
+/// 系統管理助理頁的「巡檢報告」視窗（0.9.161 起；0.10.7 起在 WASM 執行，資料走 <c>api/v1/admin-assistant/patrol-reports</c>）：
+/// 清單、打開一份報告（AI 產出經安全管線）、深連結找不到報告。HTTP 換成記憶體裡的假報告。
 /// </summary>
 public sealed class AdminPatrolReportsModalTests : ComponentTestBase
 {
-    private readonly string rootPath = Path.Combine(Path.GetTempPath(), "MyProjectTests", Guid.NewGuid().ToString("N"));
-    private readonly SqliteConnection connection;
-    private readonly AdminPatrolReportService service;
+    private readonly FakeReportHandler handler = new();
 
     public AdminPatrolReportsModalTests()
     {
-        connection = new SqliteConnection("Data Source=:memory:");
-        connection.Open();
-        using (var context = new BackendDBContext(new DbContextOptionsBuilder<BackendDBContext>().UseSqlite(connection).Options))
-        {
-            context.Database.EnsureCreated();
-        }
-
-        var settings = new SystemSettings();
-        settings.ExternalFileSystem.AiAgentConversationPath = rootPath;
-        service = new AdminPatrolReportService(
-            new TestDbContextFactory(connection),
-            new AdminPatrolReportFileStore(Options.Create(settings), NullLogger<AdminPatrolReportFileStore>.Instance),
-            new StaticOptionsMonitor<AdminPatrolSettings>(new AdminPatrolSettings { RetentionDays = 45 }),
-            NullLogger<AdminPatrolReportService>.Instance);
         Services.AddLogging();
-        Services.AddSingleton(service);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
+        Services.AddSingleton(sp =>
         {
-            connection.Dispose();
-            if (Directory.Exists(rootPath))
-            {
-                Directory.Delete(rootPath, recursive: true);
-            }
-        }
-
-        base.Dispose(disposing);
+            var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+            var navigation = sp.GetRequiredService<NavigationManager>();
+            var session = new ClientSession(http, new TokenStore(sp.GetRequiredService<IJSRuntime>()), navigation, NullLogger<ClientSession>.Instance);
+            return new AdminAssistantApi(new ApiClient(http, session, navigation, NullLogger<ApiClient>.Instance));
+        });
     }
 
     [Fact]
     public async Task Open_ShowsListAndLatestReport_RenderedSafely()
     {
-        await SaveAsync(new DateTime(2026, 11, 7, 7, 30, 0), AdminPatrolStatuses.Normal, "", "## 總結\n昨天正常。");
-        var latest = await SaveAsync(
+        Save(new DateTime(2026, 11, 7, 7, 30, 0), AdminPatrolStatuses.Normal, "", "## 總結\n昨天正常。");
+        var latest = Save(
             new DateTime(2026, 11, 8, 7, 30, 0), AdminPatrolStatuses.Abnormal, "排程與備份",
             "## 總結\n**備份失敗**<script>alert(1)</script>");
         var cut = Render<AdminPatrolReportsModal>();
@@ -81,8 +61,8 @@ public sealed class AdminPatrolReportsModalTests : ComponentTestBase
     [Fact]
     public async Task OpenSpecificReport_SelectsIt()
     {
-        var older = await SaveAsync(new DateTime(2026, 11, 7, 7, 30, 0), AdminPatrolStatuses.Attention, "帳號與安全", "## 總結\n較舊的報告。");
-        await SaveAsync(new DateTime(2026, 11, 8, 7, 30, 0), AdminPatrolStatuses.Normal, "", "## 總結\n最新的報告。");
+        var older = Save(new DateTime(2026, 11, 7, 7, 30, 0), AdminPatrolStatuses.Attention, "帳號與安全", "## 總結\n較舊的報告。");
+        Save(new DateTime(2026, 11, 8, 7, 30, 0), AdminPatrolStatuses.Normal, "", "## 總結\n最新的報告。");
         var cut = Render<AdminPatrolReportsModal>();
 
         var found = await cut.InvokeAsync(() => cut.Instance.OpenAsync(older));
@@ -95,7 +75,7 @@ public sealed class AdminPatrolReportsModalTests : ComponentTestBase
     [Fact]
     public async Task OpenMissingReport_ReturnsFalse_AndStillShowsList()
     {
-        await SaveAsync(new DateTime(2026, 11, 8, 7, 30, 0), AdminPatrolStatuses.Normal, "", "## 總結\n最新的報告。");
+        Save(new DateTime(2026, 11, 8, 7, 30, 0), AdminPatrolStatuses.Normal, "", "## 總結\n最新的報告。");
         var cut = Render<AdminPatrolReportsModal>();
 
         var found = await cut.InvokeAsync(() => cut.Instance.OpenAsync(Guid.NewGuid()));
@@ -114,12 +94,50 @@ public sealed class AdminPatrolReportsModalTests : ComponentTestBase
         cut.WaitForAssertion(() => Assert.Contains("還沒有巡檢報告", cut.Markup, StringComparison.Ordinal));
     }
 
-    private async Task<Guid> SaveAsync(DateTime createdAt, string status, string attention, string markdown)
+    private Guid Save(DateTime createdAt, string status, string attention, string markdown)
     {
         var id = Guid.NewGuid();
-        var saved = await service.SaveAsync(new AdminPatrolReportDraft(
-            id, createdAt, status, attention, JobRunTriggers.Schedule, null, 1, "gpt-test", false, markdown));
-        Assert.NotNull(saved);
+        handler.Reports.Insert(0, new AdminPatrolReportDetailDto
+        {
+            Summary = new AdminPatrolReportSummaryDto
+            {
+                ReportId = id,
+                CreatedAt = createdAt,
+                Status = status,
+                AttentionSections = attention,
+                Trigger = JobRunTriggers.Schedule,
+                ModelName = "gpt-test",
+            },
+            Markdown = markdown,
+        });
         return id;
+    }
+
+    /// <summary>假的巡檢報告 API：清單（最新在前、保存 45 天）與單份，找不到 404。</summary>
+    private sealed class FakeReportHandler : HttpMessageHandler
+    {
+        public List<AdminPatrolReportDetailDto> Reports { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath.TrimEnd('/');
+            const string Base = "/api/v1/admin-assistant/patrol-reports";
+            if (path == Base)
+            {
+                return Json(HttpStatusCode.OK, ApiResult<AdminPatrolReportListDto>.SuccessResult(new AdminPatrolReportListDto
+                {
+                    RetentionDays = 45,
+                    Items = Reports.Select(report => report.Summary).ToList(),
+                }));
+            }
+
+            var id = Guid.Parse(path[(Base.Length + 1)..]);
+            return Reports.FirstOrDefault(report => report.Summary.ReportId == id) is { } found
+                ? Json(HttpStatusCode.OK, ApiResult<AdminPatrolReportDetailDto>.SuccessResult(found))
+                : Json(HttpStatusCode.NotFound, ApiResult<AdminPatrolReportDetailDto>.NotFoundResult("找不到這份巡檢報告，可能已超過保存期限被清除。"));
+        }
+
+        private static Task<HttpResponseMessage> Json<T>(HttpStatusCode status, ApiResult<T> body)
+            => Task.FromResult(new HttpResponseMessage(status) { Content = JsonContent.Create(body, options: JsonSerializerOptions.Web) });
     }
 }

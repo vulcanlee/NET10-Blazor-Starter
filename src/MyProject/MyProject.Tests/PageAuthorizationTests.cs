@@ -268,8 +268,9 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
             .ToList();
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
-        // WASM 遷移期間 Server 版頁面逐步搬走，下限跟著降（0.10.6 起 M7 搬完維運頁後只剩 Agent、系統管理助理與兩步驟驗證設定等 4 個）。
-        Assert.True(components.Count >= 4, $"只掃到 {components.Count} 個呼叫 Check() 的元件，掃描路徑可能失效。");
+        // WASM 遷移期間 Server 版頁面逐步搬走，下限跟著降（0.10.6 起 M7 搬完維運頁後只剩 Agent、系統管理助理與兩步驟驗證設定等 4 個；
+        // 0.10.7 起 M8 搬走 Agent 測試台、Agent 工作流程與系統管理助理，只剩兩步驟驗證設定）。
+        Assert.True(components.Count >= 1, $"只掃到 {components.Count} 個呼叫 Check() 的元件，掃描路徑可能失效。");
 
         var violations = new List<string>();
         foreach (var markup in components)

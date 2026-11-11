@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：進行中
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.7
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/11
 
@@ -24,7 +24,7 @@
 | M5 | 0.10.4 | 使用者、角色、稽核、郵件紀錄 | 完成 | [M05-使用者角色稽核郵件紀錄](測試報告/M05-使用者角色稽核郵件紀錄.md) |
 | M6 | 0.10.5 | AI 串流＋日誌與 AI 管理頁 | 完成 | [M06-AI串流日誌與AI管理頁](測試報告/M06-AI串流日誌與AI管理頁.md) |
 | M7 | 0.10.6 | 維運頁與首頁儀表板 | 完成 | [M07-維運頁與首頁儀表板](測試報告/M07-維運頁與首頁儀表板.md) |
-| M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 未開始 | — |
+| M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 完成 | [M08-Agent系統管理助理與通知推播](測試報告/M08-Agent系統管理助理與通知推播.md) |
 | M9 | 0.10.8 | 純 Token 登入 | 未開始 | — |
 | M10 | 0.10.9 | 移除 Server 模式 | 未開始 | — |
 | M11 | 0.10.10 | 拆成獨立靜態站台＋API 主機 | 未開始 | — |
@@ -184,7 +184,7 @@
 > - **備份下載用 M4 的同一套票證**：`DownloadTicketService` 的目標改成字串（附件 Id 或備份檔名）、新增 `BackupKind`；兌換時多一道「仍是管理員」，檔名經 `BackupStore.TryResolveFullPath`，稽核 `Backup.Download` 在兌換時寫。`BackupController` 刪除，0.10.6 起已沒有以 Cookie 驗證的 API。與 M4 相同的取捨：**不能續傳**（Server 版的 Cookie 下載可以；計畫已拍板一次性票證）。
 > - **首頁小工具由伺服器決定**：計畫寫「各小工具資料 API，依權限顯示」，實作是 `GET api/v1/dashboard` 依 `DashboardWidgetCatalog.VisibleTo` 只回看得到的小工具（快速入口也由伺服器過濾），Client 的 `DashboardWidgetComponents` 以代號對應元件、兩邊登記由 `DashboardTests` 檢查一致；每個小工具繼承 `DashboardWidgetBase` 自己讀資料，讀不到只影響那張卡片。伺服器的登記不再帶元件型別（`AddDashboardWidget("代號", …)`）。
 > - **系統參數的驗證全在伺服器**：WASM 送 `Key`、`Value`、`ExpectedStamp`（鍵含冒號，放本文），`SystemParametersController` 走同一個 `SystemParameterManager`；不在目錄的鍵（例如 `JwtSettings:SigningKey`）404、不合法 400、版本衝突或設定檔有誤 409。`SystemParameterValueCodec` 搬到 Client 共用（`ISystemParameterFormat`），`SystemParameterKind`／`Source` 搬到 Dtos，`AnnouncementTargetKinds` 搬到 Share（命名空間不變）。
-> - **公告「廣播走通知機制」改成同分頁訊號＋輪詢**：伺服器存檔後照 Server 版清快取並廣播（還在 Server 的頁面即時更新）；WASM 收不到伺服器訊號，公告頁存檔或刪除後以新的 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀（M8 的通知推播串流再補即時）。
+> - **公告「廣播走通知機制」改成同分頁訊號＋輪詢**：伺服器存檔後照 Server 版清快取並廣播（還在 Server 的頁面即時更新）；WASM 收不到伺服器訊號，公告頁存檔或刪除後以新的 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀（M8 的通知推播串流再補即時；0.10.7 已完成）。
 > - **外框立即重讀的共用基底 `ClientRefreshSignal`**：`ClientNotificationSignal`（系統健康「發送測試通知」、首頁點開通知後請鈴鐺立即重讀；鈴鐺標為已讀或刪除後以 `RequestRefresh(except:)` 請首頁「我的通知」重讀、跳過自己）與 `ClientAnnouncementSignal` 共用；只對同一個分頁有效。
 > - **小修正：M2 留下的時差問題**：`NotificationsController`（鈴鐺）、`ProfileController` 與 `ShellController`（「關於」的啟動時間 `StartedAtLocal`）三處的本地時間原本帶 `+08:00` 送出（`ConvertTimeFromUtc`／`DateTimeOffset.LocalDateTime` 回 `Kind=Local`），伺服器與瀏覽器時區不同時鈴鐺、個人資料頁與「關於」的時間會錯；改為不帶時差，補測試 `NotificationsProfileAndShellInfo_ShouldSendLocalTimesWithoutAnOffset`（ShellController 是獨立審查發現）。
 > - **獨立審查**：輪詢失敗不再每 2／5 秒疊一則不會自動關閉的錯誤通知（排程、備份、資料保留頁，改為只記日誌）；「我的通知」第一次讀取未完成就換頁時不再留下訂閱；「關於」的啟動時間時差；文件的續傳與 5 秒。另記兩項設計說明（備份票證是「持有連結即可下載」、公告 API 的起訖時間是伺服器本地時間），見 changelog 與測試報告。
@@ -196,6 +196,19 @@
 
 - Agent 對話每次請求接續已保存對話＋每段對話一把鎖；工作流程執行登錄表；通知推播串流。
 - **實機情境（真實模型）**：寫入工具核准與拒絕、核准中重新整理可恢復、工作流程人工介入、兩分頁同時送出被排隊、巡檢報告連結、推播 2 秒內到達、關閉推播仍可輪詢。
+
+> **M8 實際做法與計畫的差異**：
+> - **Agent 對話照計畫「每個請求接續一次＋每段對話一把鎖」**：測試台與系統管理助理共用 `Controllers/AgentConversationEndpoint.cs`，每個請求以 `AiAgentRunner.ResumeAsync` 接續存檔、執行、存檔，伺服器不留對話物件，所以每個請求用當下系統參數的模型。鎖（`AiAgentConversationLocks`）拿不到時**排隊**而不是拒絕（使用者決定；Server 版沒有鎖、兩個分頁會互相覆蓋）：先回 200 串流並送心跳，輪到才驗證，錯誤放在 `result` 那一行。核准另以 `HasPendingApproval` 條件式更新搶占，跨行程也只執行一次。
+> - **Server 版只在畫面擋的規則搬到伺服器**：訊息 2,000 字（400）、等待核准時送新訊息 409、核准編號必須在目前待核准裡（否則 409，同一核准送兩次只執行一次）、沒有待核准卻送核准 409、不可復原動作沒輸入「確認」400（`AdminAssistantApproval` 搬到 Client 共用）。
+> - **系統管理助理核准後沿用原本分派到的領域**：每個請求都重新接續，原本會退回「全部工具＋全部領域」；分派結果代碼存進對話檔的 `TurnKey`，接續時 `IAiAgentTurnPlanner.RestoreTurnAsync` 重建同一輪（不呼叫分派模型）。
+> - **網址帶 `?conversation={id}`**（計畫沒有，順手加上）：重新整理回到同一段對話，停在核准的再跳出核准窗。
+> - **工作流程執行登錄表**：`AiWorkflowRunRegistry`（singleton）每次執行一個 `AsyncServiceScope`（填入目前使用者與來源 IP，每次回覆更新）、一人同時一次（第二個 409）、別人 404、閒置 30 分鐘結束成「中斷」。比計畫多的：**停在等人回覆時重新整理或關分頁，30 分鐘內回到頁面自動接回**（`GET runs/active`）；串流途中斷線仍中斷整個流程（同 Server 版）。已知限制：只在單一行程有效，IIS 回收或重啟後執行就沒了。
+> - **通知推播串流**（計畫「通知以輪詢為準加串流推播」）：`POST api/v1/notifications/stream`（`[SignedInUser]`），`ready` → `notifications`／`announcements`（短時間多次合併）→ 閒置每 25 秒 `ping`；Token 到期前 1 分鐘送 `renew`、滿 30 分鐘或網站關閉送 `reconnect`。每人最多 3 條（第 4 條 429，保留 HTTP/1.1 下另外 3 條給一般 API）；開關 `NotificationSettings:PushEnabled`（`shell/info` 多回 `NotificationPushEnabled`）。WASM 的 `ClientPushConnection` 收到變動就觸發 M7 的 `ClientNotificationSignal`／`ClientAnnouncementSignal`，斷線 2→4→…→60 秒退避；60 秒輪詢保留為備援。沒做跨分頁共用一條連線（BroadcastChannel）：複雜度高，正式環境 IIS＋HTTPS 通常是 HTTP/2。
+> - **共用的串流心跳 `NdjsonHeartbeat`**：資料源閒置時插 ping（Agent／工作流程 15 秒、推播 25 秒），避免代理伺服器把閒置連線切斷。⚠️ `NdjsonResult` 不會替無限長的串流停下來，推播的產生端自己看 `RequestAborted` 並取消訂閱；推播連線不記慢請求。
+> - **與 Server 版不同（使用者看得到的）**：網址帶對話；兩個分頁排隊、核准只執行一次；工作流程等人回覆時重新整理可接回、一人一次；按「停止產生」後畫面自己補「已停止產生…」（M6 的做法），還在排隊就按停止則重讀伺服器上的對話；推論等級下一則訊息才在伺服器套用；每個請求用當下的模型；API 錯誤改成一般錯誤通知；鈴鐺與公告在其他分頁與其他使用者那邊通常幾秒內更新。
+> - **獨立審查（5 項，全部修正）**：工作流程第二個分頁接回來看一下就離開會中斷第一個分頁的流程（改為只放棄自己開始或回覆過的、`onlyIfIdle`，409 時重讀）；對話內容檔同時讀寫時寫入可能失敗而卡死（改共用模式並重試，補 `AiAgentConversationFileStoreTests`）；排隊中按停止會補上伺服器沒存的紀錄（改為重讀）；核准後那一輪收不到「由誰回答」（每個請求至少送一次）；網站關閉時登錄表串流中途就釋放 scope（先中斷、等收尾最多 5 秒）。
+> - **守門測試跟著搬遷調整**：`PageAuthorizationTests` 呼叫 `Check()` 的元件下限降為 1（只剩兩步驟驗證設定）；`AdminPatrolNotificationTests` 改讀 Client；`AdminPatrolReportsModalTests` 改寫為 WASM 版。
+> - 實機腳本：`scripts/e2e/m08-views.mjs`（4 個初始畫面比對）、`m08-agents.mjs`（M8-G1～G9＋37 路由煙霧測試；`nopush` 參數跑 M8-N1，主機加 `NotificationSettings__PushEnabled=false`）。實機注意：真實模型常先回問「請確認是否要修改？」再呼叫寫入工具，腳本會回答「確認」。
 
 ### M9 純 Token 登入（0.10.8）
 

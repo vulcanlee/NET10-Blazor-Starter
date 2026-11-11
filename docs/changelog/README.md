@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.104
+- 文件版本：6.105
 - 文件狀態：維護中
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.7
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/11
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| WASM 遷移 M8 Agent、系統管理助理與通知推播：Agent 測試台、Agent 工作流程、系統管理助理（含巡檢報告窗）改用 WebAssembly（外觀相同，WASM 頁面共 25 個）、Web API（`api/v1/agent-playground`、`api/v1/admin-assistant`、`api/v1/agent-workflows`，對話與執行以 NDJSON 串流並加心跳）、Agent 對話每個請求接續一次＋每段對話一把鎖（兩個分頁排隊、同一個核准只執行一次）、網址帶對話（重新整理回到同一段）、工作流程伺服器端執行登錄表（等人回覆時重新整理 30 分鐘內可接回、一人一次執行）、通知推播串流 `POST api/v1/notifications/stream`（鈴鐺與公告幾秒內更新、60 秒輪詢保留為備援、`NotificationSettings:PushEnabled`）、對話內容檔共用讀寫（0.10.7） | [2026-11-11-WASM遷移M8Agent系統管理助理與通知推播](2026-11-11-WASM遷移M8Agent系統管理助理與通知推播.md) |
 | WASM 遷移 M7 維運頁與首頁儀表板：排程作業、系統健康監控、系統備份、資料保留與清理、資料庫用量、系統參數、公告管理與首頁 `/App` 改用 WebAssembly（外觀相同，WASM 頁面共 22 個）、只限管理員的 Web API（`api/v1/scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`，公告管理補上清單／新增／修改／刪除）與首頁 API（`api/v1/dashboard`，看得到哪些小工具由伺服器決定）、備份下載改用一次性票證（不能續傳）並退役只收 Cookie 的 `BackupController`、系統參數驗證全在伺服器、外框立即重讀訊號 `ClientRefreshSignal`（測試通知、公告存檔後同一分頁立即更新）、排程執行中每 2 秒自動更新、修正鈴鐺、個人資料頁與「關於」的時差（0.10.6） | [2026-11-11-WASM遷移M7維運頁與首頁儀表板](2026-11-11-WASM遷移M7維運頁與首頁儀表板.md) |
 | WASM 遷移 M6 AI 串流＋日誌與 AI 管理頁：日誌檢視、日誌等級設定、系統例外紀錄、AI 對話紀錄、Token 用量、AI 提示詞六頁改用 WebAssembly（外觀相同，WASM 頁面共 14 個）、AI 逐字顯示改用 NDJSON 串流（`NdjsonResult`、`ApiClient.StreamAsync`、`AiStreamGuard`；停止產生＝中斷請求，伺服器取消 AI 呼叫、稽核照寫）、只限管理員的 Web API（`api/v1/exception-logs`、`logs`、`log-level`、`ai-call-logs`、`token-usage`、`prompt-templates`）、例外 AI 對話改由畫面送回問答並由伺服器重建明細、被限流（429）不再登出、三頁排序修正為依點選方向、Markdown 消毒補上角括號自動連結（0.10.5） | [2026-11-11-WASM遷移M6AI串流日誌與AI管理頁](2026-11-11-WASM遷移M6AI串流日誌與AI管理頁.md) |
 | WASM 遷移 M5 使用者、角色、稽核、郵件紀錄：使用者管理、角色管理、稽核紀錄、寄信紀錄四頁改用 WebAssembly（外觀相同）、新的只限管理員 Web API（`api/v1/users`、`roles`、`email-logs`，稽核紀錄補上搜尋、明細、匯出、清除、清空、完整性驗證）、`[AdminOnly]` 篩選器與 `[SignedInUser]` 標記、新守門測試 `ApiAuthorizationConventionTests`（每個 API action 都要標註授權意圖）、管理員改自己後經 `SessionRefreshUrl` 換發這台裝置的登入、「不可強制登出自己」「不可重設自己的兩步驟驗證」補到 API、鎖定時間與稽核 UTC 時間改由伺服器算、稽核「發生時間」排序生效（0.10.4） | [2026-11-11-WASM遷移M5使用者角色稽核郵件紀錄](2026-11-11-WASM遷移M5使用者角色稽核郵件紀錄.md) |

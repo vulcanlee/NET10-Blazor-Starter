@@ -34,6 +34,13 @@ public sealed class AiAgentConversationContent
     /// 只加不改，所以 <see cref="SchemaVersion"/> 不變（舊檔讀出來是 null）。
     /// </summary>
     public string? ReasoningEffort { get; set; }
+
+    /// <summary>
+    /// 最後一輪的規劃結果（0.10.7 起，系統管理助理：分派到的領域代碼，例如 <c>accounts,ops</c>；空字串＝沒有分出領域）；
+    /// 沒有每輪規劃器、或舊檔，為 null。WASM 版每個請求都重新接續對話，停在核准的對話靠它沿用提出核准的那一輪（工具與提示詞），
+    /// 而不是開對話用的那一輪。只加不改，<see cref="SchemaVersion"/> 不變。
+    /// </summary>
+    public string? TurnKey { get; set; }
 }
 
 /// <summary>畫面上的一則。<see cref="Kind"/> 見 <see cref="AiAgentTranscriptKinds"/>。</summary>

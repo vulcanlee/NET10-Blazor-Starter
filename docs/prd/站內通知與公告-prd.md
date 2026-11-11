@@ -1,8 +1,8 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.7
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/11/11
 
@@ -32,6 +32,12 @@
 **公告管理 WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/AnnouncementPage.razor`、`Views/Admins/AnnouncementView.*`；Server 版已刪除），畫面與訊息和之前相同。資料經 `AnnouncementsController` 新增的只限管理員端點（`GET api/v1/announcements`〔清單、角色與團隊選項、伺服器的「現在」〕、`POST`、`PUT {id}`、`DELETE {id}?concurrencyStamp=`），走同一個 `AnnouncementService`，稽核 `Announcement.Create`／`Update`／`Delete` 由伺服器寫（刪除的標題取自資料庫）；原有的 `active`、`dismiss` 改為各自標 `[SignedInUser]`。公告對象種類 `AnnouncementTargetKinds` 搬到 `MyProject.Share`（命名空間仍是 `MyProject.AccessDatas.Models`）。
 存檔或刪除後伺服器照舊 `AnnouncementCache.Invalidate()`＋`PublishAnnouncementsChanged()`（還在 Server 的頁面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請**同一個分頁**的橫幅立即重讀，其他分頁與其他使用者照舊 60 秒輪詢與切回分頁時重讀。
 WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控「發送測試通知」與首頁「我的通知」點開通知後立即重讀；反過來，在鈴鐺標為已讀、刪除、全部已讀或清除已讀後，鈴鐺以 `RequestRefresh(except: 自己)` 請首頁「我的通知」立即重讀（都只對同一個分頁）。
+
+**通知推播串流（0.10.7 起，WASM 遷移 M8）**：WASM 外框啟動一條長連線（`Layout/ClientPushConnection`，`POST api/v1/notifications/stream`，`[SignedInUser]`），伺服器訂閱這位使用者的 `INotificationSignal` 與公告訊號（與 Server 版鈴鐺、橫幅同一個來源），有變動就送一行 `notifications` 或 `announcements`（不帶內容，短時間多次合併成一筆），外框收到後觸發 `ClientNotificationSignal`／`ClientAnnouncementSignal` 立即重讀——鈴鐺、公告橫幅、首頁「我的通知」在**其他分頁與其他使用者**那邊也通常幾秒內更新（M7 時只有同一個分頁立即、其他最慢 60 秒）。
+- 串流：`ready` → 變動 → 閒置每 25 秒 `ping`；伺服器主動結束時最後一筆是 `renew`（存取 Token 到期前 1 分鐘，前端刷新後重連）或 `reconnect`（滿 30 分鐘、網站關閉）。產生端（`Streaming/NotificationPushStream.cs`）自己看 `RequestAborted` 結束並取消訂閱。
+- 每位使用者最多 3 條推播連線（第 4 條起 429，那個分頁只靠輪詢）；推播連線不記慢請求。前端斷線以 2、4、8…最多 60 秒退避重連，重新接上時兩邊各重讀一次補上斷線期間的變動；401／403／404 不再重試。
+- 開關 `NotificationSettings:PushEnabled`（預設 `true`）；`false` 時端點 404、`GET api/v1/shell/info` 的 `NotificationPushEnabled` 為 false，外框不連。**60 秒輪詢一直保留**，是推播關閉、超過連線上限、斷線或多台主機時的備援。
+- 沒做跨分頁共用一條連線（BroadcastChannel）：複雜度高，而正式環境 IIS＋HTTPS 通常是 HTTP/2，不受 HTTP/1.1 每網域 6 條連線的限制（每人 3 條的上限保留另外 3 條給一般 API）。
 
 ## 四、內部系統運作
 
@@ -75,7 +81,8 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 - 寄信佇列滿 → 剩下的信略過並記一筆警告；站內通知照常。
 - 公告對象的角色或團隊被刪除 → 公告不再對任何人顯示，管理頁標示「（已刪除）」。
 - 兩位管理員同時修改同一則公告 → 第二位得到並行衝突訊息。
-- 已開啟的畫面：同一行程內立即更新；其他行程最晚 60 秒。
+- 已開啟的畫面：同一行程內立即更新；其他行程最晚 60 秒。WASM 頁面（0.10.7 起）經通知推播通常幾秒內更新；推播關閉、斷線或超過每人 3 條連線時最晚 60 秒。
+- 推播長連線只在開始時檢查一次身分：帳號停用、強制登出在 Token 到期前 1 分鐘或滿 30 分鐘重連時生效（期間外框的其他 API 照常被擋）。
 
 ## 七、驗收與測試
 
@@ -86,11 +93,12 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 - 0.9.136 起：`NotificationTests.SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted`、`RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly`；`NotificationComponentTests.Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead`。
 - 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`。
 - 0.10.6 起：`SystemParameterAnnouncementApiTests` 的公告部分（新增、修改、刪除與畫面相同且每個動作一筆稽核、不存在 404、Id 不符 400、輸入不合法不寫稽核、其他使用者的橫幅下一次輪詢就看得到、非管理員 403 但仍看得到橫幅）；`ShellApiIntegrationTests.NotificationsProfileAndShellInfo_ShouldSendLocalTimesWithoutAnOffset`（鈴鐺的時間不帶時差）、`Client/ClientRefreshSignalTests`（略過呼叫端、沒有訂閱者）；實機 `m07-ops.mjs` M7-P4／P5。
+- 0.10.7 起：`NotificationPushApiTests`（沒有 Token 401、以 `ready` 開始、發通知／全部已讀／公告變動立即推送、別人的不推給我、斷線釋放訂閱與名額、Token 到期前 `renew`、最長時間 `reconnect`、閒置心跳、每人連線數上限、網站關閉、推播關閉時 404）、`Client/ClientPushConnectionTests`（觸發對應訊號、退避重連、`renew` 先刷新、重連後補讀、401／403／404 不再重試）、`NdjsonHeartbeatTests`；實機 `m08-agents.mjs` M8-G8（另一個瀏覽器的鈴鐺 2 秒內更新）、`m08-agents.mjs nopush` M8-N1（關閉推播仍會在輪詢時更新）。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`DataAccessServiceLifetimeTests`、`LoggingConventionTests`、`PageHelpCatalogTests`。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Business/Services/Other/NotificationSender.cs`（`INotificationSender`、`NotificationTarget`、`NotificationRequest`）、`NotificationSignal.cs`、`NotificationCategories.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/NotificationQueryService.cs`、`AnnouncementService.cs`；`IEffectiveTeamResolver.GetUserIdsInTeamAsync`
-- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/NotificationBell`、`AnnouncementBanner`、`AnnouncementCache`、`Scheduling/Jobs/NotificationRetentionJob.cs`；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`
+- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/NotificationBell`、`AnnouncementBanner`、`AnnouncementCache`、`Scheduling/Jobs/NotificationRetentionJob.cs`；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`；0.10.7 起通知推播在 `MyProject.Web/Controllers/NotificationsController.cs`（`Stream`）、`Streaming/NotificationPushStream.cs`（`NotificationPushOptions`、`NotificationPushConnections`）、`Streaming/NdjsonHeartbeat.cs`、`MyProject.Web.Client/Layout/ClientPushConnection.cs`、`MyProject.Dtos/Shell/PushDtos.cs`
 - 規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「站內通知」；操作說明 `announcements.md`、`app.md`

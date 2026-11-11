@@ -159,6 +159,7 @@ public sealed class AiWorkflowRun : IAsyncDisposable
     private bool ended;
     private bool pumping;
     private bool disposed;
+    private volatile bool interruptRequested;
 
     internal AiWorkflowRun(
         AiWorkflowDefinition definition,
@@ -236,6 +237,17 @@ public sealed class AiWorkflowRun : IAsyncDisposable
         pending.RemoveAt(index);
 
         return PumpAsync(() => streamingRun.SendResponseAsync(request.CreateResponse(response)).AsTask(), cancellationToken);
+    }
+
+    /// <summary>
+    /// 呼叫端在讀取途中離開（0.10.7 起，WASM 遷移 M8：瀏覽器中斷了串流）：視同離開頁面，取消整個流程，
+    /// 正在讀取的那一輪收尾成「中斷」。可以從其他執行緒呼叫；之後仍要呼叫 <see cref="DisposeAsync"/>
+    /// （這一輪若剛好已停下來等使用者，就由它收尾）。
+    /// </summary>
+    public void Interrupt()
+    {
+        interruptRequested = true;
+        cancellation.Cancel();
     }
 
     /// <summary>離開頁面：還沒結束就取消並存成「中斷」。</summary>
@@ -464,7 +476,7 @@ public sealed class AiWorkflowRun : IAsyncDisposable
         stopwatch.Stop();
         AiWorkflowOutcome outcome;
         string? error = null;
-        if (disposed)
+        if (disposed || interruptRequested)
         {
             outcome = AiWorkflowOutcome.Interrupted;
             FlushAll(interrupted: true);

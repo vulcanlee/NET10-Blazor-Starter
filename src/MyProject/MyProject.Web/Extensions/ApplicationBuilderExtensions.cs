@@ -142,6 +142,7 @@ public static class ApplicationBuilderExtensions
     /// 慢 HTTP 請求（LOG-21）。
     /// ⚠️ 排除 <c>/_blazor</c>：Blazor 的 WebSocket 連線本身就是一個「請求」，會持續整個 circuit（可能好幾小時），
     /// 不排除的話每個使用者離開頁面時都會記一筆慢請求。
+    /// 通知推播串流（0.10.7 起）同理：每個分頁一條、最長 30 分鐘才由伺服器結束。
     /// </summary>
     private static void LogIfSlowRequest(HttpContext context, ILogger requestLogger, TimeSpan elapsed)
     {
@@ -164,7 +165,8 @@ public static class ApplicationBuilderExtensions
     }
 
     internal static bool IsLongLivedConnection(PathString path)
-        => path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase);
+        => path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/api/v1/notifications/stream", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// 靜態資產的副檔名。單靠路徑前綴不夠 —— 例如 app.css 是掛在網站根目錄

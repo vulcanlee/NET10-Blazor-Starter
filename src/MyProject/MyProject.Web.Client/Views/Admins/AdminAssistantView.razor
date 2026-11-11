@@ -1,15 +1,12 @@
-@using MyProject.Business.Services.DataAccess
-@using MyProject.Business.Services.Other
+@using MyProject.Dtos.Ai
 @using MyProject.Models.Systems
-@using MyProject.Share.Helpers
 @using MyProject.Web.Ai
-@using MyProject.Web.Ai.Agents
-@using MyProject.Web.Configuration
+@using MyProject.Web.Ai.Agents.AdminAssistant
 
 @*
-    Agent 測試台（0.9.142 起）：範例 Agent「專案小幫手」，用來驗收 Agent 骨架（工具、權限、核准、記帳），
-    也是日後寫 Agent 畫面的範本。0.9.143 起對話會保存（左側「我的對話」），只有本人看得到，
-    最後一次對話超過保存天數（系統參數「資料保留」群組）自動刪除。
+    系統管理助理（0.9.155 起）：只限管理員的單一對話入口，每則訊息先自動分派領域，再由對應的專家回答。
+    版面與互動沿用 Agent 測試台（AgentPlaygroundView）；差別是用每輪規劃器開對話，每則 AI 回覆標示「由誰回答」。
+    0.10.7 起在 WASM 執行（WASM 遷移 M8）：標記照抄 Server 版；資料走 api/v1/admin-assistant（每個請求接續一次對話、NDJSON 串流）。
 *@
 @* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
@@ -35,7 +32,7 @@ else
                 <ul class="agent-playground-list">
                     @foreach (var item in conversations)
                     {
-                        var current = chat?.ConversationId == item.ConversationId;
+                        var current = conversationId == item.ConversationId;
                         <li class="@(current ? "agent-playground-list-item agent-playground-list-item-current" : "agent-playground-list-item")">
                             <button type="button"
                                     class="agent-playground-list-open"
@@ -66,45 +63,20 @@ else
         <div class="agent-playground">
             <div class="agent-playground-intro">
                 <div class="agent-playground-intro-text">
-                    <div class="agent-playground-title">@AgentPlaygroundAgent.Definition.DisplayName</div>
+                    <div class="agent-playground-title">@displayName</div>
                     <div class="agent-playground-hint">
-                        會搜尋專案；要修改專案描述時會先請你核准。工具依<strong>你的權限</strong>執行，你在畫面上做不到的事，它也做不到。
-                        對話會自動保存在左側「我的對話」，只有你自己看得到；最後一次對話超過 @conversationService.RetentionDays 天會自動刪除。
+                        用一般說話的方式查詢系統狀況，助理會自動交給對應領域的專家回答；要修改資料時會先請你核准。
+                        對話會自動保存在左側「我的對話」，只有你自己看得到；最後一次對話超過 @retentionDays 天會自動刪除。
                     </div>
                     @if (string.IsNullOrEmpty(modelName) == false)
                     {
                         <div class="agent-playground-hint">使用模型：@modelName</div>
                     }
-                    @* 0.9.170 起：這段對話的推論等級，隨時可改、下一則訊息起生效，跟著對話存起來。 *@
-                    <div class="agent-playground-hint agent-playground-reasoning">
-                        <span>推論等級：</span>
-                        <Select @key="reasoningSelectKey" TItem="string" TItemValue="string"
-                                Value="@reasoningChoice"
-                                ValueChanged="@((string value) => OnReasoningChanged(value))"
-                                Disabled="@(IsBusy || IsAwaitingApproval || unavailableReason is not null)"
-                                Style="width: 260px;">
-                            <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="@SystemDefaultReasoningLabel" />
-                            @foreach (var value in AiSettings.AgentReasoningEffortValues)
-                            {
-                                <SelectOption TItemValue="string" TItem="string" Value="@value" Label="@value" />
-                            }
-                        </Select>
-                    </div>
                 </div>
                 <div class="agent-playground-actions">
-                    @* 測試專案（0.9.145 起）：有專案項目新增權限才能產生、有刪除權限才能清除（同專案頁）。 *@
-                    @if (canCreateSamples)
-                    {
-                        <ToolbarIconButton Title="產生 10 筆測試專案" Icon="playlist_add"
-                                           Disabled="@IsBusy"
-                                           OnClick="OnGenerateSamplesAsync" />
-                    }
-                    @if (canClearSamples)
-                    {
-                        <ToolbarIconButton Title="清除測試專案" Icon="delete_sweep"
-                                           Disabled="@IsBusy"
-                                           OnClick="OnClearSamplesAsync" />
-                    }
+                    @* 巡檢報告（0.9.161 起）：定時巡檢的歷史報告，不需要 AI 可用也能看。 *@
+                    <ToolbarIconButton Title="巡檢報告" Icon="fact_check"
+                                       OnClick="@(async () => await OnOpenPatrolReportsAsync())" />
                     <ToolbarIconButton Title="新對話" Icon="add_comment"
                                        Disabled="@(unavailableReason is not null || IsBusy)"
                                        OnClick="OnNewConversation" />
@@ -118,12 +90,18 @@ else
             else
             {
                 <div class="agent-playground-conversation">
-                    @if (Entries.Count == 0 && isRunning == false)
+                    @if (entries.Count == 0 && isRunning == false)
                     {
-                        <div class="agent-playground-empty">試試看：「列出所有專案」、「找出名稱有『測試』的專案」、「把專案 3 的描述改成『已結案』」。</div>
+                        <div class="agent-playground-empty">試試看（點一下會填進輸入框）：</div>
+                        <div class="admin-assistant-samples">
+                            @foreach (var sample in SamplePrompts)
+                            {
+                                <button type="button" class="admin-assistant-sample" @onclick="@(() => inputText = sample)">@sample</button>
+                            }
+                        </div>
                     }
 
-                    @foreach (var entry in Entries)
+                    @foreach (var entry in entries)
                     {
                         @switch (entry.Kind)
                         {
@@ -132,10 +110,14 @@ else
                                 break;
                             case AiAgentTranscriptKinds.Assistant:
                                 @*
-                                    AI 輸出受工具回傳的資料（專案名稱、描述可能含使用者輸入）影響，屬不可信輸入，
+                                    AI 輸出受工具回傳的資料（日誌、例外、帳號資料可能含使用者輸入）影響，屬不可信輸入，
                                     一律經 AiMarkdownRenderer.ToSafeHtml 的安全管線之後才能用 MarkupString。
                                 *@
                                 var html = HtmlOf(entry);
+                                @if (string.IsNullOrEmpty(entry.Agent) == false)
+                                {
+                                    <span class="admin-assistant-agent">由 @entry.Agent 回答</span>
+                                }
                                 @if (html is null)
                                 {
                                     <div class="agent-playground-entry agent-playground-entry-error">AI 回傳內容異常龐大，已中止顯示。</div>
@@ -170,7 +152,7 @@ else
 
                         <div class="agent-playground-generating">
                             <Spin Size="@SpinSize.Small" />
-                            <span>@(streamingHtml.Length > 0 ? "產生中" : "思考中")…已 @elapsedSeconds 秒</span>
+                            <span>@RunningText…已 @elapsedSeconds 秒</span>
                             <Button Danger Size="@ButtonSize.Small" Icon="stop" OnClick="OnStop">停止產生</Button>
                         </div>
                     }
@@ -182,7 +164,7 @@ else
                               MaxLength="@MaxInputLength"
                               Disabled="@(IsBusy || IsAwaitingApproval)"
                               Placeholder="輸入問題或指示…" />
-                    @* 「送出」刻意不看輸入框有沒有字（同 AI 例外分析）：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
+                    @* 「送出」刻意不看輸入框有沒有字（同 Agent 測試台）：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
                     <Button Type="@ButtonType.Primary"
                             Disabled="@(IsBusy || IsAwaitingApproval)"
                             OnClick="@(async () => await OnSendAsync())">送出</Button>
@@ -191,8 +173,8 @@ else
         </div>
     </div>
 
-    @* 核准窗：會異動資料的工具執行前一定要經過這裡（不能點遮罩或 × 略過，必須選一個）。 *@
-    <Modal Title="Agent 要執行會修改資料的操作"
+    @* 核准窗：會異動資料的工具執行前一定要經過這裡（不能點遮罩或 × 略過，必須選一個）。寬度沿用 Agent 測試台的全域樣式。 *@
+    <Modal Title="系統管理助理要執行會修改資料的操作"
            Class="agent-playground-approval-modal"
            @bind-Visible="@approvalVisible"
            Closable="false"
@@ -200,11 +182,30 @@ else
            Keyboard="false"
            Footer="null">
         <div class="agent-playground-approval">
-            <p>請確認是否允許 Agent 執行下列操作。核准後會以<strong>你的身分</strong>修改資料，並記錄在稽核紀錄。</p>
+            <p>請確認是否允許助理執行下列操作。核准後會以<strong>你的身分</strong>修改系統，並記錄在稽核紀錄。</p>
             @foreach (var approval in pendingApprovals)
             {
                 <div class="agent-playground-approval-item">
-                    <div class="agent-playground-approval-name">@approval.DisplayName</div>
+                    <div class="agent-playground-approval-name">
+                        @approval.DisplayName
+                        @if (string.IsNullOrEmpty(approval.Label) == false)
+                        {
+                            <span class="admin-assistant-agent">由 @approval.Label 提出</span>
+                        }
+                    </div>
+                    @if (approval.IsIrreversible)
+                    {
+                        <div class="admin-assistant-approval-irreversible" role="alert">⚠ 這個動作無法復原，核准後資料會永久刪除或立即生效。</div>
+                    }
+                    @if (string.IsNullOrEmpty(approval.Note) == false)
+                    {
+                        <div class="admin-assistant-approval-note">@approval.Note</div>
+                    }
+                    @* 目前狀態（0.9.160 起）：提出核准時算的（例如系統參數的目前值），接續時照樣顯示。 *@
+                    @if (string.IsNullOrEmpty(approval.Preview) == false)
+                    {
+                        <div class="admin-assistant-approval-note"><strong>目前狀態：</strong>@approval.Preview</div>
+                    }
                     <dl class="agent-playground-approval-args">
                         @foreach (var argument in approval.Arguments)
                         {
@@ -213,51 +214,30 @@ else
                     </dl>
                 </div>
             }
+            @* 不可復原的動作（0.9.159 起）：要輸入「確認」才能按核准。用 OnInput 邊打邊判斷 ——
+               實測 @bind-Value 加 BindOnInput 要等失焦才回寫，打完字直接按核准會按到停用中的按鈕。 *@
+            @if (AdminAssistantApproval.RequiresConfirmation(pendingApprovals))
+            {
+                <div class="admin-assistant-approval-confirm">
+                    <label for="admin-assistant-confirm-input">請輸入「@AdminAssistantApproval.ConfirmText」以核准無法復原的動作</label>
+                    <Input TValue="string" id="admin-assistant-confirm-input" Value="@confirmInput"
+                           OnInput="@(args => confirmInput = args.Value?.ToString() ?? string.Empty)"
+                           MaxLength="10" Placeholder="@AdminAssistantApproval.ConfirmText" />
+                </div>
+            }
             <div class="agent-playground-approval-actions">
                 <Button OnClick="@(async () => await OnDecideAsync(approve: false))">拒絕</Button>
-                <Button Type="@ButtonType.Primary" OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
+                <Button Type="@ButtonType.Primary"
+                        Danger="@AdminAssistantApproval.RequiresConfirmation(pendingApprovals)"
+                        Disabled="@(AdminAssistantApproval.CanApprove(pendingApprovals, confirmInput) == false)"
+                        OnClick="@(async () => await OnDecideAsync(approve: true))">核准</Button>
             </div>
         </div>
     </Modal>
 
-    @* 產生測試專案之後的說明（0.9.145 起）：怎麼用 AI Agent 查這些專案。範例問句只用得到搜尋工具回傳的欄位（名稱、狀態、描述）。 *@
-    <Modal Title="已建立 10 筆測試專案"
-           Class="agent-playground-samples-modal"
-           @bind-Visible="@samplesVisible"
-           MaskClosable="false"
-           Keyboard="true"
-           OkText="@("開始試用")"
-           CancelText="@("關閉")"
-           OnOk="@(() => samplesVisible = false)">
-        <div class="agent-playground-samples">
-            <p>
-                已建立下列專案，標題都以「@ProjectSampleDataService.TitlePrefix」開頭，沒有指定團隊，看得到專案的人與 AI Agent 都查得到。
-                日期以今天為基準，有進行中、已完成、暫緩、等待、未開始與已逾期的專案，描述裡寫了進度與風險。
-            </p>
-            <div class="agent-playground-samples-titles">@string.Join("、", sampleTitles)</div>
+    <AdminPatrolReportsModal @ref="patrolReportsModal" />
 
-            <div class="agent-playground-samples-heading">在 Agent 測試台問問看（把句子貼到下方輸入框）</div>
-            <ul>
-                <li>列出所有【測試】專案，依狀態分組</li>
-                <li>哪些測試專案的狀態是「進行中」？各自的風險是什麼？</li>
-                <li>找出描述提到「延遲」或「逾期」的測試專案</li>
-                <li>把【測試】客服機器人的描述改成「已結案，移交客服部維運」（會跳出核准窗，可以試試核准與拒絕）</li>
-            </ul>
-
-            <div class="agent-playground-samples-heading">在 <a href="/agent-workflows">Agent 工作流程</a> 試試看</div>
-            <ul>
-                <li>專案狀態報告：輸入「幫我寫【測試】ERP 系統導入的狀態報告」，AI 會蒐集資料、寫草稿給你審閱，通過後提議附加一行狀態摘要（要你核准）。</li>
-                <li>輸入「幫我寫資料相關專案的報告」會對到兩個專案，AI 會先問你是哪一個。</li>
-                <li>多觀點審查：把任一測試專案的描述貼進去，看三位審查者與彙整意見。</li>
-            </ul>
-
-            <p class="agent-playground-samples-note">
-                每次提問都會產生 AI 費用。測試專案大家都看得到，用完請按「清除測試專案」永久刪除。
-            </p>
-        </div>
-    </Modal>
-
-    @* 重新命名：只有一個欄位，不用表單骨架（標題只給本人看，改了不寫稽核）。 *@
+    @* 重新命名：只有一個欄位（標題只給本人看，改了不寫稽核）。寬度沿用 Agent 測試台的全域樣式。 *@
     <Modal Title="重新命名對話"
            Class="agent-playground-rename-modal"
            @bind-Visible="@renameVisible"
@@ -266,6 +246,6 @@ else
            OkText="@("儲存")"
            CancelText="@("取消")"
            OnOk="@(async () => await OnRenameSaveAsync())">
-        <Input @bind-Value="renameTitle" MaxLength="@AiAgentConversationService.MaxTitleLength" />
+        <Input @bind-Value="renameTitle" MaxLength="@AgentConversationLimits.MaxTitleLength" />
     </Modal>
 }

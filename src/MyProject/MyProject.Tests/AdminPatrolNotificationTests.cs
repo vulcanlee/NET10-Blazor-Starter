@@ -91,9 +91,9 @@ public sealed class AdminPatrolNotificationTests
     [Fact]
     public void AdminAssistantPage_AcceptsTheDeepLinkParameter()
     {
-        var web = FindWebProjectDirectory();
-        var page = File.ReadAllText(Path.Combine(web, "Components", "Pages", "Admins", "AdminAssistantPage.razor"));
-        var view = File.ReadAllText(Path.Combine(web, "Components", "Views", "Admins", "AdminAssistantView.razor"));
+        // 0.10.7 起頁面在 WASM 執行（WASM 遷移 M8）。
+        var page = File.ReadAllText(Path.Combine(SourceTree.Client, "Pages", "AdminAssistantPage.razor"));
+        var view = File.ReadAllText(Path.Combine(SourceTree.Client, "Views", "Admins", "AdminAssistantView.razor"));
 
         Assert.Contains("@page \"/admin-assistant\"", page, StringComparison.Ordinal);
         Assert.Contains("[SupplyParameterFromQuery(Name = \"patrolReport\")]", page, StringComparison.Ordinal);
@@ -110,6 +110,4 @@ public sealed class AdminPatrolNotificationTests
         Assert.True(Guid.TryParse(link["/admin-assistant?patrolReport=".Length..], out var parsed));
         Assert.Equal(ReportId, parsed);
     }
-
-    private static string FindWebProjectDirectory() => SourceTree.Web;
 }

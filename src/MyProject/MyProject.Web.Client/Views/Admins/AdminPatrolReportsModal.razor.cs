@@ -1,13 +1,16 @@
-using MyProject.Business.Services.DataAccess;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 using MyProject.Models.Systems;
 using MyProject.Web.Ai;
+using MyProject.Web.Client.Api;
 
-namespace MyProject.Web.Components.Views.Admins;
+namespace MyProject.Web.Client.Views.Admins;
 
 /// <summary>
 /// 「巡檢報告」視窗（0.9.161 起）：左邊是最新的巡檢報告清單，右邊是選中的那一份。
+/// 0.10.7 起在 WASM 執行（WASM 遷移 M8），資料走 <see cref="AdminAssistantApi"/>（只限管理員；看報告不寫稽核）。
 ///
-/// ⚠️ 只放在已做過管理員檢查的系統管理助理頁裡（報告全體管理員共用，服務本身不分使用者）。
+/// ⚠️ 只放在已做過管理員檢查的系統管理助理頁裡（報告全體管理員共用）。
 /// 報告是 AI 產出，一律經 <see cref="AiMarkdownRenderer.ToSafeHtml"/>，超過 <see cref="MaxRenderedHtmlLength"/> 就不顯示（同系統管理助理頁）。
 /// </summary>
 public partial class AdminPatrolReportsModal
@@ -15,20 +18,18 @@ public partial class AdminPatrolReportsModal
     /// <summary>AI 報告轉成 HTML 之後的顯示上限（同其他 AI 畫面）。</summary>
     private const int MaxRenderedHtmlLength = 512 * 1024;
 
-    private readonly AdminPatrolReportService reportService;
-    private readonly ILogger<AdminPatrolReportsModal> logger;
-
     private bool visible;
     private bool isLoading;
+    private int retentionDays;
     private IReadOnlyList<AdminPatrolReportSummary> reports = [];
     private AdminPatrolReportDetail? detail;
     private string? detailHtml;
 
-    public AdminPatrolReportsModal(AdminPatrolReportService reportService, ILogger<AdminPatrolReportsModal> logger)
-    {
-        this.reportService = reportService;
-        this.logger = logger;
-    }
+    [Inject]
+    public AdminAssistantApi Api { get; set; } = default!;
+
+    [Inject]
+    public ILogger<AdminPatrolReportsModal> Logger { get; set; } = default!;
 
     /// <summary>目前選中的報告。</summary>
     public Guid? SelectedReportId { get; private set; }
@@ -46,31 +47,31 @@ public partial class AdminPatrolReportsModal
         SelectedReportId = null;
         StateHasChanged();
 
-        var found = true;
         try
         {
-            reports = await reportService.ListAsync();
+            var list = await Api.PatrolReportsAsync();
+            if (list.Success == false || list.Data is not { } data)
+            {
+                // 讀不到就顯示空清單並記錯誤（同 Server 版）。
+                Logger.LogError("Failed to load admin patrol reports. Message={Message}", list.UserMessage());
+                reports = [];
+                return false;
+            }
+
+            retentionDays = data.RetentionDays;
+            reports = data.Items.Select(AgentDtoMapper.ToModel).ToList();
             if (reportId is { } id && await LoadAsync(id))
             {
                 return true;
             }
 
-            found = reportId is null;
+            var found = reportId is null;
             if (reports.Count > 0)
             {
                 await LoadAsync(reports[0].ReportId);
             }
 
             return found;
-        }
-        catch (Exception ex)
-        {
-            // 從 OnAfterRenderAsync（深連結）呼叫時，例外會讓整個 circuit 中斷；讀不到就顯示空清單並記錯誤。
-            logger.LogError(ex, "Failed to load admin patrol reports.");
-            reports = [];
-            detail = null;
-            detailHtml = null;
-            return false;
         }
         finally
         {
@@ -87,16 +88,16 @@ public partial class AdminPatrolReportsModal
 
     private async Task<bool> LoadAsync(Guid reportId)
     {
-        var loaded = await reportService.GetAsync(reportId);
-        if (loaded is null)
+        var result = await Api.PatrolReportAsync(reportId);
+        if (result.Success == false || result.Data is not { } loaded)
         {
-            logger.LogInformation("Admin patrol report not found. ReportId={ReportId}", reportId);
+            Logger.LogInformation("Admin patrol report not found. ReportId={ReportId}, Status={Status}", reportId, result.StatusCode);
             return false;
         }
 
-        detail = loaded;
+        detail = AgentDtoMapper.ToModel(loaded);
         SelectedReportId = reportId;
-        var html = loaded.Markdown is null ? null : AiMarkdownRenderer.ToSafeHtml(loaded.Markdown);
+        var html = detail.Markdown is null ? null : AiMarkdownRenderer.ToSafeHtml(detail.Markdown);
         detailHtml = html is not null && html.Length <= MaxRenderedHtmlLength ? html : null;
         return true;
     }

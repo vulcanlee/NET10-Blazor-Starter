@@ -81,6 +81,12 @@ public static partial class AdminAssistantRouting
             ? DefaultLabel
             : string.Join("、", Enum.GetValues<AdminAssistantDomain>().Where(domains.Contains).Select(NameOf));
 
+    /// <summary>
+    /// 領域組合的代碼（0.10.7 起，存進對話的 TurnKey）：依領域順序以逗號連接英文代碼，空集合是空字串；<see cref="Parse"/> 讀得回同一組。
+    /// </summary>
+    public static string KeyOf(IReadOnlySet<AdminAssistantDomain> domains)
+        => string.Join(",", Enum.GetValues<AdminAssistantDomain>().Where(domains.Contains).Select(domain => Codes.Single(pair => pair.Value == domain).Key));
+
     /// <summary>送給分派模型的使用者訊息：最近幾則對話（讓接續句也分得對）＋這一則。</summary>
     public static string BuildRouterInput(string message, IReadOnlyList<AiAgentTranscriptEntry> transcript)
     {
