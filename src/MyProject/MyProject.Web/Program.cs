@@ -176,14 +176,11 @@ namespace MyProject.Web
                     .ValidateDataAnnotations()
                     .ValidateOnStart();
 
-                // ⚠️ 必須在下面的 AddCookie 之前取值。比照 JwtSettings 的雙軌寫法：
-                // 先取一份即時值給 AddCookie 當場用，再註冊 DI ＋ 啟動驗證。
-                var cookieSettings = builder.Configuration
-                    .GetSection(CookieSettings.SectionName)
-                    .Get<CookieSettings>() ?? new CookieSettings();
+                // 網頁登入的效期（0.10.8 起 SessionSettings，取代 CookieSettings；舊鍵仍相容，見 SessionSettings.ApplyLegacyCookieSettings）。
                 builder.Services
-                    .AddOptions<CookieSettings>()
-                    .Bind(builder.Configuration.GetSection(CookieSettings.SectionName))
+                    .AddOptions<SessionSettings>()
+                    .Bind(builder.Configuration.GetSection(SessionSettings.SectionName))
+                    .PostConfigure(settings => SessionSettings.ApplyLegacyCookieSettings(settings, builder.Configuration))
                     .ValidateDataAnnotations()
                     .ValidateOnStart();
 
@@ -193,28 +190,10 @@ namespace MyProject.Web
                 builder.Services.AddValidatedOptions<GoogleOAuthSettings, GoogleOAuthSettingsValidator>(
                     builder.Configuration, GoogleOAuthSettings.SectionName);
 
-                var authenticationBuilder = builder.Services.AddAuthentication(MagicObjectHelper.CookieScheme)
-                    .AddCookie(MagicObjectHelper.CookieScheme, options =>
-                    {
-                        // 名稱必須帶專案名（New-StarterProject.ps1 會一起換掉）。Cookie 不分連接埠，
-                        // 同一主機名稱部署多個衍生系統時，若沿用框架預設名就會互相覆蓋、互相登出。
-                        // ⚠️ 改這個值會讓既有登入（連同記住我）全部失效一次。
-                        options.Cookie.Name = ".MyProject.Auth";
-                        options.Cookie.IsEssential = true;
-                        options.LoginPath = "/Auths/Login";
-                        options.LogoutPath = "/Auths/Logout";
-                        options.AccessDeniedPath = "/Auths/Login";
-
-                        // 0.9.39 起明寫。之前兩者都沒設定，吃框架隱藏預設（14 天 ＋ 滑動），
-                        // 「登入能撐多久」在設定檔裡查不到，也無法依環境調整。
-                        // ⚠️ 勾了「記住我」的人走的是另一個效期 —— ExpireTimeSpan 是整個
-                        // scheme 共用的，做不出兩種，故在 Login.razor.cs 明寫 ExpiresUtc 覆蓋。
-                        options.ExpireTimeSpan = TimeSpan.FromMinutes(cookieSettings.ExpireMinutes);
-                        options.SlidingExpiration = cookieSettings.SlidingExpiration;
-
-                        // 工作階段失效（0.9.103 起）：改密碼、停用、強制登出後，其他瀏覽器的舊 Cookie 被拒。
-                        options.EventsType = typeof(SecurityStampCookieEvents);
-                    })
+                // 0.10.8 起（WASM 遷移 M9）只用 Token 登入、不發登入 Cookie：預設驗證機制是 JWT。
+                // 登入 Cookie 的 scheme 一併移除（不保留到 M10）：沒有任何流程發它，留著只會讓舊的 .MyProject.Auth Cookie 還有地方被讀；
+                // 系統健康監控改為只檢查 JWT。Google 登入過程用的暫存外部 Cookie（ExternalCookieScheme，5 分鐘）保留。
+                var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
                     {
                         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
@@ -234,8 +213,9 @@ namespace MyProject.Web
                         {
                             // ⚠️ 0.9.103 起只接受 access token。之前 refresh token（效期 7 天）也能直接當 Bearer 用，
                             // 等於 access token 的 60 分鐘效期形同虛設。
-                            // 0.9.136 起也比對工作階段版本（與登入 Cookie 同一套快取，CookieSettings:ValidationIntervalMinutes）：
+                            // 0.9.136 起也比對工作階段版本（與登入 Cookie 同一套快取，SessionSettings:ValidationIntervalMinutes）：
                             // 改密碼、強制登出、停用或刪除帳號後，已發出的 access token 立即失效，不再能用到過期。
+                            // 0.10.8 起另檢查 token 所屬的那一串刷新 Token 是否已撤銷（登出、重用撤銷、換一串）：登出立即生效。
                             OnTokenValidated = async context =>
                             {
                                 var principal = context.Principal;
@@ -252,13 +232,22 @@ namespace MyProject.Web
                                 }
 
                                 var services = context.HttpContext.RequestServices;
-                                var interval = TimeSpan.FromMinutes(services.GetRequiredService<IOptionsMonitor<CookieSettings>>().CurrentValue.ValidationIntervalMinutes);
+                                var interval = TimeSpan.FromMinutes(services.GetRequiredService<IOptionsMonitor<SessionSettings>>().CurrentValue.ValidationIntervalMinutes);
                                 var stampValid = await services.GetRequiredService<MyProject.Business.Services.Other.ISecurityStampService>().IsValidAsync(
                                     userId, principal.FindFirst(MagicObjectHelper.SecurityStampClaimType)?.Value, interval,
                                     cancellationToken: context.HttpContext.RequestAborted);
                                 if (!stampValid)
                                 {
                                     context.Fail("The session was revoked.");
+                                    return;
+                                }
+
+                                // 0.10.8 以前發的 token 沒有串的識別：照舊只比版本，最晚到期（60 分鐘）就沒了。
+                                var familyId = principal.FindFirst(JwtTokenService.FamilyClaimType)?.Value;
+                                if (!string.IsNullOrEmpty(familyId)
+                                    && !await services.GetRequiredService<MyProject.Business.Services.Other.IRefreshTokenStore>().IsFamilyActiveAsync(familyId, context.HttpContext.RequestAborted))
+                                {
+                                    context.Fail("The login was signed out.");
                                 }
                             },
                             OnChallenge = async context =>
@@ -365,6 +354,15 @@ namespace MyProject.Web
                 var app = builder.Build();
                 logger = app.Services.GetRequiredService<ILogger<Program>>();
                 logger.LogInformation("Application host built successfully.");
+
+                // 舊的 CookieSettings 鍵仍相容（0.10.8 起改名 SessionSettings），提醒部署者換成新鍵。
+                var legacySessionKeys = SessionSettings.ApplyLegacyCookieSettings(new SessionSettings(), builder.Configuration);
+                if (legacySessionKeys.Count > 0)
+                {
+                    logger.LogWarning(
+                        "Legacy settings are still in use and override SessionSettings: {Keys}. Rename them to the SessionSettings section.",
+                        string.Join(", ", legacySessionKeys));
+                }
                 exceptionContextAccessor = app.Services.GetRequiredService<ExceptionContextAccessor>();
 
                 // 右下角錯誤／警告通知顯示時寫一筆日誌（ViewNotification 是 static 類別，拿不到 DI）。
@@ -437,9 +435,9 @@ namespace MyProject.Web
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
                 {
-                    // ⚠️ createScopeForErrors 不可拿掉：重跑 /Error 若沿用原請求的 DI scope，
-                    // Blazor 的 NavigationManager 已初始化，錯誤頁本身會拋 "already initialized"，使用者只拿到空白 500。
-                    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+                    // 0.10.8 起 /Error 在 WebAssembly 執行，拿不到這次請求的 HttpContext：改成把追蹤碼放進網址導過去
+                    // （/Error?trace=…；API 回 500 ApiResult），見 ErrorPageRedirect。
+                    app.UseExceptionHandler(new ExceptionHandlerOptions { ExceptionHandler = ErrorPageRedirect.HandleAsync });
                     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                     app.UseHsts();
                 }
@@ -463,13 +461,16 @@ namespace MyProject.Web
 
                 app.UseConfiguredLocalization();
                 app.UseConfiguredCors();
-                app.UseRateLimiter();
 
                 app.UseAntiforgery();
 
                 app.MapStaticAssets();
 
                 app.UseAuthentication();
+
+                // ⚠️ 限流必須在 UseAuthentication 之後（0.10.8 獨立審查）：限流的分區鍵「已登入用每人、未登入用 IP」要讀已驗證的使用者，
+                // 放在前面的話全部都是匿名、全部依 IP 分區 —— 同一個出口 IP（NAT、反向代理）的所有人共用一份配額。
+                app.UseRateLimiter();
                 app.UseAuthorization();
 
                 // 把已驗證的使用者補進例外情境，讓內層的 LogError 帶得出帳號（LOG-01）。
@@ -480,20 +481,13 @@ namespace MyProject.Web
                 // ⚠️ 與上一行同理，必須在 UseAuthorization 之後。
                 app.UseMiddleware<ApiActorMiddleware>();
 
-                #region 綁定靜態資源
-                // ⚠️ 一定要放在 UseAuthentication/UseAuthorization 之後。
-                // 0.4.34 之前它掛在兩者之前，等於 DownloadPath 目錄匿名可讀 ——
-                // 與專案附件下載（0.10.3 起一次性票證，DownloadsController）費心做的權限 + 團隊守門 + 稽核軌跡方向相反。
-                app.UseConfiguredDownloadStaticFiles(systemSettings);
-                #endregion
+                // /UploadFiles（把 DownloadPath 直接掛成靜態檔案）0.10.8 起移除：只認登入 Cookie、沒有任何地方連到它；
+                // 下載一律走一次性票證（DownloadsController）。
 
                 // 預設拒絕：Controller 未明確標註授權就不給進。
                 // 刻意「只」套在 Controller 上，不用 AuthorizationOptions.FallbackPolicy。
-                // Blazor 頁面另有自己的「預設需登入」機制（0.9.41 起）：
-                // Components/Pages/_Imports.razor 對整個 Pages/ 標 [Authorize]，
-                // 登入頁等匿名頁面各自標 [AllowAnonymous]，白名單由 PageAuthorizationTests 守門。
-                // 未登入的頁面請求因此在上面的 UseAuthorization 就被 302 到登入頁，
-                // 瀏覽器拿不到任何頁面內容。
+                // 頁面（0.10.8 起全部在 WASM）不在 HTTP 層擋：整頁請求只回空的 WASM 外殼（不預先渲染），
+                // 由 ClientMainLayout 在登入檢查（Token 與 /me）通過前不渲染任何內容，未登入就帶 returnUrl 回登入頁。
                 app.MapControllers()
                     .RequireRateLimiting("api")
                     .RequireAuthorization();

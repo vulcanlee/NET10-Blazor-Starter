@@ -1,8 +1,8 @@
 ﻿# 資料保留與清理 PRD
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.8
 - 首次實作版本：0.9.133
 - 最後核對日期：2026/11/11
 
@@ -36,7 +36,7 @@
 - 「稽核紀錄」列（0.9.174 起分兩類）：保留規則「異動與安全事件保留 N 天；瀏覽類（換頁、搜尋、查看）保留 M 天」（`LogRetentionSettings:AuditLogDays`／`AuditBrowsingLogDays`，某一類為 0 時那一段為「不自動刪除（保留天數為 0）」）；目前數量、最舊一筆與下次會清掉是兩類合計（`AuditLogQueryService.GetRetentionStatsAsync(threshold, AuditLogKind.Change／Browsing)` 各算一次）；兩類都是 0 時才停用「立即清理」；自訂清除不分類（`AuditLogKind.All`）。
 - 「Agent 對話」列（列鍵 `agent-conversation`）：附註「全體使用者，連同內容檔；含 Agent 工作流程的執行紀錄；依最後一次對話時間」（0.9.144 起加「含 Agent 工作流程的執行紀錄」）、數量單位「段」、保留規則「最後一次對話後保留 N 天」、「前往」`/agent-playground`（只看得到自己的對話）。
 - 「巡檢報告」列（0.9.161 起，列鍵 `admin-patrol-report`）：附註「系統管理助理的定時巡檢，連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」」、數量單位「份」、保留規則「產出後保留 N 天」（`AdminPatrolSettings:RetentionDays`）、負責作業「巡檢報告清理」、「前往」`/admin-assistant`；沒有自訂清除。
-- 「登入 Token」列（0.10.0 起，列鍵 `refresh-session`，排在寄信紀錄之後）：附註「已撤銷但未到期的保留，用來偵測重複使用」、保留規則「到期即清除」（沒有保留天數，不顯示「修改」；有效期由 `JwtSettings:RefreshTokenDays` 決定）、下次會清掉＝已到期筆數、負責作業「登入 Token 清理」（`RefreshSessionRetention`，可「立即清理」）、「前往」`/myusers`（要讓某人的 Token 立刻失效，在那裡強制登出）；沒有自訂清除。
+- 「登入 Token」列（0.10.0 起，列鍵 `refresh-session`，排在寄信紀錄之後）：附註「已撤銷但未到期的保留，用來偵測重複使用」、保留規則「到期即清除」（沒有保留天數，不顯示「修改」；有效期依發出管道：App 由 `JwtSettings:RefreshTokenDays`、網頁由 `SessionSettings`〔0.10.8 起〕決定）、下次會清掉＝已到期筆數、負責作業「登入 Token 清理」（`RefreshSessionRetention`，可「立即清理」）、「前往」`/myusers`（要讓某人的 Token 立刻失效，在那裡強制登出）；沒有自訂清除。
 
 ## 四、內部系統運作
 

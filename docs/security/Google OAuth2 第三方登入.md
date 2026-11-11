@@ -1,16 +1,16 @@
 ﻿# Google OAuth2 第三方登入
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.171
+- 現行系統版本：0.10.8
 - 首次實作版本：0.2.6
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 目的
 
 本文件說明如何在本系統啟用「使用 Google 帳號登入」，並串接既有的權限控管（權控）與 Web API（JWT）機制。
 
-設計核心：**Google OAuth2 只負責「網頁 Cookie 登入」這條路徑**；API 仍維持既有的「帳號＋密碼換 JWT」機制。因此 `AuthController` 與 `JwtTokenService` 完全沒有更動，Google 帳號只用於網頁登入，**不支援 API**（0.9.63 起移除「設定 API 密碼」）；要呼叫 API 請使用本地帳號。詳見「認證授權與權限機制」一文。
+設計核心：**Google OAuth2 只負責「網頁登入」這條路徑**。0.10.8（WASM 遷移 M9）起網頁改成純 Token 登入，Google 回呼不再發登入 Cookie，而是產生一次性代碼交回登入頁，由登入頁換成與帳密登入相同的網頁 Token；App 的 API 仍維持「帳號＋密碼換 JWT」（`POST api/v1/Auth/login`）。Google 帳號只用於網頁登入，**不支援 App 的 API 登入**（0.9.63 起移除「設定 API 密碼」）；要從 App 呼叫 API 請使用本地帳號。詳見「認證授權與權限機制」一文。
 
 ---
 
@@ -23,8 +23,8 @@
 | 預設角色 | 自動建立的帳號套用設定中的 `DefaultRoleName`（預設「預設角色」） |
 | 資安閘門 | 新帳號預設 `Status = false`（**停用**），需由管理者於「使用者管理」**啟用並確認角色**後才能登入 |
 | Email 連結 | 若已存在相同 Email 的本地帳號，**自動連結**（寫入 GoogleId，不重建、不覆寫狀態與權限） |
-| 網頁登入 | 純 Google 單一登入（SSO），**不需設定密碼** |
-| API / JWT | **不支援**（0.9.63 起）：Google 帳號沒有本地密碼，無法呼叫 `/api/v1/auth/login`；要呼叫 API 請使用本地帳號 |
+| 網頁登入 | 純 Google 單一登入（SSO），**不需設定密碼**；0.10.8 起回呼以一次性代碼交回登入頁換 Token，沒有「記住我」（關掉分頁就登出） |
+| App 的 API 登入 | **不支援**（0.9.63 起）：Google 帳號沒有本地密碼，無法呼叫 `/api/v1/auth/login`；要從 App 呼叫 API 請使用本地帳號 |
 
 ---
 
@@ -107,7 +107,7 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 
 > ⚠️ 方式 C 會讓密鑰進版控，**正式上線前務必改用方式 A / B，並把密鑰從 `appsettings.json` 移除**。
 
-只有在 `Enabled = true` 且 `ClientId`、`ClientSecret` 皆非空（`GoogleOAuthSettings.IsConfigured`）時，系統才會在 `Program.cs` 註冊 Google 驗證與外部暫存 Cookie；填好後重啟，登入頁就會出現「使用 Google 登入」按鈕。
+只有在 `Enabled = true` 且 `ClientId`、`ClientSecret` 皆非空（`GoogleOAuthSettings.IsConfigured`）時，系統才會在 `Program.cs` 註冊 Google 驗證與外部暫存 Cookie；填好後重啟，登入頁就會出現「使用 Google 登入」按鈕（登入頁經 `GET api/v1/Auth/login-settings` 的 `GoogleEnabled` 判斷）。
 
 ---
 
@@ -115,24 +115,26 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 
 ### 元件與 scheme
 
-- **主 Cookie scheme**：`MagicObjectHelper.CookieScheme`（既有網頁登入身分）。
-- **外部暫存 Cookie scheme**：`MagicObjectHelper.ExternalCookieScheme`（OAuth 流程中暫存 Google 身分，效期 5 分鐘）。
+- **外部暫存 Cookie scheme**：`MagicObjectHelper.ExternalCookieScheme`（`.MyProject.External`，OAuth 流程中暫存 Google 身分，效期 5 分鐘，回呼處理完就清掉）。0.10.8 起這是整個系統唯一的 Cookie，不是登入憑證。
 - **Google scheme**：`GoogleDefaults.AuthenticationScheme`，`SignInScheme` 指向外部暫存 Cookie，`CallbackPath = /signin-google`。
+- **一次性代碼**：`GoogleLoginCodes`（`MyProject.Web/Auth/GoogleLoginCodes.cs`，0.10.8 起）：回呼確認身分後產生代碼，前端以代碼換 Token。
+- 0.10.7 以前回呼直接以主 Cookie scheme（`MagicObjectHelper.CookieScheme`）完成登入；0.10.8 起登入 Cookie 已移除，改由下方流程第 8～9 步發 Token。
 
-### 端點（`ExternalAuthController`，一般 MVC 控制器）
+### 端點
 
 | 路由 | 說明 |
 |------|------|
-| `GET /Auths/Google/Login?returnUrl=` | 觸發 Google OAuth Challenge，回呼導向 Callback |
-| `GET /Auths/Google/Callback?returnUrl=` | Google 驗證完成後的處理端點 |
+| `GET /Auths/Google/Login?returnUrl=&binding=` | `ExternalAuthController`（一般 MVC 控制器）：觸發 Google OAuth Challenge，回呼導向 Callback。0.10.8 起 `binding`（瀏覽器驗證值的雜湊）必填，沒帶回登入頁 |
 | `GET /signin-google` | Google 中介軟體內建的回呼，登入到外部暫存 Cookie（不需自行撰寫） |
+| `GET /Auths/Google/Callback?returnUrl=` | Google 驗證完成後的處理端點：查找／連結／建立帳號，依狀態分流 |
+| `POST /api/v1/Auth/google/exchange` | `WebAuthController`（0.10.8 起）：一次性代碼＋瀏覽器驗證值換 Token（或待驗票證）。算進較嚴格的登入配額 |
 
 ### 流程步驟
 
-1. 使用者在 `/Auths/Login` 點擊「使用 Google 登入」按鈕（連到 `/Auths/Google/Login`）。
-2. 系統發出 `Challenge`，瀏覽器導向 Google 完成驗證，Google 再導回 `/signin-google`。
+1. 使用者開啟 `/Auths/Login`（WASM）：登入頁在這個分頁的 sessionStorage 產生一個隨機**驗證值**，把它的 SHA-256（Base64Url）放進「使用 Google 登入」按鈕的連結：`/Auths/Google/Login?returnUrl=…&binding=<雜湊>`。
+2. 系統發出 `Challenge`（綁定雜湊放進 OAuth 的 state，加密、防竄改），瀏覽器導向 Google 完成驗證，Google 再導回 `/signin-google`。
 3. Google 中介軟體把身分寫入外部暫存 Cookie，並導向 `/Auths/Google/Callback`。
-4. Callback 讀取外部 Cookie 的 Email、Name、`sub`，呼叫 `ExternalLoginService.FindOrCreateAsync(...)`：
+4. Callback 讀取外部 Cookie 的 Email、Name、`sub` 與 state 裡的綁定雜湊（沒有綁定值 → 回登入頁重新開始，不建立也不連結帳號），呼叫 `ExternalLoginService.FindOrCreateAsync(...)`：
    - 先以 **GoogleId** 比對既有連結；
    - GoogleId 屬於**已刪除**的使用者 → 拒絕（0.9.95 起）；
    - 否則以 **Email** 連結既有本地帳號（寫入 GoogleId，不改狀態與權限）；
@@ -145,17 +147,24 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 5. 清除外部暫存 Cookie。
 6. 若 `Status = false` → 導向 `/Auths/Pending`（帳號待審核頁，**不**登入）。
 7. 若帳號因密碼輸錯被鎖定（0.9.101 起）→ 導向 `/Auths/Login?sso=locked`，不登入。判斷順序集中在 `ExternalLoginResult.Evaluate`：帳號已被使用（0.9.171 起）→ 已刪除 → 待開通 → 鎖定 → 登入。
-8. 若帳號已啟用兩步驟驗證（0.9.104 起）且這台裝置沒有被記住 → 導向 `/Auths/TwoFactor` 完成第二步。
-9. 否則 → 以 `CookieClaims.Create` 建立與帳密登入相同的 Claims（`Role`、`Name`、`NameIdentifier`、`Sid`，以及 0.9.103 起的工作階段版本 `security_stamp`），以主 Cookie scheme 完成登入並導向 `returnUrl`（預設 `/App`）。
+8. 否則產生**一次性代碼**（記下使用者 Id、工作階段版本、`returnUrl`、是否要第二步、綁定雜湊），導回 `/Auths/Login#code=<代碼>`。代碼放在網址片段（`#` 後面），不會送到伺服器、不進日誌。
+9. 登入頁讀出代碼、立刻從網址拿掉，連同第 1 步的驗證值原值與記住裝置 Token 送 `POST api/v1/Auth/google/exchange`：
+   - 代碼不存在、過期（60 秒）、已用過、驗證值不符，或回呼之後帳號被停用、改了工作階段版本 → 401「Google 登入已逾時，請重新登入。」，留在登入頁；
+   - 帳號已啟用兩步驟驗證（0.9.104 起）且這台裝置沒有被記住 → 回待驗票證，前端帶到 `/Auths/TwoFactor` 完成第二步；
+   - 否則發一組網頁 Token（Google 登入**沒有「記住我」**，Token 存在 sessionStorage，關掉分頁就登出；開新分頁會向已開分頁要），稽核 `Login.SsoSuccess`，導向 `returnUrl`（預設 `/App`）。
 
 ```
-使用者 ──點擊 Google 登入──▶ /Auths/Google/Login ──Challenge──▶ Google
-                                                                  │
-        /App ◀──啟用且登入──┐                                       ▼
-                           │                          /signin-google（外部暫存 Cookie）
-   /Auths/Pending ◀─停用待審─┤                                        │
-                           └──── /Auths/Google/Callback ◀───────────┘
-                                 （查找/連結/建立帳號 → 依 Status 分流）
+使用者 ──點 Google 登入（帶驗證值雜湊）──▶ /Auths/Google/Login ──Challenge──▶ Google
+                                                                              │
+                                                                              ▼
+                                                           /signin-google（外部暫存 Cookie）
+                                                                              │
+   /Auths/Pending ◀── 停用待審 ───┐                                             │
+                                 └──── /Auths/Google/Callback ◀──────────────┘
+                                       （查找/連結/建立帳號 → 依 Status 分流）
+                                                  │ 可登入：產生一次性代碼
+                                                  ▼
+   /App ◀── Token ── POST api/v1/Auth/google/exchange ◀── /Auths/Login#code=…（代碼＋驗證值原值）
 ```
 
 ---
@@ -174,7 +183,7 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 
 ## 五、Google 使用者呼叫 API（0.9.63 起不支援）
 
-Google 使用者預設沒有本地密碼，因此無法用 `/api/v1/auth/login` 取得 JWT。
+Google 使用者預設沒有本地密碼，因此無法用 App 的 `/api/v1/auth/login` 取得 JWT（網頁登入後網頁本身呼叫 API 用的 Token 不受影響）。
 0.9.63 之前可從使用者選單的「設定 API 密碼」（`/Profile`）自行設定一組密碼，此功能已移除（0.9.102 起 `/Profile` 是與 API 無關的個人資料頁）；
 需要呼叫 API 請改用本地帳號。
 
@@ -202,4 +211,7 @@ Google 使用者預設沒有本地密碼，因此無法用 `/api/v1/auth/login` 
 - **開放註冊風險**：目前為「任何 Google 帳號皆可驗證並自動建帳」。資安閘門是 `Status = false` 預設停用 + 管理者人工審核，請務必落實審核流程。若要更嚴格，可改為限制特定網域或關閉自動建帳。
 - 自動建立的帳號雖套用「預設角色」，但在管理者啟用前無法登入。
 - `ClientSecret` 請勿進版控；正式環境一律用 user-secrets / 環境變數。
-- 回呼 URI（`/signin-google`）必須與 Google Console 設定完全一致，否則 Google 會拒絕。
+- 回呼 URI（`/signin-google`）必須與 Google Console 設定完全一致，否則 Google 會拒絕。0.10.8 改成純 Token 登入時回呼網址**沒有變**，不必改 Google Console。
+- **一次性代碼**（0.10.8 起）：只存代碼的雜湊、60 秒、只能兌換一次（兌換時先移除再檢查，出示錯的驗證值也算用掉）；並綁定發起的瀏覽器 —— 代碼經瀏覽器歷史或側錄外流，沒有那個分頁裡的驗證值原值也換不到 Token。
+- ⚠️ 代碼只存在**單一行程的記憶體**：回呼與兌換要落在同一台主機（IIS 單站台即是）；多台主機要設定黏著工作階段，否則兌換會失敗、要重新按 Google 登入。IIS 回收時還沒兌換的代碼失效。
+- 外部暫存 Cookie 與 OAuth state 以 Data Protection 金鑰加密：金鑰環要固定（`SystemSettings:ExternalFileSystem:DataProtectionKeyPath`），否則 Google 驗證到一半回收就會失敗。

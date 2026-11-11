@@ -24,6 +24,8 @@ public static class ClientProgram
         builder.Services.AddScoped<TokenStore>();
         builder.Services.AddScoped<ClientSession>();
         builder.Services.AddScoped<ApiClient>();
+        // 登入相關頁面與啟動頁的公開設定（0.10.8 起，WASM 遷移 M9）。
+        builder.Services.AddScoped<LoginPageSettingsSource>();
         builder.Services.AddScoped<ClientErrorReporter>();
         builder.Services.AddScoped<PagePermissions, ClientPagePermissions>();
         builder.Services.AddScoped<IAuditHistorySource, ApiAuditHistorySource>();

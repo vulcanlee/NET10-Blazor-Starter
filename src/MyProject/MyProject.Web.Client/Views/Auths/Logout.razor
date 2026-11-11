@@ -1,0 +1,18 @@
+﻿@page "/Auths/Logout"
+@layout ClientEmptyLayout
+@attribute [AllowAnonymous]
+@inject MyProject.Web.Client.Auth.ClientSession Session
+
+@*
+    0.10.8 起在 WASM 執行（WASM 遷移 M9）。直接開這個網址（書籤、舊連結）也能登出：
+    呼叫 /api/v1/Auth/logout 撤銷這次登入的每一串 Token、清掉瀏覽器存的 Token、通知其他分頁，再回登入頁。
+    外框的「登出」不經過這一頁（ClientSession.LogoutAsync 直接做同一件事）。
+*@
+<PageTitle>登出</PageTitle>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.LogoutAsync();
+    }
+}

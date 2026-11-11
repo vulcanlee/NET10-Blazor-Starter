@@ -96,6 +96,39 @@ public sealed class RefreshTokenStoreTests : IDisposable
     }
 
     /// <summary>
+    /// 偷到刷新 Token 的人先以 session/fork 開一串自己的，之後才被偵測到重用：同一次網頁登入的每一串（含偷開的那串）都要撤銷（0.10.8 獨立審查）。
+    /// </summary>
+    [Fact]
+    public async Task Reuse_ShouldRevokeEveryFamilyOfTheSameWebLogin_IncludingForks()
+    {
+        var user = AddUser("mallory-victim");
+        var issued = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-reuse", null, Lifetime);
+        var forked = await store.ForkAsync(issued.Token, (_, _) => Lifetime);
+        Assert.Equal(RefreshRotationStatus.Rotated, forked.Status);
+        var rotated = await store.RotateAsync(issued.Token, Lifetime);
+        time.Advance(RefreshTokenStore.ReuseGracePeriod + TimeSpan.FromSeconds(1));
+
+        var replay = await store.RotateAsync(issued.Token, Lifetime);
+
+        Assert.Equal(RefreshRotationStatus.Reused, replay.Status);
+        Assert.NotEqual(RefreshRotationStatus.Rotated, (await store.RotateAsync(forked.Token!.Token, Lifetime)).Status);
+        Assert.NotEqual(RefreshRotationStatus.Rotated, (await store.RotateAsync(rotated.Token!.Token, Lifetime)).Status);
+    }
+
+    /// <summary>網頁登入已登出（依登入撤銷）之後，不能再以那次登入的 Token 開新的一串。</summary>
+    [Fact]
+    public async Task Fork_AfterTheLoginWasRevoked_ShouldBeRejected()
+    {
+        var user = AddUser("fork-after-logout");
+        var issued = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-logout", null, Lifetime);
+        await store.RevokeByLoginSessionAsync("login-logout", "Logout");
+
+        var forked = await store.ForkAsync(issued.Token, (_, _) => Lifetime);
+
+        Assert.NotEqual(RefreshRotationStatus.Rotated, forked.Status);
+    }
+
+    /// <summary>
     /// 剛被換掉的 Token 在寬限期內又被用：多半是兩個分頁同時刷新，或刷新的回應在網路上遺失後重送，不是外洩。
     /// 回「已被取代」（401）但不撤銷整串，贏的那一邊拿到的新 Token 仍然有效。
     /// </summary>
@@ -247,6 +280,138 @@ public sealed class RefreshTokenStoreTests : IDisposable
         Assert.Equal(1, removed);
         await using var context = factory.CreateDbContext();
         Assert.Equal(1, await context.RefreshSession.CountAsync());
+    }
+
+    // ---------- 0.10.8 起（WASM 遷移 M9a）：網頁管道的效期、新分頁、換一串、這一串是否已撤銷 ----------
+
+    [Fact]
+    public async Task Rotate_WithALifetimePolicy_ShouldAskForTheLifetimeOfThisFamilysKind()
+    {
+        var user = AddUser("alice");
+        var web = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-1", null, TimeSpan.FromMinutes(480));
+        (string Kind, bool Persistent)? asked = null;
+
+        var rotated = await store.RotateAsync(web.Token, (kind, persistent) =>
+        {
+            asked = (kind, persistent);
+            return TimeSpan.FromMinutes(480);
+        });
+
+        Assert.Equal((RefreshClientKinds.Web, false), asked);
+        Assert.Equal(time.GetUtcNow().UtcDateTime.AddMinutes(480), rotated.Token!.ExpiresAtUtc);
+        Assert.Equal(web.FamilyId, rotated.Token.FamilyId);
+        Assert.Equal(RefreshClientKinds.Web, rotated.Token.ClientKind);
+    }
+
+    [Fact]
+    public async Task Fork_ShouldStartANewFamily_ForTheSameWebLogin_AndLeaveTheSourceUsable()
+    {
+        var user = AddUser("alice");
+        var cap = time.GetUtcNow().UtcDateTime.AddDays(30);
+        var source = await store.IssueAsync(user, isPersistent: true, RefreshClientKinds.Web, "login-1", "Chrome", TimeSpan.FromDays(30), cap);
+
+        var fork = await store.ForkAsync(source.Token, (_, _) => TimeSpan.FromDays(30));
+
+        Assert.Equal(RefreshRotationStatus.Rotated, fork.Status);
+        Assert.True(fork.IsPersistent);
+        Assert.NotEqual(source.FamilyId, fork.Token!.FamilyId);
+        await using (var context = factory.CreateDbContext())
+        {
+            var forked = await context.RefreshSession.SingleAsync(x => x.FamilyId == fork.Token.FamilyId);
+            Assert.Equal("login-1", forked.LoginSessionId);
+            Assert.Equal(cap, forked.AbsoluteExpiresAtUtc);
+            Assert.Equal(RefreshClientKinds.Web, forked.ClientKind);
+        }
+
+        Assert.Equal(RefreshRotationStatus.Rotated, (await store.RotateAsync(source.Token, Lifetime)).Status);
+    }
+
+    [Fact]
+    public async Task Fork_ShouldRefuseReplacedRevokedOrNonWebTokens_AndStaleSessions()
+    {
+        var user = AddUser("alice");
+        var web = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-1", null, Lifetime);
+        var rotated = await store.RotateAsync(web.Token, Lifetime);
+        Assert.Equal(RefreshRotationStatus.Invalid, (await store.ForkAsync(web.Token, (_, _) => Lifetime)).Status);
+
+        var api = await store.IssueAsync(user, isPersistent: true, RefreshClientKinds.Api, null, null, Lifetime);
+        Assert.Equal(RefreshRotationStatus.Invalid, (await store.ForkAsync(api.Token, (_, _) => Lifetime)).Status);
+
+        await UpdateUserAsync(user.Id, x => x.SecurityStamp = SecurityStamps.New());
+        Assert.Equal(RefreshRotationStatus.SessionRevoked, (await store.ForkAsync(rotated.Token!.Token, (_, _) => Lifetime)).Status);
+
+        Assert.Equal(RefreshRotationStatus.Invalid, (await store.ForkAsync("unknown", (_, _) => Lifetime)).Status);
+    }
+
+    [Fact]
+    public async Task ReissueFamily_ShouldReplaceTheFamily_KeepingItsSettings_AndOnlyForItsOwner()
+    {
+        var user = AddUser("alice");
+        var other = AddUser("bob");
+        var cap = time.GetUtcNow().UtcDateTime.AddDays(30);
+        var issued = await store.IssueAsync(user, isPersistent: true, RefreshClientKinds.WebBridge, "login-1", "Chrome", Lifetime, cap);
+        await UpdateUserAsync(user.Id, x => x.SecurityStamp = SecurityStamps.New());
+        await using (var read = factory.CreateDbContext())
+        {
+            user = await read.MyUser.AsNoTracking().SingleAsync(x => x.Id == user.Id);
+            other = await read.MyUser.AsNoTracking().SingleAsync(x => x.Id == other.Id);
+        }
+
+        Assert.Equal(RefreshRotationStatus.Invalid, (await store.ReissueFamilyAsync(issued.FamilyId, other, (_, _) => Lifetime, "SelfUpdated")).Status);
+
+        var renewed = await store.ReissueFamilyAsync(issued.FamilyId, user, (_, _) => Lifetime, "PasswordChanged");
+
+        Assert.Equal(RefreshRotationStatus.Rotated, renewed.Status);
+        Assert.True(renewed.IsPersistent);
+        Assert.NotEqual(issued.FamilyId, renewed.Token!.FamilyId);
+        Assert.Equal(RefreshClientKinds.WebBridge, renewed.Token.ClientKind);
+        Assert.True(renewed.Token.ExpiresAtUtc <= cap);
+        Assert.Equal(RefreshRotationStatus.Invalid, (await store.RotateAsync(issued.Token, Lifetime)).Status);
+        Assert.Equal(RefreshRotationStatus.Rotated, (await store.RotateAsync(renewed.Token.Token, Lifetime)).Status);
+        await using var context = factory.CreateDbContext();
+        Assert.Equal("PasswordChanged", (await context.RefreshSession.SingleAsync(x => x.FamilyId == issued.FamilyId)).RevokedReason);
+        Assert.Equal("login-1", (await context.RefreshSession.FirstAsync(x => x.FamilyId == renewed.Token.FamilyId)).LoginSessionId);
+
+        // 已經換掉的那一串不能再換一次。
+        Assert.Equal(RefreshRotationStatus.Invalid, (await store.ReissueFamilyAsync(issued.FamilyId, user, (_, _) => Lifetime, "again")).Status);
+    }
+
+    /// <summary>
+    /// 存取 Token 驗證時查的「這一串還在不在」：登出、依登入識別撤銷之後同一個行程立即看到（快取被清掉），
+    /// 撤銷前的有效結果快取 <see cref="RefreshTokenStore.FamilyCheckWindow"/>；只是輪替不算撤銷。
+    /// </summary>
+    [Fact]
+    public async Task IsFamilyActive_ShouldFollowLogoutImmediately_AndSurviveRotation()
+    {
+        var user = AddUser("alice");
+        var first = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-1", null, Lifetime);
+        var second = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-1", null, Lifetime);
+        Assert.True(await store.IsFamilyActiveAsync(first.FamilyId));
+        Assert.True(await store.IsFamilyActiveAsync(second.FamilyId));
+
+        var rotated = await store.RotateAsync(first.Token, Lifetime);
+        Assert.True(await store.IsFamilyActiveAsync(first.FamilyId));
+
+        await store.RevokeFamilyAsync(rotated.Token!.Token, "Logout");
+        Assert.False(await store.IsFamilyActiveAsync(first.FamilyId));
+
+        await store.RevokeByLoginSessionAsync("login-1", "WebLogout");
+        Assert.False(await store.IsFamilyActiveAsync(second.FamilyId));
+
+        Assert.False(await store.IsFamilyActiveAsync(string.Empty));
+        Assert.False(await store.IsFamilyActiveAsync("unknown"));
+    }
+
+    [Fact]
+    public async Task IsFamilyActive_ShouldStopOnceTheLastTokenExpires()
+    {
+        var user = AddUser("alice");
+        var issued = await store.IssueAsync(user, isPersistent: false, RefreshClientKinds.Web, "login-1", null, TimeSpan.FromMinutes(10));
+        Assert.True(await store.IsFamilyActiveAsync(issued.FamilyId));
+
+        time.Advance(TimeSpan.FromMinutes(11));
+
+        Assert.False(await store.IsFamilyActiveAsync(issued.FamilyId));
     }
 
     private MyUser AddUser(string account)

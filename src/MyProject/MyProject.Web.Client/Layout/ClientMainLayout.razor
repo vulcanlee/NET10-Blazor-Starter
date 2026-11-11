@@ -4,10 +4,9 @@
     WASM 頁面的版面（0.10.1 起，WASM 遷移 M2）：標記與樣式與 Server 版 MainLayout 相同，資料來自 Web API。
     ⚠️ M10 移除 Server 模式前兩份並存：改了 Server 版的版面，這裡要一起改。
 
-    登入檢查完成前整個版面（側邊欄、頁首、頁面本體、對話窗）都不渲染。
-    未登入的整頁請求早已在 HTTP 層被 [Authorize] 擋掉（Components/Pages/_Imports.razor）；
-    這裡擋的是「Cookie 還在、但帳號已停用／被刪／沒有角色」—— 那些情況會被導去登出，
-    之前會先閃出系統框架。由 PageAuthorizationTests 守門。
+    ⚠️ 這裡就是登入的閘門（0.10.8 起純 Token 登入，伺服器不再以 [Authorize] 擋整頁請求）：
+    登入檢查（ClientSession.InitializeAsync：Token、/me）完成前整個版面（側邊欄、頁首、頁面本體、對話窗）都不渲染；
+    沒有 Token 或 Token 失效就帶 returnUrl 回登入頁，帳號停用／被刪／沒有主要角色也一樣不渲染。由 PageAuthorizationTests 守門。
 *@
 @if (isAuthenticated)
 {

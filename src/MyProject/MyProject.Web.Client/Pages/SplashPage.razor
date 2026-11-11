@@ -1,0 +1,9 @@
+﻿@page "/"
+@layout ClientEmptyLayout
+@attribute [AllowAnonymous]
+@using MyProject.Web.Client.Views.Commons
+
+@* 0.10.8 起在 WASM 執行（WASM 遷移 M9）。匿名：3 秒啟動畫面後由 ClientSession 決定去 /app、登入頁或強制設定頁。 *@
+<PageTitle>Home</PageTitle>
+
+<SplashView/>

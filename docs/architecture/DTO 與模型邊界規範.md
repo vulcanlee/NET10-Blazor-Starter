@@ -1,8 +1,8 @@
 ﻿# DTO 與模型邊界規範
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.7
+- 現行系統版本：0.10.8
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -30,7 +30,7 @@
 - [x] `ProjectController`、`CategoryController`、`TeamController` 目前均使用 DTO 作為 API 邊界（0.10.2 起分類、團隊另有 `CategoryFormOptionsDto`、`TeamNodeDto`、`SetEnabledRequestDto`，`CategoryDto`／`TeamDto` 多了 `IsDeleted`、`DeletedAt`、`DeletedBy`；0.10.3 起專案另有 `ProjectFormOptionsDto`、附件 `ProjectFileDto`（不含伺服器上的存放路徑）、下載票證 `DownloadTicketDto`，`ProjectDto` 多了 `Files`（只有單筆 `GET {id}` 帶）與 `IsDeleted`、`DeletedAt`、`DeletedBy`，`ProjectCreateUpdateDto` 的 `StartDate`／`EndDate` 改成可為 null）；`AuthController` 用 `MyProject.Dtos/Auths/` 的 `LoginRequestDto`、`RefreshTokenRequestDto`、`TokenResponseDto`、`CurrentUserDto`。
   `DownloadsController`（0.10.3 起以票證下載附件，0.10.6 起也下載系統備份）與各控制器的匯出成功時回原生檔案，錯誤回 `ApiResult`，不經 DTO（舊的 `BackupController` 0.10.6 起已刪除）。
 - [x] 0.10.4 起（WASM 遷移 M5）只限管理員的 `UsersController`、`RolesController`、`AuditLogsController`、`EmailLogsController` 用 `MyProject.Dtos/Admins/`：
-  - `UserDtos.cs`：`UserSearchRequestDto`、`UserDto`（`Password` 只用於寫入、讀取一律是空的；清單每列帶 `CanDelete`／`CanCopy`／`CanToggleStatus`／`CanForceLogout`／`CanResetTwoFactor` 與伺服器算好的 `LockedText`；新增時 `CopiedFromAccount`）、`UserFormOptionsDto`／`UserRoleOptionDto`、`UserCopyDraftDto`、`UserSaveResultDto`（`SessionRefreshUrl`）、`EmailLookupRequestDto`。
+  - `UserDtos.cs`：`UserSearchRequestDto`、`UserDto`（`Password` 只用於寫入、讀取一律是空的；清單每列帶 `CanDelete`／`CanCopy`／`CanToggleStatus`／`CanForceLogout`／`CanResetTwoFactor` 與伺服器算好的 `LockedText`；新增時 `CopiedFromAccount`）、`UserFormOptionsDto`／`UserRoleOptionDto`、`UserCopyDraftDto`、`UserSaveResultDto`（0.10.4～0.10.7 是 `SessionRefreshUrl`；0.10.8 起繼承 `SessionRenewalDto`，改到自己時回 `Tokens`）、`EmailLookupRequestDto`。
   - `RoleDtos.cs`：`RoleSearchRequestDto`、`RoleDto`、樹狀的權限矩陣 `RolePermissionDto` → `RolePermissionGroupDto` → `RolePermissionNodeDto`（`Actions`：動作名稱 → 是否勾選）、`RoleFormOptionsDto`。
   - `AuditLogDtos.cs`：`AuditLogSearchRequestDto`、`AuditLogItemDto`（繼承異動歷程的 `AuditHistoryItemDto`，多 `OccurredAtUtc` 與簽章）、`AuditLogDetailDto`、`AuditLogOptionsDto`、`AuditLogPurgeResultDto`、`AuditIntegrityReportDto`／`AuditIntegrityIssueDto`。
   - `EmailLogDtos.cs`：`EmailLogSearchRequestDto`、`EmailLogItemDto`。
@@ -57,6 +57,11 @@
   - `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`：`AdminPatrolReportListDto`、`AdminPatrolReportSummaryDto`、`AdminPatrolReportDetailDto`。
   - `MyProject.Dtos/Shell/PushDtos.cs`：通知推播的一行 `PushFrameDto`（`Kind` 見 `PushFrameKinds`：ready、notifications、announcements、ping、renew、reconnect；不帶內容）；`ShellInfoDto` 多 `NotificationPushEnabled`。
   - 畫面也要用的型別搬到 `MyProject.Web.Client/Ai/`（命名空間不變）：`AiToolApprovalRequest`（`MyProject.Web.Ai.Agents`）、`AdminAssistantApproval`（不可復原的動作要輸入「確認」的判斷，伺服器與核准窗共用）。對話檔 `AiAgentConversationContent` 多一個 `TurnKey`（系統管理助理分派到的領域代碼，只加不改，`SchemaVersion` 不變）。
+- [x] 0.10.8 起（WASM 遷移 M9）純 Token 登入與帳號自助：
+  - `MyProject.Dtos/Auths/WebAuthDtos.cs`：登入頁 `LoginPageSettingsDto`；網頁登入 `WebLoginRequestDto`／`WebLoginResultDto`（`Tokens`，或 `RequiresTwoFactor`＋`TwoFactorTicket`；記住裝置 Token）；第二步 `TwoFactorLoginRequestDto`；Google 兌換 `GoogleExchangeRequestDto`（代碼＋瀏覽器驗證值原值）；忘記／重設密碼 `ForgotPasswordRequestDto`、`ResetPasswordCheckRequestDto`／`ResetPasswordCheckDto`、`ResetPasswordRequestDto`／`ResetPasswordResultDto`；變更密碼 `ChangePasswordStatusDto`、`ChangePasswordRequestDto`；兩步驟驗證設定 `TwoFactorSetupStatusDto`、`TwoFactorSetupStartDto`（QR PNG data URI、金鑰、設定票證）、`TwoFactorEnableRequestDto`、`TwoFactorCodeRequestDto`、`TwoFactorBackupCodesDto`。
+  - `SessionRenewalDto`（`Tokens`）：改到自己會換工作階段版本的回應都繼承它，前端拿到就存新 Token。`UserSaveResultDto` 改繼承它，**移除 `SessionRefreshUrl`**（0.10.4～0.10.7 的換發網址）。
+  - `ApiErrorCodes` 新增 `NO_PRIMARY_ROLE`（沒有主要角色的帳號用網頁 Token 呼叫）、`TWO_FACTOR_TICKET_INVALID`（待驗票證無效或等待期間帳號變了）。
+  - 新分頁取得 Token 與登出沿用 `RefreshTokenRequestDto`、回 `TokenResponseDto`（App 的 `Auth/login` 契約不變）。
 - [x] integration tests 已驗證 Project CRUD 成功 response 可用 DTO contract 反序列化。
 - [ ] 日後每新增一個 API Controller，都要在 PR checklist 檢查 DTO 邊界。
 

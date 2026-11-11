@@ -34,7 +34,8 @@ public class SourceTreeConventionTests
     {
         Assert.True(File.Exists(Path.Combine(SourceTree.SourceRoot, "MyProject.slnx")));
         Assert.True(File.Exists(SourceTree.WebFile("MyProject.Web.csproj")));
-        Assert.True(Directory.Exists(Path.Combine(SourceTree.Components, "Pages")));
+        Assert.True(Directory.Exists(Path.Combine(SourceTree.Components, "Layout")));
+        Assert.True(Directory.Exists(Path.Combine(SourceTree.Client, "Pages")));
         Assert.True(File.Exists(Path.Combine(SourceTree.Docs, "README.md")));
         Assert.True(File.Exists(Path.Combine(SourceTree.Scripts, "Invoke-QualityGate.ps1")));
         Assert.Equal(Path.Combine(SourceTree.Docs, "README.md"), SourceTree.Resolve(Path.Combine("docs", "README.md")));

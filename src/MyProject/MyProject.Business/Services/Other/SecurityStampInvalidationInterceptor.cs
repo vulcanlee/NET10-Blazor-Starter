@@ -11,7 +11,7 @@ namespace MyProject.Business.Services.Other;
 /// 工作階段版本一被改，就清掉 <see cref="SecurityStampCache"/>（0.10.0 起，singleton，掛在 DbContext 選項上）。
 ///
 /// 以前改版本的地方（改密碼、停用、刪除、強制登出、改角色、開關兩步驟驗證）都直接寫資料庫、沒有清快取，
-/// 被強制登出的人最多還能再用 <c>CookieSettings.ValidationIntervalMinutes</c>（預設 5 分鐘）。
+/// 被強制登出的人最多還能再用 <c>SessionSettings.ValidationIntervalMinutes</c>（預設 5 分鐘）。
 /// 在資料庫指令這一層攔，不論是追蹤實體存檔或 <c>ExecuteUpdate</c>、現在或日後新增的程式路徑，都不必記得手動清。
 ///
 /// 時機：指令執行後立刻清一次；指令若在交易中（SaveChanges 的隱含交易或明確交易），交易提交後**再清一次**，

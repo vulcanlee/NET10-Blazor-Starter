@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.44
+- 文件版本：2.45
 - 文件狀態：維護中
-- 現行系統版本：0.10.7
+- 現行系統版本：0.10.8
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/11
 
@@ -13,9 +13,9 @@
 | 產品能力 | PRD | 入口／路由 | 主要程式來源 | 狀態 | 核對版本 |
 |----------|-----|-----------|--------------|------|----------|
 | 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Web.Client/Pages/HomeAuthed.razor`（0.10.6 起 WASM）、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗）、`PageHelpDialog`／`PageHelpService`／`Datas/HelpTopics.json`＋`Datas/Help/*.md`（頂欄「操作說明」對話窗，每個登入後頁面一份） | 已實作（0.9.66 起含頁面操作說明對話窗；0.9.121 起說明窗可切換字體小／中／大；0.10.6 起首頁改用 WebAssembly，WASM 遷移 M7）| 0.10.6 |
-| 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.163 |
+| 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Web.Client/Views/Auths/*`（0.10.8 起 WASM）、`ClientSession`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController`、`WebAuthController`、`AuthPasswordController` | 已實作（0.9.60 起含忘記密碼；0.10.8 起純 Token 登入、不再發登入 Cookie，WASM 遷移 M9）| 0.10.8 |
 | 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Web.Client/Pages/ProjectPage.razor`（0.10.3 起 WASM）、`ProjectService`、`ProjectController`、`DownloadsController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核；0.9.145 起 Agent 測試台可產生／清除測試專案；0.10.3 起改用 WebAssembly、API 走服務、標題不可重複、附件以一次性下載票證下載）| 0.10.3 |
-| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Web.Client/Pages/MyUserPage.razor`（0.10.4 起 WASM）、`MyUserService`、`UsersController` | 已實作（0.9.120 起點狀態標籤切換啟用／停用；0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/users`（`[AdminOnly]`），不可強制登出自己、不可重設自己的兩步驟驗證也在 API 擋，改自己後經 `SessionRefreshUrl` 換發登入，WASM 遷移 M5）| 0.10.4 |
+| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Web.Client/Pages/MyUserPage.razor`（0.10.4 起 WASM）、`MyUserService`、`UsersController` | 已實作（0.9.120 起點狀態標籤切換啟用／停用；0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/users`（`[AdminOnly]`），不可強制登出自己、不可重設自己的兩步驟驗證也在 API 擋，改自己後經 `SessionRefreshUrl` 換發登入，WASM 遷移 M5；0.10.8 起改自己直接回新 Token，WASM 遷移 M9）| 0.10.8 |
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Web.Client/Pages/RoleViewPage.razor`（0.10.4 起 WASM）、`RoleViewService`、`RbacWriteService`、`RolesController` | 已實作（0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/roles`（`[AdminOnly]`，權限矩陣為樹狀 DTO），WASM 遷移 M5）| 0.10.4 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `MyProject.Web.Client` 的 `Pages/CategoryPage.razor`、`Views/Categories/CategoryViewView`、`Api/CategoryApi`；`CategoryController`（`/api/v1/Category`）、`CategoryService` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `CategoryService`，WASM 遷移 M3） | 0.10.2 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `MyProject.Web.Client` 的 `Pages/TeamPage.razor`、`Views/Teams/TeamViewView`、`Api/TeamApi`；`TeamController`（`/api/v1/Team`）、`TeamService` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `TeamService`，WASM 遷移 M3）| 0.10.2 |
@@ -35,7 +35,7 @@
 | AI 提示詞管理 | [AI 提示詞管理](AI提示詞管理-prd.md) | 管理員修改 AI 日誌分析、例外分析、Agent 測試台（0.9.142 起）、Agent 工作流程各 agent（0.9.144 起）與系統管理助理（0.9.155 起，6 個）的提示詞，版本保留可切回；固定規則自動附加 | `Web.Client/Pages/PromptTemplatePage.razor`（0.10.5 起 WASM）、`PromptTemplatesController`、`PromptTemplateService`、`Web/Ai/AiPromptGuardrails.cs`、`Web/Ai/PromptTemplateTitles.cs` | 已實作（0.9.108；0.10.5 起改用 WebAssembly，管理員專用 API `api/v1/prompt-templates`，WASM 遷移 M6）| 0.10.5 |
 | 通用匯出 | [通用匯出](通用匯出-prd.md) | 專案、分類、團隊、使用者頁「匯出 Excel」；診斷頁 CSV | `Web/Export/*` | 已實作（0.9.107）| 0.9.163 |
 | 首頁儀表板 | [首頁儀表板](首頁儀表板-prd.md) | `/App` 的小工具區 | `Web/Dashboard/*`、`DashboardController`、`Web.Client/Views/Dashboard/*`、`HomeWelcomeView` | 已實作（0.9.106；0.9.122 起「我的通知」每 60 秒更新；0.9.123 起「上一次登入」顯示 IP；0.10.6 起改用 WebAssembly，看得到哪些小工具由伺服器決定、每個小工具各自讀資料，API `api/v1/dashboard`，WASM 遷移 M7）| 0.10.6 |
-| 兩步驟驗證 | [兩步驟驗證](兩步驟驗證-prd.md) | `/TwoFactorSetup`（個人資料頁）、`/Auths/TwoFactor` | `TwoFactorService`、`TwoFactorLoginCookies`、`Views/Profiles/TwoFactorSetupView`、`Auths/TwoFactor` | 已實作（0.9.104）| 0.9.163 |
+| 兩步驟驗證 | [兩步驟驗證](兩步驟驗證-prd.md) | `/TwoFactorSetup`（個人資料頁）、`/Auths/TwoFactor` | `TwoFactorService`、`TwoFactorLoginTickets`（0.10.8 起取代 `TwoFactorLoginCookies`）、`Web.Client/Views/Profiles/TwoFactorSetupView`、`Web.Client/Views/Auths/TwoFactor`（0.10.8 起 WASM）| 已實作（0.9.104；0.10.8 起登入第二步改用待驗票證與 Token，WASM 遷移 M9）| 0.10.8 |
 | 站內通知與公告 | [站內通知與公告](站內通知與公告-prd.md) | 頂欄鈴鐺、頁面上方公告橫幅、`/announcements` | `INotificationSender`、`NotificationSignal`、`Layout/NotificationBell`、`AnnouncementBanner`、`Web.Client/Pages/AnnouncementPage.razor`（0.10.6 起 WASM）、`AnnouncementsController`、`NotificationRetentionJob` | 已實作（0.9.100；0.9.125 起鈴鐺可刪除單則與清除已讀，已讀通知另依保留天數清除；0.9.161 起定時巡檢需要注意時通知管理員；0.10.6 起公告管理改用 WebAssembly，管理員專用 API `api/v1/announcements`，存檔後同一分頁的橫幅立即重讀，WASM 遷移 M7；0.10.7 起通知推播串流 `POST api/v1/notifications/stream`，鈴鐺與橫幅幾秒內更新、60 秒輪詢保留為備援，WASM 遷移 M8）| 0.10.7 |
 | 系統參數 | [系統參數](系統參數-prd.md) | `/system-parameters` | `Web.Client/Pages/SystemParameterPage.razor`（0.10.6 起 WASM）、`SystemParametersController`、`Web/Configuration/Parameters/*`、`SystemParameterService`、`SystemIdentity` | 已實作（0.9.98；0.9.142 起含「AI 模型」；0.9.143 起含 Agent 對話保留與備份；0.9.144 起含工作流程的模型；0.9.155 起含系統管理助理的模型；0.9.161 起含巡檢報告保留天數；0.9.174 起含稽核記錄範圍的兩個開關與瀏覽類保留天數；0.10.6 起改用 WebAssembly，管理員專用 API `api/v1/system-parameters`，驗證全在伺服器，WASM 遷移 M7）| 0.10.6 |
 | 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Web.Client/Pages/ScheduledJobPage.razor`（0.10.6 起 WASM）、`ScheduledJobsController`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理；0.9.143 起含 Agent 對話清理，0.9.144 起含工作流程的執行紀錄；0.9.161 起含系統管理助理巡檢與巡檢報告清理；0.9.174 起稽核紀錄清理分兩類；0.9.175 起含稽核紀錄完整性檢查；0.10.6 起改用 WebAssembly，管理員專用 API `api/v1/scheduled-jobs`，執行中每 2 秒自動更新，WASM 遷移 M7）| 0.10.6 |

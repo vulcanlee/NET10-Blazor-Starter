@@ -22,6 +22,9 @@ namespace MyProject.Web.Controllers;
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 [SignedInUser] // 登入即可（0.10.4 起明確標註）：通知鈴鐺：每個人只處理自己的通知。
+// 強制改密碼／設定兩步驟驗證期間也能用（0.10.8 起）：那兩頁在 WASM 執行、和 Server 版一樣顯示完整外框，外框的資料不能被擋（否則一直被導回設定頁）。
+// 只涉及自己的資料與畫面框架，不能用來做業務操作。
+[AllowDuringForcedSetup]
 public sealed class NotificationsController : ControllerBase
 {
     /// <summary>鈴鐺下拉清單顯示的筆數（與 Server 版相同）。</summary>

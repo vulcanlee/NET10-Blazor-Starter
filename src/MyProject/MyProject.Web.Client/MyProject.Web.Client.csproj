@@ -30,6 +30,20 @@
     <InternalsVisibleTo Include="MyProject.Tests" />
   </ItemGroup>
 
+  <!--
+    登入、兩步驟驗證、忘記密碼、重設密碼四頁與共用外框 AuthShell 共用同一個 scoped CSS 識別碼（0.9.60 起；0.10.8 起搬到 WASM）。
+    外觀規則全部寫在 Login.razor.css；其餘的 .razor.css 只是讓元件取得同一個 scope 屬性，
+    這樣同一份規則就能套用到五個元件的標記上，不必複製 400 行樣式或改寫成 ::deep。
+    ⚠️ 新增共用外框的頁面時要加進這裡，並附上自己的 .razor.css（可以只有註解）。
+  -->
+  <ItemGroup>
+    <None Update="Views\Auths\Login.razor.css" CssScope="b-auth-shell" />
+    <None Update="Views\Auths\AuthShell.razor.css" CssScope="b-auth-shell" />
+    <None Update="Views\Auths\ForgotPassword.razor.css" CssScope="b-auth-shell" />
+    <None Update="Views\Auths\ResetPassword.razor.css" CssScope="b-auth-shell" />
+    <None Update="Views\Auths\TwoFactor.razor.css" CssScope="b-auth-shell" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MyProject.Dtos\MyProject.Dtos.csproj" />
     <ProjectReference Include="..\MyProject.Models\MyProject.Models.csproj" />

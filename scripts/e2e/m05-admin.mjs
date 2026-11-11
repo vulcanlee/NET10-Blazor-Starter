@@ -1,11 +1,11 @@
 // WASM 遷移 M5（0.10.4）的實機情境：使用者、角色、稽核紀錄、寄信紀錄頁在 WebAssembly 執行，資料走只限管理員的 Web API。
-// 使用者完整流程、改別人的角色後對方被登出、改自己仍維持登入（換發登入）、停用帳號後對方被登出、非管理員直打管理 API 得 403、
-// 複製使用者與交付窗、解鎖、角色權限矩陣存檔、稽核查詢／明細／驗證／匯出、寄信紀錄篩選、匯出 Excel、Server／WASM 切換，
+// 使用者完整流程、改別人的角色後對方被登出、改自己仍維持登入（0.10.8 起伺服器回新 Token）、停用帳號後對方被登出、非管理員直打管理 API 得 403、
+// 複製使用者與交付窗、解鎖、角色權限矩陣存檔、稽核查詢／明細／驗證／匯出、寄信紀錄篩選、匯出 Excel、整頁換頁（0.10.8 起全部在 WASM），
 // 最後跑全部路由的煙霧測試。用法見同資料夾的 README.md。結果寫到 E2E_OUT_DIR/m05-results.json 與 smoke-results.json。
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, query, screenshot,
+  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, pageTokens, query, screenshot,
 } from './common.mjs';
 import { clickRowAction, clickToolbar, closeToasts, confirm, openList, rowTexts, waitForToast, watchErrors } from './crud-ui.mjs';
 import { readerAccount, readerPassword } from './m03-views.mjs';
@@ -239,18 +239,18 @@ try {
   const mailRows = await rowTexts(page);
   recorder.add('A9', '寄信紀錄依狀態篩選', mailRows.length === 1 && mailRows[0].includes('重設密碼'), `只剩 1 筆：${mailRows[0]?.replace(/\s+/g, ' ').slice(0, 60)}`);
 
-  // A10：Server 頁面與 WASM 頁面互相切換。
+  // A10：整頁換到另一個頁面（0.10.8 起已沒有 Server 頁面：/logs 與 /roleviews 都在 WASM，整頁載入後登入狀態從瀏覽器的 Token 接回）。
   await page.goto('/logs');
   await page.waitForTimeout(3000);
   const logsIsWasm = await isWasmPage(page);
   await page.goto('/roleviews');
   await page.locator('.role-view-table .ant-table-row').first().waitFor({ timeout: 60000 });
-  recorder.add('A10', 'Server 與 WASM 頁面互相切換', !logsIsWasm && (await isWasmPage(page)), '/logs（Server）→ /roleviews（WASM，整頁載入）');
+  recorder.add('A10', '整頁換頁後仍維持登入（兩頁都在 WASM）', logsIsWasm && (await isWasmPage(page)), '/logs（WASM）→ /roleviews（WASM，整頁載入）');
 
   recorder.add('A11', '管理員操作過程沒有未處理的錯誤', errors.length === 0, errors.length === 0 ? '無' : errors.join('；'));
   await ctx.close();
 
-  // A12：改自己（另一位管理員加一個額外角色）：工作階段版本換掉，整頁換發登入後仍在使用者頁。
+  // A12：改自己（另一位管理員加一個額外角色）：工作階段版本換掉，0.10.8 起伺服器直接回新的 Token，這台存起來後重新載入、仍在使用者頁。
   const selfCtx = await newContext(browser);
   const self = await selfCtx.newPage();
   await login(self, { account: 'e2e-admin2', password: userPassword });
@@ -259,16 +259,21 @@ try {
   await modal(self).waitFor();
   await pickOption(self, '額外角色', 'E2E 唯讀');
   await submit(self);
-  const refreshRequest = self.waitForRequest((request) => request.url().includes('/Auths/RefreshSession'), { timeout: 30000 });
+  const tokenBefore = (await pageTokens(self))?.RefreshToken;
   await confirmSave(self);
-  await refreshRequest;
+  let tokenAfter = tokenBefore;
+  for (let i = 0; i < 60 && tokenAfter === tokenBefore; i++) {
+    await self.waitForTimeout(500);
+    tokenAfter = (await pageTokens(self))?.RefreshToken;
+  }
   await self.waitForURL(/\/myusers$/, { timeout: 30000 });
   await self.locator('.my-user-table .ant-table-row').first().waitFor({ timeout: 60000 });
-  const stillIn = new URL(self.url()).pathname === '/myusers';
-  const refreshed = query("SELECT COUNT(*) AS n FROM AuditLog WHERE Action LIKE 'Auth.%Refresh%' OR Action = 'Auth.SessionRefresh'")[0].n;
+  const stillIn = new URL(self.url()).pathname === '/myusers' && tokenAfter && tokenAfter !== tokenBefore;
+  const meStatus = await apiAsPageUser(self, '/api/v1/Auth/me');
   await screenshot(self, 'm05-a12-改自己後仍登入');
   await selfCtx.close();
-  recorder.add('A12', '改自己的角色後這台裝置仍維持登入', stillIn, `換發後停在 /myusers，清單正常顯示（換發相關稽核 ${refreshed} 筆）`);
+  recorder.add('A12', '改自己的角色後這台裝置仍維持登入', stillIn && meStatus === 200,
+    `停在 /myusers、清單正常顯示；瀏覽器的 Token ${tokenAfter !== tokenBefore ? '已換成新的' : '沒有換'}；新 Token 呼叫 /me HTTP ${meStatus}`);
 
   // A13：非管理員直接呼叫管理 API 得 403；開頁顯示沒有權限。
   const readerCtx = await newContext(browser);

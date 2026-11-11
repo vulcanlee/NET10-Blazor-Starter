@@ -1,0 +1,52 @@
+@*
+    登入、兩步驟驗證、忘記密碼、重設密碼四頁共用的外框（0.10.8 起在 WASM）：冬景背景、飄雪、品牌欄與卡片。
+    ⚠️ 樣式寫在 Login.razor.css —— 這些元件在 MyProject.Web.Client.csproj 以 CssScope="b-auth-shell"
+    共用同一個 scope，所以那份檔案的規則同時套用到這裡與各頁的卡片內容。
+    本元件自己的 AuthShell.razor.css 只是為了讓元件拿到 scope 屬性，不要把規則分散寫過去。
+    系統名稱與簡介由頁面讀登入頁設定後傳進來（可在「系統參數」頁修改）。
+*@
+<div class="login-container">
+    <picture class="winter-scene" aria-hidden="true">
+        <source media="(max-width: 767px)" srcset="images/login-winter-mobile.png" />
+        <img src="images/login-winter-desktop.png" alt="" fetchpriority="high" />
+    </picture>
+    <div class="snowfall" aria-hidden="true" style="--snow-image: url('images/login-snow.png')">
+        <div class="snow-layer snow-layer-near"></div>
+        <div class="snow-layer snow-layer-far"></div>
+    </div>
+    <div class="login-shell">
+        <section class="brand-panel">
+            <div class="brand-logo">
+                <img class="brand-logo-image" src="images/brand-logo.png" alt="系統品牌圖示" />
+            </div>
+            <h1 class="app-title">@SystemName</h1>
+            <p class="brand-description">@SystemDescription</p>
+        </section>
+
+        <section class="login-card">
+            <div class="login-header">
+                <h2>@Title</h2>
+                <p>@Subtitle</p>
+            </div>
+
+            @ChildContent
+        </section>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Subtitle { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SystemName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SystemDescription { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

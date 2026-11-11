@@ -45,20 +45,21 @@
 }
 
 <ConfigProvider>
-    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)" OnNavigateAsync="OnNavigate">
+    @*
+        找不到路由（0.10.8 起 /not-found 搬到 WASM）：整頁載入同一個網址，主機回 404 後重跑成 /not-found，由 WASM 顯示（與原本同一份內容與外框）。
+        Server 端只會在電路內導覽到不存在的網址時遇到（整頁請求找不到路由時主機不會選 Server 模式），不會來回重載。
+    *@
+    <Router AppAssembly="typeof(Program).Assembly" OnNavigateAsync="OnNavigate">
         <Found Context="routeData">
             @* 最後一道網：接住並記錄所有元件內未處理的例外，避免使用者只看到空白畫面而日誌毫無痕跡。 *@
             <LoggingErrorBoundary>
                 <ChildContent>
                     @*
-                        AuthorizeRouteView 讓頁面上的 [Authorize] 在 circuit 內導覽時也生效（HTTP 層的閘門只管整頁請求）。
-                        驗證中與未授權時一律不渲染任何內容，避免頁面先閃出來再被導走。
+                        0.10.8 起 Server 版已沒有可路由的頁面（全部在 WASM，M10 移除 Server 模式）；未授權時不渲染任何內容。
                     *@
                     <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
                         <Authorizing></Authorizing>
-                        <NotAuthorized>
-                            <MyProject.Web.Components.Auths.RedirectToLogin />
-                        </NotAuthorized>
+                        <NotAuthorized></NotAuthorized>
                     </AuthorizeRouteView>
                     <FocusOnNavigate RouteData="routeData" Selector="h1" />
                 </ChildContent>
@@ -70,6 +71,9 @@
                 </ErrorContent>
             </LoggingErrorBoundary>
         </Found>
+        <NotFound>
+            <MyProject.Web.Components.Commons.ReloadAsFullPage />
+        </NotFound>
     </Router>
 
     @*

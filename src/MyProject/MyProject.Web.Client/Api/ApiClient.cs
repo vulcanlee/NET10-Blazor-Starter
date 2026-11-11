@@ -44,6 +44,15 @@ public class ApiClient
     public Task<ApiResult<T>> DeleteAsync<T>(string url) => SendAsync<T>(HttpMethod.Delete, url, null);
 
     /// <summary>
+    /// 不需登入的 API（0.10.8 起：登入頁設定、啟動頁的系統名稱…）：不帶 Token，401／403 不刷新也不導頁 ——
+    /// 匿名頁上的呼叫失敗不可把人帶去登入頁。連不上伺服器時一樣回失敗結果。
+    /// </summary>
+    public Task<ApiResult<T>> GetAnonymousAsync<T>(string url) => SendAnonymousAsync<T>(HttpMethod.Get, url, null);
+
+    /// <inheritdoc cref="GetAnonymousAsync{T}(string)"/>
+    public Task<ApiResult<T>> PostAnonymousAsync<T>(string url, object? body) => SendAnonymousAsync<T>(HttpMethod.Post, url, body);
+
+    /// <summary>
     /// 可能要跑很久的請求（0.10.4 起，例如稽核紀錄的完整性驗證，時間與紀錄筆數成正比）：最多等 <see cref="LongRunningTimeout"/>，
     /// 不受一般請求 100 秒的逾時限制。其他規則（自動帶 Token、401 刷新、離線）與一般請求相同。
     /// </summary>
@@ -299,6 +308,28 @@ public class ApiClient
         }
     }
 
+    private async Task<ApiResult<T>> SendAnonymousAsync<T>(HttpMethod method, string url, object? body)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(method, url);
+            if (body is not null)
+            {
+                request.Content = JsonContent.Create(body);
+            }
+
+            using var response = await http.SendAsync(request);
+            var result = await ReadAsync<T>(response, url);
+            Remember(result);
+            return result;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogWarning(ex, "Anonymous API request failed because the server could not be reached. Url={Url}", url);
+            return ApiResult<T>.FailureResult(OfflineMessage, 0);
+        }
+    }
+
     /// <summary>送出請求；拿到 401 時刷新 Token 後重試一次，刷新也失敗就導回登入頁並回 null。</summary>
     private async Task<HttpResponseMessage?> SendWithRefreshAsync(HttpMethod method, string url, object? body, bool longRunning = false, CancellationToken cancellationToken = default)
     {
@@ -381,15 +412,26 @@ public class ApiClient
         return ApiResult<T>.FailureResult($"伺服器回應異常（HTTP {(int)response.StatusCode}）。", (int)response.StatusCode);
     }
 
+    /// <summary>
+    /// 被要求先改密碼或設定兩步驟驗證：整頁導到那一頁。⚠️ 已經在那一頁就不導（0.10.8 起那兩頁也在 WASM，再導一次會無限重新載入）。
+    /// 帳號沒有主要角色（0.10.8 起，網頁的 Token 才會收到）：登出，與 Server 版相同。
+    /// </summary>
     private void RedirectForForcedSetup(string? errorCode)
     {
-        if (errorCode == ApiErrorCodes.PasswordChangeRequired)
+        var target = errorCode switch
         {
-            navigation.NavigateTo("/ChangePassword", forceLoad: true);
+            ApiErrorCodes.PasswordChangeRequired => ClientSession.ChangePasswordPath,
+            ApiErrorCodes.TwoFactorSetupRequired => ClientSession.TwoFactorSetupPath,
+            _ => null,
+        };
+
+        if (target is not null && !session.IsCurrentPage(target))
+        {
+            navigation.NavigateTo(target, forceLoad: true);
         }
-        else if (errorCode == ApiErrorCodes.TwoFactorSetupRequired)
+        else if (errorCode == ApiErrorCodes.NoPrimaryRole)
         {
-            navigation.NavigateTo("/TwoFactorSetup", forceLoad: true);
+            _ = session.LogoutAsync();
         }
     }
 }

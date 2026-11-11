@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using MyProject.Dtos.Shell;
 using MyProject.Web.Client.Api;
+using MyProject.Web.Client.Auth;
 
 namespace MyProject.Web.Client.Layout;
 
@@ -12,17 +13,27 @@ namespace MyProject.Web.Client.Layout;
 public sealed class ClientErrorReporter
 {
     private readonly ApiClient api;
+    private readonly ClientSession session;
     private readonly ILogger<ClientErrorReporter> logger;
 
-    public ClientErrorReporter(ApiClient api, ILogger<ClientErrorReporter> logger)
+    public ClientErrorReporter(ApiClient api, ClientSession session, ILogger<ClientErrorReporter> logger)
     {
         this.api = api;
+        this.session = session;
         this.logger = logger;
     }
 
     [JSInvokable]
     public async Task<bool> Report(string? kind, string? message, string? stack, string? source, string? path)
     {
+        // 還沒登入（登入、重設密碼這類匿名頁）：回報端點要登入，呼叫的話 401 → 刷新失敗 → 被導回登入頁（0.10.8 獨立審查）。
+        // 只留在瀏覽器主控台。
+        if (session.Info is null)
+        {
+            logger.LogWarning("Browser error on a page without a signed-in user (not reported to the server). Kind={Kind}, Path={Path}", kind, path);
+            return false;
+        }
+
         var result = await api.PostAsync<object>("api/v1/shell/client-errors", new ClientErrorReportDto
         {
             Kind = kind,

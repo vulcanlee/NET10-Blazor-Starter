@@ -36,23 +36,23 @@ try {
 
   await login(page);
 
-  // W1：從 Server 頁面（分類清單）用右上角選單進個人資料：整頁載入成 WASM。
+  // W1：從分類清單用右上角選單進個人資料（0.10.8 起全部在 WASM，WASM 內換頁）。
   await page.goto('/categories');
   await page.locator('.user-menu-trigger').waitFor({ timeout: 30000 });
-  const coldMs = await openProfile(page, async () => {
+  const navMs = await openProfile(page, async () => {
     await page.locator('.user-menu-trigger').click();
     await page.getByRole('menuitem', { name: '個人資料' }).click();
   });
   const wasm = await isWasmPage(page);
   await screenshot(page, 'W1-profile-wasm');
-  recorder.add('W1', '從 Server 頁面進入 WASM 版個人資料頁', new URL(page.url()).pathname === '/Profile' && wasm,
-    `停在 ${new URL(page.url()).pathname}，以 WebAssembly 執行=${wasm}，第一次進入（含下載）${coldMs} ms，_framework 傳輸 ${(wasmBytes / 1024 / 1024).toFixed(1)} MB（開發模式：未修剪、未壓縮、含除錯資訊；正式發佈的大小在 M12 量測）`);
+  recorder.add('W1', '從分類清單進入個人資料頁（WASM）', new URL(page.url()).pathname === '/Profile' && wasm,
+    `停在 ${new URL(page.url()).pathname}，以 WebAssembly 執行=${wasm}，WASM 內換頁 ${navMs} ms（0.10.8 起登入頁就是 WASM，程式本體在登入時已下載），_framework 傳輸 ${(wasmBytes / 1024 / 1024).toFixed(1)} MB（開發模式：未修剪、未壓縮、含除錯資訊；正式發佈的大小在 M12 量測）`);
 
-  // W1b：再次進入（瀏覽器已快取程式本體）。
+  // W1b：整頁重新載入（瀏覽器已快取程式本體，重新啟動 WASM）。0.10.8 以前 W1 含下載可拿來比較，現在改看絕對時間。
   await page.goto('/categories');
   await page.locator('.user-menu-trigger').waitFor({ timeout: 30000 });
-  const warmMs = await openProfile(page, () => page.goto('/Profile'));
-  recorder.add('W1b', '再次進入個人資料頁（已快取）', warmMs < coldMs * 2, `${warmMs} ms`);
+  const reloadMs = await openProfile(page, () => page.goto('/Profile'));
+  recorder.add('W1b', '整頁重新載入個人資料頁（已快取）', reloadMs < 5000, `${reloadMs} ms（上限 5000 ms）`);
 
   // W2：外框：頂欄頁名、側邊欄、使用者名稱與管理員標籤。
   const title = (await page.locator('.top-row-title').innerText()).trim();
@@ -84,7 +84,7 @@ try {
   await page.keyboard.press('Escape');
   recorder.add('W4', '操作說明窗', helpSections === 8, `目錄項目 ${helpSections} 個（「全部」＋七個章節）`);
 
-  // W5：通知：伺服器端新增一則給 support 的通知，打開鈴鐺看得到，點下去標為已讀並導到連結（Server 頁面，整頁載入）。
+  // W5：通知：伺服器端新增一則給 support 的通知，打開鈴鐺看得到，點下去標為已讀並導到連結。
   const support = query("SELECT Id FROM MyUser WHERE Account = 'support'")[0].Id;
   execute("INSERT INTO Notification (RecipientUserId, Category, Title, Body, Link, CreatedAtUtc) VALUES (?, '系統', 'M2 測試通知', '從 WASM 鈴鐺點開', '/categories', ?)",
     support, new Date().toISOString().replace('T', ' ').replace('Z', ''));
@@ -98,7 +98,7 @@ try {
   await page.locator('.notification-bell-item', { hasText: 'M2 測試通知' }).click();
   await page.waitForURL((url) => url.pathname === '/categories', { timeout: 30000 });
   const readAt = query("SELECT ReadAtUtc FROM Notification WHERE Title = 'M2 測試通知'")[0].ReadAtUtc;
-  recorder.add('W5', 'WASM 通知鈴鐺：未讀數、清單、點開標為已讀並導到 Server 頁面', badgeText === '1' && readAt !== null,
+  recorder.add('W5', 'WASM 通知鈴鐺：未讀數、清單、點開標為已讀並導到連結頁面', badgeText === '1' && readAt !== null,
     `未讀數「${badgeText}」；點開後已讀=${readAt !== null}，導到 /categories`);
 
   // W6：公告：新增一則對全體的公告，WASM 頁面顯示橫幅，按「知道了」後不再出現。
@@ -118,12 +118,14 @@ try {
   const stillShown = await page.locator('.announcement-banner', { hasText: 'M2 測試公告' }).count();
   recorder.add('W6', 'WASM 公告橫幅：顯示、關閉後不再出現', stillShown === 0, `關閉後重新載入，橫幅數 ${stillShown}`);
 
-  // W7：從 WASM 頁面的側邊欄連到 Server 頁面：整頁載入，Server 版正常。
+  // W7：從側邊欄換到另一個頁面（0.10.8 起已沒有 Server 頁面，全部在 WASM 裡換頁、不整頁載入）。
   await page.locator('.sidebar-menu .ant-menu-submenu-title', { hasText: '資料定義' }).click();
+  await page.evaluate(() => { window.__m02NoReload = true; });
   await page.locator('.sidebar-menu a[href="/teams"], .sidebar-menu [href="/teams"]').first().click();
   await page.waitForURL((url) => url.pathname === '/teams', { timeout: 30000 });
   await page.locator('.ant-table').first().waitFor({ timeout: 30000 });
-  recorder.add('W7', '從 WASM 頁面的側邊欄連到 Server 頁面', !(await isWasmPage(page)), `停在 ${new URL(page.url()).pathname}，Server 版表格已顯示`);
+  const sameDocument = await page.evaluate(() => window.__m02NoReload === true);
+  recorder.add('W7', '從側邊欄換到另一個 WASM 頁面（不整頁載入）', sameDocument && (await isWasmPage(page)), `停在 ${new URL(page.url()).pathname}，同一份文件=${sameDocument}`);
 
   // W8：斷線不卡死：在個人資料頁中斷網路後按「儲存」，出現提示而不是卡住；恢復後可正常存檔。
   await openProfile(page, () => page.goto('/Profile'));
@@ -145,27 +147,27 @@ try {
   await page.locator('.ant-modal').getByRole('button', { name: /登\s*出/ }).click();
   await page.waitForURL((url) => url.pathname.startsWith('/Auths/Login'), { timeout: 30000 });
   const tokenAfter = await page.evaluate(() => localStorage.getItem('myproject.auth') ?? sessionStorage.getItem('myproject.auth'));
-  const revoked = query("SELECT COUNT(*) AS n FROM RefreshSession WHERE RevokedReason = 'WebLogout'")[0].n;
+  const revoked = query("SELECT COUNT(*) AS n FROM RefreshSession WHERE RevokedReason = 'Logout' AND ClientKind = 'web'")[0].n;
   const logoutAudit = query("SELECT COUNT(*) AS n FROM AuditLog WHERE Action = 'Logout' AND OccurredAt >= ?", startedAt)[0].n;
-  // 登出只寫一筆稽核（網頁登出頁寫），Token 由網頁登出頁依登入工作階段撤銷（RevokedReason = WebLogout）。
+  // 0.10.8 起登出呼叫 /api/v1/Auth/logout：依登入識別撤銷這次登入的每一串（RevokedReason = Logout），只寫一筆稽核。
   recorder.add('W9', '從 WASM 頁面登出', tokenBefore !== null && tokenAfter === null && revoked >= 1 && logoutAudit === 1,
     `登出前瀏覽器有 Token=${tokenBefore !== null}，登出後=${tokenAfter !== null}；撤銷紀錄 ${revoked} 筆；稽核 Logout ${logoutAudit} 筆`);
 
   // W10：換人登入：另一個帳號登入後打開個人資料，看到的是他自己（不會沿用上一個人的 Token）。
-  createUser('e2e-user', 'E2eUser-pass1');
-  await login(page, { account: 'e2e-user', password: 'E2eUser-pass1' });
+  createUser('e2e-m2-user', 'E2eUser-pass1');
+  await login(page, { account: 'e2e-m2-user', password: 'E2eUser-pass1' });
   await openProfile(page, () => page.goto('/Profile'));
   const account = (await page.locator('.profile-muted').first().innerText()).trim();
-  recorder.add('W10', '換人登入後個人資料是新登入的人', account === 'e2e-user', `個人資料顯示帳號「${account}」`);
+  recorder.add('W10', '換人登入後個人資料是新登入的人', account === 'e2e-m2-user', `個人資料顯示帳號「${account}」`);
 
-  // W11：被要求改密碼的帳號打開個人資料：導到「變更密碼」頁（Server 頁面）。
-  execute("UPDATE MyUser SET MustChangePassword = 1 WHERE Account = 'e2e-user'");
+  // W11：被要求改密碼的帳號打開個人資料：導到「變更密碼」頁（0.10.8 起也在 WASM，停在那一頁不會一直重新載入）。
+  execute("UPDATE MyUser SET MustChangePassword = 1 WHERE Account = 'e2e-m2-user'");
   await page.goto('/Profile');
   await page.waitForURL((url) => url.pathname === '/ChangePassword', { timeout: 60000 });
-  execute("UPDATE MyUser SET MustChangePassword = 0 WHERE Account = 'e2e-user'");
+  execute("UPDATE MyUser SET MustChangePassword = 0 WHERE Account = 'e2e-m2-user'");
   recorder.add('W11', '強制改密碼時從個人資料頁導到變更密碼頁', true, `停在 ${new URL(page.url()).pathname}`);
 
-  // W13：跨模式換頁的開頁稽核只記一筆：Server→WASM 由 WASM 頁面記、WASM→Server 由 Server 電路記，離開的那一邊不記。
+  // W13：換頁的開頁稽核只記一筆（0.10.8 起全部在 WASM，由 ClientMainLayout 每次換頁記一筆）。
   // Start-E2EHost.ps1 已開啟瀏覽類稽核（AuditLogSettings__RecordBrowsing=true）。
   const marker = query("SELECT COALESCE(MAX(Id), 0) AS n FROM AuditLog")[0].n;
   await page.goto('/App');
@@ -183,8 +185,8 @@ try {
   const views = (target) => query("SELECT COUNT(*) AS n FROM AuditLog WHERE Action = 'Page.View' AND Id > ? AND TargetId = ?", appRow, target)[0].n;
   const profileViews = views('/Profile');
   const changePasswordViews = views('/ChangePassword');
-  recorder.add('W13', '跨模式換頁的開頁稽核各只記一筆', profileViews === 1 && changePasswordViews === 1,
-    `/App →（整頁載入）/Profile →（整頁載入）/ChangePassword：/Profile ${profileViews} 筆、/ChangePassword ${changePasswordViews} 筆`);
+  recorder.add('W13', '換頁的開頁稽核各只記一筆', profileViews === 1 && changePasswordViews === 1,
+    `/App → /Profile → /ChangePassword：/Profile ${profileViews} 筆、/ChangePassword ${changePasswordViews} 筆`);
 
   recorder.add('W12', 'WASM 頁面沒有未處理的頁面錯誤', pageErrors.length === 0, pageErrors.length === 0 ? '無' : pageErrors.join('；'));
   await ctx.close();

@@ -32,7 +32,7 @@
     *@
     @if (IsClientPage)
     {
-        <MyProject.Web.Client.ClientRoutes @rendermode="@RenderModeForPage()" ExpectedUserId="@SignedInUserId" />
+        <MyProject.Web.Client.ClientRoutes @rendermode="@RenderModeForPage()" />
     }
     else
     {
@@ -47,11 +47,6 @@
     <script src="@Assets["js/clipboard.js"]"></script>
     <script src="@Assets["js/nav-state.js"]"></script>
     <script src="@Assets["js/client-error-reporter.js"]"></script>
-    @if (IsLoginPage)
-    {
-        @* 換人登入前清掉 WASM 頁面存在瀏覽器的 Token（0.10.1 起），不會沿用上一個人的登入。 *@
-        <script src="@Assets["js/auth-reset.js"]"></script>
-    }
 </body>
 
 </html>

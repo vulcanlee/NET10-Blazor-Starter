@@ -1,8 +1,8 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.30
+- 文件版本：1.31
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.8
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/11/11
 
@@ -128,7 +128,7 @@
 ## 六、錯誤與邊界
 
 - 找不到／無法解析 `Menu.json`：記錄警告或錯誤並回傳空清單，選單顯示「尚無可用選單」，不致中斷頁面。
-- 未登入者進入 `/App` 等受保護頁：0.9.41 起在 HTTP 層（`[Authorize]`）即被導去 `/Auths/Login`；`AuthenticationStateHelper.Check` 的未驗證分支同樣導向 `/Auths/Login`（0.9.39 起，不清 Cookie）。帳號停用、缺角色、工作階段失效者於此導向 `/Auths/Logout`，需改密碼者導向 `/ChangePassword`。
+- 未登入者進入 `/App` 等受保護頁：0.10.8 起（WASM 遷移 M9）頁面不在 HTTP 層擋（頁面一律不標 `[Authorize]`），整頁請求只拿到空的 WASM 外殼，`ClientMainLayout` 在登入檢查（Token 與 `/me`）通過前不渲染內容，沒有 Token 就帶 `returnUrl`（經 `ReturnUrlGuard`）回 `/Auths/Login`。帳號停用、工作階段失效者刷新被拒而回登入頁，沒有主要角色者（`NO_PRIMARY_ROLE`）登出，需改密碼或設定兩步驟驗證者整頁導向 `/ChangePassword`／`/TwoFactorSetup`。0.9.41～0.10.7 是 HTTP 層 `[Authorize]` 以 Cookie 導去登入頁。
 - 使用者無任一項目權限：選單為空，僅顯示提示文字。
 
 ## 七、驗收與測試

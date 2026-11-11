@@ -139,7 +139,7 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
     }
 
     [Theory]
-    [InlineData("/ChangePassword")]
+    [InlineData("/Auths/Google/Login")]
     [InlineData("/MyUser")]
     [InlineData("/no-such-page")]
     public async Task PageView_ShouldIgnorePagesThatAreNotWasmPages(string path)

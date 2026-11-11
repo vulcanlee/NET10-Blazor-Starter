@@ -42,6 +42,9 @@ namespace MyProject.Web.Client.Views.Admins
         public NavigationManager NavigationManager { get; set; } = default!;
 
         [Inject]
+        public ClientSession Session { get; set; } = default!;
+
+        [Inject]
         public ILogger<MyUserView> logger { get; set; } = default!;
 
         /// <summary>匯出 Excel：與清單同一個查詢（伺服器產生檔案並寫稽核），超過上限筆數時顯示原因。</summary>
@@ -659,10 +662,12 @@ namespace MyProject.Web.Client.Views.Admins
 
                 ViewNotification.Warning(notificationService, "修改成功");
 
-                // 管理員改了自己的密碼、角色或管理員身分：自己的工作階段版本已換掉，整頁導到伺服器給的網址換發這台裝置的登入（0.9.103 起）。
-                if (updateResult.Data?.SessionRefreshUrl is { } refreshUrl)
+                // 管理員改了自己的密碼、角色或管理員身分：自己的工作階段版本已換掉。0.10.8 起伺服器直接回這台的新 Token（舊的一串已撤銷），
+                // 存起來後整頁重新載入：選單、權限與右上角都換成新的身分（與 Server 版換發登入後回到本頁相同）。
+                if (updateResult.Data?.Tokens is { } renewedTokens)
                 {
-                    NavigationManager.NavigateTo(refreshUrl, forceLoad: true);
+                    await Session.ApplyTokensAsync(renewedTokens);
+                    NavigationManager.Refresh(forceReload: true);
                     return true;
                 }
             }

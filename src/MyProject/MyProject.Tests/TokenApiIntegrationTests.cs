@@ -20,13 +20,12 @@ using MyProject.Web.Auth;
 namespace MyProject.Tests;
 
 /// <summary>
-/// WASM 遷移 M1（0.10.0 起）的 Token API：刷新 Token 輪替與重用偵測、登出、網頁 Cookie 換 Token（bridge）、
-/// <c>/auth/me</c> 的工作階段資訊，以及強制改密碼期間擋下業務 API。用真的主機與資料庫。
+/// WASM 遷移 M1（0.10.0 起）的 Token API：刷新 Token 輪替與重用偵測、兩個分頁同時刷新、登出（0.10.8 起網頁登出撤銷整次登入）、
+/// <c>/auth/me</c> 的工作階段資訊，以及強制改密碼期間擋下業務 API。網頁 Cookie 換 Token（bridge）0.10.8 起已移除。用真的主機與資料庫。
 /// </summary>
 [Collection(nameof(IntegrationHostCollection))]
 public sealed class TokenApiIntegrationTests : IClassFixture<ApiTestApplicationFactory>
 {
-    private const string ClientHeader = "X-MyProject-Client";
     private readonly ApiTestApplicationFactory factory;
 
     public TokenApiIntegrationTests(ApiTestApplicationFactory factory)
@@ -60,55 +59,6 @@ public sealed class TokenApiIntegrationTests : IClassFixture<ApiTestApplicationF
         Assert.False(await AuditExistsAsync(AuditActions.Token.ReuseDetected, user.Id));
     }
 
-    /// <summary>
-    /// 審查發現（M1）：Cookie 的版本已經過時、但快取還沒看到（別的行程換的版本、或快取競態），bridge 不可用資料庫的新版本發 Token ——
-    /// 否則一個剛被撤銷的 Cookie 能換出一串帶新版本的 Token，完全躲過這次撤銷。
-    /// 這裡以不經 EF 的 SQL 換版本（模擬別的行程），快取仍是舊值、Cookie 驗證會放行，bridge 必須自己擋下。
-    /// </summary>
-    [Fact]
-    public async Task Bridge_WithACookieWhoseStampIsStale_ShouldBeRejectedEvenIfTheCacheStillAcceptsIt()
-    {
-        var user = await AddUserAsync();
-        using var client = NoRedirectClient();
-        var cookie = CookieFor(user, persistent: true, loginSession: "login-e");
-        Assert.Equal(HttpStatusCode.OK, (await BridgeAsync(client, cookie)).StatusCode);
-
-        await using (var context = await CreateContextAsync())
-        {
-            var connection = context.Database.GetDbConnection();
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE MyUser SET SecurityStamp = $stamp WHERE Id = $id";
-            var stamp = command.CreateParameter();
-            stamp.ParameterName = "$stamp";
-            stamp.Value = SecurityStamps.New();
-            command.Parameters.Add(stamp);
-            var id = command.CreateParameter();
-            id.ParameterName = "$id";
-            id.Value = user.Id;
-            command.Parameters.Add(id);
-            await command.ExecuteNonQueryAsync();
-        }
-
-        Assert.Equal(HttpStatusCode.Unauthorized, (await BridgeAsync(client, cookie)).StatusCode);
-    }
-
-    [Fact]
-    public async Task Bridge_ShouldNotLetTheTokensOutliveTheCookie()
-    {
-        var user = await AddUserAsync();
-        using var client = NoRedirectClient();
-        var cookieExpires = DateTimeOffset.UtcNow.AddHours(2);
-
-        var response = await BridgeAsync(client, CookieFor(user, persistent: false, loginSession: "login-f", expiresUtc: cookieExpires));
-
-        var tokens = (await response.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
-        Assert.True(tokens.RefreshTokenExpiresAt <= cookieExpires.UtcDateTime.AddSeconds(1), $"刷新 Token 到 {tokens.RefreshTokenExpiresAt:o}，Cookie 到 {cookieExpires.UtcDateTime:o}");
-        await using var context = await CreateContextAsync();
-        var row = await context.RefreshSession.SingleAsync(x => x.MyUserId == user.Id);
-        Assert.NotNull(row.AbsoluteExpiresAtUtc);
-    }
-
     [Fact]
     public async Task Logout_ShouldRevokeTheRefreshToken_AndAuditTheLogout()
     {
@@ -123,90 +73,68 @@ public sealed class TokenApiIntegrationTests : IClassFixture<ApiTestApplicationF
         Assert.True(await AuditExistsAsync(AuditActions.Logout, user.Id));
     }
 
-    // ---------- 網頁 Cookie 換 Token ----------
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Bridge_ShouldIssueTokensThatFollowTheRememberMeChoice(bool persistent)
+    /// <summary>
+    /// 0.10.8 起（WASM 遷移 M9b）：兩個分頁（或同一分頁兩個請求）拿同一個刷新 Token 同時刷新 —— 只有一個換到新的，另一個在寬限期內只回 401、
+    /// 不撤銷整串，換到的那組照常可用（使用者不會因此被登出；前端拿到 401 時先重讀 storage 沿用另一邊換到的）。
+    /// </summary>
+    [Fact]
+    public async Task Refresh_FromTwoTabsAtOnce_ShouldNotSignTheUserOut()
     {
         var user = await AddUserAsync();
-        using var client = NoRedirectClient();
+        using var client = factory.CreateClient();
+        var tokens = await WebLoginAsync(client, user, rememberMe: true);
 
-        var response = await BridgeAsync(client, CookieFor(user, persistent, loginSession: "login-a"));
+        var responses = await Task.WhenAll(RefreshAsync(client, tokens.RefreshToken), RefreshAsync(client, tokens.RefreshToken));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var tokens = (await response.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
-        Assert.Equal(persistent, tokens.IsPersistent);
-        Assert.Equal(user.Id, tokens.User.Id);
-
-        await using var context = await CreateContextAsync();
-        var row = await context.RefreshSession.SingleAsync(x => x.MyUserId == user.Id);
-        Assert.Equal(RefreshClientKinds.WebBridge, row.ClientKind);
-        Assert.Equal("login-a", row.LoginSessionId);
-        Assert.Equal(persistent, row.IsPersistent);
+        var winner = Assert.Single(responses, x => x.StatusCode == HttpStatusCode.OK);
+        Assert.Single(responses, x => x.StatusCode == HttpStatusCode.Unauthorized);
+        var next = (await winner.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
+        Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(client, next.RefreshToken)).StatusCode);
+        Assert.False(await AuditExistsAsync(AuditActions.Token.ReuseDetected, user.Id));
     }
 
+    /// <summary>已被換掉的刷新 Token 在寬限期過後又被用（可能外洩）：整串撤銷、記重用稽核，連換到的新 Token 與已發出的存取 Token 都失效。</summary>
     [Fact]
-    public async Task Bridge_WithoutTheClientHeader_ShouldBeRejected()
+    public async Task Refresh_WithAReplacedTokenAfterTheGracePeriod_ShouldRevokeTheWholeFamily()
     {
         var user = await AddUserAsync();
-        using var client = NoRedirectClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/Auth/bridge");
-        request.Headers.Add("Cookie", CookieFor(user, persistent: true, loginSession: "login-b"));
+        using var client = factory.CreateClient();
+        var tokens = await WebLoginAsync(client, user, rememberMe: false);
+        var next = (await (await RefreshAsync(client, tokens.RefreshToken)).Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
 
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await using var context = await CreateContextAsync();
-        Assert.False(await context.RefreshSession.AnyAsync(x => x.MyUserId == user.Id));
-    }
-
-    [Fact]
-    public async Task Bridge_WithoutAValidCookie_ShouldReturnApiResult401()
-    {
-        var user = await AddUserAsync();
-        using var client = NoRedirectClient();
-
-        var anonymous = await BridgeAsync(client, cookie: null);
-        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
-        Assert.False((await anonymous.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Success);
-
-        var cookie = CookieFor(user, persistent: true, loginSession: "login-c");
-        await factory.Services.GetRequiredService<ISecurityStampService>().RotateAsync(user.Id);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await BridgeAsync(client, cookie)).StatusCode);
-    }
-
-    [Fact]
-    public async Task Bridge_WithACookieFromBeforeTheLoginSessionClaim_ShouldReissueTheCookieWithOne()
-    {
-        var user = await AddUserAsync();
-        using var client = NoRedirectClient();
-
-        var response = await BridgeAsync(client, CookieFor(user, persistent: true, loginSession: null));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(response.Headers.GetValues("Set-Cookie"), x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal));
-        await using var context = await CreateContextAsync();
-        var row = await context.RefreshSession.SingleAsync(x => x.MyUserId == user.Id);
-        Assert.False(string.IsNullOrEmpty(row.LoginSessionId));
-    }
-
-    [Fact]
-    public async Task WebLogout_ShouldRevokeTheTokensThatLoginBridged()
-    {
-        var user = await AddUserAsync();
-        using var client = NoRedirectClient();
-        var cookie = CookieFor(user, persistent: true, loginSession: "login-d");
-        var tokens = (await (await BridgeAsync(client, cookie)).Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
-
-        using (var logout = new HttpRequestMessage(HttpMethod.Get, "/Auths/Logout"))
+        // 把舊的那一筆「被換掉的時間」往前推到寬限期之外（等同過了 30 秒以上才又被用）。
+        await using (var context = await CreateContextAsync())
         {
-            logout.Headers.Add("Cookie", cookie);
-            await client.SendAsync(logout);
+            var past = DateTime.UtcNow - RefreshTokenStore.ReuseGracePeriod - TimeSpan.FromSeconds(5);
+            await context.RefreshSession.Where(x => x.MyUserId == user.Id && x.ReplacedById != null)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, past));
         }
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(client, tokens.RefreshToken)).StatusCode);
+        Assert.True(await AuditExistsAsync(AuditActions.Token.ReuseDetected, user.Id));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(client, next.RefreshToken)).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", next.AccessToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/Auth/me")).StatusCode);
+    }
+
+    /// <summary>網頁登出撤銷這次登入的每一串（每個分頁各一串，以登入識別串起來），別的登入不受影響；稽核與 Server 版登出頁相同（只記操作者）。</summary>
+    [Fact]
+    public async Task WebLogout_ShouldRevokeEveryTabOfThatLogin_ButNotOtherLogins()
+    {
+        var user = await AddUserAsync();
+        using var client = factory.CreateClient();
+        var firstTab = await WebLoginAsync(client, user, rememberMe: false);
+        var secondTab = (await (await client.PostAsJsonAsync("/api/v1/Auth/session/fork", new RefreshTokenRequestDto { RefreshToken = firstTab.RefreshToken }))
+            .Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
+        var otherLogin = await WebLoginAsync(client, user, rememberMe: false);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/Auth/logout", new RefreshTokenRequestDto { RefreshToken = secondTab.RefreshToken })).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(client, firstTab.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(client, secondTab.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(client, otherLogin.RefreshToken)).StatusCode);
+        await using var context = await CreateContextAsync();
+        Assert.True(await context.AuditLog.AnyAsync(x => x.Action == AuditActions.Logout && x.ActorUserId == user.Id && x.Detail == null));
     }
 
     // ---------- 工作階段資訊與強制設定 ----------
@@ -275,8 +203,6 @@ public sealed class TokenApiIntegrationTests : IClassFixture<ApiTestApplicationF
 
     // ---------- 輔助 ----------
 
-    private HttpClient NoRedirectClient() => factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-
     private static async Task<TokenResponseDto> LoginAsync(HttpClient client, MyUser user)
     {
         var response = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = "Passw0rd-1" });
@@ -287,36 +213,11 @@ public sealed class TokenApiIntegrationTests : IClassFixture<ApiTestApplicationF
     private static Task<HttpResponseMessage> RefreshAsync(HttpClient client, string refreshToken)
         => client.PostAsJsonAsync("/api/v1/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = refreshToken });
 
-    private static async Task<HttpResponseMessage> BridgeAsync(HttpClient client, string? cookie)
+    private static async Task<TokenResponseDto> WebLoginAsync(HttpClient client, MyUser user, bool rememberMe)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/Auth/bridge");
-        request.Headers.Add(ClientHeader, "1");
-        if (cookie is not null)
-        {
-            request.Headers.Add("Cookie", cookie);
-        }
-
-        return await client.SendAsync(request);
-    }
-
-    private string CookieFor(MyUser user, bool persistent, string? loginSession, DateTimeOffset? expiresUtc = null)
-    {
-        var principal = CookieClaims.Create(user);
-        if (loginSession is null)
-        {
-            var identity = (ClaimsIdentity)principal.Identity!;
-            identity.RemoveClaim(identity.FindFirst(CookieClaims.LoginSessionClaimType));
-        }
-        else
-        {
-            var identity = (ClaimsIdentity)principal.Identity!;
-            identity.RemoveClaim(identity.FindFirst(CookieClaims.LoginSessionClaimType));
-            identity.AddClaim(new Claim(CookieClaims.LoginSessionClaimType, loginSession));
-        }
-
-        var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(MagicObjectHelper.CookieScheme);
-        var ticket = options.TicketDataFormat.Protect(new AuthenticationTicket(principal, new AuthenticationProperties { IsPersistent = persistent, ExpiresUtc = expiresUtc }, MagicObjectHelper.CookieScheme));
-        return $"{options.Cookie.Name}={ticket}";
+        var response = await client.PostAsJsonAsync("/api/v1/Auth/login/web", new WebLoginRequestDto { Account = user.Account, Password = "Passw0rd-1", RememberMe = rememberMe });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ApiResult<WebLoginResultDto>>())!.Data!.Tokens!;
     }
 
     private async Task<MyUser> AddUserAsync(bool isAdmin = false)

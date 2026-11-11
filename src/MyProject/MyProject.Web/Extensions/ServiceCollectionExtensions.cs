@@ -164,7 +164,10 @@ public static class ServiceCollectionExtensions
         // 兩步驟驗證（0.9.104 起）。
         services.AddSingleton<ITwoFactorSecretProtector, DataProtectionTwoFactorSecretProtector>();
         services.AddScoped<ITwoFactorService, TwoFactorService>();
-        services.AddSingleton<TwoFactorLoginCookies>();
+        // 網頁以 Token 登入（0.10.8 起，WASM 遷移 M9）：兩步驟驗證的待驗票證與記住裝置 Token、設定票證、Google 一次性代碼都只在這個行程的記憶體。
+        services.AddSingleton<TwoFactorLoginTickets>();
+        services.AddSingleton<TwoFactorSetupTickets>();
+        services.AddSingleton<GoogleLoginCodes>();
         services.AddScoped<IRbacBackfillService, RbacBackfillService>();
 
         // 啟動時的資料庫準備（0.9.91 起取代 Program.cs 的 migrate 與 seed）。
@@ -182,11 +185,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITeamTreeCache, TeamTreeCache>();
         // 密碼原則（0.9.101 起）：所有設定密碼的路徑都經過它；只讀 IOptionsMonitor 與時鐘，所以是 singleton。
         services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
-        // 工作階段失效（0.9.103 起）：版本讀取有快取，所以是 singleton；Cookie 驗證器每個請求一個。
+        // 工作階段失效（0.9.103 起）：版本讀取有快取，所以是 singleton。
         services.AddSingleton<ISecurityStampService, SecurityStampService>();
-        services.AddScoped<SecurityStampCookieEvents>();
-        services.AddSingleton<SessionRefreshTicketService>();
-        services.AddScoped<SessionRefreshNavigator>();
         services.AddScoped<MyUserServiceLogin>();
         services.AddScoped<ExternalLoginService>();
         services.AddScoped<PasswordResetService>();
@@ -196,6 +196,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<RoleViewService>();
         services.AddScoped<MyUserService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        // Token 的發出規則（效期依管道與「記住我」）與「改到自己後這台保持登入」（0.10.8 起）。
+        services.AddScoped<WebSessionTokens>();
+        services.AddScoped<SelfSessionRenewal>();
         // 專案附件實體檔的唯一刪除入口（0.9.97 起，含根目錄檢查）。
         services.AddScoped<ProjectFileStore>();
         // 系統備份（0.9.99 起）：檔案清單與建立備份。建立備份只由排程作業 SystemBackup 呼叫（含「立即備份」）。
@@ -748,15 +751,44 @@ public static class ServiceCollectionExtensions
         => $"{(isLogin ? "login" : "api")}:{permitLimit}:{caller}";
 
     /// <summary>
-    /// 登入端點（含 /api/v1 平行路由）。登入是暴力破解的主要標的，配額比一般 API 嚴格得多；
+    /// 算進較嚴格登入配額的路徑前綴（0.10.8 起擴充）：登入（含網頁登入 <c>login/web</c>）、兩步驟驗證（登入第二步與自己的設定；
+    /// 重新產生備用碼與停用時驗證碼錯了不計入鎖定，只靠這裡擋）、Google 代碼兌換、忘記／重設／變更密碼、新分頁取得 Token。
+    /// 登入頁設定（<c>login-settings</c>）刻意不算：每次開登入頁、啟動頁都會呼叫，沒有可猜的東西，算進去會讓同一個出口 IP 的人開不了頁。
+    /// </summary>
+    internal static readonly string[] LoginQuotaPaths =
+    [
+        "/api/Auth/login",
+        "/api/v1/Auth/login",
+        "/api/v1/Auth/two-factor",
+        "/api/v1/Auth/google",
+        "/api/v1/Auth/password",
+        "/api/v1/Auth/session",
+    ];
+
+    /// <summary>
+    /// 登入相關端點（含 /api/v1 平行路由，清單見 <see cref="LoginQuotaPaths"/>）。登入是暴力破解的主要標的，配額比一般 API 嚴格得多；
     /// 帳號鎖定是第二道防線，但它擋不住「橫向」猜測多個帳號。
     /// </summary>
-    private static bool IsLoginRequest(HttpContext context)
+    internal static bool IsLoginRequest(HttpContext context)
     {
         var path = context.Request.Path;
-        return path.StartsWithSegments("/api/Auth/login", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWithSegments("/api/v1/Auth/login", StringComparison.OrdinalIgnoreCase);
+        if (LoginQuotaExcludedPaths.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return LoginQuotaPaths.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// 不算進登入配額的例外（0.10.8 獨立審查）：網頁登入（<c>login/web</c>）照 Server 版「畫面登入不受登入配額」，
+    /// 防猜密碼靠帳號鎖定，並受一般 API 每 IP 配額限制 —— 算進每 IP 每分鐘 10 次的話，同一個出口 IP 的公司早上登入尖峰會被擋。
+    /// App 用的 <c>/api/v1/Auth/login</c> 照舊算進登入配額。
+    /// </summary>
+    internal static readonly string[] LoginQuotaExcludedPaths =
+    [
+        "/api/v1/Auth/login/web",
+    ];
 
     /// <summary>
     /// 限流的分割鍵：已驗證身分優先（同一人換 IP 也受同一份配額），

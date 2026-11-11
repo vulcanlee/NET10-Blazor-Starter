@@ -13,7 +13,11 @@ namespace MyProject.Web.Controllers;
 
 /// <summary>
 /// Google OAuth2 第三方登入的瀏覽器導向端點（Challenge / Callback）。
-/// 僅負責網頁 Cookie 登入；API 仍使用既有的帳密換 JWT 流程。
+///
+/// 0.10.8 起（WASM 遷移 M9）不發登入 Cookie：發起時必須帶瀏覽器綁定值（<c>binding</c>，登入頁產生的驗證值的 SHA-256），
+/// 回呼產生一次性代碼導回前端 <c>/Auths/Login#code=…</c>，由 <c>POST api/v1/Auth/google/exchange</c> 換 Token（<see cref="GoogleLoginCodes"/>）。
+/// 沒帶綁定值（舊書籤、直接打網址）一律回登入頁重新開始。
+/// 被拒絕的結果（帳號名稱已被使用、已刪除、待開通、鎖定）導回登入頁帶固定代碼或待開通頁。
 /// </summary>
 [Route("Auths/Google")]
 // Google OAuth 的導向入口，本來就必須匿名可達；明示標註以搭配
@@ -26,8 +30,7 @@ public class ExternalAuthController : Controller
     private readonly ILogger<ExternalAuthController> logger;
     private readonly IAuditLogService auditLogService;
     private readonly ISecurityStampService securityStampService;
-    private readonly TwoFactorLoginCookies twoFactorCookies;
-    private readonly MyUserServiceLogin myUserServiceLogin;
+    private readonly GoogleLoginCodes googleLoginCodes;
 
     public ExternalAuthController(
         ExternalLoginService externalLoginService,
@@ -35,27 +38,35 @@ public class ExternalAuthController : Controller
         ILogger<ExternalAuthController> logger,
         IAuditLogService auditLogService,
         ISecurityStampService securityStampService,
-        TwoFactorLoginCookies twoFactorCookies,
-        MyUserServiceLogin myUserServiceLogin)
+        GoogleLoginCodes googleLoginCodes)
     {
         this.externalLoginService = externalLoginService;
         this.googleOAuthSettings = googleOAuthSettings.Value;
         this.logger = logger;
         this.auditLogService = auditLogService;
         this.securityStampService = securityStampService;
-        this.twoFactorCookies = twoFactorCookies;
-        this.myUserServiceLogin = myUserServiceLogin;
+        this.googleLoginCodes = googleLoginCodes;
     }
 
     /// <summary>
     /// 觸發 Google OAuth2 驗證。
     /// </summary>
+    /// <param name="binding">
+    /// 前端產生的隨機驗證值的 SHA-256（Base64Url，0.10.8 起必填）：兌換一次性代碼時要出示原值（綁定發起的瀏覽器）。
+    /// 放進 OAuth 的 state（加密、防竄改），不寫進日誌。
+    /// </param>
     [HttpGet("Login")]
-    public IActionResult Login(string? returnUrl = null)
+    public IActionResult Login(string? returnUrl = null, string? binding = null)
     {
         if (!googleOAuthSettings.IsConfigured)
         {
             logger.LogWarning("Google login requested but Google OAuth is not configured.");
+            return Redirect("/Auths/Login");
+        }
+
+        if (!GoogleLoginCodes.IsValidBindingHash(binding))
+        {
+            logger.LogInformation("Google login requested without a browser binding; returning to the login page.");
             return Redirect("/Auths/Login");
         }
 
@@ -67,11 +78,13 @@ public class ExternalAuthController : Controller
         {
             RedirectUri = callbackUrl,
         };
+        properties.Items[GoogleLoginCodes.BindingItemKey] = binding;
+
         return Challenge(properties, GoogleDefaults.AuthenticationScheme);
     }
 
     /// <summary>
-    /// Google 驗證完成後的回呼：查找/建立帳號，依狀態導向待審核頁或完成 Cookie 登入。
+    /// Google 驗證完成後的回呼：查找/建立帳號，依狀態導向待審核頁或以一次性代碼回前端。
     /// </summary>
     [HttpGet("Callback")]
     public async Task<IActionResult> Callback(string? returnUrl = null)
@@ -92,6 +105,17 @@ public class ExternalAuthController : Controller
         {
             logger.LogWarning("Google callback rejected because subject or email claim is missing.");
             await auditLogService.WriteAsync(AuditActions.Login.SsoFailed, success: false, detail: "provider=Google; reason=MissingClaims");
+            await HttpContext.SignOutAsync(MagicObjectHelper.ExternalCookieScheme);
+            return Redirect("/Auths/Login");
+        }
+
+        // 發起時帶的瀏覽器綁定值（在 OAuth 的 state 裡）；沒有就無法安全地交回前端，重新開始。
+        var binding = result.Properties?.Items.TryGetValue(GoogleLoginCodes.BindingItemKey, out var value) == true && GoogleLoginCodes.IsValidBindingHash(value)
+            ? value
+            : null;
+        if (binding is null)
+        {
+            logger.LogWarning("Google callback rejected because the browser binding is missing.");
             await HttpContext.SignOutAsync(MagicObjectHelper.ExternalCookieScheme);
             return Redirect("/Auths/Login");
         }
@@ -150,36 +174,11 @@ public class ExternalAuthController : Controller
         // 重疊回收時舊版程式建立的帳號可能還沒有工作階段版本（0.9.103 起）。
         user.SecurityStamp = await securityStampService.EnsureAsync(user.Id);
 
-        // ⚠️ 帳號已啟用兩步驟驗證時，Google 登入也要第二步（0.9.104 起）：Google 會自動連結到同 Email 的既有帳號，
-        // 不問的話，已啟用兩步驟驗證的本機帳號（包括管理員）可以改用 Google 繞過。沒有啟用的 Google 帳號照舊直接登入。
-        if (user.TwoFactorEnabled && !string.IsNullOrEmpty(user.TwoFactorSecret))
-        {
-            if (!twoFactorCookies.IsDeviceRemembered(HttpContext, user.Id, user.SecurityStamp))
-            {
-                twoFactorCookies.SetPending(HttpContext, new PendingTwoFactorLogin(user.Id, user.SecurityStamp, false, GetSafeReturnUrl(returnUrl), GoogleDefaults.AuthenticationScheme));
-                logger.LogInformation("Google login requires the second factor. UserId={UserId}.", user.Id);
-                return Redirect("/Auths/TwoFactor");
-            }
-
-            var completed = await myUserServiceLogin.CompleteSecondFactorAsync(user.Id, null, rememberedDevice: true, GoogleDefaults.AuthenticationScheme);
-            if (completed.User is null)
-            {
-                return Redirect("/Auths/Login?sso=locked");
-            }
-
-            await HttpContext.SignInAsync(MagicObjectHelper.CookieScheme, CookieClaims.Create(completed.User));
-            return Redirect(GetSafeReturnUrl(returnUrl));
-        }
-
-        await HttpContext.SignInAsync(MagicObjectHelper.CookieScheme, CookieClaims.Create(user));
-
-        logger.LogInformation(
-            "Google login succeeded. UserId={UserId}, Account={Account}.",
-            user.Id, user.Account);
-        await auditLogService.WriteAsync(
-            AuditActions.Login.SsoSuccess, success: true, actorUserId: user.Id, actorAccount: user.Account, detail: "provider=Google");
-
-        return Redirect(GetSafeReturnUrl(returnUrl));
+        // ⚠️ 已啟用兩步驟驗證的帳號由兌換端點回待驗票證（記住過的裝置除外）；成功稽核也在兌換、真的發出 Token 時才寫。
+        var requiresSecondFactor = user.TwoFactorEnabled && !string.IsNullOrEmpty(user.TwoFactorSecret);
+        var code = googleLoginCodes.Issue(new GoogleLoginGrant(user.Id, user.SecurityStamp, GetSafeReturnUrl(returnUrl), requiresSecondFactor, binding));
+        logger.LogInformation("Google login verified; returning a one-time code to the browser. UserId={UserId}, SecondFactor={SecondFactor}", user.Id, requiresSecondFactor);
+        return Redirect($"{GoogleLoginCodes.FrontendPath}#code={Uri.EscapeDataString(code)}");
     }
 
     private string GetSafeReturnUrl(string? returnUrl)

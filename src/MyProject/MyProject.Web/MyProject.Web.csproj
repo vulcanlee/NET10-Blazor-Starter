@@ -50,20 +50,6 @@
   </ItemGroup>
 
   <!--
-    登入、忘記密碼、重設密碼三頁與共用外框 AuthShell 共用同一個 scoped CSS 識別碼（0.9.60 起）。
-    外觀規則全部寫在 Login.razor.css；其餘三個 .razor.css 只是讓元件取得同一個 scope 屬性，
-    這樣同一份規則就能套用到四個元件的標記上，不必複製 400 行樣式或改寫成 ::deep。
-    ⚠️ 新增共用外框的頁面時要加進這裡，並附上自己的 .razor.css（可以只有註解）。
-  -->
-  <ItemGroup>
-    <None Update="Components\Auths\Login.razor.css" CssScope="b-auth-shell" />
-    <None Update="Components\Auths\AuthShell.razor.css" CssScope="b-auth-shell" />
-    <None Update="Components\Auths\ForgotPassword.razor.css" CssScope="b-auth-shell" />
-    <None Update="Components\Auths\ResetPassword.razor.css" CssScope="b-auth-shell" />
-    <None Update="Components\Auths\TwoFactor.razor.css" CssScope="b-auth-shell" />
-  </ItemGroup>
-
-  <!--
     頁面使用說明（Datas/Help/*.md，由 Datas/HelpTopics.json 索引）。
     Web SDK 預設只複製 *.json，.md 必須明寫；漏了不會編譯失敗，只會在 publish 後
     讓每一頁的說明都變成佔位內容。由 PageHelpCatalogTests 守門。

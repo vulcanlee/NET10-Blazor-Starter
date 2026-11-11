@@ -12,9 +12,11 @@ namespace MyProject.Web.Auth;
 /// Business 服務一律從 <see cref="CurrentUserService"/> 判斷「誰在操作」（稽核、團隊範圍、自我保護）。Blazor 由
 /// <see cref="AuthenticationStateHelper.Check"/> 在換頁時填入；API 以前沒有人填，這裡補上，服務本身不必修改。
 /// 載入規則與 Blazor 相同（<see cref="ICurrentUserLoader"/>）：帳號不存在、停用或工作階段版本已換時回 401 <c>ApiResult</c>。
+/// 0.10.8 起網頁管道的 Token（瀏覽器裡的 WASM 前端）另擋「沒有主要角色」的帳號（403＋<see cref="ApiErrorCodes.NoPrimaryRole"/>，
+/// 與 Server 版 <see cref="AuthenticationStateHelper.Check"/> 相同：沒有主要角色不能用網頁）；以 API 登入的 Token（App）照舊可用。
 ///
 /// ⚠️ 必須放在 <c>UseAuthorization</c> 之後：JWT 不是預設驗證機制，端點的 User 要到授權中介軟體才驗證出來。
-/// 只處理存取 Token（<c>token_type=access</c>）；Cookie 的請求不經過這裡。
+/// 只處理存取 Token（<c>token_type=access</c>）；沒帶 Token 的請求不經過這裡。
 /// </summary>
 public sealed class ApiActorMiddleware
 {
@@ -54,9 +56,26 @@ public sealed class ApiActorMiddleware
             return;
         }
 
+        if (!loaded.HasPrimaryRole && RefreshClientKinds.IsBrowser(principal.FindFirstValue(JwtTokenService.ClientKindClaimType)))
+        {
+            logger.LogWarning("Web API request rejected because the account has no primary role. UserId={UserId}", userId);
+            await RejectNoPrimaryRoleAsync(context);
+            return;
+        }
+
         CurrentUserLoader.ApplyTo(currentUserService, loaded.CurrentUser);
         context.Items[SessionItemKey] = loaded;
         await next(context);
+    }
+
+    private static async Task RejectNoPrimaryRoleAsync(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        context.Response.ContentType = "application/json; charset=utf-8";
+        var result = ApiResult.ForbiddenResult("此帳號沒有主要角色，無法使用網頁。請聯絡系統管理員。");
+        result.ErrorCode = ApiErrorCodes.NoPrimaryRole;
+        result.TraceId = context.TraceIdentifier;
+        await context.Response.WriteAsync(JsonSerializer.Serialize(result));
     }
 
     private static async Task RejectAsync(HttpContext context)

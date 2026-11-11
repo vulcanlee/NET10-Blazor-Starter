@@ -6,7 +6,7 @@
     所有外部路徑（資料庫、上傳、日誌、金鑰環、備份……共 12 個 ExternalFileSystem 路徑）與 NLog 日誌
     一律導到暫存資料夾，不會寫進開發機的 C:\temp 或正式路徑；每次都是全新的資料庫。
     support 帳號的密碼由 -SupportPassword 指定，沒指定時產生一組隨機的暫時密碼，只印在主控台、不寫入任何檔案。
-    另外開啟瀏覽類稽核（AuditLogSettings:RecordBrowsing），讓情境腳本能檢查開頁稽核；API 限流放寬到每分鐘 1000 次（腳本換頁比人快，0.10.5 起）。
+    另外開啟瀏覽類稽核（AuditLogSettings:RecordBrowsing），讓情境腳本能檢查開頁稽核；API 限流放寬到每分鐘 1000 次（腳本換頁比人快，0.10.5 起）；信件一律存成 .eml 檔到隔離資料夾，不會真的寄出（0.10.8 起）。
 
     網站以前景執行（Ctrl+C 結束）；結束後資料夾保留，方便查資料庫與日誌，-Cleanup 則結束時刪除。
     實機驗證腳本在 scripts/e2e/，用法見該資料夾的 README.md。
@@ -60,6 +60,10 @@ $environment = @{
     # 情境腳本換頁比人快得多（煙霧測試一分鐘內整頁載入二十幾個 WASM 頁面，每頁都要換 Token、讀外框），
     # 正式的每人每分鐘 120 次會被打滿（0.10.5 起放寬，只限這個測試主機；被限流時的畫面另有單元測試）。
     RateLimit__ApiRequestsPerMinute                     = '1000'
+    # 信件一律存成 .eml 檔到隔離資料夾（0.10.8 起）：開發機的 User Secrets 可能設了真的 SMTP，情境腳本不可以真的寄信出去。
+    EmailSettings__Provider                             = 'Pickup'
+    EmailSettings__PickupDirectory                      = (Join-Path $Root 'Mails')
+    EmailSettings__PublicBaseUrl                        = 'https://localhost:7144'
     NLog__BasePath                                      = (Join-Path $Root 'logs')
     SystemSettings__ExternalFileSystem__DatabasePath    = (Join-Path $Root 'DB')
     SystemSettings__ExternalFileSystem__DownloadPath    = (Join-Path $Root 'Download')

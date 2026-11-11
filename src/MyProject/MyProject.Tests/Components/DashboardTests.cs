@@ -64,13 +64,9 @@ public sealed class DashboardTests : ComponentTestBase
 
         // WASM 小工具：API 換成可控的假回應。
         Services.AddSingleton<ClientNotificationSignal>();
-        Services.AddSingleton(sp =>
-        {
-            var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
-            var navigation = sp.GetRequiredService<NavigationManager>();
-            var session = new ClientSession(http, new TokenStore(sp.GetRequiredService<IJSRuntime>()), navigation, NullLogger<ClientSession>.Instance);
-            return new ApiClient(http, session, navigation, NullLogger<ApiClient>.Instance);
-        });
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+        Services.AddSingleton(sp => new ClientSession(http, new TokenStore(sp.GetRequiredService<IJSRuntime>()), sp.GetRequiredService<NavigationManager>(), NullLogger<ClientSession>.Instance));
+        Services.AddSingleton(sp => new ApiClient(http, sp.GetRequiredService<ClientSession>(), sp.GetRequiredService<NavigationManager>(), NullLogger<ApiClient>.Instance));
         Services.AddSingleton(sp => new DashboardApi(sp.GetRequiredService<ApiClient>()));
         Services.AddSingleton<ClientErrorReporter>();
     }

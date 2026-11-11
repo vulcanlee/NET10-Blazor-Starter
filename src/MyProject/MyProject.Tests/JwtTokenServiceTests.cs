@@ -60,7 +60,7 @@ public class JwtTokenServiceTests
             ClockSkewMinutes = 0
         };
 
-        return new JwtTokenService(Options.Create(settings), NullLogger<JwtTokenService>.Instance);
+        return new JwtTokenService(Options.Create(settings), new StaticOptionsMonitor<SessionSettings>(new SessionSettings()), NullLogger<JwtTokenService>.Instance);
     }
 
     private static MyUser CreateUser()

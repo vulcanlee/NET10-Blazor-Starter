@@ -61,7 +61,7 @@ public sealed class UserApiTests : IClassFixture<ApiTestApplicationFactoryWithBr
 
         fetched.Name = "改過的名字";
         var saved = await SendAsync<UserSaveResultDto>(client, HttpMethod.Put, $"{BaseUrl}/{created.Id}", fetched);
-        Assert.Null(saved.SessionRefreshUrl);
+        Assert.Null(saved.Tokens);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", fetched)).StatusCode);
 
         await SendAsync<object>(client, HttpMethod.Put, $"{BaseUrl}/{created.Id}/enabled", new SetEnabledRequestDto { Enabled = false });
@@ -127,8 +127,14 @@ public sealed class UserApiTests : IClassFixture<ApiTestApplicationFactoryWithBr
         var me = await SendAsync<UserDto>(client, HttpMethod.Get, $"{BaseUrl}/{admin.Id}");
         me.Password = "NewPass!23456";
         var saved = await SendAsync<UserSaveResultDto>(client, HttpMethod.Put, $"{BaseUrl}/{admin.Id}", me);
-        Assert.StartsWith("/Auths/RefreshSession?ticket=", saved.SessionRefreshUrl);
-        Assert.EndsWith("returnUrl=%2Fmyusers", saved.SessionRefreshUrl);
+        // 0.10.8 起直接回這台的新 Token（舊的一串已撤銷）：新的可以用。
+        Assert.NotNull(saved.Tokens);
+        using (var renewed = factory.CreateClient())
+        {
+            renewed.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", saved.Tokens!.AccessToken);
+            Assert.Equal(HttpStatusCode.OK, (await renewed.GetAsync("/api/v1/Auth/me")).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await renewed.PostAsJsonAsync("/api/v1/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = saved.Tokens.RefreshToken })).StatusCode);
+        }
 
         using var again = await SignedInClientAsync(admin, password: "NewPass!23456");
         Assert.Equal(HttpStatusCode.BadRequest, (await again.PostAsync($"{BaseUrl}/{admin.Id}/force-logout", null)).StatusCode);

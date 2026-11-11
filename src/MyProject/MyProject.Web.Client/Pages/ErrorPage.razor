@@ -1,0 +1,42 @@
+﻿@page "/Error"
+@layout ClientEmptyLayout
+@attribute [AllowAnonymous]
+@using Microsoft.Extensions.Logging
+@inject ILogger<ErrorPage> Logger
+
+@*
+    0.10.8 起在 WASM 執行（WASM 遷移 M9）。WASM 拿不到出錯那次請求的 HttpContext，
+    伺服器的例外處理改把錯誤追蹤碼放進網址導過來（/Error?trace=…，見 ErrorPageRedirect）。
+*@
+<PageTitle>系統錯誤</PageTitle>
+
+<h1 class="text-danger">系統發生未預期的錯誤</h1>
+<p>錯誤已記錄，請稍後再試；若持續發生，請聯絡系統管理員。</p>
+
+@if (ShowTraceCode)
+{
+    @* 錯誤追蹤碼（LOG-10）：與日誌檔、系統例外紀錄的追蹤碼相同，管理員可用它找到這次請求。 *@
+    <p>
+        <strong>錯誤追蹤碼：</strong><code>@TraceCode</code>
+    </p>
+}
+
+@code {
+    /// <summary>錯誤追蹤碼的格式（伺服器的 TraceCode：英數大寫）；不符合的不顯示，避免有人用網址在錯誤頁放任意文字。</summary>
+    private static readonly System.Text.RegularExpressions.Regex TraceCodePattern = new("^[0-9A-Z]{1,32}$");
+
+    [SupplyParameterFromQuery(Name = "trace")]
+    private string? Trace { get; set; }
+
+    private string? TraceCode { get; set; }
+
+    private bool ShowTraceCode => !string.IsNullOrEmpty(TraceCode);
+
+    protected override void OnParametersSet()
+    {
+        TraceCode = Trace is { } value && TraceCodePattern.IsMatch(value) ? value : null;
+
+        // 例外本身伺服器已記過；這裡只在瀏覽器主控台留一筆「使用者確實看到了錯誤畫面」（伺服器導過來時也記了一筆）。
+        Logger.LogWarning("Error page displayed to the user. TraceId={TraceId}", TraceCode);
+    }
+}
