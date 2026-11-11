@@ -7,8 +7,8 @@ namespace MyProject.Web.Auth;
 
 /// <summary>
 /// 解析目前使用者的紀錄存取範圍：
-/// - Blazor 互動情境：使用已填入的 <see cref="CurrentUserService"/>。
-/// - Web API／檔案下載（JWT/Cookie）情境：以 <see cref="RequestActorResolver"/> 取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier），載入使用者與其有效團隊。
+/// - 已填入 <see cref="CurrentUserService"/>（存取 Token 的請求由 <c>ApiActorMiddleware</c> 填入）：直接使用。
+/// - 其他已驗證的 JWT 身分：以 <see cref="RequestActorResolver"/> 取出使用者 Id（NameIdentifier），載入使用者與其有效團隊。
 /// - 未登入：「非管理員、無團隊」，只看得到公開紀錄。
 /// - ⚠️ 已登入卻解析不到是誰（0.9.105 起）：<see cref="RecordAccessScope.None"/>，什麼都看不到。
 ///   以前退回「只看公開」—— JWT 身分的 Id 不在 Sid，整個 Web API 等於不過濾；分類的反向規則下更是全部看得到。

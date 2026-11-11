@@ -5,7 +5,7 @@ namespace MyProject.Web.Components.Layout;
 /// </summary>
 /// <remarks>
 /// 刻意不把說明掛在 Menu.json：Menu.json 只涵蓋選單頁（<c>/ChangePassword</c> 不在裡面），
-/// 而且選單的網址比對是<b>前綴</b>語意（<c>MainLayout.IsMatchingUrl</c>），說明需要<b>精確</b>比對。
+/// 而且選單的網址比對是<b>前綴</b>語意（<c>ClientNavMenu.IsMatchingUrl</c>），說明需要<b>精確</b>比對。
 /// </remarks>
 public sealed class PageHelpTopicModel
 {

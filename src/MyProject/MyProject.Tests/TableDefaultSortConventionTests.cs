@@ -17,9 +17,14 @@ public sealed class TableDefaultSortConventionTests
     [Fact]
     public void EachRazorFile_ShouldDeclareAtMostOneDefaultSortOrder()
     {
-        var root = FindComponentsRoot();
-        var violations = Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories)
-            .Select(path => (Path: Path.GetRelativePath(root, path), Count: DefaultSortOrder.Matches(File.ReadAllText(path)).Count))
+        var counts = SourceTree.UiFiles("*.razor")
+            .Select(path => (Path: Path.GetRelativePath(SourceTree.Client, path), Count: DefaultSortOrder.Matches(File.ReadAllText(path)).Count))
+            .ToList();
+
+        // 防空跑：掃描路徑失效（或畫面搬走）時不能變成永遠通過 —— 至少要找到一張宣告了預設排序的清單。
+        Assert.Contains(counts, x => x.Count > 0);
+
+        var violations = counts
             .Where(x => x.Count > 1)
             .Select(x => $"{x.Path}：{x.Count} 欄")
             .ToList();
@@ -30,6 +35,4 @@ public sealed class TableDefaultSortConventionTests
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

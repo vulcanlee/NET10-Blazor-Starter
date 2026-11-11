@@ -2,7 +2,7 @@
 
 - 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.9
 - 首次實作版本：0.4.0
 - 最後核對日期：2026/11/11
 
@@ -63,7 +63,7 @@
 
 ## 五、權限與安全
 
-- 單一權威來源：`IPermissionChecker` 為 UI（`AuthenticationStateHelper.CheckAccessPage`／`CheckAccessAction`）與 API（`[HasPermission]`）共用的權限判定來源，兩端一致。0.10.2 起 WASM 頁面（分類、團隊，0.10.3 起加上專案）以 `PagePermissions.CanAccessPage`／`CanAccessAction` 決定畫面顯示，規則同為 `PermissionRules`（使用者的權限來自 `/me`）；這只是畫面顯示，實際操作仍由 API 的 `[HasPermission]` 把關。
+- 單一權威來源：`IPermissionChecker` 為 UI 與 API（`[HasPermission]`）共用的權限判定來源，兩端一致（0.10.8 以前 Server 頁經 `AuthenticationStateHelper.CheckAccessPage`／`CheckAccessAction`，0.10.9 起已刪除）。0.10.2 起 WASM 頁面（分類、團隊，0.10.3 起加上專案）以 `PagePermissions.CanAccessPage`／`CanAccessAction` 決定畫面顯示，規則同為 `PermissionRules`（使用者的權限來自 `/me`）；這只是畫面顯示，實際操作仍由 API 的 `[HasPermission]` 把關。
 - 宣告式頁面權限：`Menu.json` 唯一 `id` ＋ `SidebarMenuService.MenuPermissionMap`（id→權限鍵）＋ `MagicObjectHelper` 權限鍵常數（見「首頁與導覽 PRD」）。
 - 動作級 RBAC：受保護 CRUD 以 `[HasPermission("頁面", "動作")]` 標註（View/Create/Edit/Delete；`Export` 已於 0.9.37 下架）；未登入回 401、無權限回 403，皆維持 `ApiResult` 格式。
 - 團隊權控為資安不變量：列級可見性由伺服器端查詢述詞強制，UI 過濾僅為輔助，不可作為授權邊界。
@@ -101,6 +101,6 @@
 - `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（`HasPermissionAsync`，管理員短路 `:33`）
 - `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（401/403 與 `ApiResult`）
 - `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`（`[HasPermission]` 動作級標註）
-- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessAction`）、`src/MyProject/MyProject.Models/Others/PermissionRules.cs`（頁面與動作的判斷規則，Server 與 WASM 共用）、`src/MyProject/MyProject.Web.Client/Auth/PagePermissions.cs`（0.10.2 起，畫面上的權限判斷）
+- `src/MyProject/MyProject.Models/Others/PermissionRules.cs`（頁面與動作的判斷規則，WASM 畫面與伺服器端選單過濾共用；0.10.8 以前另有 Server 頁的 `AuthenticationStateHelper.CheckAccessAction`）、`src/MyProject/MyProject.Web.Client/Auth/PagePermissions.cs`（0.10.2 起，畫面上的權限判斷）
 - `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionKey.For`／`PageOf`）
 - 交叉連結：[認證授權與權限機制](../security/認證授權與權限機制.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)

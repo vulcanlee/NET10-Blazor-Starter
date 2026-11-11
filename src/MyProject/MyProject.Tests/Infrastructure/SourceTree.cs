@@ -22,22 +22,35 @@ internal static class SourceTree
     /// <summary>WASM 前端專案 <c>MyProject.Web.Client</c>。</summary>
     public static string Client => Path.Combine(SourceRoot, "MyProject.Web.Client");
 
-    /// <summary><c>MyProject.Web/Components</c>。</summary>
+    /// <summary>
+    /// <c>MyProject.Web/Components</c>：0.10.9 起（WASM 遷移 M10）只剩 WASM 的主機頁 <c>App.razor</c>，
+    /// 以及外框 API 用的服務類別（<c>Layout/SidebarMenuService.cs</c> 等），已沒有任何畫面。
+    /// </summary>
     public static string Components => Path.Combine(Web, "Components");
 
     /// <summary>
-    /// 所有畫面程式的根目錄（0.10.1 起）：Server 版的 <c>MyProject.Web/Components</c> 與 WASM 的 <c>MyProject.Web.Client</c>。
-    /// 「每個頁面都要…」這類規則要掃這兩處；WASM 遷移期間頁面會逐批從前者搬到後者。
+    /// 所有畫面程式的根目錄：0.10.9 起（WASM 遷移 M10 移除 Server 模式）只有 WASM 的 <c>MyProject.Web.Client</c>。
+    /// 「每個頁面都要…」這類規則掃這裡（0.10.1～0.10.8 遷移期間另含 Server 版的 <c>MyProject.Web/Components</c>）。
     /// </summary>
-    public static IReadOnlyList<string> UiRoots => [Components, Client];
+    public static IReadOnlyList<string> UiRoots => [Client];
 
     /// <summary>
-    /// 畫面檔案（例如 <c>Views/Categories/CategoryViewView.razor</c>）在 <see cref="UiRoots"/> 哪一處就回哪一處的完整路徑（0.10.2 起）：
-    /// 頁面搬到 WASM 後，「這幾頁都要有…」的測試不必跟著改路徑。兩處都沒有時丟例外。
+    /// 畫面檔案（例如 <c>Views/Categories/CategoryViewView.razor</c>）在 <see cref="UiRoots"/> 哪一處就回哪一處的完整路徑（0.10.2 起）。
+    /// 都沒有時丟例外。
     /// </summary>
     public static string UiFile(string relativePath)
         => UiRoots.Select(root => Path.Combine(root, relativePath)).FirstOrDefault(File.Exists)
             ?? throw new FileNotFoundException($"在 {string.Join("、", UiRoots)} 底下都找不到 {relativePath}。");
+
+    /// <summary>
+    /// <see cref="UiRoots"/> 底下符合 <paramref name="searchPattern"/>（例如 <c>*.razor</c>）的所有檔案，不含 <c>bin</c>、<c>obj</c>（0.10.9 起）。
+    /// ⚠️ 呼叫端仍要斷言結果不是空的：掃描路徑失效時守門測試不能變成永遠通過。
+    /// </summary>
+    public static IReadOnlyList<string> UiFiles(string searchPattern)
+        => UiRoots
+            .SelectMany(root => Directory.EnumerateFiles(root, searchPattern, SearchOption.AllDirectories)
+                .Where(path => !Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar).Any(x => x is "bin" or "obj")))
+            .ToList();
 
     /// <summary>repo 的 <c>docs</c> 目錄。</summary>
     public static string Docs => Path.Combine(RepoRoot, "docs");

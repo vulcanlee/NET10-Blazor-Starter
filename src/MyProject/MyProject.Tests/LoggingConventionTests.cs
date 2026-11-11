@@ -347,9 +347,7 @@ public sealed class LoggingConventionTests
         string[] exempt =
         [
             "CurrentUserService.cs",        // 僅持有目前使用者狀態，無任何行為
-            "ServerPagePermissions.cs",     // 純判斷：把 CurrentUserService 交給 PermissionRules，沒有 I/O
             "RolePermissionService.cs",     // 純粹回傳靜態權限結構
-            "AuthenticationCheckResult.cs", // 列舉
             "PasswordResetRequestResult.cs", // 列舉
             "LogModels.cs",                 // 模型與純轉換
             "DatabaseUsageModels.cs",       // 模型
@@ -387,7 +385,7 @@ public sealed class LoggingConventionTests
             "AuditHashV1.cs",               // 稽核簽章格式與鏈別常數：純函式，無 I/O（0.9.175 起）
             "PasswordPolicy.cs",            // 密碼原則：純規則計算與雜湊，失敗由呼叫端記錄（0.9.101 起）
             "CookieClaims.cs",              // 登入 Cookie 的 claims 組裝，純函式（0.9.103 起）
-            "ClientIpProvider.cs",          // 稽核來源 IP：持有 circuit 的 IP 並格式化，無 I/O；失敗由 circuit handler 記錄（0.9.117 起）
+            "ClientIpProvider.cs",          // 稽核來源 IP：持有工作流程執行寫入的 IP 並格式化，無 I/O（0.9.117 起）
             "QrCodeImage.cs",               // 文字轉 QR Code 圖片，純函式（0.9.104 起）
             "SystemIdentity.cs",            // 例外告警服務（例外記錄管線內）使用它讀系統名稱；用 ILogger 會遞迴（0.9.98 起）
             "RetentionStats.cs",            // 資料保留頁的統計（record：筆數、最舊、過期），無行為（0.9.133 起）

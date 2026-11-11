@@ -2,9 +2,9 @@
 
 - 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.9
 - 首次實作版本：0.4.29
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -71,7 +71,7 @@
 - **`ReconfigExistingLoggers()` 是必要的**：不呼叫的話，已建立的 Logger 會沿用快取的等級過濾器，設定等於沒生效 —— 而執行中的應用程式，每一個 Logger 都是已建立的。
 - **不寫回任何設定檔**：重新啟動就會回到系統預設等級。這是刻意的，避免有人把 Debug 誤留在版控裡。
 - **`appsettings.json` 的 `Logging:LogLevel` 是死設定**，改它不會有任何效果 —— `builder.Host.UseNLog()` 預設 `RemoveLoggerFactoryFilter: true`，NLog 會接管全部過濾。這一節很容易誤導人，特此記錄。
-- **`LogLevelRuntimeState` 是本專案第一個可變的 Singleton**（既有的 `SystemStartupState` 是不可變的），因此鎖的責任完全在它自己：`LoggingRules` 是普通的 `IList`，改動發生在 Blazor circuit 執行緒上，而其他執行緒同時正在寫日誌。
+- **`LogLevelRuntimeState` 是本專案第一個可變的 Singleton**（既有的 `SystemStartupState` 是不可變的），因此鎖的責任完全在它自己：`LoggingRules` 是普通的 `IList`，改動發生在處理 API 請求的執行緒上（0.10.8 以前是 Blazor circuit 執行緒），而其他執行緒同時正在寫日誌。
 - 多個管理員同時操作時最後套用者勝出；每次進頁都重讀真實狀態，不快取。
 
 ## 六、與 autoReload 的互動

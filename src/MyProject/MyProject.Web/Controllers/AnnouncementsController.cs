@@ -21,10 +21,10 @@ namespace MyProject.Web.Controllers;
 /// 公告的 Web API。
 /// <list type="bullet">
 /// <item>目前使用者要看到的公告與個人關閉（0.10.1 起，WASM 遷移 M2，給 WASM 外框的公告橫幅用；登入即可）。
-/// 挑選規則（時間、對象、沒被關閉）與 Server 版共用 <see cref="AnnouncementBanner.Select"/>。</item>
+/// 挑選規則（時間、對象、沒被關閉）在 <see cref="AnnouncementCache.Select"/>。</item>
 /// <item>公告管理頁（0.10.6 起，WASM 遷移 M7；只限管理員）：清單、新增、修改、刪除，走畫面同一個 <see cref="AnnouncementService"/>。
-/// 稽核與 Server 版頁面相同（<c>Announcement.Create</c>／<c>Update</c>／<c>Delete</c>，每個動作一筆）；
-/// 存檔或刪除後讓公告快取失效並通知 Server 版畫面（WASM 橫幅每 60 秒與切回分頁時重新取得）。</item>
+/// 稽核：<c>Announcement.Create</c>／<c>Update</c>／<c>Delete</c>，每個動作一筆；
+/// 存檔或刪除後讓公告快取失效並發出公告變動訊號（通知推播串流轉給 WASM 橫幅；橫幅另外每 60 秒與切回分頁時重新取得）。</item>
 /// </list>
 /// </summary>
 [Route("api/v1/announcements")]
@@ -67,7 +67,7 @@ public sealed class AnnouncementsController : ControllerBase
     public async Task<ActionResult<ApiResult<List<ActiveAnnouncementDto>>>> Active()
     {
         var user = currentUserService.CurrentUser;
-        var visible = AnnouncementBanner.Select(
+        var visible = AnnouncementCache.Select(
             await cache.GetAsync(),
             timeProvider.GetUtcNow().UtcDateTime,
             await announcementService.GetUserRoleIdsAsync(user.Id),
@@ -160,12 +160,12 @@ public sealed class AnnouncementsController : ControllerBase
         return this.FromVerify(result, $"已刪除「{title}」。");
     }
 
-    /// <summary>新增與修改的稽核（與 Server 版相同：標題與對象照送來的值）。</summary>
+    /// <summary>新增與修改的稽核：標題與對象照送來的值。</summary>
     private Task AuditSavedAsync(string action, AnnouncementAdapterModel model)
         => ViewAudit.WriteAsync(auditLogService, currentUserService, action, TargetType,
             model.Id.ToString(CultureInfo.InvariantCulture), $"title={model.Title}; target={model.TargetKind}:{model.TargetId}");
 
-    /// <summary>公告快取失效，並通知 Server 版開著的畫面重新顯示（同一個行程；其他行程與 WASM 橫幅最晚 60 秒）。</summary>
+    /// <summary>公告快取失效，並發出公告變動訊號給通知推播串流（同一個行程；其他行程最晚 60 秒）。</summary>
     private void Broadcast()
     {
         cache.Invalidate();

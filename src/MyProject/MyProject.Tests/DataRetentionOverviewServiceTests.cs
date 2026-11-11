@@ -175,8 +175,8 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
     public void ManagePages_ForSoftDeletedData_ShouldHonorTheDeletedQuery(string route)
     {
         // 「前往」帶 ?deleted=1：頁面沒有接這個參數的話，只會落在一般清單，使用者還得自己按「顯示已刪除」。
-        // 0.10.2 起分類、團隊頁搬到 WASM（MyProject.Web.Client/Pages），兩處都要找。
-        var pages = SourceTree.UiRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories))
+        // 0.10.9 起頁面只在 MyProject.Web.Client。
+        var pages = SourceTree.UiFiles("*.razor")
             .Select(File.ReadAllText)
             .Where(text => text.Contains($"@page \"{route}\"", StringComparison.Ordinal))
             .ToList();

@@ -6,11 +6,10 @@ namespace MyProject.Web.Diagnostics;
 /// <summary>
 /// 錯誤追蹤碼（LOG-10）：使用者在錯誤訊息上看到的 8 碼短碼，管理員用它在 /logs 與系統例外紀錄找到同一次操作。
 ///
-/// 一個碼代表「一次 HTTP 請求」或「一次 Blazor 互動」：
+/// 一個碼代表「一次 HTTP 請求」或「一次排程作業」：
 /// - HTTP：<c>UseHttpRequestLogging</c> 產生並<b>取代 <c>HttpContext.TraceIdentifier</c></b>，
 ///   於是 API 回應的 TraceId、/Error 頁、框架自己的日誌都是同一個碼。
-/// - Blazor：<c>ApplicationCircuitHandler.CreateInboundActivityHandler</c> 每次互動產生一個
-///   （circuit 內沒有 HttpContext，TraceIdentifier 是空的或過期的）。
+/// - 排程作業：<c>ScheduledJobRunner</c> 每次執行產生一個。
 /// 兩者都放進 NLog 的 ScopeContext，nlog.config 的 TraceId 欄位以 <c>${scopeproperty:item=TraceCode}</c> 輸出。
 ///
 /// 只含隨機字元（Crockford Base32，去掉易混淆的 I／L／O／U），不帶時間、主機或帳號資訊。

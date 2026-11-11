@@ -41,8 +41,8 @@ public sealed record CurrentUserLoadResult(
     bool HasPrimaryRole = true);
 
 /// <summary>
-/// 依使用者 Id 與工作階段版本載入「目前使用者」（0.10.0 起，從 <see cref="AuthenticationStateHelper.Check"/> 抽出）。
-/// Blazor 換頁檢查與 Web API 每個請求共用同一份規則：帳號存在、啟用、版本相符，權限取 RBAC 有效權限、團隊取有效團隊，
+/// 依使用者 Id 與工作階段版本載入「目前使用者」（0.10.0 起從 Server 版的換頁檢查抽出；0.10.9 起只有 Web API 每個請求使用）。
+/// 規則：帳號存在、啟用、版本相符，權限取 RBAC 有效權限、團隊取有效團隊，
 /// 以及是否必須先改密碼或設定兩步驟驗證。這裡**只讀不寫**：導頁、稽核與回應由呼叫端決定。
 /// </summary>
 public interface ICurrentUserLoader

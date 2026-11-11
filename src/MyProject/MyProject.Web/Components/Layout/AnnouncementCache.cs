@@ -5,7 +5,7 @@ namespace MyProject.Web.Components.Layout;
 /// <summary>
 /// 公告橫幅用的快取（singleton，0.9.100 起）：所有連線共用一份「還沒結束的公告」，每次換頁不必查資料庫。
 /// 管理頁存檔時 <see cref="Invalidate"/>；另一個行程（IIS 重疊回收）的修改最晚 60 秒後重新讀取。
-/// 是否在顯示期間內、是否為對象，由橫幅在顯示時判斷（快取裡也有尚未開始的公告）。
+/// 是否在顯示期間內、是否為對象，在回給使用者時以 <see cref="Select"/> 判斷（快取裡也有尚未開始的公告）。
 /// </summary>
 public sealed class AnnouncementCache
 {
@@ -58,4 +58,11 @@ public sealed class AnnouncementCache
     }
 
     public void Invalidate() => Volatile.Write(ref expiresAtTicks, 0);
+
+    /// <summary>從公告清單挑出這個人要看到的（時間、對象、沒被關閉），新的在前（0.10.9 起從已刪除的 Server 版公告橫幅搬來）。</summary>
+    internal static List<ActiveAnnouncement> Select(
+        IEnumerable<ActiveAnnouncement> all, DateTime nowUtc, IReadOnlyCollection<int> roleIds, IReadOnlyCollection<string> teamNames, IReadOnlySet<int> dismissed)
+        => all.Where(x => x.IsShowingAt(nowUtc) && x.IsFor(roleIds, teamNames) && !dismissed.Contains(x.Id))
+            .OrderByDescending(x => x.StartAtUtc)
+            .ToList();
 }

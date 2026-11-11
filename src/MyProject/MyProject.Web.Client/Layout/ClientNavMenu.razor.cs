@@ -8,9 +8,8 @@ using MyProject.Web.Components.Commons;
 namespace MyProject.Web.Client.Layout;
 
 /// <summary>
-/// WASM 外框的側邊欄（0.10.1 起，WASM 遷移 M2）。標記、樣式與互動和 Server 版 <c>NavMenu</c> 相同；
-/// 差別只在資料來源：選單由版面以 <c>/api/v1/shell/menu</c> 取得（權限已在伺服器端過濾）後傳進來，登出走 <see cref="ClientSession"/>。
-/// ⚠️ M10 移除 Server 模式前兩份並存：改了 Server 版的側邊欄，這裡要一起改（截圖比對見各里程碑測試報告）。
+/// WASM 外框的側邊欄（0.10.1 起，WASM 遷移 M2；0.10.9 起 Server 版 <c>NavMenu</c> 已刪除，這裡是唯一的一份）。
+/// 選單由版面以 <c>/api/v1/shell/menu</c> 取得（權限已在伺服器端過濾）後傳進來，登出走 <see cref="ClientSession"/>。
 /// </summary>
 public partial class ClientNavMenu : ComponentBase, IDisposable
 {

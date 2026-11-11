@@ -3,8 +3,8 @@
 @inject NavigationManager NavigationManager
 
 @*
-    WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；對應 Server 版的 Routes.razor）。
-    只認得本組件的頁面（ClientRouteTable）；導向其他網址時改成整頁載入，交給 Server 版處理。
+    WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的根元件，Server 版的 Routes.razor 已刪除）。
+    只認得本組件的頁面（ClientRouteTable）；導向其他網址時改成整頁載入，交給主機處理（API、Swagger，或找不到時的 404）。
 *@
 <ConfigProvider>
     <Router AppAssembly="typeof(ClientRoutes).Assembly" OnNavigateAsync="OnNavigateAsync">
@@ -24,7 +24,7 @@
         </Found>
         @*
             找不到路由（0.10.8 起 /not-found 在 WASM）：主機把 404 重跑成 /not-found 時，瀏覽器網址還是原本那個，
-            這裡顯示與 /not-found 頁相同的內容與外框（Server 版 Router 的 NotFoundPage 也是套 MainLayout）。
+            這裡顯示與 /not-found 頁相同的內容與外框。
         *@
         <NotFound>
             <LayoutView Layout="typeof(ClientMainLayout)">
@@ -33,7 +33,11 @@
         </NotFound>
     </Router>
 
-    @* 浮層全域樣式與 AntContainer：與 Server 版相同的位置與錯誤邊界（見 Routes.razor 的說明）。 *@
+    @*
+        AntDesign 的對話窗、確認窗、通知與消息條全部渲染在 AntContainer 底下，與 layout 無關，全域樣式也掛在這一層。
+        ⚠️ OverlayStyles 全專案只能在這裡渲染一次；AntContainer 包在錯誤邊界裡，浮層內的未處理例外不會讓整個畫面停擺。
+        兩者由 FormModalConventionTests 守門。
+    *@
     <OverlayStyles />
 
     <ClientErrorBoundary @ref="overlayBoundary">
@@ -59,7 +63,7 @@
     }
 
     /// <summary>
-    /// 不是 WASM 頁面的網址（例如側邊欄連到 Server 頁面）：整頁載入目前的網址，交給 Server 版。
+    /// 不是 WASM 頁面的網址（例如連到 Swagger 或 API）：整頁載入目前的網址，交給主機。
     /// ⚠️ 用 NavigationManager.Uri（本站的完整網址），不從路徑重組（避免 //evil.com 被當成別的網站）；
     /// 剛整頁載入的第一次導覽不再重載 —— 主機判定是 WASM 頁面、這裡卻不認得時，重載只會無限迴圈，改顯示找不到頁面。
     /// </summary>

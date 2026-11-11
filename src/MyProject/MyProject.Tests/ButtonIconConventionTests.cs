@@ -1,7 +1,7 @@
 namespace MyProject.Tests;
 
 /// <summary>
-/// 驗證 Components 下的 .razor 不再以 emoji 當作按鈕圖示。
+/// 驗證畫面（0.10.9 起只有 MyProject.Web.Client）的 .razor 不再以 emoji 當作按鈕圖示。
 ///
 /// 背景：專案的圖示慣例是 BlazorMaterialIcons（見 readme.md 技術堆疊表），
 /// 按鈕圖示一律透過共用元件呈現 —— 工具列用 ToolbarIconButton、表格操作欄用
@@ -32,15 +32,14 @@ public sealed class ButtonIconConventionTests
     /// </summary>
     private static readonly HashSet<string> ExemptFiles = new(StringComparer.OrdinalIgnoreCase)
     {
-        "EmptyLayout.razor",
-        "NoFooterLayout.razor",
+        "ClientEmptyLayout.razor",
+        "ClientNoFooterLayout.razor",
     };
 
     [Fact]
     public void RazorComponents_ShouldNotUseEmojiAsButtonIcons()
     {
-        var componentsRoot = FindComponentsRoot();
-        var razorFiles = Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories)
+        var razorFiles = SourceTree.UiFiles("*.razor")
             .Where(path => !ExemptFiles.Contains(Path.GetFileName(path)))
             .ToList();
 
@@ -72,6 +71,4 @@ public sealed class ButtonIconConventionTests
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

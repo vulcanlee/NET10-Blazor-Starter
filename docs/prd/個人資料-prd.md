@@ -2,7 +2,7 @@
 
 - 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.102
 - 最後核對日期：2026/11/11
 
@@ -31,7 +31,7 @@
 - **兩步驟驗證**（0.9.104 起，有本機密碼的人才有）：「已啟用／未啟用」徽章與「設定兩步驟驗證」／「管理兩步驟驗證」按鈕，前往 `/TwoFactorSetup`（見[兩步驟驗證](兩步驟驗證-prd.md)）。
 - **最近 20 筆登入紀錄**：時間（伺服器本地時間）、動作（登入、登入失敗、帳號停用中嘗試登入、連續輸錯，帳號被鎖定、Google 登入／失敗、登出；0.9.103 起另有「其他地方變更了帳號，被登出」、0.9.104 起另有「兩步驟驗證碼錯誤」）、來源 IP（0.9.123 起；0.9.117 之前的舊紀錄顯示「—」）、結果。
 - **右上角**：人像圖示改為姓名縮寫（`UserInitials`：中文取第一個字；英文姓名取第一與最後一個字的字首；沒有姓名用帳號）。
-- **頂欄頁名**：不在選單的登入後頁面改用操作說明登記的頁名（`MainLayout.ResolvePageTitle`），`/ChangePassword` 不再顯示「系統首頁」。
+- **頂欄頁名**：不在選單的登入後頁面改用操作說明登記的頁名（`ClientMainLayout.ResolvePageTitle`），`/ChangePassword` 不再顯示「系統首頁」。
 
 ## 四、內部系統運作
 
@@ -41,8 +41,8 @@
     Migration `AddAuditLogActorIndex` 加索引 (`ActorUserId`, `OccurredAt`)（稽核表之前沒有任何索引）。
   - `UpdateNameAsync(userId, name, stamp)`：只寫 `Name` 與更新時間；`ConcurrencyStampHelper.Apply` 比對開頁時的版本號（管理員同時修改 → 衝突訊息）、`ProtectFlags`；稽核 `User.ProfileUpdate`（detail 只寫 `field=Name`，姓名是個資）；
     成功且是目前使用者時更新 `CurrentUserService.CurrentUser.Name` 並 `NotifyChanged()`。
-- `CurrentUserService.Changed`：`AuthenticationStateHelper.Check`（每個頁面初始化時）載入最新資料後觸發、個人資料存檔後觸發；`MainLayout` 聽它更新姓名與縮寫。
-  ⚠️ 不能改聽換頁事件（`LocationChanged`）：它在新頁面的登入檢查之前觸發，讀到的還是舊資料。管理員改了別人的姓名，對方在下一次換頁時更新。
+- `CurrentUserService.Changed`：0.10.8 以前由 `AuthenticationStateHelper.Check`（每個頁面初始化時）載入最新資料後觸發、個人資料存檔後觸發，Server 版 `MainLayout` 聽它更新姓名與縮寫。0.10.9 起 Server 版外框刪除，這個事件暫留、已沒有人訂閱；右上角改聽 `ClientSession.Changed`（見下方 WASM 執行）。
+  管理員改了別人的姓名，對方在下一次整頁載入（重新整理或重新登入，`ClientSession` 重讀 `/me`）時更新。
 - **WASM 執行（0.10.1 起）**：`ProfileView` 經 `ApiClient`（帶 Bearer Token）呼叫 `ProfileController`（`[Authorize(JwtBearer)]`，使用者一律取自 `CurrentUserService`，只能讀改自己）：
   - `GET /api/v1/profile` → `ProfileDto`：`ProfileService.GetAsync` 與 `GetRecentLoginsAsync` 的結果，時間已換成伺服器本地時間（`*Local`），登入動作已由 `ProfileController.DescribeLoginAction` 轉成中文。
   - `PUT /api/v1/profile/name`（body 帶 `ConcurrencyStamp`）→ `ProfileService.UpdateNameAsync`；姓名不合規則或版本號不符回 400。
@@ -61,11 +61,11 @@
 ## 七、驗收與測試
 
 - `ProfileTests`：⭐ 登入紀錄只含自己的（同帳號字串不同 Id、匿名失敗、非登入動作都排除）、新到舊、上限 20、帶出來源 IP（舊紀錄為 null，0.9.123）；動作文字；改姓名只動姓名（Email、管理員、啟用、旗標、鎖定、密碼不變）、換版本號、通知右上角、稽核不含姓名；舊版本號衝突、空白被擋；改別人的不動目前使用者；角色排除已刪除、團隊含角色預設、到期時間；縮寫規則（中文、英文頭尾、單字、空白、罕用字）；頁名退回操作說明。
-- `AuthenticationStateHelperTests`：登入檢查載入最新資料後觸發 `Changed`。
+- `AuthenticationStateHelperTests`（0.10.8 以前）：登入檢查載入最新資料後觸發 `Changed`；0.10.9 起改寫為 `CurrentUserLoaderTests`（載入規則），`Changed` 不再測。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Business/Services/DataAccess/ProfileService.cs`、`Services/Other/CurrentUserService.cs`
 - `src/MyProject/MyProject.Web/Controllers/ProfileController.cs`（0.10.1 起；含 `DescribeLoginAction`）、DTO 在 `MyProject.Dtos/Shell`（`ProfileDto`、`UpdateProfileNameDto`）
-- `src/MyProject/MyProject.Web.Client/Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`（`.razor`／`.razor.cs`／`.razor.css`）、`Layout/UserInitials.cs`、`Layout/ClientMainLayout`（0.10.1 起；Server 頁面仍用 `MyProject.Web` 的 `MainLayout`）
+- `src/MyProject/MyProject.Web.Client/Pages/ProfilePage.razor`、`Views/Profiles/ProfileView`（`.razor`／`.razor.cs`／`.razor.css`）、`Layout/UserInitials.cs`、`Layout/ClientMainLayout`（0.10.1 起；0.10.9 起 Server 版 `MainLayout` 已刪除）
 - 操作說明 `profile.md`；[登入與帳號流程](登入與帳號流程-prd.md)、[使用者管理](使用者管理-prd.md)

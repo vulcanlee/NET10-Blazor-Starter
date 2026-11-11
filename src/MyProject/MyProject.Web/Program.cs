@@ -7,7 +7,6 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using AntDesign;
 using MyProject.Dtos.Commons;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Startup;
@@ -16,8 +15,6 @@ using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Auth;
 using MyProject.Web.Components;
-using MyProject.Web.Components.Commons;
-using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Parameters;
 using MyProject.Web.Configuration.Validation;
@@ -101,18 +98,10 @@ namespace MyProject.Web
 
                 #region 系統使用服務
                 // Add services to the container.
-                // WASM 遷移（0.10.0 起）：同時支援 Server 與 WebAssembly 兩種互動模式，頁面逐批搬到 MyProject.Web.Client，
-                // 每頁用哪一種由 App.razor.cs 決定。計畫見 docs/migration/WASM遷移計畫.md。
+                // 0.10.9 起（WASM 遷移 M10）只有 WebAssembly 互動模式：所有頁面在 MyProject.Web.Client，
+                // 這個主機只提供 API、WASM 的主機頁（Components/App.razor）與靜態檔。計畫見 docs/migration/WASM遷移計畫.md。
                 builder.Services.AddRazorComponents()
-                .AddInteractiveWebAssemblyComponents()
-                .AddInteractiveServerComponents()
-                .AddHubOptions(hubOptions =>
-                {
-                    // Blazor Server SignalR 預設 MaximumReceiveMessageSize 為 32KB；長文字（如大段
-                    // 描述/摘要）由 AntDesign TextArea 同步回伺服器時會超過上限 → circuit 中斷 →
-                    // 反覆重連（畫面閃爍）。提高至 10MB 以容納長內容。
-                    hubOptions.MaximumReceiveMessageSize = 10 * 1024 * 1024;
-                });
+                .AddInteractiveWebAssemblyComponents();
 
                 builder.Services.AddControllers(options =>
                 {
@@ -153,7 +142,6 @@ namespace MyProject.Web
                         }
                     });
                 });
-                builder.Services.AddAntDesign();
                 builder.Services.AddConfiguredLocalization();
                 builder.Services.AddConfiguredOptions(builder.Configuration);
                 builder.Services.AddConfiguredCors(builder.Configuration);
@@ -294,9 +282,6 @@ namespace MyProject.Web
                 #endregion
 
                 builder.Services.AddAuthorization();
-
-                // Routes.razor 的 AuthorizeRouteView 需要它提供 Task<AuthenticationState>。
-                builder.Services.AddCascadingAuthenticationState();
                 #endregion
 
                 #region AutoMapper 使用的宣告
@@ -365,10 +350,6 @@ namespace MyProject.Web
                 }
                 exceptionContextAccessor = app.Services.GetRequiredService<ExceptionContextAccessor>();
 
-                // 右下角錯誤／警告通知顯示時寫一筆日誌（ViewNotification 是 static 類別，拿不到 DI）。
-                ViewNotification.UseLoggerFactory(app.Services.GetRequiredService<ILoggerFactory>());
-                ViewNotification.UseTraceCodeProvider(() => TraceCode.Current);
-
                 // 射後不理的 Task 與背景執行緒的未處理例外（LOG-04）。
                 app.Services.GetRequiredService<ProcessExceptionHooks>().Register(app.Lifetime);
 
@@ -428,7 +409,7 @@ namespace MyProject.Web
                 }
                 #endregion
 
-                // 啟動流程結束，清掉情境；之後每個請求／circuit 互動會自己設定。
+                // 啟動流程結束，清掉情境；之後每個請求會自己設定。
                 app.Services.GetRequiredService<ExceptionContextAccessor>().Clear();
 
                 #region 註冊中介軟體
@@ -500,7 +481,6 @@ namespace MyProject.Web
                     Predicate = check => check.Tags.Contains("ready")
                 });
                 app.MapRazorComponents<App>()
-                    .AddInteractiveServerRenderMode()
                     .AddInteractiveWebAssemblyRenderMode()
                     .AddAdditionalAssemblies(typeof(MyProject.Web.Client._Imports).Assembly);
                 #endregion

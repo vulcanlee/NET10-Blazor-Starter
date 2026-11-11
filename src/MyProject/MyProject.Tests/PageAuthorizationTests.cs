@@ -5,7 +5,6 @@ using MyProject.Web.Client.Layout;
 using MyProject.Web.Components.Auths;
 using System.Net;
 using System.Reflection;
-using System.Text.RegularExpressions;
 
 namespace MyProject.Tests;
 
@@ -178,74 +177,6 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         Assert.Equal(expected, ReturnUrlGuard.Sanitize(input));
     }
 
-    private static readonly Regex AuthenticationCheckCall = new(
-        @"AuthenticationStateHelper\s*\.\s*Check\(",
-        RegexOptions.Compiled);
-
-    /// <summary>
-    /// 不需要 isAccessChecked 閘門的元件（0.10.8 起啟動頁與變更密碼頁搬到 WASM 之後已經沒有）。
-    /// </summary>
-    private static readonly string[] CheckWithoutGateAllowList = [];
-
-    [Fact]
-    public void ComponentsCallingAuthenticationCheck_ShouldRenderNothingUntilTheCheckCompletes()
-    {
-        var componentsRoot = FindComponentsRoot();
-
-        // 防空跑：比對式本身還認得出 Check() 的呼叫（Server 版外框仍會呼叫）。
-        Assert.Matches(AuthenticationCheckCall, File.ReadAllText(Path.Combine(componentsRoot, "Layout", "MainLayout.razor.cs")));
-
-        var sourceFiles = new[] { "Views", "Pages" }
-            .Select(folder => Path.Combine(componentsRoot, folder))
-            .Where(Directory.Exists)
-            .SelectMany(folder => Directory.EnumerateFiles(folder, "*.razor*", SearchOption.AllDirectories))
-            .Where(file => file.EndsWith(".razor", StringComparison.Ordinal)
-                || file.EndsWith(".razor.cs", StringComparison.Ordinal))
-            .Where(file => Path.GetFileName(file) != "_Imports.razor")
-            .ToList();
-
-        var components = sourceFiles
-            .Where(file => AuthenticationCheckCall.IsMatch(File.ReadAllText(file)))
-            .Select(file => file.EndsWith(".razor.cs", StringComparison.Ordinal) ? file[..^3] : file)
-            .Distinct()
-            .Where(markup => !CheckWithoutGateAllowList.Contains(Path.GetFileNameWithoutExtension(markup)))
-            .ToList();
-
-        // WASM 遷移期間 Server 版頁面逐步搬走（0.10.6 起 M7 剩 4 個、0.10.7 起 M8 剩兩步驟驗證設定、0.10.8 起 M9 一個都不剩）：
-        // Server 的頁面與檢視已沒有呼叫 Check() 的元件，這條規則留著守門日後新增的 Server 元件（M10 移除 Server 模式時一併刪除）。
-
-        var violations = new List<string>();
-        foreach (var markup in components)
-        {
-            var codeBehind = markup + ".cs";
-            var code = File.ReadAllText(markup)
-                + (File.Exists(codeBehind) ? File.ReadAllText(codeBehind) : string.Empty);
-
-            if (!File.ReadAllText(markup).Contains("!isAccessChecked", StringComparison.Ordinal)
-                || !code.Contains("isAccessChecked = true", StringComparison.Ordinal))
-            {
-                violations.Add(Path.GetFileName(markup));
-            }
-        }
-
-        Assert.True(
-            violations.Count == 0,
-            "呼叫 AuthenticationStateHelper.Check() 的元件，在檢查完成前不得渲染任何內容 ——"
-                + "否則沒有權限的人會先看到工具列與表格框架，才換成「你沒有權限存取此頁面」。"
-                + "請比照既有檢視：宣告 isAccessChecked，權限判定完成（通過或拒絕）後設為 true，"
-                + "markup 最外層以 @if (!isAccessChecked) { } 擋住。"
-                + Environment.NewLine
-                + string.Join(Environment.NewLine, violations));
-    }
-
-    [Fact]
-    public void MainLayout_ShouldRenderNothingUntilAuthenticated()
-    {
-        var markup = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Layout", "MainLayout.razor"));
-
-        Assert.Contains("@if (isAuthenticated)", markup);
-    }
-
     /// <summary>
     /// ⭐ 0.10.8 起這就是登入的閘門（伺服器不再以 [Authorize] 擋整頁請求）：ClientMainLayout 在 <c>Session.InitializeAsync()</c>
     /// 通過之前不渲染任何東西（側邊欄、頁首、頁面本體），失敗就由 ClientSession 帶 returnUrl 回登入頁。
@@ -262,7 +193,7 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         Assert.True(code.IndexOf("isAuthenticated = true", StringComparison.Ordinal) > initialize, "isAuthenticated 只能在登入檢查通過之後設為 true。");
     }
 
-    /// <summary>Server（MyProject.Web）與 WASM（MyProject.Web.Client，0.10.1 起）兩個組件裡的所有頁面。</summary>
+    /// <summary>兩個組件裡的所有頁面：0.10.9 起頁面只在 WASM（MyProject.Web.Client），主機組件一併掃描，有人把頁面加回主機時也會被這裡的規則涵蓋（另見 WasmOnlyHostTests）。</summary>
     private static List<Type> GetRoutablePages()
     {
         return new[] { typeof(MyProject.Web.Program).Assembly, typeof(MyProject.Web.Client.ClientRouteTable).Assembly }
@@ -271,6 +202,4 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
                 && type.GetCustomAttributes<RouteAttribute>().Any())
             .ToList();
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

@@ -47,8 +47,9 @@ public sealed class AuditHistoryTests : ComponentTestBase
             new TestDbContextFactory(connection), mapper, NullLogger<AuditLogQueryService>.Instance, contentStore,
             TestAuditChain.Create(connection)));
         Services.AddSingleton<IAuditLogService>(audit);
-        // 0.10.2 起對話窗與 WASM 頁面共用，Server 頁面的資料來源是 ServerAuditHistorySource（邏輯不變）。
-        Services.AddScoped<IAuditHistorySource, ServerAuditHistorySource>();
+        // 0.10.9 起正式環境只有 WASM 的 ApiAuditHistorySource（稽核在 AuditLogsController 寫，見 CategoryTeamApiTests）；
+        // 這裡直接查資料庫，只測對話窗本身。
+        Services.AddScoped<IAuditHistorySource, QueryServiceAuditHistorySource>();
     }
 
     protected override void Dispose(bool disposing)
@@ -105,8 +106,6 @@ public sealed class AuditHistoryTests : ComponentTestBase
         await cut.InvokeAsync(() => cut.FindAll("button.audit-history-item")[0].Click());
 
         cut.WaitForAssertion(() => Assert.Contains("Name: 分類A → 分類B", cut.Markup, StringComparison.Ordinal));
-        Assert.Contains(audit.Entries, e => e.Action == AuditActions.Audit.Search && e.Detail!.Contains("via=history", StringComparison.Ordinal));
-        Assert.Contains(audit.Entries, e => e.Action == AuditActions.Audit.View);
     }
 
     [Fact]
@@ -136,7 +135,24 @@ public sealed class AuditHistoryTests : ComponentTestBase
     private void SignIn(bool isAdmin)
     {
         Services.AddSingleton(new CurrentUserService { CurrentUser = new CurrentUser { Id = 1, Account = "admin", IsAdmin = isAdmin } });
-        ToastCopyButtonTests.AddServerPagePermissions(Services);
+        TestPagePermissions.AddTo(Services);
+    }
+
+    /// <summary>直接查資料庫的資料來源（測試用）：與 API 的 <c>history</c>、<c>{id}/content</c> 讀同一個 <see cref="AuditLogQueryService"/>。</summary>
+    private sealed class QueryServiceAuditHistorySource : IAuditHistorySource
+    {
+        private readonly AuditLogQueryService queryService;
+
+        public QueryServiceAuditHistorySource(AuditLogQueryService queryService) => this.queryService = queryService;
+
+        public async Task<AuditHistoryPage> LoadAsync(string targetType, string targetId, int pageIndex, int pageSize, bool opening)
+        {
+            var result = await queryService.GetTargetHistoryAsync(targetType, targetId, pageIndex, pageSize);
+            return new AuditHistoryPage(result.Result.ToList(), result.Count);
+        }
+
+        public async Task<string> ReadContentAsync(AuditLogAdapterModel item)
+            => item.ContentFile is null ? string.Empty : await queryService.GetContentAsync(item.Id) ?? string.Empty;
     }
 
     private async Task SeedAsync(params AuditLog[] rows)

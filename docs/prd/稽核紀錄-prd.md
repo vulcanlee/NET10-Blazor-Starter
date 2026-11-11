@@ -2,7 +2,7 @@
 
 - 文件版本：1.32
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/11
 
@@ -90,8 +90,8 @@ scoped CSS 連 `::deep` 都打不到。
 
 - **位置**：分類清單 `/categories`、專案項目 `/projects`、團隊清單 `/teams`、使用者管理 `/myusers`、角色管理 `/roleviews` 每列操作欄的最後一顆「異動歷程」（`CrudActionButton`，圖示 `history`），一般清單與「顯示已刪除」兩個分支都有（已刪除的資料更需要查是誰刪的）。`New-CrudModule.ps1` 產生的頁面也有，目標類型＝模組名稱。
 - **權限：只有管理員**。稽核紀錄含來源 IP 與別人的操作，與本頁同樣只給管理員、權限鍵不上架角色矩陣。`AuditHistoryButton` 以 `PagePermissions.IsAdmin`（0.10.2 起；之前是 `CurrentUser.IsAdmin`，規則相同）決定渲染（非管理員連 `SpaceItem` 都不留，分類／專案／團隊頁的一般使用者也看不到），`AuditHistoryDialog.ShowAsync` 再擋一次並記警告日誌。
-- **元件**：`MyProject.Web.Client/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`（0.10.2 起放在 Client，Server 與 WASM 頁面共用，命名空間仍是 `MyProject.Web.Components.Commons`）；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
-- **資料來源**（0.10.2 起，`IAuditHistorySource`）：Server 頁面用 `ServerAuditHistorySource`（`MyProject.Web/Components/Commons/`，直接查 `AuditLogQueryService`）；WASM 頁面（分類、團隊，0.10.3 起加上專案，0.10.4 起加上使用者、角色，五個資料頁都是）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
+- **元件**：`MyProject.Web.Client/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`（0.10.2 起放在 Client，命名空間仍是 `MyProject.Web.Components.Commons`；0.10.8 以前 Server 與 WASM 頁面共用）；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
+- **資料來源**（0.10.2 起，`IAuditHistorySource`）：0.10.9 起只有 WASM 頁面（0.10.8 以前 Server 頁面用 `ServerAuditHistorySource` 直接查 `AuditLogQueryService`，已刪除）；WASM 頁面（分類、團隊，0.10.3 起加上專案，0.10.4 起加上使用者、角色，五個資料頁都是）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
   `GET /api/v1/audit-logs/history?targetType=&targetId=&page=&pageSize=&opened=`（每頁 1～50 筆；`opened=true` 是剛打開，寫一筆 `Audit.Search`，換頁不寫）與 `GET /api/v1/audit-logs/{id}/content`（詳細內容，寫一筆 `Audit.View`）；非管理員回 403。
   兩種來源寫的稽核與錯誤文字相同；API 不回傳伺服器上的內容檔路徑，只回 `HasContent`。API 回錯誤或連不上伺服器時，右下角顯示 API 的錯誤訊息（預設「載入異動歷程失敗。」）。
 - **標題**：「異動歷程：<名稱>」，使用者頁顯示帳號（不顯示姓名）、專案頁顯示 `Title`、其他顯示 `Name`。上方說明：「這一筆資料（<類型> #<編號>）在稽核紀錄裡的異動，新的在上面；時間為伺服器本地時間。稽核紀錄保留期限之前的異動已被清除。要看誰開過、查過這一筆，請到「稽核紀錄」頁查詢。」
@@ -142,7 +142,7 @@ Controller 另套 `[ApiValidationFilter]`：每頁筆數 1～200、頁碼 ≥ 1�
 
 `AuditLogQueryServiceTests` 有三條測試釘住這三個邊界；把換算拿掉會立刻轉紅（已實測）。
 
-**已知限制**：Blazor Server 的 `ToLocalTime()` 取的是**伺服器**時區，不是瀏覽器時區。
+**已知限制**：本地時間由伺服器換算（0.10.8 以前是 Blazor Server 的 `ToLocalTime()`），取的是**伺服器**時區，不是瀏覽器時區。
 與系統健康監控（0.10.6 起 `SystemHealthView`）、日誌檢視、例外紀錄、Token 用量四頁的口徑一致，刻意不另做 JS interop。
 
 **WASM（0.10.4 起）**：換算仍全在伺服器做，口徑不變（伺服器時區）；WASM 頁面不在瀏覽器裡再換算，明細的 UTC 時間也由伺服器算好送來，瀏覽器時區不同也不會偏。
@@ -181,8 +181,8 @@ Controller 另套 `[ApiValidationFilter]`：每頁筆數 1～200、頁碼 ≥ 1�
 由 `AuditConventionTests` 守門；0.9.78 新增的事件（分類／團隊／專案增刪改、附件、登出、SSO、自行改密碼、JWT 刷新失敗、
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
-實作 `Web/Auth/ClientIpProvider` 依情境決定 —— SSR 頁面（登入／登出／兩步驟驗證）與 Web API 讀 `HttpContext.Connection.RemoteIpAddress`；
-Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入（circuit 內沒有可靠的 HttpContext）；WASM 頁面（0.10.1 起陸續搬遷，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄）的操作都經 Web API，記該次請求的 IP；
+實作 `Web/Auth/ClientIpProvider` 依情境決定 —— Web API 讀 `HttpContext.Connection.RemoteIpAddress`（0.10.9 起所有頁面都是 WASM，含登入、登出、兩步驟驗證的操作都經 Web API，記該次請求的 IP）；
+跨請求的工作流程執行（`AiWorkflowRunRegistry`）自己的 scope 沒有可靠的 HttpContext，每次回覆時以 `SetCircuitClientIp` 寫入、取用時優先（0.10.8 以前 Blazor Server circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入）；
 排程作業兩者皆無，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
 
 **記錄範圍：可設定、預設關閉（0.9.174 起）**。0.9.131～0.9.173 一律記錄下表的瀏覽類事件與修改前後差異；0.9.174 起由 `AuditLogSettings` 兩個開關決定，**預設都關**，可在「系統參數」頁「資料保留」分類即時切換（改了寫 `SystemParameter.Update`）：
@@ -201,7 +201,7 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 
 | 動作代碼 | 來源與內容 |
 | --- | --- |
-| `Page.View` | `ApplicationCircuitHandler`：已登入使用者每換一頁一筆（只改 query string 不算），進入的第一頁在第一次連線建立時寫；`TargetId` 是路徑（不含 query string），Detail `from=上一頁`（第一頁為 `from=entry`）|
+| `Page.View` | `ShellController.PageView`（0.10.9 起唯一來源；WASM 外框 `ClientMainLayout` 每次換頁呼叫 `POST api/v1/shell/page-view`，只收 WASM 路徑、每人每分鐘 60 筆；0.10.8 以前 Server 頁由 `ApplicationCircuitHandler` 寫）：已登入使用者每換一頁一筆（只改 query string 不算）；`TargetId` 是路徑（不含 query string），Detail `from=上一頁`（第一頁為 `from=entry`）|
 | `Category.Search` / `Project.Search` / `Team.Search` / `User.Search` / `Role.Search` | 五個主要資料頁按「搜尋」（翻頁、排序、清除不記）；Detail 只有短摘要（`hasKeyword=…; showDeleted=…`），完整條件含搜尋原文在內容檔 |
 | `Category.View` / `Project.View` / `Team.View` / `User.View` / `Role.View` | 五個主要資料頁按「修改」開窗（查看那一筆）；Detail 是名稱或帳號 |
 | `LogViewer.Search` / `ExceptionLog.Search` / `AiCallLog.Search` / `TokenUsage.Search` / `Audit.Search` | 管理診斷頁按「查詢」（日誌檢視打開頁面時的自動查詢不記）；條件同上 |
@@ -234,7 +234,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Notification.Test` | `NotificationTestService`（「系統健康監控」的發送測試通知，0.9.122 起；detail `recipients=N`，發送失敗加 `; failed`） |
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；0.10.6 起由 `SystemParametersController` 寫；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
-| `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）；0.10.2 起 WASM 頁面由開頁紀錄 `POST /api/v1/shell/page-view` 依選單的權限鍵判斷後記（Detail `via=WASM`）|
+| `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（0.10.8 以前 Server 頁經 `AuthenticationStateHelper.RecordPageAccessDeniedAsync`，0.10.9 起已刪除）；0.10.2 起 WASM 頁面由開頁紀錄 `POST /api/v1/shell/page-view` 依選單的權限鍵判斷後記（Detail `via=WASM`）|
 | `Project.FileDownload` | `DownloadsController`（0.10.3 起兌換下載票證時；之前是 `ProjectFileController`） |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView`（0.10.5 起由 `LogLevelController` 的 `apply`／`restore` 寫）|
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView`（0.10.5 起由 `LogsController` 的 `ai`／`ai/pdf` 寫；使用者中斷串流時也寫）|
@@ -297,7 +297,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 
 ## 八、測試
 
-- `AuditLogServiceTests`、`ClientIpProviderTests`（0.9.117 起）：來源 IP 寫入、IPv4-mapped 轉換、circuit 值優先、無情境時為 null。
+- `AuditLogServiceTests`、`ClientIpProviderTests`（0.9.117 起）：來源 IP 寫入、IPv4-mapped 轉換、`SetCircuitClientIp` 寫入的值優先（0.10.9 起是工作流程執行登錄表在用）、無情境時為 null。
 - `AuditLogQueryServiceTests`（28 項）：時區三條、過濾（關鍵字含來源 IP、來源 IP 前綴篩選）、排序、同秒分頁不重複、
   總筆數、下拉去重排序、清除門檻以 UTC 計算、清空。
 - `AdminOnlyPermissionTests`：`角色_稽核紀錄` 不得出現在角色矩陣。

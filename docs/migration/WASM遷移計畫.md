@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：進行中
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/11
 
@@ -26,7 +26,7 @@
 | M7 | 0.10.6 | 維運頁與首頁儀表板 | 完成 | [M07-維運頁與首頁儀表板](測試報告/M07-維運頁與首頁儀表板.md) |
 | M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 完成 | [M08-Agent系統管理助理與通知推播](測試報告/M08-Agent系統管理助理與通知推播.md) |
 | M9 | 0.10.8 | 純 Token 登入 | 完成 | [M09-純Token登入](測試報告/M09-純Token登入.md) |
-| M10 | 0.10.9 | 移除 Server 模式 | 未開始 | — |
+| M10 | 0.10.9 | 移除 Server 模式 | 完成 | [M10-移除Server模式](測試報告/M10-移除Server模式.md) |
 | M11 | 0.10.10 | 拆成獨立靜態站台＋API 主機 | 未開始 | — |
 | M12 | 0.10.11 | PWA 與離線 | 未開始 | — |
 
@@ -36,7 +36,7 @@
 
 | 項目 | 決定 |
 |---|---|
-| Server 版 | 整個取代，最終不留 Server 渲染模式 |
+| Server 版 | 整個取代，最終不留 Server 渲染模式（0.10.9 已移除） |
 | 部署網域 | 前後端同一主網域（app.公司.com＋api.公司.com，或同站台 /api） |
 | 登入 | 最終純 JWT Token、不發 Cookie；理由：未來可能開發 App，API 要共用 |
 | Token 存放 | 勾「記住我」→ localStorage；未勾 → sessionStorage |
@@ -235,6 +235,15 @@
 
 - 刪除 Server 渲染、電路處理、重連畫面、`AuthenticationStateHelper`、行程內轉接層、Cookie 驗證與相關類別（登入 Cookie 的 scheme 已在 M9 提前移除；剩下 `HasPermissionAttribute`／`RequestActorResolver` 的 Cookie 分支等）。
 - **實機情境**：36 路由全回歸、確認沒有 WebSocket／`_blazor` 連線。
+
+> **M10 實際做法與計畫的差異**：
+> - **要刪的比計畫少**：登入 Cookie 的 scheme 與相關類別已在 M9 提前移除；「行程內轉接層」在 M2 就決定不做（外框改做 WASM 複本），所以沒有可刪的。M10 實際刪除：Server 版的 `Components/Routes.razor`、`ApplicationCircuitHandler`、`LoggingErrorBoundary`、`Components/Layout` 的 Server 外框（`MainLayout`、`NavMenu`、`NotificationBell`、`AnnouncementBanner`、`SidebarMenuNode`、`EmptyLayout`、`NoFooterLayout`、`ReconnectModal`）、`Components/Commons` 的 `PageHelpDialog`、`ReloadAsFullPage`、`ServerAuditHistorySource`、`Auth/ServerPagePermissions.cs`，以及 Business 的 `AuthenticationStateHelper`、`AuthenticationCheckResult`；`RequestActorResolver`、`HasPermissionAttribute` 的 Cookie 分支拿掉，只認 JWT（Google 登入過程的 5 分鐘外部 Cookie 保留）。
+> - **主機只剩 API、WASM 主機頁與靜態檔**：`Program.cs` 拿掉 `AddInteractiveServerComponents`（含 hub 選項）、`AddInteractiveServerRenderMode`、`AddCascadingAuthenticationState`、伺服器端的 `AddAntDesign` 與 AntDesign 語系、`ViewNotification` 設定；`MyProject.Web.csproj` 移除 AntDesign、BlazorMaterialIcons 套件參考（靜態檔經 Client 專案參考照樣提供，`MyProject.Web.styles.css` 仍產生並匯入 Client 的 Scoped CSS）。`Components/App.razor` 一律渲染 `ClientRoutes`（`InteractiveWebAssemblyRenderMode(prerender: false)`，`HeadOutlet` 同），計畫的「獨立 `index.html`」留到 M11；找不到的網址照舊回 404 後重跑成 `/not-found`。慢請求排除清單拿掉 `/_blazor`。
+> - **外框 API 還在用的伺服器類別暫留原資料夾**（M11 拆主機時再搬）：`SidebarMenuService`（選單過濾改用 `PermissionRules.CanAccessPage`，不再經 `AuthenticationStateHelper`）、`PageHelpService`、`PageHelpMarkdownParser`、`PageHelpDocument`、`HelpMarkdownRenderer`、`SidebarMenuItemModel`、`PageHelpTopicModel`、`AnnouncementCache`（公告挑選規則 `Select` 從已刪除的公告橫幅搬來）、`TextDownloadPayload`、`ViewAudit`；異動歷程的兩筆稽核寫法併入 `AuditLogsController`。
+> - **暫留且已知沒有作用**（M11 整理）：`CurrentUserService.Changed`、`CircuitDisconnect`、`BrowserErrorReporter` 的 `[JSInvokable]`、`MyProject.Web.csproj` 的 `BlazorDisableThrowNavigationException`。`ClientErrorReporting:MaxPerCircuitPerMinute` 鍵名沿用舊名，實際是 `ShellController` 每位使用者每分鐘的上限。
+> - **守門測試**：新增 `WasmOnlyHostTests`（`/_blazor/negotiate` 不成功、沒有 `CircuitHandler`、主機組件只剩 `App` 且沒有 `@page`、`MyProject.Web` 原始檔不提 Server 模式；先寫並確認 4 項失敗）；`AuthenticationStateHelperTests` 改寫為 `CurrentUserLoaderTests`；刪除 Server 鈴鐺與公告橫幅的 `NotificationComponentTests`；`SourceTree.UiRoots` 只剩 Client、新增 `UiFiles()`（排除 bin／obj），改掃 Client 的守門測試各自保留下限斷言（`TableDefaultSortConventionTests` 補上下限）；`FormModalConventionTests` 的 OverlayStyles／AntContainer 檢查改看 `ClientRoutes.razor` 與 `ClientErrorBoundary`；`PageAuthorizationTests` 拿掉 Server 的 `Check()` 與 `MainLayout` 檢查；bUnit 元件測試改用 `TestPagePermissions`。測試 3,050 → 3,040。
+> - **與 Server 版不同（使用者看得到的）**：沒有，畫面與行為不變。不再有 Server 的重連提示畫面——WASM 斷線時是 API 錯誤通知（M2 起已是如此）。
+> - 實機腳本：`scripts/e2e/m10-no-server.mjs`（N1 36 個路由沒有 WebSocket／`_blazor` 請求、N2 整頁請求只回 WASM 外殼、N3 `/_blazor/negotiate` 不存在、N4 都以 WebAssembly 執行，＋36 路由煙霧測試）；`smoke-routes.mjs` 的 `runSmoke` 多一個 `onContext` 選項（每個瀏覽器內容建立後呼叫，讓情境腳本監聽請求與 WebSocket）；`m06-views.mjs` 的 `fillPicker` 改成等日期面板打開後以鍵盤輸入並按面板的「確定」、開日誌頁先等第一次查詢回來（實機發現：AntDesign 含時間的日期欄位直接 fill＋Enter，同一頁第二個欄位會吃不進去）。
 
 ### M11 獨立靜態站台＋API 主機（0.10.10）
 

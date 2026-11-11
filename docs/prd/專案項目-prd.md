@@ -2,7 +2,7 @@
 
 - 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.9
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/11
 
@@ -22,7 +22,7 @@
 | 選單路徑 | 專案管理（`Menu.json` id=2）→ 專案項目（id=21） |
 | 權限鍵 | 資源鍵「專案項目」（`MagicObjectHelper.角色_專案項目`），動作 `view`／`create`／`edit`／`delete`；管理員短路 |
 | 主要使用者 | 具「專案項目」對應動作權限的登入者；管理員可見全部 |
-| 操作說明 | 頂欄頁名旁的「操作說明」按鈕（0.9.66 起，`PageHelpDialog`）；內容為 `Datas/Help/projects.md`，於 `Datas/HelpTopics.json` 登記 `/projects` |
+| 操作說明 | 頂欄頁名旁的「操作說明」按鈕（0.9.66 起；0.10.9 起為 `ClientPageHelpDialog`）；內容為 `Datas/Help/projects.md`，於 `Datas/HelpTopics.json` 登記 `/projects` |
 
 > 頁面進入檢查用 `Permissions.CanAccessPage(角色_專案項目)`（0.10.3 起 WASM 版經 `PagePermissions`；通過條件：管理員、裸鍵「專案項目」或 `專案項目:view`），工具列與操作鈕再以 `RequirePermission`（`CanAccessAction(角色_專案項目, 動作)`）個別控管。群組鍵「專案管理功能」（`角色_專案管理`）只用於側邊選單的群組節點（`MenuPermissionMap[2]`）。
 > 頁面被擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/projects`，0.9.78 起；0.10.3 起由伺服器在 `POST /api/v1/shell/page-view` 寫，detail `via=WASM`）。

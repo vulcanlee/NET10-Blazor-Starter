@@ -2,7 +2,7 @@
 
 - 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：0.4.26
 - 最後核對日期：2026/11/11
 
@@ -23,14 +23,14 @@
 
 權限採**管理員專屬**設計：`MagicObjectHelper.角色_監控與診斷`（0.9.113 前為 `角色_統計與分析`）與 `角色_日誌檢視` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`，但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色權限矩陣不會顯示這兩項、任何角色都無法被授予，只有 `AuthenticationStateHelper.CheckAccessPage` 的管理員短路能通過。非管理員在側邊欄看不到整個「監控與診斷」群組（0.9.113 前名為「統計與分析」）；直接輸入網址會看到無權限訊息，並留下一筆 `Permission.Denied` 稽核（目標 `Page`／`/logs`，0.9.78 起）。
 
-頂欄頁名旁有「操作說明」按鈕（0.9.66 起，`PageHelpDialog`），內容為 `Datas/Help/logs.md`，於 `Datas/HelpTopics.json` 登記 `/logs`。
+頂欄頁名旁有「操作說明」按鈕（0.9.66 起；0.10.9 起為 `ClientPageHelpDialog`），內容為 `Datas/Help/logs.md`，於 `Datas/HelpTopics.json` 登記 `/logs`。
 
 **WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/LogViewerPage.razor`、`Views/Analytics/LogViewerView.*`；Server 版已刪除），畫面、按鈕與訊息和之前相同。開頁以 `Permissions.IsAdmin` 判斷，非管理員的「沒有權限開頁」稽核由伺服器在 `POST /api/v1/shell/page-view` 寫。讀檔、篩選、匯出與 AI 分析都在伺服器，經只限管理員的 `LogsController`（`api/v1/logs`：`search`、`export`、`ai`、`ai/pdf`、`options`，見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 2.8）：
 - 快速區間（`last5m`／`last15m`／`last1h`／`today`）與沒填起訖時的預設「最近 1 小時」，「現在」一律由伺服器算，回傳實際套用的起訖寫回畫面欄位，以及要顯示的警告。
 - 匯出 `.log`（UTF-8 含 BOM）與 AI 分析都由伺服器依同樣條件重查，不信任畫面送來的結果；AI 分析取最新的 `MaxEntries` 筆，以 NDJSON 串流逐字送回（第一行 `start` 帶實際範圍）。
 - 「停止產生」或關窗會中斷請求，伺服器取消 AI 呼叫，稽核與 Token 用量照寫；畫面用已收到的文字加「已中止」註記收尾，所以停止後資訊區不顯示使用模型與用量。
 - AI 報告 PDF（`ai/pdf`）由伺服器依條件重建 prompt 當附錄；畫面送來的報告 Markdown（≤ 512K 字）、模型名稱（≤ 200）與原因（≤ 50）有長度上限，超過回 400（0.10.5 獨立審查）。
-- `LogLevelRank`、`LogLevelRankHelper`、`LogTimeRanges` 搬到 `MyProject.Web.Client/Diagnostics/LogLevels.cs`（命名空間不變），Server 與 WASM 共用。
+- `LogLevelRank`、`LogLevelRankHelper`、`LogTimeRanges` 搬到 `MyProject.Web.Client/Diagnostics/LogLevels.cs`（命名空間不變），伺服器端（API）與 WASM 共用。
 
 ## 三、畫面與欄位
 
@@ -135,7 +135,7 @@
    - 提前結束只有一項：解析出的時間超過結束時間，即中斷該檔與其後所有檔案。
      ⚠️ **刻意不依 `File.GetLastWriteTime` 做「整檔跳過」**（0.4.39 移除）——
      判斷依據必須是**檔案內容的時間戳**，不能是檔案系統中繼資料。理由見下節。
-4. 匯出時將結果的 `Raw` 以換行串接，加上 BOM 後透過 `DotNetStreamReference` 經 SignalR circuit 串流給瀏覽器，由 `wwwroot/js/file-download.js` 組成 Blob 觸發下載；並寫一筆 `LogViewer.Export` 稽核（0.9.78 起，只記筆數）。
+4. 匯出時將結果的 `Raw` 以換行串接，加上 BOM（0.10.5 起由 `LogsController` 的 `POST api/v1/logs/export` 依同樣條件重查後回傳；WASM 拿到內容後以 `DotNetStreamReference` 交給 `wwwroot/js/file-download.js` 組成 Blob 觸發下載，0.10.8 以前 Server 版經 SignalR circuit 串流）；並寫一筆 `LogViewer.Export` 稽核（0.9.78 起，只記筆數）。
 5. AI 分析時 `AiLogPromptBuilder` 只做一道處理 —— 取最新 N 筆（`MaxEntries`），
    內容原封不動（0.9.7 起沒有任何字元上限，理由見 [AI 日誌分析](../features/AI日誌分析.md)），交由
    `IAiLogAnalysisService` 經共用核心 `IAiChatCompletionClient` 呼叫 Chat Completions（0.9.140 起由 `IAiAgentFactory`

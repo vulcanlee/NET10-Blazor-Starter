@@ -38,8 +38,7 @@ public class CategoryService
     }
 
     /// <summary>
-    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：Server 頁面是電路的使用者，
-    /// Web API（0.10.2 起也走本服務）是 <c>ApiActorMiddleware</c> 依存取 Token 填入的使用者。AuditLogService 失敗不拋出。
+    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：Web API 的 <c>ApiActorMiddleware</c> 依存取 Token 填入的使用者。AuditLogService 失敗不拋出。
     /// </summary>
     private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {

@@ -42,7 +42,7 @@ public partial class ClientAnnouncementBanner : IAsyncDisposable
             StateHasChanged();
         }), Logger);
 
-        // 啟動途中元件已被移除（例如很快換到 Server 頁面）：立刻停掉，不留下沒人管的計時器。
+        // 啟動途中元件已被移除（例如很快整頁換走）：立刻停掉，不留下沒人管的計時器。
         if (isDisposed)
         {
             await started.DisposeAsync();

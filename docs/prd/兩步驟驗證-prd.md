@@ -2,7 +2,7 @@
 
 - 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.104
 - 最後核對日期：2026/11/11
 
@@ -91,12 +91,12 @@
   ⭐ 密碼步驟不歸零不寫成功、⭐ 重輸密碼洗不掉驗證碼失敗次數、成功稽核帶方式、停用帳號不能完成第二步、強制（主要角色、額外角色、管理員設定）與豁免（support、沒有本機密碼、已刪除的角色）、停用（需驗證、必須使用時拒絕、清除並換版本）、管理員重設、另一組金鑰解不開、待驗票證往返與 5 分鐘到期、記住裝置比對使用者與版本、天數 0（0.10.8 起改測票證與 Token）。
 - `AccountSelfServiceApiTests`（0.10.8 起）：設定 API 的狀態、開始（QR 與設定票證，金鑰確認前不進資料庫）、啟用回備用碼與新 Token、撤銷舊的一串、重新產生、停用、強制期間可呼叫；網頁登入第二步 `two-factor` 的整合測試。實機 `scripts/e2e/m09-auth.mjs` M9-T6（設定 → 登入要驗證碼 → 記住這台裝置 → 下次不用再輸入）。
 - `TwoFactorIntegrationTests`（真正的主機）：API 未帶碼 401 不計次、錯碼計次、正確碼發 token；必須使用卻未設定 401；⭐ Google 登入已開啟的帳號導向第二步、未開啟的直接登入。
-- `AuthenticationStateHelperTests`：必須使用而未設定導向設定頁、設定頁本身與已開啟不導向、同時要改密碼時先改密碼且改密碼頁不被帶走（不迴圈）。
+- `CurrentUserLoaderTests`（0.10.9 起，由 `AuthenticationStateHelperTests` 改寫）：必須使用而未設定時要求設定、已開啟不再要求、同時要改密碼時先改密碼；導頁（設定頁本身不導向、不迴圈）由 `Client/ClientSessionTests` 涵蓋。
 - 故意改壞 22 處全部被測試抓到（見 [changelog](../changelog/2026-10-04-兩步驟驗證.md)）。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Business/Services/Other/TwoFactorService.cs`、`TotpService.cs`、`MyUserServiceLogin.cs`、`AuthenticationStateHelper.cs`
+- `src/MyProject/MyProject.Business/Services/Other/TwoFactorService.cs`、`TotpService.cs`、`MyUserServiceLogin.cs`、`CurrentUserLoader.cs`（0.10.9 起；`AuthenticationStateHelper.cs` 已刪除）
 - `src/MyProject/MyProject.Web/Auth/TwoFactorLoginTickets.cs`（0.10.8 起：待驗票證、記住裝置 Token、設定票證）、`DataProtectionTwoFactorSecretProtector.cs`、`QrCodeImage.cs`
 - `src/MyProject/MyProject.Web.Client/Views/Auths/TwoFactor.razor(.cs)`、`Pages/TwoFactorSetupPage.razor`、`Views/Profiles/TwoFactorSetupView.razor(.cs)`、`Auth/LoginStorage.cs`（0.10.8 起 WASM）
 - `src/MyProject/MyProject.Web/Controllers/AuthController.cs`、`WebAuthController.cs`、`TwoFactorSetupController.cs`、`ExternalAuthController.cs`

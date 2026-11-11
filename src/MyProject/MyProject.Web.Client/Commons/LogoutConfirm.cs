@@ -11,8 +11,8 @@ namespace MyProject.Web.Components.Commons;
 /// 收斂在這裡，呼叫端只負責觸發 —— 否則三個入口的行為必定漂移。
 ///
 /// ⚠️ **只給使用者主動點擊的入口用。**
-/// <c>AuthenticationStateHelper</c> 有六處程式化的強制登出（未登入、找不到使用者、
-/// 角色遺失…），那些是系統行為不是使用者意圖 —— 對一個 session 已經失效的人跳出
+/// <c>ClientSession</c> 有程式化的強制登出（Token 失效、找不到使用者、
+/// 沒有主要角色…），那些是系統行為不是使用者意圖 —— 對一個 session 已經失效的人跳出
 /// 「確定要登出嗎？」只會讓他卡在一個毫無意義的問題上。那些路徑一律不得走這裡。
 /// </summary>
 public static class LogoutConfirm

@@ -318,7 +318,7 @@ public sealed class NotificationTests : IDisposable
     [InlineData(0, "0")]
     [InlineData(99, "99")]
     [InlineData(100, "99+")]
-    public void Badge_ShouldCapAt99(int count, string expected) => Assert.Equal(expected, NotificationBell.BadgeText(count));
+    public void Badge_ShouldCapAt99(int count, string expected) => Assert.Equal(expected, MyProject.Web.Client.Layout.ClientNotificationBell.BadgeText(count));
 
     // ---------- 即時訊號 ----------
 
@@ -428,7 +428,7 @@ public sealed class NotificationTests : IDisposable
             new ActiveAnnouncement(6, "已關閉", "c", now.AddHours(-1), null, AnnouncementTargetKinds.All, null, null),
         };
 
-        var shown = AnnouncementBanner.Select(all, now, [7], ["北區"], new HashSet<int> { 6 });
+        var shown = AnnouncementCache.Select(all, now, [7], ["北區"], new HashSet<int> { 6 });
 
         Assert.Equal(new[] { 1, 2, 4 }, shown.Select(x => x.Id).Order());
     }

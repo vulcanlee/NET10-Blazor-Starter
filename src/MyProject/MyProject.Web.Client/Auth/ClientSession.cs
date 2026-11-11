@@ -97,7 +97,7 @@ public class ClientSession : IDisposable
 
         if (me is null && hasNoPrimaryRole)
         {
-            // 沒有主要角色的帳號不能使用網頁（與 Server 版的 AuthenticationStateHelper 相同）：登出。
+            // 沒有主要角色的帳號不能使用網頁（與 Server 版的行為相同）：登出。
             logger.LogWarning("The account has no primary role; signing out.");
             await LogoutAsync();
             return false;

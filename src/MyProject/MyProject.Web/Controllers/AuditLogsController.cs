@@ -21,7 +21,7 @@ namespace MyProject.Web.Controllers;
 /// 稽核紀錄的 Web API，只限管理員（稽核含來源 IP 與別人的操作）。
 /// 0.10.2 起（M3）有資料頁「異動歷程」對話窗用的 <c>history</c>、<c>{id}/content</c>；
 /// 0.10.4 起（M5）補上稽核紀錄頁本身的查詢、選項、明細、匯出、清除、清空與完整性驗證。
-/// 稽核的寫法與 Server 版頁面相同：按「查詢」一筆搜尋、看明細一筆查看；清除、清空、匯出、驗證各寫一筆（寫在刪除之後，所以清空後仍查得到是誰清的）。
+/// 稽核的寫法：按「查詢」一筆搜尋、看明細一筆查看；清除、清空、匯出、驗證各寫一筆（寫在刪除之後，所以清空後仍查得到是誰清的）。
 /// </summary>
 [Route("api/v1/audit-logs")]
 [ApiController]
@@ -32,6 +32,7 @@ public class AuditLogsController : ControllerBase
     private const int MaxHistoryPageSize = 50;
     private const string HistoryDeniedMessage = "只有管理員可以查看異動歷程。";
     private const string TargetType = "AuditLog";
+    private const string MissingContentText = "內容檔不存在（可能已被清除，或當初寫檔失敗）。";
 
     private readonly AuditLogQueryService queryService;
     private readonly IAuditLogService auditLogService;
@@ -77,7 +78,10 @@ public class AuditLogsController : ControllerBase
         var result = await queryService.GetTargetHistoryAsync(targetType, targetId, page, pageSize);
         if (opened)
         {
-            await ServerAuditHistorySource.WriteOpenedAuditAsync(auditLogService, currentUserService, targetType, targetId);
+            // 打開異動歷程：一筆稽核紀錄的「搜尋」。
+            await ViewAudit.WriteSearchAsync(auditLogService, currentUserService, AuditActions.Audit.Search, TargetType,
+                AuditSearchCondition.Of("targetType", targetType), AuditSearchCondition.Of("targetId", targetId),
+                AuditSearchCondition.Of("via", "history"));
         }
 
         return Ok(ApiResult<PagedResult<AuditHistoryItemDto>>.SuccessResult(new PagedResult<AuditHistoryItemDto>
@@ -101,8 +105,10 @@ public class AuditLogsController : ControllerBase
             return NotFound(ApiResult<AuditContentDto>.NotFoundResult("找不到這筆稽核紀錄。"));
         }
 
-        var text = item.ContentFile is null ? string.Empty : await ReadContentAsync(id) ?? ServerAuditHistorySource.MissingContentText;
-        await ServerAuditHistorySource.WriteViewedAuditAsync(auditLogService, currentUserService, item);
+        var text = item.ContentFile is null ? string.Empty : await ReadContentAsync(id) ?? MissingContentText;
+
+        // 點開一筆：一筆稽核紀錄的「查看」。
+        await ViewAudit.WriteAsync(auditLogService, currentUserService, AuditActions.Audit.View, TargetType, item.Id.ToString(), $"action={item.Action}; via=history");
         return Ok(ApiResult<AuditContentDto>.SuccessResult(new AuditContentDto { Text = text }, "取得詳細內容成功"));
     }
 
@@ -162,7 +168,7 @@ public class AuditLogsController : ControllerBase
         var detail = Fill(new AuditLogDetailDto(), item);
         if (item.ContentFile is not null)
         {
-            detail.Content = await ReadContentAsync(id) ?? "內容檔不存在（可能已被清除，或當初寫檔失敗）。";
+            detail.Content = await ReadContentAsync(id) ?? MissingContentText;
         }
 
         await ViewAudit.WriteAsync(auditLogService, currentUserService, AuditActions.Audit.View, TargetType, item.Id.ToString(), $"action={item.Action}");

@@ -2,7 +2,7 @@
 
 - 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.9
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/11
 
@@ -67,8 +67,8 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 
 ## 五、權限與安全
 
-- RBAC 表（`Permission`／`RolePermissionMap`／`UserRole`）為 UI 與 API 共用的**單一權威**；登入後 `AuthenticationStateHelper` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 載入有效權限鍵（多角色聯集）。
-- 動作級授權：API 控制器以 `[HasPermission(頁面, 動作)]` 判權，無權限回 `ApiResult` 403（`ForbiddenResult`）；未登入回 401；管理員短路一律通過。UI 以 `RequirePermission` 元件（0.9.110 起，規則在 `PermissionRules.CanAccessAction`，與 `AuthenticationStateHelper.CheckAccessAction` 相同）依動作顯示按鈕，沒有權限時不渲染、或渲染 `Fallback`（0.9.120 起，例如不可點的狀態標籤）；專案項目、分類清單、團隊清單三頁皆有。⚠️ 頁面進入權由 `CheckAccessPage` 判定，通過條件為「管理員 ∨ 裸頁面鍵 ∨ `頁面鍵:view`」（0.9.37 起）——因此只勾「檢視」的唯讀角色**進得去頁面但按不到任何寫入鈕**。
+- RBAC 表（`Permission`／`RolePermissionMap`／`UserRole`）為 UI 與 API 共用的**單一權威**；登入後 `ICurrentUserLoader`（每個 API 請求由 `ApiActorMiddleware` 呼叫；0.10.8 以前 Server 頁另有 `AuthenticationStateHelper`）以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 載入有效權限鍵（多角色聯集）。
+- 動作級授權：API 控制器以 `[HasPermission(頁面, 動作)]` 判權，無權限回 `ApiResult` 403（`ForbiddenResult`）；未登入回 401；管理員短路一律通過。UI 以 `RequirePermission` 元件（0.9.110 起，規則在 `PermissionRules.CanAccessAction`）依動作顯示按鈕，沒有權限時不渲染、或渲染 `Fallback`（0.9.120 起，例如不可點的狀態標籤）；專案項目、分類清單、團隊清單三頁皆有。⚠️ 頁面進入權由 `PermissionRules.CanAccessPage` 判定，通過條件為「管理員 ∨ 裸頁面鍵 ∨ `頁面鍵:view`」（0.9.37 起）——因此只勾「檢視」的唯讀角色**進得去頁面但按不到任何寫入鈕**。
 - 角色本頁僅管理員可進入；不輸出任何機密欄位。
 
 ## 六、錯誤與邊界

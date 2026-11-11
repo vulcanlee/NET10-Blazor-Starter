@@ -1,5 +1,4 @@
-﻿using AntDesign;
-using Microsoft.AspNetCore.DataProtection;
+﻿using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.Sqlite;
@@ -9,7 +8,6 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.Web.Downloads;
 using MyProject.Dtos.Commons;
-using MyProject.Web.Components.Commons;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Business.Services.Other.AuditIntegrity;
@@ -65,9 +63,6 @@ public static class ServiceCollectionExtensions
             };
         });
 
-        LocaleProvider.SetLocale("zh-TW", AntDesignLocaleFactory.Create("zh-TW"));
-        LocaleProvider.DefaultLanguage = defaultCulture.Name;
-
         return services;
     }
 
@@ -120,14 +115,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IHealthLogReader, HealthLogReader>();
         services.AddScoped<ISystemHealthService, SystemHealthService>();
         services.AddScoped<NotificationTestService>();
-        services.AddScoped<AuthenticationStateHelper>();
         services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
         services.AddSingleton<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<CurrentUserService>();
-        // 畫面上的權限判斷（0.10.2 起與 WASM 頁面共用 RequirePermission 等元件；WASM 端是 ClientPagePermissions）。
-        services.AddScoped<MyProject.Web.Client.Auth.PagePermissions, ServerPagePermissions>();
-        // 「異動歷程」對話窗的資料來源（0.10.2 起對話窗與 WASM 頁面共用；WASM 端是 ApiAuditHistorySource）。
-        services.AddScoped<IAuditHistorySource, ServerAuditHistorySource>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         // 稽核防竄改雜湊鏈（0.9.175 起）：金鑰、寫入端與檢查點跨連線共用（singleton），換頁稽核射後不理時 circuit 結束也寫得完。
         services.AddSingleton<IAuditIntegrityKeyStore, AuditIntegrityKeyStore>();
@@ -136,7 +126,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuditIntegrityVerifier>();
         // 稽核的長內容（修改差異、查詢條件）寫成檔案（0.9.131 起）。
         services.AddScoped<AuditContentFileStore>();
-        // 稽核來源 IP（0.9.117 起）：circuit handler 寫入、AuditLogService 讀取，兩者必須拿到同一個實例。
+        // 稽核來源 IP（0.9.117 起）：工作流程執行登錄表寫入、AuditLogService 讀取，兩者必須拿到同一個實例。
         services.AddScoped<ClientIpProvider>();
         services.AddScoped<IClientIpProvider>(sp => sp.GetRequiredService<ClientIpProvider>());
         // 站內通知與公告（0.9.100 起）。訊號與公告快取是 singleton（跨連線共用）；發送服務是 scoped。
@@ -246,7 +236,7 @@ public static class ServiceCollectionExtensions
         // 例外 Email 告警（LOG-12）。單例：暴增計數、冷卻與每小時配額都是記憶體狀態。
         services.AddSingleton<ExceptionAlertService>();
 
-        // 日誌管線自我監控（LOG-22）與瀏覽器錯誤回報（LOG-20，每個 circuit 一份）。
+        // 日誌管線自我監控（LOG-22）與瀏覽器錯誤回報（LOG-20，每個請求一份；每人的頻率上限在 ShellController）。
         services.AddSingleton<LoggingPipelineMonitor>();
         services.AddScoped<BrowserErrorReporter>();
 
@@ -298,7 +288,6 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpContextAccessor();
         services.AddScoped<IRecordAccessScopeProvider, RecordAccessScopeProvider>();
-        services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, MyProject.Web.Components.ApplicationCircuitHandler>();
 
         return services;
     }

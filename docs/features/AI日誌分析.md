@@ -1,8 +1,8 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.22
+- 文件版本：1.23
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.4
 - 最後核對日期：2026/11/11
 
@@ -222,7 +222,7 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 
 ## 3. 權限
 
-沿用日誌檢視頁本身的管理員專屬判斷（`AuthenticationStateHelper.CheckIsAdmin()`），
+沿用日誌檢視頁本身的管理員專屬判斷（畫面以 `Permissions.IsAdmin`、API 以 `[AdminOnly]`；0.10.4 以前是 `AuthenticationStateHelper.CheckIsAdmin()`，0.10.9 起刪除），
 **不新增權限鍵**。能進日誌檢視頁就能按 AI 分析。
 
 ## 4. 送出的內容
@@ -285,7 +285,7 @@ AI 分析後模型照做，管理員一點就發出對外請求；圖片版本�
 3. **保留下來的連結**補上 `target="_blank"` 與 `rel="noopener noreferrer nofollow"`。
 4. **角括號自動連結**（`<javascript:alert(1)>` 這種 CommonMark 核心語法，0.10.5 獨立審查發現、main 就有）：`DisableHtml()` 關不掉，而且是 `AutolinkInline` 不是 `LinkInline`，
    所以另外走訪一次、套同一份白名單；不合格的降級成純文字（網址看得到、不能點）。WASM 頁面的 Token 存在瀏覽器 storage，這類漏洞的影響比 Server 版大。
-   0.10.5 起 `AiMarkdownRenderer` 檔案在 `MyProject.Web.Client/Ai/`（Client 參考 Markdig，Server 與 WASM 共用，命名空間仍是 `MyProject.Web.Ai`）。
+   0.10.5 起 `AiMarkdownRenderer` 檔案在 `MyProject.Web.Client/Ai/`（Client 參考 Markdig，命名空間仍是 `MyProject.Web.Ai`）。
 
 > `DisableHtml()` **本身不夠**。它只移除區塊 HTML 解析器並關閉行內 raw HTML 解析，
 > 完全不管連結的 URL scheme，`[點我](javascript:...)` 會原封不動渲染成可點連結。
@@ -423,8 +423,8 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
   `AnalyzeAsync_ShouldReportCanceled_WhenCallerCancels` 釘住這件事。
 - 仍然寫 `AuditLog`（`success = false`、`Detail` 尾端帶「失敗原因 Canceled」）：
   請求已經送出去了，上游很可能照樣計費，稽核是成本追查的唯一帳本。
-- **使用者在等待中直接導航離開頁面**也會取消（元件的 `Dispose`）。此時 circuit 已經收掉，
-  稽核寫不進去，所以那條路徑只留應用程式日誌。
+- **使用者在等待中直接導航離開頁面**也會取消（元件的 `Dispose`）。0.10.4 以前的 Server 頁面此時 circuit 已經收掉，
+  稽核寫不進去，那條路徑只留應用程式日誌；0.10.5 起（WASM）是中斷 API 請求，伺服器照樣寫稽核（見下方 WebAssembly 段）。
 - 等待中**遮罩點不關**（`MaskClosable` 只在非等待狀態為 true）：誤點一次遮罩
   就白花一次 AI 費用，代價太高。看結果時點外面關掉則維持既有行為。
 

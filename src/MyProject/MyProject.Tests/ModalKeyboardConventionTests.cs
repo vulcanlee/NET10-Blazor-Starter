@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 驗證 Components 下的 .razor 不在表單（EditForm／form）層攔截鍵盤事件。
+/// 驗證畫面（0.10.9 起只有 MyProject.Web.Client）的 .razor 不在表單（EditForm／form）層攔截鍵盤事件。
 ///
 /// 背景：五個 CRUD 維護對話窗曾把 @onkeydown 掛在 &lt;EditForm&gt; 上，用 Enter 觸發儲存。
 /// 但 keydown 會從表單內「任何」子元素冒泡上來，導致 TextArea 無法換行（Shift+Enter 也一樣，
@@ -32,10 +32,7 @@ public sealed class ModalKeyboardConventionTests
     [Fact]
     public void RazorComponents_ShouldNotHandleKeyboardEventsOnForms()
     {
-        var componentsRoot = FindComponentsRoot();
-        var razorFiles = Directory
-            .EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories)
-            .ToList();
+        var razorFiles = SourceTree.UiFiles("*.razor");
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
         Assert.NotEmpty(razorFiles);
@@ -63,6 +60,4 @@ public sealed class ModalKeyboardConventionTests
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

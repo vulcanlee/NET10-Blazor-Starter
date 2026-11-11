@@ -1,7 +1,7 @@
 @*
-    WASM 外框的「操作說明」按鈕與說明窗（0.10.1 起；標記與 Server 版 PageHelpDialog 相同）。
+    WASM 外框的「操作說明」按鈕與說明窗（0.10.1 起；0.10.9 前與 Server 版 PageHelpDialog 並存，標記相同）。
     內容由 /api/v1/shell/help 取得：Markdown 已在伺服器端以安全管線轉成 HTML，相關頁面已依權限過濾。
-    頂欄的「操作說明」按鈕與近滿版說明窗。掛在 MainLayout 的頁名旁，全站一處、依路由自動對應。
+    頂欄的「操作說明」按鈕與近滿版說明窗。掛在 ClientMainLayout 的頁名旁，全站一處、依路由自動對應。
     尺寸與捲動版型寫在 OverlayStyles.razor 的 .page-help-modal；內文樣式寫在本元件的 .razor.css
     （Markdown 注入的 HTML 沒有 scope 屬性，一律用 ::deep）。
     內容格式與守門規則見 docs/architecture/開發慣例與限制速查.md「頁面操作說明」一節。

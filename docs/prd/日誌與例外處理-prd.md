@@ -2,9 +2,9 @@
 
 - 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
@@ -113,11 +113,11 @@
 
 | 事件 | 等級 | 記在哪 |
 |---|---|---|
-| 畫面切換 | Information | `ApplicationCircuitHandler` 集中記錄，**頁面不需自己寫** |
+| 畫面切換 | Information | 0.10.9 起：WASM 前端換頁時呼叫 `POST api/v1/shell/page-view`，由 `ShellController` 集中處理（該請求本身有一筆 HTTP 請求完成日誌），**頁面不需自己寫**；0.10.8 以前由 `ApplicationCircuitHandler` 記錄 |
 | 改變狀態的按鈕（新增／修改／刪除／匯出／套用／登入登出） | Information | 各事件處理方法；**意圖與結果各記一筆** |
 | 純查詢的按鈕（搜尋／重新整理／分頁／排序） | Debug | 各事件處理方法 |
-| circuit 開啟／關閉 | Information | `ApplicationCircuitHandler` |
-| circuit 斷線 | Warning | `ApplicationCircuitHandler` |
+| circuit 開啟／關閉 | Information | `ApplicationCircuitHandler`（0.10.8 以前；0.10.9 起沒有 Blazor Server circuit，已移除） |
+| circuit 斷線 | Warning | `ApplicationCircuitHandler`（0.10.8 以前；同上） |
 | 權限拒絕、登入失敗、帳號鎖定 | Warning | 各自的處理方法 |
 | HTTP 請求完成 | Information（靜態資源、`_blazor`、`/health`、`/swagger` 為 Debug；狀態碼 ≥ 400 一律 Information 以上） | `UseHttpRequestLogging` |
 
@@ -163,18 +163,18 @@
 
 使用者看到的訊息**不得**含例外型別、堆疊、SQL、檔案路徑；API 回應是否帶例外細節由 `ExceptionDetailPolicy` 決定（正式環境不帶）。
 
-例外（0.9.130 起）：右下角錯誤通知的「複製」按鈕，在**管理員**或 `ExceptionDetailPolicy` 允許時（Development、`Security:ReturnExceptionDetails=true`）會在剪貼簿內容最後附上完整例外（`ex.ToString()`：類型、訊息、內層例外、堆疊）；AI 上游失敗則附 HTTP 狀態與上游 code／type／param（不含上游 message 與回應本文）。畫面上仍不顯示這些細節，也不寫進通知那筆日誌（例外已由呼叫端 `LogError(ex, …)` 記錄）。其他使用者複製到的只有畫面內容與追蹤碼。
+例外（0.9.130 起）：右下角錯誤通知的「複製」按鈕，只有**管理員**（`PagePermissions.MayCopyErrorDetail`）會在剪貼簿內容最後附上完整例外（`ex.ToString()`：類型、訊息、內層例外、堆疊）；AI 上游失敗則附 HTTP 狀態與上游 code／type／param（不含上游 message 與回應本文）。畫面上仍不顯示這些細節，也不寫進通知那筆日誌（例外已由呼叫端 `LogError(ex, …)` 記錄）。其他使用者複製到的只有畫面內容與追蹤碼。0.10.7 以前 Server 頁面另在 `ExceptionDetailPolicy` 允許時（Development、`Security:ReturnExceptionDetails=true`）也對非管理員附上；0.10.8 起頁面全部在 WASM、只認管理員，0.10.9 起 Server 實作 `ServerPagePermissions` 已刪除。`ExceptionDetailPolicy` 現在只決定 API 500 回應是否帶 `ApiResult.Exception`。
 
 ### 4.3 每筆紀錄的必備情境
 
 | 欄位 | 日誌檔 | 例外紀錄 | 說明 |
 |---|:-:|:-:|---|
 | 時間、等級、Logger 名稱 | ✔ | ✔ | 已具備 |
-| 追蹤碼（TraceId） | ✔ | ✔ | 8 碼錯誤追蹤碼：HTTP 請求與 Blazor 每次互動各一個；例外紀錄存 `LastTraceId`（0.9.78，LOG-10） |
+| 追蹤碼（TraceId） | ✔ | ✔ | 8 碼錯誤追蹤碼：每次 HTTP 請求與每次排程作業各一個（0.10.8 以前 Blazor Server 每次互動也各一個）；例外紀錄存 `LastTraceId`（0.9.78，LOG-10） |
 | 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`系統`（0.9.77，LOG-04）／`瀏覽器`（0.9.79，LOG-20）／`未知` |
 | 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/projects/{id}`），不記帶 Id 的原始路徑（0.9.78，LOG-16） |
 | Account、UserId | 依訊息 | ✔ | **可記錄的身分只有這兩項** |
-| CircuitId | Blazor 相關訊息 | | 用於串起同一位使用者的連續操作 |
+| CircuitId | Blazor 相關訊息 | | 用於串起同一位使用者的連續操作（0.10.8 以前；0.10.9 起沒有 circuit，以 Account 與追蹤碼串起） |
 
 ### 4.4 敏感資料
 
@@ -212,15 +212,15 @@
 |---|---|:-:|---|
 | Web API（`/api/*`） | `ApiExceptionFilterAttribute`：記 Error，回 `ApiResult` 500 附 `TraceId`；控制器自行 catch 的 `ApiServerError` 也帶（0.9.78） | ✅ | — |
 | 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error", createScopeForErrors: true)`；以例外實例去重、帳號於驗證後補上（0.9.77）；Host 空白或組不成網址由 `UseRejectInvalidHost` 回 400（0.9.115） | ✅ | —（0.9.78 起 `/Error` 頁顯示的追蹤碼與日誌一致；0.9.115 起 Blazor 頁面 SSR 例外也看得到錯誤頁，之前錯誤頁本身拋 "already initialized" 而回空白 500） |
-| Blazor 頁面元件 | `LoggingErrorBoundary` 包住 `AuthorizeRouteView`，記 Error 並顯示錯誤訊息與追蹤碼（0.9.78） | ✅ | — |
-| Blazor 浮層（對話窗、通知、確認窗） | `AntContainer` 包在第二個 `LoggingErrorBoundary` 內，換頁自動復原（0.9.77），提示附追蹤碼（0.9.78） | ✅ | — |
+| Blazor 頁面元件 | 0.10.9 起：`ClientRoutes.razor` 以 `ClientErrorBoundary` 包住 `RouteView`，經 `api/v1/shell/client-errors` 送伺服器記 Error（來源 `瀏覽器`）並顯示錯誤訊息；0.10.8 以前 Server 頁是 `LoggingErrorBoundary` 包住 `AuthorizeRouteView`（0.9.78） | ✅ | — |
+| Blazor 浮層（對話窗、通知、確認窗） | 0.10.9 起：`AntContainer` 包在 `ClientRoutes.razor` 的第二個 `ClientErrorBoundary` 內，換頁自動復原；0.10.8 以前是第二個 `LoggingErrorBoundary`（0.9.77），提示附追蹤碼（0.9.78） | ✅ | — |
 | 射後不理的 Task（`_ = XxxAsync()`） | `ProcessExceptionHooks`：`UnobservedTaskException` 記 Error，來源 `系統`（0.9.77） | ✅ | — |
 | 程序層級（其他執行緒） | `ProcessExceptionHooks`：`AppDomain.UnhandledException` 寫補登檔並記 Critical（0.9.77） | ✅ | — |
 | 背景服務 | 四個背景服務（`ExceptionLogWriter`、`EmailDispatchWorker`、`JobSchedulerWorker`、`SystemParameterRefreshWorker`）都自行 catch；未設定 `BackgroundServiceExceptionBehavior` | ✅ | 維持；新 Worker 必須自行 catch 並記 Error |
 | 啟動：`builder.Build()` 之前 | 頂層 catch 直接經 NLog 寫檔，並寫補登檔（0.9.77） | ✅ | — |
 | 啟動：遷移、種子資料 | 頂層 catch 記 Critical 並寫補登檔，下次啟動補進例外紀錄（0.9.77） | ✅ | — |
 | 關機 | 寫入背景服務停止時清空佇列，上限 5 秒（0.9.77） | ✅ | — |
-| 瀏覽器 JavaScript | `client-error-reporter.js` ＋ `BrowserErrorReporter`，經 circuit 回報，來源 `瀏覽器`（0.9.79） | ✅ | 僅限登入後頁面 |
+| 瀏覽器 JavaScript | `client-error-reporter.js` ＋ `BrowserErrorReporter`，來源 `瀏覽器`（0.9.79）；0.10.9 起一律經 WASM 的 `ClientErrorReporter` 呼叫 `api/v1/shell/client-errors`（之前 Server 頁經 circuit 回報） | ✅ | 僅限登入後頁面 |
 
 ## 六、需求清單
 
@@ -234,11 +234,11 @@
 | 執行期調整等級 | `/log-level-setting` 調整全域 `*` 規則，動作寫稽核 | `LogLevelRuntimeState` |
 | 全域請求日誌 | 方法、路徑、狀態碼、耗時 | `ApplicationBuilderExtensions.UseHttpRequestLogging` |
 | 例外自動收錄 | 任何 `LogError/LogCritical(ex, …)` 自動進例外紀錄表；相同簽章合併計次；堆疊另存檔案；上限 5000 列 | `ExceptionLogProvider`、`ExceptionLogWriter`、`ExceptionLogService` |
-| 例外情境 | 來源、頁面、帳號由 `ExceptionContextAccessor` 提供（HTTP、circuit 互動、啟動、背景作業） | `ApplicationCircuitHandler`、`UseHttpRequestLogging` |
+| 例外情境 | 來源、頁面、帳號由 `ExceptionContextAccessor` 提供（HTTP、啟動、背景作業；0.10.8 以前另有 circuit 互動） | `UseHttpRequestLogging`（0.10.8 以前另有 `ApplicationCircuitHandler`） |
 | 稽核 | 動作代碼 0.9.78 起收斂到 `AuditActions`（0.9.78 時 59 個，現行共 142 個常數，以 `AuditActions` 為準）：登入、使用者／角色異動、密碼重設、檔案下載、日誌與 AI 相關操作、清除動作、清單點狀態標籤的啟用／停用（0.9.120）、測試通知（0.9.122）；0.9.117 起每筆自動記來源 IP（`AuditLogService` 經 `IClientIpProvider` 取得，呼叫端不傳；排程作業為空）；0.9.131 起加上開頁（`Page.View`）、查詢（`*.Search`）、查看單筆（`*.View`）與修改前後差異（寫在詳細內容檔）；0.9.174 起這兩類改由 `AuditLogSettings` 開關決定，預設不記；0.9.175 起每筆加防竄改簽章（雜湊鏈），每日完整性檢查發現問題時另以 ERROR 寫進日誌。每筆同步記一行 Debug `Audit recorded.`（只有短摘要與檔名，不含內容檔；沒寫進資料庫的不記） | `AuditLogService` |
 | API 錯誤回應 | `ApiResult` 500 附 `TraceId`，正式環境不帶例外細節 | `ApiExceptionFilterAttribute`、`ExceptionDetailPolicy` |
 | 啟動保護 | 整段 try/catch，失敗記 Critical 並 `LogManager.Shutdown()` | `Program.cs` |
-| Blazor 錯誤邊界 | `LoggingErrorBoundary` | `Routes.razor` |
+| Blazor 錯誤邊界 | `ClientErrorBoundary`（0.10.9 起；之前 Server 頁是 `LoggingErrorBoundary`） | `MyProject.Web.Client/ClientRoutes.razor`（之前 `Routes.razor`） |
 | 慣例守門 | 訊息格式、敏感資料、必備 `ILogger` | `LoggingConventionTests` |
 
 ### 6.2 已實作 —— P0 缺口修正（0.9.77）
@@ -299,13 +299,13 @@
 | | `TokenUsageLogDays` | `365` | Token 用量紀錄（0.9.96 起）；`0` 不自動清理（範圍 0～36500） |
 | `SlowOperationSettings` | `HttpRequestMs` ／ `DbCommandMs` ／ `ExternalCallMs` ／ `AiCallMs` | `3000` ／ `1000` ／ `10000` ／ `60000` | `0` 停用該項（無 `UiInteractionMs`，見 LOG-21 調整） |
 | `ClientErrorReporting` | `Enabled` | `true` | 前端錯誤回報開關 |
-| | `MaxPerCircuitPerMinute` | `10` | 防濫用 |
+| | `MaxPerCircuitPerMinute` | `10` | 防濫用；0.10.9 起是每位使用者每分鐘的上限（鍵名沿用 circuit 時代） |
 
 ## 八、權限與安全
 
 - `/logs`、`/system-exceptions`、`/audit-logs`、`/ai-call-logs` 維持**管理員專屬**；本文件新增的畫面功能比照辦理。
 - 告警信可能被轉寄或留在信箱，因此**只含摘要**（LOG-12），完整內容須登入系統查看。
-- 前端回報入口只對已登入的 circuit 開放，並有頻率與長度上限（LOG-20）。
+- 前端回報入口只對已登入者開放（0.10.9 起 `api/v1/shell/client-errors` 要登入；之前是已登入的 circuit），並有頻率與長度上限（LOG-20）。
 - 追蹤碼可以給使用者看，不得含帳號、主機名稱、時間戳以外的內部資訊。
 - 日誌檔與堆疊檔可從 `/logs` 原始匯出，因此 §4.4 的禁記規則同樣適用於例外訊息以外的所有日誌行。
 
@@ -328,7 +328,7 @@
 
 - **Google SSO 使用者的 Account 就是 Email**：記 Account 等於記 Email，為既有且已接受的取捨（見操作文件 §2.4）。
 - ~~**稽核不記修改前後值**~~（**0.9.131 已實作**）：`AuditDiff` 比對分類、專案、團隊、使用者、角色與個人資料修改前後的純量欄位，寫進稽核的詳細內容檔，見稽核紀錄 PRD §六。
-- **連線中斷後的 JS 呼叫失敗不收錄**（0.9.172 起）：使用者關掉分頁時，還在路上的 JS 呼叫會變成一批沒人等的 `JSDisconnectedException`（實測每次 13～48 筆），以前記成系統例外、也計入暴增告警。現在由 `CircuitDisconnect.IsOnlyDisconnect` 判斷，未觀察 Task 只記 Debug、`ExceptionLogProvider` 不收錄；同一批裡混了別的例外就照常記錄。
+- **連線中斷後的 JS 呼叫失敗不收錄**（0.9.172 起）：使用者關掉分頁時，還在路上的 JS 呼叫會變成一批沒人等的 `JSDisconnectedException`（實測每次 13～48 筆），以前記成系統例外、也計入暴增告警。現在由 `CircuitDisconnect.IsOnlyDisconnect` 判斷，未觀察 Task 只記 Debug、`ExceptionLogProvider` 不收錄；同一批裡混了別的例外就照常記錄。0.10.9 起伺服器已沒有 Blazor Server 連線，這個判斷暫留、實際上不再觸發。
 - **單機設計**：例外合併、告警節流、前端回報計數都在單一程序的記憶體中；未來若改為多台主機需重新設計。
 - **時區**：例外紀錄與日誌檔使用伺服器本地時間，稽核使用 UTC（見稽核紀錄 PRD §四），跨表比對時須注意。
 - **告警只有 Email**：Teams、Slack、LINE 等通道不在本次範圍。
@@ -336,7 +336,7 @@
   找使用者，但 JWT 的 UserId 放在 `NameIdentifier`，因此 API 使用者一律退回「非管理員、無團隊」。0.9.105 起改以 `RequestActorResolver`
   取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier）；已登入卻解析不到是誰時回 `RecordAccessScope.None`（什麼都看不到）並記 Warning。
 - **Blazor 互動的追蹤碼、前端錯誤回報、浮層錯誤提示尚未在瀏覽器內人工驗證**：HTTP 請求的追蹤碼與慢操作日誌已實機確認；
-  circuit 內的行為由程式碼與單元測試保證。
+  circuit 內的行為由程式碼與單元測試保證。0.10.9 起已沒有 circuit：畫面操作一律經 API，追蹤碼就是 HTTP 請求的追蹤碼。
 - **管線監控的數字是本次啟動以來的累計**，重啟歸零；也不會主動告警（例外告警本身失敗時無法再用告警通知）。
 
 ## 十一、相關程式與文件
@@ -346,7 +346,7 @@
   - `src/MyProject/MyProject.Web/Program.cs`（NLog 初始化、啟動保護、中介軟體順序）
   - `src/MyProject/MyProject.Web/Diagnostics/`（`ExceptionLogProvider`、`ExceptionLogWriter`、`ExceptionContextAccessor`、`LogLevelRuntimeState`）
   - `src/MyProject/MyProject.Web/Extensions/ApplicationBuilderExtensions.cs`（`UseHttpRequestLogging`、`UseRejectInvalidHost`）
-  - `src/MyProject/MyProject.Web/Components/LoggingErrorBoundary.cs`、`Components/Routes.razor`、`Components/ApplicationCircuitHandler.cs`
+  - `src/MyProject/MyProject.Web.Client/Commons/ClientErrorBoundary.cs`、`ClientRoutes.razor`、`Layout/ClientErrorReporter.cs`（0.10.9 起；Server 版的 `LoggingErrorBoundary`、`Routes.razor`、`ApplicationCircuitHandler` 已刪除）
   - `src/MyProject/MyProject.Web/Filters/ApiExceptionFilterAttribute.cs`、`Controllers/ControllerApiResponseExtensions.cs`
   - `src/MyProject/MyProject.Business/Services/DataAccess/ExceptionLogService.cs`、`Services/Other/AuditLogService.cs`
   - `src/MyProject/MyProject.Models/Systems/ExceptionLogEntry.cs`（`ExceptionSources`）

@@ -5,8 +5,7 @@ namespace MyProject.Web.Client.Auth;
 
 /// <summary>
 /// 畫面上的權限判斷（0.10.2 起，WASM 遷移 M3）：<c>RequirePermission</c>、<c>AuditHistoryButton</c> 與 WASM 頁面用它決定顯示什麼。
-/// 規則一律在 <see cref="PermissionRules"/>；兩種頁面只差「目前使用者」從哪裡來：
-/// Server 頁面是電路的 <c>CurrentUserService</c>（<c>ServerPagePermissions</c>），WASM 頁面是 <c>/me</c> 的回應（<see cref="ClientPagePermissions"/>）。
+/// 規則一律在 <see cref="PermissionRules"/>；目前使用者是 <c>/me</c> 的回應（<see cref="ClientPagePermissions"/>）。
 /// ⚠️ 這只是畫面上的顯示：伺服器端仍以 <c>[HasPermission]</c>／<c>IPermissionChecker</c> 為準。
 /// </summary>
 public abstract class PagePermissions
@@ -20,8 +19,7 @@ public abstract class PagePermissions
     public bool CanAccessAction(string page, string action) => PermissionRules.CanAccessAction(User, page, action);
 
     /// <summary>
-    /// 錯誤通知按「複製」時能否附上完整例外（0.9.130 起的規則）：管理員可以；
-    /// Server 版另外在開發環境或 <c>Security:ReturnExceptionDetails=true</c> 時也可以。
+    /// 錯誤通知按「複製」時能否附上完整例外（0.9.130 起的規則）：管理員可以。
     /// </summary>
     public virtual bool MayCopyErrorDetail => User.IsAdmin;
 }

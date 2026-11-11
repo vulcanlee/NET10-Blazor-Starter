@@ -7,10 +7,10 @@ using MyProject.Web.Configuration;
 namespace MyProject.Web.Diagnostics;
 
 /// <summary>
-/// 接收瀏覽器端錯誤（0.9.79 起，LOG-20）：<c>wwwroot/js/client-error-reporter.js</c> 經 circuit 呼叫 <see cref="Report"/>。
+/// 接收瀏覽器端錯誤（0.9.79 起，LOG-20）：WASM 的 <c>ClientErrorReporter</c> 送到 <c>api/v1/shell/client-errors</c>，由 <c>ShellController</c> 呼叫 <see cref="Report"/>。
 ///
-/// Scoped（＝每個 circuit 一份），頻率限制天生就是「每個 circuit」。由 MainLayout 在登入後註冊，
-/// 所以只有已登入、有 circuit 的頁面會回報；帳號取自 <see cref="CurrentUserService"/>（MainLayout 已驗證過）。
+/// Scoped（＝每個請求一份），本身的頻率計數在 API 路徑上不成立，每人的上限由 <c>ShellController</c> 另外控管。
+/// 只有已登入的人能回報；帳號取自 <see cref="CurrentUserService"/>（<c>ApiActorMiddleware</c> 已載入）。
 ///
 /// 前端送來的東西一律不信任：長度在這裡再截一次、頁面只取路徑並截短。
 /// 以 Error 記錄並帶 <see cref="BrowserScriptException"/>，進系統例外紀錄（來源「瀏覽器」）。

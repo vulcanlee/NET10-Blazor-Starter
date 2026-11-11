@@ -7,7 +7,7 @@ namespace MyProject.Web.Components.Layout;
 
 /// <summary>
 /// 頁面操作說明的讀取與路由比對。比照 <see cref="SidebarMenuService"/>：同一個 <see cref="ICacheService"/>、
-/// 以 <c>ContentRootPath</c> 組路徑、讀不到就記 warning 回空，絕不拋例外讓 layout 掛掉。
+/// 以 <c>ContentRootPath</c> 組路徑、讀不到就記 warning 回空，絕不拋例外讓外框的 API 失敗。
 /// </summary>
 /// <remarks>
 /// 索引與內容都走 <see cref="ICacheService"/>，改了 .md 檔在快取到期後即生效，不必重啟。
@@ -61,7 +61,7 @@ public sealed class PageHelpService
 
     /// <summary>
     /// 以目前路徑找出對應的說明登記。<b>精確比對，刻意不用前綴比對</b>：
-    /// 頂欄標題用的 <c>MainLayout.IsMatchingUrl</c> 是前綴語意，沿用的話 <c>/projects/5</c> 之類的子路徑
+    /// 頂欄標題用的 <c>ClientNavMenu.IsMatchingUrl</c> 是前綴語意，沿用的話 <c>/projects/5</c> 之類的子路徑
     /// 會靜默顯示清單頁的說明。
     /// </summary>
     public static PageHelpTopicModel? MatchTopic(IReadOnlyList<PageHelpTopicModel>? topics, string? currentPath)

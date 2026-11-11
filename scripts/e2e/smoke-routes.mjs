@@ -54,9 +54,11 @@ async function visit(page, route, recorder, index, { signedIn = false } = {}) {
   }
 }
 
-export async function runSmoke(browser, recorder) {
+/** onContext（0.10.9 起，M10）：每個瀏覽器內容建立後呼叫，讓呼叫端監聽請求與 WebSocket。 */
+export async function runSmoke(browser, recorder, { onContext } = {}) {
   let index = 1;
   const signedIn = await newContext(browser);
+  onContext?.(signedIn);
   const page = await signedIn.newPage();
   await login(page);
   for (const route of authenticatedRoutes) {
@@ -64,6 +66,7 @@ export async function runSmoke(browser, recorder) {
   }
 
   const anonymous = await newContext(browser);
+  onContext?.(anonymous);
   const anonymousPage = await anonymous.newPage();
   for (const route of anonymousRoutes) {
     await visit(anonymousPage, route, recorder, index++);

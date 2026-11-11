@@ -2,7 +2,7 @@
 
 - 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/11
 
@@ -26,7 +26,7 @@
 
 - **WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/SystemHealthPage.razor` 只放路由，畫面在 `Views/Admins/SystemHealthView.*`；Server 版已刪除），畫面與訊息和之前相同。每個動作一個只限管理員的端點：`GET api/v1/system-health`（報告＋寄信測試區設定；⚠️ 每次呼叫都跑全部檢查，含會產生費用的 LLM API）、`GET warn-logs`（最近 24 小時，以伺服器時間計；讀取失敗仍回 200、原因在 `EmptyText`）、`POST test-email`、`POST test-notification`；稽核仍由 `EmailTestService`／`NotificationTestService` 寫。
   與 Server 版不同：讀不到報告時停在「正在讀取系統健康狀態...」並跳錯誤通知（Server 版整頁進錯誤畫面）；發送測試通知後這一頁的鈴鐺立即重讀（`ClientNotificationSignal`），其他已開的分頁與其他管理員最慢 60 秒（WASM 鈴鐺輪詢；說明文字仍寫「即時更新」）。0.10.7 起有通知推播串流，其他分頁與其他管理員通常幾秒內收到，推播關閉或斷線時才退回 60 秒輪詢。
-- 頂欄頁名旁的「操作說明」按鈕（0.9.66 起，`PageHelpDialog`）；內容為 `Datas/Help/system-health.md`，於 `Datas/HelpTopics.json` 登記 `/system-health`。
+- 頂欄頁名旁的「操作說明」按鈕（0.9.66 起；0.10.9 起為 `ClientPageHelpDialog`）；內容為 `Datas/Help/system-health.md`，於 `Datas/HelpTopics.json` 登記 `/system-health`。
 - 摘要區：整體燈號（綠／黃／紅）、健康百分比（`Score%`）、狀態文字（正常／警示／異常）、最後檢查時間。
 - 檢查項目卡片（逐項）：名稱、類別、權重、狀態文字、燈號、佐證（Evidence）；異常時另顯示失敗訊息（FailureMessage）。
 - 報告只在頁面初始化時產生一次；要重新檢查請重新整理頁面（每次都會重跑 14 項，含會產生費用的 LLM API）。系統管理助理（0.9.155 起）的唯讀工具 `get_system_health` 與定時巡檢（0.9.161 起，每天一次）也呼叫同一個 `GetReportAsync`，同樣會做一次 AI 探測並登入 SMTP，所以「系統健康檢測」的 Token 紀錄不只來自開頁。
@@ -44,7 +44,7 @@
 
 ## 四、內部系統運作
 
-1. `SystemHealthPage.OnInitializedAsync`：先 `AuthenticationStateHelper.Check` 驗證登入，再 `CheckIsAdmin`；非管理員設定 `roleMessage`、寫 `Permission.Denied` 稽核（0.9.78 起）並中止，不呼叫服務。
+1. `SystemHealthView.OnInitializedAsync`（0.10.6 起在 WASM）：以 `Permissions.IsAdmin` 判斷；非管理員設定 `roleMessage` 並中止，不呼叫 API（`Permission.Denied` 稽核由伺服器在 `shell/page-view` 寫；0.10.8 以前 Server 版先 `AuthenticationStateHelper.Check` 再 `CheckIsAdmin`，自己寫稽核）。
 2. `ISystemHealthService.GetReportAsync`（`SystemHealthService`）依序執行 14 項檢查，各回傳 `SystemHealthItem`（狀態 Healthy/Degraded/Unhealthy）：
    - 應用程式：環境、`SystemVersion`（未設定→Degraded）、啟動時間與運作時長。
    - API：Controller action 數量（0→Unhealthy）、Swagger 依環境／設定。

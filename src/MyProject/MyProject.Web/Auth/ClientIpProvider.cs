@@ -6,9 +6,9 @@ namespace MyProject.Web.Auth;
 /// <summary>
 /// 稽核紀錄的來源 IP（0.9.117 起）。Scoped，與 <see cref="AuditLogService"/> 在同一個 scope。
 ///
-/// - SSR 頁面（登入、登出）與 Web API：取 <c>HttpContext.Connection.RemoteIpAddress</c>。
-/// - Blazor 互動 circuit：circuit 內沒有可靠的 HttpContext，由 <c>ApplicationCircuitHandler</c>
-///   在連線建立（與重連）時呼叫 <see cref="SetCircuitClientIp"/> 寫入，取用時優先。
+/// - Web API：取 <c>HttpContext.Connection.RemoteIpAddress</c>。
+/// - 跨請求的工作流程執行（<c>AiWorkflowRunRegistry</c>）：自己的 scope 沒有可靠的 HttpContext，
+///   每次回覆時呼叫 <see cref="SetCircuitClientIp"/> 寫入，取用時優先（名稱沿用 0.10.9 前 Blazor 電路的用法）。
 /// - 排程作業：兩者皆無，回 null。
 ///
 /// ⚠️ IP 會受 <c>UseForwardedHeaders</c> 影響：若部署在反向代理之後卻沒設定 <c>ForwardedHeaders</c>，

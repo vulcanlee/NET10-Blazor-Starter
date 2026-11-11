@@ -5,8 +5,8 @@ namespace MyProject.Web.Client;
 
 /// <summary>
 /// 哪些路由已經搬到 WASM（0.10.1 起，WASM 遷移 M2）：本組件裡所有頁面的 <c>@page</c>。
-/// 主機（<c>App.razor.cs</c>）據此決定整頁請求用 WebAssembly 還是 Server 互動模式；
-/// 兩邊的路由器據此判斷「這個網址不歸我管」，改成整頁載入，交給另一邊。
+/// WASM 的路由器據此判斷「這個網址不是頁面」（API、Swagger 等），改成整頁載入交給主機；開頁稽核 API 也只收這些路徑。
+/// 0.10.9 起（WASM 遷移 M10）已沒有 Server 互動模式，主機一律以 WebAssembly 渲染。
 /// 遷移期間只支援沒有參數的路由（M2～M9 的頁面都是）。
 /// </summary>
 public static class ClientRouteTable
@@ -26,7 +26,7 @@ public static class ClientRouteTable
 
     /// <summary>
     /// 去掉 query 與錨點、解開百分比編碼、去掉前後的空白與斜線。⚠️ 主機（已解碼的 <c>Request.Path</c>）與 WASM 路由器（未解碼的網址）
-    /// 必須得到同一個結果，否則 <c>/%50rofile</c> 這種網址會被兩邊互相踢來踢去，無限重新載入。
+    /// 必須得到同一個結果，否則 <c>/%50rofile</c> 這種網址會被反覆整頁載入。
     /// </summary>
     internal static string Normalize(string? path)
     {

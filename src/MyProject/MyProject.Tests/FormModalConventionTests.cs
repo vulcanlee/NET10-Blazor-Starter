@@ -140,8 +140,7 @@ public sealed class FormModalConventionTests
     [Fact]
     public void ViewCodeBehind_ShouldNotReopenModalOnEachFailurePath()
     {
-        var componentsRoot = FindComponentsRoot();
-        var files = Directory.EnumerateFiles(componentsRoot, "*.razor.cs", SearchOption.AllDirectories).ToList();
+        var files = SourceTree.UiFiles("*.razor.cs");
 
         Assert.NotEmpty(files);
 
@@ -165,7 +164,7 @@ public sealed class FormModalConventionTests
         Assert.True(
             violations.Count == 0,
             "失敗路徑不要各自把 Modal 撐回去：handler 第一行搶回 Visible，失敗路徑 return false 即可"
-                + "（見 Components/Commons/FormModalFlow.cs）。"
+                + "（見 MyProject.Web.Client/Commons/FormModalFlow.cs）。"
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
     }
@@ -182,12 +181,8 @@ public sealed class FormModalConventionTests
     [Fact]
     public void ConfirmDialogs_ShouldOnlyBeCreatedByTheSharedTemplate()
     {
-        var componentsRoot = FindComponentsRoot();
-        var commonsRoot = Path.Combine(componentsRoot, "Commons") + Path.DirectorySeparatorChar;
-        var files = Directory
-            .EnumerateFiles(componentsRoot, "*.cs", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories))
-            .ToList();
+        var commonsRoot = Path.Combine(SourceTree.Client, "Commons") + Path.DirectorySeparatorChar;
+        var files = SourceTree.UiFiles("*.cs").Concat(SourceTree.UiFiles("*.razor")).ToList();
 
         Assert.NotEmpty(files);
 
@@ -215,7 +210,7 @@ public sealed class FormModalConventionTests
     }
 
     /// <summary>
-    /// 浮層的全域樣式只能在 <c>Routes.razor</c> 渲染一次。
+    /// 浮層的全域樣式只能在 <c>ClientRoutes.razor</c> 渲染一次（0.10.9 起 Server 版的 Routes.razor 已刪除）。
     ///
     /// AntDesign 把對話窗、確認窗、通知與消息條全部渲染在 <c>AntContainer</c> 底下，與 layout 無關。
     /// 0.9.25 之前這支元件散在九個檢視與 MainLayout 裡，結果用別的 layout 的頁面
@@ -225,8 +220,7 @@ public sealed class FormModalConventionTests
     [Fact]
     public void OverlayStyles_ShouldBeRenderedExactlyOnceInRoutes()
     {
-        var componentsRoot = FindComponentsRoot();
-        var razorFiles = Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories).ToList();
+        var razorFiles = SourceTree.UiFiles("*.razor");
 
         Assert.NotEmpty(razorFiles);
 
@@ -252,8 +246,8 @@ public sealed class FormModalConventionTests
         }
 
         Assert.True(
-            renderSites.Count == 1 && renderSites[0] == "Routes.razor",
-            "OverlayStyles 只能在 Routes.razor 渲染一次（AntContainer 旁邊）——"
+            renderSites.Count == 1 && renderSites[0] == "ClientRoutes.razor",
+            "OverlayStyles 只能在 ClientRoutes.razor 渲染一次（AntContainer 旁邊）——"
                 + "掛在 layout 或各檢視裡，只要有頁面用了別的 layout 就會吃不到樣式。"
                 + Environment.NewLine
                 + "實際渲染點："
@@ -262,25 +256,25 @@ public sealed class FormModalConventionTests
 
     /// <summary>
     /// AntContainer（對話窗、確認窗、通知、消息條）在頁面的錯誤邊界之外。
-    /// 0.9.77 之前它沒有任何邊界：裡面一拋未處理例外，整個 circuit 就中斷（畫面突然沒反應），
-    /// 只留下一行框架日誌（LOG-07）。Routes.razor 必須用 LoggingErrorBoundary 包住它。
+    /// 0.9.77 之前它沒有任何邊界：裡面一拋未處理例外，整個畫面就停擺（當時是 circuit 中斷），
+    /// 只留下一行框架日誌（LOG-07）。0.10.9 起唯一的根元件 ClientRoutes.razor 必須用 ClientErrorBoundary 包住它。
     /// </summary>
     [Fact]
     public void AntContainer_ShouldBeWrappedInErrorBoundary()
     {
-        var text = File.ReadAllText(Path.Combine(FindComponentsRoot(), "Routes.razor"));
+        var text = File.ReadAllText(Path.Combine(SourceTree.Client, "ClientRoutes.razor"));
 
         var containerIndex = text.IndexOf("<AntContainer", StringComparison.Ordinal);
-        Assert.True(containerIndex >= 0, "Routes.razor 找不到 <AntContainer />。");
+        Assert.True(containerIndex >= 0, "ClientRoutes.razor 找不到 <AntContainer />。");
 
-        var boundaryOpen = text.LastIndexOf("<LoggingErrorBoundary", containerIndex, StringComparison.Ordinal);
-        var boundaryCloseBefore = text.LastIndexOf("</LoggingErrorBoundary>", containerIndex, StringComparison.Ordinal);
-        var boundaryCloseAfter = text.IndexOf("</LoggingErrorBoundary>", containerIndex, StringComparison.Ordinal);
+        var boundaryOpen = text.LastIndexOf("<ClientErrorBoundary", containerIndex, StringComparison.Ordinal);
+        var boundaryCloseBefore = text.LastIndexOf("</ClientErrorBoundary>", containerIndex, StringComparison.Ordinal);
+        var boundaryCloseAfter = text.IndexOf("</ClientErrorBoundary>", containerIndex, StringComparison.Ordinal);
 
         Assert.True(
             boundaryOpen >= 0 && boundaryOpen > boundaryCloseBefore && boundaryCloseAfter > containerIndex,
-            "Routes.razor 的 <AntContainer /> 必須包在 <LoggingErrorBoundary> 之內，"
-                + "否則浮層內的未處理例外會讓整個 circuit 中斷。");
+            "ClientRoutes.razor 的 <AntContainer /> 必須包在 <ClientErrorBoundary> 之內，"
+                + "否則浮層內的未處理例外會讓整個畫面停擺。");
     }
 
     /// <summary>
@@ -337,8 +331,7 @@ public sealed class FormModalConventionTests
     /// <summary>掃出所有 &lt;Modal&gt;，回傳（檔案、開始標籤、標籤到 &lt;/Modal&gt; 之間的內容）。</summary>
     private static IEnumerable<(string File, string OpenTag, string Body)> EnumerateModals()
     {
-        var componentsRoot = FindComponentsRoot();
-        var razorFiles = Directory.EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories).ToList();
+        var razorFiles = SourceTree.UiFiles("*.razor");
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
         Assert.NotEmpty(razorFiles);
@@ -364,8 +357,6 @@ public sealed class FormModalConventionTests
         return results;
     }
 
-    private static string FindComponentsRoot() => SourceTree.Components;
-
-    /// <summary>浮層全域樣式（0.10.1 起放在 MyProject.Web.Client，Server 與 WASM 頁面共用同一份）。</summary>
+    /// <summary>浮層全域樣式（0.10.1 起放在 MyProject.Web.Client）。</summary>
     private static string OverlayStylesPath => Path.Combine(SourceTree.Client, "Commons", "OverlayStyles.razor");
 }

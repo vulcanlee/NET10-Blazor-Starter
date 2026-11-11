@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using AntDesign;
 using Bunit;
@@ -171,23 +171,20 @@ public sealed class ViewNotificationTests : ComponentTestBase
     public void Notifications_ShouldOnlyBeOpenedThroughViewNotification()
     {
         var directOpen = new Regex(@"new\s+NotificationConfig\b|[Nn]otificationService\.Open\(", RegexOptions.Compiled);
-        var webRoot = Path.Combine(FindSourceRoot(), "MyProject.Web");
+        // 0.10.9 起畫面只在 Client（SourceTree.UiFiles）；之前只掃 MyProject.Web，M2 起搬到 Client 的畫面都沒被檢查。
+        var files = SourceTree.UiFiles("*.cs").Concat(SourceTree.UiFiles("*.razor")).ToList();
+        Assert.True(files.Count > 100, $"掃描到的畫面檔案太少（{files.Count}），掃描範圍可能錯了。");
 
-        var violations = Directory.EnumerateFiles(webRoot, "*.*", SearchOption.AllDirectories)
-            .Where(path => path.EndsWith(".cs", StringComparison.Ordinal) || path.EndsWith(".razor", StringComparison.Ordinal))
-            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+        var violations = files
             .Where(path => Path.GetFileName(path) != "ViewNotification.cs")
             .Where(path => directOpen.IsMatch(File.ReadAllText(path)))
-            .Select(path => Path.GetRelativePath(webRoot, path))
+            .Select(path => Path.GetRelativePath(SourceTree.SourceRoot, path))
             .ToList();
 
         Assert.True(violations.Count == 0,
             "右下角通知一律透過 ViewNotification 開啟（才有複製按鈕與日誌）："
                 + Environment.NewLine + string.Join(Environment.NewLine, violations));
     }
-
-    private static string FindSourceRoot() => SourceTree.SourceRoot;
 
     /// <summary>記下每一筆日誌的等級與通知內文（結構化參數 NotificationText）。</summary>
     private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger

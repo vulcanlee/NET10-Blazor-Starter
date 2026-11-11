@@ -3,9 +3,8 @@ using MyProject.Models.AdapterModel;
 namespace MyProject.Web.Components.Commons;
 
 /// <summary>
-/// 「異動歷程」對話窗的資料來源（0.10.2 起，WASM 遷移 M3）：對話窗只有一份（Server 與 WASM 頁面共用），
-/// Server 頁面直接查資料庫（<c>ServerAuditHistorySource</c>），WASM 頁面走管理員專用的 API（<c>ApiAuditHistorySource</c>）。
-/// 兩邊都在伺服器端寫稽核：打開時一筆「搜尋」、點一筆時一筆「查看」。
+/// 「異動歷程」對話窗的資料來源（0.10.2 起，WASM 遷移 M3）：走管理員專用的 API（<c>ApiAuditHistorySource</c>）。
+/// 稽核在伺服器端寫：打開時一筆「搜尋」、點一筆時一筆「查看」。
 /// </summary>
 public interface IAuditHistorySource
 {

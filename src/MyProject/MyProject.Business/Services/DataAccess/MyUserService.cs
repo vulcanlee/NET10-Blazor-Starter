@@ -432,7 +432,7 @@ public class MyUserService
 
     /// <summary>
     /// 主要角色與額外角色必須存在且未刪除（0.9.95 起）：編輯視窗開著的期間角色可能被刪掉，
-    /// 存進去的話，以它為主要角色的人每次換頁都會被登出（<c>AuthenticationStateHelper</c> 找不到角色）。
+    /// 存進去的話，以它為主要角色的人網頁一律被擋（<c>ApiActorMiddleware</c> 回 403 NO_PRIMARY_ROLE，前端登出）。
     /// 沒有主要角色（null）是允許的 —— Google 自動建立的帳號在預設角色不存在時就是 null。
     /// </summary>
     private async Task<string?> ValidateRolesAsync(BackendDBContext context, MyUserAdapterModel paraObject)

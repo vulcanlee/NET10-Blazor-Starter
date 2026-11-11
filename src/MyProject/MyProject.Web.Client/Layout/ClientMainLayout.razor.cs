@@ -13,11 +13,11 @@ using MyProject.Web.Components.Layout;
 namespace MyProject.Web.Client.Layout;
 
 /// <summary>
-/// WASM 頁面的版面（0.10.1 起，WASM 遷移 M2）。外觀與互動和 Server 版 <c>MainLayout</c> 相同，差別在資料來源：
+/// WASM 頁面的版面（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的一份）。資料來源：
 /// <list type="bullet">
 /// <item>登入檢查：<see cref="ClientSession.InitializeAsync"/>（Token 與 <c>/me</c>）；被要求改密碼或設定兩步驟驗證時整頁導走。</item>
 /// <item>選單、系統資訊、說明主題：<c>/api/v1/shell/menu</c>、<c>/api/v1/shell/info</c>。</item>
-/// <item>開頁稽核：每次換頁呼叫 <c>/api/v1/shell/page-view</c>（Server 版由電路處理）。</item>
+/// <item>開頁稽核：每次換頁呼叫 <c>/api/v1/shell/page-view</c>。</item>
 /// </list>
 /// </summary>
 public partial class ClientMainLayout : LayoutComponentBase, IDisposable
@@ -164,7 +164,7 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         isUserMenuOpen = false;
         UpdateCurrentPageTitle();
         InvokeAsync(StateHasChanged);
-        // 導向 Server 頁面時不記：接著會整頁載入，由 Server 的電路記一筆（避免同一次換頁兩筆）。
+        // 導向不是頁面的網址時不記（接著會整頁載入交給主機，伺服器也只收 WASM 頁面的路徑）。
         if (!string.Equals(previous, currentPath, StringComparison.OrdinalIgnoreCase) && ClientRouteTable.IsClientRoute(currentPath))
         {
             _ = RecordPageViewAsync(currentPath, previous);

@@ -514,11 +514,9 @@ public sealed class PageHelpCatalogTests
         return result;
     }
 
-    /// <summary>Server 與 WASM 兩邊的頁面路由（0.10.1 起頁面逐批搬到 MyProject.Web.Client）。</summary>
+    /// <summary>所有頁面路由（0.10.9 起頁面只在 MyProject.Web.Client）。</summary>
     private static List<string> LoadPageRoutes()
-        => SourceTree.UiRoots
-            .SelectMany(root => Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories))
-            .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(x => x is "bin" or "obj"))
+        => SourceTree.UiFiles("*.razor")
             .SelectMany(path => Regex.Matches(File.ReadAllText(path), @"(?m)^@page\s+""([^""]+)"""))
             .Select(match => match.Groups[1].Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)

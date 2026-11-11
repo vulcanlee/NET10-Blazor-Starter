@@ -1,5 +1,5 @@
 @namespace MyProject.Web.Components.Commons
-@* 0.10.2 起放在 MyProject.Web.Client（WASM 遷移 M3），Server 與 WASM 頁面共用同一份；命名空間維持不變。 *@
+@* 0.10.2 起放在 MyProject.Web.Client（WASM 遷移 M3）；命名空間維持不變。 *@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
@@ -36,7 +36,7 @@
 
     /// <summary>
     /// 完整例外或 AI 失敗的技術細節（0.9.130 起）。畫面上不顯示；只有 <see cref="PagePermissions.MayCopyErrorDetail"/>
-    /// 允許時（管理員；Server 頁另含 Development 或 <c>Security:ReturnExceptionDetails=true</c>）按複製才會帶上。
+    /// 允許時（管理員）按複製才會帶上。
     /// </summary>
     [Parameter]
     public string? Detail { get; set; }

@@ -100,13 +100,22 @@ async function rowCount(page, tableClass, count) {
 export async function fillPicker(page, scope, index, value) {
   const input = page.locator(`${scope} .ant-picker input`).nth(index);
   for (let attempt = 0; attempt < 3; attempt++) {
+    // 等面板打開後再用鍵盤輸入：太早 fill 會被面板打開時的重新渲染蓋回原值（0.10.9 實機發現，同一頁第二個欄位最明顯）。
     await input.click();
-    await input.fill(value);
+    await page.locator('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)').first().waitFor({ timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(300);
-    // 只有日期的欄位：點面板上那一格才會確定；含時間的欄位：Enter 確定。
-    const cell = page.locator(`.ant-picker-dropdown:not(.ant-picker-dropdown-hidden) td[title="${value}"]`);
+    await input.press('Control+A');
+    await input.pressSequentially(value, { delay: 10 });
+    await page.waitForTimeout(300);
+    // 只有日期的欄位：點面板上那一格才會確定；含時間的欄位：按面板的「確定」（與真人操作相同）。
+    // 0.10.9 實機發現：AntDesign 含時間的欄位以 Enter 確定，同一頁第二個以後的欄位會吃不進去（按「確定」正常），所以 Enter 只當最後手段。
+    const dropdown = page.locator('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)');
+    const cell = dropdown.locator(`td[title="${value}"]`);
+    const ok = dropdown.locator('.ant-picker-ok button');
     if (await cell.count() > 0) {
       await cell.first().click();
+    } else if (await ok.count() > 0) {
+      await ok.first().click();
     } else {
       await input.press('Enter');
     }
@@ -138,8 +147,12 @@ export async function captureViews(browser, prefix) {
 }
 
 async function captureAll(page, prefix, files) {
+  // 先等開頁的第一次查詢回來：它會把起訖時間設成伺服器實際套用的值，太早填會被蓋掉（0.10.9 實機發現）。
+  const initialSearch = page.waitForResponse((r) => r.url().includes('/api/v1/logs/search'), { timeout: 60000 });
   await page.goto('/logs');
   await page.waitForSelector('.log-view-table', { timeout: 60000 });
+  await initialSearch;
+  await page.waitForTimeout(500);
   await fillPicker(page, '.log-view-toolbar-left', 0, `${day} 09:00:00`);
   await fillPicker(page, '.log-view-toolbar-left', 1, `${day} 10:00:00`);
   await page.locator('.log-view-text-filters input').first().fill(seedTag);

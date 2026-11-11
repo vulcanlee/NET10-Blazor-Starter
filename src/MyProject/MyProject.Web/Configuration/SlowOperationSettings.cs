@@ -14,7 +14,7 @@ public class SlowOperationSettings
 {
     public const string SectionName = "SlowOperationSettings";
 
-    /// <summary>HTTP 請求（排除 <c>/_blazor</c> 長連線）。</summary>
+    /// <summary>HTTP 請求（排除通知推播串流這類長連線）。</summary>
     [Range(0, 3_600_000)]
     public int HttpRequestMs { get; set; } = 3000;
 

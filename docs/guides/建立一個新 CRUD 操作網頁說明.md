@@ -1,15 +1,15 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.7
+- 文件版本：2.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.2
+- 現行系統版本：0.10.9
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
 - 最後核對日期：2026/11/11
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
 > 0.10.2 起（WASM 遷移 M3）產生器**只產生 WASM 頁面**（放在 `MyProject.Web.Client`，資料經 Web API），沒有 Server 版選項；Web API 改走資料服務，不再產生 Repository。
-> 衍生專案以前產生的 Server 版模組照常可用，不另提供轉換指引；WASM 頁面的規則見速查 §6.33。
+> 衍生專案以前產生的 Server 版模組在 0.10.8 以前照常可用；0.10.9 起（WASM 遷移 M10）主機已移除 Server 互動模式，這類模組要改寫成 WASM 頁面才能使用（不另提供轉換指引）。WASM 頁面的規則見速查 §6.33。
 
 ---
 
@@ -53,7 +53,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `Business/Services/DataAccess/EquipmentService.cs` | 資料服務（`IDbContextFactory`），規則與稽核只有這一份，0.10.2 起 Web API 也走它：清單（可篩啟用狀態）、已刪除清單、新增（存檔後回填 Id 與版本號）、修改（並行比對）、只改啟用狀態的 `SetEnabledAsync`（0.9.120 起：換版本號、已是目標狀態不寫稽核）、刪除、還原、永久刪除、名稱重複檢查、稽核；失敗以 `VerifyRecordResult.Kind` 標示種類 |
 | `Web/Controllers/EquipmentController.cs` | 0.10.2 起走 `EquipmentService`：`GET {id}`、`POST search`、`POST check`（存檔前的名稱檢查）、`POST`、`PUT {id}`、`PUT {id}/enabled`、`DELETE {id}`（軟刪除）、`POST {id}/restore`、`DELETE {id}/purge`、`POST export`（Excel），`-WithTeams` 另有 `GET options`（團隊選項）；各自 `[HasPermission]`，回 `ApiResult`，失敗依種類回 404／409／400／500（`FromVerify`）；「顯示已刪除」要刪除權限，沒有回 403（`ForbidUnless`） |
 | `Web.Client/Api/EquipmentApi.cs` | 0.10.2 起：WASM 的 API 用戶端（繼承 `CrudApi`）＋ `EquipmentDtoMapper`（DTO ↔ 畫面模型，Controller 也用同一份） |
-| `Web.Client/Pages/EquipmentPage.razor` | `@page`＋`[Authorize]`，以 WebAssembly 執行（版面 `ClientMainLayout` 由 `ClientRoutes` 指定） |
+| `Web.Client/Pages/EquipmentPage.razor` | `@page`，以 WebAssembly 執行（版面 `ClientMainLayout` 由 `ClientRoutes` 指定，它就是登入閘門；0.10.8 起頁面**不可**標 `[Authorize]`，見速查表 §5.1） |
 | `Web.Client/Views/Equipments/EquipmentViewView.razor(.cs)` | 權限閘門（`isAccessChecked`；`Permissions.CanAccessPage`，管理員專屬用 `Permissions.IsAdmin`）、`<RequirePermission>` 依動作顯示按鈕、搜尋排序分頁、勾選多筆「刪除選取」（0.9.132 起，`BatchDelete`；`BatchDeleteConventionTests` 守門）、顯示已刪除／還原／永久刪除、匯出 Excel、`form-modal` 表單（未儲存確認、儲存確認）；「啟用狀態」欄的 `StatusPill` 有編輯權限時可點（0.9.120 起：停用先確認、啟用直接切換；沒有權限經 `<RequirePermission>` 的 `Fallback` 顯示不可點的標籤；顯示已刪除時不可點）；每列最後的「異動歷程」（0.9.173 起，`AuditHistoryButton`＋一頁一個 `AuditHistoryDialog`，目標類型＝模組名稱 `Equipment`，只有管理員看得到；`AuditHistoryConventionTests` 守門） |
 | `Web/Datas/Help/equipments.md` | 操作說明初稿（固定七段，UTF-8 含 BOM） |
 | `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、切換啟用狀態（只改狀態、換版本號、稽核）、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |

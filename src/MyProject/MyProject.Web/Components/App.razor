@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="@Assets["MyProject.Web.styles.css"]" />
     <ImportMap />
     <link rel="icon" type="image/png" href="@Assets["favicon.png"]" />
-    <HeadOutlet @rendermode="@RenderModeForPage()" />
+    <HeadOutlet @rendermode="@PageRenderMode" />
 
     <link href="_content/AntDesign/css/ant-design-blazor.css" rel="stylesheet">
 
@@ -27,18 +27,10 @@
 
 <body>
     @*
-        WASM 遷移（0.10.1 起）：已搬到 MyProject.Web.Client 的頁面（ClientRouteTable）以 WebAssembly 執行，根元件換成 ClientRoutes；
-        其餘維持 Server。兩邊的路由器遇到不歸自己管的網址時都改成整頁載入。
+        WASM 的主機頁（0.10.9 起只有 WebAssembly，WASM 遷移 M10）：所有頁面都在 MyProject.Web.Client，根元件一律是 ClientRoutes。
+        找不到的網址由主機回 404 後重跑成 /not-found，同樣由 ClientRoutes 顯示。M11 起改成獨立站台的 index.html。
     *@
-    @if (IsClientPage)
-    {
-        <MyProject.Web.Client.ClientRoutes @rendermode="@RenderModeForPage()" />
-    }
-    else
-    {
-        <Routes @rendermode="@RenderModeForPage()" />
-    }
-    <ReconnectModal />
+    <MyProject.Web.Client.ClientRoutes @rendermode="@PageRenderMode" />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 
     <script src="_content/AntDesign/js/ant-design-blazor.js"></script> 

@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.19
+- 文件版本：1.20
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -11,7 +11,7 @@
 ## 一、通則
 
 - 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之四節、第四之一節、第五之一節）都只有 `api/v1`。
-- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）；0.10.8 起網頁也不再發登入 Cookie，預設驗證機制是 JWT（WASM 遷移 M9）。
+- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）；0.10.8 起網頁也不再發登入 Cookie，預設驗證機制是 JWT（WASM 遷移 M9）；0.10.9 起 `HasPermissionAttribute` 與 `RequestActorResolver` 只認 JWT 身分（登入 Cookie 的 `Sid` 分支移除，Google 登入過程的 5 分鐘外部 Cookie 不經過它們），主機也不再有 Blazor Server 的 SignalR 端點 `/_blazor`（WASM 遷移 M10，`WasmOnlyHostTests` 守門）。
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - **每個 action 都要標明誰能呼叫**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`（頁面或動作權限）、`[AdminOnly]`（只有管理員，見第二之一節）、`[SignedInUser]`（登入即可、刻意不檢查頁面權限，例如個人資料、外框、通知、公告、`Auth/me`）或 `[AllowAnonymous]`；標在類別上等於標在每個 action。四個都沒標的 action，測試直接失敗。兩個新屬性在 `MyProject.Web/Filters/AdminOnlyAttribute.cs`。
 - 回傳一律包在 `ApiResult<T>`；分頁再包 `PagedResult<T>`。
@@ -321,7 +321,7 @@
 | 修改 | `PUT announcements/{id}` | 已不存在 404、開窗後別人改過 409；寫 `Announcement.Update` |
 | 刪除 | `DELETE announcements/{id}?concurrencyStamp=` | 帶開窗時的版本號；已不存在 404、別人改過 409；寫 `Announcement.Delete`（標題取自資料庫）|
 
-存檔或刪除後伺服器與 Server 版相同讓公告快取失效並廣播（Server 版畫面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀（0.10.7 起另經通知推播串流 `POST notifications/stream` 通常幾秒內更新，見第五之一節）。
+存檔或刪除後伺服器讓公告快取失效並發出公告變動訊號（0.10.8 以前另讓開著的 Server 版畫面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀（0.10.7 起另經通知推播串流 `POST notifications/stream` 通常幾秒內更新，見第五之一節）。
 
 ### 2.19 首頁儀表板（`DashboardController`，`api/v1/dashboard`）
 
@@ -462,16 +462,16 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 | 控制器 | 動作 | 路由 | 回傳／說明 |
 |---|---|---|---|
 | `ShellController` | 系統資訊 | `GET shell/info` | `ShellInfoDto`：系統名稱、描述、版本、環境、啟動時間、各頁說明主題（路由、標題）；0.10.7 起多 `NotificationPushEnabled`（`NotificationSettings:PushEnabled`，外框依它決定要不要連推播）|
-| | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（規則同 Server 版側邊欄的 `CheckAccessPage`），以及全部選單網址 |
+| | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（`SidebarMenuService` 以 `PermissionRules.CanAccessPage` 過濾；0.10.8 以前 Server 版側邊欄的 `CheckAccessPage` 規則相同），以及全部選單網址 |
 | | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
-| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 Server 版電路）。只接受已搬到 WASM 的頁面路徑（`ClientRouteTable`），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
+| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 0.10.8 以前的 Server 版電路）。只接受 WASM 的頁面路徑（`ClientRouteTable`；0.10.8 起即全部頁面），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
 | | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與 Server 版相同。內容只有格式字串 |
-| | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數），超過回 `accepted=false` |
+| | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
 | | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |
 | | 通知推播串流 | `POST notifications/stream` | 0.10.7 起。NDJSON 長連線（`PushFrameDto`）：`ready` → 自己的通知或公告有變動時送 `notifications`／`announcements`（不帶內容，外框自己重查；短時間多次合併成一筆）→ 閒置每 25 秒 `ping`。伺服器主動結束時最後一筆是 `renew`（存取 Token 到期前 1 分鐘，前端刷新後重連）或 `reconnect`（滿 30 分鐘、網站關閉）。每位使用者最多 3 條（第 4 條起 429，那個分頁只靠輪詢）；`NotificationSettings:PushEnabled=false` 時 404。產生端（`Streaming/NotificationPushStream.cs`）自己看 `RequestAborted` 結束並取消訂閱；不記慢請求 |
-| `AnnouncementsController` | 目前公告 | `GET announcements/active`（公告管理頁的端點見 2.18）| 挑選規則與 Server 版公告橫幅共用 `AnnouncementBanner.Select`（時間、對象、沒被關閉）|
+| `AnnouncementsController` | 目前公告 | `GET announcements/active`（公告管理頁的端點見 2.18）| 挑選規則在 `AnnouncementCache.Select`（時間、對象、沒被關閉；0.10.9 起從已刪除的 Server 版公告橫幅 `AnnouncementBanner` 搬來）|
 | | 關閉 | `POST announcements/{id}/dismiss` | |
 | `ProfileController` | 個人資料 | `GET profile` | `ProfileDto`：帳號、姓名、Email、角色、團隊、密碼與兩步驟驗證狀態、最近 20 筆登入紀錄（動作已轉成中文）|
 | | 改姓名 | `PUT profile/name` | body 帶 `ConcurrencyStamp`；別人同時改過或姓名不合規則回 400 |
