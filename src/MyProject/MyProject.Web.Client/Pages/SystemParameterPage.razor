@@ -1,0 +1,14 @@
+@page "/system-parameters"
+@attribute [Authorize]
+@using MyProject.Web.Client.Views.Admins
+
+@* 0.10.6 起在 WASM 執行（WASM 遷移 M7）。版面 ClientMainLayout 由 ClientRoutes 指定；[Authorize] 讓伺服器在整頁請求時先擋未登入者。 *@
+<PageTitle>系統參數</PageTitle>
+
+<SystemParameterView FocusGroup="@Group" />
+
+@code {
+    /// <summary>「資料保留與清理」頁的「修改」帶 <c>?group=資料保留</c> 等，進來時捲到該分類（0.9.133 起）。</summary>
+    [SupplyParameterFromQuery(Name = "group")]
+    public string? Group { get; set; }
+}

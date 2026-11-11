@@ -94,7 +94,8 @@ public sealed class ShellController : ControllerBase
             SystemDescription = systemIdentity.Description,
             SystemVersion = systemIdentity.Version,
             EnvironmentName = environment.EnvironmentName,
-            StartedAtLocal = startupState.StartedAt.LocalDateTime,
+            // 不帶時差（Kind=Unspecified）送出（0.10.6 起修正）：LocalDateTime 的 Kind 是 Local，會序列化成 +08:00，WASM 再換成瀏覽器的時區。
+            StartedAtLocal = DateTime.SpecifyKind(startupState.StartedAt.LocalDateTime, DateTimeKind.Unspecified),
             HelpTopics = topics.Select(x => new HelpTopicDto { Route = x.Route, Title = x.Title }).ToList(),
         };
         return Ok(ApiResult<ShellInfoDto>.SuccessResult(info, "取得系統資訊成功"));

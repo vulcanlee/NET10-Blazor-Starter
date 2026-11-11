@@ -1,13 +1,7 @@
 using System.IO.Compression;
-using System.Net;
-using System.Security.Claims;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
@@ -15,19 +9,17 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
-using MyProject.Share.Helpers;
-using MyProject.Web.Auth;
 using MyProject.Web.Backup;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Validation;
-using MyProject.Web.Controllers;
 using MyProject.Web.Scheduling;
 using MyProject.Web.Scheduling.Jobs;
 
 namespace MyProject.Tests;
 
 /// <summary>
-/// 系統備份（0.9.99 起）：快照一致、內容正確、失敗與取消不留殘檔、成功後才刪舊備份、備份目錄不可與資料目錄重疊、下載只限管理員。
+/// 系統備份（0.9.99 起）：快照一致、內容正確、失敗與取消不留殘檔、成功後才刪舊備份、備份目錄不可與資料目錄重疊。
+/// 下載（0.10.6 起改用一次性票證、只限管理員）見 <see cref="MaintenanceApiTests"/>。
 /// </summary>
 public sealed class SystemBackupTests : IDisposable
 {
@@ -323,15 +315,6 @@ public sealed class SystemBackupTests : IDisposable
         AssertBackupPathInvalid(paths);
     }
 
-    [Theory]
-    [InlineData(null, true)]
-    [InlineData("", true)]
-    [InlineData("bytes=0-", true)]
-    [InlineData("bytes=0-1023", true)]
-    [InlineData("bytes=1024-", false)]
-    public void Download_ShouldOnlyAuditTheFirstRange(string? range, bool expected)
-        => Assert.Equal(expected, BackupController.IsFirstRange(range));
-
     // ---------- 測試工具 ----------
 
     private string Dir(string name)
@@ -460,79 +443,5 @@ public sealed class SystemBackupTests : IDisposable
             Actions.Add(action);
             return Task.CompletedTask;
         }
-    }
-}
-
-/// <summary>備份下載端點：只收 Cookie、只限管理員（從資料庫確認）、支援續傳、稽核只記一筆、檔名不可穿越目錄。</summary>
-[Collection(nameof(IntegrationHostCollection))]
-public sealed class BackupDownloadTests : IClassFixture<ApiTestApplicationFactory>
-{
-    private readonly ApiTestApplicationFactory factory;
-
-    public BackupDownloadTests(ApiTestApplicationFactory factory)
-    {
-        this.factory = factory;
-    }
-
-    [Fact]
-    public async Task Download_ShouldRequireAnAdministrator_SupportRanges_AndAuditOnce()
-    {
-        var fileName = $"backup-20261004-{Random.Shared.Next(100000, 999999)}.zip";
-        var backupRoot = factory.Services.GetRequiredService<IOptions<SystemSettings>>().Value.ExternalFileSystem.BackupPath;
-        Directory.CreateDirectory(backupRoot);
-        await File.WriteAllBytesAsync(Path.Combine(backupRoot, fileName), Enumerable.Range(0, 4096).Select(x => (byte)x).ToArray());
-        var url = $"/api/backups/{fileName}/download";
-
-        using var anonymous = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        Assert.NotEqual(HttpStatusCode.OK, (await anonymous.GetAsync(url)).StatusCode);
-
-        var userCookie = await CookieForAsync(isAdmin: false);
-        Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(url, userCookie)).StatusCode);
-
-        var adminCookie = await CookieForAsync(isAdmin: true);
-        var full = await SendAsync(url, adminCookie);
-        Assert.Equal(HttpStatusCode.OK, full.StatusCode);
-        Assert.Equal("bytes", full.Headers.AcceptRanges.Single());
-        Assert.Equal(4096, (await full.Content.ReadAsByteArrayAsync()).Length);
-
-        var partial = await SendAsync(url, adminCookie, "bytes=1024-");
-        Assert.Equal(HttpStatusCode.PartialContent, partial.StatusCode);
-
-        Assert.Equal(HttpStatusCode.NotFound, (await SendAsync("/api/backups/..%2Fappsettings.json/download", adminCookie)).StatusCode);
-
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
-        Assert.Equal(1, await db.AuditLog.CountAsync(x => x.Action == AuditActions.Backup.Download && x.TargetId == fileName));
-    }
-
-    private async Task<HttpResponseMessage> SendAsync(string url, string cookie, string? range = null)
-    {
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("Cookie", cookie);
-        if (range is not null)
-        {
-            request.Headers.Add("Range", range);
-        }
-
-        return await client.SendAsync(request);
-    }
-
-    private async Task<string> CookieForAsync(bool isAdmin)
-    {
-        var account = $"backup-{Guid.NewGuid():N}";
-        MyUser user;
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
-            user = new MyUser { Account = account, Name = account, Password = "x", Status = true, IsAdmin = isAdmin };
-            db.MyUser.Add(user);
-            await db.SaveChangesAsync();
-        }
-
-        var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(MagicObjectHelper.CookieScheme);
-        // 與真正登入相同的 claims（含工作階段版本，0.9.103 起 Cookie 驗證器會比對）。
-        var ticket = options.TicketDataFormat.Protect(new AuthenticationTicket(CookieClaims.Create(user), MagicObjectHelper.CookieScheme));
-        return $"{options.Cookie.Name}={ticket}";
     }
 }

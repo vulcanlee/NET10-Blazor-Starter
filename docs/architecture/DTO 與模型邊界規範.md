@@ -1,8 +1,8 @@
 ﻿# DTO 與模型邊界規範
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.6
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -14,7 +14,7 @@
 - [x] Entity 僅作為 EF Core persistence model 使用。
 - [x] AdapterModel 目前主要供 Blazor UI/後台頁面使用，不應與 API DTO 混用。
 - [x] Controller 使用 AutoMapper 或明確 mapping 在 DTO 與 Entity 之間轉換。
-- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
+- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`，0.10.6 起再加 `AnnouncementDtoMapper`），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
 
 ## 新 CRUD 模組待辦
 - [ ] 新增 `XxxDto` 作為 response DTO。
@@ -28,7 +28,7 @@
 
 ## 驗收標準
 - [x] `ProjectController`、`CategoryController`、`TeamController` 目前均使用 DTO 作為 API 邊界（0.10.2 起分類、團隊另有 `CategoryFormOptionsDto`、`TeamNodeDto`、`SetEnabledRequestDto`，`CategoryDto`／`TeamDto` 多了 `IsDeleted`、`DeletedAt`、`DeletedBy`；0.10.3 起專案另有 `ProjectFormOptionsDto`、附件 `ProjectFileDto`（不含伺服器上的存放路徑）、下載票證 `DownloadTicketDto`，`ProjectDto` 多了 `Files`（只有單筆 `GET {id}` 帶）與 `IsDeleted`、`DeletedAt`、`DeletedBy`，`ProjectCreateUpdateDto` 的 `StartDate`／`EndDate` 改成可為 null）；`AuthController` 用 `MyProject.Dtos/Auths/` 的 `LoginRequestDto`、`RefreshTokenRequestDto`、`TokenResponseDto`、`CurrentUserDto`。
-  `DownloadsController`（0.10.3 起以票證下載附件）、`BackupController` 與各控制器的匯出成功時回原生檔案，錯誤回 `ApiResult`，不經 DTO。
+  `DownloadsController`（0.10.3 起以票證下載附件，0.10.6 起也下載系統備份）與各控制器的匯出成功時回原生檔案，錯誤回 `ApiResult`，不經 DTO（舊的 `BackupController` 0.10.6 起已刪除）。
 - [x] 0.10.4 起（WASM 遷移 M5）只限管理員的 `UsersController`、`RolesController`、`AuditLogsController`、`EmailLogsController` 用 `MyProject.Dtos/Admins/`：
   - `UserDtos.cs`：`UserSearchRequestDto`、`UserDto`（`Password` 只用於寫入、讀取一律是空的；清單每列帶 `CanDelete`／`CanCopy`／`CanToggleStatus`／`CanForceLogout`／`CanResetTwoFactor` 與伺服器算好的 `LockedText`；新增時 `CopiedFromAccount`）、`UserFormOptionsDto`／`UserRoleOptionDto`、`UserCopyDraftDto`、`UserSaveResultDto`（`SessionRefreshUrl`）、`EmailLookupRequestDto`。
   - `RoleDtos.cs`：`RoleSearchRequestDto`、`RoleDto`、樹狀的權限矩陣 `RolePermissionDto` → `RolePermissionGroupDto` → `RolePermissionNodeDto`（`Actions`：動作名稱 → 是否勾選）、`RoleFormOptionsDto`。
@@ -42,6 +42,13 @@
   - `MyProject.Dtos/Admins/TokenUsageDtos.cs`：`TokenUsageSearchRequestDto`、`TokenUsagePdfExportRequestDto`、`TokenUsagePurgeRequestDto`、`TokenUsageItemDto`、`TokenUsageTotalsDto`、`TokenUsageGroupRowDto`、`TokenUsageDailyRowDto`、`TokenUsageRangeCardDto`、`TokenUsageQuotaItemDto`、`TokenUsageDashboardDto`、`TokenUsageOptionsDto`、`TokenUsageFieldDto`、`TokenUsageDetailDto`。
   - `MyProject.Dtos/Admins/PromptTemplateDtos.cs`：`PromptTemplateDto`、`PromptTemplateVersionDto`、`PromptTemplateSaveRequestDto`、`PromptTemplateSaveResultDto`、`PromptTemplateActivateRequestDto`。
   - 畫面也要用的 AI 型別 0.10.5 起搬到 `MyProject.Web.Client/Ai/`（命名空間仍是 `MyProject.Web.Ai`）：`AiTokenUsage`（從 `MyProject.Web/Ai/AiModels.cs` 移出，新增 `FromDto`／`ToDto`、`ToDisplayText`）、`AiInterruption`、`AiMarkdownRenderer` 等；伺服器內部才用的型別仍留在 `AiModels.cs`。
+- [x] 0.10.6 起（WASM 遷移 M7）維運頁與首頁的 API（除首頁外全部 `[AdminOnly]`）：
+  - `MyProject.Dtos/Admins/ScheduledJobDtos.cs`：`ScheduledJobOverviewDto`、`ScheduledJobItemDto`、`ScheduledJobRunDto`、`ScheduledJobEnabledRequestDto`。
+  - `MyProject.Dtos/Admins/SystemHealthDtos.cs`：`SystemHealthReportDto`、`SystemHealthItemDto`、`SystemHealthWarnLogsDto`（警告日誌沿用 `LogEntryDto`）、`SystemHealthTestEmailRequestDto`、`SystemHealthTestResultDto`。
+  - `MyProject.Dtos/Admins/MaintenanceDtos.cs`：作業狀態 `MaintenanceJobDto`／`MaintenanceJobRunDto`（排程、備份、資料保留共用，伺服器端轉換在 `Controllers/MaintenanceJobMapper.cs`）、備份 `BackupListDto`／`BackupFileDto`／`BackupManifestDto`／`BackupManifestFolderDto`（下載沿用 `DownloadTicketDto`）、資料保留 `DataRetentionOverviewDto`／`DataRetentionRowDto`／`DataRetentionFolderDto`／`CustomPurgeRequestDto`／`CustomPurgeResultDto`、資料庫用量 `DatabaseUsageDto`／`DatabaseTableUsageDto`（只有檔名，不含完整路徑）。
+  - `MyProject.Dtos/Admins/SystemParameterDtos.cs`：`SystemParameterOverviewDto`、`SystemParameterItemDto`、`SystemParameterDefinitionDto`、`SystemParameterOverrideDto`、`SystemParameterOrphanDto`、`SystemParameterSectionErrorDto`、`SystemParameterSaveRequestDto`（`Key`、`Value`、`ExpectedStamp`）、`SystemParameterResetRequestDto`；列舉 `SystemParameterKind`、`SystemParameterSource` 從 `MyProject.Web` 搬到這裡（伺服器與畫面共用），格式化介面 `ISystemParameterFormat`（定義與 DTO 都實作，`SystemParameterValueCodec` 0.10.6 起搬到 `MyProject.Web.Client/Configuration/`，命名空間仍是 `MyProject.Web.Configuration.Parameters`）。
+  - `MyProject.Dtos/Admins/AnnouncementDtos.cs`：`AnnouncementDto`、`AnnouncementTargetOptionDto`、`AnnouncementListDto`（含伺服器的「現在」）；公告對象種類 `AnnouncementTargetKinds` 搬到 `MyProject.Share/Helpers/`（命名空間仍是 `MyProject.AccessDatas.Models`，畫面與 DTO 都要用）。
+  - `MyProject.Dtos/Shell/DashboardDtos.cs`：`DashboardDto`（含 `DashboardQuickLinkDto`、`DashboardWidgetDto`）、`DashboardAccountDto`、`DashboardNotificationsDto`／`DashboardNotificationItemDto`、`DashboardScheduledJobsDto`／`DashboardScheduledJobAttentionDto`。
 - [x] integration tests 已驗證 Project CRUD 成功 response 可用 DTO contract 反序列化。
 - [ ] 日後每新增一個 API Controller，都要在 PR checklist 檢查 DTO 邊界。
 

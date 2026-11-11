@@ -1,19 +1,9 @@
 using MyProject.Business.Services.DataAccess;
+using MyProject.Dtos.Admins;
 using MyProject.Models.AdapterModel;
+using MyProject.Models.Systems;
 
 namespace MyProject.Web.Configuration.Parameters;
-
-public enum SystemParameterSource
-{
-    /// <summary>沒有覆寫，用設定檔（appsettings／環境變數）的值。</summary>
-    File,
-
-    /// <summary>用「系統參數」頁設定的值。</summary>
-    Override,
-
-    /// <summary>資料庫裡有覆寫，但不合法而沒有套用，目前用設定檔的值。</summary>
-    NotApplied,
-}
 
 /// <summary>管理頁的一列。</summary>
 public sealed class SystemParameterOverviewItem
@@ -45,8 +35,11 @@ public sealed class SystemParameterOverview
     public required IReadOnlyDictionary<string, IReadOnlyList<string>> BaseInvalid { get; init; }
 }
 
-/// <summary>存檔或還原的結果；成功時附稽核用的 Detail。</summary>
-public sealed record SystemParameterChangeResult(bool Success, string Message, string? AuditDetail = null, bool IsReset = false);
+/// <summary>
+/// 存檔或還原的結果；成功時附稽核用的 Detail。<see cref="Kind"/> 是失敗的種類（0.10.6 起，Web API 依它回 404／409／400；畫面只看訊息）。
+/// </summary>
+public sealed record SystemParameterChangeResult(bool Success, string Message, string? AuditDetail = null, bool IsReset = false,
+    VerifyRecordErrorKind Kind = VerifyRecordErrorKind.None);
 
 /// <summary>
 /// 「系統參數」頁使用的門面（0.9.98 起）：列出參數、存檔、還原為設定檔值。
@@ -132,19 +125,19 @@ public sealed class SystemParameterManager
         var definition = SystemParameterCatalog.Find(key);
         if (definition is null)
         {
-            return new(false, "這個參數不能在這裡修改。");
+            return new(false, "這個參數不能在這裡修改。", Kind: VerifyRecordErrorKind.NotFound);
         }
 
         if (!SystemParameterValueCodec.TryNormalize(definition, rawValue, out var value, out var parseError))
         {
-            return new(false, parseError);
+            return new(false, parseError, Kind: VerifyRecordErrorKind.Invalid);
         }
 
         // 直接驗證設定檔本身，不靠上一次刷新的結果：別人可能剛改壞設定檔，不要把那些錯誤算到管理員的輸入上。
         var baseErrors = validator.Validate(definition.SectionName, new Dictionary<string, string>());
         if (baseErrors.Count > 0)
         {
-            return new(false, $"設定檔本身目前有誤，修正之前不能修改這一區的參數：{string.Join(" ", baseErrors)}");
+            return new(false, $"設定檔本身目前有誤，修正之前不能修改這一區的參數：{string.Join(" ", baseErrors)}", Kind: VerifyRecordErrorKind.Conflict);
         }
 
         var effective = SystemParameterValueCodec.Canonical(definition, configuration[definition.Key]);
@@ -158,12 +151,12 @@ public sealed class SystemParameterManager
                 return await ResetAsync(definition.Key, expectedStamp, cancellationToken);
             }
 
-            return new(false, "值沒有變更（與設定檔的值相同）。");
+            return new(false, "值沒有變更（與設定檔的值相同）。", Kind: VerifyRecordErrorKind.Invalid);
         }
 
         if (value == effective && oldSource == "系統參數")
         {
-            return new(false, "值沒有變更。");
+            return new(false, "值沒有變更。", Kind: VerifyRecordErrorKind.Invalid);
         }
 
         var candidate = SectionOverrides(definition.SectionName);
@@ -171,13 +164,13 @@ public sealed class SystemParameterManager
         var errors = validator.Validate(definition.SectionName, candidate);
         if (errors.Count > 0)
         {
-            return new(false, string.Join(" ", errors));
+            return new(false, string.Join(" ", errors), Kind: VerifyRecordErrorKind.Invalid);
         }
 
         var saved = await parameterService.UpsertAsync(definition.Key, value, expectedStamp, account, cancellationToken);
         if (!saved.Success)
         {
-            return new(false, saved.Message);
+            return new(false, saved.Message, Kind: saved.Kind);
         }
 
         await runtime.RefreshAsync(cancellationToken);
@@ -199,7 +192,7 @@ public sealed class SystemParameterManager
             var errors = validator.Validate(definition.SectionName, candidate);
             if (errors.Count > 0)
             {
-                return new(false, string.Join(" ", errors));
+                return new(false, string.Join(" ", errors), Kind: VerifyRecordErrorKind.Invalid);
             }
 
             oldValue = SystemParameterValueCodec.Canonical(definition, configuration[definition.Key]);
@@ -209,7 +202,7 @@ public sealed class SystemParameterManager
         var deleted = await parameterService.DeleteAsync(key, expectedStamp, cancellationToken);
         if (!deleted.Success)
         {
-            return new(false, deleted.Message);
+            return new(false, deleted.Message, Kind: deleted.Kind);
         }
 
         await runtime.RefreshAsync(cancellationToken);

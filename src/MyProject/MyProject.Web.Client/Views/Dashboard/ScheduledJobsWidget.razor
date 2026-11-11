@@ -1,0 +1,57 @@
+@inherits DashboardWidgetBase
+@using MyProject.Dtos.Shell
+@inject DashboardApi Api
+
+@*
+    首頁「排程作業」（0.9.106 起，只有管理員看得到；0.10.6 起在 WASM 執行）：上次失敗、逾期、停用的作業。詳細與「立即執行」在排程作業頁。
+    哪些作業要列出由伺服器判斷（ScheduledJobAttention），API 只限管理員。
+*@
+@if (overview is null)
+{
+}
+else
+{
+    @if (!overview.SchedulingEnabled)
+    {
+        <div class="dashboard-warning">排程總開關已關閉，所有作業都不會依排程執行。</div>
+    }
+
+    @if (overview.Attention.Count == 0)
+    {
+        <div class="dashboard-stat">
+            <StatusPill Text="正常" Tone="StatusTone.Positive" />
+            <span class="dashboard-muted">@overview.JobCount 個作業都沒有異常</span>
+        </div>
+    }
+    else
+    {
+        <ul class="dashboard-list">
+            @foreach (var item in overview.Attention)
+            {
+                <li class="dashboard-list-item">
+                    <span>@item.DisplayName</span>
+                    <StatusPill Text="@item.Reason" Tone="@(item.IsDisabled ? StatusTone.Muted : StatusTone.Warning)" />
+                </li>
+            }
+        </ul>
+    }
+
+    <a class="dashboard-link" href="/scheduled-jobs">前往排程作業</a>
+}
+
+@code {
+    private DashboardScheduledJobsDto? overview;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.ScheduledJobsAsync();
+        if (result.Success && result.Data is { } data)
+        {
+            overview = data;
+        }
+        else
+        {
+            await FailAsync(result);
+        }
+    }
+}

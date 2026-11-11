@@ -22,7 +22,6 @@ using MyProject.Models.Others;
 using MyProject.Models.Systems;
 using MyProject.Web.Ai;
 using MyProject.Web.Components.Views.Admins;
-using MyProject.Web.Components.Views.Analytics;
 using MyProject.Web.Export;
 
 namespace MyProject.Tests;

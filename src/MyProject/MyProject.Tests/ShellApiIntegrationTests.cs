@@ -139,7 +139,7 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
     }
 
     [Theory]
-    [InlineData("/App")]
+    [InlineData("/ChangePassword")]
     [InlineData("/MyUser")]
     [InlineData("/no-such-page")]
     public async Task PageView_ShouldIgnorePagesThatAreNotWasmPages(string path)
@@ -286,6 +286,34 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
 
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/v1/announcements/{id}/dismiss", null)).StatusCode);
         Assert.DoesNotContain(await GetAsync<List<ActiveAnnouncementDto>>(client, "/api/v1/announcements/active"), x => x.Id == id);
+    }
+
+    /// <summary>
+    /// 通知鈴鐺與個人資料頁的本地時間不可帶時差（0.10.6 起，M7 發現 M2 留下的問題）：帶 +08:00 送出時，WASM 會換成瀏覽器的時區，
+    /// 伺服器與瀏覽器時區不同時時間就錯。比照 M5 起的規則，一律以 Kind=Unspecified 送出。
+    /// </summary>
+    [Fact]
+    public async Task NotificationsProfileAndShellInfo_ShouldSendLocalTimesWithoutAnOffset()
+    {
+        var me = await AddUserAsync(isAdmin: false);
+        await using (var context = await CreateContextAsync())
+        {
+            context.Notification.Add(new Notification { RecipientUserId = me.Id, Category = "系統", Title = "時差", CreatedAtUtc = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = await SignedInClientAsync(me);
+        var texts = new[]
+        {
+            await (await client.GetAsync("/api/v1/notifications/summary")).Content.ReadAsStringAsync(),
+            await (await client.GetAsync("/api/v1/profile")).Content.ReadAsStringAsync(),
+            // 「關於」的啟動時間（M7 獨立審查補）。
+            await (await client.GetAsync("/api/v1/shell/info")).Content.ReadAsStringAsync(),
+        };
+
+        var offset = new System.Text.RegularExpressions.Regex(@"T\d{2}:\d{2}:\d{2}(\.\d+)?[+-]\d{2}:\d{2}");
+        var envelope = new System.Text.RegularExpressions.Regex("\"timestamp\":\"[^\"]*\"");
+        Assert.All(texts, text => Assert.False(offset.IsMatch(envelope.Replace(text, string.Empty)), text));
     }
 
     [Fact]

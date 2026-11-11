@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.6
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -10,8 +10,8 @@
 
 ## 一、通則
 
-- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`BackupController` 只有 `api/backups`，`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。
-- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `BackupController`（見第三節末），它走 Cookie（M7 改用下載票證）；`DownloadsController` 匿名、以一次性票證當憑證（第三節）。** 0.10.3 起專案附件已沒有以 Cookie 驗證的 API。
+- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之三節、第五之一節）都只有 `api/v1`。
+- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）。
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - **每個 action 都要標明誰能呼叫**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`（頁面或動作權限）、`[AdminOnly]`（只有管理員，見第二之一節）、`[SignedInUser]`（登入即可、刻意不檢查頁面權限，例如個人資料、外框、通知、公告、`Auth/me`）或 `[AllowAnonymous]`；標在類別上等於標在每個 action。四個都沒標的 action，測試直接失敗。兩個新屬性在 `MyProject.Web/Filters/AdminOnlyAttribute.cs`。
 - 回傳一律包在 `ApiResult<T>`；分頁再包 `PagedResult<T>`。
@@ -242,25 +242,117 @@
 | 存新版本 | `POST prompt-templates/{key}/versions` | 樂觀鎖：別人先存了回 409；建立者由伺服器取目前帳號；寫 `Prompt.Update` |
 | 啟用版本 | `POST prompt-templates/{key}/activate` | 寫 `Prompt.Activate` |
 
+## 二之三、維運頁與首頁 API（0.10.6 起，WASM 遷移 M7）
+
+排程作業、系統健康監控、系統備份、資料保留與清理、資料庫用量、系統參數、公告管理七頁與首頁 `/App` 改在 WebAssembly 執行，背後是下面這組 API。規則與第二之二節相同：只有 `api/v1` 路由、回 `ApiResult`、本地時間以不帶時差（`DateTimeKind.Unspecified`）送出；**除了首頁，每個 action 都是 `[AdminOnly]`**（非管理員 403 並寫 `Permission.Denied`，detail「需要管理員」）。
+
+- **「現在」用伺服器時間**：資料保留的「今天」、公告的「現在」、警告日誌的「最近 24 小時」都由伺服器算好送來（或由伺服器驗證），不看瀏覽器時鐘。
+- **稽核與 Server 版頁面相同、改由伺服器寫**：動作代碼、目標、detail 都照抄；首頁與資料庫用量不寫稽核（與 Server 版相同）。
+- **背景作業放進排程佇列**：「立即執行」「立即備份」「立即清理」與 Server 版相同交給排程框架（與排程共用作業鎖），請求本身馬上回來；已在佇列或執行中回 409。畫面自己輪詢看進度（排程頁有作業排隊或執行中時每 2 秒，備份與資料保留頁每 5 秒）。
+- **「刪除選取」沒有批次端點**：與 M5、M6 相同，畫面逐筆呼叫 `DELETE`，每筆一列稽核（公告、備份）。
+- DTO 在 `MyProject.Dtos/Admins`（`ScheduledJobDtos`、`SystemHealthDtos`、`MaintenanceDtos`〔備份、資料保留、資料庫用量〕、`SystemParameterDtos`、`AnnouncementDtos`）與 `MyProject.Dtos/Shell/DashboardDtos.cs`；WASM 端的呼叫在 `MyProject.Web.Client/Api/OpsApi.cs`（`ScheduledJobApi`、`SystemHealthApi`、`DashboardApi`）、`MaintenanceApi.cs`（`BackupApi`、`DataRetentionApi`、`DatabaseUsageApi`）、`SystemParameterApi.cs`、`AnnouncementApi.cs`。排程、備份、資料保留共用的作業狀態轉換在 `MyProject.Web/Controllers/MaintenanceJobMapper.cs`。
+
+### 2.12 排程作業（`ScheduledJobsController`，`api/v1/scheduled-jobs`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 總覽 | `GET scheduled-jobs` | `ApiResult<ScheduledJobOverviewDto>`：排程是否啟用、設定錯誤、每個作業的 cron、是否啟用、下次執行、最近一次結果、是否在佇列中 |
+| 立即執行 | `POST scheduled-jobs/{name}/trigger` | 放進佇列由排程器在背景執行；已在佇列或執行中回 409（不寫稽核）；成功寫 `Job.Trigger`（`job=名稱`）|
+| 啟用／停用 | `PUT scheduled-jobs/{name}/enabled` | body `{ "enabled": true/false }`；寫 `Job.Enable`／`Job.Disable`。停用後不再依排程執行，仍可立即執行 |
+| 執行紀錄 | `GET scheduled-jobs/{name}/runs` | 最近的執行紀錄（新到舊，最多 50 筆）|
+
+作業名稱不分大小寫，不認得回 404「沒有名為「X」的排程作業。」。
+
+### 2.13 系統健康監控（`SystemHealthController`，`api/v1/system-health`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 健康報告 | `GET system-health` | `ApiResult<SystemHealthReportDto>`：全部檢查項目與寄信測試區的設定。⚠️ **每次呼叫都會執行全部檢查**；AI 已設定時「LLM API」一項會真的呼叫模型（產生費用、記進 Token 用量），與 Server 版開頁相同 |
+| 警告日誌 | `GET system-health/warn-logs` | 最近 24 小時 WARN 以上（新到舊，沿用日誌檢視的上限）；讀取失敗仍回 200，原因放在 `EmptyText`（只影響這一區）|
+| 寄信測試 | `POST system-health/test-email` | body `{ "to": "…" }`，同步寄送、當場知道成敗；稽核 `Email.Test` 由 `EmailTestService` 寫 |
+| 通知測試 | `POST system-health/test-notification` | 發一則測試通知給全體管理員（不寄信）；稽核 `Notification.Test` 由 `NotificationTestService` 寫 |
+
+### 2.14 系統備份（`BackupsController`，`api/v1/backups`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 清單 | `GET backups` | `ApiResult<BackupListDto>`：備份檔（新到舊，含 manifest 摘要）、備份作業的狀態、保留份數 |
+| 立即備份 | `POST backups/run` | 放進排程佇列（與排程共用作業鎖）；執行中回 409「備份已經在執行中，請等它完成。」；寫 `Job.Trigger` |
+| 刪除 | `DELETE backups/{檔名}` | 寫 `Backup.Delete`；找不到回 404 |
+| 申請下載票證 | `POST backups/{檔名}/ticket` | `ApiResult<DownloadTicketDto>`：一次性下載網址（60 秒、只能用一次），由第三節的 `GET api/v1/downloads/{ticket}` 兌換；檔名不合格、不在備份目錄或檔案不存在回 404。稽核在**兌換時**寫 |
+
+檔名一律經 `BackupStore.TryResolveFullPath`（檔名規則＋備份根目錄），擋路徑穿越。
+
+### 2.15 資料保留與清理（`DataRetentionController`，`api/v1/data-retention`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 總覽 | `GET data-retention` | `ApiResult<DataRetentionOverviewDto>`：每種資料的數量、檔案空間、最舊一筆、保留規則、下次會清掉幾筆、負責的排程，以及伺服器的「今天」 |
+| 立即清理 | `POST data-retention/{種類}/purge-now` | 伺服器重新讀一次總覽，確認那一列現在能清理（不能時 409 並說明原因、沒有排程作業 400），放進排程佇列；寫 `Job.Trigger`（`job=…; source=data-retention; expected=N`，**N 由伺服器在按下時重算**，可能與確認窗的數字差幾筆）。已刪除資料的五列共用一個作業 |
+| 自訂清除預覽 | `POST data-retention/{種類}/preview` | body `CustomPurgeRequestDto`；回會刪掉幾筆。條件由伺服器以自己的「今天」驗證，不合法回 400 |
+| 自訂清除 | `POST data-retention/{種類}/custom-purge` | 刪除早於條件的資料（連同檔案），只影響這一次、不改系統參數；刪到資料才寫稽核（動作代碼與 detail 同 Server 版）。可能跑很久，WASM 端用 `ApiClient.PostLongRunningAsync`（最長 30 分鐘）|
+
+### 2.16 資料庫用量（`DatabaseUsageController`，`api/v1/database-usage`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 用量 | `GET database-usage` | `ApiResult<DatabaseUsageDto>`：資料庫與各資料表的大小。**只送資料庫檔名，不送完整路徑**（與系統管理助理的工具相同）；不寫稽核 |
+
+### 2.17 系統參數（`SystemParametersController`，`api/v1/system-parameters`）
+
+走畫面同一個 `SystemParameterManager`：**驗證全在伺服器**（參數目錄的型別、範圍、長度、空白＋所有設定驗證器），通過才寫資料庫，寫完立即重新套用（不需重啟）。設定鍵含冒號，所以放在**本文**而不是網址。
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 全部參數 | `GET system-parameters` | `ApiResult<SystemParameterOverviewDto>`：全部參數（目錄順序，含定義、目前值、設定檔的值、來源、覆寫的版本號與修改者）、資料庫裡不認得的鍵、設定檔本身有誤的區段 |
+| 修改 | `POST system-parameters/save` | body `Key`、`Value`、`ExpectedStamp`。不在目錄的鍵（例如 `JwtSettings:SigningKey`）404；輸入不合法或值沒變 400；開窗後別人改過或設定檔本身有誤 409。寫 `SystemParameter.Update`（值與設定檔相同時改記 `SystemParameter.Reset`），detail `key=…; old=…(來源); new=…(來源)` |
+| 還原 | `POST system-parameters/reset` | body `Key`、`ExpectedStamp`；還原成設定檔的值，或移除資料庫裡不認得的參數；覆寫已不存在 404、版本不同 409；寫 `SystemParameter.Reset` |
+
+縮短保留天數的確認窗在畫面上（與 Server 版相同）。
+
+### 2.18 公告管理（`AnnouncementsController`，`api/v1/announcements`）
+
+0.10.1 起已有給外框橫幅用的 `active`、`dismiss`（見第五之一節，0.10.6 起改為各自標 `[SignedInUser]`），0.10.6 起補上公告管理頁的端點，走畫面同一個 `AnnouncementService`：
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 清單 | `GET announcements` | `ApiResult<AnnouncementListDto>`：全部公告（開始時間新到舊，含對象名稱）、對象選項（未刪除的角色與團隊）、伺服器的「現在」 |
+| 新增 | `POST announcements` | 回新的 Id；建立者取目前登入的帳號；輸入不符規則 400；寫 `Announcement.Create` |
+| 修改 | `PUT announcements/{id}` | 已不存在 404、開窗後別人改過 409；寫 `Announcement.Update` |
+| 刪除 | `DELETE announcements/{id}?concurrencyStamp=` | 帶開窗時的版本號；已不存在 404、別人改過 409；寫 `Announcement.Delete`（標題取自資料庫）|
+
+存檔或刪除後伺服器與 Server 版相同讓公告快取失效並廣播（Server 版畫面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀。
+
+### 2.19 首頁儀表板（`DashboardController`，`api/v1/dashboard`）
+
+首頁 view 權限（`[HasPermission(角色_首頁, View)]`；「排程作業」小工具的端點例外，是 `[AdminOnly]`），不寫稽核。
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 首頁 | `GET dashboard` | `ApiResult<DashboardDto>`：系統名稱、說明、版本、環境、依權限過濾的快速入口，以及**這個人看得到的小工具**（代號、標題、圖示；由伺服器依 `DashboardWidgetCatalog.VisibleTo` 決定）|
+| 我的帳號 | `GET dashboard/account` | 上一次登入（不含這一次）、密碼到期（7 天內標「快到期」）、兩步驟驗證 |
+| 我的通知 | `GET dashboard/notifications` | 未讀數與最新 5 則；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
+| 排程作業 | `GET dashboard/scheduled-jobs` | `[AdminOnly]`：上次失敗或中斷、逾期未執行、已停用的作業 |
+
 ## 三、一次性下載票證 `DownloadsController`（0.10.3 起）
 
-`src/MyProject/MyProject.Web/Controllers/DownloadsController.cs`，路由 `api/v1/downloads`（**無** `api/` 平行路由）；票證由 `MyProject.Web/Downloads/DownloadTicketService.cs` 發給與兌換。
+`src/MyProject/MyProject.Web/Controllers/DownloadsController.cs`，路由 `api/v1/downloads`（**無** `api/` 平行路由）；票證由 `MyProject.Web/Downloads/DownloadTicketService.cs` 發給與兌換。票證有兩種（`Kind`）：專案附件 `ProjectFile`（0.10.3 起，目標是附件 Id）與系統備份 `Backup`（0.10.6 起，目標是備份檔名）；票證的目標 0.10.6 起改成字串（`DownloadTicket.Target`），由各種類自己解讀。
 
 | 動作 | 路由 | 授權 | 回傳 |
 |------|------|------|------|
 | 以票證下載 | `GET api/v1/downloads/{ticket}` | `[AllowAnonymous]`（票證本身就是憑證）| 成功回**原生檔案串流**（`Content-Disposition: attachment`，不包 `ApiResult`）；任何失敗都回同一個 `ApiResult` 404「下載連結無效或已過期，請回到頁面重新下載。」|
 
-為什麼這樣做：瀏覽器原生下載（`<a download>`）帶不了 `Authorization` 標頭，而大檔不能先讀進 WASM 記憶體。所以先用 Bearer 申請票證（`POST Project/files/{fileId}/ticket`），再讓瀏覽器直接下載票證網址。
+為什麼這樣做：瀏覽器原生下載（`<a download>`）帶不了 `Authorization` 標頭，而大檔不能先讀進 WASM 記憶體。所以先用 Bearer 申請票證（附件 `POST Project/files/{fileId}/ticket`、備份 `POST backups/{檔名}/ticket`），再讓瀏覽器直接下載票證網址。
 
 - **票證**：32 個隨機位元組（URL-safe Base64），60 秒內有效，兌換時就移除（只能用一次，重放回 404）；發新票證時順手清掉過期沒用的。存在單一行程的記憶體：IIS 應用程式集區要維持一個背景工作處理序（預設值）；集區回收只會讓還沒用的票證失效，使用者重按一次即可。
-- **兌換時重新檢查**：以發票證時記下的使用者 Id 與安全戳記，經 `ICurrentUserLoader` 重新載入使用者——帳號停用、改密碼、被強制登出、角色變動都回 404，被要求先改密碼或先設定兩步驟驗證時也回 404；再確認仍有 `角色_專案項目` 的 View 權限，最後 `ProjectService.GetFileDownloadAsync` 再查一次團隊範圍、專案是否已刪除、實體檔是否存在。
-- **失敗一律同一個 404**，不透露原因（原因只寫日誌）。成功下載寫稽核 `Project.FileDownload`（目標類型 `ProjectFile`、detail `file=原始檔名`）。
-- **不支援續傳（Range）**：票證只能用一次，下載中斷要回頁面重新點檔名（使用者接受這個取捨）。M7 的備份下載會沿用同一套機制。
+- **兌換時重新檢查**：以發票證時記下的使用者 Id 與安全戳記，經 `ICurrentUserLoader` 重新載入使用者——帳號停用、改密碼、被強制登出、角色變動都回 404，被要求先改密碼或先設定兩步驟驗證時也回 404；附件再確認仍有 `角色_專案項目` 的 View 權限，最後 `ProjectService.GetFileDownloadAsync` 再查一次團隊範圍、專案是否已刪除、實體檔是否存在；備份再從資料庫確認**仍是管理員**，檔名經 `BackupStore.TryResolveFullPath`（只認備份根目錄下、檔名合格的 zip）且檔案存在。
+- **失敗一律同一個 404**，不透露原因（原因只寫日誌）。成功下載寫稽核：附件 `Project.FileDownload`（目標類型 `ProjectFile`、detail `file=原始檔名`），備份 `Backup.Download`（目標類型 `Backup`、detail `file=檔名`，回 `application/zip`）。
+- **不支援續傳（Range）**：票證只能用一次，下載中斷要回頁面重新點（使用者接受這個取捨；備份下載 0.10.6 起也一樣，Server 版的 Cookie 下載原本可以續傳）。
 - **已知限制**：下載管理員或瀏覽器擴充功能若先預先抓取一次網址，會把票證用掉，真正的下載就得到 404；使用者再點一次檔名即可。
 
 > **0.10.3 移除**：舊的 `ProjectFileController`（`GET api/project-files/{id}/download`、`api/v1/project-files/{id}/download`，以 Cookie 驗證、支援續傳）已刪除，舊網址回 404。
 
-> **系統備份下載 `BackupController`（0.9.99 起，M7 改用下載票證）**：`src/MyProject/MyProject.Web/Controllers/BackupController.cs`，路由 `api/backups`（**無** `api/v1` 平行路由）。`GET backups/{fileName}/download`，同樣走 `[Authorize(CookieScheme)]`、成功回原生檔案（`application/zip`，支援續傳）；不用 `[HasPermission]`，而是每次從資料庫確認是**管理員**，否則回 `ApiResult` 403（Cookie 驗證的請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以 0.10.4 起暫時標 `[SignedInUser]`、檢查留在方法裡——⚠️ 它是管理員專屬，方法裡的檢查不可拿掉；M7 改成下載票證時改用 `[AdminOnly]`）；找不到備份回 `ApiResult` 404。第一段下載寫入稽核 `Backup.Download`（續傳的後續區段不重複寫）。
+> **0.10.6 移除**：舊的系統備份下載 `BackupController`（`GET api/backups/{fileName}/download`，0.9.99～0.10.5，只收 Cookie 驗證、每次查資料庫確認管理員、支援續傳、續傳的後續區段不重複寫稽核）已刪除，舊網址回 404；改用第 2.14 節的票證。
 
 ## 四、認證控制器 `AuthController`
 
@@ -285,8 +377,8 @@
 
 ## 五之一、WASM 外框、個人資料與異動歷程（0.10.1 起，WASM 遷移 M2；異動歷程 0.10.2 起）
 
-只有 `api/v1` 路由；一律 `[Authorize(JwtBearer)]`（`shell/culture` 例外），`ShellController`、`NotificationsController`、`AnnouncementsController`、`ProfileController` 0.10.4 起在類別上明確標 `[SignedInUser]`（登入即可），只能讀改**自己**的資料（使用者一律取自 `CurrentUserService`，由 `ApiActorMiddleware` 依存取 Token 載入），回傳 `ApiResult<T>`。
-時間欄位（`*Local`）已換成伺服器的本地時間，前端照字面顯示。DTO 在 `MyProject.Dtos/Shell`。
+只有 `api/v1` 路由；一律 `[Authorize(JwtBearer)]`（`shell/culture` 例外），`ShellController`、`NotificationsController`、`ProfileController` 0.10.4 起在類別上明確標 `[SignedInUser]`（登入即可；`AnnouncementsController` 0.10.6 起多了只限管理員的管理端點，改成 `active`、`dismiss` 各自標 `[SignedInUser]`），只能讀改**自己**的資料（使用者一律取自 `CurrentUserService`，由 `ApiActorMiddleware` 依存取 Token 載入），回傳 `ApiResult<T>`。
+時間欄位（`*Local`）已換成伺服器的本地時間、以不帶時差送出，前端照字面顯示（0.10.6 修正三處：`NotificationsController`、`ProfileController` 與 `ShellController` 的 `StartedAtLocal`〔「關於」的啟動時間〕原本帶 `+08:00` 送出，伺服器與瀏覽器時區不同時鈴鐺、個人資料頁與「關於」的時間會錯）。DTO 在 `MyProject.Dtos/Shell`。
 
 | 控制器 | 動作 | 路由 | 回傳／說明 |
 |---|---|---|---|
@@ -299,7 +391,7 @@
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
 | | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |
-| `AnnouncementsController` | 目前公告 | `GET announcements/active` | 挑選規則與 Server 版公告橫幅共用 `AnnouncementBanner.Select`（時間、對象、沒被關閉）|
+| `AnnouncementsController` | 目前公告 | `GET announcements/active`（公告管理頁的端點見 2.18）| 挑選規則與 Server 版公告橫幅共用 `AnnouncementBanner.Select`（時間、對象、沒被關閉）|
 | | 關閉 | `POST announcements/{id}/dismiss` | |
 | `ProfileController` | 個人資料 | `GET profile` | `ProfileDto`：帳號、姓名、Email、角色、團隊、密碼與兩步驟驗證狀態、最近 20 筆登入紀錄（動作已轉成中文）|
 | | 改姓名 | `PUT profile/name` | body 帶 `ConcurrencyStamp`；別人同時改過或姓名不合規則回 400 |

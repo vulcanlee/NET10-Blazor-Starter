@@ -28,8 +28,13 @@ public partial class ClientAnnouncementBanner : IAsyncDisposable
     [Inject]
     public ILogger<ClientAnnouncementBanner> Logger { get; set; } = default!;
 
+    [Inject]
+    public ClientAnnouncementSignal AnnouncementSignal { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
+        // 公告管理頁存檔或刪除後立即重讀（0.10.6 起）：同一個分頁不必等下一次輪詢。
+        AnnouncementSignal.RefreshRequested += OnRefreshRequestedAsync;
         await RefreshAsync();
         var started = await PeriodicRefresh.StartAsync(JSRuntime, RecheckInterval, () => InvokeAsync(async () =>
         {
@@ -46,6 +51,12 @@ public partial class ClientAnnouncementBanner : IAsyncDisposable
 
         periodicRefresh = started;
     }
+
+    private Task OnRefreshRequestedAsync() => InvokeAsync(async () =>
+    {
+        await RefreshAsync();
+        StateHasChanged();
+    });
 
     private async Task RefreshAsync()
     {
@@ -71,6 +82,7 @@ public partial class ClientAnnouncementBanner : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         isDisposed = true;
+        AnnouncementSignal.RefreshRequested -= OnRefreshRequestedAsync;
         if (periodicRefresh is not null)
         {
             await periodicRefresh.DisposeAsync();

@@ -47,6 +47,19 @@ public static class ClientProgram
         builder.Services.AddScoped<LogLevelApi>();
         // 系統例外紀錄與 AI 例外分析（0.10.5 起，WASM 遷移 M6）。
         builder.Services.AddScoped<ExceptionLogApi>();
+        // 系統備份、資料保留與清理、資料庫用量（0.10.6 起，WASM 遷移 M7）。
+        builder.Services.AddScoped<BackupApi>();
+        builder.Services.AddScoped<DataRetentionApi>();
+        builder.Services.AddScoped<DatabaseUsageApi>();
+        // 排程作業、系統健康監控、首頁儀表板（0.10.6 起，WASM 遷移 M7）。
+        builder.Services.AddScoped<ScheduledJobApi>();
+        builder.Services.AddScoped<SystemHealthApi>();
+        builder.Services.AddScoped<DashboardApi>();
+        builder.Services.AddScoped<ClientNotificationSignal>();
+        builder.Services.AddScoped<ClientAnnouncementSignal>();
+        // 系統參數、公告管理（0.10.6 起，WASM 遷移 M7）。
+        builder.Services.AddScoped<SystemParameterApi>();
+        builder.Services.AddScoped<AnnouncementApi>();
         builder.Services.AddAntDesign();
 
         // AntDesign 的繁體中文語系（與 Server 版相同的補充翻譯）。

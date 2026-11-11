@@ -1,0 +1,80 @@
+@inherits DashboardWidgetBase
+@using MyProject.Dtos.Shell
+@inject DashboardApi Api
+
+@*
+    首頁「我的帳號」（0.9.106 起；0.10.6 起在 WASM 執行）：上一次登入、密碼到期、兩步驟驗證。細節在個人資料頁。
+    時間與「快到期」由伺服器算好（伺服器本地時間）。
+*@
+@if (account is null)
+{
+}
+else
+{
+    <dl class="dashboard-facts">
+        <div class="dashboard-fact">
+            <dt>上一次登入</dt>
+            <dd>
+                @if (account.PreviousLoginLocal is not { } previousLogin)
+                {
+                    <span class="dashboard-muted">（沒有紀錄）</span>
+                }
+                else
+                {
+                    @previousLogin.ToString("yyyy-MM-dd HH:mm")
+                    <span class="dashboard-muted">@account.PreviousLoginMethod</span>
+                    @if (!string.IsNullOrWhiteSpace(account.PreviousLoginClientIp))
+                    {
+                        @* 0.9.123 起：陌生的 IP 比較容易發現不是自己的登入。 *@
+                        <span class="dashboard-muted">@account.PreviousLoginClientIp</span>
+                    }
+                }
+            </dd>
+        </div>
+        @if (account.HasLocalPassword)
+        {
+            <div class="dashboard-fact">
+                <dt>密碼到期</dt>
+                <dd>
+                    @if (account.PasswordExpiresAtLocal is { } expires)
+                    {
+                        @expires.ToString("yyyy-MM-dd HH:mm")
+                        @if (account.PasswordExpiresSoon)
+                        {
+                            <StatusPill Text="快到期" Tone="StatusTone.Warning" />
+                        }
+                    }
+                    else
+                    {
+                        <span>不會到期</span>
+                    }
+                </dd>
+            </div>
+            <div class="dashboard-fact">
+                <dt>兩步驟驗證</dt>
+                <dd>
+                    <StatusPill Text="@(account.TwoFactorEnabled ? "已啟用" : "未啟用")" Tone="@(account.TwoFactorEnabled ? StatusTone.Positive : StatusTone.Muted)" />
+                </dd>
+            </div>
+        }
+    </dl>
+    <div class="dashboard-muted">不是你做的登入，請立即變更密碼並通知系統管理員。</div>
+    <a class="dashboard-link" href="/Profile">前往個人資料</a>
+}
+
+@code {
+    private DashboardAccountDto? account;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.AccountAsync();
+        if (result.Success && result.Data is { } data)
+        {
+            account = data;
+        }
+        else
+        {
+            await FailAsync(result);
+        }
+    }
+}

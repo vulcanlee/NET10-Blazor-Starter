@@ -80,7 +80,7 @@ public class SystemParameterService
             catch (DbUpdateException ex) when (ex.InnerException is SqliteException { SqliteErrorCode: SqliteConstraintErrorCode })
             {
                 logger.LogInformation("System parameter was created by someone else first. ParameterKey={ParameterKey}", key);
-                return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
+                return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage);
             }
 
             return VerifyRecordResultFactory.Build(true);
@@ -97,7 +97,7 @@ public class SystemParameterService
         if (affected == 0)
         {
             logger.LogInformation("System parameter changed by someone else before saving. ParameterKey={ParameterKey}", key);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
+            return await MissingOrConflictAsync(context, key, cancellationToken);
         }
 
         return VerifyRecordResultFactory.Build(true);
@@ -113,9 +113,17 @@ public class SystemParameterService
         if (affected == 0)
         {
             logger.LogInformation("System parameter changed by someone else before resetting. ParameterKey={ParameterKey}", key);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
+            return await MissingOrConflictAsync(context, key, cancellationToken);
         }
 
         return VerifyRecordResultFactory.Build(true);
     }
+
+    /// <summary>
+    /// 影響 0 列時的失敗種類（0.10.6 起，Web API 用）：覆寫已不存在 → 找不到（404），還在但版本不同 → 衝突（409）。訊息與畫面相同。
+    /// </summary>
+    private static async Task<VerifyRecordResult> MissingOrConflictAsync(BackendDBContext context, string key, CancellationToken cancellationToken)
+        => await context.SystemParameter.AnyAsync(x => x.ParameterKey == key, cancellationToken)
+            ? VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage)
+            : VerifyRecordResultFactory.NotFound(ConcurrencyStampHelper.ConflictMessage);
 }

@@ -5,16 +5,18 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Share.Helpers;
+using MyProject.Web.Backup;
 using MyProject.Web.Downloads;
 
 namespace MyProject.Web.Controllers;
 
 /// <summary>
-/// 以一次性票證下載大檔（0.10.3 起，WASM 遷移 M4；取代只收 Cookie 的 <c>api/project-files/{id}/download</c>）。
+/// 以一次性票證下載大檔（0.10.3 起，WASM 遷移 M4；取代只收 Cookie 的 <c>api/project-files/{id}/download</c>；
+/// 0.10.6 起也下載系統備份，取代只收 Cookie 的 <c>api/backups/{檔名}/download</c>）。
 ///
 /// 端點本身不需要登入（瀏覽器原生下載帶不了 Token），安全性來自票證：不可猜、60 秒內有效、只能用一次。
 /// 兌換時以票證上的使用者**重新**檢查一次：帳號存在、啟用、工作階段版本與申請時相同（改密碼、強制登出、停用後立即失效）、
-/// 不在強制改密碼或設定兩步驟驗證期間、仍有檢視權限，再交給資料的服務檢查團隊範圍與檔案。
+/// 不在強制改密碼或設定兩步驟驗證期間、仍有檢視權限（備份：仍是管理員），再交給資料的服務檢查團隊範圍與檔案。
 /// 任何一關不過都回同一個 404，不透露原因（原因各記一筆日誌）。
 /// </summary>
 [Route("api/v1/downloads")]
@@ -28,6 +30,7 @@ public class DownloadsController : ControllerBase
     private readonly CurrentUserService currentUserService;
     private readonly ProjectService projectService;
     private readonly IAuditLogService auditLogService;
+    private readonly BackupStore backupStore;
 
     public DownloadsController(
         ILogger<DownloadsController> logger,
@@ -35,7 +38,8 @@ public class DownloadsController : ControllerBase
         ICurrentUserLoader currentUserLoader,
         CurrentUserService currentUserService,
         ProjectService projectService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        BackupStore backupStore)
     {
         this.logger = logger;
         this.tickets = tickets;
@@ -43,6 +47,7 @@ public class DownloadsController : ControllerBase
         this.currentUserService = currentUserService;
         this.projectService = projectService;
         this.auditLogService = auditLogService;
+        this.backupStore = backupStore;
     }
 
     [HttpGet("{ticket}")]
@@ -69,7 +74,8 @@ public class DownloadsController : ControllerBase
 
         return redeemed.Kind switch
         {
-            DownloadTicketService.ProjectFileKind => await ProjectFileAsync(redeemed.TargetId),
+            DownloadTicketService.ProjectFileKind when int.TryParse(redeemed.Target, out var projectFileId) => await ProjectFileAsync(projectFileId),
+            DownloadTicketService.BackupKind => await BackupAsync(redeemed.Target),
             _ => Gone(),
         };
     }
@@ -103,6 +109,40 @@ public class DownloadsController : ControllerBase
 
         // 成功回原生檔案串流（Content-Disposition: attachment），錯誤才回 ApiResult。票證只能用一次，所以不提供續傳。
         return File(file.Content, file.ContentType, file.DownloadFileName);
+    }
+
+    /// <summary>
+    /// 系統備份（0.10.6 起）：備份含全部資料與金鑰環，兌換時再從資料庫確認仍是管理員；檔名再經 <see cref="BackupStore.TryResolveFullPath"/>
+    /// （只認備份根目錄下、檔名合格的 zip，擋路徑穿越）。稽核在這裡寫（與 Server 版相同：真正開始下載時一筆）。
+    /// </summary>
+    private async Task<IActionResult> BackupAsync(string fileName)
+    {
+        var user = currentUserService.CurrentUser;
+        if (!user.IsAdmin)
+        {
+            logger.LogInformation("Backup download refused because the user is no longer an administrator. UserId={UserId}", user.Id);
+            return Gone();
+        }
+
+        var path = backupStore.TryResolveFullPath(fileName);
+        if (path is null || !System.IO.File.Exists(path))
+        {
+            logger.LogInformation("Backup download refused because the file is gone. FileName={FileName}, UserId={UserId}", fileName, user.Id);
+            return Gone();
+        }
+
+        await auditLogService.WriteAsync(
+            AuditActions.Backup.Download,
+            success: true,
+            actorUserId: user.Id,
+            actorAccount: user.Account,
+            targetType: "Backup",
+            targetId: fileName,
+            detail: $"file={fileName}");
+        logger.LogInformation("Backup download started. FileName={FileName}, UserId={UserId}", fileName, user.Id);
+
+        // 票證只能用一次，所以不提供續傳（與附件相同）。
+        return PhysicalFile(path, "application/zip", fileName);
     }
 
     private NotFoundObjectResult Gone()

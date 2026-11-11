@@ -1,0 +1,150 @@
+@using MyProject.Dtos.Admins
+@using MyProject.Web.Diagnostics
+
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (!string.IsNullOrWhiteSpace(roleMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @roleMessage
+    </div>
+}
+else if (report is null)
+{
+    <div class="system-health-loading">正在讀取系統健康狀態...</div>
+}
+else
+{
+    <div class="system-health-page">
+        <section class="system-health-summary @GetLightClass(report.Light)">
+            <div class="summary-main">
+                <span class="traffic-light @GetLightClass(report.Light)" aria-hidden="true"></span>
+                <div>
+                    <h1>系統健康監控</h1>
+                    <p>最後檢查時間：@report.CheckedAtLocal.ToString("yyyy/MM/dd HH:mm:ss")</p>
+                </div>
+            </div>
+            <div class="summary-score">
+                <strong>@report.Score%</strong>
+                <span>@GetStatusText(report.Status)</span>
+            </div>
+        </section>
+
+        <section class="system-health-section">
+            <h2>檢查項目</h2>
+            <div class="health-items">
+                @foreach (var item in report.Items)
+                {
+                    <article class="health-item @GetLightClass(item.Light)">
+                        <div class="health-item-heading">
+                            <span class="traffic-light @GetLightClass(item.Light)" aria-hidden="true"></span>
+                            <div>
+                                <h3>@item.Name</h3>
+                                <span>@item.Category · 權重 @item.Weight</span>
+                            </div>
+                            <strong>@GetStatusText(item.Status)</strong>
+                        </div>
+                        <p>@item.Evidence</p>
+                        @if (!string.IsNullOrWhiteSpace(item.FailureMessage))
+                        {
+                            <div class="health-failure">@item.FailureMessage</div>
+                        }
+                    </article>
+                }
+            </div>
+        </section>
+
+        <section class="system-health-section">
+            <h2>寄信測試</h2>
+            <div class="email-test">
+                <p>寄一封測試信確認寄信設定。目前的寄送方式：<strong>@emailProviderText</strong></p>
+                <div class="email-test-form">
+                    <Input TValue="string" @bind-Value="testEmailTo" Placeholder="收件者 Email"
+                           Disabled="@(!isEmailEnabled || isSendingTestEmail)" />
+                    <Button Type="@ButtonType.Primary" Loading="@isSendingTestEmail" Disabled="@(!isEmailEnabled)"
+                            OnClick="SendTestEmailAsync">
+                        寄出測試信
+                    </Button>
+                </div>
+                @if (!isEmailEnabled)
+                {
+                    <div class="email-test-hint">寄信功能未啟用。請在 EmailSettings 將 Provider 設為 Pickup（開發）或 Smtp。</div>
+                }
+                @if (testEmailResult is { } result)
+                {
+                    <div class="email-test-result @(result.Success ? "is-success" : "is-failure")" role="status">
+                        @result.Message
+                    </div>
+                }
+            </div>
+        </section>
+
+        @* 0.9.122 起：發一則站內通知給全體管理員，確認鈴鐺與即時更新正常（不寄信）。 *@
+        <section class="system-health-section">
+            <h2>站內通知測試</h2>
+            <div class="email-test">
+                <p>發一則「測試通知」給全體管理員（不寄信），確認右上角的鈴鐺與即時更新正常。開著的其他頁面也會立即收到；有多台主機時，其他主機上的頁面最慢約 1 分鐘。</p>
+                <div class="email-test-form">
+                    <Button Type="@ButtonType.Primary" Loading="@isSendingTestNotification"
+                            OnClick="SendTestNotificationAsync">
+                        發送測試通知
+                    </Button>
+                </div>
+                @if (testNotificationResult is { } notificationResult)
+                {
+                    <div class="email-test-result @(notificationResult.Success ? "is-success" : "is-failure")" role="status">
+                        @notificationResult.Message
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="system-health-section">
+            <h2>最近 24 小時警告以上日誌</h2>
+            @if (!string.IsNullOrWhiteSpace(warnLogMessage))
+            {
+                <p class="warn-log-summary">@warnLogMessage</p>
+            }
+            @foreach (var warning in warnLogWarnings)
+            {
+                <div class="warn-log-notice">@warning</div>
+            }
+
+            @if (warnLogEntries is null)
+            {
+                <div class="empty-log">正在讀取日誌...</div>
+            }
+            else if (warnLogEntries.Count == 0)
+            {
+                <div class="empty-log">@warnLogEmptyText</div>
+            }
+            else
+            {
+                <div class="warn-log-table-wrap">
+                    <Table TItem="LogEntryDto"
+                           DataSource="@warnLogEntries"
+                           Size="TableSize.Small"
+                           RowKey="@(entry => entry.Sequence)"
+                           PageSize="20">
+                        <ColumnDefinitions>
+                            <Column TData="DateTime" Title="時間" Width="180">
+                                @context.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")
+                            </Column>
+                            <Column TData="string" Title="等級" Width="90">
+                                <Tag Color="@LogLevelRankHelper.ToTagColor(RankOf(context))">@(string.IsNullOrEmpty(context.Level) ? "－" : context.Level)</Tag>
+                            </Column>
+                            <Column TData="string" Title="記錄器" Width="260" Ellipsis>@context.Logger</Column>
+                            <Column TData="string" Title="訊息" Ellipsis>@context.Message</Column>
+                            <Column TData="string" Title="TraceId" Width="130" Ellipsis>@context.TraceId</Column>
+                        </ColumnDefinitions>
+                        <ExpandTemplate Context="rowData">
+                            <pre class="warn-log-raw">@rowData.Data.Raw</pre>
+                        </ExpandTemplate>
+                    </Table>
+                </div>
+            }
+        </section>
+    </div>
+}

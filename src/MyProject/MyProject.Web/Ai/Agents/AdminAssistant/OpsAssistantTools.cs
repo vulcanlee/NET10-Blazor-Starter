@@ -6,11 +6,11 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Dtos.Admins;
 using MyProject.Models.AdapterModel;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Components.Layout;
-using MyProject.Web.Components.Views.Admins;
 using MyProject.Web.Backup;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Parameters;
@@ -824,14 +824,14 @@ public sealed class OpsAssistantTools
             : null;
 
     /// <summary>
-    /// 保留天數會不會縮短（0.9.159 起）：沿用頁面的 <see cref="SystemParameterView.ShortensRetention"/>，
+    /// 保留天數會不會縮短（0.9.159 起）：沿用頁面的 <see cref="SystemParameterValueCodec.ShortensRetention"/>，
     /// 但任一邊不是整數時保守地當作會縮短 —— 頁面另有確認窗兜底，工具是唯一的防線。新值 0（不清除）不算縮短。
     /// </summary>
     public static bool WouldShortenRetention(string? currentValue, string? newValue)
     {
         var parsable = int.TryParse(currentValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
             && int.TryParse(newValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _);
-        return parsable == false || SystemParameterView.ShortensRetention(currentValue, newValue);
+        return parsable == false || SystemParameterValueCodec.ShortensRetention(currentValue, newValue);
     }
 
     /// <summary>
@@ -841,7 +841,7 @@ public sealed class OpsAssistantTools
     public static bool DefinitelyShortensRetention(string? currentValue, string? newValue)
         => int.TryParse(currentValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
             && int.TryParse(newValue, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
-            && SystemParameterView.ShortensRetention(currentValue, newValue);
+            && SystemParameterValueCodec.ShortensRetention(currentValue, newValue);
 
     /// <summary>
     /// 修改系統參數的核准窗「目前狀態」（0.9.160 起）：目前值與來源、設定檔值、要改成什麼；保留類參數再說明會不會縮短。

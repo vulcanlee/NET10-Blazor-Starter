@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.12
+- 文件版本：3.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/11/11
 
@@ -450,7 +450,7 @@ ffmpeg -i images/brand-logo.png \
 |------|------|
 | `Components/Pages/Home.razor` | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
 
-> `Components/Pages/HomeAuthed.razor` 原本也是 `Home`，0.9.9 已改為「首頁」；`Error.razor` 已是「系統錯誤」。
+> 首頁 `HomeAuthed.razor`（0.10.6 起在 `MyProject.Web.Client/Pages/`）原本也是 `Home`，0.9.9 已改為「首頁」；`Error.razor` 已是「系統錯誤」。
 
 想讓每個分頁都帶產品名（例如「使用者管理 — 你的系統」），需要自行加後綴機制，本專案未提供。
 
@@ -464,8 +464,8 @@ ffmpeg -i images/brand-logo.png \
 | `Components/Auths/Login.razor:58` | `企業級安全登入`（寄信啟用時此處改為「忘記密碼？」連結）|
 | `Components/Auths/ForgotPassword.razor`、`ResetPassword.razor` | 兩頁的標題、副標題與提示文字（0.9.60 起）|
 | `Components/Views/Commons/SplashView.razor:11` | `Welcome` |
-| `Components/Views/Commons/HomeWelcomeView.razor` | `Welcome`（Hero 標籤）／`快速入口`／`儀表板`（0.9.106 起）／`系統版本`／`執行環境` |
-| `Components/Views/Commons/HomeWelcomeView.razor.cs` 的 `AllQuickLinks` | 登入後首頁快速入口的標題與圖示：`專案項目`／`分類清單`／`團隊清單`（依權限顯示；原本的六張能力卡片已移除）。⚠️ 改成自家系統的入口時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
+| `MyProject.Web.Client/Views/Commons/HomeWelcomeView.razor`（0.10.6 起在 Client）| `Welcome`（Hero 標籤）／`快速入口`／`儀表板`（0.9.106 起）／`系統版本`／`執行環境` |
+| `MyProject.Web/Dashboard/DashboardWidgets.cs` 的 `DashboardQuickLinks.All`（0.10.6 起由伺服器依權限過濾後送給 WASM 首頁；之前是 `HomeWelcomeView.razor.cs` 的 `AllQuickLinks`）| 登入後首頁快速入口的標題與圖示：`專案項目`／`分類清單`／`團隊清單`（依權限顯示；原本的六張能力卡片已移除）。⚠️ 改成自家系統的入口時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
 | `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
 | `Components/Layout/NavMenu.razor` | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
 | `Components/Layout/MainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |

@@ -106,7 +106,7 @@ public class AnnouncementService
         var error = await ValidateAsync(context, model);
         if (error is not null)
         {
-            return VerifyRecordResultFactory.Build(false, error);
+            return VerifyRecordResultFactory.Invalid(error);
         }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
@@ -136,7 +136,7 @@ public class AnnouncementService
         var error = await ValidateAsync(context, model);
         if (error is not null)
         {
-            return VerifyRecordResultFactory.Build(false, error);
+            return VerifyRecordResultFactory.Invalid(error);
         }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
@@ -159,7 +159,7 @@ public class AnnouncementService
                 .SetProperty(a => a.ConcurrencyStamp, newStamp));
         if (affected == 0)
         {
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
+            return await MissingOrConflictAsync(context, model.Id);
         }
 
         model.ConcurrencyStamp = newStamp;
@@ -173,12 +173,27 @@ public class AnnouncementService
         var affected = await context.Announcement.Where(x => x.Id == id && x.ConcurrencyStamp == expectedStamp).ExecuteDeleteAsync();
         if (affected == 0)
         {
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage);
+            return await MissingOrConflictAsync(context, id);
         }
 
         logger.LogInformation("Announcement deleted. AnnouncementId={AnnouncementId}", id);
         return VerifyRecordResultFactory.Build(true);
     }
+
+    /// <summary>公告的標題（0.10.6 起，Web API 刪除時寫稽核用）；不存在時回 null。</summary>
+    public async Task<string?> GetTitleAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.Announcement.AsNoTracking().Where(x => x.Id == id).Select(x => x.Title).FirstOrDefaultAsync();
+    }
+
+    /// <summary>
+    /// 條件式更新／刪除影響 0 列時的失敗種類（0.10.6 起，Web API 用）：公告已不存在 → 找不到（404），還在但版本不同 → 衝突（409）。訊息與畫面相同。
+    /// </summary>
+    private static async Task<VerifyRecordResult> MissingOrConflictAsync(BackendDBContext context, int id)
+        => await context.Announcement.AnyAsync(x => x.Id == id)
+            ? VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage)
+            : VerifyRecordResultFactory.NotFound(ConcurrencyStampHelper.ConflictMessage);
 
     /// <summary>使用者關閉一則公告（之後不再對他顯示）。重複關閉視為成功。</summary>
     public async Task DismissAsync(int userId, int announcementId)

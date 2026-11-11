@@ -1,10 +1,10 @@
 ﻿# 資料庫用量 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.6
 - 首次實作版本：0.4.28
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -44,13 +44,15 @@
 
 **本頁沒有任何操作按鈕**，純閱讀，不提供會寫入資料庫的動作。
 
+**WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/DatabaseUsagePage.razor`、`Views/Analytics/DatabaseUsageView.*`；Server 版已刪除），畫面和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `DatabaseUsageController`（`GET api/v1/database-usage`，**只送資料庫檔名、不送完整路徑**，與 Server 版相同不寫稽核）。與 Server 版不同：API 讀不到時頁面顯示「讀取資料庫用量失敗：…」（Server 版一直停在讀取中）。
+
 > **降級狀態**：報表尚未載入時顯示「正在讀取資料庫用量...」；
 > `report.ErrorMessage` 非空時顯示紅色錯誤區塊；另有 `report.Message` / `report.Warnings`
 > 以黃色提示區塊呈現（例如 WAL 模式下的估算誤差）。
 
 ## 四、內部系統運作
 
-1. `DatabaseUsageView.OnInitializedAsync`：先 `AuthenticationStateHelper.Check`，再 `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/database-usage`）並中止，**權限通過前不觸碰資料庫**。
+1. `DatabaseUsageView.OnInitializedAsync`（0.10.6 起在 WASM 以 `Permissions.IsAdmin` 判斷、經 `GET api/v1/database-usage` 讀取，沒有權限的開頁稽核由伺服器在 `shell/page-view` 寫；以下為 Server 版原文）：先 `AuthenticationStateHelper.Check`，再 `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/database-usage`）並中止，**權限通過前不觸碰資料庫**。
 2. `IDatabaseUsageService.GetReportAsync` 透過 `context.Database.OpenConnectionAsync()` 取得連線後：
    - 由**已開啟連線的 `DataSource`**（即 `sqlite3_db_filename` 解析出的絕對路徑）定位三個檔案並讀取大小。不從組態推導，確保量到的必定是 EF 實際在用的檔案。
    - `PRAGMA page_size` / `page_count` / `freelist_count` 取得頁面統計。
@@ -79,6 +81,8 @@
 ---
 
 ## 七、相關文件
+
+- 程式：`MyProject.Web.Client/Views/Analytics/DatabaseUsageView.razor(.cs)`（0.10.6 起 WASM）、`Api/MaintenanceApi.cs`（`DatabaseUsageApi`）、`MyProject.Web/Controllers/DatabaseUsageController.cs`；測試 `MaintenanceApiTests.DatabaseUsage_ShouldReturnTheReport_WithoutTheDatabasePath`
 
 - 選單與權限機制：`docs/prd/首頁與導覽-prd.md`、`docs/security/認證授權與權限機制.md`
 - 同一子功能表的另一頁：`docs/prd/日誌檢視-prd.md`

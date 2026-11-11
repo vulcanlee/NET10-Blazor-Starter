@@ -1,10 +1,10 @@
 ﻿# 系統參數 PRD
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.9.174
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.98
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -33,6 +33,9 @@
 - 工具列說明文字（0.9.119 補完整）：立即生效與跨主機同步；沒改過的沿用設定檔；改過的以頁面為準，設定檔或環境變數再改也不生效，要「還原為設定檔值」；不在頁面的設定改設定檔。
   操作說明列出「只能改伺服器設定檔」的完整區段表（與 [日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md) 同一份）。
 - 稽核：`SystemParameter.Update`／`SystemParameter.Reset`，Detail `key=…; old=…(來源); new=…(來源)`（值超過 200 字截斷）。
+
+**WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/SystemParameterPage.razor`、`Views/Admins/SystemParameterView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `SystemParametersController`（`api/v1/system-parameters`：`GET` 全部參數、不認得的鍵、設定檔有誤的區段；`POST save`〔`Key`、`Value`、`ExpectedStamp`〕；`POST reset`），走同一個 `SystemParameterManager`，**驗證全在伺服器**：不在目錄的鍵（例如 `JwtSettings:SigningKey`）404、輸入不合法 400、版本衝突或設定檔有誤 409。設定鍵含冒號，放在本文。稽核內容與 Server 版相同、由伺服器寫（值與設定檔相同時記 `Reset`）。
+畫面上的格式化與「會不會縮短保留天數」用搬到 Client 的 `SystemParameterValueCodec`（命名空間不變）；`SystemParameterKind`／`SystemParameterSource` 與格式介面 `ISystemParameterFormat` 搬到 `MyProject.Dtos/Admins`。縮短保留天數的確認窗仍在畫面上。
 
 ## 四、內部系統運作
 
@@ -86,6 +89,7 @@
   不合法的值擋下且不寫入、所有驗證器都會執行、載入時略過不合法與不認得的鍵、驗證以設定檔值為基準、其他行程的修改在刷新時生效、
   並行衝突、設定檔有誤時擋下存檔並保留現有覆寫、系統名稱即時、`ISystemIdentity` 回退、縮短判斷、稽核截斷、限流分割鍵含配額）；
   `SystemParameterHostTests`（真主機中覆寫層排在環境變數之後、存檔後可見）。
+- `SystemParameterAnnouncementApiTests`（0.10.6 起）：列出整個目錄與定義；存檔立即生效、看得到誰改的、稽核一筆；不合法的值由伺服器擋下、不存也不寫稽核；不在目錄或機密的鍵 404、沒帶鍵 400；版本號過期 409；還原並稽核；孤兒鍵可移除；時間不帶時差；非管理員 403。實機 `scripts/e2e/m07-ops.mjs` M7-P3（改系統名稱立即生效並還原）。
 - 守門同步：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`DataAccessServiceLifetimeTests`、`PageHelpCatalogTests`。
 
 ## 八、相關程式與文件
@@ -93,5 +97,5 @@
 - `src/MyProject/MyProject.Web/Configuration/Parameters/`（provider、目錄、編碼、驗證、載入、刷新、管理門面、註冊）
 - `src/MyProject/MyProject.Business/Services/DataAccess/SystemParameterService.cs`、`Services/Other/SystemIdentity.cs`
 - `src/MyProject/MyProject.AccessDatas/Models/SystemParameter.cs`、Migration `AddSystemParameters`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/SystemParameterView.razor(.cs)`、`Datas/Help/system-parameters.md`
+- `src/MyProject/MyProject.Web.Client/Views/Admins/SystemParameterView.razor(.cs)`（0.10.6 起 WASM）、`Api/SystemParameterApi.cs`、`Configuration/SystemParameterValueCodec.cs`；`MyProject.Web/Controllers/SystemParametersController.cs`；`MyProject.Dtos/Admins/SystemParameterDtos.cs`；`Datas/Help/system-parameters.md`
 - 規則：[開發慣例與限制速查 §6.15](../architecture/開發慣例與限制速查.md)；設定：[日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md)

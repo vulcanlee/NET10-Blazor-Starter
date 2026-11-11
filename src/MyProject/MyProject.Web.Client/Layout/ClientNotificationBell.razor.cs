@@ -34,8 +34,13 @@ public partial class ClientNotificationBell : IAsyncDisposable
     [Inject]
     public ILogger<ClientNotificationBell> Logger { get; set; } = default!;
 
+    [Inject]
+    public ClientNotificationSignal NotificationSignal { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
+        // 頁面做了會讓自己收到通知的事（例如發送測試通知）時立即更新，不等下一次輪詢（0.10.6 起）。
+        NotificationSignal.RefreshRequested += OnRefreshRequestedAsync;
         await RefreshAsync();
         var started = await PeriodicRefresh.StartAsync(JSRuntime, PollInterval, () => InvokeAsync(async () =>
         {
@@ -51,6 +56,23 @@ public partial class ClientNotificationBell : IAsyncDisposable
         }
 
         periodicRefresh = started;
+    }
+
+    private async Task OnRefreshRequestedAsync()
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshAsync();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            // 立即更新失敗不影響版面；下一次輪詢再試。
+            Logger.LogWarning(ex, "Notification bell refresh on request failed.");
+        }
     }
 
     /// <summary>「99+」：超過 99 則就不再顯示確切數字（與 Server 版相同）。</summary>
@@ -84,34 +106,45 @@ public partial class ClientNotificationBell : IAsyncDisposable
         }
 
         isOpen = false;
-        await RefreshAsync();
+        await RefreshAndTellOthersAsync();
         if (!string.IsNullOrWhiteSpace(item.Link))
         {
             NavigationManager.NavigateTo(item.Link);
         }
     }
 
+    /// <summary>
+    /// 在鈴鐺標已讀或刪除之後：自己重讀，並請首頁「我的通知」也立即重讀（0.10.6 起；Server 版兩邊都靠伺服器訊號即時更新，
+    /// WASM 不通知的話首頁要等下一次 60 秒輪詢）。
+    /// </summary>
+    private async Task RefreshAndTellOthersAsync()
+    {
+        await RefreshAsync();
+        NotificationSignal.RequestRefresh(except: OnRefreshRequestedAsync);
+    }
+
     private async Task MarkAllReadAsync()
     {
         await Api.PostAsync<object>("api/v1/notifications/read-all");
-        await RefreshAsync();
+        await RefreshAndTellOthersAsync();
     }
 
     private async Task DeleteAsync(NotificationItemDto item)
     {
         await Api.DeleteAsync<object>($"api/v1/notifications/{item.Id}");
-        await RefreshAsync();
+        await RefreshAndTellOthersAsync();
     }
 
     private async Task ClearReadAsync()
     {
         await Api.DeleteAsync<object>("api/v1/notifications/read");
-        await RefreshAsync();
+        await RefreshAndTellOthersAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         isDisposed = true;
+        NotificationSignal.RefreshRequested -= OnRefreshRequestedAsync;
         if (periodicRefresh is not null)
         {
             await periodicRefresh.DisposeAsync();

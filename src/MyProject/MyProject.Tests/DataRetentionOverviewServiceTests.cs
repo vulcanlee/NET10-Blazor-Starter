@@ -4,7 +4,8 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Models.Systems;
-using MyProject.Web.Components.Views.Admins;
+using MyProject.Dtos.Admins;
+using MyProject.Web.Client.Views.Admins;
 using MyProject.Web.DataRetention;
 using MyProject.Web.Scheduling.Jobs;
 
@@ -189,7 +190,7 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
     public void ConfirmContent_ForSoftDeletedData_ShouldListAllFiveKinds()
     {
         var rows = new[] { "已刪除的專案", "已刪除的分類", "已刪除的團隊", "已刪除的使用者", "已刪除的角色" }
-            .Select((label, i) => new DataRetentionRow { Key = $"k{i}", Label = label, Expected = i, JobName = SoftDeletePurgeJob.JobName, RuleText = "刪除超過 90 天後永久刪除" })
+            .Select((label, i) => new DataRetentionRowDto { Key = $"k{i}", Label = label, Expected = i, JobName = SoftDeletePurgeJob.JobName, RuleText = "刪除超過 90 天後永久刪除" })
             .ToList();
 
         var content = DataRetentionView.BuildConfirmContent(rows[0], rows, expected: 10);
@@ -199,10 +200,22 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
         Assert.EndsWith("此動作無法復原。", content, StringComparison.Ordinal);
     }
 
+    /// <summary>WASM 版（0.10.6 起）不參考 Web：已刪除資料的作業名稱與自訂清除的條件文字是抄過去的，要與伺服器一致。</summary>
+    [Fact]
+    public void ClientCopies_ShouldMatchTheServer()
+    {
+        Assert.Equal(SoftDeletePurgeJob.JobName, DataRetentionView.SoftDeletePurgeJobName);
+        Assert.Equal(new CustomPurgeCutoff(30, null).Describe(), DataRetentionView.Describe(new CustomPurgeRequestDto { KeepDays = 30 }));
+        Assert.Equal(new CustomPurgeCutoff(null, new DateOnly(2026, 1, 2)).Describe(), DataRetentionView.Describe(new CustomPurgeRequestDto { BeforeDate = new DateOnly(2026, 1, 2) }));
+        Assert.Equal(
+            Enum.GetNames<FolderUsageStatus>().Order(),
+            new[] { "NotConfigured", "Missing", "Ok", "Partial" }.Order());
+    }
+
     [Fact]
     public void ConfirmContent_ForOtherData_ShouldGiveTheRuleAndCount()
     {
-        var row = new DataRetentionRow { Key = "audit-log", Label = "稽核紀錄", Note = "連同詳細內容檔", Expected = 87, JobName = AuditLogRetentionJob.JobName, RuleText = "保留 365 天" };
+        var row = new DataRetentionRowDto { Key = "audit-log", Label = "稽核紀錄", Note = "連同詳細內容檔", Expected = 87, JobName = AuditLogRetentionJob.JobName, RuleText = "保留 365 天" };
 
         var content = DataRetentionView.BuildConfirmContent(row, [row], expected: 87);
 

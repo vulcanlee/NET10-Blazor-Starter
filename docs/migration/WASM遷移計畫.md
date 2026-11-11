@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：進行中
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.6
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/11
 
@@ -23,7 +23,7 @@
 | M4 | 0.10.3 | 專案、附件、下載票證 | 完成 | [M04-專案附件與下載票證](測試報告/M04-專案附件與下載票證.md) |
 | M5 | 0.10.4 | 使用者、角色、稽核、郵件紀錄 | 完成 | [M05-使用者角色稽核郵件紀錄](測試報告/M05-使用者角色稽核郵件紀錄.md) |
 | M6 | 0.10.5 | AI 串流＋日誌與 AI 管理頁 | 完成 | [M06-AI串流日誌與AI管理頁](測試報告/M06-AI串流日誌與AI管理頁.md) |
-| M7 | 0.10.6 | 維運頁與首頁儀表板 | 未開始 | — |
+| M7 | 0.10.6 | 維運頁與首頁儀表板 | 完成 | [M07-維運頁與首頁儀表板](測試報告/M07-維運頁與首頁儀表板.md) |
 | M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 未開始 | — |
 | M9 | 0.10.8 | 純 Token 登入 | 未開始 | — |
 | M10 | 0.10.9 | 移除 Server 模式 | 未開始 | — |
@@ -143,7 +143,7 @@
 
 > **M5 實際做法與計畫的差異**：
 > - **授權意圖分三種標註＋守門測試**：除了 `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`；非管理員回 403 並寫 `Permission.Denied`，detail「需要管理員」），另加沒有行為的 `[SignedInUser]`，標在「登入即可、刻意不檢查頁面權限」的端點（個人資料、外框、通知、公告、`/me`），讓 `ApiAuthorizationConventionTests` 分得出「忘了標」和「本來就不需要」：每個 API action 都必須標 `[HasPermission]`、`[AdminOnly]`、`[SignedInUser]` 或 `[AllowAnonymous]`。
-> - **備份下載留到 M7**：`BackupController.Download` 是 Cookie 驗證，不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以暫時標 `[SignedInUser]`、管理員檢查留在方法裡；M7 改成下載票證時改用 `[AdminOnly]`。
+> - **備份下載留到 M7**：`BackupController.Download` 是 Cookie 驗證，不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以暫時標 `[SignedInUser]`、管理員檢查留在方法裡；M7 改成下載票證時改用 `[AdminOnly]`（0.10.6 已完成：`BackupController` 刪除，改為 `[AdminOnly]` 的 `POST api/v1/backups/{檔名}/ticket`）。
 > - **改自己用伺服器回的網址換發登入**：`PUT api/v1/users/{id}` 改到自己而且工作階段版本換掉（改了自己的密碼、角色或管理員身分）時回 `SessionRefreshUrl`（`/Auths/RefreshSession?ticket=…&returnUrl=%2Fmyusers`，沿用 0.9.103 的一次性、2 分鐘 ticket），WASM 頁整頁導過去，這台裝置維持登入、其他裝置登出，與 Server 版相同。改別人、停用、強制登出、重設兩步驟驗證換對方的版本，對方下一個請求就被登出（API 401、刷新被拒）。
 > - **自我保護補到 API**：Server 版「不可強制登出自己」「不可重設自己的兩步驟驗證」只在畫面擋，0.10.4 起 API 也擋（400）。停用、刪除自己與 support 的保護本來就在服務層。`MyUserService`、`RoleViewService`、`TwoFactorService` 的失敗都標上 `Kind`，API 回 404／409／400／500。
 > - **時區由伺服器算**：使用者清單的「鎖定至 HH:mm」（`LockedText`）、稽核明細的 UTC 時間由伺服器依伺服器時區算好送來，瀏覽器時區不同也不會顯示錯。實機發現：稽核單筆查詢回的是 UTC，曾被當成本地再換一次，差 8 小時，已修正。獨立審查再發現：本地時間帶著 `+08:00` 送出時 WASM 會換成瀏覽器時區，改成一律不帶時差送出（稽核紀錄、異動歷程、寄信紀錄），UTC 以 `Z` 結尾；WASM 的日期篩選也先去掉時區（`ClientCulture.Unzoned`）。
@@ -177,6 +177,20 @@
 
 - `/system-health`、`/database-usage`、`/scheduled-jobs`、`/backups`（票證下載，退役 `BackupController`）、`/data-retention`、`/system-parameters`、`/announcements`、`/App`。
 - **實機情境**：立即執行排程看進度、建立並下載備份、修改參數生效、公告在另一分頁出現、首頁小工具依權限顯示。
+
+> **M7 實際做法與計畫的差異**：
+> - **八頁都是只限管理員的 API（首頁除外）**：`ScheduledJobsController`、`SystemHealthController`、`BackupsController`、`DataRetentionController`、`DatabaseUsageController`、`SystemParametersController`，以及 `AnnouncementsController` 補上的管理端點，一律 `[AdminOnly]`；首頁的 `DashboardController` 是頁面 view 權限、排程作業小工具的端點 `[AdminOnly]`。稽核動作與內容照 Server 版、改由伺服器寫；本地時間以不帶時差送出，「現在」「今天」用伺服器時間。系統健康監控原本整頁寫在 `SystemHealthPage.razor`，拆成頁面＋`Views/Admins/SystemHealthView`。
+> - **背景作業照舊交給排程佇列，畫面輪詢**：「立即執行」「立即備份」「立即清理」都走 `ScheduledJobOverviewService.TryTrigger`（已在佇列或執行中 409），請求馬上回來。排程頁有作業排隊或執行中時每 **2 秒**輪詢（計畫寫 1～2 秒；Server 版 5 秒），結束或離開頁面就停；備份與資料保留頁維持 5 秒。
+> - **備份下載用 M4 的同一套票證**：`DownloadTicketService` 的目標改成字串（附件 Id 或備份檔名）、新增 `BackupKind`；兌換時多一道「仍是管理員」，檔名經 `BackupStore.TryResolveFullPath`，稽核 `Backup.Download` 在兌換時寫。`BackupController` 刪除，0.10.6 起已沒有以 Cookie 驗證的 API。與 M4 相同的取捨：**不能續傳**（Server 版的 Cookie 下載可以；計畫已拍板一次性票證）。
+> - **首頁小工具由伺服器決定**：計畫寫「各小工具資料 API，依權限顯示」，實作是 `GET api/v1/dashboard` 依 `DashboardWidgetCatalog.VisibleTo` 只回看得到的小工具（快速入口也由伺服器過濾），Client 的 `DashboardWidgetComponents` 以代號對應元件、兩邊登記由 `DashboardTests` 檢查一致；每個小工具繼承 `DashboardWidgetBase` 自己讀資料，讀不到只影響那張卡片。伺服器的登記不再帶元件型別（`AddDashboardWidget("代號", …)`）。
+> - **系統參數的驗證全在伺服器**：WASM 送 `Key`、`Value`、`ExpectedStamp`（鍵含冒號，放本文），`SystemParametersController` 走同一個 `SystemParameterManager`；不在目錄的鍵（例如 `JwtSettings:SigningKey`）404、不合法 400、版本衝突或設定檔有誤 409。`SystemParameterValueCodec` 搬到 Client 共用（`ISystemParameterFormat`），`SystemParameterKind`／`Source` 搬到 Dtos，`AnnouncementTargetKinds` 搬到 Share（命名空間不變）。
+> - **公告「廣播走通知機制」改成同分頁訊號＋輪詢**：伺服器存檔後照 Server 版清快取並廣播（還在 Server 的頁面即時更新）；WASM 收不到伺服器訊號，公告頁存檔或刪除後以新的 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀（M8 的通知推播串流再補即時）。
+> - **外框立即重讀的共用基底 `ClientRefreshSignal`**：`ClientNotificationSignal`（系統健康「發送測試通知」、首頁點開通知後請鈴鐺立即重讀；鈴鐺標為已讀或刪除後以 `RequestRefresh(except:)` 請首頁「我的通知」重讀、跳過自己）與 `ClientAnnouncementSignal` 共用；只對同一個分頁有效。
+> - **小修正：M2 留下的時差問題**：`NotificationsController`（鈴鐺）、`ProfileController` 與 `ShellController`（「關於」的啟動時間 `StartedAtLocal`）三處的本地時間原本帶 `+08:00` 送出（`ConvertTimeFromUtc`／`DateTimeOffset.LocalDateTime` 回 `Kind=Local`），伺服器與瀏覽器時區不同時鈴鐺、個人資料頁與「關於」的時間會錯；改為不帶時差，補測試 `NotificationsProfileAndShellInfo_ShouldSendLocalTimesWithoutAnOffset`（ShellController 是獨立審查發現）。
+> - **獨立審查**：輪詢失敗不再每 2／5 秒疊一則不會自動關閉的錯誤通知（排程、備份、資料保留頁，改為只記日誌）；「我的通知」第一次讀取未完成就換頁時不再留下訂閱；「關於」的啟動時間時差；文件的續傳與 5 秒。另記兩項設計說明（備份票證是「持有連結即可下載」、公告 API 的起訖時間是伺服器本地時間），見 changelog 與測試報告。
+> - **與 Server 版不同（使用者看得到的）**：備份下載不能續傳；排程執行中 2 秒自動更新；系統健康頁讀不到報告時停在「正在讀取…」並跳錯誤通知（Server 版整頁進錯誤畫面），資料庫用量頁讀不到時顯示「讀取資料庫用量失敗：…」（Server 版一直停在讀取中）；發送測試通知後只有這一頁的鈴鐺立即更新、其他已開的頁面最慢 60 秒（說明文字照抄 Server 版的「即時更新」，操作說明已補充）；「立即清理」稽核的 `expected` 由伺服器在按下時重算，可能和確認窗差幾筆，自訂清除的條件由伺服器驗證。
+> - **守門測試跟著搬遷調整**：`BatchDeleteConventionTests` 改掃 Server 與 WASM 兩處畫面目錄（有單筆刪除的列表頁都搬到 WASM 了，只掃 Server 會空跑）；`PageAuthorizationTests` 呼叫 `Check()` 的元件掃描下限降為 4。
+> - 實機腳本：`scripts/e2e/m07-views.mjs`（9 個畫面基準／比對；佈置固定公告與兩個空 zip 備份檔）、`m07-ops.mjs`（M7-P1～P9＋37 路由煙霧測試）。
 
 ### M8 Agent、系統管理助理與通知推播（0.10.7）
 

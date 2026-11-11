@@ -42,13 +42,6 @@ public class Announcement
     public string ConcurrencyStamp { get; set; } = string.Empty;
 }
 
-public static class AnnouncementTargetKinds
-{
-    public const string All = "All";
-    public const string Role = "Role";
-    public const string Team = "Team";
-}
-
 /// <summary>某位使用者關閉了某則公告（0.9.100 起）。</summary>
 public class AnnouncementDismissal
 {

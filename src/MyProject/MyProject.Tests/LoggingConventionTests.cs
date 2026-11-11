@@ -393,6 +393,7 @@ public sealed class LoggingConventionTests
             "RetentionStats.cs",            // 資料保留頁的統計（record：筆數、最舊、過期），無行為（0.9.133 起）
             "RetentionCutoffs.cs",          // 純函式：各類資料超過保留天數的門檻（0.9.133 起）
             "CronDescriber.cs",             // 純函式：cron 轉白話（0.9.133 起）
+            "MaintenanceJobMapper.cs",      // 純轉換：排程作業狀態轉 DTO（0.10.6 起）
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

@@ -1,11 +1,15 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace MyProject.Web.Downloads;
 
-/// <summary>票證記下的內容：下載什麼（<see cref="Kind"/>＋<see cref="TargetId"/>）、替誰申請、申請當時的工作階段版本。</summary>
-public sealed record DownloadTicket(string Kind, int TargetId, int UserId, string? SecurityStamp, DateTimeOffset ExpiresAt);
+/// <summary>
+/// 票證記下的內容：下載什麼（<see cref="Kind"/>＋<see cref="Target"/>）、替誰申請、申請當時的工作階段版本。
+/// <see cref="Target"/> 是附件的 Id（數字字串）或備份的檔名（0.10.6 起），兌換時由各種類自己解讀與檢查。
+/// </summary>
+public sealed record DownloadTicket(string Kind, string Target, int UserId, string? SecurityStamp, DateTimeOffset ExpiresAt);
 
 /// <summary>
 /// 一次性下載票證（0.10.3 起，WASM 遷移 M4）。WASM 頁面只有存取 Token，瀏覽器的原生下載（連結、<c>location</c>）帶不了 Token；
@@ -19,8 +23,11 @@ public sealed record DownloadTicket(string Kind, int TargetId, int UserId, strin
 /// </summary>
 public sealed class DownloadTicketService
 {
-    /// <summary>附件、備份等大檔下載的票證種類。</summary>
+    /// <summary>專案附件（目標是附件 Id）。</summary>
     public const string ProjectFileKind = "ProjectFile";
+
+    /// <summary>系統備份（0.10.6 起，目標是備份檔名；兌換時再確認是管理員、檔名合格且檔案在備份目錄裡）。</summary>
+    public const string BackupKind = "Backup";
 
     public static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(60);
 
@@ -33,13 +40,17 @@ public sealed class DownloadTicketService
     }
 
     /// <summary>發一張票證，回傳票證字串（網址安全的 Base64）。</summary>
-    public string Issue(string kind, int targetId, int userId, string? securityStamp)
+    public string Issue(string kind, string target, int userId, string? securityStamp)
     {
         RemoveExpired();
         var ticket = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-        tickets[ticket] = new DownloadTicket(kind, targetId, userId, securityStamp, timeProvider.GetUtcNow() + Lifetime);
+        tickets[ticket] = new DownloadTicket(kind, target, userId, securityStamp, timeProvider.GetUtcNow() + Lifetime);
         return ticket;
     }
+
+    /// <summary>以數字 Id 為目標（附件）。</summary>
+    public string Issue(string kind, int targetId, int userId, string? securityStamp)
+        => Issue(kind, targetId.ToString(CultureInfo.InvariantCulture), userId, securityStamp);
 
     /// <summary>取出並作廢票證；不存在、已用過或已過期回 null。同一張票證同時兌換兩次，只有一次拿得到。</summary>
     public DownloadTicket? TryRedeem(string? ticket)

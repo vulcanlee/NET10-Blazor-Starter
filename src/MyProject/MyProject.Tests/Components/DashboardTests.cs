@@ -1,31 +1,42 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.JSInterop;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Dtos.Commons;
+using MyProject.Dtos.Shell;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
-using MyProject.Web.Components.Views.Dashboard;
+using MyProject.Web.Client.Api;
+using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Layout;
+using MyProject.Web.Client.Views.Dashboard;
 using MyProject.Web.Dashboard;
 using MyProject.Web.Scheduling;
 
 namespace MyProject.Tests.Components;
 
 /// <summary>
-/// 首頁儀表板（0.9.106 起）：登記與權限過濾（沒權限的不建立）、一個小工具丟例外不影響其他、三個小工具的內容、排序。
+/// 首頁儀表板（0.9.106 起；0.10.6 起在 WASM 執行）：登記與權限過濾（伺服器）、前端代號對應元件、一個小工具讀不到不影響其他、
+/// 小工具的內容、上一次登入與「需要注意的排程作業」的判斷。API 本身見 <c>DashboardApiTests</c>。
 /// </summary>
 public sealed class DashboardTests : ComponentTestBase
 {
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
     private readonly int userId;
+    private readonly FakeDashboardHandler handler = new();
 
     public DashboardTests()
     {
@@ -44,126 +55,122 @@ public sealed class DashboardTests : ComponentTestBase
         Services.AddLogging();
         Services.AddSingleton<IDbContextFactory<BackendDBContext>>(factory);
         Services.AddSingleton(TimeProvider.System);
-        Services.AddSingleton<INotificationSignal, NotificationSignal>();
-        Services.AddSingleton<NotificationQueryService>();
         Services.AddSingleton(new CurrentUserService { CurrentUser = { Id = userId, Account = "alice", IsAuthenticated = true } });
         Services.AddSingleton<IAuditLogService>(new RecordingAuditLogService());
         Services.AddSingleton(PasswordTestDefaults.Policy());
         var resolverContext = factory.CreateDbContext();
         Services.AddSingleton<IEffectiveTeamResolver>(new EffectiveTeamResolver(resolverContext, new ContextTeamTreeCache(resolverContext), NullLogger<EffectiveTeamResolver>.Instance));
         Services.AddSingleton<ProfileService>();
-        CountingWidget.Created = 0;
+
+        // WASM 小工具：API 換成可控的假回應。
+        Services.AddSingleton<ClientNotificationSignal>();
+        Services.AddSingleton(sp =>
+        {
+            var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
+            var navigation = sp.GetRequiredService<NavigationManager>();
+            var session = new ClientSession(http, new TokenStore(sp.GetRequiredService<IJSRuntime>()), navigation, NullLogger<ClientSession>.Instance);
+            return new ApiClient(http, session, navigation, NullLogger<ApiClient>.Instance);
+        });
+        Services.AddSingleton(sp => new DashboardApi(sp.GetRequiredService<ApiClient>()));
+        Services.AddSingleton<ClientErrorReporter>();
     }
 
-    // ---------- 登記與過濾 ----------
+    // ---------- 登記與過濾（伺服器） ----------
 
     [Fact]
     public void Catalog_ShouldFilterByAdminAndPermission_AndKeepTheOrder()
     {
         var catalog = new DashboardWidgetCatalog(
         [
-            new("projects", "專案", 30, MagicObjectHelper.角色_專案項目, false, typeof(CountingWidget), "work"),
-            new("admin", "管理", 20, null, true, typeof(CountingWidget), "settings"),
-            new("everyone", "大家", 10, null, false, typeof(CountingWidget), "home"),
+            new("projects", "專案", 30, MagicObjectHelper.角色_專案項目, false, "work"),
+            new("admin", "管理", 20, null, true, "settings"),
+            new("everyone", "大家", 10, null, false, "home"),
         ]);
 
         Assert.Equal(["everyone", "admin", "projects"], catalog.VisibleTo(true, _ => false).Select(x => x.Id));
         Assert.Equal(["everyone"], catalog.VisibleTo(false, _ => false).Select(x => x.Id));
         Assert.Equal(["everyone", "projects"], catalog.VisibleTo(false, key => key == MagicObjectHelper.角色_專案項目).Select(x => x.Id));
         Assert.Throws<InvalidOperationException>(() => new DashboardWidgetCatalog(
-            [new("a", "A", 1, null, false, typeof(CountingWidget), "x"), new("A", "A2", 2, null, false, typeof(CountingWidget), "x")]));
+            [new("a", "A", 1, null, false, "x"), new("A", "A2", 2, null, false, "x")]));
     }
 
+    /// <summary>伺服器登記的每個小工具，前端都要有對應的元件（反之亦然），排程作業只給管理員。</summary>
     [Fact]
-    public void BuiltInWidgets_ShouldBeRegistered_WithTheScheduledJobsOneAdminOnly()
+    public void BuiltInWidgets_ShouldBeRegisteredOnBothSides_WithTheScheduledJobsOneAdminOnly()
     {
         var catalog = new ServiceCollection().AddDashboard().BuildServiceProvider().GetRequiredService<DashboardWidgetCatalog>();
 
         Assert.Equal(["notifications", "account", "scheduled-jobs"], catalog.All.Select(x => x.Id));
-        Assert.Equal([typeof(MyNotificationsWidget), typeof(MyAccountWidget), typeof(ScheduledJobsWidget)], catalog.All.Select(x => x.ComponentType));
+        Assert.Equal(catalog.All.Select(x => x.Id).Order(), DashboardWidgetComponents.All.Keys.Order());
+        Assert.Equal(
+            [typeof(MyNotificationsWidget), typeof(MyAccountWidget), typeof(ScheduledJobsWidget)],
+            catalog.All.Select(x => DashboardWidgetComponents.Resolve(x.Id)));
+        Assert.All(DashboardWidgetComponents.All.Values, type => Assert.True(typeof(DashboardWidgetBase).IsAssignableFrom(type)));
         Assert.Equal(["notifications", "account"], catalog.VisibleTo(false, _ => true).Select(x => x.Id));
     }
 
-    /// <summary>⭐ 沒權限的小工具連元件都不建立（不會查資料）；壞掉的那一個只影響自己的卡片。</summary>
+    // ---------- WASM 小工具區 ----------
+
+    /// <summary>⭐ 只建立收到的小工具；讀不到資料的那一張顯示錯誤與追蹤碼，其他照常。</summary>
     [Fact]
-    public void Grid_ShouldOnlyCreateVisibleWidgets_AndIsolateAFailingOne()
+    public void Grid_ShouldOnlyRenderTheGivenWidgets_AndIsolateOneThatFailsToLoad()
     {
-        var catalog = new DashboardWidgetCatalog(
+        handler.Respond("api/v1/dashboard/notifications", HttpStatusCode.InternalServerError, new ApiResult<object> { Success = false, StatusCode = 500, Message = "壞了", TraceId = "trace-123" });
+        handler.Respond("api/v1/dashboard/account", HttpStatusCode.OK, ApiResult<DashboardAccountDto>.SuccessResult(new DashboardAccountDto { HasLocalPassword = true }));
+
+        var grid = Render<DashboardGrid>(p => p.Add(x => x.Widgets,
         [
-            new("ok", "正常", 10, null, false, typeof(CountingWidget), "home"),
-            new("boom", "壞掉", 20, null, false, typeof(ThrowingWidget), "error"),
-            new("hidden", "管理", 30, null, true, typeof(CountingWidget), "settings"),
-        ]);
+            new DashboardWidgetDto { Id = "notifications", Title = "我的通知", Icon = "notifications" },
+            new DashboardWidgetDto { Id = "account", Title = "我的帳號", Icon = "account_circle" },
+        ]));
 
-        var grid = Render<DashboardGrid>(p => p.Add(x => x.Widgets, catalog.VisibleTo(false, _ => false)));
-
-        Assert.Equal(1, CountingWidget.Created);
+        grid.WaitForAssertion(() => Assert.Contains("這個區塊暫時無法顯示，其他區塊不受影響（錯誤追蹤碼：trace-123）。", grid.Find("[data-widget='notifications']").TextContent, StringComparison.Ordinal));
+        grid.WaitForAssertion(() => Assert.Contains("不會到期", grid.Find("[data-widget='account']").TextContent, StringComparison.Ordinal));
         Assert.Equal(2, grid.FindAll(".dashboard-card").Count);
-        Assert.Contains("計數小工具", grid.Find("[data-widget='ok']").TextContent, StringComparison.Ordinal);
-        Assert.Contains("這個區塊暫時無法顯示", grid.Find("[data-widget='boom']").TextContent, StringComparison.Ordinal);
-        Assert.Empty(grid.FindAll("[data-widget='hidden']"));
-    }
-
-    // ---------- 小工具 ----------
-
-    [Fact]
-    public void Notifications_ShouldShowUnreadAndLatestFive_UpdateOnSignal_AndUnsubscribeOnDispose()
-    {
-        for (var i = 1; i <= 6; i++)
-        {
-            AddNotification($"通知{i}", read: i == 1);
-        }
-
-        var widget = Render<MyNotificationsWidget>();
-        widget.WaitForAssertion(() => Assert.Equal("5", widget.Find(".dashboard-stat-number").TextContent));
-        Assert.Equal(MyNotificationsWidget.ListSize, widget.FindAll(".dashboard-list-item").Count);
-        Assert.Contains("通知6", widget.FindAll(".dashboard-list-item")[0].TextContent, StringComparison.Ordinal);
-
-        AddNotification("通知7", read: false);
-        var signal = (NotificationSignal)Services.GetRequiredService<INotificationSignal>();
-        signal.Publish([userId]);
-        widget.WaitForAssertion(() => Assert.Equal("6", widget.Find(".dashboard-stat-number").TextContent));
-
-        Assert.Equal(1, signal.SubscriberCount);
-        widget.Instance.Dispose();
-        Assert.Equal(0, signal.SubscriberCount);
+        Assert.Empty(grid.FindAll("[data-widget='scheduled-jobs']"));
+        Assert.DoesNotContain(handler.Paths, x => x.Contains("scheduled-jobs", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Notifications_ShouldPollForChangesFromOtherProcesses_AndStopPollingOnDispose()
+    public void Notifications_ShouldShowTheUnreadCountAndItems_AndRefreshWhenAsked()
     {
-        // 0.9.122 起：別的行程寫入的通知不會發訊號，靠每 60 秒輪詢補上（與鈴鐺相同）。
-        var clock = new TriggerableTimeProvider();
-        Services.AddSingleton<TimeProvider>(clock);
-        AddNotification("通知1", read: false);
+        handler.Respond("api/v1/dashboard/notifications", HttpStatusCode.OK, ApiResult<DashboardNotificationsDto>.SuccessResult(Notifications(2)));
 
         var widget = Render<MyNotificationsWidget>();
-        widget.WaitForAssertion(() => Assert.Equal("1", widget.Find(".dashboard-stat-number").TextContent));
-        var timer = Assert.Single(clock.Timers);
-
-        AddNotification("別台主機發的", read: false); // 沒有發訊號
-        timer.Fire();
         widget.WaitForAssertion(() => Assert.Equal("2", widget.Find(".dashboard-stat-number").TextContent));
+        Assert.Equal(2, widget.FindAll(".dashboard-list-item").Count);
+        Assert.Equal(2, widget.FindAll(".dashboard-unread").Count);
+        Assert.Contains("11-10 09:05", widget.Markup, StringComparison.Ordinal);
 
-        widget.Instance.Dispose();
-        widget.WaitForAssertion(() => Assert.True(timer.Disposed));
+        handler.Respond("api/v1/dashboard/notifications", HttpStatusCode.OK, ApiResult<DashboardNotificationsDto>.SuccessResult(Notifications(3)));
+        Services.GetRequiredService<ClientNotificationSignal>().RequestRefresh();
+        widget.WaitForAssertion(() => Assert.Equal("3", widget.Find(".dashboard-stat-number").TextContent));
     }
 
     [Fact]
-    public void Account_ShouldShowThePreviousLogin_NotThisOne_AndTheTwoFactorState()
+    public void Account_ShouldShowWhatTheServerComputed()
     {
-        AddAudit(AuditActions.Login.Success, DateTime.UtcNow.AddDays(-3));
-        AddAudit(AuditActions.Login.SsoSuccess, DateTime.UtcNow.AddDays(-1), clientIp: "198.51.100.7");
-        AddAudit(AuditActions.Login.Failed, DateTime.UtcNow.AddHours(-2), success: false);
-        AddAudit(AuditActions.Login.Success, DateTime.UtcNow);
+        handler.Respond("api/v1/dashboard/account", HttpStatusCode.OK, ApiResult<DashboardAccountDto>.SuccessResult(new DashboardAccountDto
+        {
+            PreviousLoginLocal = new DateTime(2026, 11, 9, 8, 30, 0),
+            PreviousLoginMethod = "Google 登入",
+            PreviousLoginClientIp = "198.51.100.7",
+            HasLocalPassword = true,
+            PasswordExpiresAtLocal = new DateTime(2026, 11, 12, 10, 0, 0),
+            PasswordExpiresSoon = true,
+        }));
 
         var widget = Render<MyAccountWidget>();
 
         widget.WaitForAssertion(() => Assert.Contains("Google 登入", widget.Markup, StringComparison.Ordinal));
-        Assert.Contains("198.51.100.7", widget.Markup, StringComparison.Ordinal); // 0.9.123 起顯示上一次登入的來源 IP
+        Assert.Contains("2026-11-09 08:30", widget.Markup, StringComparison.Ordinal);
+        Assert.Contains("198.51.100.7", widget.Markup, StringComparison.Ordinal);
+        Assert.Contains("2026-11-12 10:00", widget.Markup, StringComparison.Ordinal);
+        Assert.Contains("快到期", widget.Markup, StringComparison.Ordinal);
         Assert.Contains("未啟用", widget.Markup, StringComparison.Ordinal);
-        Assert.Contains("不會到期", widget.Markup, StringComparison.Ordinal);
     }
+
+    // ---------- 伺服器的判斷 ----------
 
     [Fact]
     public async Task PreviousLogin_ShouldSkipTheLatestSuccess_AndIgnoreOthers()
@@ -206,12 +213,17 @@ public sealed class DashboardTests : ComponentTestBase
 
     // ---------- helpers ----------
 
-    private void AddNotification(string title, bool read)
+    private static DashboardNotificationsDto Notifications(int count) => new()
     {
-        using var context = factory.CreateDbContext();
-        context.Notification.Add(new Notification { RecipientUserId = userId, Category = "Test", Title = title, CreatedAtUtc = DateTime.UtcNow.AddSeconds(context.Notification.Count()), ReadAtUtc = read ? DateTime.UtcNow : null });
-        context.SaveChanges();
-    }
+        UnreadCount = count,
+        Items = Enumerable.Range(1, count).Select(i => new DashboardNotificationItemDto
+        {
+            Id = i,
+            Title = $"通知{i}",
+            Link = "/projects",
+            CreatedAtLocal = new DateTime(2026, 11, 10, 9, 4 + i, 0),
+        }).ToList(),
+    };
 
     private void AddAudit(string action, DateTime occurredAtUtc, bool success = true, int? actor = null, string? clientIp = null)
     {
@@ -229,18 +241,35 @@ public sealed class DashboardTests : ComponentTestBase
         }
     }
 
-    /// <summary>算建立了幾次（確認沒權限的不會被建立）。</summary>
-    public sealed class CountingWidget : ComponentBase
+    /// <summary>依路徑回固定的 JSON；記下呼叫過的路徑。</summary>
+    private sealed class FakeDashboardHandler : HttpMessageHandler
     {
-        public static int Created { get; set; }
+        private readonly Dictionary<string, (HttpStatusCode Status, object Body)> responses = new(StringComparer.Ordinal);
 
-        protected override void OnInitialized() => Created++;
+        public List<string> Paths { get; } = [];
 
-        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) => builder.AddContent(0, "計數小工具");
-    }
+        public void Respond(string path, HttpStatusCode status, object body)
+        {
+            lock (responses)
+            {
+                responses[path] = (status, body);
+            }
+        }
 
-    public sealed class ThrowingWidget : ComponentBase
-    {
-        protected override void OnInitialized() => throw new InvalidOperationException("widget failed on purpose");
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+            (HttpStatusCode Status, object Body) response;
+            lock (responses)
+            {
+                Paths.Add(path);
+                response = responses.TryGetValue(path, out var found) ? found : (HttpStatusCode.NotFound, ApiResult<object>.NotFoundResult());
+            }
+
+            return Task.FromResult(new HttpResponseMessage(response.Status)
+            {
+                Content = JsonContent.Create(response.Body, response.Body.GetType(), options: JsonSerializerOptions.Web),
+            });
+        }
     }
 }

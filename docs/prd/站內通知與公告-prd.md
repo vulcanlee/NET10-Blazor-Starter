@@ -1,10 +1,10 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.166
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.100
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -21,13 +21,17 @@
 |------|------|----------|-----------|
 | 通知鈴鐺 | 每個登入後頁面的右上角（`MainLayout`） | 登入即可（只看得到自己的） | 所有使用者 |
 | 公告橫幅 | 每個登入後頁面的內容上方（`MainLayout`） | 登入即可（依對象） | 所有使用者 |
-| `/announcements` | 系統管理 → 系統設定與維運 → 公告管理（`Menu.json` id=38）| 僅管理員（`CheckIsAdmin`；權限鍵 `角色_公告管理` 不進角色矩陣）| 系統管理員 |
+| `/announcements` | 系統管理 → 系統設定與維運 → 公告管理（`Menu.json` id=38）| 僅管理員（`CheckIsAdmin`；0.10.6 起 WASM 以 `Permissions.IsAdmin`；權限鍵 `角色_公告管理` 不進角色矩陣）| 系統管理員 |
 
 ## 三、畫面與欄位
 
 - **鈴鐺**：未讀數徽章（超過 99 顯示 99+）；下拉列出最新 10 則（未讀以粗體標示）；點一則標為已讀，連結經 `ReturnUrlGuard` 確認是站內網址才導向；「全部標為已讀」。0.9.125 起每則右邊有 ×（刪除單則）、標題列有「清除已讀」（刪除自己所有已讀的通知，未讀的不動；0.9.136 起只要有任何已讀的通知就能按，`NotificationQueryService.HasReadAsync`，之前只看下拉顯示的 10 則）；都不跳確認、不寫稽核，只刪得到自己的。
 - **公告橫幅**：顯示期間內、對象包含目前使用者、而且他沒有關閉過的公告；標題＋純文字內容（保留換行）；「知道了」只對自己關閉。
 - **公告管理**：表格（標題與內容開頭、狀態未開始／進行中／已結束、期間、對象、建立者）；新增、修改（小型表單窗：標題、內容、開始與結束時間、對象全體／角色／團隊）、刪除（危險確認）。
+
+**公告管理 WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/AnnouncementPage.razor`、`Views/Admins/AnnouncementView.*`；Server 版已刪除），畫面與訊息和之前相同。資料經 `AnnouncementsController` 新增的只限管理員端點（`GET api/v1/announcements`〔清單、角色與團隊選項、伺服器的「現在」〕、`POST`、`PUT {id}`、`DELETE {id}?concurrencyStamp=`），走同一個 `AnnouncementService`，稽核 `Announcement.Create`／`Update`／`Delete` 由伺服器寫（刪除的標題取自資料庫）；原有的 `active`、`dismiss` 改為各自標 `[SignedInUser]`。公告對象種類 `AnnouncementTargetKinds` 搬到 `MyProject.Share`（命名空間仍是 `MyProject.AccessDatas.Models`）。
+存檔或刪除後伺服器照舊 `AnnouncementCache.Invalidate()`＋`PublishAnnouncementsChanged()`（還在 Server 的頁面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請**同一個分頁**的橫幅立即重讀，其他分頁與其他使用者照舊 60 秒輪詢與切回分頁時重讀。
+WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控「發送測試通知」與首頁「我的通知」點開通知後立即重讀；反過來，在鈴鐺標為已讀、刪除、全部已讀或清除已讀後，鈴鐺以 `RequestRefresh(except: 自己)` 請首頁「我的通知」立即重讀（都只對同一個分頁）。
 
 ## 四、內部系統運作
 
@@ -81,11 +85,12 @@
 - 0.9.122 起：`NotificationTests.MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged`（標為已讀才發訊號）、`DashboardTests` 小工具輪詢與 Dispose 停止輪詢、`NotificationTestServiceTests`（測試通知）。
 - 0.9.136 起：`NotificationTests.SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted`、`RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly`；`NotificationComponentTests.Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead`。
 - 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`。
+- 0.10.6 起：`SystemParameterAnnouncementApiTests` 的公告部分（新增、修改、刪除與畫面相同且每個動作一筆稽核、不存在 404、Id 不符 400、輸入不合法不寫稽核、其他使用者的橫幅下一次輪詢就看得到、非管理員 403 但仍看得到橫幅）；`ShellApiIntegrationTests.NotificationsProfileAndShellInfo_ShouldSendLocalTimesWithoutAnOffset`（鈴鐺的時間不帶時差）、`Client/ClientRefreshSignalTests`（略過呼叫端、沒有訂閱者）；實機 `m07-ops.mjs` M7-P4／P5。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`DataAccessServiceLifetimeTests`、`LoggingConventionTests`、`PageHelpCatalogTests`。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Business/Services/Other/NotificationSender.cs`（`INotificationSender`、`NotificationTarget`、`NotificationRequest`）、`NotificationSignal.cs`、`NotificationCategories.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/NotificationQueryService.cs`、`AnnouncementService.cs`；`IEffectiveTeamResolver.GetUserIdsInTeamAsync`
-- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/NotificationBell`、`AnnouncementBanner`、`AnnouncementCache`、`Components/Views/Admins/AnnouncementView`、`Scheduling/Jobs/NotificationRetentionJob.cs`
+- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/NotificationBell`、`AnnouncementBanner`、`AnnouncementCache`、`Scheduling/Jobs/NotificationRetentionJob.cs`；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`
 - 規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「站內通知」；操作說明 `announcements.md`、`app.md`
