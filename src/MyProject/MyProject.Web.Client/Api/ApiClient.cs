@@ -92,6 +92,61 @@ public class ApiClient
         }
     }
 
+    /// <summary>
+    /// 由瀏覽器直接送出的請求（0.10.3 起，帶附件的 multipart：檔案不經過 WASM 記憶體，見 <see cref="Commons.BrowserFiles"/>）。
+    /// <paramref name="send"/> 以傳入的存取 Token 送出一次；規則與一般 API 呼叫相同：401 時刷新後重送一次、
+    /// 被要求先改密碼或設定兩步驟驗證時整頁導過去、連不上伺服器時回失敗結果。
+    /// </summary>
+    public async Task<ApiResult<T>> SendFormAsync<T>(string url, Func<string?, Task<Commons.RawResponse>> send)
+    {
+        try
+        {
+            var raw = await send(await session.GetAccessTokenAsync());
+            if (raw.Status == (int)HttpStatusCode.Unauthorized)
+            {
+                if (!await session.RefreshAsync())
+                {
+                    await session.SignInAgainAsync();
+                    return ApiResult<T>.UnauthorizedResult("登入已失效，請重新登入。");
+                }
+
+                raw = await send(await session.GetAccessTokenAsync());
+            }
+
+            var result = Parse<T>(raw, url);
+            Remember(result);
+            if (raw.Status == (int)HttpStatusCode.Forbidden)
+            {
+                RedirectForForcedSetup(result.ErrorCode);
+            }
+
+            return result;
+        }
+        catch (JSException ex)
+        {
+            logger.LogWarning(ex, "API form request failed because the server could not be reached. Url={Url}", url);
+            return ApiResult<T>.FailureResult(OfflineMessage, 0);
+        }
+    }
+
+    private ApiResult<T> Parse<T>(Commons.RawResponse raw, string url)
+    {
+        try
+        {
+            if (JsonSerializer.Deserialize<ApiResult<T>>(raw.Body, JsonSerializerOptions.Web) is { } result)
+            {
+                return result;
+            }
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "API response was not an ApiResult. Url={Url}, Status={Status}", url, raw.Status);
+        }
+
+        // IIS 擋下過大的請求時回的是 HTML 錯誤頁（404.13），不是 ApiResult。
+        return ApiResult<T>.FailureResult($"伺服器回應異常（HTTP {raw.Status}）。", raw.Status);
+    }
+
     private async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string url, object? body)
     {
         try

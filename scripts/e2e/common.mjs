@@ -138,3 +138,50 @@ export function createUser(account, password) {
     db.close();
   }
 }
+
+// ── 0.10.3 起從 m03-crud.mjs 移來，M3、M4 情境共用 ──
+
+/** 建一個角色（指定權限鍵）與使用者；團隊給名稱。 */
+export function createScopedUser(account, password, roleName, keys, teamNames = []) {
+  if (query('SELECT Id FROM MyUser WHERE Account = ?', account).length > 0) {
+    return;
+  }
+
+  execute(
+    `INSERT INTO RoleView (Name, TabViewJson, DefaultTeamsJson, RequireTwoFactor, CreateAt, UpdateAt, ConcurrencyStamp, IsDeleted)
+     VALUES (?, '[]', '[]', 0, datetime('now'), datetime('now'), lower(hex(randomblob(16))), 0)`, roleName);
+  const roleId = query('SELECT Id FROM RoleView WHERE Name = ?', roleName)[0].Id;
+  for (const key of keys) {
+    if (query('SELECT Id FROM Permission WHERE Key = ?', key).length === 0) {
+      execute('INSERT INTO Permission (Key, DisplayName, SortOrder) VALUES (?, ?, 0)', key, key);
+    }
+    execute('INSERT INTO RolePermissionMap (RoleViewId, PermissionId) VALUES (?, ?)', roleId, query('SELECT Id FROM Permission WHERE Key = ?', key)[0].Id);
+  }
+
+  createUser(account, password);
+  const userId = query('SELECT Id FROM MyUser WHERE Account = ?', account)[0].Id;
+  execute('UPDATE MyUser SET RoleViewId = ? WHERE Id = ?', roleId, userId);
+  execute('DELETE FROM UserRole WHERE MyUserId = ?', userId);
+  execute('INSERT INTO UserRole (MyUserId, RoleViewId) VALUES (?, ?)', userId, roleId);
+  for (const team of teamNames) {
+    execute('INSERT INTO UserTeam (MyUserId, TeamId) VALUES (?, ?)', userId, query('SELECT Id FROM Team WHERE Name = ?', team)[0].Id);
+  }
+}
+
+export async function isWasmPage(page) {
+  return page.evaluate(() => performance.getEntriesByType('resource').some((x) => x.name.includes('.wasm')));
+}
+
+/** 以網頁登入的 Cookie 換一組存取 Token（與 WASM 頁面相同的方式），再直接呼叫 API。 */
+export async function apiAsPageUser(page, path, { method = 'GET', body } = {}) {
+  return page.evaluate(async ({ path, method, body }) => {
+    const bridge = await fetch('/api/v1/Auth/bridge', { method: 'POST', headers: { 'X-MyProject-Client': '1' } });
+    const token = (await bridge.json()).data.accessToken;
+    const response = await fetch(path, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return response.status;
+  }, { path, method, body });
+}

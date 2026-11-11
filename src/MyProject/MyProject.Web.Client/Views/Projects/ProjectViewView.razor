@@ -1,5 +1,4 @@
-﻿@using MyProject.Share.Helpers
-@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+﻿@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
 {
 }
@@ -93,8 +92,9 @@ else
                 }
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Title)" Title="標題" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Description)" Title="描述" />
-                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.StartDate)" Title="開始日期" Sortable />
-                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.EndDate)" Title="結束日期" Sortable />
+                @* 0.10.3 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
+                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.StartDate)" Title="開始日期" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.EndDate)" Title="結束日期" Sortable Format="@ClientCulture.DateTimeFormat" />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Status)" Title="狀態" Sortable>
                     <StatusPill Text="@context.Status" Tone="@ResolveStatusTone(context.Status)" />
                 </Column>
@@ -103,11 +103,11 @@ else
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Owner)" Title="負責人" Sortable />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.CategoriesText)" Title="分類" />
                 <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.TeamsText)" Title="團隊" />
-                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.CreatedAt)" Title="建立時間" Sortable />
-                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.UpdatedAt)" Title="更新時間" Sortable />
+                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.CreatedAt)" Title="建立時間" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.UpdatedAt)" Title="更新時間" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.DeletedAt)" Title="刪除時間" />
+                    <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.DeletedBy)" Title="刪除者" />
                 }
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
@@ -254,7 +254,8 @@ else
                 @* 檔案清單是縱向的，橫向切一半只會兩邊都不好讀 —— 整區走單欄。 *@
                 <FormSection Title="專案附件" SingleColumn="true">
                     <FormItem Label="新增附件">
-                        <InputFile OnChange="OnProjectFilesSelectedAsync" multiple />
+                        @* 0.10.3 起（WASM）：檔案留在瀏覽器（BrowserFiles），存檔時由瀏覽器直接上傳，不經過 WASM 記憶體。 *@
+                        <InputFile @ref="fileInput" OnChange="OnProjectFilesSelectedAsync" multiple />
                         <div class="form-field-hint">可一次選擇多個檔案，每個檔案上限 1GB。</div>
                     </FormItem>
 
@@ -265,7 +266,7 @@ else
                                 @foreach (var file in pendingUploadFiles)
                                 {
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>@file.File.Name (@FormatFileSize(file.File.Size))</span>
+                                        <span>@file.Name (@FormatFileSize(file.Size))</span>
                                         <CrudActionButton Title="移除" Icon="close" Danger
                                                           OnClick="@(() => RemovePendingFile(file.Id))" />
                                     </li>
@@ -281,7 +282,8 @@ else
                                 @foreach (var file in CurrentRecord.Files)
                                 {
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <a href="@GetProjectFileDownloadUrl(file.Id)" target="_blank">@file.OriginalFileName</a>
+                                        @* 0.10.3 起：先申請一次性下載票證，再由瀏覽器原生下載（舊的 Cookie 下載網址已移除）。 *@
+                                        <a href="" @onclick="@(() => OnDownloadFileAsync(file.Id))" @onclick:preventDefault>@file.OriginalFileName</a>
                                         <span>
                                             @FormatFileSize(file.FileSize)
                                             <CrudActionButton Title="移除" Icon="close" Danger

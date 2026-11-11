@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.9
+- 文件版本：1.10
 - 文件狀態：已實作
-- 現行系統版本：0.10.2
+- 現行系統版本：0.10.3
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -17,13 +17,17 @@
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
 - Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
-- **資料一律經畫面同一個 Service**（0.10.2 起，WASM 遷移 M3）：Controller 不另寫查詢或寫入邏輯，團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份。分類、團隊已改（`CategoryRepository`／`TeamRepository` 已刪除），專案的 `ProjectRepository` 在 M4 刪除；新模組不要再寫 Repository（CRUD 產生器也不再產生）。DTO 與畫面模型的對應放在 `MyProject.Web.Client/Api/*DtoMapper.cs`，WASM 頁面與 Controller 共用。
-- 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）。走服務的 Controller 由服務寫（與畫面相同，操作者是 `ApiActorMiddleware` 依存取 Token 載入的目前使用者），Controller 只補服務不寫的查看、搜尋、匯出稽核；還沒改走服務的（`ProjectController`）呼叫 `this.WriteAuditAsync(AuditActions.Xxx.Create, ...)`
+- **資料一律經畫面同一個 Service**（0.10.2 起，WASM 遷移 M3）：Controller 不另寫查詢或寫入邏輯，團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份。分類、團隊 0.10.2 起、專案 0.10.3 起已改，專案中已沒有任何 Repository（`CategoryRepository`／`TeamRepository`／`ProjectRepository` 都已刪除）；新模組不要再寫 Repository（CRUD 產生器也不再產生）。DTO 與畫面模型的對應放在 `MyProject.Web.Client/Api/*DtoMapper.cs`，WASM 頁面與 Controller 共用。
+- 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）。走服務的 Controller 由服務寫（與畫面相同，操作者是 `ApiActorMiddleware` 依存取 Token 載入的目前使用者），Controller 只補服務不寫的查看、搜尋、匯出稽核；不經服務的少數動作（例如 `AuthController` 的 Token 事件）呼叫 `this.WriteAuditAsync(AuditActions.Xxx..., ...)`
   （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT／Cookie 身分解析）。
   動作代碼一律引用 `MyProject.Business/Helpers/AuditActions.cs` 的常數，不可寫字串字面值（`AuditConventionTests` 守門）。
-- 例外：`ProjectFileController`（附件下載）**只收 Cookie 驗證**、路由為 kebab-case 的 `api/project-files`（另有 `api/v1/project-files`），
-  因為呼叫端是 Blazor 畫面上由瀏覽器直接導覽的連結，帶的是登入 Cookie 而不是 Bearer token。
-  `BackupController`（系統備份下載，0.9.99 起）同理只收 Cookie，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權。
+- **同一個網址依內容類型分流**（0.10.3 起）：要帶檔案的寫入動作不另開上傳端點，在同一個網址各寫一個 `application/json` 與一個 `multipart/form-data` 的 action，以 `[Consumes]` 區分（例：`POST/PUT api/v1/Project`，multipart 的 `data` 是與 JSON 版相同的 DTO 字串、`files` 是附件）。
+  JSON 版的 `[Consumes]` 要列 `application/json`、`text/json`、`application/*+json`（維持原本接受的類型）；multipart 版設路由 `Order = 1`（沒帶 Content-Type 時由 JSON 版回 415，而不是兩個 action 模稜兩可回 500），並標 `[ApiExplorerSettings(IgnoreApi = true)]`（Swagger 不能在同一個方法＋路徑放兩個 action，multipart 格式改寫在《[Web API 端點目錄](Web%20API%20端點目錄.md)》）。
+  multipart 的 action 另標 `[RequestSizeLimit]`／`[RequestFormLimits]` 放寬請求上限（專案為 4 GB，與 `web.config` 的 IIS `requestLimits` 一致，`WebConfigTests` 守門）；其他端點維持 ASP.NET Core 預設的約 30 MB。
+- **檔案下載用一次性票證**（0.10.3 起）：瀏覽器原生下載帶不了 Bearer，大檔也不能讀進 WASM 記憶體，所以先以 Bearer 呼叫 `POST .../ticket` 取得 60 秒、只能用一次的網址，再由瀏覽器直接下載匿名的 `GET api/v1/downloads/{ticket}`（`DownloadsController`、`DownloadTicketService`）。
+  兌換時依發票證時的使用者與安全戳記重新載入使用者、重查權限與資料範圍，任何失敗都回同一個 404；不支援續傳。細節見《[Web API 端點目錄](Web%20API%20端點目錄.md)》第三節。
+  0.10.3 起專案附件已沒有以 Cookie 驗證的端點（`ProjectFileController` 已刪除）。
+- 例外：`BackupController`（系統備份下載，0.9.99 起）**只收 Cookie 驗證**，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權；M7 改用下載票證。
 
 ## 統一回傳格式
 所有一般 Web API 回應固定使用 `MyProject.Dtos.Commons.ApiResult<T>` 或非泛型 `ApiResult`。
@@ -72,7 +76,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | `Invalid`、`None` | 400 | 輸入不符規則（例如指定範圍外的團隊、上層選到自己的下屬）|
 | `Error` | 500 | 未預期的錯誤（已記錯誤日誌）；例外細節同樣交給 `ApiServerError` 依 `ExceptionDetailPolicy` 決定是否回傳 |
 
-- 訊息就是畫面上看到的那一句（0.10.2 起分類、團隊的 API 錯誤訊息與畫面相同；網址、狀態碼的分類方式與欄位不變）。
+- 訊息就是畫面上看到的那一句（0.10.2 起分類、團隊，0.10.3 起專案的 API 錯誤訊息與畫面相同；網址、狀態碼的分類方式與欄位不變）。
 - 端點本身只要求較低的權限、但某個參數需要更高權限時（例如搜尋與匯出的 `Deleted=true` 要刪除權限），用 `this.ForbidUnless(允許, 訊息)`：不允許時回 403 `ApiResult`（帶 `TraceId`），允許時回 null。判斷一律用 `PermissionRules.CanAccessAction`（與畫面同一份規則）。
 - 修改時先確認資料在自己的範圍內（範圍外 404），再比對名稱：不要讓範圍外的資料因為名稱重複回 409 而透露它存在。存檔前檢查端點（`POST check`）同理，而且要有新增（`Id=0`）或修改（`Id>0`）權限，只能看的人不能拿它探名稱。
 - 新增成功後服務會把資料庫配的 `Id` 與 `ConcurrencyStamp` 寫回傳入的畫面模型，Controller 直接用它組回應。

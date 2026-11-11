@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
-using MyProject.Business.Repositories;
+using MyProject.Web.Downloads;
 using MyProject.Dtos.Commons;
 using MyProject.Web.Components.Commons;
 using MyProject.Business.Services.DataAccess;
@@ -198,8 +198,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ProjectSampleDataService>();
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
         services.AddScoped<SoftDeletePurgeService>();
-        services.AddScoped<ProjectRepository>();
-        // 分類、團隊的 Web API 與畫面共用同一個服務（0.10.2 起刪除 CategoryRepository、TeamRepository）。
+        // 專案、分類、團隊的 Web API 與畫面共用同一個服務（0.10.2 起刪除 CategoryRepository、TeamRepository，0.10.3 起刪除 ProjectRepository）。
+        // 一次性下載票證（0.10.3 起）：存在記憶體、單一行程有效，所以是 singleton。
+        services.AddSingleton<DownloadTicketService>();
         services.AddScoped<CategoryService>();
         services.AddScoped<TeamService>();
 
@@ -491,8 +492,8 @@ public static class ServiceCollectionExtensions
     /// 「A second operation was started on this context」。
     ///
     /// Blazor 路徑的 <c>Services/DataAccess/*</c> 一律注入工廠、每個方法用完即棄。
-    /// 仍保留一個 scoped 的 <see cref="BackendDBContext"/> 供 Repository（API 路徑，
-    /// scope ＝ 單次 HTTP 請求，本來就正確）與健康檢查／診斷服務使用，
+    /// 仍保留一個 scoped 的 <see cref="BackendDBContext"/> 供 API 路徑上直接查詢的元件（scope ＝ 單次 HTTP 請求，
+    /// 本來就正確；0.10.3 起已沒有 Repository）與健康檢查／診斷服務使用，
     /// 但它改由工廠產生，避免 options 生命週期與工廠衝突。
     /// </summary>
     public static IServiceCollection AddConfiguredDatabase(this IServiceCollection services, SystemSettings systemSettings)

@@ -70,6 +70,52 @@ public sealed class ClientApiMappingTests
         Assert.Equivalent(model, TeamDtoMapper.ToModel(TeamDtoMapper.ToDto(model)), strict: true);
     }
 
+    /// <summary>
+    /// 專案（0.10.3 起）：欄位、分類與團隊、附件清單都能來回轉換；附件的實體檔位置（RelativePath、StoredFileName）不會出伺服器。
+    /// </summary>
+    [Fact]
+    public void Project_RoundTrip_ShouldKeepEveryField_ButNotTheStoragePathOfAttachments()
+    {
+        var model = new ProjectAdapterModel
+        {
+            Id = 5,
+            Title = "新系統",
+            Description = "說明",
+            StartDate = new DateTime(2026, 11, 1),
+            EndDate = null,
+            Status = "進行中",
+            Priority = "高",
+            CompletionPercentage = 40,
+            Owner = "王小明",
+            Categories = ["硬體"],
+            Teams = ["研發部", "業務部"],
+            ConcurrencyStamp = "s",
+            CreatedAt = new DateTime(2026, 1, 1),
+            UpdatedAt = new DateTime(2026, 1, 2),
+            IsDeleted = true,
+            DeletedAt = new DateTime(2026, 1, 3),
+            DeletedBy = "bob",
+            Files =
+            [
+                new ProjectFileAdapterModel
+                {
+                    Id = 9, ProjectId = 5, OriginalFileName = "規格.pdf", ContentType = "application/pdf", FileSize = 1024,
+                    CreatedAt = new DateTime(2026, 1, 4), StoredFileName = "abc.pdf", RelativePath = "2026/01/abc.pdf",
+                },
+            ],
+        };
+
+        var dto = ProjectDtoMapper.ToDto(model);
+        var back = ProjectDtoMapper.ToModel(dto);
+
+        Assert.Equal("\n研發部\n業務部\n", dto.Teams);
+        Assert.Null(typeof(ProjectFileDto).GetProperty("RelativePath"));
+        Assert.Null(typeof(ProjectFileDto).GetProperty("StoredFileName"));
+        model.Files[0].StoredFileName = string.Empty;
+        model.Files[0].RelativePath = string.Empty;
+        Assert.Equivalent(model, back, strict: true);
+    }
+
     [Fact]
     public void ApiFailure_ShouldShowTheReason_NotTheCategory()
     {

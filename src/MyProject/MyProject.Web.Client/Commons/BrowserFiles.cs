@@ -1,0 +1,63 @@
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+namespace MyProject.Web.Client.Commons;
+
+/// <summary>使用者選的一個檔案：內容留在瀏覽器（<c>browser-files.js</c>），.NET 只知道 id、檔名與大小。</summary>
+public sealed record PickedFile(string Id, string Name, long Size);
+
+/// <summary>multipart 請求的原始回應（狀態碼與本文），交給 <see cref="Api.ApiClient.SendFormAsync{T}"/> 解析。</summary>
+public sealed record RawResponse(int Status, string Body);
+
+/// <summary>
+/// 附件上傳與下載（0.10.3 起，WASM 遷移 M4）。檔案不經過 WASM 的記憶體：選檔時只拿 id／檔名／大小，
+/// 存檔時由 JS 組 FormData 直接送出；下載以一次性票證網址交給瀏覽器原生下載。見 <c>wwwroot/js/browser-files.js</c>。
+/// </summary>
+public class BrowserFiles : IAsyncDisposable
+{
+    /// <summary>WASM 前端專案的 wwwroot 直接掛在網站根目錄（同 <c>TokenStore</c>）。</summary>
+    private const string ModulePath = "./js/browser-files.js";
+    private readonly IJSRuntime jsRuntime;
+    private IJSObjectReference? module;
+
+    public BrowserFiles(IJSRuntime jsRuntime)
+    {
+        this.jsRuntime = jsRuntime;
+    }
+
+    /// <summary>收下 <c>&lt;input type=file&gt;</c> 這次選的檔案。</summary>
+    public virtual async Task<IReadOnlyList<PickedFile>> CaptureAsync(ElementReference input)
+        => await (await ModuleAsync()).InvokeAsync<List<PickedFile>>("capture", input);
+
+    /// <summary>不再需要的檔案（移除、關窗、存檔完成）。</summary>
+    public virtual async Task ReleaseAsync(IEnumerable<string> ids)
+        => await (await ModuleAsync()).InvokeVoidAsync("release", ids.ToArray());
+
+    /// <summary>送出 multipart（<c>data</c>＋<c>files</c>＋<c>removedFileIds</c>）。連不上伺服器時丟 <see cref="JSException"/>。</summary>
+    public virtual async Task<RawResponse> SendAsync(string method, string url, string? token, string data, IEnumerable<string> fileIds, IEnumerable<int> removedFileIds)
+        => await (await ModuleAsync()).InvokeAsync<RawResponse>("send", method, url, token, data, fileIds.ToArray(), removedFileIds.ToArray());
+
+    /// <summary>讓瀏覽器以這個網址原生下載。</summary>
+    public virtual async Task DownloadAsync(string url)
+        => await (await ModuleAsync()).InvokeVoidAsync("download", url);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // 頁面已關閉，模組隨之釋放。
+            }
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    private async Task<IJSObjectReference> ModuleAsync()
+        => module ??= await jsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
+}

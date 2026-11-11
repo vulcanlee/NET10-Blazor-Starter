@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
@@ -280,7 +281,9 @@ public sealed class ClientSessionTests
     [InlineData("/categories", true)]
     [InlineData("/teams", true)]
     [InlineData("/Categories?deleted=1", true)]
-    [InlineData("/projects", false)]
+    [InlineData("/projects", true)]
+    [InlineData("/Projects?deleted=1", true)]
+    [InlineData("/myusers", false)]
     [InlineData("/", false)]
     public void ClientRouteTable_ShouldKnowWhichPagesRunInWebAssembly(string path, bool expected)
         => Assert.Equal(expected, ClientRouteTable.IsClientRoute(path));
@@ -298,6 +301,65 @@ public sealed class ClientSessionTests
         Assert.Equal("個人資料", ClientMainLayout.ResolvePageTitle(menu, topics, "/Profile"));
         Assert.Equal("系統首頁", ClientMainLayout.ResolvePageTitle(menu, topics, "/unknown"));
         Assert.Equal("個人資料", ClientPageHelpDialog.MatchTopic(topics, "profile?x=1")!.Title);
+    }
+
+    /// <summary>帶附件的存檔由瀏覽器直接送出（0.10.3 起）：401 時與一般 API 呼叫一樣刷新後重送一次，第二次帶新的 Token。</summary>
+    [Fact]
+    public async Task SendForm_On401_ShouldRefreshAndResendWithTheNewToken()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.OK, Tokens("a2", "r2", persistent: true));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+        var tokens = new List<string?>();
+
+        var result = await api.SendFormAsync<object>("api/v1/Project", token =>
+        {
+            tokens.Add(token);
+            return Task.FromResult(tokens.Count == 1
+                ? new RawResponse(401, JsonSerializer.Serialize(Fail()))
+                : new RawResponse(200, JsonSerializer.Serialize(ApiResult<object>.SuccessResult(new object(), "新增專案成功"))));
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(["a1", "a2"], tokens);
+    }
+
+    /// <summary>瀏覽器送不出去（離線、伺服器關閉）時 JS 丟例外：回失敗結果，畫面顯示提示而不是整頁出錯。</summary>
+    [Fact]
+    public async Task SendForm_WhenTheBrowserCannotReachTheServer_ShouldReturnAFailure()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+
+        var result = await api.SendFormAsync<object>("api/v1/Project", _ => throw new JSException("TypeError: Failed to fetch"));
+
+        Assert.False(result.Success);
+        Assert.Equal(ApiClient.OfflineMessage, result.ErrorMessage);
+    }
+
+    /// <summary>IIS 擋下過大的請求時回 HTML 錯誤頁（不是 ApiResult）：顯示狀態碼，不丟例外。</summary>
+    [Fact]
+    public async Task SendForm_WhenTheResponseIsNotAnApiResult_ShouldReportTheStatus()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+
+        var result = await api.SendFormAsync<object>("api/v1/Project", _ => Task.FromResult(new RawResponse(404, "<html>HTTP Error 404.13 - Not Found</html>")));
+
+        Assert.False(result.Success);
+        Assert.Contains("HTTP 404", result.UserMessage());
     }
 
     [Theory]

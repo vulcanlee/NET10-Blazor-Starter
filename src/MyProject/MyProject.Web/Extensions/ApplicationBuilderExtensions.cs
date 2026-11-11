@@ -378,7 +378,7 @@ public static class ApplicationBuilderExtensions
     /// 沿革：0.4.34 之前它掛在驗證中介軟體之前，且 <c>UseStaticFiles</c> 本身不看授權，
     /// 等於整個下載目錄匿名可讀。預設設定下 <c>ProjectFilePath</c> 不在 <c>DownloadPath</c>
     /// 底下所以沒有直接外洩，但交付到客戶端後只要有人把檔案放進該目錄就會裸奔 ——
-    /// 與 <c>ProjectFileController</c> 的權限 + 團隊守門 + 稽核軌跡完全相反。
+    /// 與專案附件下載（0.10.3 起一次性票證，<c>DownloadsController</c>）的權限 + 團隊守門 + 稽核軌跡完全相反。
     /// </summary>
     public static WebApplication UseConfiguredDownloadStaticFiles(this WebApplication app, SystemSettings systemSettings)
     {

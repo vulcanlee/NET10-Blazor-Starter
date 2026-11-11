@@ -27,6 +27,9 @@ public static class ClientProgram
         builder.Services.AddScoped<ClientErrorReporter>();
         builder.Services.AddScoped<PagePermissions, ClientPagePermissions>();
         builder.Services.AddScoped<IAuditHistorySource, ApiAuditHistorySource>();
+        // 附件上傳與下載（0.10.3 起）：檔案留在瀏覽器，不經過 WASM 記憶體。
+        builder.Services.AddScoped<BrowserFiles>();
+        builder.Services.AddScoped<ProjectApi>();
         builder.Services.AddScoped<CategoryApi>();
         builder.Services.AddScoped<TeamApi>();
         builder.Services.AddAntDesign();
