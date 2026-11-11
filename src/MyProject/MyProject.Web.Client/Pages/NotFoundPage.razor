@@ -1,0 +1,12 @@
+﻿@page "/not-found"
+@*
+    0.10.8 起在 WASM 執行（WASM 遷移 M9）。
+    ⚠️ 必須匿名：UseStatusCodePagesWithReExecute 會把「沒有 body 的錯誤狀態碼」（API 的 404、
+    /UploadFiles 的 401…）改寫成 /not-found 再跑一次管線。這頁若要求登入，那些回應全都會被
+    Cookie challenge 換成 302 到登入頁 —— API 呼叫端拿不到真正的狀態碼。
+    未登入者一樣看不到任何東西：ClientMainLayout 在登入檢查通過前不渲染（含這頁的內容），並把人導去登入頁。
+    重跑時瀏覽器的網址還是原本那個，WASM 路由器找不到頁面時顯示同一份內容（ClientRoutes 的 NotFound）。
+*@
+@attribute [AllowAnonymous]
+
+<NotFoundContent />

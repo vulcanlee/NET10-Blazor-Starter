@@ -3,7 +3,7 @@
 // 非管理員直打 M7 的 API 得 403、舊的 Cookie 備份下載網址已退役，最後跑全部路由的煙霧測試。
 // 結果寫到 E2E_OUT_DIR/m07-results.json 與 smoke-results.json。
 import { readFileSync } from 'node:fs';
-import { apiAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
 import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { seedOpsData, seedTag, userAccount, userPassword } from './m07-views.mjs';
@@ -34,22 +34,8 @@ function audits(action, since) {
   return query('SELECT TargetId, Detail FROM AuditLog WHERE Action = ? AND OccurredAt >= ? ORDER BY Id', action, since);
 }
 
-/** 以網頁登入換 Token 後呼叫 API，回傳狀態碼與 JSON。 */
-async function apiJson(page, path, { method = 'GET', body } = {}) {
-  return page.evaluate(async ({ path, method, body }) => {
-    const bridge = await fetch('/api/v1/Auth/bridge', { method: 'POST', headers: { 'X-MyProject-Client': '1' } });
-    const token = (await bridge.json()).data.accessToken;
-    const response = await fetch(path, {
-      method,
-      headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const text = await response.text();
-    let json = null;
-    try { json = JSON.parse(text); } catch { /* 檔案或空白 */ }
-    return { status: response.status, json, length: text.length };
-  }, { path, method, body });
-}
+/** 以這個分頁登入的 Token 呼叫 API，回傳狀態碼與 JSON（0.10.8 起共用 common.mjs，不再以 Cookie 換 Token）。 */
+const apiJson = apiJsonAsPageUser;
 
 async function download(page, trigger) {
   const [file] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), trigger()]);

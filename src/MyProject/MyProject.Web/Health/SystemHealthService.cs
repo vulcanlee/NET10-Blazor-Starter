@@ -242,9 +242,10 @@ public sealed class SystemHealthService : ISystemHealthService
     private SystemHealthItem CheckAuthentication()
     {
         var jwtSettings = jwtOptions.Value;
+        // 0.10.8 起只用 Token 登入（登入 Cookie 的 scheme 已移除）：檢查 JWT 是預設驗證機制且設定完整。
         var schemes = authenticationOptions.Value.Schemes.Select(scheme => scheme.Name).ToHashSet(StringComparer.Ordinal);
-        var hasCookie = schemes.Contains(MagicObjectHelper.CookieScheme);
-        var hasJwt = schemes.Contains(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme);
+        var hasJwt = schemes.Contains(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+            && authenticationOptions.Value.DefaultScheme == Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
         var hasRequiredJwtSettings = !string.IsNullOrWhiteSpace(jwtSettings.Issuer)
             && !string.IsNullOrWhiteSpace(jwtSettings.Audience)
             && !string.IsNullOrWhiteSpace(jwtSettings.SigningKey)
@@ -252,7 +253,7 @@ public sealed class SystemHealthService : ISystemHealthService
         var usesDevelopmentKeyInProduction = environment.IsProduction()
             && JwtSettings.IsPlaceholderSigningKey(jwtSettings.SigningKey);
 
-        var status = hasCookie && hasJwt && hasRequiredJwtSettings && !usesDevelopmentKeyInProduction
+        var status = hasJwt && hasRequiredJwtSettings && !usesDevelopmentKeyInProduction
             ? SystemHealthStatus.Healthy
             : SystemHealthStatus.Unhealthy;
 
@@ -261,8 +262,8 @@ public sealed class SystemHealthService : ISystemHealthService
             "Authentication",
             15,
             status,
-            $"Cookie scheme：{hasCookie}；JWT bearer：{hasJwt}；Issuer：{MaskPresence(jwtSettings.Issuer)}；Audience：{MaskPresence(jwtSettings.Audience)}；SigningKey 長度：{jwtSettings.SigningKey.Length}。",
-            status == SystemHealthStatus.Healthy ? null : "Cookie/JWT 設定不完整，或 Production 仍使用開發用 JWT key。");
+            $"JWT bearer（預設）：{hasJwt}；Issuer：{MaskPresence(jwtSettings.Issuer)}；Audience：{MaskPresence(jwtSettings.Audience)}；SigningKey 長度：{jwtSettings.SigningKey.Length}。",
+            status == SystemHealthStatus.Healthy ? null : "JWT 設定不完整，或 Production 仍使用開發用 JWT key。");
     }
 
     /// <summary>「檔案系統」要檢查的目錄（鍵是報告裡顯示的名稱）。</summary>

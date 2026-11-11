@@ -1,0 +1,14 @@
+﻿@using Microsoft.Extensions.Logging
+@inject ILogger<NotFoundContent> Logger
+@inject NavigationManager NavigationManager
+
+@* 找不到頁面的內容（0.10.8 起，WASM 遷移 M9）：/not-found 頁與 ClientRoutes 找不到路由時共用，文字照抄 Server 版。 *@
+<h3>Not Found</h3>
+<p>Sorry, the content you are looking for does not exist.</p>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Logger.LogWarning("Not-found page displayed. RequestedUri={RequestedUri}", NavigationManager.Uri);
+    }
+}

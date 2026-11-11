@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,7 +23,7 @@ namespace MyProject.Web.Controllers;
 /// 寫入的稽核由服務寫；查看（開修改窗）、搜尋、匯出由這裡寫，與 Server 版相同。
 ///
 /// 停用、強制登出、重設兩步驟驗證、改密碼／角色／管理員身分會換對方的工作階段版本：對方下一個請求就被登出（API 401、刷新被拒）。
-/// 改到自己時，回傳一個換發登入的網址（<see cref="UserSaveResultDto.SessionRefreshUrl"/>），WASM 頁整頁導過去，這台裝置維持登入。
+/// 改到自己時，0.10.8 起直接回這台裝置的新 Token（<see cref="SessionRenewalDto.Tokens"/>），這台裝置維持登入。
 /// </summary>
 [Route("api/v1/users")]
 [ApiController]
@@ -34,7 +33,6 @@ namespace MyProject.Web.Controllers;
 public class UsersController : ControllerBase
 {
     private const string TargetType = "MyUser";
-    private const string ReturnUrl = "/myusers";
 
     private static readonly string[] SortableFields =
     [
@@ -53,8 +51,7 @@ public class UsersController : ControllerBase
     private readonly TeamService teamService;
     private readonly ITwoFactorService twoFactorService;
     private readonly IPasswordPolicy passwordPolicy;
-    private readonly ISecurityStampService securityStampService;
-    private readonly SessionRefreshTicketService refreshTickets;
+    private readonly SelfSessionRenewal sessionRenewal;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
     private readonly ILogger<UsersController> logger;
@@ -65,8 +62,7 @@ public class UsersController : ControllerBase
         TeamService teamService,
         ITwoFactorService twoFactorService,
         IPasswordPolicy passwordPolicy,
-        ISecurityStampService securityStampService,
-        SessionRefreshTicketService refreshTickets,
+        SelfSessionRenewal sessionRenewal,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
         ILogger<UsersController> logger)
@@ -76,8 +72,7 @@ public class UsersController : ControllerBase
         this.teamService = teamService;
         this.twoFactorService = twoFactorService;
         this.passwordPolicy = passwordPolicy;
-        this.securityStampService = securityStampService;
-        this.refreshTickets = refreshTickets;
+        this.sessionRenewal = sessionRenewal;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
         this.logger = logger;
@@ -224,7 +219,7 @@ public class UsersController : ControllerBase
         return Ok(ApiResult<UserDto>.SuccessResult(ToDto(saved.Id == 0 ? model : saved), "新增使用者成功"));
     }
 
-    /// <summary>修改；改到自己而且工作階段版本換掉時，回傳換發登入的網址。</summary>
+    /// <summary>修改；改到自己而且工作階段版本換掉時，回這台裝置的新 Token。</summary>
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ApiResult<UserSaveResultDto>>> Update(int id, [FromBody] UserDto dto)
     {
@@ -252,10 +247,10 @@ public class UsersController : ControllerBase
             return this.FromVerify<UserSaveResultDto>(result, () => null!, string.Empty);
         }
 
-        return Ok(ApiResult<UserSaveResultDto>.SuccessResult(new UserSaveResultDto
-        {
-            SessionRefreshUrl = id == MyId ? await SessionRefreshUrlAsync(id) : null,
-        }, "更新使用者成功"));
+        var saved = id == MyId
+            ? await sessionRenewal.RenewAsync<UserSaveResultDto>(User, id, "SelfUpdated")
+            : new UserSaveResultDto();
+        return Ok(ApiResult<UserSaveResultDto>.SuccessResult(saved, "更新使用者成功"));
     }
 
     /// <summary>點狀態標籤啟用／停用（support 與自己不可停用）。停用會換對方的工作階段版本。</summary>
@@ -320,24 +315,6 @@ public class UsersController : ControllerBase
         logger.LogInformation("User export downloaded. Rows={Rows}", outcome.Rows);
         await BusinessExports.WriteAuditAsync(auditLogService, currentUserService, AuditActions.User.Export, TargetType, outcome.Rows, request.Deleted);
         return File(outcome.Content!, TabularExport.XlsxContentType, outcome.FileName);
-    }
-
-    /// <summary>
-    /// 自己的工作階段版本換掉了（改了自己的密碼、角色或管理員身分）：發一張 2 分鐘、一次性的換發 ticket（與 Server 版相同的機制），
-    /// 瀏覽器帶著原本的 Cookie 整頁導過去換發。版本沒變或帳號已不能登入時回 null。
-    /// </summary>
-    private async Task<string?> SessionRefreshUrlAsync(int userId)
-    {
-        var oldStamp = User.FindFirstValue(MagicObjectHelper.SecurityStampClaimType) ?? string.Empty;
-        var state = await securityStampService.GetStateAsync(userId, TimeSpan.Zero);
-        if (!state.IsActive || string.IsNullOrEmpty(oldStamp) || SecurityStamps.Matches(oldStamp, state.SecurityStamp))
-        {
-            return null;
-        }
-
-        logger.LogInformation("Issuing a session refresh ticket after the user changed their own session. UserId={UserId}", userId);
-        var ticket = refreshTickets.Issue(userId, oldStamp, state.SecurityStamp);
-        return $"{SecurityStampCookieEvents.RefreshSessionPath}?ticket={Uri.EscapeDataString(ticket)}&returnUrl={Uri.EscapeDataString(ReturnUrl)}";
     }
 
     /// <summary>畫面上的必填（帳號、名稱、角色）由伺服器再驗一次：API 呼叫端不經過畫面的表單驗證（審查發現）。</summary>

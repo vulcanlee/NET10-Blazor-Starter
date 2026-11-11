@@ -237,30 +237,7 @@ public sealed class SessionTests : IDisposable
     public void Matches_ShouldTreatEmptyAsNotSet(string? claim, string current, bool expected)
         => Assert.Equal(expected, SecurityStamps.Matches(claim, current));
 
-    // ---------- ticket ----------
-
-    [Fact]
-    public void Ticket_ShouldWorkOnce_AndRejectTamperingAndExpiry()
-    {
-        var tickets = Tickets();
-        var issued = tickets.Issue(7, "old", "new");
-
-        var consumed = tickets.Consume(issued);
-        Assert.NotNull(consumed);
-        Assert.Equal((7, "old", "new"), (consumed.UserId, consumed.OldStamp, consumed.NewStamp));
-        Assert.Null(tickets.Consume(issued));
-        Assert.Null(tickets.Consume(issued[..^2] + "AA"));
-        Assert.Null(tickets.Consume(null));
-
-        var past = new ManualTimeProvider(DateTimeOffset.UtcNow.AddMinutes(-10));
-        var expired = Tickets(past).Issue(7, "old", "new");
-        Assert.Null(Tickets().Consume(expired));
-    }
-
     // ---------- 共用 ----------
-
-    private SessionRefreshTicketService Tickets(TimeProvider? timeProvider = null)
-        => new(DataProtectionProvider.Create("SessionTests"), timeProvider ?? TimeProvider.System, NullLogger<SessionRefreshTicketService>.Instance);
 
     private SecurityStampService StampService() => new(factory, new SecurityStampCache(), time, NullLogger<SecurityStampService>.Instance);
 
@@ -337,7 +314,7 @@ public sealed class SessionTests : IDisposable
     }
 }
 
-/// <summary>工作階段失效的端到端行為（真正的主機）：Cookie 驗證器、refresh、只收 access token、換發 Cookie 頁。</summary>
+/// <summary>工作階段失效的端到端行為（真正的主機）：只收 access token、換版本後刷新被拒；0.10.8 起不再發也不再認登入 Cookie。</summary>
 [Collection(nameof(IntegrationHostCollection))]
 public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFactory>
 {
@@ -348,33 +325,22 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
         this.factory = factory;
     }
 
+    /// <summary>
+    /// 0.10.8 起（WASM 遷移 M9b）純 Token 登入：登入不發 Cookie，帶著以前的登入 Cookie 也不算登入（登入 Cookie 的驗證機制已移除）。
+    /// </summary>
     [Fact]
-    public async Task Cookie_ShouldBeRejectedAfterRotation_AndWithoutAStamp()
+    public async Task Login_ShouldNotIssueACookie_AndAnOldCookieShouldNotSignAnyoneIn()
     {
         var user = await AddUserAsync(isAdmin: true);
-        var cookie = Cookie(user);
-        // 0.10.6 起只收 Cookie 的備份下載端點已退役，改用整頁載入的登入後頁面（伺服器以 Cookie 驗證 [Authorize]）。
-        var url = "/Profile";
-        Assert.Equal(HttpStatusCode.OK, (await GetAsync(url, cookie)).StatusCode);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
 
-        await factory.Services.GetRequiredService<ISecurityStampService>().RotateAsync(user.Id);
-        AssertChallenged(await GetAsync(url, cookie));
+        var login = await client.PostAsJsonAsync("/api/v1/Auth/login/web", new WebLoginRequestDto { Account = user.Account, Password = "Passw0rd-1", RememberMe = true });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        Assert.False(login.Headers.TryGetValues("Set-Cookie", out var cookies) && cookies.Any(x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal)));
 
-        var withoutStamp = await AddUserAsync(isAdmin: true);
-        withoutStamp.SecurityStamp = string.Empty;
-        AssertChallenged(await GetAsync(url, Cookie(withoutStamp)));
-
-        // 版本沒換、但帳號被直接停用：Cookie 一樣被拒。
-        var disabled = await AddUserAsync(isAdmin: true);
-        var disabledCookie = Cookie(disabled);
-        Assert.Equal(HttpStatusCode.OK, (await GetAsync(url, disabledCookie)).StatusCode);
-        using (var scope = factory.Services.CreateScope())
-        {
-            await scope.ServiceProvider.GetRequiredService<BackendDBContext>().MyUser.Where(x => x.Id == disabled.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, false));
-        }
-
-        factory.Services.GetRequiredService<ISecurityStampService>().Invalidate(disabled.Id);
-        AssertChallenged(await GetAsync(url, disabledCookie));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/Auth/me");
+        request.Headers.Add("Cookie", ".MyProject.Auth=CfDJ8-anything-from-an-older-version");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(request)).StatusCode);
     }
 
     [Fact]
@@ -412,69 +378,6 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
         Assert.True(await db.AuditLog.AnyAsync(x => x.Action == AuditActions.Token.RefreshFailed && x.TargetId == user.Id.ToString() && x.Detail == "reason=SessionRevoked"));
     }
 
-    [Fact]
-    public async Task RefreshSession_ShouldReissueOnlyForTheOriginalCookieAndANewStamp()
-    {
-        var user = await AddUserAsync(isAdmin: false);
-        var oldCookie = Cookie(user);
-        var oldStamp = user.SecurityStamp;
-        await SetStampAsync(user.Id, "rotated-stamp");
-        var tickets = factory.Services.GetRequiredService<SessionRefreshTicketService>();
-
-        // 沒有原本的 Cookie：不換發。
-        var noCookie = await GetAsync(RefreshUrl(tickets.Issue(user.Id, oldStamp, "rotated-stamp")), cookie: null);
-        Assert.Contains("/Auths/Logout", noCookie.Headers.Location?.ToString(), StringComparison.Ordinal);
-        Assert.False(noCookie.Headers.Contains("Set-Cookie") && noCookie.Headers.GetValues("Set-Cookie").Any(x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal) && !x.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase)));
-
-        // 別人的 Cookie：不換發（防登入 CSRF）。
-        var other = await AddUserAsync(isAdmin: false);
-        var foreign = await GetAsync(RefreshUrl(tickets.Issue(user.Id, oldStamp, "rotated-stamp")), Cookie(other));
-        Assert.Contains("/Auths/Logout", foreign.Headers.Location?.ToString(), StringComparison.Ordinal);
-
-        // ticket 的新版本不是資料庫目前的版本：不換發。
-        var stale = await GetAsync(RefreshUrl(tickets.Issue(user.Id, oldStamp, "something-else")), oldCookie);
-        Assert.Contains("/Auths/Logout", stale.Headers.Location?.ToString(), StringComparison.Ordinal);
-
-        // 正確：換發新 Cookie 並導回原頁；同一張 ticket 第二次失效。
-        var ticket = tickets.Issue(user.Id, oldStamp, "rotated-stamp");
-        var ok = await GetAsync(RefreshUrl(ticket), oldCookie);
-        Assert.Equal("/App", new Uri(new Uri("http://localhost"), ok.Headers.Location!).AbsolutePath);
-        Assert.Contains(ok.Headers.GetValues("Set-Cookie"), x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal));
-        var replay = await GetAsync(RefreshUrl(ticket), oldCookie);
-        Assert.Contains("/Auths/Logout", replay.Headers.Location?.ToString(), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Cookie 被驗證器拒絕 → 當成未登入 → 挑戰（導向登入頁或 401）。刻意不只看「不是 404」：
-    /// 備份端點自己也會擋停用的帳號（403），那樣分不出是不是驗證器擋下的。
-    /// </summary>
-    private static void AssertChallenged(HttpResponseMessage response)
-        => Assert.True(
-            response.StatusCode == HttpStatusCode.Unauthorized
-            || (response.StatusCode == HttpStatusCode.Redirect && response.Headers.Location?.ToString().Contains("/Auths/Login", StringComparison.Ordinal) == true),
-            $"預期被當成未登入，實際 {(int)response.StatusCode} {response.Headers.Location}");
-
-    private static string RefreshUrl(string ticket) => $"/Auths/RefreshSession?ticket={Uri.EscapeDataString(ticket)}&returnUrl=%2FApp";
-
-    private async Task<HttpResponseMessage> GetAsync(string url, string? cookie)
-    {
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (cookie is not null)
-        {
-            request.Headers.Add("Cookie", cookie);
-        }
-
-        return await client.SendAsync(request);
-    }
-
-    private string Cookie(MyUser user)
-    {
-        var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(MagicObjectHelper.CookieScheme);
-        var ticket = options.TicketDataFormat.Protect(new AuthenticationTicket(CookieClaims.Create(user), MagicObjectHelper.CookieScheme));
-        return $"{options.Cookie.Name}={ticket}";
-    }
-
     private async Task<MyUser> AddUserAsync(bool isAdmin, string password = "Passw0rd-1")
     {
         using var scope = factory.Services.CreateScope();
@@ -484,13 +387,5 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
         db.MyUser.Add(user);
         await db.SaveChangesAsync();
         return user;
-    }
-
-    private async Task SetStampAsync(int userId, string stamp)
-    {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
-        await db.MyUser.Where(x => x.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(x => x.SecurityStamp, stamp));
-        factory.Services.GetRequiredService<ISecurityStampService>().Invalidate(userId);
     }
 }

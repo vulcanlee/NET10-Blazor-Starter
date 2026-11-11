@@ -1,0 +1,16 @@
+﻿@inherits LayoutComponentBase
+
+@* 沒有外框的 WASM 版面（0.10.8 起，WASM 遷移 M9）：啟動頁、系統錯誤頁。標記與樣式照抄 Server 版 EmptyLayout。 *@
+<div class="page">
+    <main>
+        <div style="margin-bottom: 60px">
+            @Body
+        </div>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace MyProject.Tests;
 
 /// <summary>
 /// 與 <see cref="ApiTestApplicationFactory"/> 相同，但 <see cref="PasswordResetService"/> 一解析就拋例外，
-/// 讓匿名的「忘記密碼」頁在 SSR 階段失敗（<c>/Error</c> 頁不用這個服務，不受影響）。
+/// 讓匿名的「忘記密碼」API 失敗（0.10.8 起頁面在 WASM，伺服器端只剩 API 會用到這個服務）。
 /// </summary>
 public sealed class ApiTestApplicationFactoryWithThrowingPage : ApiTestApplicationFactory
 {
@@ -26,9 +27,9 @@ public sealed class ApiTestApplicationFactoryWithThrowingPage : ApiTestApplicati
 }
 
 /// <summary>
-/// 迴歸測試（0.9.115）：Blazor 頁面在 SSR 階段拋例外時，使用者要看到 <c>/Error</c> 錯誤頁與追蹤碼。
-/// 少了 <c>createScopeForErrors: true</c> 時，重跑 <c>/Error</c> 沿用同一個 DI scope，
-/// NavigationManager 已初始化而拋 "already initialized"，使用者只拿到空白 500。
+/// 迴歸測試（0.9.115 起）：出錯時使用者要拿到錯誤追蹤碼。0.10.8 起頁面全部在 WASM，伺服器只剩 API 與少數非頁面端點：
+/// API 出錯回 500 <c>ApiResult</c> 帶追蹤碼；非 API 請求出錯導到 <c>/Error?trace=…</c>（ErrorPageRedirect，見 ApiIntegrationTests）；
+/// 錯誤頁本身匿名可開。追蹤碼與這次請求的日誌、系統例外紀錄是同一個。
 /// </summary>
 [Collection(nameof(IntegrationHostCollection))]
 public sealed class ErrorPageRenderTests : IClassFixture<ApiTestApplicationFactoryWithThrowingPage>
@@ -41,16 +42,19 @@ public sealed class ErrorPageRenderTests : IClassFixture<ApiTestApplicationFacto
     }
 
     [Fact]
-    public async Task PageThrowingDuringRender_ShouldShowErrorPageWithTraceCode()
+    public async Task ApiThrowing_ShouldReturn500WithATraceCode_AndTheErrorPageShouldBeServed()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        var response = await client.GetAsync("/Auths/ForgotPassword");
-        var body = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        var response = await client.PostAsJsonAsync("/api/v1/Auth/password/forgot", new MyProject.Dtos.Auths.ForgotPasswordRequestDto { Identifier = "anyone" });
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.Contains("系統發生未預期的錯誤", body);
-        Assert.Contains("錯誤追蹤碼", body);
+        var body = await response.Content.ReadFromJsonAsync<MyProject.Dtos.Commons.ApiResult<object>>();
+        Assert.Matches("^[0-9A-Z]{8}$", body!.TraceId);
+
+        // 錯誤頁本身（WASM 頁面）匿名可開，追蹤碼由網址帶入。
+        var page = await client.GetAsync($"/Error?trace={body.TraceId}");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
     }
 }
 

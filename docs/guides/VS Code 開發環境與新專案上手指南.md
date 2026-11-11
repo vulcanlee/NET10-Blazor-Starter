@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.13
+- 文件版本：3.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.8
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/11/11
 
@@ -104,7 +104,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
 | `C:\temp\MyProject\AiAgentConversation` | Agent 測試台保存的對話（0.9.143 起）與 Agent 工作流程的執行紀錄（0.9.144 起） | 同上區段的 `AiAgentConversationPath` |
 | `C:\temp\MyProject\AuditContent` | 稽核紀錄的詳細內容檔（0.9.131 起） | 同上區段的 `AuditContentPath` |
-| `C:\temp\MyProject\Keys` | Data Protection 金鑰環（登入 Cookie 靠它解密，刪掉等於全站登出） | 同上區段的 `DataProtectionKeyPath` |
+| `C:\temp\MyProject\Keys` | Data Protection 金鑰環（兩步驟驗證密鑰、記住裝置與登入票證靠它；刪掉後開了兩步驟驗證的人登入不了。0.10.7 以前登入 Cookie 也靠它） | 同上區段的 `DataProtectionKeyPath` |
 | `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
 | `C:\temp\MyProject\AuditKey` | 稽核紀錄防竄改金鑰 `audit-hmac.key`（0.9.175 起，第一次寫稽核時產生，例如第一次登入）與每天檢查的檢查點；刻意不進備份 | 同上區段的 `AuditKeyPath` |
 | `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
@@ -372,7 +372,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 | 要改的東西 | 檔案 / 設定鍵 | 使用者會在哪看到 |
 |------|------|------|
 | 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
-| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:22`，0.9.60 起登入／忘記密碼／重設密碼三頁共用）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
+| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:20`，0.9.60 起登入／忘記密碼／重設密碼三頁共用；0.10.8 起兩者都在 `MyProject.Web.Client/Views`，圖檔仍放 `MyProject.Web/wwwroot/images`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
 | 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
@@ -460,13 +460,13 @@ ffmpeg -i images/brand-logo.png \
 
 | 位置 | 目前文字 |
 |------|------|
-| `Components/Auths/Login.razor:10` | `使用者登入` / `請輸入您的帳號資訊以存取系統。`（`AuthShell` 的 `Title`／`Subtitle`）|
-| `Components/Auths/Login.razor:58` | `企業級安全登入`（寄信啟用時此處改為「忘記密碼？」連結）|
-| `Components/Auths/ForgotPassword.razor`、`ResetPassword.razor` | 兩頁的標題、副標題與提示文字（0.9.60 起）|
-| `Components/Views/Commons/SplashView.razor:11` | `Welcome` |
+| `MyProject.Web.Client/Views/Auths/Login.razor:9`（0.10.8 起在 Client） | `使用者登入` / `請輸入您的帳號資訊以存取系統。`（`AuthShell` 的 `Title`／`Subtitle`）|
+| `MyProject.Web.Client/Views/Auths/Login.razor:57` | `企業級安全登入`（寄信啟用時此處改為「忘記密碼？」連結）|
+| `MyProject.Web.Client/Views/Auths/ForgotPassword.razor`、`ResetPassword.razor` | 兩頁的標題、副標題與提示文字（0.9.60 起）|
+| `MyProject.Web.Client/Views/Commons/SplashView.razor:11`（0.10.8 起在 Client） | `Welcome` |
 | `MyProject.Web.Client/Views/Commons/HomeWelcomeView.razor`（0.10.6 起在 Client）| `Welcome`（Hero 標籤）／`快速入口`／`儀表板`（0.9.106 起）／`系統版本`／`執行環境` |
 | `MyProject.Web/Dashboard/DashboardWidgets.cs` 的 `DashboardQuickLinks.All`（0.10.6 起由伺服器依權限過濾後送給 WASM 首頁；之前是 `HomeWelcomeView.razor.cs` 的 `AllQuickLinks`）| 登入後首頁快速入口的標題與圖示：`專案項目`／`分類清單`／`團隊清單`（依權限顯示；原本的六張能力卡片已移除）。⚠️ 改成自家系統的入口時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
-| `Components/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
+| `MyProject.Web.Client/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
 | `Components/Layout/NavMenu.razor` | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
 | `Components/Layout/MainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
 | `MyProject.Web.Client/Commons/ViewNotification.cs` 的 `SystemTitle`（0.10.2 起放在 Client 專案，Server 與 WASM 頁面共用） | `系統訊息`（全站通知的標題） |
@@ -675,9 +675,9 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Program.cs`（NLog 設定區段） | `typeof(Program).Namespace ?? nameof(MyProject.Web)` | 決定 NLog 目錄與檔名前綴。漏改會讓日誌寫到舊名目錄，系統內的「日誌檢視」頁讀不到任何資料 |
 | `Program.cs`（`AddSwaggerGen`） | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
 | `Extensions/ApplicationBuilderExtensions.cs` | `SwaggerEndpoint(..., "MyProject API v1")` | 同上 |
-| `Program.cs`（`AddCookie(MagicObjectHelper.CookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.Auth"` | 登入 Cookie 名稱殘留舊名。Cookie 不分連接埠，同一主機名稱部署多個系統時會**互相覆蓋、互相登出**（`ApiIntegrationTests.AuthCookieName_ShouldBeProjectSpecific` 會紅） |
-| `Program.cs`（`AddCookie(MagicObjectHelper.ExternalCookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
-| 🔴 `Share/Helpers/MagicObjectHelper.cs` | `DataProtectionApplicationName = "MyProject"` | **改了會讓全站既有登入 Cookie 立刻失效**（連同記住我）。這是 Data Protection 金鑰環的用途判別子。⚠️ 與上面那些不同，這一條**建議不要跟著改**；真要改請安排在可接受全體重新登入的時機 |
+| `MyProject.Web.Client/wwwroot/js/client-auth.js`、`Auth/LoginStorage.cs` | `myproject.auth` 等 storage 鍵（0.10.8 起登入存在瀏覽器 storage，取代登入 Cookie `.MyProject.Auth`） | 鍵名殘留舊名。storage 依「通訊協定＋主機＋連接埠」區分，不同連接埠不會互撞；同一站台底下兩個子應用程式才會共用。腳本會連小寫一起換 |
+| `Program.cs`（`AddCookie(MagicObjectHelper.ExternalCookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；Cookie 不分連接埠，同機多系統時可能互撞（`ApiIntegrationTests.AuthCookieName_ShouldBeProjectSpecific` 會紅；0.10.8 起登入 Cookie 已移除，只剩這一個） |
+| 🔴 `Share/Helpers/MagicObjectHelper.cs` | `DataProtectionApplicationName = "MyProject"` | **改了會讓兩步驟驗證的密鑰全部解不開**（開了兩步驟驗證的人都登入不了，要管理員逐一重設），記住的裝置也要重新驗證（0.10.7 以前還會讓全站登入 Cookie 失效）。這是 Data Protection 金鑰環的用途判別子。⚠️ 與上面那些不同，這一條**建議不要跟著改** |
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
 | `Controllers/LogsController.cs`（0.10.5 起；之前在 `Components/Views/Analytics/LogViewerView.razor.cs`） | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |

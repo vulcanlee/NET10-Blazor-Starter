@@ -563,11 +563,13 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     {
         // LOG-03：非 API 請求的未處理例外會被 UseHttpRequestLogging 與框架的
         // ExceptionHandlerMiddleware（Testing 環境會啟用）各記一次，0.9.77 之前因此變成兩列。
-        using var client = factory.CreateClient();
         var marker = Guid.NewGuid().ToString("N");
 
-        var response = await client.GetAsync($"/contract-probe-page/throw?marker={marker}");
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        // 0.10.8 起非 API 請求的未處理例外導到 /Error?trace=…（WASM 錯誤頁，見 ErrorPageRedirect）。
+        using var noRedirect = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var response = await noRedirect.GetAsync($"/contract-probe-page/throw?marker={marker}");
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.StartsWith("/Error?trace=", response.Headers.Location!.OriginalString);
 
         var message = $"Integration page probe exception {marker}.";
         var row = await WaitForExceptionLogAsync(x => x.Message == message);
@@ -879,13 +881,13 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     [Fact]
     public void AuthCookieName_ShouldBeProjectSpecific()
     {
+        // 0.10.8 起不發登入 Cookie；剩下的 Cookie 只有 Google 登入過程用的暫存外部 Cookie（只在設定 Google 時註冊，所以讀原始碼）。
         var assemblyName = typeof(Program).Assembly.GetName().Name!;
         var projectName = assemblyName[..^".Web".Length];
-        var options = factory.Services
-            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
-            .Get(MagicObjectHelper.CookieScheme);
+        var program = File.ReadAllText(SourceTree.WebFile("Program.cs"));
 
-        Assert.Equal($".{projectName}.Auth", options.Cookie.Name);
+        Assert.Contains($"options.Cookie.Name = \".{projectName}.External\";", program);
+        Assert.DoesNotContain($"Cookie.Name = \".{projectName}.Auth\"", program);
     }
 
     [Theory]
@@ -950,12 +952,11 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     }
 
     /// <summary>
-    /// /UploadFiles 是把 DownloadPath 直接掛出去的靜態檔案端點。
-    /// 0.4.35 之前它註冊在 UseAuthentication/UseAuthorization 之前，且 UseStaticFiles
-    /// 本身不看授權，等於整個目錄匿名可讀。
+    /// /UploadFiles 曾是把 DownloadPath 直接掛出去的靜態檔案端點（只認登入 Cookie）。0.10.8 起不發 Cookie、也沒有地方連到它，整個移除：
+    /// 下載一律走一次性票證（DownloadsController）。
     /// </summary>
     [Fact]
-    public async Task UploadFilesStaticPath_WithoutLogin_ShouldNotBeAnonymouslyReadable()
+    public async Task UploadFilesStaticPath_ShouldNoLongerExist()
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -964,7 +965,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
 
         var response = await client.GetAsync("/UploadFiles/anything.txt");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     /// <summary>

@@ -63,6 +63,7 @@ public sealed class AnnouncementsController : ControllerBase
 
     [HttpGet("active")]
     [SignedInUser] // 登入即可（0.10.4 起明確標註）：公告橫幅：登入的人都看得到、都能關閉自己的。
+    [AllowDuringForcedSetup] // 外框的公告橫幅（0.10.8 起，見 ShellController 的說明）。
     public async Task<ActionResult<ApiResult<List<ActiveAnnouncementDto>>>> Active()
     {
         var user = currentUserService.CurrentUser;
@@ -78,6 +79,7 @@ public sealed class AnnouncementsController : ControllerBase
 
     [HttpPost("{id:int}/dismiss")]
     [SignedInUser]
+    [AllowDuringForcedSetup]
     public async Task<ActionResult<ApiResult<object>>> Dismiss(int id)
     {
         await announcementService.DismissAsync(currentUserService.CurrentUser.Id, id);

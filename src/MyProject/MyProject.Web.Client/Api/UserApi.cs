@@ -34,7 +34,7 @@ public sealed class UserApi
 
     public async Task<VerifyRecordResult> CreateAsync(UserDto dto) => (await api.PostAsync<UserDto>(BaseUrl, dto)).ToVerify();
 
-    /// <summary>修改；成功時 <c>Data.SessionRefreshUrl</c> 有值代表改到自己，要整頁導過去換發登入。</summary>
+    /// <summary>修改；成功時 <c>Data.Tokens</c> 有值代表改到自己：存下新 Token 後整頁重新載入。</summary>
     public Task<ApiResult<UserSaveResultDto>> UpdateAsync(UserDto dto) => api.PutAsync<UserSaveResultDto>($"{BaseUrl}/{dto.Id}", dto);
 
     public async Task<VerifyRecordResult> SetEnabledAsync(int id, bool enabled)

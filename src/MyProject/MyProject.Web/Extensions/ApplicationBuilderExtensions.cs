@@ -81,6 +81,9 @@ public static class ApplicationBuilderExtensions
     /// <c>App.razor</c> 會從 fonts.googleapis.com 載入字型、AntDesign 會注入 inline style。
     /// 導入時請先以 <c>Content-Security-Policy-Report-Only</c> 觀察，確認無誤再轉為正式標頭。
     /// </summary>
+    /// <summary>以信中連結重設密碼的頁面（網址帶 Token）。</summary>
+    internal const string ResetPasswordPath = "/Auths/ResetPassword";
+
     public static WebApplication UseSecurityHeaders(this WebApplication app)
     {
         app.Use(async (context, next) =>
@@ -89,6 +92,13 @@ public static class ApplicationBuilderExtensions
             headers["X-Content-Type-Options"] = "nosniff";
             headers["X-Frame-Options"] = "DENY";
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+
+            // 重設密碼頁的網址帶 Token（0.10.8 起這一頁在 WASM，由主機在整頁請求時加）：不讓它經 Referer 外流，也不讓瀏覽器與代理快取。
+            if (context.Request.Path.StartsWithSegments(ResetPasswordPath, StringComparison.OrdinalIgnoreCase))
+            {
+                headers["Referrer-Policy"] = "no-referrer";
+                headers.CacheControl = "no-store";
+            }
 
             await next();
         });
@@ -365,52 +375,6 @@ public static class ApplicationBuilderExtensions
             .Value;
 
         app.UseRequestLocalization(localizationOptions);
-        return app;
-    }
-
-    /// <summary>下載目錄對應的外部路徑前綴。</summary>
-    private const string DownloadRequestPath = "/UploadFiles";
-
-    /// <summary>
-    /// 把 <c>ExternalFileSystem.DownloadPath</c> 掛到 <c>/UploadFiles</c>。
-    ///
-    /// ⚠️ 必須在 <c>UseAuthentication()</c> / <c>UseAuthorization()</c> 之後呼叫，
-    /// 且**要求已驗證身分**才提供檔案。
-    ///
-    /// 沿革：0.4.34 之前它掛在驗證中介軟體之前，且 <c>UseStaticFiles</c> 本身不看授權，
-    /// 等於整個下載目錄匿名可讀。預設設定下 <c>ProjectFilePath</c> 不在 <c>DownloadPath</c>
-    /// 底下所以沒有直接外洩，但交付到客戶端後只要有人把檔案放進該目錄就會裸奔 ——
-    /// 與專案附件下載（0.10.3 起一次性票證，<c>DownloadsController</c>）的權限 + 團隊守門 + 稽核軌跡完全相反。
-    /// </summary>
-    public static WebApplication UseConfiguredDownloadStaticFiles(this WebApplication app, SystemSettings systemSettings)
-    {
-        if (string.IsNullOrWhiteSpace(systemSettings.ExternalFileSystem.DownloadPath))
-        {
-            return app;
-        }
-
-        app.UseWhen(
-            context => context.Request.Path.StartsWithSegments(DownloadRequestPath),
-            branch =>
-            {
-                branch.Use(async (context, next) =>
-                {
-                    if (context.User?.Identity?.IsAuthenticated != true)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                        return;
-                    }
-
-                    await next();
-                });
-
-                branch.UseStaticFiles(new StaticFileOptions
-                {
-                    FileProvider = new PhysicalFileProvider(systemSettings.ExternalFileSystem.DownloadPath),
-                    RequestPath = DownloadRequestPath
-                });
-            });
-
         return app;
     }
 }

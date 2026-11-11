@@ -1,7 +1,6 @@
 @using MyProject.Web.Client.Commons
 @implements IDisposable
 @inject NavigationManager NavigationManager
-@inject MyProject.Web.Client.Auth.ClientSession Session
 
 @*
     WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；對應 Server 版的 Routes.razor）。
@@ -23,8 +22,14 @@
                 </ErrorContent>
             </ClientErrorBoundary>
         </Found>
+        @*
+            找不到路由（0.10.8 起 /not-found 在 WASM）：主機把 404 重跑成 /not-found 時，瀏覽器網址還是原本那個，
+            這裡顯示與 /not-found 頁相同的內容與外框（Server 版 Router 的 NotFoundPage 也是套 MainLayout）。
+        *@
         <NotFound>
-            <div class="alert alert-warning" role="alert">找不到這個頁面。<a href="/App">回首頁</a></div>
+            <LayoutView Layout="typeof(ClientMainLayout)">
+                <NotFoundContent />
+            </LayoutView>
         </NotFound>
     </Router>
 
@@ -48,13 +53,8 @@
     private ClientErrorBoundary? overlayBoundary;
     private bool isInitialNavigation = true;
 
-    /// <summary>這個頁面是誰的網頁登入（主機從 Cookie 取出；瀏覽器存的 Token 必須屬於這個人，見 ClientSession.ExpectedUserId）。</summary>
-    [Parameter]
-    public int ExpectedUserId { get; set; }
-
     protected override void OnInitialized()
     {
-        Session.ExpectedUserId = ExpectedUserId;
         NavigationManager.LocationChanged += OnLocationChanged;
     }
 

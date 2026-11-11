@@ -1,3 +1,4 @@
+using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
 
 namespace MyProject.Dtos.Admins;
@@ -117,14 +118,12 @@ public class UserCopyDraftDto
     public List<string> SkippedTeamNames { get; set; } = [];
 }
 
-/// <summary>修改的結果（<c>PUT api/v1/users/{id}</c>）。</summary>
-public class UserSaveResultDto
+/// <summary>
+/// 修改的結果（<c>PUT api/v1/users/{id}</c>）。改到自己的密碼、角色或管理員身分時，自己的工作階段版本已換掉：
+/// 0.10.8 起直接回這台裝置的新 Token（<see cref="SessionRenewalDto.Tokens"/>，其他裝置維持登出）；沒有需要時為 null。
+/// </summary>
+public class UserSaveResultDto : SessionRenewalDto
 {
-    /// <summary>
-    /// 改到自己的密碼、角色或管理員身分時，自己的工作階段版本已換掉：瀏覽器要整頁導到這個網址換發登入（其他裝置維持登出）。
-    /// 沒有需要時為 null。
-    /// </summary>
-    public string? SessionRefreshUrl { get; set; }
 }
 
 /// <summary>查 Email 是否已有人使用（<c>POST api/v1/users/accounts-using-email</c>）。</summary>

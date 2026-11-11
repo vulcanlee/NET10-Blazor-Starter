@@ -1,8 +1,8 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.8
 - 首次實作版本：0.9.96
 - 最後核對日期：2026/11/11
 
@@ -61,7 +61,7 @@
 | `SoftDeletePurge` | 已刪除資料清理（0.9.97 起）| `SoftDeleteSettings:PurgeAfterDays`（90，本地門檻，比對 `DeletedAt`）| `Project`／`Category`／`Team`／`User`／`Role.AutoPurge`（每種一筆） |
 | `NotificationRetention` | 站內通知清理（0.9.100 起）| `NotificationSettings:RetentionDays`（90，UTC 門檻，分批刪除）；0.9.125 起另依 `ReadRetentionDays`（7，從已讀時間起算）刪除已讀的 | `Notification.AutoPurge` |
 | `EmailLogRetention` | 寄信紀錄清理（0.9.167 起）| `EmailDeliverySettings:RetentionDays`（90，UTC 門檻，分批刪除；「待寄」不刪）| `EmailLog.AutoPurge` |
-| `RefreshSessionRetention` | 登入 Token 清理（0.10.0 起）| —（沒有保留天數可設，不在系統參數頁）：刪除已到期的刷新 Token 紀錄（`RefreshSession`），有效期由 `JwtSettings:RefreshTokenDays`（7）決定；已撤銷但未到期的保留，用來偵測舊 Token 被重複使用 | `RefreshSession.AutoPurge`（detail `rows=N; trigger=T`）|
+| `RefreshSessionRetention` | 登入 Token 清理（0.10.0 起）| —（沒有保留天數可設，不在系統參數頁）：刪除已到期的刷新 Token 紀錄（`RefreshSession`），有效期依發出管道：App 由 `JwtSettings:RefreshTokenDays`（7）、網頁由 `SessionSettings`（0.10.8 起：記住我 30 天、沒勾閒置 480 分鐘）決定；已撤銷但未到期的保留，用來偵測舊 Token 被重複使用 | `RefreshSession.AutoPurge`（detail `rows=N; trigger=T`）|
 | `PasswordExpiryReminder` | 密碼到期提醒（0.9.101 起，預設 `0 8 * * *`）| `PasswordPolicySettings:ExpiryDays`（0＝不過期，此時不動作）；7 天內到期者各通知一次 | —（只發站內通知） |
 
   清理類有刪到資料才寫稽核；天數 0 回成功但不動作（稽核紀錄完整性檢查每次都寫 `Audit.Verify`）。內建作業 0.10.0 起共 14 個（0.9.175 為 13 個）。刪檔一律經對應的 file store。

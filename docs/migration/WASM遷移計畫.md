@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：進行中
-- 現行系統版本：0.10.7
+- 現行系統版本：0.10.8
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/11
 
@@ -25,7 +25,7 @@
 | M6 | 0.10.5 | AI 串流＋日誌與 AI 管理頁 | 完成 | [M06-AI串流日誌與AI管理頁](測試報告/M06-AI串流日誌與AI管理頁.md) |
 | M7 | 0.10.6 | 維運頁與首頁儀表板 | 完成 | [M07-維運頁與首頁儀表板](測試報告/M07-維運頁與首頁儀表板.md) |
 | M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 完成 | [M08-Agent系統管理助理與通知推播](測試報告/M08-Agent系統管理助理與通知推播.md) |
-| M9 | 0.10.8 | 純 Token 登入 | 未開始 | — |
+| M9 | 0.10.8 | 純 Token 登入 | 完成 | [M09-純Token登入](測試報告/M09-純Token登入.md) |
 | M10 | 0.10.9 | 移除 Server 模式 | 未開始 | — |
 | M11 | 0.10.10 | 拆成獨立靜態站台＋API 主機 | 未開始 | — |
 | M12 | 0.10.11 | PWA 與離線 | 未開始 | — |
@@ -40,7 +40,7 @@
 | 部署網域 | 前後端同一主網域（app.公司.com＋api.公司.com，或同站台 /api） |
 | 登入 | 最終純 JWT Token、不發 Cookie；理由：未來可能開發 App，API 要共用 |
 | Token 存放 | 勾「記住我」→ localStorage；未勾 → sessionStorage |
-| 過渡期登入 | M1～M8 沿用 Cookie 登入頁，WASM 頁以 Cookie 換 Token（`/auth/bridge`）後只用 Token 呼叫 API；M9 一次改純 Token |
+| 過渡期登入 | M1～M8 沿用 Cookie 登入頁，WASM 頁以 Cookie 換 Token（`/auth/bridge`）後只用 Token 呼叫 API；M9 一次改純 Token（0.10.8 已完成：不發登入 Cookie、移除 bridge） |
 | 離線程度 | 斷線不卡死即可，不做離線資料快取與同步 |
 | 推進方式 | 漸進式，每個里程碑結束時整個系統完整可用 |
 | 版本號 | M1 升 0.10.0，之後每個里程碑 Patch +1 |
@@ -56,7 +56,7 @@
 1. 開分支 `feature/wasm-mNN-<主題>`。
 2. TDD：先寫測試、看到失敗，再實作。
 3. `pwsh ./scripts/Invoke-QualityGate.ps1` 全部通過；動到 CRUD 樣板再跑 `scripts/Test-CrudGenerator.ps1`。
-4. 實機：以 `scripts/Start-E2EHost.ps1` 啟動（覆寫 12 個 `ExternalFileSystem` 路徑、`NLog__BasePath`、以 `BootstrapSettings__SupportPassword` 給暫時密碼），用 playwright-core＋本機 Chrome 跑該里程碑情境，並把 37 個路由全部開過一次（煙霧測試），截圖。
+4. 實機：以 `scripts/Start-E2EHost.ps1` 啟動（覆寫 12 個 `ExternalFileSystem` 路徑、`NLog__BasePath`、以 `BootstrapSettings__SupportPassword` 給暫時密碼），用 playwright-core＋本機 Chrome 跑該里程碑情境，並把全部路由開過一次（煙霧測試；0.10.7 以前 37 個、0.10.8 起移除 `/Auths/RefreshSession` 為 36 個），截圖。
 5. 獨立程式審查。
 6. 寫測試報告 `測試報告/M{nn}-<主題>.md`（A.1～A.7，見分析報告第 9 節）。
 7. 文件同步：操作說明（`Datas/Help`）、新手完整操作指南、架構總覽、開發慣例速查、認證授權文件、API 端點目錄、changelog、索引與測試數。
@@ -216,10 +216,25 @@
 - 多分頁刷新排隊；sessionStorage 登入的新分頁向已開分頁取得 Token。
 - **實機情境**：記住我有／無時關閉重開與開新分頁、連錯 5 次鎖定、雙因素＋記住裝置、強制改密碼無法直打 API 繞過、忘記密碼信件、Google 登入、Token 重用偵測、兩分頁同時刷新不被登出。
 
+> **M9 實際做法與計畫的差異**：
+> - **拆成 9a／9b 兩段、一次合併**：9a 先補 API 與基礎建設、搬 5 個中性頁（`/ChangePassword`、`/TwoFactorSetup`、`/`、`/Error`、`/not-found`），登入方式不變（仍發 Cookie、保留 bridge），先讓「新 API＋舊登入」整套可用；9b 才真正切換：搬登入相關 6 頁（`/Auths/Login`、`/Auths/TwoFactor`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/Auths/Pending`、`/Auths/Logout`）、停發登入 Cookie、移除 bridge 與 `/Auths/RefreshSession`。兩段在同一個分支完成，只升一次版（0.10.8）。
+> - **Cookie 驗證提前在 M9 移除**（計畫原本放 M10）：登入 Cookie 的 scheme、`SecurityStampCookieEvents`、`CookieClaims`、`SessionRefreshTicketService`／`SessionRefreshNavigator`、`auth-reset.js`、`ExpectedUserId`、待驗與記住裝置兩個 Cookie、`/UploadFiles` 靜態下載一併刪除——沒有任何流程發 Cookie，留著只會讓舊的 Cookie 還有地方被讀。預設驗證機制改 JWT；健康監控改檢查「JWT 是預設且設定完整」。只留 Google 登入過程的 5 分鐘外部 Cookie。
+> - **效期的決定**：網頁的 Token 屬於發出管道 `web`，設定區段 `SessionSettings` 取代 `CookieSettings`（舊鍵仍相容、啟動時記警告），沿用 Server 版 Cookie 的語意——勾「記住我」→ localStorage、整串上限 30 天（從登入算、不滑動）；沒勾 → sessionStorage（關掉分頁就登出）、刷新 Token 閒置 480 分鐘（滑動；`IdleTimeoutSliding=false` 時為從登入起的絕對上限）；存取 Token 15 分鐘。App 的 API 登入照舊看 `JwtSettings`。存取 Token 帶這一串的識別（`fid`），每個請求檢查是否已撤銷：同一台主機登出立即生效，多台最多 30 秒。
+> - **新分頁取得 Token**（計畫的「向已開分頁取得」）：BroadcastChannel 問已開分頁，對方**在刷新鎖內**以自己的刷新 Token 呼叫 `session/fork` 開一串新的交過來——每個分頁各一串，不會互相觸發重用偵測；1 秒沒人回應就回登入頁。
+> - **同一個瀏覽器只有一個身分**（計畫沒寫，獨立審查補上）：沒有 Cookie 之後，兩個分頁可以各登入不同的人，新分頁可能向另一個人的分頁要到 Token。改成登入成功時廣播「誰登入了」，顯示另一個人的分頁丟掉自己的 Token、重新載入改用新的登入——與 Server 版 Cookie 的行為相同。`storage` 事件另處理別的分頁登出（回登入頁）與換人（整頁重新載入）。
+> - **限流修正**（獨立審查）：限流原本排在驗證之前，「已登入每人」的分區實際上全部依 IP——同一個出口 IP 的人共用配額。改排在 `UseAuthentication` 之後（補 `PerUserRateLimitTests`）。嚴格登入配額擴大到 `two-factor`（含設定）、`google`、`password`、`session`，**網頁登入 `login/web` 與 `login-settings` 不算**（照 Server 版畫面登入靠帳號鎖定，算進每 IP 10 次會擋到同一個出口 IP 的公司早上登入尖峰）。
+> - **Google 改一次性代碼**：回呼不發 Cookie，產生只存雜湊、60 秒、一次、綁定發起瀏覽器驗證值的代碼，導回 `/Auths/Login#code=` 由前端兌換；沒帶綁定值的舊流程一律回登入頁、不建立或連結帳號。兩步驟驗證的待驗票證、記住裝置 Token、設定票證改用 Data Protection（不同用途）加密，綁使用者與工作階段版本。
+> - **頁面不再標 `[Authorize]`**：整頁請求只回空的 WASM 外殼，`ClientMainLayout` 是登入閘門；匿名白名單 9 頁。強制改密碼／設定兩步驟驗證時，外框要用的 API 標 `[AllowDuringForcedSetup]`，強制頁照 Server 版顯示完整外框；已在目標頁不再導頁（避免無限重新載入）。
+> - **改到自己後不再換發 Cookie**：改密碼、啟用／停用兩步驟驗證、管理員改自己的 API 直接回這台的新 Token（`SelfSessionRenewal`），前端存起來後整頁重新載入；`PUT api/v1/users/{id}` 移除 `SessionRefreshUrl`。
+> - **補上 M7 留下的缺口**：沒有主要角色的帳號，Server 版會登出；`/App` 搬到 WASM 後其實沒擋。9a 先寫測試證明 bridge 換出的 Token 原本可用，再讓網頁 Token 一律 403 `NO_PRIMARY_ROLE`、前端登出。
+> - **獨立審查（7 項，全部修正）**：偷到的刷新 Token 先 fork 一串可躲過重用偵測（改為撤銷同一次網頁登入的每一串）；限流在驗證之前、網頁登入算進每 IP 10 次（見上）；舊設定 `CookieSettings:SlidingExpiration=false` 被靜默忽略而變成永不到期（新增 `IdleTimeoutSliding`）；同一瀏覽器兩個身分（見上）；fork 與登出同時發生時新串可能沒被撤銷（fork 後再確認來源）；不再寫 `Login.SessionExpired`（刷新因版本換掉而失敗時補寫）；匿名頁的瀏覽器錯誤回報觸發 401 被導回登入頁（沒登入時只留在主控台）。
+> - **與 Server 版不同（使用者看得到的）**：沒勾「記住我」時關掉分頁就登出（Server 版要關掉整個瀏覽器），開新分頁會自動接續；管理員改自己、改密碼、啟用／停用兩步驟驗證後不再經過換發登入的過場頁；錯誤頁的追蹤碼改經網址帶過去（正式環境頁面出錯改 302 導到 `/Error?trace=`）。
+> - 實機腳本：`scripts/e2e/m09-views.mjs`（10 個畫面基準／比對）、`m09-auth.mjs`（M9-T1～T11＋36 路由煙霧測試）；`common.mjs` 的 `login` 等 WASM 表單、`apiAsPageUser` 改從 storage 讀 Token；m01～m08 跟著改。`Start-E2EHost.ps1` 0.10.8 起信件一律存成 .eml 到隔離資料夾（開發機 User Secrets 可能設了真的 SMTP）。實機注意：WASM 頁面一直開著推播連線，腳本不可用 `networkidle`。
+
 ### M10 移除 Server 模式（0.10.9）
 
-- 刪除 Server 渲染、電路處理、重連畫面、`AuthenticationStateHelper`、行程內轉接層、Cookie 驗證與相關類別。
-- **實機情境**：37 路由全回歸、確認沒有 WebSocket／`_blazor` 連線。
+- 刪除 Server 渲染、電路處理、重連畫面、`AuthenticationStateHelper`、行程內轉接層、Cookie 驗證與相關類別（登入 Cookie 的 scheme 已在 M9 提前移除；剩下 `HasPermissionAttribute`／`RequestActorResolver` 的 Cookie 分支等）。
+- **實機情境**：36 路由全回歸、確認沒有 WebSocket／`_blazor` 連線。
 
 ### M11 獨立靜態站台＋API 主機（0.10.10）
 

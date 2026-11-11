@@ -1,5 +1,5 @@
-// 全部 37 個路由的煙霧測試（0.10.0 起，WASM 遷移 M1）：每頁都要開得起來、沒有錯誤畫面，並截圖。
-// 以 support（管理員）登入跑需要登入的頁面，另開一個未登入的視窗跑登入相關頁面。
+// 全部 36 個路由的煙霧測試（0.10.0 起，WASM 遷移 M1；0.10.8 起移除 /Auths/RefreshSession，37 → 36）：每頁都要開得起來、沒有錯誤畫面，並截圖。
+// 以 support（管理員）登入跑需要登入的頁面，另開一個未登入的視窗跑登入相關頁面（0.10.8 起都在 WASM，等元素出現才截圖）。
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRecorder, launchBrowser, login, newContext, screenshot } from './common.mjs';
@@ -12,13 +12,21 @@ export const authenticatedRoutes = [
   '/agent-playground', '/agent-workflows', '/admin-assistant', '/Error', '/not-found',
 ];
 
-export const anonymousRoutes = ['/Auths/Login', '/Auths/ForgotPassword', '/Auths/ResetPassword', '/Auths/Pending', '/Auths/TwoFactor', '/Auths/RefreshSession'];
+export const anonymousRoutes = ['/Auths/Login', '/Auths/ForgotPassword', '/Auths/ResetPassword', '/Auths/Pending', '/Auths/TwoFactor'];
 
 // 登出頁最後跑（會登出）。
 export const logoutRoute = '/Auths/Logout';
 
 // 以 WebAssembly 執行的頁面（0.10.1 起）：等到這個元素出現才算載入完成，再截圖。
-const readySelectors = { '/Profile': '.profile-page' };
+// 0.10.8 起登入相關頁面也在 WASM；/Auths/TwoFactor 沒有待驗票證時會回登入頁，所以等登入頁的表單。
+const readySelectors = {
+  '/Profile': '.profile-page',
+  '/Auths/Login': '#account',
+  '/Auths/ForgotPassword': '.login-card',
+  '/Auths/ResetPassword': '.login-card',
+  '/Auths/Pending': '.pending-card',
+  '/Auths/TwoFactor': '#account',
+};
 
 async function visit(page, route, recorder, index, { signedIn = false } = {}) {
   const errors = [];

@@ -1,18 +1,18 @@
 ﻿# security — 認證、授權與安全
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：維護中
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.8
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 本目錄收納認證、授權、登入、密碼與機密金鑰機制。動作級授權（RBAC）以《認證授權與權限機制》為單一權威來源。
 
 | 文件 | 說明 |
 |------|------|
-| [認證授權與權限機制](認證授權與權限機制.md) | Cookie／JWT 雙驗證、Claims、RBAC 關聯表與角色／團隊指派、`Menu.json` 權限樹、`<RequirePermission>`、稽核、帳號鎖定、工作階段失效（`SecurityStamp`）、兩步驟驗證（TOTP）|
+| [認證授權與權限機制](認證授權與權限機制.md) | 純 Token 登入（0.10.8 起網頁與 API 都用 JWT＋落庫的刷新 Token，不發登入 Cookie）、效期與撤銷、新分頁取得 Token、強制設定閘門、Claims、RBAC 關聯表與角色／團隊指派、`Menu.json` 權限樹、`<RequirePermission>`、稽核、帳號鎖定、工作階段失效（`SecurityStamp`）、兩步驟驗證（TOTP）|
 | [密碼種類與儲存機制](密碼種類與儲存機制.md) | 密碼種類盤點、`MyUser.Password` 雜湊（PBKDF2）、種子密碼與機密金鑰 |
-| [Google OAuth2 第三方登入](Google%20OAuth2%20第三方登入.md) | Google SSO 設定、自動建帳與審核、串接權控（0.9.63 起不支援 API／JWT）|
-| [記住我登入原理說明](記住我登入原理說明.md) | Cookie + RememberMe 完整原理 |
+| [Google OAuth2 第三方登入](Google%20OAuth2%20第三方登入.md) | Google SSO 設定、自動建帳與審核、一次性代碼換 Token（0.10.8 起）、串接權控（0.9.63 起不支援 App 的 API 登入）|
+| [記住我登入原理說明](記住我登入原理說明.md) | 「記住我」完整原理：localStorage／sessionStorage、效期與整串上限、新分頁自動接續（0.10.7 以前的 Cookie 做法列在沿革）|
 
 > 返回 [文件總索引](../README.md)

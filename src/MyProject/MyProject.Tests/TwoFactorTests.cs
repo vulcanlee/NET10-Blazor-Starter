@@ -381,44 +381,7 @@ public sealed class TwoFactorTests : IDisposable
         Assert.False((await Service().ResetAsync(999_999)).Success);
     }
 
-    // ---------- 登入用 Cookie ----------
-
-    [Fact]
-    public void PendingCookie_ShouldRoundTrip_AndExpireAfterFiveMinutes()
-    {
-        var provider = new EphemeralDataProtectionProvider();
-        var pending = new PendingTwoFactorLogin(7, "stamp-1", true, "/projects", "Google");
-
-        var written = new DefaultHttpContext();
-        Cookies(provider, TimeProvider.System).SetPending(written, pending);
-        Assert.Equal(pending, Cookies(provider, TimeProvider.System).ReadPending(Replay(written)));
-
-        // 另一組金鑰（或被竄改）讀不到。
-        Assert.Null(Cookies(new EphemeralDataProtectionProvider(), TimeProvider.System).ReadPending(Replay(written)));
-
-        var old = new DefaultHttpContext();
-        Cookies(provider, new ManualTimeProvider(DateTimeOffset.UtcNow.AddMinutes(-6))).SetPending(old, pending);
-        Assert.Null(Cookies(provider, TimeProvider.System).ReadPending(Replay(old)));
-    }
-
-    [Fact]
-    public void RememberedDevice_ShouldMatchTheUserAndTheCurrentStamp()
-    {
-        var provider = new EphemeralDataProtectionProvider();
-        var written = new DefaultHttpContext();
-        Cookies(provider, TimeProvider.System).RememberDevice(written, 7, "stamp-1");
-        var request = Replay(written);
-
-        Assert.True(Cookies(provider, TimeProvider.System).IsDeviceRemembered(request, 7, "stamp-1"));
-        Assert.False(Cookies(provider, TimeProvider.System).IsDeviceRemembered(request, 7, "stamp-2"));
-        Assert.False(Cookies(provider, TimeProvider.System).IsDeviceRemembered(request, 8, "stamp-1"));
-
-        settings.RememberDeviceDays = 0;
-        Assert.False(Cookies(provider, TimeProvider.System).IsDeviceRemembered(request, 7, "stamp-1"));
-        var none = new DefaultHttpContext();
-        Cookies(provider, TimeProvider.System).RememberDevice(none, 7, "stamp-1");
-        Assert.False(none.Response.Headers.SetCookie.Any());
-    }
+    // 0.10.8 起登入用的兩個 Cookie（待驗、記住裝置）改成待驗票證與記住裝置 Token，測試在 WebLoginTicketTests。
 
     // ---------- helpers ----------
 
@@ -433,17 +396,6 @@ public sealed class TwoFactorTests : IDisposable
         disposables.Add(context);
         return new MyUserServiceLogin(context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
             new RolePermissionService(), audit, PasswordTestDefaults.Lockout(maxFailedAttempts), new RecordingNotificationSender(), time, Service());
-    }
-
-    private TwoFactorLoginCookies Cookies(IDataProtectionProvider provider, TimeProvider timeProvider)
-        => new(provider, new StaticOptionsMonitor<TwoFactorSettings>(settings), timeProvider, NullLogger<TwoFactorLoginCookies>.Instance);
-
-    /// <summary>把回應寫出的 Set-Cookie 當成下一個請求帶回來的 Cookie。</summary>
-    private static DefaultHttpContext Replay(HttpContext written)
-    {
-        var next = new DefaultHttpContext();
-        next.Request.Headers.Cookie = string.Join("; ", written.Response.Headers.SetCookie.Select(x => x!.Split(';')[0]));
-        return next;
     }
 
     private string Code(string secret) => totp.ComputeCode(secret, time.GetUtcNow().ToUnixTimeSeconds());
@@ -599,23 +551,23 @@ public sealed class TwoFactorIntegrationTests : IClassFixture<ApiTestApplication
         Assert.Equal("請先在網頁完成兩步驟驗證設定。", (await response.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.ErrorMessage);
     }
 
-    /// <summary>⭐ Google 會連結到同 Email 的既有帳號；已啟用兩步驟驗證的帳號改用 Google 登入也要第二步，不能繞過。</summary>
+    /// <summary>
+    /// ⭐ Google 會連結到同 Email 的既有帳號；已啟用兩步驟驗證的帳號改用 Google 登入也要第二步，不能繞過
+    /// （0.10.8 起經一次性代碼兌換時回待驗票證，見 WebTokenLoginApiTests）。這裡釘住：回呼不再發登入 Cookie，
+    /// 沒有瀏覽器綁定值（舊書籤、直接打網址）一律回登入頁、不建立也不連結帳號。
+    /// </summary>
     [Fact]
-    public async Task GoogleLogin_ForAnAccountWithTwoFactor_ShouldGoToTheSecondStep()
+    public async Task GoogleCallback_WithoutABrowserBinding_ShouldGoBackToLogin_AndNeverIssueACookie()
     {
         var (enrolled, _) = await AddEnrolledUserAsync();
         var response = await GoogleCallbackAsync(enrolled.Email!);
 
-        Assert.Equal("/Auths/TwoFactor", response.Headers.Location?.ToString());
-        var cookies = response.Headers.GetValues("Set-Cookie").ToList();
-        Assert.Contains(cookies, x => x.StartsWith(TwoFactorLoginCookies.PendingCookieName + "=", StringComparison.Ordinal));
-        Assert.DoesNotContain(cookies, x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal));
+        Assert.Equal("/Auths/Login", response.Headers.Location?.ToString());
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out var cookies) && cookies.Any(x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal)));
 
-        // 沒有啟用的帳號照舊直接登入。
-        var plain = await AddUserAsync(roleId: null);
-        var direct = await GoogleCallbackAsync(plain.Email!);
-        Assert.Equal("/App", direct.Headers.Location?.ToString());
-        Assert.Contains(direct.Headers.GetValues("Set-Cookie"), x => x.StartsWith(".MyProject.Auth=", StringComparison.Ordinal));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var start = await client.GetAsync("/Auths/Google/Login");
+        Assert.Equal("/Auths/Login", start.Headers.Location?.ToString());
     }
 
     private async Task<HttpResponseMessage> GoogleCallbackAsync(string email)

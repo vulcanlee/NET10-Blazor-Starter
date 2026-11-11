@@ -86,7 +86,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   0.10.0 起進行 WASM 改寫（計畫與各里程碑測試報告在 `docs/migration/`）：WASM 前端 `MyProject.Web.Client` 只能參考 Dtos／Models／Share；
   刷新 Token 一律經 `IRefreshTokenStore`（落庫、輪替、重用撤銷）；API 的目前使用者由 `ApiActorMiddleware`＋`ICurrentUserLoader` 載入（與網頁共用規則）；
   測試讀原始碼一律經 `SourceTree`。見速查表 §1、§6.20、§6.33。
-- Web API 一律回傳 `ApiResult<T>`，分頁包 `PagedResult<T>`；UI 用 Cookie 驗證、API 用 JWT Bearer。受保護 CRUD 另以 `[HasPermission("resource:action")]` + `IPermissionChecker` 做動作級授權（無權限回 403，維持 `ApiResult`；管理員短路）；UI 與 API 共用此單一 RBAC 權威來源。
+- Web API 一律回傳 `ApiResult<T>`，分頁包 `PagedResult<T>`；UI（WASM）與 API 一律用 JWT Bearer（0.10.8 起純 Token 登入，不再發登入 Cookie）。受保護 CRUD 另以 `[HasPermission("resource:action")]` + `IPermissionChecker` 做動作級授權（無權限回 403，維持 `ApiResult`；管理員短路）；UI 與 API 共用此單一 RBAC 權威來源。
 - Blazor 檢視編輯前 `Clone()`。**不再需要手動清除 EF 追蹤** —— 0.4.36 起 Blazor 路徑的資料服務
   改注入 `IDbContextFactory<BackendDBContext>`，每個方法用完即棄，`CleanTrackingHelper` 已移除。
 - 新增頁面權限採**宣告式**：`Menu.json`（每項唯一 `id`）＋ `SidebarMenuService.MenuPermissionMap`（`id→權限鍵`）＋ `MagicObjectHelper` 權限鍵常數；以 id 對應、重排 `Menu.json` 不錯位（舊「位置索引三處同步」已移除）。

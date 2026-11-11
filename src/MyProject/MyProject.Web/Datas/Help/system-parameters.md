@@ -55,7 +55,7 @@
 | `SystemSettings:Upload` | 允許上傳的副檔名 | 重新啟動網站後 |
 | `NLog:BasePath` | 日誌檔放在哪裡 | 重新啟動網站後 |
 | `JwtSettings` | Web API 的登入權杖（簽章金鑰、有效時間） | 重新啟動網站後 |
-| `CookieSettings` | 登入狀態保留多久、「記住我」天數 | 重新啟動網站後 |
+| `SessionSettings` | 登入狀態保留多久（多久沒使用要重新登入、「記住我」天數；舊名 `CookieSettings` 仍相容） | 重新啟動網站後 |
 | `GoogleOAuthSettings` | Google 登入的開關、用戶端憑證與預設角色 | 重新啟動網站後 |
 | `BootstrapSettings` | 內建管理員 support 的帳號、姓名、Email 與密碼 | 重新啟動網站後；⚠️ 每次啟動都會把 support 的密碼改成設定檔的值，姓名與 Email 只在第一次建立帳號時使用 |
 | `EmailSettings` | 寄信主機、帳號密碼、寄件人、信件連結的網址 | 寄信立即使用新值；登入與忘記密碼頁面的部分顯示要重新啟動網站，建議改完重新啟動 |

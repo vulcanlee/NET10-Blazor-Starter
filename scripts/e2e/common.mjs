@@ -34,9 +34,13 @@ export async function newContext(browser) {
   return browser.newContext({ ignoreHTTPSErrors: true, baseURL: baseUrl, viewport: { width: 1440, height: 900 }, locale: 'zh-TW' });
 }
 
-/** 以登入頁登入（驗證碼的答案在隱藏欄位，見登入頁）。 */
+/**
+ * 以登入頁登入（驗證碼的答案在隱藏欄位，見登入頁）。0.10.8 起登入頁在 WASM：先等 WASM 載入、表單出現，選擇器與隱藏欄位不變。
+ * 登入成功後 Token 存在瀏覽器（勾記住我 localStorage，否則 sessionStorage；同一個分頁換頁仍在），再整頁導到 returnUrl。
+ */
 export async function login(page, { account = 'support', password = supportPassword, rememberMe = false } = {}) {
   await page.goto('/Auths/Login');
+  await page.locator('#account').waitFor({ timeout: 60000 });
   await page.fill('#account', account);
   await page.fill('#password', password);
   await page.fill('#captcha', await page.inputValue('input[name="Input.CaptchaCode"]'));
@@ -50,7 +54,7 @@ export async function login(page, { account = 'support', password = supportPassw
   ]);
 }
 
-/** 在頁面裡呼叫 API（同源，自動帶 Cookie）。 */
+/** 在頁面裡呼叫 API（同源、不帶 Token；0.10.8 起沒有登入 Cookie，需要登入的 API 用 apiAsPageUser）。 */
 export async function callApi(page, path, { method = 'GET', headers = {}, body } = {}) {
   return page.evaluate(async ({ path, method, headers, body }) => {
     const response = await fetch(path, {
@@ -172,16 +176,62 @@ export async function isWasmPage(page) {
   return page.evaluate(() => performance.getEntriesByType('resource').some((x) => x.name.includes('.wasm')));
 }
 
-/** 以網頁登入的 Cookie 換一組存取 Token（與 WASM 頁面相同的方式），再直接呼叫 API。 */
+/**
+ * 取這個分頁登入的存取 Token（0.10.8 起從瀏覽器的 storage 讀，與 WASM 頁面相同；快到期就先刷新並寫回）。
+ * 必須在登入過、同一個分頁（sessionStorage）或勾了記住我（localStorage）的頁面上呼叫。
+ */
+export async function pageAccessToken(page) {
+  return page.evaluate(async () => {
+    const key = 'myproject.auth';
+    const persistent = localStorage.getItem(key) !== null;
+    const raw = localStorage.getItem(key) ?? sessionStorage.getItem(key);
+    if (!raw) {
+      throw new Error('這個分頁沒有登入的 Token（請先 login，或在同一個分頁）。');
+    }
+
+    let tokens = JSON.parse(raw);
+    if (new Date(tokens.AccessTokenExpiresAt).getTime() < Date.now() + 30000) {
+      const response = await fetch('/api/v1/Auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokens.RefreshToken }),
+      });
+      const data = (await response.json()).data;
+      tokens = { ...tokens, AccessToken: data.accessToken, AccessTokenExpiresAt: data.accessTokenExpiresAt, RefreshToken: data.refreshToken, RefreshTokenExpiresAt: data.refreshTokenExpiresAt };
+      (persistent ? localStorage : sessionStorage).setItem(key, JSON.stringify(tokens));
+    }
+
+    return tokens.AccessToken;
+  });
+}
+
+/** 這個分頁存的 Token（0.10.8 起登入後存在瀏覽器）：{ AccessToken, RefreshToken, IsPersistent, UserId, storage: 'local'|'session' }；沒有回 null。 */
+export async function pageTokens(page) {
+  return page.evaluate(() => {
+    const key = 'myproject.auth';
+    const local = localStorage.getItem(key);
+    const raw = local ?? sessionStorage.getItem(key);
+    return raw ? { ...JSON.parse(raw), storage: local ? 'local' : 'session' } : null;
+  });
+}
+
+/** 以這個分頁登入的存取 Token（與 WASM 頁面相同）直接呼叫 API，回傳狀態碼。 */
 export async function apiAsPageUser(page, path, { method = 'GET', body } = {}) {
-  return page.evaluate(async ({ path, method, body }) => {
-    const bridge = await fetch('/api/v1/Auth/bridge', { method: 'POST', headers: { 'X-MyProject-Client': '1' } });
-    const token = (await bridge.json()).data.accessToken;
+  return (await apiJsonAsPageUser(page, path, { method, body })).status;
+}
+
+/** 同上，回傳狀態碼、JSON 與內容長度。 */
+export async function apiJsonAsPageUser(page, path, { method = 'GET', body } = {}) {
+  const token = await pageAccessToken(page);
+  return page.evaluate(async ({ path, method, body, token }) => {
     const response = await fetch(path, {
       method,
       headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    return response.status;
-  }, { path, method, body });
+    const text = await response.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch { /* 檔案或空白 */ }
+    return { status: response.status, json, length: text.length };
+  }, { path, method, body, token });
 }

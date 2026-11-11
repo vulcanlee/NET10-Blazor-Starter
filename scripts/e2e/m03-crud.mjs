@@ -150,11 +150,11 @@ try {
   await page.locator('button.toolbar-icon-button', { hasText: '返回清單' }).waitFor({ timeout: 30000 });
   recorder.add('C8', '資料保留頁「前往」直接顯示已刪除的分類', await isWasmPage(page), `${new URL(page.url()).pathname}${new URL(page.url()).search}，工具列顯示「返回清單」`);
 
-  // C9：Server 頁面與 WASM 頁面互相切換（側邊選單）。
+  // C9：側邊選單換頁（0.10.8 起全部頁面都在 WASM，在 WASM 裡換頁）。
   await page.goto('/projects');
   await page.locator('.ant-table-wrapper').first().waitFor({ timeout: 30000 });
   const serverIsWasm = await isWasmPage(page);
-  // 在 Server 頁面「資料定義」群組是收合的：先展開再點。
+  // 「資料定義」群組是收合的：先展開再點。
   await page.locator('.ant-menu-submenu-title:visible', { hasText: '資料定義' }).first().click();
   await page.locator('a:visible', { hasText: '團隊清單' }).first().click();
   await page.waitForURL(/\/teams$/, { timeout: 30000 });
@@ -163,7 +163,7 @@ try {
   await page.locator('a:visible', { hasText: '分類清單' }).first().click();
   await page.waitForURL(/\/categories$/, { timeout: 30000 });
   await page.locator('.category-view-table .ant-table-row').first().waitFor({ timeout: 30000 });
-  recorder.add('C9', 'Server 與 WASM 頁面互相切換', !serverIsWasm && teamsIsWasm, `/projects（Server）→ /teams（WASM，整頁載入）→ /categories（WASM 內換頁）`);
+  recorder.add('C9', '側邊選單換頁（全部在 WASM）', serverIsWasm && teamsIsWasm, `/projects → /teams → /categories（WASM 內換頁）`);
 
   recorder.add('C10', '管理員操作過程沒有未處理的錯誤', errors.length === 0, errors.length === 0 ? '無' : errors.join('；'));
   await ctx.close();

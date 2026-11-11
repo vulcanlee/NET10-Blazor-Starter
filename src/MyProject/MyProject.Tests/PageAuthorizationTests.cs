@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
+using MyProject.Web.Client.Layout;
 using MyProject.Web.Components.Auths;
 using System.Net;
 using System.Reflection;
@@ -10,35 +10,32 @@ using System.Text.RegularExpressions;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 守住「未登入的人看不到任何頁面內容」這件事（0.9.41）。
+/// 守住「未登入的人看不到任何頁面內容」這件事（0.9.41 起；0.10.8 起純 Token 登入，WASM 遷移 M9b）。
 ///
-/// 0.9.41 之前頁面一律不標 [Authorize]，改在 OnInitializedAsync 內呼叫
-/// AuthenticationStateHelper.Check() 命令式檢查。那個檢查要等元件先渲染一次才會導走，
-/// 未登入者直接輸入 /App 之類的網址，會瞬間看到側邊欄、頁首與頁面內容。
-///
-/// 現在的防線分三層，本檔各有測試對應：
-/// 1. HTTP 層：Pages/_Imports.razor 對整個 Pages/ 標 [Authorize]，未登入請求直接 302 到登入頁。
-/// 2. 匿名頁面白名單：新頁面不小心標了 [AllowAnonymous]（或放在 Pages/ 以外又沒標）會被擋下。
-/// 3. 檢查完成前不渲染：呼叫 Check() 的元件必須等 isAccessChecked 為 true 才畫出內容。
+/// 0.10.8 起伺服器不發登入 Cookie，整頁請求時伺服器不知道誰在登入，所以頁面**不再**標 [Authorize]（預設驗證機制是 JWT，
+/// 標了反而會讓整頁請求拿到 401 JSON）。防線改成：
+/// 1. 整頁請求只回空的 WASM 外殼（不預先渲染），伺服器回應裡沒有任何頁面內容。
+/// 2. ClientMainLayout 是閘門：登入檢查（Token、/me）通過前不渲染任何東西，失敗就帶 returnUrl 回登入頁。
+/// 3. 不經 ClientMainLayout 的頁面（自己指定別的版面）必須是匿名頁並列在白名單；所有頁面都不可標 [Authorize]。
+/// 4. 資料一律經 API，API 各自以 Token 授權（ApiAuthorizationConventionTests）。
 /// </summary>
 [Collection(nameof(IntegrationHostCollection))]
 public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFactory>
 {
     /// <summary>
-    /// 允許匿名存取的頁面。⚠️ 新增項目前請確認該頁面**不含任何需要登入才能看的內容**。
+    /// 允許匿名存取的頁面（不經 ClientMainLayout 的閘門，或本身就要能在未登入時顯示）。⚠️ 新增項目前請確認該頁面**不含任何需要登入才能看的內容**。
     /// </summary>
     private static readonly string[] AnonymousPages =
     [
-        "Home",     // "/" 啟動頁，只有品牌與載入中動畫
-        "Error",    // 例外處理頁，登入頁自己出錯時也要能顯示
+        "SplashPage",     // "/" 啟動頁，只有品牌與載入中動畫
+        "ErrorPage",      // 例外處理頁，追蹤碼由網址帶入
+        "NotFoundPage",   // 狀態碼頁的重跑目標；內容靠 ClientMainLayout 的閘門擋住
         "Login",
-        "Logout",
-        "Pending",  // Google 登入後等待審核
-        "NotFound", // 狀態碼頁的重跑目標，要求登入會把 API 的 401/404 換成 302；內容靠 MainLayout 的閘門擋住
-        "ForgotPassword", // 忘記密碼（0.9.60）：只有輸入框，送出後一律顯示同一句話
-        "ResetPassword",  // 以信中連結重設密碼（0.9.60）：沒有有效 token 時只顯示「連結無效」
-        "RefreshSession", // 換發這台裝置的 Cookie（0.9.103）：沒有原本的 Cookie 與有效 ticket 一律導去登出，不顯示任何內容
-        "TwoFactor",      // 兩步驟驗證第二步（0.9.104）：沒有有效的待驗證 Cookie 一律導回登入頁，只有驗證碼輸入框
+        "Logout",         // 直接開也能登出（呼叫登出 API、清 Token）
+        "Pending",        // Google 登入後等待審核
+        "ForgotPassword", // 忘記密碼：只有輸入框，送出後一律顯示同一句話
+        "ResetPassword",  // 以信中連結重設密碼：連結無效時只顯示「連結無效」
+        "TwoFactor",      // 兩步驟驗證第二步：沒有待驗票證一律回登入頁
     ];
 
     private readonly ApiTestApplicationFactory factory;
@@ -49,21 +46,19 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
     }
 
     [Fact]
-    public void EveryRoutablePage_ShouldDeclareItsAccessLevel()
+    public void NoPage_ShouldCarryAuthorize()
     {
         var pages = GetRoutablePages();
-        Assert.NotEmpty(pages);
+        Assert.True(pages.Count > 30, $"只找到 {pages.Count} 個頁面，掃描可能失效。");
 
-        var undeclared = pages
-            .Where(page => page.GetCustomAttribute<AuthorizeAttribute>() is null
-                && page.GetCustomAttribute<AllowAnonymousAttribute>() is null)
+        var withAuthorize = pages
+            .Where(page => page.GetCustomAttribute<AuthorizeAttribute>() is not null)
             .Select(page => page.Name)
             .ToList();
 
-        Assert.True(
-            undeclared.Count == 0,
-            "每個可路由頁面都必須標 [Authorize] 或 [AllowAnonymous]（放在 Components/Pages 底下會自動繼承 [Authorize]）："
-                + string.Join("、", undeclared));
+        Assert.True(withAuthorize.Count == 0,
+            "0.10.8 起頁面不可標 [Authorize]（整頁請求沒有登入資訊，預設驗證機制是 JWT，標了會讓整頁請求拿到 401）；登入由 ClientMainLayout 把關："
+                + string.Join("、", withAuthorize));
     }
 
     [Fact]
@@ -76,6 +71,19 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
             .ToList();
 
         Assert.Equal(AnonymousPages.Order(StringComparer.Ordinal), anonymous);
+    }
+
+    /// <summary>不是匿名頁的頁面一律經 ClientMainLayout（預設版面或明寫），閘門才擋得到。</summary>
+    [Fact]
+    public void ProtectedPages_ShouldGoThroughTheClientMainLayoutGate()
+    {
+        var bypassing = GetRoutablePages()
+            .Where(page => page.GetCustomAttribute<AllowAnonymousAttribute>() is null)
+            .Where(page => page.GetCustomAttribute<LayoutAttribute>() is { } layout && layout.LayoutType != typeof(ClientMainLayout))
+            .Select(page => page.Name)
+            .ToList();
+
+        Assert.True(bypassing.Count == 0, "以下頁面不是匿名頁，卻指定了別的版面（繞過登入閘門）：" + string.Join("、", bypassing));
     }
 
     public static TheoryData<string> ProtectedRoutes()
@@ -94,9 +102,10 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         return data;
     }
 
+    /// <summary>未登入的整頁請求只拿到空的 WASM 外殼（不預先渲染），回應裡沒有任何頁面內容；登入檢查在瀏覽器裡由 ClientMainLayout 做。</summary>
     [Theory]
     [MemberData(nameof(ProtectedRoutes))]
-    public async Task ProtectedPage_WithoutLogin_ShouldRedirectToLoginWithoutRenderingAnything(string route)
+    public async Task ProtectedPage_WithoutLogin_ShouldServeOnlyTheEmptyWasmShell(string route)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -106,14 +115,14 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         var response = await client.GetAsync(route);
         var body = await response.Content.ReadAsStringAsync();
 
-        AssertRedirectsToLogin(response, route);
-        Assert.Equal(string.Empty, body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("webassembly", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("class=\"sidebar\"", body);
+        Assert.DoesNotContain("top-row", body);
     }
 
     /// <summary>
-    /// 不存在的網址維持 404（API 呼叫端要靠它），回應裡也沒有任何頁面內容：
-    /// 頁面是 prerender: false，HTTP 回應只有空殼；circuit 起來後 MainLayout 的閘門
-    /// 在登入檢查通過前不渲染，並把未登入者導去登入頁。
+    /// 不存在的網址維持 404（API 呼叫端要靠它），回應裡也沒有任何頁面內容。
     /// </summary>
     [Fact]
     public async Task UnknownUrl_WithoutLogin_ShouldKeep404AndRenderNoPageContent()
@@ -133,8 +142,12 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
 
     [Theory]
     [InlineData("/")]
+    [InlineData("/Error?trace=ABCD1234")]
     [InlineData("/Auths/Login")]
+    [InlineData("/Auths/Login?returnUrl=%2Fprojects")]
+    [InlineData("/Auths/TwoFactor")]
     [InlineData("/Auths/Pending")]
+    [InlineData("/Auths/Logout")]
     [InlineData("/Auths/ForgotPassword")]
     [InlineData("/Auths/ResetPassword")]
     public async Task AnonymousPage_WithoutLogin_ShouldBeServed(string route)
@@ -147,78 +160,6 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         var response = await client.GetAsync(route);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    /// <summary>
-    /// 已登入的人被停用或刪除後，帶著仍然有效的 Cookie 進到 /Auths/Logout，必須被導向登入頁。
-    ///
-    /// 0.9.95 之前登出頁沒有指定版面而套用 MainLayout；MainLayout 先跑 <c>Check</c>，發現使用者無效又導向
-    /// /Auths/Logout，而這個導向發生在登出頁清掉 Cookie 之前 —— 瀏覽器顯示「重新導向太多次」。
-    /// </summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    public async Task Logout_WithLiveCookieOfDisabledOrDeletedUser_ShouldRedirectToLogin(bool status, bool isDeleted)
-    {
-        var account = $"gone-{Guid.NewGuid():N}";
-        int userId;
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<MyProject.AccessDatas.BackendDBContext>();
-            var user = new MyProject.AccessDatas.Models.MyUser { Account = account, Name = account, Password = "x", Status = status, IsDeleted = isDeleted };
-            db.MyUser.Add(user);
-            await db.SaveChangesAsync();
-            userId = user.Id;
-        }
-
-        var options = factory.Services
-            .GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>>()
-            .Get(MyProject.Share.Helpers.MagicObjectHelper.CookieScheme);
-        var identity = new System.Security.Claims.ClaimsIdentity(
-        [
-            new(System.Security.Claims.ClaimTypes.Role, "User"),
-            new(System.Security.Claims.ClaimTypes.Name, account),
-            new(System.Security.Claims.ClaimTypes.NameIdentifier, account),
-            new(System.Security.Claims.ClaimTypes.Sid, userId.ToString()),
-        ], MyProject.Share.Helpers.MagicObjectHelper.CookieScheme);
-        var cookie = options.TicketDataFormat.Protect(new Microsoft.AspNetCore.Authentication.AuthenticationTicket(
-            new System.Security.Claims.ClaimsPrincipal(identity), MyProject.Share.Helpers.MagicObjectHelper.CookieScheme));
-
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/Auths/Logout");
-        request.Headers.Add("Cookie", $"{options.Cookie.Name}={cookie}");
-
-        var response = await client.SendAsync(request);
-
-        Assert.True(response.StatusCode is HttpStatusCode.Redirect or HttpStatusCode.Found, $"預期導向，實際 {(int)response.StatusCode}");
-        var location = response.Headers.Location!;
-        var target = location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString.Split('?')[0];
-        Assert.Equal("/Auths/Login", target);
-    }
-
-    [Fact]
-    public async Task LoginPage_WithSsoDeleted_ShouldShowTheFixedMessage()
-    {
-        // 已刪除的使用者用 Google 登入時導回 /Auths/Login?sso=deleted（0.9.95 起）。
-        using var client = factory.CreateClient();
-
-        var body = System.Net.WebUtility.HtmlDecode(await client.GetStringAsync("/Auths/Login?sso=deleted"));
-
-        Assert.Contains("此帳號已被刪除，請洽系統管理員。", body);
-    }
-
-    [Fact]
-    public async Task LoginPage_WithUnknownSsoCode_ShouldNotEchoIt()
-    {
-        // 只認得固定代碼；網址上的其他值不可以被當成訊息顯示。
-        // （表單的 action 會帶著 URL 編碼後的目前網址，那是框架行為且已編碼，所以比對原始 HTML 裡未編碼的標籤。）
-        using var client = factory.CreateClient();
-
-        var body = await client.GetStringAsync("/Auths/Login?sso=" + Uri.EscapeDataString("<b>injected-marker</b>"));
-
-        Assert.DoesNotContain("<b>injected-marker", body);
-        Assert.DoesNotContain("&lt;b&gt;injected-marker", body);
-        Assert.DoesNotContain("此帳號已被刪除", System.Net.WebUtility.HtmlDecode(body));
     }
 
     [Theory]
@@ -242,19 +183,22 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         RegexOptions.Compiled);
 
     /// <summary>
-    /// 不需要 isAccessChecked 閘門的元件：
-    /// - SplashView：匿名的啟動頁，Check() 只用來決定要去 /App 還是登入頁，畫面只有品牌。
-    /// - ChangePassword：isLoading 初值為 true，檢查期間只顯示 Spin，本身就是閘門。
+    /// 不需要 isAccessChecked 閘門的元件（0.10.8 起啟動頁與變更密碼頁搬到 WASM 之後已經沒有）。
     /// </summary>
-    private static readonly string[] CheckWithoutGateAllowList = ["SplashView", "ChangePassword"];
+    private static readonly string[] CheckWithoutGateAllowList = [];
 
     [Fact]
     public void ComponentsCallingAuthenticationCheck_ShouldRenderNothingUntilTheCheckCompletes()
     {
         var componentsRoot = FindComponentsRoot();
+
+        // 防空跑：比對式本身還認得出 Check() 的呼叫（Server 版外框仍會呼叫）。
+        Assert.Matches(AuthenticationCheckCall, File.ReadAllText(Path.Combine(componentsRoot, "Layout", "MainLayout.razor.cs")));
+
         var sourceFiles = new[] { "Views", "Pages" }
-            .SelectMany(folder => Directory.EnumerateFiles(
-                Path.Combine(componentsRoot, folder), "*.razor*", SearchOption.AllDirectories))
+            .Select(folder => Path.Combine(componentsRoot, folder))
+            .Where(Directory.Exists)
+            .SelectMany(folder => Directory.EnumerateFiles(folder, "*.razor*", SearchOption.AllDirectories))
             .Where(file => file.EndsWith(".razor", StringComparison.Ordinal)
                 || file.EndsWith(".razor.cs", StringComparison.Ordinal))
             .Where(file => Path.GetFileName(file) != "_Imports.razor")
@@ -267,10 +211,8 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
             .Where(markup => !CheckWithoutGateAllowList.Contains(Path.GetFileNameWithoutExtension(markup)))
             .ToList();
 
-        // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
-        // WASM 遷移期間 Server 版頁面逐步搬走，下限跟著降（0.10.6 起 M7 搬完維運頁後只剩 Agent、系統管理助理與兩步驟驗證設定等 4 個；
-        // 0.10.7 起 M8 搬走 Agent 測試台、Agent 工作流程與系統管理助理，只剩兩步驟驗證設定）。
-        Assert.True(components.Count >= 1, $"只掃到 {components.Count} 個呼叫 Check() 的元件，掃描路徑可能失效。");
+        // WASM 遷移期間 Server 版頁面逐步搬走（0.10.6 起 M7 剩 4 個、0.10.7 起 M8 剩兩步驟驗證設定、0.10.8 起 M9 一個都不剩）：
+        // Server 的頁面與檢視已沒有呼叫 Check() 的元件，這條規則留著守門日後新增的 Server 元件（M10 移除 Server 模式時一併刪除）。
 
         var violations = new List<string>();
         foreach (var markup in components)
@@ -304,24 +246,26 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         Assert.Contains("@if (isAuthenticated)", markup);
     }
 
-    private static void AssertRedirectsToLogin(HttpResponseMessage response, string requestedPath)
+    /// <summary>
+    /// ⭐ 0.10.8 起這就是登入的閘門（伺服器不再以 [Authorize] 擋整頁請求）：ClientMainLayout 在 <c>Session.InitializeAsync()</c>
+    /// 通過之前不渲染任何東西（側邊欄、頁首、頁面本體），失敗就由 ClientSession 帶 returnUrl 回登入頁。
+    /// </summary>
+    [Fact]
+    public void ClientMainLayout_ShouldRenderNothingUntilTheSessionIsInitialized()
     {
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var markup = File.ReadAllText(Path.Combine(SourceTree.Client, "Layout", "ClientMainLayout.razor"));
+        var code = File.ReadAllText(Path.Combine(SourceTree.Client, "Layout", "ClientMainLayout.razor.cs"));
 
-        var location = response.Headers.Location;
-        Assert.NotNull(location);
-
-        var absolute = location!.IsAbsoluteUri ? location : new Uri(new Uri("http://localhost"), location);
-        Assert.Equal("/Auths/Login", absolute.AbsolutePath);
-
-        var returnUrl = System.Web.HttpUtility.ParseQueryString(absolute.Query)["ReturnUrl"];
-        Assert.Equal(requestedPath, returnUrl);
+        Assert.StartsWith("@if (isAuthenticated)", markup[markup.IndexOf("@if (", StringComparison.Ordinal)..]);
+        var initialize = code.IndexOf("if (!await Session.InitializeAsync())", StringComparison.Ordinal);
+        Assert.True(initialize >= 0, "ClientMainLayout 必須先呼叫 Session.InitializeAsync() 並在失敗時停止。");
+        Assert.True(code.IndexOf("isAuthenticated = true", StringComparison.Ordinal) > initialize, "isAuthenticated 只能在登入檢查通過之後設為 true。");
     }
 
     /// <summary>Server（MyProject.Web）與 WASM（MyProject.Web.Client，0.10.1 起）兩個組件裡的所有頁面。</summary>
     private static List<Type> GetRoutablePages()
     {
-        return new[] { typeof(ReturnUrlGuard).Assembly, typeof(MyProject.Web.Client.ClientRouteTable).Assembly }
+        return new[] { typeof(MyProject.Web.Program).Assembly, typeof(MyProject.Web.Client.ClientRouteTable).Assembly }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => typeof(IComponent).IsAssignableFrom(type)
                 && type.GetCustomAttributes<RouteAttribute>().Any())

@@ -9,7 +9,6 @@ public class MagicObjectHelper
     {
         return $"Data Source={Path.Combine(databasePath, SQLiteDatabaseFilename)}";
     }
-    public const string CookieScheme = "CookieAuthenticationScheme";
     /// <summary>
     /// OAuth 外部登入流程暫存身分用的 Cookie 配置名稱
     /// </summary>

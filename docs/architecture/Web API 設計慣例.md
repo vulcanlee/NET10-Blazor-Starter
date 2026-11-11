@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.10.7
+- 現行系統版本：0.10.8
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -20,7 +20,7 @@
 - Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
 - **資料一律經畫面同一個 Service**（0.10.2 起，WASM 遷移 M3）：Controller 不另寫查詢或寫入邏輯，團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份。分類、團隊 0.10.2 起、專案 0.10.3 起已改，專案中已沒有任何 Repository（`CategoryRepository`／`TeamRepository`／`ProjectRepository` 都已刪除）；新模組不要再寫 Repository（CRUD 產生器也不再產生）。DTO 與畫面模型的對應放在 `MyProject.Web.Client/Api/*DtoMapper.cs`，WASM 頁面與 Controller 共用。
 - 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）。走服務的 Controller 由服務寫（與畫面相同，操作者是 `ApiActorMiddleware` 依存取 Token 載入的目前使用者），Controller 只補服務不寫的查看、搜尋、匯出稽核；不經服務的少數動作（例如 `AuthController` 的 Token 事件）呼叫 `this.WriteAuditAsync(AuditActions.Xxx..., ...)`
-  （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT／Cookie 身分解析）。
+  （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT 身分解析；0.10.8 起不再有登入 Cookie）。
   動作代碼一律引用 `MyProject.Business/Helpers/AuditActions.cs` 的常數，不可寫字串字面值（`AuditConventionTests` 守門）。
 - **同一個網址依內容類型分流**（0.10.3 起）：要帶檔案的寫入動作不另開上傳端點，在同一個網址各寫一個 `application/json` 與一個 `multipart/form-data` 的 action，以 `[Consumes]` 區分（例：`POST/PUT api/v1/Project`，multipart 的 `data` 是與 JSON 版相同的 DTO 字串、`files` 是附件）。
   JSON 版的 `[Consumes]` 要列 `application/json`、`text/json`、`application/*+json`（維持原本接受的類型）；multipart 版設路由 `Order = 1`（沒帶 Content-Type 時由 JSON 版回 415，而不是兩個 action 模稜兩可回 500），並標 `[ApiExplorerSettings(IgnoreApi = true)]`（Swagger 不能在同一個方法＋路徑放兩個 action，multipart 格式改寫在《[Web API 端點目錄](Web%20API%20端點目錄.md)》）。
@@ -83,7 +83,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生；只限管理員的端點由 `AdminOnlyAttribute` 產生，0.10.4 起；某個參數要更高權限時由 `this.ForbidUnless(...)` 產生，0.10.2 起） |
 | 404 | 找不到指定資源 |
 | 409 | 資料衝突：名稱重複，或 `PUT` 帶來的 `ConcurrencyStamp` 與資料庫不符（別人已先修改，0.9.93 起）；還原時已有同名的資料、永久刪除時還有其他資料以它為上層 |
-| 429 | 超過限流配額（`api` 分區；登入端點另有較嚴的配額），Body 同樣是 `ApiResult`。WASM 前端把它當成暫時狀況：不清 Token、不回登入頁，外框顯示「請求過於頻繁，請稍後再試。」（0.10.5 起，見[認證授權與權限機制](../security/認證授權與權限機制.md)）|
+| 429 | 超過限流配額（`api` 分區：已登入每人、未登入每個 IP；登入相關端點另有較嚴的每 IP 配額，見下方「限流」），Body 同樣是 `ApiResult`。WASM 前端把它當成暫時狀況：不清 Token、不回登入頁，外框顯示「請求過於頻繁，請稍後再試。」（0.10.5 起，見[認證授權與權限機制](../security/認證授權與權限機制.md)）|
 | 500 | 未預期例外 |
 
 ### 服務結果轉成狀態碼（0.10.2 起）
@@ -113,6 +113,17 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 - `POST /api/v1/Auth/refresh`
 - `GET /api/v1/Auth/me`
 
+0.10.8 起網頁也只用 Token 登入（不發登入 Cookie）：網頁的登入、兩步驟驗證、Google 代碼兌換、新分頁取得 Token、密碼與兩步驟驗證設定在 `api/v1/Auth` 底下的 `WebAuthController`、`AuthPasswordController`、`TwoFactorSetupController`，清單見《[Web API 端點目錄](Web%20API%20端點目錄.md)》第四之一節。
+⚠️ 「改到自己會換工作階段版本」的端點（改自己的密碼、角色、啟用／停用兩步驟驗證）**直接回這台的新 Token**（`SessionRenewalDto.Tokens`／`UserSaveResultDto.Tokens`，`SelfSessionRenewal`），不要回換發網址讓前端再登入一次。
+
+## 限流（0.10.8 起排在驗證之後）
+
+- 全站 API 套 `api` 分區（`MapControllers().RequireRateLimiting("api")`），分區鍵：**已登入依每人、未登入依 IP**（`ResolvePartitionKey`）。
+- ⚠️ **`UseRateLimiter` 必須排在 `UseAuthentication` 之後**（0.10.8 獨立審查）：分區鍵要讀已驗證的使用者，排在前面全部都是匿名、全部依 IP 分區——同一個出口 IP（NAT、反向代理）的所有人共用一份配額。`PerUserRateLimitTests` 守門。
+- **較嚴格的登入配額**（每 IP 每分鐘 `RateLimit:LoginRequestsPerMinute`，預設 10）寫在同一個 policy 裡、依路徑判斷（`LoginQuotaPaths`）：App 的 `Auth/login`、`two-factor`（含 `two-factor/setup`：重新產生備用碼與停用時驗證碼錯了不計入鎖定，只靠這裡擋）、`google`、`password`、`session`。
+  **不算**的例外（`LoginQuotaExcludedPaths` 與路徑本身）：網頁登入 `login/web`（照 Server 版畫面登入靠帳號鎖定，受一般 API 每 IP 配額；算進每 IP 10 次的話同一個出口 IP 的公司早上登入尖峰會被擋）、`login-settings`（每次開登入頁、啟動頁都呼叫，沒有可猜的東西）。
+- ⚠️ 不要用 `[EnableRateLimiting("login")]` 屬性另設 policy：端點慣例 `RequireRateLimiting("api")` 套用時機晚於屬性，會把它蓋掉而靜默失效。
+
 ## 功能級／動作級授權
 身分驗證（`[Authorize]`）之外，受保護 CRUD **每個動作方法**再以 `[HasPermission(頁面鍵, 動作)]`（`src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`）強制授權：
 
@@ -128,11 +139,15 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 | --- | --- | --- |
 | `[HasPermission(頁面鍵, 動作)]` | 屬於某個頁面、權限在角色矩陣裡 | 分類、團隊、專案；0.10.7 起 Agent 測試台（另要專案項目的新增／刪除才能產生／清除測試專案）、Agent 工作流程 |
 | `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）；0.10.5 起日誌與 AI 管理頁；0.10.6 起維運頁（`scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`、公告管理）與首頁的「排程作業」小工具；0.10.7 起系統管理助理與巡檢報告（`admin-assistant`）|
-| `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知（0.10.7 起含推播串流 `notifications/stream`）、公告、`Auth/me` |
-| `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換 |
+| `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知（0.10.7 起含推播串流 `notifications/stream`）、公告、`Auth/me`；0.10.8 起變更自己的密碼、兩步驟驗證設定 |
+| `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換；0.10.8 起登入頁設定、網頁登入、兩步驟驗證第二步、Google 代碼兌換、新分頁取得 Token（憑刷新 Token）、忘記／重設密碼 |
+
+**強制改密碼／設定兩步驟驗證期間**（0.10.0 起，全域 `ApiSessionGateFilter`）：業務 API 一律 403＋`errorCode`（`PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`）。只有完成設定所需的端點才另外標 `[AllowDuringForcedSetup]`——0.10.8 起是 `Auth/me`、`Auth/logout`、`Auth/password/change`、`Auth/two-factor/setup`，以及強制頁外框要用的 `shell`、`notifications`、`announcements/active` 與 `dismiss`（強制頁照 Server 版顯示完整外框）。⚠️ 新增的業務端點**不要**標。
+
+**沒有主要角色的帳號**（0.10.8 起）：網頁管道的 Token 一律 403 `NO_PRIMARY_ROLE`，前端登出（與 Server 版相同）；App 的 API 登入不受影響。
 
 - `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`）是授權篩選器：沒登入回 401；不是管理員回 403 `ApiResult`（預設訊息「只有管理員可以使用這個功能。」，可用 `[AdminOnly("訊息")]` 換），並與 `HasPermission` 一樣寫一筆 `Permission.Denied`（目標 `ApiEndpoint`／請求路徑，detail「需要管理員」）。管理員身分看 `ApiActorMiddleware` 從資料庫載入的目前使用者，所以剛被取消管理員的人下一個請求就被擋。
-  ⚠️ 只對 JWT Bearer 的請求有效：以 Cookie 驗證的請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者（0.10.6 起已沒有以 Cookie 驗證的 API；唯一的例外 `BackupController.Download` 已改成下載票證）。
+  ⚠️ 只對 JWT Bearer 的請求有效（0.10.6 起已沒有以 Cookie 驗證的 API；0.10.8 起網頁也不發登入 Cookie）。
 - `[SignedInUser]` 本身沒有行為（登入由 `[Authorize]` 擋），只是明說「這裡刻意不檢查頁面權限」，讓守門測試分得出「忘了標」和「本來就不需要」。用了它的端點一律只能讀改目前使用者自己的資料。
 - **伺服器要自己驗證**（0.10.4 起的管理頁 API）：controller 套 `[ApiValidationFilter]`（搜尋 DTO 的每頁筆數 1～200、頁碼 ≥ 1，不合法回 400），畫面表單上的必填也由伺服器再驗一次——API 呼叫端不經過畫面。從呼叫端收到的清單或矩陣只採納伺服器認得的項目（例：角色 API 把矩陣套到權限目錄的範本上，目錄外的節點忽略）。
 - **本地時間以不帶時差送出**（0.10.4 起）：回給 WASM 的本地時間用 `DateTimeKind.Unspecified`（JSON 不帶 `+08:00`），否則瀏覽器會換成自己的時區；UTC 欄位以 `Z` 結尾。⚠️ `TimeZoneInfo.ConvertTimeFromUtc` 回的是 `Kind=Local`，要再 `DateTime.SpecifyKind(…, Unspecified)`（0.10.6 修正了 M2 留下的三處：`NotificationsController`、`ProfileController`、`ShellController` 的 `StartedAtLocal`；`DateTimeOffset.LocalDateTime` 同樣是 `Kind=Local`）。「現在」「今天」也用伺服器時間（0.10.6 起資料保留、公告的清單直接帶伺服器的現在）。WASM 送來的日期篩選同樣不帶時差（`ClientCulture.Unzoned`），伺服器照自己的時區解讀。

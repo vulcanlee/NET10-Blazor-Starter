@@ -45,6 +45,8 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m08-views.mjs server  # M8 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
    node ./scripts/e2e/m08-agents.mjs        # M8 情境 M8-G1～G9（真實模型，需要 AI 設定）＋全部路由煙霧測試
    node ./scripts/e2e/m08-agents.mjs nopush # M8 關閉推播情境 M8-N1（主機要另外啟動，見下方）
+   node ./scripts/e2e/m09-views.mjs server  # M9 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
+   node ./scripts/e2e/m09-auth.mjs          # M9 純 Token 登入情境 M9-T1～T11＋全部路由煙霧測試
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -80,6 +82,10 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 跑完記得關掉這個主機、清掉環境變數。結果分別寫到 `E2E_OUT_DIR` 的 `m08-results.json`、`m08-nopush-results.json`（一般模式另寫 `smoke-results.json`）。
 
+**M9 的純 Token 登入情境（0.10.8 起）**：`m09-auth.mjs` 會佈置自己的測試帳號（鎖定、忘記密碼、必須改密碼、兩步驟驗證）；兩步驟驗證的驗證碼由腳本以 TOTP 算出，同一個 30 秒時間步只能用一次，所以中間會等下一個時間步（整體要跑好幾分鐘）。忘記密碼情境從隔離資料夾的 `Mails` 讀信件（`E2E_DB_FILE` 往上兩層）。M9-T11 只檢查登入頁的 Google 按鈕（有設定才顯示）：真的 Google 帳號無法自動化，代碼兌換流程由整合測試涵蓋。結果寫到 `m09-results.json` 與 `smoke-results.json`。
+
+`Start-E2EHost.ps1` 0.10.8 起**信件一律存成 .eml 檔**到隔離資料夾的 `Mails`（`EmailSettings__Provider=Pickup`、`PickupDirectory`、`PublicBaseUrl=https://localhost:7144`）：開發機的 User Secrets 可能設了真的 SMTP，情境腳本不可以真的寄信出去。
+
 `Start-E2EHost.ps1` 0.10.5 起把 API 限流放寬到每分鐘 1000 次（`RateLimit__ApiRequestsPerMinute`）：腳本換頁比人快得多，正式的每人每分鐘 120 次會被打滿。
 
 ⚠️ 情境腳本會改隔離資料庫（例如暫時把 support 標成必須改密碼、變更 support 的密碼），只能對 `Start-E2EHost.ps1` 啟動的網站執行，不可指向開發或正式資料庫。
@@ -88,9 +94,9 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 | 檔案 | 內容 |
 |---|---|
-| `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs` |
-| `smoke-routes.mjs` | 全部 37 個路由的煙霧測試：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖；0.10.5 起登入後的頁面被丟回登入頁、或停在「請求過於頻繁」的限流提示，也算失敗 |
-| `m01-tokens.mjs` | M1 情境：Cookie 換 Token、刷新輪替與重用偵測、登出撤銷、強制改密碼擋 API、改密碼後其他登入立即失效、登入 Token 清理排程 |
+| `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs`；0.10.8 起 Token 從瀏覽器的 storage 讀（`pageTokens`、`pageAccessToken`，快到期先刷新），另有 `apiJsonAsPageUser`（回狀態碼與 JSON）。⚠️ 不要用 `waitForLoadState('networkidle')`：WASM 頁面一直開著通知推播連線，網路永遠不閒置 |
+| `smoke-routes.mjs` | 全部 36 個路由的煙霧測試（0.10.8 起移除 `/Auths/RefreshSession`；登入相關頁面在 WASM，等元素出現才截圖）：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖；0.10.5 起登入後的頁面被丟回登入頁、或停在「請求過於頻繁」的限流提示，也算失敗 |
+| `m01-tokens.mjs` | M1 情境（0.10.8 起改為純 Token 登入）：記住我的 Token 存放（localStorage／sessionStorage、`web` 管道紀錄、不發登入 Cookie）、刷新輪替與重用偵測、登出撤銷整次登入、強制改密碼擋 API、改密碼後這台維持登入而舊 Token 失效、登入 Token 清理排程 |
 | `crud-ui.mjs` | 資料維護頁的共用操作：開清單、新增、修改、刪除、還原、永久刪除、確認窗、右下角通知（0.10.2 起） |
 | `crud-generated.mjs` | CRUD 產生器產生的頁面實跑（`E2E_CRUD_ROUTES` 指定路由）；由 `scripts/Test-CrudGenerator.ps1` 在暫存 worktree 呼叫 |
 | `m03-views.mjs` | M3 外觀比對：佈置固定的分類、團隊、唯讀角色，拍分類頁與團隊頁的 8 個畫面（清單、修改窗、已刪除、部門樹、搜尋、唯讀） |
@@ -106,4 +112,6 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 | `m07-ops.mjs` | M7 情境（0.10.6 起）：M7-P1 排程立即執行後狀態自動更新（不重新整理）、P2 立即備份→清單自動出現→以一次性票證下載 zip（第二次 404、舊的 Cookie 下載網址 404）、P3 修改系統名稱立即生效並還原、P4 公告新增後同一個分頁的橫幅立即出現、P5 另一個分頁（一般使用者）切回時看得到、P6 首頁小工具依權限（一般使用者直接呼叫排程小工具的 API 得 403）、P7 系統健康／資料保留／資料庫用量在 WASM 開得起來、P8 非管理員直打 M7 的 13 個 API 得 403、P9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試 |
 | `m08-views.mjs` | M8 外觀比對（0.10.7 起）：拍 4 個初始畫面（Agent 測試台、Agent 工作流程、系統管理助理、巡檢報告窗）。對話與執行過程含 AI 輸出，不做逐像素比對，改由 `m08-agents.mjs` 的情境驗證 |
 | `m08-agents.mjs` | M8 情境（0.10.7 起，真實模型）：M8-G1 Agent 測試台在 WASM、產生測試專案、G2 寫入工具跳出核准窗 → 核准 → 真的寫入且稽核一筆、G3 核准中重新整理回到同一段對話、核准窗再跳出 → 拒絕 → 沒有寫入、G4 兩個分頁同時送出同一段對話（後到的排隊，兩則都完成）、G5 工作流程「專案狀態報告」人工介入中重新整理可接回直到完成、G6 系統管理助理不可復原的動作要輸入「確認」才能核准（這次按拒絕）、G7 排程巡檢產生報告且 `?patrolReport=` 直接打開、G8 推播：另一個瀏覽器的鈴鐺 2 秒內更新、G9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試。`nopush` 參數只跑 M8-N1 |
+| `m09-views.mjs` | M9 外觀比對（0.10.8 起）：佈置三個測試帳號（必須改密碼、已啟用兩步驟驗證、要設定兩步驟驗證），拍 10 個畫面（登入、登入失敗、忘記密碼、重設密碼〔無效連結〕、Google 待審、兩步驟驗證、強制改密碼、兩步驟驗證設定、找不到頁面、錯誤頁）。驗證碼圖片與兩步驟驗證設定的 QR 碼每次不同，比對時另外說明。⚠️ 一律等畫面元素出現，不用 `networkidle` |
+| `m09-auth.mjs` | M9 情境（0.10.8 起）：M9-T1 登入後瀏覽器只有 Token、沒有登入 Cookie、T2 記住我關掉所有分頁再開仍登入、T3 不記住我時新分頁由已開分頁交接 Token、全部關掉要重新登入、T4 跨分頁登出、T5 連錯 5 次鎖定、T6 兩步驟驗證＋記住這台裝置、T7 強制改密碼直打業務 API 得 403 而 `/me` 可用、T8 忘記密碼信件連結重設、T9 Token 重用偵測（超過寬限期整串撤銷、頁面被登出）、T10 兩個分頁同時刷新不被登出、T11 Google 按鈕（實際登入需人工驗證）；最後跑全部路由的煙霧測試 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

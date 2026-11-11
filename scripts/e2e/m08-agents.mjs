@@ -2,7 +2,7 @@
 // 寫入工具核准與拒絕、核准中重新整理可恢復、兩分頁同時送出被排隊、工作流程人工介入（中途重新整理接回）、系統管理助理不可復原動作要輸入「確認」、
 // 巡檢報告連結、推播 2 秒內到達，最後跑全部路由的煙霧測試。參數 nopush：只跑「關閉推播仍可輪詢」（主機要以 NotificationSettings__PushEnabled=false 啟動）。
 // 結果寫到 E2E_OUT_DIR/m08-results.json（nopush 模式為 m08-nopush-results.json）與 smoke-results.json。
-import { apiAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
 import { clickToolbar, closeToasts, watchErrors } from './crud-ui.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -146,12 +146,7 @@ async function runAgents(browser) {
     ]);
     await Promise.all([waitIdle(page), waitIdle(second)]);
     const id = new URL(url).searchParams.get('conversation');
-    const detail = await page.evaluate(async (conversationId) => {
-      const bridge = await fetch('/api/v1/Auth/bridge', { method: 'POST', headers: { 'X-MyProject-Client': '1' } });
-      const token = (await bridge.json()).data.accessToken;
-      const response = await fetch(`/api/v1/agent-playground/conversations/${conversationId}`, { headers: { Authorization: `Bearer ${token}` } });
-      return response.json();
-    }, id);
+    const detail = (await apiJsonAsPageUser(page, `/api/v1/agent-playground/conversations/${id}`)).json;
     const texts = JSON.stringify(detail.data);
     await second.close();
     check(texts.includes('請只回覆「甲」') && texts.includes('請只回覆「乙」'), '兩則訊息沒有都存進對話');

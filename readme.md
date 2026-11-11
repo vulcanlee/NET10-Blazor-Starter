@@ -1,6 +1,8 @@
 ﻿# NET10-Blazor-Starter
 
-一份基於 **.NET 10** 與 **Blazor Server**（全域 SSR）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Cookie 認證、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
+一份基於 **.NET 10** 與 **Blazor Server**（全域 SSR）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
+
+> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**，Server 渲染基礎在 M10 移除。
 
 當前版本資訊定義在 [`src/MyProject/MyProject.Web/appsettings.json`](src/MyProject/MyProject.Web/appsettings.json) 之 `SystemSettings.SystemInformation.SystemVersion` 欄位。
 
@@ -19,12 +21,12 @@
 | 類別 | 採用方案 | 版本 |
 |------|----------|------|
 | 框架 | .NET / ASP.NET Core | 10.0 |
-| 前端 | Blazor Server（Interactive Server）+ 全域 SSR 渲染 | — |
+| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；Blazor Server 宿主遷移期間保留，M10 移除 | — |
 | UI 元件庫 | AntDesign Blazor | 1.6.2 |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
 | 資料存取 | Entity Framework Core | 10.0.14 |
 | 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
-| 認證 | ASP.NET Core Cookie Authentication（含 RememberMe） | — |
+| 認證 | JWT Bearer：網頁與 API 都用 Token（0.10.8 起不發登入 Cookie；記住我存 localStorage、未勾存 sessionStorage，刷新 Token 落庫輪替）| — |
 | 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete`）| — |
 | 語系 | `RequestLocalization` + `AntDesignLocaleFactory` | 只支援 zh-TW（0.9.136 起）|
 | 物件對映 | AutoMapper | 16.3.0 |
@@ -50,7 +52,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 
 | 專案 | 角色 |
 |------|------|
-| `MyProject.Web` | Blazor Server 宿主、Razor 元件、Web API Controller、登入頁、本地化、靜態資源。 |
+| `MyProject.Web` | 網站宿主、Web API Controller（含登入相關的 `api/v1/Auth`）、本地化、靜態資源；0.10.8 起頁面全部在 `MyProject.Web.Client`。 |
 | `MyProject.Business` | 商業邏輯：Services、AutoMapper Profile、Helpers（0.10.3 起已沒有 Repository，Web API 與畫面共用 Services）。 |
 | `MyProject.AccessDatas` | EF Core `BackendDBContext`、Entity 定義、Migrations。 |
 | `MyProject.Models` | 系統設定、AdapterModel、共用領域模型。 |
@@ -65,7 +67,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 
 - 使用者帳號 CRUD（含預設開發者帳號自動 Seed）
 - 角色管理（`RoleView`）與二維權限樹（對應 `Menu.json`）
-- 登入 / 登出（Cookie 驗證、記住我、4 位數驗證碼、粉梅暖雪 RWD 果凍 UI 與柔和飄雪動畫）
+- 登入 / 登出（0.10.8 起純 Token：記住我 30 天、未勾時關掉分頁就登出且新分頁自動接續、同一個瀏覽器只有一個身分；4 位數驗證碼、粉梅暖雪 RWD 果凍 UI 與柔和飄雪動畫）
 - 忘記密碼：以帳號或 Email 申請、信中連結重設（30 分鐘、單次使用、防帳號列舉、同帳號冷卻），需啟用寄信（0.9.60）；
   0.9.85 起輸入內建帳號 `support` 會明確拒絕、送出後改顯示中性說明，「使用者管理」存檔時檢查 Email 格式
 - 專案領域實體 CRUD（可作為新增其他領域模組的樣板）
@@ -194,7 +196,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs / ExceptionLogs / Logs / LogLevel / AiCallLogs / TokenUsage / PromptTemplates / ScheduledJobs / SystemHealth / Backups / DataRetention / DatabaseUsage / SystemParameters / Announcements / Dashboard / Downloads / AgentPlayground / AdminAssistant / AgentWorkflows …）
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
-    │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、CookieSettings
+    │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、SessionSettings（0.10.8 起取代 CookieSettings）、WebSessionTokens、TwoFactorLoginTickets、GoogleLoginCodes
     │   ├── Ai/                     ← LLM 日誌／例外分析、PDF 報告、用量與計價、AI 串流保護（AiStreamGuard）、Agent 與工作流程（Agents/、Workflows/）；安全 Markdown 渲染 0.10.5 起在 Web.Client/Ai
     │   ├── Backup/                 ← 系統備份（VACUUM INTO 快照＋檔案打包成 zip）
     │   ├── Caching/                ← ICacheService（Memory ↔ Redis）
@@ -216,7 +218,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，共 25 頁）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection）、Ai（Server 與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（Server 與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← AuthenticationStateHelper 等
@@ -253,7 +255,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `PasswordResetSettings` | 忘記密碼（0.9.60 起）：`TokenLifetimeMinutes`（重設連結效期，預設 30 分）、`RequestCooldownSeconds`（同帳號申請間隔，預設 60 秒）。只在寄信啟用時有作用。 |
 | `NLog.BasePath` | NLog 寫入的根目錄；專案會在其下建立 `MyProject.Web` 子目錄並輸出檔案日誌。 |
 | `JwtSettings` | Web API JWT 設定：`Issuer`、`Audience`、`SigningKey`、`AccessTokenMinutes`、`RefreshTokenDays`、`ClockSkewMinutes`；Production 啟動時若仍為開發用 `SigningKey` 會中止啟動。 |
-| `CookieSettings` | Blazor UI 登入 Cookie 效期（0.9.39 起）：`ExpireMinutes`（未勾「記住我」，預設 480 分）、`RememberMeDays`（勾了「記住我」，預設 30 天）、`SlidingExpiration`（預設 `true`）、`ValidationIntervalMinutes`（工作階段失效的重新檢查間隔，預設 5 分，0.9.103 起）。超出範圍啟動失敗。見 [日誌與設定檔說明 §4.3.2.1](docs/operations/日誌與設定檔說明.md)。 |
+| `SessionSettings` | 網頁登入能維持多久（0.10.8 起，取代 `CookieSettings`；舊鍵仍相容、啟動時記警告）：`IdleTimeoutMinutes`（未勾「記住我」多久沒使用要重新登入，預設 480 分，關掉分頁也會登出）、`IdleTimeoutSliding`（預設 `true` 每次使用重新起算；`false` 為從登入起的絕對上限）、`RememberMeDays`（勾了「記住我」整個登入最長幾天，預設 30）、`AccessTokenMinutes`（網頁存取 Token 效期，預設 15 分）、`ValidationIntervalMinutes`（工作階段失效的重新檢查間隔，預設 5 分）。超出範圍啟動失敗。見 [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md)。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
 | `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md)）。 |
 | `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
@@ -261,7 +263,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.SystemInformation.SystemDescription` | 顯示用系統描述。 |
 | **`SystemSettings.SystemInformation.SystemVersion`** | **唯一版本來源**，有建置內容的異動必須遞增（見第 8 節）。 |
 | `SystemSettings.ExternalFileSystem.DatabasePath` | SQLite 資料庫檔放置目錄。 |
-| `SystemSettings.ExternalFileSystem.DownloadPath` | `/UploadFiles` 對應的實體目錄（靜態資源外掛）。 |
+| `SystemSettings.ExternalFileSystem.DownloadPath` | 下載用的實體目錄（0.10.8 起不再掛成 `/UploadFiles` 靜態路徑；下載一律走一次性票證）。 |
 | `SystemSettings.ExternalFileSystem.UploadPath` | 通用上傳暫存目錄。 |
 | `SystemSettings.ExternalFileSystem.ProjectFilePath` | 專案附件根目錄（再依年/月細分）。 |
 | `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
@@ -270,7 +272,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 測試台保存的對話內容檔目錄（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.AuditContentPath` | 稽核紀錄的詳細內容檔目錄（0.9.131 起）：修改前後差異與完整查詢條件，系統備份會打包、清除時同步刪檔。⚠️ 可能含 Email、姓名與搜尋原文，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
-| `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。登入 Cookie 以此加密，⚠️ 金鑰換掉全站立刻被登出；多機部署須共用此目錄。 |
+| `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。0.10.8 起以此加密兩步驟驗證的待驗票證、記住裝置 Token、設定票證、Google 登入的暫存 Cookie 與兩步驟驗證金鑰；⚠️ 金鑰換掉記住的裝置要重新驗證、兩步驟驗證金鑰解不開；多機部署須共用此目錄。 |
 | `SystemSettings.ExternalFileSystem.AuditKeyPath` | 稽核紀錄防竄改金鑰目錄（0.9.175 起）：`audit-hmac.key`（第一次寫稽核時自動產生）與每天檢查留下的檢查點。⚠️ **刻意不進系統備份**，不可與其他資料目錄重疊、不可在網站目錄底下（啟動時檢查）；請另外離線保存金鑰檔，換主機時一起帶過去。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
 | `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
@@ -355,10 +357,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 ### 認證與安全（security）
 
-- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — Cookie / JWT 雙 scheme、Claims、RBAC 關聯表與角色／團隊指派、動作級授權、`<RequirePermission>` 與稽核事件。
+- [認證授權與權限機制](docs/security/認證授權與權限機制.md) — 純 Token 登入（0.10.8 起；效期、撤銷、票證、新分頁取得 Token、強制設定閘門）、Claims、RBAC 關聯表與角色／團隊指派、動作級授權、`<RequirePermission>` 與稽核事件。
 - [密碼種類與儲存機制](docs/security/密碼種類與儲存機制.md) — 密碼種類盤點、`MyUser.Password` 雜湊、種子密碼與機密金鑰。
 - [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md) — Google SSO 設定、自動建帳與審核、串接權控（0.9.63 起不支援 API／JWT）。
-- [記住我登入原理說明](docs/security/記住我登入原理說明.md) — Cookie + RememberMe 完整原理。
+- [記住我登入原理說明](docs/security/記住我登入原理說明.md) — 記住我（localStorage、30 天）與未勾（sessionStorage、閒置 8 小時）的 Token 原理；0.10.7 以前的 Cookie 做法列在沿革。
 
 ### 功能機制（features）
 

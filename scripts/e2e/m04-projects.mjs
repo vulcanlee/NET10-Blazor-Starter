@@ -282,7 +282,7 @@ try {
   await page.locator('.project-view-table .ant-table-row', { hasText: 'E2E 舊專案' }).first().waitFor({ timeout: 30000 });
   recorder.add('P13', '資料保留頁「前往」直接顯示已刪除的專案', await isWasmPage(page), `${new URL(page.url()).pathname}${new URL(page.url()).search}，看到「E2E 舊專案」`);
 
-  // P14：Server 頁面與 WASM 頁面互相切換（側邊選單）。
+  // P14：側邊選單換頁（0.10.8 起全部頁面都在 WASM）。
   await page.goto('/myusers');
   await page.locator('.ant-table-wrapper').first().waitFor({ timeout: 30000 });
   const serverIsWasm = await isWasmPage(page);
@@ -291,7 +291,7 @@ try {
   await page.waitForURL(/\/projects$/, { timeout: 30000 });
   await page.locator('.project-view-table .ant-table-row').first().waitFor({ timeout: 60000 });
   const projectsIsWasm = await isWasmPage(page);
-  recorder.add('P14', 'Server 與 WASM 頁面互相切換', !serverIsWasm && projectsIsWasm, '/myusers（Server）→ /projects（WASM，整頁載入）');
+  recorder.add('P14', '側邊選單換頁（全部在 WASM）', serverIsWasm && projectsIsWasm, '/myusers → /projects（WASM 內換頁）');
 
   recorder.add('P15', '管理員操作過程沒有未處理的錯誤', errors.length === 0, errors.length === 0 ? '無' : errors.join('；'));
 

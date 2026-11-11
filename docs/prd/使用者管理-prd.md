@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.22
+- 文件版本：1.23
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.8
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/11
 
@@ -87,7 +87,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - 帳號重複（不分大小寫）：新增／修改前置檢查回「帳號已存在，無法新增／修改。」
 - 升級到 0.9.171 時既有資料有不分大小寫重複的帳號：migration `AddUserAccountRoleNameUniqueIndex` 保留管理員（其次 Id 最小的；support 不能被停用），其他改名為「原帳號 (重複-Id)」、停用並換 SecurityStamp，每筆稽核 `User.DuplicateAccountRenamed`。
 - 修改對象不存在：回「找不到要修改的使用者資料。」；刪除同理。
-- **已刪除的使用者**（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息、忘記密碼維持中性訊息、既有 Cookie 在下一次換頁被登出、JWT 更新失敗、API 權限判斷回 false（403）。已知殘留：在**目前這一頁**仍有效（與停用相同）；已簽發的 JWT access token 到期前打 `/api/Auth/me` 仍會回傳 claims（不碰資料庫）。
+- **已刪除的使用者**（0.9.95 起）：密碼登入回與密碼錯誤相同的訊息、忘記密碼維持中性訊息、Token 刷新失敗、API 權限判斷回 false（403）。0.10.8 起網頁也是 Token，已開著的頁面在下一個 API 請求就被要求重新登入（每個請求由 `ApiActorMiddleware` 從資料庫載入目前使用者）；0.10.7 以前網頁是既有 Cookie 在下一次換頁被登出，而且在目前這一頁仍有效。
 - 已刪除的使用者用 Google 登入：見 [登入與帳號流程](登入與帳號流程-prd.md)。
 - 團隊名稱查無對應 `Team`：該名稱不會產生 `UserTeam`（僅同步存在的團隊）。
 - 未設額外角色／團隊：僅保留主要角色與角色預設團隊。
@@ -103,10 +103,10 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
   登入失敗次數、鎖定到期、兩步驟驗證、Google 綁定不會被管理員的存檔覆蓋 —— 0.9.92 之前是整筆覆蓋，管理員只改姓名，被鎖定的帳號就解鎖了。
   例外：管理員**設定新密碼**時一併解除鎖定（失敗次數歸零、清除鎖定到期），與「忘記密碼」重設後的行為一致。
   0.9.101 起設定新密碼要通過規則與歷史檢查（不可與這位使用者最近 N 次用過的密碼相同），`MustChangePassword` 一律依畫面儲存。
-- **強制登出**（`ForceLogoutAsync`，0.9.103 起）：換掉這個人的工作階段版本（`ExecuteUpdate`、不換 `ConcurrencyStamp`、稽核 `User.ForceLogout`），所有已登入的瀏覽器下一次換頁被登出、API 無法再 refresh；自己那一列沒有這個按鈕。
+- **強制登出**（`ForceLogoutAsync`，0.9.103 起）：換掉這個人的工作階段版本（`ExecuteUpdate`、不換 `ConcurrencyStamp`、稽核 `User.ForceLogout`），所有已登入的瀏覽器在下一個 API 請求被要求重新登入、API 無法再 refresh；自己那一列沒有這個按鈕。
   0.10.4 起 API 也擋強制登出自己（`POST api/v1/users/{id}/force-logout` 回 400「不可強制登出自己的帳號，請使用右上角的登出。」；之前只在畫面擋）。
-  另外停用、刪除、變更管理員身分或角色、設定新密碼也會換版本（對方下一個請求就被登出：API 401、刷新被拒）；管理員改到自己時經 `/Auths/RefreshSession` 保持這台登入（其他裝置維持登出）。
-  0.10.4 起 WASM 頁的流程：`PUT api/v1/users/{id}` 改到自己時回傳 `SessionRefreshUrl`（`/Auths/RefreshSession?ticket=…&returnUrl=%2Fmyusers`，沿用 0.9.103 的一次性 2 分鐘 ticket），頁面整頁導過去換發這台裝置的登入，體驗與 Server 版相同。
+  另外停用、刪除、變更管理員身分或角色、設定新密碼也會換版本（對方下一個請求就被登出：API 401、刷新被拒）；管理員改到自己時這個分頁保持登入（其他裝置維持登出）。
+  0.10.8 起（WASM 遷移 M9）：`PUT api/v1/users/{id}` 改到自己的密碼、角色或管理員身分時回傳 `Tokens`（`SelfSessionRenewal`：把這次請求所屬的那一串換成新的一串、舊的撤銷），頁面存起來後整頁重新載入本頁，選單與權限換成新的。0.10.4～0.10.7 是回 `SessionRefreshUrl`（`/Auths/RefreshSession?ticket=…`）整頁導過去換發 Cookie，0.10.8 起移除。
 - **重設兩步驟驗證**（`ITwoFactorService.ResetAsync`，0.9.104 起）：清掉密鑰、時間步與備用碼並換工作階段版本（對方所有登入失效），稽核 `User.TwoFactorReset`；對方下次登入只需密碼，若必須使用會被帶去重新設定。自己那一列沒有這個按鈕；0.10.4 起 API 也擋（`POST api/v1/users/{id}/two-factor/reset` 回 400「不可重設自己的兩步驟驗證，請到「兩步驟驗證」頁停用或重新設定。」）。
 - **解鎖**（`UnlockAsync`，0.9.101 起）：只以 `ExecuteUpdate` 清除失敗次數與鎖定到期，**不換版本號**（別人開著這位使用者的編輯窗不會因此衝突）；沒有被鎖定時回「這位使用者目前沒有被鎖定。」。
 
@@ -124,7 +124,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/MyUserServiceCopyTests.cs`（0.9.127）：複製範本帶入角色／團隊／狀態／管理員且個人欄位留空、略過停用團隊、support 與不存在的來源回 null、`CanCopy`、Email 使用者查詢（大小寫、空白、已刪除）、由範本建立後 `UserRole`／`UserTeam` 一致且稽核含 `copiedFrom`。
 - `MyProject.Tests/PasswordPolicyTests.cs` `Generate_ShouldAlwaysPassTheCurrentRules`（0.9.127）：多組規則下產生的密碼都通過 `Check`、長度正確、不含易混淆字元、不重複。
 - `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `MyUser`；元件行為見 `Components/AuditHistoryTests`。
-- `MyProject.Tests/UserApiTests.cs`（0.10.4 起，8 支）：使用者 Web API 的完整生命週期且每個動作只記一筆稽核、改別人後對方下一個請求被登出、改自己經 `SessionRefreshUrl` 維持登入且不可強制登出或重設自己的兩步驟驗證（400）、複製從範本開始並記下來源、搜尋標出 support 的可用操作並匯出 xlsx、解鎖、伺服器端規則不靠畫面也成立（必填、support 不可改帳號、產生密碼不快取、新增前檢查）、非管理員 403。
+- `MyProject.Tests/UserApiTests.cs`（0.10.4 起，8 支）：使用者 Web API 的完整生命週期且每個動作只記一筆稽核、改別人後對方下一個請求被登出、改自己後回新的 `Tokens`、這台維持登入（0.10.8 起；之前經 `SessionRefreshUrl`）且不可強制登出或重設自己的兩步驟驗證（400）、複製從範本開始並記下來源、搜尋標出 support 的可用操作並匯出 xlsx、解鎖、伺服器端規則不靠畫面也成立（必填、support 不可改帳號、產生密碼不快取、新增前檢查）、非管理員 403。
 - `MyProject.Tests/ApiAuthorizationConventionTests.cs`（0.10.4 起）：每個 Web API action（含繼承來的）都要標註 `[HasPermission]`／`[AdminOnly]`／`[SignedInUser]`／`[AllowAnonymous]`；除了 `[AllowAnonymous]` 都要有 `[Authorize]`。
 
 ## 八、相關程式與文件

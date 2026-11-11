@@ -1,0 +1,14 @@
+﻿@inherits LayoutComponentBase
+
+@* 登入相關頁面的 WASM 版面（0.10.8 起，WASM 遷移 M9）：不需登入、沒有外框。標記與樣式照抄 Server 版 NoFooterLayout。 *@
+<div class="page">
+    <main class="main-content-wrapper">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
