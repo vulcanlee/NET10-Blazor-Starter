@@ -1,10 +1,10 @@
 ﻿# 資料保留與清理 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.0
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.133
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -31,6 +31,8 @@
 - 欄位：資料（附一併處理的檔案）、目前數量、檔案空間、最舊一筆、保留規則（＋「修改」→ `/system-parameters?group=資料保留|備份`）、下次會清掉、自動清理（白話頻率、停用標籤、上次時間與結果訊息、下次執行；已刪除的後四列只註明與專案同一個排程）、操作（「立即清理」「自訂清除」「前往」，0.9.134 起固定在右側）。
 - 自訂清除窗（0.9.134 起，適用例外、Token、AI 對話、Agent 對話（0.9.143 起）、稽核、站內通知、寄信紀錄（0.9.167 起，「待寄」不刪）、排程執行紀錄與已刪除的五種；巡檢報告、登入 Token、備份、日誌檔、公告沒有）：二選一「只留最近 N 天」（1～3650）／「刪除這一天之前（不含當天，不可晚於今天）」，即時預覽會刪幾筆；「清除」→ 紅色確認 → 在頁面上同步刪除 → 通知刪了幾筆（已刪除資料附留下幾筆）。
 - 一列讀取失敗只在那一列顯示「讀取失敗：例外類型」，其他列照常。
+- **WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/DataRetentionPage.razor`、`Views/Admins/DataRetentionView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `DataRetentionController`（`api/v1/data-retention`：`GET` 總覽〔含伺服器的「今天」〕、`POST {種類}/purge-now`、`POST {種類}/preview`、`POST {種類}/custom-purge`〔長時間請求，WASM 用 `PostLongRunningAsync`〕），稽核與 Server 版相同、由伺服器寫；清理進行中仍每 5 秒自動更新。
+  與 Server 版不同：立即清理稽核 `Job.Trigger` 的 `expected=N` 由伺服器在按下時重新讀總覽算出（可能和確認窗的數字差幾筆；那一列現在不能清理時回 409 並說明原因）；自訂清除的條件由伺服器以自己的「今天」驗證。
 - 「稽核紀錄」列（0.9.174 起分兩類）：保留規則「異動與安全事件保留 N 天；瀏覽類（換頁、搜尋、查看）保留 M 天」（`LogRetentionSettings:AuditLogDays`／`AuditBrowsingLogDays`，某一類為 0 時那一段為「不自動刪除（保留天數為 0）」）；目前數量、最舊一筆與下次會清掉是兩類合計（`AuditLogQueryService.GetRetentionStatsAsync(threshold, AuditLogKind.Change／Browsing)` 各算一次）；兩類都是 0 時才停用「立即清理」；自訂清除不分類（`AuditLogKind.All`）。
 - 「Agent 對話」列（列鍵 `agent-conversation`）：附註「全體使用者，連同內容檔；含 Agent 工作流程的執行紀錄；依最後一次對話時間」（0.9.144 起加「含 Agent 工作流程的執行紀錄」）、數量單位「段」、保留規則「最後一次對話後保留 N 天」、「前往」`/agent-playground`（只看得到自己的對話）。
 - 「巡檢報告」列（0.9.161 起，列鍵 `admin-patrol-report`）：附註「系統管理助理的定時巡檢，連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」」、數量單位「份」、保留規則「產出後保留 N 天」（`AdminPatrolSettings:RetentionDays`）、負責作業「巡檢報告清理」、「前往」`/admin-assistant`；沒有自訂清除。
@@ -65,11 +67,12 @@
 - 統計與清理一致：`RetentionJobTests`（例外、稽核、Token、AI 對話，資料放在本地與 UTC 相差的 8 小時內；Agent 對話依最後一次對話時間）、`SoftDeletePurgeTests`（五種、附件大小）、`NotificationTests`（兩條規則不重複計）、`ScheduledJobFrameworkTests`（執行中的不算）。
 - `CustomPurgeCutoffTests`（驗證、三種時間基準的換算）、`SoftDeletePurgeTests`（`PurgeExpiredTypeAsync` 只清一種、保護規則）。
 - `DataRetentionOverviewServiceTests`（真正的主機：自訂清除對 9 種資料「預覽＝實際刪除」、已刪除資料只清那一種、巡檢報告／備份／日誌／公告沒有自訂清除；16 列順序、沒有讀取失敗、負責作業、備份與沒有作業的列沒有「立即清理」、五個頁面支援 `?deleted=1`、確認窗文字）、`CronDescriberTests`、`DirectorySizeProbeTests`、`NLogRetentionTests`。
+- `MaintenanceApiTests`（0.10.6 起）：總覽每種都有、帶伺服器的「今天」、時間不帶時差；立即清理放進佇列並寫稽核、不認得的種類 404、沒有作業 400；自訂清除先預覽再刪除並寫稽核、不合法條件與不支援的種類 400；非管理員 403。
 - 守門同步：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`PageAuthorizationTests`、`LoggingConventionTests`。
 
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/DataRetention/`（`DataRetentionOverviewService`、`DirectorySizeProbe`）、`Scheduling/RetentionCutoffs.cs`、`Scheduling/CronDescriber.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/RetentionStats.cs` 與各服務的 `GetRetentionStatsAsync`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/DataRetentionView.razor(.cs)`、`Datas/Help/data-retention.md`
+- `src/MyProject/MyProject.Web.Client/Views/Admins/DataRetentionView.razor(.cs)`（0.10.6 起 WASM）、`Api/MaintenanceApi.cs`（`DataRetentionApi`）、`MyProject.Web/Controllers/DataRetentionController.cs`、`Datas/Help/data-retention.md`
 - 規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「資料保留與清理」；相關 PRD：[排程作業](排程作業-prd.md)、[系統參數](系統參數-prd.md)、[系統備份與還原](系統備份與還原-prd.md)

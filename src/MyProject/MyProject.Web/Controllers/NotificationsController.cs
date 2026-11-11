@@ -97,6 +97,10 @@ public sealed class NotificationsController : ControllerBase
         return Ok(ApiResult<object>.SuccessResult(new { count }, "已清除已讀通知"));
     }
 
+    /// <summary>
+    /// UTC 換成伺服器本地時間，並以不帶時差（Kind=Unspecified）送出（0.10.6 起修正）：換算結果的 Kind 是 Local，
+    /// 會序列化成 +08:00，WASM 再換成瀏覽器的時區，兩邊時區不同時時間就錯。
+    /// </summary>
     private DateTime ToLocal(DateTime utc)
-        => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone);
+        => DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone), DateTimeKind.Unspecified);
 }

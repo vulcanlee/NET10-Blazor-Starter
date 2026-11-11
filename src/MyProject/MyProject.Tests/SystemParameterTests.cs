@@ -10,6 +10,7 @@ using MyProject.AccessDatas;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
+using MyProject.Dtos.Admins;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Parameters;
@@ -411,7 +412,7 @@ public sealed class SystemParameterTests
     [InlineData("30", "0", false)]
     [InlineData("30", "30", false)]
     public void ShortensRetention_ShouldDetectLoweringOrStartingToPurge(string current, string next, bool expected)
-        => Assert.Equal(expected, MyProject.Web.Components.Views.Admins.SystemParameterView.ShortensRetention(current, next));
+        => Assert.Equal(expected, SystemParameterValueCodec.ShortensRetention(current, next));
 
     [Fact]
     public void AuditDetail_ShouldTruncateLongValues()

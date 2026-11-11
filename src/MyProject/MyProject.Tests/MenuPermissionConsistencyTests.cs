@@ -52,6 +52,7 @@ public sealed class MenuPermissionConsistencyTests
         "AiCallLogView.razor.cs",
         "AuditLogView.razor.cs",
         "ScheduledJobView.razor.cs",
+        "SystemHealthView.razor.cs",
         "SystemParameterView.razor.cs",
         "BackupView.razor.cs",
         "DataRetentionView.razor.cs",

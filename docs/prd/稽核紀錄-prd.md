@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.31
+- 文件版本：1.32
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/11
 
@@ -143,7 +143,7 @@ Controller 另套 `[ApiValidationFilter]`：每頁筆數 1～200、頁碼 ≥ 1�
 `AuditLogQueryServiceTests` 有三條測試釘住這三個邊界；把換算拿掉會立刻轉紅（已實測）。
 
 **已知限制**：Blazor Server 的 `ToLocalTime()` 取的是**伺服器**時區，不是瀏覽器時區。
-與 `SystemHealthPage`、日誌檢視、例外紀錄、Token 用量四頁的口徑一致，刻意不另做 JS interop。
+與系統健康監控（0.10.6 起 `SystemHealthView`）、日誌檢視、例外紀錄、Token 用量四頁的口徑一致，刻意不另做 JS interop。
 
 **WASM（0.10.4 起）**：換算仍全在伺服器做，口徑不變（伺服器時區）；WASM 頁面不在瀏覽器裡再換算，明細的 UTC 時間也由伺服器算好送來，瀏覽器時區不同也不會偏。
 ⚠️ 本地時間（清單、明細、「異動歷程」對話窗）一律以**不帶時差**（`DateTimeKind.Unspecified`）送出，UTC 欄位以 `Z` 結尾：之前帶 `+08:00`，WASM 反序列化時會換成瀏覽器的時區，伺服器與瀏覽器時區不同時整頁時間都錯（獨立審查發現）。查詢條件的起訖時間在 WASM 端送出前也先去掉時區（`ClientCulture.Unzoned`），伺服器照自己的時區解讀。
@@ -223,16 +223,16 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Team.Enable` / `Team.Disable` / `Category.Enable` / `Category.Disable` | `TeamService`、`CategoryService` 的 `SetEnabledAsync`（0.9.120 起，清單點狀態標籤；detail `name=…`）|
 | `User.ProfileUpdate` | `ProfileService`（使用者在個人資料頁改自己的姓名，0.9.102 起；detail 只寫 `field=Name`，不記姓名內容）|
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
-| `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger` |
+| `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger`。0.10.6 起由 `ScheduledJobsController`、`BackupsController`、`DataRetentionController`（立即清理，detail `job=…; source=data-retention; expected=N`，N 由伺服器在按下時重算）寫，內容同 Server 版 |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
 | `AiAgentConversation.Delete` / `AiAgentConversation.Purge` / `AiAgentConversation.AutoPurge` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄，`agent=` 為流程名稱）：`AiAgentConversationService.DeleteAsync`（使用者刪自己的對話或執行紀錄，detail `agent=…`）、「資料保留與清理」的自訂清除、排程作業「Agent 對話清理」（detail `rows=N; days=D; trigger=T`）；不記標題與內容，改標題不寫稽核 |
-| `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、`BackupController`（下載，續傳只記第一段）、`BackupView`（刪除） |
-| `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起） |
+| `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、下載（0.10.6 起 `DownloadsController` 在兌換一次性票證時寫一筆；之前是 `BackupController`，續傳只記第一段）、刪除（0.10.6 起 `BackupsController`，之前是 `BackupView`） |
+| `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起；0.10.6 起由 `AnnouncementsController` 寫，刪除的標題取自資料庫） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |
 | `EmailLog.AutoPurge` | 排程作業「寄信紀錄清理」（0.9.167 起；detail `rows=N; days=D; trigger=T`）|
 | `EmailLog.Purge` | 「資料保留與清理」頁的自訂清除寄信紀錄（0.9.167 起） |
 | `Notification.Test` | `NotificationTestService`（「系統健康監控」的發送測試通知，0.9.122 起；detail `recipients=N`，發送失敗加 `; failed`） |
-| `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
+| `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；0.10.6 起由 `SystemParametersController` 寫；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）；0.10.2 起 WASM 頁面由開頁紀錄 `POST /api/v1/shell/page-view` 依選單的權限鍵判斷後記（Detail `via=WASM`）|
 | `Project.FileDownload` | `DownloadsController`（0.10.3 起兌換下載票證時；之前是 `ProjectFileController`） |

@@ -17,7 +17,7 @@ public sealed class DownloadTicketServiceTests
         var redeemed = service.TryRedeem(ticket);
 
         Assert.NotNull(redeemed);
-        Assert.Equal((DownloadTicketService.ProjectFileKind, 42, 7, "stamp"), (redeemed.Kind, redeemed.TargetId, redeemed.UserId, redeemed.SecurityStamp));
+        Assert.Equal((DownloadTicketService.ProjectFileKind, "42", 7, "stamp"), (redeemed.Kind, redeemed.Target, redeemed.UserId, redeemed.SecurityStamp));
         Assert.Null(service.TryRedeem(ticket));
     }
 

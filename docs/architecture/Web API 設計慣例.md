@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.6
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -27,8 +27,9 @@
   multipart 的 action 另標 `[RequestSizeLimit]`／`[RequestFormLimits]` 放寬請求上限（專案為 4 GB，與 `web.config` 的 IIS `requestLimits` 一致，`WebConfigTests` 守門）；其他端點維持 ASP.NET Core 預設的約 30 MB。
 - **檔案下載用一次性票證**（0.10.3 起）：瀏覽器原生下載帶不了 Bearer，大檔也不能讀進 WASM 記憶體，所以先以 Bearer 呼叫 `POST .../ticket` 取得 60 秒、只能用一次的網址，再由瀏覽器直接下載匿名的 `GET api/v1/downloads/{ticket}`（`DownloadsController`、`DownloadTicketService`）。
   兌換時依發票證時的使用者與安全戳記重新載入使用者、重查權限與資料範圍，任何失敗都回同一個 404；不支援續傳。細節見《[Web API 端點目錄](Web%20API%20端點目錄.md)》第三節。
-  0.10.3 起專案附件已沒有以 Cookie 驗證的端點（`ProjectFileController` 已刪除）。
-- 例外：`BackupController`（系統備份下載，0.9.99 起）**只收 Cookie 驗證**，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權（Cookie 請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以 0.10.4 起暫時標 `[SignedInUser]`、檢查寫在方法裡；⚠️ 它是管理員專屬，方法裡的檢查不可拿掉）；M7 改用下載票證時改標 `[AdminOnly]`。
+  0.10.3 起專案附件、0.10.6 起系統備份（`POST api/v1/backups/{檔名}/ticket`，`[AdminOnly]`；兌換時再確認仍是管理員）都走這套，已沒有以 Cookie 驗證的 API（`ProjectFileController`、`BackupController` 都已刪除）。新增「下載某種檔案」時，在 `DownloadTicketService` 加一個票證種類（`Kind`，目標是字串），並在 `DownloadsController` 兌換時重新檢查權限與檔案位置。
+- **背景作業交給排程佇列**（0.10.6 起）：「立即執行」「立即備份」「立即清理」這類要跑很久的動作，API 只把作業放進排程框架的佇列（`ScheduledJobOverviewService.TryTrigger`，與排程共用作業鎖）就回來，已在佇列或執行中回 409；畫面自己輪詢看進度。不要在請求裡同步執行。
+- **設定鍵這類含冒號的識別放本文**（0.10.6 起）：例：`POST api/v1/system-parameters/save` 的 `Key`（`BackupSettings:KeepCount` 這種含冒號的鍵放進網址要另外編碼，也容易被誤解成路徑）。
 
 - **AI 逐字顯示用 NDJSON 串流**（0.10.5 起，WASM 遷移 M6；不用 SignalR）：action 回 `new NdjsonResult<AiStreamFrameDto>(…)`（`MyProject.Web/Streaming/NdjsonResult.cs`），規則見下方「串流回應」節。
 
@@ -120,15 +121,15 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 | 標註 | 什麼時候用 | 例 |
 | --- | --- | --- |
 | `[HasPermission(頁面鍵, 動作)]` | 屬於某個頁面、權限在角色矩陣裡 | 分類、團隊、專案 |
-| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）|
+| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）；0.10.5 起日誌與 AI 管理頁；0.10.6 起維運頁（`scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`、公告管理）與首頁的「排程作業」小工具 |
 | `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知、公告、`Auth/me` |
 | `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換 |
 
 - `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`）是授權篩選器：沒登入回 401；不是管理員回 403 `ApiResult`（預設訊息「只有管理員可以使用這個功能。」，可用 `[AdminOnly("訊息")]` 換），並與 `HasPermission` 一樣寫一筆 `Permission.Denied`（目標 `ApiEndpoint`／請求路徑，detail「需要管理員」）。管理員身分看 `ApiActorMiddleware` 從資料庫載入的目前使用者，所以剛被取消管理員的人下一個請求就被擋。
-  ⚠️ 只對 JWT Bearer 的請求有效：以 Cookie 驗證的請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者（目前只有 `BackupController.Download`，見上方「例外」）。
+  ⚠️ 只對 JWT Bearer 的請求有效：以 Cookie 驗證的請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者（0.10.6 起已沒有以 Cookie 驗證的 API；唯一的例外 `BackupController.Download` 已改成下載票證）。
 - `[SignedInUser]` 本身沒有行為（登入由 `[Authorize]` 擋），只是明說「這裡刻意不檢查頁面權限」，讓守門測試分得出「忘了標」和「本來就不需要」。用了它的端點一律只能讀改目前使用者自己的資料。
 - **伺服器要自己驗證**（0.10.4 起的管理頁 API）：controller 套 `[ApiValidationFilter]`（搜尋 DTO 的每頁筆數 1～200、頁碼 ≥ 1，不合法回 400），畫面表單上的必填也由伺服器再驗一次——API 呼叫端不經過畫面。從呼叫端收到的清單或矩陣只採納伺服器認得的項目（例：角色 API 把矩陣套到權限目錄的範本上，目錄外的節點忽略）。
-- **本地時間以不帶時差送出**（0.10.4 起）：回給 WASM 的本地時間用 `DateTimeKind.Unspecified`（JSON 不帶 `+08:00`），否則瀏覽器會換成自己的時區；UTC 欄位以 `Z` 結尾。WASM 送來的日期篩選同樣不帶時差（`ClientCulture.Unzoned`），伺服器照自己的時區解讀。
+- **本地時間以不帶時差送出**（0.10.4 起）：回給 WASM 的本地時間用 `DateTimeKind.Unspecified`（JSON 不帶 `+08:00`），否則瀏覽器會換成自己的時區；UTC 欄位以 `Z` 結尾。⚠️ `TimeZoneInfo.ConvertTimeFromUtc` 回的是 `Kind=Local`，要再 `DateTime.SpecifyKind(…, Unspecified)`（0.10.6 修正了 M2 留下的三處：`NotificationsController`、`ProfileController`、`ShellController` 的 `StartedAtLocal`；`DateTimeOffset.LocalDateTime` 同樣是 `Kind=Local`）。「現在」「今天」也用伺服器時間（0.10.6 起資料保留、公告的清單直接帶伺服器的現在）。WASM 送來的日期篩選同樣不帶時差（`ClientCulture.Unzoned`），伺服器照自己的時區解讀。
 - 回應含明碼密碼等機密時加 `Cache-Control: no-store`（例：`GET api/v1/users/password/generate`）。
 
 ## 例外與驗證

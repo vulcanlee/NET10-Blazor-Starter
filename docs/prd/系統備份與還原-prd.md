@@ -1,10 +1,10 @@
 ﻿# 系統備份與還原 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.99
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -20,13 +20,17 @@
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
 | `/backups` | 系統管理 → 系統設定與維運 → 系統備份（`Menu.json` id=37）| 僅管理員（`CheckIsAdmin`；權限鍵 `角色_系統備份` 不進角色矩陣）| 系統管理員 |
-| `GET /api/backups/{檔名}/download` | — | Cookie 驗證＋從資料庫確認是管理員 | 系統管理員 |
+| `api/v1/backups`（0.10.6 起）| — | `[AdminOnly]`（JWT Bearer）| 系統管理員 |
+| `GET api/v1/downloads/{票證}`（0.10.6 起下載備份）| — | 匿名，以一次性票證當憑證；兌換時再確認仍是管理員 | 系統管理員 |
 
 ## 三、畫面與欄位
 
 - 工具列：立即備份（確認後放進排程框架的佇列，與排程共用作業鎖；執行中按鈕停用、每 5 秒自動更新）、重新整理。
 - 摘要：下次自動備份、上次執行（結果、時間、訊息）、保留份數。
 - 表格（新到舊）：檔名、建立時間、大小、系統版本、觸發（排程／補跑／手動）、內容（各資料夾檔案數、打包時已消失的檔案數）；每列「下載」「刪除」（危險確認）。
+
+**WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/BackupPage.razor`、`Views/Admins/BackupView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `BackupsController`（`api/v1/backups`：`GET` 清單與作業狀態、`POST run`〔放進排程佇列；執行中 409〕、`DELETE {檔名}`、`POST {檔名}/ticket`）。
+**下載改用一次性票證**（與專案附件相同）：`POST {檔名}/ticket` 回 60 秒內有效、只能用一次的網址，畫面以暫時的 `<a download>` 讓瀏覽器原生下載 `GET api/v1/downloads/{票證}`（不經 WASM 記憶體）。兌換時重新檢查帳號、工作階段版本、強制改密碼／兩步驟驗證、**仍是管理員**，檔名經 `BackupStore.TryResolveFullPath`；任何一關不過都回同一個 404。⚠️ **不能續傳**：下載中斷要回頁面重新點（Server 版的 Cookie 下載可以續傳；遷移計畫已拍板一次性票證）。舊的 `BackupController`（`GET api/backups/{檔名}/download`，只收 Cookie）已刪除。
 
 ## 四、內部系統運作
 
@@ -48,10 +52,10 @@
 
 ## 五、權限與安全
 
-- 管理頁與下載都只限管理員；下載端點每次從資料庫確認，不靠 Cookie 宣告。
+- 管理頁與下載都只限管理員；0.10.6 起申請票證時 `[AdminOnly]`（依存取 Token 從資料庫載入目前使用者），兌換時再從資料庫確認一次（之前是 Cookie 下載端點每次查資料庫）。
 - ⚠️ 備份不加密且含金鑰環，拿到的人可以偽造登入 Cookie；文件要求備份目錄權限只給應用程式集區身分與管理員、下載後妥善保管並做異地保存。
 - ⚠️ **稽核防竄改金鑰不進備份**（0.9.175 起）：金鑰和資料庫放在同一份備份裡，拿到備份的人就能改稽核紀錄再重算簽章，防竄改就失效。代價是金鑰要另外離線保存一份、換主機時一起帶過去；遺失時系統會自動產生新金鑰照常寫入，但之前的紀錄只能顯示「金鑰不同」、無法驗證內容。`AuditKeyPath` 的啟動驗證另外擋下它與任何會被備份的目錄、`BackupPath` 重疊。
-- 稽核：`Backup.Create`、`Backup.AutoPurge`、`Backup.Download`（續傳的後續區段不重複記）、`Backup.Delete`；立即備份另記 `Job.Trigger`。
+- 稽核：`Backup.Create`、`Backup.AutoPurge`、`Backup.Download`（0.10.6 起兌換票證時記一筆；之前續傳的後續區段不重複記）、`Backup.Delete`；立即備份另記 `Job.Trigger`。0.10.6 起由伺服器（`BackupsController`、`DownloadsController`）寫，內容同 Server 版。
 
 ## 六、錯誤與邊界
 
@@ -64,12 +68,12 @@
 
 ## 七、驗收與測試
 
-- `SystemBackupTests`：寫入中的 WAL 資料庫快照通過 quick_check 且資料完整、manifest 正確、資料夾內容（含子目錄）、AI 對話預設不含／開啟才含、打不開的檔案只計數、取消與失敗不留殘檔、空間不足先失敗、上次殘檔被清掉、檔名與根目錄檢查、份數刪除（同秒序號）、作業失敗不刪舊備份、備份目錄位置驗證（11 個目錄雙向〔0.9.175 起含 `AuditKeyPath`〕、大小寫、前綴相近、網站目錄）、備份不含稽核金鑰（0.9.175 起）、續傳只記一次稽核。
-- `BackupDownloadTests`：匿名被擋、非管理員 403、管理員 200 與續傳 206、稽核一筆、路徑穿越 404。
+- `SystemBackupTests`：寫入中的 WAL 資料庫快照通過 quick_check 且資料完整、manifest 正確、資料夾內容（含子目錄）、AI 對話預設不含／開啟才含、打不開的檔案只計數、取消與失敗不留殘檔、空間不足先失敗、上次殘檔被清掉、檔名與根目錄檢查、份數刪除（同秒序號）、作業失敗不刪舊備份、備份目錄位置驗證（11 個目錄雙向〔0.9.175 起含 `AuditKeyPath`〕、大小寫、前綴相近、網站目錄）、備份不含稽核金鑰（0.9.175 起）。0.10.6 起續傳稽核的測試與 `BackupDownloadTests`（Cookie 下載端點）已刪除。
+- `MaintenanceApiTests`（0.10.6 起）：清單新到舊、含 manifest 與作業狀態、時間不帶時差；立即備份放進佇列並寫稽核；刪除稽核一筆、已不存在 404；票證下載只能用一次、兌換時才寫稽核；不再是管理員、工作階段已換、檔案已刪時兌換被拒；票證與刪除只認備份目錄裡的備份檔；舊的 Cookie 下載端點已不存在；非管理員 403。實機 `scripts/e2e/m07-ops.mjs` M7-P2（立即備份→清單自動出現→票證下載 zip、第二次 404、舊網址 404）。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`PageHelpCatalogTests`、`DocumentationConventionTests`。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Backup/`（`SystemBackupService`、`BackupStore`、`BackupManifest`）、`Scheduling/Jobs/SystemBackupJob.cs`、`Controllers/BackupController.cs`、`Configuration/BackupSettings.cs`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/BackupView.razor(.cs)`、`Datas/Help/backups.md`
+- `src/MyProject/MyProject.Web/Backup/`（`SystemBackupService`、`BackupStore`、`BackupManifest`）、`Scheduling/Jobs/SystemBackupJob.cs`、`Controllers/BackupsController.cs`、`Controllers/DownloadsController.cs`、`Downloads/DownloadTicketService.cs`（0.10.6 起；舊的 `BackupController.cs` 已刪除）、`Configuration/BackupSettings.cs`
+- `src/MyProject/MyProject.Web.Client/Views/Admins/BackupView.razor(.cs)`（0.10.6 起 WASM）、`Api/MaintenanceApi.cs`（`BackupApi`）、`Datas/Help/backups.md`
 - `scripts/Restore-Backup.ps1`；操作：[備份與還原操作手冊](../operations/備份與還原操作手冊.md)；規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「系統備份」

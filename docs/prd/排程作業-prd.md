@@ -1,10 +1,10 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.0
+- 現行系統版本：0.10.6
 - 首次實作版本：0.9.96
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -28,7 +28,9 @@
 - 立即執行：確認後放入佇列，由排程器在背景執行；同一作業已在佇列或執行中時按鈕停用並提示。稽核 `Job.Trigger`。
 - 啟用開關：寫入 `ScheduledJobState.IsEnabled` 並更新 `UpdatedAtUtc`（重新啟用不補跑停用期間的時段）。稽核 `Job.Enable`／`Job.Disable`。
 - 執行紀錄窗：最近 50 筆的開始時間、結果、觸發方式（排程／補跑／手動，手動附帳號）、耗時、訊息、錯誤追蹤碼。
-- 有作業在佇列或執行中時每 5 秒自動更新；總開關關閉或設定被改壞時頁首顯示提示。
+- 有作業在佇列或執行中時每 2 秒自動更新（0.10.6 起；之前 5 秒），結束或離開頁面就停；總開關關閉或設定被改壞時頁首顯示提示。
+
+**WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/ScheduledJobPage.razor`、`Views/Admins/ScheduledJobView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `ScheduledJobsController`（`api/v1/scheduled-jobs`：`GET` 總覽、`POST {name}/trigger`〔已在佇列或執行中 409〕、`PUT {name}/enabled`、`GET {name}/runs`〔最多 50 筆〕；作業名稱不分大小寫），稽核內容與 Server 版相同、由伺服器寫；時間以不帶時差送出。首頁「排程作業」小工具另有 `GET api/v1/dashboard/scheduled-jobs`（只限管理員）。
 
 ## 四、內部系統運作
 
@@ -95,6 +97,7 @@
 - `SoftDeletePurgeTests`（0.9.97）：五種資料的門檻邊界、附件實體檔與根目錄檢查、提交後才刪檔、中途還原與並行衝突、角色使用中與刪除當下被指派、同輪使用者與角色、受保護、Cascade 範圍、單一種類失敗、取消、本地時鐘、稽核內容與截斷。
 - `AuditIntegrityVerifierTests`（0.9.175）：完整性檢查抓得到各種竄改、一次性事件只由排程報一次、正常清除不誤報。
 - `ScheduledJobWiringTests`：真正的主機中作業已註冊（0.10.0 起 14 個）、舊計時器已移除、排程器註冊順序。
+- `OpsDashboardApiTests`（0.10.6 起）：總覽時間不帶時差、立即執行後顯示執行中且再按一次 409、啟用／停用稽核、不認得的作業 404、非管理員 403；實機 `scripts/e2e/m07-ops.mjs` M7-P1（立即執行後畫面自動更新）。
 - 守門：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`LoggingConventionTests`、`DataAccessServiceLifetimeTests`、`OptionsValidationTests`、`DocumentationConventionTests`。
 
 ## 八、相關程式與文件
@@ -103,5 +106,5 @@
 - `src/MyProject/MyProject.Business/Services/DataAccess/ScheduledJobRunService.cs`、`Helpers/CrossProcessFileLock.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/SoftDeletePurgeService.cs`、`Services/Other/ProjectFileStore.cs`、`MyProject.Models/Systems/SoftDeleteSettings.cs`
 - `src/MyProject/MyProject.AccessDatas/Models/JobRun.cs`、`ScheduledJobState.cs`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/ScheduledJobView.razor(.cs)`、`Datas/Help/scheduled-jobs.md`
+- `src/MyProject/MyProject.Web.Client/Views/Admins/ScheduledJobView.razor(.cs)`（0.10.6 起 WASM）、`Api/OpsApi.cs`（`ScheduledJobApi`）、`MyProject.Web/Controllers/ScheduledJobsController.cs`、`Datas/Help/scheduled-jobs.md`
 - 設定：[日誌與設定檔說明 §4.11](../operations/日誌與設定檔說明.md)；規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「排程作業」

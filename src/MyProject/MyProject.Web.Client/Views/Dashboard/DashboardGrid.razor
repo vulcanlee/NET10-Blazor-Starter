@@ -1,0 +1,54 @@
+@using MyProject.Dtos.Shell
+@using MyProject.Web.Diagnostics
+
+@*
+    首頁小工具區（0.9.106 起；0.10.6 起在 WASM 執行）。每個小工具包在自己的錯誤邊界裡：一個壞掉只影響那一張卡片。
+    只渲染傳進來的（伺服器已依權限過濾），沒權限的小工具根本不會被建立；小工具讀不到資料時呼叫 OnFailed，卡片顯示錯誤與追蹤碼。
+*@
+<div class="dashboard-grid">
+    @foreach (var widget in Widgets)
+    {
+        <section class="dashboard-card" @key="widget.Id" data-widget="@widget.Id" aria-label="@widget.Title">
+            <header class="dashboard-card-header">
+                <span class="dashboard-card-icon" aria-hidden="true">
+                    <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@widget.Icon" />
+                </span>
+                <h2 class="dashboard-card-title">@widget.Title</h2>
+            </header>
+            <div class="dashboard-card-body">
+                @if (failures.TryGetValue(widget.Id, out var traceCode))
+                {
+                    <div class="dashboard-card-error" role="alert">
+                        這個區塊暫時無法顯示，其他區塊不受影響@(TraceCodeText.Suffix(traceCode))。
+                    </div>
+                }
+                else if (DashboardWidgetComponents.Resolve(widget.Id) is { } componentType)
+                {
+                    <ClientErrorBoundary>
+                        <ChildContent>
+                            <DynamicComponent Type="@componentType" Parameters="@ParametersFor(widget.Id)" />
+                        </ChildContent>
+                        <ErrorContent>
+                            <div class="dashboard-card-error" role="alert">
+                                這個區塊暫時無法顯示，其他區塊不受影響。
+                            </div>
+                        </ErrorContent>
+                    </ClientErrorBoundary>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    /// <summary>小工具代號 → 讀取失敗時的錯誤追蹤碼（可能是 null）。</summary>
+    private readonly Dictionary<string, string?> failures = new(StringComparer.Ordinal);
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DashboardWidgetDto> Widgets { get; set; } = [];
+
+    private Dictionary<string, object> ParametersFor(string id) => new()
+    {
+        [nameof(DashboardWidgetBase.OnFailed)] = EventCallback.Factory.Create<string?>(this, traceCode => failures[id] = traceCode),
+    };
+}

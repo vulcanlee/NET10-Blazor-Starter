@@ -1,16 +1,12 @@
-namespace MyProject.Web.Configuration.Parameters;
+using MyProject.Dtos.Admins;
 
-public enum SystemParameterKind
-{
-    Int,
-    Bool,
-    String,
-}
+namespace MyProject.Web.Configuration.Parameters;
 
 /// <summary>
 /// 一個可在「系統參數」頁修改的設定鍵（0.9.98 起）。由 <see cref="SystemParameterCatalog"/> 建立，不要自己 new。
+/// 值的型別 <see cref="SystemParameterKind"/> 與格式介面 <see cref="ISystemParameterFormat"/> 在 Dtos（0.10.6 起，WASM 頁面共用同一份格式化）。
 /// </summary>
-public sealed class SystemParameterDefinition
+public sealed class SystemParameterDefinition : ISystemParameterFormat
 {
     /// <summary>完整設定鍵，例如 <c>LogRetentionSettings:AuditLogDays</c>。</summary>
     public required string Key { get; init; }

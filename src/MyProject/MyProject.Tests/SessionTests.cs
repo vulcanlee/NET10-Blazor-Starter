@@ -353,8 +353,9 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
     {
         var user = await AddUserAsync(isAdmin: true);
         var cookie = Cookie(user);
-        var url = "/api/backups/backup-20261004-000000.zip/download";
-        Assert.Equal(HttpStatusCode.NotFound, (await GetAsync(url, cookie)).StatusCode);
+        // 0.10.6 起只收 Cookie 的備份下載端點已退役，改用整頁載入的登入後頁面（伺服器以 Cookie 驗證 [Authorize]）。
+        var url = "/Profile";
+        Assert.Equal(HttpStatusCode.OK, (await GetAsync(url, cookie)).StatusCode);
 
         await factory.Services.GetRequiredService<ISecurityStampService>().RotateAsync(user.Id);
         AssertChallenged(await GetAsync(url, cookie));
@@ -366,7 +367,7 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
         // 版本沒換、但帳號被直接停用：Cookie 一樣被拒。
         var disabled = await AddUserAsync(isAdmin: true);
         var disabledCookie = Cookie(disabled);
-        Assert.Equal(HttpStatusCode.NotFound, (await GetAsync(url, disabledCookie)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await GetAsync(url, disabledCookie)).StatusCode);
         using (var scope = factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<BackendDBContext>().MyUser.Where(x => x.Id == disabled.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, false));

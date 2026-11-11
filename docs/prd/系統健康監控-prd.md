@@ -1,10 +1,10 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.175
+- 現行系統版本：0.10.6
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -18,11 +18,14 @@
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
 | `/system-health` | 系統管理 → 監控與診斷 → 系統健康監控（0.9.22 起上選單） | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
+| `api/v1/system-health`（0.10.6 起） | 非選單（WASM 頁面用的 API） | `[AdminOnly]` | 系統管理員 |
 | `/health/live` | 非選單（探針） | 無（匿名） | 部署平台存活探針 |
 | `/health/ready` | 非選單（探針） | 無（匿名） | 部署平台就緒探針 |
 
 ## 三、畫面與欄位
 
+- **WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/SystemHealthPage.razor` 只放路由，畫面在 `Views/Admins/SystemHealthView.*`；Server 版已刪除），畫面與訊息和之前相同。每個動作一個只限管理員的端點：`GET api/v1/system-health`（報告＋寄信測試區設定；⚠️ 每次呼叫都跑全部檢查，含會產生費用的 LLM API）、`GET warn-logs`（最近 24 小時，以伺服器時間計；讀取失敗仍回 200、原因在 `EmptyText`）、`POST test-email`、`POST test-notification`；稽核仍由 `EmailTestService`／`NotificationTestService` 寫。
+  與 Server 版不同：讀不到報告時停在「正在讀取系統健康狀態...」並跳錯誤通知（Server 版整頁進錯誤畫面）；發送測試通知後這一頁的鈴鐺立即重讀（`ClientNotificationSignal`），其他已開的分頁與其他管理員最慢 60 秒（WASM 鈴鐺輪詢；說明文字仍寫「即時更新」）。
 - 頂欄頁名旁的「操作說明」按鈕（0.9.66 起，`PageHelpDialog`）；內容為 `Datas/Help/system-health.md`，於 `Datas/HelpTopics.json` 登記 `/system-health`。
 - 摘要區：整體燈號（綠／黃／紅）、健康百分比（`Score%`）、狀態文字（正常／警示／異常）、最後檢查時間。
 - 檢查項目卡片（逐項）：名稱、類別、權重、狀態文字、燈號、佐證（Evidence）；異常時另顯示失敗訊息（FailureMessage）。
@@ -93,11 +96,13 @@
 - `MyProject.Tests/ApiIntegrationTests.cs`：`/health/ready`、`/health/live` 探針回應。
 - `MyProject.Tests/EmailHealthProbeTests.cs`：SMTP 連不上時回報失敗、不拋例外、在上限內結束。
 - `MyProject.Tests/EmailTestServiceTests.cs`：None 拒絕、收件者無效拒絕、成功稽核不含收件者、失敗回型別名並稽核。
+- `MyProject.Tests/OpsDashboardApiTests.cs`（0.10.6 起）：報告含每個檢查項目與寄信設定、警告日誌以伺服器時間描述最近 24 小時且不帶時差、寄信測試寫進 Pickup 並稽核一筆（地址不合法不寫稽核、過長 400）、通知測試發給每位管理員並稽核一筆、非管理員每個端點 403。
 - `MyProject.Tests/NotificationTestServiceTests.cs`（0.9.122 起）：發給全體管理員、不寄信、可重複並寫稽核；沒有管理員、發送失敗時回失敗。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/SystemHealthPage.razor`（`OnInitializedAsync` 的管理員守門、`GetStatusText`／`GetLightClass` 的狀態文字與燈號樣式）
+- `src/MyProject/MyProject.Web.Client/Views/Admins/SystemHealthView.razor(.cs)`（0.10.6 起 WASM；管理員守門、狀態文字與燈號樣式；之前是 Server 版 `Components/Pages/SystemHealthPage.razor`）、`Api/OpsApi.cs`（`SystemHealthApi`）
+- `src/MyProject/MyProject.Web/Controllers/SystemHealthController.cs`（0.10.6 起）
 - `src/MyProject/MyProject.Web/Health/SystemHealthService.cs`（`GetReportAsync` 與 14 項檢查、`EvaluateLoggingPipeline`、`EvaluateScheduledJobs`）
 - `src/MyProject/MyProject.Web/Ai/AiHealthProbe.cs`、`src/MyProject/MyProject.Web/Diagnostics/LoggingPipelineMonitor.cs`
 - `src/MyProject/MyProject.Web/Datas/Help/system-health.md`（頁面操作說明）

@@ -1,8 +1,8 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.29
+- 文件版本：1.30
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.6
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/11/11
 
@@ -24,13 +24,13 @@
 ## 三、畫面與欄位
 
 - 啟動頁（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未登入則導向 `/Auths/Login`（0.9.39 起；帳號停用等其他失敗仍導向 `/Auths/Logout`）。此頁與 `Error`、`NotFound`、登入相關頁是全系統僅有的匿名頁面（0.9.41 起其餘頁面一律需登入，未登入者直接輸入網址會在 HTTP 層被導去登入頁、看不到任何畫面，見 [開發慣例與限制速查 §5.1](../architecture/開發慣例與限制速查.md)）。
-- 首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**；0.9.106 起改為儀表板）：登入後的第一個畫面，套用主版面與側邊選單。三個區塊由上而下：
+- 首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**；0.9.106 起改為儀表板；0.10.6 起在 WebAssembly 執行，頁面與檢視在 `MyProject.Web.Client`，快速入口與小工具由 `GET api/v1/dashboard` 依權限決定）：登入後的第一個畫面，套用主版面與側邊選單。三個區塊由上而下：
 
   | 區塊 | 內容 | 來源 |
   | --- | --- | --- |
   | 歡迎列 | 品牌圖片（72px）、`Welcome` 標籤、系統名稱、系統說明、「系統版本 … · 執行環境 …」 | `wwwroot/images/brand-logo.png`（以 `@Assets[...]` 取 fingerprint URL）＋ `ISystemIdentity` ＋ `IWebHostEnvironment.EnvironmentName` |
   | 快速入口 | 專案項目／分類清單／團隊清單，**依使用者權限過濾**，全數無權限時整區不顯示 | `AllQuickLinks` ＋ `CheckAccessPage(權限鍵)` |
-  | 儀表板 | 依權限過濾的小工具卡片（我的通知、我的帳號、排程作業〔管理員〕），各自有錯誤邊界 | `DashboardWidgetCatalog.VisibleTo` ＋ `DashboardGrid`，見 [首頁儀表板 PRD](首頁儀表板-prd.md) |
+  | 儀表板 | 依權限過濾的小工具卡片（我的通知、我的帳號、排程作業〔管理員〕），各自有錯誤邊界 | `DashboardWidgetCatalog.VisibleTo`（0.10.6 起在伺服器的 `DashboardController`）＋ `DashboardGrid`，見 [首頁儀表板 PRD](首頁儀表板-prd.md) |
 
   0.9.105 之前另有六張寫死的「系統能力」卡片與底部「系統資訊」區塊，0.9.106 移除（版本與環境移到歡迎列）。
 
@@ -148,8 +148,8 @@
 ## 八、相關程式與文件
 
 - `src/MyProject/MyProject.Web/Components/Pages/Home.razor`（`/` landing）
-- `src/MyProject/MyProject.Web/Components/Pages/HomeAuthed.razor`（`/App` 系統介紹首頁）
-- `src/MyProject/MyProject.Web/Components/Views/Commons/HomeWelcomeView.razor`／`.razor.cs`／`.razor.css`（歡迎列、快速入口、儀表板）；`Components/Views/Dashboard/*`、`Web/Dashboard/*`（小工具）
+- `src/MyProject/MyProject.Web.Client/Pages/HomeAuthed.razor`（`/App` 首頁；0.10.6 起 WASM，之前在 `MyProject.Web/Components/Pages/`）、`Views/Commons/HomeWelcomeView.razor(.cs)`；`MyProject.Web/Controllers/DashboardController.cs`
+- `src/MyProject/MyProject.Web.Client/Views/Commons/HomeWelcomeView.razor`／`.razor.cs`／`.razor.css`（歡迎列、快速入口、儀表板；0.10.6 起在 Client）；`MyProject.Web.Client/Views/Dashboard/*`、`Web/Dashboard/*`（小工具）
 - `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor`（`/projects` 專案清單）
 - `src/MyProject/MyProject.Web/Components/Views/Commons/SplashView.razor`
 - `src/MyProject/MyProject.Web/Datas/Menu.json`

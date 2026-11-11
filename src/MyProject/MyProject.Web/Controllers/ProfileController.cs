@@ -100,6 +100,9 @@ public sealed class ProfileController : ControllerBase
         _ => action,
     };
 
+    /// <summary>UTC 換成伺服器本地時間，以不帶時差（Kind=Unspecified）送出（0.10.6 起修正，理由同 NotificationsController）。</summary>
     private DateTime? ToLocal(DateTime? utc)
-        => utc is { } value ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value, DateTimeKind.Utc), timeProvider.LocalTimeZone) : null;
+        => utc is { } value
+            ? DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value, DateTimeKind.Utc), timeProvider.LocalTimeZone), DateTimeKind.Unspecified)
+            : null;
 }
