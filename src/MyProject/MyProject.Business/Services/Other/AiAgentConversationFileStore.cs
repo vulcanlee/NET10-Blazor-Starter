@@ -27,6 +27,10 @@ public class AiAgentConversationFileStore
         this.logger = logger;
     }
 
+    private const int MaxAttempts = 5;
+
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
+
     private string RootPath => systemSettingsOptions.Value.ExternalFileSystem.AiAgentConversationPath;
 
     /// <summary>寫入（覆寫）內容檔。</summary>
@@ -42,8 +46,26 @@ public class AiAgentConversationFileStore
 
         try
         {
+            // 寫入時允許別人同時開著這個檔（0.10.7 獨立審查）：另一個請求正在讀（例如打開對話時等不到鎖而直接讀檔），
+            // 寫入也不可失敗 —— 失敗的話資料庫的「待核准」旗標與內容檔不一致，對話會卡死。被其他程式短暫鎖住時重試幾次。
+            // （Windows 不允許把檔案換到別人開著的檔案上，所以不用「暫存檔換上」。讀到寫一半的內容時，讀取端會重試。）
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            await File.WriteAllTextAsync(fullPath, content);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await using var stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write,
+                        FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous);
+                    await stream.WriteAsync(bytes);
+                    break;
+                }
+                catch (IOException) when (attempt < MaxAttempts)
+                {
+                    await Task.Delay(RetryDelay);
+                }
+            }
+
             return relativePath;
         }
         catch (Exception ex)
@@ -64,7 +86,26 @@ public class AiAgentConversationFileStore
 
         try
         {
-            return File.Exists(fullPath) == false ? null : await File.ReadAllTextAsync(fullPath);
+            if (File.Exists(fullPath) == false)
+            {
+                return null;
+            }
+
+            // 允許別人同時寫入（見 WriteAsync）；被短暫鎖住時重試幾次。
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous);
+                    using var reader = new StreamReader(stream);
+                    return await reader.ReadToEndAsync();
+                }
+                catch (IOException) when (attempt < MaxAttempts && File.Exists(fullPath))
+                {
+                    await Task.Delay(RetryDelay);
+                }
+            }
         }
         catch (Exception ex)
         {

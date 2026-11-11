@@ -1,0 +1,19 @@
+﻿@page "/admin-assistant"
+@attribute [Authorize]
+@using MyProject.Web.Client.Views.Admins
+
+@* 0.10.7 起在 WASM 執行（WASM 遷移 M8）。版面 ClientMainLayout 由 ClientRoutes 指定；[Authorize] 讓伺服器在整頁請求時先擋未登入者。
+   網址可帶 ?conversation={id}：重新整理後回到同一段對話（Server 版沒有）。 *@
+<PageTitle>系統管理助理</PageTitle>
+
+<AdminAssistantView InitialPatrolReportId="@PatrolReport" InitialConversationId="@Conversation" />
+
+@code {
+    /// <summary>定時巡檢通知（站內、Email）的連結帶過來的報告編號（0.9.161 起）；有值時自動打開「巡檢報告」並選那一份。</summary>
+    [SupplyParameterFromQuery(Name = "patrolReport")]
+    public Guid? PatrolReport { get; set; }
+
+    /// <summary>重新整理前開著的那段對話（畫面在開對話、送出第一則訊息時把它寫進網址）。</summary>
+    [SupplyParameterFromQuery(Name = "conversation")]
+    public Guid? Conversation { get; set; }
+}

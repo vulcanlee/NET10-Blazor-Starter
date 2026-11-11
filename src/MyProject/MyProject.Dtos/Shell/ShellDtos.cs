@@ -19,6 +19,12 @@ public class ShellInfoDto
 
     /// <summary>每個頁面的操作說明主題（路由、標題）；選單外的頁面（例如個人資料）靠它決定頁面標題。</summary>
     public List<HelpTopicDto> HelpTopics { get; set; } = [];
+
+    /// <summary>
+    /// 是否開啟通知推播串流（0.10.7 起，<c>NotificationSettings:PushEnabled</c>）。關閉時外框不連 <c>/api/v1/notifications/stream</c>，
+    /// 通知鈴鐺與公告只靠 60 秒輪詢。
+    /// </summary>
+    public bool NotificationPushEnabled { get; set; }
 }
 
 /// <summary>

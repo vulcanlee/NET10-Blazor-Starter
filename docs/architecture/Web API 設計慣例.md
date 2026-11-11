@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.7
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -31,7 +31,9 @@
 - **背景作業交給排程佇列**（0.10.6 起）：「立即執行」「立即備份」「立即清理」這類要跑很久的動作，API 只把作業放進排程框架的佇列（`ScheduledJobOverviewService.TryTrigger`，與排程共用作業鎖）就回來，已在佇列或執行中回 409；畫面自己輪詢看進度。不要在請求裡同步執行。
 - **設定鍵這類含冒號的識別放本文**（0.10.6 起）：例：`POST api/v1/system-parameters/save` 的 `Key`（`BackupSettings:KeepCount` 這種含冒號的鍵放進網址要另外編碼，也容易被誤解成路徑）。
 
-- **AI 逐字顯示用 NDJSON 串流**（0.10.5 起，WASM 遷移 M6；不用 SignalR）：action 回 `new NdjsonResult<AiStreamFrameDto>(…)`（`MyProject.Web/Streaming/NdjsonResult.cs`），規則見下方「串流回應」節。
+- **AI 逐字顯示用 NDJSON 串流**（0.10.5 起，WASM 遷移 M6；不用 SignalR）：action 回 `new NdjsonResult<AiStreamFrameDto>(…)`（`MyProject.Web/Streaming/NdjsonResult.cs`），規則見下方「串流回應」節。0.10.7 起 Agent 對話、工作流程與通知推播也用同一套（不用 SignalR、不用 SSE）。
+- **跨請求的狀態放伺服器、每個請求只做一段**（0.10.7 起，WASM 遷移 M8）：Agent 對話每個請求「讀存檔 → 接續 → 執行 → 存檔」，伺服器不把對話物件留在記憶體；工作流程一次執行要跨好幾個請求，執行物件放在 singleton 登錄表（`AiWorkflowRunRegistry`），每次執行有自己的 `AsyncServiceScope`。⚠️ 自己建的 scope 不經 `ApiActorMiddleware`，**一定要填入目前使用者**（`CurrentUserService`、來源 IP），每次回覆再以那個請求載入的最新資料更新，否則記帳、權限檢查與稽核拿不到人。
+- **同一份資料的併發寫入要排隊、核准要搶占**（0.10.7 起）：Agent 對話每段一把鎖（`AiAgentConversationLocks`），後到的請求排隊而不是拒絕（兩個分頁同時操作同一段對話才不會互相覆蓋）；「待核准」以資料庫的條件式更新（`TryClaimPendingApprovalAsync`）搶占，**同一個核准送兩次只執行一次**（後到的 409），跨行程也成立。鎖只在同一個行程內有效，不要拿它當跨行程的保證。
 
 ## 串流回應（NDJSON，0.10.5 起）
 
@@ -43,6 +45,10 @@ AI 分析（日誌分析、例外分析與追問）要邊產生邊顯示，回�
 - **使用者中斷**：關窗或「停止產生」會中斷請求，`RequestAborted` 把取消傳給上游 AI 呼叫。⚠️ `NdjsonResult` **不**拿 `RequestAborted` 中斷列舉：寫不出去之後照樣把序列讀完、只是不再寫出，序列最後的收尾（稽核、用量記帳）才一定會執行。
 - **一定要有結果**：把服務的串流包進 `AiStreamGuard.RunAsync`（`MyProject.Web/Ai/AiStreamGuard.cs`）。服務在取消時丟取消例外 → 轉成「已取消」結果（稽核照寫）；其他例外 → 記錯誤日誌、回「未預期的錯誤」並設 `Unexpected`（這種情況不寫稽核，與 Server 版外層防護相同）。不包的話，標頭已送出、串流直接斷掉，畫面停在「分析中」。
 - **前端**：WASM 用 `ApiClient.StreamAsync<T>(url, body, onItem, ct)`（帶 Token、401 刷新後重送一次、強制改密碼／兩步驟的 403 整頁導走、被拒時回一般 `ApiResult`；只有標頭受 100 秒逾時，之後可以一直收；取消時回失敗、不丟例外）。
+- **心跳**（0.10.7 起）：可能很久沒有資料的串流一律包 `NdjsonHeartbeat.WithHeartbeat(source, interval, ping)`（`MyProject.Web/Streaming/NdjsonHeartbeat.cs`），資料源閒置超過間隔就插一筆 `Kind=ping`，前端忽略。Agent 與工作流程 15 秒、通知推播 25 秒——中間的代理伺服器或負載平衡器常把 60 秒以上沒資料的連線當成閒置切斷。要排隊等鎖的請求也在串流裡等（先送一筆 ping 讓回應開頭立刻送出），不要在回應開始前等：等待可能超過一般請求的 100 秒逾時。
+- ⚠️ **無限長的串流要自己停**（0.10.7 起，通知推播）：`NdjsonResult` 寫不出去之後照樣把序列讀完——對 AI 分析是好事（收尾一定執行），對「沒有盡頭」的序列就是永遠不結束。這種序列的**產生端要自己看 `RequestAborted`** 結束列舉並取消訂閱（例：`NotificationPushStream.ProduceAsync` 把 `RequestAborted`、網站關閉與連線最長時間連成一個取消來源）；訂閱的是 singleton 訊號時，不取消就會一直留著委派。
+- **長連線要有上限與重連約定**（0.10.7 起，通知推播）：請求開始時才檢查一次身分，所以伺服器在存取 Token 到期前 1 分鐘主動結束（最後一筆 `renew`，前端刷新後重連）、滿 30 分鐘或網站關閉時結束（`reconnect`），帳號停用與強制登出靠重連時生效；每位使用者最多 3 條（超過 429）。長連線不記慢請求（`ApplicationBuilderExtensions.IsLongLivedConnection`）。
+- **串流途中的錯誤放在最後一行**：已經回 200 開始串流之後（例如排隊等到鎖才驗證），錯誤寫在 `result` 那一行（`Success=false`、`Reason`、`ErrorMessage`），不能再改狀態碼。
 
 ## 統一回傳格式
 所有一般 Web API 回應固定使用 `MyProject.Dtos.Commons.ApiResult<T>` 或非泛型 `ApiResult`。
@@ -120,9 +126,9 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 
 | 標註 | 什麼時候用 | 例 |
 | --- | --- | --- |
-| `[HasPermission(頁面鍵, 動作)]` | 屬於某個頁面、權限在角色矩陣裡 | 分類、團隊、專案 |
-| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）；0.10.5 起日誌與 AI 管理頁；0.10.6 起維運頁（`scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`、公告管理）與首頁的「排程作業」小工具 |
-| `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知、公告、`Auth/me` |
+| `[HasPermission(頁面鍵, 動作)]` | 屬於某個頁面、權限在角色矩陣裡 | 分類、團隊、專案；0.10.7 起 Agent 測試台（另要專案項目的新增／刪除才能產生／清除測試專案）、Agent 工作流程 |
+| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）；0.10.5 起日誌與 AI 管理頁；0.10.6 起維運頁（`scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`、公告管理）與首頁的「排程作業」小工具；0.10.7 起系統管理助理與巡檢報告（`admin-assistant`）|
+| `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知（0.10.7 起含推播串流 `notifications/stream`）、公告、`Auth/me` |
 | `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換 |
 
 - `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`）是授權篩選器：沒登入回 401；不是管理員回 403 `ApiResult`（預設訊息「只有管理員可以使用這個功能。」，可用 `[AdminOnly("訊息")]` 換），並與 `HasPermission` 一樣寫一筆 `Permission.Denied`（目標 `ApiEndpoint`／請求路徑，detail「需要管理員」）。管理員身分看 `ApiActorMiddleware` 從資料庫載入的目前使用者，所以剛被取消管理員的人下一個請求就被擋。

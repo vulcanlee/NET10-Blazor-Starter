@@ -541,6 +541,55 @@ public sealed class AiAgentRunnerTests
         Assert.Equal(["接續後"], sample.WriteCalls);
     }
 
+    /// <summary>
+    /// 0.10.7 起（WASM 版每個請求都重新接續）：存檔記得上次那一輪（TurnKey），接續停在核准的對話時重建那一輪，
+    /// 核准後用提出核准時的工具與提示詞繼續，而不是開對話那一輪（全部工具＋全部領域）。不重新分派。
+    /// </summary>
+    [Fact]
+    public async Task Planner_Resume_WithSavedTurnKey_ContinuesWithThatTurn()
+    {
+        guard.Allowed.Add(SampleTools.Write.Name);
+        var planned = new AiAgentTurn(SampleTools.Agent with { Tools = [SampleTools.Read, SampleTools.Write] }, "領域指示", "帳號與權限", "accounts");
+        var planner = new ScriptedPlanner(planned) { Restored = planned };
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_9", SampleTools.Write.Name, """{"value":"核准後"}"""));
+        var chat = await CreateRunner().StartAsync(planner);
+        await CollectAsync(chat.SendAsync("改"));
+        Assert.Equal("accounts", store.Saved[chat.ConversationId].Content.TurnKey);
+
+        var resumed = await CreateRunner().ResumeAsync(planner, chat.ConversationId);
+        upstream.Enqueue(AiSse.Responses(["已修改。"]));
+        await CollectAsync(resumed!.RespondAsync([Assert.Single(resumed.PendingApprovals).RequestId]));
+
+        Assert.Equal(["accounts"], planner.RestoredKeys);
+        Assert.Equal(1, planner.PlanCalls);
+        Assert.Contains("領域指示", handler.RequestBodies[1], StringComparison.Ordinal);
+        Assert.DoesNotContain("首頁指示", handler.RequestBodies[1], StringComparison.Ordinal);
+        Assert.Equal(["核准後"], sample.WriteCalls);
+        Assert.Equal("帳號與權限", resumed.Transcript[^1].Agent);
+    }
+
+    /// <summary>0.10.7 起：執行中每加一則紀錄就通知（API 以串流送給畫面）；接續還原的紀錄不通知。</summary>
+    [Fact]
+    public async Task EntryAdded_ShouldReportEachNewEntryInOrder()
+    {
+        guard.Allowed.Add(SampleTools.Read.Name);
+        upstream.Enqueue(AiSse.Responses(["第一輪"]));
+        var first = await StartAsync();
+        await CollectAsync(first.SendAsync("嗨"));
+        var resumed = await CreateRunner().ResumeAsync(SampleTools.Agent, first.ConversationId);
+        var added = new List<AiAgentTranscriptEntry>();
+        resumed!.EntryAdded = added.Add;
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
+        upstream.Enqueue(AiSse.Responses(["找到 1 筆。"]));
+
+        await CollectAsync(resumed.SendAsync("找專案 A"));
+
+        Assert.Equal(
+            [(AiAgentTranscriptKinds.User, "找專案 A"), (AiAgentTranscriptKinds.Tool, "呼叫工具：讀取"), (AiAgentTranscriptKinds.Assistant, "找到 1 筆。")],
+            added.Select(entry => (entry.Kind, entry.Text)));
+        Assert.Equal(resumed.Transcript.Skip(2), added);
+    }
+
     [Fact]
     public async Task Planner_TurnWithDifferentName_Throws()
     {
@@ -647,6 +696,17 @@ public sealed class AiAgentRunnerTests
         {
             PlanCalls++;
             return Task.FromResult(queue.Dequeue());
+        }
+
+        /// <summary>接續時要重建的那一輪（0.10.7 起）；null 時退回 Home。</summary>
+        public AiAgentTurn? Restored { get; init; }
+
+        public List<string> RestoredKeys { get; } = [];
+
+        public Task<AiAgentTurn> RestoreTurnAsync(string key, CancellationToken cancellationToken)
+        {
+            RestoredKeys.Add(key);
+            return Restored is null ? HomeTurnAsync(cancellationToken) : Task.FromResult(Restored);
         }
     }
 

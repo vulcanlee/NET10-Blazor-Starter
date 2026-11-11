@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.7
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -10,7 +10,7 @@
 
 ## 一、通則
 
-- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之三節、第五之一節）都只有 `api/v1`。
+- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之四節、第五之一節）都只有 `api/v1`。
 - 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）。
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - **每個 action 都要標明誰能呼叫**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`（頁面或動作權限）、`[AdminOnly]`（只有管理員，見第二之一節）、`[SignedInUser]`（登入即可、刻意不檢查頁面權限，例如個人資料、外框、通知、公告、`Auth/me`）或 `[AllowAnonymous]`；標在類別上等於標在每個 action。四個都沒標的 action，測試直接失敗。兩個新屬性在 `MyProject.Web/Filters/AdminOnlyAttribute.cs`。
@@ -321,7 +321,7 @@
 | 修改 | `PUT announcements/{id}` | 已不存在 404、開窗後別人改過 409；寫 `Announcement.Update` |
 | 刪除 | `DELETE announcements/{id}?concurrencyStamp=` | 帶開窗時的版本號；已不存在 404、別人改過 409；寫 `Announcement.Delete`（標題取自資料庫）|
 
-存檔或刪除後伺服器與 Server 版相同讓公告快取失效並廣播（Server 版畫面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀。
+存檔或刪除後伺服器與 Server 版相同讓公告快取失效並廣播（Server 版畫面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請同一個分頁的橫幅立即重讀，其他分頁照舊 60 秒輪詢與切回分頁時重讀（0.10.7 起另經通知推播串流 `POST notifications/stream` 通常幾秒內更新，見第五之一節）。
 
 ### 2.19 首頁儀表板（`DashboardController`，`api/v1/dashboard`）
 
@@ -333,6 +333,59 @@
 | 我的帳號 | `GET dashboard/account` | 上一次登入（不含這一次）、密碼到期（7 天內標「快到期」）、兩步驟驗證 |
 | 我的通知 | `GET dashboard/notifications` | 未讀數與最新 5 則；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | 排程作業 | `GET dashboard/scheduled-jobs` | `[AdminOnly]`：上次失敗或中斷、逾期未執行、已停用的作業 |
+
+## 二之四、Agent、系統管理助理與工作流程 API（0.10.7 起，WASM 遷移 M8）
+
+Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流程三頁改在 WebAssembly 執行，背後是下面這組 API。只有 `api/v1` 路由、要 Bearer、回 `ApiResult`；本地時間以不帶時差送出。
+
+- **對話與執行一律回 NDJSON 串流**（見《[Web API 設計慣例](Web%20API%20設計慣例.md)》「串流回應」）：閒置超過 **15 秒**插一筆 `ping`（`NdjsonHeartbeat`），工具或推論模型很久沒輸出時中間的代理伺服器才不會把連線切斷；畫面收到 `ping` 直接忽略。請求在進入串流之前就被拒絕時（400、403、404、409）回一般 `ApiResult`。
+- **稽核與 Server 版相同、都在原本的服務裡**：工具的 `Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected` 由工具外殼寫，刪除對話或紀錄的 `AiAgentConversation.Delete` 由對話服務寫，測試專案由專案服務寫；開啟、改名、看巡檢報告不寫。
+- DTO 在 `MyProject.Dtos/Ai`（`AgentDtos`、`AgentStreamDtos`、`AgentWorkflowDtos`、`WorkflowStreamDtos`）與 `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`；WASM 端的呼叫在 `MyProject.Web.Client/Api/AgentConversationApi.cs`（`AgentPlaygroundApi`、`AdminAssistantApi`）、`AgentWorkflowApi.cs`，對應在 `AgentDtoMapper`、`AgentWorkflowDtoMapper`（伺服器端 `Controllers/AgentWorkflowMapper.cs`）。
+
+### 2.20 Agent 測試台與系統管理助理（`AgentPlaygroundController`，`api/v1/agent-playground`；`AdminAssistantController`，`api/v1/admin-assistant`）
+
+兩個控制器只標授權、選設定，流程共用 `Controllers/AgentConversationEndpoint.cs`。權限：測試台每個 action `[HasPermission(角色_Agent測試台, View)]`，產生／清除測試專案另要專案項目的 `Create`／`Delete`；系統管理助理與巡檢報告每個 action `[AdminOnly]`。
+
+| 動作 | 路由（兩邊相同的以 `{頁}` 表示）| 回傳／說明 |
+|------|------|------|
+| 頁面資訊 | `GET {頁}/info` | `AgentPageInfoDto`：AI 不可用的原因、對話保存天數；測試台另有推論等級選項與「系統預設」文字、能不能產生／清除測試專案、測試專案的標題前綴（「【測試】」）|
+| 我的對話 | `GET {頁}/conversations` | 只列自己的、這個 Agent 的對話（最後對話時間新到舊），含「待核准」旗標 |
+| 打開對話 | `GET {頁}/conversations/{id}` | `AgentConversationDto`：完整的畫面紀錄與目前待核准（接續一次，不呼叫模型）。正在執行時最多等 3 秒讓它收尾再讀；不是自己的、內容不見或格式不相容 404「這段對話無法接續…」|
+| 改標題 | `PUT {頁}/conversations/{id}/title` | 不寫稽核 |
+| 刪除對話 | `DELETE {頁}/conversations/{id}` | 執行中就等它做完再刪（否則執行結束的存檔會把它建回來）；寫 `AiAgentConversation.Delete` |
+| 送出訊息 | `POST {頁}/messages` | body `AgentMessageRequestDto`（`ConversationId` 空＝開新對話，`Message`，測試台另有 `ReasoningEffort`）。回 NDJSON（見下）。空白或超過 **2,000 字** 400；推論等級不合法 400；等待核准時送新訊息 409；AI 不可用 409 |
+| 回覆核准 | `POST {頁}/conversations/{id}/approvals` | body `ApprovedRequestIds`、`RejectedRequestIds`、`ConfirmText`。回 NDJSON。沒有待核准 409「沒有待核准的操作…」；編號不在目前待核准裡 409「這些操作已經處理過了…」（**所以同一個核准送兩次只執行一次**）；核准不可復原的動作沒輸入「確認」400 |
+| 產生測試專案 | `POST agent-playground/samples` | 另要專案項目 `Create`；已有測試專案 409（提醒），建到一半失敗 500 |
+| 清除測試專案 | `DELETE agent-playground/samples` | 另要專案項目 `Delete`；永久刪除標題以「【測試】」開頭的專案 |
+| 巡檢報告清單 | `GET admin-assistant/patrol-reports` | `AdminPatrolReportListDto`：保存天數與報告清單（最新在前）|
+| 一份巡檢報告 | `GET admin-assistant/patrol-reports/{id}` | `AdminPatrolReportDetailDto`（內文 Markdown 由畫面消毒）；已過期 404「找不到這份巡檢報告…」|
+
+- **每個請求接續一次對話**：伺服器不把對話物件留在記憶體，送訊息與回覆核准都是「讀存檔 → `IAiAgentRunner.ResumeAsync` 接續 → 執行 → 存檔」；每個請求用當下系統參數的模型。中斷連線就取消這次執行，已收到的內容照樣存檔。
+- **串流每一行**（`AgentStreamFrameDto`，`Kind`）：`start`（對話 ID、模型、推論等級）、`entry`（新增的一則紀錄）、`delta`（文字）、`tool`（工具開始／結束）、`label`（「由誰回答」，**每個請求至少送一次**）、最後是 `approvals`（停下來等核准）或 `result`（`AiResultDto`），閒置時 `ping`。
+- **每段對話一把鎖**（`AiAgentConversationLocks`）：鎖得到就先驗證，錯誤以狀態碼回；同一段對話正被另一個請求（例如另一個分頁）使用時**排隊**——先回 200 串流、等待期間送心跳，輪到之後才驗證，這時的錯誤放在 `result` 那一行（`Success=false`）。核准另以資料庫的條件式更新（`HasPendingApproval`）搶占，跨行程也只執行一次。
+- 系統管理助理接續停在核准的對話時，沿用提出核准的那一輪（分派結果存在對話檔的 `TurnKey`，由 `IAiAgentTurnPlanner.RestoreTurnAsync` 重建），不會變成「全部工具＋全部領域」。
+
+### 2.21 Agent 工作流程（`AgentWorkflowsController`，`api/v1/agent-workflows`）
+
+類別上 `[HasPermission(角色_Agent工作流程)]`。一次執行要跨好幾個請求，執行物件放在伺服器的 `AiWorkflowRunRegistry`（singleton）。
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 頁面資訊 | `GET agent-workflows/info` | 可選的工作流程、AI 不可用的原因、紀錄保留天數 |
+| 我的執行紀錄 | `GET agent-workflows/records?workflow=` | 某一條工作流程自己的紀錄（新到舊）；不認得的工作流程 400 |
+| 一筆紀錄 | `GET agent-workflows/records/{id}` | 唯讀回顧；內容不見 404 |
+| 改名 | `PUT agent-workflows/records/{id}/title` | 不寫稽核 |
+| 刪除紀錄 | `DELETE agent-workflows/records/{id}` | 這次執行還沒結束就先放棄（存成「中斷」）再刪；寫 `AiAgentConversation.Delete` |
+| 開始執行 | `POST agent-workflows/runs` | body `Workflow`、`Input`。回 NDJSON 到停下來等人（`request`）或結束（`result`）。**一人同時只能有一次執行**（可能在別的分頁），第二個 409；輸入空白、AI 不可用 400 |
+| 等我回覆的執行 | `GET agent-workflows/runs/active` | 重新整理後接回：停下來等回覆的那一次（含紀錄與待回覆）；沒有或正在處理中時資料是 null |
+| 回覆 | `POST agent-workflows/runs/{id}/responses` | 回 NDJSON 繼續執行。別人的執行或已結束 404；正在處理中、已回覆過或不存在的請求 409（畫面收到 409 重讀狀態）；回答空白、退回沒寫意見、退回次數用完 400 |
+| 停止 | `POST agent-workflows/runs/{id}/stop` | 取消正在處理的那一輪（存成「已停止」，串流最後一筆是 Canceled 的結果）|
+| 放棄 | `POST agent-workflows/runs/{id}/abandon?onlyIfIdle=` | 存成「中斷」、之後只能回顧。`onlyIfIdle=true`（離開頁面時用）：另一個請求正在使用這次執行就不放棄 |
+
+- **串流每一行**（`AgentWorkflowFrameDto`）：`start`、`agentStarted`、`delta`、`tool`、`agentCompleted`、`output`、`request`（等人：工具核准、提問、審閱）或 `result`（`Completed`／`Ended`／`Failed`／`Canceled`／`Interrupted`），閒置時 `ping`；每一行附上這之前新增的紀錄。
+- **執行登錄表** `AiWorkflowRunRegistry`：每次執行有自己的 `AsyncServiceScope`，填入目前使用者與來源 IP（每次回覆時以那個請求載入的最新資料更新，權限被改了下一步就照新的算）；只有擁有者能操作（別人一律 404）；同一次執行一次只有一個請求在讀。停下來等人超過 **30 分鐘**沒有動作就結束成「中斷」並釋放 scope；網站關閉時先中斷、等收尾最多 5 秒再釋放。
+- **串流途中斷線＝整個流程中斷**（同 Server 版「離開頁面就中斷」，不在背景繼續花 AI 費用）；停下來等人時沒有開著的串流，重新整理或關分頁不影響它，回到頁面以 `runs/active` 接回。
+- ⚠️ 登錄表只在單一行程有效：IIS 回收或重啟後執行就沒了（紀錄停在最後一次存檔），多台主機也不共用。
 
 ## 三、一次性下載票證 `DownloadsController`（0.10.3 起）
 
@@ -382,7 +435,7 @@
 
 | 控制器 | 動作 | 路由 | 回傳／說明 |
 |---|---|---|---|
-| `ShellController` | 系統資訊 | `GET shell/info` | `ShellInfoDto`：系統名稱、描述、版本、環境、啟動時間、各頁說明主題（路由、標題）|
+| `ShellController` | 系統資訊 | `GET shell/info` | `ShellInfoDto`：系統名稱、描述、版本、環境、啟動時間、各頁說明主題（路由、標題）；0.10.7 起多 `NotificationPushEnabled`（`NotificationSettings:PushEnabled`，外框依它決定要不要連推播）|
 | | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（規則同 Server 版側邊欄的 `CheckAccessPage`），以及全部選單網址 |
 | | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
 | | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 Server 版電路）。只接受已搬到 WASM 的頁面路徑（`ClientRouteTable`），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
@@ -391,6 +444,7 @@
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
 | | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |
+| | 通知推播串流 | `POST notifications/stream` | 0.10.7 起。NDJSON 長連線（`PushFrameDto`）：`ready` → 自己的通知或公告有變動時送 `notifications`／`announcements`（不帶內容，外框自己重查；短時間多次合併成一筆）→ 閒置每 25 秒 `ping`。伺服器主動結束時最後一筆是 `renew`（存取 Token 到期前 1 分鐘，前端刷新後重連）或 `reconnect`（滿 30 分鐘、網站關閉）。每位使用者最多 3 條（第 4 條起 429，那個分頁只靠輪詢）；`NotificationSettings:PushEnabled=false` 時 404。產生端（`Streaming/NotificationPushStream.cs`）自己看 `RequestAborted` 結束並取消訂閱；不記慢請求 |
 | `AnnouncementsController` | 目前公告 | `GET announcements/active`（公告管理頁的端點見 2.18）| 挑選規則與 Server 版公告橫幅共用 `AnnouncementBanner.Select`（時間、對象、沒被關閉）|
 | | 關閉 | `POST announcements/{id}/dismiss` | |
 | `ProfileController` | 個人資料 | `GET profile` | `ProfileDto`：帳號、姓名、Email、角色、團隊、密碼與兩步驟驗證狀態、最近 20 筆登入紀錄（動作已轉成中文）|

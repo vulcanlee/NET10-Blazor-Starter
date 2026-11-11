@@ -37,6 +37,8 @@ public sealed class LoggingPipelineHealthTests
     [InlineData("/_blazor/negotiate", true)]
     [InlineData("/api/Category", false)]
     [InlineData("/projects", false)]
+    [InlineData("/api/v1/notifications/stream", true)] // 通知推播串流（0.10.7 起）：一條連線最長 30 分鐘
+    [InlineData("/api/v1/notifications/summary", false)]
     public void BlazorConnection_ShouldBeExcludedFromSlowRequests(string path, bool expected)
     {
         // /_blazor 的 WebSocket 連線持續整個 circuit，不排除的話每個使用者離開時都是一筆慢請求。

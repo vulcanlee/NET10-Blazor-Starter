@@ -1,7 +1,7 @@
 @using MyProject.Models.Systems
 
 @*
-    系統管理助理頁的「巡檢報告」視窗（0.9.161 起）：定時巡檢產出的報告，全體管理員都看得到。
+    系統管理助理頁的「巡檢報告」視窗（0.9.161 起；0.10.7 起在 WASM 執行，資料走 api/v1/admin-assistant/patrol-reports）：定時巡檢產出的報告，全體管理員都看得到。
     尺寸寫在 MyProject.Web.Client/Commons/OverlayStyles.razor 的 .admin-patrol-report-modal（Modal 外框渲染在元件 DOM 之外，見速查 §6.4）；
     窗內內容的樣式在本元件的 .razor.css。純唯讀，Esc 直接關閉。
 *@
@@ -13,7 +13,7 @@
     <div class="admin-patrol-report-body">
         <div class="admin-patrol-report-hint">
             系統每天自動巡檢一次（可在「排程作業」頁停用「系統管理助理巡檢」或按「立即執行」），有「注意」或「異常」時會通知所有管理員並寄信。
-            報告全體管理員都看得到，保存 @reportService.RetentionDays 天。
+            報告全體管理員都看得到，保存 @retentionDays 天。
         </div>
         @if (isLoading)
         {

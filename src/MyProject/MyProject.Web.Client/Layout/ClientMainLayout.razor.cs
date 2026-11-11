@@ -46,6 +46,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private ILogger<ClientMainLayout> Logger { get; set; } = default!;
 
+    [Inject]
+    private ClientPushConnection PushConnection { get; set; } = default!;
+
     private IReadOnlyList<ClientMenuItem> MenuItems { get; set; } = [];
 
     private IReadOnlyList<HelpTopicDto> HelpTopics { get; set; } = [];
@@ -91,6 +94,12 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         isSidebarCollapsed = await ReadInitialSidebarCollapsedAsync();
         isAuthenticated = true;
         _ = RecordPageViewAsync(currentPath, "entry");
+
+        // 通知推播（0.10.7 起）：鈴鐺、公告、首頁「我的通知」即時更新；伺服器關閉推播時只靠各自的 60 秒輪詢。
+        if (shellInfo?.NotificationPushEnabled == true)
+        {
+            PushConnection.Start();
+        }
     }
 
     private void ReloadPage() => NavigationManager.Refresh(forceReload: true);
@@ -261,6 +270,7 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         NavigationManager.LocationChanged -= OnLocationChanged;
         Session.Changed -= OnSessionChanged;
         errorReporterReference?.Dispose();
+        _ = PushConnection.StopAsync();
         GC.SuppressFinalize(this);
     }
 }

@@ -8,7 +8,7 @@ namespace MyProject.Web.Client.Layout;
 
 /// <summary>
 /// WASM 外框的通知鈴鐺（0.10.1 起，WASM 遷移 M2）。標記與 Server 版 <c>NotificationBell</c> 相同；
-/// 資料來自 <c>/api/v1/notifications</c>（只看得到自己的），每 60 秒與切回分頁時更新（M8 加上推播串流後恢復即時）。
+/// 資料來自 <c>/api/v1/notifications</c>（只看得到自己的），每 60 秒與切回分頁時更新；0.10.7 起另由推播串流（<see cref="ClientPushConnection"/>）即時更新，輪詢留作推播斷線或關閉時的備援。
 /// 連結由伺服器先過濾成安全的站內網址；目標是 Server 頁面時由前端路由整頁載入。
 /// </summary>
 public partial class ClientNotificationBell : IAsyncDisposable

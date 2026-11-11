@@ -42,6 +42,9 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m06-ops.mjs           # M6 操作情境 M6-O1～O8＋全部路由煙霧測試
    node ./scripts/e2e/m07-views.mjs server  # M7 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
    node ./scripts/e2e/m07-ops.mjs           # M7 情境 M7-P1～P9＋全部路由煙霧測試（會先佈置 m07-views 的固定資料）
+   node ./scripts/e2e/m08-views.mjs server  # M8 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
+   node ./scripts/e2e/m08-agents.mjs        # M8 情境 M8-G1～G9（真實模型，需要 AI 設定）＋全部路由煙霧測試
+   node ./scripts/e2e/m08-agents.mjs nopush # M8 關閉推播情境 M8-N1（主機要另外啟動，見下方）
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -67,6 +70,16 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 **M7 的備份檔（0.10.6 起）**：`m07-views.mjs` 在隔離資料夾底下的 `Backup` 目錄（`E2E_DB_FILE` 往上兩層，即 `Start-E2EHost.ps1` 設定的 `BackupPath`）放兩個空的 zip（`backup-20261101-090000.zip`、`backup-20261101-100000-2.zip`），並佈置三則固定公告與一般使用者 `e2e-m7-user`；同一個資料庫可以重跑。`m07-ops.mjs` 的立即備份會真的執行系統備份作業。結果寫到 `m07-results.json`。
 
+**M8 的 Agent 與推播情境（0.10.7 起）**：`m08-agents.mjs` 呼叫真實模型（同 M6，金鑰照常讀 User Secrets），會產生測試專案、以排程觸發一次「系統管理助理巡檢」（最多等 10 分鐘），整體要跑好幾分鐘。真實模型常會先回問「請確認是否要修改？」才呼叫寫入工具，腳本遇到時會回答「確認」再等核准窗。
+`nopush` 參數只跑「關閉推播仍可輪詢」（M8-N1：另一個瀏覽器的鈴鐺在 75 秒內由輪詢更新），主機要以關閉推播啟動：
+
+```powershell
+$env:NotificationSettings__PushEnabled = 'false'
+pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
+```
+
+跑完記得關掉這個主機、清掉環境變數。結果分別寫到 `E2E_OUT_DIR` 的 `m08-results.json`、`m08-nopush-results.json`（一般模式另寫 `smoke-results.json`）。
+
 `Start-E2EHost.ps1` 0.10.5 起把 API 限流放寬到每分鐘 1000 次（`RateLimit__ApiRequestsPerMinute`）：腳本換頁比人快得多，正式的每人每分鐘 120 次會被打滿。
 
 ⚠️ 情境腳本會改隔離資料庫（例如暫時把 support 標成必須改密碼、變更 support 的密碼），只能對 `Start-E2EHost.ps1` 啟動的網站執行，不可指向開發或正式資料庫。
@@ -91,4 +104,6 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 | `m06-ops.mjs` | M6 操作情境（0.10.5 起，不呼叫 AI）：M6-O1 日誌等級套用與還原、O2 提示詞存新版本與切回內建預設、O3 系統例外排序／匯出同序／刪除、O4 AI 對話紀錄深連結與匯出、O5 Token 用量匯出與明細窗連到 AI 對話紀錄、O6 日誌快速區間與匯出含 BOM、O7 非管理員直打 M6 的 API 得 403、O8 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試 |
 | `m07-views.mjs` | M7 外觀比對（0.10.6 起）：佈置固定的公告、兩個空 zip 備份檔與一般使用者，拍 9 個畫面（排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理、首頁〔管理員〕、首頁〔一般使用者〕）。系統健康、資料庫用量、排程的「下次執行」含即時數值，差異集中在數值處 |
 | `m07-ops.mjs` | M7 情境（0.10.6 起）：M7-P1 排程立即執行後狀態自動更新（不重新整理）、P2 立即備份→清單自動出現→以一次性票證下載 zip（第二次 404、舊的 Cookie 下載網址 404）、P3 修改系統名稱立即生效並還原、P4 公告新增後同一個分頁的橫幅立即出現、P5 另一個分頁（一般使用者）切回時看得到、P6 首頁小工具依權限（一般使用者直接呼叫排程小工具的 API 得 403）、P7 系統健康／資料保留／資料庫用量在 WASM 開得起來、P8 非管理員直打 M7 的 13 個 API 得 403、P9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試 |
+| `m08-views.mjs` | M8 外觀比對（0.10.7 起）：拍 4 個初始畫面（Agent 測試台、Agent 工作流程、系統管理助理、巡檢報告窗）。對話與執行過程含 AI 輸出，不做逐像素比對，改由 `m08-agents.mjs` 的情境驗證 |
+| `m08-agents.mjs` | M8 情境（0.10.7 起，真實模型）：M8-G1 Agent 測試台在 WASM、產生測試專案、G2 寫入工具跳出核准窗 → 核准 → 真的寫入且稽核一筆、G3 核准中重新整理回到同一段對話、核准窗再跳出 → 拒絕 → 沒有寫入、G4 兩個分頁同時送出同一段對話（後到的排隊，兩則都完成）、G5 工作流程「專案狀態報告」人工介入中重新整理可接回直到完成、G6 系統管理助理不可復原的動作要輸入「確認」才能核准（這次按拒絕）、G7 排程巡檢產生報告且 `?patrolReport=` 直接打開、G8 推播：另一個瀏覽器的鈴鐺 2 秒內更新、G9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試。`nopush` 參數只跑 M8-N1 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

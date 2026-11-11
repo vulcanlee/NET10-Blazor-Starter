@@ -57,9 +57,16 @@ public static class ClientProgram
         builder.Services.AddScoped<DashboardApi>();
         builder.Services.AddScoped<ClientNotificationSignal>();
         builder.Services.AddScoped<ClientAnnouncementSignal>();
+        // 通知推播串流（0.10.7 起，WASM 遷移 M8）：整個 WASM 只有一條，由外框啟動。
+        builder.Services.AddScoped<ClientPushConnection>();
         // 系統參數、公告管理（0.10.6 起，WASM 遷移 M7）。
         builder.Services.AddScoped<SystemParameterApi>();
         builder.Services.AddScoped<AnnouncementApi>();
+        // Agent 工作流程（0.10.7 起，WASM 遷移 M8）。
+        builder.Services.AddScoped<AgentWorkflowApi>();
+        // Agent 測試台、系統管理助理（0.10.7 起，WASM 遷移 M8）。
+        builder.Services.AddScoped<AgentPlaygroundApi>();
+        builder.Services.AddScoped<AdminAssistantApi>();
         builder.Services.AddAntDesign();
 
         // AntDesign 的繁體中文語系（與 Server 版相同的補充翻譯）。

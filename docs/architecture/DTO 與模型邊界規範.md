@@ -1,8 +1,8 @@
 ﻿# DTO 與模型邊界規範
 
-- 文件版本：1.6
+- 文件版本：1.7
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.7
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -14,7 +14,7 @@
 - [x] Entity 僅作為 EF Core persistence model 使用。
 - [x] AdapterModel 目前主要供 Blazor UI/後台頁面使用，不應與 API DTO 混用。
 - [x] Controller 使用 AutoMapper 或明確 mapping 在 DTO 與 Entity 之間轉換。
-- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`，0.10.6 起再加 `AnnouncementDtoMapper`），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
+- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`，0.10.6 起再加 `AnnouncementDtoMapper`，0.10.7 起再加 `AgentDtoMapper`、`AgentWorkflowDtoMapper`），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
 
 ## 新 CRUD 模組待辦
 - [ ] 新增 `XxxDto` 作為 response DTO。
@@ -49,6 +49,14 @@
   - `MyProject.Dtos/Admins/SystemParameterDtos.cs`：`SystemParameterOverviewDto`、`SystemParameterItemDto`、`SystemParameterDefinitionDto`、`SystemParameterOverrideDto`、`SystemParameterOrphanDto`、`SystemParameterSectionErrorDto`、`SystemParameterSaveRequestDto`（`Key`、`Value`、`ExpectedStamp`）、`SystemParameterResetRequestDto`；列舉 `SystemParameterKind`、`SystemParameterSource` 從 `MyProject.Web` 搬到這裡（伺服器與畫面共用），格式化介面 `ISystemParameterFormat`（定義與 DTO 都實作，`SystemParameterValueCodec` 0.10.6 起搬到 `MyProject.Web.Client/Configuration/`，命名空間仍是 `MyProject.Web.Configuration.Parameters`）。
   - `MyProject.Dtos/Admins/AnnouncementDtos.cs`：`AnnouncementDto`、`AnnouncementTargetOptionDto`、`AnnouncementListDto`（含伺服器的「現在」）；公告對象種類 `AnnouncementTargetKinds` 搬到 `MyProject.Share/Helpers/`（命名空間仍是 `MyProject.AccessDatas.Models`，畫面與 DTO 都要用）。
   - `MyProject.Dtos/Shell/DashboardDtos.cs`：`DashboardDto`（含 `DashboardQuickLinkDto`、`DashboardWidgetDto`）、`DashboardAccountDto`、`DashboardNotificationsDto`／`DashboardNotificationItemDto`、`DashboardScheduledJobsDto`／`DashboardScheduledJobAttentionDto`。
+- [x] 0.10.7 起（WASM 遷移 M8）Agent、系統管理助理、工作流程與通知推播：
+  - `MyProject.Dtos/Ai/AgentDtos.cs`：`AgentConversationLimits`（訊息 2,000 字、標題 100 字、確認文字「確認」，伺服器與畫面共用）、`AgentPageInfoDto`、`AgentConversationSummaryDto`、`AgentConversationDto`、`AgentTranscriptEntryDto`、`AgentApprovalRequestDto`／`AgentApprovalArgumentDto`、`AgentMessageRequestDto`、`AgentApprovalResponseRequestDto`、`AgentRenameRequestDto`、`AgentSampleResultDto`。
+  - `MyProject.Dtos/Ai/AgentStreamDtos.cs`：串流的一行 `AgentStreamFrameDto`（`Kind` 見 `AgentStreamFrameKinds`：start、entry、delta、tool、label、approvals、result、ping；結果沿用 `AiResultDto`）、`AgentToolActivityDto`。
+  - `MyProject.Dtos/Ai/AgentWorkflowDtos.cs`：`AgentWorkflowPageInfoDto`、`AgentWorkflowDefinitionDto`、`AgentWorkflowRecordDto`／`AgentWorkflowRecordDetailDto`、`AgentWorkflowRenameRequestDto`、`AgentWorkflowStartRequestDto`、`AgentWorkflowRespondRequestDto`（審閱決定見 `AgentWorkflowReviewDecisions`）、`AgentWorkflowRunDto`（重新整理後接回用）。
+  - `MyProject.Dtos/Ai/WorkflowStreamDtos.cs`：`AgentWorkflowFrameDto`（`Kind` 見 `AgentWorkflowFrameKinds`）、`AgentWorkflowEntryDto`、`AgentWorkflowToolActivityDto`、`AgentWorkflowPendingRequestDto`（`AgentWorkflowRequestKinds`：ToolApproval、Question、Review）、`AgentWorkflowApprovalDto`／`AgentWorkflowArgumentDto`、`AgentWorkflowOutputDto`、`AgentWorkflowResultDto`（`AgentWorkflowOutcomes`）。伺服器端的轉換在 `Controllers/AgentWorkflowMapper.cs`。
+  - `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`：`AdminPatrolReportListDto`、`AdminPatrolReportSummaryDto`、`AdminPatrolReportDetailDto`。
+  - `MyProject.Dtos/Shell/PushDtos.cs`：通知推播的一行 `PushFrameDto`（`Kind` 見 `PushFrameKinds`：ready、notifications、announcements、ping、renew、reconnect；不帶內容）；`ShellInfoDto` 多 `NotificationPushEnabled`。
+  - 畫面也要用的型別搬到 `MyProject.Web.Client/Ai/`（命名空間不變）：`AiToolApprovalRequest`（`MyProject.Web.Ai.Agents`）、`AdminAssistantApproval`（不可復原的動作要輸入「確認」的判斷，伺服器與核准窗共用）。對話檔 `AiAgentConversationContent` 多一個 `TurnKey`（系統管理助理分派到的領域代碼，只加不改，`SchemaVersion` 不變）。
 - [x] integration tests 已驗證 Project CRUD 成功 response 可用 DTO contract 反序列化。
 - [ ] 日後每新增一個 API Controller，都要在 PR checklist 檢查 DTO 邊界。
 

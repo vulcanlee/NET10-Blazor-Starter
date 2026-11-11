@@ -90,8 +90,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Ai.Agents.AdminAssistant.OpsAssistantTools>();
         services.AddScoped<Ai.Agents.AdminAssistant.AccountsAssistantTools>();
         services.AddScoped<Ai.Agents.AdminAssistant.AiAssistantTools>();
+        // Agent 對話的 Web API（0.10.7 起，WASM 遷移 M8）：每段對話一把鎖（行程內、singleton）與共用流程。
+        services.AddSingleton<AiAgentConversationLocks>();
+        services.AddScoped<Controllers.AgentConversationEndpoint>();
         // 多 Agent 工作流程（0.9.144 起）：每個 agent 仍經 IAiAgentFactory 建立，記帳不變。
         services.AddScoped<IAiWorkflowRunner, AiWorkflowRunner>();
+        // 跨請求的工作流程執行（0.10.7 起，WASM 遷移 M8）：每次執行有自己的 scope，閒置 30 分鐘結束；只在單一行程有效。
+        services.AddSingleton<AiWorkflowRunRegistry>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
         services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
@@ -136,6 +141,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IClientIpProvider>(sp => sp.GetRequiredService<ClientIpProvider>());
         // 站內通知與公告（0.9.100 起）。訊號與公告快取是 singleton（跨連線共用）；發送服務是 scoped。
         services.AddSingleton<INotificationSignal, NotificationSignal>();
+        // 通知推播串流（0.10.7 起，WASM 遷移 M8）：時間設定與每位使用者的連線數。
+        services.AddSingleton<MyProject.Web.Streaming.NotificationPushOptions>();
+        services.AddSingleton<MyProject.Web.Streaming.NotificationPushConnections>();
         services.AddSingleton<AnnouncementCache>();
         services.AddScoped<INotificationMailer, NotificationMailer>();
         services.AddScoped<INotificationSender, NotificationSender>();

@@ -103,6 +103,40 @@ public sealed class AdminAssistantTurnPlannerTests
         Assert.EndsWith(AiPromptGuardrails.For(PromptTemplateKeys.AdminAssistant), turn.Instructions, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 0.10.7 起：分派結果的代碼跟著對話存起來（TurnKey），接續停在核准的對話時用它重建同一輪（同樣的工具、提示詞與標籤），不再呼叫分派模型。
+    /// </summary>
+    [Fact]
+    public async Task RestoreTurn_FromThePlannedKey_RebuildsTheSameTurnWithoutCallingTheRouter()
+    {
+        client.Replies.Enqueue(Success("ops, accounts"));
+        var planner = CreatePlanner();
+        var planned = await planner.PlanAsync(Guid.NewGuid(), "停用帳號並調整排程", [], CancellationToken.None);
+
+        var restored = await planner.RestoreTurnAsync(planned.Key!, CancellationToken.None);
+
+        Assert.Equal("accounts,ops", planned.Key);
+        Assert.Single(client.Requests);
+        Assert.Equal(planned.Definition.Tools, restored.Definition.Tools);
+        Assert.Equal(planned.Instructions, restored.Instructions);
+        Assert.Equal(planned.Label, restored.Label);
+        Assert.Equal(planned.Key, restored.Key);
+        Assert.Contains(restored.Definition.Tools, tool => tool.Name == "set_users_enabled");
+        Assert.DoesNotContain(restored.Definition.Tools, tool => tool.Name == "delete_exceptions");
+    }
+
+    /// <summary>沒有分出領域（分派失敗）那一輪的代碼是空字串，重建後一樣只有唯讀工具、接上全部領域說明。</summary>
+    [Fact]
+    public async Task RestoreTurn_EmptyKey_IsTheFallbackTurn()
+    {
+        var turn = await CreatePlanner().RestoreTurnAsync(string.Empty, CancellationToken.None);
+
+        Assert.Empty(client.Requests);
+        Assert.Equal(string.Empty, turn.Key);
+        Assert.Equal(AdminAssistantAgent.ReadTools, turn.Definition.Tools);
+        AssertAllDomains(turn);
+    }
+
     private static void AssertAllDomains(MyProject.Web.Ai.Agents.AiAgentTurn turn)
     {
         Assert.Equal(AdminAssistantRouting.DefaultLabel, turn.Label);

@@ -53,8 +53,21 @@ public sealed class AdminAssistantTurnPlanner : IAiAgentTurnPlanner
         CancellationToken cancellationToken)
     {
         var domains = await RouteAsync(conversationId, message, transcript, cancellationToken);
+        return await TurnForAsync(domains, cancellationToken);
+    }
+
+    /// <summary>
+    /// 重建上次分派到的那一輪（0.10.7 起，WASM 版接續停在核准的對話）：同樣的工具、提示詞與標籤，不呼叫分派模型。
+    /// 讀不出代碼（空字串）就是「沒有分出領域」那一輪，與分派失敗時相同。
+    /// </summary>
+    public Task<AiAgentTurn> RestoreTurnAsync(string key, CancellationToken cancellationToken)
+        => TurnForAsync(AdminAssistantRouting.Parse(key), cancellationToken);
+
+    private async Task<AiAgentTurn> TurnForAsync(IReadOnlySet<AdminAssistantDomain> domains, CancellationToken cancellationToken)
+    {
         var instructions = await ComposeAsync(domains, cancellationToken);
-        return new AiAgentTurn(AdminAssistantAgent.DefinitionFor(domains), instructions, AdminAssistantRouting.LabelOf(domains));
+        return new AiAgentTurn(
+            AdminAssistantAgent.DefinitionFor(domains), instructions, AdminAssistantRouting.LabelOf(domains), AdminAssistantRouting.KeyOf(domains));
     }
 
     private async Task<IReadOnlySet<AdminAssistantDomain>> RouteAsync(

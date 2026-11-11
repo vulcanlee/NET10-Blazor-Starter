@@ -1,10 +1,10 @@
 ﻿# AI Agent PRD（Agent 測試台與 Agent 工作流程）
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.170
+- 現行系統版本：0.10.7
 - 首次實作版本：0.9.142
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -34,6 +34,7 @@
 - 兩個頁面都列入 `RolePermissionService.NotGrantedToDefaultRole`：建立預設角色或升級加入新頁面時**不自動開給預設角色**，因為會花 AI 費用，由管理員決定開給哪些角色。
 - Agent 呼叫的工具另外要有對應功能的權限（例如「專案項目」的檢視或編輯），見 §七。
 - 操作說明：`Datas/Help/agent-playground.md`、`Datas/Help/agent-workflows.md`。
+- **WebAssembly（0.10.7 起，WASM 遷移 M8）**：兩頁改在瀏覽器執行（`MyProject.Web.Client/Pages/AgentPlaygroundPage.razor`、`AgentWorkflowsPage.razor`、`Views/AiAssistants/*`；Server 版已刪除），畫面與訊息和之前相同；資料經 `api/v1/agent-playground`（`[HasPermission(角色_Agent測試台, View)]`，測試專案另要專案項目的新增／刪除）與 `api/v1/agent-workflows`（`[HasPermission(角色_Agent工作流程)]`），對話與執行以 NDJSON 串流（閒置 15 秒送一筆心跳）。端點見《[Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)》2.20、2.21。
 
 ## 三、Agent 測試台（0.9.142 起）
 
@@ -61,6 +62,9 @@
 - 自動標題：第一則訊息的前 40 字。
 - 接續時用**目前**的模型與提示詞重新建立 Agent，並還原 MAF session（讓 AI 記得前文）、畫面紀錄與待核准。停在核准的對話，接續時會重新跳核准窗。
 - 接不下去時（內容檔已清除或格式不相容），畫面顯示紅色提示，使用者可以刪除後開新對話。
+- **0.10.7 起（WASM）**：伺服器不把對話留在記憶體，每則訊息與每次核准都「讀存檔 → 接續 → 執行 → 存檔」，所以每則訊息都用**當下**系統參數的模型；推論等級改了，下一則訊息送到伺服器時才套用。網址帶 `?conversation={id}`，重新整理回到同一段對話（停在核准的再跳出核准窗）。
+- **併發（0.10.7 起）**：同一段對話一把鎖，兩個分頁同時送出時後到的**排隊**、兩則都完成（Server 版沒有鎖，可能互相覆蓋）；核准以資料庫的條件式更新搶占，同一個核准送兩次只執行一次。Server 版只在畫面擋的規則也搬到伺服器：訊息 2,000 字（400）、等待核准時送新訊息 409、核准編號不在目前待核准裡 409。
+- 與 Server 版不同的小地方（0.10.7 起）：按「停止產生」後畫面自己補「已停止產生…」那則；還在排隊就按停止則改為重讀伺服器上的對話；API 錯誤以一般錯誤通知顯示（訊息照抄伺服器）。
 
 ## 四、Agent 工作流程（0.9.144 起）
 
@@ -94,6 +98,8 @@
 - 每次執行都存進左側「我的執行紀錄」（依工作流程分開、只限本人），可以唯讀回顧、重新命名、刪除。
 - 與 Agent 對話**共用儲存**：資料表 `AiAgentConversation`、內容檔目錄與保留天數都相同，見 §6.2。
 - **不能從中途接續**：執行中或等待使用者時離開或重新整理頁面，紀錄會存成「執行中斷（離開頁面），工作流程無法從中途接續。」。等待使用者時切換工作流程、開新的執行或點開別筆紀錄，會先確認是否放棄目前的執行。
+- **等待使用者時重新整理可接回（0.10.7 起，WASM）**：執行物件放在伺服器的執行登錄表（`AiWorkflowRunRegistry`），停在等使用者回覆時重新整理或關分頁，執行留在伺服器最多 **30 分鐘**，回到頁面自動接回（`GET api/v1/agent-workflows/runs/active`）；超過 30 分鐘或網站重新啟動就結束成「中斷」。AI 正在輸出時斷線仍中斷整個流程（同 Server 版）。在站內切到別的頁面時，只放棄這個分頁開始或回覆過的執行，另一個請求正在用時不放棄。
+- **一人同時只能有一次執行（0.10.7 起）**：第二個開始回 409「你還有一次工作流程在執行或等你回覆（可能在其他分頁），請先完成或放棄它。」；別人的執行一律 404；重複回覆或正在處理 409（畫面重讀狀態）；回答空白、退回沒寫意見、退回次數用完 400。
 
 ## 五、模型、API 與推論等級
 
@@ -172,6 +178,9 @@
 | 使用者按停止 | 保留已收到的內容並標示不完整；工作流程整個取消 |
 | 工具執行失敗 | 回說明給模型，不讓整次執行失敗，並稽核 `Ai.ToolInvoked`（失敗）|
 | 接續的對話內容不見或格式不相容 | 顯示無法接續的提示 |
+| 兩個分頁同時操作同一段對話（0.10.7 起）| 後到的排隊；同一個核准只執行一次，後到的 409（畫面提示已處理過）|
+| 工作流程第二次開始（0.10.7 起）| 409，一人同時只能有一次執行 |
+| 工作流程等人回覆超過 30 分鐘、或網站重新啟動（0.10.7 起）| 結束成「中斷」，紀錄停在最後一次存檔；回覆時 404「找不到這次執行…」|
 
 ## 九、驗收與測試
 
@@ -184,15 +193,18 @@
 | `AiReasoningSettingsTests` | 各功能推論等級的解析與驗證；每個走 Responses 的 Agent 都有自己的推論等級設定，也都在系統參數頁 |
 | `AiResponsesFormatTests` | Responses 非串流與串流的內容、用量、結束原因解析 |
 | `AiAgentConversationServiceTests` | 對話保存、只限本人、改名、刪除與稽核、依最後對話時間清理、內容檔路徑防護 |
+| `AgentConversationApiTests`、`AgentWorkflowApiTests`（0.10.7 起）| Web API：串流、接續、核准只執行一次、同一段對話排隊、權限 403；工作流程重新整理後接回、一人一次、別人看不到、閒置逾時、停止、斷線中斷、伺服器端規則 |
+| `AiAgentConversationFileStoreTests`、`NdjsonHeartbeatTests`、`Client/AgentDtoMapperTests`（0.10.7 起）| 內容檔共用讀寫、串流心跳、DTO 往返 |
 
-完整清單見 [測試指南](../guides/測試指南.md)。本機實測（2026/11/04，Azure `gpt-6.1-sol`）：Agent 測試台的工具呼叫、核准與接續，以及兩條工作流程都成功；AI 對話紀錄與 Token 用量的數字正確。
+完整清單見 [測試指南](../guides/測試指南.md)。本機實測（2026/11/04，Azure `gpt-6.1-sol`）：Agent 測試台的工具呼叫、核准與接續，以及兩條工作流程都成功；AI 對話紀錄與 Token 用量的數字正確。0.10.7 起另有呼叫真實模型的實機腳本 `scripts/e2e/m08-agents.mjs`（核准與拒絕、核准中重新整理、兩分頁排隊、工作流程人工介入中重新整理接回到完成）。
 
 ## 十、已知限制與規劃中需求
 
 **已知限制**
 
 - 推論等級依功能設定（0.9.168 起）；只有 Agent 測試台能在畫面上依對話切換（0.9.170 起），系統管理助理與工作流程不行；工作流程裡的 agent 共用該流程的值，不能逐一分設。
-- 工作流程不能從中途接續。
+- 工作流程不能從中途接續（0.10.7 起等使用者回覆時重新整理可在 30 分鐘內接回，但這只在同一個行程內：IIS 回收或重啟後就沒了，多台主機也不共用）。
+- Agent 對話的「每段對話一把鎖」只在同一個行程內有效（核准另以資料庫條件式更新保證只執行一次）。
 - 範例工具只涵蓋專案項目。
 
 **規劃中需求**（尚未提供，不屬於目前的驗收範圍）
@@ -202,8 +214,8 @@
 ## 十一、相關程式與文件
 
 - 程式：`MyProject.Web/Ai/Agents/`（`AiAgentDefinition`、`AiAgentToolFactory`、`AiAgentRunner`、`AiToolApprovals`、`AgentPlaygroundAgent`、`ProjectAgentTools`）、`MyProject.Web/Ai/Workflows/`（`AiWorkflowRunner`、`AiAgentStep`、`ProjectStatusReportWorkflow`、`MultiPerspectiveReviewWorkflow`）、`Ai/AiAgentFactory.cs`、`Ai/AiAccountingChatClient.cs`、`Ai/AiChatResponseParser.cs`、`Configuration/AiSettings.cs`、`Configuration/AiModelSettings.cs`。
-- 頁面：`Components/Pages/AiAssistants/AgentPlaygroundPage.razor`、`AgentWorkflowsPage.razor`，以及 `Components/Views/AiAssistants/` 下的對應檢視。
+- 頁面：0.10.7 起在 `MyProject.Web.Client/Pages/AgentPlaygroundPage.razor`、`AgentWorkflowsPage.razor`，以及 `Views/AiAssistants/` 下的對應檢視（之前在 `MyProject.Web/Components/`）；Web API `Controllers/AgentPlaygroundController.cs`、`AgentConversationEndpoint.cs`、`AgentWorkflowsController.cs`，執行登錄表 `Ai/Workflows/AiWorkflowRunRegistry.cs`，對話鎖 `Ai/Agents/AiAgentConversationLocks.cs`。
 - 文件：[MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)、[日誌與設定檔說明](../operations/日誌與設定檔說明.md)、[AI 對話紀錄](AI對話紀錄-prd.md)、[Token 用量](Token用量-prd.md)、[系統參數](系統參數-prd.md)、[AI 提示詞管理](AI提示詞管理-prd.md)。
-- changelog：[Agent 骨架與測試台](../changelog/2026-11-03-Agent骨架與測試台.md)、[Agent 對話保存](../changelog/2026-11-03-Agent對話保存.md)、[Agent 工作流程](../changelog/2026-11-04-Agent工作流程.md)、[Agent 測試台的測試專案](../changelog/2026-11-04-Agent測試台測試專案.md)、[Agent 改走 Responses API](../changelog/2026-11-04-Agent改走ResponsesAPI.md)。
+- changelog：[Agent 骨架與測試台](../changelog/2026-11-03-Agent骨架與測試台.md)、[Agent 對話保存](../changelog/2026-11-03-Agent對話保存.md)、[Agent 工作流程](../changelog/2026-11-04-Agent工作流程.md)、[Agent 測試台的測試專案](../changelog/2026-11-04-Agent測試台測試專案.md)、[Agent 改走 Responses API](../changelog/2026-11-04-Agent改走ResponsesAPI.md)、[WASM 遷移 M8](../changelog/2026-11-11-WASM遷移M8Agent系統管理助理與通知推播.md)。
 
 > 返回 [PRD 主控台](README.md)

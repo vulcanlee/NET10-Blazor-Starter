@@ -394,6 +394,7 @@ public sealed class LoggingConventionTests
             "RetentionCutoffs.cs",          // 純函式：各類資料超過保留天數的門檻（0.9.133 起）
             "CronDescriber.cs",             // 純函式：cron 轉白話（0.9.133 起）
             "MaintenanceJobMapper.cs",      // 純轉換：排程作業狀態轉 DTO（0.10.6 起）
+            "AgentWorkflowMapper.cs",       // 純轉換：工作流程的定義、請求、結果轉 DTO（0.10.7 起）
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

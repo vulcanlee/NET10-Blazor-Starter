@@ -6,6 +6,7 @@ using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
+using MyProject.Models.Systems;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
@@ -44,6 +45,7 @@ public sealed class ShellController : ControllerBase
     private readonly IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions;
     private readonly LoggingPipelineMonitor pipelineMonitor;
     private readonly ILogger<ShellController> logger;
+    private readonly IOptionsMonitor<NotificationSettings> notificationSettings;
 
     public ShellController(
         ISystemIdentity systemIdentity,
@@ -58,7 +60,8 @@ public sealed class ShellController : ControllerBase
         PerUserRateLimiter rateLimiter,
         IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions,
         LoggingPipelineMonitor pipelineMonitor,
-        ILogger<ShellController> logger)
+        ILogger<ShellController> logger,
+        IOptionsMonitor<NotificationSettings> notificationSettings)
     {
         this.systemIdentity = systemIdentity;
         this.environment = environment;
@@ -73,6 +76,7 @@ public sealed class ShellController : ControllerBase
         this.clientErrorOptions = clientErrorOptions;
         this.pipelineMonitor = pipelineMonitor;
         this.logger = logger;
+        this.notificationSettings = notificationSettings;
     }
 
     /// <summary>
@@ -97,6 +101,7 @@ public sealed class ShellController : ControllerBase
             // 不帶時差（Kind=Unspecified）送出（0.10.6 起修正）：LocalDateTime 的 Kind 是 Local，會序列化成 +08:00，WASM 再換成瀏覽器的時區。
             StartedAtLocal = DateTime.SpecifyKind(startupState.StartedAt.LocalDateTime, DateTimeKind.Unspecified),
             HelpTopics = topics.Select(x => new HelpTopicDto { Route = x.Route, Title = x.Title }).ToList(),
+            NotificationPushEnabled = notificationSettings.CurrentValue.PushEnabled,
         };
         return Ok(ApiResult<ShellInfoDto>.SuccessResult(info, "取得系統資訊成功"));
     }

@@ -1,8 +1,8 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.7
 - 首次實作版本：0.9.140
 - 最後核對日期：2026/11/11
 
@@ -217,6 +217,11 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 - **接續**：`IAiAgentRunner.ResumeAsync(定義, ConversationId)` 讀回本人的對話 → 重新建立 agent（模型與提示詞用**目前**的設定）→ `DeserializeSessionAsync` → 還原畫面紀錄與待核准。沿用同一個 `ConversationId`，AI 對話紀錄裡前後串成同一段。找不到、不是本人的、不是這個 Agent 的、內容檔不見、`SchemaVersion` 不認得或 session 讀不回來，一律回 null，畫面提示「這段對話無法接續…可以刪除它後開新對話」。
 - **停在核准的對話**：接續時重新跳核准窗。權限**不在還原時檢查**，使用者核准後工具外殼（§6.2）在真正執行前以**現在**的權限再檢查一次。存下來的待核准工具若已不在這個 Agent 上，改成自動拒絕，隨下一則訊息一起送回給模型。
 - **備份**：內容檔預設不備份（`BackupSettings:IncludeAiAgentConversations`，系統參數「備份 Agent 對話」）；不備份時還原後清單仍在、點開提示無法接續。
+- **Web API（0.10.7 起，WASM 遷移 M8）**：Agent 測試台與系統管理助理改在 WASM，`AgentConversationEndpoint` 讓**每個請求接續一次**——送訊息與回覆核准都是「讀存檔 → `ResumeAsync` → 執行 → 存檔」，伺服器不把 `AiAgentChat` 留在記憶體，所以每個請求用當下系統參數的模型。更新以 NDJSON 逐行送出（`AgentStreamFrameDto`：start、entry、delta、tool、label、approvals、result，閒置 15 秒 ping）；中斷連線就取消這次執行，已收到的照樣存檔。
+  - 同一段對話一把鎖（`AiAgentConversationLocks`，行程內）：兩個分頁同時操作時後到的排隊，接續時才讀得到前一個存下的內容（Server 版沒有鎖，可能互相覆蓋、同一筆待核准被核准兩次）。
+  - 核准以 `AiAgentConversationService.TryClaimPendingApprovalAsync`（以 `HasPendingApproval` 為條件的更新）搶占，跨行程也只執行一次；核准編號必須在目前待核准裡，所以同一個核准送兩次只執行一次。
+  - 內容檔讀寫改用共用模式並重試（`AiAgentConversationFileStore`，0.10.7 獨立審查）：另一個請求正在讀時寫入不會失敗，避免「待核准」旗標與內容檔不一致而卡死。
+  - 端點與規則見《[Web API 端點目錄](Web%20API%20端點目錄.md)》2.20。
 
 ### 6.8 工作流程（第四階段，0.9.144 起）
 
@@ -278,6 +283,9 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 - **不能從中途接續**：沒有跨重開機的檢查點。執行中或等使用者時離開、重新整理頁面（`DisposeAsync`）→ 結果 `Interrupted`，紀錄最後一則
   「執行中斷（離開頁面），工作流程無法從中途接續。」；切換工作流程、開新的執行或點開另一筆紀錄時，若目前的執行還在等使用者，先確認「放棄目前的執行」。
   Agent 測試台的 `ResumeAsync` 也接不起工作流程紀錄（`AgentName` 不同）。
+- **0.10.7 起（WASM 遷移 M8）的接回**：仍然沒有檢查點，但執行物件改放在伺服器的 `AiWorkflowRunRegistry`（singleton，同一個行程內），不再跟著畫面：
+  停在等人回覆時重新整理或關分頁，執行留在伺服器，閒置 **30 分鐘**內回到頁面以 `GET runs/active` 自動接回；串流途中斷線仍中斷整個流程（`Interrupted`）；
+  在站內切到別的頁面時只放棄這個分頁開始或回覆過的執行，且另一個請求正在用時不放棄（`abandon?onlyIfIdle=true`）。IIS 回收或重啟後執行就沒了（紀錄停在最後一次存檔）。
 - 結果 `AiWorkflowOutcome`：`Completed`、`Ended`（審閱時選結束）、`Failed`（模型呼叫失敗等，已記帳）、`Canceled`（停止）、`Interrupted`（離開頁面）。
 
 #### 6.8.5 執行器
@@ -289,6 +297,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   agent 開始、`TextDelta`、`ToolActivity`、agent 完成、`Request`（停下來等使用者）、`Output`（產出）、`Result`（結束）。
 - 以 `InProcessExecution.OffThread` 執行、`WatchStreamAsync(blockOnPendingRequest: false)` 讀取；步驟的即時更新以 `AiWorkflowStepEvent` 送出。
 - `Transcript`（畫面直接呈現）、`PendingRequests`、`Result` 由這個物件維護；不是執行緒安全，一次只能有一個讀取。
+- 0.10.7 起由 `AgentWorkflowsController` 呼叫：一次執行要跨好幾個請求，`AiWorkflowRunRegistry` 為每次執行建自己的 `AsyncServiceScope`（`CreateScope` 填入目前使用者與來源 IP，每次回覆以 `RefreshActor` 更新），執行器、工具、權限檢查與記帳都從這個 scope 取；一人同時一次（第二個 409）、只有擁有者能操作、`TryEnter` 保證一次只有一個請求在讀；閒置 30 分鐘結束成「中斷」並釋放 scope，網站關閉時先中斷、等收尾最多 5 秒再釋放。
 
 #### 6.8.6 新增一條工作流程
 
@@ -334,6 +343,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
   分派說明以訊息本身提到的對象為準，前文只補足指稱（實機發現前文會把「徹底刪除 temp-b」帶到 ops）。
 - **核准窗的目前狀態**（0.9.160 起）：`AiToolDefinition.ApprovalPreview` 由 `AiAgentToolFactory.PreviewAsync` 在提出核准時算（最多 5 秒、失敗回 null），經 `AiToolApprovals.TriageAsync` 帶到 `AiToolApprovalRequest.Preview`，
   存進 `AiAgentPendingApprovalRecord.Preview`、接續時不重算。工作流程不傳預覽，行為不變。目前掛在修改系統參數的三個工具（`OpsAssistantTools.PreviewParameterChangeAsync`）。
+- **接續時沿用同一輪**（0.10.7 起，WASM 遷移 M8）：Web API 每個請求都重新接續，`AiAgentTurn` 多一個 `Key`（系統管理助理是分派到的領域代碼，例如 `accounts,ops`），存進對話檔的 `AiAgentConversationContent.TurnKey`（只加不改）；接續時 `IAiAgentTurnPlanner.RestoreTurnAsync(key)` 重建同一輪（不呼叫分派模型，預設退回 `HomeTurnAsync`），停在核准的對話才會用提出核准的那一輪繼續，而不是「全部工具＋全部領域」。「由誰回答」的標籤每個請求至少送一次。
 - **定時巡檢**（0.9.161 起，第二版）：排程作業 `AdminPatrolJob`（預設每天 07:30）沒有登入的使用者，所以**不走** `AiAgentRunner`：
   - `AdminPatrolRunner` 直接用 `IAiAgentFactory` 建 agent（作業 `系統管理助理（排程巡檢）`、`ConversationId` 是報告編號、一個 RunId），送一則固定訊息、收齊文字；不存對話、不分派。
   - 定義與提示詞由 `AdminAssistantTurnPlanner.PatrolTurnAsync` 給（`AdminAssistantAgent.ScheduledPatrol`：只有巡檢用的 9 個唯讀工具、同名；提示詞同對話中的巡檢，仍讀「AI 提示詞」的作用中版本）。
@@ -356,6 +366,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | 系統管理助理 M3 | 22 個可復原的異動工具：核准窗說明與批次清單、最多 50 筆、自我與最後一位管理員保護、不可復原動作由工具拒絕（§6.9）| 0.9.158 已實作 |
 | 系統管理助理 M4 | 15 個不可復原的異動工具；核准窗紅字警告、輸入「確認」才能核准；自訂清除跨領域共用（§6.9）| 0.9.159 已實作 |
 | 系統管理助理第二版 | 定時巡檢：排程作業以「系統排程身分＋窄門」只跑唯讀工具、判讀狀態、存報告、需要注意時通知全體管理員（§6.9）| 0.9.161 已實作 |
+| WASM 遷移 M8 | 三頁改在 WebAssembly：Agent 對話每個請求接續一次＋每段對話一把鎖＋核准條件式搶占；工作流程執行登錄表（跨請求、閒置 30 分鐘、單一行程）；NDJSON 串流加心跳（§6.7、§6.8.4、§6.8.5、§6.9）| 0.10.7 已實作 |
 
 共同原則：非結構、會佔大空間的資料（對話內容、工具參數與結果）一律存檔案系統，資料庫只放可查詢的中繼資料；
 工具參數與結果只進 AI 對話紀錄檔，稽核只記工具名稱、使用者、成敗與是否被擋。
@@ -372,29 +383,33 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Web/Ai/AiCallContext.cs` | `AiCallContext`（0.9.142 起含 `RunId`、`ModelKey`）、`AiCallException`、`AiCallState`（0.9.142 起含 `RunId`）、`AiCallOutcome` |
 | `MyProject.Web/Ai/Agents/AiAgentDefinition.cs` | `AiAgentDefinition`、`AiToolDefinition`（0.9.142 起）|
 | `MyProject.Web/Ai/Agents/AiAgentToolFactory.cs` | `AiAgentToolFactory`、`IAiToolPermissionGuard`／`AiToolPermissionGuard`（權限與稽核）、`PermissionCheckedAIFunction`（0.9.142 起）|
-| `MyProject.Web/Ai/Agents/AiAgentRunner.cs` | `IAiAgentRunner`、`AiAgentChat`（執行、RunId、核准分流；0.9.143 起 `Transcript`、存檔、`ResumeAsync`）、`AiAgentUpdate`、`AiToolActivity`、`AiToolApprovalRequest`（0.9.142 起）|
+| `MyProject.Web/Ai/Agents/AiAgentRunner.cs` | `IAiAgentRunner`、`AiAgentChat`（執行、RunId、核准分流；0.9.143 起 `Transcript`、存檔、`ResumeAsync`）、`AiAgentUpdate`、`AiToolActivity`（0.9.142 起；`AiToolApprovalRequest` 0.10.7 起在 Client）|
 | `MyProject.Business/Services/DataAccess/AiAgentConversationService.cs` | `IAiAgentConversationStore`（存與讀自己的）、`AiAgentConversationService`（清單、改名、刪除、過期、統計，0.9.143 起）|
 | `MyProject.Business/Services/Other/AiAgentConversationFileStore.cs` | Agent 對話內容檔的唯一入口（絕不拋出、擋 `../`、收空月份目錄，0.9.143 起）|
 | `MyProject.Models/Systems/AiAgentConversationModels.cs`、`AiAgentConversationSettings.cs`；`MyProject.AccessDatas/Models/AiAgentConversation.cs` | 內容檔結構與清單模型、保留天數設定、資料表（0.9.143 起）|
 | `MyProject.Web/Scheduling/Jobs/AiAgentConversationRetentionJob.cs` | 排程作業「Agent 對話清理」（0.9.143 起）|
 | `MyProject.Web/Ai/Agents/AgentPlaygroundAgent.cs`、`ProjectAgentTools.cs` | 範例 Agent 與兩個範例工具（0.9.142 起）；0.9.144 起加 `get_project_detail`（`ProjectDetail`）、`append_project_status_summary`，建構子可選 `TimeProvider` |
 | `MyProject.Web/Ai/Agents/AiAgentTurn.cs` | `AiAgentTurn`、`IAiAgentTurnPlanner`（每輪規劃，0.9.155 起）|
-| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）、`AdminAssistantApproval`（0.9.159 起，有不可復原的動作時要輸入「確認」才能核准）|
-| `MyProject.Web/Components/Pages/Admins/AdminAssistantPage.razor`、`Components/Views/Admins/AdminAssistantView.razor(.cs/.css)` | 「系統管理助理」頁（`/admin-assistant`，0.9.155 起）|
+| `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`（0.10.7 起含 `RestoreTurnAsync`）、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）|
+| `MyProject.Web.Client/Ai/AdminAssistantApproval.cs`、`AiToolApprovalRequest.cs`（0.10.7 起搬到 Client 共用，命名空間不變）| 有不可復原的動作時要輸入「確認」才能核准（0.9.159 起；伺服器與核准窗共用）；一筆待核准的工具呼叫 |
+| `MyProject.Web.Client/Pages/AdminAssistantPage.razor`、`Views/Admins/AdminAssistantView.razor(.cs/.css)`（0.10.7 起 WASM；之前在 `MyProject.Web/Components/`）| 「系統管理助理」頁（`/admin-assistant`，0.9.155 起；0.10.7 起網址帶 `?conversation=`）|
+| `MyProject.Web/Controllers/AgentConversationEndpoint.cs`、`AgentPlaygroundController.cs`、`AdminAssistantController.cs`；`MyProject.Web/Ai/Agents/AiAgentConversationLocks.cs` | Agent 對話的 Web API（0.10.7 起）：每個請求接續一次、NDJSON 串流、每段對話一把鎖、核准搶占；巡檢報告端點 |
+| `MyProject.Web/Controllers/AgentWorkflowsController.cs`、`AgentWorkflowMapper.cs`；`MyProject.Web/Ai/Workflows/AiWorkflowRunRegistry.cs` | 工作流程的 Web API 與跨請求的執行登錄表（0.10.7 起）|
+| `MyProject.Web/Streaming/NdjsonHeartbeat.cs` | NDJSON 串流的心跳（0.10.7 起，資料源閒置時插 ping）|
 | `MyProject.Web/Ai/Agents/AdminAssistant/AdminPatrolRunner.cs`、`ScheduledPatrolToolGuard.cs`、`AdminPatrolReportParser.cs` | 定時巡檢（0.9.161 起）：`IAdminPatrolRunner`／`AdminPatrolRunner`（不存對話、不分派）、權限窄門、報告判讀與通知內容（`AdminPatrolNotification`）|
 | `MyProject.Business/Services/DataAccess/AdminPatrolReportService.cs`、`Services/Other/AdminPatrolReportFileStore.cs`；`MyProject.AccessDatas/Models/AdminPatrolReport.cs` | 巡檢報告的存放（內容檔在 `AiAgentConversationPath\AdminPatrol`）、清單、讀取、過期與統計（0.9.161 起）|
 | `MyProject.Web/Scheduling/Jobs/AdminPatrolJob.cs`、`AdminPatrolReportRetentionJob.cs` | 排程作業「系統管理助理巡檢」與「巡檢報告清理」（0.9.161 起）|
-| `MyProject.Web/Components/Views/Admins/AdminPatrolReportsModal.razor(.cs/.css)` | 系統管理助理頁的「巡檢報告」視窗（0.9.161 起，深連結 `?patrolReport=`）|
+| `MyProject.Web.Client/Views/Admins/AdminPatrolReportsModal.razor(.cs/.css)`（0.10.7 起 WASM，資料走 `GET api/v1/admin-assistant/patrol-reports`）| 系統管理助理頁的「巡檢報告」視窗（0.9.161 起，深連結 `?patrolReport=`）|
 | `MyProject.Web/Ai/Agents/AiToolApprovals.cs` | 工具核准的共用規則（權限分流、拒絕原因、參數說明），由 `AiAgentChat` 抽出，Agent 測試台與工作流程共用（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowModels.cs` | 步驟間訊息（`AiWorkflowMessage`／`AiWorkflowRevision`／`AiWorkflowOutput`）、人工介入（`AiWorkflowHumanRequest`／`AiWorkflowHumanResponse`）、`AiWorkflowUpdate`、`AiWorkflowResult`／`AiWorkflowOutcome`、`AiWorkflowStepEvent`（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowDefinition.cs` | `AiWorkflowDefinition`、`AiAgentStepSpec`、`AiWorkflowGraph`（接線）、`AiWorkflowCatalog.All`（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiAgentStep.cs` | `AiAgentStep`（自訂 executor：跑 agent、`ask_user`、工具核准）、`AiReviewGateStep`（審閱關卡）、`AiForwardStep`（並行分支起點）（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/AiWorkflowRunner.cs` | `IAiWorkflowRunner`／`AiWorkflowRunner`、`AiWorkflowRun`（執行、回覆、紀錄、存檔、中斷）（0.9.144 起）|
 | `MyProject.Web/Ai/Workflows/ProjectStatusReportWorkflow.cs`、`MultiPerspectiveReviewWorkflow.cs` | 兩條範例工作流程與內建提示詞（0.9.144 起）|
-| `MyProject.Web/Components/Pages/AiAssistants/AgentWorkflowsPage.razor`、`Components/Views/AiAssistants/AgentWorkflowsView.razor(.cs/.css)` | 「Agent 工作流程」頁（`/agent-workflows`，0.9.144 起；重新命名窗沿用 `OverlayStyles` 的 `.agent-playground-rename-modal`）|
+| `MyProject.Web.Client/Pages/AgentWorkflowsPage.razor`、`Views/AiAssistants/AgentWorkflowsView.razor(.cs/.css)`（0.10.7 起 WASM；之前在 `MyProject.Web/Components/`）| 「Agent 工作流程」頁（`/agent-workflows`，0.9.144 起；重新命名窗沿用 `OverlayStyles` 的 `.agent-playground-rename-modal`）|
 | `MyProject.Web/Configuration/AiModelSettings.cs` | 各功能的模型、`Resolve`、`OverriddenModels`（0.9.142 起）|
 | `MyProject.Web/Configuration/AiReasoningSettings.cs`、`Validation/AiReasoningSettingsValidator.cs` | 各 Agent 功能的推論等級、`GetOverride` 與驗證（0.9.168 起）|
-| `MyProject.Web/Components/Views/AiAssistants/AgentPlaygroundView.razor(.cs/.css)` | 「Agent 測試台」頁（`/agent-playground`，0.9.142 起；0.9.143 起左側「我的對話」、重新命名、刪除）|
+| `MyProject.Web.Client/Pages/AgentPlaygroundPage.razor`、`Views/AiAssistants/AgentPlaygroundView.razor(.cs/.css)`（0.10.7 起 WASM；之前在 `MyProject.Web/Components/`）| 「Agent 測試台」頁（`/agent-playground`，0.9.142 起；0.9.143 起左側「我的對話」、重新命名、刪除；0.10.7 起網址帶 `?conversation=`）|
 | `MyProject.Web/Ai/AiChatEndpoint.cs` | 兩家供應商的 base URI 與設定驗證 |
 | `MyProject.Web/Ai/AiChatCompletionClient.cs` | 設定檢查 → 建 agent → 執行 → 轉回 `AiAnalysisResult`；`StreamAsync` 轉成 `AiStreamUpdate` 序列（0.9.141 起）|
 | `MyProject.Web/Ai/AiHealthProbe.cs` | 健康探測（30 秒逾時、不檢查用量上限）|
