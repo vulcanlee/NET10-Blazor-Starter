@@ -1,6 +1,6 @@
 ﻿# WASM 改寫可行性分析報告
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：規劃中
 - 現行系統版本：0.9.177
 - 首次實作版本：—（尚未實作，預計 0.10.0 起）
@@ -80,7 +80,7 @@
 | `/email-logs` | 郵件紀錄 | EmailOutboxQueryService | 查詢 API | M5 | 低 |
 | `/logs` | 日誌檢視＋AI 分析 | 讀日誌檔、AI 串流、PDF | 查詢 API；AI 分析改串流端點；PDF 端點 | M6 | 高 |
 | `/log-level-setting` | 日誌等級設定 | NLog 執行期調整 | 設定 API | M6 | 低 |
-| `/system-exceptions` | 系統例外＋AI 分析與追問 | ExceptionLogService、AI 串流、PDF | 查詢 API；分析與追問對話存在伺服器快取 | M6 | 高 |
+| `/system-exceptions` | 系統例外＋AI 分析與追問 | ExceptionLogService、AI 串流、PDF | 查詢 API；分析與追問對話存在伺服器快取（註：0.10.5 實作改為畫面送回問答、伺服器以資料庫重建例外明細與系統提示，不存伺服器快取，見 [WASM 遷移計畫](WASM遷移計畫.md) M6） | M6 | 高 |
 | `/ai-call-logs` | AI 對話紀錄 | 檔案中的呼叫原文、PDF、合併 PDF | 查詢與 PDF 端點 | M6 | 中 |
 | `/token-usage` | Token 用量 | 統計、趨勢圖、Excel/PDF | 統計 API、匯出端點 | M6 | 中 |
 | `/prompt-templates` | AI 提示詞 | PromptTemplateService | 版本管理 API | M6 | 低 |

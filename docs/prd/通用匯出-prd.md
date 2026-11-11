@@ -1,8 +1,8 @@
 ﻿# 通用匯出 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.107
 - 最後核對日期：2026/11/11
 
@@ -73,4 +73,5 @@
 - `src/MyProject/MyProject.Web/Export/TabularExport.cs`、`BusinessExports.cs`
 - 四個業務頁 `ProjectViewView`、`CategoryViewView`、`TeamViewView`、`MyUserView`；四個診斷頁 `AuditLogView`、`ExceptionLogView`、`TokenUsageView`、`AiCallLogView`
 - 0.10.4 起使用者的匯出也經 Web API（`POST api/v1/users/export`，`UsersController`，同樣呼叫 `BusinessExports.BuildAsync` 與 `WriteAuditAsync`），稽核紀錄的 CSV 欄位在 `Web/Export/AuditLogExport.cs`
+- 0.10.5 起系統例外紀錄、AI 對話紀錄、Token 用量三個診斷頁的匯出也由伺服器產生（`ExceptionLogsController`、`AiCallLogsController`、`TokenUsageController` 的 `export`），CSV 欄位在 `Web/Export/ExceptionLogExport.cs`、`AiCallLogExport.cs`、`TokenUsageExport.cs`；排序與畫面相同（0.10.5 起排序依點選方向生效）
 - 交叉連結：[專案項目](專案項目-prd.md)、[分類清單](分類清單-prd.md)、[團隊清單](團隊清單-prd.md)、[使用者管理](使用者管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)

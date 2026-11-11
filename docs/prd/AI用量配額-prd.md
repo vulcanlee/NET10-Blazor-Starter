@@ -1,8 +1,8 @@
 ﻿# AI 用量配額 PRD
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.109
 - 最後核對日期：2026/11/07
 
@@ -75,6 +75,6 @@
 
 - `MyProject.Models/Systems/AiQuotaSettings.cs`、`MyProject.Business/Services/Other/AiQuotaService.cs`
 - `MyProject.Web/Ai/AiAccountingChatClient.cs`（攔截，0.9.140 起）、`MyProject.Business/Services/DataAccess/TokenUsageLogService.cs`（提醒）
-- `MyProject.Web/Configuration/Parameters/SystemParameterCatalog.cs`（分類「AI 用量」）、`Components/Views/Analytics/TokenUsageView.razor(.cs/.css)`
+- `MyProject.Web/Configuration/Parameters/SystemParameterCatalog.cs`（分類「AI 用量」）、`MyProject.Web.Client/Views/Analytics/TokenUsageView.razor(.cs/.css)`（0.10.5 起 WASM；上限文字由 `TokenUsageController` 的 `dashboard` 帶來）
 - migration `AddTokenUsageUserIndex`
 - 交叉連結：[Token 用量](Token用量-prd.md)、[系統參數](系統參數-prd.md)、[站內通知與公告](站內通知與公告-prd.md)、[日誌與設定檔說明](../operations/日誌與設定檔說明.md)

@@ -22,6 +22,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
     <PackageReference Include="AntDesign" />
     <PackageReference Include="BlazorMaterialIcons" />
+    <!-- AI 回覆的 Markdown 在瀏覽器消毒成 HTML（0.10.5 起，AiMarkdownRenderer）。 -->
+    <PackageReference Include="Markdig" />
   </ItemGroup>
 
   <ItemGroup>

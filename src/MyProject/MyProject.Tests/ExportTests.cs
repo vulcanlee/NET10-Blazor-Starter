@@ -88,7 +88,7 @@ public sealed class ExportTests : IDisposable
                 Csv(item.FirstOccurredAt.ToString("yyyy-MM-dd HH:mm:ss")), Csv(item.LastTraceId)));
         }
 
-        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(ExceptionLogView.CsvColumns, rows));
+        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(ExceptionLogExport.CsvColumns, rows));
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class ExportTests : IDisposable
                 Csv(item.ElapsedMilliseconds.ToString()), Csv(item.Success ? "成功" : "失敗"), Csv(item.FailureReason)));
         }
 
-        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(TokenUsageView.CsvColumns, rows));
+        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(TokenUsageExport.CsvColumns, rows));
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class ExportTests : IDisposable
                 Csv(item.ElapsedMilliseconds.ToString()), Csv(item.RequestCharacters.ToString()), Csv(item.ResponseCharacters.ToString()), Csv(item.RelatedInfo), Csv(item.CallId.ToString())));
         }
 
-        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(AiCallLogView.CsvColumns, rows));
+        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(AiCallLogExport.CsvColumns, rows));
     }
 
     [Fact]

@@ -191,18 +191,19 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     ├── Directory.Packages.props    ← 套件版本單一來源（Central Package Management）
     ├── MyProject.Web/              ← Blazor Server 宿主
     │   ├── Components/             ← Pages / Views / Layout / Auths / Commons
-    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs …）
+    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs / ExceptionLogs / Logs / LogLevel / AiCallLogs / TokenUsage / PromptTemplates …）
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、CookieSettings
-    │   ├── Ai/                     ← LLM 日誌／例外分析、安全 Markdown 渲染、PDF 報告、用量與計價、Agent 與工作流程（Agents/、Workflows/）
+    │   ├── Ai/                     ← LLM 日誌／例外分析、PDF 報告、用量與計價、AI 串流保護（AiStreamGuard）、Agent 與工作流程（Agents/、Workflows/）；安全 Markdown 渲染 0.10.5 起在 Web.Client/Ai
     │   ├── Backup/                 ← 系統備份（VACUUM INTO 快照＋檔案打包成 zip）
     │   ├── Caching/                ← ICacheService（Memory ↔ Redis）
     │   ├── Dashboard/              ← 首頁儀表板小工具登記
     │   ├── DataRetention/          ← 資料保留與清理總覽
     │   ├── Diagnostics/            ← 例外紀錄管線、日誌查詢、錯誤追蹤碼、告警、保存期限、慢操作、瀏覽器錯誤回報
     │   ├── Email/                  ← 寄信實作（None／Pickup／Smtp）、背景寄信佇列
-    │   ├── Export/                 ← 通用匯出（TabularExport、業務頁 Excel）
+    │   ├── Export/                 ← 通用匯出（TabularExport、業務頁 Excel）與各管理頁 CSV 欄位定義（稽核、例外、AI 對話紀錄、Token 用量）
+    │   ├── Streaming/              ← NDJSON 串流回應（NdjsonResult，0.10.5 起，AI 逐字顯示）
     │   ├── Fonts/                  ← PDF 內嵌中文字型（Noto Sans TC）與授權
     │   ├── Health/                 ← 健康檢查與計分
     │   ├── Properties/             ← launchSettings.json、發行設定檔
@@ -215,7 +216,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄）／Layout（WASM 版外框）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，共 14 頁）／Layout（WASM 版外框）、Ai（Server 與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← AuthenticationStateHelper 等

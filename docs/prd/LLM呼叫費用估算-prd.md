@@ -1,8 +1,8 @@
 ﻿# LLM 呼叫費用估算 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.17
 - 最後核對日期：2026/11/07
 
@@ -358,8 +358,8 @@ SQLite 的整表重建中途被中斷會停在部分套用的狀態。資料量�
   （`Resolve`／`Compute`／`BuildRateSnapshot` 皆為 `static` 純函式，測試可直接呼叫）
 - `MyProject.Business/Services/DataAccess/TokenUsageLogService.cs` — 接線點（`RecordAsync`）
 - `MyProject.AccessDatas/Models/TokenUsageLog.cs`、`Migrations/*_AddTokenUsageCost.cs`
-- `MyProject.Web/Diagnostics/TokenUsageFormat.cs` — 金額與匯率的顯示格式
-- `MyProject.Web/Components/Views/Analytics/TokenUsageView.razor(.cs)`、`TokenUsageGroupTable.razor`
+- `MyProject.Web.Client/Diagnostics/TokenUsageFormat.cs` — 金額與匯率的顯示格式（0.10.5 起搬到 Client，Server 與 WASM 共用）
+- `MyProject.Web.Client/Views/Analytics/TokenUsageView.razor(.cs)`、`TokenUsageGroupTable.razor`（0.10.5 起 WASM；資料經 `TokenUsageController`）
 - `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs` — PDF 的費用欄
 - `MyProject.Web/appsettings.json` — `AiPricingSettings` 區段
 - 交叉連結：[Token 用量 PRD](Token用量-prd.md)、

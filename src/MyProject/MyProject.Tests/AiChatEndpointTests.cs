@@ -202,8 +202,8 @@ public sealed class AiChatEndpointTests
 
     /// <summary>
     /// ⚠️ Provider 打錯字時 Validate 必須回訊息而不是丟例外。
-    /// 呼叫端 AiLogAnalysisService.IsAvailable 是在 LogViewerView.OnInitializedAsync 裡讀的，
-    /// 外面沒有 try-catch —— 丟出去會炸掉整個日誌檢視頁，而不只是停用 AI 按鈕。
+    /// 呼叫端 AiLogAnalysisService.IsAvailable 是在 LogsController.Options（日誌檢視頁開頁時呼叫）裡讀的，
+    /// 外面沒有 try-catch —— 丟出去會讓那支 API 500，而不只是停用 AI 按鈕。
     /// </summary>
     [Theory]
     [InlineData("Anthropic")]

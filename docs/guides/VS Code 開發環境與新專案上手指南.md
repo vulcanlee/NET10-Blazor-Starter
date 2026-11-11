@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.11
+- 文件版本：3.12
 - 文件狀態：已實作
-- 現行系統版本：0.10.2
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/11/11
 
@@ -679,7 +679,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Program.cs`（`AddCookie(MagicObjectHelper.ExternalCookieScheme, ...)`） | `options.Cookie.Name = ".MyProject.External"` | 外部登入（OAuth）暫存 Cookie 名稱殘留舊名；同機多系統時可能互撞 |
 | 🔴 `Share/Helpers/MagicObjectHelper.cs` | `DataProtectionApplicationName = "MyProject"` | **改了會讓全站既有登入 Cookie 立刻失效**（連同記住我）。這是 Data Protection 金鑰環的用途判別子。⚠️ 與上面那些不同，這一條**建議不要跟著改**；真要改請安排在可接受全體重新登入的時機 |
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
-| `Components/Views/Analytics/LogViewerView.razor.cs` | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
+| `Controllers/LogsController.cs`（0.10.5 起；之前在 `Components/Views/Analytics/LogViewerView.razor.cs`） | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |
 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` | 二進位圖檔，全域文字取代**完全不會處理** | 新系統掛著舊產品的圖示與品牌圖片。作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | `MyProject.Tests/*.cs` | 數十支測試以字串或路徑比對專案名，例如 `LoggingConventionTests`、`ButtonIconConventionTests`、`MenuPermissionConsistencyTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`PageHelpCatalogTests`、`StartupSafetyConventionTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§9](#9-更名後驗證清單) 一定要跑 `dotnet test` |

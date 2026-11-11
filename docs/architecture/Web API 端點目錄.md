@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.5
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -171,6 +171,76 @@
 | 動作 | 路由 | 回傳／說明 |
 |------|------|------|
 | 搜尋分頁 | `POST email-logs/search` | `ApiResult<PagedResult<EmailLogItemDto>>`（時間欄位不帶時差）：依建立時間新到舊；條件為起訖時間（`FromLocal`、`ToLocal`）、狀態、種類、關鍵字（比對收件者與主旨），每頁 1～200 筆。唯讀、不寫稽核（與 Server 版相同）|
+
+## 二之二、日誌與 AI 管理頁 API（0.10.5 起，WASM 遷移 M6）
+
+日誌檢視、日誌等級設定、系統例外紀錄、AI 對話紀錄、Token 用量、AI 提示詞六頁改在 WebAssembly 執行，背後是下面這組 API。規則與第二之一節相同：只有 `api/v1` 路由、每個 action 都是 **`[AdminOnly]`**（非管理員 403 並寫 `Permission.Denied`，detail「需要管理員」）、套 `[ApiValidationFilter]`、回 `ApiResult`；時間是伺服器本地時間、以不帶時差（`DateTimeKind.Unspecified`）送出。
+
+- **AI 分析回 NDJSON 串流**（`application/x-ndjson`，見《[Web API 設計慣例](Web%20API%20設計慣例.md)》「串流回應」）：每行一個 `AiStreamFrameDto`，`Kind` 依序是 `start`（帶 `AiStreamScopeDto`，例如日誌分析實際用的時間範圍）、零到多個 `delta`（`Text` 是新收到的一段文字）、最後一定是一筆 `result`（`AiResultDto`：成功與否、失敗原因、模型名稱、用量 `AiUsageDto`）。請求在進入串流之前就被拒絕時（403、404、400），回的仍是一般 `ApiResult`。
+- **停止產生／關窗＝中斷請求**：伺服器的 `RequestAborted` 取消上游 AI 呼叫，最後一筆是「已取消」的結果，稽核與記帳照寫（與 Server 版相同）；畫面收不到那筆結果，用已收到的文字自己收尾。
+- **「刪除選取」沒有批次端點**：與 M5 相同，畫面逐筆呼叫 `DELETE {id}`，每筆一列稽核。
+- 匯出的 CSV 欄位定義在 `MyProject.Web/Export/`（`ExceptionLogExport`、`AiCallLogExport`、`TokenUsageExport`）；`AiCallLogService`、`TokenUsageLogService`、`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
+- DTO 在 `MyProject.Dtos/Admins`（例外、日誌、Token 用量、提示詞）與 `MyProject.Dtos/Ai`（串流、AI 對話紀錄）；WASM 端的呼叫在 `MyProject.Web.Client/Api/ExceptionLogApi.cs`、`LogApi.cs`、`AiCallLogApi.cs`、`TokenUsageApi.cs`、`PromptTemplateApi.cs`。
+
+### 2.7 系統例外紀錄（`ExceptionLogsController`，`api/v1/exception-logs`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 搜尋分頁 | `POST exception-logs/search` | `ApiResult<PagedResult<ExceptionLogItemDto>>`；`RecordSearch` 為 true 時才寫 `ExceptionLog.Search`。排序（最後發生、次數）依點選方向生效 |
+| 選項 | `GET exception-logs/options` | `ApiResult<ExceptionLogOptionsDto>`：清除天數 `PurgeDays`、匯出與複製上限 `MaxRows`、AI 是否可用 `AiAvailable` 與原因 `AiUnavailableReason`、追問輪數上限 `MaxFollowUpRounds`（開頁與重新整理時讀）|
+| 明細 | `GET exception-logs/{id}` | `ApiResult<ExceptionLogDetailDto>`，含堆疊；寫 `ExceptionLog.View` |
+| 堆疊 | `GET exception-logs/{id}/stack-trace` | 點列複製時取完整堆疊，不寫稽核 |
+| 複製目前查詢結果 | `POST exception-logs/copy-text` | `ApiResult<ExceptionLogCopyTextDto>`：條件同搜尋，最多 `MaxRows` 筆（含堆疊）|
+| 匯出 | `POST exception-logs/export` | CSV（不包 `ApiResult`），寫 `ExceptionLog.Export`（`format=csv; rows=N`）|
+| 刪除／清除／清空 | `DELETE exception-logs/{id}`、`POST exception-logs/purge`、`POST exception-logs/clear-all` | 各寫 `ExceptionLog.Delete`／`Purge`／`ClearAll` |
+| AI 例外分析與追問 | `POST exception-logs/{id}/ai` | **NDJSON 串流**。body `ExceptionAiRequestDto`：`ConversationId`（開窗時產生，第一次分析與每輪追問共用）與**例外明細之後**的問答 `Messages`（AI 回覆、追問交替，以這次的追問結尾；第一次分析為空）。第一則例外明細（含堆疊檔）與 system 提示由伺服器依資料庫重組，畫面改不到。伺服器檢查角色交替、追問 ≤ 2,000 字、單則回覆 ≤ 512K 字、追問輪數 ≤ 上限，不合格回 400；寫 `ExceptionLog.AiAnalyze`（第一次）或 `ExceptionLog.AiFollowUp` |
+| AI 分析 PDF | `POST exception-logs/{id}/ai/pdf` | body 是畫面上的對話（被停止的回覆標 `Interrupted`）、模型與累計用量；伺服器補上例外明細與堆疊；寫 `ExceptionLog.AiExportPdf`。**不受追問輪數上限限制**（對話途中調低上限仍可匯出）|
+
+> 設計：遷移分析報告原本寫「對話存在伺服器快取」，實作改為**畫面送回問答、伺服器重建明細與系統提示**——不怕 IIS 回收、伺服器無狀態，畫面也改不到例外內容與系統提示。
+
+### 2.8 日誌檢視與日誌等級（`LogsController`，`api/v1/logs`；`LogLevelController`，`api/v1/log-level`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 搜尋 | `POST logs/search` | `ApiResult<LogSearchResultDto>`。快速區間（`last5m`、`last15m`、`last1h`、`today`）或沒填起訖時的預設「最近 1 小時」，「現在」由伺服器算；回實際套用的起訖（畫面寫回欄位）與警告；`RecordSearch` 時寫 `LogViewer.Search` |
+| 匯出 | `POST logs/export` | `.log`（UTF-8 含 BOM），伺服器依同條件重查；寫 `LogViewer.Export` |
+| AI 日誌分析 | `POST logs/ai` | **NDJSON 串流**。伺服器依同條件重查、取最新的 `MaxEntries` 筆送給 AI；`start` 帶實際範圍；寫 `LogViewer.AiAnalyze` |
+| AI 分析 PDF | `POST logs/ai/pdf` | body `LogAiReportPdfRequestDto`：條件、畫面上的報告 Markdown（≤ 512K 字）、模型名稱（≤ 200 字）、失敗原因（≤ 50 字），超過回 400；伺服器依條件重建 prompt 當附錄；寫 `LogViewer.AiAnalyzeExportPdf` |
+| 選項 | `GET logs/options` | AI 是否可用與原因 |
+| 讀取等級 | `GET log-level` | `ApiResult<LogLevelStateDto>` |
+| 套用／還原 | `POST log-level/apply`、`POST log-level/restore` | 寫 `LogLevel.Apply`（「由 X 調整為 Y（僅執行期有效）」）／`LogLevel.Restore` |
+
+### 2.9 AI 對話紀錄（`AiCallLogsController`，`api/v1/ai-call-logs`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 搜尋 | `POST ai-call-logs/search` | `ApiResult<AiCallLogPageDto>`。內文關鍵字由伺服器逐檔掃描（使用者離開或重新查詢時可取消）；搜尋稽核 `AiCallLog.Search` 寫在掃描**前**，掃描失敗退回重查也不重記。排序（送出時間、耗時、送出字元）依點選方向生效 |
+| 選項 | `GET ai-call-logs/options` | 出現過的功能與模型、是否啟用、保留天數、內文掃描上限 |
+| 深連結 | `GET ai-call-logs/by-call/{callId}` | 由 `CallId` 找紀錄 Id（其他頁的「看對話紀錄」用）|
+| 明細 | `GET ai-call-logs/{id}` | `ApiResult<AiCallLogDetailDto>`，每段只送前 20 萬字元；寫 `AiCallLog.View` |
+| 段落全文 | `GET ai-call-logs/{id}/text?part=` | 複製被截斷的段落時取全文 |
+| 原文 JSON／PDF | `POST ai-call-logs/{id}/raw`、`POST ai-call-logs/{id}/pdf` | 檔案（不包 `ApiResult`）；寫 `AiCallLog.Export` |
+| 合併 PDF | `POST ai-call-logs/merged-pdf` | `Source` 為 `selected`／`conversation`／`query`，最多 50 筆；寫 `AiCallLog.Export` |
+| 匯出 | `POST ai-call-logs/export` | CSV（不含內文，上限 10000 筆）|
+| 刪除／清除／清空 | `DELETE ai-call-logs/{id}`、`POST ai-call-logs/purge`、`POST ai-call-logs/clear-all` | 各寫 `AiCallLog.Delete`／`Purge`／`ClearAll` |
+
+### 2.10 Token 用量（`TokenUsageController`，`api/v1/token-usage`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 儀表板 | `POST token-usage/dashboard` | `ApiResult<TokenUsageDashboardDto>`：明細一頁、合計、4 種分組、每日（補零，最多 180 天）、近 1／7／30 天卡片、用量上限文字；「今天」以伺服器時間計。排序（時間、費用）依點選方向生效；`RecordSearch` 時寫 `TokenUsage.Search` |
+| 選項 | `GET token-usage/options` | 出現過的功能、呼叫種類、模型 |
+| 明細 | `GET token-usage/{id}` | 原始 usage 平攤、費率快照、對話紀錄是否存在；寫 `TokenUsage.View` |
+| 匯出 | `POST token-usage/export`、`POST token-usage/export-pdf` | CSV；PDF 可選全部或單一頁籤，**伺服器依同條件重查**（查詢與匯出之間有新紀錄時數字可能多幾筆）；寫 `TokenUsage.Export` |
+| 刪除／清除／清空 | `DELETE token-usage/{id}`、`POST token-usage/purge`、`POST token-usage/clear-all` | 各寫 `TokenUsage.Delete`／`Purge`／`ClearAll` |
+
+### 2.11 AI 提示詞（`PromptTemplatesController`，`api/v1/prompt-templates`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 全部 | `GET prompt-templates` | `ApiResult<List<PromptTemplateDto>>`：16 個鍵的標題、版本、內建預設、固定附加的安全規則 |
+| 存新版本 | `POST prompt-templates/{key}/versions` | 樂觀鎖：別人先存了回 409；建立者由伺服器取目前帳號；寫 `Prompt.Update` |
+| 啟用版本 | `POST prompt-templates/{key}/activate` | 寫 `Prompt.Activate` |
 
 ## 三、一次性下載票證 `DownloadsController`（0.10.3 起）
 

@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.5
+- 文件版本：1.6
 - 文件狀態：進行中
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.5
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/11
 
@@ -22,7 +22,7 @@
 | M3 | 0.10.2 | 分類、團隊、CRUD 產生器 | 完成 | [M03-分類團隊與CRUD產生器](測試報告/M03-分類團隊與CRUD產生器.md) |
 | M4 | 0.10.3 | 專案、附件、下載票證 | 完成 | [M04-專案附件與下載票證](測試報告/M04-專案附件與下載票證.md) |
 | M5 | 0.10.4 | 使用者、角色、稽核、郵件紀錄 | 完成 | [M05-使用者角色稽核郵件紀錄](測試報告/M05-使用者角色稽核郵件紀錄.md) |
-| M6 | 0.10.5 | AI 串流＋日誌與 AI 管理頁 | 未開始 | — |
+| M6 | 0.10.5 | AI 串流＋日誌與 AI 管理頁 | 完成 | [M06-AI串流日誌與AI管理頁](測試報告/M06-AI串流日誌與AI管理頁.md) |
 | M7 | 0.10.6 | 維運頁與首頁儀表板 | 未開始 | — |
 | M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 未開始 | — |
 | M9 | 0.10.8 | 純 Token 登入 | 未開始 | — |
@@ -158,6 +158,20 @@
 - NDJSON 串流基礎（伺服器端 `NdjsonResult`、前端串流用戶端）、IIS 對串流關閉壓縮與緩衝。
 - `/logs`、`/log-level-setting`、`/system-exceptions`、`/ai-call-logs`、`/token-usage`、`/prompt-templates`。
 - **實機情境（真實模型）**：逐字出現、停止生成保留部分內容、關閉對話窗取消並在 AI 對話紀錄可見、例外追問、超過配額提示、`javascript:` 連結被中和、PDF／Excel 匯出。
+
+> **M6 實際做法與計畫的差異**：
+> - **串流格式**：每行一個 `AiStreamFrameDto`（`MyProject.Dtos/Ai/AiStreamDtos.cs`），`Kind` 依序是 `start`（帶範圍 `AiStreamScopeDto`）、`delta`（文字）、最後一定是 `result`（`AiResultDto`）。伺服器 `NdjsonResult`（`application/x-ndjson`、關閉回應緩衝、每行 flush、`Cache-Control: no-cache, no-transform`、`X-Accel-Buffering: no`）；WASM `ApiClient.StreamAsync<T>`（帶 Token、401 刷新後重送一次、強制設定的 403 整頁導走、被拒時回一般 `ApiResult`、只有標頭受 100 秒逾時、取消回失敗不丟例外）。
+> - **使用者中斷後序列照樣讀完**：停止產生或關窗＝中斷請求，伺服器 `RequestAborted` 取消上游 AI 呼叫；`NdjsonResult` 不再寫出但把序列讀完，收尾的稽核與用量記帳一定執行。直接離開頁面造成的取消也會記 AI 分析稽核（Server 版因電路已收掉而不記）。
+> - **停止產生後畫面自己收尾**：收不到伺服器最後那筆結果，用已收到的文字加「已中止」註記收尾，所以停止後對話窗資訊不顯示模型與用量（伺服器的稽核與用量紀錄仍完整；使用者確認接受）。
+> - **例外 AI 對話不存伺服器快取**：[可行性分析報告](WASM改寫可行性分析報告.md)原寫「對話存伺服器快取」，改為畫面送 `ConversationId` 與例外明細之後的問答，伺服器以資料庫與堆疊檔重建第一則例外明細與 system 提示，並檢查角色交替、追問 ≤ 2,000 字、回覆 ≤ 512K 字、輪數 ≤ 上限。伺服器無狀態、不怕 IIS 回收，畫面也改不到例外內容與系統提示。例外 PDF 匯出不受追問輪數上限限制（對話途中調低上限仍可匯出）。
+> - **IIS**：`application/x-ndjson` 不在動態壓縮的預設類型內，不必改 `web.config` 的設定；只加註解說明主機自訂了 `dynamicTypes` 或前面有會緩衝的反向代理時要排除（部署清單同步）。
+> - **共用型別搬到 Client**（命名空間 `MyProject.Web.Ai` 不變）：`AiMarkdownRenderer`（Client 參考 Markdig）、`AiInterruption`、`AiTokenUsage`、`TokenUsageTrendChart`、`TokenUsageReportScope(s)`、`AiCallLogText`；`TokenUsageFormat`、`LogLevels.cs` 在 `MyProject.Web.Client/Diagnostics`；`ExceptionLogClipboardText` 命名空間改為 `MyProject.Web.Client.Views.Admins`。提示詞分頁標題搬到伺服器的 `PromptTemplateTitles`。CSV 欄位定義搬到 `MyProject.Web/Export/`（`ExceptionLogExport`、`AiCallLogExport`、`TokenUsageExport`）。
+> - **「刪除選取」沒有批次端點**：照 M5 由畫面逐筆呼叫 `DELETE {id}`（每筆一列稽核）。
+> - **小修正（與 Server 版不同）**：系統例外（最後發生、次數）、AI 對話紀錄（送出時間、耗時、送出字元）、Token 用量明細（時間、費用）的排序依點選方向生效，匯出、複製、PDF 與畫面同序（Server 版比對 `ascend`／`descend` 從未生效）；Token 用量 PDF 由伺服器依同條件重查（查詢與匯出之間有新紀錄時數字可能多幾筆）；例外「複製目前查詢結果」多一次查總筆數的請求，AI 是否可用改在開頁與重新整理時讀。
+> - **實機發現：被限流就被登出**：煙霧測試一分鐘內整頁載入二十幾個 WASM 頁，被 API 限流（429）後 WASM 一路試到「重新登入」把人丟回登入頁（M2 就有的行為）。改為 `ClientSession.IsThrottled`：不清 Token、不回登入頁，外框顯示「請求過於頻繁，請稍後再試。」與「重新整理」；`ApiClient` 刷新被限流時回 429 訊息。`smoke-routes.mjs` 把「被丟回登入頁」與「停在限流提示」算失敗；`Start-E2EHost.ps1` 的測試主機把 API 限流放寬到每分鐘 1000 次。
+> - **實機發現：提示詞頁沒有頁籤被選中**：AntDesign `Tabs` 先以零個頁籤畫出、資料到了才補頁籤時 `ActiveKey` 不套用，改成資料到了才畫 `Tabs`。
+> - **獨立審查 7 項（修 6 項，1 項記為已知）**：Markdown 消毒漏掉角括號自動連結 `<javascript:…>`（高；main 就有）→ `AutolinkInline` 套同一份白名單、不合格降級成純文字；日誌 AI PDF 的報告與模型名稱沒有上限 → 加長度上限、超過回 400；按停止剛好收到失敗結果時對話卡住 → 閘門改看「關窗」；AI 對話紀錄內文掃描失敗後搜尋稽核記錯 → 稽核移到掃描前；讀取提示詞時取消被當成未預期錯誤、例外端點沒有防護 → 新增 `AiStreamGuard`（保證一定有結果）；版本號與 `web.config` 註解。資源用量（Token 用量 CSV／PDF 明細全表、例外複製最多 5000 筆含堆疊、AI 原文 JSON 一次讀進記憶體）與 Server 版相同，記為已知限制。
+> - 實機腳本：`scripts/e2e/m06-views.mjs`（9 個畫面基準／比對）、`m06-ai.mjs`（真實模型 9 個情境；`quota` 參數另跑超過用量上限，主機加 `AiQuotaSettings__PerUserDailyTwd=1`）、`m06-ops.mjs`（操作 8 個情境＋37 路由煙霧測試）。
 
 ### M7 維運頁與首頁儀表板（0.10.6）
 

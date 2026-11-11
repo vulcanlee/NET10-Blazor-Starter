@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.30
+- 文件版本：1.31
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/11
 
@@ -205,7 +205,7 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 | `Category.Search` / `Project.Search` / `Team.Search` / `User.Search` / `Role.Search` | 五個主要資料頁按「搜尋」（翻頁、排序、清除不記）；Detail 只有短摘要（`hasKeyword=…; showDeleted=…`），完整條件含搜尋原文在內容檔 |
 | `Category.View` / `Project.View` / `Team.View` / `User.View` / `Role.View` | 五個主要資料頁按「修改」開窗（查看那一筆）；Detail 是名稱或帳號 |
 | `LogViewer.Search` / `ExceptionLog.Search` / `AiCallLog.Search` / `TokenUsage.Search` / `Audit.Search` | 管理診斷頁按「查詢」（日誌檢視打開頁面時的自動查詢不記）；條件同上 |
-| `ExceptionLog.View` / `AiCallLog.View` / `TokenUsage.View` / `Audit.View` | 開明細窗。日誌檢視的展開只發生在瀏覽器端，沒有 `LogViewer.View` |
+| `ExceptionLog.View` / `AiCallLog.View` / `TokenUsage.View` / `Audit.View` | 開明細窗。日誌檢視的展開只發生在瀏覽器端，沒有 `LogViewer.View`。0.10.5 起這四頁的查詢與明細稽核都由各自的 API（`ExceptionLogsController`、`AiCallLogsController`、`TokenUsageController`、`AuditLogsController`；日誌檢視是 `LogsController`）寫，規則不變 |
 
 **修改前後差異**（0.9.174 起要開 `RecordFieldChanges`）：分類、專案、團隊、使用者、角色的修改（Blazor 與 Web API 兩條路徑；0.10.2 起分類、團隊的 API 也走服務，與畫面同一份）以及個人資料改姓名，
 由 `AuditDiff` 比對修改前後的純量欄位寫進內容檔；Detail 維持原本的短摘要。主鍵、版本號、建立／更新時間、軟刪除欄位不比；
@@ -236,14 +236,14 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）；0.10.2 起 WASM 頁面由開頁紀錄 `POST /api/v1/shell/page-view` 依選單的權限鍵判斷後記（Detail `via=WASM`）|
 | `Project.FileDownload` | `DownloadsController`（0.10.3 起兌換下載票證時；之前是 `ProjectFileController`） |
-| `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
-| `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
+| `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView`（0.10.5 起由 `LogLevelController` 的 `apply`／`restore` 寫）|
+| `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView`（0.10.5 起由 `LogsController` 的 `ai`／`ai/pdf` 寫；使用者中斷串流時也寫）|
 | `Audit.Purge` / `Audit.ClearAll` | `AuditLogView`（0.9.42 起；0.10.4 起由 `AuditLogsController` 的 `purge`／`clear-all` 寫）|
 | `Audit.Verify` | 完整性驗證（0.9.175 起）：稽核紀錄頁的「驗證完整性」（0.10.4 起由 `AuditLogsController.Verify` 寫）與排程作業「稽核紀錄完整性檢查」；`TargetType=AuditLog`、`TargetId=*`，結果有問題時 `Success=false`；Detail `result=ok\|failed; signed=N; issues=M; legacy=L; keyMismatch=K; trigger=T`（排程為 `Schedule`、補跑為 `CatchUp`、在排程作業頁按「立即執行」為 `Manual`、稽核紀錄頁的按鈕為 `manual`）。寫在檢查之後，所以這一筆本身由下一次檢查驗證 |
 | `Email.Test` | `EmailTestService`（系統健康監控頁的寄信測試，0.9.59 起；detail 只有 provider 與成敗，不含收件者）|
 | `Ai.QuotaBlocked` | `AiAccountingChatClient`（AI 用量上限在送出前擋下，0.9.109 起；detail `operation=…; limit=…; used=…`）|
 | `Ai.ToolInvoked` / `Ai.ToolDenied` / `Ai.ToolRejected` | Agent 工具（0.9.142 起）：`AiAgentToolFactory`（執行成功或失敗、權限擋下）、`AiToolApprovals`（核准時權限擋下，detail 加 `stage=approval`）、`AiAgentRunner`／`AiAgentStep`（使用者拒絕核准）；detail `agent=…; tool=…; permission=…`，不記參數與回傳內容 |
-| `Prompt.Update` / `Prompt.Activate` | `PromptTemplateView`（「AI 提示詞」頁，0.9.108 起）與系統管理助理的 `AiAssistantTools`；detail 記 `version=…`（經系統管理助理時另加 `via=`），不記提示詞內容 |
+| `Prompt.Update` / `Prompt.Activate` | `PromptTemplateView`（「AI 提示詞」頁，0.9.108 起；0.10.5 起由 `PromptTemplatesController` 寫）與系統管理助理的 `AiAssistantTools`；detail 記 `version=…`（經系統管理助理時另加 `via=`），不記提示詞內容 |
 | `AdminPatrol.AutoPurge` | 排程作業「巡檢報告清理」（0.9.161 起；detail `rows=N; days=D; trigger=T`，不記報告內容）|
 
 **系統管理助理與定時巡檢**：系統管理助理（0.9.155 起）執行的查詢與異動沿用原頁面的動作代碼（例如 `User.Search`、`Prompt.Activate`），detail 加 `via=admin-assistant`（0.9.155～0.9.156 的舊紀錄是 `source=`），工具本身另記 `Ai.ToolInvoked` 等。定時巡檢（0.9.161 起）沒有登入使用者，工具稽核的操作者留空（清單顯示「（系統／匿名）」），detail 最後註明「排程巡檢」。

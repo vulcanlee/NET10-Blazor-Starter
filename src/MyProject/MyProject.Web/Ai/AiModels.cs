@@ -27,56 +27,6 @@ public sealed record AiPromptBuildResult
     public bool IsEmpty => IncludedEntryCount == 0;
 }
 
-/// <summary>
-/// API 回傳的用量。每個欄位都是 nullable，代表「這次沒回就不顯示」。
-///
-/// ⚠️ 欄名刻意用 Count 結尾而非 Tokens：MyProject.Tests 的 LoggingConventionTests
-/// 禁止日誌佔位符含 "token"，用 Count 結尾才能安全地寫進 ILogger 訊息。
-/// </summary>
-public sealed record AiTokenUsage
-{
-    /// <summary><c>usage.prompt_tokens</c></summary>
-    public int? InputCount { get; init; }
-
-    /// <summary><c>usage.completion_tokens</c></summary>
-    public int? OutputCount { get; init; }
-
-    /// <summary><c>usage.total_tokens</c></summary>
-    public int? TotalCount { get; init; }
-
-    /// <summary><c>usage.prompt_tokens_details.cached_tokens</c></summary>
-    public int? CachedInputCount { get; init; }
-
-    /// <summary><c>usage.completion_tokens_details.reasoning_tokens</c></summary>
-    public int? ReasoningCount { get; init; }
-
-    public bool HasAny
-        => InputCount.HasValue || OutputCount.HasValue || TotalCount.HasValue
-        || CachedInputCount.HasValue || ReasoningCount.HasValue;
-
-    /// <summary>
-    /// 多次呼叫的累計（0.9.68 起，AI 例外分析的多輪對話用）。
-    /// 每個欄位只加「有回報的」；全部都沒回報的欄位維持 null，全部為 null 時回 null。
-    /// </summary>
-    public static AiTokenUsage? Sum(IEnumerable<AiTokenUsage?> usages)
-    {
-        var items = usages.OfType<AiTokenUsage>().ToList();
-        var total = new AiTokenUsage
-        {
-            InputCount = SumField(items, usage => usage.InputCount),
-            OutputCount = SumField(items, usage => usage.OutputCount),
-            TotalCount = SumField(items, usage => usage.TotalCount),
-            CachedInputCount = SumField(items, usage => usage.CachedInputCount),
-            ReasoningCount = SumField(items, usage => usage.ReasoningCount),
-        };
-
-        return total.HasAny ? total : null;
-
-        static int? SumField(List<AiTokenUsage> items, Func<AiTokenUsage, int?> selector)
-            => items.Any(item => selector(item).HasValue) ? items.Sum(item => selector(item) ?? 0) : null;
-    }
-}
-
 public enum AiAnalysisFailureReason
 {
     None = 0,

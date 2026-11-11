@@ -367,7 +367,7 @@ public class AiCallLogService : IAiCallLogRecorder
             var item = await context.AiCallLog.FirstOrDefaultAsync(x => x.Id == id);
             if (item is null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的對話紀錄。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的對話紀錄。");
             }
 
             var contentFile = item.ContentFile;
@@ -380,7 +380,7 @@ public class AiCallLogService : IAiCallLogRecorder
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete AI call log. CallLogId={CallLogId}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除對話紀錄失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除對話紀錄失敗。", ex);
         }
     }
 
@@ -400,7 +400,7 @@ public class AiCallLogService : IAiCallLogRecorder
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to clear AI call logs.");
-            return VerifyRecordResultFactory.Build(false, "清空對話紀錄失敗。", ex);
+            return VerifyRecordResultFactory.Error("清空對話紀錄失敗。", ex);
         }
     }
 

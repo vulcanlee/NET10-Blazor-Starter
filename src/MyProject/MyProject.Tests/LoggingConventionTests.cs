@@ -257,8 +257,6 @@ public sealed class LoggingConventionTests
         "ExceptionLogProvider.cs",
         "ExceptionStackFileStore.cs",
         "ExceptionLogService.cs",       // RecordAsync 由管線寫入器呼叫，刻意吞掉、不回到管線
-        // 純顯示用的 JSON 美化（static），解析失敗就顯示原文，沒有任何資料受影響。
-        "TokenUsageView.razor.cs",
     ];
 
     [Fact]

@@ -10,25 +10,9 @@ using MyProject.Web.Diagnostics;
 namespace MyProject.Web.Ai;
 
 /// <summary>
-/// 報表要輸出哪些區塊。<see cref="All"/> 之外的每一個值都對應畫面上的一個頁籤 ——
-/// 「匯出目前頁籤」就是把目前選中的頁籤鍵轉成這裡的一個值。
-///
-/// ⚠️ 標題、條件區與合計<b>不受本列舉影響，一律輸出</b>：
-/// 一份看不出是在什麼條件下產生的統計沒有意義。
+/// Token 用量 PDF 報表的輸入。0.10.5 起（WASM 遷移 M6）由 <c>TokenUsageController</c> 依頁面送來的查詢條件組好
+/// （報表範圍 <see cref="TokenUsageReportScope"/> 與頁籤鍵的對照在 Client 的 <see cref="TokenUsageReportScopes"/>）。
 /// </summary>
-public enum TokenUsageReportScope
-{
-    All,
-    Trend,
-    Daily,
-    Account,
-    Operation,
-    Model,
-    CallKind,
-    Detail,
-}
-
-/// <summary>Token 用量 PDF 報表的輸入。全部由 Token 用量頁在按下匯出時組好。</summary>
 public sealed record TokenUsageReportRequest
 {
     public string SystemName { get; init; } = string.Empty;
@@ -197,17 +181,7 @@ public static class TokenUsageReportPdfBuilder
     }
 
     /// <summary>單頁籤報表的標題後綴。拿在手上要看得出這份只涵蓋哪一個頁籤。</summary>
-    internal static string DescribeScope(TokenUsageReportScope scope) => scope switch
-    {
-        TokenUsageReportScope.Trend => "趨勢圖",
-        TokenUsageReportScope.Daily => "每日趨勢",
-        TokenUsageReportScope.Account => "依使用者",
-        TokenUsageReportScope.Operation => "依作業",
-        TokenUsageReportScope.Model => "依模型",
-        TokenUsageReportScope.CallKind => "依型別",
-        TokenUsageReportScope.Detail => "明細",
-        _ => "全部頁籤",
-    };
+    internal static string DescribeScope(TokenUsageReportScope scope) => TokenUsageReportScopes.Describe(scope);
 
     private static void AddTitle(Section section, TokenUsageReportRequest request)
     {

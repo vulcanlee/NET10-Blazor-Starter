@@ -20,7 +20,7 @@ export const logoutRoute = '/Auths/Logout';
 // 以 WebAssembly 執行的頁面（0.10.1 起）：等到這個元素出現才算載入完成，再截圖。
 const readySelectors = { '/Profile': '.profile-page' };
 
-async function visit(page, route, recorder, index) {
+async function visit(page, route, recorder, index, { signedIn = false } = {}) {
   const errors = [];
   const onError = (error) => errors.push(error.message);
   page.on('pageerror', onError);
@@ -34,10 +34,13 @@ async function visit(page, route, recorder, index) {
     const blazorError = await page.locator('#blazor-error-ui').isVisible().catch(() => false);
     const denied = route !== '/Error' && (await page.getByText('你沒有權限存取此頁面').count()) > 0;
     const finalPath = new URL(page.url()).pathname;
+    // 0.10.5 起：登入後的頁面不可以被丟回登入頁（M6 實機發現連續快速換頁時被限流、WASM 誤判成登入失效），也不可以停在限流提示。
+    const kickedOut = signedIn && finalPath.toLowerCase() === '/auths/login';
+    const throttled = (await page.locator('.session-throttled').count()) > 0;
     const file = await screenshot(page, `smoke-${String(index).padStart(2, '0')}-${route.replace(/[^A-Za-z0-9]+/g, '_') || 'root'}`);
-    const passed = status > 0 && status < 500 && !blazorError && !denied && errors.length === 0;
+    const passed = status > 0 && status < 500 && !blazorError && !denied && !kickedOut && !throttled && errors.length === 0;
     recorder.add(`R${String(index).padStart(2, '0')}`, `開啟 ${route}`, passed,
-      `HTTP ${status}，最後停在 ${finalPath}${blazorError ? '，出現錯誤列' : ''}${denied ? '，顯示無權限' : ''}${errors.length ? `，頁面錯誤：${errors.join('；')}` : ''}（${basename(file)}）`);
+      `HTTP ${status}，最後停在 ${finalPath}${blazorError ? '，出現錯誤列' : ''}${denied ? '，顯示無權限' : ''}${kickedOut ? '，被丟回登入頁' : ''}${throttled ? '，顯示限流提示' : ''}${errors.length ? `，頁面錯誤：${errors.join('；')}` : ''}（${basename(file)}）`);
   } finally {
     page.off('pageerror', onError);
   }
@@ -49,7 +52,7 @@ export async function runSmoke(browser, recorder) {
   const page = await signedIn.newPage();
   await login(page);
   for (const route of authenticatedRoutes) {
-    await visit(page, route, recorder, index++);
+    await visit(page, route, recorder, index++, { signedIn: true });
   }
 
   const anonymous = await newContext(browser);

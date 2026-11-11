@@ -295,6 +295,14 @@ public class TokenUsageLogService : ITokenUsageRecorder
         };
     }
 
+    /// <summary>單筆（明細窗用，0.10.5 起 Web API 的 <c>GET api/v1/token-usage/{id}</c>）；找不到回 null。</summary>
+    public async Task<TokenUsageLogAdapterModel?> GetByIdAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var item = await context.TokenUsageLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        return item is null ? null : Mapper.Map<TokenUsageLogAdapterModel>(item);
+    }
+
     /// <summary>讀取原始 usage JSON。檔案不存在時回 null，由畫面顯示友善訊息。</summary>
     public async Task<string?> GetRawUsageAsync(int id)
     {
@@ -313,7 +321,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
             var item = await context.TokenUsageLog.FirstOrDefaultAsync(x => x.Id == id);
             if (item is null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的用量紀錄。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的用量紀錄。");
             }
 
             var rawFile = item.RawUsageFile;
@@ -326,7 +334,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete LLM usage record. UsageId={UsageId}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除用量紀錄失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除用量紀錄失敗。", ex);
         }
     }
 
@@ -346,7 +354,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to clear LLM usage records.");
-            return VerifyRecordResultFactory.Build(false, "清空用量紀錄失敗。", ex);
+            return VerifyRecordResultFactory.Error("清空用量紀錄失敗。", ex);
         }
     }
 
@@ -408,7 +416,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge LLM usage records.");
-            return VerifyRecordResultFactory.Build(false, "清除用量紀錄失敗。", ex);
+            return VerifyRecordResultFactory.Error("清除用量紀錄失敗。", ex);
         }
     }
 

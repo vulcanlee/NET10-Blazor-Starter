@@ -1,10 +1,10 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：第一～四階段已實作
-- 現行系統版本：0.9.170
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.140
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 > 系統內**所有** LLM 呼叫都經由 Microsoft Agent Framework（MAF）建立的 agent 送出（0.9.140 起）。
 > 本文件說明管線怎麼組、記帳點在哪裡、為什麼這樣決定、Agent 骨架怎麼用（§6）、對話怎麼保存與接續（§6.7）、多 Agent 工作流程（§6.8），以及各階段的範圍。
@@ -66,6 +66,7 @@ Microsoft.Extensions.AI 的 OpenAI 轉接 → OpenAI 官方 SDK
   - **呼叫端**：`IAiChatCompletionClient.StreamAsync` 回傳 `IAsyncEnumerable<AiStreamUpdate>` —— 一段段 `TextDelta`，最後**恰好一筆**帶 `Result`；
     不丟例外，取消時最後一筆是 `Canceled`，已收到文字則 `IsInterrupted = true`、`Markdown` 為已收到的部分。
     `IAiLogAnalysisService.AnalyzeStreamingAsync`、`IAiExceptionAnalysisService.AskStreamingAsync` 包在它外面；非串流版保留。
+  - **送到瀏覽器**（0.10.5 起，WASM 遷移 M6）：日誌與例外的 AI 分析頁在 WASM，`LogsController`／`ExceptionLogsController` 把 `AiStreamUpdate` 序列包進 `AiStreamGuard`（保證一定有結果）、轉成 `AiStreamFrameDto`，以 NDJSON（`NdjsonResult`）逐行送出；瀏覽器中斷請求時 `RequestAborted` 取消這裡的呼叫，記帳與稽核行為不變。見 [Web API 設計慣例](Web%20API%20設計慣例.md)「串流回應」。
 
 ## 3. 技術決定
 
@@ -192,7 +193,7 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 ### 6.6 新增一個 Agent
 
 1. `AiAgentDefinition` ＋ 每個工具一個 `AiToolDefinition`（權限必填、異動工具設 `IsMutating`；工具方法呼叫既有服務、回給模型的欄位精簡），工具類別註冊到 DI。
-2. `PromptTemplateKeys` 加種類（含 `All`）、`AiPromptGuardrails` 補內建提示詞與「不可信內容」說法、`PromptTemplateView` 補分頁名稱。
+2. `PromptTemplateKeys` 加種類（含 `All`）、`AiPromptGuardrails` 補內建提示詞與「不可信內容」說法、`PromptTemplateTitles`（0.10.5 起在 `MyProject.Web/Ai/`；之前是 `PromptTemplateView`）補分頁名稱。
 3. `TokenUsageOperations` 加作業名稱；新模型補 `AiPricingSettings.Models` 費率。
 4. `AiModelSettings` 加屬性 → `SystemParameterCatalog.All` 加一行 → appsettings.json 加鍵 → [日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md) 加一列；`AiReasoningSettings` 照樣加同名的推論等級（0.9.168 起）。
 5. 頁面用 `IAiAgentRunner`（對話保存內建，「我的對話」清單、改名、刪除用 `AiAgentConversationService`，見 §6.7）；頁面權限照新增頁面的四處同步，會花 AI 費用的頁面加進 `RolePermissionService.NotGrantedToDefaultRole`（不自動開給預設角色），並寫操作說明。
@@ -291,7 +292,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 
 #### 6.8.6 新增一條工作流程
 
-1. 每個 agent 一個 `AiAgentDefinition`（`Operation`、`ModelKey` 同流程），提示詞種類、`AiPromptGuardrails`、`PromptTemplateView` 分頁名稱照 §6.6 第 2 步。
+1. 每個 agent 一個 `AiAgentDefinition`（`Operation`、`ModelKey` 同流程），提示詞種類、`AiPromptGuardrails`、`PromptTemplateTitles` 分頁名稱照 §6.6 第 2 步。
 2. `TokenUsageOperations` 加流程名稱；`AiModelSettings` 加屬性、`SystemParameterCatalog.All`、appsettings.json、[日誌與設定檔說明 §4.17](../operations/日誌與設定檔說明.md) 照 §6.6 第 3、4 步。
 3. 寫 `AiWorkflowDefinition`：`Steps`（每個 agent 一個 `AiAgentStepSpec`：`ExpectedInputs`、`ComposeInput`、`ComposeRevision`、`CanAskUser`、`OutputTitle`）
    與 `Wire`（`AiWorkflowGraph` 的 `Step`／`ReviewGate`／`Fork`／`Start`／`Edge`／`FanOut`；人工介入通道與產出由執行器自動接上）。
@@ -367,7 +368,7 @@ MAF 內建的 agent executor（`AIAgent.BindAsExecutor`）**不用**。實作前
 | `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層：用量上限、逾時、錯誤對應、Token 用量、AI 對話紀錄（非串流與串流共用，0.9.141 起含 `GetStreamingResponseAsync`）|
 | `MyProject.Web/Ai/AiPipelinePolicies.cs` | `AiHttpCapturePolicy`（擷取原文）、`AzureApiKeyPolicy`（Azure 認證標頭）、`AiCapturingStream`（串流回應邊讀邊記，0.9.141 起）|
 | `MyProject.Web/Ai/AiChatResponseParser.cs` | 從回應原文解析用量、模型、`finish_reason`、過濾類別；`ParseStream`／`ExtractStreamUsageJson` 解析 SSE（0.9.141 起）|
-| `MyProject.Web/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記文字與 `Annotate`（只用在畫面、複製、PDF）|
+| `MyProject.Web.Client/Ai/AiInterruption.cs`（0.10.5 起搬到 Client 共用，命名空間不變）| 「產生途中被使用者停止」的註記文字與 `Annotate`（只用在畫面、複製、PDF）|
 | `MyProject.Web/Ai/AiCallContext.cs` | `AiCallContext`（0.9.142 起含 `RunId`、`ModelKey`）、`AiCallException`、`AiCallState`（0.9.142 起含 `RunId`）、`AiCallOutcome` |
 | `MyProject.Web/Ai/Agents/AiAgentDefinition.cs` | `AiAgentDefinition`、`AiToolDefinition`（0.9.142 起）|
 | `MyProject.Web/Ai/Agents/AiAgentToolFactory.cs` | `AiAgentToolFactory`、`IAiToolPermissionGuard`／`AiToolPermissionGuard`（權限與稽核）、`PermissionCheckedAIFunction`（0.9.142 起）|

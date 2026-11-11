@@ -1,8 +1,8 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.9.169
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.72
 - 最後核對日期：2026/11/07
 
@@ -17,7 +17,7 @@
   - 單筆刪除、清除此日之前、清空全部，以及依保留天數自動過期。
   - 與 [Token 用量](Token用量-prd.md) 以呼叫識別碼（CallId）雙向連結。
 - 非範圍：
-  - 不提供 Web API（與同群組的 Token 用量、日誌檢視等管理員頁面一致，只有 Blazor 畫面）。
+  - 不提供對外的 Web API：0.10.5 起（WASM 遷移 M6）只有本頁 WebAssembly 畫面用的、只限管理員的 `api/v1/ai-call-logs`（見 §二之一；之前只有 Blazor 畫面）。
   - 不建全文索引：內文搜尋在篩選結果內逐檔掃描，內文不複製進資料庫（見 §4.1）。
   - 不能重送或修改對話。
   - 不做「一般使用者只看自己的」分權。
@@ -33,8 +33,18 @@
 
 | 路由 | 選單 | 所需權限 |
 | --- | --- | --- |
-| `/ai-call-logs` | 系統管理 → AI 管理 → id=66「AI 對話紀錄」（AI 提示詞與 Token 用量之間，圖示 `forum`；0.9.113 前在「統計與分析」）| **管理員專屬**（`CheckIsAdmin()`；權限鍵 `角色_AI對話紀錄` 不上架角色矩陣）|
+| `/ai-call-logs` | 系統管理 → AI 管理 → id=66「AI 對話紀錄」（AI 提示詞與 Token 用量之間，圖示 `forum`；0.9.113 前在「統計與分析」）| **管理員專屬**（0.10.5 起 WASM 頁以 `PagePermissions.IsAdmin` 判斷、API 以 `[AdminOnly]` 擋；之前是 `CheckIsAdmin()`；權限鍵 `角色_AI對話紀錄` 不上架角色矩陣）|
 | `/ai-call-logs?callId={Guid}` | Token 用量明細窗「AI 對話紀錄」列的查看對話按鈕 | 同上；載入後自動開啟該筆明細，找不到時提示原因 |
+
+### 二之一、WebAssembly 與 Web API（0.10.5 起，WASM 遷移 M6）
+
+頁面與明細窗在瀏覽器執行（`MyProject.Web.Client/Pages/AiCallLogPage.razor`、`Views/Analytics/AiCallLogView.*`、`AiCallLogDetailModal.*`；Server 版已刪除），畫面、按鈕與訊息和之前相同。資料經只限管理員的 `AiCallLogsController`（`api/v1/ai-call-logs`，端點見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 2.9）：
+
+- 內文關鍵字由伺服器逐檔掃描（請求取消時停止）；搜尋稽核 `AiCallLog.Search` 寫在掃描**前**，掃描失敗退回重查時不重記（0.10.5 獨立審查）。
+- 深連結經 `GET by-call/{callId}` 找到紀錄 Id；明細每段只送前 20 萬字元，複製被截斷的段落時以 `GET {id}/text?part=` 取全文；原文 JSON（`POST {id}/raw`）、單筆 PDF、合併 PDF（`selected`／`conversation`／`query`，最多 50 筆）與 CSV 都由伺服器產生。
+- **排序生效**：「送出時間」「耗時」「送出字元」依點選方向排序（Server 版比對的方向字串對不上，從未生效），CSV 與合併 PDF 與畫面同序。
+- CSV 欄位定義在 `MyProject.Web/Export/AiCallLogExport.cs`；`AiCallLogService` 的失敗標上 `Kind`（404／409／400／500）。
+- 已知限制（與 Server 版相同）：原文 JSON 一次讀進記憶體。
 
 隱私揭露：在操作說明（日誌檢視、系統例外紀錄、系統健康監控、Token 用量、本頁）中註明
 「AI 呼叫內容會被記錄，管理員可查閱」，畫面不另加提示；本頁上方的說明框另標示內容敏感與保留天數。
@@ -58,7 +68,7 @@
 `AiAccountingChatClient`（單一 `finally`）；請求與回應原文由 SDK 管線原則 `AiHttpCapturePolicy` 擷取。見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
 
 AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `ExceptionAiAnalysisModal` 開窗時產生，經 `AiExceptionCallContext`
-傳給無狀態的服務），明細窗會列出同一段對話的所有呼叫。本專案的追問與第一次分析共用作業名稱「AI 例外分析」，以關聯說明區分輪數。
+傳給無狀態的服務；0.10.5 起對話窗在 WASM，每次追問把 `ConversationId` 一起送到 `POST api/v1/exception-logs/{id}/ai`），明細窗會列出同一段對話的所有呼叫。本專案的追問與第一次分析共用作業名稱「AI 例外分析」，以關聯說明區分輪數。
 Agent 測試台的一段對話同樣共用一個 `ConversationId`（開對話時產生）；0.9.143 起對話會保存，日後從「我的對話」接續時沿用同一個 `ConversationId`，前後的呼叫仍串成同一段（對話本身的保存與過期是另一套，見 [MAF AI 呼叫架構 §6.7](../architecture/MAF-AI呼叫架構.md)；刪除或過期的 Agent 對話不影響本功能的紀錄）。
 Agent 工作流程（0.9.144 起）的一次執行共用一個 `ConversationId` 與一個 `RunId`：流程裡每個 agent、人工介入（工具核准、Agent 提問、審閱）停頓前後的所有呼叫都串在一起，以關聯說明區分是哪個 agent。
 
@@ -122,10 +132,10 @@ UI 依本專案的設計規範：說明框沿用 Token 用量頁的淡色框、�
   - ⚠️ 不建索引：內文只准存在內容檔（§一的紅線），也不進系統備份的資料庫。
   - 稽核：`AiCallLog.Search` 多一個條件 `content`（原文只進詳細內容檔，摘要只記有沒有填）。
 - 欄位：
-  - 送出時間（可排序，預設新到舊）
+  - 送出時間（可排序，預設新到舊；0.10.5 起依點選方向生效）
   - 結果（`StatusPill`：成功／失敗（原因）／已取消）
   - 作業、發起者、模型
-  - 耗時（可排序）、送出字元（可排序）
+  - 耗時（可排序）、送出字元（可排序）（0.10.5 起依點選方向生效）
   - 關聯說明
   - 操作：查看對話、刪除
 - 工具列：查詢、重新整理、匯出 CSV（上限 10,000 筆，**只含中繼資料**）、匯出目前查詢結果（PDF，0.9.169 起）、清空全部；另有「清除此日之前＋批次清除」，勾選後出現「刪除選取」與「合併匯出 PDF（N）」（0.9.169 起）。

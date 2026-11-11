@@ -36,6 +36,10 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m04-projects.mjs      # M4 情境 P1～P18＋全部路由煙霧測試（會先佈置 m04-views 的固定資料）
    node ./scripts/e2e/m05-views.mjs server  # M5 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
    node ./scripts/e2e/m05-admin.mjs         # M5 情境 A1～A13＋全部路由煙霧測試（會先佈置 m05-views 的固定資料）
+   node ./scripts/e2e/m06-views.mjs server  # M6 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
+   node ./scripts/e2e/m06-ai.mjs            # M6 AI 情境 M6-A1～A9（真實模型，需要 AI 設定）
+   node ./scripts/e2e/m06-ai.mjs quota      # M6 超過用量上限情境 M6-Q1（主機要另外啟動，見下方）
+   node ./scripts/e2e/m06-ops.mjs           # M6 操作情境 M6-O1～O8＋全部路由煙霧測試
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -49,6 +53,18 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
 | `E2E_CHROME` | Chrome 執行檔，預設 `C:/Program Files/Google/Chrome/Application/chrome.exe` |
 | `E2E_HEADED` | 設為 `1` 時顯示瀏覽器視窗 |
 
+**M6 的 AI 情境（0.10.5 起）**：`m06-ai.mjs` 呼叫真實模型，`Start-E2EHost.ps1` 以 Development 執行，金鑰照常讀 User Secrets（腳本不碰金鑰）；沒有 AI 設定時這些情境會失敗。
+`quota` 參數只跑「超過每人每日用量上限」，主機要以極低的上限啟動（同一個終端機先設環境變數再啟動，`Start-E2EHost.ps1` 會傳給網站）：
+
+```powershell
+$env:AiQuotaSettings__PerUserDailyTwd = '1'
+pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
+```
+
+跑完記得關掉這個主機、清掉環境變數，再用一般主機跑其他情境。結果分別寫到 `E2E_OUT_DIR` 的 `m06-results.json`、`m06-quota-results.json`、`m06-ops-results.json`。
+
+`Start-E2EHost.ps1` 0.10.5 起把 API 限流放寬到每分鐘 1000 次（`RateLimit__ApiRequestsPerMinute`）：腳本換頁比人快得多，正式的每人每分鐘 120 次會被打滿。
+
 ⚠️ 情境腳本會改隔離資料庫（例如暫時把 support 標成必須改密碼、變更 support 的密碼），只能對 `Start-E2EHost.ps1` 啟動的網站執行，不可指向開發或正式資料庫。
 
 ## 檔案
@@ -56,7 +72,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
 | 檔案 | 內容 |
 |---|---|
 | `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs` |
-| `smoke-routes.mjs` | 全部 37 個路由的煙霧測試：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖 |
+| `smoke-routes.mjs` | 全部 37 個路由的煙霧測試：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖；0.10.5 起登入後的頁面被丟回登入頁、或停在「請求過於頻繁」的限流提示，也算失敗 |
 | `m01-tokens.mjs` | M1 情境：Cookie 換 Token、刷新輪替與重用偵測、登出撤銷、強制改密碼擋 API、改密碼後其他登入立即失效、登入 Token 清理排程 |
 | `crud-ui.mjs` | 資料維護頁的共用操作：開清單、新增、修改、刪除、還原、永久刪除、確認窗、右下角通知（0.10.2 起） |
 | `crud-generated.mjs` | CRUD 產生器產生的頁面實跑（`E2E_CRUD_ROUTES` 指定路由）；由 `scripts/Test-CrudGenerator.ps1` 在暫存 worktree 呼叫 |
@@ -66,4 +82,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
 | `m04-projects.mjs` | M4 情境 P1～P18：完整流程與多檔上傳、下載內容比對、票證重放、修改時移除附件、約 200 MB 的大檔、超過 1 GB 被擋、副檔名被擋、重名、兩個分頁同時修改、刪除／還原／永久刪除（實體檔移除）、匯出、批次刪除、異動歷程、資料保留頁「前往」、Server／WASM 切換、沒有未處理錯誤、團隊範圍（看不到也申請不到票證）、唯讀角色、沒有權限開頁的稽核。P5 用 `fsutil` 建 1.1 GB 的暫存檔（只選檔、不上傳） |
 | `m05-views.mjs` | M5 外觀比對（0.10.4 起）：沿用 m03-views 的團隊與唯讀角色，佈置固定的使用者（一般、鎖定、兩步驟驗證、已刪除）、角色、稽核紀錄與寄信紀錄，拍使用者、角色、稽核紀錄、寄信紀錄頁的 8 個畫面（使用者清單、修改窗、已刪除、角色清單、修改窗、稽核紀錄、稽核明細、寄信紀錄）。為了不讓截圖露出個資，會把隔離資料庫裡 support 的 Email 改成 `support@e2e.test` |
 | `m05-admin.mjs` | M5 情境 A1～A13（0.10.4 起）：使用者完整流程、改別人的角色後對方被登出、停用後對方被登出、解除鎖定、複製使用者（產生密碼、交付窗、稽核記 `copiedFrom`）、匯出使用者 Excel、角色權限矩陣存檔、稽核查詢／明細／完整性驗證／匯出、寄信紀錄篩選、Server／WASM 切換、沒有未處理錯誤、改自己的角色後這台裝置仍維持登入、非管理員直打管理 API 得 403 |
+| `m06-views.mjs` | M6 外觀比對（0.10.5 起）：佈置固定的例外、AI 對話紀錄、Token 用量與提示詞版本，另寫一個固定日期（2026-11-01）的日誌檔，拍 9 個畫面（日誌檢視、日誌等級、系統例外、例外明細、AI 對話紀錄、Token 用量、Token 明細、AI 提示詞、提示詞編輯窗）。資料只佈置一次，同一個資料庫可以重跑 |
+| `m06-ai.mjs` | M6 AI 情境（0.10.5 起，真實模型）：M6-A1 例外 AI 分析逐字出現、A2 追問、A3 回覆裡的 `javascript:` 連結被中和、A4 匯出 PDF、A5 稽核筆數與內容不含對話、A6 關窗＝取消且 AI 對話紀錄看得到、A7 停止產生保留部分內容並標示已中止、A8 日誌 AI 分析與匯出 PDF、A9 沒有未處理的瀏覽器錯誤；`quota` 參數只跑 M6-Q1 超過用量上限（沒有呼叫模型） |
+| `m06-ops.mjs` | M6 操作情境（0.10.5 起，不呼叫 AI）：M6-O1 日誌等級套用與還原、O2 提示詞存新版本與切回內建預設、O3 系統例外排序／匯出同序／刪除、O4 AI 對話紀錄深連結與匯出、O5 Token 用量匯出與明細窗連到 AI 對話紀錄、O6 日誌快速區間與匯出含 BOM、O7 非管理員直打 M6 的 API 得 403、O8 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

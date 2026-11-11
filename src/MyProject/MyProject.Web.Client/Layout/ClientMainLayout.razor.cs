@@ -93,6 +93,8 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         _ = RecordPageViewAsync(currentPath, "entry");
     }
 
+    private void ReloadPage() => NavigationManager.Refresh(forceReload: true);
+
     /// <summary>頂欄的頁名：先找選單，不在選單裡的頁面（例如個人資料）用說明主題的標題（與 Server 版相同）。</summary>
     internal static string ResolvePageTitle(IEnumerable<ClientMenuItem> menuItems, IReadOnlyList<HelpTopicDto> helpTopics, string normalizedPath)
         => TryFindMenuTitle(menuItems, normalizedPath, out var pageTitle)

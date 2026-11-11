@@ -377,3 +377,12 @@ article {
     font-weight: 700;
     line-height: 1;
 }
+
+/* 伺服器暫時限流時的提示（0.10.5 起）。 */
+.session-throttled {
+    max-width: 480px;
+    margin: 120px auto;
+    padding: 24px;
+    text-align: center;
+    color: var(--app-text);
+}
