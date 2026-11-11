@@ -228,6 +228,7 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpGet("me")]
     [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [SignedInUser]
     [AllowDuringForcedSetup]
     public ActionResult<ApiResult<SessionInfoDto>> Me()
     {

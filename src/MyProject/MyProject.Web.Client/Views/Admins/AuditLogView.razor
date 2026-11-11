@@ -151,9 +151,9 @@ else
                     <div><dt>發生時間（本地）</dt><dd>@detailItem.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
                     @*
                         UTC 原值一併列出：跨時區協查、或要與日誌檔的時間戳對照時會用到。
-                        detailItem.OccurredAt 已是本地時間，所以這裡反向轉回去。
+                        0.10.4 起（WASM）由伺服器換算好帶來：瀏覽器的時區不一定與伺服器相同。
                     *@
-                    <div><dt>發生時間（UTC）</dt><dd>@detailItem.OccurredAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
+                    <div><dt>發生時間（UTC）</dt><dd>@detailUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
                     <div>
                         <dt>結果</dt>
                         <dd><Tag Color="@(detailItem.Success ? "green" : "red")">@(detailItem.Success ? "成功" : "失敗")</Tag></dd>
@@ -164,7 +164,7 @@ else
                     <div><dt>目標類型</dt><dd>@(detailItem.TargetType ?? "—")</dd></div>
                     <div><dt>目標識別</dt><dd>@(detailItem.TargetId ?? "—")</dd></div>
                     @* 防竄改簽章（0.9.175 起）：升級前的舊紀錄沒有簽章，不納入「驗證完整性」。 *@
-                    <div><dt>簽章</dt><dd>@SignatureText(detailItem)</dd></div>
+                    <div><dt>簽章</dt><dd>@detailSignature</dd></div>
                 </dl>
 
                 <h3 class="audit-log-detail-title">摘要</h3>
@@ -198,7 +198,7 @@ else
             {
                 <p>
                     <Tag Color="@(report.HasIssues ? "red" : "green")">@(report.HasIssues ? "發現問題" : "全部正確")</Tag>
-                    @report.Summary()
+                    @report.Summary
                 </p>
                 @if (report.HasIssues)
                 {

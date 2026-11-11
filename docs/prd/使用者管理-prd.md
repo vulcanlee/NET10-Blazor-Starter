@@ -1,10 +1,10 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.21
+- 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.9.173
+- 現行系統版本：0.10.4
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -17,20 +17,21 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
-| `/myusers` | 系統管理 → 帳號與權限 → 使用者管理（`Menu.json` id=31；0.9.113 起移入「帳號與權限」子群組 id=34）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
+| `/myusers` | 系統管理 → 帳號與權限 → 使用者管理（`Menu.json` id=31；0.9.113 起移入「帳號與權限」子群組 id=34）| 僅管理員（0.10.4 起 WASM 頁以 `PagePermissions.IsAdmin` 判斷、API 以 `[AdminOnly]` 擋；之前是 `AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
 
 > **0.4.33 起**：`使用者管理` 權限鍵刻意**不列入角色矩陣**（比照「統計與分析」群組，0.9.113 起改名「監控與診斷」；同次新增的子群組鍵 `角色_帳號與權限` 同樣不列入）。
 > 此前該鍵可被勾選卻永遠無效（頁面以 `CheckIsAdmin` 守門），屬於「死權限」。
 > 由 `MyProject.Tests/AdminOnlyPermissionTests.cs` 守門，請勿補上。
 
 
-- 頁面 `MyUserView` 初始化先執行 `Check`，未通過即導向登出；非管理員顯示「你沒有權限存取此頁面」並停止載入。
-- 本頁為 Blazor 元件、無對應的 `MyUser` API 控制器；動作級 `[HasPermission("resource:action")]` 套用於業務資料 API（分類／團隊／專案），使用者維護僅以管理員身分閘控。
+- 0.10.4 起本頁以 WebAssembly 執行（WASM 遷移 M5，`MyProject.Web.Client/Pages/MyUserPage.razor`，版面 `ClientMainLayout`；Server 版已刪除），畫面、按鈕、對話窗與訊息和之前相同。登入檢查由版面完成；`MyUserView` 以 `PagePermissions.IsAdmin` 判斷，非管理員顯示「你沒有權限存取此頁面」並停止載入，`Permission.Denied` 稽核由伺服器在 `POST /api/v1/shell/page-view` 寫。
+- 0.10.4 起有管理員專用的 Web API `api/v1/users`（`UsersController`，JWT Bearer＋`[AdminOnly]`；非管理員回 403 並寫一筆 `Permission.Denied`，detail「需要管理員」），走與畫面相同的 `MyUserService`／`ITwoFactorService`，端點見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)。失敗依 `VerifyRecordResult.Kind` 對應：找不到 404、重複／衝突 409、規則不符 400、未預期 500。伺服器端另外驗證：`[ApiValidationFilter]`（每頁筆數 1～200、頁碼 ≥ 1）與帳號、名稱、角色必填（400）；產生密碼 `GET password/generate` 的回應帶 `Cache-Control: no-store`；「複製」建立時與 Server 版同樣順序：先 `POST api/v1/users/check` 檢查帳號等規則，再問「Email 已有人使用」，最後才新增。
+  0.10.3 之前本頁為 Blazor Server 元件、沒有 `MyUser` API 控制器。權限不變：仍只以管理員身分閘控，權限鍵不放進角色矩陣。
 
 ## 三、畫面與欄位
 
 - **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、匯出 Excel（0.9.107 起，不含密碼與金鑰欄位，見[通用匯出](通用匯出-prd.md)）、搜尋、清空搜尋，以及「顯示已刪除」切換。0.9.120 起點「啟用／停用」徽章直接切換（停用先確認「要停用「帳號」嗎？他所有已登入的瀏覽器與 API 會被登出…」，啟用直接切換，結果以右下角提示「已停用／已啟用「帳號」」顯示；`MyUserService.SetStatusAsync` 以 `ExecuteUpdateAsync` 只改狀態與更新時間，換工作階段版本 `SecurityStamp` 與版本號 `ConcurrencyStamp`、不動角色與團隊，已經是目標值時回成功、不寫稽核，稽核 `User.Enable`／`User.Disable`（detail `account=…`）；support 與自己不可停用，`CanToggleStatus` 為假時那一列徽章不可點（啟用中的 support 與自己），「顯示已刪除」清單中也不可點）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
-  0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
+  0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm；0.10.4 起這段文字由伺服器依伺服器時區算好、放在 `UserDto.LockedText` 送來，瀏覽器時區不同也不會顯示錯），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
   0.9.104 起：已開啟兩步驟驗證的帳號在「狀態」多一個「兩步驟驗證」徽章，操作欄（自己那一列除外）多「重設兩步驟驗證」（確認後清除驗證器設定與備用碼，見[兩步驟驗證](兩步驟驗證-prd.md)）。
 - **維護表單**（Modal）欄位：
   - 帳號（必填，唯一；0.9.171 起去頭尾空白、不分大小寫）、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
@@ -75,7 +76,7 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 
 ## 五、權限與安全
 
-- 本頁僅管理員可進入（`CheckIsAdmin`）；權限判定以 RBAC 表為單一權威，管理員短路一律通過。
+- 本頁僅管理員可進入（0.10.4 起 `PagePermissions.IsAdmin`，之前是 `CheckIsAdmin`）；權限判定以 RBAC 表為單一權威，管理員短路一律通過。
 - API 端業務資料以 `HasPermissionAttribute` 判權，無權限回 `ApiResult` 403（管理員短路），與本頁指派結果一致。
 - 清單／單筆輸出經 `OtherDependencyData` 將密碼欄位清空；不輸出 `Salt`、雜湊、Token。
 - 密碼一律 PBKDF2 雜湊儲存；細節見 [登入與帳號流程](登入與帳號流程-prd.md) 與安全文件。
@@ -98,12 +99,15 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
   Modal 維持開啟、輸入不會遺失。屬使用者情境（LOG-11）：只記 `Information`，不進「系統例外紀錄」。
   0.9.92 之前這一頁的存檔不看結果，任何失敗都顯示「修改成功」；0.9.93 起失敗會顯示原因並保持 Modal 開啟。
 - **修改只更新畫面上的欄位**（0.9.93 起）：帳號、姓名、Email、啟用、管理員、角色，密碼有填才更換。 0.9.120 起把 support 或自己改成停用會被擋下（與清單點徽章同一條規則 `GetDisableBlockReason`）。
+  0.10.4 起 **support 不可改帳號**（`MyUserService.UpdateAsync`，畫面與 API 都適用，回「「support」是系統預設的開發帳號，不可修改帳號。」）：不可停用、不可刪除、不可當複製範本都是比對帳號，之前先把 support 改名就能繞過（改寫前就有的問題，審查發現）。
   登入失敗次數、鎖定到期、兩步驟驗證、Google 綁定不會被管理員的存檔覆蓋 —— 0.9.92 之前是整筆覆蓋，管理員只改姓名，被鎖定的帳號就解鎖了。
   例外：管理員**設定新密碼**時一併解除鎖定（失敗次數歸零、清除鎖定到期），與「忘記密碼」重設後的行為一致。
   0.9.101 起設定新密碼要通過規則與歷史檢查（不可與這位使用者最近 N 次用過的密碼相同），`MustChangePassword` 一律依畫面儲存。
 - **強制登出**（`ForceLogoutAsync`，0.9.103 起）：換掉這個人的工作階段版本（`ExecuteUpdate`、不換 `ConcurrencyStamp`、稽核 `User.ForceLogout`），所有已登入的瀏覽器下一次換頁被登出、API 無法再 refresh；自己那一列沒有這個按鈕。
-  另外停用、刪除、變更管理員身分或角色、設定新密碼也會換版本；管理員改到自己時經 `/Auths/RefreshSession` 保持這台登入。
-- **重設兩步驟驗證**（`ITwoFactorService.ResetAsync`，0.9.104 起）：清掉密鑰、時間步與備用碼並換工作階段版本（對方所有登入失效），稽核 `User.TwoFactorReset`；對方下次登入只需密碼，若必須使用會被帶去重新設定。
+  0.10.4 起 API 也擋強制登出自己（`POST api/v1/users/{id}/force-logout` 回 400「不可強制登出自己的帳號，請使用右上角的登出。」；之前只在畫面擋）。
+  另外停用、刪除、變更管理員身分或角色、設定新密碼也會換版本（對方下一個請求就被登出：API 401、刷新被拒）；管理員改到自己時經 `/Auths/RefreshSession` 保持這台登入（其他裝置維持登出）。
+  0.10.4 起 WASM 頁的流程：`PUT api/v1/users/{id}` 改到自己時回傳 `SessionRefreshUrl`（`/Auths/RefreshSession?ticket=…&returnUrl=%2Fmyusers`，沿用 0.9.103 的一次性 2 分鐘 ticket），頁面整頁導過去換發這台裝置的登入，體驗與 Server 版相同。
+- **重設兩步驟驗證**（`ITwoFactorService.ResetAsync`，0.9.104 起）：清掉密鑰、時間步與備用碼並換工作階段版本（對方所有登入失效），稽核 `User.TwoFactorReset`；對方下次登入只需密碼，若必須使用會被帶去重新設定。自己那一列沒有這個按鈕；0.10.4 起 API 也擋（`POST api/v1/users/{id}/two-factor/reset` 回 400「不可重設自己的兩步驟驗證，請到「兩步驟驗證」頁停用或重新設定。」）。
 - **解鎖**（`UnlockAsync`，0.9.101 起）：只以 `ExecuteUpdate` 清除失敗次數與鎖定到期，**不換版本號**（別人開著這位使用者的編輯窗不會因此衝突）；沒有被鎖定時回「這位使用者目前沒有被鎖定。」。
 
 ## 七、驗收與測試
@@ -120,11 +124,14 @@ View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
 - `MyProject.Tests/MyUserServiceCopyTests.cs`（0.9.127）：複製範本帶入角色／團隊／狀態／管理員且個人欄位留空、略過停用團隊、support 與不存在的來源回 null、`CanCopy`、Email 使用者查詢（大小寫、空白、已刪除）、由範本建立後 `UserRole`／`UserTeam` 一致且稽核含 `copiedFrom`。
 - `MyProject.Tests/PasswordPolicyTests.cs` `Generate_ShouldAlwaysPassTheCurrentRules`（0.9.127）：多組規則下產生的密碼都通過 `Check`、長度正確、不含易混淆字元、不重複。
 - `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `MyUser`；元件行為見 `Components/AuditHistoryTests`。
+- `MyProject.Tests/UserApiTests.cs`（0.10.4 起，8 支）：使用者 Web API 的完整生命週期且每個動作只記一筆稽核、改別人後對方下一個請求被登出、改自己經 `SessionRefreshUrl` 維持登入且不可強制登出或重設自己的兩步驟驗證（400）、複製從範本開始並記下來源、搜尋標出 support 的可用操作並匯出 xlsx、解鎖、伺服器端規則不靠畫面也成立（必填、support 不可改帳號、產生密碼不快取、新增前檢查）、非管理員 403。
+- `MyProject.Tests/ApiAuthorizationConventionTests.cs`（0.10.4 起）：每個 Web API action（含繼承來的）都要標註 `[HasPermission]`／`[AdminOnly]`／`[SignedInUser]`／`[AllowAnonymous]`；除了 `[AllowAnonymous]` 都要有 `[Authorize]`。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Admins/MyUserPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填 `OnEditAsync`、多角色／團隊變更 `OnAdditionalRolesChanged`／`OnUserTeamsChanged`、團隊留空提醒 `ConfirmTeamBindingAsync`、點狀態標籤 `OnToggleStatusAsync`）
+- `src/MyProject/MyProject.Web.Client/Pages/MyUserPage.razor`（0.10.4 起 WASM；之前在 `MyProject.Web/Components/Pages/Admins/`）
+- `src/MyProject/MyProject.Web.Client/Api/UserApi.cs`、`UserDtoMapper.cs`（WASM 頁呼叫 API、DTO ↔ 畫面模型；Controller 共用同一份對應）；`src/MyProject/MyProject.Web/Controllers/UsersController.cs`；DTO 在 `src/MyProject/MyProject.Dtos/Admins/UserDtos.cs`
+- `src/MyProject/MyProject.Web.Client/Views/Admins/MyUserView.razor`、`MyUserView.razor.cs`（編輯回填 `OnEditAsync`、多角色／團隊變更 `OnAdditionalRolesChanged`／`OnUserTeamsChanged`、團隊留空提醒 `ConfirmTeamBindingAsync`、點狀態標籤 `OnToggleStatusAsync`）
 - `src/MyProject/MyProject.Business/Services/DataAccess/MyUserService.cs`（`AddAsync`、`UpdateAsync`、雙寫 `SyncAssignmentsAsync`、回填 `GetUserAssignmentsAsync`、只改狀態 `SetStatusAsync`／`CanToggleStatus`／`GetDisableBlockReason`）
 - `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncUserRolesAsync`、`SyncUserTeamsAsync`）
 - `src/MyProject/MyProject.Business/Services/Other/RbacBackfillService.cs`（啟動回填 `RunAsync`）

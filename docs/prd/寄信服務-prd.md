@@ -1,10 +1,10 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.9.167
+- 現行系統版本：0.10.4
 - 首次實作版本：0.9.59
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -119,7 +119,7 @@
   - 寄出、失敗或未寄出（`Provider=None`）後清除內文；狀態 Pending／Sent／Failed／Skipped。
   - 呼叫端（`IEmailQueue.TryEnqueue`）不碰資料庫：例外告警信是在例外記錄管線的鎖定區段內入列的。寫入資料庫失敗時退回直接寄一次（不留紀錄）。
   - 寄送前以條件更新佔住這一列（下次嘗試推到現在＋15 分鐘租約），避免存檔失敗或 IIS 回收新舊程序並存時重複寄送；每寄完一封就把交接區的新信存進資料庫，一批寄滿 20 封就直接寄下一批。關機時先關閉交接區（之後入列回 false），再把剩下的信存進資料庫。
-  - 管理員專屬「寄信紀錄」頁（`/email-logs`，選單 id 69，監控與診斷）唯讀列出收件者、主旨、狀態、嘗試次數、下次嘗試、寄出時間與錯誤摘要；排程作業「寄信紀錄清理」（`EmailLogRetention`）依 `EmailDeliverySettings:RetentionDays`（預設 90）刪除，「待寄」不刪，稽核 `EmailLog.AutoPurge`／`EmailLog.Purge`。
+  - 管理員專屬「寄信紀錄」頁（`/email-logs`，選單 id 69，監控與診斷）唯讀列出收件者、主旨、狀態、嘗試次數、下次嘗試、寄出時間與錯誤摘要（0.10.4 起以 WebAssembly 執行：`MyProject.Web.Client/Pages/EmailLogPage.razor`，資料經管理員專用的 `POST api/v1/email-logs/search`〔`EmailLogsController`，`[AdminOnly]`，非管理員 403 並寫 `Permission.Denied`〕；與 Server 版相同，查詢不寫稽核；時間以不帶時差送出、WASM 送出的起訖時間也先去掉時區，伺服器照自己的時區解讀，瀏覽器時區不同也不會偏；每頁筆數 1～200；畫面與操作不變，WASM 遷移 M5）；排程作業「寄信紀錄清理」（`EmailLogRetention`）依 `EmailDeliverySettings:RetentionDays`（預設 90）刪除，「待寄」不刪，稽核 `EmailLog.AutoPurge`／`EmailLog.Purge`。
 - 崩潰（不是正常關機）時，記憶體交接區裡還沒存進資料庫的那幾毫秒的信會遺失；正常關機時會先存進資料庫。
 - 系統健康監控的測試信直接寄出（`EmailTestService` → `IEmailSender`），不經佇列、不記寄信紀錄。
 - 不支援附件、CC／BCC、多收件者。

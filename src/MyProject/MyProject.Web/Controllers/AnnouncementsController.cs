@@ -6,6 +6,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
 using MyProject.Web.Components.Layout;
+using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
 
@@ -16,6 +17,7 @@ namespace MyProject.Web.Controllers;
 [Route("api/v1/announcements")]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[SignedInUser] // 登入即可（0.10.4 起明確標註）：公告橫幅：登入的人都看得到、都能關閉自己的。
 public sealed class AnnouncementsController : ControllerBase
 {
     private readonly AnnouncementCache cache;

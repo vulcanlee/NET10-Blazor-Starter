@@ -11,6 +11,7 @@ using MyProject.Web.Components.Layout;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Health;
+using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
 
@@ -22,6 +23,7 @@ namespace MyProject.Web.Controllers;
 [Route("api/v1/shell")]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[SignedInUser] // 登入即可（0.10.4 起明確標註）：WASM 外框：資訊、選單（伺服器依權限過濾）、操作說明、開頁與錯誤回報。
 public sealed class ShellController : ControllerBase
 {
     private const int MaxPathLength = 200;

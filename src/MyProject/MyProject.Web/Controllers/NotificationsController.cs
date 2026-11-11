@@ -6,6 +6,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
 using MyProject.Web.Components.Auths;
+using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
 
@@ -17,6 +18,7 @@ namespace MyProject.Web.Controllers;
 [Route("api/v1/notifications")]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[SignedInUser] // 登入即可（0.10.4 起明確標註）：通知鈴鐺：每個人只處理自己的通知。
 public sealed class NotificationsController : ControllerBase
 {
     /// <summary>鈴鐺下拉清單顯示的筆數（與 Server 版相同）。</summary>

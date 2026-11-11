@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.4
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -15,6 +15,7 @@
 - Controller 必須使用 `[ApiController]` 與 `[ApiValidationFilter]`。
 - 需要保護的 CRUD API 必須加上 `[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`。
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
+- **每個 action 都要標明授權意圖**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`、`[AdminOnly]`、`[SignedInUser]`、`[AllowAnonymous]` 四選一（標在類別上等於每個 action，繼承來的 action 也算），漏標測試就失敗；除了 `[AllowAnonymous]`，controller 或 action 上還要有 `[Authorize]`。只有 `[Authorize]` 的端點任何登入的人都能呼叫，新增端點時忘了加權限是最常見的越權漏洞。見「功能級／動作級授權」節的選法。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
 - Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
 - **資料一律經畫面同一個 Service**（0.10.2 起，WASM 遷移 M3）：Controller 不另寫查詢或寫入邏輯，團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份。分類、團隊 0.10.2 起、專案 0.10.3 起已改，專案中已沒有任何 Repository（`CategoryRepository`／`TeamRepository`／`ProjectRepository` 都已刪除）；新模組不要再寫 Repository（CRUD 產生器也不再產生）。DTO 與畫面模型的對應放在 `MyProject.Web.Client/Api/*DtoMapper.cs`，WASM 頁面與 Controller 共用。
@@ -27,7 +28,7 @@
 - **檔案下載用一次性票證**（0.10.3 起）：瀏覽器原生下載帶不了 Bearer，大檔也不能讀進 WASM 記憶體，所以先以 Bearer 呼叫 `POST .../ticket` 取得 60 秒、只能用一次的網址，再由瀏覽器直接下載匿名的 `GET api/v1/downloads/{ticket}`（`DownloadsController`、`DownloadTicketService`）。
   兌換時依發票證時的使用者與安全戳記重新載入使用者、重查權限與資料範圍，任何失敗都回同一個 404；不支援續傳。細節見《[Web API 端點目錄](Web%20API%20端點目錄.md)》第三節。
   0.10.3 起專案附件已沒有以 Cookie 驗證的端點（`ProjectFileController` 已刪除）。
-- 例外：`BackupController`（系統備份下載，0.9.99 起）**只收 Cookie 驗證**，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權；M7 改用下載票證。
+- 例外：`BackupController`（系統備份下載，0.9.99 起）**只收 Cookie 驗證**，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權（Cookie 請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以 0.10.4 起暫時標 `[SignedInUser]`、檢查寫在方法裡；⚠️ 它是管理員專屬，方法裡的檢查不可拿掉）；M7 改用下載票證時改標 `[AdminOnly]`。
 
 ## 統一回傳格式
 所有一般 Web API 回應固定使用 `MyProject.Dtos.Commons.ApiResult<T>` 或非泛型 `ApiResult`。
@@ -59,7 +60,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 200 | 查詢、更新、刪除等成功 |
 | 400 | ModelState 或商業規則驗證失敗（例：指派了自己範圍外的團隊、團隊樹的上層不合法；匯出超過 10000 筆）|
 | 401 | 未登入、未提供 Bearer token、token 無效 |
-| 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生；某個參數要更高權限時由 `this.ForbidUnless(...)` 產生，0.10.2 起） |
+| 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生；只限管理員的端點由 `AdminOnlyAttribute` 產生，0.10.4 起；某個參數要更高權限時由 `this.ForbidUnless(...)` 產生，0.10.2 起） |
 | 404 | 找不到指定資源 |
 | 409 | 資料衝突：名稱重複，或 `PUT` 帶來的 `ConcurrencyStamp` 與資料庫不符（別人已先修改，0.9.93 起）；還原時已有同名的資料、永久刪除時還有其他資料以它為上層 |
 | 429 | 超過限流配額（`api` 分區；登入端點另有較嚴的配額），Body 同樣是 `ApiResult` |
@@ -76,7 +77,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | `Invalid`、`None` | 400 | 輸入不符規則（例如指定範圍外的團隊、上層選到自己的下屬）|
 | `Error` | 500 | 未預期的錯誤（已記錯誤日誌）；例外細節同樣交給 `ApiServerError` 依 `ExceptionDetailPolicy` 決定是否回傳 |
 
-- 訊息就是畫面上看到的那一句（0.10.2 起分類、團隊，0.10.3 起專案的 API 錯誤訊息與畫面相同；網址、狀態碼的分類方式與欄位不變）。
+- 訊息就是畫面上看到的那一句（0.10.2 起分類、團隊，0.10.3 起專案，0.10.4 起使用者、角色的 API 錯誤訊息與畫面相同；網址、狀態碼的分類方式與欄位不變）。0.10.4 起 `MyUserService`、`RoleViewService`、`TwoFactorService` 的失敗也都標上 `Kind`。
 - 端點本身只要求較低的權限、但某個參數需要更高權限時（例如搜尋與匯出的 `Deleted=true` 要刪除權限），用 `this.ForbidUnless(允許, 訊息)`：不允許時回 403 `ApiResult`（帶 `TraceId`），允許時回 null。判斷一律用 `PermissionRules.CanAccessAction`（與畫面同一份規則）。
 - 修改時先確認資料在自己的範圍內（範圍外 404），再比對名稱：不要讓範圍外的資料因為名稱重複回 409 而透露它存在。存檔前檢查端點（`POST check`）同理，而且要有新增（`Id=0`）或修改（`Id>0`）權限，只能看的人不能拿它探名稱。
 - 新增成功後服務會把資料庫配的 `Id` 與 `ConcurrencyStamp` 寫回傳入的畫面模型，Controller 直接用它組回應。
@@ -100,6 +101,22 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 - **權限鍵兩型**：裸頁面鍵（如 `專案項目`）＝該頁全動作（向後相容）；動作鍵（如 `專案項目:edit`）＝特定動作。「唯讀角色」只給 `專案項目:view`。
 - 無權限一律回 **403**，Body 維持 `ApiResult` 格式並標示缺少的權限鍵。多角色時權限取聯集。
 - 詳見 [認證授權與權限機制](../security/認證授權與權限機制.md)。
+
+**每個 action 都要標註授權意圖**（0.10.4 起，WASM 遷移 M5）。新增 API 時依下表選一個，標在類別上等於每個 action 都標（`ApiAuthorizationConventionTests` 會掃 `MyProject.Web` 裡所有 `[ApiController]` 的 public action，含繼承自基底 controller 的，四個都沒標就失敗；除了 `[AllowAnonymous]`，也檢查 controller 或 action 上有 `[Authorize]`）：
+
+| 標註 | 什麼時候用 | 例 |
+| --- | --- | --- |
+| `[HasPermission(頁面鍵, 動作)]` | 屬於某個頁面、權限在角色矩陣裡 | 分類、團隊、專案 |
+| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）|
+| `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知、公告、`Auth/me` |
+| `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換 |
+
+- `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`）是授權篩選器：沒登入回 401；不是管理員回 403 `ApiResult`（預設訊息「只有管理員可以使用這個功能。」，可用 `[AdminOnly("訊息")]` 換），並與 `HasPermission` 一樣寫一筆 `Permission.Denied`（目標 `ApiEndpoint`／請求路徑，detail「需要管理員」）。管理員身分看 `ApiActorMiddleware` 從資料庫載入的目前使用者，所以剛被取消管理員的人下一個請求就被擋。
+  ⚠️ 只對 JWT Bearer 的請求有效：以 Cookie 驗證的請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者（目前只有 `BackupController.Download`，見上方「例外」）。
+- `[SignedInUser]` 本身沒有行為（登入由 `[Authorize]` 擋），只是明說「這裡刻意不檢查頁面權限」，讓守門測試分得出「忘了標」和「本來就不需要」。用了它的端點一律只能讀改目前使用者自己的資料。
+- **伺服器要自己驗證**（0.10.4 起的管理頁 API）：controller 套 `[ApiValidationFilter]`（搜尋 DTO 的每頁筆數 1～200、頁碼 ≥ 1，不合法回 400），畫面表單上的必填也由伺服器再驗一次——API 呼叫端不經過畫面。從呼叫端收到的清單或矩陣只採納伺服器認得的項目（例：角色 API 把矩陣套到權限目錄的範本上，目錄外的節點忽略）。
+- **本地時間以不帶時差送出**（0.10.4 起）：回給 WASM 的本地時間用 `DateTimeKind.Unspecified`（JSON 不帶 `+08:00`），否則瀏覽器會換成自己的時區；UTC 欄位以 `Z` 結尾。WASM 送來的日期篩選同樣不帶時差（`ClientCulture.Unzoned`），伺服器照自己的時區解讀。
+- 回應含明碼密碼等機密時加 `Cache-Control: no-store`（例：`GET api/v1/users/password/generate`）。
 
 ## 例外與驗證
 - `ApiValidationFilter` 會將 ModelState 錯誤轉成 `ApiResult<T>.Errors`。

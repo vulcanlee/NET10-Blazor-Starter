@@ -1,10 +1,10 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.28
+- 文件版本：1.29
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.4
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -117,7 +117,7 @@
 - **例外：系統管理整支（3、其下五個子群組 34／6／7／8／10 與所有頁面）的權限鍵都是管理員專屬**。
   這些鍵刻意未列入 `RolePermissionService.GetRoleListPermissionAllName()`，因此不會種出 `Permission` 資料列、
   角色矩陣不顯示、任何角色都無法被授予，只有 `CheckAccessPage` 的管理員短路能通過
-  （`MyUserView`／`RoleViewView` 另以 `CheckIsAdmin()` 守門）。由 `AdminOnlyPermissionTests` 守住，**請勿補上**。
+  （`MyUserView`／`RoleViewView` 另以管理員檢查守門：0.10.4 起是 WASM 頁的 `PagePermissions.IsAdmin`，API 為 `[AdminOnly]`）。由 `AdminOnlyPermissionTests` 守住，**請勿補上**。
   詳見 [日誌檢視 PRD](日誌檢視-prd.md)、[使用者管理 PRD](使用者管理-prd.md)、[角色管理 PRD](角色管理-prd.md)。
 - AI 助理（9／91／92）**不是**管理員專屬，可以授權給角色；但列在 `RolePermissionService.NotGrantedToDefaultRole`，不自動開給預設角色（見 [AI Agent PRD](AI-Agent-prd.md)）。
 - 選單過濾僅隱藏無權項目，並非授權邊界；實際資料存取由 API 端 `[HasPermission]` 與團隊權控把關（見「紀錄分類與團隊權控 PRD」）。

@@ -258,18 +258,18 @@ public class MyUserService
             if (string.IsNullOrWhiteSpace(paraObject.Password))
             {
                 Logger.LogInformation("User creation rejected because password is empty. Account={Account}", paraObject.Account);
-                return VerifyRecordResultFactory.Build(false, "新增使用者時必須輸入密碼。");
+                return VerifyRecordResultFactory.Invalid("新增使用者時必須輸入密碼。");
             }
 
             if (passwordPolicy.Check(paraObject.Password) is { } passwordError)
             {
                 Logger.LogInformation("User creation rejected because the password does not meet the policy. Account={Account}", paraObject.Account);
-                return VerifyRecordResultFactory.Build(false, passwordError);
+                return VerifyRecordResultFactory.Invalid(passwordError);
             }
 
             if (await ValidateRolesAsync(context, paraObject) is { } roleError)
             {
-                return VerifyRecordResultFactory.Build(false, roleError);
+                return VerifyRecordResultFactory.Invalid(roleError);
             }
 
             MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
@@ -292,6 +292,10 @@ public class MyUserService
                 detail: BuildAssignmentDetail(itemParameter.Account, paraObject)
                     + (copiedFromAccount is null ? string.Empty : $"; copiedFrom={copiedFromAccount}"));
 
+            // 回填給呼叫端（0.10.4 起 Web API 以它回傳新資料）。
+            paraObject.Id = itemParameter.Id;
+            paraObject.ConcurrencyStamp = itemParameter.ConcurrencyStamp;
+
             Logger.LogInformation("User created successfully. UserId={UserId}, Account={Account}", itemParameter.Id, itemParameter.Account);
             return VerifyRecordResultFactory.Build(true);
         }
@@ -300,11 +304,11 @@ public class MyUserService
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("User creation rejected by unique constraint. Account={Account}", paraObject.Account);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to create user. Account={Account}", paraObject.Account);
-            return VerifyRecordResultFactory.Build(false, "新增使用者失敗。", ex);
+            return VerifyRecordResultFactory.Error("新增使用者失敗。", ex);
         }
     }
 
@@ -321,12 +325,20 @@ public class MyUserService
             if (itemData == null)
             {
                 Logger.LogWarning("User update rejected because record was not found. UserId={UserId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, "找不到要修改的使用者資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要修改的使用者資料。");
             }
 
             if (await ValidateRolesAsync(context, paraObject) is { } roleError)
             {
-                return VerifyRecordResultFactory.Build(false, roleError);
+                return VerifyRecordResultFactory.Invalid(roleError);
+            }
+
+            // support 不可改帳號（0.10.4 起，審查發現）：不可刪除、不可停用的規則都比對帳號，先改名就能繞過。
+            if (string.Equals(itemData.Account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(NameNormalizer.Normalize(paraObject.Account), itemData.Account, StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.LogInformation("User update rejected because the support account cannot be renamed. UserId={UserId}", paraObject.Id);
+                return VerifyRecordResultFactory.Invalid($"「{itemData.Account}」是系統預設的開發帳號，不可修改帳號。");
             }
 
             var settingPassword = !string.IsNullOrWhiteSpace(paraObject.Password);
@@ -334,14 +346,14 @@ public class MyUserService
                 ?? (await passwordPolicy.IsReusedAsync(context, itemData, paraObject.Password) ? PasswordPolicy.ReusedMessage : null)) is { } passwordError)
             {
                 Logger.LogInformation("User update rejected because the new password does not meet the policy. UserId={UserId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, passwordError);
+                return VerifyRecordResultFactory.Invalid(passwordError);
             }
 
             // 0.9.120 起修改窗也擋停用 support 與自己（與清單上點狀態標籤同一條規則）。
             if (itemData.Status && !paraObject.Status && GetDisableBlockReason(itemData.Account, itemData.Id) is { } disableBlocked)
             {
                 Logger.LogInformation("User update rejected because it would disable the support account or the current user. UserId={UserId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, disableBlocked);
+                return VerifyRecordResultFactory.Invalid(disableBlocked);
             }
 
             // 停用、管理員身分或角色有變，這個人所有已登入的工作階段都要失效（0.9.103 起）。角色在存檔後才同步，
@@ -403,18 +415,18 @@ public class MyUserService
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
             Logger.LogInformation("User update rejected by concurrency conflict. UserId={UserId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("User update rejected by unique constraint. UserId={UserId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to update user. UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
-            return VerifyRecordResultFactory.Build(false, "修改使用者失敗。", ex);
+            return VerifyRecordResultFactory.Error("修改使用者失敗。", ex);
         }
     }
 
@@ -606,13 +618,13 @@ public class MyUserService
             if (item == null)
             {
                 Logger.LogWarning("User deletion rejected because record was not found. UserId={UserId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的使用者資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的使用者資料。");
             }
 
             if (GetDeletionBlockReason(item.Account, item.Id) is { } blocked)
             {
                 Logger.LogInformation("User deletion rejected for the support account or the current user. UserId={UserId}", id);
-                return VerifyRecordResultFactory.Build(false, blocked);
+                return VerifyRecordResultFactory.Invalid(blocked);
             }
 
             // 軟刪除（0.9.95 起）：角色與團隊的關聯保留，還原後原樣回來；登入、權限判斷都經全域過濾器而看不到這個人。
@@ -635,12 +647,12 @@ public class MyUserService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("User deletion rejected by concurrency conflict. UserId={UserId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete user. UserId={UserId}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除使用者失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除使用者失敗。", ex);
         }
     }
 
@@ -697,13 +709,13 @@ public class MyUserService
             if (item == null)
             {
                 Logger.LogInformation("User status change rejected because record was not found. UserId={UserId}", userId);
-                return VerifyRecordResultFactory.Build(false, "找不到這位使用者，可能已被刪除。");
+                return VerifyRecordResultFactory.NotFound("找不到這位使用者，可能已被刪除。");
             }
 
             if (!enabled && GetDisableBlockReason(item.Account, userId) is { } blocked)
             {
                 Logger.LogInformation("User status change rejected for the support account or the current user. UserId={UserId}", userId);
-                return VerifyRecordResultFactory.Build(false, blocked);
+                return VerifyRecordResultFactory.Invalid(blocked);
             }
 
             var rows = item.Status == enabled ? 0 : await context.MyUser
@@ -729,7 +741,7 @@ public class MyUserService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to change user status. UserId={UserId}, Enabled={Enabled}", userId, enabled);
-            return VerifyRecordResultFactory.Build(false, "切換使用者狀態失敗。", ex);
+            return VerifyRecordResultFactory.Error("切換使用者狀態失敗。", ex);
         }
     }
 
@@ -786,7 +798,7 @@ public class MyUserService
             if (item == null)
             {
                 Logger.LogWarning("User restore rejected because deleted record was not found. UserId={UserId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要還原的使用者（可能已被還原或永久刪除）。");
+                return VerifyRecordResultFactory.NotFound("找不到要還原的使用者（可能已被還原或永久刪除）。");
             }
 
             // 刪除期間帳號可能已被別人使用；比對規則與新增時相同（0.9.171 起去頭尾空白、不分大小寫）。
@@ -795,7 +807,7 @@ public class MyUserService
             if (await context.MyUser.AnyAsync(x => x.Id != id && x.Account.ToLower() == NameNormalizer.ToLowerAscii(account)))
             {
                 Logger.LogInformation("User restore rejected because an active user has the same account. UserId={UserId}", id);
-                return VerifyRecordResultFactory.Build(false, $"已有帳號為「{item.Account}」的使用者，無法還原。請先將現有的那位使用者改用其他帳號後再還原。");
+                return VerifyRecordResultFactory.Conflict($"已有帳號為「{item.Account}」的使用者，無法還原。請先將現有的那位使用者改用其他帳號後再還原。");
             }
 
             if (item.GoogleId is { } googleId)
@@ -807,7 +819,7 @@ public class MyUserService
                 if (linked is not null)
                 {
                     Logger.LogInformation("User restore rejected because another active user is linked to the same Google account. UserId={UserId}", id);
-                    return VerifyRecordResultFactory.Build(false, $"這位使用者綁定的 Google 帳號已連結到使用者「{linked}」，無法還原。");
+                    return VerifyRecordResultFactory.Invalid($"這位使用者綁定的 Google 帳號已連結到使用者「{linked}」，無法還原。");
                 }
             }
 
@@ -820,7 +832,7 @@ public class MyUserService
                     .Select(r => r.Name)
                     .FirstOrDefaultAsync();
                 Logger.LogInformation("User restore rejected because the primary role is deleted. UserId={UserId}, RoleViewId={RoleViewId}", id, roleId);
-                return VerifyRecordResultFactory.Build(false, $"這位使用者的主要角色「{roleName}」已被刪除，無法還原。請先到角色管理還原該角色，再還原這位使用者。");
+                return VerifyRecordResultFactory.Invalid($"這位使用者的主要角色「{roleName}」已被刪除，無法還原。請先到角色管理還原該角色，再還原這位使用者。");
             }
 
             SoftDeleteHelper.Restore(item);
@@ -838,18 +850,18 @@ public class MyUserService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("User restore rejected by concurrency conflict. UserId={UserId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("User restore rejected by unique constraint. UserId={UserId}", id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to restore user. UserId={UserId}", id);
-            return VerifyRecordResultFactory.Build(false, "還原使用者失敗。", ex);
+            return VerifyRecordResultFactory.Error("還原使用者失敗。", ex);
         }
     }
 
@@ -871,7 +883,7 @@ public class MyUserService
             if (item == null)
             {
                 Logger.LogWarning("User purge rejected because deleted record was not found. UserId={UserId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的使用者（只能永久刪除已刪除的資料）。");
+                return VerifyRecordResultFactory.NotFound("找不到要永久刪除的使用者（只能永久刪除已刪除的資料）。");
             }
 
             context.MyUser.Remove(item);
@@ -889,12 +901,12 @@ public class MyUserService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("User purge rejected by concurrency conflict. UserId={UserId}", id);
-            return VerifyRecordResultFactory.Build(false, "這位使用者已被其他人還原或變更，沒有執行永久刪除。", ex);
+            return VerifyRecordResultFactory.Conflict("這位使用者已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge user. UserId={UserId}", id);
-            return VerifyRecordResultFactory.Build(false, "永久刪除使用者失敗。", ex);
+            return VerifyRecordResultFactory.Error("永久刪除使用者失敗。", ex);
         }
     }
 
@@ -913,7 +925,7 @@ public class MyUserService
         if (searchItem != null)
         {
             Logger.LogInformation("Pre-create validation failed because account already exists. Account={Account}", paraObject.Account);
-            return VerifyRecordResultFactory.Build(false, "帳號已存在，無法新增。");
+            return VerifyRecordResultFactory.Conflict("帳號已存在，無法新增。");
         }
 
         return ValidateEmail(paraObject);
@@ -931,7 +943,7 @@ public class MyUserService
         if (searchItem == null)
         {
             Logger.LogWarning("Pre-update validation failed because record was not found. UserId={UserId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, "要修改的使用者資料不存在。");
+            return VerifyRecordResultFactory.NotFound("要修改的使用者資料不存在。");
         }
 
         var account = NameNormalizer.Normalize(paraObject.Account);
@@ -942,7 +954,7 @@ public class MyUserService
         if (searchItem != null)
         {
             Logger.LogInformation("Pre-update validation failed because account already exists. Account={Account}, UserId={UserId}", paraObject.Account, paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, "帳號已存在，無法修改。");
+            return VerifyRecordResultFactory.Conflict("帳號已存在，無法修改。");
         }
 
         return ValidateEmail(paraObject);
@@ -957,7 +969,7 @@ public class MyUserService
         if (!string.IsNullOrWhiteSpace(paraObject.Email) && !MailAddress.TryCreate(paraObject.Email.Trim(), out _))
         {
             Logger.LogInformation("User validation failed because email is invalid. Account={Account}", paraObject.Account);
-            return VerifyRecordResultFactory.Build(false, "Email 格式不正確；不使用可留空。");
+            return VerifyRecordResultFactory.Invalid("Email 格式不正確；不使用可留空。");
         }
 
         return VerifyRecordResultFactory.Build(true);
@@ -984,37 +996,37 @@ public class MyUserService
         if (user is null)
         {
             Logger.LogWarning("Own password change rejected because user was not found. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "找不到使用者資料。");
+            return VerifyRecordResultFactory.NotFound("找不到使用者資料。");
         }
 
         if (string.Equals(user.Account, MagicObjectHelper.開發者帳號, StringComparison.OrdinalIgnoreCase))
         {
             Logger.LogWarning("Own password change rejected for support account. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "系統預設開發帳號 support 禁止變更密碼。");
+            return VerifyRecordResultFactory.Invalid("系統預設開發帳號 support 禁止變更密碼。");
         }
 
         if (SecurePasswordHasher.VerifyPassword(currentPassword, user.Password, user.Salt) == PasswordVerificationOutcome.Failed)
         {
             Logger.LogWarning("Own password change rejected because current password is invalid. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "目前密碼不正確。");
+            return VerifyRecordResultFactory.Invalid("目前密碼不正確。");
         }
 
         if (string.IsNullOrWhiteSpace(newPassword))
         {
             Logger.LogWarning("Own password change rejected because new password is empty. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "新密碼不可為空白。");
+            return VerifyRecordResultFactory.Invalid("新密碼不可為空白。");
         }
 
         if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
         {
             Logger.LogInformation("Own password change rejected because confirmation does not match. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "新密碼與確認密碼不一致。");
+            return VerifyRecordResultFactory.Invalid("新密碼與確認密碼不一致。");
         }
 
         if ((passwordPolicy.Check(newPassword) ?? (await passwordPolicy.IsReusedAsync(context, user, newPassword) ? PasswordPolicy.ReusedMessage : null)) is { } passwordError)
         {
             Logger.LogInformation("Own password change rejected because the new password does not meet the policy. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, passwordError);
+            return VerifyRecordResultFactory.Invalid(passwordError);
         }
 
         await passwordPolicy.ApplyAsync(context, user, newPassword, mustChangeAtNextLogin: false);
@@ -1052,7 +1064,7 @@ public class MyUserService
         if (rows == 0)
         {
             Logger.LogInformation("Unlock skipped because the user is not locked or was not found. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "這位使用者目前沒有被鎖定。");
+            return VerifyRecordResultFactory.Invalid("這位使用者目前沒有被鎖定。");
         }
 
         var (actorUserId, actorAccount) = ResolveActor();
@@ -1076,7 +1088,7 @@ public class MyUserService
         if (rows == 0)
         {
             Logger.LogInformation("Force logout skipped because the user was not found. UserId={UserId}", userId);
-            return VerifyRecordResultFactory.Build(false, "找不到這位使用者。");
+            return VerifyRecordResultFactory.NotFound("找不到這位使用者。");
         }
 
         var (actorUserId, actorAccount) = ResolveActor();

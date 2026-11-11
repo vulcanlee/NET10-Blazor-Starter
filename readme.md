@@ -191,7 +191,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     ├── Directory.Packages.props    ← 套件版本單一來源（Central Package Management）
     ├── MyProject.Web/              ← Blazor Server 宿主
     │   ├── Components/             ← Pages / Views / Layout / Auths / Commons
-    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth …）
+    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs …）
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、CookieSettings
@@ -212,10 +212,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Datas/Menu.json         ← Sidebar 導覽與權限定義
     │   ├── Datas/HelpTopics.json   ← 頁面操作說明索引（路由 → 標題 → 檔名）
     │   ├── Datas/Help/             ← 各頁操作說明內容（*.md，UTF-8 含 BOM）
-    │   ├── Filters/                ← ApiValidationFilter 等
+    │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案）／Layout（WASM 版外框）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄）／Layout（WASM 版外框）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← AuthenticationStateHelper 等

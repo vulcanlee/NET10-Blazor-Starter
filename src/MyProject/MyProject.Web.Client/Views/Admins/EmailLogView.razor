@@ -1,4 +1,4 @@
-@using MyProject.Business.Services.DataAccess
+@using MyProject.Dtos.Admins
 
 @* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
@@ -55,7 +55,7 @@ else
         </div>
 
         <div class="email-log-table-wrap">
-            <Table TItem="EmailLogItem"
+            <Table TItem="EmailLogItemDto"
                    Class="email-log-table"
                    RemoteDataSource="true"
                    DataSource="@items"

@@ -1,4 +1,5 @@
-﻿@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+﻿@using MyProject.Web.Components.Views.Admins
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
 @if (!isAccessChecked)
 {
 }
@@ -62,11 +63,12 @@ else
                     <Selection Disabled="@(context.Name == MagicObjectHelper.預設角色)" />
                 }
                 <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
-                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable />
-                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable />
+                @* 0.10.4 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
+                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(RoleViewAdapterModel.DeletedAt)" Title="刪除時間" />
+                    <Column TData="DateTime?" DataIndex="@nameof(RoleViewAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.DeletedBy)" Title="刪除者" />
                 }
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">

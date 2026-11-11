@@ -34,6 +34,8 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m03-crud.mjs          # M3 情境＋全部路由煙霧測試（會先佈置 m03-views 的固定資料）
    node ./scripts/e2e/m04-views.mjs server  # M4 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
    node ./scripts/e2e/m04-projects.mjs      # M4 情境 P1～P18＋全部路由煙霧測試（會先佈置 m04-views 的固定資料）
+   node ./scripts/e2e/m05-views.mjs server  # M5 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
+   node ./scripts/e2e/m05-admin.mjs         # M5 情境 A1～A13＋全部路由煙霧測試（會先佈置 m05-views 的固定資料）
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -62,4 +64,6 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
 | `m03-crud.mjs` | M3 情境：分類完整流程、重名、兩個分頁同時修改、匯出、異動歷程、團隊批次刪除、改名同步、資料保留頁「前往」、Server／WASM 切換、團隊範圍、唯讀角色、沒有權限開頁的稽核 |
 | `m04-views.mjs` | M4 外觀比對：沿用 m03-views 的團隊、分類與唯讀角色（唯讀角色另加「專案項目:view」），佈置固定的專案與附件紀錄，拍專案頁的 5 個畫面（清單、修改窗、修改窗附件、已刪除、唯讀） |
 | `m04-projects.mjs` | M4 情境 P1～P18：完整流程與多檔上傳、下載內容比對、票證重放、修改時移除附件、約 200 MB 的大檔、超過 1 GB 被擋、副檔名被擋、重名、兩個分頁同時修改、刪除／還原／永久刪除（實體檔移除）、匯出、批次刪除、異動歷程、資料保留頁「前往」、Server／WASM 切換、沒有未處理錯誤、團隊範圍（看不到也申請不到票證）、唯讀角色、沒有權限開頁的稽核。P5 用 `fsutil` 建 1.1 GB 的暫存檔（只選檔、不上傳） |
+| `m05-views.mjs` | M5 外觀比對（0.10.4 起）：沿用 m03-views 的團隊與唯讀角色，佈置固定的使用者（一般、鎖定、兩步驟驗證、已刪除）、角色、稽核紀錄與寄信紀錄，拍使用者、角色、稽核紀錄、寄信紀錄頁的 8 個畫面（使用者清單、修改窗、已刪除、角色清單、修改窗、稽核紀錄、稽核明細、寄信紀錄）。為了不讓截圖露出個資，會把隔離資料庫裡 support 的 Email 改成 `support@e2e.test` |
+| `m05-admin.mjs` | M5 情境 A1～A13（0.10.4 起）：使用者完整流程、改別人的角色後對方被登出、停用後對方被登出、解除鎖定、複製使用者（產生密碼、交付窗、稽核記 `copiedFrom`）、匯出使用者 Excel、角色權限矩陣存檔、稽核查詢／明細／完整性驗證／匯出、寄信紀錄篩選、Server／WASM 切換、沒有未處理錯誤、改自己的角色後這台裝置仍維持登入、非管理員直打管理 API 得 403 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

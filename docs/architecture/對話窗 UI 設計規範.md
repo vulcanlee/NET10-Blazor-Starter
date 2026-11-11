@@ -1,8 +1,8 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.5
+- 文件版本：2.6
 - 文件狀態：已實作
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.4
 - 首次實作版本：0.9.25
 - 最後核對日期：2026/11/11
 
@@ -222,7 +222,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 2. 每個用到的 `*-modal` class，`OverlayStyles.razor` 裡都要有對應規則。
 3. code-behind 不得出現「失敗路徑各補一次 `modalVisible = true;`」的舊寫法。
 4. 待遷移清單（`PendingMigrationViews`）不得放著爛掉：名單上的檢視一旦遷移完成就要移除。
-5. `MyProject.Web/Components/` 底下除了 `Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板（`MyProject.Web.Client/Commons/ConfirmDialog.cs`）。⚠️ 這條守門目前只掃 `MyProject.Web/Components`，`MyProject.Web.Client` 的 WASM 頁面（0.10.2 起的分類、團隊，0.10.3 起的專案）沒有涵蓋，要自己遵守。
+5. `MyProject.Web/Components/` 底下除了 `Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板（`MyProject.Web.Client/Commons/ConfirmDialog.cs`）。⚠️ 這條守門目前只掃 `MyProject.Web/Components`，`MyProject.Web.Client` 的 WASM 頁面（0.10.2 起的分類、團隊，0.10.3 起的專案，0.10.4 起的使用者、角色、稽核紀錄、寄信紀錄）沒有涵蓋，要自己遵守。
 6. `<OverlayStyles />` 只能在 `Routes.razor` 出現，且恰好一次。
 7. 果凍必須寫在 `.ant-modal .ant-modal-content` 共用基底上（§2.1）。
 8. `Routes.razor` 的 `<AntContainer />` 必須包在 `<LoggingErrorBoundary>` 之內（`AntContainer_ShouldBeWrappedInErrorBoundary`），否則浮層內的未處理例外會讓整個 circuit 中斷。

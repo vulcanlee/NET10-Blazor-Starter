@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.29
+- 文件版本：1.30
 - 文件狀態：已實作
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.4
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/11
 
@@ -13,7 +13,8 @@
 只能直接開 SQLite 檔查。0.9.42 補上查詢畫面，讓這條軌跡拿得出來。
 
 - 範圍：管理員專屬的稽核事件檢視／查詢／明細／CSV 匯出／清除與清空；0.9.173 起另有五個資料頁每列的「異動歷程」（§3.4）；0.9.175 起每筆紀錄加上防竄改簽章，可驗證完整性（§九）。
-- 非範圍：本頁**不提供 Web API**（內部管理頁；0.10.2 起只有「異動歷程」對話窗用的兩個管理員專用端點，見 §3.4，本頁其他端點在 WASM 遷移 M5 再補）；不做告警通知；
+- Web API：0.10.2 起先有「異動歷程」對話窗用的兩個管理員專用端點（§3.4）；0.10.4 起（WASM 遷移 M5）本頁改以 WebAssembly 執行，查詢、選項、明細、匯出、清除、清空與完整性驗證都有管理員專用端點（`api/v1/audit-logs`，見 §3.5 與 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)）。
+- 非範圍：不做告警通知；
   不修改既有的稽核寫入點。
 - 相關：寫入端的事件涵蓋範圍見 [使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md)、
   [登入與帳號流程](登入與帳號流程-prd.md)。
@@ -22,7 +23,10 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/audit-logs` | 系統管理 → 帳號與權限 → id=35「稽核紀錄」 | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣）| 系統管理員、稽核人員 |
+| `/audit-logs` | 系統管理 → 帳號與權限 → id=35「稽核紀錄」 | **管理員專屬**（0.10.4 起 WASM 頁以 `PagePermissions.IsAdmin` 判斷、API 以 `[AdminOnly]` 擋；之前是 `CheckIsAdmin()`；權限鍵不上架角色矩陣）| 系統管理員、稽核人員 |
+
+0.10.4 起頁面在 WebAssembly 執行（`MyProject.Web.Client/Pages/AuditLogPage.razor`、`Views/Admins/AuditLogView.*`，版面 `ClientMainLayout`；Server 版已刪除），畫面、按鈕、對話窗與訊息和之前相同。
+非管理員開頁顯示「你沒有權限存取此頁面」，`Permission.Denied` 由伺服器在 `POST /api/v1/shell/page-view` 寫；直接呼叫 API 回 403，並寫一筆 `Permission.Denied`（detail「需要管理員」）。
 
 權限鍵常數為 `MagicObjectHelper.角色_稽核紀錄`，值 `"稽核紀錄"`。
 與同群組的「使用者管理」「角色管理」一致，**刻意不列入** `RolePermissionService.GetRoleListPermissionAllName()`
@@ -48,13 +52,13 @@
   清除超過保留天數 `history`（0.9.174 起提示文字「清除超過保留天數的紀錄（異動 N 天、瀏覽 M 天）」，見 §五）、清空全部 `delete_forever`、驗證完整性 `verified_user`（0.9.175 起，提示文字「驗證完整性（檢查有沒有被改、被刪）」，見 §九）。匯出 CSV 0.9.78 起寫一筆 `Audit.Export` 稽核。
 - 頁首藍色說明框（0.9.174 起）：`AuditLogSettings` 的開關有關閉時多一行「目前沒有記錄修改前後差異與瀏覽類事件（換頁、搜尋、查看），可在「系統參數」頁開啟。」，只關一個時只列那一個，都開時不顯示（§六）。
 - 兩個破壞性動作以 `ConfirmDialog.AskDestructiveAsync` 二次確認。
-- 匯出的 CSV 為 **UTF-8 含 BOM**（走 `TextDownloadPayload.Utf8WithBom`，`ExportEncodingConventionTests` 守門）。
+- 匯出的 CSV 為 **UTF-8 含 BOM**（走 `TextDownloadPayload.Utf8WithBom`，`ExportEncodingConventionTests` 守門）。0.10.4 起由伺服器產生（`POST api/v1/audit-logs/export`），欄位定義從頁面搬到 `MyProject.Web/Export/AuditLogExport.cs`（欄位、順序與檔名不變）。
 
 ### 3.2 清單欄位
 
 | 欄位 | 說明 |
 | --- | --- |
-| 發生時間 | 可排序，預設遞減。**顯示為伺服器本地時間**（資料庫存 UTC）|
+| 發生時間 | 可排序，預設遞減。**顯示為伺服器本地時間**（資料庫存 UTC）。0.10.4 起點標題依點選方向排序；之前 Server 版把 AntDesign 的方向字串（`Ascending`／`Descending`）拿去比對 `ascend`／`descend`，永遠對不上，點了順序不會變 |
 | 結果 | 成功綠／失敗紅的 `Tag` |
 | 動作 | 動作代碼，依第一節（`Login`／`User`／`Role`／`Permission`／`Audit`，以及後來加入的 `Project`／`Category`／`Team`／`Password`／`Backup` 等各類；未列出的為預設色）上色 |
 | 操作者 | 帳號（Id=N）；系統或匿名事件顯示「（系統／匿名）」|
@@ -68,6 +72,7 @@
 列出本地時間、**UTC 原值**、結果、動作代碼、操作者、來源 IP、目標類型、目標識別、簽章（0.9.175 起）與完整摘要。
 「簽章」顯示「已簽章，異動鏈 #6」（鏈別＋鏈內序號）或「升級前的紀錄，未納入完整性驗證」（0.9.175 前寫入、沒有簽章的舊紀錄）。
 UTC 原值一併呈現是刻意的：跨時區協查或要與日誌檔的時間戳對照時會用到。
+0.10.4 起本地與 UTC 時間都由伺服器算好送來（`GET api/v1/audit-logs/{id}`），瀏覽器時區不同也不會顯示錯（見 §四）。
 
 **詳細內容（0.9.131 起）**：有內容檔的紀錄在摘要下方多一個「詳細內容」區塊 —— 修改的前後差異（`欄位: 舊值 → 新值`）
 或查詢的完整條件（含搜尋原文）。內容檔存在 `SystemSettings:ExternalFileSystem:AuditContentPath`（`{yyyyMM}/{Guid}.txt`，月份依 UTC），
@@ -86,7 +91,7 @@ scoped CSS 連 `::deep` 都打不到。
 - **位置**：分類清單 `/categories`、專案項目 `/projects`、團隊清單 `/teams`、使用者管理 `/myusers`、角色管理 `/roleviews` 每列操作欄的最後一顆「異動歷程」（`CrudActionButton`，圖示 `history`），一般清單與「顯示已刪除」兩個分支都有（已刪除的資料更需要查是誰刪的）。`New-CrudModule.ps1` 產生的頁面也有，目標類型＝模組名稱。
 - **權限：只有管理員**。稽核紀錄含來源 IP 與別人的操作，與本頁同樣只給管理員、權限鍵不上架角色矩陣。`AuditHistoryButton` 以 `PagePermissions.IsAdmin`（0.10.2 起；之前是 `CurrentUser.IsAdmin`，規則相同）決定渲染（非管理員連 `SpaceItem` 都不留，分類／專案／團隊頁的一般使用者也看不到），`AuditHistoryDialog.ShowAsync` 再擋一次並記警告日誌。
 - **元件**：`MyProject.Web.Client/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`（0.10.2 起放在 Client，Server 與 WASM 頁面共用，命名空間仍是 `MyProject.Web.Components.Commons`）；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
-- **資料來源**（0.10.2 起，`IAuditHistorySource`）：Server 頁面用 `ServerAuditHistorySource`（`MyProject.Web/Components/Commons/`，直接查 `AuditLogQueryService`）；WASM 頁面（分類、團隊，0.10.3 起加上專案）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
+- **資料來源**（0.10.2 起，`IAuditHistorySource`）：Server 頁面用 `ServerAuditHistorySource`（`MyProject.Web/Components/Commons/`，直接查 `AuditLogQueryService`）；WASM 頁面（分類、團隊，0.10.3 起加上專案，0.10.4 起加上使用者、角色，五個資料頁都是）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
   `GET /api/v1/audit-logs/history?targetType=&targetId=&page=&pageSize=&opened=`（每頁 1～50 筆；`opened=true` 是剛打開，寫一筆 `Audit.Search`，換頁不寫）與 `GET /api/v1/audit-logs/{id}/content`（詳細內容，寫一筆 `Audit.View`）；非管理員回 403。
   兩種來源寫的稽核與錯誤文字相同；API 不回傳伺服器上的內容檔路徑，只回 `HasContent`。API 回錯誤或連不上伺服器時，右下角顯示 API 的錯誤訊息（預設「載入異動歷程失敗。」）。
 - **標題**：「異動歷程：<名稱>」，使用者頁顯示帳號（不顯示姓名）、專案頁顯示 `Title`、其他顯示 `Name`。上方說明：「這一筆資料（<類型> #<編號>）在稽核紀錄裡的異動，新的在上面；時間為伺服器本地時間。稽核紀錄保留期限之前的異動已被清除。要看誰開過、查過這一筆，請到「稽核紀錄」頁查詢。」
@@ -100,6 +105,24 @@ scoped CSS 連 `::deep` 都打不到。
 ⚠️ 異動歷程靠動作代碼的結尾判斷瀏覽類，所以**瀏覽類動作的常數必須叫 `Search`／`View`，改了資料的動作值不可以 `.Search`／`.View` 結尾**（`AuditConventionTests.IsBrowsing_ShouldBeTrueExactlyForSearchAndViewConstants` 守門，CRUD 產生器的新模組自動相容；C# 與 SQL 兩份規則由 `AuditLogQueryServiceTests.NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode` 對每個動作代碼比對；速查表 §6.6）。
 
 **`AuditLogQuery.ExcludeBrowsing`**（0.9.173 起）：查詢條件可排除瀏覽類，規則同上。稽核紀錄頁沒有這個選項（頁面上要看得到誰開過、查過）；系統管理助理的 `search_audit_logs` 在給了目標、沒指定動作時自動打開它（見 [系統管理助理 PRD](系統管理助理-prd.md)）。
+
+### 3.5 Web API（0.10.4 起，WASM 遷移 M5）
+
+`AuditLogsController`（`api/v1/audit-logs`，JWT Bearer），每個 action 都標 `[AdminOnly]`：非管理員回 403 並寫 `Permission.Denied`（detail「需要管理員」）。稽核的寫法與 Server 版相同，WASM 頁面只經這些端點取資料：
+
+| 端點 | 用途 | 寫的稽核 |
+| --- | --- | --- |
+| `POST search` | 清單（條件同 §3.1，分頁） | `RecordSearch=true`（使用者按「查詢」）時寫 `Audit.Search`；自由輸入的欄位（操作者帳號、來源 IP、關鍵字、目標識別）摘要只記有沒有填 |
+| `GET options` | 資料庫出現過的動作與目標類型、清除的保留天數（異動、瀏覽）、記錄範圍提示 | — |
+| `GET {id}` | 明細與詳細內容；本地與 UTC 時間由伺服器算（§3.3） | `Audit.View` |
+| `POST export` | CSV（UTF-8 含 BOM，只匯前 10000 筆、與 Server 版相同，條件同搜尋） | `Audit.Export`：detail 記實際匯出筆數（`format=csv; rows=N`），超過 10,000 筆被截掉時另記總筆數（`format=csv; rows=10000; total=N`） |
+| `POST purge` | 清除超過保留天數（先異動與安全、成功後再瀏覽） | 兩段各一筆 `Audit.Purge` |
+| `POST clear-all` | 清空全部 | `Audit.ClearAll` |
+| `POST verify` | 完整性驗證（§九），只比對、不更新檢查點 | `Audit.Verify`（`trigger=manual`） |
+| `GET history`、`GET {id}/content` | 異動歷程（0.10.2 起，§3.4） | `Audit.Search`／`Audit.View`（`via=history`） |
+
+驗證完整性的時間與紀錄筆數成正比，WASM 端這個請求最長等 30 分鐘（`ApiClient.PostLongRunningAsync`），不受一般請求 100 秒的逾時限制。
+Controller 另套 `[ApiValidationFilter]`：每頁筆數 1～200、頁碼 ≥ 1，不合法回 400。
 
 ## 四、⚠️ 時區：本頁最關鍵的設計
 
@@ -121,6 +144,10 @@ scoped CSS 連 `::deep` 都打不到。
 
 **已知限制**：Blazor Server 的 `ToLocalTime()` 取的是**伺服器**時區，不是瀏覽器時區。
 與 `SystemHealthPage`、日誌檢視、例外紀錄、Token 用量四頁的口徑一致，刻意不另做 JS interop。
+
+**WASM（0.10.4 起）**：換算仍全在伺服器做，口徑不變（伺服器時區）；WASM 頁面不在瀏覽器裡再換算，明細的 UTC 時間也由伺服器算好送來，瀏覽器時區不同也不會偏。
+⚠️ 本地時間（清單、明細、「異動歷程」對話窗）一律以**不帶時差**（`DateTimeKind.Unspecified`）送出，UTC 欄位以 `Z` 結尾：之前帶 `+08:00`，WASM 反序列化時會換成瀏覽器的時區，伺服器與瀏覽器時區不同時整頁時間都錯（獨立審查發現）。查詢條件的起訖時間在 WASM 端送出前也先去掉時區（`ClientCulture.Unzoned`），伺服器照自己的時區解讀。
+⚠️ `AuditLogQueryService.GetByIdAsync` 單筆查詢回的是資料庫的 UTC（只有清單會換成本地），`AuditLogsController.Detail` 先 `ToLocal` 再回傳 —— 實機曾發現明細被當成本地再換算一次，差了 8 小時。
 
 ## 五、清除與保存
 
@@ -155,7 +182,7 @@ scoped CSS 連 `::deep` 都打不到。
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
 實作 `Web/Auth/ClientIpProvider` 依情境決定 —— SSR 頁面（登入／登出／兩步驟驗證）與 Web API 讀 `HttpContext.Connection.RemoteIpAddress`；
-Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入（circuit 內沒有可靠的 HttpContext）；
+Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入（circuit 內沒有可靠的 HttpContext）；WASM 頁面（0.10.1 起陸續搬遷，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄）的操作都經 Web API，記該次請求的 IP；
 排程作業兩者皆無，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
 
 **記錄範圍：可設定、預設關閉（0.9.174 起）**。0.9.131～0.9.173 一律記錄下表的瀏覽類事件與修改前後差異；0.9.174 起由 `AuditLogSettings` 兩個開關決定，**預設都關**，可在「系統參數」頁「資料保留」分類即時切換（改了寫 `SystemParameter.Update`）：
@@ -211,8 +238,8 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Project.FileDownload` | `DownloadsController`（0.10.3 起兌換下載票證時；之前是 `ProjectFileController`） |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
-| `Audit.Purge` / `Audit.ClearAll` | `AuditLogView`（0.9.42 起）|
-| `Audit.Verify` | 完整性驗證（0.9.175 起）：`AuditLogView` 的「驗證完整性」與排程作業「稽核紀錄完整性檢查」；`TargetType=AuditLog`、`TargetId=*`，結果有問題時 `Success=false`；Detail `result=ok\|failed; signed=N; issues=M; legacy=L; keyMismatch=K; trigger=T`（排程為 `Schedule`、補跑為 `CatchUp`、在排程作業頁按「立即執行」為 `Manual`、稽核紀錄頁的按鈕為 `manual`）。寫在檢查之後，所以這一筆本身由下一次檢查驗證 |
+| `Audit.Purge` / `Audit.ClearAll` | `AuditLogView`（0.9.42 起；0.10.4 起由 `AuditLogsController` 的 `purge`／`clear-all` 寫）|
+| `Audit.Verify` | 完整性驗證（0.9.175 起）：稽核紀錄頁的「驗證完整性」（0.10.4 起由 `AuditLogsController.Verify` 寫）與排程作業「稽核紀錄完整性檢查」；`TargetType=AuditLog`、`TargetId=*`，結果有問題時 `Success=false`；Detail `result=ok\|failed; signed=N; issues=M; legacy=L; keyMismatch=K; trigger=T`（排程為 `Schedule`、補跑為 `CatchUp`、在排程作業頁按「立即執行」為 `Manual`、稽核紀錄頁的按鈕為 `manual`）。寫在檢查之後，所以這一筆本身由下一次檢查驗證 |
 | `Email.Test` | `EmailTestService`（系統健康監控頁的寄信測試，0.9.59 起；detail 只有 provider 與成敗，不含收件者）|
 | `Ai.QuotaBlocked` | `AiAccountingChatClient`（AI 用量上限在送出前擋下，0.9.109 起；detail `operation=…; limit=…; used=…`）|
 | `Ai.ToolInvoked` / `Ai.ToolDenied` / `Ai.ToolRejected` | Agent 工具（0.9.142 起）：`AiAgentToolFactory`（執行成功或失敗、權限擋下）、`AiToolApprovals`（核准時權限擋下，detail 加 `stage=approval`）、`AiAgentRunner`／`AiAgentStep`（使用者拒絕核准）；detail `agent=…; tool=…; permission=…`，不記參數與回傳內容 |
@@ -283,6 +310,8 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
   `ViewAuditTests`（查詢摘要不含搜尋原文）、`CategoryServiceTests`／`MyUserServiceAssignmentTests`／`CategoryTeamRepositoryUniquenessTests`（差異內容；後者 0.10.2 隨 Repository 刪除）。
 - 0.10.2 起：`CategoryTeamApiTests` 的 `AuditHistory_ForAdmins_ShouldListTheChanges_AndAuditOpeningAndViewingOnce`、`AuditHistory_ForNonAdmins_ShouldReturn403`（異動歷程 API）與 `OpeningAWasmPage_WithoutPermission_ShouldAuditTheDenial_LikeTheServerPage`；分類、團隊 API 每個動作只寫一筆稽核（`*_FullLifecycle_ShouldWork_AndWriteEachAuditOnce`）。
 - `PageAuthorizationTests`：`/audit-logs` 自動納入受保護路由掃描。
+- 0.10.4 起：`AuditEmailLogApiTests` 9 項（稽核搜尋的篩選與畫面相同且只有使用者按查詢時才寫稽核、本地時間不帶時差且 UTC 以 Z 結尾、每頁筆數不合法回 400、選項列出動作／目標類型／保留天數、明細回傳該列與內容並只寫一筆 `Audit.View`、匯出含 BOM 的 CSV 並寫 `Audit.Export`、清除／清空／驗證與畫面相同並記錄自己、寄信紀錄依狀態與關鍵字篩選且新的在前不寫稽核、非管理員每個端點都 403 且拒絕有稽核）；
+  `ApiAuthorizationConventionTests`（每個 Web API action 都要標註 `[HasPermission]`／`[AdminOnly]`／`[SignedInUser]`／`[AllowAnonymous]`，除了 `[AllowAnonymous]` 都要有 `[Authorize]`）；`ExportTests` 改用 `AuditLogExport.CsvColumns`（欄位與舊版一致）。
 - 0.9.173 起：`AuditLogQueryServiceTests` 多 7 項（目標精確比對、只給目標類型或只給目標識別、目標類型清單去重排序、異動歷程只列異動且新的在前、異動歷程分頁、模型有目標索引、`NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode`）；
   `AuditConventionTests.IsBrowsing_ShouldBeTrueExactlyForSearchAndViewConstants`（只有常數名稱叫 Search／View 的才是瀏覽類）；
   `Components/AuditHistoryTests` 5 項（按鈕只給管理員、只列這一筆的異動並在點選時讀內容與寫 `Audit.View`、空狀態、非管理員不載入）；
@@ -334,6 +363,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
   - 有問題時列出「問題清單」，最多 50 個（超過時標題寫「列出前 50 個，共 M 個」）。
   - 下方說明：這裡只比對、不更新檢查點；每天 03:30 的排程「稽核紀錄完整性檢查」發現問題時會通知全體管理員並寄信；「金鑰不同」是金鑰遺失或換主機沒帶金鑰造成的，只能確認序號連續、無法驗證內容，不算問題。
   - 每按一次寫一筆 `Audit.Verify`（`trigger=manual`）。
+  - 0.10.4 起經 `POST api/v1/audit-logs/verify`；WASM 端這個請求最長等 30 分鐘，不受一般 100 秒逾時（§3.5）。
 - 明細窗的「簽章」欄（§3.3）。
 - 「清空全部」的確認文字（§五）。
 

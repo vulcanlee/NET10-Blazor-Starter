@@ -6,6 +6,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Share.Helpers;
 using MyProject.Web.Backup;
+using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
 
@@ -33,7 +34,12 @@ public class BackupController : ControllerBase
         this.logger = logger;
     }
 
+    /// <remarks>
+    /// ⚠️ 這是**管理員專屬**端點：管理員檢查寫在方法裡（Cookie 驗證的請求沒有經過 ApiActorMiddleware，<see cref="AdminOnlyAttribute"/> 讀不到目前使用者），
+    /// 標 <c>[SignedInUser]</c> 只是因為篩選器做不到，**不可**把方法裡的檢查拿掉。M7 改成一次性下載票證時改用 <c>[AdminOnly]</c>。
+    /// </remarks>
     [HttpGet("{fileName}/download")]
+    [SignedInUser]
     public async Task<IActionResult> Download(string fileName)
     {
         var userId = int.TryParse(User.FindFirstValue(ClaimTypes.Sid), out var id) ? id : 0;
