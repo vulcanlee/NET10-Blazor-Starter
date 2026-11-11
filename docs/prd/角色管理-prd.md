@@ -1,10 +1,10 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.9.173
+- 現行系統版本：0.10.4
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -17,15 +17,19 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
-| `/roleviews` | 系統管理 → 帳號與權限 → 角色管理（`Menu.json` id=32；0.9.113 起）| 僅管理員（`AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
+| `/roleviews` | 系統管理 → 帳號與權限 → 角色管理（`Menu.json` id=32；0.9.113 起）| 僅管理員（0.10.4 起 WASM 頁以 `PagePermissions.IsAdmin` 判斷、API 以 `[AdminOnly]` 擋；之前是 `AuthenticationStateHelper.CheckIsAdmin`）| 系統管理員 |
 
-- `RoleViewView` 初始化先 `Check`，非管理員顯示「你沒有權限存取此頁面」並停止載入。
+- 0.10.4 起本頁以 WebAssembly 執行（WASM 遷移 M5，`MyProject.Web.Client/Pages/RoleViewPage.razor`，版面 `ClientMainLayout`；Server 版已刪除），畫面、按鈕、對話窗與訊息和之前相同。`RoleViewView` 以 `PagePermissions.IsAdmin` 判斷，非管理員顯示「你沒有權限存取此頁面」並停止載入，`Permission.Denied` 稽核由伺服器在 `POST /api/v1/shell/page-view` 寫。
 
 > **0.4.33 起**：`角色管理` 權限鍵刻意**不列入角色矩陣**（比照「統計與分析」群組，0.9.113 起改名「監控與診斷」）。
 > 此前該鍵可被勾選卻永遠無效（頁面以 `CheckIsAdmin` 守門），屬於「死權限」。
 > 由 `MyProject.Tests/AdminOnlyPermissionTests.cs` 守門，請勿補上。
 
-- 角色本身以 Blazor 頁面、管理員身分閘控（無 `RoleView` API 控制器）；此處編輯出來的權限鍵，才是各業務 API 控制器 `[HasPermission("頁面", "動作")]` 的授權依據。
+- 角色本身以管理員身分閘控；此處編輯出來的權限鍵，才是各業務 API 控制器 `[HasPermission("頁面", "動作")]` 的授權依據。
+- 0.10.4 起有管理員專用的 Web API `api/v1/roles`（`RolesController`，JWT Bearer＋`[AdminOnly]`；非管理員回 403 並寫一筆 `Permission.Denied`，detail「需要管理員」），走與畫面相同的 `RoleViewService`，端點見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)；之前沒有 `RoleView` API 控制器。
+  權限矩陣在 API 上是樹狀 DTO（`RolePermissionDto`：群組 → 頁面 → 動作，`Dtos/Admins/RoleDtos.cs`），伺服器轉成權限鍵後照舊寫入（規則不變）；`POST search` 的每列含矩陣（「複製」直接用它），`GET {id}` 寫 `Role.View`，`GET options` 回啟用中的團隊與空白矩陣。失敗依 `VerifyRecordResult.Kind` 對應：找不到 404、重複／衝突 409、規則不符 400、未預期 500。
+  **只採納權限目錄**（審查發現）：`RolesController` 把送來的矩陣套到 `RolePermissionService.InitializePermissionSetting()` 的範本上，目錄裡沒有的群組、頁面、動作一律忽略——之前 API 呼叫端可以多塞「稽核紀錄」等管理員專屬鍵，讓它被授予。修改不再覆寫建立時間（`CreateAt`）；名稱必填由伺服器再驗一次（400）；`[ApiValidationFilter]` 擋每頁筆數 1～200 以外與頁碼 < 1。
+  角色的變更不換任何人的工作階段版本：有效權限每個請求重新讀取，下一個請求就生效。
 
 ## 三、畫面與欄位
 
@@ -90,11 +94,13 @@ View（`RoleViewView`）→ `RoleViewService` → `BackendDBContext`：
 - `MyProject.Tests/TwoFactorTests.cs`（0.9.104）：主要或額外角色勾了「需要兩步驟驗證」即必須使用、已刪除的角色不算。
 - `MyProject.Tests/AdapterModelCloneTests.cs`（0.9.95）：`Clone()` 複製每個可寫屬性 —— 0.9.93～0.9.94 `RoleViewAdapterModel.Clone()` 漏了版本號，從畫面修改任何角色都被當成並行衝突。
 - `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `RoleView`；元件行為見 `Components/AuditHistoryTests`。
+- `MyProject.Tests/RoleApiTests.cs`（0.10.4 起，5 支）：角色 Web API 的完整生命週期把矩陣存成權限鍵且每個動作只記一筆稽核、搜尋含矩陣且只有使用者按搜尋時才寫稽核、規則與畫面相同、存檔只採納權限目錄且不覆寫建立時間並要求名稱、非管理員 403。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Admins/RoleViewPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動；動作欄定義 `PermissionActionItems`）
+- `src/MyProject/MyProject.Web.Client/Pages/RoleViewPage.razor`（0.10.4 起 WASM；之前在 `MyProject.Web/Components/Pages/Admins/`）
+- `src/MyProject/MyProject.Web.Client/Views/Admins/RoleViewView.razor`（權限矩陣）、`RoleViewView.razor.cs`（矩陣互動；動作欄定義 `PermissionActionItems`）、`RolePermissionMatrix.cs`（0.10.4 起也搬到 Client）
+- `src/MyProject/MyProject.Web.Client/Api/RoleApi.cs`、`RoleDtoMapper.cs`（WASM 頁呼叫 API、樹狀 DTO ↔ 畫面模型；Controller 共用同一份對應）；`src/MyProject/MyProject.Web/Controllers/RolesController.cs`；DTO 在 `src/MyProject/MyProject.Dtos/Admins/RoleDtos.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/RoleViewService.cs`（`AddAsync`、`UpdateAsync`、`DefaultRoleRenameMessage`、回填矩陣 `OtherDependencyData`）
 - `src/MyProject/MyProject.Business/Services/Other/RolePermissionService.cs`（`SetPermissionInput`、`GetPermissionInput`）
 - `src/MyProject/MyProject.Business/Services/Other/RbacWriteService.cs`（`SyncRolePermissionsAsync`、`EnsurePermissionsAsync`）

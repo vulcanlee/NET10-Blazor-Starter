@@ -59,7 +59,7 @@ else
                 @* 0.9.132 起：勾選後可「刪除選取」；自己與 support 不可勾（同刪除按鈕），已刪除的資料不可勾選。 *@
                 @if (!showDeleted)
                 {
-                    <Selection Disabled="@(!myUserService.CanDelete(context))" />
+                    <Selection Disabled="@(!Row(context).CanDelete)" />
                 }
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Sortable />
@@ -67,7 +67,7 @@ else
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable>
                     @* 0.9.120 起：點標籤直接切換（停用先確認）；自己與 support 不可停用，已刪除的資料不可點。 *@
-                    @if (!showDeleted && myUserService.CanToggleStatus(context))
+                    @if (!showDeleted && Row(context).CanToggleStatus)
                     {
                         <StatusPill Text="@context.StatusText"
                                     Tone="@(context.Status ? StatusTone.Positive : StatusTone.Muted)"
@@ -100,11 +100,12 @@ else
                         <span>—</span>
                     }
                 </Column>
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Sortable />
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Sortable />
+                @* 0.10.4 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
+                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" />
+                    <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.DeletedBy)" Title="刪除者" />
                 }
                 <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
@@ -130,7 +131,7 @@ else
                                                   OnClick="@(async () => await OnEditAsync(@context))" />
                             </SpaceItem>
                             @* support 不可當範本（0.9.127 起）。 *@
-                            @if (myUserService.CanCopy(context))
+                            @if (Row(context).CanCopy)
                             {
                                 <SpaceItem>
                                     <CrudActionButton Title="複製" Icon="content_copy"
@@ -159,7 +160,7 @@ else
                                                       OnClick="@(async () => await OnResetTwoFactorAsync(@context))" />
                                 </SpaceItem>
                             }
-                            @if (myUserService.CanDelete(context))
+                            @if (Row(context).CanDelete)
                             {
                                 <SpaceItem>
                                     <CrudActionButton Title="刪除" Icon="delete" Danger
@@ -203,7 +204,7 @@ else
 
                     <FormItem Label="密碼" Required="@isNewRecordMode">
                         <Input Password @bind-Value="CurrentRecord.Password" @bind-Value:after="OnPasswordTyped" Placeholder="新增時請輸入密碼，編輯時留白表示不變更" />
-                        <div class="form-field-hint">@(isNewRecordMode ? string.Empty : "留白表示沿用既有密碼。")密碼規則：@PasswordPolicy.Describe()</div>
+                        <div class="form-field-hint">@(isNewRecordMode ? string.Empty : "留白表示沿用既有密碼。")密碼規則：@passwordRule</div>
                         <ValidationMessage For="() => CurrentRecord.Password" />
                     </FormItem>
 
@@ -323,7 +324,7 @@ else
                     <FormItem Label="密碼" Required>
                         <Input Password="@(!copyPasswordVisible)" @bind-Value="copyRecord.Password" Placeholder="請輸入密碼，或按「產生」" />
                         <Button Size="ButtonSize.Small" OnClick="OnGeneratePassword">產生</Button>
-                        <div class="form-field-hint">密碼規則：@PasswordPolicy.Describe()</div>
+                        <div class="form-field-hint">密碼規則：@passwordRule</div>
                     </FormItem>
 
                     <FormItem Label="Email">

@@ -56,4 +56,17 @@ public sealed class ClientCultureTests
     [Fact]
     public void Build_WithoutAFormat_ShouldStillBeTraditionalChinese()
         => Assert.Equal("zh-TW", ClientCulture.Build(null).Name);
+
+    /// <summary>審查修正（0.10.4）：日期選擇器的值去掉時區標記再送，序列化後不帶瀏覽器的時差，伺服器照自己的時區解讀。</summary>
+    [Fact]
+    public void Unzoned_ShouldDropTheKind_SoNoOffsetIsSerialized()
+    {
+        var picked = new DateTime(2026, 11, 1, 9, 30, 0, DateTimeKind.Local);
+
+        var sent = ClientCulture.Unzoned(picked)!.Value;
+
+        Assert.Equal(DateTimeKind.Unspecified, sent.Kind);
+        Assert.Equal("\"2026-11-01T09:30:00\"", System.Text.Json.JsonSerializer.Serialize(sent));
+        Assert.Null(ClientCulture.Unzoned(null));
+    }
 }

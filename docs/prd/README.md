@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.40
+- 文件版本：2.41
 - 文件狀態：維護中
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.4
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/11
 
@@ -15,8 +15,8 @@
 | 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Pages/HomeAuthed.razor`、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗）、`PageHelpDialog`／`PageHelpService`／`Datas/HelpTopics.json`＋`Datas/Help/*.md`（頂欄「操作說明」對話窗，每個登入後頁面一份） | 已實作（0.9.66 起含頁面操作說明對話窗；0.9.121 起說明窗可切換字體小／中／大）| 0.9.163 |
 | 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.163 |
 | 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Web.Client/Pages/ProjectPage.razor`（0.10.3 起 WASM）、`ProjectService`、`ProjectController`、`DownloadsController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核；0.9.145 起 Agent 測試台可產生／清除測試專案；0.10.3 起改用 WebAssembly、API 走服務、標題不可重複、附件以一次性下載票證下載）| 0.10.3 |
-| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作（0.9.120 起點狀態標籤切換啟用／停用）| 0.9.163 |
-| 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.9.163 |
+| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Web.Client/Pages/MyUserPage.razor`（0.10.4 起 WASM）、`MyUserService`、`UsersController` | 已實作（0.9.120 起點狀態標籤切換啟用／停用；0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/users`（`[AdminOnly]`），不可強制登出自己、不可重設自己的兩步驟驗證也在 API 擋，改自己後經 `SessionRefreshUrl` 換發登入，WASM 遷移 M5）| 0.10.4 |
+| 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Web.Client/Pages/RoleViewPage.razor`（0.10.4 起 WASM）、`RoleViewService`、`RbacWriteService`、`RolesController` | 已實作（0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/roles`（`[AdminOnly]`，權限矩陣為樹狀 DTO），WASM 遷移 M5）| 0.10.4 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `MyProject.Web.Client` 的 `Pages/CategoryPage.razor`、`Views/Categories/CategoryViewView`、`Api/CategoryApi`；`CategoryController`（`/api/v1/Category`）、`CategoryService` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `CategoryService`，WASM 遷移 M3） | 0.10.2 |
 | 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `MyProject.Web.Client` 的 `Pages/TeamPage.razor`、`Views/Teams/TeamViewView`、`Api/TeamApi`；`TeamController`（`/api/v1/Team`）、`TeamService` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `TeamService`，WASM 遷移 M3）| 0.10.2 |
 | 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Pages/SystemHealthPage.razor`、`Health/SystemHealthService` 等 | 已實作（14 項檢查；0.9.59 起含寄信服務項與寄信測試；0.9.79 起含日誌管線項；0.9.96 起含排程作業項；0.9.122 起含站內通知測試；0.9.175 起檔案系統項含稽核金鑰目錄）| 0.9.175 |
@@ -40,7 +40,7 @@
 | 系統參數 | [系統參數](系統參數-prd.md) | `/system-parameters` | `Pages/Admins/SystemParameterPage.razor`、`Web/Configuration/Parameters/*`、`SystemParameterService`、`SystemIdentity` | 已實作（0.9.98；0.9.142 起含「AI 模型」；0.9.143 起含 Agent 對話保留與備份；0.9.144 起含工作流程的模型；0.9.155 起含系統管理助理的模型；0.9.161 起含巡檢報告保留天數；0.9.174 起含稽核記錄範圍的兩個開關與瀏覽類保留天數）| 0.9.174 |
 | 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Pages/Admins/ScheduledJobPage.razor`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理；0.9.143 起含 Agent 對話清理，0.9.144 起含工作流程的執行紀錄；0.9.161 起含系統管理助理巡檢與巡檢報告清理；0.9.174 起稽核紀錄清理分兩類；0.9.175 起含稽核紀錄完整性檢查）| 0.9.175 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.9.163 |
-| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Pages/Admins/AuditLogPage.razor`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選；0.9.173 起可依目標類型＋目標識別精確查詢，五個資料頁每列有管理員專用的「異動歷程」；0.9.174 起修改前後差異與瀏覽類事件改為可設定、預設不記，瀏覽類另有保留天數；0.9.175 起防竄改簽章（雜湊鏈）與完整性驗證；0.10.2 起異動歷程另有管理員專用 API `/api/v1/audit-logs`，供 WASM 頁面使用）| 0.10.2 |
+| 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Web.Client/Pages/AuditLogPage.razor`（0.10.4 起 WASM）、`AuditLogsController`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選；0.9.173 起可依目標類型＋目標識別精確查詢，五個資料頁每列有管理員專用的「異動歷程」；0.9.174 起修改前後差異與瀏覽類事件改為可設定、預設不記，瀏覽類另有保留天數；0.9.175 起防竄改簽章（雜湊鏈）與完整性驗證；0.10.2 起異動歷程另有管理員專用 API `/api/v1/audit-logs`，供 WASM 頁面使用；0.10.4 起本頁改用 WebAssembly，查詢、明細、匯出、清除、清空與驗證都有 `[AdminOnly]` API，「發生時間」排序修正為依點選方向，WASM 遷移 M5）| 0.10.4 |
 
 ## 二、無選單入口的核心能力
 
@@ -50,7 +50,7 @@
 | 稽核事件的**寫入點**（登入、使用者/角色/權限異動；0.9.78 起擴及分類、團隊、專案與附件、登出、SSO、頁面權限拒絕、匯出與清除，代碼集中在 `AuditActions`；0.9.117 起每筆由 `AuditLogService` 自動記來源 IP）| [稽核紀錄](稽核紀錄-prd.md)、[使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md)、[分類清單](分類清單-prd.md)、[團隊清單](團隊清單-prd.md)、[專案項目](專案項目-prd.md) | 已實作；0.9.42 起查詢畫面見 `/audit-logs`，本列只涵蓋散落各流程的寫入點 |
 | 帳號安全（PBKDF2、帳號鎖定、忘記密碼、兩步驟驗證）| [登入與帳號流程](登入與帳號流程-prd.md)、[兩步驟驗證](兩步驟驗證-prd.md) | 已實作；忘記密碼需啟用寄信（0.9.60）；兩步驟驗證 0.9.104 起由使用者自選開啟，可依角色或系統參數強制 |
 | 檔案上傳（專案附件）| [專案項目](專案項目-prd.md) | 已實作 |
-| 寄信服務（None／Pickup／Smtp、背景佇列、健康監控項與測試寄信）| [寄信服務](寄信服務-prd.md) | 已實作（0.9.59）；設定在 `EmailSettings`（Gmail 設定步驟見 [Gmail 寄信設定指南](../operations/Gmail寄信設定指南.md)），畫面在「系統健康監控」|
+| 寄信服務（None／Pickup／Smtp、背景佇列、健康監控項與測試寄信）| [寄信服務](寄信服務-prd.md) | 已實作（0.9.59）；設定在 `EmailSettings`（Gmail 設定步驟見 [Gmail 寄信設定指南](../operations/Gmail寄信設定指南.md)），畫面在「系統健康監控」；管理員的「寄信紀錄」頁 `/email-logs`（0.9.167 起；0.10.4 起以 WebAssembly 執行，`Web.Client/Pages/EmailLogPage.razor`，資料走只限管理員的 `POST api/v1/email-logs/search`）|
 | 日誌與例外處理（全系統共用規範：等級規則、例外分類、未捕捉例外涵蓋、稽核範圍、保存期限、告警）| [日誌與例外處理](日誌與例外處理-prd.md) | 已實作（0.9.76 立案；0.9.77 完成 P0、0.9.78 完成 P1、0.9.79 完成 P2）；§三、§四 為所有功能的開發與驗收依據 |
 | LLM 呼叫費用估算（單價／匯率設定、四種計費單位、單價快照）| [LLM 呼叫費用估算](LLM呼叫費用估算-prd.md) | 已實作（0.9.17）；表現在「Token 用量」頁，維護入口是 `appsettings.json` |
 

@@ -189,6 +189,10 @@ public class RoleViewService
                 targetType: nameof(RoleView), targetId: itemParameter.Id.ToString(),
                 detail: $"name={itemParameter.Name}; permissionKeyCount={permissionKeys.Count}; requireTwoFactor={itemParameter.RequireTwoFactor}");
 
+            // 回填給呼叫端（0.10.4 起 Web API 以它回傳新資料）。
+            paraObject.Id = itemParameter.Id;
+            paraObject.ConcurrencyStamp = itemParameter.ConcurrencyStamp;
+
             Logger.LogInformation("Role view created successfully. RoleViewId={RoleViewId}, Name={RoleName}", itemParameter.Id, itemParameter.Name);
             return VerifyRecordResultFactory.Build(true);
         }
@@ -197,11 +201,11 @@ public class RoleViewService
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Role view creation rejected by unique constraint. Name={RoleName}", paraObject.Name);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to create role view. Name={RoleName}", paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "新增角色失敗。", ex);
+            return VerifyRecordResultFactory.Error("新增角色失敗。", ex);
         }
     }
 
@@ -222,13 +226,13 @@ public class RoleViewService
             if (item == null)
             {
                 Logger.LogWarning("Role view update rejected because record was not found. RoleViewId={RoleViewId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, "找不到要修改的角色資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要修改的角色資料。");
             }
 
             if (DefaultRoleRenameMessage(item.Name, paraObject.Name) is { } renameBlocked)
             {
                 Logger.LogInformation("Role view update rejected because the default role cannot be renamed. RoleViewId={RoleViewId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, renameBlocked);
+                return VerifyRecordResultFactory.Invalid(renameBlocked);
             }
 
             // 修改前後差異（0.9.131 起）：權限與預設團隊是 JSON，比對解析後的集合（新增／移除哪些鍵），不比 JSON 原文。
@@ -239,6 +243,9 @@ public class RoleViewService
 
             var entry = context.Entry(itemData);
             entry.State = EntityState.Modified;
+
+            // 建立時間不跟著修改改寫（0.10.4 起，審查發現：API 呼叫端可以送任意值；畫面上本來就不能改）。
+            entry.Property(x => x.CreateAt).IsModified = false;
             ConcurrencyStampHelper.Apply(entry, paraObject.ConcurrencyStamp);
             SoftDeleteHelper.ProtectFlags(entry);
             await using var transaction = await context.Database.BeginTransactionAsync();
@@ -262,18 +269,18 @@ public class RoleViewService
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
             Logger.LogInformation("Role view update rejected by concurrency conflict. RoleViewId={RoleViewId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Role view update rejected by unique constraint. RoleViewId={RoleViewId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to update role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "修改角色失敗。", ex);
+            return VerifyRecordResultFactory.Error("修改角色失敗。", ex);
         }
     }
 
@@ -289,21 +296,21 @@ public class RoleViewService
             if (item == null)
             {
                 Logger.LogWarning("Role view deletion rejected because record was not found. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的角色資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的角色資料。");
             }
 
             // 預設角色是新帳號與 support 的角色；種子資料找不到它時會以「全部權限」重建，刪掉反而危險。
             if (item.Name == MagicObjectHelper.預設角色)
             {
                 Logger.LogInformation("Role view deletion rejected for the default role. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, $"「{MagicObjectHelper.預設角色}」是新帳號與 support 使用的角色，不可刪除。");
+                return VerifyRecordResultFactory.Invalid($"「{MagicObjectHelper.預設角色}」是新帳號與 support 使用的角色，不可刪除。");
             }
 
             // 仍是某些未刪除使用者（含停用者）的主要角色就不能刪：刪了之後那些人每次換頁都會被登出。
             if (await BuildPrimaryRoleInUseMessageAsync(context.MyUser, item.Name, id, "無法刪除。請先到使用者管理把他們的主要角色改成其他角色，再刪除。") is { } inUse)
             {
                 Logger.LogInformation("Role view deletion rejected because it is still a primary role. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, inUse);
+                return VerifyRecordResultFactory.Invalid(inUse);
             }
 
             var (actorUserId, actorAccount) = ResolveActor();
@@ -317,7 +324,7 @@ public class RoleViewService
                 SoftDeleteHelper.Restore(item);
                 await context.SaveChangesAsync();
                 Logger.LogInformation("Role view deletion rolled back because a user was assigned it meanwhile. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, raced);
+                return VerifyRecordResultFactory.Invalid(raced);
             }
 
             await auditLogService.WriteAsync(
@@ -331,12 +338,12 @@ public class RoleViewService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Role view deletion rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete role view. RoleViewId={RoleViewId}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除角色失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除角色失敗。", ex);
         }
     }
 
@@ -409,7 +416,7 @@ public class RoleViewService
             if (item == null)
             {
                 Logger.LogWarning("Role view restore rejected because deleted record was not found. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要還原的角色（可能已被還原或永久刪除）。");
+                return VerifyRecordResultFactory.NotFound("找不到要還原的角色（可能已被還原或永久刪除）。");
             }
 
             // 刪除期間可能有人建立了同名角色；比對規則與新增時相同（0.9.171 起去頭尾空白、不分大小寫）。
@@ -418,7 +425,7 @@ public class RoleViewService
             if (await context.RoleView.AnyAsync(x => x.Id != id && x.Name.ToLower() == NameNormalizer.ToLowerAscii(name)))
             {
                 Logger.LogInformation("Role view restore rejected because an active role has the same name. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, $"已有同名的角色「{item.Name}」，無法還原。請先將現有的同名角色改名後再還原。");
+                return VerifyRecordResultFactory.Conflict($"已有同名的角色「{item.Name}」，無法還原。請先將現有的同名角色改名後再還原。");
             }
 
             SoftDeleteHelper.Restore(item);
@@ -436,18 +443,18 @@ public class RoleViewService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Role view restore rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Role view restore rejected by unique constraint. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to restore role view. RoleViewId={RoleViewId}", id);
-            return VerifyRecordResultFactory.Build(false, "還原角色失敗。", ex);
+            return VerifyRecordResultFactory.Error("還原角色失敗。", ex);
         }
     }
 
@@ -469,14 +476,14 @@ public class RoleViewService
             if (item == null)
             {
                 Logger.LogWarning("Role view purge rejected because deleted record was not found. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的角色（只能永久刪除已刪除的資料）。");
+                return VerifyRecordResultFactory.NotFound("找不到要永久刪除的角色（只能永久刪除已刪除的資料）。");
             }
 
             var allUsers = context.MyUser.IgnoreQueryFilters([ISoftDeletable.FilterName]);
             if (await BuildPrimaryRoleInUseMessageAsync(allUsers, item.Name, id, "無法永久刪除。已刪除的使用者請先永久刪除，或還原角色後替他們改用其他角色。") is { } inUse)
             {
                 Logger.LogInformation("Role view purge rejected because users still reference it as primary role. RoleViewId={RoleViewId}", id);
-                return VerifyRecordResultFactory.Build(false, inUse);
+                return VerifyRecordResultFactory.Invalid(inUse);
             }
 
             context.RoleView.Remove(item);
@@ -494,12 +501,12 @@ public class RoleViewService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Role view purge rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
-            return VerifyRecordResultFactory.Build(false, "這個角色已被其他人還原或變更，沒有執行永久刪除。", ex);
+            return VerifyRecordResultFactory.Conflict("這個角色已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge role view. RoleViewId={RoleViewId}", id);
-            return VerifyRecordResultFactory.Build(false, "永久刪除角色失敗。", ex);
+            return VerifyRecordResultFactory.Error("永久刪除角色失敗。", ex);
         }
     }
 
@@ -518,7 +525,7 @@ public class RoleViewService
         if (searchItem != null)
         {
             Logger.LogInformation("Pre-create validation failed because role name already exists. Name={RoleName}", paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "角色名稱已存在，無法新增。");
+            return VerifyRecordResultFactory.Conflict("角色名稱已存在，無法新增。");
         }
 
         return VerifyRecordResultFactory.Build(true);
@@ -536,13 +543,13 @@ public class RoleViewService
         if (searchItem == null)
         {
             Logger.LogInformation("Pre-update validation failed because role view was not found. RoleViewId={RoleViewId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, "要修改的角色資料不存在。");
+            return VerifyRecordResultFactory.NotFound("要修改的角色資料不存在。");
         }
 
         if (DefaultRoleRenameMessage(searchItem.Name, paraObject.Name) is { } renameBlocked)
         {
             Logger.LogInformation("Pre-update validation failed because the default role cannot be renamed. RoleViewId={RoleViewId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, renameBlocked);
+            return VerifyRecordResultFactory.Invalid(renameBlocked);
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name);
@@ -553,7 +560,7 @@ public class RoleViewService
         if (searchItem != null)
         {
             Logger.LogInformation("Pre-update validation failed because role name already exists. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "角色名稱已存在，無法修改。");
+            return VerifyRecordResultFactory.Conflict("角色名稱已存在，無法修改。");
         }
 
         return VerifyRecordResultFactory.Build(true);

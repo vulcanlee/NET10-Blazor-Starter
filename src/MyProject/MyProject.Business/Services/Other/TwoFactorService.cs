@@ -246,7 +246,7 @@ public sealed class TwoFactorService : ITwoFactorService
         var account = await ClearAsync(userId);
         if (account is null)
         {
-            return VerifyRecordResultFactory.Build(false, "找不到這位使用者。");
+            return VerifyRecordResultFactory.NotFound("找不到這位使用者。");
         }
 
         var actor = currentUserService.CurrentUser;

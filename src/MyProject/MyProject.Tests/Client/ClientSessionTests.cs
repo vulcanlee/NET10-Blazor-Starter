@@ -283,7 +283,11 @@ public sealed class ClientSessionTests
     [InlineData("/Categories?deleted=1", true)]
     [InlineData("/projects", true)]
     [InlineData("/Projects?deleted=1", true)]
-    [InlineData("/myusers", false)]
+    [InlineData("/myusers", true)]
+    [InlineData("/roleviews?deleted=1", true)]
+    [InlineData("/audit-logs", true)]
+    [InlineData("/email-logs", true)]
+    [InlineData("/logs", false)]
     [InlineData("/", false)]
     public void ClientRouteTable_ShouldKnowWhichPagesRunInWebAssembly(string path, bool expected)
         => Assert.Equal(expected, ClientRouteTable.IsClientRoute(path));

@@ -16,6 +16,12 @@ namespace MyProject.Web.Client.Commons;
 /// </summary>
 public static class ClientCulture
 {
+    /// <summary>
+    /// 日期選擇器的值當成「伺服器的本地時間」送出（0.10.4 起）：去掉時區標記，序列化時就不會帶瀏覽器的時差，
+    /// 伺服器收到後照自己的時區解讀，與 Server 版相同。
+    /// </summary>
+    public static DateTime? Unzoned(DateTime? value) => value is { } v ? DateTime.SpecifyKind(v, DateTimeKind.Unspecified) : null;
+
     public const string Name = "zh-TW";
 
     /// <summary>

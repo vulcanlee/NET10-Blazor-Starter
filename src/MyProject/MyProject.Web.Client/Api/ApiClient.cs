@@ -42,6 +42,17 @@ public class ApiClient
     public Task<ApiResult<T>> DeleteAsync<T>(string url) => SendAsync<T>(HttpMethod.Delete, url, null);
 
     /// <summary>
+    /// 可能要跑很久的請求（0.10.4 起，例如稽核紀錄的完整性驗證，時間與紀錄筆數成正比）：最多等 <see cref="LongRunningTimeout"/>，
+    /// 不受一般請求 100 秒的逾時限制。其他規則（自動帶 Token、401 刷新、離線）與一般請求相同。
+    /// </summary>
+    public Task<ApiResult<T>> PostLongRunningAsync<T>(string url, object? body = null) => SendAsync<T>(HttpMethod.Post, url, body, longRunning: true);
+
+    /// <summary>長時間請求的上限。</summary>
+    public static readonly TimeSpan LongRunningTimeout = TimeSpan.FromMinutes(30);
+
+    private HttpClient? longRunningHttp;
+
+    /// <summary>
     /// 最近一次失敗的 API 回應帶回的追蹤碼（0.10.2 起）：<c>ViewNotification</c> 顯示錯誤時取用一次就清掉，
     /// 使用者按「複製」的內容裡就有伺服器日誌查得到的同一個碼。WASM 只有一個使用者、單一執行緒，所以用 static。
     /// 只在失敗後 <see cref="TraceCodeLifetime"/> 內有效：沒有跳通知的失敗（例如背景讀取）留下的碼，不會被之後無關的錯誤拿去用。
@@ -147,11 +158,11 @@ public class ApiClient
         return ApiResult<T>.FailureResult($"伺服器回應異常（HTTP {raw.Status}）。", raw.Status);
     }
 
-    private async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string url, object? body)
+    private async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string url, object? body, bool longRunning = false)
     {
         try
         {
-            var response = await SendWithRefreshAsync(method, url, body);
+            var response = await SendWithRefreshAsync(method, url, body, longRunning);
             if (response is null)
             {
                 return ApiResult<T>.UnauthorizedResult("登入已失效，請重新登入。");
@@ -175,9 +186,9 @@ public class ApiClient
     }
 
     /// <summary>送出請求；拿到 401 時刷新 Token 後重試一次，刷新也失敗就導回登入頁並回 null。</summary>
-    private async Task<HttpResponseMessage?> SendWithRefreshAsync(HttpMethod method, string url, object? body)
+    private async Task<HttpResponseMessage?> SendWithRefreshAsync(HttpMethod method, string url, object? body, bool longRunning = false)
     {
-        var response = await SendOnceAsync(method, url, body);
+        var response = await SendOnceAsync(method, url, body, longRunning);
         if (response.StatusCode != HttpStatusCode.Unauthorized)
         {
             return response;
@@ -189,7 +200,7 @@ public class ApiClient
             return null;
         }
 
-        return await SendOnceAsync(method, url, body);
+        return await SendOnceAsync(method, url, body, longRunning);
     }
 
     private static void Remember<T>(ApiResult<T> result)
@@ -200,7 +211,7 @@ public class ApiClient
         }
     }
 
-    private async Task<HttpResponseMessage> SendOnceAsync(HttpMethod method, string url, object? body)
+    private async Task<HttpResponseMessage> SendOnceAsync(HttpMethod method, string url, object? body, bool longRunning = false)
     {
         using var request = new HttpRequestMessage(method, url);
         if (await session.GetAccessTokenAsync() is { } token)
@@ -213,7 +224,19 @@ public class ApiClient
             request.Content = JsonContent.Create(body);
         }
 
-        return await http.SendAsync(request);
+        if (!longRunning)
+        {
+            return await http.SendAsync(request);
+        }
+
+        // 同一個網站、同一個瀏覽器的 fetch，只是逾時較長；第一次用到才建立。
+        longRunningHttp ??= new HttpClient { BaseAddress = http.BaseAddress, Timeout = LongRunningTimeout };
+        foreach (var header in http.DefaultRequestHeaders)
+        {
+            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
+        return await longRunningHttp.SendAsync(request);
     }
 
     private async Task<ApiResult<T>> ReadAsync<T>(HttpResponseMessage response, string url)

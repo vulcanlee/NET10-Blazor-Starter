@@ -30,6 +30,11 @@ public static class ClientProgram
         // 附件上傳與下載（0.10.3 起）：檔案留在瀏覽器，不經過 WASM 記憶體。
         builder.Services.AddScoped<BrowserFiles>();
         builder.Services.AddScoped<ProjectApi>();
+        // 管理員頁（0.10.4 起，WASM 遷移 M5）。
+        builder.Services.AddScoped<AuditLogApi>();
+        builder.Services.AddScoped<EmailLogApi>();
+        builder.Services.AddScoped<RoleApi>();
+        builder.Services.AddScoped<UserApi>();
         builder.Services.AddScoped<CategoryApi>();
         builder.Services.AddScoped<TeamApi>();
         builder.Services.AddAntDesign();

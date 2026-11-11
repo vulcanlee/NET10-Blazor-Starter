@@ -67,7 +67,7 @@ public sealed class ExportTests : IDisposable
                 Csv(item.ActorAccount), Csv(item.ActorUserId?.ToString()), Csv(item.TargetType), Csv(item.TargetId), Csv(item.Detail), Csv(item.ClientIp)));
         }
 
-        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(AuditLogView.CsvColumns, rows));
+        Assert.Equal(legacy.ToString(), TabularExport.ToCsvText(AuditLogExport.CsvColumns, rows));
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class ExportTests : IDisposable
     [Fact]
     public void Csv_ShouldStartWithTheUtf8Bom()
     {
-        var bytes = TabularExport.ToCsv(AuditLogView.CsvColumns, [new AuditLogAdapterModel { Action = "A" }]);
+        var bytes = TabularExport.ToCsv(AuditLogExport.CsvColumns, [new AuditLogAdapterModel { Action = "A" }]);
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
     }
 

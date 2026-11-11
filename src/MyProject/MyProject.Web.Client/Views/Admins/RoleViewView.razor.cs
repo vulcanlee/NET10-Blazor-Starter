@@ -1,29 +1,46 @@
 ﻿using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using MyProject.Business.Helpers;
-using MyProject.Business.Services.DataAccess;
-using MyProject.Business.Services.Other;
+using Microsoft.Extensions.Logging;
+using MyProject.Dtos.Admins;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Admins;
-using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Client.Api;
+using MyProject.Web.Client.Auth;
 using MyProject.Web.Components.Commons;
+using MyProject.Web.Components.Views.Admins;
 
-namespace MyProject.Web.Components.Views.Admins
+namespace MyProject.Web.Client.Views.Admins
 {
+    /// <summary>
+    /// 角色管理（0.10.4 起在 WASM 執行，WASM 遷移 M5）。畫面、權限矩陣與對話窗流程照 Server 版，資料改走 <see cref="RoleApi"/>（只限管理員）：
+    /// 名稱規則、預設角色保護、仍是主要角色不可刪、並行衝突與稽核都在伺服器的 <c>RoleViewService</c>。
+    /// </summary>
     public partial class RoleViewView
     {
-        private readonly ILogger<RoleViewView> logger;
-        private readonly RoleViewService roleViewService;
-        private readonly ModalService modalService;
-        private readonly MessageService messageService;
-        private readonly NotificationService notificationService;
-        private readonly RolePermissionService rolePermissionService;
-        private readonly TeamService teamService;
+        [Inject]
+        public RoleApi Api { get; set; } = default!;
+
+        [Inject]
+        public PagePermissions Permissions { get; set; } = default!;
+
+        [Inject]
+        public ModalService modalService { get; set; } = default!;
+
+        [Inject]
+        public MessageService messageService { get; set; } = default!;
+
+        [Inject]
+        public NotificationService notificationService { get; set; } = default!;
+
+        [Inject]
+        public ILogger<RoleViewView> logger { get; set; } = default!;
+
+        /// <summary>空白的權限矩陣（伺服器的 options；新增時用）。</summary>
+        RolePermissionDto emptyPermission = new();
         List<string> availableTeams = new();
         ITable? table;
         /// <summary>「異動歷程」對話窗（0.9.173 起），由每列的 AuditHistoryButton 叫出。</summary>
@@ -53,34 +70,6 @@ namespace MyProject.Web.Components.Views.Admins
         string RoleMessage = string.Empty;
         bool isAccessChecked;
 
-        [Inject]
-        public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
-        [Inject]
-        public AuthenticationStateProvider authStateProvider { get; set; } = default!;
-        [Inject]
-        public NavigationManager NavigationManager { get; set; } = default!;
-        [Inject]
-        public IAuditLogService AuditLogService { get; set; } = default!;
-        [Inject]
-        public CurrentUserService CurrentUserService { get; set; } = default!;
-
-        public RoleViewView(
-            ILogger<RoleViewView> logger,
-            RoleViewService roleViewService,
-            ModalService modalService,
-            MessageService messageService,
-            NotificationService notificationService,
-            RolePermissionService rolePermissionService,
-            TeamService teamService)
-        {
-            this.logger = logger;
-            this.roleViewService = roleViewService;
-            this.modalService = modalService;
-            this.messageService = messageService;
-            this.notificationService = notificationService;
-            this.rolePermissionService = rolePermissionService;
-            this.teamService = teamService;
-        }
 
         /// <summary>「資料保留與清理」頁的「前往」帶 <c>?deleted=1</c> 進來時為 true：一進頁面就顯示已刪除的資料（0.9.133 起）。</summary>
         [Parameter]
@@ -89,30 +78,34 @@ namespace MyProject.Web.Components.Views.Admins
         protected override async Task OnInitializedAsync()
         {
             logger.LogDebug("Initializing role view management.");
-            var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-            if (checkResult != AuthenticationCheckResult.Succeeded)
-            {
-                logger.LogWarning("Role view initialization stopped because authentication check failed.");
-                return;
-            }
 
-            isAccessChecked = true;
-
-            if (!AuthenticationStateHelper.CheckIsAdmin())
+            // 登入檢查已由版面（ClientMainLayout）完成；沒有權限的開頁稽核由伺服器在開頁紀錄時寫（shell/page-view）。
+            if (!Permissions.IsAdmin)
             {
+                isAccessChecked = true;
                 RoleMessage = "你沒有權限存取此頁面";
-                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/roleviews");
                 logger.LogWarning("Role view denied because current user is not an administrator.");
                 return;
             }
 
-            availableTeams = await teamService.GetAllEnabledNamesAsync();
+            var options = await Api.OptionsAsync();
+            if (options.Success && options.Data is { } data)
+            {
+                availableTeams = data.Teams;
+                emptyPermission = data.EmptyPermission;
+            }
+            else
+            {
+                ViewNotification.Error(notificationService, $"讀取團隊與權限選項失敗：{options.UserMessage()}");
+            }
+
+            isAccessChecked = true;
 
             showDeleted = InitialShowDeleted;
             await ReloadAsync();
         }
 
-        public async Task ReloadAsync()
+        public async Task ReloadAsync(bool recordSearch = false)
         {
             // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
             selectedRows = [];
@@ -125,23 +118,25 @@ namespace MyProject.Web.Components.Views.Admins
                 _pageIndex,
                 _pageSize);
 
-            var dataRequest = new DataRequest
+            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.95 起）；搜尋稽核由伺服器寫（只有按「搜尋」才帶 RecordSearch）。
+            var result = await Api.SearchAsync(new RoleSearchRequestDto
             {
-                Search = searchText,
-                SortField = sortField,
-                SortDescending = sortDirection == "Descending" ? true : sortDirection == "Ascending" ? false : (bool?)null,
-                CurrentPage = _pageIndex,
+                Keyword = searchText,
+                SortBy = sortDirection is "Ascending" or "Descending" ? sortField : null,
+                SortDescending = sortDirection == "Descending",
+                PageIndex = _pageIndex,
                 PageSize = _pageSize,
-                Take = 0,
-            };
+                Deleted = showDeleted,
+                RecordSearch = recordSearch,
+            });
+            if (!result.Success || result.Data is null)
+            {
+                ViewNotification.Error(notificationService, result.UserMessage());
+                return;
+            }
 
-            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.95 起）。
-            DataRequestResult<RoleViewAdapterModel> dataRequestResult = showDeleted
-                ? await roleViewService.GetDeletedAsync(dataRequest)
-                : await roleViewService.GetAsync(dataRequest);
-
-            roleViewAdapterModels = dataRequestResult.Result.ToList();
-            _total = dataRequestResult.Count;
+            roleViewAdapterModels = result.Data.Items.Select(RoleDtoMapper.ToModel).ToList();
+            _total = result.Data.TotalCount;
             logger.LogDebug("Role view list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
@@ -173,9 +168,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             _pageIndex = 1;
             logger.LogInformation("Role view search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
-            await ReloadAsync();
-            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.Role.Search, "RoleView",
-                AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
+            await ReloadAsync(recordSearch: true);
         }
 
         async Task OnRefreshAsync()
@@ -186,19 +179,26 @@ namespace MyProject.Web.Components.Views.Admins
             ViewNotification.Warning(notificationService, "已更新最新資料");
         }
 
+        /// <summary>開修改窗：向伺服器讀這一筆的最新矩陣與版本號（伺服器寫「查看」稽核）。</summary>
         async Task OnEditAsync(RoleViewAdapterModel roleViewAdapterModel)
         {
+            var result = await Api.GetAsync(roleViewAdapterModel.Id);
+            if (!result.Success || result.Data is null)
+            {
+                ViewNotification.Error(notificationService, result.UserMessage());
+                await ReloadAsync();
+                return;
+            }
+
             isNewRecordMode = false;
             modalTitle = "修改角色";
-            CurrentRecord = roleViewAdapterModel.Clone();
+            CurrentRecord = RoleDtoMapper.ToModel(result.Data);
             InitExpandedGroups();
             // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened edit modal for role view. RoleViewId={RoleViewId}, Name={RoleName}", roleViewAdapterModel.Id, roleViewAdapterModel.Name);
-            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.Role.View, "RoleView",
-                roleViewAdapterModel.Id.ToString(), $"name={roleViewAdapterModel.Name}");
+            logger.LogInformation("Opened edit modal for role view. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
         }
 
         /// <summary>
@@ -230,7 +230,7 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            var result = await roleViewService.DeleteAsync(roleViewAdapterModel.Id);
+            var result = await Api.DeleteAsync(roleViewAdapterModel.Id);
             if (!result.Success)
             {
                 // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」（例如角色仍是某些使用者的主要角色時根本刪不掉）。
@@ -246,7 +246,7 @@ namespace MyProject.Web.Components.Views.Admins
             await ReloadAsync();
         }
 
-        /// <summary>「刪除選取」（0.9.132 起）：逐筆走 <see cref="RoleViewService.DeleteAsync"/>，規則與稽核同單筆刪除。</summary>
+        /// <summary>「刪除選取」（0.9.132 起）：逐筆呼叫刪除 API，規則與稽核同單筆刪除。</summary>
         async Task OnBatchDeleteAsync()
         {
             try
@@ -259,7 +259,7 @@ namespace MyProject.Web.Components.Views.Admins
 
                 batchDeleting = true;
                 var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Name,
-                    x => roleViewService.DeleteAsync(x.Id), logger);
+                    x => Api.DeleteAsync(x.Id), logger);
                 BatchDelete.Notify(notificationService, outcome);
                 await ReloadAsync();
             }
@@ -293,7 +293,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await roleViewService.RestoreAsync(record.Id);
+                var result = await Api.RestoreAsync(record.Id);
                 if (!result.Success)
                 {
                     logger.LogInformation("Role view restore rejected. RoleViewId={RoleViewId}, Message={Message}", record.Id, result.Message);
@@ -326,7 +326,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await roleViewService.PurgeAsync(record.Id);
+                var result = await Api.PurgeAsync(record.Id);
                 if (!result.Success)
                 {
                     logger.LogInformation("Role view purge rejected. RoleViewId={RoleViewId}, Message={Message}", record.Id, result.Message);
@@ -345,10 +345,10 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        async Task OnAddAsync(bool continueOnCapturedContext)
+        Task OnAddAsync(bool continueOnCapturedContext)
         {
             CurrentRecord = new();
-            CurrentRecord.RolePermission = rolePermissionService.InitializePermissionSetting();
+            CurrentRecord.RolePermission = RoleDtoMapper.ToModel(emptyPermission);
 
             isNewRecordMode = true;
             modalTitle = "新增角色";
@@ -358,6 +358,7 @@ namespace MyProject.Web.Components.Views.Admins
 
             modalVisible = true;
             logger.LogInformation("Opened create modal for role view.");
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -436,21 +437,10 @@ namespace MyProject.Web.Components.Views.Admins
                 return false;
             }
 
+            // 名稱重複、預設角色不可改名等規則由伺服器在存檔前檢查（任何一項不過就什麼都不存），訊息與 Server 版相同。
             if (isNewRecordMode)
             {
-                var beforeAddCheckResult = await roleViewService.BeforeAddCheckAsync(CurrentRecord);
-                if (!beforeAddCheckResult.Success)
-                {
-                    logger.LogInformation("Role view create pre-check failed. Name={RoleName}, Message={Message}", CurrentRecord.Name, beforeAddCheckResult.Message);
-                    ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
-
-                    return false;
-                }
-
-                CurrentRecord.CreateAt = DateTime.Now;
-                CurrentRecord.UpdateAt = DateTime.Now;
-
-                var actionResult = await roleViewService.AddAsync(CurrentRecord);
+                var actionResult = await Api.CreateAsync(RoleDtoMapper.ToDto(CurrentRecord));
                 if (!actionResult.Success)
                 {
                     // 0.9.92 之前這裡不看結果，失敗也顯示「新增成功」。
@@ -467,17 +457,7 @@ namespace MyProject.Web.Components.Views.Admins
             }
             else
             {
-                var beforeUpdateCheckResult = await roleViewService.BeforeUpdateCheckAsync(CurrentRecord);
-                if (!beforeUpdateCheckResult.Success)
-                {
-                    logger.LogInformation("Role view update pre-check failed. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                    ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
-
-                    return false;
-                }
-
-                CurrentRecord.UpdateAt = DateTime.Now;
-                var actionResult = await roleViewService.UpdateAsync(CurrentRecord);
+                var actionResult = await Api.UpdateAsync(RoleDtoMapper.ToDto(CurrentRecord));
                 if (!actionResult.Success)
                 {
                     // 0.9.92 之前這裡不看結果，失敗也顯示「修改成功」；0.9.93 起的並行衝突訊息也走這裡，表單維持開啟。

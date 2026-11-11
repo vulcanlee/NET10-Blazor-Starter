@@ -1,51 +1,71 @@
 ﻿using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
-using MyProject.Business.Helpers;
-using MyProject.Business.Services.DataAccess;
-using MyProject.Business.Services.Other;
+using MyProject.Dtos.Admins;
 using MyProject.Models.AdapterModel;
-using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
-using MyProject.Web.Auth;
+using MyProject.Web.Client.Api;
+using MyProject.Web.Client.Auth;
 using MyProject.Web.Components.Commons;
-using MyProject.Web.Export;
 
-namespace MyProject.Web.Components.Views.Admins
+namespace MyProject.Web.Client.Views.Admins
 {
+    /// <summary>
+    /// 使用者管理（0.10.4 起在 WASM 執行，WASM 遷移 M5）。畫面、對話窗流程與提示訊息照 Server 版，資料改走 <see cref="UserApi"/>（只限管理員）：
+    /// support 與自己的保護、密碼原則、角色與團隊、並行衝突與稽核都在伺服器的 <c>MyUserService</c>；每列可用的操作與鎖定文字由伺服器算好帶來。
+    /// </summary>
     public partial class MyUserView
     {
+        [Inject]
+        public IJSRuntime JSRuntime { get; set; } = default!;
 
         [Inject]
-        public Microsoft.JSInterop.IJSRuntime JSRuntime { get; set; } = default!;
+        public UserApi Api { get; set; } = default!;
 
         [Inject]
-        public IAuditLogService AuditLogService { get; set; } = default!;
+        public PagePermissions Permissions { get; set; } = default!;
 
-        /// <summary>匯出 Excel（0.9.107 起）：與清單同一個查詢，超過 <see cref="BusinessExports.MaxRows"/> 筆不匯出。</summary>
+        [Inject]
+        public ModalService modalService { get; set; } = default!;
+
+        [Inject]
+        public MessageService messageService { get; set; } = default!;
+
+        [Inject]
+        public NotificationService notificationService { get; set; } = default!;
+
+        [Inject]
+        public NavigationManager NavigationManager { get; set; } = default!;
+
+        [Inject]
+        public ILogger<MyUserView> logger { get; set; } = default!;
+
+        /// <summary>匯出 Excel：與清單同一個查詢（伺服器產生檔案並寫稽核），超過上限筆數時顯示原因。</summary>
         private async Task OnExportExcelAsync()
         {
-            try
+            var outcome = await Api.ExportAsync(BuildRequest());
+            if (!outcome.Success)
             {
-                var outcome = await BusinessExports.BuildAsync(r => showDeleted ? myUserService.GetDeletedAsync(r) : myUserService.GetAsync(r), new DataRequest
+                if (outcome.StatusCode == 400)
                 {
-                    Search = searchText,
-                    SortField = sortField,
-                    SortDescending = sortDirection == "Descending" ? true : sortDirection == "Ascending" ? false : (bool?)null,
-                }, "使用者", "users", BusinessExports.UserColumns);
-                if (outcome.Error is { } error)
+                    ViewNotification.Caution(notificationService, outcome.Message);
+                }
+                else
                 {
-                    ViewNotification.Caution(notificationService, error);
-                    return;
+                    ViewNotification.Error(notificationService, $"匯出失敗：{outcome.Message}");
                 }
 
-                await JSRuntime.DownloadAsync(outcome.FileName!, outcome.Content!, TabularExport.XlsxContentType);
-                logger.LogInformation("User export downloaded. Rows={Rows}", outcome.Rows);
-                await BusinessExports.WriteAuditAsync(AuditLogService, CurrentUserService, AuditActions.User.Export, "MyUser", outcome.Rows, showDeleted);
+                return;
+            }
+
+            try
+            {
+                await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
+                logger.LogInformation("User export downloaded. Bytes={Bytes}", outcome.Content!.Length);
             }
             catch (Exception ex)
             {
@@ -54,13 +74,17 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        private readonly ILogger<MyUserView> logger;
-        private readonly MyUserService myUserService;
-        private readonly RoleViewService roleViewService;
-        private readonly ModalService modalService;
-        private readonly MessageService messageService;
-        private readonly NotificationService notificationService;
-        private readonly TeamService teamService;
+        /// <summary>每一列由伺服器算好的可用操作與鎖定文字（清單換頁時一起更新）。</summary>
+        Dictionary<int, UserDto> rows = [];
+
+        UserDto Row(MyUserAdapterModel record) => rows.TryGetValue(record.Id, out var row) ? row : new UserDto();
+
+        /// <summary>密碼規則說明（伺服器的 options）。</summary>
+        string passwordRule = string.Empty;
+
+        /// <summary>新增時預設的角色（伺服器的 options）。</summary>
+        int? defaultRoleId;
+
         List<string> availableTeams = new();
         ITable? table;
         /// <summary>「異動歷程」對話窗（0.9.173 起），由每列的 AuditHistoryButton 叫出。</summary>
@@ -91,38 +115,6 @@ namespace MyProject.Web.Components.Views.Admins
         /// </summary>
         private readonly FormDirtyTracker dirtyTracker = new();
 
-        [Inject]
-        public AuthenticationStateHelper AuthenticationStateHelper { get; set; } = default!;
-        [Inject]
-        public AuthenticationStateProvider authStateProvider { get; set; } = default!;
-        [Inject]
-        public NavigationManager NavigationManager { get; set; } = default!;
-        [Inject]
-        public IPasswordPolicy PasswordPolicy { get; set; } = default!;
-        [Inject]
-        public CurrentUserService CurrentUserService { get; set; } = default!;
-        [Inject]
-        public SessionRefreshNavigator SessionRefreshNavigator { get; set; } = default!;
-        [Inject]
-        public ITwoFactorService TwoFactorService { get; set; } = default!;
-
-        public MyUserView(
-            ILogger<MyUserView> logger,
-            MyUserService myUserService,
-            RoleViewService roleViewService,
-            ModalService modalService,
-            MessageService messageService,
-            NotificationService notificationService,
-            TeamService teamService)
-        {
-            this.logger = logger;
-            this.myUserService = myUserService;
-            this.roleViewService = roleViewService;
-            this.modalService = modalService;
-            this.messageService = messageService;
-            this.notificationService = notificationService;
-            this.teamService = teamService;
-        }
 
         /// <summary>「資料保留與清理」頁的「前往」帶 <c>?deleted=1</c> 進來時為 true：一進頁面就顯示已刪除的資料（0.9.133 起）。</summary>
         [Parameter]
@@ -131,30 +123,38 @@ namespace MyProject.Web.Components.Views.Admins
         protected override async Task OnInitializedAsync()
         {
             logger.LogDebug("Initializing user management view.");
-            var checkResult = await AuthenticationStateHelper.Check(authStateProvider, NavigationManager);
-            if (checkResult != AuthenticationCheckResult.Succeeded)
-            {
-                logger.LogWarning("User management view initialization stopped because authentication check failed.");
-                return;
-            }
 
-            isAccessChecked = true;
-
-            if (!AuthenticationStateHelper.CheckIsAdmin())
+            // 登入檢查已由版面（ClientMainLayout）完成；沒有權限的開頁稽核由伺服器在開頁紀錄時寫（shell/page-view）。
+            if (!Permissions.IsAdmin)
             {
+                isAccessChecked = true;
                 RoleMessage = "你沒有權限存取此頁面";
-                await AuthenticationStateHelper.RecordPageAccessDeniedAsync("/myusers");
                 logger.LogWarning("User management view denied because current user is not an administrator.");
                 return;
             }
 
-            availableTeams = await teamService.GetAllEnabledNamesAsync();
+            await LoadRoleViewsAsync();
+
+            // ⚠️ 勾選欄要在表格第一次畫出來之前定案（見分類頁的說明）：選項讀完才開始畫。
+            isAccessChecked = true;
 
             showDeleted = InitialShowDeleted;
             await ReloadAsync();
         }
 
-        public async Task ReloadAsync()
+        /// <summary>目前的搜尋、排序、分頁與「顯示已刪除」（清單與匯出共用）。</summary>
+        UserSearchRequestDto BuildRequest(bool recordSearch = false) => new()
+        {
+            Keyword = searchText,
+            SortBy = sortDirection is "Ascending" or "Descending" ? sortField : null,
+            SortDescending = sortDirection == "Descending",
+            PageIndex = _pageIndex,
+            PageSize = _pageSize,
+            Deleted = showDeleted,
+            RecordSearch = recordSearch,
+        };
+
+        public async Task ReloadAsync(bool recordSearch = false)
         {
             // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
             selectedRows = [];
@@ -167,23 +167,17 @@ namespace MyProject.Web.Components.Views.Admins
                 _pageIndex,
                 _pageSize);
 
-            var dataRequest = new DataRequest
+            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.95 起）；搜尋稽核由伺服器寫（只有按「搜尋」才帶 RecordSearch）。
+            var result = await Api.SearchAsync(BuildRequest(recordSearch));
+            if (!result.Success || result.Data is null)
             {
-                Search = searchText,
-                SortField = sortField,
-                SortDescending = sortDirection == "Descending" ? true : sortDirection == "Ascending" ? false : (bool?)null,
-                CurrentPage = _pageIndex,
-                PageSize = _pageSize,
-                Take = 0,
-            };
+                ViewNotification.Error(notificationService, result.UserMessage());
+                return;
+            }
 
-            // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.95 起）。
-            DataRequestResult<MyUserAdapterModel> dataRequestResult = showDeleted
-                ? await myUserService.GetDeletedAsync(dataRequest)
-                : await myUserService.GetAsync(dataRequest);
-
-            myUserAdapterModels = dataRequestResult.Result.ToList();
-            _total = dataRequestResult.Count;
+            rows = result.Data.Items.ToDictionary(x => x.Id);
+            myUserAdapterModels = result.Data.Items.Select(UserDtoMapper.ToModel).ToList();
+            _total = result.Data.TotalCount;
             logger.LogDebug("User list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
         }
@@ -215,9 +209,7 @@ namespace MyProject.Web.Components.Views.Admins
         {
             _pageIndex = 1;
             logger.LogInformation("User search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
-            await ReloadAsync();
-            await ViewAudit.WriteSearchAsync(AuditLogService, CurrentUserService, AuditActions.User.Search, "MyUser",
-                AuditSearchCondition.Text("keyword", searchText), AuditSearchCondition.Of("showDeleted", showDeleted));
+            await ReloadAsync(recordSearch: true);
         }
 
         async Task OnRefreshAsync()
@@ -228,25 +220,28 @@ namespace MyProject.Web.Components.Views.Admins
             ViewNotification.Warning(notificationService, "已更新最新資料");
         }
 
+        /// <summary>開修改窗：向伺服器讀這一筆的最新資料、額外角色、團隊與版本號（伺服器寫「查看」稽核）。</summary>
         async Task OnEditAsync(MyUserAdapterModel myUserAdapterModel)
         {
             await LoadRoleViewsAsync();
+            var result = await Api.GetAsync(myUserAdapterModel.Id);
+            if (!result.Success || result.Data is null)
+            {
+                ViewNotification.Error(notificationService, result.UserMessage());
+                await ReloadAsync();
+                return;
+            }
 
             isNewRecordMode = false;
             modalTitle = "修改使用者";
-            CurrentRecord = (await myUserService.GetAsync(myUserAdapterModel.Id)).Clone();
-            var (additionalRoleIds, teamNames) = await myUserService.GetUserAssignmentsAsync(myUserAdapterModel.Id);
-            CurrentRecord.AdditionalRoleIds = additionalRoleIds;
-            CurrentRecord.TeamNames = teamNames;
+            CurrentRecord = UserDtoMapper.ToModel(result.Data);
 
             // ⚠️ 必須是開窗前的最後一步：任何預設值與關聯資料都要先塞完，
             //    否則那些值會被當成「使用者的變更」。
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened edit modal for user. UserId={UserId}, Account={Account}", myUserAdapterModel.Id, myUserAdapterModel.Account);
-            await ViewAudit.WriteAsync(AuditLogService, CurrentUserService, AuditActions.User.View, "MyUser",
-                myUserAdapterModel.Id.ToString(), $"account={myUserAdapterModel.Account}");
+            logger.LogInformation("Opened edit modal for user. UserId={UserId}", myUserAdapterModel.Id);
         }
 
         /// <summary>
@@ -278,7 +273,7 @@ namespace MyProject.Web.Components.Views.Admins
                 return;
             }
 
-            var result = await myUserService.DeleteAsync(myUserAdapterModel.Id);
+            var result = await Api.DeleteAsync(myUserAdapterModel.Id);
             if (!result.Success)
             {
                 // 0.9.93 之前這裡不看結果，失敗也顯示「刪除成功」。
@@ -303,17 +298,14 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        static bool IsLocked(MyUserAdapterModel record) => record.LockoutEndUtc is { } end && end > DateTime.UtcNow;
+        /// <summary>鎖定中（伺服器依它的時區算好「鎖定至 HH:mm」帶來；瀏覽器的時區不一定相同）。</summary>
+        bool IsLocked(MyUserAdapterModel record) => !string.IsNullOrEmpty(Row(record).LockedText);
 
-        static string LockedText(MyUserAdapterModel record)
-        {
-            var local = DateTime.SpecifyKind(record.LockoutEndUtc!.Value, DateTimeKind.Utc).ToLocalTime();
-            return local.Date == DateTime.Today ? $"鎖定至 {local:HH:mm}" : $"鎖定至 {local:MM-dd HH:mm}";
-        }
+        string LockedText(MyUserAdapterModel record) => Row(record).LockedText ?? string.Empty;
 
         /// <summary>
         /// 點狀態標籤切換啟用／停用（0.9.120 起）：停用先確認，啟用直接切換。
-        /// ⚠️ 走 <see cref="MyUserService.SetStatusAsync"/>，不可用清單列呼叫 UpdateAsync（會清掉這個人的額外角色與團隊）。
+        /// ⚠️ 走切換狀態的 API（只改狀態），不可用清單列呼叫修改（會清掉這個人的額外角色與團隊）。
         /// </summary>
         async Task OnToggleStatusAsync(MyUserAdapterModel record)
         {
@@ -326,7 +318,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await myUserService.SetStatusAsync(record.Id, enable);
+                var result = await Api.SetEnabledAsync(record.Id, enable);
                 if (!result.Success)
                 {
                     logger.LogInformation("User status change rejected. UserId={UserId}, Message={Message}", record.Id, result.Message);
@@ -346,8 +338,8 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        /// <summary>自己那一列不顯示「強制登出」（要登出自己請用右上角的登出）。</summary>
-        bool CanForceLogout(MyUserAdapterModel record) => record.Id != CurrentUserService.CurrentUser.Id;
+        /// <summary>自己那一列不顯示「強制登出」（要登出自己請用右上角的登出；伺服器也擋）。</summary>
+        bool CanForceLogout(MyUserAdapterModel record) => Row(record).CanForceLogout;
 
         async Task OnForceLogoutAsync(MyUserAdapterModel record)
         {
@@ -359,7 +351,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await myUserService.ForceLogoutAsync(record.Id);
+                var result = await Api.ForceLogoutAsync(record.Id);
                 if (!result.Success)
                 {
                     ViewNotification.Error(notificationService, result.Message);
@@ -376,8 +368,8 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        /// <summary>只在對方已啟用時顯示；自己那一列不顯示（自己到「兩步驟驗證」頁停用或重新設定）。</summary>
-        bool CanResetTwoFactor(MyUserAdapterModel record) => record.TwoFactorEnabled && record.Id != CurrentUserService.CurrentUser.Id;
+        /// <summary>只在對方已啟用時顯示；自己那一列不顯示（自己到「兩步驟驗證」頁停用或重新設定；伺服器也擋）。</summary>
+        bool CanResetTwoFactor(MyUserAdapterModel record) => Row(record).CanResetTwoFactor;
 
         async Task OnResetTwoFactorAsync(MyUserAdapterModel record)
         {
@@ -390,7 +382,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await TwoFactorService.ResetAsync(record.Id);
+                var result = await Api.ResetTwoFactorAsync(record.Id);
                 if (!result.Success)
                 {
                     ViewNotification.Error(notificationService, result.Message);
@@ -417,7 +409,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await myUserService.UnlockAsync(record.Id);
+                var result = await Api.UnlockAsync(record.Id);
                 if (!result.Success)
                 {
                     ViewNotification.Error(notificationService, result.Message);
@@ -438,7 +430,7 @@ namespace MyProject.Web.Components.Views.Admins
         }
 
         /// <summary>
-        /// 「刪除選取」（0.9.132 起）：逐筆走 <see cref="MyUserService.DeleteAsync"/>，規則與稽核同單筆刪除。
+        /// 「刪除選取」（0.9.132 起）：逐筆呼叫刪除 API，規則與稽核同單筆刪除。
         /// 清單與結果通知只列帳號：通知內文會寫進日誌，日誌不記姓名。
         /// </summary>
         async Task OnBatchDeleteAsync()
@@ -453,7 +445,7 @@ namespace MyProject.Web.Components.Views.Admins
 
                 batchDeleting = true;
                 var outcome = await BatchDelete.RunAsync(items, x => x.Id.ToString(), x => x.Account,
-                    x => myUserService.DeleteAsync(x.Id), logger);
+                    x => Api.DeleteAsync(x.Id), logger);
                 BatchDelete.Notify(notificationService, outcome);
                 await ReloadAsync();
             }
@@ -487,7 +479,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await myUserService.RestoreAsync(record.Id);
+                var result = await Api.RestoreAsync(record.Id);
                 if (!result.Success)
                 {
                     logger.LogInformation("User restore rejected. UserId={UserId}, Message={Message}", record.Id, result.Message);
@@ -520,7 +512,7 @@ namespace MyProject.Web.Components.Views.Admins
                     return;
                 }
 
-                var result = await myUserService.PurgeAsync(record.Id);
+                var result = await Api.PurgeAsync(record.Id);
                 if (!result.Success)
                 {
                     logger.LogInformation("User purge rejected. UserId={UserId}, Message={Message}", record.Id, result.Message);
@@ -544,19 +536,9 @@ namespace MyProject.Web.Components.Views.Admins
             await LoadRoleViewsAsync();
 
             CurrentRecord = new();
-            RoleViewAdapterModel? defaultRole = null;
-            try
+            if (defaultRoleId is { } roleId)
             {
-                defaultRole = await roleViewService.Get預設新建帳號角色Async();
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to load default role for new user creation.");
-            }
-
-            if (defaultRole is not null && defaultRole.Id != 0)
-            {
-                CurrentRecord.RoleViewId = defaultRole.Id;
+                CurrentRecord.RoleViewId = roleId;
             }
             else if (roleViewAdapterModels.Any())
             {
@@ -644,21 +626,10 @@ namespace MyProject.Web.Components.Views.Admins
                 return false;
             }
 
+            // 帳號重複、密碼原則、角色是否存在等規則由伺服器在存檔前檢查（任何一項不過就什麼都不存），訊息與 Server 版相同。
             if (isNewRecordMode)
             {
-                var beforeAddCheckResult = await myUserService.BeforeAddCheckAsync(CurrentRecord);
-                if (!beforeAddCheckResult.Success)
-                {
-                    logger.LogInformation("User create pre-check failed. Account={Account}, Message={Message}", CurrentRecord.Account, beforeAddCheckResult.Message);
-                    ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
-
-                    return false;
-                }
-
-                CurrentRecord.CreateAt = DateTime.Now;
-                CurrentRecord.UpdateAt = DateTime.Now;
-
-                var actionResult = await myUserService.AddAsync(CurrentRecord);
+                var actionResult = await Api.CreateAsync(UserDtoMapper.ToDto(CurrentRecord));
                 if (!actionResult.Success)
                 {
                     // 0.9.92 之前這裡不看結果，失敗也顯示「新增成功」。
@@ -675,23 +646,12 @@ namespace MyProject.Web.Components.Views.Admins
             }
             else
             {
-                var beforeUpdateCheckResult = await myUserService.BeforeUpdateCheckAsync(CurrentRecord);
-                if (!beforeUpdateCheckResult.Success)
-                {
-                    logger.LogInformation("User update pre-check failed. UserId={UserId}, Message={Message}", CurrentRecord.Id, beforeUpdateCheckResult.Message);
-                    ViewNotification.Error(notificationService, beforeUpdateCheckResult.Message);
-
-                    return false;
-                }
-
-                CurrentRecord.UpdateAt = DateTime.Now;
-
-                var actionResult = await myUserService.UpdateAsync(CurrentRecord);
-                if (!actionResult.Success)
+                var updateResult = await Api.UpdateAsync(UserDtoMapper.ToDto(CurrentRecord));
+                if (!updateResult.Success)
                 {
                     // 0.9.92 之前這裡不看結果，失敗也顯示「修改成功」；0.9.93 起的並行衝突訊息也走這裡，表單維持開啟。
-                    logger.LogInformation("User update rejected. UserId={UserId}, Message={Message}", CurrentRecord.Id, actionResult.Message);
-                    ViewNotification.Error(notificationService, actionResult.Message);
+                    logger.LogInformation("User update rejected. UserId={UserId}, Message={Message}", CurrentRecord.Id, updateResult.UserMessage());
+                    ViewNotification.Error(notificationService, updateResult.UserMessage());
                     return false;
                 }
 
@@ -699,9 +659,10 @@ namespace MyProject.Web.Components.Views.Admins
 
                 ViewNotification.Warning(notificationService, "修改成功");
 
-                // 管理員改了自己的密碼、角色或管理員身分：自己的工作階段版本已換掉，換發這台裝置的 Cookie（0.9.103 起）。
-                if (await SessionRefreshNavigator.KeepSignedInAsync("/myusers"))
+                // 管理員改了自己的密碼、角色或管理員身分：自己的工作階段版本已換掉，整頁導到伺服器給的網址換發這台裝置的登入（0.9.103 起）。
+                if (updateResult.Data?.SessionRefreshUrl is { } refreshUrl)
                 {
+                    NavigationManager.NavigateTo(refreshUrl, forceLoad: true);
                     return true;
                 }
             }
@@ -817,15 +778,15 @@ namespace MyProject.Web.Components.Views.Admins
             try
             {
                 await LoadRoleViewsAsync();
-                var copy = await myUserService.BuildCopyDraftAsync(source.Id);
-                if (copy is null)
+                var copy = await Api.CopyDraftAsync(source.Id);
+                if (!copy.Success || copy.Data is null)
                 {
                     ViewNotification.Caution(notificationService, "這位使用者不能當作複製範本，或已不存在，請重新整理後再試。");
                     return;
                 }
 
-                copyRecord = copy.Value.Draft;
-                copySkippedTeams = copy.Value.SkippedTeamNames;
+                copyRecord = UserDtoMapper.ToModel(copy.Data.Draft);
+                copySkippedTeams = copy.Data.SkippedTeamNames;
                 copySourceAccount = source.Account;
                 copyModalTitle = $"複製使用者（來源：{source.Account} {source.Name}）";
                 copyPasswordVisible = false;
@@ -843,9 +804,17 @@ namespace MyProject.Web.Components.Views.Admins
             }
         }
 
-        void OnGeneratePassword()
+        /// <summary>「產生」：向伺服器要一組符合密碼原則的隨機密碼（伺服器不存）。</summary>
+        async Task OnGeneratePassword()
         {
-            copyRecord.Password = PasswordPolicy.Generate();
+            var result = await Api.GeneratePasswordAsync();
+            if (!result.Success || string.IsNullOrEmpty(result.Data))
+            {
+                ViewNotification.Error(notificationService, result.UserMessage());
+                return;
+            }
+
+            copyRecord.Password = result.Data;
             copyPasswordVisible = true;
         }
 
@@ -894,17 +863,19 @@ namespace MyProject.Web.Components.Views.Admins
                 return false;
             }
 
-            var beforeAddCheckResult = await myUserService.BeforeAddCheckAsync(copyRecord);
-            if (!beforeAddCheckResult.Success)
+            // 與 Server 版相同的順序：先檢查帳號是否已存在，再問「Email 已有人使用」。
+            var precheck = await Api.CheckAsync(UserDtoMapper.ToDto(copyRecord));
+            if (!precheck.Success)
             {
-                logger.LogInformation("User copy pre-check failed. Account={Account}, Message={Message}", copyRecord.Account, beforeAddCheckResult.Message);
-                ViewNotification.Error(notificationService, beforeAddCheckResult.Message);
+                logger.LogInformation("User copy pre-check failed. Message={Message}", precheck.Message);
+                ViewNotification.Error(notificationService, precheck.Message);
                 return false;
             }
 
             if (!string.IsNullOrWhiteSpace(copyRecord.Email))
             {
-                var usedBy = await myUserService.GetAccountsUsingEmailAsync(copyRecord.Email);
+                var lookup = await Api.AccountsUsingEmailAsync(copyRecord.Email);
+                var usedBy = lookup.Data ?? [];
                 if (usedBy.Count > 0 && !await ConfirmDialog.AskAsync(modalService, "Email 已有人使用",
                         $"「{copyRecord.Email.Trim()}」已被 {string.Join("、", usedBy)} 使用，忘記密碼的重設信會寄到同一個信箱。仍要建立嗎？", "仍要建立"))
                 {
@@ -912,9 +883,10 @@ namespace MyProject.Web.Components.Views.Admins
                 }
             }
 
-            copyRecord.CreateAt = DateTime.Now;
-            copyRecord.UpdateAt = DateTime.Now;
-            var actionResult = await myUserService.AddAsync(copyRecord, copySourceAccount);
+            // 帳號重複、密碼原則等規則由伺服器在建立前檢查，訊息與 Server 版相同。
+            var copyDto = UserDtoMapper.ToDto(copyRecord);
+            copyDto.CopiedFromAccount = copySourceAccount;
+            var actionResult = await Api.CreateAsync(copyDto);
             if (!actionResult.Success)
             {
                 logger.LogInformation("User copy rejected. Account={Account}, Message={Message}", copyRecord.Account, actionResult.Message);
@@ -994,9 +966,20 @@ namespace MyProject.Web.Components.Views.Admins
 
         #endregion
 
+        /// <summary>角色、團隊、預設角色與密碼規則（伺服器的 options；開窗時重讀，角色可能剛被別人改過）。</summary>
         private async Task LoadRoleViewsAsync()
         {
-            roleViewAdapterModels = await myUserService.GetRoleViewsAsync();
+            var options = await Api.OptionsAsync();
+            if (!options.Success || options.Data is not { } data)
+            {
+                ViewNotification.Error(notificationService, $"讀取角色與團隊選項失敗：{options.UserMessage()}");
+                return;
+            }
+
+            roleViewAdapterModels = data.Roles.Select(x => new RoleViewAdapterModel { Id = x.Id, Name = x.Name, DefaultTeams = x.DefaultTeams }).ToList();
+            availableTeams = data.Teams;
+            defaultRoleId = data.DefaultRoleId;
+            passwordRule = data.PasswordRule;
             logger.LogDebug("Loaded role views for user view. Count={Count}", roleViewAdapterModels.Count);
         }
     }

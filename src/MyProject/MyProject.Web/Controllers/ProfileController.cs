@@ -6,6 +6,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
+using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;
 
@@ -16,6 +17,7 @@ namespace MyProject.Web.Controllers;
 [Route("api/v1/profile")]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[SignedInUser] // 登入即可（0.10.4 起明確標註）：自己的個人資料。
 public sealed class ProfileController : ControllerBase
 {
     private readonly ProfileService profileService;

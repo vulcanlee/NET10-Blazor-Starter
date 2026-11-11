@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：進行中
-- 現行系統版本：0.10.3
+- 現行系統版本：0.10.4
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/11
 
@@ -21,7 +21,7 @@
 | M2 | 0.10.1 | WASM 版外框＋試點 `/Profile` | 完成 | [M02-外框與個人資料](測試報告/M02-外框與個人資料.md) |
 | M3 | 0.10.2 | 分類、團隊、CRUD 產生器 | 完成 | [M03-分類團隊與CRUD產生器](測試報告/M03-分類團隊與CRUD產生器.md) |
 | M4 | 0.10.3 | 專案、附件、下載票證 | 完成 | [M04-專案附件與下載票證](測試報告/M04-專案附件與下載票證.md) |
-| M5 | 0.10.4 | 使用者、角色、稽核、郵件紀錄 | 未開始 | — |
+| M5 | 0.10.4 | 使用者、角色、稽核、郵件紀錄 | 完成 | [M05-使用者角色稽核郵件紀錄](測試報告/M05-使用者角色稽核郵件紀錄.md) |
 | M6 | 0.10.5 | AI 串流＋日誌與 AI 管理頁 | 未開始 | — |
 | M7 | 0.10.6 | 維運頁與首頁儀表板 | 未開始 | — |
 | M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 未開始 | — |
@@ -112,7 +112,7 @@
 
 > **M3 實際做法與計畫的差異**：
 > - **批次刪除沒有另做批次 API**：WASM 頁面沿用共用的 `BatchDelete`，逐筆呼叫單筆刪除 `DELETE {id}`（每頁的刪除規則與每筆一列的稽核都在單筆刪除裡，與 Server 版相同，速查表 §6.28）。
-> - **稽核歷程 API 提前做**：資料頁每列的「異動歷程」對話窗搬到 Client 共用，WASM 頁需要資料來源，所以先加了只限管理員的 `GET /api/v1/audit-logs/history` 與 `/{id}/content`（`AuditLogsController`）；稽核紀錄頁本身的其他端點仍在 M5。
+> - **稽核歷程 API 提前做**：資料頁每列的「異動歷程」對話窗搬到 Client 共用，WASM 頁需要資料來源，所以先加了只限管理員的 `GET /api/v1/audit-logs/history` 與 `/{id}/content`（`AuditLogsController`）；稽核紀錄頁本身的其他端點在 M5（0.10.4）補上。
 > - **新增日期時間格式端點**：瀏覽器內建的 zh-TW 時間格式和伺服器不同（「上午9:00:00」對「上午 09:00:00」），而且在 WASM 設定目前文化不影響渲染。改由不需登入的 `GET /api/v1/shell/culture` 取伺服器格式（`ClientCulture`），WASM 清單的日期時間欄位一律明確指定格式；Client 專案載入完整地區資料（下載量約多 1～2 MB，M12 實測）。
 > - **`PermissionRules` 移到 Models**（M1、M2 延後的項目）在這裡完成；另加 `PagePermissions` 讓 `RequirePermission` 等共用元件在兩種頁面都能判斷權限。M2 的 `ClientNotify` 拿掉，WASM 頁面改用與 Server 版相同的 `ViewNotification`。
 > - **錯誤訊息改成與畫面相同**：分類、團隊的 API 改走服務後，錯誤訊息就是畫面那一句（使用者確認沒有外部程式依賴舊訊息）；網址、HTTP 狀態碼與欄位不變（團隊「還有下屬不可刪除」「改成已刪除團隊的名稱」仍回 400）。
@@ -140,6 +140,18 @@
 - 使用者（含複製、解鎖、強制登出、重設雙因素）、角色權限矩陣、稽核查詢／匯出／雜湊鏈驗證、郵件紀錄 API。
 - `[AdminOnly]` 篩選器＋「每個 API action 都要標註授權」守門測試。
 - **實機情境**：改他人角色後對方下次呼叫被登出、改自己角色仍維持登入、停用帳號刷新被拒、非管理員直打管理 API 得 403、匯出。
+
+> **M5 實際做法與計畫的差異**：
+> - **授權意圖分三種標註＋守門測試**：除了 `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`；非管理員回 403 並寫 `Permission.Denied`，detail「需要管理員」），另加沒有行為的 `[SignedInUser]`，標在「登入即可、刻意不檢查頁面權限」的端點（個人資料、外框、通知、公告、`/me`），讓 `ApiAuthorizationConventionTests` 分得出「忘了標」和「本來就不需要」：每個 API action 都必須標 `[HasPermission]`、`[AdminOnly]`、`[SignedInUser]` 或 `[AllowAnonymous]`。
+> - **備份下載留到 M7**：`BackupController.Download` 是 Cookie 驗證，不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以暫時標 `[SignedInUser]`、管理員檢查留在方法裡；M7 改成下載票證時改用 `[AdminOnly]`。
+> - **改自己用伺服器回的網址換發登入**：`PUT api/v1/users/{id}` 改到自己而且工作階段版本換掉（改了自己的密碼、角色或管理員身分）時回 `SessionRefreshUrl`（`/Auths/RefreshSession?ticket=…&returnUrl=%2Fmyusers`，沿用 0.9.103 的一次性、2 分鐘 ticket），WASM 頁整頁導過去，這台裝置維持登入、其他裝置登出，與 Server 版相同。改別人、停用、強制登出、重設兩步驟驗證換對方的版本，對方下一個請求就被登出（API 401、刷新被拒）。
+> - **自我保護補到 API**：Server 版「不可強制登出自己」「不可重設自己的兩步驟驗證」只在畫面擋，0.10.4 起 API 也擋（400）。停用、刪除自己與 support 的保護本來就在服務層。`MyUserService`、`RoleViewService`、`TwoFactorService` 的失敗都標上 `Kind`，API 回 404／409／400／500。
+> - **時區由伺服器算**：使用者清單的「鎖定至 HH:mm」（`LockedText`）、稽核明細的 UTC 時間由伺服器依伺服器時區算好送來，瀏覽器時區不同也不會顯示錯。實機發現：稽核單筆查詢回的是 UTC，曾被當成本地再換一次，差 8 小時，已修正。獨立審查再發現：本地時間帶著 `+08:00` 送出時 WASM 會換成瀏覽器時區，改成一律不帶時差送出（稽核紀錄、異動歷程、寄信紀錄），UTC 以 `Z` 結尾；WASM 的日期篩選也先去掉時區（`ClientCulture.Unzoned`）。
+> - **角色矩陣在 API 上是樹狀 DTO**（群組 → 頁面 → 動作，`RolePermissionDto`），由 `RoleDtoMapper` 與畫面模型互轉，伺服器再轉成權限鍵，規則不變；角色清單的搜尋每列含矩陣，「複製」直接用它。審查後只採納權限目錄裡的節點（呼叫端不能多塞管理員專屬鍵），修改不再覆寫建立時間。
+> - **獨立審查後的其他調整**：support 不可改帳號（服務層，「「support」是系統預設的開發帳號，不可修改帳號。」；之前先改名就能繞過不可停用、不可刪除，改寫前就有的問題）；四個 controller 加 `[ApiValidationFilter]`（每頁 1～200 筆、頁碼 ≥ 1），帳號、名稱、角色與角色名稱的必填由伺服器再驗；產生密碼的回應 `Cache-Control: no-store`；新增 `POST api/v1/users/check`，「複製」與 Server 版同順序先檢查帳號再問 Email 重複；稽核匯出的稽核記實際筆數，被截掉時另記總筆數；守門測試加上「除了 `[AllowAnonymous]` 都要有 `[Authorize]`」並檢查繼承來的 action。
+> - **稽核完整性驗證是長時間請求**：時間與紀錄筆數成正比，WASM 端改用 `ApiClient.PostLongRunningAsync`（最長 30 分鐘），不受一般 100 秒逾時限制。稽核 CSV 的欄位從頁面搬到 `MyProject.Web/Export/AuditLogExport.cs`。
+> - **稽核頁「發生時間」排序**：Server 版的排序其實沒生效（AntDesign 給的方向字串是 `Ascending`／`Descending`，程式比對的是 `ascend`／`descend`），WASM 版依點選方向排序（小修正）。
+> - 外觀：與 Server 版截圖比對 8 個畫面，4 個完全相同，其餘最多 17/255 的色差、肉眼無差異（`scripts/e2e/m05-views.mjs`；隔離資料庫裡 support 的 Email 改成 `support@e2e.test`，避免截圖露出個資）。
 
 ### M6 AI 串流＋日誌與 AI 管理頁（0.10.5）
 

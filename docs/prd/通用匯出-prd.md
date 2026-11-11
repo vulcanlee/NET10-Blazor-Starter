@@ -1,10 +1,10 @@
 ﻿# 通用匯出 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.10.4
 - 首次實作版本：0.9.107
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -48,7 +48,7 @@
   字串一律寫成文字值，以「=」開頭的內容不會變成公式。
 - `Web/Export/BusinessExports.cs`：`BuildAsync(query, 目前條件, …)` 以第一頁、`PageSize = 10000`、`Take = 1` 呼叫畫面同一個服務方法（`GetAsync`／`GetDeletedAsync`），服務回的總筆數超過上限就不產生檔案；團隊範圍由服務內的 `RecordTeamScope` 套用，與畫面一致。四頁的欄位定義與 `WriteAuditAsync` 也在這裡。
 - 稽核：`Project.Export`／`Category.Export`／`Team.Export`／`User.Export`，目標 `*`，detail `format=xlsx; rows=N`（顯示已刪除時加 `; deleted=true`），不記內容。
-- 診斷頁：四頁的欄位改成各自的 `CsvColumns`（`internal static`），輸出與 0.9.106 之前逐字相同（`ExportTests` 以舊寫法當作對照）。唯一的欄位異動是 0.9.117 起稽核紀錄 CSV 在**最後一欄**加「來源IP」（不打亂依欄位位置讀檔的下游；0.9.123 起「來源 IP」篩選也套用到匯出）。日誌檢視的 `.log` 匯出不變。
+- 診斷頁：四頁的欄位改成各自的 `CsvColumns`（`internal static`；稽核紀錄 0.10.4 起搬到 `Web/Export/AuditLogExport.cs`，由 `POST api/v1/audit-logs/export` 在伺服器產生，WASM 遷移 M5），輸出與 0.9.106 之前逐字相同（`ExportTests` 以舊寫法當作對照）。唯一的欄位異動是 0.9.117 起稽核紀錄 CSV 在**最後一欄**加「來源IP」（不打亂依欄位位置讀檔的下游；0.9.123 起「來源 IP」篩選也套用到匯出）。日誌檢視的 `.log` 匯出不變。
 - 套件：`ClosedXML` 0.105.1（MIT）；傳遞相依 `SixLabors.Fonts` 解析到 1.0.0（Apache-2.0；2.x 起改為 Split License，升級前要確認授權）。
 
 ## 五、權限與安全
@@ -72,4 +72,5 @@
 
 - `src/MyProject/MyProject.Web/Export/TabularExport.cs`、`BusinessExports.cs`
 - 四個業務頁 `ProjectViewView`、`CategoryViewView`、`TeamViewView`、`MyUserView`；四個診斷頁 `AuditLogView`、`ExceptionLogView`、`TokenUsageView`、`AiCallLogView`
+- 0.10.4 起使用者的匯出也經 Web API（`POST api/v1/users/export`，`UsersController`，同樣呼叫 `BusinessExports.BuildAsync` 與 `WriteAuditAsync`），稽核紀錄的 CSV 欄位在 `Web/Export/AuditLogExport.cs`
 - 交叉連結：[專案項目](專案項目-prd.md)、[分類清單](分類清單-prd.md)、[團隊清單](團隊清單-prd.md)、[使用者管理](使用者管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
