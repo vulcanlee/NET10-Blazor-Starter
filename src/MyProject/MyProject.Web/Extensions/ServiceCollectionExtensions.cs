@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.Business.Repositories;
 using MyProject.Dtos.Commons;
+using MyProject.Web.Components.Commons;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Business.Services.Other.AuditIntegrity;
@@ -118,6 +119,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
         services.AddSingleton<IRefreshTokenStore, RefreshTokenStore>();
         services.AddScoped<CurrentUserService>();
+        // 畫面上的權限判斷（0.10.2 起與 WASM 頁面共用 RequirePermission 等元件；WASM 端是 ClientPagePermissions）。
+        services.AddScoped<MyProject.Web.Client.Auth.PagePermissions, ServerPagePermissions>();
+        // 「異動歷程」對話窗的資料來源（0.10.2 起對話窗與 WASM 頁面共用；WASM 端是 ApiAuditHistorySource）。
+        services.AddScoped<IAuditHistorySource, ServerAuditHistorySource>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         // 稽核防竄改雜湊鏈（0.9.175 起）：金鑰、寫入端與檢查點跨連線共用（singleton），換頁稽核射後不理時 circuit 結束也寫得完。
         services.AddSingleton<IAuditIntegrityKeyStore, AuditIntegrityKeyStore>();
@@ -194,10 +199,9 @@ public static class ServiceCollectionExtensions
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
         services.AddScoped<SoftDeletePurgeService>();
         services.AddScoped<ProjectRepository>();
+        // 分類、團隊的 Web API 與畫面共用同一個服務（0.10.2 起刪除 CategoryRepository、TeamRepository）。
         services.AddScoped<CategoryService>();
-        services.AddScoped<CategoryRepository>();
         services.AddScoped<TeamService>();
-        services.AddScoped<TeamRepository>();
 
         // 稽核紀錄的「讀」端。寫端是 Services/Other 的 AuditLogService（0.9.131 起也改用 IDbContextFactory，
         // 每筆稽核各用一個 context）；讀端只服務 Blazor 畫面（見 DataAccessServiceLifetimeTests）。

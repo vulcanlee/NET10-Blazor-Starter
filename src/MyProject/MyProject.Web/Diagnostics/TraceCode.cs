@@ -44,8 +44,7 @@ public static class TraceCode
     public static IDisposable Begin(string code) => ScopeContext.PushProperty(ScopePropertyName, code);
 
     /// <summary>附在錯誤訊息後面的文字；沒有追蹤碼時回傳空字串。</summary>
-    public static string Suffix(string? code)
-        => string.IsNullOrEmpty(code) ? string.Empty : $"（錯誤追蹤碼：{code}）";
+    public static string Suffix(string? code) => TraceCodeText.Suffix(code);
 
     private const string ExceptionDataKey = "MyProject.TraceCode";
 

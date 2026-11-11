@@ -260,23 +260,24 @@ public sealed class TeamTreeTests : IDisposable
     }
 
     [Fact]
-    public async Task Rename_ToANameADeletedTeamUsed_ShouldBeBlocked_OnBothPaths()
+    public async Task Rename_ToANameADeletedTeamUsed_ShouldBeBlocked()
     {
         var team = AddTeam("研發部");
         AddTeam("舊研發部", deletedAt: DateTime.Now);
 
         var result = await NewTeamService(out _).UpdateAsync(await AdapterAsync(team, name: "舊研發部"));
         Assert.False(result.Success);
+        Assert.Equal(VerifyRecordErrorKind.Invalid, result.Kind);
         Assert.Equal(TeamService.DeletedNameMessage("舊研發部"), result.Message);
-
-        var current = await LoadTeamAsync(team);
-        var api = await TeamRepository().UpdateAsync(new Team { Id = team, Name = "舊研發部", ConcurrencyStamp = current.ConcurrencyStamp });
-        Assert.Equal(TeamWriteStatus.Invalid, api.Status);
         Assert.Equal("研發部", (await LoadTeamAsync(team)).Name);
     }
 
+    /// <summary>
+    /// 0.10.2 起 Web API 也走 <see cref="TeamService"/>（刪除了 TeamRepository）：失敗結果帶種類，
+    /// API 依它回 400／404（<c>ControllerVerifyResultExtensions.FromVerify</c>）；改名同步引用也在同一條路。
+    /// </summary>
     [Fact]
-    public async Task ApiRepository_ShouldApplyTheSameRules()
+    public async Task ServiceFailures_ShouldCarryTheKindTheApiTurnsIntoAStatusCode()
     {
         var root = AddTeam("總部");
         var child = AddTeam("研發處", root);
@@ -286,15 +287,14 @@ public sealed class TeamTreeTests : IDisposable
             await context.SaveChangesAsync();
         }
 
-        Assert.Equal(TeamWriteStatus.Invalid, (await TeamRepository().AddAsync(new Team { Name = "新", ParentId = 999 })).Status);
-        Assert.Equal(TeamWriteStatus.Invalid, (await TeamRepository().DeleteAsync(root, "api")).Status);
-        var current = await LoadTeamAsync(root);
-        Assert.Equal(TeamWriteStatus.Invalid, (await TeamRepository().UpdateAsync(new Team { Id = root, Name = "總部", ParentId = child, ConcurrencyStamp = current.ConcurrencyStamp })).Status);
+        var service = NewTeamService(out _);
+        Assert.Equal(VerifyRecordErrorKind.Invalid, (await service.AddAsync(new TeamAdapterModel { Name = "新", ParentId = 999 })).Kind);
+        Assert.Equal(VerifyRecordErrorKind.Invalid, (await service.DeleteAsync(root)).Kind);
+        Assert.Equal(VerifyRecordErrorKind.Invalid, (await service.UpdateAsync(await AdapterAsync(root, parentId: child))).Kind);
+        Assert.Equal(VerifyRecordErrorKind.NotFound, (await service.DeleteAsync(999)).Kind);
 
-        var childRow = await LoadTeamAsync(child);
-        var renamed = await TeamRepository().UpdateAsync(new Team { Id = child, Name = "研發中心", ParentId = root, ConcurrencyStamp = childRow.ConcurrencyStamp });
-        Assert.Equal(TeamWriteStatus.Ok, renamed.Status);
-        Assert.Equal("renamedProjects=1; renamedCategories=0; renamedRoles=0", renamed.Message);
+        var renamed = await service.UpdateAsync(await AdapterAsync(child, name: "研發中心"));
+        Assert.True(renamed.Success);
         await using var check = factory.CreateDbContext();
         Assert.Equal(["研發中心"], TagStringHelper.ToList((await check.Project.AsNoTracking().SingleAsync()).Teams));
     }
@@ -452,13 +452,6 @@ public sealed class TeamTreeTests : IDisposable
         disposables.Add(context);
         tree = new ContextTeamTreeCache(context);
         return new TeamService(factory, mapper, NullLogger<TeamService>.Instance, audit, currentUser, tree);
-    }
-
-    private TeamRepository TeamRepository()
-    {
-        var context = factory.CreateDbContext();
-        disposables.Add(context);
-        return new TeamRepository(context, new ContextTeamTreeCache(context), NullLogger<TeamRepository>.Instance);
     }
 
     private EffectiveTeamResolver Resolver()

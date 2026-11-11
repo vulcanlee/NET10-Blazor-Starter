@@ -21,6 +21,26 @@ public class ShellInfoDto
     public List<HelpTopicDto> HelpTopics { get; set; } = [];
 }
 
+/// <summary>
+/// 伺服器（zh-TW）的日期時間格式（0.10.2 起，<c>GET /api/v1/shell/culture</c>，不需登入）：
+/// 瀏覽器內建的地區資料與伺服器不同（例如「上午9:00:00」與「上午 09:00:00」），WASM 啟動前先套用這一組，
+/// 清單上的時間才與 Server 頁面一模一樣。只有 <see cref="System.Globalization.DateTimeFormatInfo"/> 的幾個欄位。
+/// </summary>
+public class DateTimeFormatDto
+{
+    public string ShortDatePattern { get; set; } = string.Empty;
+
+    public string LongDatePattern { get; set; } = string.Empty;
+
+    public string ShortTimePattern { get; set; } = string.Empty;
+
+    public string LongTimePattern { get; set; } = string.Empty;
+
+    public string AMDesignator { get; set; } = string.Empty;
+
+    public string PMDesignator { get; set; } = string.Empty;
+}
+
 public class HelpTopicDto
 {
     public string Route { get; set; } = string.Empty;

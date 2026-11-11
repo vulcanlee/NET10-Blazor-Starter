@@ -3,4 +3,12 @@ namespace MyProject.Dtos.Models;
 /// <summary>__Display__（Web API 回傳；由 scripts/New-CrudModule.ps1 產生）。</summary>
 public class __Name__Dto : __Name__CreateUpdateDto
 {
+    /// <summary>已刪除（「顯示已刪除」清單用）。</summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>刪除時間。</summary>
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>刪除者帳號。</summary>
+    public string? DeletedBy { get; set; }
 }

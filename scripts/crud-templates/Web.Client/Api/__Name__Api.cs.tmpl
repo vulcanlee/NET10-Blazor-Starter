@@ -1,0 +1,75 @@
+#IF TEAMS
+using MyProject.Business.Helpers;
+#ENDIF
+using MyProject.Dtos.Commons;
+using MyProject.Dtos.Models;
+using MyProject.Models.AdapterModel;
+
+namespace MyProject.Web.Client.Api;
+
+/// <summary>
+/// __Display__的 API 用戶端（由 scripts/New-CrudModule.ps1 產生）：固定端點見 <see cref="CrudApi{TDto, TSearch}"/>。
+/// 在 MyProject.Web.Client/Program.cs 登記（產生器已自動登記）。
+/// </summary>
+public sealed class __Name__Api : CrudApi<__Name__Dto, __Name__SearchRequestDto>
+{
+    public __Name__Api(ApiClient api)
+        : base(api, "__Name__")
+    {
+    }
+#IF TEAMS
+
+    /// <summary>表單「團隊」的選項與自己的團隊範圍（與分類表單同一個形狀）。</summary>
+    public Task<ApiResult<CategoryFormOptionsDto>> OptionsAsync() => Api.GetAsync<CategoryFormOptionsDto>($"{BaseUrl}/options");
+#ENDIF
+}
+
+/// <summary>
+/// __Display__的 API 資料（<see cref="__Name__Dto"/>）與畫面資料（<see cref="__Name__AdapterModel"/>）互轉（由 scripts/New-CrudModule.ps1 產生）。
+/// WASM 頁面與伺服器的 __Name__Controller 共用這一份。
+/// </summary>
+public static class __Name__DtoMapper
+{
+    public static __Name__Dto ToDto(__Name__AdapterModel model) => new()
+    {
+        Id = model.Id,
+        Name = model.Name,
+        Description = model.Description,
+#IF TEAMS
+        Teams = TagStringHelper.ToStored(model.Teams),
+#ENDIF
+        IsEnabled = model.IsEnabled,
+        CreatedAt = model.CreatedAt,
+        UpdatedAt = model.UpdatedAt,
+        ConcurrencyStamp = model.ConcurrencyStamp,
+        IsDeleted = model.IsDeleted,
+        DeletedAt = model.DeletedAt,
+        DeletedBy = model.DeletedBy,
+    };
+
+    public static __Name__AdapterModel ToModel(__Name__CreateUpdateDto dto)
+    {
+        var model = new __Name__AdapterModel
+        {
+            Id = dto.Id ?? 0,
+            Name = dto.Name,
+            Description = dto.Description,
+#IF TEAMS
+            Teams = TagStringHelper.ToList(dto.Teams),
+#ENDIF
+            IsEnabled = dto.IsEnabled,
+            ConcurrencyStamp = dto.ConcurrencyStamp ?? string.Empty,
+            CreatedAt = dto.CreatedAt ?? default,
+            UpdatedAt = dto.UpdatedAt ?? default,
+        };
+
+        if (dto is __Name__Dto full)
+        {
+            model.IsDeleted = full.IsDeleted;
+            model.DeletedAt = full.DeletedAt;
+            model.DeletedBy = full.DeletedBy;
+        }
+
+        return model;
+    }
+}

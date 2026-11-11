@@ -80,12 +80,8 @@ public static class TabularExport
     }
 
     /// <summary>交給瀏覽器下載（與 PDF 匯出同一條路：<c>appFileDownload.downloadFromStream</c>）。</summary>
-    public static async Task DownloadAsync(this IJSRuntime js, string fileName, byte[] content, string contentType)
-    {
-        using var stream = new MemoryStream(content);
-        using var streamReference = new DotNetStreamReference(stream);
-        await js.InvokeVoidAsync("appFileDownload.downloadFromStream", fileName, streamReference, contentType);
-    }
+    public static Task DownloadAsync(this IJSRuntime js, string fileName, byte[] content, string contentType)
+        => MyProject.Web.Components.Commons.FileDownload.DownloadFileAsync(js, fileName, content, contentType);
 
     internal static string Quote(string? value) => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
 

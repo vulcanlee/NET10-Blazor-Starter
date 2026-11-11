@@ -3,14 +3,15 @@
     一行指令產生一個符合本專案現行慣例的 CRUD 模組，並完成所有登記與 migration（0.9.110 起）。
 
 .DESCRIPTION
-    產生的模組包含：實體（軟刪除＋樂觀並行）、畫面模型、DTO、Repository（Web API）、資料服務（Blazor）、
-    Web API（GET／search／POST／PUT／DELETE，各自 [HasPermission]）、頁面與檢視（權限閘門、依動作顯示按鈕、
-    搜尋排序分頁、顯示已刪除／還原／永久刪除、匯出 Excel、稽核）、操作說明、服務測試。
+    產生的模組包含：實體（軟刪除＋樂觀並行）、畫面模型、DTO、資料服務（規則與稽核的唯一一份）、
+    Web API（走資料服務；GET／search／check／POST／PUT／enabled／DELETE／restore／purge／export，各自 [HasPermission]）、
+    WASM 頁面與檢視（0.10.2 起只產生 WASM 版；權限閘門、依動作顯示按鈕、搜尋排序分頁、顯示已刪除／還原／永久刪除、
+    匯出 Excel）與 API 用戶端、操作說明、服務測試與 API 測試。
     -WithTeams 另加「團隊」欄位與團隊範圍（RecordTeamScope）。
 
     並自動登記（重複執行不會重複插入，已存在就略過並列出）：
       DbSet 與名稱唯一索引、AutoMapper、DI、權限鍵常數、稽核動作、Menu.json（下一個可用 id）、選單權限對照、
-      角色權限矩陣（或管理員專屬清單）、選單／權限一致性測試、操作說明目錄、_Imports.razor、
+      角色權限矩陣（或管理員專屬清單）、選單／權限一致性測試、操作說明目錄、WASM 的 API 用戶端（Program.cs）、
       已刪除資料清理（服務與作業）、資料保留與清理（頁面與測試）、並行／軟刪除實體清單、
       服務生命週期／畫面模型 Clone／API DI 測試清單、選單圖示允許清單。
     這些登記的錨點由品質關卡以 -CheckAnchors 檢查（0.9.153 起）。
@@ -42,7 +43,7 @@
     加上「團隊」欄位與團隊範圍。
 
 .PARAMETER AdminOnly
-    管理員專屬：權限鍵不進角色矩陣，檢視以 CheckIsAdmin 判斷。
+    管理員專屬：權限鍵不進角色矩陣，檢視以 Permissions.IsAdmin 判斷。
 
 .PARAMETER SkipMigration
     不自動產生 migration（之後自己跑 dotnet ef migrations add Add<Name>）。
@@ -201,7 +202,7 @@ function Expand-Template([string]$text) {
 
 $projectFolders = @{
     AccessDatas = 'MyProject.AccessDatas'; Models = 'MyProject.Models'; Dtos = 'MyProject.Dtos'
-    Business = 'MyProject.Business'; Web = 'MyProject.Web'; Tests = 'MyProject.Tests'
+    Business = 'MyProject.Business'; Web = 'MyProject.Web'; 'Web.Client' = 'MyProject.Web.Client'; Tests = 'MyProject.Tests'
 }
 
 $outputs = foreach ($template in Get-ChildItem -LiteralPath $templateRoot -Recurse -File -Filter '*.tmpl') {
@@ -370,7 +371,7 @@ Update-Source 'MyProject.Business/Models/AutoMapping.cs' 'AutoMapper' "CreateMap
 
 Update-Source 'MyProject.Web/Extensions/ServiceCollectionExtensions.cs' 'DI' "AddScoped<${Name}Service>" {
     param($t)
-    Insert-After $t "        services.AddScoped<CategoryRepository>();`n" "        services.AddScoped<${Name}Service>();`n        services.AddScoped<${Name}Repository>();`n"
+    Insert-After $t "        services.AddScoped<CategoryService>();`n" "        services.AddScoped<${Name}Service>();`n"
 }
 
 $constDoc = if ($AdminOnly) { "`n    /// <inheritdoc cref=`"角色_系統管理`"/>`n" } else { '' }
@@ -469,9 +470,10 @@ Update-Source '../../docs/guides/新手完整操作指南.md' '使用手冊章�
     Insert-Before $t "`n---`n`n## 七、AI 功能`n" "`n$section`n`n---`n"
 }
 
-Update-Source 'MyProject.Web/Components/_Imports.razor' '_Imports.razor' "@using MyProject.Web.Components.Views.$Plural`n" {
+# WASM 頁面的 API 用戶端（0.10.2 起；頁面在 MyProject.Web.Client，自己 @using 檢視的命名空間，不必登記 _Imports.razor）。
+Update-Source 'MyProject.Web.Client/Program.cs' 'WASM API 用戶端' "AddScoped<${Name}Api>" {
     param($t)
-    Insert-After $t "@using MyProject.Web.Components.Views.Teams`n" "@using MyProject.Web.Components.Views.$Plural`n"
+    Insert-After $t "        builder.Services.AddScoped<TeamApi>();`n" "        builder.Services.AddScoped<${Name}Api>();`n"
 }
 
 Update-Source 'MyProject.Business/Services/DataAccess/SoftDeletePurgeService.cs' '已刪除資料清理（服務）' "PurgeTypeAsync<$Name>(" {

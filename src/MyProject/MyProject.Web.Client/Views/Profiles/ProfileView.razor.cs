@@ -65,13 +65,13 @@ public partial class ProfileView
             var result = await Api.PutAsync<object>("api/v1/profile/name", new UpdateProfileNameDto { Name = nameInput, ConcurrencyStamp = profile.ConcurrencyStamp });
             if (!result.Success)
             {
-                ClientNotify.Error(NotificationService, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Message : result.ErrorMessage);
+                ViewNotification.Error(NotificationService, string.IsNullOrWhiteSpace(result.ErrorMessage) ? result.Message : result.ErrorMessage);
                 return;
             }
 
             await LoadAsync();
             Session.UpdateName(profile?.Name ?? nameInput);
-            ClientNotify.Warning(NotificationService, "已更新姓名");
+            ViewNotification.Warning(NotificationService, "已更新姓名");
         }
         finally
         {

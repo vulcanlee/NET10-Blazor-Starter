@@ -1,10 +1,10 @@
 ﻿# DTO 與模型邊界規範
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.2
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 目標
 - [x] 明確定義 API、UI、Business、Entity 的資料邊界，避免腳手架日後擴充時直接暴露資料庫 Entity。
@@ -14,6 +14,7 @@
 - [x] Entity 僅作為 EF Core persistence model 使用。
 - [x] AdapterModel 目前主要供 Blazor UI/後台頁面使用，不應與 API DTO 混用。
 - [x] Controller 使用 AutoMapper 或明確 mapping 在 DTO 與 Entity 之間轉換。
+- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`，WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
 
 ## 新 CRUD 模組待辦
 - [ ] 新增 `XxxDto` 作為 response DTO。
@@ -23,10 +24,10 @@
 - [ ] 新增 integration tests，確認 JSON body 不含不該暴露的 Entity 導覽屬性或內部欄位。
 
 > 0.9.110 起 `scripts/New-CrudModule.ps1` 會一併產生前四項：`XxxDto`、`XxxCreateUpdateDto`（含 `[Required]`／`[StringLength]`）、
-> `XxxSearchRequestDto` 與 `AutoMapping` 的 DTO 對應；產生的測試是服務層測試（`XxxServiceTests`），API 的 integration test 仍要自己補。
+> `XxxSearchRequestDto` 與 DTO 對應（0.10.2 起是 `Web.Client/Api/XxxApi.cs` 裡的 `XxxDtoMapper`）；0.10.2 起另產生 API 整合測試 `XxxApiTests`（完整生命週期與稽核、409、匯出、403），與服務層測試 `XxxServiceTests` 並存。
 
 ## 驗收標準
-- [x] `ProjectController`、`CategoryController`、`TeamController` 目前均使用 DTO 作為 API 邊界；`AuthController` 用 `MyProject.Dtos/Auths/` 的 `LoginRequestDto`、`RefreshTokenRequestDto`、`TokenResponseDto`、`CurrentUserDto`。
+- [x] `ProjectController`、`CategoryController`、`TeamController` 目前均使用 DTO 作為 API 邊界（0.10.2 起分類、團隊另有 `CategoryFormOptionsDto`、`TeamNodeDto`、`SetEnabledRequestDto`，`CategoryDto`／`TeamDto` 多了 `IsDeleted`、`DeletedAt`、`DeletedBy`）；`AuthController` 用 `MyProject.Dtos/Auths/` 的 `LoginRequestDto`、`RefreshTokenRequestDto`、`TokenResponseDto`、`CurrentUserDto`。
   `ProjectFileController`、`BackupController` 成功時回原生檔案，錯誤回 `ApiResult`，不經 DTO。
 - [x] integration tests 已驗證 Project CRUD 成功 response 可用 DTO contract 反序列化。
 - [ ] 日後每新增一個 API Controller，都要在 PR checklist 檢查 DTO 邊界。

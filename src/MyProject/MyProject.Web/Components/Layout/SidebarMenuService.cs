@@ -93,6 +93,34 @@ public sealed class SidebarMenuService
         return urls;
     }
 
+    /// <summary>
+    /// 選單上這個網址要的頁面權限鍵（0.10.2 起，WASM 頁面「沒有權限開頁」的稽核由伺服器依它判斷）；不在選單裡的網址回 null。
+    /// 對應規則與選單過濾相同（<see cref="MenuPermissionMap"/>，沒登記的用選單名稱）。
+    /// </summary>
+    public async Task<string?> FindPagePermissionAsync(string path)
+    {
+        var normalized = PageHelpService.NormalizePath(path);
+        return Find(ApplyPermissionStructure(await LoadMenuItemsAsync()));
+
+        string? Find(IEnumerable<SidebarMenuItemModel> items)
+        {
+            foreach (var item in items)
+            {
+                if (!string.IsNullOrWhiteSpace(item.Url) && string.Equals(PageHelpService.NormalizePath(item.Url), normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.PermissionName;
+                }
+
+                if (Find(item.SubMenu) is { } found)
+                {
+                    return found;
+                }
+            }
+
+            return null;
+        }
+    }
+
     internal static void CollectUrls(IEnumerable<SidebarMenuItemModel> items, ISet<string> urls)
     {
         foreach (var item in items)

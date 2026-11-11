@@ -38,8 +38,8 @@ public class CategoryService
     }
 
     /// <summary>
-    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
-    /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
+    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：Server 頁面是電路的使用者，
+    /// Web API（0.10.2 起也走本服務）是 <c>ApiActorMiddleware</c> 依存取 Token 填入的使用者。AuditLogService 失敗不拋出。
     /// </summary>
     private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {
@@ -72,7 +72,8 @@ public class CategoryService
     private static bool IsVisible(Category item, RecordAccessScope scope)
         => RecordTeamScope.CanAccessCategory(item.Teams, scope);
 
-    public async Task<DataRequestResult<CategoryAdapterModel>> GetAsync(DataRequest dataRequest)
+    /// <param name="isEnabled">只看啟用（true）或停用（false）的；null 不篩選（Web API 的 <c>IsEnabled</c> 條件，0.10.2 起）。</param>
+    public async Task<DataRequestResult<CategoryAdapterModel>> GetAsync(DataRequest dataRequest, bool? isEnabled = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
@@ -97,6 +98,11 @@ public class CategoryService
 
         dataSource = ApplyTeamVisibility(dataSource, await accessScope.GetAsync());
 
+        if (isEnabled is { } enabledOnly)
+        {
+            dataSource = dataSource.Where(x => x.IsEnabled == enabledOnly);
+        }
+
         IOrderedQueryable<Category>? sorted = null;
 
         if (!string.IsNullOrWhiteSpace(dataRequest.SortField))
@@ -115,6 +121,14 @@ public class CategoryService
                     ? dataSource.OrderByDescending(x => x.IsEnabled).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.IsEnabled).ThenBy(x => x.Id)
+                        : null;
+            }
+            else if (dataRequest.SortField == nameof(CategoryAdapterModel.CreatedAt))
+            {
+                sorted = dataRequest.SortDescending == true
+                    ? dataSource.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+                    : dataRequest.SortDescending == false
+                        ? dataSource.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
                         : null;
             }
             else if (dataRequest.SortField == nameof(CategoryAdapterModel.UpdatedAt))
@@ -179,7 +193,7 @@ public class CategoryService
             if (RecordTeamScope.CheckAssignment(null, TagStringHelper.ToStored(paraObject.Teams), await accessScope.GetAsync()) is { } teamError)
             {
                 Logger.LogInformation("Category create rejected by team assignment rule. Name={CategoryName}", paraObject.Name);
-                return VerifyRecordResultFactory.Build(false, teamError);
+                return VerifyRecordResultFactory.Invalid(teamError);
             }
 
             Category itemParameter = Mapper.Map<Category>(paraObject);
@@ -190,6 +204,9 @@ public class CategoryService
             await context.Category.AddAsync(itemParameter);
             await context.SaveChangesAsync();
 
+            // 回填新的 Id 與版本號（0.10.2 起）：Web API 新增後要回傳這一筆。
+            paraObject.Id = itemParameter.Id;
+            paraObject.ConcurrencyStamp = itemParameter.ConcurrencyStamp;
             Logger.LogInformation("Category created successfully. CategoryId={CategoryId}, Name={CategoryName}", itemParameter.Id, itemParameter.Name);
             await WriteAuditAsync(AuditActions.Category.Create, itemParameter.Id, $"name={itemParameter.Name}");
             return VerifyRecordResultFactory.Build(true);
@@ -202,11 +219,11 @@ public class CategoryService
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Category create rejected by unique constraint. Name={CategoryName}", paraObject.Name);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to create category. Name={CategoryName}", paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "新增分類失敗。", ex);
+            return VerifyRecordResultFactory.Error("新增分類失敗。", ex);
         }
     }
 
@@ -224,7 +241,7 @@ public class CategoryService
             if (item == null)
             {
                 Logger.LogWarning("Category update rejected because record was not found. CategoryId={CategoryId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, "找不到要修改的分類資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要修改的分類資料。");
             }
 
             // 0.9.105 之前修改不檢查團隊範圍（刪除、還原早已檢查）。
@@ -232,13 +249,13 @@ public class CategoryService
             if (!IsVisible(item, scope))
             {
                 Logger.LogWarning("Category update denied by team scope. CategoryId={CategoryId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法修改。");
+                return VerifyRecordResultFactory.NotFound("這筆分類不在你的團隊範圍內，無法修改。");
             }
 
             if (RecordTeamScope.CheckAssignment(item.Teams, TagStringHelper.ToStored(paraObject.Teams), scope) is { } teamError)
             {
                 Logger.LogInformation("Category update rejected by team assignment rule. CategoryId={CategoryId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, teamError);
+                return VerifyRecordResultFactory.Invalid(teamError);
             }
 
             Category itemData = Mapper.Map<Category>(paraObject);
@@ -262,18 +279,18 @@ public class CategoryService
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
             Logger.LogInformation("Category update rejected by concurrency conflict. CategoryId={CategoryId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Category update rejected by unique constraint. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to update category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "修改分類失敗。", ex);
+            return VerifyRecordResultFactory.Error("修改分類失敗。", ex);
         }
     }
 
@@ -291,13 +308,13 @@ public class CategoryService
             if (item == null)
             {
                 Logger.LogInformation("Category status change rejected because record was not found. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到這個分類，可能已被刪除。");
+                return VerifyRecordResultFactory.NotFound("找不到這個分類，可能已被刪除。");
             }
 
             if (!IsVisible(item, await accessScope.GetAsync()))
             {
                 Logger.LogWarning("Category status change denied by team scope. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法修改。");
+                return VerifyRecordResultFactory.NotFound("這筆分類不在你的團隊範圍內，無法修改。");
             }
 
             var rows = item.IsEnabled == enabled ? 0 : await context.Category
@@ -318,7 +335,7 @@ public class CategoryService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to change category status. CategoryId={CategoryId}, Enabled={Enabled}", id, enabled);
-            return VerifyRecordResultFactory.Build(false, "切換分類狀態失敗。", ex);
+            return VerifyRecordResultFactory.Error("切換分類狀態失敗。", ex);
         }
     }
 
@@ -337,14 +354,14 @@ public class CategoryService
             if (item == null)
             {
                 Logger.LogWarning("Category deletion rejected because record was not found. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的分類資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的分類資料。");
             }
 
             // 0.9.93 之前刪除完全不檢查團隊範圍；畫面上看不到不代表伺服器端不該擋。
             if (!IsVisible(item, await accessScope.GetAsync()))
             {
                 Logger.LogWarning("Category deletion denied by team scope. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法刪除。");
+                return VerifyRecordResultFactory.NotFound("這筆分類不在你的團隊範圍內，無法刪除。");
             }
 
             SoftDeleteHelper.MarkDeleted(item, currentUserService.CurrentUser.Id > 0 ? currentUserService.CurrentUser.Account : null);
@@ -357,12 +374,12 @@ public class CategoryService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Category deletion rejected by concurrency conflict. CategoryId={CategoryId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete category. CategoryId={CategoryId}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除分類失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除分類失敗。", ex);
         }
     }
 
@@ -410,13 +427,13 @@ public class CategoryService
             if (item == null)
             {
                 Logger.LogWarning("Category restore rejected because deleted record was not found. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要還原的分類（可能已被還原或永久刪除）。");
+                return VerifyRecordResultFactory.NotFound("找不到要還原的分類（可能已被還原或永久刪除）。");
             }
 
             if (!IsVisible(item, await accessScope.GetAsync()))
             {
                 Logger.LogWarning("Category restore denied by team scope. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法還原。");
+                return VerifyRecordResultFactory.NotFound("這筆分類不在你的團隊範圍內，無法還原。");
             }
 
             // 刪除期間可能有人建立了同名的分類（部分唯一索引允許），規則與新增時相同：去空白後不分大小寫。
@@ -424,7 +441,7 @@ public class CategoryService
             if (await context.Category.AnyAsync(x => x.Id != id && x.Name.ToLower() == name))
             {
                 Logger.LogInformation("Category restore rejected because an active category has the same name. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, $"已有同名的分類「{item.Name}」，無法還原。請先將現有的同名分類改名後再還原。");
+                return VerifyRecordResultFactory.Conflict($"已有同名的分類「{item.Name}」，無法還原。請先將現有的同名分類改名後再還原。");
             }
 
             SoftDeleteHelper.Restore(item);
@@ -437,18 +454,18 @@ public class CategoryService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Category restore rejected by concurrency conflict. CategoryId={CategoryId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Category restore rejected by unique constraint. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to restore category. CategoryId={CategoryId}", id);
-            return VerifyRecordResultFactory.Build(false, "還原分類失敗。", ex);
+            return VerifyRecordResultFactory.Error("還原分類失敗。", ex);
         }
     }
 
@@ -467,13 +484,13 @@ public class CategoryService
             if (item == null)
             {
                 Logger.LogWarning("Category purge rejected because deleted record was not found. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的分類（只能永久刪除已刪除的資料）。");
+                return VerifyRecordResultFactory.NotFound("找不到要永久刪除的分類（只能永久刪除已刪除的資料）。");
             }
 
             if (!IsVisible(item, await accessScope.GetAsync()))
             {
                 Logger.LogWarning("Category purge denied by team scope. CategoryId={CategoryId}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆分類不在你的團隊範圍內，無法永久刪除。");
+                return VerifyRecordResultFactory.NotFound("這筆分類不在你的團隊範圍內，無法永久刪除。");
             }
 
             context.Category.Remove(item);
@@ -486,12 +503,12 @@ public class CategoryService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Category purge rejected by concurrency conflict. CategoryId={CategoryId}", id);
-            return VerifyRecordResultFactory.Build(false, "這筆分類已被其他人還原或變更，沒有執行永久刪除。", ex);
+            return VerifyRecordResultFactory.Conflict("這筆分類已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge category. CategoryId={CategoryId}", id);
-            return VerifyRecordResultFactory.Build(false, "永久刪除分類失敗。", ex);
+            return VerifyRecordResultFactory.Error("永久刪除分類失敗。", ex);
         }
     }
 
@@ -508,7 +525,7 @@ public class CategoryService
         if (searchItem != null)
         {
             Logger.LogInformation("Pre-create validation failed because category name already exists. Name={CategoryName}", paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "分類名稱已存在，無法新增。");
+            return VerifyRecordResultFactory.Conflict("分類名稱已存在，無法新增。");
         }
 
         return VerifyRecordResultFactory.Build(true);
@@ -526,7 +543,7 @@ public class CategoryService
         if (searchItem == null)
         {
             Logger.LogInformation("Pre-update validation failed because category was not found. CategoryId={CategoryId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, "要修改的分類資料不存在。");
+            return VerifyRecordResultFactory.NotFound("要修改的分類資料不存在。");
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name);
@@ -537,7 +554,7 @@ public class CategoryService
         if (searchItem != null)
         {
             Logger.LogInformation("Pre-update validation failed because category name already exists. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "分類名稱已存在，無法修改。");
+            return VerifyRecordResultFactory.Conflict("分類名稱已存在，無法修改。");
         }
 
         return VerifyRecordResultFactory.Build(true);

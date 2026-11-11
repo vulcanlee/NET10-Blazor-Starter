@@ -1,10 +1,10 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.9.173
+- 現行系統版本：0.10.2
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -17,17 +17,19 @@
 - 不做與其他實體的外鍵關聯或參照完整性檢查（刪除前無被引用檢查，`BeforeDeleteCheckAsync` 直接回成功）。
 - 不做匯入、批次操作（0.9.107 起有匯出 Excel，見 §三）。（0.9.94 起刪除為軟刪除，可還原，見 §三。）
 
+> 0.10.2 起（WASM 遷移 M3）本頁改在 **WebAssembly** 執行：畫面放在 `MyProject.Web.Client`，資料一律經 `/api/v1/Category`（`CategoryController`）取得與存檔，Server 版頁面已刪除；畫面、欄位、規則與錯誤訊息不變。
+
 ## 二、使用者與入口
 
 | 項目 | 內容 |
 | --- | --- |
-| 路由 | `/categories`（`CategoryPage.razor`，`MainLayout`） |
+| 路由 | `/categories`（`MyProject.Web.Client` 的 `Pages/CategoryPage.razor`，WASM 版外框 `ClientMainLayout`；0.10.2 起） |
 | 選單路徑 | 資料定義（id=5）> 分類清單（id=51 選單項，`url=/categories`） |
 | 選單→權限對應 | `SidebarMenuService.MenuPermissionMap[51] = 角色_分類清單` |
-| UI 頁面權限 | 頁面鍵「分類清單」（`AuthenticationStateHelper.CheckAccessPage`；管理員短路） |
+| UI 頁面權限 | 頁面鍵「分類清單」（0.10.2 起 `PagePermissions.CanAccessPage`，使用者資料來自 `/me`；規則同 `PermissionRules`，管理員短路） |
 | API 動作級權限 | `分類清單:view` / `分類清單:create` / `分類清單:edit` / `分類清單:delete` |
 | 主要使用者 | 具「分類清單」角色權限的後台管理者；系統管理員無條件可存取 |
-| 操作說明 | 頂欄頁名旁的「操作說明」按鈕（0.9.66 起，`PageHelpDialog`）；內容為 `Datas/Help/categories.md`，於 `Datas/HelpTopics.json` 登記 `/categories` |
+| 操作說明 | 頂欄頁名旁的「操作說明」按鈕（0.9.66 起；WASM 版為 `ClientPageHelpDialog`）；內容為 `Datas/Help/categories.md`，於 `Datas/HelpTopics.json` 登記 `/categories` |
 
 （`Menu.json` 的 id 與 `MenuPermissionMap` 的 key 皆為 51，且 `MenuPermissionConsistencyTests` 強制兩邊 id 集合完全相等。）
 
@@ -60,13 +62,14 @@
 
 ## 四、內部系統運作
 
-- UI 路徑：`CategoryViewView` →（注入）`CategoryService` → `BackendDBContext`（Blazor Server 直接呼叫服務，不經 HTTP）。
-- API 路徑：`CategoryController` → `CategoryRepository` → `BackendDBContext`，回傳 `ApiResult<T>` / `PagedResult<T>`。
+- UI 路徑（0.10.2 起，WASM）：`CategoryViewView` → `CategoryApi`（`MyProject.Web.Client/Api`，經 `ApiClient` 帶 Bearer Token）→ `CategoryController`。DTO 與畫面模型的轉換集中在 `CategoryDtoMapper`（WASM 頁面與 Controller 共用）。
+- API 路徑：`CategoryController` → `CategoryService` → `BackendDBContext`（0.10.2 起與畫面同一個服務：團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份；`CategoryRepository` 已刪除），回傳 `ApiResult<T>` / `PagedResult<T>`。
+  端點：`GET {id}`（寫查看稽核）、`POST search`（`Deleted` 顯示已刪除需刪除權限，否則 403；`RecordSearch` 為 true 時寫搜尋稽核；`SortBy` 不分大小寫）、`GET options`（表單用的啟用中團隊名稱與自己的團隊範圍）、`POST check`（存檔前名稱檢查，新增要新增權限、修改要修改權限）、`POST`、`PUT {id}`、`PUT {id}/enabled`、`DELETE {id}`（軟刪除）、`POST {id}/restore`、`DELETE {id}/purge`、`POST export`。完整清單見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)。
 - Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`，另有樂觀並行 `ConcurrencyStamp` 與軟刪除 `IsDeleted/DeletedAt/DeletedBy`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），AutoMapper 以 `ForMember` 在 `List<string>` 與字串間轉換。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `CurrentRecord = model.Clone()` 複製，避免污染清單資料；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
 - 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Category.Create`／`Category.Update`／`Category.Delete`（代碼定義於 `AuditActions`，目標為 `Category`／Id），可在「稽核紀錄」頁查詢；點狀態標籤切換另寫 `Category.Enable`／`Category.Disable`（0.9.120 起），匯出寫 `Category.Export`（0.9.107 起）。
-  畫面路徑由 `CategoryService` 寫入（操作者取自 `CurrentUserService`，內容 `name=分類名稱`），Web API 路徑由 `CategoryController` 寫入（API 刪除不帶名稱）；寫入失敗（含唯一索引擋下）不留稽核。
+  由 `CategoryService` 寫入（操作者取自 `CurrentUserService`，API 請求由 `ApiActorMiddleware` 依存取 Token 填入；內容 `name=分類名稱`）；0.10.2 起 Web API 與畫面寫的稽核相同（之前由 `CategoryController` 另寫，API 刪除不帶名稱）。查看（`GET {id}`）、搜尋（`RecordSearch`）、匯出的稽核由 `CategoryController` 寫。寫入失敗（含唯一索引擋下）不留稽核。
 - 模型變更需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
 ## 五、權限與安全
@@ -74,19 +77,19 @@
 - API 一律 `[Authorize(JwtBearer)]`；每個動作以 `[HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.*)]` 做動作級授權。
 - 權限鍵組合規則 `頁面:動作`（`PermissionKey.For`）：`分類清單:view`、`分類清單:create`、`分類清單:edit`、`分類清單:delete`。裸鍵「分類清單」代表該頁全部動作（向後相容）。
 - 無權限回 403，且維持 `ApiResult` 格式；系統管理員短路（不需個別權限）。
-- UI 與 API 共用單一 RBAC 權威來源：UI 用 Cookie 驗證並以 `CheckAccessPage`（頁面鍵）控制進入頁面、以 `CheckAccessAction(角色_分類清單, 動作)`（0.9.110 起畫面改用 `<RequirePermission>` 元件，規則相同）控制新增／修改／刪除按鈕是否顯示；API 用 JWT Bearer 並以動作鍵控制個別操作。
-- 頁面被權限擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/categories`，0.9.78 起）。
+- UI 與 API 共用單一 RBAC 權威來源：UI 以 `CanAccessPage`（頁面鍵）控制進入頁面、以 `<RequirePermission>` 元件（0.9.110 起，規則同 `CheckAccessAction(角色_分類清單, 動作)`）控制新增／修改／刪除按鈕是否顯示；0.10.2 起頁面在 WASM 執行，判斷經 `PagePermissions`（`/me` 回傳的權限），這只是畫面顯示，實際操作一律由 API 以 JWT Bearer 與動作鍵把關。
+- 頁面被權限擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/categories`，0.9.78 起；0.10.2 起由伺服器在開頁紀錄 `POST /api/v1/shell/page-view` 時寫，內容 `via=WASM`）。
 
 ## 六、錯誤與邊界
 
-- 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（先以 `NameNormalizer` 去除前後空白，再 `ToLower()` 不分大小寫，修改時排除自身），重複回「分類名稱已存在，無法新增／修改。」。API 端另以 `ExistsByNameAsync` 回 409 Conflict，判定語意與 UI 路徑一致。
+- 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（先以 `NameNormalizer` 去除前後空白，再 `ToLower()` 不分大小寫，修改時排除自身），重複回「分類名稱已存在，無法新增／修改。」。API 端走同一個檢查，重複回 409 Conflict（0.10.2 起訊息與畫面相同）；修改時先確認在團隊範圍內（範圍外 404），再比對名稱。
 - 名稱正規化與唯一索引（0.4.41 起）：寫入前一律 `Trim()`（AutoMapper 的「→ Entity」映射上），資料庫另有 `IX_Category_Name` 唯一索引兜底。前置檢查與寫入不在同一個交易裡，並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「分類名稱已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
   名稱重複屬使用者錯誤（0.9.78 起，LOG-11）：只記 `Information`、不帶例外物件，不會進「系統例外紀錄」。
   - ⚠️ 沿革：0.4.41 之前是「檢查時 Trim、寫入時不 Trim」，「技術文件 」（尾隨空白）會原樣入庫，之後「技術文件」再也比不到它，兩筆看起來一模一樣的資料同時存在。
-- 找不到資料：修改／刪除時查無記錄回「找不到要修改／刪除的分類資料」；API 回 404 NotFound。
+- 找不到資料：修改／刪除時查無記錄回「找不到要修改／刪除的分類資料」；API 回 404 NotFound（`VerifyRecordResult.Kind` 決定狀態碼，見 [Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)）。
 - 驗證失敗：`DataAnnotations`（名稱必填、長度上限）由 `EditContext.Validate()` 於 Modal 攔截並逐條通知。
 - 路由 ID 與 Payload ID 不一致：API `Update` 回 400 ValidationError。
-- 例外：Service 以 try/catch 記 `Error` 並回 `VerifyRecordResult(false, "新增／修改／刪除分類失敗。")`；API 以 `ApiServerError` 回 500。畫面上未預期的例外由 `FormModalFlow`／刪除流程的 try/catch 攔下，顯示通用錯誤訊息，不會拆掉 Blazor circuit。
+- 例外：Service 以 try/catch 記 `Error` 並回 `VerifyRecordResult(false, "新增／修改／刪除分類失敗。")`；API 以 `ApiServerError` 回 500。畫面上未預期的例外由 `FormModalFlow`／刪除流程的 try/catch 攔下，顯示通用錯誤訊息，不會讓整頁出錯。
 - **並行衝突**（0.9.93 起，樂觀並行）：開啟編輯後若別人先存檔或刪除了同一筆，存檔時回「這筆資料在你編輯期間已被其他人修改或刪除。請關閉視窗、重新開啟後再編輯。」，
   Modal 維持開啟、輸入不會遺失。API 的 `PUT` 必須帶 GET 取得的 `ConcurrencyStamp`：沒帶回 400、與資料庫不符回 409。
   屬使用者情境（LOG-11）：只記 `Information`，不進「系統例外紀錄」。
@@ -123,6 +126,8 @@
 
 測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper；存取範圍以 `FakeRecordAccessScopeProvider` 替身指定。
 
+對應測試檔 `src/MyProject/MyProject.Tests/CategoryTeamApiTests.cs`（0.10.2 起，取代已刪除的 `CategoryTeamRepositoryUniquenessTests`）：API 的完整生命週期與每個動作只寫一筆稽核、版本號過期回 409、名稱重複（不分大小寫與空白）回 409、還原撞名 409、永久刪除只限已刪除、找不到 404、搜尋排序與稽核、匯出內容與清單一致、團隊範圍、只能看的角色寫入一律 403、沒有刪除權限看已刪除 403、檢查端點與範圍外寫入不透露別隊資料、沒權限開 WASM 頁寫權限拒絕稽核。
+
 - `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `Category`；元件行為見 `Components/AuditHistoryTests`。
 
 ## 八、分類的團隊可見性（0.4.40 起）
@@ -139,23 +144,24 @@
 - ⚠️ **「未綁團隊的使用者看得到全部」與紀錄（Project）的規則相反** —— 紀錄是「只看得到公開紀錄」。分類可見性是下拉清單的便利性過濾，不是安全邊界（安全邊界為 RBAC），故刻意採寬鬆規則。
 - 名稱唯一性檢查**不**套團隊過濾，避免「看不到卻建得出同名分類」。
 - 專案編輯畫面的分類下拉，會額外把「這筆專案已貼、但目前使用者看不到」的分類列出並加註「（已限定其他團隊）」，避免使用者一存檔就把它靜默清掉。
-- Web API 路徑（`CategoryController` / `CategoryRepository`）0.9.105 起套用同一套規則（之前**不**做行級過濾）：範圍外 404、指派範圍外 400。
+- Web API 路徑（`CategoryController`）0.9.105 起套用同一套規則（之前**不**做行級過濾）：範圍外 404、指派範圍外 400；0.10.2 起直接呼叫 `CategoryService`，與畫面同一份程式。
 
 ## 九、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Categories/CategoryPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Categories/CategoryViewView.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Categories/CategoryViewView.razor.cs`（頁面權限檢查）
+- `src/MyProject/MyProject.Web.Client/Pages/CategoryPage.razor`（0.10.2 起，WASM）
+- `src/MyProject/MyProject.Web.Client/Views/Categories/CategoryViewView.razor`
+- `src/MyProject/MyProject.Web.Client/Views/Categories/CategoryViewView.razor.cs`（頁面權限檢查）
+- `src/MyProject/MyProject.Web.Client/Api/CategoryApi.cs`、`CrudApi.cs`、`CategoryDtoMapper.cs`（呼叫 API 與 DTO 轉換）
 - `src/MyProject/MyProject.Web/Controllers/CategoryController.cs`（`[HasPermission]` 動作鍵）
 - `src/MyProject/MyProject.Business/Services/DataAccess/CategoryService.cs`（AddAsync / 前置檢查）
 - `src/MyProject/MyProject.AccessDatas/Models/Category.cs`（Entity 欄位）
-- `src/MyProject/MyProject.Dtos/Models/CategoryCreateUpdateDto.cs`、`src/MyProject/MyProject.Dtos/Commons/CategorySearchRequestDto.cs`
+- `src/MyProject/MyProject.Dtos/Models/CategoryCreateUpdateDto.cs`、`CategoryDto.cs`、`CategoryFormOptionsDto.cs`、`src/MyProject/MyProject.Dtos/Commons/CategorySearchRequestDto.cs`
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`
 - `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`、`src/MyProject/MyProject.Web/Datas/Menu.json`
 - `src/MyProject/MyProject.Tests/CategoryServiceTests.cs`、`src/MyProject/MyProject.Tests/CategoryServiceTeamVisibilityTests.cs`、`src/MyProject/MyProject.Tests/StatusToggleServiceTests.cs`
-- `src/MyProject/MyProject.Tests/CategoryTeamRepositoryUniquenessTests.cs`、`src/MyProject/MyProject.Tests/CategoryTeamUniqueIndexMigrationTests.cs`
+- `src/MyProject/MyProject.Tests/CategoryTeamApiTests.cs`、`src/MyProject/MyProject.Tests/CategoryTeamUniqueIndexMigrationTests.cs`
 - `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs`
-- `src/MyProject/MyProject.Web/Components/Commons/TeamBindingConfirm.cs`（儲存前團隊確認對話窗，與專案編輯頁共用）
+- `src/MyProject/MyProject.Web.Client/Commons/TeamBindingConfirm.cs`（儲存前團隊確認對話窗，與專案編輯頁共用；0.10.2 起放在 Client，命名空間不變）
 - `src/MyProject/MyProject.Business/Helpers/AuditActions.cs`（`Category.*` 稽核代碼：Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export）
 - `src/MyProject/MyProject.Web/Datas/Help/categories.md`（頁面操作說明）
 - 交叉連結：[../architecture/Web API 設計慣例.md](../architecture/Web%20API%20設計慣例.md)、[../architecture/資料模型與資料庫.md](../architecture/資料模型與資料庫.md)、[../prd/紀錄分類與團隊權控-prd.md](../prd/紀錄分類與團隊權控-prd.md)

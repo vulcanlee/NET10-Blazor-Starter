@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.2
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -17,29 +17,61 @@
 
 ## 二、資源 CRUD 控制器
 
-三個資源控制器共用同一組動作樣板（以 `CategoryController` 為代表，`src/MyProject/MyProject.Web/Controllers/CategoryController.cs:38`）：
-
-| 動作 | 路由（相對 `api/` 與 `api/v1/`）| 權限（`PermissionActions`）| 回傳 |
-|------|------|------|------|
-| 取得單筆 | `GET {controller}/{id}` | View | `ApiResult<TDto>`（查無回 `NotFound`）|
-| 搜尋分頁 | `POST {controller}/search` | View | `ApiResult<PagedResult<TDto>>` |
-| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（同名回 `Conflict`，團隊另檢查代號；指派範圍外的團隊、上層團隊不合法回 `BadRequest`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
-| 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；團隊指派或團隊樹規則不過回 `BadRequest`；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
-| 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無或已刪除回 `NotFound`；團隊還有未刪除的下屬回 `BadRequest`）|
-
-> **樂觀並行（0.9.93 起）**：`GET` 回傳的 DTO 帶有 `ConcurrencyStamp`。`PUT` 必須把它原樣帶回；伺服器以它比對資料庫目前的值，不同代表別人已先修改或刪除，回 409（訊息「這筆資料在你編輯期間已被其他人修改或刪除…」），用戶端應重新 `GET` 後再決定如何合併。`PUT` 成功後版本號會換新，要再次修改請重新 `GET`。`POST` 會忽略這個欄位。
->
-> **軟刪除（0.9.94 起）**：`DELETE` 只把資料標記為已刪除，之後對同一筆的 `GET`／`PUT`／`DELETE` 都回 404。還原與永久刪除只能在畫面上的「顯示已刪除」操作，API 不提供。
->
-> 0.9.93 之前三個 `POST` 會直接採用客戶端傳來的 `Id`，與既有資料撞號時回 500；0.9.94 起一律由資料庫配號。
-
-各控制器對應的路由前綴與權限鍵：
+三個資源控制器的路由前綴與權限鍵：
 
 | 控制器 | 路由前綴 | 權限鍵（`MagicObjectHelper`）| 檔案 |
 |--------|----------|------------------------------|------|
 | `CategoryController` | `api/Category`、`api/v1/Category` | `角色_分類清單` | `Controllers/CategoryController.cs` |
 | `TeamController` | `api/Team`、`api/v1/Team` | `角色_團隊清單` | `Controllers/TeamController.cs` |
 | `ProjectController` | `api/Project`、`api/v1/Project` | `角色_專案項目` | `Controllers/ProjectController.cs` |
+
+### 2.1 分類、團隊（0.10.2 起，WASM 遷移 M3）
+
+`CategoryController`／`TeamController` 改呼叫畫面同一個服務（`CategoryService`／`TeamService`），團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份（稽核的操作者是存取 Token 的使用者）；`CategoryRepository`／`TeamRepository` 已刪除。WASM 版的分類、團隊頁只用這組端點。
+失敗依服務回傳的 `VerifyRecordResult.Kind` 決定狀態碼（找不到或範圍外 404、名稱或代號重複／版本衝突／目前狀態不允許 409、輸入不符規則 400、未預期錯誤 500，見《[Web API 設計慣例](Web%20API%20設計慣例.md)》），**錯誤訊息與畫面上看到的相同**（0.10.2 起；使用者確認沒有外部程式依賴舊訊息）。
+
+| 動作 | 路由（相對 `api/` 與 `api/v1/`）| 權限（`PermissionActions`）| 回傳 |
+|------|------|------|------|
+| 取得單筆 | `GET {controller}/{id}` | View | `ApiResult<TDto>`（查無或範圍外回 404）；寫一筆「查看」稽核（`*.View`）|
+| 搜尋分頁 | `POST {controller}/search` | View | `ApiResult<PagedResult<TDto>>`。0.10.2 起多三個欄位：`Deleted`（查「顯示已刪除」，**要有 Delete 權限**，沒有回 403）、`RecordSearch`（true 時寫一筆搜尋稽核 `*.Search`；換頁、排序不帶）、`SortBy` 不分大小寫（可用 `name`、`isEnabled`、`createdAt`、`updatedAt`，團隊另有 `code`；不認得的退回預設排序）|
+| 存檔前檢查 | `POST {controller}/check` | View＋（`Id=0` 要 Create、`Id>0` 要 Edit，否則 403）| `ApiResult`：名稱（團隊另有代號）會不會重複；修改時範圍外的 `Id` 回 404。WASM 頁在存檔確認流程中呼叫，順序與 Server 版相同 |
+| 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（回傳含資料庫配的 `Id` 與 `ConcurrencyStamp`；同名回 409，團隊另檢查代號；指派範圍外的團隊、上層團隊不合法回 400；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
+| 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 400；**沒帶 `ConcurrencyStamp` 回 400**；先查範圍：查無或範圍外回 404，再比對名稱；版本號不符或名稱重複回 409；團隊指派或團隊樹規則不過回 400；團隊改成已刪除團隊的名稱回 409）|
+| 啟用／停用 | `PUT {controller}/{id}/enabled` | Edit | body `{ "enabled": true/false }`，只改狀態並換版本號；已經是目標值回成功、不寫稽核 |
+| 刪除 | `DELETE {controller}/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無、範圍外或已刪除回 404；團隊還有未刪除的下屬回 400，與改寫前相同）|
+| 還原 | `POST {controller}/{id}/restore` | Delete | `ApiResult`（只對已刪除的資料；已有同名（團隊另有同代號）回 409）|
+| 永久刪除 | `DELETE {controller}/{id}/purge` | Delete | `ApiResult`（只能對已刪除的資料，否則 404；團隊還有其他團隊以它為上層時回 409）|
+| 匯出 | `POST {controller}/export` | View（`Deleted=true` 要 Delete，否則 403）| 成功回 xlsx 檔（不包 `ApiResult`），條件與搜尋相同；超過 10000 筆回 400 並帶原因；寫匯出稽核 `*.Export`。團隊在沒有關鍵字、不是已刪除、沒有啟用狀態條件時匯出全部團隊（部門樹模式）|
+
+只有分類或團隊才有的端點：
+
+| 控制器 | 動作 | 路由 | 權限 | 回傳 |
+|---|---|---|---|---|
+| `CategoryController` | 表單選項 | `GET Category/options` | View | `ApiResult<CategoryFormOptionsDto>`：啟用中的團隊名稱、呼叫者是否管理員（`IsAdmin`）與自己的團隊範圍（`MyTeams`）；不要求團隊頁的權限 |
+| `TeamController` | 全部團隊 | `GET Team/all` | View | `ApiResult<List<TeamDto>>`：所有未刪除的團隊（畫面組成部門樹）|
+| | 可選的上層團隊 | `GET Team/{id}/parent-candidates` | View | `ApiResult<List<TeamNodeDto>>`：排除自己與所有下屬（新增時 `id` 傳 0）；存檔時伺服器會再檢查一次 |
+
+`CategoryDto`／`TeamDto` 0.10.2 起多了 `IsDeleted`、`DeletedAt`、`DeletedBy`（「顯示已刪除」清單用）。網址、狀態碼的分類方式與欄位名稱都沒變；以前與畫面不同的錯誤訊息改成畫面那一句。
+
+> 稽核：新增、修改、啟用／停用、刪除、還原、永久刪除由服務寫（與畫面相同）；查看、搜尋、匯出由 Controller 寫。
+
+### 2.2 專案（`ProjectController`，M4 改走服務）
+
+專案仍經 `ProjectRepository`（M4 改呼叫 `ProjectService` 後刪除），只有基本的五個動作：
+
+| 動作 | 路由（相對 `api/` 與 `api/v1/`）| 權限（`PermissionActions`）| 回傳 |
+|------|------|------|------|
+| 取得單筆 | `GET Project/{id}` | View | `ApiResult<ProjectDto>`（查無回 `NotFound`）|
+| 搜尋分頁 | `POST Project/search` | View | `ApiResult<PagedResult<ProjectDto>>` |
+| 新增 | `POST Project` | Create | `ApiResult<ProjectDto>`（同名回 `Conflict`；指派範圍外的團隊回 `BadRequest`；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
+| 更新 | `PUT Project/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 `BadRequest`；**沒帶 `ConcurrencyStamp` 回 `BadRequest`**；團隊指派不過回 `BadRequest`；版本號不符或名稱重複回 `Conflict`（409）；查無回 `NotFound`）|
+| 刪除 | `DELETE Project/{id}` | Delete | `ApiResult`（**軟刪除**，0.9.94 起；查無或已刪除回 `NotFound`）|
+
+> **樂觀並行（0.9.93 起）**：`GET` 回傳的 DTO 帶有 `ConcurrencyStamp`。`PUT` 必須把它原樣帶回；伺服器以它比對資料庫目前的值，不同代表別人已先修改或刪除，回 409（訊息「這筆資料在你編輯期間已被其他人修改或刪除…」），用戶端應重新 `GET` 後再決定如何合併。`PUT` 成功後版本號會換新，要再次修改請重新 `GET`。`POST` 會忽略這個欄位。
+>
+> **軟刪除（0.9.94 起）**：`DELETE` 只把資料標記為已刪除，之後對同一筆的 `GET`／`PUT`／`DELETE` 都回 404。分類、團隊 0.10.2 起另有還原與永久刪除的端點（2.1）；專案的還原與永久刪除仍只能在畫面上的「顯示已刪除」操作。
+>
+> 0.9.93 之前三個 `POST` 會直接採用客戶端傳來的 `Id`，與既有資料撞號時回 500；0.9.94 起一律由資料庫配號。
 
 ## 三、專案附件下載 `ProjectFileController`
 
@@ -80,9 +112,9 @@
 | 觸發 Google 驗證 | `GET Auths/Google/Login` | 未設定金鑰時導回 `/Auths/Login`|
 | 驗證回呼 | `GET Auths/Google/Callback` | 查找/建立帳號；依 `ExternalLoginResult.Evaluate` 的順序：已刪除導回 `/Auths/Login?sso=deleted`、停用（待開通）導向 `/Auths/Pending`、鎖定導回 `/Auths/Login?sso=locked`；已啟用兩步驟驗證且這台裝置沒被記住時導向 `/Auths/TwoFactor`，其餘完成 Cookie 登入 |
 
-## 五之一、WASM 外框與個人資料（0.10.1 起，WASM 遷移 M2）
+## 五之一、WASM 外框、個人資料與異動歷程（0.10.1 起，WASM 遷移 M2；異動歷程 0.10.2 起）
 
-只有 `api/v1` 路由；一律 `[Authorize(JwtBearer)]`，只能讀改**自己**的資料（使用者一律取自 `CurrentUserService`，由 `ApiActorMiddleware` 依存取 Token 載入），回傳 `ApiResult<T>`。
+只有 `api/v1` 路由；一律 `[Authorize(JwtBearer)]`（`shell/culture` 例外），只能讀改**自己**的資料（使用者一律取自 `CurrentUserService`，由 `ApiActorMiddleware` 依存取 Token 載入），回傳 `ApiResult<T>`。
 時間欄位（`*Local`）已換成伺服器的本地時間，前端照字面顯示。DTO 在 `MyProject.Dtos/Shell`。
 
 | 控制器 | 動作 | 路由 | 回傳／說明 |
@@ -90,7 +122,8 @@
 | `ShellController` | 系統資訊 | `GET shell/info` | `ShellInfoDto`：系統名稱、描述、版本、環境、啟動時間、各頁說明主題（路由、標題）|
 | | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（規則同 Server 版側邊欄的 `CheckAccessPage`），以及全部選單網址 |
 | | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
-| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 Server 版電路）。只接受已搬到 WASM 的頁面路徑（`ClientRouteTable`），每位使用者每分鐘最多 60 筆，超過的不記 |
+| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 Server 版電路）。只接受已搬到 WASM 的頁面路徑（`ClientRouteTable`），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
+| | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與 Server 版相同。內容只有格式字串 |
 | | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
@@ -99,11 +132,13 @@
 | | 關閉 | `POST announcements/{id}/dismiss` | |
 | `ProfileController` | 個人資料 | `GET profile` | `ProfileDto`：帳號、姓名、Email、角色、團隊、密碼與兩步驟驗證狀態、最近 20 筆登入紀錄（動作已轉成中文）|
 | | 改姓名 | `PUT profile/name` | body 帶 `ConcurrencyStamp`；別人同時改過或姓名不合規則回 400 |
+| `AuditLogsController` | 某筆資料的異動歷程 | `GET audit-logs/history?targetType=&targetId=&page=&pageSize=&opened=` | 0.10.2 起，**只限管理員**（與「稽核紀錄」頁相同，非管理員回 403）。`PagedResult<AuditHistoryItemDto>`，新的在前、不含搜尋與查看；`opened=true`（打開對話窗）時寫一筆 `Audit.Search`，換頁不帶。每頁最多 50 筆 |
+| | 一筆稽核的完整內容 | `GET audit-logs/{id}/content` | 0.10.2 起，只限管理員。`AuditContentDto`（修改前後差異等長內容）；寫一筆 `Audit.View`。伺服器上的檔案路徑不回傳（清單只給 `HasContent`）|
 
 ## 六、Controller 端預設拒絕（0.4.34 起）
 
 `Program.cs` 的 `app.MapControllers().RequireAuthorization()` 讓**未明確標註授權的 Controller 一律拒絕**。
-需要匿名存取的端點必須自己標 `[AllowAnonymous]`（目前為 `AuthController` 的 login/refresh/logout/bridge 與整個 `ExternalAuthController`）。
+需要匿名存取的端點必須自己標 `[AllowAnonymous]`（目前為 `AuthController` 的 login/refresh/logout/bridge、`ShellController` 的 culture（0.10.2 起）與整個 `ExternalAuthController`）。
 
 0.10.0 起，以 access token 呼叫且使用者被要求先改密碼或先設定兩步驟驗證時，全域的 `ApiSessionGateFilter` 讓業務 API 一律回 403 `ApiResult`（`errorCode`：`PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`），只有標 `[AllowDuringForcedSetup]` 的端點放行。
 

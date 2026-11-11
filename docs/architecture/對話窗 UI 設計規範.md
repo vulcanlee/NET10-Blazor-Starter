@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.3
+- 文件版本：2.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.2
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 目的
 
@@ -106,7 +106,7 @@
 
 ### 4.1 變更偵測：與原始快照做值比對 ⚠️
 
-用 `Components/Commons/FormDirtyTracker.cs`：開窗前 `Capture(CurrentRecord)`，
+用 `MyProject.Web.Client/Commons/FormDirtyTracker.cs`（0.10.2 起放在 Client，Server 與 WASM 頁面共用，命名空間不變；下面的 `FormEditConfirm`、`FormModalFlow`、`TeamBindingConfirm` 同）：開窗前 `Capture(CurrentRecord)`，
 按鈕觸發時 `IsDirty(CurrentRecord)`。改了又改回原值視為無變更。
 
 ⚠️ **不要改用 `EditContext.IsModified()`。** 只有繼承 `InputBase<T>` 的 Blazor 內建元件才會呼叫
@@ -137,7 +137,7 @@ private string UploadStateFingerprint()
 
 ### 4.2 確認窗的文案由樣板決定
 
-`Components/Commons/FormEditConfirm.cs` 的 `AskDiscardChangesAsync` / `AskSaveAsync`，
+`MyProject.Web.Client/Commons/FormEditConfirm.cs` 的 `AskDiscardChangesAsync` / `AskSaveAsync`，
 以及既有的 `TeamBindingConfirm.AskAsync`。**不要各 View 自己寫 `ConfirmAsync`** ——
 文案必定漂移成「這個窗問得很兇、那個窗問得很客氣」。
 
@@ -166,7 +166,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ⚠️ **不要把 `modalVisible = true;` 補在每條失敗路徑。** 舊寫法一個 View 重複四次，
 只要新增一條早退路徑而忘了補，症狀就是「按儲存 → 驗證失敗 → 窗關了 → 輸入全丟」。
-改用 `Components/Commons/FormModalFlow.cs`：失敗路徑只要 `return false`。
+改用 `MyProject.Web.Client/Commons/FormModalFlow.cs`：失敗路徑只要 `return false`。
 
 ## 5. 果凍視覺規格
 
@@ -222,7 +222,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 2. 每個用到的 `*-modal` class，`OverlayStyles.razor` 裡都要有對應規則。
 3. code-behind 不得出現「失敗路徑各補一次 `modalVisible = true;`」的舊寫法。
 4. 待遷移清單（`PendingMigrationViews`）不得放著爛掉：名單上的檢視一旦遷移完成就要移除。
-5. `Components/Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板。
+5. `MyProject.Web/Components/` 底下除了 `Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板（`MyProject.Web.Client/Commons/ConfirmDialog.cs`）。⚠️ 這條守門目前只掃 `MyProject.Web/Components`，`MyProject.Web.Client` 的 WASM 頁面（0.10.2 起的分類、團隊）沒有涵蓋，要自己遵守。
 6. `<OverlayStyles />` 只能在 `Routes.razor` 出現，且恰好一次。
 7. 果凍必須寫在 `.ant-modal .ant-modal-content` 共用基底上（§2.1）。
 8. `Routes.razor` 的 `<AntContainer />` 必須包在 `<LoggingErrorBoundary>` 之內（`AntContainer_ShouldBeWrappedInErrorBoundary`），否則浮層內的未處理例外會讓整個 circuit 中斷。

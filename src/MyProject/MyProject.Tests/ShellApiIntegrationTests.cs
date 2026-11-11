@@ -79,6 +79,21 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
         Assert.Contains(info.HelpTopics, x => x.Route == "/Profile" && x.Title == "個人資料");
     }
 
+    /// <summary>0.10.2 起：WASM 啟動前讀伺服器（zh-TW）的日期時間格式，不需登入。</summary>
+    [Fact]
+    public async Task Culture_ShouldReturnTheServerDateTimeFormat_WithoutSigningIn()
+    {
+        using var client = factory.CreateClient();
+
+        var format = await GetAsync<DateTimeFormatDto>(client, "/api/v1/shell/culture");
+
+        var server = new System.Globalization.CultureInfo("zh-TW").DateTimeFormat;
+        Assert.Equal(server.ShortDatePattern, format.ShortDatePattern);
+        Assert.Equal(server.LongTimePattern, format.LongTimePattern);
+        Assert.Equal(server.AMDesignator, format.AMDesignator);
+        Assert.Equal(server.PMDesignator, format.PMDesignator);
+    }
+
     [Fact]
     public async Task Menu_ShouldBeFilteredByPermissions_LikeTheServerSidebar()
     {
