@@ -129,30 +129,8 @@ public static class AiReportPdfBuilder
         return text;
     }
 
-    /// <summary>只列出 API 真的有回的欄位。全缺時回空字串，呼叫端就不會加這一行。</summary>
-    internal static string BuildUsageText(AiTokenUsage? usage)
-    {
-        if (usage is null || usage.HasAny == false)
-        {
-            return string.Empty;
-        }
-
-        var parts = new List<string>(5);
-        Append(parts, "輸入", usage.InputCount);
-        Append(parts, "輸出", usage.OutputCount);
-        Append(parts, "合計", usage.TotalCount);
-        Append(parts, "快取輸入", usage.CachedInputCount);
-        Append(parts, "推論", usage.ReasoningCount);
-        return string.Join("　", parts);
-
-        static void Append(List<string> parts, string label, int? value)
-        {
-            if (value.HasValue)
-            {
-                parts.Add($"{label} {value.Value:N0}");
-            }
-        }
-    }
+    /// <summary>只列出 API 真的有回的欄位。全缺時回空字串，呼叫端就不會加這一行（規則在 <see cref="AiTokenUsage.ToDisplayText"/>，畫面共用）。</summary>
+    internal static string BuildUsageText(AiTokenUsage? usage) => AiTokenUsage.ToDisplayText(usage);
 
     private static void AddAppendix(Section section, AiReportPdfRequest request)
     {

@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.102
+- 文件版本：6.103
 - 文件狀態：維護中
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.5
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/11
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| WASM 遷移 M6 AI 串流＋日誌與 AI 管理頁：日誌檢視、日誌等級設定、系統例外紀錄、AI 對話紀錄、Token 用量、AI 提示詞六頁改用 WebAssembly（外觀相同，WASM 頁面共 14 個）、AI 逐字顯示改用 NDJSON 串流（`NdjsonResult`、`ApiClient.StreamAsync`、`AiStreamGuard`；停止產生＝中斷請求，伺服器取消 AI 呼叫、稽核照寫）、只限管理員的 Web API（`api/v1/exception-logs`、`logs`、`log-level`、`ai-call-logs`、`token-usage`、`prompt-templates`）、例外 AI 對話改由畫面送回問答並由伺服器重建明細、被限流（429）不再登出、三頁排序修正為依點選方向、Markdown 消毒補上角括號自動連結（0.10.5） | [2026-11-11-WASM遷移M6AI串流日誌與AI管理頁](2026-11-11-WASM遷移M6AI串流日誌與AI管理頁.md) |
 | WASM 遷移 M5 使用者、角色、稽核、郵件紀錄：使用者管理、角色管理、稽核紀錄、寄信紀錄四頁改用 WebAssembly（外觀相同）、新的只限管理員 Web API（`api/v1/users`、`roles`、`email-logs`，稽核紀錄補上搜尋、明細、匯出、清除、清空、完整性驗證）、`[AdminOnly]` 篩選器與 `[SignedInUser]` 標記、新守門測試 `ApiAuthorizationConventionTests`（每個 API action 都要標註授權意圖）、管理員改自己後經 `SessionRefreshUrl` 換發這台裝置的登入、「不可強制登出自己」「不可重設自己的兩步驟驗證」補到 API、鎖定時間與稽核 UTC 時間改由伺服器算、稽核「發生時間」排序生效（0.10.4） | [2026-11-11-WASM遷移M5使用者角色稽核郵件紀錄](2026-11-11-WASM遷移M5使用者角色稽核郵件紀錄.md) |
 | WASM 遷移 M4 專案、附件與下載票證：專案項目頁改用 WebAssembly（外觀相同）、專案 API 改走與畫面相同的服務（刪除 `ProjectRepository`，專案中已沒有 Repository；關鍵字、狀態／優先級、日期規則與錯誤訊息和畫面一致；補齊表單選項、還原、永久刪除、匯出）、專案標題不能重複（舊的同名資料不改標題仍可存，還原也擋，存檔時去掉前後空白）、資料與附件同一個交易存檔（失敗整筆不存）、選檔時就檢查附件類型、附件同一個網址以 multipart 上傳且不經 WASM 記憶體、一次性下載票證（60 秒、只能用一次、不支援續傳）取代以 Cookie 驗證的 `ProjectFileController`、`web.config` 放寬 IIS 請求上限到 4 GB（0.10.3） | [2026-11-11-WASM遷移M4專案附件與下載票證](2026-11-11-WASM遷移M4專案附件與下載票證.md) |
 | WASM 遷移 M3 分類、團隊與 CRUD 產生器：分類、團隊兩頁改用 WebAssembly（外觀相同）、兩者的 API 改走與畫面相同的服務（補齊還原、永久刪除、啟用切換、存檔前檢查、匯出等端點，錯誤訊息與畫面相同）、刪除 `CategoryRepository`／`TeamRepository`、異動歷程與日期時間格式 API、CRUD 頁共用元件搬到 Client、CRUD 產生器只產生 WASM 頁面並加上瀏覽器實跑（0.10.2） | [2026-11-11-WASM遷移M3分類團隊與CRUD產生器](2026-11-11-WASM遷移M3分類團隊與CRUD產生器.md) |

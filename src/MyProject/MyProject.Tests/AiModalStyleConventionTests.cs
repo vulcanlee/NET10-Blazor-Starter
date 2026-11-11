@@ -24,17 +24,19 @@ public sealed class AiModalStyleConventionTests
     /// </summary>
     public static TheoryData<string, string[]> ScalableRules => new()
     {
+        // 路徑相對於畫面根目錄（SourceTree.UiFile：Server 的 Components 或 WASM 的 MyProject.Web.Client）；0.10.5 起日誌檢視在 WASM。
         {
-            Path.Combine("Components", "Views", "Analytics", "LogViewerView.razor.css"),
+            Path.Combine("Views", "Analytics", "LogViewerView.razor.css"),
             [".log-ai-meta", ".log-ai-report"]
         },
+        // 0.10.5 起在 WASM 專案（給完整路徑：Path.Combine 遇到完整路徑會直接用它）。
         {
-            Path.Combine("Components", "Views", "Admins", "ExceptionAiAnalysisModal.razor.css"),
+            Path.Combine("Views", "Admins", "ExceptionAiAnalysisModal.razor.css"),
             [".exception-ai-meta", ".exception-ai-report", ".exception-ai-entry", ".exception-ai-question", ".exception-ai-error"]
         },
-        // 0.9.72 起的 AI 對話紀錄明細窗：窗內每一條 font-size 都要跟著縮放，所以前綴取整個命名空間。
+        // 0.9.72 起的 AI 對話紀錄明細窗：窗內每一條 font-size 都要跟著縮放，所以前綴取整個命名空間（0.10.5 起在 WASM 專案）。
         {
-            Path.Combine("Components", "Views", "Analytics", "AiCallLogDetailModal.razor.css"),
+            Path.Combine("Views", "Analytics", "AiCallLogDetailModal.razor.css"),
             [".ai-call-log-"]
         },
     };
@@ -47,7 +49,7 @@ public sealed class AiModalStyleConventionTests
     [MemberData(nameof(ScalableRules))]
     public void AiModalScalableRules_ShouldMultiplyByFontScaleVariable(string relativeCssPath, string[] scalableSelectorPrefixes)
     {
-        var cssPath = Path.Combine(FindWebProjectDirectory(), relativeCssPath);
+        var cssPath = SourceTree.UiFile(relativeCssPath);
         var lines = File.ReadAllLines(cssPath);
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
@@ -99,7 +101,8 @@ public sealed class AiModalStyleConventionTests
     [InlineData("Analytics", "AiCallLogDetailModal.razor")]
     public void AiModal_ShouldNotSetWidthOnTheModalTag(string folder, string fileName)
     {
-        var razorPath = Path.Combine(FindWebProjectDirectory(), "Components", "Views", folder, fileName);
+        // 0.10.5 起畫面逐批搬到 WASM 專案：在 Server 版或 WASM 的 Views 底下都找。
+        var razorPath = SourceTree.UiFile(Path.Combine("Views", folder, fileName));
         var content = File.ReadAllText(razorPath);
 
         var modalStart = content.IndexOf("<Modal", StringComparison.Ordinal);
@@ -112,6 +115,4 @@ public sealed class AiModalStyleConventionTests
             "Width=",
             modalTag);
     }
-
-    private static string FindWebProjectDirectory() => SourceTree.Web;
 }

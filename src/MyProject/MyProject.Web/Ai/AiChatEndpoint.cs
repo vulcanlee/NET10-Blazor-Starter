@@ -70,8 +70,8 @@ public static class AiChatEndpoint
 
         // ⚠️ 這裡必須接住 Provider 解析失敗，不能讓例外往外跑。
         // Validate 的職責就是把壞掉的設定翻成使用者看得懂的訊息，而呼叫端
-        // AiLogAnalysisService.IsAvailable 是在 LogViewerView.OnInitializedAsync 裡讀的，
-        // 外面沒有 try-catch —— Provider 打錯一個字就會炸掉整個日誌檢視頁，
+        // AiLogAnalysisService.IsAvailable 是在 LogsController.Options（日誌檢視頁開頁時呼叫）裡讀的，
+        // 外面沒有 try-catch —— Provider 打錯一個字就會讓那支 API 500，
         // 而不只是停用 AI 按鈕。
         AiProvider provider;
         try

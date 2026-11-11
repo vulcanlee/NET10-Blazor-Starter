@@ -2,7 +2,7 @@ using MigraDoc.DocumentObjectModel;
 
 namespace MyProject.Web.Ai;
 
-/// <summary>AI 例外分析 PDF 報告的輸入。全部由 AI 例外分析對話窗在按下下載時組好。</summary>
+/// <summary>AI 例外分析 PDF 報告的輸入。按下下載時由 <c>ExceptionLogsController</c> 組好（0.10.5 起：對話由畫面送回，例外明細與堆疊由伺服器補上）。</summary>
 public sealed record AiExceptionReportPdfRequest
 {
     public string SystemName { get; init; } = string.Empty;

@@ -1,5 +1,5 @@
 using MyProject.Models.AdapterModel;
-using MyProject.Web.Components.Views.Admins;
+using MyProject.Web.Client.Views.Admins;
 
 namespace MyProject.Tests;
 

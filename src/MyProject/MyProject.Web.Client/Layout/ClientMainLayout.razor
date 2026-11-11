@@ -83,6 +83,14 @@
         </dl>
     </Modal>
 }
+else if (Session.IsThrottled)
+{
+    @* 伺服器暫時限流（429，0.10.5 起）：不把人丟回登入頁，請他稍等再重新整理。 *@
+    <div class="session-throttled" role="alert">
+        <p>@ClientSession.ThrottledMessage</p>
+        <button type="button" class="btn btn-primary" @onclick="ReloadPage">重新整理</button>
+    </div>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

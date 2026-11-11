@@ -1,8 +1,8 @@
 ﻿# 日誌等級設定 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.5
 - 首次實作版本：0.4.29
 - 最後核對日期：2026/11/07
 
@@ -22,6 +22,8 @@
 | `/log-level-setting` | 系統管理 › 監控與診斷 › 日誌等級設定 | 已登入且為管理員（`IsAdmin`） | 系統管理員／維運 |
 
 權限沿用同子功能表的管理員專屬機制：`MagicObjectHelper.角色_日誌等級設定` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`（id 63），但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。`MyProject.Tests/AdminOnlyPermissionTests.cs` 會擋下日後「順手補齊」的修改。
+
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/LogLevelSettingPage.razor`、`Views/Analytics/LogLevelSettingView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。讀取、套用、還原經只限管理員的 `LogLevelController`（`api/v1/log-level`：`GET`、`POST apply`、`POST restore`），稽核由 API 寫，內容與之前相同（`LogLevel.Apply` detail「由 X 調整為 Y（僅執行期有效）」）；不認得的等級或沒有可還原的設定回 400、不寫稽核。
 
 ## 三、畫面與欄位
 
@@ -55,10 +57,10 @@
 
 ## 四、內部系統運作
 
-1. `LogLevelSettingView.OnInitializedAsync`：`Check` → `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/log-level-setting`）並中止，**權限通過前不讀取任何設定資訊**。
+1. `LogLevelSettingView.OnInitializedAsync`（0.10.5 起在 WASM 以 `Permissions.IsAdmin` 判斷、經 `api/v1/log-level` 讀寫；以下為 Server 版原文）：`Check` → `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/log-level-setting`）並中止，**權限通過前不讀取任何設定資訊**。
 2. `LogLevelRuntimeState`（Singleton）於**應用程式啟動時**（`Program.cs`，`app.Build()` 之後）呼叫 `Initialize()`：捕捉當下 `*` 規則的 minlevel 作為系統預設等級，並訂閱 `LogManager.ConfigurationChanged`。
 3. 套用時修改 `*` 規則的等級範圍並呼叫 `LogManager.ReconfigExistingLoggers()`。
-4. 變更寫入 `AuditLog`（action 為 `LogLevel.Apply` / `LogLevel.Restore`，detail 含前後等級）。
+4. 變更寫入 `AuditLog`（action 為 `LogLevel.Apply` / `LogLevel.Restore`，detail 含前後等級；0.10.5 起由 `LogLevelController` 寫）。
 
 ## 五、限制與已知取捨
 

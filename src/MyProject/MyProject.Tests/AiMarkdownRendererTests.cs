@@ -67,6 +67,34 @@ public sealed class AiMarkdownRendererTests
     }
 
     /// <summary>
+    /// 角括號自動連結（<c>&lt;javascript:…&gt;</c>）是 CommonMark 的核心語法，<c>DisableHtml()</c> 關不掉，
+    /// 也不是 <c>LinkInline</c>（0.10.5 獨立審查發現）：同樣要套 scheme 白名單，不合格的降級成純文字。
+    /// </summary>
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("JaVaScRiPt:alert(1)")]
+    [InlineData("data:text/html,x")]
+    [InlineData("vbscript:msgbox(1)")]
+    [InlineData("file:///etc/passwd")]
+    public void ToSafeHtml_ShouldNotTurnDangerousAutolinkIntoALink(string url)
+    {
+        var html = AiMarkdownRenderer.ToSafeHtml($"請看 <{url}> 這裡");
+
+        Assert.DoesNotContain("<a", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("請看", html);
+    }
+
+    [Fact]
+    public void ToSafeHtml_ShouldKeepSafeAutolinkAndOpenItInANewTab()
+    {
+        var html = AiMarkdownRenderer.ToSafeHtml("請看 <https://example.com/docs>");
+
+        Assert.Contains("href=\"https://example.com/docs\"", html);
+        Assert.Contains("rel=\"noopener noreferrer nofollow\"", html);
+    }
+
+    /// <summary>
     /// 圖片一律移除：外部圖片等於一個由攻擊者指定網址、且會被管理員瀏覽器自動觸發的
     /// 請求（追蹤像素或內網探測），連點都不需要。
     /// </summary>

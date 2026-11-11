@@ -1,8 +1,8 @@
 ﻿# AI 提示詞管理 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.108
 - 最後核對日期：2026/11/07
 
@@ -27,6 +27,8 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 |---|---|---|
 | 管理員 | 左側選單「系統管理 › AI 管理 › AI 提示詞」`/prompt-templates` | 檢視、編輯並存成新版本、檢視歷史版本、切換作用中的版本（含內建預設） |
 | 其他人 | — | 看不到選單；直接開網址顯示「你沒有權限存取此頁面」並記稽核（權限鍵 `AI 提示詞` 不上架角色矩陣） |
+
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面在瀏覽器執行（`MyProject.Web.Client/Pages/PromptTemplatePage.razor`、`Views/Admins/PromptTemplateView.*`；Server 版已刪除），畫面與操作和之前相同。資料經只限管理員的 `PromptTemplatesController`（`api/v1/prompt-templates`）：`GET` 回 16 個種類的標題、版本、內建預設與固定附加規則；`POST {key}/versions` 存新版本（樂觀鎖衝突回 409，建立者由伺服器取目前帳號，記 `Prompt.Update`）；`POST {key}/activate` 切換版本（記 `Prompt.Activate`）。分頁標題 0.10.5 起寫在伺服器的 `MyProject.Web/Ai/PromptTemplateTitles.cs`（與系統管理助理的提示詞工具共用）。⚠️ 頁籤資料到了才畫：AntDesign `Tabs` 先以零個頁籤畫出、之後才補頁籤時 `ActiveKey` 不套用，畫面上沒有頁籤被選中（實機發現）。`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
 
 ## 三、畫面與欄位
 
@@ -79,5 +81,6 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 - `MyProject.AccessDatas/Models/PromptTemplate.cs`、migration `AddPromptTemplates`
 - `MyProject.Business/Services/DataAccess/PromptTemplateService.cs`、`MyProject.Business/Startup/LegacySystemPromptSeeder.cs`
 - `MyProject.Web/Ai/AiPromptGuardrails.cs`、`AiSystemPromptProvider.cs`、`AiPromptDefaults.cs`、`AiExceptionPromptDefaults.cs`
-- `MyProject.Web/Components/Pages/Admins/PromptTemplatePage.razor`、`Components/Views/Admins/PromptTemplateView.razor(.cs/.css)`
+- `MyProject.Web.Client/Pages/PromptTemplatePage.razor`、`Views/Admins/PromptTemplateView.razor(.cs/.css)`、`Api/PromptTemplateApi.cs`（0.10.5 起在 Client）
+- `MyProject.Web/Controllers/PromptTemplatesController.cs`、`Ai/PromptTemplateTitles.cs`、`MyProject.Dtos/Admins/PromptTemplateDtos.cs`（0.10.5 起）
 - 交叉連結：[AI 日誌分析](../features/AI日誌分析.md)、[AI 例外分析](../features/AI例外分析.md)、[日誌與設定檔說明](../operations/日誌與設定檔說明.md)

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
+using MyProject.Dtos.Ai;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
@@ -287,7 +288,8 @@ public sealed class ClientSessionTests
     [InlineData("/roleviews?deleted=1", true)]
     [InlineData("/audit-logs", true)]
     [InlineData("/email-logs", true)]
-    [InlineData("/logs", false)]
+    [InlineData("/logs", true)]
+    [InlineData("/log-level-setting", true)]
     [InlineData("/", false)]
     public void ClientRouteTable_ShouldKnowWhichPagesRunInWebAssembly(string path, bool expected)
         => Assert.Equal(expected, ClientRouteTable.IsClientRoute(path));
@@ -380,6 +382,149 @@ public sealed class ClientSessionTests
         return (new ClientSession(handler.Client, store, navigation, NullLogger<ClientSession>.Instance), store, navigation);
     }
 
+    [Fact]
+    public async Task InitializeAsync_WhenTheServerThrottlesTheBridge_ShouldNotSendTheUserBackToTheLoginPage()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.TooManyRequests, Throttled());
+        var (session, store, navigation) = Create(handler);
+
+        var ready = await session.InitializeAsync();
+
+        Assert.False(ready);
+        Assert.True(session.IsThrottled);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_WhenTheServerThrottlesMe_ShouldNeitherRefreshNorSignInAgain()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.TooManyRequests, Throttled());
+        var (session, store, navigation) = Create(handler);
+
+        var ready = await session.InitializeAsync();
+
+        Assert.False(ready);
+        Assert.True(session.IsThrottled);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.DoesNotContain(handler.Requests, x => x.Path == "api/v1/Auth/refresh");
+        Assert.NotNull(store.Stored);
+    }
+
+    [Fact]
+    public async Task ApiClient_WhenTheRefreshIsThrottled_ShouldReturnTheThrottleMessageAndKeepTheUserSignedIn()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.TooManyRequests, Throttled());
+        handler.On("api/v1/profile", HttpStatusCode.Unauthorized, Fail());
+        var (session, store, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+
+        var result = await api.GetAsync<ProfileDto>("api/v1/profile");
+
+        Assert.False(result.Success);
+        Assert.Equal(429, result.StatusCode);
+        Assert.Equal(ClientSession.ThrottledMessage, result.UserMessage());
+        Assert.Null(navigation.NavigatedTo);
+        Assert.NotNull(store.Stored);
+        Assert.DoesNotContain(handler.Requests.Skip(1), x => x.Path == "api/v1/Auth/bridge");
+    }
+
+    [Fact]
+    public async Task StreamAsync_ShouldHandEachLineToTheCallerInOrder()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/ai/test", HttpStatusCode.OK, Ndjson(
+            new AiStreamFrameDto { Kind = AiStreamFrameKinds.Start },
+            new AiStreamFrameDto { Kind = AiStreamFrameKinds.Delta, Text = "你" },
+            new AiStreamFrameDto { Kind = AiStreamFrameKinds.Delta, Text = "好" },
+            new AiStreamFrameDto { Kind = AiStreamFrameKinds.Result, Result = new AiResultDto { Success = true, Markdown = "你好" } }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+        var frames = new List<AiStreamFrameDto>();
+
+        var result = await api.StreamAsync<AiStreamFrameDto>("api/v1/ai/test", new { }, frame => { frames.Add(frame); return Task.CompletedTask; }, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(new[] { "start", "delta", "delta", "result" }, frames.Select(x => x.Kind));
+        Assert.Equal("你好", string.Concat(frames.Select(x => x.Text)));
+        Assert.Equal("你好", frames[^1].Result!.Markdown);
+    }
+
+    [Fact]
+    public async Task StreamAsync_On401_ShouldRefreshAndRetryOnce()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.OK, Tokens("a2", "r2", persistent: true));
+        handler.On("api/v1/ai/test", (HttpStatusCode.Unauthorized, Fail()), (HttpStatusCode.OK, Ndjson(new AiStreamFrameDto { Kind = AiStreamFrameKinds.Result })));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+        var count = 0;
+
+        var result = await api.StreamAsync<AiStreamFrameDto>("api/v1/ai/test", null, _ => { count++; return Task.CompletedTask; }, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, count);
+        Assert.Equal(new[] { "Bearer a1", "Bearer a2" }, handler.Requests.Where(x => x.Path == "api/v1/ai/test").Select(x => x.Authorization ?? string.Empty));
+    }
+
+    [Fact]
+    public async Task StreamAsync_WhenTheServerRefuses_ShouldReturnItsMessageWithoutCallingTheCaller()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/ai/test", HttpStatusCode.Forbidden, ApiResult<object>.ForbiddenResult("只有管理員可以使用這個功能。"));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+        var called = false;
+
+        var result = await api.StreamAsync<AiStreamFrameDto>("api/v1/ai/test", null, _ => { called = true; return Task.CompletedTask; }, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(403, result.StatusCode);
+        Assert.Contains("只有管理員", result.UserMessage());
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task StreamAsync_WhenTheCallerCancels_ShouldReturnAFailureInsteadOfThrowing()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/ai/test", HttpStatusCode.OK, Ndjson(
+            new AiStreamFrameDto { Kind = AiStreamFrameKinds.Delta, Text = "一" },
+            new AiStreamFrameDto { Kind = AiStreamFrameKinds.Delta, Text = "二" }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+        using var cancel = new CancellationTokenSource();
+        var received = 0;
+
+        var result = await api.StreamAsync<AiStreamFrameDto>("api/v1/ai/test", null, _ => { received++; cancel.Cancel(); return Task.CompletedTask; }, cancel.Token);
+
+        Assert.False(result.Success);
+        Assert.Equal(1, received);
+    }
+
+    private static StringContent Ndjson(params AiStreamFrameDto[] frames)
+        => new(string.Concat(frames.Select(frame => JsonSerializer.Serialize(frame, JsonSerializerOptions.Web) + Environment.NewLine)),
+            System.Text.Encoding.UTF8, "application/x-ndjson");
+
     private static ApiResult<TokenResponseDto> Tokens(string access, string refresh, bool persistent)
         => ApiResult<TokenResponseDto>.SuccessResult(new TokenResponseDto
         {
@@ -394,6 +539,8 @@ public sealed class ClientSessionTests
     private static ApiResult<T> Ok<T>(T data) => ApiResult<T>.SuccessResult(data);
 
     private static ApiResult<object> Fail() => ApiResult<object>.UnauthorizedResult("無效");
+
+    private static ApiResult<object> Throttled() => ApiResult<object>.FailureResult("請求過於頻繁，請稍後再試。", 429);
 
     private sealed class FakeTokenStore : TokenStore
     {
@@ -482,7 +629,9 @@ public sealed class ClientSessionTests
 
             // 最後一個回應重複使用，前面的依序用掉。
             var (status, body) = queue.Count > 1 ? queue.Dequeue() : queue.Peek();
-            return Task.FromResult(new HttpResponseMessage(status) { Content = JsonContent.Create(body, body.GetType()) });
+            // HttpContent 照原樣回（例如 NDJSON 串流），其他序列化成 JSON。
+            var content = body as HttpContent ?? JsonContent.Create(body, body.GetType());
+            return Task.FromResult(new HttpResponseMessage(status) { Content = content });
         }
     }
 }

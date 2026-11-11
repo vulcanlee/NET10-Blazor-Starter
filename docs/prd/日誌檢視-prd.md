@@ -1,8 +1,8 @@
 ﻿# 日誌檢視 PRD
 
-- 文件版本：1.20
+- 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.5
 - 首次實作版本：0.4.26
 - 最後核對日期：2026/11/07
 
@@ -24,6 +24,13 @@
 權限採**管理員專屬**設計：`MagicObjectHelper.角色_監控與診斷`（0.9.113 前為 `角色_統計與分析`）與 `角色_日誌檢視` 有定義並登記於 `SidebarMenuService.MenuPermissionMap`，但**刻意未列入** `RolePermissionService.GetRoleListPermissionAllName()`。因此不會種出 `Permission` 資料列、角色權限矩陣不會顯示這兩項、任何角色都無法被授予，只有 `AuthenticationStateHelper.CheckAccessPage` 的管理員短路能通過。非管理員在側邊欄看不到整個「監控與診斷」群組（0.9.113 前名為「統計與分析」）；直接輸入網址會看到無權限訊息，並留下一筆 `Permission.Denied` 稽核（目標 `Page`／`/logs`，0.9.78 起）。
 
 頂欄頁名旁有「操作說明」按鈕（0.9.66 起，`PageHelpDialog`），內容為 `Datas/Help/logs.md`，於 `Datas/HelpTopics.json` 登記 `/logs`。
+
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/LogViewerPage.razor`、`Views/Analytics/LogViewerView.*`；Server 版已刪除），畫面、按鈕與訊息和之前相同。開頁以 `Permissions.IsAdmin` 判斷，非管理員的「沒有權限開頁」稽核由伺服器在 `POST /api/v1/shell/page-view` 寫。讀檔、篩選、匯出與 AI 分析都在伺服器，經只限管理員的 `LogsController`（`api/v1/logs`：`search`、`export`、`ai`、`ai/pdf`、`options`，見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 2.8）：
+- 快速區間（`last5m`／`last15m`／`last1h`／`today`）與沒填起訖時的預設「最近 1 小時」，「現在」一律由伺服器算，回傳實際套用的起訖寫回畫面欄位，以及要顯示的警告。
+- 匯出 `.log`（UTF-8 含 BOM）與 AI 分析都由伺服器依同樣條件重查，不信任畫面送來的結果；AI 分析取最新的 `MaxEntries` 筆，以 NDJSON 串流逐字送回（第一行 `start` 帶實際範圍）。
+- 「停止產生」或關窗會中斷請求，伺服器取消 AI 呼叫，稽核與 Token 用量照寫；畫面用已收到的文字加「已中止」註記收尾，所以停止後資訊區不顯示使用模型與用量。
+- AI 報告 PDF（`ai/pdf`）由伺服器依條件重建 prompt 當附錄；畫面送來的報告 Markdown（≤ 512K 字）、模型名稱（≤ 200）與原因（≤ 50）有長度上限，超過回 400（0.10.5 獨立審查）。
+- `LogLevelRank`、`LogLevelRankHelper`、`LogTimeRanges` 搬到 `MyProject.Web.Client/Diagnostics/LogLevels.cs`（命名空間不變），Server 與 WASM 共用。
 
 ## 三、畫面與欄位
 
@@ -117,7 +124,7 @@
 
 ## 四、內部系統運作
 
-1. `LogViewerView.OnInitializedAsync`：先 `AuthenticationStateHelper.Check` 驗證登入，再 `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫 `Permission.Denied` 稽核並中止，**權限通過前不讀取任何日誌內容**。通過後將時間區段設為最近 1 小時並執行首次查詢。
+1. `LogViewerView.OnInitializedAsync`（0.10.5 起在 WASM：以 `Permissions.IsAdmin` 判斷，資料一律經 `api/v1/logs`，下列 2～ 的讀檔步驟在伺服器的 `LogsController` 執行；以下為 Server 版原文）：先 `AuthenticationStateHelper.Check` 驗證登入，再 `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫 `Permission.Denied` 稽核並中止，**權限通過前不讀取任何日誌內容**。通過後將時間區段設為最近 1 小時並執行首次查詢。
 2. `INLogFilePathResolver` 依 `NLog:BasePath` 組態與 Program 命名空間推導日誌目錄與檔名前綴，並列出區間內實際存在的日誌檔。
    - 以 `{前綴}-{日期}*.log` 萬用字元列舉而非精確檔名：`nlog.config` 設了 `archiveAboveSize` 卻未指定 `archiveFileName`，同一天可能另存在編號封存檔。
    - 排序依 `LastWriteTimeUtc` 而非檔名：封存序號 10 與 2 的字典序會錯。

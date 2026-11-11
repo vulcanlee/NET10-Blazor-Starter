@@ -1,4 +1,4 @@
-using AntDesign;
+﻿using AntDesign;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Logging;
 using MyProject.Web.Client.Api;
@@ -37,6 +37,16 @@ public static class ClientProgram
         builder.Services.AddScoped<UserApi>();
         builder.Services.AddScoped<CategoryApi>();
         builder.Services.AddScoped<TeamApi>();
+        // AI 對話紀錄（0.10.5 起，WASM 遷移 M6）。
+        builder.Services.AddScoped<AiCallLogApi>();
+        // Token 用量、AI 提示詞（0.10.5 起，WASM 遷移 M6）。
+        builder.Services.AddScoped<TokenUsageApi>();
+        builder.Services.AddScoped<PromptTemplateApi>();
+        // 日誌檢視與日誌等級設定（0.10.5 起，WASM 遷移 M6）。
+        builder.Services.AddScoped<LogViewerApi>();
+        builder.Services.AddScoped<LogLevelApi>();
+        // 系統例外紀錄與 AI 例外分析（0.10.5 起，WASM 遷移 M6）。
+        builder.Services.AddScoped<ExceptionLogApi>();
         builder.Services.AddAntDesign();
 
         // AntDesign 的繁體中文語系（與 Server 版相同的補充翻譯）。

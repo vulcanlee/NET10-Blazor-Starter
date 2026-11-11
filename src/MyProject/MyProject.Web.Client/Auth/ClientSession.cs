@@ -17,10 +17,15 @@ namespace MyProject.Web.Client.Auth;
 /// <item>存取 Token 快到期或 API 回 401 時刷新：多個分頁以 Web Locks 排隊，拿到鎖先重讀 storage（別的分頁可能已經換好）；
 /// 刷新失敗（例如換出的 Token 已到 Cookie 的期限）再以 Cookie 重換一次；都不行才回登入頁。</item>
 /// </list>
+/// 伺服器回 429（請求過於頻繁，0.10.5 起）是暫時的：不清 Token、不回登入頁，改由外框顯示 <see cref="ThrottledMessage"/> 請使用者稍後重新整理。
+/// 以前會一路試到「重新登入」，結果短時間內快速切換頁面的人被丟回登入頁（M6 實機發現）。
 /// </summary>
 public class ClientSession : IDisposable
 {
     public const string ClientHeaderName = "X-MyProject-Client";
+
+    /// <summary>被限流時給使用者看的訊息（與伺服器 429 回應的訊息相同）。</summary>
+    public const string ThrottledMessage = "請求過於頻繁，請稍後再試。";
     private static readonly TimeSpan RefreshAhead = TimeSpan.FromSeconds(30);
 
     private readonly HttpClient http;
@@ -38,6 +43,12 @@ public class ClientSession : IDisposable
         this.navigation = navigation;
         this.logger = logger;
     }
+
+    /// <summary>
+    /// 最近一次取得或刷新 Token、讀取身分時被伺服器限流（429）。這時 <see cref="InitializeAsync"/> 回 false 但不導頁，
+    /// <see cref="RefreshAsync"/> 回 false 時呼叫端也不要叫使用者重新登入。
+    /// </summary>
+    public bool IsThrottled { get; private set; }
 
     /// <summary>目前的身分（<c>/me</c>）；初始化成功前為 null。</summary>
     public SessionInfoDto? Info { get; private set; }
@@ -63,22 +74,21 @@ public class ClientSession : IDisposable
             await store.ClearAsync();
         }
 
+        IsThrottled = false;
         if (tokens is null && !await BridgeAsync())
         {
-            await SignInAgainAsync();
-            return false;
+            return await SignInAgainUnlessThrottledAsync();
         }
 
         var me = await LoadMeAsync();
-        if (me is null && await RefreshAsync())
+        if (me is null && !IsThrottled && await RefreshAsync())
         {
             me = await LoadMeAsync();
         }
 
         if (me is null)
         {
-            await SignInAgainAsync();
-            return false;
+            return await SignInAgainUnlessThrottledAsync();
         }
 
         Info = me;
@@ -108,9 +118,10 @@ public class ClientSession : IDisposable
         return tokens?.AccessToken;
     }
 
-    /// <summary>刷新（同一個分頁內與跨分頁都排隊）；失敗時以 Cookie 重換一組。成功回 true。</summary>
+    /// <summary>刷新（同一個分頁內與跨分頁都排隊）；失敗時以 Cookie 重換一組。成功回 true；被限流時回 false 並設 <see cref="IsThrottled"/>。</summary>
     public virtual async Task<bool> RefreshAsync()
     {
+        IsThrottled = false;
         await refreshGate.WaitAsync();
         try
         {
@@ -144,6 +155,12 @@ public class ClientSession : IDisposable
                 {
                     await SaveAsync(refreshed);
                     return true;
+                }
+
+                if (WasThrottled(response))
+                {
+                    // 刷新 Token 沒被用掉（伺服器在進到端點之前就擋下），稍後還能用；不要改用 Cookie 重換，那也會被擋。
+                    return false;
                 }
 
                 logger.LogInformation("Refreshing the token failed with HTTP {Status}; trying the web session.", (int)response.StatusCode);
@@ -207,6 +224,8 @@ public class ClientSession : IDisposable
             return true;
         }
 
+        WasThrottled(response);
+
         logger.LogInformation("Exchanging the web session for tokens failed with HTTP {Status}.", (int)response.StatusCode);
         return false;
     }
@@ -223,6 +242,7 @@ public class ClientSession : IDisposable
         try
         {
             var response = await http.SendAsync(request);
+            WasThrottled(response);
             return response.IsSuccessStatusCode
                 ? (await response.Content.ReadFromJsonAsync<ApiResult<SessionInfoDto>>())?.Data
                 : null;
@@ -253,6 +273,29 @@ public class ClientSession : IDisposable
             logger.LogInformation("The signed-in user changed in another tab; reloading the page.");
             navigation.Refresh(forceReload: true);
         }
+    }
+
+    /// <summary>被限流時只記下來（外框顯示訊息）；其他失敗才是 Token 與 Cookie 真的不能用，回登入頁。</summary>
+    private async Task<bool> SignInAgainUnlessThrottledAsync()
+    {
+        if (IsThrottled)
+        {
+            logger.LogWarning("The server is throttling this user; showing a retry message instead of signing in again.");
+            return false;
+        }
+
+        await SignInAgainAsync();
+        return false;
+    }
+
+    private bool WasThrottled(HttpResponseMessage response)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            IsThrottled = true;
+        }
+
+        return IsThrottled;
     }
 
     /// <summary>這組 Token 是不是這次網頁登入的人的（不知道是誰時一律接受，由 <c>/me</c> 決定身分）。</summary>

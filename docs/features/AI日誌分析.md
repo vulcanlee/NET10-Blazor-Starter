@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.21
+- 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 文件目的
 
@@ -168,6 +168,7 @@ v1 已是 GA 且微軟建議使用，只支援它可以少掉兩個設定項，�
 ⚠️ 最後一項特別重要：`Validate` 必須把 Provider 解析失敗**接住並回傳訊息**，不能往外丟。
 `IsAvailable` 是在 `LogViewerView.OnInitializedAsync` 裡讀的，外面沒有 try-catch ——
 往外丟會炸掉整個日誌檢視頁，而不只是停用 AI 按鈕。有測試釘住這點。
+（0.10.5 起頁面在 WASM，改由 `GET api/v1/logs/options` 在伺服器讀，回 `AiAvailable` 與原因 `AiUnavailableReason`；規則不變。）
 
 ### 2.7 回應長度與推論模型 ⚠️
 
@@ -282,6 +283,9 @@ AI 分析後模型照做，管理員一點就發出對外請求；圖片版本�
    走訪語法樹，**移除所有圖片**、把連結 scheme 限制在 `http`／`https`／`mailto`，
    其餘一律清空 URL。
 3. **保留下來的連結**補上 `target="_blank"` 與 `rel="noopener noreferrer nofollow"`。
+4. **角括號自動連結**（`<javascript:alert(1)>` 這種 CommonMark 核心語法，0.10.5 獨立審查發現、main 就有）：`DisableHtml()` 關不掉，而且是 `AutolinkInline` 不是 `LinkInline`，
+   所以另外走訪一次、套同一份白名單；不合格的降級成純文字（網址看得到、不能點）。WASM 頁面的 Token 存在瀏覽器 storage，這類漏洞的影響比 Server 版大。
+   0.10.5 起 `AiMarkdownRenderer` 檔案在 `MyProject.Web.Client/Ai/`（Client 參考 Markdig，Server 與 WASM 共用，命名空間仍是 `MyProject.Web.Ai`）。
 
 > `DisableHtml()` **本身不夠**。它只移除區塊 HTML 解析器並關閉行內 raw HTML 解析，
 > 完全不管連結的 URL scheme，`[點我](javascript:...)` 會原封不動渲染成可點連結。
@@ -375,14 +379,15 @@ U+200B、U+200C），中文全部不在其中，因此一整段沒有空格的�
 | `MyProject.Web/Ai/AiAccountingChatClient.cs` | ★ 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應；**Token 用量與 AI 對話紀錄的記錄點**（`ITokenUsageRecorder`／`IAiCallLogRecorder`）；0.9.141 起串流同規則 |
 | `MyProject.Web/Ai/AiPipelinePolicies.cs` | SDK 管線原則：`AiHttpCapturePolicy`（擷取請求／回應原文）、`AzureApiKeyPolicy`（Azure 改送 `api-key` 標頭）、`AiCapturingStream`（串流回應邊讀邊記，0.9.141 起）|
 | `MyProject.Web/Ai/AiChatResponseParser.cs` | 回應與用量解析（含 Azure 內容過濾的形狀差異），解析對象是 `AiHttpCapturePolicy` 擷取的回應原文；`ExtractUsageJson` 只切出 `usage` 子物件；`ParseStream`／`ExtractStreamUsageJson` 解析串流的 SSE 原文（0.9.141 起）|
-| `MyProject.Web/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記（畫面、複製、PDF 共用，0.9.141 起）|
-| `MyProject.Web/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線 |
+| `MyProject.Web.Client/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記（畫面、複製、PDF 共用，0.9.141 起；0.10.5 起在 Client，命名空間不變）|
+| `MyProject.Web.Client/Ai/AiMarkdownRenderer.cs` | Markdown 安全渲染管線（0.10.5 起在 Client，命名空間不變）|
 | `MyProject.Web/Ai/AiLogAnalysisService.cs` | 組日誌提示詞與日誌分析專屬的錯誤提示文字，交給共用核心；畫面用串流版 `AnalyzeStreamingAsync`（0.9.141 起）|
 | `MyProject.Web/Ai/AiChatCompletionClient.cs` | 0.9.68 起的共用核心（與 [AI 例外分析](AI例外分析.md) 共用）：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult`；串流版 `StreamAsync`（0.9.141 起）|
 | `MyProject.Web/Ai/EmbeddedFontResolver.cs` | PDF 中文字型解析器 |
 | `MyProject.Web/Ai/AiReportPdfBuilder.cs` | 日誌分析 PDF 的標題、中介資訊與附錄 |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 轉 PDF 的極小渲染器（0.9.68 從上一列抽出）|
-| `MyProject.Web/Components/Views/Analytics/LogViewerView.razor(.cs/.css)` | 按鈕、對話窗狀態（0.9.141 起含產生中、已停止、已中止）、字級與稽核 |
+| `MyProject.Web.Client/Views/Analytics/LogViewerView.razor(.cs/.css)`（0.10.5 起在 Client）| 按鈕、對話窗狀態（0.9.141 起含產生中、已停止、已中止）、字級 |
+| `MyProject.Web/Controllers/LogsController.cs`、`Ai/AiStreamGuard.cs`、`Streaming/NdjsonResult.cs` | 0.10.5 起：查詢、匯出、AI 分析（NDJSON 串流）與 PDF 的 API，稽核在這裡寫 |
 | `MyProject.Web.Client/Commons/OverlayStyles.razor` | 對話窗尺寸（`.log-ai-modal` 的 96vw／96vh）|
 
 ## 10. 對話窗的狀態（0.9.8 起）
@@ -475,6 +480,10 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 | 還沒收到文字 | 窗留著，顯示「已停止產生」「尚未收到任何內容，這次沒有產生報告。」 | 已停止產生，尚未收到任何內容。 | 不記 |
 
 兩種都寫 `LogViewer.AiAnalyze` 稽核（失敗原因 `Canceled`），AI 對話紀錄也都記一筆（回應文字是已收到的部分）。
+
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：分析經 `POST api/v1/logs/ai`，伺服器依同樣條件重查、取最新 `MaxEntries` 筆，以 NDJSON 串流逐字送回（第一行 `start` 帶實際範圍）。
+「停止產生」或關窗會中斷請求，伺服器取消 AI 呼叫，稽核與用量照寫；畫面收不到伺服器最後的結果，用已收到的文字自己收尾，所以停止後 meta 不顯示使用模型與用量。
+PDF 改由伺服器產生（`POST api/v1/logs/ai/pdf`，依條件重建 prompt 當附錄）；畫面送來的報告 Markdown、模型名稱與原因有長度上限（512K／200／50 字），超過回 400。
 規則見 [MAF AI 呼叫架構 §2](../architecture/MAF-AI呼叫架構.md)；守門測試為 `AiStreamingTests`
 （含 `LogAnalysis_AnalyzeStreamingAsync_ShouldAttachPromptToResult`）、`AiChatStreamParserTests`、`AiInterruptionTests`。
 

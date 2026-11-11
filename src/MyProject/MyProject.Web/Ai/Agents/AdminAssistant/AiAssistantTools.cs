@@ -8,7 +8,6 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Components.Commons;
-using MyProject.Web.Components.Views.Admins;
 using static MyProject.Web.Ai.Agents.AdminAssistant.AdminAssistantToolText;
 
 namespace MyProject.Web.Ai.Agents.AdminAssistant;
@@ -148,7 +147,7 @@ public sealed class AiAssistantTools
             items.Add(new
             {
                 key,
-                name = PromptTemplateView.TitleOf(key),
+                name = PromptTemplateTitles.Of(key),
                 status = PromptStatus(history),
                 versionCount = history.Count,
                 lastChangedBy = history.FirstOrDefault()?.CreatedByAccount,
@@ -167,7 +166,7 @@ public sealed class AiAssistantTools
         var resolved = ResolvePromptKey(key);
         if (resolved is null)
         {
-            return $"找不到提示詞種類「{key}」。可用的種類：{string.Join("、", PromptTemplateKeys.All.Select(item => $"{item}（{PromptTemplateView.TitleOf(item)}）"))}。";
+            return $"找不到提示詞種類「{key}」。可用的種類：{string.Join("、", PromptTemplateKeys.All.Select(item => $"{item}（{PromptTemplateTitles.Of(item)}）"))}。";
         }
 
         var notes = new List<string>();
@@ -177,7 +176,7 @@ public sealed class AiAssistantTools
         return ToJson(new
         {
             key = resolved,
-            name = PromptTemplateView.TitleOf(resolved),
+            name = PromptTemplateTitles.Of(resolved),
             status = PromptStatus(history),
             note = JoinNotes(notes),
             versions = history.Take(count).Select(version => new
@@ -223,7 +222,7 @@ public sealed class AiAssistantTools
 
         await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Prompt.Update, "PromptTemplate", resolved,
             $"version={version}; via={AuditSource}");
-        return $"已把「{PromptTemplateView.TitleOf(resolved)}」存成第 {version} 版並設為作用中，下一次 AI 呼叫就會使用。";
+        return $"已把「{PromptTemplateTitles.Of(resolved)}」存成第 {version} 版並設為作用中，下一次 AI 呼叫就會使用。";
     }
 
     public async Task<string> ActivatePromptVersionAsync(
@@ -260,7 +259,7 @@ public sealed class AiAssistantTools
         var label = target is { } n ? n.ToString(CultureInfo.InvariantCulture) : "default";
         await ViewAudit.WriteAsync(audit, currentUser, AuditActions.Prompt.Activate, "PromptTemplate", resolved,
             $"version={label}; via={AuditSource}");
-        return $"「{PromptTemplateView.TitleOf(resolved)}」已改用{(target is { } v ? $"第 {v} 版" : "內建預設")}，下一次 AI 呼叫就會使用。";
+        return $"「{PromptTemplateTitles.Of(resolved)}」已改用{(target is { } v ? $"第 {v} 版" : "內建預設")}，下一次 AI 呼叫就會使用。";
     }
 
     /// <summary>「default」／「預設」／「內建預設」→ 版本 null；正整數 → 該版本；其他 → null（無法辨識）。</summary>
@@ -276,7 +275,7 @@ public sealed class AiAssistantTools
     }
 
     private static string UnknownPromptKey(string? key)
-        => $"找不到提示詞種類「{key}」，沒有變更。可用的種類：{string.Join("、", PromptTemplateKeys.All.Select(item => $"{item}（{PromptTemplateView.TitleOf(item)}）"))}。";
+        => $"找不到提示詞種類「{key}」，沒有變更。可用的種類：{string.Join("、", PromptTemplateKeys.All.Select(item => $"{item}（{PromptTemplateTitles.Of(item)}）"))}。";
 
     public async Task<string> DeleteAiCallLogsAsync([Description("AI 對話紀錄編號清單（search_ai_call_logs 回傳的 id），最多 50 個")] int[] ids)
     {
@@ -537,7 +536,7 @@ public sealed class AiAssistantTools
         }
 
         return PromptTemplateKeys.All.FirstOrDefault(key => string.Equals(key, text, StringComparison.OrdinalIgnoreCase))
-            ?? PromptTemplateKeys.All.FirstOrDefault(key => string.Equals(PromptTemplateView.TitleOf(key), text, StringComparison.Ordinal));
+            ?? PromptTemplateKeys.All.FirstOrDefault(key => string.Equals(PromptTemplateTitles.Of(key), text, StringComparison.Ordinal));
     }
 
     /// <summary>沒有作用中的版本＝內建預設（同「AI 提示詞」頁的判斷）。</summary>

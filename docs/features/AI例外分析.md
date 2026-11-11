@@ -1,10 +1,10 @@
 ﻿# AI 例外分析
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.68
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 「系統例外紀錄」（`/system-exceptions`，管理員專屬）的「例外明細」窗上方有一顆「AI 分析」按鈕。
 按下後，系統把這個明細窗的內容送給 AI（Azure OpenAI／OpenAI Chat Completions），在一個幾乎滿版的
@@ -35,6 +35,13 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
 
 **視窗不保存**：報告與對話只存在元件記憶體，關掉 AI 視窗就丟棄（等待中或產生中關窗同時取消在途請求，已產生的內容也丟棄）。
 要留存請複製或下載 PDF。
+
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：系統例外紀錄頁與這個對話窗改在瀏覽器執行，AI 呼叫經只限管理員的 `POST api/v1/exception-logs/{id}/ai`，以 NDJSON 串流逐字送回（見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 2.7）。
+- **對話由畫面送回、伺服器重建明細**：每次分析或追問，畫面送 `ConversationId` 與**例外明細之後**的問答（AI 回覆與追問交替，以這次的追問結尾）；第一則例外明細（含堆疊檔，仍不含帳號）與 system 提示一律由伺服器依資料庫重組。
+  遷移分析報告原本寫「對話存伺服器快取」，實作改成這樣：伺服器無狀態、IIS 回收不會弄丟對話，畫面也改不到例外內容與系統提示。
+- 伺服器檢查（`AiExceptionConversation.Validate`）：角色交替、追問 ≤ 2,000 字、單則回覆 ≤ 512K 字、追問輪數 ≤ `MaxFollowUpRounds`，不合格回 400、不送到上游計費。
+- PDF 改由伺服器產生（`POST {id}/ai/pdf`，補上例外明細與堆疊），不受追問輪數上限限制（對話途中調低上限仍可匯出）。
+- 串流包在 `AiStreamGuard` 裡，保證最後一定有一筆結果；使用者中斷後伺服器照樣把序列讀完，稽核一定寫。直接離開頁面造成的取消也會記 AI 分析稽核（Server 版因電路已收掉而不記）。
 
 **AI 對話紀錄**（0.9.72 起）：每一次送出的呼叫（含取消的）另由記帳中介層 `AiAccountingChatClient`（0.9.140 起；之前為 `AiChatCompletionClient`）記進管理員專屬的
 [AI 對話紀錄](../prd/AI對話紀錄-prd.md)。窗內開窗時產生一個 `ConversationId`，經 `AiExceptionCallContext`
@@ -82,6 +89,8 @@ AI 對話窗裡顯示分析報告；看完報告可以在同一個視窗內**多
   還沒收到文字時，等待畫面（第一次分析）或「AI 正在回覆…」泡泡（追問）也有「停止產生」。
 - 產生中複製與 PDF 停用：半份回覆被複製或下載後，看起來會像完整的。
 - 「停止產生」與關窗取消的是同一個 token，只靠 `stopRequested` 旗標區分；關窗仍是放棄並丟棄整段對話。
+- 0.10.5 起（WASM）停止或關窗會中斷 HTTP 請求，伺服器的 `RequestAborted` 取消 AI 呼叫；畫面收不到伺服器最後那筆結果，用已收到的文字自己收尾，所以那一輪的模型與用量不顯示在資訊列（伺服器的稽核與 Token 用量仍完整）。
+  對話能不能繼續的閘門看「關窗」而不是「已取消」：按停止的同時剛好收到失敗結果時，看「已取消」會讓對話卡住（0.10.5 獨立審查修正）。
 
 | 時機 | 畫面 | 通知 | Token 用量 |
 |---|---|---|---|
@@ -145,13 +154,14 @@ AiExceptionAnalysisService ┘
 | `MyProject.Web/Ai/AiChatCompletionClient.cs` | ★ 共用核心：設定檢查 → 經 `IAiAgentFactory` 建 agent 執行 → 轉回 `AiAnalysisResult`；串流版 `StreamAsync`（0.9.141 起）|
 | `MyProject.Web/Ai/AiAccountingChatClient.cs` | 記帳中介層（0.9.140 起）：用量上限、逾時、錯誤對應、**Token 用量與 AI 對話紀錄的記錄點**；0.9.141 起串流同規則 |
 | `MyProject.Web/Ai/AiExceptionAnalysisService.cs` | 例外分析服務：前置 system prompt、追問上限、情境化錯誤訊息；串流版 `AskStreamingAsync`（0.9.141 起）|
-| `MyProject.Web/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記（畫面、複製、PDF 共用，0.9.141 起）|
+| `MyProject.Web.Client/Ai/AiInterruption.cs` | 「產生途中被使用者停止」的註記（畫面、複製、PDF 共用，0.9.141 起；0.10.5 起在 Client，命名空間不變）|
 | `MyProject.Web/Ai/AiExceptionPromptBuilder.cs` | 明細欄位與第一則使用者訊息（不含帳號） |
 | `MyProject.Web/Ai/AiExceptionPromptDefaults.cs` | 系統提示詞的內建預設（分析指示）；固定規則在 `AiPromptGuardrails.cs`，組成在 `AiSystemPromptProvider.cs`（0.9.108 起） |
 | `MyProject.Web/Ai/AiMarkdownPdfRenderer.cs` | PDF 共用骨架與 Markdown 極小渲染器 |
 | `MyProject.Web/Ai/AiExceptionReportPdfBuilder.cs` | 例外分析 PDF |
-| `MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor(.cs/.css)` | 對話窗：狀態（0.9.141 起多「已停止」）、對話、追問、串流顯示與停止產生、複製、PDF、稽核 |
-| `MyProject.Web/Components/Views/Admins/ExceptionLogView.razor(.cs)` | 明細窗的「AI 分析」按鈕 |
+| `MyProject.Web.Client/Views/Admins/ExceptionAiAnalysisModal.razor(.cs/.css)`（0.10.5 起在 Client）| 對話窗：狀態（0.9.141 起多「已停止」）、對話、追問、串流顯示與停止產生、複製、PDF、稽核 |
+| `MyProject.Web.Client/Views/Admins/ExceptionLogView.razor(.cs)`（0.10.5 起在 Client）| 明細窗的「AI 分析」按鈕 |
+| `MyProject.Web/Controllers/ExceptionLogsController.cs`、`Ai/AiExceptionConversation.cs`、`Ai/AiStreamGuard.cs`、`Streaming/NdjsonResult.cs` | 0.10.5 起：AI 端點、重建明細與對話檢查、保證有結果、NDJSON 串流 |
 | `MyProject.Web.Client/Commons/OverlayStyles.razor` | `.exception-ai-modal` 尺寸（與 `.log-ai-modal` 共用） |
 
 ## 9. 測試
@@ -168,4 +178,5 @@ AiExceptionAnalysisService ┘
 | `AiStreamingTests` | 串流（0.9.141 起）：逐段回傳再一筆成功結果並記用量、送出 `stream` 與 `include_usage`、⭐ 已收到文字才取消記一筆 `Canceled` 用量空白且保留部分文字、收到文字前取消不記用量但記對話紀錄、上游錯誤、空回應、長度截斷、中途卡住逾時、未設定不發請求 |
 | `AiChatStreamParserTests` | SSE 解析（0.9.141 起）：串接 delta、取 finish_reason／模型／用量、Azure 提示過濾 chunk、過濾類別、最後一行不完整、⭐ usage JSON 只回 usage 子物件 |
 | `AiInterruptionTests` | 已中止註記加在開頭且保留原文；`TokenUsageLogAdapterModel.IsCanceled` 只認 `Canceled`（0.9.141 起）|
-| `Components/ExceptionAiAnalysisModalStreamingTests` | bUnit（0.9.141 起）：逐段顯示與「停止產生」按鈕、收到文字後停止保留並標示已中止、收到文字前停止顯示已停止 |
+| `Components/ExceptionAiAnalysisModalStreamingTests` | bUnit（0.9.141 起）：逐段顯示與「停止產生」按鈕、收到文字後停止保留並標示已中止、收到文字前停止顯示已停止；0.10.5 起改經 API 串流，停止的同時收到失敗結果時對話不卡住 |
+| `ExceptionLogApiTests` | 0.10.5 起：AI 端點串流、伺服器重建明細、追問送回整段問答、對話格式／長度／輪數檢查、瀏覽器中斷時稽核照寫、PDF 不受輪數上限限制 |

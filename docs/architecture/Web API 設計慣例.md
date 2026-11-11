@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.5
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/11
 
@@ -29,6 +29,19 @@
   兌換時依發票證時的使用者與安全戳記重新載入使用者、重查權限與資料範圍，任何失敗都回同一個 404；不支援續傳。細節見《[Web API 端點目錄](Web%20API%20端點目錄.md)》第三節。
   0.10.3 起專案附件已沒有以 Cookie 驗證的端點（`ProjectFileController` 已刪除）。
 - 例外：`BackupController`（系統備份下載，0.9.99 起）**只收 Cookie 驗證**，路由 `api/backups`（無 `api/v1`），改以「是否為管理員」判權（Cookie 請求不經 `ApiActorMiddleware`，`[AdminOnly]` 讀不到目前使用者，所以 0.10.4 起暫時標 `[SignedInUser]`、檢查寫在方法裡；⚠️ 它是管理員專屬，方法裡的檢查不可拿掉）；M7 改用下載票證時改標 `[AdminOnly]`。
+
+- **AI 逐字顯示用 NDJSON 串流**（0.10.5 起，WASM 遷移 M6；不用 SignalR）：action 回 `new NdjsonResult<AiStreamFrameDto>(…)`（`MyProject.Web/Streaming/NdjsonResult.cs`），規則見下方「串流回應」節。
+
+## 串流回應（NDJSON，0.10.5 起）
+
+AI 分析（日誌分析、例外分析與追問）要邊產生邊顯示，回應改用 NDJSON：
+
+- **格式**：`Content-Type: application/x-ndjson; charset=utf-8`，每行一個 JSON（`AiStreamFrameDto`）。`Kind` 依序是 `start`（帶 `AiStreamScopeDto`）、零到多個 `delta`（`Text`）、最後**一定**是一筆 `result`（`AiResultDto`：成功與否、原因、模型、用量 `AiUsageDto`）。伺服器端的轉換在 `MyProject.Web/Ai/AiStreamFrames.cs`（`Start`／`Delta`／`Result`／`ToDto`）。
+- **不緩衝**：`NdjsonResult` 關閉回應緩衝、每行寫完就 flush，並送 `Cache-Control: no-cache, no-transform`、`X-Accel-Buffering: no`；標頭在第一個字之前就送出。IIS 與反向代理的注意事項見《[正式部署與安全檢查清單](../operations/正式部署與安全檢查清單.md)》。
+- **進入串流之前的拒絕仍回一般 `ApiResult`**：權限 403、找不到 404、驗證 400 都在回 `NdjsonResult` 之前判斷；前端看 Content-Type 決定怎麼讀。
+- **使用者中斷**：關窗或「停止產生」會中斷請求，`RequestAborted` 把取消傳給上游 AI 呼叫。⚠️ `NdjsonResult` **不**拿 `RequestAborted` 中斷列舉：寫不出去之後照樣把序列讀完、只是不再寫出，序列最後的收尾（稽核、用量記帳）才一定會執行。
+- **一定要有結果**：把服務的串流包進 `AiStreamGuard.RunAsync`（`MyProject.Web/Ai/AiStreamGuard.cs`）。服務在取消時丟取消例外 → 轉成「已取消」結果（稽核照寫）；其他例外 → 記錯誤日誌、回「未預期的錯誤」並設 `Unexpected`（這種情況不寫稽核，與 Server 版外層防護相同）。不包的話，標頭已送出、串流直接斷掉，畫面停在「分析中」。
+- **前端**：WASM 用 `ApiClient.StreamAsync<T>(url, body, onItem, ct)`（帶 Token、401 刷新後重送一次、強制改密碼／兩步驟的 403 整頁導走、被拒時回一般 `ApiResult`；只有標頭受 100 秒逾時，之後可以一直收；取消時回失敗、不丟例外）。
 
 ## 統一回傳格式
 所有一般 Web API 回應固定使用 `MyProject.Dtos.Commons.ApiResult<T>` 或非泛型 `ApiResult`。
@@ -63,7 +76,7 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生；只限管理員的端點由 `AdminOnlyAttribute` 產生，0.10.4 起；某個參數要更高權限時由 `this.ForbidUnless(...)` 產生，0.10.2 起） |
 | 404 | 找不到指定資源 |
 | 409 | 資料衝突：名稱重複，或 `PUT` 帶來的 `ConcurrencyStamp` 與資料庫不符（別人已先修改，0.9.93 起）；還原時已有同名的資料、永久刪除時還有其他資料以它為上層 |
-| 429 | 超過限流配額（`api` 分區；登入端點另有較嚴的配額），Body 同樣是 `ApiResult` |
+| 429 | 超過限流配額（`api` 分區；登入端點另有較嚴的配額），Body 同樣是 `ApiResult`。WASM 前端把它當成暫時狀況：不清 Token、不回登入頁，外框顯示「請求過於頻繁，請稍後再試。」（0.10.5 起，見[認證授權與權限機制](../security/認證授權與權限機制.md)）|
 | 500 | 未預期例外 |
 
 ### 服務結果轉成狀態碼（0.10.2 起）

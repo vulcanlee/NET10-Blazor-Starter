@@ -1,8 +1,8 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.11
 - 最後核對日期：2026/11/10
 
@@ -11,7 +11,7 @@
 記錄系統執行時拋出的例外，讓管理員在使用者回報「系統怪怪的」時，能查出**是哪個使用者、在哪一頁、做了什麼操作、屬於哪個來源**出的錯，並搭配「日誌檢視」一起診斷。
 
 - 範圍：例外的自動捕捉管線、相同例外的合併與次數累加、堆疊全文的檔案存放、管理員專屬的檢視／查詢／刪除／清除／匯出。
-- 非範圍：**不提供 Web API**（內部診斷頁）。
+- Web API：0.10.5 起（WASM 遷移 M6）本頁改以 WebAssembly 執行，查詢、明細、堆疊、複製、匯出、刪除、清除、清空與 AI 例外分析都有只限管理員的端點（`api/v1/exception-logs`，見 §2.1 與 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 2.7）；之前不提供 Web API。
 - 0.9.78 起：Email 告警（`ExceptionAlertSettings`，預設停用）、自動清除（`LogRetentionSettings:ExceptionLogDays`，預設 90 天）、
   錯誤追蹤碼（`LastTraceId`），見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3。
   告警通知、自動清除、錯誤追蹤碼、瀏覽器端錯誤（0.9.79）等需求（皆已實作）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §六。
@@ -20,7 +20,18 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/system-exceptions` | 系統管理 → 監控與診斷 → id=33「系統例外紀錄」（0.9.113 起） | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣） | 系統管理員 |
+| `/system-exceptions` | 系統管理 → 監控與診斷 → id=33「系統例外紀錄」（0.9.113 起） | **管理員專屬**（0.10.5 起 WASM 頁以 `PagePermissions.IsAdmin` 判斷、API 以 `[AdminOnly]` 擋；之前是 `CheckIsAdmin()`；權限鍵不上架角色矩陣） | 系統管理員 |
+
+### 2.1 WebAssembly 與 Web API（0.10.5 起，WASM 遷移 M6）
+
+頁面在瀏覽器執行（`MyProject.Web.Client/Pages/ExceptionLogPage.razor`、`Views/Admins/ExceptionLogView.*`、`ExceptionAiAnalysisModal.*`；Server 版已刪除），畫面、按鈕、對話窗與訊息和之前相同。非管理員開頁顯示「你沒有權限存取此頁面」，直接呼叫 API 回 403 並寫 `Permission.Denied`（detail「需要管理員」）。與 Server 版不同、使用者看得到的地方：
+
+- **排序生效**：「最後發生」「次數」依點選方向排序（Server 版把 AntDesign 的方向字串 `Ascending`／`Descending` 拿去比對 `ascend`／`descend`，從未生效），複製、匯出與畫面同一個順序。
+- 「複製目前查詢結果」多一次查總筆數的請求（`POST copy-text`，最多 `MaxRows` 筆，含堆疊）；AI 是否可用改在開頁與重新整理時讀（`GET options`）。
+- **AI 例外分析改以 NDJSON 串流**（`POST {id}/ai`）：畫面送 `ConversationId` 與**例外明細之後**的問答，第一則例外明細（含堆疊檔）與 system 提示由伺服器依資料庫重組；伺服器檢查 AI 回覆與追問交替、追問 ≤ 2,000 字、單則回覆 ≤ 512K 字、追問輪數 ≤ `MaxFollowUpRounds`。遷移分析報告原寫「對話存伺服器快取」，實作改為畫面送回問答——伺服器無狀態、不怕 IIS 回收，畫面也改不到例外內容與系統提示。稽核 `ExceptionLog.AiAnalyze`／`AiFollowUp` 與之前相同。
+- **停止產生**＝中斷請求，伺服器取消 AI 呼叫（計費與「已取消」紀錄不變）；畫面收不到最後結果，用已收到的文字加「已中止」註記收尾，所以那一輪的模型與用量不顯示。直接離開頁面造成的取消，伺服器也會記 AI 分析稽核（Server 版因電路已收掉而不記）。
+- **AI 分析 PDF**（`POST {id}/ai/pdf`）由伺服器補上例外明細與堆疊，寫 `ExceptionLog.AiExportPdf`；不受追問輪數上限限制（對話途中調低上限仍可匯出）。
+- CSV 欄位定義搬到 `MyProject.Web/Export/ExceptionLogExport.cs`；`ExceptionLogClipboardText` 搬到 Client，命名空間改為 `MyProject.Web.Client.Views.Admins`。
 
 ## 三、畫面與欄位
 
@@ -48,8 +59,8 @@
 
 | 欄位 | 寬 | 說明 |
 | --- | --- | --- |
-| 最後發生 | 165 | 可排序，預設 desc |
-| 次數 | 80 | 可排序；≥10 橘色、≥100 紅色 |
+| 最後發生 | 165 | 可排序，預設 desc（0.10.5 起依點選方向生效）|
+| 次數 | 80 | 可排序（0.10.5 起依點選方向生效）；≥10 橘色、≥100 紅色 |
 | 類型 | 150 | 顯示型別最後一節，滑過顯示全名 |
 | 訊息 | 彈性 | `ex.Message`（最多 1000 字元） |
 | 頁面 | 150 | 發生當下的路徑 |
@@ -220,7 +231,8 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Business/Services/Other/ExceptionStackFileStore.cs`
 - `src/MyProject/MyProject.Models/Systems/ExceptionLogEntry.cs`、`ExceptionLogQuery.cs`
 - `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`、`CrashMarkerStore.cs`、`ProcessExceptionHooks.cs`（後兩者 0.9.77）
-- `src/MyProject/MyProject.Web/Components/Pages/Admins/ExceptionLogPage.razor`、`Components/Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73）
+- `src/MyProject/MyProject.Web.Client/Pages/ExceptionLogPage.razor`、`Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73；0.10.5 起在 Client）、`Api/ExceptionLogApi.cs`、`Api/ExceptionLogDtoMapper.cs`
+- `src/MyProject/MyProject.Web/Controllers/ExceptionLogsController.cs`、`Export/ExceptionLogExport.cs`、`Ai/AiExceptionConversation.cs`（對話檢查，0.10.5 起）、`MyProject.Dtos/Admins/ExceptionLogDtos.cs`
 - `src/MyProject/MyProject.Web/Components/ApplicationCircuitHandler.cs`（情境設定）
-- `src/MyProject/MyProject.Web/Components/Views/Admins/ExceptionAiAnalysisModal.razor`、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
+- `src/MyProject/MyProject.Web.Client/Views/Admins/ExceptionAiAnalysisModal.razor`（0.10.5 起在 Client）、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
 - 交叉連結：[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

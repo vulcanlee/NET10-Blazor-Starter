@@ -1,0 +1,14 @@
+@page "/ai-call-logs"
+@attribute [Authorize]
+@using MyProject.Web.Client.Views.Analytics
+
+@* 0.10.5 起在 WASM 執行（WASM 遷移 M6）。版面 ClientMainLayout 由 ClientRoutes 指定；[Authorize] 讓伺服器在整頁請求時先擋未登入者。 *@
+<PageTitle>AI 對話紀錄</PageTitle>
+
+<AiCallLogView InitialCallId="@CallId" />
+
+@code {
+    /// <summary>從 Token 用量明細「AI 對話紀錄」帶過來的呼叫識別碼；有值時自動開啟該筆明細。</summary>
+    [SupplyParameterFromQuery(Name = "callId")]
+    public Guid? CallId { get; set; }
+}

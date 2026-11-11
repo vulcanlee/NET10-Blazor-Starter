@@ -1,8 +1,8 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：2.7
+- 文件版本：2.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.5
 - 首次實作版本：0.9.14
 - 最後核對日期：2026/11/10
 
@@ -15,7 +15,7 @@
 - 0.9.17 起每一列另有**費用估算**（USD／TWD）。單價與匯率設定、計算規則、模型比對與
   已知限制**一律以 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) 為權威**，本文件只描述
   它在本頁上的呈現。
-- 非範圍：不提供 Web API。費用相關的非範圍見該 PRD。
+- 非範圍：不提供對外的 Web API（0.10.5 起只有本頁 WebAssembly 畫面用的、只限管理員的 `api/v1/token-usage`，見 §2.1）。費用相關的非範圍見該 PRD。
 
 > **現況提醒**：本腳手架目前有**九種**作業會記入本頁：
 > 「AI 日誌分析」（日誌檢視頁，使用者主動觸發）、
@@ -35,7 +35,18 @@
 
 | 路由 | 選單 | 所需權限 |
 | --- | --- | --- |
-| `/token-usage` | 系統管理 → AI 管理 → id=64「Token 用量」（0.9.113 前在「統計與分析」） | **管理員專屬**（`CheckIsAdmin()`；權限鍵不上架角色矩陣） |
+| `/token-usage` | 系統管理 → AI 管理 → id=64「Token 用量」（0.9.113 前在「統計與分析」） | **管理員專屬**（0.10.5 起 WASM 頁以 `PagePermissions.IsAdmin` 判斷、API 以 `[AdminOnly]` 擋；之前是 `CheckIsAdmin()`；權限鍵不上架角色矩陣） |
+
+### 2.1 WebAssembly 與 Web API（0.10.5 起，WASM 遷移 M6）
+
+頁面在瀏覽器執行（`MyProject.Web.Client/Pages/TokenUsagePage.razor`、`Views/Analytics/TokenUsageView.*`、`TokenUsageGroupTable.*`；Server 版已刪除），畫面、頁籤與訊息和之前相同。資料經只限管理員的 `TokenUsageController`（`api/v1/token-usage`，端點見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 2.10）：
+
+- `POST dashboard` 一次回明細一頁、合計、四種分組、每日（補零，最多 180 天）、近 1／7／30 天卡片與用量上限文字；「今天」以伺服器時間計。
+- **排序生效**：明細的「時間」「費用」依點選方向排序（Server 版比對的方向字串對不上，從未生效），CSV 與畫面同序。
+- **PDF 由伺服器依同條件重查**（`POST export-pdf`，全部或單一頁籤）：查詢與匯出之間有新紀錄時，報表數字可能比畫面多幾筆。
+- 明細窗（`GET {id}`）回原始 usage 平攤、費率快照與對話紀錄是否存在。CSV 欄位定義在 `MyProject.Web/Export/TokenUsageExport.cs`；`TokenUsageLogService` 的失敗標上 `Kind`。
+- `TokenUsageTrendChart`、`TokenUsageReportScope(s)`、`AiTokenUsage` 搬到 `MyProject.Web.Client/Ai/`（命名空間不變），`TokenUsageFormat` 搬到 `MyProject.Web.Client/Diagnostics/`。
+- 已知限制（與 Server 版相同）：CSV／PDF 的明細是條件下的全表。
 
 ## 三、畫面
 
@@ -303,7 +314,7 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
    那個旗標只影響 `GetPreamble()` 與 `StreamWriter`。少了 BOM，Excel 開啟 CSV 會整片亂碼，
    而編譯、測試、程式碼審閱全都看不出來。正確寫法是把 `GetPreamble()` 接在 `GetBytes()` 前面。
 2. ⚠️ **Blazor 的 scoped CSS 以元件為界。**`TokenUsageGroupTable` 是獨立元件，
-   套不到 `TokenUsageView.razor.css` 裡的 `.token-usage-table-wrap`，所以四個統計頁籤
+   套不到 `TokenUsageView.razor.css`（0.10.5 起在 `MyProject.Web.Client/Views/Analytics/`）裡的 `.token-usage-table-wrap`，所以四個統計頁籤
    會把整頁撐寬。修法是給該元件自己的 `TokenUsageGroupTable.razor.css`。
 
 ### 4.8 自動清除與稽核
@@ -364,10 +375,11 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 - `MyProject.Business/Services/DataAccess/ITokenUsageRecorder.cs`、`TokenUsageLogService.cs`
 - `MyProject.Business/Services/Other/TokenUsageRawStore.cs`
 - `MyProject.Web/Ai/AiAccountingChatClient.cs`（記錄點，0.9.140 起；0.9.68～0.9.139 為 `AiChatCompletionClient.cs`）、`AiChatResponseParser.ExtractUsageJson`
-- `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs`、`Ai/TokenUsageTrendChart.cs`、`Diagnostics/TokenUsageFormat.cs`
+- `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs`；`MyProject.Web.Client/Ai/TokenUsageTrendChart.cs`、`Ai/TokenUsageReportScope.cs`、`Diagnostics/TokenUsageFormat.cs`（0.10.5 起在 Client）
 - `MyProject.Web/Scheduling/Jobs/TokenUsageLogRetentionJob.cs`（自動清除）
-- `MyProject.Web/Components/Pages/Analytics/TokenUsagePage.razor`、
-  `Components/Views/Analytics/TokenUsageView.razor`、`TokenUsageGroupTable.razor(.css)`
+- `MyProject.Web.Client/Pages/TokenUsagePage.razor`、
+  `Views/Analytics/TokenUsageView.razor`、`TokenUsageGroupTable.razor(.css)`、`Api/TokenUsageApi.cs`、`Api/TokenUsageDtoMapper.cs`（0.10.5 起在 Client）
+- `MyProject.Web/Controllers/TokenUsageController.cs`、`Export/TokenUsageExport.cs`、`MyProject.Dtos/Admins/TokenUsageDtos.cs`（0.10.5 起）
 - 費用估算的程式清單見 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) 第九節
 - 交叉連結：[LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md)、[AI 日誌分析](../features/AI日誌分析.md)、
   [系統例外紀錄 PRD](系統例外紀錄-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

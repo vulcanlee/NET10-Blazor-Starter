@@ -66,7 +66,7 @@ public class PromptTemplateService
         var error = Validate(templateKey, content, note);
         if (error is not null)
         {
-            return (VerifyRecordResultFactory.Build(false, error), 0);
+            return (VerifyRecordResultFactory.Invalid(error), 0);
         }
 
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -74,7 +74,7 @@ public class PromptTemplateService
         var active = await ActiveVersionAsync(context, templateKey);
         if (active != expectedActiveVersion)
         {
-            return (VerifyRecordResultFactory.Build(false, ConflictMessage), 0);
+            return (VerifyRecordResultFactory.Conflict(ConflictMessage), 0);
         }
 
         var version = (await context.PromptTemplate.Where(x => x.TemplateKey == templateKey).MaxAsync(x => (int?)x.Version) ?? 0) + 1;
@@ -99,7 +99,7 @@ public class PromptTemplateService
         {
             // 兩個人同時儲存：版本號或「唯一作用中」的唯一索引擋下其中一個。
             logger.LogWarning("Prompt template version was not saved because of a concurrent save. TemplateKey={TemplateKey}", templateKey);
-            return (VerifyRecordResultFactory.Build(false, ConflictMessage), 0);
+            return (VerifyRecordResultFactory.Conflict(ConflictMessage), 0);
         }
 
         logger.LogInformation("Prompt template saved. TemplateKey={TemplateKey}, Version={Version}", templateKey, version);
@@ -111,14 +111,14 @@ public class PromptTemplateService
     {
         if (!PromptTemplateKeys.All.Contains(templateKey))
         {
-            return VerifyRecordResultFactory.Build(false, "提示詞種類不正確。");
+            return VerifyRecordResultFactory.Invalid("提示詞種類不正確。");
         }
 
         await using var context = await contextFactory.CreateDbContextAsync();
         await using var transaction = await context.Database.BeginTransactionAsync();
         if (version is { } v && !await context.PromptTemplate.AnyAsync(x => x.TemplateKey == templateKey && x.Version == v))
         {
-            return VerifyRecordResultFactory.Build(false, $"找不到第 {v} 版。");
+            return VerifyRecordResultFactory.NotFound($"找不到第 {v} 版。");
         }
 
         await context.PromptTemplate.Where(x => x.TemplateKey == templateKey && x.IsActive)

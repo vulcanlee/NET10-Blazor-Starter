@@ -103,17 +103,8 @@ public static class AiCallLogPdfBuilder
     private const string Title = "AI 對話紀錄";
     private const string Disclaimer = "本文件包含實際送出給 AI 的內容與 AI 的回應，可能含日誌、例外堆疊或使用者帳號，請依內部規範保管。";
 
-    /// <summary>角色的顯示名稱（畫面與 PDF 共用）。</summary>
-    public static string RoleLabel(string role) => role switch
-    {
-        AiChatRoles.System => "系統提示（System）",
-        AiChatRoles.User => "使用者（User）",
-        AiChatRoles.Assistant => "AI 助理（Assistant）",
-
-        // Agent 的工具執行結果（0.9.149 起 Responses 的 function_call_output 解析成 tool）。
-        "tool" => "工具結果（Tool）",
-        _ => string.IsNullOrWhiteSpace(role) ? "（未標示角色）" : role,
-    };
+    /// <summary>角色的顯示名稱（畫面與 PDF 共用；0.10.5 起規則在 Client 的 <see cref="AiCallLogText"/>，WASM 頁面也要用）。</summary>
+    public static string RoleLabel(string role) => AiCallLogText.RoleLabel(role);
 
     /// <summary>產生 PDF 位元組。</summary>
     /// <exception cref="InvalidOperationException">內嵌中文字型資源缺失。</exception>
@@ -299,21 +290,8 @@ public static class AiCallLogPdfBuilder
         return lines;
     }
 
-    /// <summary>結果文字（畫面與 PDF 共用）。</summary>
-    public static string DescribeOutcome(AiCallLogAdapterModel item)
-    {
-        if (item.Success)
-        {
-            return "成功";
-        }
-
-        if (item.IsCanceled)
-        {
-            return "已取消";
-        }
-
-        return string.IsNullOrWhiteSpace(item.FailureReason) ? "失敗" : $"失敗（{item.FailureReason}）";
-    }
+    /// <summary>結果文字（畫面與 PDF 共用；0.10.5 起規則在 Client 的 <see cref="AiCallLogText"/>）。</summary>
+    public static string DescribeOutcome(AiCallLogAdapterModel item) => AiCallLogText.DescribeOutcome(item);
 
     private static void AddConversation(Section section, AiCallLogPdfRequest request, MergedContentBudget? budget)
     {
