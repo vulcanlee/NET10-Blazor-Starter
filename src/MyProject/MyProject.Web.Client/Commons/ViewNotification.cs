@@ -16,9 +16,9 @@ namespace MyProject.Web.Components.Commons;
 /// 0.9.129 起：附「複製」按鈕、不自動關閉（使用者按 X 關閉），並在顯示當下寫一筆日誌（帶追蹤碼，/logs 查得到）。
 /// 呼叫端原本自己寫的 log 照留：那筆有例外與上下文，這筆記錄的是「使用者實際看到什麼」。
 ///
-/// 0.10.2 起放在 MyProject.Web.Client（WASM 遷移 M3），Server 與 WASM 頁面共用同一份；命名空間維持不變。
-/// 兩邊各自在啟動時呼叫 <see cref="UseLoggerFactory"/> 與 <see cref="UseTraceCodeProvider"/>：
-/// Server 的追蹤碼是這次互動的 <c>TraceCode.Current</c>；WASM 是最近一次失敗的 API 回應帶回的 TraceId（伺服器日誌查得到同一個碼）。
+/// 0.10.2 起放在 MyProject.Web.Client（WASM 遷移 M3）；命名空間維持不變。
+/// WASM 在啟動時呼叫 <see cref="UseLoggerFactory"/> 與 <see cref="UseTraceCodeProvider"/>：
+/// 追蹤碼是最近一次失敗的 API 回應帶回的 TraceId（伺服器日誌查得到同一個碼）。
 /// </summary>
 public static class ViewNotification
 {

@@ -24,7 +24,7 @@ public sealed class SidebarLinkColorConventionTests
     [Fact]
     public void SidebarMenuAnchors_ShouldHaveExplicitColorOverrides()
     {
-        var css = File.ReadAllText(Path.Combine(FindWebRoot(), "Components", "Layout", "NavMenu.razor.css"));
+        var css = File.ReadAllText(NavMenuCssPath);
         var body = StripBlockComments(css);
 
         var missing = new List<string>();
@@ -48,7 +48,7 @@ public sealed class SidebarLinkColorConventionTests
 
         Assert.True(
             missing.Count == 0,
-            "NavMenu.razor.css 缺少側邊欄選單連結的顏色覆寫："
+            "ClientNavMenu.razor.css 缺少側邊欄選單連結的顏色覆寫："
             + string.Join("、", missing)
             + "。AntDesign 的 MenuItem 帶 RouterLink 時會多包一層 <a> 並自帶深色／藍色，"
             + "只打在 <li> 上的 color 不會繼承進去。少了這些覆寫，深梅側邊欄上會出現看不見的黑字，"
@@ -60,7 +60,7 @@ public sealed class SidebarLinkColorConventionTests
     public void SidebarMenuAnchorOverrides_ShouldUseImportant()
     {
         var body = StripBlockComments(
-            File.ReadAllText(Path.Combine(FindWebRoot(), "Components", "Layout", "NavMenu.razor.css")));
+            File.ReadAllText(NavMenuCssPath));
 
         // a 必須是**獨立的元素選擇器**：寫成 [^{}]*a[^{}]* 會連 .material-icons
         // 這種含字母 a 的 class 都匹配到，把圖示那一組誤判成違規。
@@ -86,5 +86,6 @@ public sealed class SidebarLinkColorConventionTests
     private static string StripBlockComments(string text)
         => Regex.Replace(text, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
 
-    private static string FindWebRoot() => SourceTree.Web;
+    /// <summary>側邊欄的樣式（0.10.9 起 Server 版 NavMenu 已刪除，只有 WASM 版）。</summary>
+    private static string NavMenuCssPath => Path.Combine(SourceTree.Client, "Layout", "ClientNavMenu.razor.css");
 }

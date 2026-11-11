@@ -18,14 +18,13 @@ namespace MyProject.Web.Controllers;
 
 /// <summary>
 /// WASM 前端外框用的 API（0.10.1 起，WASM 遷移 M2）：系統資訊、側邊選單、操作說明、開頁稽核、瀏覽器錯誤回報。
-/// 規則全部沿用 Server 版外框用的服務（<see cref="SidebarMenuService"/>、<see cref="PageHelpService"/>、
-/// <see cref="BrowserErrorReporter"/>），兩個版本的外框看到的內容一致。
+/// 規則在 <see cref="SidebarMenuService"/>、<see cref="PageHelpService"/>、<see cref="BrowserErrorReporter"/>（原本 Server 版外框用的服務，0.10.9 起只剩這裡使用）。
 /// </summary>
 [Route("api/v1/shell")]
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 [SignedInUser] // 登入即可（0.10.4 起明確標註）：WASM 外框：資訊、選單（伺服器依權限過濾）、操作說明、開頁與錯誤回報。
-// 強制改密碼／設定兩步驟驗證期間也能用（0.10.8 起）：那兩頁在 WASM 執行、和 Server 版一樣顯示完整外框，外框的資料不能被擋（否則一直被導回設定頁）。
+// 強制改密碼／設定兩步驟驗證期間也能用（0.10.8 起）：那兩頁顯示完整外框，外框的資料不能被擋（否則一直被導回設定頁）。
 // 只涉及自己的資料與畫面框架，不能用來做業務操作。
 [AllowDuringForcedSetup]
 public sealed class ShellController : ControllerBase
@@ -40,7 +39,6 @@ public sealed class ShellController : ControllerBase
     private readonly SystemStartupState startupState;
     private readonly PageHelpService pageHelpService;
     private readonly SidebarMenuService sidebarMenuService;
-    private readonly AuthenticationStateHelper authenticationStateHelper;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
     private readonly BrowserErrorReporter browserErrorReporter;
@@ -56,7 +54,6 @@ public sealed class ShellController : ControllerBase
         SystemStartupState startupState,
         PageHelpService pageHelpService,
         SidebarMenuService sidebarMenuService,
-        AuthenticationStateHelper authenticationStateHelper,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
         BrowserErrorReporter browserErrorReporter,
@@ -71,7 +68,6 @@ public sealed class ShellController : ControllerBase
         this.startupState = startupState;
         this.pageHelpService = pageHelpService;
         this.sidebarMenuService = sidebarMenuService;
-        this.authenticationStateHelper = authenticationStateHelper;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
         this.browserErrorReporter = browserErrorReporter;
@@ -109,11 +105,11 @@ public sealed class ShellController : ControllerBase
         return Ok(ApiResult<ShellInfoDto>.SuccessResult(info, "取得系統資訊成功"));
     }
 
-    /// <summary>目前使用者看得到的選單（權限過濾規則與 Server 版側邊欄相同：<see cref="AuthenticationStateHelper.CheckAccessPage"/>）。</summary>
+    /// <summary>目前使用者看得到的選單（權限過濾規則：<see cref="PermissionRules.CanAccessPage"/>）。</summary>
     [HttpGet("menu")]
     public async Task<ActionResult<ApiResult<ShellMenuDto>>> Menu()
     {
-        var items = await sidebarMenuService.LoadAuthorizedMenuItemsAsync(authenticationStateHelper);
+        var items = await sidebarMenuService.LoadAuthorizedMenuItemsAsync(currentUserService.CurrentUser);
         var menu = new ShellMenuDto
         {
             Items = items.Select(ToDto).ToList(),
@@ -135,7 +131,7 @@ public sealed class ShellController : ControllerBase
 
         var document = await pageHelpService.LoadDocumentAsync(topic);
         var authorizedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        SidebarMenuService.CollectUrls(await sidebarMenuService.LoadAuthorizedMenuItemsAsync(authenticationStateHelper), authorizedUrls);
+        SidebarMenuService.CollectUrls(await sidebarMenuService.LoadAuthorizedMenuItemsAsync(currentUserService.CurrentUser), authorizedUrls);
         var related = PageHelpService.FilterVisibleRelatedPages(document.RelatedPages, await sidebarMenuService.LoadAllMenuUrlsAsync(), authorizedUrls);
         var relatedSection = document.Sections.FirstOrDefault(x => x.Heading == PageHelpMarkdownParser.RelatedPagesHeading);
 
@@ -151,8 +147,8 @@ public sealed class ShellController : ControllerBase
     }
 
     /// <summary>
-    /// 開頁稽核：WASM 頁面沒有 Blazor 電路，由前端路由在換頁時呼叫，寫法與 <c>ApplicationCircuitHandler</c> 相同（<c>Page.View</c>，路徑去掉 query string）。
-    /// 只接受已搬到 WASM 的頁面路徑（Server 頁面由電路記），並有每分鐘上限。
+    /// 開頁稽核：由前端路由在換頁時呼叫（<c>Page.View</c>，路徑去掉 query string）。
+    /// 只接受 WASM 的頁面路徑（<see cref="MyProject.Web.Client.ClientRouteTable"/>），並有每分鐘上限。
     /// </summary>
     [HttpPost("page-view")]
     public async Task<ActionResult<ApiResult<object>>> PageView([FromBody] PageViewRequestDto request)
@@ -168,9 +164,9 @@ public sealed class ShellController : ControllerBase
                 AuditActions.Page.View, success: true, actorUserId: user.Id, actorAccount: user.Account,
                 targetType: "Page", targetId: path, detail: $"from={(from.Length > 0 ? from : "entry")}");
 
-            // 沒有權限的人打開 WASM 頁面（0.10.2 起）：與 Server 頁面的 RecordPageAccessDeniedAsync 相同，再記一筆權限拒絕。
+            // 沒有權限的人打開頁面（0.10.2 起）：再記一筆權限拒絕。
             // 由伺服器依選單的權限鍵判斷，不採信瀏覽器的說法；畫面本身只顯示「沒有權限」。
-            if (await sidebarMenuService.FindPagePermissionAsync(path) is { } permission && !authenticationStateHelper.CheckAccessPage(permission))
+            if (await sidebarMenuService.FindPagePermissionAsync(path) is { } permission && !PermissionRules.CanAccessPage(user, permission))
             {
                 await auditLogService.WriteAsync(
                     AuditActions.Permission.Denied, success: false, actorUserId: user.Id, actorAccount: user.Account,

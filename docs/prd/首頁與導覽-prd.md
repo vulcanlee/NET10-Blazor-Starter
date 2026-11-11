@@ -2,7 +2,7 @@
 
 - 文件版本：1.31
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
 - 最後核對日期：2026/11/11
 
@@ -17,13 +17,13 @@
 
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
-| `/` | 非選單（啟動頁） | 無（`EmptyLayout`，任何人） | 尚未完成驗證者 |
+| `/` | 非選單（啟動頁） | 無（`ClientEmptyLayout`，任何人） | 尚未完成驗證者 |
 | `/App` | 選單 id=1「首頁」 | 頁面鍵「首頁」（管理員豁免） | 已登入使用者 |
 | 側邊選單 | — | 各項目依 `MenuPermissionMap` 對應之權限鍵過濾 | 已登入使用者 |
 
 ## 三、畫面與欄位
 
-- 啟動頁（`/` → `Home.razor` → `SplashView`）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `EmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未登入則導向 `/Auths/Login`（0.9.39 起；帳號停用等其他失敗仍導向 `/Auths/Logout`）。此頁與 `Error`、`NotFound`、登入相關頁是全系統僅有的匿名頁面（0.9.41 起其餘頁面一律需登入，未登入者直接輸入網址會在 HTTP 層被導去登入頁、看不到任何畫面，見 [開發慣例與限制速查 §5.1](../architecture/開發慣例與限制速查.md)）。
+- 啟動頁（`/` → `SplashPage.razor` → `SplashView`，0.10.8 起在 WebAssembly）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `ClientEmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未登入則導向 `/Auths/Login`（0.9.39 起；帳號停用等其他失敗仍導向 `/Auths/Logout`）。此頁與 `Error`、`NotFound`、登入相關頁是全系統僅有的匿名頁面（0.9.41 起其餘頁面一律需登入，未登入者直接輸入網址會在 HTTP 層被導去登入頁、看不到任何畫面，見 [開發慣例與限制速查 §5.1](../architecture/開發慣例與限制速查.md)）。
 - 首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**；0.9.106 起改為儀表板；0.10.6 起在 WebAssembly 執行，頁面與檢視在 `MyProject.Web.Client`，快速入口與小工具由 `GET api/v1/dashboard` 依權限決定）：登入後的第一個畫面，套用主版面與側邊選單。三個區塊由上而下：
 
   | 區塊 | 內容 | 來源 |
@@ -36,24 +36,24 @@
 
   > ⚠️ 快速入口與小工具的圖示必須是 **classic Material Icons** 名稱。用 Material Symbols 專有名稱會渲染失敗 ——
   > 除了破圖方塊，也可能被拆成數個子字的圖示（`shield_person` 會畫出「盾」與「人」兩個圖示並撐破容器），
-  > 側邊欄是靠 `NavMenu.GetMaterialIconKind` 把 `shield_person` 映射成 `security` 才正常。本頁直接用 `security`。
+  > 側邊欄是靠 `ClientMenuItem.IconKind`（`ClientNavMenu.GetMaterialIconKind`）把 `shield_person` 映射成 `security` 才正常。本頁直接用 `security`。
 
   > 專案清單維持在 `/projects`（`ProjectPage.razor` → `ProjectViewView`）。0.9.9 之前 `/App` 與 `/projects` 渲染同一個檢視，使用者登入後第一眼看到的是資料表格；改版後兩個路由各司其職。
-- 側邊選單（`NavMenu.razor` + `SidebarMenuNode`）：
+- 側邊選單（`ClientNavMenu.razor` + `ClientSidebarMenuNode`）：
   - 左上品牌文字取自 `SystemSettings:SystemInformation:SystemName`（**0.9.13 起**；先前是硬編的 `MyProject.Web`）。
     過長時以刪節號收尾，完整名稱放在 `title` 屬性。副標「管理後台功能清單」仍為設計文案，刻意不參數化。
     品牌文字左側原有的裝飾圖示（`dashboard_customize`）**0.9.19 起已移除** ——
     它純裝飾卻長得像按鈕，展開時緊貼漢堡鈕造成誤導；現在左上只有漢堡鈕與品牌文字。
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。
   - 初始狀態（0.9.112 起）：寬螢幕第一次開啟為展開，之後沿用該瀏覽器上次的選擇（`wwwroot/js/nav-state.js`，localStorage `app.sidebarCollapsed`）；
-    寬度 ≤ 640px 一律從收合開始，且不寫入偏好。`MainLayout` 在登入檢查完成、版面渲染前讀取，不會先閃另一種狀態；讀不到（腳本未載入、隱私模式）時為展開。
-    目前頁面所屬的群組在選單第一次渲染後（`NavMenu.OnAfterRender`）才套用 `OpenKeys` 展開 —— 0.9.113 修正：之前在同一次渲染設定，AntDesign 的 SubMenu 尚未註冊，一開始就展開時群組不會自動打開。
+    寬度 ≤ 640px 一律從收合開始，且不寫入偏好。`ClientMainLayout` 在登入檢查完成、版面渲染前讀取，不會先閃另一種狀態；讀不到（腳本未載入、隱私模式）時為展開。
+    目前頁面所屬的群組在選單第一次渲染後（`ClientNavMenu.OnAfterRender`）才套用 `OpenKeys` 展開 —— 0.9.113 修正：之前在同一次渲染設定，AntDesign 的 SubMenu 尚未註冊，一開始就展開時群組不會自動打開。
   - 每項含 `name`、`icon`（Material 圖示）、`url` 或子選單 `subMenu`。
 
   > ⚠️ **圖示大小只能從 `MaterialIcon` 的 `Size` 參數改**：該元件輸出行內的
   > `style="font-size:…"`，CSS 的 `font-size` 一律被壓過（實際都是 24px）。
   > 0.9.16 已把 `NavMenu.razor.css`／`MainLayout.razor.css` 與兩個按鈕元件裡
-  > 那些無效的 `font-size` 清掉，**不要再往那裡加**。
+  > 那些無效的 `font-size` 清掉，**不要再往那裡加**（0.10.9 起對應的是 `ClientNavMenu.razor.css`／`ClientMainLayout.razor.css`）。
   >
   > 0.9.15 起另有**光學尺寸補正**（`MyProject.Web.Client/Layout/MaterialIconOpticalSize.cs`）：
   > 各字面的墨跡在同一個 em 方框內佔的高度不同，字級一樣不代表看起來一樣大。
@@ -69,16 +69,16 @@
   - 三層結構的收合模式（0.9.21 起）：收合時同樣維持階層 —— 群組型子項渲染成一列可懸停的觸發鈕（圖示 ＋ 名稱 ＋ `chevron_right`），滑過去才往右彈出屬於它自己的第二層 flyout，不把孫節點一次攤平在同一層。群組列會以前綴比對標示目前頁面所屬的群組。
     ⚠️ 該區塊只輸出帶 `url` 的節點，新增群組型節點（無 `url`）時必須確認它有自己的巢狀 flyout，否則整個 flyout 會空白。
     ⚠️ flyout 的顯示條件用 `:has(:focus-visible)`，**不可改回 `:focus-within`** —— 後者會讓滑鼠點完子項後焦點黏住、flyout 收不起來。詳見 [開發慣例與限制速查 §5](../architecture/開發慣例與限制速查.md)。
-- 右上角使用者選單（`MainLayout.razor`）：顯示姓名縮寫（0.9.102 起取代人像圖示）、目前使用者名稱與「管理員」標記，展開後含「個人資料」（0.9.102 起）「變更密碼」（0.9.101 起開頁面，對話窗已移除）「關於」「登出」四項（0.9.63 起移除「設定 API 密碼」）。
-  姓名與縮寫在 `CurrentUserService.Changed` 時更新（每個頁面的登入檢查後、個人資料存檔後）。
-- 頂欄頁名（`MainLayout.ResolvePageTitle`）：先找選單；不在選單的登入後頁面用 `HelpTopics.json` 的頁名（0.9.102 起，之前顯示「系統首頁」）。
+- 右上角使用者選單（`ClientMainLayout.razor`）：顯示姓名縮寫（0.9.102 起取代人像圖示）、目前使用者名稱與「管理員」標記，展開後含「個人資料」（0.9.102 起）「變更密碼」（0.9.101 起開頁面，對話窗已移除）「關於」「登出」四項（0.9.63 起移除「設定 API 密碼」）。
+  姓名與縮寫在 `ClientSession.Changed` 時更新（登入檢查與 Token 刷新後、個人資料存檔後）。
+- 頂欄頁名（`ClientMainLayout.ResolvePageTitle`）：先找選單；不在選單的登入後頁面用 `HelpTopics.json` 的頁名（0.9.102 起，之前顯示「系統首頁」）。
 - **登出需二次確認**（0.9.29 起）：三個登出入口（右上角使用者選單、側邊欄展開、側邊欄收合）
   按下後都先跳確認窗「確認登出／確定要登出嗎？」，選「登出」才真的登出，選「取消」留在原頁。
   行為收斂在 `MyProject.Web.Client/Commons/LogoutConfirm.cs`，由 `MyProject.Tests/LogoutConfirmationConventionTests.cs` 守門。
   ⚠️ 系統的**強制登出**（session 失效、查無使用者、角色遺失…）刻意**不確認** ——
   那是系統行為不是使用者意圖。詳見 [登入與帳號流程 PRD](登入與帳號流程-prd.md)。
   - ⚠️ **版面層級**（0.4.44 修正）：`.top-row` 帶 `z-index` 即建立 stacking context，選單自己的 `z-index: 20` 只在其內部有效，整個頂部列是以 `.top-row` 的數值參與根層級堆疊。該值必須高於 AntDesign 表格的固定欄／sticky 標頭（2–4），否則「關於」「登出」會被有固定「操作」欄的頁面蓋住。詳見 [開發慣例與限制速查 §6.2](../architecture/開發慣例與限制速查.md)。
-- **頂欄「操作說明」按鈕**（0.9.66 起，0.9.67 對齊 ReviewSkills.AI；`Components/Commons/PageHelpDialog`）：頁名右側一顆 28px 透明圓形 `help_outline` 圖示鈕
+- **頂欄「操作說明」按鈕**（0.9.66 起，0.9.67 對齊 ReviewSkills.AI；0.10.9 起是 `MyProject.Web.Client/Commons/ClientPageHelpDialog`，內容經 `GET api/v1/shell/help`）：頁名右側一顆 28px 透明圓形 `help_outline` 圖示鈕
   （滑鼠提示「這個畫面怎麼用？」），開啟近滿版的「〈頁名〉・操作說明」對話窗 —— 左側說明目錄（全部／一～七），右側內容。
   - 點「全部」顯示前言（頁名、簡介、提醒框、「一分鐘看懂這一頁」）與全部章節；點單一章節只顯示該章節（篩選，不是捲動），切換時內容捲回頂端。每次開啟都回到「全部」。
   - 「六、相關頁面」以卡片呈現，點名稱會先關窗再導頁；**使用者無權進入的頁面不顯示**。
@@ -86,7 +86,7 @@
     選擇記在這個瀏覽器（localStorage `app.helpFontSize`），所有頁面的說明窗共用；換電腦、換瀏覽器或讀不到時回到「中」。
   - 目前路由沒有登記說明時不顯示按鈕；切換頁面時對話窗自動關閉。窄視窗（≤640px）頁名與按鈕整組隱藏（與 ReviewSkills.AI 一致）；若開著窗縮小視窗，對話窗改為滿版、章節導覽改為橫向一排。
   - 涵蓋登入後的 26 個頁面（23 個選單頁＋`/ChangePassword`、`/Profile`、`/TwoFactorSetup`；0.9.66 起始時為 14 個）；內容與規則見 [開發慣例與限制速查 §6.14](../architecture/開發慣例與限制速查.md)。
-- 「關於」對話窗（`MainLayout.razor` 之 `about-modal`）：以 AntDesign `Modal`（寬 520、無 Footer）呈現六列唯讀系統資訊。
+- 「關於」對話窗（`ClientMainLayout.razor` 之 `about-modal`）：以 AntDesign `Modal`（寬 520、無 Footer）呈現六列唯讀系統資訊。
 
   | 項目 | 來源 |
   | --- | --- |
@@ -103,12 +103,12 @@
    - `ReadMenuItemsFromDisk` 由 `MagicObjectHelper.Menu結構定義`（`Datas/Menu.json`）反序列化，經 `ICacheService` 快取（key `sidebar:menu:raw`）。
    - `ApplyPermissionStructure` 依每項唯一 `id` 從 `MenuPermissionMap`（id→權限鍵）填入 `PermissionName`；找不到對應時退回以 `Name` 為權限名。
    - `FilterAuthorizedMenuItems` 遞迴過濾：項目自身權限（`Name` 或 `PermissionName` 任一）通過，或其子項尚有可見項目時保留。
-2. 權限判定唯一來源為 `AuthenticationStateHelper.CheckAccessPage(name)`：比對 `CurrentUser.RoleList`（由 `IPermissionChecker.GetEffectivePermissionKeysAsync` 供給的 RBAC 有效權限鍵集合）；管理員短路一律通過。
+2. 權限判定唯一來源為 `PermissionRules.CanAccessPage(user, name)`（0.10.9 起；之前經 `AuthenticationStateHelper.CheckAccessPage`）：比對 `CurrentUser.RoleList`（由 `IPermissionChecker.GetEffectivePermissionKeysAsync` 供給的 RBAC 有效權限鍵集合）；管理員短路一律通過。
 3. `Menu.json` 以 `id` 對應權限鍵，重排選單順序不會錯位（已移除舊「位置索引三處同步」耦合）。
 4. 頁面操作說明：`PageHelpService` 讀 `Datas/HelpTopics.json` 與 `Datas/Help/*.md`（經 `ICacheService` 快取），以**精確比對**（非頂欄標題的前綴比對）找出目前路由的說明；
    `PageHelpMarkdownParser` 以行首 `## ` 切章節，`HelpMarkdownRenderer`（`DisableHtml` ＋ `UsePipeTables`）轉 HTML。
-   相關頁面以 `MainLayout` 傳入的已授權選單過濾，與側邊欄同源。
-5. 「關於」對話窗由 `MainLayout.OnAboutClick` 於**點擊當下**組出資料列：注入 `IOptions<SystemSettings>`、`IWebHostEnvironment` 與 Singleton `SystemStartupState`。已運作時間必須在開啟當下計算並存成欄位，否則 Blazor Server 不會自動刷新而顯示過期值。
+   相關頁面由 `ShellController` 以同一份已授權選單（`LoadAuthorizedMenuItemsAsync`）過濾，與側邊欄同源。
+5. 「關於」對話窗由 `ClientMainLayout.OnAboutClick` 於**點擊當下**組出資料列：系統名稱、描述、版本、執行環境與啟動時間取自 `GET api/v1/shell/info`（伺服器端的 `SystemSettings`、`IWebHostEnvironment` 與 Singleton `SystemStartupState`）。已運作時間必須在開啟當下計算並存成欄位，否則畫面不會自動刷新而顯示過期值。
 
 ## 五、權限與安全
 
@@ -147,19 +147,19 @@
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Home.razor`（`/` landing）
+- `src/MyProject/MyProject.Web.Client/Pages/SplashPage.razor`（`/` landing；0.10.8 起 WASM）
 - `src/MyProject/MyProject.Web.Client/Pages/HomeAuthed.razor`（`/App` 首頁；0.10.6 起 WASM，之前在 `MyProject.Web/Components/Pages/`）、`Views/Commons/HomeWelcomeView.razor(.cs)`；`MyProject.Web/Controllers/DashboardController.cs`
 - `src/MyProject/MyProject.Web.Client/Views/Commons/HomeWelcomeView.razor`／`.razor.cs`／`.razor.css`（歡迎列、快速入口、儀表板；0.10.6 起在 Client）；`MyProject.Web.Client/Views/Dashboard/*`、`Web/Dashboard/*`（小工具）
-- `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor`（`/projects` 專案清單）
-- `src/MyProject/MyProject.Web/Components/Views/Commons/SplashView.razor`
+- `src/MyProject/MyProject.Web.Client/Pages/ProjectPage.razor`（`/projects` 專案清單）
+- `src/MyProject/MyProject.Web.Client/Views/Commons/SplashView.razor`
 - `src/MyProject/MyProject.Web/Datas/Menu.json`
 - `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`（`MenuPermissionMap`、`LoadAuthorizedMenuItemsAsync` 載入與過濾）
-- `src/MyProject/MyProject.Web/Components/Layout/NavMenu.razor`
-- `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor`（使用者選單與「關於」對話窗）
-- `src/MyProject/MyProject.Web/Components/Layout/MainLayout.razor.cs`（`OnAboutClick`）
-- `src/MyProject/MyProject.Web/Components/Commons/PageHelpDialog.razor`／`.razor.cs`／`.razor.css`、`PageHelpMarkdownParser.cs`、`HelpMarkdownRenderer.cs`（操作說明）
+- `src/MyProject/MyProject.Web.Client/Layout/ClientNavMenu.razor`、`ClientSidebarMenuNode.razor`、`ClientMenuItem.cs`（0.10.9 起；Server 版 `NavMenu`／`SidebarMenuNode` 已刪除）
+- `src/MyProject/MyProject.Web.Client/Layout/ClientMainLayout.razor`（使用者選單與「關於」對話窗）
+- `src/MyProject/MyProject.Web.Client/Layout/ClientMainLayout.razor.cs`（`OnAboutClick`、`ResolvePageTitle`）
+- `src/MyProject/MyProject.Web.Client/Commons/ClientPageHelpDialog.razor`／`.razor.cs`／`.razor.css`（操作說明對話窗）；`src/MyProject/MyProject.Web/Components/Commons/PageHelpMarkdownParser.cs`、`HelpMarkdownRenderer.cs`（伺服器端解析與轉 HTML）
 - `src/MyProject/MyProject.Web/Components/Layout/PageHelpService.cs`、`src/MyProject/MyProject.Web/Datas/HelpTopics.json`、`Datas/Help/*.md`
 - `src/MyProject/MyProject.Web/Health/SystemStartupState.cs`（啟動時間來源）
-- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessPage`）
+- `src/MyProject/MyProject.Models/Others/PermissionRules.cs`（`CanAccessPage`；0.10.9 前在 `AuthenticationStateHelper`）
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`（角色權限鍵常數）
 - 交叉連結：[紀錄分類與團隊權控 PRD](紀錄分類與團隊權控-prd.md)、[認證授權與權限機制](../security/認證授權與權限機制.md)

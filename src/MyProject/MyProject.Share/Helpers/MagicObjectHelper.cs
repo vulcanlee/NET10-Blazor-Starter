@@ -113,7 +113,7 @@ public class MagicObjectHelper
     /// <summary>
     /// 監控與診斷群組（0.9.113 前名為「統計與分析」）。刻意不列入 <c>RolePermissionService.GetRoleListPermissionAllName()</c>：
     /// 不種 Permission 資料列、角色矩陣不顯示、任何角色都無法被授予；
-    /// 僅由 <c>AuthenticationStateHelper.CheckAccessPage</c> 的管理員短路通過。
+    /// 僅由 <c>PermissionRules.CanAccessPage</c> 的管理員短路通過。
     /// 這是讓「日誌檢視」成為管理員專屬頁面的機制，不是漏掉的步驟，請勿補上。
     /// </summary>
     public const string 角色_監控與診斷 = "監控與診斷功能";

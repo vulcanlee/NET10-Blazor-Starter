@@ -2,9 +2,9 @@
 
 - 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -131,7 +131,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 **不收**：
 - `OperationCanceledException`／`TaskCanceledException` —— 使用者取消、正常關機。
-- 只是連線中斷造成的 `JSDisconnectedException`（本身，或 `AggregateException` 展開後全部都是）—— 使用者關掉分頁（0.9.172 起，`CircuitDisconnect`）。
+- 只是連線中斷造成的 `JSDisconnectedException`（本身，或 `AggregateException` 展開後全部都是）—— 使用者關掉分頁（0.9.172 起，`CircuitDisconnect`；0.10.9 起沒有 Blazor Server 連線，實際上不再出現）。
 - 本子系統自己的記錄器（`ExceptionLogProvider`／`ExceptionLogWriter`／`ExceptionLogService`／`ExceptionStackFileStore`）。
 - `AsyncLocal` 抑制旗標開啟時（寫入器執行期間全程開啟）。
 - 同一個例外實例的第二次以後（0.9.77）。
@@ -142,12 +142,12 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 | 路徑 | 設定位置 | Source |
 | --- | --- | --- |
-| Blazor 互動 | `ApplicationCircuitHandler.CreateInboundActivityHandler` | `畫面` |
+| Blazor 互動 | `ApplicationCircuitHandler.CreateInboundActivityHandler`（0.10.8 以前；0.10.9 起沒有 Server 互動，畫面操作一律經 HTTP／API） | `畫面` |
 | HTTP／API | `ApplicationBuilderExtensions.UseHttpRequestLogging`；帳號由 `UseExceptionContextUser` 在 `UseAuthorization` 之後補上（0.9.77 前恆為空） | `/api` 開頭→`WebAPI`，否則`畫面` |
 | 系統啟動 | `Program.cs` 的 migrate／seed／RBAC 回填區段；啟動失敗經補登檔補進 | `系統啟動` |
 | 背景作業 | `ScheduledJobRunner`（頁面欄位是作業名稱，手動觸發時帶觸發者帳號）、`EmailDispatchWorker`（`EmailDispatch`）、`SystemParameterRefreshWorker`（`SystemParameterRefresh`）| `背景作業` |
 | 程序層級 | `ProcessExceptionHooks`：射後不理的 Task（`UnobservedTaskException`）、其他執行緒的未處理例外（0.9.77） | `系統` |
-| 瀏覽器 | `BrowserErrorReporter`：登入後頁面的 JavaScript 錯誤經 circuit 回報（0.9.79），例外型別 `BrowserScriptException`，堆疊是瀏覽器端的呼叫路徑；每個 circuit 每分鐘最多 10 筆 | `瀏覽器` |
+| 瀏覽器 | `BrowserErrorReporter`：登入後頁面的 JavaScript 錯誤與 WASM 元件的未處理例外（`ClientErrorBoundary`）經 `api/v1/shell/client-errors` 回報（0.9.79 起；0.10.8 以前 Server 頁經 circuit），例外型別 `BrowserScriptException`，堆疊是瀏覽器端的呼叫路徑；每位使用者每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`） | `瀏覽器` |
 | 其他 | 未設定時 | `未知` |
 
 ⚠️ `CreateInboundActivityHandler` 是**全站每一次互動都會經過**的路徑，內部全程 `try/catch`，設定情境失敗絕不影響使用者操作。
@@ -233,6 +233,6 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`、`CrashMarkerStore.cs`、`ProcessExceptionHooks.cs`（後兩者 0.9.77）
 - `src/MyProject/MyProject.Web.Client/Pages/ExceptionLogPage.razor`、`Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73；0.10.5 起在 Client）、`Api/ExceptionLogApi.cs`、`Api/ExceptionLogDtoMapper.cs`
 - `src/MyProject/MyProject.Web/Controllers/ExceptionLogsController.cs`、`Export/ExceptionLogExport.cs`、`Ai/AiExceptionConversation.cs`（對話檢查，0.10.5 起）、`MyProject.Dtos/Admins/ExceptionLogDtos.cs`
-- `src/MyProject/MyProject.Web/Components/ApplicationCircuitHandler.cs`（情境設定）
+- `src/MyProject/MyProject.Web/Diagnostics/BrowserErrorReporter.cs`、`Controllers/ShellController.cs`（`client-errors`，瀏覽器來源；0.10.9 起 Server 互動的情境設定 `ApplicationCircuitHandler` 已刪除）
 - `src/MyProject/MyProject.Web.Client/Views/Admins/ExceptionAiAnalysisModal.razor`（0.10.5 起在 Client）、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
 - 交叉連結：[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

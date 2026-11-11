@@ -8,7 +8,7 @@ namespace MyProject.Web.Controllers;
 /// Web API 寫稽核（LOG-14）。
 ///
 /// API 的 Controller 走 Repository 而不是 Blazor 用的 DataAccess 服務，<see cref="CurrentUserService"/> 在 API 情境是空的，
-/// 所以操作者一律由 JWT／Cookie 身分經 <see cref="RequestActorResolver"/> 解析。
+/// 所以操作者一律由 JWT 身分經 <see cref="RequestActorResolver"/> 解析。
 /// 稽核寫入失敗不拋出（<see cref="AuditLogService"/> 本身即如此），不影響 API 回應。
 /// </summary>
 public static class ControllerAuditExtensions

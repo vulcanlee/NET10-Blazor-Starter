@@ -1,20 +1,13 @@
 using Bunit;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
-using MyProject.Web.Auth;
-using MyProject.Web.Client.Auth;
 using MyProject.Web.Components.Commons;
-using MyProject.Web.Configuration;
 
 namespace MyProject.Tests.Components;
 
 /// <summary>
 /// 通知裡的「複製」按鈕：結果直接顯示在按鈕文字上，幾秒後恢復成「複製」。
-/// 0.9.130 起，管理員（或 ExceptionDetailPolicy 允許時）複製的內容另外附上完整例外。
+/// 0.9.130 起，管理員複製的內容另外附上完整例外（0.10.9 起只有 WASM 頁面，Server 版另外依 ExceptionDetailPolicy 放行的規則隨之移除）。
 /// </summary>
 public sealed class ToastCopyButtonTests : ComponentTestBase
 {
@@ -62,15 +55,11 @@ public sealed class ToastCopyButtonTests : ComponentTestBase
     }
 
     [Theory]
-    [InlineData(true, "Production", null, true)]
-    [InlineData(false, "Production", null, false)]
-    [InlineData(false, "Development", null, true)]
-    [InlineData(false, "Production", true, true)]
-    [InlineData(false, "Development", false, false)]
-    public void Click_WithDetail_ShouldAppendItOnlyForAdminsOrWhenThePolicyAllows(
-        bool isAdmin, string environmentName, bool? returnExceptionDetails, bool expected)
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void Click_WithDetail_ShouldAppendItOnlyForAdmins(bool isAdmin, bool expected)
     {
-        AddCopyServices(Services, isAdmin, environmentName, returnExceptionDetails);
+        AddCopyServices(Services, isAdmin);
 
         var copied = ClickAndReadClipboard(Detail);
 
@@ -79,28 +68,11 @@ public sealed class ToastCopyButtonTests : ComponentTestBase
         Assert.Contains("名稱重複", copied, StringComparison.Ordinal);
     }
 
-    /// <summary>按鈕需要的服務；預設是正式環境的一般使用者（拿不到例外細節）。</summary>
-    internal static void AddCopyServices(
-        IServiceCollection services,
-        bool isAdmin = false,
-        string environmentName = "Production",
-        bool? returnExceptionDetails = null)
+    /// <summary>按鈕需要的服務；預設是一般使用者（拿不到例外細節）。</summary>
+    internal static void AddCopyServices(IServiceCollection services, bool isAdmin = false)
     {
         services.AddSingleton(new CurrentUserService { CurrentUser = { IsAdmin = isAdmin } });
-        services.AddSingleton(Options.Create(new SecuritySettings { ReturnExceptionDetails = returnExceptionDetails }));
-        services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment { EnvironmentName = environmentName });
-        services.AddScoped<PagePermissions, ServerPagePermissions>();
-    }
-
-    /// <summary>
-    /// Server 頁面的權限判斷（0.10.2 起 RequirePermission 等元件改注入 <see cref="PagePermissions"/>）：
-    /// 測試照舊只登記 <see cref="CurrentUserService"/>，再呼叫這裡補上正式的 <see cref="ServerPagePermissions"/>。
-    /// </summary>
-    internal static void AddServerPagePermissions(IServiceCollection services)
-    {
-        services.AddSingleton(Options.Create(new SecuritySettings()));
-        services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment { EnvironmentName = "Production" });
-        services.AddScoped<PagePermissions, ServerPagePermissions>();
+        TestPagePermissions.AddTo(services);
     }
 
     private string ClickAndReadClipboard(string? detail)
@@ -120,14 +92,4 @@ public sealed class ToastCopyButtonTests : ComponentTestBase
             .Add(p => p.TraceCode, "ABCD1234")
             .Add(p => p.OccurredAt, new DateTime(2026, 10, 19, 14, 3, 22))
             .Add(p => p.Detail, detail));
-
-    private sealed class TestWebHostEnvironment : IWebHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = Environments.Production;
-        public string ApplicationName { get; set; } = "MyProject.Web";
-        public string WebRootPath { get; set; } = string.Empty;
-        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
-        public string ContentRootPath { get; set; } = string.Empty;
-        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
-    }
 }

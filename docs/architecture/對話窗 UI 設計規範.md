@@ -1,8 +1,8 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.7
+- 文件版本：2.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.25
 - 最後核對日期：2026/11/11
 
@@ -40,7 +40,7 @@
 | 窄螢幕 | ≤ 767.98px 塌成單欄，窗擴成 `100vw` × `100svh`、無圓角無邊框 |
 
 尺寸與版型**只寫在** `src/MyProject/MyProject.Web.Client/Commons/OverlayStyles.razor` 的
-`.form-modal` 區塊（0.10.1 起此檔放在 `MyProject.Web.Client`，Server 與 WASM 頁面共用，命名空間不變）。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
+`.form-modal` 區塊（0.10.1 起此檔放在 `MyProject.Web.Client`，命名空間不變）。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
 
 ## 2.1 果凍是共用基底，不是逐窗複製 ⚠️
 
@@ -106,7 +106,7 @@
 
 ### 4.1 變更偵測：與原始快照做值比對 ⚠️
 
-用 `MyProject.Web.Client/Commons/FormDirtyTracker.cs`（0.10.2 起放在 Client，Server 與 WASM 頁面共用，命名空間不變；下面的 `FormEditConfirm`、`FormModalFlow`、`TeamBindingConfirm` 同）：開窗前 `Capture(CurrentRecord)`，
+用 `MyProject.Web.Client/Commons/FormDirtyTracker.cs`（0.10.2 起放在 Client，命名空間不變；下面的 `FormEditConfirm`、`FormModalFlow`、`TeamBindingConfirm` 同）：開窗前 `Capture(CurrentRecord)`，
 按鈕觸發時 `IsDirty(CurrentRecord)`。改了又改回原值視為無變更。
 
 ⚠️ **不要改用 `EditContext.IsModified()`。** 只有繼承 `InputBase<T>` 的 Blazor 內建元件才會呼叫
@@ -208,7 +208,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 | 沒有按鈕列的窗（`Footer="null"`）下緣被切平 | 圓角落在 footer 上，而那個窗沒有 footer | 基底已用 `.ant-modal-body:last-child` 接住 |
 | `Clone()` 是淺複製 | 改多選欄位會連帶改到表格那一列 | List 欄位一律「指派新清單」，多選用 `Values` + `OnSelectedItemsChanged` |
 | scoped CSS 裡用 `:root` | 變數完全不生效 | 掛在最外層容器 class 上 |
-| 把 `OverlayStyles` 掛在 layout 或檢視裡 | 用別的 layout 的頁面整組吃不到樣式，只有打開那一頁才看得出來 | 只在 `Routes.razor` 的 `AntContainer` 旁渲染一次，守門測試會擋 |
+| 把 `OverlayStyles` 掛在 layout 或檢視裡 | 用別的 layout 的頁面整組吃不到樣式，只有打開那一頁才看得出來 | 只在 `MyProject.Web.Client/ClientRoutes.razor` 的 `AntContainer` 旁渲染一次，守門測試會擋 |
 | 想給個別確認窗掛 class | `ConfirmOptions.ClassName` 被 AntDesign 內部**無條件覆寫**，完全無效 | 只能吃全域 `.ant-modal-confirm`；要分辨輕重用 `OkButtonProps.Danger` 當 CSS hook |
 | 確認窗改寬度沒加 `!important` | 無效 —— 416px 是 AntDesign 寫在 `.ant-modal` 上的 inline style | `width: ... !important` |
 | 忘了中和 AntDesign 的 `antZoomIn` | 果凍動畫與它疊加，彈跳幅度比設計時選定的更誇張 | `.ant-modal.ant-zoom-enter { animation: none !important; transform: none !important; }` |
@@ -222,10 +222,10 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 2. 每個用到的 `*-modal` class，`OverlayStyles.razor` 裡都要有對應規則。
 3. code-behind 不得出現「失敗路徑各補一次 `modalVisible = true;`」的舊寫法。
 4. 待遷移清單（`PendingMigrationViews`）不得放著爛掉：名單上的檢視一旦遷移完成就要移除。
-5. `MyProject.Web/Components/` 底下除了 `Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板（`MyProject.Web.Client/Commons/ConfirmDialog.cs`）。⚠️ 這條守門目前只掃 `MyProject.Web/Components`，`MyProject.Web.Client` 的 WASM 頁面（0.10.2 起的分類、團隊，0.10.3 起的專案，0.10.4 起的使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起的日誌檢視、日誌等級設定、系統例外紀錄〔含 AI 例外分析窗〕、AI 對話紀錄〔含明細窗〕、Token 用量、AI 提示詞）沒有涵蓋，要自己遵守。
-6. `<OverlayStyles />` 只能在 `Routes.razor` 出現，且恰好一次。
+5. `MyProject.Web.Client` 底下除了 `Commons/` 之外不得出現 `ConfirmAsync(` —— 確認窗一律走 `ConfirmDialog` 樣板（`MyProject.Web.Client/Commons/ConfirmDialog.cs`）。0.10.9 起（WASM 遷移 M10）第 1、2、3、5、6 條都改掃 `MyProject.Web.Client`（`SourceTree.UiFiles`）；0.10.8 以前只掃 Server 版的 `MyProject.Web/Components`，WASM 頁面沒有涵蓋。
+6. `<OverlayStyles />` 只能在 `ClientRoutes.razor` 出現，且恰好一次（0.10.8 以前是 Server 版的 `Routes.razor`）。
 7. 果凍必須寫在 `.ant-modal .ant-modal-content` 共用基底上（§2.1）。
-8. `Routes.razor` 的 `<AntContainer />` 必須包在 `<LoggingErrorBoundary>` 之內（`AntContainer_ShouldBeWrappedInErrorBoundary`），否則浮層內的未處理例外會讓整個 circuit 中斷。
+8. `ClientRoutes.razor` 的 `<AntContainer />` 必須包在 `<ClientErrorBoundary>` 之內（`AntContainer_ShouldBeWrappedInErrorBoundary`），否則浮層內的未處理例外會讓整個畫面停擺（0.10.8 以前是 Server 版 `Routes.razor` 的 `LoggingErrorBoundary`，當時會讓整個 circuit 中斷）。
 
 搭配既有的 `ModalKeyboardConventionTests.cs`（表單層不得攔截鍵盤事件）。
 
@@ -314,12 +314,12 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ## 11. 頁面操作說明窗的字體大小（0.9.121 起）
 
-`Components/Commons/PageHelpDialog`（`.page-help-modal`，尺寸見速查表 §6.4、內容規則見 §6.14）的標題列右側有「字體 小／中／大」：
+`MyProject.Web.Client/Commons/ClientPageHelpDialog`（`.page-help-modal`，尺寸見速查表 §6.4、內容規則見 §6.14）的標題列右側有「字體 小／中／大」：
 
 | 項目 | 規格 |
 |------|------|
 | 內文字級 | 小 **14px**／中 **16px**／大 **20px**（0.9.124 起，預設「中」；0.9.121～0.9.123 為約 13／14／17px）|
-| 實作 | `PageHelpDialog.razor.css` 的 `--page-help-scale`（以 AntDesign 內文 14px 為基準：小 `1`、中 `calc(16 / 14)`、大 `calc(20 / 14)`），class 由 `PageHelpFontSizes.CssClass` 給 `page-help-font-small`／`-medium`／`-large` |
+| 實作 | `ClientPageHelpDialog.razor.css` 的 `--page-help-scale`（以 AntDesign 內文 14px 為基準：小 `1`、中 `calc(16 / 14)`、大 `calc(20 / 14)`），class 由 `PageHelpFontSizes.CssClass` 給 `page-help-font-small`／`-medium`／`-large` |
 | 一起縮放 | 內文、各級標題、左側「說明目錄」的字級與寬度（`calc(15rem * var(--page-help-scale))`）|
 | 記住選擇 | 存在這個瀏覽器的 localStorage `app.helpFontSize`（值 `small`／`medium`／`large`），所有頁面的說明窗共用；第一次開窗時讀一次，讀不到、被封鎖或值無效一律回「中」，存不了也不影響目前畫面 |
 

@@ -144,7 +144,7 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
     [InlineData("/no-such-page")]
     public async Task PageView_ShouldIgnorePagesThatAreNotWasmPages(string path)
     {
-        // Server 頁面由電路記開頁稽核；API 只收 WASM 頁面，避免同一次換頁兩筆，也不讓人用 API 偽造任意路徑。
+        // API 只收 WASM 頁面的路徑（0.10.9 起也只有 WASM 頁面），不讓人用 API 偽造任意路徑。
         var user = await AddUserAsync(isAdmin: false);
         using var client = await SignedInClientAsync(user);
 
@@ -233,6 +233,33 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/v1/notifications/read-all", null)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync($"/api/v1/notifications/{unsafeLink}")).StatusCode);
         Assert.Empty((await GetAsync<NotificationSummaryDto>(client, "/api/v1/notifications/summary")).Latest);
+    }
+
+    /// <summary>
+    /// 0.9.136 的修正（0.10.9 起由 API 守門，Server 版鈴鐺的元件測試已隨 Server 外框刪除）：
+    /// 最新 10 則全部未讀、但更舊的有已讀時，「清除已讀」仍要可以按 —— <c>HasRead</c> 看的是全部通知，不是只看 <c>Latest</c>。
+    /// </summary>
+    [Fact]
+    public async Task NotificationSummary_HasRead_ShouldCountOlderReadNotifications_BeyondTheLatestTen()
+    {
+        var me = await AddUserAsync(isAdmin: false);
+        var now = DateTime.UtcNow;
+        await using (var context = await CreateContextAsync())
+        {
+            context.Notification.Add(new Notification { RecipientUserId = me.Id, Category = "系統", Title = "舊的已讀", CreatedAtUtc = now.AddHours(-1), ReadAtUtc = now.AddMinutes(-30) });
+            for (var i = 0; i < 10; i++)
+            {
+                context.Notification.Add(new Notification { RecipientUserId = me.Id, Category = "系統", Title = $"未讀 {i}", CreatedAtUtc = now.AddMinutes(i) });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        using var client = await SignedInClientAsync(me);
+        var summary = await GetAsync<NotificationSummaryDto>(client, "/api/v1/notifications/summary");
+        Assert.Equal(10, summary.Latest.Count);
+        Assert.DoesNotContain(summary.Latest, x => x.Title == "舊的已讀");
+        Assert.True(summary.HasRead);
     }
 
     [Fact]

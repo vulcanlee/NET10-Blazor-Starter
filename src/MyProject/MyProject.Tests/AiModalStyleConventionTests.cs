@@ -24,7 +24,7 @@ public sealed class AiModalStyleConventionTests
     /// </summary>
     public static TheoryData<string, string[]> ScalableRules => new()
     {
-        // 路徑相對於畫面根目錄（SourceTree.UiFile：Server 的 Components 或 WASM 的 MyProject.Web.Client）；0.10.5 起日誌檢視在 WASM。
+        // 路徑相對於畫面根目錄（SourceTree.UiFile：0.10.9 起只有 WASM 的 MyProject.Web.Client）。
         {
             Path.Combine("Views", "Analytics", "LogViewerView.razor.css"),
             [".log-ai-meta", ".log-ai-report"]
@@ -101,7 +101,7 @@ public sealed class AiModalStyleConventionTests
     [InlineData("Analytics", "AiCallLogDetailModal.razor")]
     public void AiModal_ShouldNotSetWidthOnTheModalTag(string folder, string fileName)
     {
-        // 0.10.5 起畫面逐批搬到 WASM 專案：在 Server 版或 WASM 的 Views 底下都找。
+        // 0.10.9 起畫面只在 WASM 專案的 Views 底下。
         var razorPath = SourceTree.UiFile(Path.Combine("Views", folder, fileName));
         var content = File.ReadAllText(razorPath);
 

@@ -191,13 +191,14 @@ public sealed class ProfileTests : IDisposable
     [Fact]
     public void PageTitle_ShouldFallBackToTheHelpTopicForPagesOutsideTheMenu()
     {
-        var menu = new List<SidebarMenuItemModel> { new() { Name = "專案項目", Url = "/projects" } };
-        var topics = new List<PageHelpTopicModel> { new() { Route = "/Profile", Title = "個人資料" }, new() { Route = "/ChangePassword", Title = "變更密碼" } };
+        // 0.10.9 起只有 WASM 的版面（Server 版 MainLayout 已刪除）。
+        var menu = new List<MyProject.Web.Client.Layout.ClientMenuItem> { new() { Name = "專案項目", Url = "/projects" } };
+        var topics = new List<MyProject.Dtos.Shell.HelpTopicDto> { new() { Route = "/Profile", Title = "個人資料" }, new() { Route = "/ChangePassword", Title = "變更密碼" } };
 
-        Assert.Equal("專案項目", MainLayout.ResolvePageTitle(menu, topics, "/projects"));
-        Assert.Equal("個人資料", MainLayout.ResolvePageTitle(menu, topics, "/Profile"));
-        Assert.Equal("變更密碼", MainLayout.ResolvePageTitle(menu, topics, "/changepassword"));
-        Assert.Equal("系統首頁", MainLayout.ResolvePageTitle(menu, topics, "/somewhere"));
+        Assert.Equal("專案項目", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/projects"));
+        Assert.Equal("個人資料", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/Profile"));
+        Assert.Equal("變更密碼", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/changepassword"));
+        Assert.Equal("系統首頁", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/somewhere"));
     }
 
     // ---------- 共用 ----------

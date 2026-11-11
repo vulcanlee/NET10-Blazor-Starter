@@ -171,7 +171,7 @@ public class ProfileService
             targetType: nameof(MyUser), targetId: user.Id.ToString(), detail: "field=Name", content: diff);
         logger.LogInformation("Profile name updated. UserId={UserId}", userId);
 
-        // 右上角的姓名與縮寫立即更新（MainLayout 聽 CurrentUserService.Changed）。
+        // 同一個請求內的目前使用者跟著更新（0.10.9 起已沒有訂閱者：WASM 的右上角由個人資料頁存檔後呼叫 ClientSession.UpdateName 更新）。
         if (currentUserService.CurrentUser.Id == userId)
         {
             currentUserService.CurrentUser.Name = trimmed;

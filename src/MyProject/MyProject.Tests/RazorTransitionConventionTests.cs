@@ -20,8 +20,7 @@ public sealed class RazorTransitionConventionTests
     [Fact]
     public void RazorComponents_ShouldNotPutCodeRightAfterText()
     {
-        var root = FindComponentsRoot();
-        var razorFiles = Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories).ToList();
+        var razorFiles = SourceTree.UiFiles("*.razor");
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
         Assert.NotEmpty(razorFiles);
@@ -56,6 +55,4 @@ public sealed class RazorTransitionConventionTests
         Assert.DoesNotMatch(EmailLikeTransition, "<div>@context.Name</div>");
         Assert.DoesNotMatch(EmailLikeTransition, "系統管理員 @(TraceCode.Suffix(x))");
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

@@ -109,7 +109,7 @@ public static class AuditActions
         public const string View = "Role.View";
     }
 
-    /// <summary>開啟頁面（0.9.131 起）：每次換頁一筆，由 ApplicationCircuitHandler 集中寫入；TargetId 是路徑，Detail 是 from=上一頁。</summary>
+    /// <summary>開啟頁面（0.9.131 起）：每次換頁一筆，由前端換頁時呼叫 api/v1/shell/page-view 寫入（ShellController）；TargetId 是路徑，Detail 是 from=上一頁。</summary>
     public static class Page
     {
         public const string View = "Page.View";

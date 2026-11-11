@@ -2,9 +2,9 @@
 
 - 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.17
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -90,8 +90,8 @@ LLM 呼叫點 → ITokenUsageRecorder.RecordAsync(TokenUsageEntry)
 **用量比費用重要。**
 
 ⚠️ `IOptionsMonitor<AiPricingSettings>.CurrentValue` **每次呼叫只讀一次**並在整個計算中
-沿用同一份。Blazor Server 的 DI scope 是 SignalR circuit，可以活好幾小時，設定隨時
-可能熱更新；中途重讀會產生單價與匯率對不起來的快照。
+沿用同一份。設定隨時可能熱更新（0.10.8 以前 Blazor Server 的 DI scope 是 SignalR circuit，可以活好幾小時；
+0.10.9 起每個請求一個 scope，但長時間的串流請求中途仍可能遇到）；中途重讀會產生單價與匯率對不起來的快照。
 
 ### 4.2 設定結構
 
@@ -358,7 +358,7 @@ SQLite 的整表重建中途被中斷會停在部分套用的狀態。資料量�
   （`Resolve`／`Compute`／`BuildRateSnapshot` 皆為 `static` 純函式，測試可直接呼叫）
 - `MyProject.Business/Services/DataAccess/TokenUsageLogService.cs` — 接線點（`RecordAsync`）
 - `MyProject.AccessDatas/Models/TokenUsageLog.cs`、`Migrations/*_AddTokenUsageCost.cs`
-- `MyProject.Web.Client/Diagnostics/TokenUsageFormat.cs` — 金額與匯率的顯示格式（0.10.5 起搬到 Client，Server 與 WASM 共用）
+- `MyProject.Web.Client/Diagnostics/TokenUsageFormat.cs` — 金額與匯率的顯示格式（0.10.5 起搬到 Client，伺服器端〔API、PDF〕與 WASM 共用）
 - `MyProject.Web.Client/Views/Analytics/TokenUsageView.razor(.cs)`、`TokenUsageGroupTable.razor`（0.10.5 起 WASM；資料經 `TokenUsageController`）
 - `MyProject.Web/Ai/TokenUsageReportPdfBuilder.cs` — PDF 的費用欄
 - `MyProject.Web/appsettings.json` — `AiPricingSettings` 區段

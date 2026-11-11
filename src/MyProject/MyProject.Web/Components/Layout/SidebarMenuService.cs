@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
-using MyProject.Business.Services.Other;
+using MyProject.Business.Helpers;
+using MyProject.Models.Others;
 using MyProject.Share.Helpers;
 using MyProject.Web.Caching;
 
@@ -72,11 +73,12 @@ public sealed class SidebarMenuService
         this.cacheService = cacheService;
     }
 
-    public async Task<IReadOnlyList<SidebarMenuItemModel>> LoadAuthorizedMenuItemsAsync(AuthenticationStateHelper authenticationStateHelper)
+    /// <summary>這個人看得到的選單：管理員、有頁面鍵或該頁的 view 動作鍵（<see cref="PermissionRules.CanAccessPage"/>）。</summary>
+    public async Task<IReadOnlyList<SidebarMenuItemModel>> LoadAuthorizedMenuItemsAsync(CurrentUser user)
     {
         var items = await LoadMenuItemsAsync();
         var permissionMappedItems = ApplyPermissionStructure(items);
-        var authorizedItems = FilterAuthorizedMenuItems(permissionMappedItems, authenticationStateHelper);
+        var authorizedItems = FilterAuthorizedMenuItems(permissionMappedItems, user);
 
         logger.LogDebug("Loaded authorized sidebar menu successfully. ItemCount={ItemCount}", authorizedItems.Count);
         return authorizedItems;
@@ -180,21 +182,21 @@ public sealed class SidebarMenuService
         return result;
     }
 
-    private List<SidebarMenuItemModel> FilterAuthorizedMenuItems(
+    private static List<SidebarMenuItemModel> FilterAuthorizedMenuItems(
         IReadOnlyList<SidebarMenuItemModel> items,
-        AuthenticationStateHelper authenticationStateHelper)
+        CurrentUser user)
     {
         var result = new List<SidebarMenuItemModel>(items.Count);
 
         foreach (var item in items)
         {
             var filteredChildren = item.HasChildren
-                ? FilterAuthorizedMenuItems(item.SubMenu, authenticationStateHelper)
+                ? FilterAuthorizedMenuItems(item.SubMenu, user)
                 : [];
 
             var permissionNames = GetPermissionNames(item);
             var hasPermission = permissionNames.Count == 0
-                || permissionNames.Any(authenticationStateHelper.CheckAccessPage);
+                || permissionNames.Any(name => PermissionRules.CanAccessPage(user, name));
 
             if (!hasPermission && filteredChildren.Count == 0)
             {

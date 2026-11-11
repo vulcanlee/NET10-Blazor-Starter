@@ -7,9 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AntDesign" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
-    <PackageReference Include="BlazorMaterialIcons" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Markdig" />

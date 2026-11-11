@@ -83,7 +83,7 @@ public static class ClientProgram
             await ClientCulture.LoadAsync(http, host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ClientCulture).FullName!));
         }
 
-        // 右下角通知（與 Server 版共用 ViewNotification）：日誌寫到瀏覽器主控台，追蹤碼取最近一次失敗的 API 回應。
+        // 右下角通知（ViewNotification）：日誌寫到瀏覽器主控台，追蹤碼取最近一次失敗的 API 回應。
         ViewNotification.UseLoggerFactory(host.Services.GetRequiredService<ILoggerFactory>());
         ViewNotification.UseTraceCodeProvider(ApiClient.TakeLastFailureTraceId);
 

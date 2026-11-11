@@ -4,8 +4,7 @@ using MyProject.Share.Helpers;
 namespace MyProject.Business.Helpers;
 
 /// <summary>
-/// 畫面上依動作顯示按鈕的判斷（0.9.110 起抽成純函式，<c>AuthenticationStateHelper.CheckAccessAction</c> 與
-/// <c>&lt;RequirePermission&gt;</c> 元件共用，才能直接寫單元測試）。
+/// 畫面上依動作顯示按鈕的判斷（0.9.110 起抽成純函式，<c>&lt;RequirePermission&gt;</c> 元件與伺服器的選單過濾共用，才能直接寫單元測試）。
 /// 0.10.2 起放在 MyProject.Models（WASM 遷移 M3），WASM 頁面與伺服器共用同一份規則；命名空間維持不變。
 /// </summary>
 public static class PermissionRules

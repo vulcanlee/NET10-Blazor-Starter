@@ -2,7 +2,7 @@
 
 - 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.7
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.100
 - 最後核對日期：2026/11/11
 
@@ -19,8 +19,8 @@
 
 | 入口 | 位置 | 所需權限 | 主要使用者 |
 |------|------|----------|-----------|
-| 通知鈴鐺 | 每個登入後頁面的右上角（`MainLayout`） | 登入即可（只看得到自己的） | 所有使用者 |
-| 公告橫幅 | 每個登入後頁面的內容上方（`MainLayout`） | 登入即可（依對象） | 所有使用者 |
+| 通知鈴鐺 | 每個登入後頁面的右上角（`ClientMainLayout`） | 登入即可（只看得到自己的） | 所有使用者 |
+| 公告橫幅 | 每個登入後頁面的內容上方（`ClientMainLayout`） | 登入即可（依對象） | 所有使用者 |
 | `/announcements` | 系統管理 → 系統設定與維運 → 公告管理（`Menu.json` id=38）| 僅管理員（`CheckIsAdmin`；0.10.6 起 WASM 以 `Permissions.IsAdmin`；權限鍵 `角色_公告管理` 不進角色矩陣）| 系統管理員 |
 
 ## 三、畫面與欄位
@@ -30,7 +30,7 @@
 - **公告管理**：表格（標題與內容開頭、狀態未開始／進行中／已結束、期間、對象、建立者）；新增、修改（小型表單窗：標題、內容、開始與結束時間、對象全體／角色／團隊）、刪除（危險確認）。
 
 **公告管理 WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/AnnouncementPage.razor`、`Views/Admins/AnnouncementView.*`；Server 版已刪除），畫面與訊息和之前相同。資料經 `AnnouncementsController` 新增的只限管理員端點（`GET api/v1/announcements`〔清單、角色與團隊選項、伺服器的「現在」〕、`POST`、`PUT {id}`、`DELETE {id}?concurrencyStamp=`），走同一個 `AnnouncementService`，稽核 `Announcement.Create`／`Update`／`Delete` 由伺服器寫（刪除的標題取自資料庫）；原有的 `active`、`dismiss` 改為各自標 `[SignedInUser]`。公告對象種類 `AnnouncementTargetKinds` 搬到 `MyProject.Share`（命名空間仍是 `MyProject.AccessDatas.Models`）。
-存檔或刪除後伺服器照舊 `AnnouncementCache.Invalidate()`＋`PublishAnnouncementsChanged()`（還在 Server 的頁面即時更新）；WASM 公告頁另以 `ClientAnnouncementSignal` 請**同一個分頁**的橫幅立即重讀，其他分頁與其他使用者照舊 60 秒輪詢與切回分頁時重讀。
+存檔或刪除後伺服器照舊 `AnnouncementCache.Invalidate()`＋`PublishAnnouncementsChanged()`（0.10.8 以前讓還在 Server 的頁面即時更新；0.10.7 起推播串流也訂閱這個訊號）；WASM 公告頁另以 `ClientAnnouncementSignal` 請**同一個分頁**的橫幅立即重讀，其他分頁與其他使用者照舊 60 秒輪詢與切回分頁時重讀。
 WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控「發送測試通知」與首頁「我的通知」點開通知後立即重讀；反過來，在鈴鐺標為已讀、刪除、全部已讀或清除已讀後，鈴鐺以 `RequestRefresh(except: 自己)` 請首頁「我的通知」立即重讀（都只對同一個分頁）。
 
 **通知推播串流（0.10.7 起，WASM 遷移 M8）**：WASM 外框啟動一條長連線（`Layout/ClientPushConnection`，`POST api/v1/notifications/stream`，`[SignedInUser]`），伺服器訂閱這位使用者的 `INotificationSignal` 與公告訊號（與 Server 版鈴鐺、橫幅同一個來源），有變動就送一行 `notifications` 或 `announcements`（不帶內容，短時間多次合併成一筆），外框收到後觸發 `ClientNotificationSignal`／`ClientAnnouncementSignal` 立即重讀——鈴鐺、公告橫幅、首頁「我的通知」在**其他分頁與其他使用者**那邊也通常幾秒內更新（M7 時只有同一個分頁立即、其他最慢 60 秒）。
@@ -88,7 +88,7 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 
 - `NotificationTests`：各種對象（停用與已刪除帳號、停用的管理員、主要角色、已刪除角色、團隊直接與經角色預設團隊）、⭐ 團隊反查與有效團隊互相對照、去重、只在要求時寄信、發送失敗不丟例外、標為已讀只動自己的、最新排序與清除、徽章上限、⭐ 訊號只送給收件人且取消訂閱不留殘餘、處理程序失敗互不影響且不繼承呼叫端情境、並行訂閱不洩漏、寄信規則（停用、格式不合、佇列滿、完整網址）、公告時間邊界（開始含、結束不含）、橫幅篩選、公告驗證與衝突與個人關閉、已結束公告不快取、已刪除角色不算、Google 待開通通知一次、刪除使用者連帶刪除、清除作業。
 - `ScheduledJobFrameworkTests`：失敗通知管理員與觸發者並寄信、排程失敗只通知管理員、成功與中斷不通知。
-- `Components/NotificationComponentTests`（bUnit）：鈴鐺收到訊號不重新整理就更新、全部標為已讀；橫幅「知道了」立即隱藏且下一次連線不再出現。
+- `Components/NotificationComponentTests`（bUnit，0.10.8 以前）：Server 版鈴鐺收到訊號不重新整理就更新、全部標為已讀；橫幅「知道了」立即隱藏且下一次連線不再出現。0.10.9 起隨 Server 版鈴鐺與橫幅刪除（WASM 版由實機情境涵蓋；徽章上限 `BadgeText` 改測 `ClientNotificationBell`，公告挑選規則改測 `AnnouncementCache.Select`）。
 - 0.9.122 起：`NotificationTests.MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged`（標為已讀才發訊號）、`DashboardTests` 小工具輪詢與 Dispose 停止輪詢、`NotificationTestServiceTests`（測試通知）。
 - 0.9.136 起：`NotificationTests.SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted`、`RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly`；`NotificationComponentTests.Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead`。
 - 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`。
@@ -100,5 +100,5 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 
 - `src/MyProject/MyProject.Business/Services/Other/NotificationSender.cs`（`INotificationSender`、`NotificationTarget`、`NotificationRequest`）、`NotificationSignal.cs`、`NotificationCategories.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/NotificationQueryService.cs`、`AnnouncementService.cs`；`IEffectiveTeamResolver.GetUserIdsInTeamAsync`
-- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/NotificationBell`、`AnnouncementBanner`、`AnnouncementCache`、`Scheduling/Jobs/NotificationRetentionJob.cs`；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`；0.10.7 起通知推播在 `MyProject.Web/Controllers/NotificationsController.cs`（`Stream`）、`Streaming/NotificationPushStream.cs`（`NotificationPushOptions`、`NotificationPushConnections`）、`Streaming/NdjsonHeartbeat.cs`、`MyProject.Web.Client/Layout/ClientPushConnection.cs`、`MyProject.Dtos/Shell/PushDtos.cs`
+- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/AnnouncementCache`（0.10.9 起含公告挑選規則 `Select`）、`Scheduling/Jobs/NotificationRetentionJob.cs`；鈴鐺與公告橫幅在 `MyProject.Web.Client/Layout/ClientNotificationBell`、`ClientAnnouncementBanner`（0.10.9 起 Server 版 `NotificationBell`、`AnnouncementBanner` 已刪除）；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`；0.10.7 起通知推播在 `MyProject.Web/Controllers/NotificationsController.cs`（`Stream`）、`Streaming/NotificationPushStream.cs`（`NotificationPushOptions`、`NotificationPushConnections`）、`Streaming/NdjsonHeartbeat.cs`、`MyProject.Web.Client/Layout/ClientPushConnection.cs`、`MyProject.Dtos/Shell/PushDtos.cs`
 - 規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「站內通知」；操作說明 `announcements.md`、`app.md`

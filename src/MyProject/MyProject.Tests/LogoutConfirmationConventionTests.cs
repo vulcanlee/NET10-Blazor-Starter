@@ -12,11 +12,9 @@ namespace MyProject.Tests;
 /// 因此規則是：**razor 裡不得出現寫死的登出網址連結**，
 /// 一律走 <c>MyProject.Web.Client/Commons/LogoutConfirm.cs</c>。
 ///
-/// ⚠️ 這條規則只管 UI 入口。<c>AuthenticationStateHelper</c> 的六處程式化強制登出
-/// （未登入、找不到使用者、角色遺失…）**刻意不確認** —— 那是系統行為不是使用者意圖，
+/// ⚠️ 這條規則只管 UI 入口。<c>ClientSession</c> 的程式化強制登出
+/// （Token 失效、找不到使用者、沒有主要角色…）**刻意不確認** —— 那是系統行為不是使用者意圖，
 /// 對 session 已經失效的人跳出「確定要登出嗎？」只會讓他卡住。
-/// 那些程式碼在 MyProject.Business，依分層根本參照不到 Web 的 LogoutConfirm，
-/// 構造上就不可能誤走確認流程。
 /// </summary>
 public sealed class LogoutConfirmationConventionTests
 {
@@ -28,10 +26,7 @@ public sealed class LogoutConfirmationConventionTests
     [Fact]
     public void RazorComponents_ShouldNotLinkDirectlyToLogout()
     {
-        var componentsRoot = FindComponentsRoot();
-        var razorFiles = Directory
-            .EnumerateFiles(componentsRoot, "*.razor", SearchOption.AllDirectories)
-            .ToList();
+        var razorFiles = SourceTree.UiFiles("*.razor");
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
         Assert.NotEmpty(razorFiles);
@@ -65,9 +60,7 @@ public sealed class LogoutConfirmationConventionTests
     [Fact]
     public void LogoutEntryPoints_ShouldUseTheSharedTemplate()
     {
-        var componentsRoot = FindComponentsRoot();
-        var users = Directory
-            .EnumerateFiles(componentsRoot, "*.cs", SearchOption.AllDirectories)
+        var users = SourceTree.UiFiles("*.cs")
             .Where(file => File.ReadAllText(file).Contains("LogoutConfirm.RequestAsync", StringComparison.Ordinal))
             .Select(Path.GetFileName)
             .ToList();
@@ -79,6 +72,4 @@ public sealed class LogoutConfirmationConventionTests
                 + Environment.NewLine
                 + (users.Count == 0 ? "（無）" : string.Join("、", users)));
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

@@ -4,7 +4,7 @@ namespace MyProject.Web.Components.Commons;
 
 /// <summary>
 /// 稽核紀錄的顯示規則（0.10.2 起，WASM 遷移 M3 從 <c>AuditLogView</c> 抽出）：「稽核紀錄」頁與「異動歷程」對話窗
-/// （Server 與 WASM 頁面共用）用同一份，顏色與操作者寫法不會走樣。
+/// 用同一份，顏色與操作者寫法不會走樣。
 /// </summary>
 public static class AuditLogDisplay
 {

@@ -31,7 +31,7 @@ public sealed class RequirePermissionTests : ComponentTestBase
     {
         var user = new CurrentUser { Id = 9, Account = "dave", IsAdmin = isAdmin, RoleList = [.. keys] };
         Services.AddSingleton(new CurrentUserService { CurrentUser = user });
-        ToastCopyButtonTests.AddServerPagePermissions(Services);
+        TestPagePermissions.AddTo(Services);
 
         var cut = Render<RequirePermission>(parameters => parameters
             .Add(p => p.Page, Page)
@@ -50,7 +50,7 @@ public sealed class RequirePermissionTests : ComponentTestBase
         // 0.9.120 起：有權限顯示可點的狀態標籤，沒權限改顯示 Fallback（不可點的標籤）。
         var keys = allowed ? new[] { PermissionKey.For(Page, PermissionActions.Edit) } : [PermissionKey.For(Page, PermissionActions.View)];
         Services.AddSingleton(new CurrentUserService { CurrentUser = new CurrentUser { Id = 9, Account = "dave", RoleList = [.. keys] } });
-        ToastCopyButtonTests.AddServerPagePermissions(Services);
+        TestPagePermissions.AddTo(Services);
 
         var cut = Render<RequirePermission>(parameters => parameters
             .Add(p => p.Page, Page)

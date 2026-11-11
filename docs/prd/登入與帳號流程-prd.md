@@ -2,7 +2,7 @@
 
 - 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/11
 
@@ -63,7 +63,7 @@
 - **兩步驟驗證的第二步**（0.9.104 起）：帳號已啟用時 `LoginAsync` 回 `RequiresTwoFactor`（⚠️ 不歸零失敗次數、不寫 `Login.Success`）；0.10.8 起 `login/web` 回 5 分鐘的**待驗票證**（`TwoFactorLoginTickets`，Data Protection 加密：使用者 Id、工作階段版本、記住我、返回網址、登入方式），前端存在這個分頁的 sessionStorage 並導向 `/Auths/TwoFactor`（之前是加密 Cookie `.MyProject.TwoFactorPending`）。
   登入時帶上 localStorage 的**記住裝置 Token**（使用者 Id＋工作階段版本，`TwoFactorSettings:RememberDeviceDays` 天）且版本沒換時直接完成（稽核 detail `mfa=device`）。`POST api/v1/Auth/two-factor` 送出時重查版本與帳號狀態（期間改了密碼或被強制登出 → `TWO_FACTOR_TICKET_INVALID`，前端回登入頁），`CompleteSecondFactorAsync` 驗證碼對了才歸零、發 Token、票證作廢、稽核 `Login.Success`（`mfa=totp|backup`），勾了「記住這台裝置」另回記住裝置 Token；錯了稽核 `Login.TwoFactorFailed` 並累加鎖定次數（票證仍可再用）。
   Google 回呼：帳號已啟用時同樣走第二步（稽核 `Login.Sso.Success`，detail 帶 `provider=Google; mfa=…`）。API 登入以 `twoFactorCode` 欄位帶驗證碼。
-- **登入後狀態**：伺服器端每個 API 請求由 `ApiActorMiddleware`＋`ICurrentUserLoader`（與 `AuthenticationStateHelper` 同一套規則）確認使用者存在且 `Status` 啟用、具主要角色，載入 `CurrentUser`（`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 為權威、`TeamList` 由 `EffectiveTeamResolver` 決定）。網頁 Token 遇到沒有主要角色的帳號一律 403 `NO_PRIMARY_ROLE`（0.10.8 起；App 的 API 登入不受影響），前端登出。
+- **登入後狀態**：伺服器端每個 API 請求由 `ApiActorMiddleware`＋`ICurrentUserLoader`（0.10.8 以前 Server 頁的 `AuthenticationStateHelper` 也用同一套規則，0.10.9 起已刪除）確認使用者存在且 `Status` 啟用、具主要角色，載入 `CurrentUser`（`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 為權威、`TeamList` 由 `EffectiveTeamResolver` 決定）。網頁 Token 遇到沒有主要角色的帳號一律 403 `NO_PRIMARY_ROLE`（0.10.8 起；App 的 API 登入不受影響），前端登出。
   `IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）或必須使用兩步驟驗證卻還沒設定（0.9.104 起）時，業務 API 一律 403 並帶錯誤代碼 `PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`（`ApiSessionGateFilter`）；完成設定與顯示外框需要的端點（`me`、`logout`、`password/change`、`two-factor/setup`、shell、通知、公告的讀取與關閉）標 `[AllowDuringForcedSetup]` 放行。前端 `ClientSession` 讀 `/me` 後整頁導到 `/ChangePassword` 或 `/TwoFactorSetup`；⚠️ 已經在那一頁就不再導（0.10.8 起那兩頁也在 WASM，再導會無限重新載入）。
   頁面不在 HTTP 層擋（0.10.8 起頁面一律不標 `[Authorize]`）：未登入的整頁請求只拿到空的 WASM 外殼，`ClientMainLayout` 登入檢查通過前不渲染內容，沒有 Token 就帶 `returnUrl` 回登入頁。
 - **API 登入**（`AuthController`）：`login` 以帳密（已啟用兩步驟驗證時加 `twoFactorCode`）換 `TokenResponseDto`（JWT + Refresh，發出管道 `api`，效期看 `JwtSettings`），`refresh` 換新 Token（依那一串的發出管道決定效期），`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。契約 0.10.8 不變。
@@ -117,7 +117,7 @@
 - `MyProject.Tests/MyUserServiceLoginTests.cs`：新舊雜湊登入、舊雜湊自動升級、密碼錯誤、5 次失敗鎖定並拒絕正確密碼、成功後歸零、鎖定到期放行、成功／失敗稽核。
 - `MyProject.Tests/MyUserServicePasswordTests.cs`：`ChangeOwnPasswordAsync` 正確／錯誤舊密碼、空白新密碼、確認不一致、`support` 帳號被拒。
 - `MyProject.Tests/SecurePasswordHasherTests.cs`：自述式雜湊、非決定性、新舊格式驗證與要求 rehash。
-- `MyProject.Tests/AuthenticationStateHelperTests.cs`：未驗證導向登入頁且不清 Cookie、無效 Sid／查無使用者／停用／已刪除／無角色／壞 RoleJson 導向登出、旗標與到期導向改密碼頁（0.9.101 起；只有 123456 而沒有旗標不導向）、多角色聯集初始化。
+- `MyProject.Tests/CurrentUserLoaderTests.cs`（0.10.9 起，由 `AuthenticationStateHelperTests` 改寫）：查無使用者／停用／已刪除／無主要角色／壞 RoleJson／版本號不符各自的結果、旗標與到期要求改密碼（只有 123456 而沒有旗標不要求）、兩步驟驗證必須設定、同時要改密碼時先改密碼、多角色聯集與已刪除的額外角色不給權限、只有 view 動作鍵也能開頁。
 - `MyProject.Tests/SessionTests.cs`（0.9.103；0.10.8 起改寫為 Token）：⭐ 換版本的時機（改密碼換、登入時舊雜湊升級不換、只改姓名或 Email 不換、停用／管理員／主要或額外角色變更換、刪除與強制登出換、support 設定密碼變更才換）、空版本登入時補上、快取存活與輪替立即清除、空字串一律不符；
   `SessionIntegrationTests`：換版本後與沒有版本的存取 Token 被拒、停用的帳號被拒、⭐ refresh token 不能當 Bearer、換版本後 refresh 401 並稽核。
 - 0.10.8 起（WASM 遷移 M9）：`AccountSelfServiceApiTests`（改密碼、兩步驟驗證設定回新 Token 並撤銷舊串）、網頁登入整合測試（`login/web`、`two-factor`、`google/exchange` 一次性與瀏覽器綁定、`session/fork`、`password/*`、沒有主要角色 403、`login-settings`）、`SessionSettingsTests`（舊鍵 `CookieSettings` 相容、`IdleTimeoutSliding`）、`RefreshTokenStoreTests`（⭐ 重用撤銷整次登入、⭐ 登出後不能 fork）、`PerUserRateLimitTests`（⭐ 限流在驗證之後：已登入依人、網頁登入不算嚴格配額）、`Client/ClientSessionTests`（新分頁取得 Token、兩分頁同時刷新、storage 事件、⭐ 登入廣播讓同一瀏覽器只有一個身分）、登入頁元件測試。實機 `scripts/e2e/m09-auth.mjs`（M9-T1～T11）。
@@ -140,7 +140,7 @@
 - `src/MyProject/MyProject.Business/Services/Other/ExternalLoginService.cs`（Google 查找／建立）
 - `src/MyProject/MyProject.Business/Services/Other/PasswordResetService.cs`（忘記密碼）、`src/MyProject/MyProject.AccessDatas/Models/PasswordResetToken.cs`、`src/MyProject/MyProject.Models/Systems/PasswordResetSettings.cs`
 - `src/MyProject/MyProject.Web/Email/PublicBaseUrlResolver.cs`（信中連結的網址基準）
-- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（登入後檢查與 RBAC 載入）
+- `src/MyProject/MyProject.Business/Services/Other/CurrentUserLoader.cs`（登入後檢查與 RBAC 載入；0.10.9 起 `AuthenticationStateHelper` 已刪除）
 - `src/MyProject/MyProject.Web/Controllers/AuthController.cs`、`ExternalAuthController.cs`
 - 交叉連結：[使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)、[寄信服務](寄信服務-prd.md)
 - 安全機制：[認證授權與權限機制](../security/認證授權與權限機制.md)、[密碼種類與儲存機制](../security/密碼種類與儲存機制.md)、[Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md)、[記住我登入原理說明](../security/記住我登入原理說明.md)

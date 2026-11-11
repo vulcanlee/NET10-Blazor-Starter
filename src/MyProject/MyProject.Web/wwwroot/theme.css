@@ -375,7 +375,7 @@
 }
 
 /* 浮層（AntContainer）錯誤邊界的提示：浮層本身已無法渲染，改成固定在畫面底部的一條（0.9.77）。
-   渲染在 Routes.razor（頁面 DOM），不在 AntContainer 底下，所以寫在這裡而不是 OverlayStyles。 */
+   渲染在 ClientRoutes.razor（頁面 DOM），不在 AntContainer 底下，所以寫在這裡而不是 OverlayStyles。 */
 .overlay-error-banner {
     position: fixed;
     bottom: 16px;

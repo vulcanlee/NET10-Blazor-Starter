@@ -77,7 +77,7 @@ public static class ApplicationBuilderExtensions
     /// <c>nosniff</c> 尤其重要：專案的附件下載會回吐儲存時記下的 ContentType，
     /// 少了它，瀏覽器可能把附件當成 HTML 解析而造成同源 XSS。
     ///
-    /// CSP 刻意不放在這裡：Blazor Server 有自己的 CSP 需求，且
+    /// CSP 刻意不放在這裡：WebAssembly 執行需要 <c>'wasm-unsafe-eval'</c>（0.10.9 起已沒有 Blazor Server），且
     /// <c>App.razor</c> 會從 fonts.googleapis.com 載入字型、AntDesign 會注入 inline style。
     /// 導入時請先以 <c>Content-Security-Policy-Report-Only</c> 觀察，確認無誤再轉為正式標頭。
     /// </summary>
@@ -150,9 +150,8 @@ public static class ApplicationBuilderExtensions
 
     /// <summary>
     /// 慢 HTTP 請求（LOG-21）。
-    /// ⚠️ 排除 <c>/_blazor</c>：Blazor 的 WebSocket 連線本身就是一個「請求」，會持續整個 circuit（可能好幾小時），
-    /// 不排除的話每個使用者離開頁面時都會記一筆慢請求。
-    /// 通知推播串流（0.10.7 起）同理：每個分頁一條、最長 30 分鐘才由伺服器結束。
+    /// ⚠️ 排除通知推播串流（0.10.7 起）：每個分頁一條、最長 30 分鐘才由伺服器結束，不排除的話每個分頁離開時都會記一筆慢請求。
+    /// （0.10.8 以前另排除 Blazor Server 的 <c>/_blazor</c> 長連線，0.10.9 起已沒有。）
     /// </summary>
     private static void LogIfSlowRequest(HttpContext context, ILogger requestLogger, TimeSpan elapsed)
     {
@@ -175,8 +174,7 @@ public static class ApplicationBuilderExtensions
     }
 
     internal static bool IsLongLivedConnection(PathString path)
-        => path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("/api/v1/notifications/stream", StringComparison.OrdinalIgnoreCase);
+        => path.Equals("/api/v1/notifications/stream", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// 靜態資產的副檔名。單靠路徑前綴不夠 —— 例如 app.css 是掛在網站根目錄

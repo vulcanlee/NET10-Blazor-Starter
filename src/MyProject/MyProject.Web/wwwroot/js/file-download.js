@@ -1,5 +1,5 @@
-// 由 Blazor Server 觸發的檔案下載。
-// 伺服器端以 DotNetStreamReference 把位元組經 SignalR circuit 串流過來，
+// 由 WASM 頁面觸發的檔案下載。
+// .NET 端以 DotNetStreamReference 把位元組交過來，
 // 這裡組成 Blob 後以隱藏連結觸發瀏覽器下載。
 window.appFileDownload = {
     // contentType 是「選用」的第三參數：既有呼叫端（日誌匯出）只傳兩個引數，

@@ -1,8 +1,8 @@
 ﻿# NET10-Blazor-Starter
 
-一份基於 **.NET 10** 與 **Blazor Server**（全域 SSR）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
+一份基於 **.NET 10** 與 **Blazor WebAssembly＋ASP.NET Core Web API**（0.10.9 起已移除 Blazor Server 模式）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
-> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**，Server 渲染基礎在 M10 移除。
+> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**（主機只剩 Web API、WASM 主機頁與靜態檔）。
 
 當前版本資訊定義在 [`src/MyProject/MyProject.Web/appsettings.json`](src/MyProject/MyProject.Web/appsettings.json) 之 `SystemSettings.SystemInformation.SystemVersion` 欄位。
 
@@ -10,7 +10,7 @@
 
 ## 1. 專案介紹
 
-- **定位**：可立即啟動、預先配置、易於擴充的 Blazor Server 樣板。
+- **定位**：可立即啟動、預先配置、易於擴充的 Blazor WebAssembly＋Web API 樣板。
 - **適用情境**：管理後台、內部營運系統、專案追蹤平台。
 - **設計理念**：分層清晰、慣例優先、模板可複刻（CRUD 模板可直接套用至新實體）。
 
@@ -21,7 +21,7 @@
 | 類別 | 採用方案 | 版本 |
 |------|----------|------|
 | 框架 | .NET / ASP.NET Core | 10.0 |
-| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；Blazor Server 宿主遷移期間保留，M10 移除 | — |
+| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；0.10.9 起已移除 Blazor Server 互動模式，`MyProject.Web` 只當 API 主機與 WASM 主機頁 | — |
 | UI 元件庫 | AntDesign Blazor | 1.6.2 |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
 | 資料存取 | Entity Framework Core | 10.0.14 |
@@ -52,7 +52,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 
 | 專案 | 角色 |
 |------|------|
-| `MyProject.Web` | 網站宿主、Web API Controller（含登入相關的 `api/v1/Auth`）、本地化、靜態資源；0.10.8 起頁面全部在 `MyProject.Web.Client`。 |
+| `MyProject.Web` | 網站宿主、Web API Controller（含登入相關的 `api/v1/Auth`）、本地化、靜態資源；0.10.8 起頁面全部在 `MyProject.Web.Client`，0.10.9 起只剩 API、WASM 主機頁（`Components/App.razor`）與靜態檔。 |
 | `MyProject.Business` | 商業邏輯：Services、AutoMapper Profile、Helpers（0.10.3 起已沒有 Repository，Web API 與畫面共用 Services）。 |
 | `MyProject.AccessDatas` | EF Core `BackendDBContext`、Entity 定義、Migrations。 |
 | `MyProject.Models` | 系統設定、AdapterModel、共用領域模型。 |
@@ -191,8 +191,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
     ├── Directory.Packages.props    ← 套件版本單一來源（Central Package Management）
-    ├── MyProject.Web/              ← Blazor Server 宿主
-    │   ├── Components/             ← Pages / Views / Layout / Auths / Commons
+    ├── MyProject.Web/              ← API 主機＋WASM 主機頁（0.10.9 起沒有 Blazor Server 互動模式）
+    │   ├── Components/             ← WASM 主機頁 App.razor，以及外框 API 用的選單、操作說明、公告快取類別（0.10.9 起已沒有畫面）
     │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs / ExceptionLogs / Logs / LogLevel / AiCallLogs / TokenUsage / PromptTemplates / ScheduledJobs / SystemHealth / Backups / DataRetention / DatabaseUsage / SystemParameters / Announcements / Dashboard / Downloads / AgentPlayground / AdminAssistant / AgentWorkflows …）
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
@@ -218,10 +218,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（Server 與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
-    │   ├── Services/Other/         ← AuthenticationStateHelper 等
+    │   ├── Services/Other/         ← CurrentUserLoader、CurrentUserService 等
     │   └── Models/AutoMapping.cs   ← AutoMapper Profile
     ├── MyProject.AccessDatas/
     │   ├── BackendDBContext.cs

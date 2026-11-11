@@ -8,7 +8,7 @@ namespace MyProject.Web.Client.Views.Commons;
 
 /// <summary>
 /// 啟動頁（<c>/</c>，0.10.8 起在 WASM 執行，WASM 遷移 M9）：顯示系統名稱與簡介 3 秒後檢查登入，已登入導到 <c>/app</c>，
-/// 未登入由 <see cref="ClientSession"/> 帶到登入頁、必須改密碼或設定兩步驟驗證時帶到那一頁（與 Server 版 <c>AuthenticationStateHelper.Check</c> 相同）。
+/// 未登入由 <see cref="ClientSession"/> 帶到登入頁、必須改密碼或設定兩步驟驗證時帶到那一頁（與 Server 版的換頁檢查相同）。
 /// 系統名稱與簡介來自不需登入的 <c>GET api/v1/Auth/login-settings</c>（可在「系統參數」頁修改）。
 /// </summary>
 public partial class SplashView

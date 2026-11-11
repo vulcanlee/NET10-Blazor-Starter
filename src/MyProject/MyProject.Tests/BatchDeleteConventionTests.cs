@@ -12,8 +12,8 @@ public sealed class BatchDeleteConventionTests
     [Fact]
     public void ViewsWithRowDelete_ShouldOfferBatchDelete()
     {
-        // 0.10.6 起有單筆刪除的列表頁都搬到 WASM 了：Server 的 Components 與 MyProject.Web.Client 兩處都掃。
-        var views = UiRazorFiles()
+        // 0.10.9 起畫面只在 MyProject.Web.Client（SourceTree.UiRoots）。
+        var views = SourceTree.UiFiles("*.razor")
             .Where(path => File.ReadAllText(path).Contains("CrudActionButton Title=\"刪除\"", StringComparison.Ordinal))
             .ToList();
 
@@ -42,9 +42,8 @@ public sealed class BatchDeleteConventionTests
     [Fact]
     public void Selection_ShouldNotBeWrappedInRequirePermission()
     {
-        var componentsRoot = FindComponentsRoot();
-        var templateRoot = Path.Combine(componentsRoot, "..", "..", "..", "..", "scripts", "crud-templates");
-        var files = UiRazorFiles()
+        var templateRoot = Path.Combine(SourceTree.Scripts, "crud-templates");
+        var files = SourceTree.UiFiles("*.razor")
             .Concat(Directory.Exists(templateRoot)
                 ? Directory.EnumerateFiles(templateRoot, "*.razor.tmpl", SearchOption.AllDirectories)
                 : [])
@@ -83,10 +82,4 @@ public sealed class BatchDeleteConventionTests
         return false;
     }
 
-    private static string FindComponentsRoot() => SourceTree.Components;
-
-    private static IEnumerable<string> UiRazorFiles()
-        => SourceTree.UiRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories))
-            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 }

@@ -5,8 +5,8 @@ namespace MyProject.Web.Configuration;
 /// <summary>
 /// 瀏覽器端錯誤回報（<c>ClientErrorReporting</c> 區段，0.9.79 起，LOG-20）。
 ///
-/// 只在登入後、有 Blazor circuit 的頁面啟用（登入頁等靜態頁面沒有回報管道，匿名者無法灌資料）。
-/// 每個 circuit 每分鐘最多 <see cref="MaxPerCircuitPerMinute"/> 筆，超過的丟棄並計數（顯示在系統健康監控）。
+/// 只有登入後才回報（<c>api/v1/shell/client-errors</c> 要登入，匿名者無法灌資料）。
+/// 每位使用者每分鐘最多 <see cref="MaxPerCircuitPerMinute"/> 筆，超過的丟棄並計數（顯示在系統健康監控）；設定鍵名沿用 Blazor 電路時代的名稱。
 /// </summary>
 public class ClientErrorReportingSettings
 {

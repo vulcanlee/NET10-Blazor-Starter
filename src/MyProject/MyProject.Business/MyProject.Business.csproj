@@ -16,7 +16,6 @@
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
     <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 

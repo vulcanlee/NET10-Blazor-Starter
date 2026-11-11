@@ -33,15 +33,14 @@ public sealed class LoggingPipelineHealthTests
     }
 
     [Theory]
-    [InlineData("/_blazor", true)]
-    [InlineData("/_blazor/negotiate", true)]
+    [InlineData("/_blazor", false)] // 0.10.9 起沒有 Blazor Server 的 SignalR 連線
     [InlineData("/api/Category", false)]
     [InlineData("/projects", false)]
     [InlineData("/api/v1/notifications/stream", true)] // 通知推播串流（0.10.7 起）：一條連線最長 30 分鐘
     [InlineData("/api/v1/notifications/summary", false)]
-    public void BlazorConnection_ShouldBeExcludedFromSlowRequests(string path, bool expected)
+    public void LongLivedConnection_ShouldBeExcludedFromSlowRequests(string path, bool expected)
     {
-        // /_blazor 的 WebSocket 連線持續整個 circuit，不排除的話每個使用者離開時都是一筆慢請求。
+        // 推播串流每條最長 30 分鐘，不排除的話每個分頁離開時都是一筆慢請求。
         Assert.Equal(expected, ApplicationBuilderExtensions.IsLongLivedConnection(new PathString(path)));
     }
 

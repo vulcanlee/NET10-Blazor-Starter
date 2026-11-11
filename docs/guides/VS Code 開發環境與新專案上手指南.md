@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.14
+- 文件版本：3.15
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.9
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/11/11
 
@@ -402,7 +402,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 
 現況規格：**64×64 PNG**（約 4.4 KB）。
 
-> ⚠️ 本專案**沒有 `favicon.ico`**，也沒有 apple-touch-icon、`site.webmanifest` 或 PWA 圖示 —— 這是刻意的（Blazor Server，不是 PWA 範本）。整份專案只有 `Components/App.razor:15` 一處宣告圖示。
+> ⚠️ 本專案**沒有 `favicon.ico`**，也沒有 apple-touch-icon、`site.webmanifest` 或 PWA 圖示 —— 這是刻意的（目前不是 PWA 範本；PWA 列在 [WASM 遷移計畫](../migration/WASM遷移計畫.md) 的 M12）。整份專案只有 `Components/App.razor:15` 一處宣告圖示。
 
 由 `brand-logo.png` 產生（沿用 0.4.25 的原始作法）：
 
@@ -467,10 +467,10 @@ ffmpeg -i images/brand-logo.png \
 | `MyProject.Web.Client/Views/Commons/HomeWelcomeView.razor`（0.10.6 起在 Client）| `Welcome`（Hero 標籤）／`快速入口`／`儀表板`（0.9.106 起）／`系統版本`／`執行環境` |
 | `MyProject.Web/Dashboard/DashboardWidgets.cs` 的 `DashboardQuickLinks.All`（0.10.6 起由伺服器依權限過濾後送給 WASM 首頁；之前是 `HomeWelcomeView.razor.cs` 的 `AllQuickLinks`）| 登入後首頁快速入口的標題與圖示：`專案項目`／`分類清單`／`團隊清單`（依權限顯示；原本的六張能力卡片已移除）。⚠️ 改成自家系統的入口時，**圖示名稱必須是 classic Material Icons**，用 Material Symbols 專有名稱會渲染失敗（可能是破圖方塊，也可能被拆成數個子字的圖示並撐破容器），改完請實際開 `/App` 確認 |
 | `MyProject.Web.Client/Views/Commons/SplashView.razor:19` | `系統載入中，正在為你準備工作環境...` |
-| `Components/Layout/NavMenu.razor` | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
-| `Components/Layout/MainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
-| `MyProject.Web.Client/Commons/ViewNotification.cs` 的 `SystemTitle`（0.10.2 起放在 Client 專案，Server 與 WASM 頁面共用） | `系統訊息`（全站通知的標題） |
-| `MainLayout.razor`、`EmptyLayout.razor`、`NoFooterLayout.razor` | `An unhandled error has occurred.`（Blazor 預設，尚未中文化） |
+| `MyProject.Web.Client/Layout/ClientNavMenu.razor`（0.10.9 起 Server 版 `NavMenu` 已刪除） | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
+| `MyProject.Web.Client/Layout/ClientMainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
+| `MyProject.Web.Client/Commons/ViewNotification.cs` 的 `SystemTitle`（0.10.2 起放在 Client 專案） | `系統訊息`（全站通知的標題） |
+| `MyProject.Web.Client/Layout/` 的 `ClientMainLayout.razor`、`ClientEmptyLayout.razor`、`ClientNoFooterLayout.razor` | `An unhandled error has occurred.`（Blazor 預設，尚未中文化） |
 
 另註：全專案**沒有** footer 或版權文字，`.csproj` 也沒有設定 `<Product>` / `<AssemblyTitle>`，所以組件層級沒有產品名要改。
 
@@ -610,7 +610,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 按 `Alt+C` 開啟**大小寫相符**（Match Case），避免誤傷。取代前先看一次結果清單。
 
-> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（Server 端 22 行 `@using`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 90 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
+> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（主機端 3 行、WASM 端 20 行 `@using`；0.10.9 起主機端只剩主機頁要的）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 90 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
 >
 > 開了大小寫相符，全小寫的 `myproject`（例如 `docs/operations/Gmail寄信設定指南.md` 的範例信箱）不會被換到，記得另外搜尋一次。
 
