@@ -43,18 +43,16 @@ public class ProjectCreateUpdateDto
     public string? Description { get; set; }
 
     /// <summary>
-    /// 專案開始日期
+    /// 專案開始日期（0.10.3 起可不填，與畫面相同）
     /// </summary>
-    [Required(ErrorMessage = "開始日期 不可為空白")]
     [JsonPropertyName("startDate")]
-    public DateTime StartDate { get; set; }
+    public DateTime? StartDate { get; set; }
 
     /// <summary>
-    /// 專案結束日期
+    /// 專案結束日期（0.10.3 起可不填，與畫面相同；有填時不可早於開始日期）
     /// </summary>
-    [Required(ErrorMessage = "結束日期 不可為空白")]
     [JsonPropertyName("endDate")]
-    public DateTime EndDate { get; set; }
+    public DateTime? EndDate { get; set; }
 
     /// <summary>
     /// 專案狀態 (未開始/進行中/已完成/已暫停/已取消)

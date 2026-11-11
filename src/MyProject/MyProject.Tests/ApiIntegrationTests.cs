@@ -852,20 +852,6 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }
 
-    [Fact]
-    public async Task ProjectFileDownloadEndpoint_ShouldBeRegistered()
-    {
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
-
-        var response = await client.GetAsync("/api/project-files/1/download");
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
     /// <summary>
     /// .NET 範本殘留的 WeatherForecastController 已於 0.4.34 移除。
     /// 它沒有任何授權標註、路由不在 /api 之下（連 ApiExceptionFilter 都不涵蓋），

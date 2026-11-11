@@ -307,7 +307,6 @@ public sealed class LoggingConventionTests
     /// </summary>
     [Theory]
     [InlineData("MyProject.Business", "Services")]
-    [InlineData("MyProject.Business", "Repositories")]
     [InlineData("MyProject.Business", "Startup")]
     [InlineData("MyProject.Web", "Controllers")]
     [InlineData("MyProject.Web", "Diagnostics")]
@@ -393,7 +392,6 @@ public sealed class LoggingConventionTests
             "ClientIpProvider.cs",          // 稽核來源 IP：持有 circuit 的 IP 並格式化，無 I/O；失敗由 circuit handler 記錄（0.9.117 起）
             "QrCodeImage.cs",               // 文字轉 QR Code 圖片，純函式（0.9.104 起）
             "SystemIdentity.cs",            // 例外告警服務（例外記錄管線內）使用它讀系統名稱；用 ILogger 會遞迴（0.9.98 起）
-            "UpdateOutcome.cs",             // Repository 修改結果（record：是否成功＋稽核差異），無行為（0.9.131 起）
             "RetentionStats.cs",            // 資料保留頁的統計（record：筆數、最舊、過期），無行為（0.9.133 起）
             "RetentionCutoffs.cs",          // 純函式：各類資料超過保留天數的門檻（0.9.133 起）
             "CronDescriber.cs",             // 純函式：cron 轉白話（0.9.133 起）

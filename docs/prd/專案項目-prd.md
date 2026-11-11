@@ -1,10 +1,10 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.9.173
+- 現行系統版本：0.10.3
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/08
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -17,15 +17,15 @@
 
 | 項目 | 內容 |
 |------|------|
-| UI 路由 | `/projects`（`ProjectPage.razor`，掛 `MainLayout`） |
+| UI 路由 | `/projects`（0.10.3 起以 WebAssembly 執行：`MyProject.Web.Client/Pages/ProjectPage.razor`，版面 `ClientMainLayout`；之前的 Server 版 `ProjectPage.razor`＋`MainLayout` 已刪除） |
 | REST API | `api/Project`、`api/v1/Project`（JWT Bearer） |
 | 選單路徑 | 專案管理（`Menu.json` id=2）→ 專案項目（id=21） |
 | 權限鍵 | 資源鍵「專案項目」（`MagicObjectHelper.角色_專案項目`），動作 `view`／`create`／`edit`／`delete`；管理員短路 |
 | 主要使用者 | 具「專案項目」對應動作權限的登入者；管理員可見全部 |
 | 操作說明 | 頂欄頁名旁的「操作說明」按鈕（0.9.66 起，`PageHelpDialog`）；內容為 `Datas/Help/projects.md`，於 `Datas/HelpTopics.json` 登記 `/projects` |
 
-> 頁面進入檢查用 `CheckAccessPage(角色_專案項目)`（通過條件：管理員、裸鍵「專案項目」或 `專案項目:view`），工具列與操作鈕再以 `CheckAccessAction(角色_專案項目, 動作)` 個別控管。群組鍵「專案管理功能」（`角色_專案管理`）只用於側邊選單的群組節點（`MenuPermissionMap[2]`）。
-> 頁面被擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/projects`，0.9.78 起）。
+> 頁面進入檢查用 `Permissions.CanAccessPage(角色_專案項目)`（0.10.3 起 WASM 版經 `PagePermissions`；通過條件：管理員、裸鍵「專案項目」或 `專案項目:view`），工具列與操作鈕再以 `RequirePermission`（`CanAccessAction(角色_專案項目, 動作)`）個別控管。群組鍵「專案管理功能」（`角色_專案管理`）只用於側邊選單的群組節點（`MenuPermissionMap[2]`）。
+> 頁面被擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/projects`，0.9.78 起；0.10.3 起由伺服器在 `POST /api/v1/shell/page-view` 寫，detail `via=WASM`）。
 > 另一個建立／刪除專案的入口（0.9.145 起）：「Agent 測試台」的「產生 10 筆測試專案」與「清除測試專案」（`ProjectSampleDataService`），分別需要 `create`／`delete` 權限，一律經 `ProjectService`（驗證、團隊範圍、`Project.Create`／`Delete`／`Purge` 稽核照常）；測試專案標題開頭「【測試】」、不指定團隊，清除為永久刪除（含已刪除的）。
 > 修改專案描述的入口（0.9.142／0.9.144 起）：Agent 測試台的工具 `update_project_description` 與「專案狀態報告」工作流程的 `append_project_status_summary`（`ProjectAgentTools`），需要 `edit` 權限且經使用者核准，一律經 `ProjectService.UpdateAsync`（團隊範圍、`Project.Update` 稽核與並行版本號照常），見 [AI Agent PRD](AI-Agent-prd.md) §3.1、§4.1。
 
@@ -33,12 +33,12 @@
 
 - 工具列：新增（需 `專案項目:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為分類過濾（多選）、團隊過濾（多選）、關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。分類／團隊過濾一變更就回到第 1 頁重新查詢；兩者的選項都只列啟用中的項目（分類另受團隊可見性過濾）。
 - 清單欄位（`ProjectViewView.razor`）：標題、描述、開始日期、結束日期、狀態、優先級、完成百分比、負責人、分類、團隊、建立時間、更新時間、操作（修改需 `專案項目:edit`、刪除需 `專案項目:delete`，無權限時不顯示按鈕）；標題預設遞增排序。0.9.30 起「狀態」以 `StatusPill` 徽章呈現（已完成＝綠、進行中＝梅、暫緩＝琥珀、未開始＝灰，其他值如「等待」為中性色）。
-- 可排序欄位（`ProjectService.cs`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt；未指定或不認得的排序一律退回 `UpdatedAt` 遞減、再以 `Id` 遞減。
-- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner（關鍵字先去除前後空白）；「顯示已刪除」清單比對相同欄位（0.9.136 起；之前漏了 Status、Priority），固定依刪除時間由新到舊。
+- 可排序欄位（`ProjectService.cs`）：Title、StartDate、EndDate、Status、Priority、CompletionPercentage、Owner、CreatedAt、UpdatedAt；未指定或不認得的排序一律退回 `UpdatedAt` 遞減、再以 `Id` 遞減。Web API 的 `SortBy` 0.10.3 起不分大小寫、走同一份排序。
+- 搜尋比對欄位（`ProjectService.cs`）：Title、Description、Status、Priority、Owner（關鍵字先去除前後空白）；「顯示已刪除」清單比對相同欄位（0.9.136 起；之前漏了 Status、Priority），固定依刪除時間由新到舊。Web API 0.10.3 起比對相同欄位（之前只比對標題與描述），原有的 `Owner`／`Status`／`Priority`／開始日期區間／完成百分比區間條件保留（`ProjectListFilter`），另可依 `Categories`／`Teams` 篩選（符合任一）。
 - 分頁：`RemoteDataSource`，預設每頁 `MagicObjectHelper.PageSize`（8 筆）。
 - 編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)），分四區（`Project` 實體 / `ProjectCreateUpdateDto`）：
-  - 基本資料：標題（必填）、負責人（必填；0.9.107 起 Web API 的 `owner` 也必填，不帶回 400）、描述（獨占整行）。
-  - 排程與進度：開始日期、結束日期、狀態（必填，`StatusOptions`：未開始／進行中／已完成／暫緩／等待）、優先級（必填，`PriorityOptions`：低／中／高）、完成百分比（0-100）。
+  - 基本資料：標題（必填；0.10.3 起不可與其他未刪除的專案同名，見第六節）、負責人（必填；0.9.107 起 Web API 的 `owner` 也必填，不帶回 400）、描述（獨占整行）。
+  - 排程與進度：開始日期、結束日期（都可不填；0.10.3 起 Web API 也可不填）、狀態（必填，`StatusOptions`：未開始／進行中／已完成／暫緩／等待）、優先級（必填，`PriorityOptions`：低／中／高）、完成百分比（0-100）。
   - 分類與團隊：分類（多值標籤）、團隊（多值標籤，不設定＝公開；選項為啟用中的團隊，非管理員只列自己範圍內的〔含下屬團隊〕加上這筆原本就有的，0.9.105 起）。
   - 專案附件：見下方「附件」。
 - 新增時的預設值：狀態「未開始」、優先級「中」、完成百分比 0；**團隊預填目前使用者範圍裡最上層的團隊**（0.9.105 起範圍含下屬團隊，全帶會讓專案對所有下屬公開；已停用、不在選項內的略過）。
@@ -47,7 +47,7 @@
   儲存確認「確定要儲存這筆紀錄嗎？」（「儲存」／「再檢查」）→ 團隊確認（見下）→ 前置檢查 `BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` → 寫入；任一步失敗都不關窗。
 - 取消／✕／ESC：有未儲存變更時先詢問是否放棄（`FormDirtyTracker`，附件異動也算變更）；點遮罩不會關窗。
 - 刪除：先跑 `BeforeDeleteCheckAsync`，再以 `ConfirmDialog.AskSoftDeleteRecordAsync` 二次確認「確定要刪除這筆紀錄嗎？刪除後可在工具列的「顯示已刪除」中還原。」，並檢查結果。
-- **刪除為軟刪除**（0.9.94 起）：刪除只標記 `IsDeleted`／`DeletedAt`／`DeletedBy`，所有查詢經全域過濾器自動排除；工具列「顯示已刪除」（需刪除權限）列出已刪除的專案，可「還原」或「永久刪除」。專案沒有唯一欄位（畫面路徑允許同名），還原不做唯一性檢查。刪除與還原都會換新版本號（正在編輯的人存檔會得到衝突訊息）；刪除、還原、永久刪除都在伺服器端檢查團隊範圍。稽核：`*.Delete`（軟刪除）、`*.Restore`、`*.Purge`。Web API 的 `DELETE` 也是軟刪除，之後對它的 GET／PUT／DELETE 回 404；API 不提供還原與永久刪除。
+- **刪除為軟刪除**（0.9.94 起）：刪除只標記 `IsDeleted`／`DeletedAt`／`DeletedBy`，所有查詢經全域過濾器自動排除；工具列「顯示已刪除」（需刪除權限）列出已刪除的專案，可「還原」或「永久刪除」。還原時檢查標題（0.10.3 起）：已有未刪除的同名專案時擋下「已有同名的專案「X」，無法還原。請先將現有的同名專案改名後再還原。」（API 回 409，與分類相同）。刪除與還原都會換新版本號（正在編輯的人存檔會得到衝突訊息）；刪除、還原、永久刪除都在伺服器端檢查團隊範圍。稽核：`*.Delete`（軟刪除）、`*.Restore`、`*.Purge`。Web API 的 `DELETE` 也是軟刪除，之後對它的 GET／PUT／DELETE 回 404；0.10.3 起 API 另有 `POST {id}/restore` 與 `DELETE {id}/purge`（都要刪除權限）；API 的已刪除清單也套用 `Categories`／`Teams` 篩選（WASM 頁面在「顯示已刪除」時不送這兩個條件，與 Server 版隱藏篩選相同）。
 - **自動永久刪除**（0.9.97 起）：刪除超過 `SoftDeleteSettings:PurgeAfterDays`（預設 90 天，`0`＝不自動）的專案，由排程作業「已刪除資料清理」（`SoftDeletePurgeService`）永久刪除；系統層級清除，不看團隊範圍。每次有刪到時寫一筆彙總稽核 `Project.AutoPurge`（筆數、天數、觸發方式、`#Id 名稱` 清單）。附件資料列隨 Cascade 刪除，實體檔在提交成功後經 `ProjectFileStore` 刪除；刪不掉只計數（孤兒檔），不算失敗。見 [排程作業 PRD](排程作業-prd.md)。
 - 附件：軟刪除期間**保留**實體檔但無法下載（`GetFileDownloadAsync` 查不到父專案就回 null —— 不能交給團隊檢查，`IsTeamAccessible(null)` 的語意是「公開」）；永久刪除時**先提交資料庫、成功後才刪實體檔**（0.9.93 之前是先刪檔）；編輯時移除附件也改為存檔成功後才刪檔（0.9.97 起，之前是先刪檔）。刪除實體檔一律經 `ProjectFileStore`（0.9.97 起），路徑解析後跑出 `ProjectFilePath` 根目錄就拒絕（之前只有下載有檢查）。軟刪除期間工具列的分類／團隊過濾隱藏。
 - **分類下拉的可選項目（0.4.40 起）**＝「目前使用者可見的分類」∪「本筆專案已貼、但已限定其他團隊的分類」，
@@ -57,7 +57,8 @@
 - **儲存前團隊確認（0.4.40 起）**：驗證通過後，若「團隊」為空，以 `TeamBindingConfirm.AskAsync` 提出警告
   「此專案未指定團隊，將對所有使用者公開可見。確定要這樣儲存嗎？」，
   確認鈕「仍要儲存」、取消鈕「回去編輯」；取消時 Modal 保持開啟、表單內容不消失。
-- 附件：「專案附件」區一次可多選，單檔上限 1GB（超過即提示並略過）；待上傳清單可移除，已上傳檔案可點檔名下載（`/api/project-files/{id}/download`，Cookie 驗證，新分頁開啟）或標記移除。待上傳與待移除的檔案都在按「儲存」後才真正寫入／刪除。
+- 附件：「專案附件」區一次可多選，單檔上限 1GB（超過即提示並略過）；待上傳清單可移除，已上傳檔案可點檔名下載或標記移除。待上傳與待移除的檔案都在按「儲存」後才真正寫入／刪除。
+  0.10.3 起（WASM）：選的檔案留在瀏覽器（`BrowserFiles`＋`browser-files.js`，不讀進 WASM 記憶體），儲存時以 multipart 送 `POST`／`PUT api/v1/Project`，資料與附件在同一次存檔寫入；點檔名先申請一次性下載票證（`POST api/v1/Project/files/{fileId}/ticket`），再由暫時的 `<a download>` 讓瀏覽器原生下載（60 秒、只能用一次、不支援續傳）。選檔時就依 `GET options` 的 `AllowedExtensions` 擋下類型不符的檔案（「檔案 X 的類型不在允許清單中。」，不加進待上傳清單），儲存時伺服器再檢查一次。之前是以 Cookie 驗證的 `/api/project-files/{id}/download`（新分頁開啟、支援續傳），已移除。
 - **附件副檔名白名單（0.4.35 起）**：不在白名單內的檔案由 `UploadFileTypePolicy.IsAllowed` 直接拒收；
   儲存的 `ContentType` 一律由 `UploadFileTypePolicy.ResolveContentType` **依副檔名決定**，
   不採用呼叫端提供的值（避免偽裝）。白名單可經 `SystemSettings.Upload.AllowedExtensions` 覆寫，
@@ -67,22 +68,23 @@
 
 ## 四、內部系統運作
 
-- 資料流：`ProjectPage.razor` → `ProjectViewView`（`.razor.cs`）→ `ProjectService` → `BackendDBContext.Project`。REST API 走 `ProjectController` → `ProjectRepository`（與 UI 的 Service 為兩條路徑，皆回 `ApiResult`）。
-- 讀取：清單 `GetAsync(DataRequest)` 使用 `AsNoTracking`；單筆 `GetAsync(int)` 以 `Include(x => x.Files)` 帶附件。
-- 編輯前處理：開啟修改視窗時以 `ProjectService.GetAsync(id)` 重新取得資料（含附件），再 `Clone()` 一份作為編輯對象（非重用清單物件），並清空待上傳／待移除清單（`ProjectViewView.razor.cs`）。
+- 資料流（0.10.3 起）：`ProjectPage.razor`（WASM）→ `ProjectViewView`（`.razor.cs`）→ `ProjectApi`（`MyProject.Web.Client/Api`）→ `ProjectController` → `ProjectService` → `BackendDBContext.Project`。畫面與其他 API 呼叫端走同一個服務，規則與稽核只有一份；DTO 與畫面模型的對應在 `ProjectDtoMapper`（WASM 與 Controller 共用）。`ProjectRepository` 已刪除（0.10.2 之前 API 走 `ProjectController` → `ProjectRepository`，與畫面是兩條路徑）。
+- 讀取：清單 `GetAsync(DataRequest)` 使用 `AsNoTracking`；單筆 `GetAsync(int)` 以 `Include(x => x.Files)` 帶附件（API 的 `GET {id}` 回傳 `Files`，不含伺服器上的存放路徑）。
+- 編輯前處理：開啟修改視窗時以 `GET api/v1/Project/{id}`（`ProjectService.GetAsync(id)`）重新取得資料（含附件），再 `Clone()` 一份作為編輯對象（非重用清單物件），並清空待上傳／待移除清單（`ProjectViewView.razor.cs`）。
 - DbContext 生命週期：每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）；附件的寫入與移除沿用 `AddAsync`／`UpdateAsync` 的同一個 context。
-- 附件 Adapter：UI 以 `ProjectUploadFileInput`（FileName/ContentType/FileSize/Content）傳入；Service 依主表 `CreatedAt` 年／月建立目錄，檔名以 GUID 產生，落地後寫入 `ProjectFile`；刪除主表為軟刪除、實體檔保留，永久刪除時先提交資料庫、成功後才經 `ProjectFileStore` 刪實體檔（見上方「附件」）。細節見 [檔案上傳機制](../features/檔案上傳機制.md)。
+- 附件 Adapter：Controller 把 multipart 的 `files` 轉成 `ProjectUploadFileInput`（FileName/ContentType/FileSize/Content）傳入；Service 依主表 `CreatedAt` 年／月建立目錄，檔名以 GUID 產生，落地後寫入 `ProjectFile`；刪除主表為軟刪除、實體檔保留，永久刪除時先提交資料庫、成功後才經 `ProjectFileStore` 刪實體檔（見上方「附件」）。細節見 [檔案上傳機制](../features/檔案上傳機制.md)。
 - 稽核（0.9.78 起，LOG-14）：成功後寫入，代碼定義於 `AuditActions`，可在「稽核紀錄」頁查詢。
 
   | 事件 | 動作代碼 | 寫入點 | 內容 |
   |------|----------|--------|------|
-  | 新增／修改／刪除（軟刪除）專案 | `Project.Create`／`Project.Update`／`Project.Delete` | 畫面：`ProjectService`（操作者取自 `CurrentUserService`）；API：`ProjectController` | `title=標題`；API 刪除不帶內容 |
+  | 新增／修改／刪除（軟刪除）專案 | `Project.Create`／`Project.Update`／`Project.Delete` | `ProjectService`（0.10.3 起畫面與 API 同一處寫、每個動作一筆；操作者取自 `CurrentUserService`）| `title=標題` |
+  | 查看、搜尋（0.10.3 起）| `Project.View`／`Project.Search` | `ProjectController`（`GET {id}`；搜尋只在 `RecordSearch=true` 時寫）| 瀏覽類，要開「稽核：記錄瀏覽類事件」才記 |
   | 還原／永久刪除專案（0.9.94 起）| `Project.Restore`／`Project.Purge` | `ProjectService.RestoreAsync`／`PurgeAsync` | `title=標題`；永久刪除另含 `files=附件數` |
   | 自動永久刪除（0.9.97 起）| `Project.AutoPurge` | 排程作業「已刪除資料清理」 | 每次一筆彙總（見 §三）|
-  | 匯出 Excel（0.9.107 起）| `Project.Export` | `ProjectViewView`（`BusinessExports.WriteAuditAsync`）| 見[通用匯出](通用匯出-prd.md) |
+  | 匯出 Excel（0.9.107 起）| `Project.Export` | `ProjectController.Export`（0.10.3 起；`BusinessExports.WriteAuditAsync`）| 見[通用匯出](通用匯出-prd.md) |
   | 上傳附件 | `Project.FileUpload` | `ProjectService.AddAsync`／`UpdateAsync` | `count=筆數`，沒有上傳就不寫 |
   | 移除附件 | `Project.FileDelete` | `ProjectService.UpdateAsync` | `count=筆數`，沒有移除就不寫 |
-  | 下載附件（0.4.31 起）| `Project.FileDownload` | `ProjectFileController` | 目標 `ProjectFile`、`file=原始檔名` |
+  | 下載附件（0.4.31 起）| `Project.FileDownload` | `DownloadsController`（0.10.3 起，兌換下載票證時；之前是 `ProjectFileController`）| 目標 `ProjectFile`、`file=原始檔名` |
 - Migration：模型異動需在 `MyProject.AccessDatas/Migrations/` 產生 SQLite migration（本專案只支援 SQLite）。
 
 ## 五、權限與安全
@@ -90,20 +92,22 @@
 - 動作級授權：`ProjectController` 各端點標註 `[HasPermission(角色_專案項目, 動作)]`（`ProjectController.cs`）；無權限回 403 且維持 `ApiResult` 結構；管理員短路。
 - UI 與 API 共用同一 RBAC 權威（`IPermissionChecker`）。
 - 團隊可見範圍：非管理員清單以 `RecordTeamScope.Apply`（內部用 `TagStringHelper.BuildTeamAccessPredicate`）只看到公開（無團隊）或與自身團隊交集的專案；單筆／附件下載以 `RecordTeamScope.CanAccess`（內部用 `TagStringHelper.IsTeamAccessible`）守門，越界回空模型或 `null`（`ProjectService.cs`）。
-- Web API（`ProjectController` → `ProjectRepository`）0.9.105 起套用同一套 `RecordTeamScope` 規則（之前**不做**列級過濾）：範圍外 404、指派範圍外 400，詳見 [紀錄分類與團隊權控 PRD](紀錄分類與團隊權控-prd.md)。
-- Web API 的刪除（`ProjectRepository.DeleteAsync`）與畫面路徑一樣是軟刪除（0.9.94 起），附件保留；0.9.93 之前 API 的硬刪除不會刪實體檔，會留下孤兒檔。
-- 附件下載端點 `ProjectFileController` 需 `專案項目:view`；查無紀錄、團隊越界、實體檔不存在、路徑逃脫一律回 404（不讓外部從狀態碼推斷哪些 Id 存在）。
+- Web API 0.9.105 起套用同一套 `RecordTeamScope` 規則（之前**不做**列級過濾），0.10.3 起直接呼叫 `ProjectService`：範圍外 404、指派範圍外 400；修改、刪除、還原先查範圍（範圍外 404）再比對標題。⚠️ 但標題是**全系統**唯一（不分團隊），所以 409 仍會透露「某個你看不到的團隊有這個標題的專案」——這是全系統唯一的取捨，已接受。詳見 [紀錄分類與團隊權控 PRD](紀錄分類與團隊權控-prd.md)。
+- Web API 的刪除與畫面路徑一樣是軟刪除（0.9.94 起），附件保留；0.9.93 之前 API 的硬刪除不會刪實體檔，會留下孤兒檔。「顯示已刪除」的搜尋與匯出要刪除權限，否則 403。
+- 附件下載（0.10.3 起）：申請票證要 `專案項目:view` 且看得到附件；兌換 `GET api/v1/downloads/{ticket}`（匿名）時依發票證時的使用者與安全戳記重新載入使用者，重查 `專案項目:view`、團隊範圍、專案是否已刪除、實體檔是否存在、路徑逃脫；任何失敗都回同一個 404「下載連結無效或已過期，請回到頁面重新下載。」（不讓外部推斷哪些 Id 存在）。見 [認證授權與權限機制](../security/認證授權與權限機制.md)「一次性下載票證」。
 
 ## 六、錯誤與邊界
 
-- 標題重複（僅 Web API 路徑）：`Create` 回 409、`Update` 回 409（`ProjectRepository.ExistsByNameAsync`）。畫面路徑（`ProjectService`）**不**檢查標題重複，允許同名專案。
+- **標題重複**（0.10.3 起，使用者決定畫面與 API 統一擋）：新增時、或修改且標題真的有變時，與另一筆未刪除專案的標題相同（去頭尾空白、英文不分大小寫）就擋下：「專案名稱已存在，無法新增。」／「專案名稱已存在，無法修改。」（API 回 409）。以前留下的同名專案不改標題仍可存檔。檢查在 `ProjectService.BeforeAddCheckAsync`／`BeforeUpdateCheckAsync`，所以直接呼叫 `AddAsync` 的 AI Agent 工具與「產生測試專案」不受影響。還原也擋（見第三節）。
+  `AddAsync`／`UpdateAsync` 存檔時以 `NameNormalizer.Normalize` 去掉標題前後的空白、Tab、全形空白，空白不能繞過檢查。
+  ⚠️ 已知限制：唯一性只在程式檢查，資料庫沒有唯一索引，兩個同時送出的新增可能都通過；標題全系統唯一，409 可能透露範圍外有同名專案（見第五節）。0.10.2 之前只有 Web API 擋（`ProjectRepository.ExistsByNameAsync`），畫面允許同名。
 - 路由 ID 與 payload ID 不一致：`Update` 回 400。
-- 結束日期早於開始日期、狀態／優先級不合法、完成百分比超出 0-100、未設定附件根目錄：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 回失敗訊息（如「結束日期不可早於開始日期。」）。
-- 附件超過 1GB：前端即時提示並略過，後端再次驗證（「檔案 X 超過 1GB 限制」）。
+- 結束日期早於開始日期、狀態／優先級不合法、完成百分比超出 0-100、未設定附件根目錄：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 回失敗訊息（如「結束日期不可早於開始日期。」）；0.10.3 起 Web API 也經這裡，回 400、訊息與畫面相同。
+- 附件超過 1GB：前端即時提示並略過，後端再次驗證（「檔案 X 超過 1GB 限制」，API 回 400）。一次存檔的請求上限 4 GB（`ProjectController.MaxRequestBytes`，IIS 端由 `web.config` 的 `requestLimits` 放寬）。
 - 附件副檔名不在白名單：後端直接拒收（`UploadFileTypePolicy`），回「檔案 X 的類型不在允許清單中。」。
-- 附件落地失敗：已寫出的實體檔會刪除，回「專案附件儲存失敗」。
+- 附件落地失敗：0.10.3 起資料與附件在**同一個資料庫交易**（`AddAsync`／`UpdateAsync`）：任何一步失敗就整筆回滾（新增的專案不建立、修改回到修改前、版本號不變，使用者直接再按「儲存」即可），這次寫出的實體檔刪除，標記移除的實體檔只在提交後才刪；回「專案附件儲存失敗」。0.10.2 之前失敗時專案本身已存檔、附件沒存，也沒有稽核紀錄。
 - 0.9.94 起刪除為軟刪除，不再有「仍有關聯資料（FK 衝突）」的情況，`ProjectController.Delete` 攔截 FK 錯誤回 400 的分支已移除。
-- 例外：Service try/catch 記 `Error` 並回「新增／修改／刪除專案失敗。」；畫面上未預期的例外由 `FormModalFlow`／刪除流程的 try/catch 攔下，顯示通用錯誤訊息，不會拆掉 Blazor circuit。
+- 例外：Service try/catch 記 `Error` 並回「新增／修改／刪除專案失敗。」；畫面上未預期的例外由 `FormModalFlow`／刪除流程的 try/catch 攔下，顯示通用錯誤訊息。WASM 連不上伺服器時顯示「目前無法連線到伺服器，請稍後再試。」，視窗與輸入保留。
 - **並行衝突**（0.9.93 起，樂觀並行）：開啟編輯後若別人先存檔或刪除了同一筆，存檔時回「這筆資料在你編輯期間已被其他人修改或刪除。請關閉視窗、重新開啟後再編輯。」，
   Modal 維持開啟、輸入不會遺失。API 的 `PUT` 必須帶 GET 取得的 `ConcurrencyStamp`：沒帶回 400、與資料庫不符回 409。
   屬使用者情境（LOG-11）：只記 `Information`，不進「系統例外紀錄」。
@@ -122,14 +126,18 @@
 - `MyProject.Tests/DataAccessServiceLifetimeTests.cs`：`ProjectService` 不得注入 `BackendDBContext`（須走 `IDbContextFactory`）。
 - `MyProject.Tests/PermissionCheckerTests.cs`、`RbacBackfillServiceTests.cs`：動作級授權鍵與 RBAC 回填涵蓋「專案項目」。
 - `AuditHistoryConventionTests.DataPage_ShouldOfferAuditHistoryOnEveryRow`（0.9.173）：兩個分支各一顆「異動歷程」、頁尾一個對話窗、目標類型為 `Project`；元件行為見 `Components/AuditHistoryTests`。
+- `MyProject.Tests/ProjectServiceSaveTests.cs`（0.10.3 起，5 支）：新增時附件失敗整筆回滾、修改時附件失敗回滾且可直接重存、標題存檔時去掉前後空白、還原撞名 409、已刪除清單套用分類／團隊篩選。
+- `MyProject.Tests/ProjectApiTests.cs`（0.10.3 起，20 支）：Swagger 文件產得出來、沒帶 Content-Type 回 401／415、`text/json` 與 `application/problem+json` 照常接受；含附件的完整生命週期且每個動作只記一筆稽核、JSON 新增仍可用、標題重複 409（不分大小寫，舊的同名資料不改標題仍可存）、畫面規則回 400、副檔名不允許回 400 且什麼都不存、版本號過期回 409 且不存附件、搜尋與畫面一致並保留原有篩選、匯出、只能看的角色可讀可下載但寫入一律 403、團隊範圍外的專案與附件看不到、下載票證只能用一次、停用帳號／撤銷工作階段／刪除專案後票證 404、舊的 Cookie 下載端點已移除、表單選項。
+- `MyProject.Tests/DownloadTicketServiceTests.cs`（7 支）：一次性下載票證帶的內容、60 秒到期、無法猜測且網址安全、同時兌換只成功一次、過期的在下次發票證時清掉，以及 multipart 動作放寬了請求上限；`WebConfigTests`：`web.config` 的 `requestLimits` 與 `ProjectController.MaxRequestBytes` 一致。
+- 實機情境：`scripts/e2e/m04-projects.mjs`（P1～P18）與 `m04-views.mjs`（截圖比對），結果見 [WASM 遷移計畫](../migration/WASM遷移計畫.md) 的 M4 測試報告。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Components/Pages/Projects/ProjectPage.razor`
-- `src/MyProject/MyProject.Web/Components/Views/Projects/ProjectViewView.razor`、`ProjectViewView.razor.cs`
+- `src/MyProject/MyProject.Web.Client/Pages/ProjectPage.razor`（0.10.3 起 WASM）
+- `src/MyProject/MyProject.Web.Client/Views/Projects/ProjectViewView.razor`、`ProjectViewView.razor.cs`
+- `src/MyProject/MyProject.Web.Client/Api/ProjectApi.cs`、`ProjectDtoMapper.cs`；`Commons/BrowserFiles.cs`、`wwwroot/js/browser-files.js`（附件上傳與下載）
 - `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`
-- `src/MyProject/MyProject.Business/Repositories/ProjectRepository.cs`（Web API 路徑）
-- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`、`ProjectFileController.cs`
+- `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`、`DownloadsController.cs`；`MyProject.Web/Downloads/DownloadTicketService.cs`；`MyProject.Web/web.config`
 - `src/MyProject/MyProject.AccessDatas/Models/Project.cs`、`ProjectFile.cs`
 - `src/MyProject/MyProject.Models/AdapterModel/ProjectAdapterModel.cs`（`StatusOptions`／`PriorityOptions`）
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`
@@ -137,4 +145,4 @@
 - `src/MyProject/MyProject.Web/Datas/Help/projects.md`（頁面操作說明）
 - 交叉連結：[Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)、[檔案上傳機制](../features/檔案上傳機制.md)、[紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md)
 
-> 附件下載端點為 `ProjectFileController`（`api/project-files` 與 `api/v1/project-files`，`GET {id}/download`）。此端點**只收 Cookie 驗證**，與其他走 JWT 的 Web API 不同 —— 呼叫端是畫面上的一般連結，由瀏覽器直接導覽。0.4.31 之前這個端點並不存在，附件下載一律 404。
+> 附件下載 0.10.3 起改用一次性下載票證（`POST api/v1/Project/files/{fileId}/ticket` → `GET api/v1/downloads/{ticket}`），端點細節見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md) 第三節。0.4.31～0.10.2 用的是以 Cookie 驗證的 `ProjectFileController`（`api/project-files`、`api/v1/project-files`，`GET {id}/download`），已刪除；0.4.31 之前沒有下載端點，附件下載一律 404。

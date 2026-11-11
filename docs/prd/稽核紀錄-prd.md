@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.28
+- 文件版本：1.29
 - 文件狀態：已實作
-- 現行系統版本：0.10.2
+- 現行系統版本：0.10.3
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/11
 
@@ -86,7 +86,7 @@ scoped CSS 連 `::deep` 都打不到。
 - **位置**：分類清單 `/categories`、專案項目 `/projects`、團隊清單 `/teams`、使用者管理 `/myusers`、角色管理 `/roleviews` 每列操作欄的最後一顆「異動歷程」（`CrudActionButton`，圖示 `history`），一般清單與「顯示已刪除」兩個分支都有（已刪除的資料更需要查是誰刪的）。`New-CrudModule.ps1` 產生的頁面也有，目標類型＝模組名稱。
 - **權限：只有管理員**。稽核紀錄含來源 IP 與別人的操作，與本頁同樣只給管理員、權限鍵不上架角色矩陣。`AuditHistoryButton` 以 `PagePermissions.IsAdmin`（0.10.2 起；之前是 `CurrentUser.IsAdmin`，規則相同）決定渲染（非管理員連 `SpaceItem` 都不留，分類／專案／團隊頁的一般使用者也看不到），`AuditHistoryDialog.ShowAsync` 再擋一次並記警告日誌。
 - **元件**：`MyProject.Web.Client/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`（0.10.2 起放在 Client，Server 與 WASM 頁面共用，命名空間仍是 `MyProject.Web.Components.Commons`）；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
-- **資料來源**（0.10.2 起，`IAuditHistorySource`）：Server 頁面用 `ServerAuditHistorySource`（`MyProject.Web/Components/Commons/`，直接查 `AuditLogQueryService`）；WASM 頁面（分類、團隊）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
+- **資料來源**（0.10.2 起，`IAuditHistorySource`）：Server 頁面用 `ServerAuditHistorySource`（`MyProject.Web/Components/Commons/`，直接查 `AuditLogQueryService`）；WASM 頁面（分類、團隊，0.10.3 起加上專案）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
   `GET /api/v1/audit-logs/history?targetType=&targetId=&page=&pageSize=&opened=`（每頁 1～50 筆；`opened=true` 是剛打開，寫一筆 `Audit.Search`，換頁不寫）與 `GET /api/v1/audit-logs/{id}/content`（詳細內容，寫一筆 `Audit.View`）；非管理員回 403。
   兩種來源寫的稽核與錯誤文字相同；API 不回傳伺服器上的內容檔路徑，只回 `HasContent`。API 回錯誤或連不上伺服器時，右下角顯示 API 的錯誤訊息（預設「載入異動歷程失敗。」）。
 - **標題**：「異動歷程：<名稱>」，使用者頁顯示帳號（不顯示姓名）、專案頁顯示 `Title`、其他顯示 `Name`。上方說明：「這一筆資料（<類型> #<編號>）在稽核紀錄裡的異動，新的在上面；時間為伺服器本地時間。稽核紀錄保留期限之前的異動已被清除。要看誰開過、查過這一筆，請到「稽核紀錄」頁查詢。」
@@ -208,7 +208,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
 | `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）；0.10.2 起 WASM 頁面由開頁紀錄 `POST /api/v1/shell/page-view` 依選單的權限鍵判斷後記（Detail `via=WASM`）|
-| `Project.FileDownload` | `ProjectFileController` |
+| `Project.FileDownload` | `DownloadsController`（0.10.3 起兌換下載票證時；之前是 `ProjectFileController`） |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
 | `Audit.Purge` / `Audit.ClearAll` | `AuditLogView`（0.9.42 起）|

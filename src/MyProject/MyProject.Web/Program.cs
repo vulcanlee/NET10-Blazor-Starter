@@ -9,7 +9,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using AntDesign;
 using MyProject.Dtos.Commons;
-using MyProject.Business.Repositories;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Startup;
 using MyProject.Models.Systems;
@@ -484,7 +483,7 @@ namespace MyProject.Web
                 #region 綁定靜態資源
                 // ⚠️ 一定要放在 UseAuthentication/UseAuthorization 之後。
                 // 0.4.34 之前它掛在兩者之前，等於 DownloadPath 目錄匿名可讀 ——
-                // 與 ProjectFileController 費心做的權限 + 團隊守門 + 稽核軌跡方向相反。
+                // 與專案附件下載（0.10.3 起一次性票證，DownloadsController）費心做的權限 + 團隊守門 + 稽核軌跡方向相反。
                 app.UseConfiguredDownloadStaticFiles(systemSettings);
                 #endregion
 

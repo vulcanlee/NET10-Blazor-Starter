@@ -196,7 +196,7 @@ public sealed class ExportTests : IDisposable
         }
 
         var service = ProjectService(new FakeRecordAccessScopeProvider(false, ["研發處"]));
-        var outcome = await BusinessExports.BuildAsync(service.GetAsync, new DataRequest { SortField = nameof(ProjectAdapterModel.Title), SortDescending = false }, "專案", "projects", BusinessExports.ProjectColumns);
+        var outcome = await BusinessExports.BuildAsync(r => service.GetAsync(r), new DataRequest { SortField = nameof(ProjectAdapterModel.Title), SortDescending = false }, "專案", "projects", BusinessExports.ProjectColumns);
 
         Assert.Null(outcome.Error);
         Assert.Equal(2, outcome.Rows);

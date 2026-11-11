@@ -51,7 +51,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 | 專案 | 角色 |
 |------|------|
 | `MyProject.Web` | Blazor Server 宿主、Razor 元件、Web API Controller、登入頁、本地化、靜態資源。 |
-| `MyProject.Business` | 商業邏輯：Services、Repositories（0.10.2 起只剩 `ProjectRepository`）、AutoMapper Profile、Helpers。 |
+| `MyProject.Business` | 商業邏輯：Services、AutoMapper Profile、Helpers（0.10.3 起已沒有 Repository，Web API 與畫面共用 Services）。 |
 | `MyProject.AccessDatas` | EF Core `BackendDBContext`、Entity 定義、Migrations。 |
 | `MyProject.Models` | 系統設定、AdapterModel、共用領域模型。 |
 | `MyProject.Dtos` | API 對外傳輸物件：`ApiResult<T>`、`PagedResult<T>`、各模組 DTO。 |
@@ -215,11 +215,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter 等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊）／Layout（WASM 版外框）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案）／Layout（WASM 版外框）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← AuthenticationStateHelper 等
-    │   ├── Repositories/           ← API 層使用的 Repository（0.10.2 起只剩 ProjectRepository，M4 移除）
     │   └── Models/AutoMapping.cs   ← AutoMapper Profile
     ├── MyProject.AccessDatas/
     │   ├── BackendDBContext.cs

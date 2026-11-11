@@ -60,6 +60,10 @@ public static class UploadFileTypePolicy
         return Normalize(allowedExtensions).Contains(extension);
     }
 
+    /// <summary>實際生效的白名單（含點、小寫、排序；設定留空時是預設清單）。0.10.3 起給 WASM 頁面顯示與預先檢查用。</summary>
+    public static IReadOnlyList<string> EffectiveExtensions(IReadOnlyCollection<string>? allowedExtensions = null)
+        => [.. Normalize(allowedExtensions).Select(x => x.ToLowerInvariant()).Distinct().Order(StringComparer.Ordinal)];
+
     /// <summary>
     /// 依副檔名決定 ContentType。呼叫端提供的值一律忽略。
     /// 白名單被覆寫成預設清單沒有的副檔名時，回退為 octet-stream（瀏覽器不會內嵌執行）。

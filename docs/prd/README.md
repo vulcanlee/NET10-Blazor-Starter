@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.39
+- 文件版本：2.40
 - 文件狀態：維護中
-- 現行系統版本：0.10.2
+- 現行系統版本：0.10.3
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/11
 
@@ -14,7 +14,7 @@
 |----------|-----|-----------|--------------|------|----------|
 | 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Pages/Home.razor`、`Pages/HomeAuthed.razor`、`SidebarMenuService`、`Menu.json`、`MainLayout`（含「關於」對話窗）、`PageHelpDialog`／`PageHelpService`／`Datas/HelpTopics.json`＋`Datas/Help/*.md`（頂欄「操作說明」對話窗，每個登入後頁面一份） | 已實作（0.9.66 起含頁面操作說明對話窗；0.9.121 起說明窗可切換字體小／中／大）| 0.9.163 |
 | 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Components/Auths/*`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController` | 已實作（0.9.60 起含忘記密碼）| 0.9.163 |
-| 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Pages/Projects/ProjectPage.razor`、`ProjectService`、`ProjectController`、`ProjectFileController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核；0.9.145 起 Agent 測試台可產生／清除測試專案）| 0.9.163 |
+| 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Web.Client/Pages/ProjectPage.razor`（0.10.3 起 WASM）、`ProjectService`、`ProjectController`、`DownloadsController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核；0.9.145 起 Agent 測試台可產生／清除測試專案；0.10.3 起改用 WebAssembly、API 走服務、標題不可重複、附件以一次性下載票證下載）| 0.10.3 |
 | 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Pages/Admins/MyUserPage.razor`、`MyUserService` | 已實作（0.9.120 起點狀態標籤切換啟用／停用）| 0.9.163 |
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Pages/Admins/RoleViewPage.razor`、`RoleViewService`、`RbacWriteService` | 已實作 | 0.9.163 |
 | 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `MyProject.Web.Client` 的 `Pages/CategoryPage.razor`、`Views/Categories/CategoryViewView`、`Api/CategoryApi`；`CategoryController`（`/api/v1/Category`）、`CategoryService` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `CategoryService`，WASM 遷移 M3） | 0.10.2 |

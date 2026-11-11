@@ -7,7 +7,7 @@ namespace MyProject.Web.Auth;
 ///
 /// ⚠️ claim 對應在兩套機制中相反：Cookie 是 NameIdentifier=帳號、Sid=UserId、Name=<b>姓名（個資）</b>；
 /// JWT 是 NameIdentifier=UserId、Name=帳號。
-/// 依「帶了哪些 claim」判斷，不依路徑 —— <c>/api/project-files</c> 走 Cookie，依路徑會讀到姓名。
+/// 依「帶了哪些 claim」判斷，不依路徑 —— 同一個請求可能是 Cookie（網頁、Cookie 驗證的下載端點）或 JWT，依路徑會讀到姓名。
 /// 先認 Cookie（有 Sid），確保 Cookie 身分永遠不會讀到 <see cref="ClaimTypes.Name"/>。
 /// </summary>
 public static class RequestActorResolver
