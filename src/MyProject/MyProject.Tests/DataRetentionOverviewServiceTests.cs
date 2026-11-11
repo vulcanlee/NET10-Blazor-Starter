@@ -174,7 +174,8 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
     public void ManagePages_ForSoftDeletedData_ShouldHonorTheDeletedQuery(string route)
     {
         // 「前往」帶 ?deleted=1：頁面沒有接這個參數的話，只會落在一般清單，使用者還得自己按「顯示已刪除」。
-        var pages = Directory.EnumerateFiles(FindPagesRoot(), "*.razor", SearchOption.AllDirectories)
+        // 0.10.2 起分類、團隊頁搬到 WASM（MyProject.Web.Client/Pages），兩處都要找。
+        var pages = SourceTree.UiRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.razor", SearchOption.AllDirectories))
             .Select(File.ReadAllText)
             .Where(text => text.Contains($"@page \"{route}\"", StringComparison.Ordinal))
             .ToList();
@@ -207,6 +208,4 @@ public sealed class DataRetentionOverviewServiceTests : IClassFixture<ApiTestApp
 
         Assert.StartsWith("將依目前的保留規則（保留 365 天）刪除「稽核紀錄」中約 87 筆，連同詳細內容檔。", content, StringComparison.Ordinal);
     }
-
-    private static string FindPagesRoot() => Path.Combine(SourceTree.Components, "Pages");
 }

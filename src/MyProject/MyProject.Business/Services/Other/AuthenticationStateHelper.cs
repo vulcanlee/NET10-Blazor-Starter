@@ -200,16 +200,9 @@ public class AuthenticationStateHelper
     /// </summary>
     public bool CheckAccessPage(string name)
     {
-        // 管理員一律通過：GetEffectivePermissionKeysAsync 不含 admin 隱含全通過（回空集合），
-        // 故此處需比照 CheckAccessAction 短路，否則管理員選單/頁面會全被隱藏。
-        if (currentUserService.CurrentUser.IsAdmin)
-        {
-            return true;
-        }
-
-        var keys = currentUserService.CurrentUser.RoleList;
-        var result = keys.Contains(name)
-            || keys.Contains(PermissionKey.For(name, PermissionActions.View));
+        // 規則在 PermissionRules.CanAccessPage（0.10.2 起與 WASM 頁面共用）：管理員一律通過
+        // （GetEffectivePermissionKeysAsync 不含 admin 隱含全通過，回空集合，故必須短路）。
+        var result = PermissionRules.CanAccessPage(currentUserService.CurrentUser, name);
         logger.LogDebug(
             "Checked page access for UserId={UserId}, Page={PageName}, Allowed={Allowed}.",
             currentUserService.CurrentUser.Id,

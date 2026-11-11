@@ -12,11 +12,12 @@ using MyProject.Models.Systems;
 namespace MyProject.Business.Services.DataAccess;
 
 /// <summary>
-/// __Display__的 Blazor 資料服務（由 scripts/New-CrudModule.ps1 產生）。
+/// __Display__的資料服務（由 scripts/New-CrudModule.ps1 產生）：WASM 頁面經 __Name__Controller 呼叫，Web API 與畫面共用同一套規則與稽核。
+/// 失敗結果帶種類（NotFound／Conflict／Invalid／Error），Controller 依它回 404／409／400／500。
 /// ⚠️ 注入 IDbContextFactory、每個方法用完即棄（DataAccessServiceLifetimeTests 守門）。
 /// 刪除＝軟刪除，可在「顯示已刪除」還原或永久刪除；修改以 ConcurrencyStamp 比對（別人先改過就不覆蓋）。
 #IF TEAMS
-/// 團隊範圍：沒有團隊（公開）或與授權團隊有交集才看得到（<see cref="RecordTeamScope"/>，Web API 的 Repository 用同一套）。
+/// 團隊範圍：沒有團隊（公開）或與授權團隊有交集才看得到（<see cref="RecordTeamScope"/>）。
 #ENDIF
 /// </summary>
 public class __Name__Service
@@ -51,7 +52,7 @@ public class __Name__Service
         this.currentUserService = currentUserService;
     }
 
-    /// <summary>寫一筆稽核。操作者取自 <see cref="CurrentUserService"/>（本服務只由 Blazor 畫面呼叫；Web API 的稽核寫在 Controller）。</summary>
+    /// <summary>寫一筆稽核。操作者取自 <see cref="CurrentUserService"/>（Web API 由 ApiActorMiddleware 依存取 Token 填入）；Controller 不再另寫稽核。</summary>
     private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {
         var user = currentUserService.CurrentUser;
@@ -79,10 +80,15 @@ public class __Name__Service
             ? source
             : source.Where(x => x.Name.Contains(search) || (x.Description != null && x.Description.Contains(search)));
 
-    public async Task<DataRequestResult<__Name__AdapterModel>> GetAsync(DataRequest dataRequest)
+    /// <param name="isEnabled">只看啟用（true）或停用（false）的；null 不篩選（Web API 的 IsEnabled 條件）。</param>
+    public async Task<DataRequestResult<__Name__AdapterModel>> GetAsync(DataRequest dataRequest, bool? isEnabled = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         IQueryable<__Name__> dataSource = ApplySearch(context.__Name__.AsNoTracking(), dataRequest.Search);
+        if (isEnabled is { } enabledOnly)
+        {
+            dataSource = dataSource.Where(x => x.IsEnabled == enabledOnly);
+        }
 #IF TEAMS
         dataSource = await ApplyScopeAsync(dataSource);
 #ENDIF
@@ -94,6 +100,7 @@ public class __Name__Service
             {
                 nameof(__Name__AdapterModel.Name) => descending ? dataSource.OrderByDescending(x => x.Name).ThenByDescending(x => x.Id) : dataSource.OrderBy(x => x.Name).ThenBy(x => x.Id),
                 nameof(__Name__AdapterModel.IsEnabled) => descending ? dataSource.OrderByDescending(x => x.IsEnabled).ThenByDescending(x => x.Id) : dataSource.OrderBy(x => x.IsEnabled).ThenBy(x => x.Id),
+                nameof(__Name__AdapterModel.CreatedAt) => descending ? dataSource.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id) : dataSource.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id),
                 nameof(__Name__AdapterModel.UpdatedAt) => descending ? dataSource.OrderByDescending(x => x.UpdatedAt).ThenByDescending(x => x.Id) : dataSource.OrderBy(x => x.UpdatedAt).ThenBy(x => x.Id),
                 _ => null,
             };
@@ -137,6 +144,23 @@ public class __Name__Service
         return result;
     }
 
+    /// <summary>單筆（Web API 的 GET {id}）；找不到或不在團隊範圍內時回 Id 為 0 的空資料。</summary>
+    public async Task<__Name__AdapterModel> GetAsync(int id)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var item = await context.__Name__.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+#IF TEAMS
+        if (item is null || !await IsVisibleAsync(item))
+#ELSE
+        if (item is null)
+#ENDIF
+        {
+            return new __Name__AdapterModel();
+        }
+
+        return Mapper.Map<__Name__AdapterModel>(item);
+    }
+
     public async Task<VerifyRecordResult> AddAsync(__Name__AdapterModel paraObject)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -147,7 +171,7 @@ public class __Name__Service
             if (RecordTeamScope.CheckAssignment(null, TagStringHelper.ToStored(paraObject.Teams), await accessScope.GetAsync()) is { } teamError)
             {
                 Logger.LogInformation("__Name__ create rejected by team assignment rule.");
-                return VerifyRecordResultFactory.Build(false, teamError);
+                return VerifyRecordResultFactory.Invalid(teamError);
             }
 
 #ENDIF
@@ -158,7 +182,9 @@ public class __Name__Service
 
             await context.__Name__.AddAsync(item);
             await context.SaveChangesAsync();
+            // 回填新的 Id 與版本號：Web API 新增後要回傳這一筆。
             paraObject.Id = item.Id;
+            paraObject.ConcurrencyStamp = item.ConcurrencyStamp;
 
             Logger.LogInformation("__Name__ created. __Name__Id={__Name__Id}", item.Id);
             await WriteAuditAsync(AuditActions.__Name__.Create, item.Id, $"name={item.Name}");
@@ -170,11 +196,11 @@ public class __Name__Service
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("__Name__ create rejected by unique constraint.");
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to create __name__.");
-            return VerifyRecordResultFactory.Build(false, "新增__Item__失敗。", ex);
+            return VerifyRecordResultFactory.Error("新增__Item__失敗。", ex);
         }
     }
 
@@ -186,20 +212,20 @@ public class __Name__Service
             var item = await context.__Name__.AsNoTracking().FirstOrDefaultAsync(x => x.Id == paraObject.Id);
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到要修改的__Item__資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要修改的__Item__資料。");
             }
 #IF TEAMS
 
             if (!await IsVisibleAsync(item))
             {
                 Logger.LogWarning("__Name__ update denied by team scope. __Name__Id={__Name__Id}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, "這筆__Item__不在你的團隊範圍內，無法修改。");
+                return VerifyRecordResultFactory.NotFound("這筆__Item__不在你的團隊範圍內，無法修改。");
             }
 
             if (RecordTeamScope.CheckAssignment(item.Teams, TagStringHelper.ToStored(paraObject.Teams), await accessScope.GetAsync()) is { } teamError)
             {
                 Logger.LogInformation("__Name__ update rejected by team assignment rule. __Name__Id={__Name__Id}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, teamError);
+                return VerifyRecordResultFactory.Invalid(teamError);
             }
 #ENDIF
 
@@ -224,18 +250,18 @@ public class __Name__Service
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤，記 Information、不帶例外物件。
             Logger.LogInformation("__Name__ update rejected by concurrency conflict. __Name__Id={__Name__Id}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("__Name__ update rejected by unique constraint. __Name__Id={__Name__Id}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to update __name__. __Name__Id={__Name__Id}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, "修改__Item__失敗。", ex);
+            return VerifyRecordResultFactory.Error("修改__Item__失敗。", ex);
         }
     }
 
@@ -251,14 +277,14 @@ public class __Name__Service
             var item = await context.__Name__.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到這筆__Item__，可能已被刪除。");
+                return VerifyRecordResultFactory.NotFound("找不到這筆__Item__，可能已被刪除。");
             }
 #IF TEAMS
 
             if (!await IsVisibleAsync(item))
             {
                 Logger.LogWarning("__Name__ status change denied by team scope. __Name__Id={__Name__Id}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆__Item__不在你的團隊範圍內，無法修改。");
+                return VerifyRecordResultFactory.NotFound("這筆__Item__不在你的團隊範圍內，無法修改。");
             }
 #ENDIF
 
@@ -280,7 +306,7 @@ public class __Name__Service
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to change __name__ status. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, "切換__Item__狀態失敗。", ex);
+            return VerifyRecordResultFactory.Error("切換__Item__狀態失敗。", ex);
         }
     }
 
@@ -293,14 +319,14 @@ public class __Name__Service
             var item = await context.__Name__.FirstOrDefaultAsync(x => x.Id == id);
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的__Item__資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的__Item__資料。");
             }
 #IF TEAMS
 
             if (!await IsVisibleAsync(item))
             {
                 Logger.LogWarning("__Name__ deletion denied by team scope. __Name__Id={__Name__Id}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆__Item__不在你的團隊範圍內，無法刪除。");
+                return VerifyRecordResultFactory.NotFound("這筆__Item__不在你的團隊範圍內，無法刪除。");
             }
 #ENDIF
 
@@ -314,12 +340,12 @@ public class __Name__Service
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("__Name__ deletion rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete __name__. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除__Item__失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除__Item__失敗。", ex);
         }
     }
 
@@ -331,14 +357,14 @@ public class __Name__Service
             var item = await context.__Name__.IgnoreQueryFilters([ISoftDeletable.FilterName]).FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到要還原的__Item__（可能已被還原或永久刪除）。");
+                return VerifyRecordResultFactory.NotFound("找不到要還原的__Item__（可能已被還原或永久刪除）。");
             }
 #IF TEAMS
 
             if (!await IsVisibleAsync(item))
             {
                 Logger.LogWarning("__Name__ restore denied by team scope. __Name__Id={__Name__Id}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆__Item__不在你的團隊範圍內，無法還原。");
+                return VerifyRecordResultFactory.NotFound("這筆__Item__不在你的團隊範圍內，無法還原。");
             }
 #ENDIF
 
@@ -346,7 +372,7 @@ public class __Name__Service
             var name = item.Name.ToLower();
             if (await context.__Name__.AnyAsync(x => x.Id != id && x.Name.ToLower() == name))
             {
-                return VerifyRecordResultFactory.Build(false, $"已有同名的__Item__「{item.Name}」，無法還原。請先將現有的同名資料改名後再還原。");
+                return VerifyRecordResultFactory.Conflict($"已有同名的__Item__「{item.Name}」，無法還原。請先將現有的同名資料改名後再還原。");
             }
 
             SoftDeleteHelper.Restore(item);
@@ -359,17 +385,17 @@ public class __Name__Service
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("__Name__ restore rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to restore __name__. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, "還原__Item__失敗。", ex);
+            return VerifyRecordResultFactory.Error("還原__Item__失敗。", ex);
         }
     }
 
@@ -382,14 +408,14 @@ public class __Name__Service
             var item = await context.__Name__.IgnoreQueryFilters([ISoftDeletable.FilterName]).FirstOrDefaultAsync(x => x.Id == id && x.IsDeleted);
             if (item == null)
             {
-                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的__Item__（只能永久刪除已刪除的資料）。");
+                return VerifyRecordResultFactory.NotFound("找不到要永久刪除的__Item__（只能永久刪除已刪除的資料）。");
             }
 #IF TEAMS
 
             if (!await IsVisibleAsync(item))
             {
                 Logger.LogWarning("__Name__ purge denied by team scope. __Name__Id={__Name__Id}", id);
-                return VerifyRecordResultFactory.Build(false, "這筆__Item__不在你的團隊範圍內，無法永久刪除。");
+                return VerifyRecordResultFactory.NotFound("這筆__Item__不在你的團隊範圍內，無法永久刪除。");
             }
 #ENDIF
 
@@ -403,12 +429,12 @@ public class __Name__Service
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("__Name__ purge rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, "這筆__Item__已被其他人還原或變更，沒有執行永久刪除。", ex);
+            return VerifyRecordResultFactory.Conflict("這筆__Item__已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge __name__. __Name__Id={__Name__Id}", id);
-            return VerifyRecordResultFactory.Build(false, "永久刪除__Item__失敗。", ex);
+            return VerifyRecordResultFactory.Error("永久刪除__Item__失敗。", ex);
         }
     }
 
@@ -418,7 +444,7 @@ public class __Name__Service
         await using var context = await contextFactory.CreateDbContextAsync();
         var name = NameNormalizer.Normalize(paraObject.Name).ToLower();
         return await context.__Name__.AsNoTracking().AnyAsync(x => x.Name.ToLower() == name)
-            ? VerifyRecordResultFactory.Build(false, "名稱已存在，無法新增。")
+            ? VerifyRecordResultFactory.Conflict("名稱已存在，無法新增。")
             : VerifyRecordResultFactory.Build(true);
     }
 
@@ -427,12 +453,12 @@ public class __Name__Service
         await using var context = await contextFactory.CreateDbContextAsync();
         if (!await context.__Name__.AsNoTracking().AnyAsync(x => x.Id == paraObject.Id))
         {
-            return VerifyRecordResultFactory.Build(false, "要修改的__Item__資料不存在。");
+            return VerifyRecordResultFactory.NotFound("要修改的__Item__資料不存在。");
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name).ToLower();
         return await context.__Name__.AsNoTracking().AnyAsync(x => x.Name.ToLower() == name && x.Id != paraObject.Id)
-            ? VerifyRecordResultFactory.Build(false, "名稱已存在，無法修改。")
+            ? VerifyRecordResultFactory.Conflict("名稱已存在，無法修改。")
             : VerifyRecordResultFactory.Build(true);
     }
 }

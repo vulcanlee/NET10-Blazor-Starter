@@ -350,6 +350,7 @@ public sealed class LoggingConventionTests
         string[] exempt =
         [
             "CurrentUserService.cs",        // 僅持有目前使用者狀態，無任何行為
+            "ServerPagePermissions.cs",     // 純判斷：把 CurrentUserService 交給 PermissionRules，沒有 I/O
             "RolePermissionService.cs",     // 純粹回傳靜態權限結構
             "AuthenticationCheckResult.cs", // 列舉
             "PasswordResetRequestResult.cs", // 列舉

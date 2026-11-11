@@ -1,10 +1,10 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.0
+- 現行系統版本：0.10.2
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
@@ -17,7 +17,8 @@
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
 - Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
-- 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）：呼叫 `this.WriteAuditAsync(AuditActions.Xxx.Create, ...)`
+- **資料一律經畫面同一個 Service**（0.10.2 起，WASM 遷移 M3）：Controller 不另寫查詢或寫入邏輯，團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份。分類、團隊已改（`CategoryRepository`／`TeamRepository` 已刪除），專案的 `ProjectRepository` 在 M4 刪除；新模組不要再寫 Repository（CRUD 產生器也不再產生）。DTO 與畫面模型的對應放在 `MyProject.Web.Client/Api/*DtoMapper.cs`，WASM 頁面與 Controller 共用。
+- 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）。走服務的 Controller 由服務寫（與畫面相同，操作者是 `ApiActorMiddleware` 依存取 Token 載入的目前使用者），Controller 只補服務不寫的查看、搜尋、匯出稽核；還沒改走服務的（`ProjectController`）呼叫 `this.WriteAuditAsync(AuditActions.Xxx.Create, ...)`
   （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT／Cookie 身分解析）。
   動作代碼一律引用 `MyProject.Business/Helpers/AuditActions.cs` 的常數，不可寫字串字面值（`AuditConventionTests` 守門）。
 - 例外：`ProjectFileController`（附件下載）**只收 Cookie 驗證**、路由為 kebab-case 的 `api/project-files`（另有 `api/v1/project-files`），
@@ -36,8 +37,8 @@
 - `TraceId`：**錯誤追蹤碼**（0.9.78 起，LOG-10）。值是 8 碼短碼（例：`7K3QX9MD`），由 `UseHttpRequestLogging`
   以 `TraceCode.New()` 產生並**取代 `HttpContext.TraceIdentifier`**，因此與日誌檔的 TraceId 欄位、`/Error` 頁、
   系統例外紀錄的 `LastTraceId` 是同一個碼，管理員可在 `/logs` 以「錯誤追蹤碼」篩選找回同一次請求。
-  目前會填入的路徑：`ApiExceptionFilter`（未處理例外）、`this.ApiServerError(...)`、JWT 的 401／403 事件；
-  一般驗證錯誤（400）、`HasPermission` 的 403、限流的 429 不帶（為 `null`）。
+  目前會填入的路徑：`ApiExceptionFilter`（未處理例外）、`this.ApiServerError(...)`、JWT 的 401／403 事件、`this.FromVerify(...)` 的失敗與 `this.ForbidUnless(...)` 的 403（0.10.2 起）；
+  一般驗證錯誤（400）、`HasPermission` 的 403、限流的 429 不帶（為 `null`）。WASM 頁面的錯誤通知會附上最近一次失敗回應的這個碼（見[開發慣例與限制速查 §6.33](開發慣例與限制速查.md)）。
 - `Exception`：例外資訊。Development 或 `Security:ReturnExceptionDetails=true` 時回傳；Production 預設不回傳。
 
 相容欄位：
@@ -52,13 +53,29 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 | 狀態碼 | 使用情境 |
 | --- | --- |
 | 200 | 查詢、更新、刪除等成功 |
-| 400 | ModelState 或商業規則驗證失敗（例：指派了自己範圍外的團隊、團隊樹的上層不合法、還有下屬的團隊不可刪除）|
+| 400 | ModelState 或商業規則驗證失敗（例：指派了自己範圍外的團隊、團隊樹的上層不合法；匯出超過 10000 筆）|
 | 401 | 未登入、未提供 Bearer token、token 無效 |
-| 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生） |
+| 403 | 已登入但權限不足（由 `HasPermissionAttribute` 判定產生；某個參數要更高權限時由 `this.ForbidUnless(...)` 產生，0.10.2 起） |
 | 404 | 找不到指定資源 |
-| 409 | 資料衝突：名稱重複，或 `PUT` 帶來的 `ConcurrencyStamp` 與資料庫不符（別人已先修改，0.9.93 起）|
+| 409 | 資料衝突：名稱重複，或 `PUT` 帶來的 `ConcurrencyStamp` 與資料庫不符（別人已先修改，0.9.93 起）；還原時已有同名的資料、永久刪除時還有其他資料以它為上層 |
 | 429 | 超過限流配額（`api` 分區；登入端點另有較嚴的配額），Body 同樣是 `ApiResult` |
 | 500 | 未預期例外 |
+
+### 服務結果轉成狀態碼（0.10.2 起）
+
+服務的寫入方法回傳 `VerifyRecordResult`，0.10.2 起多了 `Kind`（`VerifyRecordErrorKind`，`MyProject.Models/Systems/VerifyRecordResult.cs`）標示失敗的種類；畫面只看 `Message`，不受影響。服務以 `VerifyRecordResultFactory.NotFound`／`Conflict`／`Invalid`／`Error` 建立失敗結果，Controller 以 `this.FromVerify(result, 成功訊息)`（`Controllers/ControllerVerifyResultExtensions.cs`）轉成回應：
+
+| `Kind` | 狀態碼 | 例 |
+| --- | --- | --- |
+| `NotFound` | 404 | 找不到，或不在自己的團隊範圍內（一律當作不存在）|
+| `Conflict` | 409 | 名稱或代號重複、版本衝突、還原撞名、永久刪除時仍被引用 |
+| `Invalid`、`None` | 400 | 輸入不符規則（例如指定範圍外的團隊、上層選到自己的下屬）|
+| `Error` | 500 | 未預期的錯誤（已記錯誤日誌）；例外細節同樣交給 `ApiServerError` 依 `ExceptionDetailPolicy` 決定是否回傳 |
+
+- 訊息就是畫面上看到的那一句（0.10.2 起分類、團隊的 API 錯誤訊息與畫面相同；網址、狀態碼的分類方式與欄位不變）。
+- 端點本身只要求較低的權限、但某個參數需要更高權限時（例如搜尋與匯出的 `Deleted=true` 要刪除權限），用 `this.ForbidUnless(允許, 訊息)`：不允許時回 403 `ApiResult`（帶 `TraceId`），允許時回 null。判斷一律用 `PermissionRules.CanAccessAction`（與畫面同一份規則）。
+- 修改時先確認資料在自己的範圍內（範圍外 404），再比對名稱：不要讓範圍外的資料因為名稱重複回 409 而透露它存在。存檔前檢查端點（`POST check`）同理，而且要有新增（`Id=0`）或修改（`Id>0`）權限，只能看的人不能拿它探名稱。
+- 新增成功後服務會把資料庫配的 `Id` 與 `ConcurrencyStamp` 寫回傳入的畫面模型，Controller 直接用它組回應。
 
 ## JWT 與 Swagger
 Swagger 已設定 Bearer security definition。開發者可在 Swagger UI 透過 Authorize 輸入 JWT access token 後測試受保護 API。

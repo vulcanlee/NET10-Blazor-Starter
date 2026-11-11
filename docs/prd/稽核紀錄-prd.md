@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.27
+- 文件版本：1.28
 - 文件狀態：已實作
-- 現行系統版本：0.10.1
+- 現行系統版本：0.10.2
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -13,7 +13,7 @@
 只能直接開 SQLite 檔查。0.9.42 補上查詢畫面，讓這條軌跡拿得出來。
 
 - 範圍：管理員專屬的稽核事件檢視／查詢／明細／CSV 匯出／清除與清空；0.9.173 起另有五個資料頁每列的「異動歷程」（§3.4）；0.9.175 起每筆紀錄加上防竄改簽章，可驗證完整性（§九）。
-- 非範圍：**不提供 Web API**（內部管理頁）；不做告警通知；
+- 非範圍：本頁**不提供 Web API**（內部管理頁；0.10.2 起只有「異動歷程」對話窗用的兩個管理員專用端點，見 §3.4，本頁其他端點在 WASM 遷移 M5 再補）；不做告警通知；
   不修改既有的稽核寫入點。
 - 相關：寫入端的事件涵蓋範圍見 [使用者管理](使用者管理-prd.md)、[角色管理](角色管理-prd.md)、
   [登入與帳號流程](登入與帳號流程-prd.md)。
@@ -84,8 +84,11 @@ scoped CSS 連 `::deep` 都打不到。
 **做法**：在資料所在的清單上直接看那一筆的異動。
 
 - **位置**：分類清單 `/categories`、專案項目 `/projects`、團隊清單 `/teams`、使用者管理 `/myusers`、角色管理 `/roleviews` 每列操作欄的最後一顆「異動歷程」（`CrudActionButton`，圖示 `history`），一般清單與「顯示已刪除」兩個分支都有（已刪除的資料更需要查是誰刪的）。`New-CrudModule.ps1` 產生的頁面也有，目標類型＝模組名稱。
-- **權限：只有管理員**。稽核紀錄含來源 IP 與別人的操作，與本頁同樣只給管理員、權限鍵不上架角色矩陣。`AuditHistoryButton` 以 `CurrentUser.IsAdmin` 決定渲染（非管理員連 `SpaceItem` 都不留，分類／專案／團隊頁的一般使用者也看不到），`AuditHistoryDialog.ShowAsync` 再擋一次並記警告日誌。
-- **元件**：`Components/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
+- **權限：只有管理員**。稽核紀錄含來源 IP 與別人的操作，與本頁同樣只給管理員、權限鍵不上架角色矩陣。`AuditHistoryButton` 以 `PagePermissions.IsAdmin`（0.10.2 起；之前是 `CurrentUser.IsAdmin`，規則相同）決定渲染（非管理員連 `SpaceItem` 都不留，分類／專案／團隊頁的一般使用者也看不到），`AuditHistoryDialog.ShowAsync` 再擋一次並記警告日誌。
+- **元件**：`MyProject.Web.Client/Commons/AuditHistoryButton.razor`、`AuditHistoryDialog.razor(.cs/.css)`（0.10.2 起放在 Client，Server 與 WASM 頁面共用，命名空間仍是 `MyProject.Web.Components.Commons`）；一頁只放一個對話窗，由按鈕呼叫 `ShowAsync(targetType, targetId, label)`。`targetType` 必須與服務寫稽核的 `TargetType` 相同（`Category`、`Project`、`Team`、`MyUser`、`RoleView`），否則永遠是空的 —— 由 `AuditHistoryConventionTests` 守門。
+- **資料來源**（0.10.2 起，`IAuditHistorySource`）：Server 頁面用 `ServerAuditHistorySource`（`MyProject.Web/Components/Commons/`，直接查 `AuditLogQueryService`）；WASM 頁面（分類、團隊）用 `ApiAuditHistorySource`（`MyProject.Web.Client/Api/`），呼叫管理員專用的 `AuditLogsController`：
+  `GET /api/v1/audit-logs/history?targetType=&targetId=&page=&pageSize=&opened=`（每頁 1～50 筆；`opened=true` 是剛打開，寫一筆 `Audit.Search`，換頁不寫）與 `GET /api/v1/audit-logs/{id}/content`（詳細內容，寫一筆 `Audit.View`）；非管理員回 403。
+  兩種來源寫的稽核與錯誤文字相同；API 不回傳伺服器上的內容檔路徑，只回 `HasContent`。API 回錯誤或連不上伺服器時，右下角顯示 API 的錯誤訊息（預設「載入異動歷程失敗。」）。
 - **標題**：「異動歷程：<名稱>」，使用者頁顯示帳號（不顯示姓名）、專案頁顯示 `Title`、其他顯示 `Name`。上方說明：「這一筆資料（<類型> #<編號>）在稽核紀錄裡的異動，新的在上面；時間為伺服器本地時間。稽核紀錄保留期限之前的異動已被清除。要看誰開過、查過這一筆，請到「稽核紀錄」頁查詢。」
 - **左側清單**：`AuditLogQueryService.GetTargetHistoryAsync(targetType, targetId, page, 10)` —— 目標類型＋目標識別精確比對，**排除瀏覽類**（`Page.View`、以 `.Search` 或 `.View` 結尾；SQL 版本是共用的 `NotBrowsing` 條件，與 `AuditActions.IsBrowsing` 同一規則，也給 `AuditLogQuery.ExcludeBrowsing` 用），依 `OccurredAt`、`Id` 遞減，時間轉本地。每筆顯示時間、動作代碼 `Tag`（顏色同本頁）、失敗多一個紅色「失敗」、操作者「帳號（Id=N）」；超過 10 筆出現小型分頁。目標是 `MyUser` 的密碼重設、兩步驟驗證、解鎖、強制登出、本人改姓名等也會列出；登入事件沒有目標，不列。
 - **右側明細**：點一筆後顯示發生時間、動作代碼、結果、操作者、來源 IP、摘要（空的「（無）」）、詳細內容（點選才經 `GetContentAsync` 讀檔）。沒有內容檔：「（這一筆沒有詳細內容。修改前後差異只在「修改」、而且系統參數「稽核：記錄修改前後差異」開啟時才會記錄）」（0.9.174 起改字）；檔案不在：「內容檔不存在（可能已被清除，或當初寫檔失敗）。」；讀檔失敗：「讀取詳細內容失敗。」附追蹤碼。還沒選時：「請從左側選一筆，查看摘要與修改前後差異。」
@@ -177,7 +180,7 @@ Blazor 互動 circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連
 | `LogViewer.Search` / `ExceptionLog.Search` / `AiCallLog.Search` / `TokenUsage.Search` / `Audit.Search` | 管理診斷頁按「查詢」（日誌檢視打開頁面時的自動查詢不記）；條件同上 |
 | `ExceptionLog.View` / `AiCallLog.View` / `TokenUsage.View` / `Audit.View` | 開明細窗。日誌檢視的展開只發生在瀏覽器端，沒有 `LogViewer.View` |
 
-**修改前後差異**（0.9.174 起要開 `RecordFieldChanges`）：分類、專案、團隊、使用者、角色的修改（Blazor 與 Web API 兩條路徑）以及個人資料改姓名，
+**修改前後差異**（0.9.174 起要開 `RecordFieldChanges`）：分類、專案、團隊、使用者、角色的修改（Blazor 與 Web API 兩條路徑；0.10.2 起分類、團隊的 API 也走服務，與畫面同一份）以及個人資料改姓名，
 由 `AuditDiff` 比對修改前後的純量欄位寫進內容檔；Detail 維持原本的短摘要。主鍵、版本號、建立／更新時間、軟刪除欄位不比；
 使用者的密碼只記「已變更」，Salt、SecurityStamp、兩步驟密鑰、Google 綁定、鎖定與失敗次數不比；額外角色、團隊、角色權限與預設團隊列出新增與移除。
 
@@ -204,7 +207,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Notification.Test` | `NotificationTestService`（「系統健康監控」的發送測試通知，0.9.122 起；detail `recipients=N`，發送失敗加 `; failed`） |
 | `SystemParameter.Update` / `SystemParameter.Reset` | `SystemParameterView`（「系統參數」頁的修改與還原，0.9.98 起；Detail `key=…; old=…(來源); new=…(來源)`） |
 | `Project.AutoPurge` / `Category.AutoPurge` / `Team.AutoPurge` / `User.AutoPurge` / `Role.AutoPurge` | 排程作業「已刪除資料清理」（0.9.97 起）：每種資料每次一筆彙總，無操作者，`TargetId` 為 `*`，Detail 為 `rows=N; days=D; trigger=T; items=#Id 名稱, …`（上限 1000 字） |
-| `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）|
+| `Permission.Denied` | `HasPermissionAttribute`（API 動作級授權被拒）；0.9.78 起 Blazor 頁面權限拒絕也記（`AuthenticationStateHelper.RecordPageAccessDeniedAsync`）；0.10.2 起 WASM 頁面由開頁紀錄 `POST /api/v1/shell/page-view` 依選單的權限鍵判斷後記（Detail `via=WASM`）|
 | `Project.FileDownload` | `ProjectFileController` |
 | `LogLevel.Apply` / `LogLevel.Restore` | `LogLevelSettingView` |
 | `LogViewer.AiAnalyze` / `LogViewer.AiAnalyzeExportPdf` | `LogViewerView` |
@@ -277,7 +280,8 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 - `DataAccessServiceLifetimeTests`：`AuditLogQueryService` 與 `AuditLogService`（0.9.131 起）必須注入 `IDbContextFactory`。
 - 0.9.131 起：`AuditDiffTests`（比對、排除、遮罩、集合差異）、`AuditContentFileStoreTests`（拒絕根目錄外的路徑）、
   `AuditLogServiceTests`（內容檔、Debug 同步不含內容）、`AuditLogQueryServiceTests`（清除與清空連同內容檔）、
-  `ViewAuditTests`（查詢摘要不含搜尋原文）、`CategoryServiceTests`／`MyUserServiceAssignmentTests`／`CategoryTeamRepositoryUniquenessTests`（差異內容）。
+  `ViewAuditTests`（查詢摘要不含搜尋原文）、`CategoryServiceTests`／`MyUserServiceAssignmentTests`／`CategoryTeamRepositoryUniquenessTests`（差異內容；後者 0.10.2 隨 Repository 刪除）。
+- 0.10.2 起：`CategoryTeamApiTests` 的 `AuditHistory_ForAdmins_ShouldListTheChanges_AndAuditOpeningAndViewingOnce`、`AuditHistory_ForNonAdmins_ShouldReturn403`（異動歷程 API）與 `OpeningAWasmPage_WithoutPermission_ShouldAuditTheDenial_LikeTheServerPage`；分類、團隊 API 每個動作只寫一筆稽核（`*_FullLifecycle_ShouldWork_AndWriteEachAuditOnce`）。
 - `PageAuthorizationTests`：`/audit-logs` 自動納入受保護路由掃描。
 - 0.9.173 起：`AuditLogQueryServiceTests` 多 7 項（目標精確比對、只給目標類型或只給目標識別、目標類型清單去重排序、異動歷程只列異動且新的在前、異動歷程分頁、模型有目標索引、`NotBrowsing_ShouldAgreeWithIsBrowsing_ForEveryActionCode`）；
   `AuditConventionTests.IsBrowsing_ShouldBeTrueExactlyForSearchAndViewConstants`（只有常數名稱叫 Search／View 的才是瀏覽類）；

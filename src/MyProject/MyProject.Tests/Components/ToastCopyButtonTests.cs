@@ -5,6 +5,8 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
+using MyProject.Web.Auth;
+using MyProject.Web.Client.Auth;
 using MyProject.Web.Components.Commons;
 using MyProject.Web.Configuration;
 
@@ -87,6 +89,18 @@ public sealed class ToastCopyButtonTests : ComponentTestBase
         services.AddSingleton(new CurrentUserService { CurrentUser = { IsAdmin = isAdmin } });
         services.AddSingleton(Options.Create(new SecuritySettings { ReturnExceptionDetails = returnExceptionDetails }));
         services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment { EnvironmentName = environmentName });
+        services.AddScoped<PagePermissions, ServerPagePermissions>();
+    }
+
+    /// <summary>
+    /// Server 頁面的權限判斷（0.10.2 起 RequirePermission 等元件改注入 <see cref="PagePermissions"/>）：
+    /// 測試照舊只登記 <see cref="CurrentUserService"/>，再呼叫這裡補上正式的 <see cref="ServerPagePermissions"/>。
+    /// </summary>
+    internal static void AddServerPagePermissions(IServiceCollection services)
+    {
+        services.AddSingleton(Options.Create(new SecuritySettings()));
+        services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment { EnvironmentName = "Production" });
+        services.AddScoped<PagePermissions, ServerPagePermissions>();
     }
 
     private string ClickAndReadClipboard(string? detail)

@@ -47,6 +47,8 @@ public sealed class AuditHistoryTests : ComponentTestBase
             new TestDbContextFactory(connection), mapper, NullLogger<AuditLogQueryService>.Instance, contentStore,
             TestAuditChain.Create(connection)));
         Services.AddSingleton<IAuditLogService>(audit);
+        // 0.10.2 起對話窗與 WASM 頁面共用，Server 頁面的資料來源是 ServerAuditHistorySource（邏輯不變）。
+        Services.AddScoped<IAuditHistorySource, ServerAuditHistorySource>();
     }
 
     protected override void Dispose(bool disposing)
@@ -132,7 +134,10 @@ public sealed class AuditHistoryTests : ComponentTestBase
     }
 
     private void SignIn(bool isAdmin)
-        => Services.AddSingleton(new CurrentUserService { CurrentUser = new CurrentUser { Id = 1, Account = "admin", IsAdmin = isAdmin } });
+    {
+        Services.AddSingleton(new CurrentUserService { CurrentUser = new CurrentUser { Id = 1, Account = "admin", IsAdmin = isAdmin } });
+        ToastCopyButtonTests.AddServerPagePermissions(Services);
+    }
 
     private async Task SeedAsync(params AuditLog[] rows)
     {

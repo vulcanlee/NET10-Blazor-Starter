@@ -12,7 +12,8 @@
     實機驗證腳本在 scripts/e2e/，用法見該資料夾的 README.md。
 
 .PARAMETER SupportPassword
-    support 帳號的暫時密碼（只在這次執行有效）。
+    support 帳號的暫時密碼（只在這次執行有效）。沒給時改用環境變數 E2E_SUPPORT_PASSWORD（0.10.2 起，讓呼叫端不必把密碼放在命令列上），
+    兩者都沒有就產生一組。
 
 .PARAMETER Root
     隔離資料夾；預設在系統暫存目錄下新建一個。
@@ -41,6 +42,10 @@ if (-not $Root) {
     $Root = Join-Path ([IO.Path]::GetTempPath()) ("myproject-e2e-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 }
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
+
+if (-not $SupportPassword -and $env:E2E_SUPPORT_PASSWORD) {
+    $SupportPassword = $env:E2E_SUPPORT_PASSWORD
+}
 
 if (-not $SupportPassword) {
     # 符合預設密碼原則：大小寫、數字、符號都有，長度足夠。

@@ -31,6 +31,14 @@ internal static class SourceTree
     /// </summary>
     public static IReadOnlyList<string> UiRoots => [Components, Client];
 
+    /// <summary>
+    /// 畫面檔案（例如 <c>Views/Categories/CategoryViewView.razor</c>）在 <see cref="UiRoots"/> 哪一處就回哪一處的完整路徑（0.10.2 起）：
+    /// 頁面搬到 WASM 後，「這幾頁都要有…」的測試不必跟著改路徑。兩處都沒有時丟例外。
+    /// </summary>
+    public static string UiFile(string relativePath)
+        => UiRoots.Select(root => Path.Combine(root, relativePath)).FirstOrDefault(File.Exists)
+            ?? throw new FileNotFoundException($"在 {string.Join("、", UiRoots)} 底下都找不到 {relativePath}。");
+
     /// <summary>repo 的 <c>docs</c> 目錄。</summary>
     public static string Docs => Path.Combine(RepoRoot, "docs");
 

@@ -225,6 +225,51 @@ public sealed class ClientSessionTests
         Assert.Equal(ApiClient.OfflineMessage, result.ErrorMessage);
     }
 
+    /// <summary>審查修正（0.10.2）：匯出被拒（例如超過筆數上限）時，畫面要顯示伺服器給的原因，不是「驗證失敗」這種分類字。</summary>
+    [Fact]
+    public async Task Download_WhenTheServerRefuses_ShouldReturnTheReason()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        var refused = ApiResult<object>.ValidationError("符合條件的資料有 10001 筆，超過一次匯出的上限 10000 筆；請縮小搜尋或篩選條件後再匯出。");
+        refused.TraceId = "ABCD1234";
+        handler.On("api/v1/Category/export", HttpStatusCode.BadRequest, refused);
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+
+        var result = await api.DownloadAsync("api/v1/Category/export", new { });
+
+        Assert.False(result.Success);
+        Assert.Equal(400, result.StatusCode);
+        Assert.StartsWith("符合條件的資料有 10001 筆", result.Message);
+
+        // 追蹤碼只給緊接著的那一則錯誤通知，取用一次就沒了。
+        Assert.Equal("ABCD1234", ApiClient.TakeLastFailureTraceId());
+        Assert.Null(ApiClient.TakeLastFailureTraceId());
+    }
+
+    /// <summary>審查補測（0.10.2）：異動歷程在斷線時不讓對話窗出錯：清單丟「讀不到」（對話窗顯示訊息），詳細內容回說明文字。</summary>
+    [Fact]
+    public async Task AuditHistorySource_WhenTheServerCannotBeReached_ShouldFailGracefully()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/bridge", HttpStatusCode.OK, Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7, IsAdmin = true }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        handler.Offline = true;
+        var source = new ApiAuditHistorySource(new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance));
+
+        var error = await Assert.ThrowsAsync<MyProject.Web.Components.Commons.AuditHistoryUnavailableException>(
+            () => source.LoadAsync("Category", "1", 1, 10, opening: true));
+        var content = await source.ReadContentAsync(new MyProject.Models.AdapterModel.AuditLogAdapterModel { Id = 1, ContentFile = "x" });
+
+        Assert.Equal(ApiClient.OfflineMessage, error.Message);
+        Assert.StartsWith("讀取詳細內容失敗。", content);
+    }
+
     [Theory]
     [InlineData("/Profile", true)]
     [InlineData("profile", true)]
@@ -232,7 +277,10 @@ public sealed class ClientSessionTests
     [InlineData("/%50rofile", true)]
     [InlineData("/Profile/", true)]
     [InlineData("/%E0%A4%A", false)]
-    [InlineData("/categories", false)]
+    [InlineData("/categories", true)]
+    [InlineData("/teams", true)]
+    [InlineData("/Categories?deleted=1", true)]
+    [InlineData("/projects", false)]
     [InlineData("/", false)]
     public void ClientRouteTable_ShouldKnowWhichPagesRunInWebAssembly(string path, bool expected)
         => Assert.Equal(expected, ClientRouteTable.IsClientRoute(path));

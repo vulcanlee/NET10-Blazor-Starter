@@ -1,10 +1,10 @@
 ﻿# API Versioning 策略
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.2
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 目標
 - [x] 先建立版本化策略文件，但不在本輪改變既有 `/api/...` 路由，避免破壞目前 API 用戶端。
@@ -14,6 +14,7 @@
   附件下載 `ProjectFileController` 為 `api/project-files` 與 `api/v1/project-files`。
   例外：`BackupController`（系統備份下載）只有 `api/backups`、沒有 `v1`；`ExternalAuthController` 是 `Auths/Google` 網頁導向端點，不是 API。
   `New-CrudModule.ps1` 產生的 Controller 樣板同樣掛兩條路由。
+  WASM 遷移期間新增、給 WASM 頁面用的控制器（`ShellController`、`NotificationsController`、`AnnouncementsController`、`ProfileController`，0.10.2 起再加 `AuditLogsController`）只有 `api/v1/...`。
 - [x] integration tests 已驗證既有 `/api/...` contract 與 `/api/v1/Auth/login`、`/api/v1/Auth/me`。
 - [x] Swagger UI 已設定 v1 文件入口；本階段未導入額外 API Versioning 套件，先以平行路由維持相容。
 

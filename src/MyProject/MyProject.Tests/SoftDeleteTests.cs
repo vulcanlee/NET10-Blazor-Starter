@@ -261,21 +261,21 @@ public sealed class SoftDeleteTests
         Assert.Single((await service.GetDeletedAsync(request)).Result);
     }
 
-    // ------------------------------------------------------------------ Web API 的 Repository
+    // ------------------------------------------------------------------ Web API（0.10.2 起走服務）
 
+    /// <summary>已刪除的資料對單筆查詢與再刪一次都是「找不到」（API 回 404）。</summary>
     [Fact]
-    public async Task Repository_FindAsyncOnDeletedRow_ShouldReturnNotFound()
+    public async Task DeletedRow_ShouldBeNotFound_ForGetAndDeleteAgain()
     {
         await using var fixture = await Fixture.CreateAsync();
         var service = fixture.CategoryService();
         var id = await fixture.AddCategoryAsync(service, "技術文件");
         await service.DeleteAsync(id);
 
-        await using var context = fixture.NewContext();
-        var repository = new CategoryRepository(context, new FakeRecordAccessScopeProvider(true, []), NullLogger<CategoryRepository>.Instance);
-
-        Assert.Null(await repository.GetByIdAsync(id));
-        Assert.False(await repository.DeleteAsync(id, "api-user"));
+        Assert.Equal(0, (await service.GetAsync(id)).Id);
+        var again = await service.DeleteAsync(id);
+        Assert.False(again.Success);
+        Assert.Equal(VerifyRecordErrorKind.NotFound, again.Kind);
     }
 
     private static DataRequest AllRows() => new() { CurrentPage = 1, PageSize = 100, Take = 0 };

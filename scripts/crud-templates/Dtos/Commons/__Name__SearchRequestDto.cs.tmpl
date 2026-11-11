@@ -7,4 +7,10 @@ public class __Name__SearchRequestDto : SearchRequestBaseDto
 {
     /// <summary>是否啟用（null 表示不篩選）。</summary>
     public bool? IsEnabled { get; set; }
+
+    /// <summary>true：查「顯示已刪除」的清單，固定依刪除時間由新到舊。</summary>
+    public bool Deleted { get; set; }
+
+    /// <summary>true：這次是使用者按下「搜尋」，伺服器寫一筆搜尋稽核（換頁、排序、重新整理不帶）。</summary>
+    public bool RecordSearch { get; set; }
 }

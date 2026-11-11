@@ -1,0 +1,180 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MyProject.AccessDatas;
+using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
+using MyProject.Business.Services.Other;
+using MyProject.Dtos.Auths;
+using MyProject.Dtos.Commons;
+using MyProject.Dtos.Models;
+using MyProject.Share.Helpers;
+
+namespace MyProject.Tests;
+
+/// <summary>
+/// __Display__的 Web API（由 scripts/New-CrudModule.ps1 產生）：WASM 頁面只用這組端點。
+/// 新增、查看、修改、版本衝突、切換啟用、刪除、顯示已刪除、還原、永久刪除、重名、匯出，以及沒有權限時回 403；稽核每個動作只記一筆。
+/// </summary>
+[Collection(nameof(IntegrationHostCollection))]
+public sealed class __Name__ApiTests : IClassFixture<ApiTestApplicationFactoryWithBrowsingAudit>
+{
+    private const string Password = "Passw0rd-1";
+    private const string BaseUrl = "/api/v1/__Name__";
+
+    private readonly ApiTestApplicationFactoryWithBrowsingAudit factory;
+
+    public __Name__ApiTests(ApiTestApplicationFactoryWithBrowsingAudit factory)
+    {
+        this.factory = factory;
+    }
+
+    [Fact]
+    public async Task FullLifecycle_ShouldWork_AndWriteEachAuditOnce()
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        using var client = await SignedInClientAsync(admin);
+        var name = Unique("項目");
+
+        var created = await SendAsync<__Name__Dto>(client, HttpMethod.Post, BaseUrl, new __Name__CreateUpdateDto { Id = 0, Name = name });
+        var id = created.Id!.Value;
+        var fetched = await SendAsync<__Name__Dto>(client, HttpMethod.Get, $"{BaseUrl}/{id}");
+        fetched.Description = "改過";
+        await SendAsync<object>(client, HttpMethod.Put, $"{BaseUrl}/{id}", fetched);
+
+        // 版本衝突：拿舊的版本號再存一次。
+        var stale = await client.PutAsJsonAsync($"{BaseUrl}/{id}", fetched);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+        await SendAsync<object>(client, HttpMethod.Put, $"{BaseUrl}/{id}/enabled", new SetEnabledRequestDto { Enabled = false });
+        await SendAsync<object>(client, HttpMethod.Delete, $"{BaseUrl}/{id}");
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{BaseUrl}/{id}")).StatusCode);
+
+        var deleted = await SendAsync<PagedResult<__Name__Dto>>(client, HttpMethod.Post, $"{BaseUrl}/search", new __Name__SearchRequestDto { Keyword = name, Deleted = true });
+        Assert.True(Assert.Single(deleted.Items).IsDeleted);
+
+        await SendAsync<object>(client, HttpMethod.Post, $"{BaseUrl}/{id}/restore");
+        await SendAsync<object>(client, HttpMethod.Delete, $"{BaseUrl}/{id}");
+        await SendAsync<object>(client, HttpMethod.Delete, $"{BaseUrl}/{id}/purge");
+
+        await using var context = await CreateContextAsync();
+        var actions = await context.AuditLog
+            .Where(x => x.TargetType == "__Name__" && x.TargetId == id.ToString() && x.ActorUserId == admin.Id)
+            .OrderBy(x => x.Id).Select(x => x.Action).ToListAsync();
+        Assert.Equal(
+            [
+                AuditActions.__Name__.Create, AuditActions.__Name__.View, AuditActions.__Name__.Update, AuditActions.__Name__.Disable,
+                AuditActions.__Name__.Delete, AuditActions.__Name__.Restore, AuditActions.__Name__.Delete, AuditActions.__Name__.Purge,
+            ],
+            actions);
+    }
+
+    [Fact]
+    public async Task DuplicateName_ShouldReturn409_IgnoringCase()
+    {
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
+        var name = Unique("Dup");
+        await SendAsync<__Name__Dto>(client, HttpMethod.Post, BaseUrl, new __Name__CreateUpdateDto { Id = 0, Name = name });
+
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync(BaseUrl, new __Name__CreateUpdateDto { Id = 0, Name = name.ToLowerInvariant() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"{BaseUrl}/check", new __Name__CreateUpdateDto { Id = 0, Name = name })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Export_ShouldReturnAnXlsx()
+    {
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
+        await SendAsync<__Name__Dto>(client, HttpMethod.Post, BaseUrl, new __Name__CreateUpdateDto { Id = 0, Name = Unique("匯出") });
+
+        var response = await client.PostAsJsonAsync($"{BaseUrl}/export", new __Name__SearchRequestDto());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task WithoutPermission_WritesShouldReturn403()
+    {
+#IF ADMIN
+        // 管理員專屬：一般使用者連清單都不能看。
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"{BaseUrl}/search", new __Name__SearchRequestDto())).StatusCode);
+#ELSE
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false, permissions: [PermissionKey.For(MagicObjectHelper.__PermConst__, PermissionActions.View)]));
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"{BaseUrl}/search", new __Name__SearchRequestDto())).StatusCode);
+#ENDIF
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync(BaseUrl, new __Name__CreateUpdateDto { Id = 0, Name = Unique("越權") })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"{BaseUrl}/check", new __Name__CreateUpdateDto { Id = 0, Name = Unique("探名") })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"{BaseUrl}/search", new __Name__SearchRequestDto { Deleted = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"{BaseUrl}/1")).StatusCode);
+    }
+
+    private static string Unique(string prefix) => $"{prefix}{Guid.NewGuid():N}"[..(prefix.Length + 10)];
+
+    private static async Task<T> SendAsync<T>(HttpClient client, HttpMethod method, string url, object? body = null)
+    {
+        using var request = new HttpRequestMessage(method, url);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body, body.GetType());
+        }
+
+        var response = await client.SendAsync(request);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"{method} {url} → {(int)response.StatusCode} {text}");
+        return JsonSerializer.Deserialize<ApiResult<T>>(text, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.Data!;
+    }
+
+    private async Task<HttpClient> SignedInClientAsync(MyUser user)
+    {
+        var client = factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var tokens = (await login.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+        return client;
+    }
+
+    /// <summary>新增使用者；給了 <paramref name="permissions"/> 就另建一個只有這些權限鍵的角色，否則用預設角色。</summary>
+    private async Task<MyUser> AddUserAsync(bool isAdmin, string[]? permissions = null)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<BackendDBContext>();
+        var writer = scope.ServiceProvider.GetRequiredService<IRbacWriteService>();
+
+        RoleView role;
+        if (permissions is null)
+        {
+            role = await context.RoleView.FirstAsync(x => x.Name == MagicObjectHelper.預設角色);
+        }
+        else
+        {
+            role = new RoleView { Name = Unique("角色"), TabViewJson = JsonSerializer.Serialize(permissions) };
+            context.RoleView.Add(role);
+            await context.SaveChangesAsync();
+            await writer.SyncRolePermissionsAsync(role.Id, permissions);
+        }
+
+        var account = Unique("gen-");
+        var user = new MyUser
+        {
+            Account = account,
+            Name = account,
+            Password = SecurePasswordHasher.HashPassword(Password),
+            Status = true,
+            IsAdmin = isAdmin,
+            RoleViewId = role.Id,
+            PasswordChangedAtUtc = DateTime.UtcNow,
+        };
+        context.MyUser.Add(user);
+        await context.SaveChangesAsync();
+        await writer.SyncUserRolesAsync(user.Id, [role.Id]);
+        return user;
+    }
+
+    private Task<BackendDBContext> CreateContextAsync()
+        => factory.Services.GetRequiredService<IDbContextFactory<BackendDBContext>>().CreateDbContextAsync();
+}

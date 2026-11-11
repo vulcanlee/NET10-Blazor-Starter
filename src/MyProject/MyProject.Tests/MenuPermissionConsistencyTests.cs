@@ -110,9 +110,10 @@ public sealed class MenuPermissionConsistencyTests
         foreach (var (fileName, menuId) in ViewToMenuId)
         {
             var source = File.ReadAllText(FindViewPath(fileName));
-            var match = Regex.Match(source, @"CheckAccessPage\(\s*MagicObjectHelper\.(?<key>[^\s)]+)\s*\)");
+            // Server 頁面寫 AuthenticationStateHelper.CheckAccessPage(…)，WASM 頁面（0.10.2 起）寫 Permissions.CanAccessPage(…)，規則同一份（PermissionRules.CanAccessPage）。
+            var match = Regex.Match(source, @"(?:CheckAccessPage|CanAccessPage)\(\s*MagicObjectHelper\.(?<key>[^\s)]+)\s*\)");
 
-            Assert.True(match.Success, $"{fileName} 找不到 CheckAccessPage(MagicObjectHelper.*) 的呼叫。");
+            Assert.True(match.Success, $"{fileName} 找不到 CheckAccessPage／CanAccessPage(MagicObjectHelper.*) 的呼叫。");
 
             var actual = PermissionKeyConstants()[match.Groups["key"].Value];
             var expected = SidebarMenuService.MenuPermissionMap[menuId];
@@ -132,7 +133,10 @@ public sealed class MenuPermissionConsistencyTests
             var source = File.ReadAllText(FindViewPath(fileName));
 
             Assert.DoesNotContain("CheckAccessPage(", source, StringComparison.Ordinal);
-            Assert.Contains("CheckIsAdmin()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("CanAccessPage(", source, StringComparison.Ordinal);
+            Assert.True(
+                source.Contains("CheckIsAdmin()", StringComparison.Ordinal) || source.Contains("Permissions.IsAdmin", StringComparison.Ordinal),
+                $"{fileName} 是管理員專屬頁，要以 CheckIsAdmin()（Server）或 Permissions.IsAdmin（WASM）守門。");
         }
     }
 
@@ -176,15 +180,17 @@ public sealed class MenuPermissionConsistencyTests
 
     private static string FindViewPath(string fileName)
     {
-        var viewsRoot = FindRepoDirectory(Path.Combine("MyProject.Web", "Components", "Views"));
-        var matches = Directory.GetFiles(viewsRoot, fileName, SearchOption.AllDirectories);
+        // 0.10.2 起分類、團隊頁搬到 WASM：Server 版 Components/Views 與 MyProject.Web.Client/Views 都要找。
+        var matches = SourceTree.UiRoots
+            .Select(root => Path.Combine(root, "Views"))
+            .Where(Directory.Exists)
+            .SelectMany(root => Directory.GetFiles(root, fileName, SearchOption.AllDirectories))
+            .ToArray();
 
-        Assert.True(matches.Length == 1, $"預期在 Components/Views 下找到唯一的 {fileName}，實際找到 {matches.Length} 個。");
+        Assert.True(matches.Length == 1, $"預期在 Components/Views 或 MyProject.Web.Client/Views 下找到唯一的 {fileName}，實際找到 {matches.Length} 個。");
 
         return matches[0];
     }
 
     private static string FindRepoFile(string relativePath) => Path.Combine(SourceTree.SourceRoot, relativePath);
-
-    private static string FindRepoDirectory(string relativePath) => Path.Combine(SourceTree.SourceRoot, relativePath);
 }

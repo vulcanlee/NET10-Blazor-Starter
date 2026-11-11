@@ -22,7 +22,7 @@ public sealed class AuditHistoryConventionTests
     [MemberData(nameof(Pages))]
     public void DataPage_ShouldOfferAuditHistoryOnEveryRow(string relativePath, string targetType)
     {
-        var text = File.ReadAllText(Path.Combine(FindComponentsRoot(), relativePath));
+        var text = File.ReadAllText(SourceTree.UiFile(relativePath));
 
         AssertHasHistory(relativePath, text, targetType);
     }
@@ -30,8 +30,9 @@ public sealed class AuditHistoryConventionTests
     [Fact]
     public void CrudTemplate_ShouldOfferAuditHistoryOnEveryRow()
     {
-        var template = Path.Combine(FindComponentsRoot(), "..", "..", "..", "..", "scripts", "crud-templates",
-            "Web", "Components", "Views", "__Plural__", "__Name__ViewView.razor.tmpl");
+        // 0.10.2 起 CRUD 產生器只產生 WASM 頁面（MyProject.Web.Client/Views）。
+        var template = Path.Combine(SourceTree.Scripts, "crud-templates",
+            "Web.Client", "Views", "__Plural__", "__Name__ViewView.razor.tmpl");
 
         AssertHasHistory("__Name__ViewView.razor.tmpl", File.ReadAllText(template), "\"__Name__\"");
     }
@@ -55,6 +56,4 @@ public sealed class AuditHistoryConventionTests
 
         return count;
     }
-
-    private static string FindComponentsRoot() => SourceTree.Components;
 }

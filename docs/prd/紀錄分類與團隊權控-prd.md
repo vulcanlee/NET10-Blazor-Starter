@@ -1,10 +1,10 @@
 ﻿# 紀錄分類與團隊權控 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.9.165
+- 現行系統版本：0.10.2
 - 首次實作版本：0.4.0
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/11
 
 ## 一、目標與範圍
 
@@ -57,17 +57,17 @@
    - Web API／檔案下載情境以 `RequestActorResolver` 取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier），載入使用者並解析有效團隊。
    - 未登入：「非管理員、無團隊」，僅能看到公開紀錄。⚠️ 已登入卻解析不到是誰（0.9.105 起）：`RecordAccessScope.None`（`Denied`），什麼都看不到 —— 0.9.104 之前退回「只看公開」，而 JWT 的 Id 不在 Sid，Web API 等於不過濾，分類更是全部看得到。
 4. 查詢範圍套用：一律經 `RecordTeamScope`（0.9.105 起）—— `Apply`／`CanAccess`（紀錄）、`ApplyCategory`／`CanAccessCategory`（分類的反向規則）、`CheckAssignment`（指派）。
-   Blazor 的 `ProjectService`／`CategoryService` 與 Web API 的 `ProjectRepository`／`CategoryRepository` 共用，清單、單筆、修改、刪除都套用（0.9.120 起分類清單點狀態標籤的 `CategoryService.SetEnabledAsync` 也檢查範圍）；範圍外的單筆在 API 一律回 404。
+   `ProjectService`／`CategoryService` 與 Web API 的 `ProjectRepository` 共用（0.10.2 起 `CategoryController` 直接呼叫 `CategoryService`，`CategoryRepository` 已刪除；`ProjectRepository` 預定 M4 移除），清單、單筆、修改、刪除都套用（0.9.120 起分類清單點狀態標籤的 `CategoryService.SetEnabledAsync` 也檢查範圍）；範圍外的單筆在 API 一律回 404。
 5. 分類主檔的可見性（0.4.40 起）：`Category` 本身也有 `Teams` 標籤欄位，`CategoryService.ApplyTeamVisibility` 會過濾清單、單筆與下拉來源。⚠️ 其「使用者無團隊」的規則**與紀錄相反**——紀錄是「只看得到公開紀錄」，分類是「視為不受限、看得到全部」。分類可見性只是下拉清單的便利性過濾，安全邊界仍為 RBAC。完整規則見「分類清單 PRD」第八節。
 6. 動作級授權（`HasPermissionAttribute`）：解析呼叫者 userId 後委由 `IPermissionChecker.HasPermissionAsync` 判定；管理員短路，擁有動作鍵「頁面:動作」或裸頁面鍵（舊制＝全動作）即通過。
 
 ## 五、權限與安全
 
-- 單一權威來源：`IPermissionChecker` 為 UI（`AuthenticationStateHelper.CheckAccessPage`／`CheckAccessAction`）與 API（`[HasPermission]`）共用的權限判定來源，兩端一致。
+- 單一權威來源：`IPermissionChecker` 為 UI（`AuthenticationStateHelper.CheckAccessPage`／`CheckAccessAction`）與 API（`[HasPermission]`）共用的權限判定來源，兩端一致。0.10.2 起 WASM 頁面（分類、團隊）以 `PagePermissions.CanAccessPage`／`CanAccessAction` 決定畫面顯示，規則同為 `PermissionRules`（使用者的權限來自 `/me`）；這只是畫面顯示，實際操作仍由 API 的 `[HasPermission]` 把關。
 - 宣告式頁面權限：`Menu.json` 唯一 `id` ＋ `SidebarMenuService.MenuPermissionMap`（id→權限鍵）＋ `MagicObjectHelper` 權限鍵常數（見「首頁與導覽 PRD」）。
 - 動作級 RBAC：受保護 CRUD 以 `[HasPermission("頁面", "動作")]` 標註（View/Create/Edit/Delete；`Export` 已於 0.9.37 下架）；未登入回 401、無權限回 403，皆維持 `ApiResult` 格式。
 - 團隊權控為資安不變量：列級可見性由伺服器端查詢述詞強制，UI 過濾僅為輔助，不可作為授權邊界。
-- 0.9.105 起這條不變量**同時涵蓋 Web API**（之前只有 Blazor 路徑有，持 JWT 呼叫 `POST /api/Project/search` 可取得全部紀錄）。⚠️ 新增會讀寫紀錄的 Repository 或 Controller 時，一律經 `RecordTeamScope`。
+- 0.9.105 起這條不變量**同時涵蓋 Web API**（之前只有 Blazor 路徑有，持 JWT 呼叫 `POST /api/Project/search` 可取得全部紀錄）。⚠️ 新增會讀寫紀錄的服務或 Controller 時，一律經 `RecordTeamScope`（0.10.2 起 Controller 原則上呼叫服務，不另寫一套查詢）。
 - 0.9.105 起修改也檢查既有紀錄的範圍（之前 `ProjectService`／`CategoryService` 的 `UpdateAsync` 不檢查，知道 Id 就能改看不到的紀錄）。
 - 管理員豁免：`IsAdmin` 於 `PermissionChecker`、`CheckAccessPage/Action`、`IsTeamAccessible`、查詢範圍皆短路，一律通行且可見全部。
 
@@ -92,15 +92,15 @@
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Business/Helpers/TagStringHelper.cs`（標籤字串、`BuildTeamAccessPredicate:110`、`IsTeamAccessible:142`）
+- `src/MyProject/MyProject.Share/Helpers/TagStringHelper.cs`（標籤字串、`BuildTeamAccessPredicate:110`、`IsTeamAccessible:142`；0.10.2 起放在 Share 供 WASM 共用，命名空間仍是 `MyProject.Business.Helpers`）
 - `src/MyProject/MyProject.Business/Services/Other/EffectiveTeamResolver.cs`（有效團隊解析）
 - `src/MyProject/MyProject.Web/Auth/RecordAccessScopeProvider.cs`（存取範圍解析）
 - `src/MyProject/MyProject.Business/Services/Other/IRecordAccessScopeProvider.cs`（`RecordAccessScope`）
 - `src/MyProject/MyProject.Business/Helpers/RecordTeamScope.cs`（0.9.105 起的共用可見性與指派規則）、`Services/Other/TeamTree.cs`（團隊樹與快取）
-- `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`、`CategoryService.cs`、`Repositories/ProjectRepository.cs`、`CategoryRepository.cs`（查詢範圍套用）
+- `src/MyProject/MyProject.Business/Services/DataAccess/ProjectService.cs`、`CategoryService.cs`、`Repositories/ProjectRepository.cs`（查詢範圍套用）
 - `src/MyProject/MyProject.Business/Services/Other/PermissionChecker.cs`（`HasPermissionAsync`，管理員短路 `:33`）
 - `src/MyProject/MyProject.Web/Filters/HasPermissionAttribute.cs`（401/403 與 `ApiResult`）
 - `src/MyProject/MyProject.Web/Controllers/ProjectController.cs`（`[HasPermission]` 動作級標註）
-- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessAction`）
+- `src/MyProject/MyProject.Business/Services/Other/AuthenticationStateHelper.cs`（`CheckAccessAction`）、`src/MyProject/MyProject.Models/Others/PermissionRules.cs`（頁面與動作的判斷規則，Server 與 WASM 共用）、`src/MyProject/MyProject.Web.Client/Auth/PagePermissions.cs`（0.10.2 起，畫面上的權限判斷）
 - `src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`（`PermissionKey.For`／`PageOf`）
 - 交叉連結：[認證授權與權限機制](../security/認證授權與權限機制.md)、[首頁與導覽 PRD](首頁與導覽-prd.md)

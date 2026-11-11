@@ -10,6 +10,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
     <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+    <!--
+      載入完整的地區資料（0.10.2 起）：語系固定 zh-TW（見 ClientCulture），不跟著瀏覽器語言；
+      預設只依瀏覽器語言載入一部分，英文瀏覽器會缺 zh-TW 的資料。下載量多約 1～2 MB，正式發佈的大小在 M12 量測。
+    -->
+    <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
   </PropertyGroup>
 
   <ItemGroup>

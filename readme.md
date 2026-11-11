@@ -51,7 +51,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 | 專案 | 角色 |
 |------|------|
 | `MyProject.Web` | Blazor Server 宿主、Razor 元件、Web API Controller、登入頁、本地化、靜態資源。 |
-| `MyProject.Business` | 商業邏輯：Services、Repositories、AutoMapper Profile、Helpers。 |
+| `MyProject.Business` | 商業邏輯：Services、Repositories（0.10.2 起只剩 `ProjectRepository`）、AutoMapper Profile、Helpers。 |
 | `MyProject.AccessDatas` | EF Core `BackendDBContext`、Entity 定義、Migrations。 |
 | `MyProject.Models` | 系統設定、AdapterModel、共用領域模型。 |
 | `MyProject.Dtos` | API 對外傳輸物件：`ApiResult<T>`、`PagedResult<T>`、各模組 DTO。 |
@@ -215,11 +215,11 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter 等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views／Layout（WASM 版外框）、Api、Auth；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、LogoutConfirm、AntDesignLocaleFactory …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊）／Layout（WASM 版外框）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions）；Commons/ 放 Server 與 WASM 共用元件（OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← AuthenticationStateHelper 等
-    │   ├── Repositories/           ← API 層使用的 Repository
+    │   ├── Repositories/           ← API 層使用的 Repository（0.10.2 起只剩 ProjectRepository，M4 移除）
     │   └── Models/AutoMapping.cs   ← AutoMapper Profile
     ├── MyProject.AccessDatas/
     │   ├── BackendDBContext.cs
@@ -325,7 +325,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 2530 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 2670 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell
@@ -382,7 +382,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [EFCore 指令備忘](docs/guides/EFCore.md) — Migration 指令範本。
 - [測試指南](docs/guides/測試指南.md) — 測試類別、本機執行、整合測試與覆蓋率。
 - `scripts/New-StarterProject.ps1` — 從本腳手架複製新專案並替換 namespace / project 名稱；**整個方案執行一次即可**，`.slnx` 內 8 個專案（0.10.0 起含 `MyProject.Web.Client`）會一起改名；0.9.116 起開跑前會確認腳手架來源是最新的（工作目錄乾淨、在 `main`、不落後 origin），否則中止（`-AllowUnsyncedSource` 可放行）。
-- `scripts/New-CrudModule.ps1` — 一行產生新 CRUD 模組（13 個樣板檔，含操作說明初稿與服務測試，對齊現行慣例），並自動完成所有登記與 migration（0.9.110 起）；改了樣板跑 `scripts/Test-CrudGenerator.ps1` 驗證。
+- `scripts/New-CrudModule.ps1` — 一行產生新 CRUD 模組（14 個樣板檔，含操作說明初稿、服務測試與 API 測試，對齊現行慣例；0.10.2 起頁面以 WebAssembly 執行、Controller 走服務），並自動完成所有登記與 migration（0.9.110 起）；改了樣板跑 `scripts/Test-CrudGenerator.ps1` 驗證（0.10.2 起含瀏覽器實跑）。
 
 ### 維運與部署（operations）
 

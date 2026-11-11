@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.Web.Components.Commons;
+using MyProject.Web.Diagnostics;
 
 namespace MyProject.Tests.Components;
 
@@ -22,7 +23,11 @@ public sealed class ViewNotificationTests : ComponentTestBase
     private static readonly DateTime OccurredAt = new(2026, 10, 19, 14, 3, 22);
 
     public ViewNotificationTests()
-        => ToastCopyButtonTests.AddCopyServices(Services);
+    {
+        ToastCopyButtonTests.AddCopyServices(Services);
+        // 正式環境由 Program.cs 設定（0.10.2 起 ViewNotification 放在 Client 專案，追蹤碼來源由主機提供）。
+        ViewNotification.UseTraceCodeProvider(() => TraceCode.Current);
+    }
 
     [Fact]
     public void CopyText_ShouldListTitleTextTraceCodeTimeAndPage()

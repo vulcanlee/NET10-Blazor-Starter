@@ -54,8 +54,8 @@ public class TeamService
     }
 
     /// <summary>
-    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：本服務只由 Blazor 畫面呼叫；
-    /// Web API 走 Repository，稽核寫在對應的 Controller。AuditLogService 失敗不拋出。
+    /// 寫一筆稽核（LOG-14）。操作者取自 <see cref="CurrentUserService"/>：Server 頁面是電路的使用者，
+    /// Web API（0.10.2 起也走本服務）是 <c>ApiActorMiddleware</c> 依存取 Token 填入的使用者。AuditLogService 失敗不拋出。
     /// </summary>
     private Task WriteAuditAsync(string action, int targetId, string detail, string? content = null)
     {
@@ -71,7 +71,8 @@ public class TeamService
             content: content);
     }
 
-    public async Task<DataRequestResult<TeamAdapterModel>> GetAsync(DataRequest dataRequest)
+    /// <param name="isEnabled">只看啟用（true）或停用（false）的；null 不篩選（Web API 的 <c>IsEnabled</c> 條件，0.10.2 起）。</param>
+    public async Task<DataRequestResult<TeamAdapterModel>> GetAsync(DataRequest dataRequest, bool? isEnabled = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         Logger.LogDebug(
@@ -93,6 +94,11 @@ public class TeamService
                 x.Name.Contains(dataRequest.Search) ||
                 (x.Code != null && x.Code.Contains(dataRequest.Search)) ||
                 (x.Description != null && x.Description.Contains(dataRequest.Search)));
+        }
+
+        if (isEnabled is { } enabledOnly)
+        {
+            dataSource = dataSource.Where(x => x.IsEnabled == enabledOnly);
         }
 
         IOrderedQueryable<Team>? sorted = null;
@@ -121,6 +127,14 @@ public class TeamService
                     ? dataSource.OrderByDescending(x => x.IsEnabled).ThenByDescending(x => x.Id)
                     : dataRequest.SortDescending == false
                         ? dataSource.OrderBy(x => x.IsEnabled).ThenBy(x => x.Id)
+                        : null;
+            }
+            else if (dataRequest.SortField == nameof(TeamAdapterModel.CreatedAt))
+            {
+                sorted = dataRequest.SortDescending == true
+                    ? dataSource.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+                    : dataRequest.SortDescending == false
+                        ? dataSource.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
                         : null;
             }
             else if (dataRequest.SortField == nameof(TeamAdapterModel.UpdatedAt))
@@ -180,7 +194,7 @@ public class TeamService
             if (await TeamHierarchy.ValidateParentAsync(context, 0, paraObject.ParentId) is { } parentError)
             {
                 Logger.LogInformation("Team create rejected by parent rule. Name={TeamName}, ParentId={ParentId}", paraObject.Name, paraObject.ParentId);
-                return VerifyRecordResultFactory.Build(false, parentError);
+                return VerifyRecordResultFactory.Invalid(parentError);
             }
 
             Team itemParameter = Mapper.Map<Team>(paraObject);
@@ -193,6 +207,9 @@ public class TeamService
             await transaction.CommitAsync();
             teamTree.Invalidate();
 
+            // 回填新的 Id 與版本號（0.10.2 起）：Web API 新增後要回傳這一筆。
+            paraObject.Id = itemParameter.Id;
+            paraObject.ConcurrencyStamp = itemParameter.ConcurrencyStamp;
             Logger.LogInformation("Team created successfully. TeamId={TeamId}, Name={TeamName}", itemParameter.Id, itemParameter.Name);
             await WriteAuditAsync(AuditActions.Team.Create, itemParameter.Id, $"name={itemParameter.Name}; parentId={itemParameter.ParentId}");
             return VerifyRecordResultFactory.Build(true);
@@ -205,11 +222,11 @@ public class TeamService
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Team create rejected by unique constraint. Name={TeamName}", paraObject.Name);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to create team. Name={TeamName}", paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "新增團隊失敗。", ex);
+            return VerifyRecordResultFactory.Error("新增團隊失敗。", ex);
         }
     }
 
@@ -228,13 +245,13 @@ public class TeamService
             if (item == null)
             {
                 Logger.LogWarning("Team update rejected because record was not found. TeamId={TeamId}", paraObject.Id);
-                return VerifyRecordResultFactory.Build(false, "找不到要修改的團隊資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要修改的團隊資料。");
             }
 
             if (await TeamHierarchy.ValidateParentAsync(context, item.Id, paraObject.ParentId) is { } parentError)
             {
                 Logger.LogInformation("Team update rejected by parent rule. TeamId={TeamId}, ParentId={ParentId}", item.Id, paraObject.ParentId);
-                return VerifyRecordResultFactory.Build(false, parentError);
+                return VerifyRecordResultFactory.Invalid(parentError);
             }
 
             Team itemData = Mapper.Map<Team>(paraObject);
@@ -248,7 +265,8 @@ public class TeamService
             var renamed = await RenameReferencesAsync(context, item, itemData.Name);
             if (renamed.Error is { } renameError)
             {
-                return VerifyRecordResultFactory.Build(false, renameError);
+                // 與改寫前的 API 相同回 400（規則不符），不是 409（0.10.2 承諾既有 API 的狀態碼不變）。
+                return VerifyRecordResultFactory.Invalid(renameError);
             }
 
             var entry = context.Entry(itemData);
@@ -267,18 +285,18 @@ public class TeamService
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
             Logger.LogInformation("Team update rejected by concurrency conflict. TeamId={TeamId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Team update rejected by unique constraint. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to update team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "修改團隊失敗。", ex);
+            return VerifyRecordResultFactory.Error("修改團隊失敗。", ex);
         }
     }
 
@@ -299,7 +317,7 @@ public class TeamService
             if (item == null)
             {
                 Logger.LogInformation("Team status change rejected because record was not found. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到這個團隊，可能已被刪除。");
+                return VerifyRecordResultFactory.NotFound("找不到這個團隊，可能已被刪除。");
             }
 
             var rows = item.IsEnabled == enabled ? 0 : await context.Team
@@ -321,7 +339,7 @@ public class TeamService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to change team status. TeamId={TeamId}, Enabled={Enabled}", id, enabled);
-            return VerifyRecordResultFactory.Build(false, "切換團隊狀態失敗。", ex);
+            return VerifyRecordResultFactory.Error("切換團隊狀態失敗。", ex);
         }
     }
 
@@ -341,7 +359,7 @@ public class TeamService
             if (item == null)
             {
                 Logger.LogWarning("Team deletion rejected because record was not found. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要刪除的團隊資料。");
+                return VerifyRecordResultFactory.NotFound("找不到要刪除的團隊資料。");
             }
 
             // 有下屬部門時不可刪（0.9.105 起，使用者決定）：否則下屬變成掛在已刪除部門底下。
@@ -349,7 +367,8 @@ public class TeamService
             if (children > 0)
             {
                 Logger.LogInformation("Team deletion rejected because it still has child teams. TeamId={TeamId}, ChildCount={ChildCount}", id, children);
-                return VerifyRecordResultFactory.Build(false, TeamHierarchy.HasChildrenMessage(children));
+                // 與改寫前的 API 相同回 400（規則不符），不是 409（0.10.2 承諾既有 API 的狀態碼不變）。
+                return VerifyRecordResultFactory.Invalid(TeamHierarchy.HasChildrenMessage(children));
             }
 
             SoftDeleteHelper.MarkDeleted(item, currentUserService.CurrentUser.Id > 0 ? currentUserService.CurrentUser.Account : null);
@@ -363,12 +382,12 @@ public class TeamService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Team deletion rejected by concurrency conflict. TeamId={TeamId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to delete team. TeamId={TeamId}", id);
-            return VerifyRecordResultFactory.Build(false, "刪除團隊失敗。", ex);
+            return VerifyRecordResultFactory.Error("刪除團隊失敗。", ex);
         }
     }
 
@@ -416,7 +435,7 @@ public class TeamService
             if (item == null)
             {
                 Logger.LogWarning("Team restore rejected because deleted record was not found. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要還原的團隊（可能已被還原或永久刪除）。");
+                return VerifyRecordResultFactory.NotFound("找不到要還原的團隊（可能已被還原或永久刪除）。");
             }
 
             // 刪除期間可能有人建立了同名或同代號的團隊（部分唯一索引允許），規則與新增時相同：去空白後不分大小寫。
@@ -424,7 +443,7 @@ public class TeamService
             if (await context.Team.AnyAsync(x => x.Id != id && x.Name.ToLower() == name))
             {
                 Logger.LogInformation("Team restore rejected because an active team has the same name. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, $"已有同名的團隊「{item.Name}」，無法還原。請先將現有的同名團隊改名後再還原。");
+                return VerifyRecordResultFactory.Conflict($"已有同名的團隊「{item.Name}」，無法還原。請先將現有的同名團隊改名後再還原。");
             }
 
             if (item.Code is { } code)
@@ -433,14 +452,14 @@ public class TeamService
                 if (await context.Team.AnyAsync(x => x.Id != id && x.Code != null && x.Code.ToLower() == lowerCode))
                 {
                     Logger.LogInformation("Team restore rejected because an active team has the same code. TeamId={TeamId}", id);
-                    return VerifyRecordResultFactory.Build(false, $"已有代號為「{code}」的團隊，無法還原。請先將現有團隊的代號改掉後再還原。");
+                    return VerifyRecordResultFactory.Conflict($"已有代號為「{code}」的團隊，無法還原。請先將現有團隊的代號改掉後再還原。");
                 }
             }
 
             if (await TeamHierarchy.ValidateRestoreAsync(context, item) is { } parentError)
             {
                 Logger.LogInformation("Team restore rejected because its parent is deleted. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, parentError);
+                return VerifyRecordResultFactory.Invalid(parentError);
             }
 
             SoftDeleteHelper.Restore(item);
@@ -454,18 +473,18 @@ public class TeamService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Team restore rejected by concurrency conflict. TeamId={TeamId}", id);
-            return VerifyRecordResultFactory.Build(false, ConcurrencyStampHelper.ConflictMessage, ex);
+            return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
         {
             if (UniqueConstraintHelper.TryGetFriendlyMessage(ex, out var conflictMessage))
             {
                 Logger.LogInformation("Team restore rejected by unique constraint. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, conflictMessage, ex);
+                return VerifyRecordResultFactory.Conflict(conflictMessage, ex);
             }
 
             Logger.LogError(ex, "Failed to restore team. TeamId={TeamId}", id);
-            return VerifyRecordResultFactory.Build(false, "還原團隊失敗。", ex);
+            return VerifyRecordResultFactory.Error("還原團隊失敗。", ex);
         }
     }
 
@@ -484,13 +503,13 @@ public class TeamService
             if (item == null)
             {
                 Logger.LogWarning("Team purge rejected because deleted record was not found. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, "找不到要永久刪除的團隊（只能永久刪除已刪除的資料）。");
+                return VerifyRecordResultFactory.NotFound("找不到要永久刪除的團隊（只能永久刪除已刪除的資料）。");
             }
 
             if (await TeamHierarchy.IsParentOfAnyAsync(context, id))
             {
                 Logger.LogInformation("Team purge rejected because other teams still use it as parent. TeamId={TeamId}", id);
-                return VerifyRecordResultFactory.Build(false, "還有其他團隊（含已刪除的）以它為上層團隊，請先永久刪除那些團隊。");
+                return VerifyRecordResultFactory.Conflict("還有其他團隊（含已刪除的）以它為上層團隊，請先永久刪除那些團隊。");
             }
 
             context.Team.Remove(item);
@@ -503,12 +522,12 @@ public class TeamService
         catch (DbUpdateConcurrencyException ex)
         {
             Logger.LogInformation("Team purge rejected by concurrency conflict. TeamId={TeamId}", id);
-            return VerifyRecordResultFactory.Build(false, "這筆團隊已被其他人還原或變更，沒有執行永久刪除。", ex);
+            return VerifyRecordResultFactory.Conflict("這筆團隊已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to purge team. TeamId={TeamId}", id);
-            return VerifyRecordResultFactory.Build(false, "永久刪除團隊失敗。", ex);
+            return VerifyRecordResultFactory.Error("永久刪除團隊失敗。", ex);
         }
     }
 
@@ -525,7 +544,7 @@ public class TeamService
         if (nameItem != null)
         {
             Logger.LogInformation("Pre-create validation failed because team name already exists. Name={TeamName}", paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "團隊名稱已存在，無法新增。");
+            return VerifyRecordResultFactory.Conflict("團隊名稱已存在，無法新增。");
         }
 
         // 用 `is { } code` 取得不可為 null 的 string：外層的 null 檢查流程狀態
@@ -539,7 +558,7 @@ public class TeamService
             if (codeItem != null)
             {
                 Logger.LogInformation("Pre-create validation failed because team code already exists. Code={TeamCode}", paraObject.Code);
-                return VerifyRecordResultFactory.Build(false, "團隊代號已存在，無法新增。");
+                return VerifyRecordResultFactory.Conflict("團隊代號已存在，無法新增。");
             }
         }
 
@@ -558,7 +577,7 @@ public class TeamService
         if (searchItem == null)
         {
             Logger.LogInformation("Pre-update validation failed because team was not found. TeamId={TeamId}", paraObject.Id);
-            return VerifyRecordResultFactory.Build(false, "要修改的團隊資料不存在。");
+            return VerifyRecordResultFactory.NotFound("要修改的團隊資料不存在。");
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name);
@@ -569,7 +588,7 @@ public class TeamService
         if (nameItem != null)
         {
             Logger.LogInformation("Pre-update validation failed because team name already exists. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
-            return VerifyRecordResultFactory.Build(false, "團隊名稱已存在，無法修改。");
+            return VerifyRecordResultFactory.Conflict("團隊名稱已存在，無法修改。");
         }
 
         // 用 `is { } code` 取得不可為 null 的 string：外層的 null 檢查流程狀態
@@ -583,7 +602,7 @@ public class TeamService
             if (codeItem != null)
             {
                 Logger.LogInformation("Pre-update validation failed because team code already exists. TeamId={TeamId}, Code={TeamCode}", paraObject.Id, paraObject.Code);
-                return VerifyRecordResultFactory.Build(false, "團隊代號已存在，無法修改。");
+                return VerifyRecordResultFactory.Conflict("團隊代號已存在，無法修改。");
             }
         }
 

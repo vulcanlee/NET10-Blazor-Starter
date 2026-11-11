@@ -73,6 +73,15 @@ public sealed class ShellController : ControllerBase
         this.logger = logger;
     }
 
+    /// <summary>
+    /// 伺服器（zh-TW）的日期時間格式（0.10.2 起）：WASM 在啟動前讀一次並套用（語系要在 RunAsync 之前設定才生效），
+    /// 所以不需要登入；內容只有格式字串，與使用者無關。
+    /// </summary>
+    [HttpGet("culture")]
+    [AllowAnonymous]
+    public ActionResult<ApiResult<DateTimeFormatDto>> Culture()
+        => Ok(ApiResult<DateTimeFormatDto>.SuccessResult(FormatOf(System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat), "取得日期時間格式成功"));
+
     [HttpGet("info")]
     public async Task<ActionResult<ApiResult<ShellInfoDto>>> Info()
     {
@@ -147,6 +156,15 @@ public sealed class ShellController : ControllerBase
             await auditLogService.WriteAsync(
                 AuditActions.Page.View, success: true, actorUserId: user.Id, actorAccount: user.Account,
                 targetType: "Page", targetId: path, detail: $"from={(from.Length > 0 ? from : "entry")}");
+
+            // 沒有權限的人打開 WASM 頁面（0.10.2 起）：與 Server 頁面的 RecordPageAccessDeniedAsync 相同，再記一筆權限拒絕。
+            // 由伺服器依選單的權限鍵判斷，不採信瀏覽器的說法；畫面本身只顯示「沒有權限」。
+            if (await sidebarMenuService.FindPagePermissionAsync(path) is { } permission && !authenticationStateHelper.CheckAccessPage(permission))
+            {
+                await auditLogService.WriteAsync(
+                    AuditActions.Permission.Denied, success: false, actorUserId: user.Id, actorAccount: user.Account,
+                    targetType: "Page", targetId: path, detail: "via=WASM");
+            }
         }
 
         return Ok(ApiResult<object>.SuccessResult(new { }, "已記錄"));
@@ -179,6 +197,16 @@ public sealed class ShellController : ControllerBase
         Icon = item.Icon ?? string.Empty,
         Url = item.Url ?? string.Empty,
         SubMenu = item.SubMenu.Select(ToDto).ToList(),
+    };
+
+    private static DateTimeFormatDto FormatOf(System.Globalization.DateTimeFormatInfo format) => new()
+    {
+        ShortDatePattern = format.ShortDatePattern,
+        LongDatePattern = format.LongDatePattern,
+        ShortTimePattern = format.ShortTimePattern,
+        LongTimePattern = format.LongTimePattern,
+        AMDesignator = format.AMDesignator,
+        PMDesignator = format.PMDesignator,
     };
 
     private static string NormalizePath(string? path)

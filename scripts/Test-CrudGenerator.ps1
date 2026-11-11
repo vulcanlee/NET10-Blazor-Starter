@@ -6,16 +6,22 @@
     在暫存的 git worktree 裡（以目前工作目錄的內容為準，含尚未提交的變更）依序：
       1. 產生三個範例模組：一般、-WithTeams、-AdminOnly（掛在系統管理群組）。
       2. 建置、格式檢查、執行全部測試、檢查文件編碼。
+      2a. 實跑（0.10.2 起）：在 worktree 以 Start-E2EHost.ps1 啟動隔離的網站，用 Playwright 打開三個產生出來的頁面（WASM），
+          各做一次新增、修改、刪除、顯示已刪除、還原（scripts/e2e/crud-generated.mjs）。需要 PLAYWRIGHT_CORE_DIR（見 scripts/e2e/README.md）。
       3. 以 -Force 重跑三個產生指令，確認沒有任何檔案再被改動（登記不重複）。
       4. 刪除 worktree（-KeepWorktree 時保留，方便啟動網站實際操作）。
     不會改動你的工作目錄與 git index。耗時數分鐘，所以不在品質關卡裡；修改產生器或樣板後必跑。
 
 .PARAMETER KeepWorktree
     結束後保留 worktree，並印出路徑。
+
+.PARAMETER SkipRealRun
+    略過實跑（例如沒有安裝 playwright-core 的機器）；只驗證產生、建置、測試與冪等。
 #>
 [CmdletBinding()]
 param(
-    [switch]$KeepWorktree
+    [switch]$KeepWorktree,
+    [switch]$SkipRealRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -89,6 +95,49 @@ try {
     Invoke-Step '格式檢查' { Invoke-Native dotnet @('format', 'whitespace', $solution, '--verify-no-changes') }
     Invoke-Step '全部測試' { Invoke-Native dotnet @('test', $solution, '--no-build', '-v', 'q', '-nologo') }
     Invoke-Step '文件編碼' { Invoke-Native pwsh @('-NoProfile', '-File', (Join-Path $worktree 'scripts/Test-DocsEncoding.ps1')) }
+
+    if (-not $SkipRealRun) {
+        if (-not $env:PLAYWRIGHT_CORE_DIR) {
+            throw '實跑需要 PLAYWRIGHT_CORE_DIR（playwright-core 套件資料夾，見 scripts/e2e/README.md）；只想驗證建置與測試請加 -SkipRealRun。'
+        }
+
+        Invoke-Step '實跑產生的頁面（WASM）' {
+            if (Get-Process MyProject.Web -ErrorAction SilentlyContinue) {
+                throw '已有 MyProject.Web 在執行（佔用 https://localhost:7144），請先關閉再實跑。'
+            }
+
+            $e2eRoot = Join-Path ([IO.Path]::GetTempPath()) ("crudgen-e2e-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+            # 一次性的暫時密碼：只放在這個行程與子行程的環境變數（E2E_SUPPORT_PASSWORD），不寫入檔案、也不放在命令列（其他人看得到行程清單）。
+            $env:E2E_SUPPORT_PASSWORD = 'Gen!' + [guid]::NewGuid().ToString('N').Substring(0, 12) + 'Aa9'
+            $hostProcess = Start-Process pwsh -PassThru -WindowStyle Hidden -ArgumentList @(
+                '-NoProfile', '-File', (Join-Path $worktree 'scripts/Start-E2EHost.ps1'), '-Root', $e2eRoot)
+            try {
+                $deadline = (Get-Date).AddMinutes(5)
+                $ready = $false
+                while (-not $ready -and (Get-Date) -lt $deadline) {
+                    Start-Sleep -Seconds 3
+                    try {
+                        $ready = (Invoke-WebRequest -Uri 'https://localhost:7144/Auths/Login' -SkipCertificateCheck -TimeoutSec 10).StatusCode -eq 200
+                    } catch {
+                        $ready = $false
+                    }
+                }
+
+                if (-not $ready) { throw '網站在 5 分鐘內沒有啟動（日誌在 ' + $e2eRoot + '\logs）。' }
+
+                $env:E2E_DB_FILE = Join-Path $e2eRoot 'DB/BackendDB.db'
+                $env:E2E_OUT_DIR = Join-Path $e2eRoot 'e2e-out'
+                # 與產生器的預設路由規則相同（/<Name 小寫>s；上面三個模組都沒有另給 -Plural／-Route）。
+                $env:E2E_CRUD_ROUTES = ($modules | ForEach-Object { '/' + $_.Name.ToLowerInvariant() + 's' }) -join ','
+                Invoke-Native node @((Join-Path $worktree 'scripts/e2e/crud-generated.mjs'))
+                Write-Host "實跑結果與截圖：$($env:E2E_OUT_DIR)"
+            } finally {
+                Remove-Item Env:E2E_SUPPORT_PASSWORD, Env:E2E_DB_FILE, Env:E2E_OUT_DIR, Env:E2E_CRUD_ROUTES -ErrorAction SilentlyContinue
+                Get-Process MyProject.Web -ErrorAction SilentlyContinue | Stop-Process -Force
+                if (-not $hostProcess.HasExited) { Stop-Process -Id $hostProcess.Id -Force -ErrorAction SilentlyContinue }
+            }
+        }
+    }
 
     Invoke-Step '重跑產生器（不可再改動任何檔案）' {
         $before = Get-TreeState

@@ -497,12 +497,8 @@ namespace MyProject.Web.Components.Views.Admins
             new("來源IP", x => x.ClientIp),
         ];
 
-        /// <summary>操作者顯示文字；系統或匿名事件（例如帳號不存在的登入失敗）沒有 Id。</summary>
-        internal static string ActorText(AuditLogAdapterModel item)
-        {
-            var account = string.IsNullOrWhiteSpace(item.ActorAccount) ? "（系統／匿名）" : item.ActorAccount;
-            return item.ActorUserId is null ? account : $"{account}（Id={item.ActorUserId}）";
-        }
+        /// <summary>操作者顯示文字（0.10.2 起規則在 <see cref="AuditLogDisplay.ActorText"/>，與異動歷程對話窗共用）。</summary>
+        internal static string ActorText(AuditLogAdapterModel item) => AuditLogDisplay.ActorText(item);
 
         /// <summary>目標顯示文字，型別＋識別；兩者皆空顯示破折號。</summary>
         private static string TargetText(AuditLogAdapterModel item)
@@ -516,40 +512,7 @@ namespace MyProject.Web.Components.Views.Admins
             return string.IsNullOrWhiteSpace(item.TargetId) ? type : $"{type}#{item.TargetId}";
         }
 
-        /// <summary>
-        /// 依動作的第一節上色，讓「登入」「帳號異動」「權限拒絕」三類一眼分得開。
-        /// 用 AntDesign Tag 的具名顏色，不寫色碼字面值（ThemeConventionTests 守門）。
-        /// </summary>
-        internal static string GetActionColor(string category) => category switch
-        {
-            "Login" => "blue",
-            "User" => "green",
-            "Role" => "purple",
-            "Permission" => "red",
-            "Audit" => "volcano",
-            "Logout" => "blue",
-            "Token" => "red",
-            "Project" => "geekblue",
-            "Category" => "lime",
-            "Team" => "gold",
-            "ExceptionLog" => "magenta",
-            "EmailLog" => "magenta",
-            "AiCallLog" => "magenta",
-            "AiAgentConversation" => "magenta",
-            "AdminPatrol" => "magenta",
-            "TokenUsage" => "magenta",
-            "LogLevel" => "cyan",
-            "LogViewer" => "cyan",
-            "Email" => "cyan",
-            "Password" => "orange",
-            "Job" => "cyan",
-            "SystemParameter" => "cyan",
-            "Backup" => "orange",
-            "Announcement" => "cyan",
-            "Notification" => "cyan",
-            // 開頁（0.9.131 起）筆數最多，刻意用灰色，不搶增刪改的視線。
-            "Page" => "default",
-            _ => "default",
-        };
+        /// <summary>依動作的第一節上色（0.10.2 起規則在 <see cref="AuditLogDisplay.GetActionColor"/>，與異動歷程對話窗共用）。</summary>
+        internal static string GetActionColor(string category) => AuditLogDisplay.GetActionColor(category);
     }
 }
