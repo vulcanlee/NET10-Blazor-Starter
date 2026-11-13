@@ -157,7 +157,8 @@ namespace MyProject.Web.Client.Views.Admins
             RecordSearch = recordSearch,
         };
 
-        public async Task ReloadAsync(bool recordSearch = false)
+        /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
+        public async Task<bool> ReloadAsync(bool recordSearch = false)
         {
             // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
             selectedRows = [];
@@ -175,7 +176,7 @@ namespace MyProject.Web.Client.Views.Admins
             if (!result.Success || result.Data is null)
             {
                 ViewNotification.Error(notificationService, result.UserMessage());
-                return;
+                return false;
             }
 
             rows = result.Data.Items.ToDictionary(x => x.Id);
@@ -183,6 +184,7 @@ namespace MyProject.Web.Client.Views.Admins
             _total = result.Data.TotalCount;
             logger.LogDebug("User list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
+            return true;
         }
 
         async Task OnTableChange(QueryModel<MyUserAdapterModel> args)
@@ -218,9 +220,10 @@ namespace MyProject.Web.Client.Views.Admins
         async Task OnRefreshAsync()
         {
             logger.LogInformation("User refresh triggered.");
-            await ReloadAsync();
-
-            ViewNotification.Warning(notificationService, "已更新最新資料");
+            if (await ReloadAsync())
+            {
+                ViewNotification.Warning(notificationService, "已更新最新資料");
+            }
         }
 
         /// <summary>開修改窗：向伺服器讀這一筆的最新資料、額外角色、團隊與版本號（伺服器寫「查看」稽核）。</summary>

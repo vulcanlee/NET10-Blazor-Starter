@@ -1,0 +1,43 @@
+@implements IDisposable
+@inject ClientConnectivity Connectivity
+@inject ClientPushConnection PushConnection
+@inject ClientNotificationSignal NotificationSignal
+@inject ClientAnnouncementSignal AnnouncementSignal
+
+@*
+    離線提示列（0.10.11 起，WASM 遷移 M12）：掛在根元件 ClientRoutes，所以登入頁等匿名頁也看得到。
+    瀏覽器離線時出現；恢復連線時消失，並讓推播立即重連、鈴鐺與公告立即重讀（不等推播的退避計時與 60 秒輪詢）。
+    樣式在 ClientOfflineBar.razor.css（渲染在頁面 DOM 內，不是 AntContainer 底下的浮層），色票用 theme.css 的警示琥珀。
+*@
+@if (!Connectivity.IsOnline)
+{
+    <div class="app-offline-bar" role="status">
+        目前離線：畫面可以瀏覽，但需要連線的功能暫時無法使用；恢復連線後會自動重新連線。
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Connectivity.Changed += OnConnectivityChangedAsync;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Connectivity.StartAsync();
+        }
+    }
+
+    private async Task OnConnectivityChangedAsync()
+    {
+        if (Connectivity.IsOnline)
+        {
+            PushConnection.ReconnectNow();
+            NotificationSignal.RequestRefresh();
+            AnnouncementSignal.RequestRefresh();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Connectivity.Changed -= OnConnectivityChangedAsync;
+}

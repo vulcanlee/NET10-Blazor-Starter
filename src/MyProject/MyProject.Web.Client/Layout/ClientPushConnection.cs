@@ -30,6 +30,7 @@ public sealed class ClientPushConnection : IAsyncDisposable
     private readonly PushReconnectBackoff backoff = new();
     private CancellationTokenSource? running;
     private Task? loop;
+    private CancellationTokenSource? waiting;
 
     public ClientPushConnection(
         ApiClient api, ClientSession session, ClientNotificationSignal notificationSignal, ClientAnnouncementSignal announcementSignal, ILogger<ClientPushConnection> logger)
@@ -94,6 +95,22 @@ public sealed class ClientPushConnection : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await StopAsync();
 
+    /// <summary>
+    /// 瀏覽器恢復連線（0.10.11 起，由離線提示列呼叫）：正在等下一次重試時立即重連，不必等完退避的時間（最長 60 秒）。
+    /// 沒有在等（還沒啟動、已停止、正連著或正在連）時什麼都不做。
+    /// </summary>
+    public void ReconnectNow()
+    {
+        try
+        {
+            waiting?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 剛好等完、正要重連：不用再做什麼。
+        }
+    }
+
     private async Task RunAsync(CancellationToken cancellationToken)
     {
         var connectedBefore = false;
@@ -140,13 +157,23 @@ public sealed class ClientPushConnection : IAsyncDisposable
 
             if (wait > TimeSpan.Zero)
             {
+                using var wake = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                waiting = wake;
                 try
                 {
-                    await delay(wait, cancellationToken);
+                    await delay(wait, wake.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // ReconnectNow：恢復連線了，立即重連。
                 }
                 catch (OperationCanceledException)
                 {
                     break;
+                }
+                finally
+                {
+                    waiting = null;
                 }
             }
         }

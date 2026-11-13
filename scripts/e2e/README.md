@@ -50,6 +50,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m10-no-server.mjs     # M10 沒有 Server 模式 N1～N4＋全部路由煙霧測試
    node ./scripts/e2e/m11-split.mjs         # M11 雙站台情境 S1～S7＋全部路由煙霧測試（前端與 API 分開啟動，見下方）
    node ./scripts/e2e/m11-split.mjs hosted  # M11 同站台版（API 主機直接提供前端）
+   node ./scripts/e2e/m12-pwa.mjs           # M12 PWA 與離線 W1～W7＋全部路由煙霧測試（發佈版前端、雙站台，見下方）
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -61,6 +62,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
 | `E2E_OUT_DIR` | 結果與截圖的輸出資料夾，預設 `./e2e-out` |
 | `E2E_BASE_URL` | 網站網址，預設 `https://localhost:7144`；雙站台時是前端靜態站的網址 |
 | `E2E_API_URL` | API 主機網址（0.10.10 起）；沒設定＝與 `E2E_BASE_URL` 相同（同站台）。設定時 `common.mjs` 的 `callApi`、`apiJsonAsPageUser`、`pageAccessToken` 把 `/api/` 請求打到這裡（跨來源，實際經過 CORS） |
+| `E2E_STATIC_ROOT` | 前端發佈根目錄（`web.config` 所在；0.10.11 起 `m12-pwa.mjs` 必填，W5 改裡面的檔案模擬部署新版） |
 | `E2E_CHROME` | Chrome 執行檔，預設 `C:/Program Files/Google/Chrome/Application/chrome.exe` |
 | `E2E_HEADED` | 設為 `1` 時顯示瀏覽器視窗 |
 
@@ -89,6 +91,8 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 **M9 的純 Token 登入情境（0.10.8 起）**：`m09-auth.mjs` 會佈置自己的測試帳號（鎖定、忘記密碼、必須改密碼、兩步驟驗證）；兩步驟驗證的驗證碼由腳本以 TOTP 算出，同一個 30 秒時間步只能用一次，所以中間會等下一個時間步（整體要跑好幾分鐘）。忘記密碼情境從隔離資料夾的 `Mails` 讀信件（`E2E_DB_FILE` 往上兩層）。M9-T11 只檢查登入頁的 Google 按鈕（有設定才顯示）：真的 Google 帳號無法自動化，代碼兌換流程由整合測試涵蓋。結果寫到 `m09-results.json` 與 `smoke-results.json`。
 
 **M11 的獨立靜態站台情境（0.10.10 起）**：`m11-split.mjs` 預設以**雙站台**執行——前端是發佈後的靜態站（`dotnet publish src/MyProject/MyProject.Web.Client -c Release -o <資料夾> -p:StaticSiteApiOrigin=<API 主機來源>` 的輸出，`ApiBaseUrl` 與 web.config CSP 的 `connect-src` 由參數填好），要用依 web.config 規則提供檔案的伺服器提供（SPA 回退、`.br`、標頭與 CSP）。⚠️ M11 實機時這台的 IIS Express 連內建範本都讀不了設定檔而無法啟動，改用照 web.config 規則寫的 Node 模擬靜態站 `static-site.mjs`（`node scripts/e2e/static-site.mjs <前端發佈根目錄> 7145`；標頭與 CSP 取自發佈出來的 web.config）；web.config 的 IIS 規則本身靠 `StaticSiteWebConfigTests` 守門，上線前要在真的 IIS 驗證一次（見部署清單）。API 主機以 `Start-E2EHost.ps1` 啟動，啟動前在同一個終端機設 `$env:ClientSettings__BaseUrl = '<前端網址>'`；執行時 `E2E_BASE_URL` 設前端網址、`E2E_API_URL` 設 API 主機網址。情境：S1 登入後 `/api/` 請求全部打到 API 主機、S2 CORS（允許的來源有標頭、其他來源被瀏覽器擋下）、S3 靜態站的 SPA 回退／安全標頭與 CSP／`index.html` 不快取／重設密碼頁不帶 Referer 不快取／`_framework` 以 Brotli 傳送、S4 API 主機的非 API 路徑 404、S5 Google 導向（加參數 `google`，主機要以假的 `GoogleOAuthSettings__Enabled`／`ClientId`／`ClientSecret` 環境變數啟動；瀏覽器在導往 API 主機那一步停下、腳本直接讀 302 的目的地，不會真的連到 Google）、S6 冷啟動下載量與時間（記錄用）、S7 36 個路由沒有 CSP 違規（AntDesign 頁籤的 `ondragover` 是已知且排除）＋煙霧測試。參數 `hosted` 跑同站台版（一般的 `Start-E2EHost.ps1`、不設 `E2E_API_URL`；只跑 S1、S3 的同站台版、S6、S7）。結果寫到 `m11-results.json` 與 `smoke-results.json`；`m09-auth.mjs` 的信件連結 0.10.10 起比對前端網址（`E2E_BASE_URL`），雙站台也能跑。
+
+**M12 的 PWA 與離線情境（0.10.11 起）**：`m12-pwa.mjs` 必須以**發佈版前端**執行（開發用的 `service-worker.js` 不快取、不會出現新版本提示），照 M11 的雙站台方式準備：前端以 `-p:StaticSiteApiOrigin=<API 主機來源>` 發佈，由 `static-site.mjs` 提供（Service Worker 只在 HTTPS 或 localhost 生效，`http://localhost:<埠>` 可以），API 主機以 `Start-E2EHost.ps1` 啟動並設 `ClientSettings__BaseUrl`；執行時 `E2E_BASE_URL` 設前端網址、`E2E_API_URL` 設 API 主機網址、**`E2E_STATIC_ROOT` 設前端發佈根目錄**（`web.config` 所在；W5 會改裡面的 `service-worker-assets.js` 版本模擬部署新版，跑完要重新發佈）。情境：W1 Service Worker 安裝並接管、快取只有 `offline-cache-<範圍>:<版本>` 且沒有任何 `/api` 回應、W2 可安裝（Chrome 的安裝條件檢查沒有錯誤）與 manifest、W3 離線提示列與「目前離線」訊息與離線重新整理外框仍開得起來且不被登出、側邊選單換頁不卡死、W4 恢復連線（提示列消失、自動重新載入、推播重新連線）、W5 部署新版（「有新版本」提示列、「稍後」收起、按下後重新載入一次並換成新版快取）、W6 英文瀏覽器（en-US）的日期仍是 zh-TW 格式、W7 瀏覽器有網路但伺服器暫時連不上（攔下送往 API 主機的請求）：顯示連不上的訊息不登出、恢復後 15 秒內自動重新載入；＋36 路由煙霧測試（Service Worker 接管下）。結果寫到 `m12-results.json` 與 `smoke-results.json`。
 
 `Start-E2EHost.ps1` 0.10.8 起**信件一律存成 .eml 檔**到隔離資料夾的 `Mails`（`EmailSettings__Provider=Pickup`、`PickupDirectory`、`PublicBaseUrl=https://localhost:7144`）：開發機的 User Secrets 可能設了真的 SMTP，情境腳本不可以真的寄信出去。
 
@@ -122,5 +126,6 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 | `m09-auth.mjs` | M9 情境（0.10.8 起）：M9-T1 登入後瀏覽器只有 Token、沒有登入 Cookie、T2 記住我關掉所有分頁再開仍登入、T3 不記住我時新分頁由已開分頁交接 Token、全部關掉要重新登入、T4 跨分頁登出、T5 連錯 5 次鎖定、T6 兩步驟驗證＋記住這台裝置、T7 強制改密碼直打業務 API 得 403 而 `/me` 可用、T8 忘記密碼信件連結重設、T9 Token 重用偵測（超過寬限期整串撤銷、頁面被登出）、T10 兩個分頁同時刷新不被登出、T11 Google 按鈕（實際登入需人工驗證）；最後跑全部路由的煙霧測試 |
 | `m10-no-server.mjs` | M10 情境（0.10.9 起）：N1 36 個路由全程沒有 WebSocket／`_blazor` 請求、N2 整頁請求只回 WASM 外殼（0.10.10 起認得前端的 `index.html`）、N3 `/_blazor/negotiate` 不存在、N4 都以 WebAssembly 執行；最後跑全部路由的煙霧測試 |
 | `m11-split.mjs` | M11 情境（0.10.10 起）：S1～S7（雙站台與同站台、CORS、靜態站標頭與快取、API 主機不提供前端、Google 導向、冷啟動下載量、CSP 違規）＋全部路由的煙霧測試；參數 `hosted`、`google`，見上方說明 |
-| `static-site.mjs` | 雙站台實機用的靜態站模擬（0.10.10 起）：照前端 web.config 的規則提供發佈輸出（`wwwroot` 實體檔、`.br`、`_framework` 404、SPA 回退、快取、重設密碼頁標頭），安全標頭與 CSP 取自 web.config；不能取代上線前在真的 IIS 驗證一次 |
+| `static-site.mjs` | 雙站台實機用的靜態站模擬（0.10.10 起）：照前端 web.config 的規則提供發佈輸出（`wwwroot` 實體檔、`.br`、`_framework` 404、SPA 回退、快取、重設密碼頁標頭），安全標頭與 CSP 取自 web.config；0.10.11 起認得 `.webmanifest`；不能取代上線前在真的 IIS 驗證一次 |
+| `m12-pwa.mjs` | M12 情境（0.10.11 起）：W1～W7（Service Worker 接管與快取內容、可安裝、離線提示與訊息與離線重新整理、恢復連線、部署新版提示、英文瀏覽器日期、伺服器暫時連不上自動恢復）＋全部路由的煙霧測試；須以發佈版前端、雙站台執行，`E2E_STATIC_ROOT` 必填，見上方說明 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

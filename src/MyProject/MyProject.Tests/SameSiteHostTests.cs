@@ -155,6 +155,29 @@ public sealed class SameSiteHostTests : IClassFixture<ApiTestApplicationFactory>
         }
     }
 
+    /// <summary>
+    /// PWA（0.10.11 起，WASM 遷移 M12）：Service Worker、它的資產清單與 manifest 由主機一併提供，類型正確、
+    /// 每次都要向伺服器確認（no-cache：瀏覽器才查得到新版本）。這幾個檔名不帶指紋。
+    /// </summary>
+    [Theory]
+    [InlineData("/service-worker.js", "text/javascript")]
+    [InlineData("/service-worker-assets.js", "text/javascript")]
+    [InlineData("/manifest.webmanifest", "application/manifest+json")]
+    [InlineData("/js/pwa.js", "text/javascript")]
+    [InlineData("/images/icon-192.png", "image/png")]
+    [InlineData("/images/icon-512.png", "image/png")]
+    public async Task PwaFiles_ShouldBeServed_AndAlwaysRevalidated(string url, string contentType)
+    {
+        using var client = NoRedirectClient();
+
+        var response = await client.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(contentType, response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("no-cache", response.Headers.CacheControl?.ToString());
+        Assert.DoesNotContain("<div id=\"app\">", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
     private HttpClient NoRedirectClient() => factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
     private static string Header(HttpResponseMessage response, string name)

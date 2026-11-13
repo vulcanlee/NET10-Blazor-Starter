@@ -202,7 +202,8 @@ public partial class ProjectViewView
         RecordSearch = recordSearch,
     };
 
-    public async Task ReloadAsync(bool recordSearch = false)
+    /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
+    public async Task<bool> ReloadAsync(bool recordSearch = false)
     {
         // 換頁、排序、搜尋、篩選、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
         selectedRows = [];
@@ -214,13 +215,14 @@ public partial class ProjectViewView
         if (!result.Success || result.Data is null)
         {
             ViewNotification.Error(NotificationService, result.UserMessage());
-            return;
+            return false;
         }
 
         projectAdapterModels = result.Data.Items.Select(ProjectDtoMapper.ToModel).ToList();
         _total = result.Data.TotalCount;
         Logger.LogDebug("Project list reloaded successfully. Count={Count}", _total);
         StateHasChanged();
+        return true;
     }
 
     private async Task OnCategoryFilterChanged(IEnumerable<string> values)
@@ -302,9 +304,10 @@ public partial class ProjectViewView
     private async Task OnRefreshAsync()
     {
         Logger.LogInformation("Project refresh triggered.");
-        await ReloadAsync();
-
-        ViewNotification.Warning(NotificationService, "已更新最新資料");
+        if (await ReloadAsync())
+        {
+            ViewNotification.Warning(NotificationService, "已更新最新資料");
+        }
     }
 
     /// <summary>開修改窗：向伺服器讀這一筆的最新資料、附件與版本號（伺服器寫「查看」稽核）。</summary>

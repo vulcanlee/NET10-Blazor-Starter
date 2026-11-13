@@ -51,6 +51,15 @@
             </div>
         </ErrorContent>
     </ClientErrorBoundary>
+
+    @*
+        PWA 的狀態提示列（0.10.11 起，WASM 遷移 M12）：離線、有新版本。放在根元件，登入頁等匿名頁也看得到；
+        固定在畫面底部置中（ClientRoutes.razor.css），不推擠版面。
+    *@
+    <div class="app-status-bars">
+        <ClientOfflineBar />
+        <ClientUpdateBar />
+    </div>
 </ConfigProvider>
 
 @code {

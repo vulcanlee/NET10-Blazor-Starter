@@ -20,7 +20,7 @@ const types = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.wasm': 'application/wasm', '.dll': 'application/octet-stream', '.webcil': 'application/octet-stream', '.dat': 'application/octet-stream',
   '.blat': 'application/octet-stream', '.pdb': 'application/octet-stream', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
-  '.woff': 'font/woff', '.woff2': 'font/woff2', '.map': 'application/json',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.map': 'application/json', '.webmanifest': 'application/manifest+json',
 };
 
 createServer((req, res) => {

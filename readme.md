@@ -1,8 +1,8 @@
 ﻿# NET10-Blazor-Starter
 
-一份基於 **.NET 10** 與 **Blazor WebAssembly＋ASP.NET Core Web API**（0.10.9 起已移除 Blazor Server 模式）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
+一份基於 **.NET 10** 與 **Blazor WebAssembly（PWA）＋ASP.NET Core Web API** 所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
-> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**；**0.10.10 起前端是獨立的靜態站台**（入口 `MyProject.Web.Client/wwwroot/index.html`），可以由 API 主機一併提供（同站台），也可以部署成兩個 IIS 站台（雙站台，`ClientSettings:BaseUrl`），見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)。
+> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**；**0.10.10 起前端是獨立的靜態站台**（入口 `MyProject.Web.Client/wwwroot/index.html`），可以由 API 主機一併提供（同站台），也可以部署成兩個 IIS 站台（雙站台，`ClientSettings:BaseUrl`），見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)；**0.10.11 起前端是可安裝的 PWA**（Service Worker 只快取前端程式檔、斷線時畫面不卡死並顯示離線提示、部署新版時提示重新整理），WASM 遷移的 12 個里程碑全部完成。
 
 當前版本資訊定義在 [`src/MyProject/MyProject.Web/appsettings.json`](src/MyProject/MyProject.Web/appsettings.json) 之 `SystemSettings.SystemInformation.SystemVersion` 欄位。
 
@@ -10,7 +10,7 @@
 
 ## 1. 專案介紹
 
-- **定位**：可立即啟動、預先配置、易於擴充的 Blazor WebAssembly＋Web API 樣板。
+- **定位**：可立即啟動、預先配置、易於擴充的 Blazor WebAssembly（PWA）＋Web API 樣板：畫面全部在瀏覽器執行，伺服器只提供 Web API。
 - **適用情境**：管理後台、內部營運系統、專案追蹤平台。
 - **設計理念**：分層清晰、慣例優先、模板可複刻（CRUD 模板可直接套用至新實體）。
 
@@ -21,7 +21,7 @@
 | 類別 | 採用方案 | 版本 |
 |------|----------|------|
 | 框架 | .NET / ASP.NET Core | 10.0 |
-| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；0.10.9 起已移除 Blazor Server 互動模式；0.10.10 起是獨立的靜態站台（`wwwroot/index.html`），`MyProject.Web` 只當 API 主機（同站台時順便提供前端檔案） | — |
+| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；0.10.9 起已移除 Blazor Server 互動模式；0.10.10 起是獨立的靜態站台（`wwwroot/index.html`），`MyProject.Web` 只當 API 主機（同站台時順便提供前端檔案）；0.10.11 起是 PWA（Service Worker、manifest、離線與新版本提示列） | — |
 | UI 元件庫 | AntDesign Blazor | 1.6.2 |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
 | 資料存取 | Entity Framework Core | 10.0.14 |
@@ -76,6 +76,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 紀錄分類/團隊標籤：專案可標記分類與團隊，並支援團隊行級權控（非管理員僅見公開或團隊交集紀錄）；
   使用者的有效團隊＝直接綁定的 `UserTeam` ∪ 其角色的 `DefaultTeamsJson`
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
+- PWA 與離線（0.10.11 起）：可安裝成桌面或手機主畫面的 App；Service Worker 只快取前端程式檔（不快取 API 與資料），斷線時畫面底部出現離線提示、離線重新整理不登出、恢復連線自動復原；部署新版時出現「有新版本，按這裡重新整理」（需要 HTTPS）
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`
@@ -219,7 +220,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）；0.10.10 起是獨立的靜態站台：wwwroot/ 放入口頁 index.html、theme.css 等全站靜態檔與 appsettings.json（ApiBaseUrl），web.config 是 IIS 靜態站設定
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）；0.10.10 起是獨立的靜態站台：wwwroot/ 放入口頁 index.html、theme.css 等全站靜態檔與 appsettings.json（ApiBaseUrl），web.config 是 IIS 靜態站設定；0.10.11 起 wwwroot/ 另有 PWA 的 manifest.webmanifest、service-worker.js（開發用）／service-worker.published.js（發佈用）與 js/pwa.js
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← CurrentUserLoader、CurrentUserService 等
@@ -406,7 +407,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 架構遷移（migration）
 
 - [WASM 改寫可行性分析報告](docs/migration/WASM改寫可行性分析報告.md) — Blazor Server → WebAssembly＋獨立 Web API 的可行性結論、現況盤點、37 個路由功能對照、技術決策與風險。
-- [WASM 遷移計畫](docs/migration/WASM遷移計畫.md) — 12 個里程碑的範圍、固定流程、實機情境、進度與各里程碑測試報告。
+- [WASM 遷移計畫](docs/migration/WASM遷移計畫.md) — 12 個里程碑的範圍、固定流程、實機情境、進度與各里程碑測試報告（0.10.11 起 12 個里程碑全部完成，待最終驗收）。
 
 ### 變更紀錄（changelog）
 

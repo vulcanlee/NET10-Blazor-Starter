@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.16
+- 文件版本：3.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.11
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/11/13
 
@@ -374,6 +374,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 | 網頁圖示 | `MyProject.Web.Client/wwwroot/favicon.png` | 瀏覽器分頁與書籤（`MyProject.Web.Client/wwwroot/index.html:19`；0.10.9 以前是 `MyProject.Web/wwwroot`＋`Components/App.razor`） |
 | 產品代表圖片 | `MyProject.Web.Client/wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:20`，0.9.60 起登入／忘記密碼／重設密碼三頁共用；0.10.8 起兩者都在 `MyProject.Web.Client/Views`，0.10.10 起圖檔也搬到 `MyProject.Web.Client/wwwroot/images`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
 | 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
+| PWA 的 App 名稱與圖示（0.10.11 起） | `MyProject.Web.Client/wwwroot/manifest.webmanifest`、`images/icon-192.png`、`images/icon-512.png` | 安裝成桌面或手機主畫面 App 時的名稱、圖示、標題列顏色（見 7.3.1） |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
 
@@ -396,13 +397,13 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 - 正方形、**至少 512×512**（現況 1024×1024 是為了高 DPI 螢幕）。
 - 三頁背景都是**淺色**（啟動頁與登入後首頁為淺藍漸層卡片、登入頁淺色底），圖片本身若也是淺色會糊掉，建議用有對比的深色或彩色主體。
 - **檔名不要改** —— 三處 `.razor` 都硬編這個路徑。
-- 0.9.2 起改用 `@Assets["images/brand-logo.png"]`（0.9.9 新增的登入後首頁比照辦理），換檔後 URL 會自動帶上新的 fingerprint（形如 `images/brand-logo.854k3jgc1o.png`），**不需要清瀏覽器快取**。
+- 0.10.8 起這三頁在 WebAssembly，以一般相對路徑 `images/brand-logo.png` 引用（0.9.2～0.10.7 的 Server 頁用 `@Assets[...]` 帶 fingerprint）。換檔後要**重新發佈**；0.10.11 起前端是 PWA，使用者按「有新版本」提示列（或關掉所有分頁再開）後看到新圖。⚠️ 不可直接覆蓋網站上的圖檔：Service Worker 以雜湊驗證每個前端檔案，手換的檔案會讓新版安裝失敗、使用者停在舊版（見部署清單「PWA 與離線」）。
 
 ### 7.3 更換網頁圖示 `favicon.png`
 
 現況規格：**64×64 PNG**（約 4.4 KB）。
 
-> ⚠️ 本專案**沒有 `favicon.ico`**，也沒有 apple-touch-icon、`site.webmanifest` 或 PWA 圖示 —— 這是刻意的（目前不是 PWA 範本；PWA 列在 [WASM 遷移計畫](../migration/WASM遷移計畫.md) 的 M12）。整份專案只有 `MyProject.Web.Client/wwwroot/index.html:19` 一處宣告圖示（0.10.9 以前是 `Components/App.razor:15`）。
+> ⚠️ 本專案**沒有 `favicon.ico`**。瀏覽器分頁圖示只有 `MyProject.Web.Client/wwwroot/index.html:19` 一處宣告（0.10.9 以前是 `Components/App.razor:15`）；0.10.11 起另有 PWA 用的 apple-touch-icon 與 `manifest.webmanifest` 圖示（見 7.3.1）。
 
 由 `brand-logo.png` 產生（沿用 0.4.25 的原始作法）：
 
@@ -414,9 +415,31 @@ ffmpeg -i images/brand-logo.png \
 
 沒有 ffmpeg 就用任何影像工具置中裁成正方形、縮到 64×64、存成 PNG 即可。
 
-> ⚠️ **不要把 `@Assets["favicon.png"]` 改回裸相對路徑**（例如 `href="favicon.png"`）。沒有 fingerprint 的話，你覆蓋了檔案但 URL 沒變，使用者會一直看到快取中的舊圖示。
+> 0.10.10 起入口頁是靜態的 `index.html`，以 `href="favicon.png"` 引用（沒有 fingerprint；0.10.9 以前在 Razor 主機頁用 `@Assets["favicon.png"]` 帶指紋）。0.10.10 檔名不帶指紋的靜態檔是 `no-cache`（每次向伺服器確認）；0.10.11 起前端是 PWA：圖示與其他前端檔案由 Service Worker 快取，**換檔後要重新發佈，使用者按「有新版本」提示列（或關掉所有分頁再開）才看得到**。⚠️ 不可直接覆蓋網站上的檔案（雜湊對不上，新版 Service Worker 會安裝失敗）。
 
-換完看不到新圖示？先 `Ctrl+F5` 強制重新整理 —— favicon 的瀏覽器快取特別黏，必要時到瀏覽器設定清除該站台資料。
+換完看不到新圖示？先 `Ctrl+F5` 強制重新整理 —— favicon 的瀏覽器快取特別黏，必要時到瀏覽器設定清除該站台資料（發佈版還要在開發者工具「應用程式」裡取消註冊 Service Worker，或等新版本提示列出現）。
+
+### 7.3.1 PWA 的圖示與 manifest（0.10.11 起）
+
+可以把系統安裝成桌面或手機主畫面的 App。相關檔案都在 `MyProject.Web.Client/wwwroot`：
+
+| 檔案 | 用途 | 規格 |
+|------|------|------|
+| `images/icon-192.png` | manifest 的小圖示，也是 iOS 主畫面圖示（`index.html` 的 `apple-touch-icon`） | **192×192** PNG |
+| `images/icon-512.png` | manifest 的大圖示（安裝時的啟動畫面） | **512×512** PNG |
+| `manifest.webmanifest` | App 名稱（`name`／`short_name`）、主題色（`theme_color`）、啟動畫面底色（`background_color`） | 見 7.4 與腳手架開發指引 §8.1 |
+
+兩個圖示由 `brand-logo.png` 產生（與 favicon 同一個作法，換了 Logo 要一起重新產生）：
+
+```bash
+for size in 192 512; do
+  ffmpeg -i images/brand-logo.png \
+    -vf "crop='min(iw,ih)':'min(iw,ih)',scale=${size}:${size}:flags=lanczos" \
+    -pix_fmt rgba -y images/icon-${size}.png
+done
+```
+
+尺寸不對時 `PwaConventionTests` 會失敗。
 
 ### 7.4 更換產品名稱與簡短說明
 
@@ -431,6 +454,8 @@ ffmpeg -i images/brand-logo.png \
   }
 }
 ```
+
+> ⚠️ 0.10.11 起：改 `SystemName` 時一併改 `MyProject.Web.Client/wwwroot/manifest.webmanifest` 的 `name` 與 `short_name`（安裝成 App 時的名稱）。它是固定值，系統參數頁改系統名稱不會跟著變；兩者不一致時 `PwaConventionTests` 會失敗。
 
 版面提示：
 
@@ -448,9 +473,9 @@ ffmpeg -i images/brand-logo.png \
 
 | 檔案 | 目前標題 |
 |------|------|
-| `Components/Pages/Home.razor` | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
+| `MyProject.Web.Client/Pages/SplashPage.razor`（0.10.8 起；0.10.7 以前是 Server 版 `Components/Pages/Home.razor`） | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
 
-> 首頁 `HomeAuthed.razor`（0.10.6 起在 `MyProject.Web.Client/Pages/`）原本也是 `Home`，0.9.9 已改為「首頁」；`Error.razor` 已是「系統錯誤」。
+> 首頁 `HomeAuthed.razor`（0.10.6 起在 `MyProject.Web.Client/Pages/`）原本也是 `Home`，0.9.9 已改為「首頁」；錯誤頁（0.10.8 起 `ErrorPage.razor`）已是「系統錯誤」。
 
 想讓每個分頁都帶產品名（例如「使用者管理 — 你的系統」），需要自行加後綴機制，本專案未提供。
 
@@ -485,7 +510,7 @@ ffmpeg -i images/brand-logo.png \
 - [ ] 登入後右上使用者選單 →「關於」：系統名稱／系統描述／系統版本三列正確
 - [ ] 「系統健康監控」頁（`/system-health`）：診斷文字含正確的 `版本：x.y.z`
 - [ ] 瀏覽器分頁圖示已換（先 `Ctrl+F5`）
-- [ ] 檢視網頁原始碼，確認 `brand-logo` 的 URL 帶了 fingerprint（形如 `images/brand-logo.<雜湊>.png`）
+- [ ] 發佈版（0.10.11 起）：瀏覽器開發者工具「應用程式 → 資訊清單」的名稱、圖示與主題色是新的，網址列出現「安裝」圖示（需要 HTTPS 或 localhost）
 
 ---
 
@@ -535,7 +560,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 
 | 項目 | 說明 |
 |------|------|
-| 品牌圖檔 | `MyProject.Web.Client/wwwroot/images/brand-logo.png`、`MyProject.Web.Client/wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
+| 品牌圖檔 | `MyProject.Web.Client/wwwroot/images/brand-logo.png`、`MyProject.Web.Client/wwwroot/favicon.png`、PWA 圖示 `images/icon-192.png`／`icon-512.png`（0.10.11 起）是二進位檔，腳本不會動；`manifest.webmanifest` 的名稱也不會改 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
 | 外部目錄路徑 | `ExternalFileSystem` 十二個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |

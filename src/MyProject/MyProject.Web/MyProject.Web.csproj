@@ -40,6 +40,12 @@
   </ItemGroup>
 
   <!--
+    同站台發佈時，前端靜態檔由這個專案（根專案）壓縮，只看這裡的設定：匯入前端的同一份「不產生壓縮副本」清單
+    （Service Worker 兩個檔案、appsettings.json、manifest，0.10.11 起），否則 MapStaticAssets 會優先送出內容不對的 .br。
+  -->
+  <Import Project="..\MyProject.Web.Client\FrontendCompression.props" />
+
+  <!--
     PDF 報告的中文字型。用 EmbeddedResource 而非 CopyToOutputDirectory：publish、
     單檔發行與容器化都不會漏檔，測試專案也能直接由組件讀取。LogicalName 明寫，
     避免 MSBuild 依資料夾與檔名中的「-」推導出意外的資源名稱。

@@ -49,6 +49,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private ClientPushConnection PushConnection { get; set; } = default!;
 
+    [Inject]
+    private ClientConnectivity Connectivity { get; set; } = default!;
+
     private IReadOnlyList<ClientMenuItem> MenuItems { get; set; } = [];
 
     private IReadOnlyList<HelpTopicDto> HelpTopics { get; set; } = [];
@@ -70,12 +73,21 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     private bool aboutVisible;
     private string currentPath = string.Empty;
     private DotNetObjectReference<ClientErrorReporter>? errorReporterReference;
+    private readonly CancellationTokenSource reachabilityWait = new();
     private IReadOnlyList<KeyValuePair<string, string>> aboutItems = [];
 
     protected override async Task OnInitializedAsync()
     {
         if (!await Session.InitializeAsync())
         {
+            // 連不上伺服器（0.10.11 起）：畫面顯示訊息，瀏覽器恢復連線時自動重新載入；
+            // 另外每 15 秒試一次伺服器，有回應（不是 5xx）就重新載入（瀏覽器一直有網路、只是伺服器暫時連不上或停機時，收不到恢復連線的事件）。
+            if (Session.IsUnreachable)
+            {
+                Connectivity.Changed += ReloadWhenBackOnline;
+                _ = ReloadWhenReachableAsync();
+            }
+
             return;
         }
 
@@ -103,6 +115,29 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     }
 
     private void ReloadPage() => NavigationManager.Refresh(forceReload: true);
+
+    private async Task ReloadWhenReachableAsync()
+    {
+        try
+        {
+            await Session.WaitUntilReachableAsync(TimeSpan.FromSeconds(15), reachabilityWait.Token);
+            ReloadPage();
+        }
+        catch (OperationCanceledException)
+        {
+            // 離開這個畫面了。
+        }
+    }
+
+    private Task ReloadWhenBackOnline()
+    {
+        if (Connectivity.IsOnline)
+        {
+            ReloadPage();
+        }
+
+        return Task.CompletedTask;
+    }
 
     /// <summary>頂欄的頁名：先找選單，不在選單裡的頁面（例如個人資料）用說明主題的標題（與 Server 版相同）。</summary>
     internal static string ResolvePageTitle(IEnumerable<ClientMenuItem> menuItems, IReadOnlyList<HelpTopicDto> helpTopics, string normalizedPath)
@@ -269,6 +304,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
         Session.Changed -= OnSessionChanged;
+        Connectivity.Changed -= ReloadWhenBackOnline;
+        reachabilityWait.Cancel();
+        reachabilityWait.Dispose();
         errorReporterReference?.Dispose();
         _ = PushConnection.StopAsync();
         GC.SuppressFinalize(this);

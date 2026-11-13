@@ -1,0 +1,41 @@
+/* 新版本提示列（0.10.11 起）：位置由 ClientRoutes.razor.css 的 .app-status-bars 決定（畫面底部置中）。色票一律 var(--app-*)。 */
+.app-update-bar {
+    align-items: center;
+    background: var(--app-tint);
+    border: 1px solid var(--app-accent-dim);
+    border-radius: var(--app-radius-control);
+    box-shadow: var(--app-shadow);
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.4rem;
+    pointer-events: auto;
+}
+
+.app-update-apply {
+    background: none;
+    border: none;
+    border-radius: var(--app-radius-control);
+    color: var(--app-accent);
+    cursor: pointer;
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+}
+
+.app-update-apply:hover,
+.app-update-apply:focus-visible {
+    background: var(--app-accent-soft);
+}
+
+.app-update-later {
+    background: none;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-pill);
+    color: var(--app-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.8rem;
+}

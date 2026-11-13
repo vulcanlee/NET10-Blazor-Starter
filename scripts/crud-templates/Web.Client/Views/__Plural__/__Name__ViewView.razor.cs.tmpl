@@ -133,7 +133,8 @@ public partial class __Name__ViewView
         RecordSearch = recordSearch,
     };
 
-    private async Task ReloadAsync(bool recordSearch = false)
+    /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
+    private async Task<bool> ReloadAsync(bool recordSearch = false)
     {
         // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效。
         selectedRows = [];
@@ -141,12 +142,13 @@ public partial class __Name__ViewView
         if (!result.Success || result.Data is null)
         {
             ViewNotification.Error(NotificationService, result.UserMessage());
-            return;
+            return false;
         }
 
         records = result.Data.Items.Select(__Name__DtoMapper.ToModel).ToList();
         _total = result.Data.TotalCount;
         StateHasChanged();
+        return true;
     }
 
     private async Task OnTableChange(QueryModel<__Name__AdapterModel> args)
@@ -176,8 +178,10 @@ public partial class __Name__ViewView
 
     private async Task OnRefreshAsync()
     {
-        await ReloadAsync();
-        ViewNotification.Warning(NotificationService, "已更新最新資料");
+        if (await ReloadAsync())
+        {
+            ViewNotification.Warning(NotificationService, "已更新最新資料");
+        }
     }
 
     private async Task OnToggleDeletedAsync()

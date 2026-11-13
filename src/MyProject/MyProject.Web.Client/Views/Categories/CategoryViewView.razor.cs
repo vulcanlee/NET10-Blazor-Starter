@@ -163,7 +163,8 @@ namespace MyProject.Web.Client.Views.Categories
             RecordSearch = recordSearch,
         };
 
-        public async Task ReloadAsync(bool recordSearch = false)
+        /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
+        public async Task<bool> ReloadAsync(bool recordSearch = false)
         {
             // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
             selectedRows = [];
@@ -175,13 +176,14 @@ namespace MyProject.Web.Client.Views.Categories
             if (!result.Success || result.Data is null)
             {
                 ViewNotification.Error(NotificationService, result.UserMessage());
-                return;
+                return false;
             }
 
             categoryAdapterModels = result.Data.Items.Select(CategoryDtoMapper.ToModel).ToList();
             _total = result.Data.TotalCount;
             Logger.LogDebug("Category list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
+            return true;
         }
 
         async Task OnTableChange(QueryModel<CategoryAdapterModel> args)
@@ -218,9 +220,10 @@ namespace MyProject.Web.Client.Views.Categories
         async Task OnRefreshAsync()
         {
             Logger.LogInformation("Category refresh triggered.");
-            await ReloadAsync();
-
-            ViewNotification.Warning(NotificationService, "已更新最新資料");
+            if (await ReloadAsync())
+            {
+                ViewNotification.Warning(NotificationService, "已更新最新資料");
+            }
         }
 
         /// <summary>

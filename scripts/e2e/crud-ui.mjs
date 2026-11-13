@@ -23,8 +23,14 @@ export async function clickRowAction(page, rowText, title) {
 export async function confirm(page, okText) {
   const dialog = page.locator('.ant-modal-confirm').last();
   await dialog.waitFor({ state: 'visible', timeout: 15000 });
+  // 等「按下的這一個」關掉（0.10.11 起）：接著跳出的下一個確認窗（例如未指定團隊的提醒）會變成新的 .last()，不能拿它來等。
+  const clicked = await dialog.elementHandle();
   await dialog.locator('.ant-modal-confirm-btns button', { hasText: okText }).click();
-  await dialog.waitFor({ state: 'hidden', timeout: 15000 });
+  await clicked.waitForElementState('hidden', { timeout: 15000 }).catch(async (error) => {
+    if (await clicked.evaluate((node) => node.isConnected).catch(() => false)) {
+      throw error;
+    }
+  });
 }
 
 /** 若出現指定標題的確認窗就按下確定（例如分類未指定團隊的提醒）；沒出現就略過。 */

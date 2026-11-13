@@ -66,12 +66,14 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>
         /// 重新讀取。<paramref name="background"/>＝執行中自動輪詢（0.10.6 獨立審查）：失敗只記日誌、不跳通知 ——
         /// 錯誤通知不會自動關閉，伺服器重啟或斷線時每次輪詢都疊一則；下一次輪詢或使用者按重新整理時再試。
+        /// 回傳是否讀到資料。
         /// </summary>
-        private async Task ReloadAsync(bool background = false)
+        private async Task<bool> ReloadAsync(bool background = false)
         {
             // 重新整理與刪除後都會走到這裡：清單換了，舊的勾選不再有效（0.9.132 起）。
             selectedRows = [];
             isLoading = true;
+            var loaded = false;
             try
             {
                 var result = await Api.ListAsync();
@@ -80,6 +82,7 @@ namespace MyProject.Web.Client.Views.Admins
                     backups = data.Items;
                     job = data.Job;
                     keepCount = data.KeepCount;
+                    loaded = true;
                 }
                 else if (background)
                 {
@@ -96,12 +99,15 @@ namespace MyProject.Web.Client.Views.Admins
             }
 
             UpdateAutoRefresh();
+            return loaded;
         }
 
         private async Task OnRefreshAsync()
         {
-            await ReloadAsync();
-            ViewNotification.Info(NotificationService, "已更新最新資料");
+            if (await ReloadAsync())
+            {
+                ViewNotification.Info(NotificationService, "已更新最新資料");
+            }
         }
 
         private async Task OnBackupNowAsync()
