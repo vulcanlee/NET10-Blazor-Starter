@@ -77,7 +77,10 @@ public sealed class StaticSiteWebConfigTests
         Assert.Contains(staticContent.Elements("mimeMap"), x => x.Attribute("fileExtension")?.Value == extension && x.Attribute("mimeType")?.Value == mimeType);
     }
 
-    /// <summary>預設一律要重新驗證（index.html、appsettings.json 改了要立刻生效）；只有檔名帶指紋的 _framework 檔案可以長期快取。</summary>
+    /// <summary>
+    /// 預設一律要重新驗證（部署新版後瀏覽器與 Service Worker 才查得到新的 index.html、service-worker.js 等檔名不帶指紋的檔案）；
+    /// 只有檔名帶指紋的 _framework 檔案可以長期快取。
+    /// </summary>
     [Fact]
     public void Caching_ShouldRevalidateByDefault_AndOnlyCacheFingerprintedFilesForLong()
     {

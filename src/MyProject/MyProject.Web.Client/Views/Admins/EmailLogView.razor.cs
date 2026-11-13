@@ -79,7 +79,8 @@ namespace MyProject.Web.Client.Views.Admins
             await ReloadAsync();
         }
 
-        private async Task ReloadAsync()
+        /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
+        private async Task<bool> ReloadAsync()
         {
             isLoading = true;
             StateHasChanged();
@@ -100,13 +101,13 @@ namespace MyProject.Web.Client.Views.Admins
                 {
                     items = page.Items;
                     _total = page.TotalCount;
+                    return true;
                 }
-                else
-                {
-                    ViewNotification.Error(NotificationService, $"載入寄信紀錄失敗：{result.UserMessage()}");
-                    items = [];
-                    _total = 0;
-                }
+
+                ViewNotification.Error(NotificationService, $"載入寄信紀錄失敗：{result.UserMessage()}");
+                items = [];
+                _total = 0;
+                return false;
             }
             finally
             {
@@ -131,8 +132,10 @@ namespace MyProject.Web.Client.Views.Admins
 
         private async Task OnRefreshAsync()
         {
-            await ReloadAsync();
-            ViewNotification.Warning(NotificationService, "已更新最新資料");
+            if (await ReloadAsync())
+            {
+                ViewNotification.Warning(NotificationService, "已更新最新資料");
+            }
         }
 
         private static string KindLabel(string kind) => Kinds.FirstOrDefault(x => x.Value == kind)?.Label ?? kind;

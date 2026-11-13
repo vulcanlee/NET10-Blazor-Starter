@@ -1,0 +1,16 @@
+/* PWA 的狀態提示列（0.10.11 起）：離線、有新版本。固定在畫面底部置中，疊在頁面上、不推擠版面；
+   z-index 高於 AntDesign 的對話窗（1000），編輯對話窗開著時也看得到；低於通知與訊息（1010）。
+   容器本身不接收點擊（沒有提示列時不擋住底下的按鈕），提示列自己再打開。 */
+.app-status-bars {
+    bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    left: 50%;
+    max-width: calc(100vw - 2rem);
+    pointer-events: none;
+    position: fixed;
+    transform: translateX(-50%);
+    width: 36rem;
+    z-index: 1001;
+}

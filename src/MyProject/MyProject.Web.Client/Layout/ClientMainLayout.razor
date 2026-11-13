@@ -89,6 +89,14 @@ else if (Session.IsThrottled)
         <button type="button" class="btn btn-primary" @onclick="ReloadPage">重新整理</button>
     </div>
 }
+else if (Session.IsUnreachable)
+{
+    @* 連不上伺服器（0.10.11 起：離線時 Service Worker 照樣開得起外框）：保留登入，恢復連線時自動重新載入（ClientConnectivity）。 *@
+    <div class="session-throttled" role="alert">
+        <p>@ClientSession.UnreachableMessage</p>
+        <button type="button" class="btn btn-primary" @onclick="ReloadPage">重新整理</button>
+    </div>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

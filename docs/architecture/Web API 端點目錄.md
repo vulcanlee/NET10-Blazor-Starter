@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.21
+- 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.11
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/13
 
@@ -17,6 +17,7 @@
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - **每個 action 都要標明誰能呼叫**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`（頁面或動作權限）、`[AdminOnly]`（只有管理員，見第二之一節）、`[SignedInUser]`（登入即可、刻意不檢查頁面權限，例如個人資料、外框、通知、公告、`Auth/me`）或 `[AllowAnonymous]`；標在類別上等於標在每個 action。四個都沒標的 action，測試直接失敗。兩個新屬性在 `MyProject.Web/Filters/AdminOnlyAttribute.cs`。
 - 回傳一律包在 `ApiResult<T>`；分頁再包 `PagedResult<T>`。
+- ⚠️ **新增不在 `/api/` 底下的伺服器端點**（0.10.11 起，例如第五節 `Auths/Google` 這類網頁導向端點、`Program.cs` 的 OAuth `CallbackPath` 或 `MapHealthChecks`）：要把路徑加進前端 Service Worker（`MyProject.Web.Client/wwwroot/service-worker.published.js`）的 `networkOnlyPaths`，否則同站台時瀏覽器導覽到這個網址會被 Service Worker 回成快取的前端 `index.html`（`PwaConventionTests` 啟動主機、從實際註冊的端點檢查）。`/api/` 底下的端點已整段排除，不必另外登記。前端也不可寫死這類路徑，一律經 `ApiAddress`（`ServerUrlConventionTests`）。
 
 ## 二、資源 CRUD 控制器
 

@@ -160,7 +160,8 @@ namespace MyProject.Web.Client.Views.Teams
             RecordSearch = recordSearch,
         };
 
-        public async Task ReloadAsync(bool recordSearch = false)
+        /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
+        public async Task<bool> ReloadAsync(bool recordSearch = false)
         {
             // 換頁、排序、搜尋、切換與刪除後都會走到這裡：勾選只在目前這一頁有效（0.9.132 起）。
             selectedRows = [];
@@ -172,7 +173,7 @@ namespace MyProject.Web.Client.Views.Teams
             if (!allResult.Success || allResult.Data is null)
             {
                 ViewNotification.Error(NotificationService, allResult.UserMessage());
-                return;
+                return false;
             }
 
             var all = allResult.Data.Select(TeamDtoMapper.ToModel).ToList();
@@ -195,7 +196,7 @@ namespace MyProject.Web.Client.Views.Teams
                 }
 
                 StateHasChanged();
-                return;
+                return true;
             }
 
             // 「顯示已刪除」開啟時改讀已刪除的資料（0.9.94 起）。
@@ -203,13 +204,14 @@ namespace MyProject.Web.Client.Views.Teams
             if (!result.Success || result.Data is null)
             {
                 ViewNotification.Error(NotificationService, result.UserMessage());
-                return;
+                return false;
             }
 
             teamAdapterModels = result.Data.Items.Select(TeamDtoMapper.ToModel).ToList();
             _total = result.Data.TotalCount;
             Logger.LogDebug("Team list reloaded successfully. Count={Count}", _total);
             StateHasChanged();
+            return true;
         }
 
         /// <summary>樹狀模式的最上層排序：沿用欄位排序，預設依名稱。</summary>
@@ -260,9 +262,10 @@ namespace MyProject.Web.Client.Views.Teams
         async Task OnRefreshAsync()
         {
             Logger.LogInformation("Team refresh triggered.");
-            await ReloadAsync();
-
-            ViewNotification.Warning(NotificationService, "已更新最新資料");
+            if (await ReloadAsync())
+            {
+                ViewNotification.Warning(NotificationService, "已更新最新資料");
+            }
         }
 
         /// <summary>開修改窗：向伺服器讀這一筆的最新資料與版本號（伺服器寫「查看」稽核），以及可選的上層團隊。</summary>

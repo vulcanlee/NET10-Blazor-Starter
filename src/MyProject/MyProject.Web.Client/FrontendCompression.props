@@ -1,0 +1,18 @@
+﻿<Project>
+
+  <!--
+    前端靜態檔不產生 .br／.gz 壓縮副本的清單（0.10.11 起，WASM 遷移 M12 獨立審查；由 MyProject.Web.Client.csproj 與 MyProject.Web.csproj 一起匯入）。
+    ⚠️ 兩個專案都要匯入：發佈前端靜態站時由前端專案壓縮；同站台發佈時由 API 主機（根專案）壓縮前端的檔案，只看 API 主機自己的設定
+    （以前這份清單只寫在前端專案裡，同站台的發佈輸出照樣有這些檔案的 .br／.gz，而 MapStaticAssets 會優先送 br）。
+    有壓縮副本的話伺服器（靜態站 web.config 的 Brotli 規則、同站台的 MapStaticAssets）會改送它，以下這些檔案就會送錯版本：
+      - service-worker.js、service-worker-assets.js：SDK 壓縮 service-worker.js 時還沒加上檔頭的版本註解（/* Manifest version: … */），
+        資產清單也可能在靜態站發佈後被改寫（填入 API 網址時更新 appsettings.json 的雜湊）；瀏覽器拿到的就不是這一版。檔案不大，不壓縮直接送。
+      - appsettings.json：發佈時才填入 ApiBaseUrl（-p:StaticSiteApiOrigin），壓縮副本是填入前的內容。
+      - manifest.webmanifest：檔案很小，不壓縮就不必為它另寫 web.config 的 Brotli 類型規則。
+    其他檔案照常預先壓縮。比對的是網站上的相對路徑，所以根目錄與子資料夾各寫一次。PwaConventionTests 守門。
+  -->
+  <PropertyGroup>
+    <CompressionExcludePatterns>$(CompressionExcludePatterns);service-worker.js;**/service-worker.js;service-worker-assets.js;**/service-worker-assets.js;appsettings*.json;**/appsettings*.json;*.webmanifest;**/*.webmanifest</CompressionExcludePatterns>
+  </PropertyGroup>
+
+</Project>

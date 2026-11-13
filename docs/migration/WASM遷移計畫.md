@@ -1,8 +1,8 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.11
-- 文件狀態：進行中
-- 現行系統版本：0.10.10
+- 文件版本：1.12
+- 文件狀態：完成（待最終驗收報告）
+- 現行系統版本：0.10.11
 - 首次實作版本：0.10.0
 - 最後核對日期：2026/11/13
 
@@ -28,7 +28,7 @@
 | M9 | 0.10.8 | 純 Token 登入 | 完成 | [M09-純Token登入](測試報告/M09-純Token登入.md) |
 | M10 | 0.10.9 | 移除 Server 模式 | 完成 | [M10-移除Server模式](測試報告/M10-移除Server模式.md) |
 | M11 | 0.10.10 | 拆成獨立靜態站台＋API 主機 | 完成 | [M11-獨立靜態站台](測試報告/M11-獨立靜態站台.md) |
-| M12 | 0.10.11 | PWA 與離線 | 未開始 | — |
+| M12 | 0.10.11 | PWA 與離線 | 完成 | [M12-PWA與離線](測試報告/M12-PWA與離線.md) |
 
 ---
 
@@ -113,7 +113,7 @@
 > **M3 實際做法與計畫的差異**：
 > - **批次刪除沒有另做批次 API**：WASM 頁面沿用共用的 `BatchDelete`，逐筆呼叫單筆刪除 `DELETE {id}`（每頁的刪除規則與每筆一列的稽核都在單筆刪除裡，與 Server 版相同，速查表 §6.28）。
 > - **稽核歷程 API 提前做**：資料頁每列的「異動歷程」對話窗搬到 Client 共用，WASM 頁需要資料來源，所以先加了只限管理員的 `GET /api/v1/audit-logs/history` 與 `/{id}/content`（`AuditLogsController`）；稽核紀錄頁本身的其他端點在 M5（0.10.4）補上。
-> - **新增日期時間格式端點**：瀏覽器內建的 zh-TW 時間格式和伺服器不同（「上午9:00:00」對「上午 09:00:00」），而且在 WASM 設定目前文化不影響渲染。改由不需登入的 `GET /api/v1/shell/culture` 取伺服器格式（`ClientCulture`），WASM 清單的日期時間欄位一律明確指定格式；Client 專案載入完整地區資料（下載量約多 1～2 MB，M12 實測）。
+> - **新增日期時間格式端點**：瀏覽器內建的 zh-TW 時間格式和伺服器不同（「上午9:00:00」對「上午 09:00:00」），而且在 WASM 設定目前文化不影響渲染。改由不需登入的 `GET /api/v1/shell/culture` 取伺服器格式（`ClientCulture`），WASM 清單的日期時間欄位一律明確指定格式；Client 專案載入完整地區資料（0.10.11 起改只載中日韓的 `icudt_CJK.dat`，見 M12）。
 > - **`PermissionRules` 移到 Models**（M1、M2 延後的項目）在這裡完成；另加 `PagePermissions` 讓 `RequirePermission` 等共用元件在兩種頁面都能判斷權限。M2 的 `ClientNotify` 拿掉，WASM 頁面改用與 Server 版相同的 `ViewNotification`。
 > - **錯誤訊息改成與畫面相同**：分類、團隊的 API 改走服務後，錯誤訊息就是畫面那一句（使用者確認沒有外部程式依賴舊訊息）；網址、HTTP 狀態碼與欄位不變（團隊「還有下屬不可刪除」「改成已刪除團隊的名稱」仍回 400）。
 > - **產生器實跑**：`Test-CrudGenerator.ps1` 在暫存 worktree 以 `Start-E2EHost.ps1` 啟動網站，用 `scripts/e2e/crud-generated.mjs` 對三個產生的頁面實際新增、修改、刪除、顯示已刪除、還原（需要 `PLAYWRIGHT_CORE_DIR`，`-SkipRealRun` 略過）。使用者決定：產生器只產生 WASM 頁面（沒有 Server 版選項），也不寫衍生專案舊 Server 版 CRUD 模組的轉換指南。
@@ -272,8 +272,25 @@
 - Service Worker、manifest、離線提示列、離線 API 訊息、新版本提示、修剪與延遲載入、最終文件整理。
 - **實機情境**：離線時外框可開、提示出現、不卡死；恢復連線自動復原；部署新版出現提示；可安裝為 PWA。
 
+> **M12 實際做法與計畫的差異**：
+> - **Service Worker 只快取前端自己的檔案**：發佈版 `service-worker.published.js` 只在安裝時把資產清單 `service-worker-assets.js` 上的檔案帶 `integrity` 放進 `offline-cache-<encodeURIComponent(範圍路徑)>:<清單版本>`（排除 Service Worker 自己、沒用到的 Bootstrap 檔案與 AntDesign 主題；同站台另外放一份 `index.html`），執行期間從不寫快取；不是 GET、跨來源、伺服器端點（`networkOnlyPaths`：`/api`、`/signin-google`、`/auths/google`、`/swagger`、`/health`、`/auths/resetpassword`）一律只走網路；前端頁面的導覽回快取的 `index.html`；啟用時只刪同一範圍的舊快取（獨立審查後；同一來源不同路徑可各部署一套）。計畫只寫「不快取 `/api/*`」：同站台時 API 主機一併提供前端，Google 登入、Swagger、健康檢查與重設密碼頁（要讓伺服器加的 `no-referrer`、`no-store` 生效）也都在 Service Worker 的範圍裡，一起排除；`PwaConventionTests` 啟動主機、從實際註冊的端點（`EndpointDataSource`）檢查每個不在 `/api` 底下的伺服器端點都在清單裡。開發用的 `service-worker.js` 不快取、不攔截，啟用時清掉同一範圍發佈版留下的快取。
+> - **新版本的判斷綁資產清單的版本，不綁 `SystemVersion`**（分析報告 5.7 原寫「快取版本綁 `SystemVersion`」）：清單版本由 SDK 依所有檔案的雜湊產生，任何前端檔案變了就是新版，不必記得升版；靜態站也讀不到 API 主機的設定。新版裝好停在等待、**不自動 `skipWaiting`**（使用者可能正在編輯），`ClientUpdateBar` 顯示「有新版本，按這裡重新整理」（另有「稍後」），按下才送 `SKIP_WAITING`、`controllerchange` 後整頁重新載入一次；分頁回到前景時最多每 30 分鐘檢查一次。
+> - **離線 API 訊息分兩種**（分析報告原寫「目前離線，資料需要網路連線。」）：瀏覽器確定離線（`ClientConnectivity`，`navigator.onLine`）時是「目前離線，請恢復連線後再試。」，否則照舊「目前無法連線到伺服器，請稍後再試。」——瀏覽器有網路但伺服器停機時不可說成「離線」。
+> - **離線提示列與新版本提示列掛在根元件 `ClientRoutes`**（登入頁也看得到），固定在畫面底部置中、`z-index: 1001`（高於對話窗、低於通知）。恢復連線時通知推播立即重連（`ClientPushConnection.ReconnectNow`）、鈴鐺與公告立即重讀。
+> - **離線開頁讀不到身分時不登出**（計畫沒寫）：`ClientSession.IsUnreachable` 時保留 Token、不導去登入頁，外框顯示「目前無法連線到伺服器，恢復連線後會自動重新載入。」；瀏覽器恢復連線時自動重新載入，另外每 15 秒試一次 `api/v1/shell/culture`（`WaitUntilReachableAsync`），拿到非 5xx 的回應就重新載入（實機發現：瀏覽器一直有網路、只是伺服器暫時連不上時收不到恢復連線的事件）；獨立審查後伺服器回 502／503／504（IIS 停機、部署中）也視同連不上（500 照舊回登入頁），而且 **API 回 401 後刷新時連不上（含網路斷線）也不再登出**：`ApiClient` 的一般請求、下載、串流、表單四條路與別的分頁的登出廣播都改成回「目前無法連線到伺服器」的失敗結果、不清 Token、不導頁（0.10.10 以前刷新時網路斷線會被登出）。所以「離線時外框可開」是外框與提示，選單與資料要恢復連線後才載入（決策「離線只要斷線不卡死」）。
+> - **修剪與延遲載入只做了地區資料**：`BlazorWebAssemblyLoadAllGlobalizationData` 改為 `BlazorIcuDataFileName=icudt_CJK.dat`（Brotli 後 329,770 → 248,840 bytes，`_framework` 的 Brotli 總量 −1.8%，英文瀏覽器日期仍是 zh-TW 格式）。不修剪 `System.Private.Xml`（AntDesign 用到）；不延遲載入 Markdig（效益約 1.7%，風險大於效益）。
+> - **發佈補強**（計畫沒寫）：靜態站 `web.config` 加 `.webmanifest` 的 MIME；不產生壓縮副本的清單移到前端與 API 主機共用的 `FrontendCompression.props`（`service-worker.js`、`service-worker-assets.js`、`appsettings*.json`、`*.webmanifest`；獨立審查發現 0.10.10 的清單只在前端專案、同站台發佈沒套用到，原本「發佈後刪掉 Service Worker 壓縮副本」的步驟移除）；`-p:StaticSiteApiOrigin` 改寫 `appsettings.json` 時同步更新資產清單上它的雜湊、清單版本與 `service-worker.js` 的版本註解（否則 integrity 驗證失敗、整個安裝失敗）。
+> - **manifest**：`name`／`short_name` 是固定值「企業管理平台」（系統參數頁改系統名稱不會跟著變），`theme_color`／`background_color` 取自 theme.css，圖示 192／512 由 `brand-logo.png` 產生；`PwaConventionTests` 比對 `appsettings.json` 的 `SystemName` 與 theme.css 的色票。
+> - **獨立審查補上的部署注意事項**（寫入部署清單與速查表 §6.33 第 107～109 點）：部署後不可手改任何前端檔案（integrity 對不上時新版整個安裝失敗、使用者停在舊版、修改本身也不生效；新版安裝失敗時 `pwa.js` 經 `client-error-reporter.js` 的 `report()` 回報，API 主機日誌與系統例外紀錄出現來源「瀏覽器」、`Service worker installation failed…` 的錯誤）；快取的入口頁連同回應標頭一起存，只改安全標頭要重新發佈前端才生效；退版到 0.10.10 以前、拿掉 PWA、同站台改雙站台而原網址改當 API 主機時，要在原網址部署自我註銷的 `service-worker.js`。
+> - **已知限制**：Service Worker 只在 HTTPS 或 localhost 生效；Material Icons 字型跨來源不快取，離線時圖示顯示成文字；開發模式不快取、不會出現新版本提示。
+> - **實機發現：重新整理誤報成功**：離線時按清單的「重新整理」同時跳出「目前離線」與「已更新最新資料」——9 個清單與 CRUD 產生器樣板不管讀取成功與否都送出成功訊息（M3 起）。改為讀取成功才顯示，新增守門測試 `RefreshMessageConventionTests`。
+> - **守門測試**：新增 `Client/PwaConventionTests`、`Components/PwaStatusBarTests`；`ClientSessionTests`（連不上與 502／503／504 時保留 Token、API 刷新連不上不登出、`WaitUntilReachableAsync`）、`ClientPushConnectionTests`（`ReconnectNow`）、`SameSiteHostTests`（PWA 檔案的類型與 `no-cache`）增加。測試 3,098 → 3,158。
+> - **與 0.10.10 不同（使用者看得到的）**：可以安裝為 App；離線提示列與「目前離線」訊息；離線重新整理不被登出、恢復後自動重新載入；部署新版後出現「有新版本」提示列，按下（或關掉所有分頁再開）才換成新版。
+> - 實機腳本：`scripts/e2e/m12-pwa.mjs`（W1 Service Worker 接管與快取內容、W2 可安裝、W3 離線提示與訊息與離線重新整理、W4 恢復連線、W5 部署新版提示、W6 英文瀏覽器日期、W7 伺服器暫時連不上自動恢復；＋36 路由煙霧測試；須以發佈版前端、雙站台執行，`E2E_STATIC_ROOT` 指向前端發佈根目錄）；`static-site.mjs` 加 `.webmanifest` 的 MIME。結果見測試報告。
+> - **最終文件整理**：現行文件中仍把 Blazor Server、電路、`App.razor`、登入 Cookie 當成現況的段落改成現況或標成沿革；明確標了版本的沿革保留。
+
 ---
 
 ## 5. 最終驗收
 
-M12 完成後，依 [分析報告第 4 節功能對照表](WASM改寫可行性分析報告.md#4-功能對照表原功能--wasm-後如何保留) 逐項做全功能回歸，另做雙主機部署、離線與真實模型 AI 的實機驗證，結果寫入最終測試報告。
+M12 完成後，依 [分析報告第 4 節功能對照表](WASM改寫可行性分析報告.md#4-功能對照表原功能--wasm-後如何保留) 逐項做全功能回歸，另做雙主機部署、離線與真實模型 AI 的實機驗證，結果寫入最終測試報告（尚未進行）。

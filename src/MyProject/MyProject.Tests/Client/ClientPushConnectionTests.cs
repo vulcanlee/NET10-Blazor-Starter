@@ -157,6 +157,43 @@ public sealed class ClientPushConnectionTests
         Assert.True(harness.LastConnectionCancelled);
     }
 
+    /// <summary>
+    /// 瀏覽器恢復連線（0.10.11 起，離線提示列呼叫）：正在等下一次重試時立即重連，不必等完退避的時間。
+    /// </summary>
+    [Fact]
+    public async Task ReconnectNow_WhileWaitingToRetry_ShouldReconnectImmediately()
+    {
+        var harness = new Harness { BlockingWaits = true };
+        harness.Script(Offline());
+
+        harness.Connection.Start();
+        await harness.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, harness.Connections);
+
+        harness.Connection.ReconnectNow();
+        await harness.Exhausted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await harness.Connection.StopAsync();
+
+        Assert.Equal(2, harness.Connections);
+        Assert.Equal(new[] { 2 }, harness.Waits.Select(x => (int)x.TotalSeconds));
+    }
+
+    /// <summary>還沒啟動（未登入、推播關閉）或正連著時，什麼都不做。</summary>
+    [Fact]
+    public async Task ReconnectNow_WhenNotWaiting_ShouldDoNothing()
+    {
+        var harness = new Harness();
+        harness.Connection.ReconnectNow();
+
+        harness.Connection.Start();
+        await harness.Exhausted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        harness.Connection.ReconnectNow();
+        await Task.Delay(50);
+        await harness.Connection.StopAsync();
+
+        Assert.Equal(1, harness.Connections);
+    }
+
     private static Func<Func<PushFrameDto, Task>, Harness, Task<ApiResult<object>>> Connected(params string[] kinds)
         => Connected(TimeSpan.Zero, kinds);
 
@@ -201,10 +238,15 @@ public sealed class ClientPushConnectionTests
                     Renewals++;
                     return Task.FromResult(RenewSucceeds);
                 },
-                (wait, _) =>
+                async (wait, cancellationToken) =>
                 {
                     Waits.Add(wait);
-                    return Task.CompletedTask;
+                    if (BlockingWaits)
+                    {
+                        // 真的等下去，直到被取消（停止或恢復連線時立即重連）。
+                        Waiting.TrySetResult();
+                        await Task.Delay(Timeout.Infinite, cancellationToken);
+                    }
                 },
                 Clock);
         }
@@ -216,6 +258,12 @@ public sealed class ClientPushConnectionTests
         public List<TimeSpan> Waits { get; } = [];
 
         public TaskCompletionSource Exhausted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>重試前的等待是真的等（預設立即結束）。</summary>
+        public bool BlockingWaits { get; init; }
+
+        /// <summary>開始等待重試時完成。</summary>
+        public TaskCompletionSource Waiting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool RenewSucceeds { get; init; } = true;
 

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ namespace MyProject.Web.Client.Auth;
 /// <item>監聽其他分頁：localStorage 的 Token 被清掉（別的分頁登出）就回登入頁、換成別人就整頁重新載入；收到「已登出」廣播就重新確認自己的登入。</item>
 /// </list>
 /// 伺服器回 429（請求過於頻繁，0.10.5 起）是暫時的：不清 Token、不回登入頁，改由外框顯示 <see cref="ThrottledMessage"/> 請使用者稍後重新整理。
+/// 連不上伺服器（網路斷了、逾時，或伺服器回 502／503／504，0.10.11 起）也是暫時的：設 <see cref="IsUnreachable"/>，同樣不清 Token、不回登入頁。
 /// </summary>
 public class ClientSession : IDisposable
 {
@@ -66,6 +68,54 @@ public class ClientSession : IDisposable
     /// </summary>
     public bool IsThrottled { get; private set; }
 
+    /// <summary>
+    /// 最近一次讀取身分或刷新 Token 時連不上伺服器（0.10.11 起，WASM 遷移 M12：離線時 Service Worker 照樣開得起外框）。
+    /// 這時 <see cref="InitializeAsync"/> 回 false，但不清 Token、不導去登入頁 —— 連不上不代表登入失效，恢復連線後重新整理就回到原本的頁面。
+    /// 伺服器回 502／503／504（<see cref="IsGatewayError"/>）也算：IIS 停機或部署中（應用程式集區停止、app_offline.htm）回 503，反向代理後面的主機停了回 502／504。
+    /// </summary>
+    public bool IsUnreachable { get; private set; }
+
+    /// <summary>外框在 <see cref="IsUnreachable"/> 時顯示的訊息。</summary>
+    public const string UnreachableMessage = "目前無法連線到伺服器，恢復連線後會自動重新載入。";
+
+    /// <summary>
+    /// 連不上伺服器時，每隔 <paramref name="interval"/> 試一次匿名的 <c>api/v1/shell/culture</c>；伺服器有回應、而且不是 5xx 就結束
+    /// （5xx 是停機或部署中，這時重新載入只會再看到同一個訊息），
+    /// 呼叫端再整頁重新載入（0.10.11 實機發現：只靠瀏覽器「離線→上線」的事件不夠 —— 瀏覽器一直有網路、只是伺服器暫時連不上，
+    /// 或恢復連線發生在畫面還在啟動時，都收不到那個事件）。取消時丟 <see cref="OperationCanceledException"/>。
+    /// </summary>
+    public async Task WaitUntilReachableAsync(TimeSpan interval, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(interval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            try
+            {
+                using var response = await http.GetAsync("api/v1/shell/culture", cancellationToken);
+                if ((int)response.StatusCode < 500)
+                {
+                    return;
+                }
+
+                logger.LogDebug("The server is still unavailable (HTTP {Status}); trying again later.", (int)response.StatusCode);
+            }
+            catch (HttpRequestException ex)
+            {
+                // 還連不上，下一輪再試。
+                logger.LogDebug(ex, "The server still cannot be reached; trying again later.");
+            }
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // 單次請求逾時，下一輪再試。
+                logger.LogDebug(ex, "Checking whether the server is back timed out; trying again later.");
+            }
+        }
+    }
+
+    /// <summary>伺服器停機或部署中的回應（502／503／504）：視同連不上，不是 Token 失效。500 等其他狀態碼不算。</summary>
+    internal static bool IsGatewayError(HttpStatusCode status)
+        => status is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
     /// <summary>目前的身分（<c>/me</c>）；初始化成功前為 null。</summary>
     public SessionInfoDto? Info { get; private set; }
 
@@ -76,6 +126,7 @@ public class ClientSession : IDisposable
     public virtual async Task<bool> InitializeAsync()
     {
         IsThrottled = false;
+        IsUnreachable = false;
         tokens = await store.ReadAsync();
         if (tokens is null && await RequestFromOtherTabsAsync() is { } handed)
         {
@@ -90,9 +141,16 @@ public class ClientSession : IDisposable
         }
 
         var me = await LoadMeAsync();
-        if (me is null && !IsThrottled && !hasNoPrimaryRole && await RefreshAsync())
+        if (me is null && !IsThrottled && !IsUnreachable && !hasNoPrimaryRole && await RefreshAsync())
         {
             me = await LoadMeAsync();
+        }
+
+        if (me is null && IsUnreachable)
+        {
+            // 連不上伺服器（離線、伺服器停機）：保留 Token、留在原頁，由外框顯示訊息並在恢復連線後重新載入。
+            logger.LogWarning("The server could not be reached while loading the session; keeping the tokens.");
+            return false;
         }
 
         if (me is null && hasNoPrimaryRole)
@@ -181,6 +239,7 @@ public class ClientSession : IDisposable
     public virtual async Task<bool> RefreshAsync()
     {
         IsThrottled = false;
+        IsUnreachable = false;
         await refreshGate.WaitAsync();
         try
         {
@@ -220,6 +279,13 @@ public class ClientSession : IDisposable
             }
 
             WasThrottled(response);
+            if (IsGatewayError(response.StatusCode))
+            {
+                IsUnreachable = true;
+                logger.LogWarning("Refreshing the token failed because the server is unavailable (HTTP {Status}); keeping the tokens.", (int)response.StatusCode);
+                return false;
+            }
+
             logger.LogInformation("Refreshing the token failed with HTTP {Status}.", (int)response.StatusCode);
             return false;
         }
@@ -227,6 +293,7 @@ public class ClientSession : IDisposable
         {
             // 連不上伺服器：這裡是經 JS（Web Locks）回呼進來的，例外不能往外丟（會變成 JSException、整頁出錯）。
             // 回 false 讓呼叫端照「暫時無法連線」處理。
+            IsUnreachable = true;
             logger.LogWarning(ex, "Refreshing the token failed because the server could not be reached.");
             return false;
         }
@@ -312,7 +379,7 @@ public class ClientSession : IDisposable
             return;
         }
 
-        if (!await RefreshAsync() && !IsThrottled)
+        if (!await RefreshAsync() && !IsThrottled && !IsUnreachable)
         {
             await SignInAgainAsync();
         }
@@ -449,6 +516,13 @@ public class ClientSession : IDisposable
         {
             var response = await http.SendAsync(request);
             WasThrottled(response);
+            if (IsGatewayError(response.StatusCode))
+            {
+                IsUnreachable = true;
+                logger.LogWarning("Loading the session failed because the server is unavailable (HTTP {Status}).", (int)response.StatusCode);
+                return null;
+            }
+
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 var denied = await response.Content.ReadFromJsonAsync<ApiResult<SessionInfoDto>>();
@@ -462,6 +536,7 @@ public class ClientSession : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
+            IsUnreachable = true;
             logger.LogWarning(ex, "Loading the session failed because the server could not be reached.");
             return null;
         }

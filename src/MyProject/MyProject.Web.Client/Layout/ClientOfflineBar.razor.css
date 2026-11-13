@@ -1,0 +1,13 @@
+/* 離線提示列（0.10.11 起）：位置由 ClientRoutes.razor.css 的 .app-status-bars 決定（畫面底部置中）。
+   警示琥珀（--app-warn*）刻意不轉粉：見介面視覺設計規範 §3.1。 */
+.app-offline-bar {
+    background: var(--app-warn-bg);
+    border: 1px solid var(--app-warn-line);
+    border-radius: var(--app-radius-control);
+    box-shadow: var(--app-shadow);
+    color: var(--app-text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    padding: 0.6rem 1rem;
+    pointer-events: auto;
+}

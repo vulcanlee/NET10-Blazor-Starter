@@ -10,21 +10,31 @@
     <TargetFramework>net10.0</TargetFramework>
     <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
     <!--
-      載入完整的地區資料（0.10.2 起）：語系固定 zh-TW（見 ClientCulture），不跟著瀏覽器語言；
-      預設只依瀏覽器語言載入一部分，英文瀏覽器會缺 zh-TW 的資料。下載量多約 1～2 MB，正式發佈的大小在 M12 量測。
+      地區資料固定載入中日韓那一份（0.10.11 起，WASM 遷移 M12）：語系固定 zh-TW（見 ClientCulture），不跟著瀏覽器語言；
+      預設只依瀏覽器語言挑一份，英文瀏覽器拿到的 icudt_EFIGS.dat 沒有 zh-TW。0.10.2～0.10.10 用 BlazorWebAssemblyLoadAllGlobalizationData 載入完整的 icudt.dat
+      （Brotli 後 330 KB）；icudt_CJK.dat 含 zh、zh_Hant、zh_Hant_TW 與英文、根語系（Brotli 後 249 KB，少 81 KB）。
+      ⚠️ 要用到中日韓以外的語系（例如格式化成法文）時改回 BlazorWebAssemblyLoadAllGlobalizationData。
     -->
-    <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
+    <BlazorIcuDataFileName>icudt_CJK.dat</BlazorIcuDataFileName>
     <!--
       index.html 的佔位（0.10.10 起，.NET 10 獨立 WebAssembly 的做法）：建置與發佈時填入 import map、preload 連結，
       並把 blazor.webassembly 的檔名換成帶指紋的版本。
     -->
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <!--
-      ⚠️ appsettings.json 不產生 .br／.gz 壓縮副本：部署後要改 ApiBaseUrl，有壓縮副本的話伺服器（web.config 的 Brotli 規則、
-      同站台的 MapStaticAssets）會繼續送出舊的壓縮版，改了等於沒改。其他檔案照常預先壓縮。
+      PWA（0.10.11 起，WASM 遷移 M12）：建置與發佈時產生 Service Worker 的資產清單 service-worker-assets.js（每個檔案的網址與 SHA-256、
+      整份清單的版本）。Service Worker 只在安裝時把清單上的檔案放進快取，絕不快取 API 或資料（見 wwwroot/service-worker.published.js）。
     -->
-    <CompressionExcludePatterns>$(CompressionExcludePatterns);appsettings*.json;**/appsettings*.json</CompressionExcludePatterns>
+    <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
+
+  <!-- 不產生壓縮副本的檔案（appsettings.json、Service Worker 兩個檔案、manifest）：API 主機也匯入同一份，見檔案裡的說明。 -->
+  <Import Project="FrontendCompression.props" />
+
+  <!-- 開發時用 service-worker.js（不快取），發佈時換成 service-worker.published.js，SDK 在檔頭加上清單版本。 -->
+  <ItemGroup>
+    <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
@@ -75,6 +85,8 @@
 
     雙站台（0.10.10 起）：發佈時帶 -p:StaticSiteApiOrigin=https://api.公司.com（只要 scheme＋主機＋連接埠），
     同時填入 wwwroot/appsettings.json 的 ApiBaseUrl 與 CSP 的 connect-src —— 兩處一致，重新發佈也不會被蓋回空白。
+    PWA（0.10.11 起）：appsettings.json 的內容變了，Service Worker 資產清單（service-worker-assets.js）上它的雜湊與清單版本、
+    service-worker.js 的版本註解一起更新（否則 Service Worker 以 integrity 驗證失敗、整個安裝失敗）。
   -->
   <UsingTask TaskName="FillImportMapHash" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
@@ -84,6 +96,8 @@
       <ApiOrigin ParameterType="System.String" />
       <AppSettingsTemplate ParameterType="System.String" Required="true" />
       <AppSettings ParameterType="System.String" Required="true" />
+      <ServiceWorkerAssets ParameterType="System.String" Required="true" />
+      <ServiceWorkerScript ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
       <Using Namespace="System.IO" />
@@ -149,6 +163,53 @@
 
         File.WriteAllText(AppSettings, settings, new UTF8Encoding(false));
 
+        // Service Worker 的資產清單（0.10.11 起）：appsettings.json 改寫後，清單上的雜湊要跟著改（Service Worker 安裝時以 integrity 驗證，
+        // 對不上整個安裝失敗、離線就開不起來）；內容變了也要換清單版本（快取名稱與 service-worker.js 的版本註解跟著變，瀏覽器才知道有新版）。
+        if (File.Exists(ServiceWorkerAssets))
+        {
+          string settingsHash;
+          using (var sha = SHA256.Create())
+          {
+            settingsHash = "sha256-" + Convert.ToBase64String(sha.ComputeHash(File.ReadAllBytes(AppSettings)));
+          }
+
+          var assets = File.ReadAllText(ServiceWorkerAssets);
+          var entry = Regex.Match(assets, @"""hash"":\s*""(?<hash>[^""]+)"",\s*""url"":\s*""appsettings\.json""");
+          var version = Regex.Match(assets, @"""version"":\s*""(?<version>[^""]+)""");
+          if (!entry.Success || !version.Success)
+          {
+            Log.LogError("Service Worker 的資產清單裡找不到 appsettings.json 或版本：" + ServiceWorkerAssets);
+            return false;
+          }
+
+          if (entry.Groups["hash"].Value != settingsHash)
+          {
+            var oldVersion = version.Groups["version"].Value;
+            string newVersion;
+            using (var sha = SHA256.Create())
+            {
+              newVersion = Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(oldVersion + settingsHash))).Substring(0, 8);
+            }
+
+            var oldHash = entry.Groups["hash"];
+            assets = assets.Substring(0, oldHash.Index) + settingsHash + assets.Substring(oldHash.Index + oldHash.Length);
+            var versionValue = Regex.Match(assets, @"""version"":\s*""(?<version>[^""]+)""").Groups["version"];
+            assets = assets.Substring(0, versionValue.Index) + newVersion + assets.Substring(versionValue.Index + versionValue.Length);
+
+            var worker = File.ReadAllText(ServiceWorkerScript);
+            var marker = "/* Manifest version: " + oldVersion + " */";
+            if (!worker.Contains(marker))
+            {
+              Log.LogError("service-worker.js 裡找不到清單版本的註解（" + marker + "）：" + ServiceWorkerScript);
+              return false;
+            }
+
+            File.WriteAllText(ServiceWorkerAssets, assets, new UTF8Encoding(false));
+            File.WriteAllText(ServiceWorkerScript, worker.Replace(marker, "/* Manifest version: " + newVersion + " */"), new UTF8Encoding(false));
+            Log.LogMessage(MessageImportance.High, "Service Worker 的資產清單已更新 appsettings.json 的雜湊，版本 " + oldVersion + " → " + newVersion);
+          }
+        }
+
         File.WriteAllText(WebConfig, config, new UTF8Encoding(false));
         Log.LogMessage(MessageImportance.High, "web.config 的 CSP 已填入 import map 的雜湊 sha256-" + hash);
 ]]></Code>
@@ -157,7 +218,8 @@
 
   <Target Name="FillStaticSiteImportMapHash" AfterTargets="Publish">
     <FillImportMapHash IndexHtml="$(PublishDir)wwwroot\index.html" Template="$(MSBuildProjectDirectory)\web.config" WebConfig="$(PublishDir)web.config"
-                       ApiOrigin="$(StaticSiteApiOrigin)" AppSettingsTemplate="$(MSBuildProjectDirectory)\wwwroot\appsettings.json" AppSettings="$(PublishDir)wwwroot\appsettings.json" />
+                       ApiOrigin="$(StaticSiteApiOrigin)" AppSettingsTemplate="$(MSBuildProjectDirectory)\wwwroot\appsettings.json" AppSettings="$(PublishDir)wwwroot\appsettings.json"
+                       ServiceWorkerAssets="$(PublishDir)wwwroot\$(ServiceWorkerAssetsManifest)" ServiceWorkerScript="$(PublishDir)wwwroot\service-worker.js" />
   </Target>
 
   <ItemGroup>

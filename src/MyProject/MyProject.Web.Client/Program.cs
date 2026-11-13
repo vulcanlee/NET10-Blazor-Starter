@@ -32,6 +32,8 @@ public static class ClientProgram
         builder.Services.AddScoped(_ => apiAddress.CreateHttpClient());
         builder.Services.AddScoped<TokenStore>();
         builder.Services.AddScoped<ClientSession>();
+        // 瀏覽器的連線狀態（0.10.11 起，WASM 遷移 M12）：離線提示列、ApiClient 的離線訊息。
+        builder.Services.AddScoped<ClientConnectivity>();
         builder.Services.AddScoped<ApiClient>();
         // 登入相關頁面與啟動頁的公開設定（0.10.8 起，WASM 遷移 M9）。
         builder.Services.AddScoped<LoginPageSettingsSource>();

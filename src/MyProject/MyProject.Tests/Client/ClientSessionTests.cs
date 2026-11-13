@@ -776,6 +776,269 @@ public sealed class ClientSessionTests
         Assert.Equal(1, received);
     }
 
+    /// <summary>
+    /// 離線時開頁（0.10.11 起，WASM 遷移 M12：Service Worker 讓外框離線也開得起來）：讀不到身分是因為連不上伺服器，
+    /// 不是 Token 失效 —— 不可清掉 Token、不可帶去登入頁（恢復連線後重新整理就回到原本的頁面）。
+    /// </summary>
+    [Fact]
+    public async Task Initialize_WhenTheServerCannotBeReached_ShouldKeepTheTokensAndStayOnThePage()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.Offline = true;
+        var (session, store, navigation) = Create(handler);
+
+        Assert.False(await session.InitializeAsync());
+
+        Assert.True(session.IsUnreachable);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+        Assert.Equal("r1", store.Stored!.RefreshToken);
+    }
+
+    /// <summary>存取 Token 過期（/me 回 401）、刷新時卻連不上伺服器：同樣保留 Token、留在原頁。</summary>
+    [Fact]
+    public async Task Initialize_WhenTheRefreshCannotReachTheServer_ShouldKeepTheTokensAndStayOnThePage()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.Unauthorized, Fail());
+        handler.Unreachable.Add("api/v1/Auth/refresh");
+        var (session, store, navigation) = Create(handler);
+
+        Assert.False(await session.InitializeAsync());
+
+        Assert.True(session.IsUnreachable);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+    }
+
+    /// <summary>
+    /// 連不上伺服器時的自動復原（0.10.11 實機發現）：只靠瀏覽器「離線→上線」的事件不夠 —— 瀏覽器一直有網路、只是伺服器暫時連不上，
+    /// 或恢復連線發生在畫面還在啟動時，都收不到那個事件。外框改為定期試一次伺服器，伺服器回應了才結束（之後整頁重新載入）。
+    /// </summary>
+    [Fact]
+    public async Task WaitUntilReachable_ShouldFinishOnlyAfterTheServerAnswersAgain()
+    {
+        var handler = new FakeHandler();
+        handler.Offline = true;
+        handler.On("api/v1/shell/culture", HttpStatusCode.OK, Ok(new DateTimeFormatDto()));
+        var (session, _, _) = Create(handler);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var waiting = session.WaitUntilReachableAsync(TimeSpan.FromMilliseconds(20), timeout.Token);
+        await Task.Delay(200);
+        Assert.False(waiting.IsCompleted);
+
+        handler.Offline = false;
+        await waiting;
+        Assert.False(timeout.IsCancellationRequested);
+    }
+
+    /// <summary>伺服器恢復後重新初始化：照常載入身分，上一次連不上的旗標不可殘留（外框才不會繼續顯示連不上的訊息）。</summary>
+    [Fact]
+    public async Task Initialize_AfterTheServerIsBack_ShouldClearTheUnreachableFlag()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.Offline = true;
+        var (session, _, _) = Create(handler);
+        await session.InitializeAsync();
+        handler.Offline = false;
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+
+        Assert.True(await session.InitializeAsync());
+
+        Assert.False(session.IsUnreachable);
+    }
+
+    /// <summary>伺服器恢復後才發現 Token 真的失效（/me 與刷新都 401）：照舊清掉 Token、帶 returnUrl 回登入頁，連不上的旗標不可殘留。</summary>
+    [Fact]
+    public async Task Initialize_AfterTheServerIsBack_WhenTheTokensNoLongerWork_ShouldStillSignInAgain()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.Offline = true;
+        var (session, store, navigation) = Create(handler, "App");
+        await session.InitializeAsync();
+        Assert.True(session.IsUnreachable);
+        handler.Offline = false;
+        handler.On("api/v1/Auth/me", HttpStatusCode.Unauthorized, Fail());
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.Unauthorized, Fail());
+
+        Assert.False(await session.InitializeAsync());
+
+        Assert.False(session.IsUnreachable);
+        Assert.True(store.Cleared);
+        Assert.Equal("/Auths/Login?returnUrl=%2FApp", navigation.NavigatedTo);
+    }
+
+    /// <summary>
+    /// 伺服器停機、部署中（0.10.11 獨立審查）：IIS 的應用程式集區停止或放了 app_offline.htm 時回 503，反向代理後面的主機停了回 502／504。
+    /// 這些都是「暫時連不上」，不是 Token 失效 —— 讀身分時遇到要保留 Token、留在原頁，由外框顯示訊息並在恢復後重新載入。
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task Initialize_WhenMeGetsAGatewayError_ShouldKeepTheTokensAndStayOnThePage(HttpStatusCode status)
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", status, Fail());
+        handler.On("api/v1/Auth/refresh", status, Fail());
+        var (session, store, navigation) = Create(handler, "App");
+
+        Assert.False(await session.InitializeAsync());
+
+        Assert.True(session.IsUnreachable);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+        Assert.DoesNotContain(handler.Requests, x => x.Path == "api/v1/Auth/refresh");
+    }
+
+    /// <summary>存取 Token 過期（/me 回 401）、刷新時伺服器回 502／503／504：同樣保留 Token、留在原頁。</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task Initialize_WhenTheRefreshGetsAGatewayError_ShouldKeepTheTokensAndStayOnThePage(HttpStatusCode status)
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.Unauthorized, Fail());
+        handler.On("api/v1/Auth/refresh", status, Fail());
+        var (session, store, navigation) = Create(handler, "App");
+
+        Assert.False(await session.InitializeAsync());
+
+        Assert.True(session.IsUnreachable);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+        Assert.Equal("r1", store.Stored!.RefreshToken);
+    }
+
+    /// <summary>其他狀態碼（含 500）照舊：讀不到身分、刷新也失敗就清掉 Token 回登入頁 —— 只有 502／503／504 算暫時連不上。</summary>
+    [Fact]
+    public async Task Initialize_WhenTheServerFailsWith500_ShouldStillSignInAgain()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.InternalServerError, Fail());
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.InternalServerError, Fail());
+        var (session, store, navigation) = Create(handler, "App");
+
+        Assert.False(await session.InitializeAsync());
+
+        Assert.False(session.IsUnreachable);
+        Assert.True(store.Cleared);
+        Assert.Equal("/Auths/Login?returnUrl=%2FApp", navigation.NavigatedTo);
+    }
+
+    /// <summary>API 回 401、刷新時伺服器回 503（剛好開始部署）：回「連不上伺服器」的失敗結果，不清 Token、不回登入頁。</summary>
+    [Fact]
+    public async Task ApiClient_WhenTheRefreshGetsAGatewayError_ShouldReturnTheUnreachableMessageAndKeepTheUserSignedIn()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.ServiceUnavailable, Fail());
+        handler.On("api/v1/profile", HttpStatusCode.Unauthorized, Fail());
+        handler.On("api/v1/ai/test", HttpStatusCode.Unauthorized, Fail());
+        var (session, store, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance);
+
+        var get = await api.GetAsync<ProfileDto>("api/v1/profile");
+        var download = await api.DownloadAsync("api/v1/profile");
+        var stream = await api.StreamAsync<AiStreamFrameDto>("api/v1/ai/test", null, _ => Task.CompletedTask, CancellationToken.None);
+        var form = await api.SendFormAsync<object>("api/v1/profile", _ => Task.FromResult(new RawResponse(401, "{}")));
+
+        Assert.Equal(ApiClient.OfflineMessage, get.ErrorMessage);
+        Assert.Equal(ApiClient.OfflineMessage, download.Message);
+        Assert.Equal(ApiClient.OfflineMessage, stream.ErrorMessage);
+        Assert.Equal(ApiClient.OfflineMessage, form.ErrorMessage);
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+    }
+
+    /// <summary>別的分頁登出（廣播）時伺服器正好回 503：確認不了就先留著，不回登入頁（恢復後的下一次刷新自然見分曉）。</summary>
+    [Fact]
+    public async Task LogoutBroadcast_WhenTheRefreshGetsAGatewayError_ShouldNotSignOut()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: false));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/Auth/refresh", HttpStatusCode.ServiceUnavailable, Fail());
+        var (session, store, navigation) = Create(handler);
+        await session.InitializeAsync();
+
+        await session.OnLogoutBroadcastAsync();
+
+        Assert.Null(navigation.NavigatedTo);
+        Assert.False(store.Cleared);
+    }
+
+    /// <summary>連不上時的探測：伺服器回 5xx（停機、部署中）不算恢復，要等到不是 5xx 的回應才結束（否則每 15 秒整頁重新載入一次）。</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task WaitUntilReachable_ShouldKeepWaitingWhileTheServerAnswersWith5xx(HttpStatusCode status)
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/shell/culture", status, Fail());
+        var (session, _, _) = Create(handler);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var waiting = session.WaitUntilReachableAsync(TimeSpan.FromMilliseconds(20), timeout.Token);
+        // 等到至少試過兩次（第一次的 5xx 之後還在試），而不是固定等一段時間 —— 系統忙時 200 毫秒可能還沒送出第一個請求。
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") < 2 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        Assert.True(handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") >= 2, "5 秒內沒有重試。");
+        Assert.False(waiting.IsCompleted, $"伺服器回 {(int)status} 時就當成恢復了。");
+
+        handler.On("api/v1/shell/culture", HttpStatusCode.OK, Ok(new DateTimeFormatDto()));
+        await waiting;
+        Assert.False(timeout.IsCancellationRequested);
+    }
+
+    /// <summary>
+    /// 離線時的 API 訊息（0.10.11 起）：瀏覽器確定離線時說「目前離線」，沒有離線、只是伺服器連不上時照舊。
+    /// 一般呼叫、匿名呼叫、下載、串流都一樣。
+    /// </summary>
+    [Theory]
+    [InlineData(false, ApiClient.BrowserOfflineMessage)]
+    [InlineData(true, ApiClient.OfflineMessage)]
+    public async Task ApiClient_WhenTheServerCannotBeReached_ShouldSayWhetherTheBrowserIsOffline(bool browserOnline, string expected)
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var connectivity = new ClientConnectivity(new NoJsRuntime());
+        await connectivity.OnConnectivityChanged(browserOnline);
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance, connectivity);
+        handler.Offline = true;
+
+        var put = await api.PutAsync<object>("api/v1/profile/name", new UpdateProfileNameDto { Name = "x" });
+        var anonymous = await api.GetAnonymousAsync<object>("api/v1/Auth/login-settings");
+        var download = await api.DownloadAsync("api/v1/categories/export");
+        var stream = await api.StreamAsync<AiStreamFrameDto>("api/v1/ai/test", null, _ => Task.CompletedTask, CancellationToken.None);
+
+        Assert.Equal("目前離線，請恢復連線後再試。", ApiClient.BrowserOfflineMessage);
+        Assert.Equal(expected, put.ErrorMessage);
+        Assert.Equal(expected, anonymous.ErrorMessage);
+        Assert.Equal(expected, download.Message);
+        Assert.Equal(expected, stream.ErrorMessage);
+    }
+
     private static StringContent Ndjson(params AiStreamFrameDto[] frames)
         => new(string.Concat(frames.Select(frame => JsonSerializer.Serialize(frame, JsonSerializerOptions.Web) + Environment.NewLine)),
             System.Text.Encoding.UTF8, "application/x-ndjson");
@@ -908,6 +1171,9 @@ public sealed class ClientSessionTests
 
         public bool Offline { get; set; }
 
+        /// <summary>只有這幾個路徑連不上（例如 /me 回 401、刷新時才斷線）。</summary>
+        public HashSet<string> Unreachable { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>瀏覽器已經存著這組 Token（Create 時放進假的 storage）。</summary>
         public StoredTokens? Seed { get; private set; }
 
@@ -927,12 +1193,12 @@ public sealed class ClientSessionTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            if (Offline)
+            var path = request.RequestUri!.AbsolutePath.TrimStart('/');
+            if (Offline || Unreachable.Contains(path))
             {
                 throw new HttpRequestException("offline");
             }
 
-            var path = request.RequestUri!.AbsolutePath.TrimStart('/');
             Requests.Add((path, request.Headers.Authorization?.ToString(), request.Headers.TryGetValues("X-MyProject-Client", out var values) ? values.Single() : null));
             if (!responses.TryGetValue(path, out var queue) || queue.Count == 0)
             {

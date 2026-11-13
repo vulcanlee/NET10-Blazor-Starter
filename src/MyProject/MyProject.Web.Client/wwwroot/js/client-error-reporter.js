@@ -68,6 +68,9 @@
             while (buffer.length > 0) {
                 send(buffer.shift());
             }
-        }
+        },
+
+        // 其他腳本主動回報（0.10.11 起，pwa.js 回報 Service Worker 安裝失敗）：與 window 'error' 走同一條路（過濾、截斷、登入前暫存）。
+        report: (kind, message, stack, source) => capture(kind, message, stack, source)
     };
 })();

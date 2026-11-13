@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using MyProject.Dtos.Commons;
 using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Commons;
 
 namespace MyProject.Web.Client.Api;
 
@@ -19,21 +20,30 @@ namespace MyProject.Web.Client.Api;
 /// </summary>
 public class ApiClient
 {
-    /// <summary>連不上伺服器時的訊息（M12 起改由離線提示列處理）。</summary>
+    /// <summary>連不上伺服器、但瀏覽器沒有離線時的訊息（伺服器停機、網路中間斷了…）。</summary>
     public const string OfflineMessage = "目前無法連線到伺服器，請稍後再試。";
+
+    /// <summary>連不上伺服器、而且瀏覽器確定離線時的訊息（0.10.11 起；畫面另有離線提示列）。</summary>
+    public const string BrowserOfflineMessage = "目前離線，請恢復連線後再試。";
 
     private readonly HttpClient http;
     private readonly ClientSession session;
     private readonly NavigationManager navigation;
     private readonly ILogger<ApiClient> logger;
+    private readonly ClientConnectivity? connectivity;
 
-    public ApiClient(HttpClient http, ClientSession session, NavigationManager navigation, ILogger<ApiClient> logger)
+    /// <param name="connectivity">瀏覽器的連線狀態（0.10.11 起）；沒有時一律用 <see cref="OfflineMessage"/>。</param>
+    public ApiClient(HttpClient http, ClientSession session, NavigationManager navigation, ILogger<ApiClient> logger, ClientConnectivity? connectivity = null)
     {
         this.http = http;
         this.session = session;
         this.navigation = navigation;
         this.logger = logger;
+        this.connectivity = connectivity;
     }
+
+    /// <summary>連不上伺服器時給使用者的訊息：瀏覽器確定離線就說離線，否則照舊。</summary>
+    private string UnreachableMessage => connectivity is { IsOnline: false } ? BrowserOfflineMessage : OfflineMessage;
 
     public Task<ApiResult<T>> GetAsync<T>(string url) => SendAsync<T>(HttpMethod.Get, url, null);
 
@@ -116,7 +126,7 @@ public class ApiClient
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JSException)
         {
             logger.LogWarning(ex, "API download failed because the server could not be reached. Url={Url}", url);
-            return ApiDownload.Failed(OfflineMessage, 0);
+            return ApiDownload.Failed(UnreachableMessage, 0);
         }
     }
 
@@ -139,6 +149,11 @@ public class ApiClient
                         return ApiResult<T>.FailureResult(ClientSession.ThrottledMessage, (int)HttpStatusCode.TooManyRequests);
                     }
 
+                    if (session.IsUnreachable)
+                    {
+                        return ApiResult<T>.FailureResult(UnreachableMessage, 0);
+                    }
+
                     await session.SignInAgainAsync();
                     return ApiResult<T>.UnauthorizedResult("登入已失效，請重新登入。");
                 }
@@ -158,7 +173,7 @@ public class ApiClient
         catch (JSException ex)
         {
             logger.LogWarning(ex, "API form request failed because the server could not be reached. Url={Url}", url);
-            return ApiResult<T>.FailureResult(OfflineMessage, 0);
+            return ApiResult<T>.FailureResult(UnreachableMessage, 0);
         }
     }
 
@@ -182,6 +197,11 @@ public class ApiClient
                     if (session.IsThrottled)
                     {
                         return ApiResult<object>.FailureResult(ClientSession.ThrottledMessage, (int)HttpStatusCode.TooManyRequests);
+                    }
+
+                    if (session.IsUnreachable)
+                    {
+                        return ApiResult<object>.FailureResult(UnreachableMessage, 0);
                     }
 
                     await session.SignInAgainAsync();
@@ -236,7 +256,7 @@ public class ApiClient
             }
 
             logger.LogWarning(ex, "API stream failed because the server could not be reached. Url={Url}", url);
-            return ApiResult<object>.FailureResult(OfflineMessage, 0);
+            return ApiResult<object>.FailureResult(UnreachableMessage, 0);
         }
     }
 
@@ -304,7 +324,7 @@ public class ApiClient
         {
             // 連不上伺服器、逾時，或刷新 Token（經 JS 的 Web Locks）時出錯：回失敗結果，畫面顯示提示而不是整頁出錯。
             logger.LogWarning(ex, "API request failed because the server could not be reached. Url={Url}", url);
-            return ApiResult<T>.FailureResult(OfflineMessage, 0);
+            return ApiResult<T>.FailureResult(UnreachableMessage, 0);
         }
     }
 
@@ -326,11 +346,14 @@ public class ApiClient
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             logger.LogWarning(ex, "Anonymous API request failed because the server could not be reached. Url={Url}", url);
-            return ApiResult<T>.FailureResult(OfflineMessage, 0);
+            return ApiResult<T>.FailureResult(UnreachableMessage, 0);
         }
     }
 
-    /// <summary>送出請求；拿到 401 時刷新 Token 後重試一次，刷新也失敗就導回登入頁並回 null。</summary>
+    /// <summary>
+    /// 送出請求；拿到 401 時刷新 Token 後重試一次，刷新也失敗就導回登入頁並回 null。
+    /// 刷新時被限流或連不上伺服器（含 502／503／504）不是登入失效：不導頁，回一個帶訊息的失敗回應讓呼叫端照一般失敗顯示。
+    /// </summary>
     private async Task<HttpResponseMessage?> SendWithRefreshAsync(HttpMethod method, string url, object? body, bool longRunning = false, CancellationToken cancellationToken = default)
     {
         var response = await SendOnceAsync(method, url, body, longRunning, cancellationToken);
@@ -348,6 +371,16 @@ public class ApiClient
                 return new HttpResponseMessage(HttpStatusCode.TooManyRequests)
                 {
                     Content = JsonContent.Create(ApiResult<object>.FailureResult(ClientSession.ThrottledMessage, (int)HttpStatusCode.TooManyRequests)),
+                };
+            }
+
+            // 連不上伺服器（0.10.11 起）：同上，回「連不上」的失敗結果，保留 Token。
+            if (session.IsUnreachable)
+            {
+                response.Dispose();
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                {
+                    Content = JsonContent.Create(ApiResult<object>.FailureResult(UnreachableMessage, 0)),
                 };
             }
 

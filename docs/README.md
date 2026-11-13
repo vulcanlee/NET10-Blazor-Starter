@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：6.98
+- 文件版本：6.99
 - 文件狀態：維護中
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.11
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/13
 
@@ -126,6 +126,7 @@
 - [M09 純 Token 登入測試報告（0.10.8）](migration/測試報告/M09-純Token登入.md)
 - [M10 移除 Server 模式測試報告（0.10.9）](migration/測試報告/M10-移除Server模式.md)
 - [M11 獨立靜態站台＋API 主機測試報告（0.10.10）](migration/測試報告/M11-獨立靜態站台.md)
+- [M12 PWA 與離線測試報告（0.10.11）](migration/測試報告/M12-PWA與離線.md)
 
 ### changelog — 變更紀錄
 - [抑制 SQLite 已知弱點 CVE-2025-6965（0.2.9）](changelog/2026-06-22-抑制SQLite-CVE-2025-6965.md)
@@ -332,6 +333,7 @@
 - [WASM 遷移 M2 外框與個人資料：第一個 WebAssembly 頁面、WASM 版外框、外框與個人資料 API（0.10.1）](changelog/2026-11-10-WASM遷移M2外框與個人資料.md)
 - [WASM 遷移 M3 分類、團隊與 CRUD 產生器：兩頁改用 WebAssembly、API 改走與畫面相同的服務、CRUD 產生器改產生 WASM 頁面（0.10.2）](changelog/2026-11-11-WASM遷移M3分類團隊與CRUD產生器.md)
 - [WASM 遷移 M4 專案、附件與下載票證：專案頁改用 WebAssembly、API 改走服務（不再有 Repository）、專案標題不能重複、附件改用一次性下載票證、IIS 請求上限放寬（0.10.3）](changelog/2026-11-11-WASM遷移M4專案附件與下載票證.md)
+- [WASM 遷移 M12 PWA 與離線：前端成為可安裝的 PWA，Service Worker 只快取前端檔案（API 與伺服器端點一律走網路）、離線時外框照樣開得起來並顯示離線提示列、恢復連線自動復原、部署新版出現「有新版本」提示列；地區資料改只載中日韓；新增守門測試 `PwaConventionTests`、`PwaStatusBarTests`；遷移的最終文件整理（0.10.11）](changelog/2026-11-13-WASM遷移M12PWA與離線.md)
 - [WASM 遷移 M11 獨立靜態站台＋API 主機：前端改成獨立的 WebAssembly 靜態站台（`index.html`、`ApiBaseUrl`、IIS 靜態站 `web.config`、CSP），`MyProject.Web` 只剩 API；`ClientSettings:BaseUrl` 決定同站台（API 主機一併提供前端）或雙站台（CORS、Google 登入與信中連結導回前端）；新增守門測試 `ApiOnlyHostTests`、`SameSiteHostTests`、`DualSiteHostTests`、`StaticSiteWebConfigTests`；畫面不變（0.10.10）](changelog/2026-11-13-WASM遷移M11獨立靜態站台.md)
 - [WASM 遷移 M10 移除 Server 模式：移除 Blazor Server 互動模式（電路、`/_blazor`、重連畫面、Server 版路由與外框、`AuthenticationStateHelper`），`MyProject.Web` 只剩 Web API、WASM 主機頁與靜態檔、身分只認 JWT、新增守門測試 `WasmOnlyHostTests`；畫面與 API 不變（0.10.9）](changelog/2026-11-11-WASM遷移M10移除Server模式.md)
 - [WASM 遷移 M9 純 Token 登入：登入、兩步驟驗證、忘記／重設密碼、變更密碼、兩步驟驗證設定等 11 頁改用 WebAssembly（所有頁面都在 WASM）、不再發登入 Cookie、網頁登入與自助帳號 API、新分頁取得 Token、同一瀏覽器只有一個身分、重用撤銷整次登入、限流移到驗證之後、`SessionSettings` 取代 `CookieSettings`（0.10.8）](changelog/2026-11-11-WASM遷移M9純Token登入.md)

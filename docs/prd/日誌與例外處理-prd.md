@@ -1,8 +1,8 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.11
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/11/13
 
@@ -254,7 +254,7 @@
 | LOG-04 | 射後不理的 Task、背景執行緒的未處理例外完全不留紀錄 | `ProcessExceptionHooks` 訂閱 `TaskScheduler.UnobservedTaskException`（記 Error、標記已觀察、還原情境）與 `AppDomain.UnhandledException`（寫補登檔、抑制收錄下記 Critical）；新增來源 `系統`（`ExceptionSources.Process`）；`ApplicationStopped` 時取消訂閱 | `ProcessExceptionHooksTests` |
 | LOG-05 | 關機時佇列中的例外遺失 | `ExceptionLogWriter` 收到停止訊號後清空佇列，上限 5 秒；逾時剩餘筆數輸出到 InternalLogger | `ExceptionLogWriterTests` |
 | LOG-06 | 啟動失敗只進日誌檔；host 建立前的失敗連日誌檔都沒有 | `StartupSafetyValidator` 移到 NLog 設定之後；host 建立前的失敗直接經 NLog 寫檔；所有啟動失敗寫入**補登檔**（`{ExceptionPath}/pending/*.json`，`CrashMarkerStore`），下次成功啟動於遷移後補進例外紀錄（來源 `系統啟動`）。`HostAbortedException`（`dotnet ef` 的正常中止）排除在外 | `CrashMarkerStoreTests`；實機驗證：以 Production 設定啟動失敗一次 → 日誌檔有 FATAL、產生補登檔 → 正常啟動後例外紀錄出現該列、補登檔已刪 |
-| LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10 | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門）；2026/11/08 瀏覽器人工驗收通過（驗收時發現並修正追蹤碼沒顯示，0.9.172） |
+| LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10。（0.10.8 以前的做法；0.10.9 起 Server 版 `Routes.razor`／`LoggingErrorBoundary` 刪除，改由 WASM 根元件 `ClientRoutes.razor` 以 `ClientErrorBoundary` 包住 `AntContainer`，同一條守門測試） | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門）；2026/11/08 瀏覽器人工驗收通過（驗收時發現並修正追蹤碼沒顯示，0.9.172） |
 | LOG-08 | 查詢關鍵字記錄原文；多處 JSON 解析失敗與情境設定失敗的 catch 不留紀錄 | 17 處改記 `HasSearch`／`SearchLength`（API 為 `HasKeyword`／`KeywordLength`、專案擁有者篩選為 `HasOwner`）；團隊／權限 JSON 解析失敗、健康檢查失敗、例外情境設定失敗補記 Warning；Try 型 API（回傳 false／null 即結果）維持不動 | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`、`LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（取消／斷線類例外與管線類別列白名單並附理由） |
 
 ### 6.3 已實作 —— P1：可追蹤性與主動通知（0.9.78）
