@@ -267,7 +267,7 @@ public partial class __Name__ViewView
     /// <summary>實際存檔。回傳 true 表示已完成、可以關窗；驗證失敗或使用者中止都 return false。</summary>
     private async Task<bool> SaveAsync()
     {
-        if (LocalEditContext?.Validate() == false)
+        if (LocalEditContext is not null && await LocalEditContext.ValidateAsync() == false) // .NET 11：Validate() 已過時，ValidateAsync 也會跑非同步驗證
         {
             foreach (var error in LocalEditContext.GetValidationMessages())
             {

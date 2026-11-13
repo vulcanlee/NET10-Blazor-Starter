@@ -70,5 +70,15 @@
     }
 
     /// <summary>沒有上一頁（直接開 /Error 或新分頁）時回首頁（js/nav-state.js）。</summary>
-    private async Task GoBackAsync() => await JS.InvokeVoidAsync("appNavigation.backOrHome");
+    private async Task GoBackAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("appNavigation.backOrHome");
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Failed to navigate back from the error page.");
+        }
+    }
 }

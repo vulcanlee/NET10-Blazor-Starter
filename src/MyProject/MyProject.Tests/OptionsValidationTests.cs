@@ -233,18 +233,18 @@ public sealed class OptionsValidationTests
     // ---------- 既有類別補上的缺口（透過實際註冊驗證） ----------
 
     [Fact]
-    public void EmailPublicBaseUrl_WithoutScheme_ShouldFailOnStart()
+    public async Task EmailPublicBaseUrl_WithoutScheme_ShouldFailOnStart()
     {
-        var exception = Assert.Throws<OptionsValidationException>(
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ValidateRegisteredOptions(ShippedConfiguration(), new() { ["EmailSettings:PublicBaseUrl"] = "erp.example.com" }));
 
         Assert.Contains("EmailSettings:PublicBaseUrl", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ExceptionAlertRecipient_InvalidEmail_ShouldFailOnStart()
+    public async Task ExceptionAlertRecipient_InvalidEmail_ShouldFailOnStart()
     {
-        var exception = Assert.Throws<OptionsValidationException>(
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ValidateRegisteredOptions(ShippedConfiguration(), new() { ["ExceptionAlertSettings:Recipients:0"] = "ops-team" }));
 
         Assert.Contains("ExceptionAlertSettings:Recipients", exception.Message, StringComparison.Ordinal);
@@ -253,20 +253,20 @@ public sealed class OptionsValidationTests
     [Theory]
     [InlineData("-1")]
     [InlineData("36501")]
-    public void SoftDeletePurgeAfterDays_OutOfRange_ShouldFailOnStart(string days)
+    public async Task SoftDeletePurgeAfterDays_OutOfRange_ShouldFailOnStart(string days)
     {
         // 保留天數寫壞時拒絕啟動：不可以讓自動永久刪除用錯的門檻刪資料（0.9.97 起）。
-        var exception = Assert.Throws<OptionsValidationException>(
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(
             () => ValidateRegisteredOptions(ShippedConfiguration(), new() { ["SoftDeleteSettings:PurgeAfterDays"] = days }));
 
         Assert.Contains("PurgeAfterDays", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TypeMismatch_InClassWithoutRules_ShouldFailOnStart()
+    public async Task TypeMismatch_InClassWithoutRules_ShouldFailOnStart()
     {
         // Security 沒有欄位規則；改用 ValidateOnStart 之後，bool 填錯在啟動時就失敗，而不是第一次讀取時。
-        Assert.ThrowsAny<Exception>(
+        await Assert.ThrowsAnyAsync<Exception>(
             () => ValidateRegisteredOptions(ShippedConfiguration(), new() { ["Security:ReturnExceptionDetails"] = "yes" }));
     }
 
@@ -276,14 +276,14 @@ public sealed class OptionsValidationTests
     [InlineData(null)]
     [InlineData("Development")]
     [InlineData("Production")]
-    public void ShippedAppSettings_ShouldPassValidation(string? environment)
+    public async Task ShippedAppSettings_ShouldPassValidation(string? environment)
     {
         // Production 範本刻意把機密留空，要由環境變數提供（StartupSafetyValidator 也會擋）；這裡模擬已提供的狀態。
         var overrides = environment == "Production"
             ? new Dictionary<string, string?> { ["BootstrapSettings:SupportPassword"] = "a-production-password" }
             : [];
 
-        ValidateRegisteredOptions(ShippedConfiguration(environment), overrides);
+        await ValidateRegisteredOptions(ShippedConfiguration(environment), overrides);
     }
 
     // ---------- 守門 ----------
@@ -367,8 +367,8 @@ public sealed class OptionsValidationTests
         return builder;
     }
 
-    /// <summary>以與 Program.cs 相同的註冊方式建立容器，執行所有啟動驗證（與正式啟動時呼叫的是同一個 IStartupValidator）。</summary>
-    private static void ValidateRegisteredOptions(IConfigurationBuilder builder, Dictionary<string, string?> overrides)
+    /// <summary>以與 Program.cs 相同的註冊方式建立容器，執行所有啟動驗證（與正式啟動時呼叫的是同一個 IAsyncStartupValidator；.NET 11 起 IStartupValidator 已過時）。</summary>
+    private static async Task ValidateRegisteredOptions(IConfigurationBuilder builder, Dictionary<string, string?> overrides)
     {
         var configuration = builder.AddInMemoryCollection(overrides).Build();
 
@@ -379,7 +379,7 @@ public sealed class OptionsValidationTests
         services.AddValidatedOptions<GoogleOAuthSettings, GoogleOAuthSettingsValidator>(configuration, GoogleOAuthSettings.SectionName);
 
         using var provider = services.BuildServiceProvider();
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        await provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
     }
 
     private static string FindSourceRoot() => SourceTree.SourceRoot;

@@ -29,6 +29,15 @@ $destinationFullPath = [System.IO.Path]::GetFullPath($DestinationPath)
 
 # 衍生專案不帶腳手架的 migration 歷史，最後會清空 Migrations 並以 dotnet ef 重建單一 Init。
 # 先檢查 dotnet-ef 是否可用，避免複製到一半才失敗、留下半成品。
+# dotnet-ef 的主版號要跟專案的 EF Core 一樣新（0.10.14 起，升級 .NET 11 時加上）：版本以 Directory.Packages.props 的 Microsoft.EntityFrameworkCore.Design 為準。
+$packagesProps = Join-Path $repoRoot "src\$SourceProjectName\Directory.Packages.props"
+if (-not (Test-Path -LiteralPath $packagesProps)) {
+    throw "Cannot find $packagesProps. Check -SourceProjectName (the folder under src that holds the solution)."
+}
+$efPackageMatch = [regex]::Match([System.IO.File]::ReadAllText($packagesProps), 'Include="Microsoft\.EntityFrameworkCore\.Design"\s+Version="(?<major>\d+)\.')
+$efMajor = if ($efPackageMatch.Success) { $efPackageMatch.Groups['major'].Value } else { $null }
+$efInstallHint = if ($efMajor) { "dotnet tool install --global dotnet-ef --version $efMajor.*" } else { "dotnet tool install --global dotnet-ef" }
+
 $dotnetEfAvailable = $false
 try {
     & dotnet ef --version *> $null
@@ -39,7 +48,13 @@ catch {
 }
 
 if (-not $dotnetEfAvailable) {
-    throw "dotnet-ef is required to create the initial migration. Install it with: dotnet tool install --global dotnet-ef"
+    throw "dotnet-ef is required to create the initial migration. Install it with: $efInstallHint"
+}
+
+# 舊版工具（例如 10.x）讀不到 net11.0 的專案，會在複製完、建立 Init migration 時才失敗；比專案新的工具可以用。
+$efToolMatch = [regex]::Match(((& dotnet ef --version 2>$null) | Out-String), '(?m)^(?<major>\d+)\.\d+\.\d+')
+if ($efMajor -and $efToolMatch.Success -and [int]$efToolMatch.Groups['major'].Value -lt [int]$efMajor) {
+    throw "dotnet-ef $($efToolMatch.Value) is older than the project's EF Core $efMajor.x. Update it with: dotnet tool update --global dotnet-ef --version $efMajor.*"
 }
 
 # 這些目錄可能出現在任何層級（例如 src/MyProject/MyProject.Web/bin），必須遞迴排除。

@@ -1,0 +1,5 @@
+{
+  "project": "src/MyProject/MyProject.AccessDatas",
+  "startupProject": "src/MyProject/MyProject.Web",
+  "context": "BackendDBContext"
+}

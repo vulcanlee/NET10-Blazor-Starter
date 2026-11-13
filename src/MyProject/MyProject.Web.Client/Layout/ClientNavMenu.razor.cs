@@ -90,11 +90,8 @@ public partial class ClientNavMenu : ComponentBase, IDisposable
 
     private Task OnLogoutClickAsync() => LogoutConfirm.RequestAsync(ModalService, Session.LogoutAsync);
 
-    private void RestoreMenuSelection()
-    {
-        SyncMenuStateFromRoute();
-        StateHasChanged();
-    }
+    /// <summary>登出確認窗按「取消」時：子元件以 EventCallback 呼叫，Blazor 之後會自動重新渲染本元件，不必 StateHasChanged（.NET 11 的 BL0012）。</summary>
+    private void RestoreMenuSelection() => SyncMenuStateFromRoute();
 
     private void UpdateActiveMenuPath()
     {

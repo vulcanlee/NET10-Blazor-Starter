@@ -2,7 +2,7 @@
 
 - 文件版本：6.110
 - 文件狀態：維護中
-- 現行系統版本：0.10.13
+- 現行系統版本：0.10.14
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/14
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 升級 .NET 11：所有專案 `net11.0`、SDK 11.0.100、ASP.NET Core／EF Core 11.0.0、AntDesign `1.6.3-dotnet11.rc3`、Swashbuckle 11.0.1；處理 .NET 11 新的 Blazor 分析器（BL0016／BL0012，BL0014 分析器本身當掉暫時關閉）、`Validate()`→`ValidateAsync()`、`IStartupValidator`→`IAsyncStartupValidator`；WASM 發佈瘦身（關掉計量、事件追蹤、HTTP 追蹤傳遞，Brotli 後比 .NET 10 只多 2.9%）；EF Core `.config/dotnet-ef.json`；複刻腳本檢查 dotnet-ef 版本；移除沒用的 OpenApi 套件；對話窗頁尾維持「儲存　取消」（AntDesign RC 改了順序，待使用者決定）；效能沒有退步、多數變快；測試 3,184 → 3,188（0.10.14） | [2026-11-14-升級NET11](2026-11-14-升級NET11.md) |
 | 首次載入畫面、錯誤頁與找不到頁面：首次下載與登入檢查期間顯示同一張載入卡片（系統名稱、進度條與百分比，讀 Blazor 的 `--blazor-load-percentage`，不再整片空白）；系統錯誤頁改成整頁置中卡片（追蹤碼可複製、回首頁、回上一頁）；找不到頁面改成繁中卡片、頁首「找不到頁面」；`#blazor-error-ui` 文字繁中；只有 Development 的前端 CSP 允許 localhost 開發工具（VS 瀏覽器連結、熱重載不再被擋）；新增 `ux-loading-pages.mjs`、`perf.mjs`、`Start-E2EHost.ps1 -Published`（0.10.13） | [2026-11-14-載入畫面錯誤頁與找不到頁面](2026-11-14-載入畫面錯誤頁與找不到頁面.md) |
 | WASM 遷移最終驗收與提示框修正：M1～M12 全部完成後的最終驗收（全功能回歸：同站台 124 個、雙站台 45 個情境全部通過，真實模型 AI、離線與 PWA、53 個畫面外觀比對、看得到的 Chrome 巡檢 94 張截圖），結論是遷移完成、原功能全部保留；修正工具列按鈕的提示框停住並擋住 AI 對話窗的關閉鈕（`OverlayStyles` 讓 `.ant-tooltip` 不攔截點擊、`ToolbarIconButton`／`CrudActionButton` 按下時收起提示框），新增 `TooltipDismissTests`；實機腳本新增 `walkthrough.mjs`、以 `waitForPredicate` 取代被 CSP 擋下的 `page.waitForFunction`；測試 3,158 → 3,161（0.10.12） | [2026-11-14-最終驗收與提示框修正](2026-11-14-最終驗收與提示框修正.md) |
 | WASM 遷移 M12 PWA 與離線：前端成為可安裝的 PWA（`manifest.webmanifest`、192／512 圖示、apple-touch-icon），Service Worker（發佈版 `service-worker.published.js`）只在安裝時帶 integrity 快取資產清單上的前端檔案、執行期不寫快取，API 與伺服器端點（`networkOnlyPaths`）、跨來源、非 GET 一律走網路，導覽回快取的 index.html；新版本裝好停在等待，畫面底部「有新版本，按這裡重新整理」（`ClientUpdateBar`）按下才換；離線提示列（`ClientOfflineBar`、`ClientConnectivity`），恢復連線時推播立即重連、鈴鐺與公告立即重讀；`ApiClient` 瀏覽器離線時回「目前離線，請恢復連線後再試。」；離線開頁讀不到身分時保留 Token、不導去登入頁，恢復連線或每 15 秒試到伺服器有回應就自動重新載入；地區資料改只載 `icudt_CJK.dat`（Brotli −81 KB）；靜態站 web.config 加 `.webmanifest` MIME、不壓縮清單改為兩個專案共用的 `FrontendCompression.props`、快取名稱帶範圍路徑（同來源不同路徑不互刪）、伺服器回 502／503／504 與 API 刷新時連不上都不登出、新版安裝失敗回報到伺服器；部署清單新增「退版／移除 Service Worker」（自我註銷的 `service-worker.js`）與「部署後不可手改前端檔案」、`-p:StaticSiteApiOrigin` 同步更新資產清單；新增守門測試 `PwaConventionTests`（新增伺服器端點要加進 `networkOnlyPaths`）、`PwaStatusBarTests`；遷移的最終文件整理；測試 3,098 → 3,158（0.10.11） | [2026-11-13-WASM遷移M12PWA與離線](2026-11-13-WASM遷移M12PWA與離線.md) |

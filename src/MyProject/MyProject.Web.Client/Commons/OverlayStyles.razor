@@ -126,6 +126,23 @@
         border-radius: 0 0 calc(var(--ov-radius) - 3px) calc(var(--ov-radius) - 3px) !important;
     }
 
+    /*
+        按鈕順序維持「儲存　取消」（0.10.14 起）：AntDesign 1.6.3-dotnet11.rc3 的預設頁尾改成先「取消」再「儲存」（PR #4857，對齊 antd），
+        升級 .NET 11 時刻意不讓使用者看到的順序改變，等使用者決定要不要採用新順序；要採用時刪掉這一段（ModalFooterOrderTests 會一起改）。
+        ⚠️ 只有畫面順序反轉，DOM 與 Tab 的順序仍是先「取消」；本專案的對話窗都用預設頁尾（沒有自訂 Footer 內容），不會反轉到別的按鈕。
+    */
+    .ant-modal .ant-modal-footer {
+        display: flex;
+        flex-direction: row-reverse;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+    }
+
+    .ant-modal .ant-modal-footer .ant-btn + .ant-btn {
+        margin-left: 0 !important;
+    }
+
     /* 沒有按鈕列的窗（「關於」用 Footer="null"）：下圓角要落在 body 上，否則會被切平。 */
     .ant-modal .ant-modal-body:last-child {
         border-radius: 0 0 calc(var(--ov-radius) - 3px) calc(var(--ov-radius) - 3px);

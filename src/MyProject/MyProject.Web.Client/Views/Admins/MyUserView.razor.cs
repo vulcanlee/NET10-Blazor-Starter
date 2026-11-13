@@ -588,7 +588,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// </summary>
         private async Task<bool> SaveAsync()
         {
-            if (LocalEditContext?.Validate() == false)
+            if (LocalEditContext is not null && await LocalEditContext.ValidateAsync() == false) // .NET 11：Validate() 已過時，ValidateAsync 也會跑非同步驗證
             {
                 IEnumerable<string> allErrors = LocalEditContext.GetValidationMessages();
 
@@ -843,7 +843,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// </summary>
         private async Task<bool> SaveCopyAsync()
         {
-            if (copyEditContext?.Validate() == false)
+            if (copyEditContext is not null && await copyEditContext.ValidateAsync() == false) // .NET 11：Validate() 已過時，ValidateAsync 也會跑非同步驗證
             {
                 foreach (var error in copyEditContext.GetValidationMessages())
                 {

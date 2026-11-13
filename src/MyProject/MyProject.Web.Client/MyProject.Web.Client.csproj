@@ -7,7 +7,7 @@
     同站台部署時由 MyProject.Web 參考本專案、一併提供這些靜態檔。計畫見 docs/migration/WASM遷移計畫.md。
   -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
     <!--
       地區資料固定載入中日韓那一份（0.10.11 起，WASM 遷移 M12）：語系固定 zh-TW（見 ClientCulture），不跟著瀏覽器語言；
@@ -26,6 +26,21 @@
       整份清單的版本）。Service Worker 只在安裝時把清單上的檔案放進快取，絕不快取 API 或資料（見 wwwroot/service-worker.published.js）。
     -->
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+    <!--
+      WASM 發佈瘦身（0.10.14 起，升級 .NET 11）：.NET 11 為了支援 OpenTelemetry，把這三個執行期功能在 WebAssembly 的預設改成開啟
+      （.NET 10 是關閉），修剪器因此留下計量、事件追蹤與 HTTP 追蹤傳遞的程式（System.Private.CoreLib、System.Diagnostics.DiagnosticSource 等變大）。
+      前端沒有用 OpenTelemetry，明確關掉，讓 .NET 11「沒用到 OTEL 就修剪掉」的瘦身生效。⚠️ 之後要在前端接 OpenTelemetry 時改回 true。
+    -->
+    <MetricsSupport>false</MetricsSupport>
+    <EventSourceSupport>false</EventSourceSupport>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <!--
+      .NET 11 SDK 的 BL0014（for 迴圈變數被 lambda 捕捉）分析器在 Layout/ClientNavMenu.razor 的 BuildRenderTree 丟 NullReferenceException
+      （AD0001，被 TreatWarningsAsErrors 升級成錯誤）；把那個檔的 @for 改成 foreach 就不會，但找不到確切的觸發寫法（0.10.14 實測）。
+      目前四個 @for（ClientNavMenu、ClientSidebarMenuNode、ExceptionAiAnalysisModal、TokenUsageView）都沒有在 lambda 裡用到迴圈變數（人工確認）。
+      ⚠️ 解除條件：SDK 修正這個分析器後拿掉這一行，確認建置不再出現 AD0001。
+    -->
+    <NoWarn>$(NoWarn);BL0014</NoWarn>
   </PropertyGroup>
 
   <!-- 不產生壓縮副本的檔案（appsettings.json、Service Worker 兩個檔案、manifest）：API 主機也匯入同一份，見檔案裡的說明。 -->
