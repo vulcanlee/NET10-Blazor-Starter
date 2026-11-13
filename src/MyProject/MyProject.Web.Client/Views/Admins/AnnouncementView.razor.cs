@@ -113,8 +113,27 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>伺服器的「現在」（本地時間）。</summary>
         private DateTime ServerNow() => serverNowAtLoad + Stopwatch.GetElapsedTime(loadedTimestamp);
 
-        private void OnAdd()
+        /// <summary>
+        /// 對象的角色、團隊選項（0.10.15 起：開窗、存檔失敗後重讀 —— 別人可能剛新增、刪除了角色或停用了團隊；
+        /// 速查表「畫面選項資料一致性」，<c>FormOptionsConventionTests</c> 守門）。選項與清單同一個端點，這裡只換選項，不動清單。
+        /// </summary>
+        private async Task<bool> LoadFormOptionsAsync()
         {
+            var result = await Api.GetAllAsync();
+            if (result.Success && result.Data is { } data)
+            {
+                roleOptions = data.Roles;
+                teamOptions = data.Teams;
+                return true;
+            }
+
+            ViewNotification.Error(notificationService, $"讀取角色與團隊選項失敗：{result.UserMessage()}");
+            return false;
+        }
+
+        private async Task OnAddAsync()
+        {
+            await LoadFormOptionsAsync();
             var now = ServerNow();
             Open(new AnnouncementAdapterModel
             {
@@ -123,8 +142,10 @@ namespace MyProject.Web.Client.Views.Admins
             });
         }
 
-        private void OnEdit(AnnouncementAdapterModel item)
-            => Open(new AnnouncementAdapterModel
+        private async Task OnEditAsync(AnnouncementAdapterModel item)
+        {
+            await LoadFormOptionsAsync();
+            Open(new AnnouncementAdapterModel
             {
                 Id = item.Id,
                 Title = item.Title,
@@ -135,6 +156,7 @@ namespace MyProject.Web.Client.Views.Admins
                 TargetId = item.TargetId,
                 ConcurrencyStamp = item.ConcurrencyStamp,
             });
+        }
 
         private void Open(AnnouncementAdapterModel model)
         {
@@ -168,6 +190,7 @@ namespace MyProject.Web.Client.Views.Admins
             if (!result.Success)
             {
                 errorMessage = result.Message;
+                await LoadFormOptionsAsync(); // 失敗可能是選的角色或團隊剛被刪除、停用：讓下拉換成最新的選項
                 return false;
             }
 

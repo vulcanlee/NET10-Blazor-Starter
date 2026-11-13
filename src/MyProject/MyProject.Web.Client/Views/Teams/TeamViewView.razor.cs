@@ -290,6 +290,15 @@ namespace MyProject.Web.Client.Views.Teams
             Logger.LogInformation("Opened edit modal for team. TeamId={TeamId}", teamAdapterModel.Id);
         }
 
+        /// <summary>名稱欄位的非同步檢查（<see cref="AsyncFieldCheck"/>）：回「名稱已存在」的訊息，沒衝突回 null（0.10.15 起）。</summary>
+        private Task<string?> CheckNameAvailableAsync()
+        {
+            // 只問名稱：代號重複也是 409，帶著代號問會把「代號已存在」顯示在名稱下面（代號留給存檔時的完整檢查）。
+            var dto = TeamDtoMapper.ToDto(CurrentRecord);
+            dto.Code = null;
+            return Api.NameConflictAsync(dto);
+        }
+
         async Task<List<TeamNodeDto>> LoadParentCandidatesAsync(int teamId)
         {
             var result = await Api.GetParentCandidatesAsync(teamId);

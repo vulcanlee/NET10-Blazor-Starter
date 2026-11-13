@@ -527,6 +527,13 @@ public class CategoryService
             return VerifyRecordResultFactory.Conflict("分類名稱已存在，無法新增。");
         }
 
+        // 這次新選的適用團隊已不存在或已停用（0.10.15 起，見 SelectedOptionGuard）。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.Teams, null, await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            Logger.LogInformation("Pre-create validation failed because a selected team is no longer available. Name={CategoryName}", paraObject.Name);
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
+        }
+
         return VerifyRecordResultFactory.Build(true);
     }
 
@@ -546,14 +553,21 @@ public class CategoryService
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name);
-        searchItem = await context.Category
+        var sameName = await context.Category
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower() && x.Id != paraObject.Id);
 
-        if (searchItem != null)
+        if (sameName != null)
         {
             Logger.LogInformation("Pre-update validation failed because category name already exists. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
             return VerifyRecordResultFactory.Conflict("分類名稱已存在，無法修改。");
+        }
+
+        // 這次新選的適用團隊已不存在或已停用（原本就有的不擋；0.10.15 起，見 SelectedOptionGuard）。排在重名之後：欄位的即時名稱檢查只認 409。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.Teams, TagStringHelper.ToList(searchItem.Teams), await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            Logger.LogInformation("Pre-update validation failed because a selected team is no longer available. CategoryId={CategoryId}", paraObject.Id);
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
         }
 
         return VerifyRecordResultFactory.Build(true);

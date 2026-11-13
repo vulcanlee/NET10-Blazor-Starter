@@ -128,18 +128,7 @@ namespace MyProject.Web.Client.Views.Categories
                 return;
             }
 
-            var options = await Api.OptionsAsync();
-            if (options.Success && options.Data is { } data)
-            {
-                availableTeams = data.Teams;
-                isAdmin = data.IsAdmin;
-                myTeams = data.MyTeams;
-            }
-            else
-            {
-                // 讀不到選項時「適用團隊」會是空的、團隊提醒也不準：告訴使用者，而不是默默少了選項。
-                ViewNotification.Error(NotificationService, $"讀取「適用團隊」選項失敗：{options.UserMessage()}");
-            }
+            await LoadFormOptionsAsync();
 
             // 只有看得到「顯示已刪除」按鈕的人（刪除權限）才套用。
             canDelete = Permissions.CanAccessAction(MagicObjectHelper.角色_分類清單, PermissionActions.Delete);
@@ -235,9 +224,33 @@ namespace MyProject.Web.Client.Views.Categories
             CurrentRecord.Teams = values?.ToList() ?? new List<string>();
         }
 
-        /// <summary>開修改窗：向伺服器讀這一筆的最新資料與版本號（伺服器寫「查看」稽核）。</summary>
+        /// <summary>
+        /// 表單的「適用團隊」選項與自己的團隊範圍（0.10.15 起：開頁、每次開窗、存檔失敗後都重讀 —— 別人可能剛新增或停用了團隊；
+        /// 速查表「畫面選項資料一致性」，<c>FormOptionsConventionTests</c> 守門）。回傳是否讀到。
+        /// </summary>
+        private async Task<bool> LoadFormOptionsAsync()
+        {
+            var options = await Api.OptionsAsync();
+            if (options.Success && options.Data is { } data)
+            {
+                availableTeams = data.Teams;
+                isAdmin = data.IsAdmin;
+                myTeams = data.MyTeams;
+                return true;
+            }
+
+            // 讀不到選項時「適用團隊」會是空的、團隊提醒也不準：告訴使用者，而不是默默少了選項。
+            ViewNotification.Error(NotificationService, $"讀取「適用團隊」選項失敗：{options.UserMessage()}");
+            return false;
+        }
+
+        /// <summary>名稱欄位的非同步檢查（<see cref="AsyncFieldCheck"/>）：回「名稱已存在」的訊息，沒衝突回 null。</summary>
+        private Task<string?> CheckNameAvailableAsync() => Api.NameConflictAsync(CategoryDtoMapper.ToDto(CurrentRecord));
+
+        /// <summary>開修改窗：向伺服器讀這一筆的最新資料與版本號（伺服器寫「查看」稽核），並重讀表單選項。</summary>
         async Task OnEditAsync(CategoryAdapterModel categoryAdapterModel)
         {
+            await LoadFormOptionsAsync();
             var result = await Api.GetAsync(categoryAdapterModel.Id);
             if (!result.Success || result.Data is null)
             {
@@ -433,8 +446,9 @@ namespace MyProject.Web.Client.Views.Categories
             }
         }
 
-        Task OnAddAsync()
+        async Task OnAddAsync()
         {
+            await LoadFormOptionsAsync();
             CurrentRecord = new();
             isNewRecordMode = true;
             modalTitle = "新增分類";
@@ -443,7 +457,6 @@ namespace MyProject.Web.Client.Views.Categories
 
             modalVisible = true;
             Logger.LogInformation("Opened create modal for category.");
-            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -508,6 +521,7 @@ namespace MyProject.Web.Client.Views.Categories
             {
                 Logger.LogInformation("Category pre-check failed. CategoryId={CategoryId}, Message={Message}", CurrentRecord.Id, checkResult.Message);
                 ViewNotification.Error(NotificationService, checkResult.Message);
+                await LoadFormOptionsAsync(); // 失敗可能是選的團隊剛被停用：讓下拉換成最新的選項
 
                 return false;
             }
@@ -530,6 +544,7 @@ namespace MyProject.Web.Client.Views.Categories
             if (!actionResult.Success)
             {
                 ViewNotification.Error(NotificationService, actionResult.Message);
+                await LoadFormOptionsAsync(); // 失敗可能是選的團隊剛被停用：讓下拉換成最新的選項
 
                 return false;
             }

@@ -161,6 +161,23 @@ public partial class ProjectViewView
             return;
         }
 
+        await LoadFormOptionsAsync();
+
+        // 只有看得到「顯示已刪除」按鈕的人（刪除權限）才套用。
+        canDelete = Permissions.CanAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete);
+        showDeleted = InitialShowDeleted && canDelete;
+
+        // ⚠️ 勾選欄是否出現（canDelete）要在表格第一次畫出來之前定案（見分類頁的說明：之後才加上 <Selection /> 會在釋放時出錯）。
+        isAccessChecked = true;
+        await ReloadAsync();
+    }
+
+    /// <summary>
+    /// 工具列過濾與表單的選項、預設團隊、附件限制（0.10.15 起：開頁、按「重新整理」、每次開窗、存檔失敗後都重讀 ——
+    /// 別人可能剛新增或停用了分類、團隊；速查表「畫面選項資料一致性」，<c>FormOptionsConventionTests</c> 守門）。回傳是否讀到。
+    /// </summary>
+    private async Task<bool> LoadFormOptionsAsync()
+    {
         var options = await Api.OptionsAsync();
         if (options.Success && options.Data is { } data)
         {
@@ -171,20 +188,12 @@ public partial class ProjectViewView
             defaultTeams = data.DefaultTeams;
             maxUploadFileSize = data.MaxUploadFileSize;
             allowedExtensions = new HashSet<string>(data.AllowedExtensions, StringComparer.OrdinalIgnoreCase);
-        }
-        else
-        {
-            // 讀不到選項時過濾與表單的下拉會是空的：告訴使用者，而不是默默少了選項。
-            ViewNotification.Error(NotificationService, $"讀取分類與團隊選項失敗：{options.UserMessage()}");
+            return true;
         }
 
-        // 只有看得到「顯示已刪除」按鈕的人（刪除權限）才套用。
-        canDelete = Permissions.CanAccessAction(MagicObjectHelper.角色_專案項目, PermissionActions.Delete);
-        showDeleted = InitialShowDeleted && canDelete;
-
-        // ⚠️ 勾選欄是否出現（canDelete）要在表格第一次畫出來之前定案（見分類頁的說明：之後才加上 <Selection /> 會在釋放時出錯）。
-        isAccessChecked = true;
-        await ReloadAsync();
+        // 讀不到選項時過濾與表單的下拉會是空的：告訴使用者，而不是默默少了選項。
+        ViewNotification.Error(NotificationService, $"讀取分類與團隊選項失敗：{options.UserMessage()}");
+        return false;
     }
 
     /// <summary>目前的搜尋、過濾、排序、分頁與「顯示已刪除」（清單與匯出共用）。</summary>
@@ -304,15 +313,17 @@ public partial class ProjectViewView
     private async Task OnRefreshAsync()
     {
         Logger.LogInformation("Project refresh triggered.");
-        if (await ReloadAsync())
+        // 工具列的分類、團隊過濾選項也一起更新（0.10.15 起）。
+        if (await LoadFormOptionsAsync() & await ReloadAsync())
         {
             ViewNotification.Warning(NotificationService, "已更新最新資料");
         }
     }
 
-    /// <summary>開修改窗：向伺服器讀這一筆的最新資料、附件與版本號（伺服器寫「查看」稽核）。</summary>
+    /// <summary>開修改窗：向伺服器讀這一筆的最新資料、附件與版本號（伺服器寫「查看」稽核），並重讀表單選項。</summary>
     private async Task OnEditAsync(ProjectAdapterModel projectAdapterModel)
     {
+        await LoadFormOptionsAsync();
         var result = await Api.GetAsync(projectAdapterModel.Id);
         if (!result.Success || result.Data is null)
         {
@@ -481,6 +492,7 @@ public partial class ProjectViewView
 
     private async Task OnAddAsync(bool continueOnCapturedContext)
     {
+        await LoadFormOptionsAsync();
         CurrentRecord = new ProjectAdapterModel
         {
             Status = StatusOptions.First(),
@@ -642,6 +654,8 @@ public partial class ProjectViewView
         if (!actionResult.Success)
         {
             ViewNotification.Error(NotificationService, actionResult.Message);
+            await LoadFormOptionsAsync(); // 失敗可能是選的分類或團隊剛被停用：讓下拉換成最新的選項
+            BuildModalCategoryOptions();
 
             return false;
         }

@@ -611,6 +611,12 @@ public class ProjectService
         }
 
         await using var context = await contextFactory.CreateDbContextAsync();
+        if (await UnavailableOptionAsync(context, paraObject, before: null) is { } optionError)
+        {
+            Logger.LogInformation("Pre-create validation failed because a selected option is no longer available. Title={Title}", paraObject.Title);
+            return VerifyRecordResultFactory.Invalid(optionError);
+        }
+
         if (await TitleTakenAsync(context, paraObject.Title, excludeId: null))
         {
             Logger.LogInformation("Pre-create validation failed because project title already exists. Title={Title}", paraObject.Title);
@@ -643,6 +649,12 @@ public class ProjectService
             return rules;
         }
 
+        if (await UnavailableOptionAsync(context, paraObject, searchItem) is { } optionError)
+        {
+            Logger.LogInformation("Pre-update validation failed because a selected option is no longer available. ProjectId={ProjectId}", paraObject.Id);
+            return VerifyRecordResultFactory.Invalid(optionError);
+        }
+
         // 名稱沒改就不檢查：0.10.3 之前網頁允許重名，舊的重名資料只改其他欄位時照常可存。
         var renamed = NormalizedTitle(searchItem.Title) != NormalizedTitle(paraObject.Title);
         if (renamed && await TitleTakenAsync(context, paraObject.Title, paraObject.Id))
@@ -652,6 +664,19 @@ public class ProjectService
         }
 
         return VerifyRecordResultFactory.Build(true);
+    }
+
+    /// <summary>這次新選的分類或團隊已不存在或已停用（0.10.15 起，見 <see cref="SelectedOptionGuard"/>）：回給使用者的訊息，都有效時回 null。</summary>
+    private static async Task<string?> UnavailableOptionAsync(BackendDBContext context, ProjectAdapterModel model, Project? before)
+    {
+        if (SelectedOptionGuard.FindUnavailable(model.Categories, TagStringHelper.ToList(before?.Categories), await SelectedOptionGuard.EnabledCategoryNamesAsync(context)) is { } category)
+        {
+            return SelectedOptionGuard.Message("分類", category);
+        }
+
+        return SelectedOptionGuard.FindUnavailable(model.Teams, TagStringHelper.ToList(before?.Teams), await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team
+            ? SelectedOptionGuard.Message("團隊", team)
+            : null;
     }
 
     /// <summary>

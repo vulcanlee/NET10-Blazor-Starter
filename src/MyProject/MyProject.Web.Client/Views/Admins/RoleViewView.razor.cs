@@ -88,21 +88,30 @@ namespace MyProject.Web.Client.Views.Admins
                 return;
             }
 
-            var options = await Api.OptionsAsync();
-            if (options.Success && options.Data is { } data)
-            {
-                availableTeams = data.Teams;
-                emptyPermission = data.EmptyPermission;
-            }
-            else
-            {
-                ViewNotification.Error(notificationService, $"讀取團隊與權限選項失敗：{options.UserMessage()}");
-            }
+            await LoadFormOptionsAsync();
 
             isAccessChecked = true;
 
             showDeleted = InitialShowDeleted;
             await ReloadAsync();
+        }
+
+        /// <summary>
+        /// 表單的「預設團隊」選項與空白的權限矩陣（0.10.15 起：開頁、每次開窗、存檔失敗後都重讀 —— 別人可能剛新增或停用了團隊；
+        /// 速查表「畫面選項資料一致性」，<c>FormOptionsConventionTests</c> 守門）。回傳是否讀到。
+        /// </summary>
+        private async Task<bool> LoadFormOptionsAsync()
+        {
+            var options = await Api.OptionsAsync();
+            if (options.Success && options.Data is { } data)
+            {
+                availableTeams = data.Teams;
+                emptyPermission = data.EmptyPermission;
+                return true;
+            }
+
+            ViewNotification.Error(notificationService, $"讀取團隊與權限選項失敗：{options.UserMessage()}");
+            return false;
         }
 
         /// <summary>重新讀取；回傳是否成功（失敗時已顯示通知）。</summary>
@@ -185,6 +194,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>開修改窗：向伺服器讀這一筆的最新矩陣與版本號（伺服器寫「查看」稽核）。</summary>
         async Task OnEditAsync(RoleViewAdapterModel roleViewAdapterModel)
         {
+            await LoadFormOptionsAsync();
             var result = await Api.GetAsync(roleViewAdapterModel.Id);
             if (!result.Success || result.Data is null)
             {
@@ -348,8 +358,9 @@ namespace MyProject.Web.Client.Views.Admins
             }
         }
 
-        Task OnAddAsync(bool continueOnCapturedContext)
+        async Task OnAddAsync(bool continueOnCapturedContext)
         {
+            await LoadFormOptionsAsync();
             CurrentRecord = new();
             CurrentRecord.RolePermission = RoleDtoMapper.ToModel(emptyPermission);
 
@@ -361,16 +372,18 @@ namespace MyProject.Web.Client.Views.Admins
 
             modalVisible = true;
             logger.LogInformation("Opened create modal for role view.");
-            return Task.CompletedTask;
         }
 
         /// <summary>
         /// 清單的「複製」（0.9.139 起）：以這一列為範本開新增視窗，名稱、預設團隊、兩步驟驗證、權限都帶入且可修改，
         /// 存檔走一般新增流程（確認儲存、名稱重複檢查、Role.Create 稽核）。
         /// </summary>
-        void OnCopy(RoleViewAdapterModel source)
+        async Task OnCopyAsync(RoleViewAdapterModel source)
         {
+            await LoadFormOptionsAsync();
             CurrentRecord = RolePermissionMatrix.CreateCopy(source);
+            // 複製出來的是新角色：已停用或已刪除的預設團隊不帶過去（伺服器也會擋下新選的停用團隊）。
+            CurrentRecord.DefaultTeams = CurrentRecord.DefaultTeams.Where(t => availableTeams.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
 
             isNewRecordMode = true;
             modalTitle = $"複製角色（來源：{source.Name}）";
@@ -449,6 +462,7 @@ namespace MyProject.Web.Client.Views.Admins
                     // 0.9.92 之前這裡不看結果，失敗也顯示「新增成功」。
                     logger.LogInformation("Role view create rejected. Name={RoleName}, Message={Message}", CurrentRecord.Name, actionResult.Message);
                     ViewNotification.Error(notificationService, actionResult.Message);
+                    await LoadFormOptionsAsync(); // 失敗可能是選的預設團隊剛被停用：讓下拉換成最新的選項
                     return false;
                 }
 
@@ -466,6 +480,7 @@ namespace MyProject.Web.Client.Views.Admins
                     // 0.9.92 之前這裡不看結果，失敗也顯示「修改成功」；0.9.93 起的並行衝突訊息也走這裡，表單維持開啟。
                     logger.LogInformation("Role view update rejected. RoleViewId={RoleViewId}, Message={Message}", CurrentRecord.Id, actionResult.Message);
                     ViewNotification.Error(notificationService, actionResult.Message);
+                    await LoadFormOptionsAsync(); // 失敗可能是選的預設團隊剛被停用：讓下拉換成最新的選項
                     return false;
                 }
 

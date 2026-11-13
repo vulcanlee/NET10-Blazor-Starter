@@ -928,6 +928,13 @@ public class MyUserService
             return VerifyRecordResultFactory.Conflict("帳號已存在，無法新增。");
         }
 
+        // 這次新選的團隊已不存在或已停用（0.10.15 起，見 SelectedOptionGuard；之前存檔時不存在的團隊名稱會被默默略過）。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.TeamNames, null, await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            Logger.LogInformation("Pre-create validation failed because a selected team is no longer available. Account={Account}", paraObject.Account);
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
+        }
+
         return ValidateEmail(paraObject);
     }
 
@@ -955,6 +962,14 @@ public class MyUserService
         {
             Logger.LogInformation("Pre-update validation failed because account already exists. Account={Account}, UserId={UserId}", paraObject.Account, paraObject.Id);
             return VerifyRecordResultFactory.Conflict("帳號已存在，無法修改。");
+        }
+
+        // 這次新選的團隊已不存在或已停用（原本就有的不擋；0.10.15 起，見 SelectedOptionGuard）。
+        var (_, previousTeams) = await GetUserAssignmentsAsync(paraObject.Id);
+        if (SelectedOptionGuard.FindUnavailable(paraObject.TeamNames, previousTeams, await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            Logger.LogInformation("Pre-update validation failed because a selected team is no longer available. UserId={UserId}", paraObject.Id);
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
         }
 
         return ValidateEmail(paraObject);
