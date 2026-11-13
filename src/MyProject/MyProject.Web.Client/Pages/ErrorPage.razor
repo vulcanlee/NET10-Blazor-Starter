@@ -3,6 +3,7 @@
 @attribute [AllowAnonymous]
 @using Microsoft.Extensions.Logging
 @inject ILogger<ErrorPage> Logger
+@inject IJSRuntime JS
 
 @*
     0.10.8 起在 WASM 執行（WASM 遷移 M9）。WASM 拿不到出錯那次請求的 HttpContext，
@@ -10,16 +11,28 @@
 *@
 <PageTitle>系統錯誤</PageTitle>
 
-<h1 class="text-danger">系統發生未預期的錯誤</h1>
-<p>錯誤已記錄，請稍後再試；若持續發生，請聯絡系統管理員。</p>
+@* 0.10.13 起改成置中卡片（風格同登入頁與帳號待審核頁），附回首頁、回上一頁；追蹤碼可一鍵複製。 *@
+<StatusCard Icon="error_outline" Title="系統發生未預期的錯誤" FullScreen="true">
+    <ChildContent>
+        <p>錯誤已記錄，請稍後再試；若持續發生，請聯絡系統管理員。</p>
 
-@if (ShowTraceCode)
-{
-    @* 錯誤追蹤碼（LOG-10）：與日誌檔、系統例外紀錄的追蹤碼相同，管理員可用它找到這次請求。 *@
-    <p>
-        <strong>錯誤追蹤碼：</strong><code>@TraceCode</code>
-    </p>
-}
+        @if (ShowTraceCode)
+        {
+            @* 錯誤追蹤碼（LOG-10）：與日誌檔、系統例外紀錄的追蹤碼相同，管理員可用它找到這次請求。 *@
+            <div class="status-card-trace">
+                <span>錯誤追蹤碼：</span><code>@TraceCode</code>
+                <button type="button" class="status-card-copy" @onclick="CopyTraceCodeAsync">複製</button>
+                @* 狀態區一直存在、只換文字：剛插入就有內容的 live region 螢幕報讀器常常不會唸。 *@
+                <span class="status-card-copied" role="status">@copyMessage</span>
+            </div>
+        }
+    </ChildContent>
+    <Actions>
+        @* 「重新整理」在這一頁只會重新顯示錯誤頁（出錯的網址已經換成 /Error），所以第二個按鈕是回上一頁（回到出錯前的頁面再試一次）。 *@
+        <a class="status-card-primary" href="/">回首頁</a>
+        <button type="button" class="status-card-secondary" @onclick="GoBackAsync">回上一頁</button>
+    </Actions>
+</StatusCard>
 
 @code {
     /// <summary>錯誤追蹤碼的格式（伺服器的 TraceCode：英數大寫）；不符合的不顯示，避免有人用網址在錯誤頁放任意文字。</summary>
@@ -32,6 +45,8 @@
 
     private bool ShowTraceCode => !string.IsNullOrEmpty(TraceCode);
 
+    private string? copyMessage;
+
     protected override void OnParametersSet()
     {
         TraceCode = Trace is { } value && TraceCodePattern.IsMatch(value) ? value : null;
@@ -39,4 +54,21 @@
         // 例外本身伺服器已記過；這裡只在瀏覽器主控台留一筆「使用者確實看到了錯誤畫面」（伺服器導過來時也記了一筆）。
         Logger.LogWarning("Error page displayed to the user. TraceId={TraceId}", TraceCode);
     }
+
+    /// <summary>走 appClipboard.copyText：https 用 navigator.clipboard，http 內網退回 execCommand。</summary>
+    private async Task CopyTraceCodeAsync()
+    {
+        try
+        {
+            copyMessage = await JS.InvokeAsync<bool>("appClipboard.copyText", TraceCode) ? "已複製" : "瀏覽器不允許複製，請手動選取";
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Failed to copy the trace code to clipboard.");
+            copyMessage = "瀏覽器不允許複製，請手動選取";
+        }
+    }
+
+    /// <summary>沒有上一頁（直接開 /Error 或新分頁）時回首頁（js/nav-state.js）。</summary>
+    private async Task GoBackAsync() => await JS.InvokeVoidAsync("appNavigation.backOrHome");
 }

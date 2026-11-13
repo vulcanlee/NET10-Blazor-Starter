@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -123,6 +123,7 @@ public sealed class SameSiteHostTests : IClassFixture<ApiTestApplicationFactory>
         Assert.Contains("img-src 'self' data:", csp);
         Assert.Contains("connect-src 'self'", csp);
         Assert.Contains("frame-ancestors 'none'", csp);
+        Assert.DoesNotContain("localhost", csp, StringComparison.OrdinalIgnoreCase); // 開發工具的放寬只在 Development（FrontendDevelopmentCspTests）
 
         // import map 是行內腳本：CSP 要帶它的雜湊（瀏覽器先把換行正規化成 LF 再算），否則整個前端載入不了。
         var importMap = ImportMap.Match(body);

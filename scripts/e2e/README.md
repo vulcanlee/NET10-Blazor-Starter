@@ -109,6 +109,8 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 ⚠️ 情境腳本會改隔離資料庫（例如暫時把 support 標成必須改密碼、變更 support 的密碼），只能對 `Start-E2EHost.ps1` 啟動的網站執行，不可指向開發或正式資料庫。
 
+> ⚠️ 0.10.13 起 `Start-E2EHost.ps1` 的主機是 Development，同站台時前端的 CSP 會放寬 localhost 的開發工具（`connect-src` 多了 `http(s)://localhost:*`、`ws(s)://localhost:*`），同站台跑的情境因此**不再**驗證正式 CSP 對 localhost 連線的阻擋；正式 CSP 由雙站台（靜態站 `web.config`）與 `FrontendDevelopmentCspTests` 涵蓋。`-Published` 以 Release 發佈後執行（`perf.mjs` 用），環境同樣是 Development。
+
 ## 檔案
 
 | 檔案 | 內容 |
@@ -137,5 +139,6 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 | `m11-split.mjs` | M11 情境（0.10.10 起）：S1～S7（雙站台與同站台、CORS、靜態站標頭與快取、API 主機不提供前端、Google 導向、冷啟動下載量、CSP 違規）＋全部路由的煙霧測試；參數 `hosted`、`google`，見上方說明 |
 | `static-site.mjs` | 雙站台實機用的靜態站模擬（0.10.10 起）：照前端 web.config 的規則提供發佈輸出（`wwwroot` 實體檔、`.br`、`_framework` 404、SPA 回退、快取、重設密碼頁標頭），安全標頭與 CSP 取自 web.config；0.10.11 起認得 `.webmanifest`；不能取代上線前在真的 IIS 驗證一次 |
 | `walkthrough.mjs` | 最終巡檢（0.10.12 起）：V01～V30 登入後路由、D01～D10 主要對話窗與浮層、T01 提示框不擋關閉鈕（真實模型一次）、A01～A05 登入相關頁面、A99 登出；截圖 `walk-*.png`，記錄頁面錯誤、主控台錯誤與 CSP 違規；以 `E2E_HEADED=1` 執行，見上方說明 |
+| `ux-loading-pages.mjs` | 首次載入畫面、錯誤頁、找不到頁面（0.10.13 起）：L1 未登入、無快取、CDP 限速（約 4 Mbps）下開登入頁，每 150 毫秒取樣，第一個畫面之後不可有空白、進度條與百分比會前進；L2 已登入限速下重新整理，下載卡片接著登入檢查卡片、不空白；L2b `/me` 延遲 3 秒時看得到「正在確認登入狀態…」；L3 錯誤頁繁中、追蹤碼複製（剪貼簿內容核對）、回上一頁、回首頁；L4 找不到頁面在外框內、頁首「找不到頁面」、回首頁；L5 未登入開錯誤頁、手機尺寸；L6 同站台（Development）連到 localhost 的開發工具沒有 CSP 違規，雙站台（靜態站的正式 CSP）照樣被擋。同站台與雙站台都可跑 |
 | `m12-pwa.mjs` | M12 情境（0.10.11 起）：W1～W7（Service Worker 接管與快取內容、可安裝、離線提示與訊息與離線重新整理、恢復連線、部署新版提示、英文瀏覽器日期、伺服器暫時連不上自動恢復）＋全部路由的煙霧測試；須以發佈版前端、雙站台執行，`E2E_STATIC_ROOT` 必填，見上方說明 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

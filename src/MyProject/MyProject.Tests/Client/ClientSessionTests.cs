@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
@@ -435,7 +435,10 @@ public sealed class ClientSessionTests
 
         Assert.Equal("分類清單", ClientMainLayout.ResolvePageTitle(menu, topics, "/categories"));
         Assert.Equal("個人資料", ClientMainLayout.ResolvePageTitle(menu, topics, "/Profile"));
-        Assert.Equal("系統首頁", ClientMainLayout.ResolvePageTitle(menu, topics, "/unknown"));
+        Assert.Equal("系統首頁", ClientMainLayout.ResolvePageTitle(menu, topics, "/app"));
+        // 0.10.13 起：不是任何頁面的網址與 /not-found 顯示「找不到頁面」（原本是「系統首頁」）。
+        Assert.Equal("找不到頁面", ClientMainLayout.ResolvePageTitle(menu, topics, "/unknown"));
+        Assert.Equal("找不到頁面", ClientMainLayout.ResolvePageTitle(menu, topics, "/not-found"));
         Assert.Equal("個人資料", ClientPageHelpDialog.MatchTopic(topics, "profile?x=1")!.Title);
     }
 
@@ -990,17 +993,18 @@ public sealed class ClientSessionTests
         var handler = new FakeHandler();
         handler.On("api/v1/shell/culture", status, Fail());
         var (session, _, _) = Create(handler);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        // 上限放寬到 60 秒（0.10.13：全套測試負載高時 10 秒偶爾不夠）；正常情況幾十毫秒內就完成，不會真的等這麼久。
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
         var waiting = session.WaitUntilReachableAsync(TimeSpan.FromMilliseconds(20), timeout.Token);
         // 等到至少試過兩次（第一次的 5xx 之後還在試），而不是固定等一段時間 —— 系統忙時 200 毫秒可能還沒送出第一個請求。
-        var deadline = DateTime.UtcNow.AddSeconds(5);
+        var deadline = DateTime.UtcNow.AddSeconds(30);
         while (handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") < 2 && DateTime.UtcNow < deadline)
         {
             await Task.Delay(20);
         }
 
-        Assert.True(handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") >= 2, "5 秒內沒有重試。");
+        Assert.True(handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") >= 2, "30 秒內沒有重試。");
         Assert.False(waiting.IsCompleted, $"伺服器回 {(int)status} 時就當成恢復了。");
 
         handler.On("api/v1/shell/culture", HttpStatusCode.OK, Ok(new DateTimeFormatDto()));

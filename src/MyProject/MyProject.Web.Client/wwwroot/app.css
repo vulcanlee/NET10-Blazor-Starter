@@ -43,7 +43,7 @@ h1:focus {
 }
 
     .blazor-error-boundary::after {
-        content: "An error has occurred."
+        content: "發生錯誤。"
     }
 
 .darker-border-checkbox.form-check-input {
@@ -57,4 +57,112 @@ h1:focus {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+/*
+    載入卡片（0.10.13 起）：index.html 的 #app（WASM 下載與初始化期間）與 Commons/ClientLoadingScreen.razor（外框登入檢查期間）共用。
+    進度條與百分比讀 Blazor 下載時設在 <html> 上的 CSS 變數；外框的那一張（.app-loading-done）一律是滿的。
+    顏色一律用 theme.css 的變數（ThemeConventionTests）。
+*/
+.app-loading {
+    /* 固定鋪滿視窗：放在沒有外框的版面（.page 底下有 60px 的下邊距）時也不會多出捲軸。 */
+    align-items: center;
+    inset: 0;
+    overflow: auto;
+    position: fixed;
+    background:
+        radial-gradient(circle at top left, rgba(var(--app-inner-rgb), 0.35), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(var(--app-glow-rgb), 0.6), transparent 30%),
+        var(--app-page);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+
+.app-loading-card {
+    background: var(--app-card);
+    border: 1px solid var(--app-line);
+    border-radius: 28px;
+    box-shadow: var(--app-shadow);
+    padding: 2.5rem 2rem 2rem;
+    text-align: center;
+    width: min(100%, 420px);
+}
+
+.app-loading-logo {
+    background: var(--app-accent-soft); /* 圖還沒下載完時先顯示淡色方塊，不留破圖框 */
+    border-radius: 22px;
+    display: block;
+    height: 88px;
+    margin: 0 auto 1.1rem;
+    object-fit: cover;
+    width: 88px;
+}
+
+.app-loading-title {
+    color: var(--app-text);
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 1.4rem;
+}
+
+.app-loading-bar {
+    background: var(--app-accent-soft);
+    border-radius: 999px;
+    height: 8px;
+    overflow: hidden;
+}
+
+.app-loading-bar-fill {
+    background: var(--app-primary-grad);
+    border-radius: 999px;
+    height: 100%;
+    transition: width 0.2s ease-out;
+    width: var(--blazor-load-percentage, 0%);
+}
+
+.app-loading-done .app-loading-bar-fill {
+    width: 100%;
+}
+
+.app-loading-text {
+    color: var(--app-text);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0.9rem 0 0;
+}
+
+.app-loading-percent::after {
+    color: var(--app-accent);
+    content: var(--blazor-load-percentage-text, "");
+    font-variant-numeric: tabular-nums;
+}
+
+.app-loading-hint {
+    color: var(--app-muted);
+    font-size: 0.85rem;
+    margin: 0.45rem 0 0;
+}
+
+/* 啟動失敗時的提示：30 秒後才出現（正常載入早就被取代了）。 */
+.app-loading-stuck {
+    animation: appLoadingStuck 0s linear 30s forwards;
+    color: var(--app-error);
+    font-size: 0.85rem;
+    margin: 0.9rem 0 0;
+    visibility: hidden;
+}
+
+@keyframes appLoadingStuck {
+    to {
+        visibility: visible;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-loading-bar-fill {
+        transition: none;
+    }
 }

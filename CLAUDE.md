@@ -99,7 +99,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   `theme.css`。見速查表 §6.9 與 `docs/architecture/介面視覺設計規範.md`。由 `ThemeConventionTests` 守門。
 - **前端是 PWA**（0.10.11 起）：Service Worker（`MyProject.Web.Client/wwwroot/service-worker.published.js`）只在安裝時快取前端檔案、絕不快取 API 或資料；
   **新增不在 `/api/` 底下的伺服器端點（Controller 路由、OAuth 回呼、健康檢查等）時要加進 `networkOnlyPaths`**，
-  否則同站台時導覽會被回成快取的 index.html（`PwaConventionTests` 守門）；`manifest.webmanifest` 的名稱與顏色是固定值，改 `SystemName` 或 theme.css 主色時一起改。見速查表 §6.33。
+  否則同站台時導覽會被回成快取的 index.html（`PwaConventionTests` 守門）；`manifest.webmanifest` 的名稱與顏色是固定值，改 `SystemName` 或 theme.css 主色時一起改（0.10.13 起首次載入卡片的系統名稱也是固定值：`index.html` 與 `Commons/ClientLoadingScreen.razor`，一起改）。見速查表 §6.33。
 - **每個登入後頁面都有「操作說明」**：新增 `@page` 必須登記 `MyProject.Web/Datas/HelpTopics.json` 並寫
   `Datas/Help/<路由>.md`（UTF-8 含 BOM、固定七段），或列入 `PageHelpCatalogTests.RoutesWithoutHelp`；
   並在 `docs/guides/新手完整操作指南.md` 新增標題含 `` `/路由` `` 的章節（`UserManualCoverageTests` 守門）；

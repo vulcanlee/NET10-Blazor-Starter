@@ -23,13 +23,19 @@
 
 .PARAMETER Cleanup
     網站結束後刪除隔離資料夾。
+
+.PARAMETER Published
+    以 Release 發佈到隔離資料夾的 publish\ 再執行發佈後的網站（0.10.13 起，效能量測用）：同站台的前端是發佈版
+    （指紋、Brotli、Service Worker 會快取），API 主機也是 Release 組建。環境仍是 Development（開發憑證、User Secrets），
+    網址取自 -LaunchProfile 的 applicationUrl。沒加時照舊以 dotnet run 從原始碼執行。
 #>
 [CmdletBinding()]
 param(
     [string]$SupportPassword,
     [string]$Root,
     [string]$LaunchProfile = 'https',
-    [switch]$Cleanup
+    [switch]$Cleanup,
+    [switch]$Published
 )
 
 $ErrorActionPreference = 'Stop'
@@ -91,7 +97,20 @@ Write-Host "support 暫時密碼：$SupportPassword"
 Write-Host "啟動網站（$LaunchProfile）…"
 
 try {
-    & dotnet run --project $webProject --launch-profile $LaunchProfile --no-launch-browser
+    if ($Published) {
+        $publishDir = Join-Path $Root 'publish'
+        & dotnet publish $webProject -c Release -o $publishDir --nologo -v q
+        if ($LASTEXITCODE -ne 0) { throw '發佈失敗' }
+        $profile = (Get-Content (Join-Path $webProject 'Properties/launchSettings.json') -Raw | ConvertFrom-Json).profiles.$LaunchProfile
+        $env:ASPNETCORE_URLS = $profile.applicationUrl
+        Write-Host "執行發佈版：$publishDir（$($env:ASPNETCORE_URLS)）"
+        Push-Location $publishDir
+        try { & (Join-Path $publishDir 'MyProject.Web.exe') }
+        finally { Pop-Location; Remove-Item Env:ASPNETCORE_URLS -ErrorAction SilentlyContinue }
+    }
+    else {
+        & dotnet run --project $webProject --launch-profile $LaunchProfile --no-launch-browser
+    }
 }
 finally {
     foreach ($key in $saved.Keys) {

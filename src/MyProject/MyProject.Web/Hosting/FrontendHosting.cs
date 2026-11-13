@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Options;
 using MyProject.Dtos.Commons;
 using MyProject.Web.Configuration;
@@ -28,11 +28,12 @@ public sealed class FrontendIndexPage
                 hash = FrontendContentSecurityPolicy.ImportMapHash(reader.ReadToEnd());
             }
 
-            return FrontendContentSecurityPolicy.Build(hash, apiOrigin: null);
+            // 開發環境另外允許 VS 瀏覽器連結與熱重載連到 localhost（0.10.13 起，見 FrontendContentSecurityPolicy.LocalDevToolSources）。
+            return FrontendContentSecurityPolicy.Build(hash, apiOrigin: null, allowLocalDevTools: environment.IsDevelopment());
         });
     }
 
-    /// <summary>同站台時前端回應的 CSP（connect-src 只有 'self'）。</summary>
+    /// <summary>同站台時前端回應的 CSP（connect-src 只有 'self'；Development 另外允許 localhost 的開發工具）。</summary>
     public string ContentSecurityPolicy => contentSecurityPolicy.Value;
 }
 

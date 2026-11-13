@@ -92,3 +92,8 @@
         }
     </AuthShell>
 }
+else
+{
+    @* 讀取設定期間（0.10.13 起）：顯示載入卡片，不留白（接續下載期間的那一張）。 *@
+    <ClientLoadingScreen Message="@(isExchanging ? "正在完成 Google 登入…" : "正在載入…")" />
+}

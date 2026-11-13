@@ -2,9 +2,20 @@
 @inject ILogger<NotFoundContent> Logger
 @inject NavigationManager NavigationManager
 
-@* 找不到頁面的內容（0.10.8 起，WASM 遷移 M9）：/not-found 頁與 ClientRoutes 找不到路由時共用，文字照抄 Server 版。 *@
-<h3>Not Found</h3>
-<p>Sorry, the content you are looking for does not exist.</p>
+@*
+    找不到頁面的內容（0.10.8 起，WASM 遷移 M9）：/not-found 頁與 ClientRoutes 找不到路由時共用，顯示在外框的內容區。
+    0.10.13 起改成繁體中文的置中卡片（原本是 Blazor 樣板的英文原文），附回首頁按鈕。
+*@
+<PageTitle>找不到頁面</PageTitle>
+
+<StatusCard Icon="travel_explore" Title="找不到這個頁面">
+    <ChildContent>
+        <p>網址可能打錯了，或這個頁面已經移除。<br />請確認網址，或從左側選單重新選擇要前往的功能。</p>
+    </ChildContent>
+    <Actions>
+        <a class="status-card-primary" href="/">回首頁</a>
+    </Actions>
+</StatusCard>
 
 @code {
     protected override void OnInitialized()

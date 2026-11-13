@@ -9,6 +9,17 @@
     const storageKey = 'app.sidebarCollapsed';
     const isNarrow = () => window.matchMedia('(max-width: 640.98px)').matches;
 
+    // 系統錯誤頁的「回上一頁」（0.10.13 起）：直接開 /Error 或在新分頁開時沒有上一頁，改回首頁。
+    window.appNavigation = {
+        backOrHome: () => {
+            if (history.length > 1) {
+                history.back();
+            } else {
+                location.assign('/');
+            }
+        },
+    };
+
     window.appNavState = {
         isInitiallyCollapsed: () => {
             if (isNarrow()) {
