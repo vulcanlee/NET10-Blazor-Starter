@@ -182,7 +182,7 @@ try {
     for (let i = 0; i < runs; i++) {
       const name = `PERF-存檔-${label}-${Date.now()}-${i}`;
       let started = Date.now();
-      const create = await apiJsonAsPageUser(page, '/api/v1/Category', { method: 'POST', body: { name, isEnabled: true } });
+      const create = await apiJsonAsPageUser(page, '/api/v1/Category', { method: 'POST', body: { id: 0, name, isEnabled: true } });
       created.push(Date.now() - started);
       statuses.add(`新增 ${create.status}`);
       const id = query('SELECT Id FROM Category WHERE Name = ?', name)[0]?.Id;

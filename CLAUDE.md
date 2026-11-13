@@ -81,6 +81,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **更新 AI 模型計費**（OpenAI 調價、新模型、模型 Deprecated、匯率）時，一律依 **`docs/operations/AI模型計費更新指南.md`** 執行：先輸出盤點表給使用者確認，確認後才改 `appsettings.json`。
 
 最關鍵的不變量（違反會改壞功能或留下隱患）：
+- 0.10.14 起是 **.NET 11**（`net11.0`、SDK 11.0.100；專案名稱沿用 NET10）：Blazor 的新分析器（BL0016／BL0012）、`ValidateAsync`、WASM 瘦身開關與 `.config/dotnet-ef.json` 見速查表 §6.33 第 116～125 點；dotnet-ef 全域工具要 11 版；對話窗只能用預設頁尾（第 124 點）。
 - 本系統**只支援 SQLite**；模型變更要在 `MyProject.AccessDatas/Migrations/` 產生 migration（0.4.24 起已移除 SQL Server 軌道）。
 - 分層依賴一律向上：Web → Business → AccessDatas；`Share` 不相依其他專案，`Models`/`Dtos` 只相依 `Share`；UI 不直接 `using BackendDBContext`。
   0.10.0 起進行 WASM 改寫（計畫與各里程碑測試報告在 `docs/migration/`）：WASM 前端 `MyProject.Web.Client` 只能參考 Dtos／Models／Share；

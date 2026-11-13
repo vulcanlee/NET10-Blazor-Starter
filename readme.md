@@ -1,6 +1,6 @@
 ﻿# NET10-Blazor-Starter
 
-一份基於 **.NET 10** 與 **Blazor WebAssembly（PWA）＋ASP.NET Core Web API** 所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
+一份基於 **.NET 11**（0.10.14 起；專案名稱沿用 NET10）與 **Blazor WebAssembly（PWA）＋ASP.NET Core Web API** 所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
 > 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**；**0.10.10 起前端是獨立的靜態站台**（入口 `MyProject.Web.Client/wwwroot/index.html`），可以由 API 主機一併提供（同站台），也可以部署成兩個 IIS 站台（雙站台，`ClientSettings:BaseUrl`），見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)；**0.10.11 起前端是可安裝的 PWA**（Service Worker 只快取前端程式檔、斷線時畫面不卡死並顯示離線提示、部署新版時提示重新整理），WASM 遷移的 12 個里程碑全部完成；**0.10.12 完成最終驗收**（全功能回歸、雙站台、離線、真實模型 AI 與實際開瀏覽器巡檢，見[最終驗收報告](docs/migration/測試報告/最終驗收.md)）。0.10.13 起第一次開啟時顯示載入卡片與下載進度（不再整片空白），錯誤頁與找不到頁面改成繁體中文的卡片。
 
@@ -20,18 +20,18 @@
 
 | 類別 | 採用方案 | 版本 |
 |------|----------|------|
-| 框架 | .NET / ASP.NET Core | 10.0 |
+| 框架 | .NET / ASP.NET Core | 11.0（0.10.14 起；0.10.13 以前是 10.0） |
 | 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；0.10.9 起已移除 Blazor Server 互動模式；0.10.10 起是獨立的靜態站台（`wwwroot/index.html`），`MyProject.Web` 只當 API 主機（同站台時順便提供前端檔案）；0.10.11 起是 PWA（Service Worker、manifest、離線與新版本提示列） | — |
-| UI 元件庫 | AntDesign Blazor | 1.6.2 |
+| UI 元件庫 | AntDesign Blazor | 1.6.3-dotnet11.rc3（.NET 11 專用的預覽版；正式版釋出後更換） |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
-| 資料存取 | Entity Framework Core | 10.0.14 |
+| 資料存取 | Entity Framework Core | 11.0.0 |
 | 資料庫 | SQLite（唯一支援；檔案位置由 `appsettings.json` 控制） | — |
 | 認證 | JWT Bearer：網頁與 API 都用 Token（0.10.8 起不發登入 Cookie；記住我存 localStorage、未勾存 sessionStorage，刷新 Token 落庫輪替）| — |
 | 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete`）| — |
 | 語系 | `RequestLocalization` + `AntDesignLocaleFactory` | 只支援 zh-TW（0.9.136 起）|
 | 物件對映 | AutoMapper | 16.3.0 |
-| API 文件 | Swashbuckle Swagger UI | 10.3.1 |
-| 日誌 | NLog.Web.AspNetCore | 6.2.2 |
+| API 文件 | Swashbuckle Swagger UI | 11.0.1 |
+| 日誌 | NLog.Web.AspNetCore | 6.3.0 |
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.6.0 |
 | PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型；6.5 起改為 AGPL／商業授權，刻意停在 MIT 的 6.2.4）| 6.2.4 |
 | AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`；0.9.144 起含 `Microsoft.Agents.AI.Workflows`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.28.0／2.14.0 |
@@ -147,7 +147,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 
 ## 5. 快速開始
 
-> 需求：Windows 10 / 11、.NET 10 SDK、IDE（Visual Studio 2026 / Rider / VS Code）。
+> 需求：Windows 10 / 11、.NET 11 SDK（0.10.14 起；伺服器要裝 ASP.NET Core 11 Hosting Bundle）、IDE（支援 .NET 11 的 Visual Studio 2026 / Rider / VS Code）。
 
 ```powershell
 # 1. 還原與編譯

@@ -16,6 +16,7 @@ public sealed record StoredTokens(
 /// Token 存放（localStorage／sessionStorage，見 <c>wwwroot/js/client-auth.js</c>）、跨分頁刷新鎖與分頁間溝通（0.10.8 起）。
 /// 讀不到或格式不對一律當成沒有 Token。
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "BL0016:JS interop call is not guarded with a try/catch block", Justification = "JS 互通的薄包裝：例外刻意交給呼叫端處理，在這裡吞掉反而讓呼叫端無從得知失敗（.NET 11 起的分析器）。")]
 public class TokenStore : IAsyncDisposable
 {
     /// <summary>WASM 前端專案的 wwwroot 直接掛在網站根目錄（不是 <c>_content/</c>，那是 Razor 類別庫才有的路徑）。</summary>

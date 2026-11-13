@@ -67,7 +67,7 @@ pwsh ./scripts/Install-GitHooks.ps1 -Uninstall  # 移除
 | [`.editorconfig`](../../.editorconfig)（repo 根目錄）| 程式碼格式規則，供 `dotnet format` 與 IDE 依循；提交前以 `dotnet format --verify-no-changes` 檢查（§1）。 |
 | [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) | 全方案共用建置屬性：`Nullable`、`ImplicitUsings`、**`TreatWarningsAsErrors`**，以及 CVE 抑制。 |
 | [`src/MyProject/Directory.Packages.props`](../../src/MyProject/Directory.Packages.props) | Central Package Management：所有套件版本的單一來源。 |
-| [`global.json`](../../global.json)（repo 根目錄）| 鎖定 .NET SDK 版本（`10.0.400` + `rollForward: latestFeature`）。 |
+| [`global.json`](../../global.json)（repo 根目錄）| 鎖定 .NET SDK 版本（0.10.14 起 `11.0.100` + `rollForward: latestFeature`；之前是 `10.0.400`）。 |
 
 幾個要點：
 

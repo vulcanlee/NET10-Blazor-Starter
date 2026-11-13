@@ -2,23 +2,25 @@
 
 - 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.14
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/14
 
 > **前置說明**
 >
 > - 本專案**只支援 SQLite**（0.4.24 起已移除 SQL Server 軌道），只有一個 `DbContext`：`BackendDBContext`。
 > - `BackendDBContext` 與 migration 在 `MyProject.AccessDatas`（migration 放在 `MyProject.AccessDatas/Migrations/`）；
 >   `MyProject.Web` 是啟動專案（參考 `Microsoft.EntityFrameworkCore.Design`，`dotnet ef` 從它的設定與 DI 取得 `DbContext`）。
->   所以 `--project` 指 AccessDatas、`--startup-project` 指 Web，兩個都要給。
-> - 需要全域工具 `dotnet-ef`：`dotnet tool install --global dotnet-ef`（repo 沒有 local tool manifest）。
-> - 以下指令以 **repo 根目錄**為工作目錄；在 `src/MyProject/` 底下執行時把路徑改成 `MyProject.AccessDatas`／`MyProject.Web`。
+> - 0.10.14 起（EF Core 11）repo 根目錄有 **`.config/dotnet-ef.json`**，預設好 `project`（AccessDatas）、`startupProject`（Web）與 `context`（`BackendDBContext`）：
+>   在 repo 的**任何子目錄**下直接打 `dotnet ef migrations add 名稱` 就好，不必再帶 `--project`／`--startup-project`（工具從目前目錄往上找這個檔；路徑相對於 repo 根目錄；命令列有帶的選項優先）。
+>   ⚠️ startup 必須是 `MyProject.Web`（API 主機），不可以是 WASM 前端（`ScaffoldScriptConventionTests` 守門）。
+> - 需要全域工具 `dotnet-ef`，**主版號要與 EF Core 相同（目前 11）**：`dotnet tool install --global dotnet-ef --version 11.*`，已裝舊版用 `dotnet tool update --global dotnet-ef --version 11.*`（repo 沒有 local tool manifest）。
+> - 0.10.13 以前（EF Core 10）沒有這個設定檔，要寫成 `dotnet ef … --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web`。
 
 ## 1. 新增 migration（改了 Entity 或欄位一定要做）
 
 ```powershell
-dotnet ef migrations add AddInvoiceNote --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web
+dotnet ef migrations add AddInvoiceNote
 ```
 
 - 名稱用 PascalCase 描述這次變更（例：`AddAuditLogClientIp`）；全小寫的類別名會觸發 CS8981，在 `TreatWarningsAsErrors` 下建置失敗。
@@ -32,7 +34,7 @@ dotnet ef migrations add AddInvoiceNote --project src/MyProject/MyProject.Access
 本機開發直接啟動網站即可。要不啟動網站就更新開發資料庫時：
 
 ```powershell
-dotnet ef database update --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web
+dotnet ef database update
 ```
 
 更新的是設定裡 `SystemSettings:ExternalFileSystem:DatabasePath` 指向的 `BackendDB.db`。
@@ -40,7 +42,7 @@ dotnet ef database update --project src/MyProject/MyProject.AccessDatas --startu
 ## 3. 移除最後一個 migration
 
 ```powershell
-dotnet ef migrations remove --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web
+dotnet ef migrations remove
 ```
 
 - 只能移除**最後一個**，並還原 snapshot。
@@ -50,7 +52,7 @@ dotnet ef migrations remove --project src/MyProject/MyProject.AccessDatas --star
 ## 4. 產生 SQL 腳本（審查或交給 DBA）
 
 ```powershell
-dotnet ef migrations script --idempotent --output artifacts/migrations.sql --project src/MyProject/MyProject.AccessDatas --startup-project src/MyProject/MyProject.Web
+dotnet ef migrations script --idempotent --output artifacts/migrations.sql
 ```
 
 - `--idempotent` 產生可重複執行、會先檢查 `__EFMigrationsHistory` 的腳本；只要某一段時用 `dotnet ef migrations script <From> <To>`。

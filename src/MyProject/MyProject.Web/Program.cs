@@ -116,7 +116,6 @@ namespace MyProject.Web
                 {
                     options.SuppressModelStateInvalidFilter = true;
                 });
-                //builder.Services.AddOpenApi();
                 builder.Services.AddEndpointsApiExplorer();
                 builder.Services.AddSwaggerGen(options =>
                 {
@@ -366,7 +365,8 @@ namespace MyProject.Web
 
                 // 設定驗證提早到資料庫初始化之前（0.9.92 起）：ValidateOnStart 預設要到 app.Run() 才執行，
                 // 那時 migration 與 seed 都已跑完。設定寫錯就不該先動到資料庫。app.Run() 時框架會再驗一次，無害。
-                app.Services.GetRequiredService<IStartupValidator>().Validate();
+                // .NET 11 起 IStartupValidator 已過時（SYSLIB0066），改用 IAsyncStartupValidator；Main 是同步的（見下方例外情境的說明），在這裡等它完成。
+                app.Services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None).GetAwaiter().GetResult();
 
                 #region 資料庫準備與補登例外
                 // 啟動流程中拋出的例外（migration、seed、RBAC 回填）都歸類為「系統啟動」。

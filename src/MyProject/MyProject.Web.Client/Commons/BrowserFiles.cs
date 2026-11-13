@@ -15,6 +15,7 @@ public sealed record RawResponse(int Status, string Body);
 /// 存檔時由 JS 組 FormData 直接送出；下載以一次性票證網址交給瀏覽器原生下載。見 <c>wwwroot/js/browser-files.js</c>。
 /// ⚠️ 這兩個請求不經過 HttpClient：網址一律在這裡經 <see cref="ApiAddress"/> 換成 API 主機的完整網址（0.10.10 起，雙站台時 API 在另一個網址）。
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "BL0016:JS interop call is not guarded with a try/catch block", Justification = "JS 互通的薄包裝：例外刻意交給呼叫端處理，在這裡吞掉反而讓呼叫端無從得知失敗（.NET 11 起的分析器）。")]
 public class BrowserFiles : IAsyncDisposable
 {
     /// <summary>WASM 前端專案的 wwwroot 直接掛在網站根目錄（同 <c>TokenStore</c>）。</summary>

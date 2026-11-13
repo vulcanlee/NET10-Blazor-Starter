@@ -125,7 +125,11 @@ try {
     await unthrottled.locator('button.status-card-copy').click();
     await unthrottled.locator('.status-card-copied').waitFor({ timeout: 5000 }).catch(() => {});
     const copied = await unthrottled.locator('.status-card-copied').innerText().catch(() => '');
-    const clipboard = await unthrottled.evaluate(() => navigator.clipboard.readText()).catch(() => '');
+    // 看得到的瀏覽器（E2E_HEADED=1）讀剪貼簿要分頁在前景、有焦點，否則 readText 被拒（0.10.14 實機）。
+    await unthrottled.bringToFront();
+    const clipboard = await unthrottled.evaluate(async () => {
+      try { return await navigator.clipboard.readText(); } catch (e) { return `讀取失敗：${e.name} ${e.message}`; }
+    }).catch((e) => `讀取失敗：${e.message}`);
     await screenshot(unthrottled, 'ux-L3-錯誤頁-已複製');
     await unthrottled.locator('button.status-card-secondary', { hasText: '回上一頁' }).click();
     await unthrottled.waitForURL((url) => url.pathname === '/projects', { timeout: 15000 }).catch(() => {});

@@ -88,5 +88,40 @@ public sealed class ScaffoldScriptConventionTests
         Assert.True(missing.Count == 0, "這些測試依賴腳手架自己的 migration 歷史，請加進 New-StarterProject.ps1 的 $starterMigrationTests：" + string.Join("、", missing));
     }
 
+    /// <summary>
+    /// 複刻前先確認 dotnet-ef 的主版號與專案的 EF Core 相同（0.10.14 起，升級 .NET 11 時加上）：
+    /// 舊版工具讀不到新框架的專案，會在複製完、建立 Init migration 時才失敗，留下半成品。
+    /// </summary>
+    [Fact]
+    public void StarterScript_ShouldCheckTheDotnetEfMajorVersionAgainstEfCore()
+    {
+        var script = File.ReadAllText(Path.Combine(FindRepoRoot(), "scripts", "New-StarterProject.ps1"));
+
+        Assert.Contains("dotnet ef --version", script, StringComparison.Ordinal);
+        Assert.Contains(@"Microsoft\.EntityFrameworkCore\.Design", script, StringComparison.Ordinal);
+        Assert.Contains("dotnet tool update --global dotnet-ef --version", script, StringComparison.Ordinal);
+        Assert.Contains("-lt [int]$efMajor", script, StringComparison.Ordinal); // 只擋比專案舊的工具；新的可以用
+    }
+
+    /// <summary>
+    /// EF Core 11 的 <c>.config/dotnet-ef.json</c>（0.10.14 起）：在 repo 任何子目錄下打 <c>dotnet ef …</c> 都不必再帶 <c>--project</c>／<c>--startup-project</c>。
+    /// 路徑相對於 <c>.config</c> 的上一層（repo 根目錄）；startup 必須是 API 主機（不可以是 WASM 前端），DbContext 名稱要存在。
+    /// </summary>
+    [Fact]
+    public void DotnetEfConfig_ShouldPointAtTheDataProjectAndTheApiHost()
+    {
+        var root = FindRepoRoot();
+        using var config = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, ".config", "dotnet-ef.json")));
+        var project = config.RootElement.GetProperty("project").GetString()!;
+        var startup = config.RootElement.GetProperty("startupProject").GetString()!;
+        var context = config.RootElement.GetProperty("context").GetString()!;
+
+        Assert.True(Directory.Exists(Path.Combine(root, project)), project);
+        Assert.EndsWith(".AccessDatas", project, StringComparison.Ordinal);
+        Assert.True(Directory.Exists(Path.Combine(root, startup)), startup);
+        Assert.EndsWith(".Web", startup, StringComparison.Ordinal);
+        Assert.Contains($"class {context} ", File.ReadAllText(Path.Combine(root, project, context + ".cs")), StringComparison.Ordinal);
+    }
+
     private static string FindRepoRoot() => SourceTree.RepoRoot;
 }

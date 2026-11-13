@@ -47,12 +47,12 @@
 
 | 工具 | 版本 / 說明 | 驗證指令 |
 |------|-------------|----------|
-| .NET SDK | **10.0.400**（`global.json` 已鎖定，`rollForward: latestFeature`，故 10.0.4xx 以上可用） | `dotnet --info` |
+| .NET SDK | **11.0.100**（0.10.14 起；`global.json` 已鎖定，`rollForward: latestFeature`，故 11.0.1xx 以上可用。0.10.13 以前是 10.0.400） | `dotnet --info` |
 | PowerShell 7（`pwsh`）| `scripts/*.ps1` 都以 pwsh 執行；**Windows 內建的 Windows PowerShell 5.1 不算** | `pwsh --version` |
 | Git | 任意近期版本 | `git --version` |
 | Visual Studio Code | 任意近期版本 | — |
 
-> ⚠️ `global.json` 鎖定 SDK 版本。若 `dotnet --info` 找不到 10.0.4xx，所有 `dotnet` 指令都會直接失敗，請先到 [.NET 下載頁](https://dotnet.microsoft.com/download) 安裝對應 SDK。
+> ⚠️ `global.json` 鎖定 SDK 版本。若 `dotnet --info` 找不到 11.0.1xx 以上，所有 `dotnet` 指令都會直接失敗，請先到 [.NET 下載頁](https://dotnet.microsoft.com/download) 安裝對應 SDK。
 
 ### 2.2 VS Code 擴充套件
 
@@ -69,8 +69,8 @@ repo 已提供 `.vscode/extensions.json`，開啟工作區時 VS Code 會主動�
 ### 2.3 選用工具
 
 ```powershell
-# EF Core 指令列工具（自行新增 Migration，或執行 New-StarterProject.ps1 時需要）
-dotnet tool install --global dotnet-ef
+# EF Core 指令列工具（自行新增 Migration，或執行 New-StarterProject.ps1 時需要）；主版號要與 EF Core 相同（0.10.14 起是 11）
+dotnet tool install --global dotnet-ef --version 11.*      # 已裝舊版改用 dotnet tool update --global dotnet-ef --version 11.*
 dotnet ef --version
 
 # 信任本機開發用 HTTPS 憑證（第一次跑 https profile 前務必執行）
@@ -536,7 +536,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 
 > 完整參數（`-Force`、`-SourceProjectName`、`-UserSecretsId`、`-KeepStarterHistory`、`-AllowUnsyncedSource`）見 [腳手架開發指引 §2.1](腳手架開發指引.md#21-建議順序)。
 
-> ⚠️ **前置需求**：必須先安裝 `dotnet-ef`（`dotnet tool install --global dotnet-ef`）。
+> ⚠️ **前置需求**：必須先安裝 `dotnet-ef`，主版號要與 EF Core 相同（0.10.14 起是 11：`dotnet tool install --global dotnet-ef --version 11.*`）；版本不符時腳本一開始就中止並告訴你升級指令。
 > 腳本一開始就會檢查，找不到會直接中止，不會留下半成品。
 
 **腳本會做的事：**
