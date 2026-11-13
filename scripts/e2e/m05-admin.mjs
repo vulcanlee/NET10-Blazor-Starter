@@ -5,8 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, pageTokens, query, screenshot,
-} from './common.mjs';
+  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, pageTokens, query, screenshot, waitForPredicate } from './common.mjs';
 import { clickRowAction, clickToolbar, closeToasts, confirm, openList, rowTexts, waitForToast, watchErrors } from './crud-ui.mjs';
 import { readerAccount, readerPassword } from './m03-views.mjs';
 import { freezeTimes, seedAdminData, seedTag } from './m05-views.mjs';
@@ -203,7 +202,7 @@ try {
   await page.waitForSelector('.audit-log-table', { timeout: 60000 });
   await page.fill('.audit-log-search-input', seedTag);
   await clickToolbar(page, '查詢');
-  await page.waitForFunction(() => document.querySelectorAll('.audit-log-table .ant-table-row').length === 3, null, { timeout: 15000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.audit-log-table .ant-table-row').length === 3, null, { timeout: 15000 });
   await page.locator('.audit-log-table .ant-table-row', { hasText: 'Role.Create' }).first().locator('button', { hasText: '查看' }).click();
   const detail = page.locator('.audit-log-modal:visible');
   await detail.waitFor({ timeout: 15000 });
@@ -235,7 +234,7 @@ try {
   await page.locator('.email-log-toolbar .ant-select').nth(0).click();
   await page.locator('.ant-select-dropdown:visible .ant-select-item-option', { hasText: '失敗' }).click();
   await clickToolbar(page, '查詢');
-  await page.waitForFunction(() => document.querySelectorAll('.email-log-table .ant-table-row').length === 1, null, { timeout: 15000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.email-log-table .ant-table-row').length === 1, null, { timeout: 15000 });
   const mailRows = await rowTexts(page);
   recorder.add('A9', '寄信紀錄依狀態篩選', mailRows.length === 1 && mailRows[0].includes('重設密碼'), `只剩 1 筆：${mailRows[0]?.replace(/\s+/g, ' ').slice(0, 60)}`);
 

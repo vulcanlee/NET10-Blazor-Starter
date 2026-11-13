@@ -242,3 +242,32 @@ export async function apiJsonAsPageUser(page, path, { method = 'GET', body } = {
     return { status: response.status, json, length: text.length };
   }, { path: apiTarget(path), method, body, token });
 }
+
+/**
+ * 取代 page.waitForFunction（0.10.11 起）：Playwright 的 waitForFunction 第一次判斷不成立、開始輪詢時要在頁面裡 eval，
+ * 會被前端的 CSP（script-src 沒有 'unsafe-eval'）擋下 —— 改在 Node 端以 page.evaluate 輪詢（不受 CSP 影響）。用法與參數同 waitForFunction。
+ */
+export async function waitForPredicate(page, predicate, arg = null, { timeout = 30000, polling = 200 } = {}) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    let value;
+    try {
+      value = await page.evaluate(predicate, arg);
+    } catch (error) {
+      // 換頁中執行環境被換掉：下一輪再試。
+      if (!/Execution context was destroyed|navigation/i.test(error.message)) {
+        throw error;
+      }
+    }
+
+    if (value) {
+      return value;
+    }
+
+    if (Date.now() > deadline) {
+      throw new Error(`waitForPredicate 逾時（${timeout} ms）：${predicate.toString().slice(0, 120)}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, polling));
+  }
+}

@@ -12,7 +12,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { apiUrl, baseUrl, createRecorder, execute, launchBrowser, login, newContext, screenshot } from './common.mjs';
+import { apiUrl, baseUrl, createRecorder, execute, launchBrowser, login, newContext, screenshot, waitForPredicate } from './common.mjs';
 import { clickToolbar } from './crud-ui.mjs';
 import { seedProjects } from './m04-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -52,10 +52,10 @@ async function swState(page) {
 }
 
 async function waitForController(page) {
-  await page.waitForFunction(() => navigator.serviceWorker.ready.then(() => true), null, { timeout: 120000 });
+  await waitForPredicate(page, () => navigator.serviceWorker.ready.then(() => true), null, { timeout: 120000 });
   if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) {
     await page.reload();
-    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 60000 });
+    await waitForPredicate(page, () => !!navigator.serviceWorker.controller, null, { timeout: 60000 });
   }
 }
 
@@ -91,7 +91,7 @@ try {
       const p = persistent.pages()[0] ?? await persistent.newPage();
       await p.goto('/Auths/Login');
       await p.locator('#account').waitFor({ timeout: 60000 });
-      await p.waitForFunction(() => navigator.serviceWorker.ready.then(() => true), null, { timeout: 120000 });
+      await waitForPredicate(p, () => navigator.serviceWorker.ready.then(() => true), null, { timeout: 120000 });
       await p.reload();
       await p.locator('#account').waitFor({ timeout: 60000 });
       const cdp = await persistent.newCDPSession(p);

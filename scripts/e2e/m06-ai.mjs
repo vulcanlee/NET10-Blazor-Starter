@@ -4,9 +4,9 @@
 // 參數 quota：只跑「超過用量上限」情境（主機要以 AiQuotaSettings__PerUserDailyTwd=1 啟動，見 README）。
 // 結果寫到 E2E_OUT_DIR/m06-results.json（quota 模式為 m06-quota-results.json）。
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
-  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, query, screenshot,
-} from './common.mjs';
+  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, query, screenshot, waitForPredicate } from './common.mjs';
 import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
 import { fillPicker, seedAiData, seedTag } from './m06-views.mjs';
 import { freezeTimes } from './m05-views.mjs';
@@ -24,9 +24,32 @@ async function step(id, title, action) {
     const actual = await action();
     recorder.add(id, title, true, actual ?? '通過');
   } catch (error) {
-    recorder.add(id, title, false, String(error?.message ?? error).split('\n')[0]);
+    // 失敗當下的畫面與「哪個元素擋住了點擊」（0.10.11 起），方便判斷是程式還是腳本的問題。
+    const message = String(error?.message ?? error);
+    const blocker = /<[^>]+> (?:from <[^>]+> subtree )?intercepts pointer events/.exec(message)?.[0] ?? '';
+    await currentPage?.screenshot({ path: join(outDir, 'screenshots', `${id}-失敗當下.png`) }).catch(() => {});
+    recorder.add(id, title, false, message.split('\n')[0] + (blocker ? `；擋住的元素：${blocker.slice(0, 200)}` : ''));
   }
 }
+
+let currentPage = null;
+
+/**
+ * 關掉 AI 對話窗（0.10.11 起）：先把滑鼠移開 —— 上一步按過的工具列按鈕還停著滑鼠時，它的提示框會蓋在對話窗右上角的關閉鈕上
+ * （真人把滑鼠移到關閉鈕時提示框會先消失，只有腳本會遇到）。
+ */
+async function closeModal(page, modal) {
+  await modal.locator('.ant-modal-title').hover().catch(() => page.mouse.move(5, 5));
+  await page.waitForTimeout(500);
+  if (await page.locator('.ant-tooltip:not(.ant-tooltip-hidden)').isVisible().catch(() => false)) {
+    // 提示框還在（Playwright 的滑鼠移動不一定觸發與真人相同的離開事件）：直接對關閉鈕送出點擊；真人操作另於最終巡檢時手動確認。
+    await modal.locator('.ant-modal-close').dispatchEvent('click');
+    return;
+  }
+
+  await modal.locator('.ant-modal-close').click();
+}
+
 
 function check(condition, message) {
   if (!condition) {
@@ -48,14 +71,14 @@ async function openException(page, message) {
   await page.waitForSelector('.exception-log-table', { timeout: 60000 });
   await page.fill('.exception-log-search-input', seedTag);
   await clickToolbar(page, '查詢');
-  await page.waitForFunction(() => document.querySelectorAll('.exception-log-table .ant-table-row').length === 3, null, { timeout: 30000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.exception-log-table .ant-table-row').length === 3, null, { timeout: 30000 });
   await page.locator('.exception-log-table .ant-table-row', { hasText: message }).first().locator('button', { hasText: '查看' }).click();
   await page.waitForSelector('.exception-log-modal .ant-modal-content', { state: 'visible', timeout: 15000 });
 }
 
 async function startExceptionAi(page) {
   const button = page.locator('.exception-log-detail-actions button');
-  await page.waitForFunction(() => {
+  await waitForPredicate(page, () => {
     const b = document.querySelector('.exception-log-detail-actions button');
     return b && !b.disabled;
   }, null, { timeout: 15000 });
@@ -94,7 +117,7 @@ async function watchStreaming(page, scope, { timeout = 600000 } = {}) {
 }
 
 async function waitForFirstText(page, scope, minimum = 1) {
-  await page.waitForFunction(([css, min]) => {
+  await waitForPredicate(page, ([css, min]) => {
     const root = document.querySelector(css);
     const reports = root ? root.querySelectorAll('[class$="-report"]') : [];
     return reports.length > 0 && reports[reports.length - 1].textContent.length >= min;
@@ -117,6 +140,7 @@ async function download(page, trigger) {
 async function runAi(browser) {
   const context = await newContext(browser);
   const page = await context.newPage();
+  currentPage = page;
   const errors = watchErrors(page);
   await login(page);
   freezeTimes();
@@ -169,12 +193,12 @@ async function runAi(browser) {
   });
 
   await step('M6-A6', '關閉對話窗＝取消，AI 對話紀錄看得到「失敗／取消」', async () => {
-    await aiModal(page).locator('.ant-modal-close').click();
+    await closeModal(page, aiModal(page));
     await aiModal(page).locator('.ant-modal-content').waitFor({ state: 'hidden', timeout: 15000 });
     const before = query("SELECT COUNT(*) AS N FROM AiCallLog WHERE Success = 0 AND Operation = 'AI 例外分析' AND ContentFile IS NOT NULL")[0].N;
     await startExceptionAi(page);
     await waitForFirstText(page, '.exception-ai-modal', 1);
-    await aiModal(page).locator('.ant-modal-close').click();
+    await closeModal(page, aiModal(page));
     await waitForToast(page, '已取消本次 AI 分析');
     let after = before;
     for (let i = 0; i < 30 && after === before; i++) {
@@ -187,7 +211,7 @@ async function runAi(browser) {
     await closeToasts(page);
     await page.goto('/ai-call-logs');
     await page.waitForSelector('.ai-call-log-toolbar', { timeout: 60000 });
-    await page.waitForFunction(() => document.querySelectorAll('.ant-table-row').length >= 4, null, { timeout: 30000 });
+    await waitForPredicate(page, () => document.querySelectorAll('.ant-table-row').length >= 4, null, { timeout: 30000 });
     const firstRow = await page.locator('.ant-table-row').first().textContent();
     check(firstRow.includes('AI 例外分析'), `最新一列不是這次呼叫：${firstRow}`);
     return `FailureReason=${reason}`;
@@ -202,20 +226,24 @@ async function runAi(browser) {
     const text = await aiModal(page).locator('.exception-ai-entry-assistant .exception-ai-report').last().textContent();
     check(text.includes('本內容於產生途中由使用者停止'), '沒有「已中止」註記');
     await screenshot(page, 'm06-a7-停止產生');
-    await aiModal(page).locator('.ant-modal-close').click();
+    await closeModal(page, aiModal(page));
     return `保留 ${text.length} 字`;
   });
 
   await step('M6-A8', '日誌 AI 分析：逐字出現、完成通知、匯出 PDF', async () => {
     await closeToasts(page);
+    // 先等開頁的第一次查詢回來：它會把起訖時間設成伺服器套用的值，太早填會被蓋掉（同 m06-views）。
+    const initialSearch = page.waitForResponse((r) => r.url().includes('/api/v1/logs/search'), { timeout: 60000 });
     await page.goto('/logs');
     await page.waitForSelector('.log-view-table', { timeout: 60000 });
+    await initialSearch;
+    await page.waitForTimeout(500);
     check(await isWasmPage(page), '日誌檢視頁不是 WASM');
     await fillPicker(page, '.log-view-toolbar-left', 0, `${day} 09:00:00`);
     await fillPicker(page, '.log-view-toolbar-left', 1, `${day} 10:00:00`);
     await page.locator('.log-view-text-filters input').first().fill(seedTag);
     await clickToolbar(page, '查詢');
-    await page.waitForFunction(() => document.querySelectorAll('.log-view-table .ant-table-row').length === 5, null, { timeout: 30000 });
+    await waitForPredicate(page, () => document.querySelectorAll('.log-view-table .ant-table-row').length === 5, null, { timeout: 30000 });
     await page.locator('button.toolbar-icon-button', { hasText: 'AI 分析' }).click();
     await logAiModal(page).locator('.ant-modal-content').waitFor({ state: 'visible', timeout: 15000 });
     const lengths = await watchStreaming(page, '.log-ai-modal');
@@ -226,7 +254,7 @@ async function runAi(browser) {
     await page.waitForTimeout(500);
     check(auditCount('LogViewer.AiAnalyze', since) === 1 && auditCount('LogViewer.AiAnalyzeExportPdf', since) === 1, '日誌 AI 稽核筆數不對');
     await screenshot(page, 'm06-a8-日誌AI分析');
-    await logAiModal(page).locator('.ant-modal-close').click();
+    await closeModal(page, logAiModal(page));
     return `${lengths.length} 種長度，${file.name}`;
   });
 

@@ -3,7 +3,7 @@
 // 改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。資料只佈置一次，同一個資料庫可以重跑。
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { databaseFile, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { databaseFile, execute, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
 import { freezeTimes } from './m05-views.mjs';
 
 export const seedTag = 'E2E種子';
@@ -90,7 +90,7 @@ async function closeModal(page) {
 }
 
 async function rowCount(page, tableClass, count) {
-  await page.waitForFunction(
+  await waitForPredicate(page, 
     ([css, n]) => document.querySelectorAll(`${css} .ant-table-row`).length === n,
     [`.${tableClass}`, count], { timeout: 30000 });
   await settle(page);
@@ -114,7 +114,7 @@ export async function fillPicker(page, scope, index, value) {
     const ok = dropdown.locator('.ant-picker-ok button');
     if (await cell.count() > 0) {
       await cell.first().click();
-    } else if (await ok.count() > 0) {
+    } else if (await ok.count() > 0 && await ok.first().isEnabled()) {
       await ok.first().click();
     } else {
       await input.press('Enter');
@@ -182,7 +182,7 @@ async function captureAll(page, prefix, files) {
   await page.waitForSelector('.ai-call-log-toolbar', { timeout: 60000 });
   await page.locator('.ai-call-log-toolbar-left input[placeholder^="關聯說明"]').fill(seedTag);
   await toolbar(page, '查詢');
-  await page.waitForFunction(() => document.querySelectorAll('.ant-table-row').length === 3, null, { timeout: 30000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.ant-table-row').length === 3, null, { timeout: 30000 });
   await settle(page);
   files.push(await screenshot(page, `${prefix}-05-AI對話紀錄`));
 
@@ -196,7 +196,7 @@ async function captureAll(page, prefix, files) {
   files.push(await screenshot(page, `${prefix}-06-Token用量`));
 
   await page.locator('.ant-tabs-tab', { hasText: '明細（3）' }).click();
-  await page.waitForFunction(() => document.querySelectorAll('.ant-tabs-tabpane-active .ant-table-row').length === 3, null, { timeout: 30000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.ant-tabs-tabpane-active .ant-table-row').length === 3, null, { timeout: 30000 });
   await settle(page);
   files.push(await screenshot(page, `${prefix}-07-Token明細`));
 

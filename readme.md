@@ -2,7 +2,7 @@
 
 一份基於 **.NET 10** 與 **Blazor WebAssembly（PWA）＋ASP.NET Core Web API** 所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
-> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**；**0.10.10 起前端是獨立的靜態站台**（入口 `MyProject.Web.Client/wwwroot/index.html`），可以由 API 主機一併提供（同站台），也可以部署成兩個 IIS 站台（雙站台，`ClientSettings:BaseUrl`），見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)；**0.10.11 起前端是可安裝的 PWA**（Service Worker 只快取前端程式檔、斷線時畫面不卡死並顯示離線提示、部署新版時提示重新整理），WASM 遷移的 12 個里程碑全部完成。
+> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**；**0.10.10 起前端是獨立的靜態站台**（入口 `MyProject.Web.Client/wwwroot/index.html`），可以由 API 主機一併提供（同站台），也可以部署成兩個 IIS 站台（雙站台，`ClientSettings:BaseUrl`），見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)；**0.10.11 起前端是可安裝的 PWA**（Service Worker 只快取前端程式檔、斷線時畫面不卡死並顯示離線提示、部署新版時提示重新整理），WASM 遷移的 12 個里程碑全部完成；**0.10.12 完成最終驗收**（全功能回歸、雙站台、離線、真實模型 AI 與實際開瀏覽器巡檢，見[最終驗收報告](docs/migration/測試報告/最終驗收.md)）。
 
 當前版本資訊定義在 [`src/MyProject/MyProject.Web/appsettings.json`](src/MyProject/MyProject.Web/appsettings.json) 之 `SystemSettings.SystemInformation.SystemVersion` 欄位。
 
@@ -407,7 +407,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 架構遷移（migration）
 
 - [WASM 改寫可行性分析報告](docs/migration/WASM改寫可行性分析報告.md) — Blazor Server → WebAssembly＋獨立 Web API 的可行性結論、現況盤點、37 個路由功能對照、技術決策與風險。
-- [WASM 遷移計畫](docs/migration/WASM遷移計畫.md) — 12 個里程碑的範圍、固定流程、實機情境、進度與各里程碑測試報告（0.10.11 起 12 個里程碑全部完成，待最終驗收）。
+- [WASM 遷移計畫](docs/migration/WASM遷移計畫.md) — 12 個里程碑的範圍、固定流程、實機情境、進度與各里程碑測試報告（0.10.11 起 12 個里程碑全部完成，0.10.12 完成最終驗收）。
+- [最終驗收報告](docs/migration/測試報告/最終驗收.md) — 依功能對照表逐項驗證，同站台與雙站台全部實機情境、真實模型 AI、離線與 PWA、看得到的瀏覽器巡檢全部通過；已知限制彙整。
 
 ### 變更紀錄（changelog）
 

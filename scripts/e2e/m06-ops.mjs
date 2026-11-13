@@ -10,6 +10,20 @@ import { fillPicker, seedAiData, seedTag } from './m06-views.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
 
+/**
+ * 等到符合的元素剛好 n 個（0.10.11 起改在 Node 端輪詢）：page.waitForFunction 輪詢時要在頁面裡 eval，
+ * 會被前端的 CSP（script-src 沒有 'unsafe-eval'）擋下。
+ */
+async function waitForCount(page, selector, n, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  while (await page.locator(selector).count() !== n) {
+    if (Date.now() > deadline) {
+      throw new Error(`等不到 ${selector} 剛好 ${n} 個（目前 ${await page.locator(selector).count()} 個）`);
+    }
+    await page.waitForTimeout(200);
+  }
+}
+
 const recorder = createRecorder('m06-ops-results.json');
 const smoke = createRecorder('smoke-results.json');
 const userAccount = 'e2e-m6-user';
@@ -106,7 +120,7 @@ try {
     await page.waitForSelector('.exception-log-table', { timeout: 60000 });
     await page.fill('.exception-log-search-input', seedTag);
     await clickToolbar(page, '查詢');
-    await page.waitForFunction(() => document.querySelectorAll('.exception-log-table .ant-table-row').length === 3, null, { timeout: 30000 });
+    await waitForCount(page, '.exception-log-table .ant-table-row', 3);
     await page.locator('.exception-log-table th', { hasText: '次數' }).click();
     await page.waitForTimeout(1500);
     const ascending = (await rows(page, '.exception-log-table')).map((x) => x.includes('寄信逾時') ? 120 : x.includes('資料庫被鎖定') ? 12 : 3);
@@ -132,7 +146,7 @@ try {
     await page.locator('.ant-modal-close').last().click();
     await page.locator('.ai-call-log-toolbar-left input[placeholder^="關聯說明"]').fill(seedTag);
     await clickToolbar(page, '查詢');
-    await page.waitForFunction(() => document.querySelectorAll('.ant-table-row').length === 3, null, { timeout: 30000 });
+    await waitForCount(page, '.ant-table-row', 3);
     const csv = await download(page, () => clickToolbar(page, '匯出目前查詢結果（CSV，不含內文）'));
     check(csv.bytes.toString('utf8').includes('送出時間（本地）'), 'CSV 標頭不對');
     // 合併 PDF：成功時直接下載、沒有通知（與 Server 版相同）。
@@ -179,7 +193,7 @@ try {
     await fillPicker(page, '.log-view-toolbar-left', 1, '2026-11-01 10:00:00');
     await page.locator('.log-view-text-filters input').first().fill(seedTag);
     await clickToolbar(page, '查詢');
-    await page.waitForFunction(() => document.querySelectorAll('.log-view-table .ant-table-row').length === 5, null, { timeout: 30000 });
+    await waitForCount(page, '.log-view-table .ant-table-row', 5);
     const file = await download(page, () => clickToolbar(page, '匯出本次查詢結果（原始 nlog 格式）'));
     check(file.bytes[0] === 0xef && file.bytes[1] === 0xbb && file.bytes[2] === 0xbf, '沒有 BOM');
     check(file.bytes.toString('utf8').split('\n').filter((x) => x.includes(seedTag)).length === 5, '匯出筆數不對');
