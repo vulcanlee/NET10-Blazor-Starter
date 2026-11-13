@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.15
+- 文件版本：3.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -371,8 +371,8 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 
 | 要改的東西 | 檔案 / 設定鍵 | 使用者會在哪看到 |
 |------|------|------|
-| 網頁圖示 | `wwwroot/favicon.png` | 瀏覽器分頁與書籤（`Components/App.razor:15`） |
-| 產品代表圖片 | `wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:20`，0.9.60 起登入／忘記密碼／重設密碼三頁共用；0.10.8 起兩者都在 `MyProject.Web.Client/Views`，圖檔仍放 `MyProject.Web/wwwroot/images`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
+| 網頁圖示 | `MyProject.Web.Client/wwwroot/favicon.png` | 瀏覽器分頁與書籤（`MyProject.Web.Client/wwwroot/index.html:19`；0.10.9 以前是 `MyProject.Web/wwwroot`＋`Components/App.razor`） |
+| 產品代表圖片 | `MyProject.Web.Client/wwwroot/images/brand-logo.png` | 啟動頁（`SplashView.razor:5-7`）、登入頁品牌面板（`AuthShell.razor:20`，0.9.60 起登入／忘記密碼／重設密碼三頁共用；0.10.8 起兩者都在 `MyProject.Web.Client/Views`，0.10.10 起圖檔也搬到 `MyProject.Web.Client/wwwroot/images`）、**登入後首頁**（`HomeWelcomeView.razor`，0.9.9 起）|
 | 產品名稱 | `SystemSettings:SystemInformation:SystemName` | 啟動頁大標、登入頁大標、**登入後首頁大標**、**側邊欄品牌文字**（0.9.13 起）、「關於」對話窗 |
 | 產品簡短說明 | `SystemSettings:SystemInformation:SystemDescription` | 啟動頁副說明、登入頁副說明、**登入後首頁副說明**、「關於」對話窗 |
 | 版本號 | `SystemSettings:SystemInformation:SystemVersion` | 「關於」對話窗、**登入後首頁的系統資訊列**、**「系統健康監控」頁**（`/system-health`）的診斷文字 |
@@ -402,7 +402,7 @@ Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
 
 現況規格：**64×64 PNG**（約 4.4 KB）。
 
-> ⚠️ 本專案**沒有 `favicon.ico`**，也沒有 apple-touch-icon、`site.webmanifest` 或 PWA 圖示 —— 這是刻意的（目前不是 PWA 範本；PWA 列在 [WASM 遷移計畫](../migration/WASM遷移計畫.md) 的 M12）。整份專案只有 `Components/App.razor:15` 一處宣告圖示。
+> ⚠️ 本專案**沒有 `favicon.ico`**，也沒有 apple-touch-icon、`site.webmanifest` 或 PWA 圖示 —— 這是刻意的（目前不是 PWA 範本；PWA 列在 [WASM 遷移計畫](../migration/WASM遷移計畫.md) 的 M12）。整份專案只有 `MyProject.Web.Client/wwwroot/index.html:19` 一處宣告圖示（0.10.9 以前是 `Components/App.razor:15`）。
 
 由 `brand-logo.png` 產生（沿用 0.4.25 的原始作法）：
 
@@ -442,7 +442,7 @@ ffmpeg -i images/brand-logo.png \
 
 ### 7.5 ⚠️ 瀏覽器分頁標題是另一件事
 
-`Components/App.razor` **沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
+前端入口頁 `MyProject.Web.Client/wwwroot/index.html`（0.10.9 以前是 `Components/App.razor`）**沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
 
 全專案 35 個 `<PageTitle>`（0.9.163）中只剩一處是範本殘留的英文：
 
@@ -535,7 +535,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 
 | 項目 | 說明 |
 |------|------|
-| 品牌圖檔 | `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
+| 品牌圖檔 | `MyProject.Web.Client/wwwroot/images/brand-logo.png`、`MyProject.Web.Client/wwwroot/favicon.png` 是二進位檔，腳本不會動 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
 | 外部目錄路徑 | `ExternalFileSystem` 十二個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
@@ -610,7 +610,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 
 按 `Alt+C` 開啟**大小寫相符**（Match Case），避免誤傷。取代前先看一次結果清單。
 
-> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（主機端 3 行、WASM 端 20 行 `@using`；0.10.9 起主機端只剩主機頁要的）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 90 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
+> 這一步會處理掉大部分內容：命名空間、`using`、`_Imports.razor`（WASM 端 20 行 `@using`；主機端的 0.10.10 起隨主機頁刪除）、前端入口頁 `index.html` 的 `*.Web.Client.styles.css`（0.10.10 起腳本也取代 `.html`）、`.csproj` 的 `ProjectReference`、`.slnx` 的專案路徑、`appsettings.json`、`docs/**`、`scripts/New-CrudModule.ps1` 與 `scripts/crud-templates/*.tmpl`（合計約 90 處）、`CLAUDE.md` / `AGENTS.md` / `src/MyProject/.github/copilot-instructions.md`。
 >
 > 開了大小寫相符，全小寫的 `myproject`（例如 `docs/operations/Gmail寄信設定指南.md` 的範例信箱）不會被換到，記得另外搜尋一次。
 
@@ -651,8 +651,8 @@ MyProject.slnx                                    → Acme.Erp.slnx
 品牌圖檔（二進位，全域取代不會處理）—— 尺寸規格、裁切行為與 favicon 產生指令見 **[§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明)**：
 
 ```
-src/Acme.Erp/Acme.Erp.Web/wwwroot/images/brand-logo.png   ← 登入頁與啟動畫面
-src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖示
+src/Acme.Erp/Acme.Erp.Web.Client/wwwroot/images/brand-logo.png   ← 登入頁與啟動畫面
+src/Acme.Erp/Acme.Erp.Web.Client/wwwroot/favicon.png             ← 瀏覽器分頁圖示
 ```
 
 #### 步驟 8：文件與工具設定
@@ -670,7 +670,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 
 | 位置 | 內容 | 漏改的後果 |
 |------|------|------------|
-| `Components/App.razor:13` | `@Assets["MyProject.Web.styles.css"]` | ⚠️ **最危險**：Blazor scoped CSS 套件名取自組件名。漏改會讓**全站 scoped CSS 完全不載入**，畫面嚴重跑版，但**不會有任何錯誤訊息** |
+| `MyProject.Web.Client/wwwroot/index.html:17`（0.10.10 起；0.10.9 以前是 `Components/App.razor:13` 的 `MyProject.Web.styles.css`） | `<link rel="stylesheet" href="MyProject.Web.Client.styles.css" />` | ⚠️ **最危險**：Blazor scoped CSS 套件名取自組件名。漏改會讓**全站 scoped CSS 完全不載入**，畫面嚴重跑版，但**不會有任何錯誤訊息**。`New-StarterProject.ps1` 0.10.10 起把 `.html` 納入文字取代，用腳本不會漏；手動改名要自己改 |
 | `MyProject.Web.csproj` | `<InternalsVisibleTo Include="MyProject.Tests" />` | 慣例守門測試無法編譯（會報錯，容易發現） |
 | `Program.cs`（NLog 設定區段） | `typeof(Program).Namespace ?? nameof(MyProject.Web)` | 決定 NLog 目錄與檔名前綴。漏改會讓日誌寫到舊名目錄，系統內的「日誌檢視」頁讀不到任何資料 |
 | `Program.cs`（`AddSwaggerGen`） | Swagger `Title = "MyProject API"` | Swagger UI 殘留舊系統名 |
@@ -681,7 +681,7 @@ src/Acme.Erp/Acme.Erp.Web/wwwroot/favicon.png             ← 瀏覽器分頁圖
 | `Configuration/CacheSettings.cs:9` | `InstanceName { get; set; } = "MyProject:"` | Redis 鍵前綴的程式預設值。共用 Redis 時會與其他系統鍵值衝突 |
 | `Controllers/LogsController.cs`（0.10.5 起；之前在 `Components/Views/Analytics/LogViewerView.razor.cs`） | 下載檔名 `MyProject.Web-logs-{時間}.log` | 使用者下載的日誌檔名殘留舊名 |
 | `AccessDatas/Migrations/*.Designer.cs`、`BackendDBContextModelSnapshot.cs` | 數百處 `modelBuilder.Entity("MyProject.AccessDatas.Models.X", ...)` 字串常值 | Model snapshot 與實際模型不符，EF Core 會誤判「有尚未產生的 Migration」 |
-| `wwwroot/images/brand-logo.png`、`wwwroot/favicon.png` | 二進位圖檔，全域文字取代**完全不會處理** | 新系統掛著舊產品的圖示與品牌圖片。作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
+| `MyProject.Web.Client/wwwroot/images/brand-logo.png`、`MyProject.Web.Client/wwwroot/favicon.png` | 二進位圖檔，全域文字取代**完全不會處理** | 新系統掛著舊產品的圖示與品牌圖片。作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | `MyProject.Tests/*.cs` | 數十支測試以字串或路徑比對專案名，例如 `LoggingConventionTests`、`ButtonIconConventionTests`、`MenuPermissionConsistencyTests`、`LogQueryServiceTests`、`SystemHealthTests`、`ApiIntegrationTests`、`PageHelpCatalogTests`、`StartupSafetyConventionTests` | 測試失敗。**這其實是好事** —— 它們是漏改的偵測網，所以 [§9](#9-更名後驗證清單) 一定要跑 `dotnet test` |
 | `.vscode/launch.json`、`tasks.json`、`settings.json` | `src/MyProject/...` 路徑與 `MyProject.Web.dll` | F5 啟動失敗、任務找不到方案檔 |
 
@@ -715,7 +715,7 @@ pwsh ./scripts/Invoke-QualityGate.ps1
 手動驗收項目：
 
 - [ ] `dotnet run --launch-profile https` 能啟動，`https://localhost:7144` 開得起來
-- [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `App.razor` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
+- [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `MyProject.Web.Client/wwwroot/index.html` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
 - [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,AiAgentConversation,AuditContent,Keys,Backup,AuditKey}` 已正確產生
@@ -733,7 +733,7 @@ pwsh ./scripts/Invoke-QualityGate.ps1
 | 日誌出現 `Failed to determine the https port for redirect.` | 用了 `http` profile，`UseHttpsRedirection` 找不到 HTTPS 埠（不影響使用，不會重導） | 改用 `https` profile（`.vscode/launch.json` 已預設），或忽略這筆警告 |
 | 瀏覽器顯示憑證不受信任 | 尚未信任本機開發憑證 | `dotnet dev-certs https --trust` |
 | `Address already in use` / 埠被占用 | `launchSettings.json` 的 `applicationUrl` 所用連接埠被其他程式占用 | 改 `launchSettings.json` 的 `applicationUrl`，或 `Get-NetTCPConnection -LocalPort <埠號>` 找出占用者 |
-| **畫面完全沒有樣式** | `App.razor:13` 的 `MyProject.Web.styles.css` 沒跟著改名 | 改成 `<新代號>.Web.styles.css` |
+| **畫面完全沒有樣式** | `*.Web.Client/wwwroot/index.html` 的 `MyProject.Web.Client.styles.css` 沒跟著改名（0.10.9 以前是 `App.razor:13` 的 `MyProject.Web.styles.css`） | 改成 `<新代號>.Web.Client.styles.css` |
 | User Secrets 設了卻沒生效 | ①`ASPNETCORE_ENVIRONMENT` 不是 `Development` ②`UserSecretsId` 與實際目錄不符 ③改了 csproj 沒重建 | 逐項確認；`dotnet user-secrets list` 應讀得到值 |
 | `dotnet user-secrets` 說找不到專案 | 不在 csproj 目錄下 | `cd src/.../*.Web`，或加 `--project <csproj 路徑>` |
 | 建置因為一個小警告就失敗 | `Directory.Build.props` 的 `TreatWarningsAsErrors` | 修掉警告，別 disable。這是刻意的品質關卡 |

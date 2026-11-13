@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.8
+- 文件版本：2.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -59,7 +59,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `Tests/EquipmentServiceTests.cs` | 新增修改與稽核、名稱重複、並行衝突、切換啟用狀態（只改狀態、換版本號、稽核）、軟刪除／還原／永久刪除、還原撞名、搜尋（、團隊範圍） |
 | `Tests/EquipmentApiTests.cs` | 0.10.2 起：經 Web API 走完整流程（新增、查看、修改、版本衝突、切換啟用、刪除、顯示已刪除、還原、永久刪除），每個動作的稽核只記一筆；重名 409（不分大小寫）；匯出 Excel；沒有權限時寫入回 403 |
 
-工具列與表格容器用 `wwwroot/theme.css` 的共用類別（`.view-toolbar`、`.view-table-wrap`），不另產生 `.razor.css`。
+工具列與表格容器用 `MyProject.Web.Client/wwwroot/theme.css`（0.10.10 起；以前在 `MyProject.Web/wwwroot`）的共用類別（`.view-toolbar`、`.view-table-wrap`），不另產生 `.razor.css`。
 
 產出的 WASM 檢視已照下列兩條規則寫好，補欄位時要維持（速查 §6.33）：
 
@@ -78,14 +78,14 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `MagicObjectHelper` | 權限鍵常數 |
 | `AuditActions` | `Equipment.Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export`（`Enable`／`Disable` 0.9.120 起） |
 | `Menu.json` | 指定群組的最後一項，id＝目前最大 id＋1 |
-| `SidebarMenuService.MenuPermissionMap` | 選單 id → 權限鍵 |
+| `SidebarMenuService.MenuPermissionMap`（`MyProject.Web/Shell/SidebarMenuService.cs`，0.10.10 起；0.10.9 以前在 `Components/Layout/`） | 選單 id → 權限鍵 |
 | `RolePermissionService`（一般）或 `AdminOnlyPermissionTests`＋`MenuPermissionConsistencyTests.AdminOnlyViews`（管理員專屬） | 角色權限矩陣；預設角色在下次啟動時自動加入新頁面 |
 | `MenuPermissionConsistencyTests.ViewToMenuId`（一般） | 檢視檔與選單 id 的對照 |
 | `HelpTopics.json` | 操作說明目錄 |
 | `MyProject.Web.Client/Program.cs` | WASM 的 API 用戶端 `EquipmentApi`（0.10.2 起；取代原本 `_Imports.razor` 的檢視命名空間登記，頁面自己 `@using` 檢視） |
 | `docs/guides/新手完整操作指南.md` | 使用手冊第六章最後加一節「6.N 顯示名稱 `/路由`」（樣板 `scripts/crud-manual-section.md.tmpl`，0.9.165 起），`UserManualCoverageTests` 要求每個有操作說明的路由都有手冊章節 |
 | `SoftDeletePurgeService`、`SoftDeletePurgeJob` | 排程作業「已刪除資料清理」與它的稽核；服務裡有三處：清除順序 `EntityTypes`、只清一種的 switch、資料保留頁的統計（0.9.152 起產生器三處都登記） |
-| `DataRetentionOverviewService`、`DataRetentionOverviewServiceTests` | 「資料保留與清理」頁的「已刪除的…」一列、自訂清除與它的稽核（`<Name>.Purge`）；「前往」連到一般清單（產生的頁面不接 `?deleted=1`）（0.9.152 起） |
+| `DataRetentionOverviewService`、`DataRetentionOverviewServiceTests`、`MaintenanceApiTests` | 「資料保留與清理」頁的「已刪除的…」一列、自訂清除與它的稽核（`<Name>.Purge`）；「前往」連到一般清單（產生的頁面不接 `?deleted=1`）（0.9.152 起）。`MaintenanceApiTests` 的資料保留種類清單 0.10.10 起才登記（0.10.6～0.10.9 產生新模組後這個測試會失敗） |
 | `OptimisticConcurrencyTests`、`SoftDeleteUserRoleTests`、`SoftDeletePurgeTests` | 並行與軟刪除的實體清單、清理測試 |
 | `DataAccessServiceLifetimeTests`、`AdapterModelCloneTests`、`ApiIntegrationTests`、`MenuIconTests` | 服務生命週期、Clone、API DI 解析、選單圖示 |
 
@@ -115,7 +115,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1            # 數分鐘；-KeepWorktree 保
 各做一次新增、修改、刪除、顯示已刪除、還原（`scripts/e2e/crud-generated.mjs`）。實跑需要環境變數 `PLAYWRIGHT_CORE_DIR`（見 [`scripts/e2e/README.md`](../../scripts/e2e/README.md)），
 沒有安裝 playwright-core 的機器加 `-SkipRealRun`；support 的暫時密碼只經環境變數 `E2E_SUPPORT_PASSWORD` 傳給子行程，不放在命令列。最後以 `-Force` 重跑確認沒有任何檔案再被改動。它不在品質關卡裡（太慢），**修改產生器、樣板或任何被登記的檔案的錨點之後必跑**。
 
-⚠️ 登記是以既有程式碼為錨點插入的（共 24 項，例如 `services.AddScoped<CategoryService>();`、`builder.Services.AddScoped<TeamApi>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`。0.9.153 起**品質關卡會擋下**（「CRUD anchors」步驟以 `-CheckAnchors` 跑一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒），失敗訊息指名是哪一項登記；它只確認插得進去，產出的模組能不能建置、通過測試，仍要跑 `Test-CrudGenerator.ps1`。
+⚠️ 登記是以既有程式碼為錨點插入的（共 25 項，0.10.10 起多了 `MaintenanceApiTests`；例如 `services.AddScoped<CategoryService>();`、`builder.Services.AddScoped<TeamApi>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`。0.9.153 起**品質關卡會擋下**（「CRUD anchors」步驟以 `-CheckAnchors` 跑一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒），失敗訊息指名是哪一項登記；它只確認插得進去，產出的模組能不能建置、通過測試，仍要跑 `Test-CrudGenerator.ps1`。
 
 ## 7. 已知限制
 

@@ -8,7 +8,8 @@ namespace MyProject.Web.Email;
 /// ⚠️ 優先用 <see cref="EmailSettings.PublicBaseUrl"/>，**不信任請求的 Host header**：
 /// 攻擊者可以對忘記密碼頁送出偽造 Host 的請求，讓受害者收到指向攻擊者網站的「真的」重設信
 /// （password reset poisoning）。只有非 Production 且沒設定時，才退回目前請求的網址 —— 方便本機開發。
-/// Production 用 Smtp 時 <c>StartupSafetyValidator</c> 已要求 <c>PublicBaseUrl</c> 必填。
+/// Production 用 Smtp 時 <c>StartupSafetyValidator</c> 已要求 <c>PublicBaseUrl</c>（或 <c>ClientSettings:BaseUrl</c>）必填。
+/// 雙站台時（0.10.10 起）<c>ClientSettings:BaseUrl</c> 優先：它在註冊 <see cref="EmailSettings"/> 時就蓋過 <c>PublicBaseUrl</c>，信中連結指向前端。
 /// </summary>
 public static class PublicBaseUrlResolver
 {

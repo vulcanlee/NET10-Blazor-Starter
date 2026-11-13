@@ -39,6 +39,7 @@ public sealed class AppSettingsCommentConventionTests
         "Swagger:EnabledInProduction",
         "Security:ReturnExceptionDetails",
         "Cors:AllowedOrigins",
+        "ClientSettings:BaseUrl",
         "EmailSettings:Provider",
         "EmailSettings:Host",
         "EmailSettings:FromAddress",

@@ -75,13 +75,22 @@ async function addProject(page, title, filePaths = [], { expect = '新增成功'
 
 /** 在修改窗裡點附件連結下載，回傳下載的檔案與網址。 */
 async function downloadFromModal(page, fileName) {
+  // 票證網址：同一個網址時就是下載的網址；0.10.10 起雙站台時前端以 fetch 取回再以 blob 網址存檔，下載事件只看得到 blob:，所以另外記下送出的票證請求。
+  let ticketUrl = '';
+  const onRequest = (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/v1/downloads/')) {
+      ticketUrl = request.url();
+    }
+  };
+  page.on('request', onRequest);
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 120000 }),
     page.locator('.form-modal a', { hasText: fileName }).click(),
   ]);
+  page.off('request', onRequest);
   const saved = join(outDir, `dl-${Date.now()}-${download.suggestedFilename()}`);
   await download.saveAs(saved);
-  return { saved, url: download.url(), suggested: download.suggestedFilename() };
+  return { saved, url: download.url().startsWith('blob:') ? ticketUrl : download.url(), viaBlob: download.url().startsWith('blob:'), suggested: download.suggestedFilename() };
 }
 
 seedProjects();
@@ -117,7 +126,22 @@ try {
   const sameContent = sha256(dl.saved) === sha256(specPath);
   const replay = await page.request.get(dl.url);
   recorder.add('P2', '下載內容與上傳一致、票證只能用一次', sameContent && dl.suggested === `規格${stamp}.txt` && replay.status() === 404,
-    `下載檔名「${dl.suggested}」、SHA-256 相同=${sameContent}；網址 ${new URL(dl.url).pathname.slice(0, 22)}…；再用一次回 ${replay.status()}`);
+    `下載檔名「${dl.suggested}」、SHA-256 相同=${sameContent}；網址 ${new URL(dl.url).origin}${new URL(dl.url).pathname.slice(0, 22)}…${dl.viaBlob ? '（跨來源，fetch 後以 blob 存檔）' : ''}；再用一次回 ${replay.status()}`);
+
+  // P2b（0.10.10 起，只在雙站台）：跨來源下載失敗（票證失效）時頁面留在原地、顯示伺服器的訊息，不會整頁導到 API 的 JSON。
+  if (dl.viaBlob) {
+    await page.route('**/api/v1/downloads/**', (route) => route.fulfill({
+      status: 410, contentType: 'application/json', body: JSON.stringify({ success: false, message: 'E2E 模擬：下載連結已失效，請重新下載。' }),
+    }));
+    const before = page.url();
+    await page.locator('.form-modal a', { hasText: `規格${stamp}.txt` }).click();
+    const toast = await waitForToast(page, 'E2E 模擬：下載連結已失效').catch(() => '');
+    const stayed = page.url() === before && (await page.locator('.form-modal').count()) > 0;
+    await page.unroute('**/api/v1/downloads/**');
+    await closeToasts(page);
+    recorder.add('P2b', '雙站台下載失敗時留在原頁並顯示訊息', toast !== '' && stayed,
+      `通知「${toast.replace(/\s+/g, ' ').replace('系統訊息', '').trim() || '沒有'}」；仍在 ${new URL(page.url()).pathname}、修改窗還開著=${stayed}`);
+  }
 
   // P3：修改時移除一個附件、加一個新的：實體檔跟著刪除。
   const removedPath = stored.find((x) => x.OriginalFileName.startsWith('規格')).path;

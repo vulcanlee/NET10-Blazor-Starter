@@ -1,17 +1,19 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.20
+- 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
 ## 一、通則
 
 - 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之四節、第四之一節、第五之一節）都只有 `api/v1`。
-- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）；0.10.8 起網頁也不再發登入 Cookie，預設驗證機制是 JWT（WASM 遷移 M9）；0.10.9 起 `HasPermissionAttribute` 與 `RequestActorResolver` 只認 JWT 身分（登入 Cookie 的 `Sid` 分支移除，Google 登入過程的 5 分鐘外部 Cookie 不經過它們），主機也不再有 Blazor Server 的 SignalR 端點 `/_blazor`（WASM 遷移 M10，`WasmOnlyHostTests` 守門）。
+- 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）；0.10.8 起網頁也不再發登入 Cookie，預設驗證機制是 JWT（WASM 遷移 M9）；0.10.9 起 `HasPermissionAttribute` 與 `RequestActorResolver` 只認 JWT 身分（登入 Cookie 的 `Sid` 分支移除，Google 登入過程的 5 分鐘外部 Cookie 不經過它們），主機也不再有 Blazor Server 的 SignalR 端點 `/_blazor`（WASM 遷移 M10）；0.10.10 起（WASM 遷移 M11）主機沒有任何 Razor 元件或主機頁，只提供 API（同站台時另外提供前端的靜態檔，`ApiOnlyHostTests` 守門）。
+- **`/api` 底下找不到的路由**（0.10.10 起）：沒有本文的錯誤狀態碼（找不到路由 404、方法不符 405…）由 `UseApiStatusCodePages` 補上 `ApiResult`（找不到時訊息「找不到這個 API。」）；0.10.9 以前是重跑成 `/not-found` 頁。其他有本文的錯誤（JWT 的 401／403、`ApiExceptionFilter`、`ApiValidationFilter`、`HasPermissionAttribute`、限流）不受影響。
+- **跨來源（CORS，0.10.10 起）**：同站台（`ClientSettings:BaseUrl` 留空，預設）不開放、不回任何 CORS 標頭；雙站台時只允許 `ClientSettings:BaseUrl` 的來源加上 `Cors:AllowedOrigins`，只收 `Authorization`、`Content-Type` 標頭與 GET／POST／PUT／DELETE，公開 `Content-Disposition`（前端讀下載檔名），不帶憑證；預檢在驗證與限流之前回應（`DualSiteHostTests` 守門）。雙站台時主機不提供前端的檔案，頁面網址（`/`、`/projects`、`index.html`、`theme.css`…）一律 404；Google 登入（第五節）、`/health`、Swagger 照舊在主機上。
 - 每個動作以 `[HasPermission(資源鍵, 動作)]` 做動作級授權；無權限回 **403** 並維持 `ApiResult` 外殼；管理員短路。權限鍵定義於 `MyProject.Share` 的 `MagicObjectHelper`，動作為 `PermissionActions.View/Create/Edit/Delete`。
 - **每個 action 都要標明誰能呼叫**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`（頁面或動作權限）、`[AdminOnly]`（只有管理員，見第二之一節）、`[SignedInUser]`（登入即可、刻意不檢查頁面權限，例如個人資料、外框、通知、公告、`Auth/me`）或 `[AllowAnonymous]`；標在類別上等於標在每個 action。四個都沒標的 action，測試直接失敗。兩個新屬性在 `MyProject.Web/Filters/AdminOnlyAttribute.cs`。
 - 回傳一律包在 `ApiResult<T>`；分頁再包 `PagedResult<T>`。
@@ -395,7 +397,7 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 |------|------|------|------|
 | 以票證下載 | `GET api/v1/downloads/{ticket}` | `[AllowAnonymous]`（票證本身就是憑證）| 成功回**原生檔案串流**（`Content-Disposition: attachment`，不包 `ApiResult`）；任何失敗都回同一個 `ApiResult` 404「下載連結無效或已過期，請回到頁面重新下載。」|
 
-為什麼這樣做：瀏覽器原生下載（`<a download>`）帶不了 `Authorization` 標頭，而大檔不能先讀進 WASM 記憶體。所以先用 Bearer 申請票證（附件 `POST Project/files/{fileId}/ticket`、備份 `POST backups/{檔名}/ticket`），再讓瀏覽器直接下載票證網址。
+為什麼這樣做：瀏覽器原生下載（`<a download>`）帶不了 `Authorization` 標頭，而大檔不能先讀進 WASM 記憶體。所以先用 Bearer 申請票證（附件 `POST Project/files/{fileId}/ticket`、備份 `POST backups/{檔名}/ticket`），再讓瀏覽器直接下載票證網址。0.10.10 起雙站台（前端與 API 不同來源）時瀏覽器會忽略 `download` 屬性，改由 `browser-files.js` 以 `fetch` 取回、在瀏覽器記憶體組成 blob 網址存檔（不經 WASM 記憶體；檔案先整個下載完才存檔），失敗時畫面顯示伺服器的訊息、留在原頁（CORS 已公開 `Content-Disposition`，檔名照樣取得）。
 
 - **票證**：32 個隨機位元組（URL-safe Base64），60 秒內有效，兌換時就移除（只能用一次，重放回 404）；發新票證時順手清掉過期沒用的。存在單一行程的記憶體：IIS 應用程式集區要維持一個背景工作處理序（預設值）；集區回收只會讓還沒用的票證失效，使用者重按一次即可。
 - **兌換時重新檢查**：以發票證時記下的使用者 Id 與安全戳記，經 `ICurrentUserLoader` 重新載入使用者——帳號停用、改密碼、被強制登出、角色變動都回 404，被要求先改密碼或先設定兩步驟驗證時也回 404；附件再確認仍有 `角色_專案項目` 的 View 權限，最後 `ProjectService.GetFileDownloadAsync` 再查一次團隊範圍、專案是否已刪除、實體檔是否存在；備份再從資料庫確認**仍是管理員**，檔名經 `BackupStore.TryResolveFullPath`（只認備份根目錄下、檔名合格的 zip）且檔案存在。
@@ -443,11 +445,11 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 | | 重新產生備用碼 | `POST Auth/two-factor/setup/backup-codes` | 同上 | 驗證碼錯了不計入鎖定（靠登入配額擋）|
 | | 停用 | `POST Auth/two-factor/setup/disable` | 同上 | `SessionRenewalDto`：這台的新 `Tokens` |
 
-頁面端的對應：登入頁 `/Auths/Login`（含 `?reset=1`、`?sso=…`、`#code=` 兌換）、`/Auths/TwoFactor`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`（主機對這一頁整頁回應加 `no-referrer`、`no-store`）、`/ChangePassword`、`/TwoFactorSetup`。
+頁面端的對應：登入頁 `/Auths/Login`（含 `?reset=1`、`?sso=…`、`#code=` 兌換）、`/Auths/TwoFactor`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`（這一頁的整頁回應加 `no-referrer`、`no-store`：同站台由主機加，0.10.10 起獨立靜態站由 `MyProject.Web.Client/web.config` 加）、`/ChangePassword`、`/TwoFactorSetup`。
 
 ## 五、Google 第三方登入 `ExternalAuthController`
 
-`src/MyProject/MyProject.Web/Controllers/ExternalAuthController.cs`，路由前綴 `Auths/Google`。**此為網頁導向端點，非 API**（回傳 `Challenge`／`Redirect`，不走 `ApiResult`）。0.10.8 起回呼不發登入 Cookie，改產生一次性代碼交給前端兌換（第四之一節 `google/exchange`）；Google 往返過程仍用 5 分鐘的暫存外部 Cookie。詳見《[Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md)》。
+`src/MyProject/MyProject.Web/Controllers/ExternalAuthController.cs`，路由前綴 `Auths/Google`。**此為網頁導向端點，非 API**（回傳 `Challenge`／`Redirect`，不走 `ApiResult`）。0.10.8 起回呼不發登入 Cookie，改產生一次性代碼交給前端兌換（第四之一節 `google/exchange`）；Google 往返過程仍用 5 分鐘的暫存外部 Cookie。0.10.10 起下表導回的前端頁面一律經 `ClientSettings.FrontendUrl`：同站台是本站路徑，雙站台接在 `ClientSettings:BaseUrl` 後面（只用設定值，不採用請求的 Host 或參數）；這兩個端點與 Google 的回呼 `/signin-google` 本身都在 API 主機，前端的 Google 按鈕經 `ApiAddress.GoogleLogin` 整頁導過來。詳見《[Google OAuth2 第三方登入](../security/Google%20OAuth2%20第三方登入.md)》。
 
 | 動作 | 路由 | 說明 |
 |------|------|------|
@@ -466,7 +468,7 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 | | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
 | | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 0.10.8 以前的 Server 版電路）。只接受 WASM 的頁面路徑（`ClientRouteTable`；0.10.8 起即全部頁面），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
 | | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與 Server 版相同。內容只有格式字串 |
-| | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘），超過回 `accepted=false` |
+| | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘；0.10.10 起 `BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每個實例的計數，只剩這裡計數），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
 | | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |
@@ -487,7 +489,7 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 0.10.0 起，以 access token 呼叫且使用者被要求先改密碼或先設定兩步驟驗證時，全域的 `ApiSessionGateFilter` 讓業務 API 一律回 403 `ApiResult`（`errorCode`：`PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`），只有標 `[AllowDuringForcedSetup]` 的端點放行（0.10.8 起：`Auth/me`、`Auth/logout`、`Auth/password/change`、`Auth/two-factor/setup` 全部，以及強制頁外框要用的 `shell`、`notifications`、`announcements/active` 與 `dismiss`）。
 
 > 刻意**只**套在 Controller 上，不使用 `AuthorizationOptions.FallbackPolicy`。頁面 0.10.8 起全部在 WASM、**不標 `[Authorize]`**：
-> 整頁請求只回空的 WASM 外殼，由 `ClientMainLayout` 在登入檢查通過前不渲染任何內容；匿名頁面各自標 `[AllowAnonymous]`
+> 整頁請求只回空的 WASM 外殼（0.10.10 起是前端的靜態檔 `index.html`），由 `ClientMainLayout` 在登入檢查通過前不渲染任何內容；匿名頁面各自標 `[AllowAnonymous]`
 > 並由 `PageAuthorizationTests` 白名單（9 頁）守門（0.9.41～0.10.7 是 `Components/Pages/_Imports.razor` 以登入 Cookie 擋整頁請求）。
 > 詳見 [開發慣例與限制速查 §5.1](開發慣例與限制速查.md)。
 

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace MyProject.Web.Components.Commons;
+namespace MyProject.Web.Export;
 
 /// <summary>
 /// 下載用的文字位元組（一律含 UTF-8 BOM）。

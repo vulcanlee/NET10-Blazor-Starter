@@ -1,8 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using MyProject.Web.Components.Commons;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
 
 namespace MyProject.Tests;
 

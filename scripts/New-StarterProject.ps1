@@ -293,8 +293,10 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -Directory -Force |
 
 # .gitignore 的 Extension 就是 ".gitignore"；它的 !src/MyProject/MyProject.Web/Backup/ 例外不換名，
 # 衍生專案的 Backup/ 程式碼會被 Backup*/ 忽略而提交不進 git，乾淨 clone 建置失敗。
+# .html：前端的入口頁 MyProject.Web.Client/wwwroot/index.html 引用 <專案>.Web.Client.styles.css（0.10.10 起）；
+# 靜態站的 web.config 與 wwwroot/appsettings.json 由 .config／.json 涵蓋。
 $textExtensions = @(
-    ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js",
+    ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js", ".html",
     ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props"
 )
 

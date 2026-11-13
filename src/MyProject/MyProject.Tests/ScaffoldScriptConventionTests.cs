@@ -26,7 +26,7 @@ public sealed class ScaffoldScriptConventionTests
         // 拆成兩段拼起來：這個檔案自己也不能出現完整的前綴字樣。
         const string prefix = "DevelopmentOnly-" + "ChangeThisJwtSigningKey";
         const string full = prefix + "-AtLeast32Chars";
-        string[] textExtensions = [".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js", ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props"];
+        string[] textExtensions = [".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js", ".html", ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props"];
         var root = FindRepoRoot();
         var offenders = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .Where(path => textExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))

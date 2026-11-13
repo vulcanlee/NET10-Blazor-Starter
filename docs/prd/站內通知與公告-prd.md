@@ -1,10 +1,10 @@
 ﻿# 站內通知與公告 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.100
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -50,7 +50,7 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
   2. 去重：有 `SourceKey` 時，已收過同鍵的收件人不再發。0.9.136 起比對的是 `NotificationDispatch`（發送時一位收件人寫一列，和通知寫在同一次存檔），所以通知被手動刪除或已讀的被提早清除後，同一個鍵**不會**再發；去重紀錄跟著通知的建立保留天數（`RetentionDays`，預設 90 天）由「站內通知清理」清除。0.9.135 以前比對現存的通知列，刪掉之後會重發。
   3. 一位收件人寫一列 → `INotificationSignal.Publish(收件人)` →（`AlsoEmail`）交給 `INotificationMailer`。
   4. ⚠️ 絕不丟例外：失敗記錯誤並回 `Failed`，不中斷登入或排程作業。
-- **寄信** `NotificationMailer`：寄信停用不寄；信箱格式不合（例如 support 預設的 `support`）略過；連結以 `EmailSettings:PublicBaseUrl` 組成完整網址；佇列滿時停止並只記一筆警告；日誌不記信箱。信件種類 `EmailKinds.Notification`。
+- **寄信** `NotificationMailer`：寄信停用不寄；信箱格式不合（例如 support 預設的 `support`）略過；連結以 `EmailSettings:PublicBaseUrl` 組成完整網址（0.10.10 起雙站台時是 `ClientSettings:BaseUrl`，指向前端）；佇列滿時停止並只記一筆警告；日誌不記信箱。信件種類 `EmailKinds.Notification`。
 - **即時更新**：singleton `NotificationSignal` 依使用者 Id（與「公告」）訂閱，只送「有變動」訊號，畫面自己重查；取消訂閱時原子移除空的外層集合（防洩漏）；派送時不帶發送端的執行情境；一個處理程序失敗不影響其他人。單一行程以外（IIS 重疊回收、多台主機）靠鈴鐺、橫幅與首頁「我的通知」（0.9.122 起）各自 60 秒輪詢補足。0.9.122 起標為已讀（真的改到資料時）也發這位使用者的訊號，鈴鐺、首頁小工具與他的其他分頁一起更新。
 - **公告快取** `AnnouncementCache`（singleton）：所有連線共用「還沒結束的公告」（含尚未開始的），管理頁存檔時失效並廣播，否則 60 秒重讀；橫幅的角色 Id 與已關閉清單每個連線讀一次，換頁不查資料庫。
 - **內建事件**：
@@ -100,5 +100,5 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 
 - `src/MyProject/MyProject.Business/Services/Other/NotificationSender.cs`（`INotificationSender`、`NotificationTarget`、`NotificationRequest`）、`NotificationSignal.cs`、`NotificationCategories.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/NotificationQueryService.cs`、`AnnouncementService.cs`；`IEffectiveTeamResolver.GetUserIdsInTeamAsync`
-- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Components/Layout/AnnouncementCache`（0.10.9 起含公告挑選規則 `Select`）、`Scheduling/Jobs/NotificationRetentionJob.cs`；鈴鐺與公告橫幅在 `MyProject.Web.Client/Layout/ClientNotificationBell`、`ClientAnnouncementBanner`（0.10.9 起 Server 版 `NotificationBell`、`AnnouncementBanner` 已刪除）；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`；0.10.7 起通知推播在 `MyProject.Web/Controllers/NotificationsController.cs`（`Stream`）、`Streaming/NotificationPushStream.cs`（`NotificationPushOptions`、`NotificationPushConnections`）、`Streaming/NdjsonHeartbeat.cs`、`MyProject.Web.Client/Layout/ClientPushConnection.cs`、`MyProject.Dtos/Shell/PushDtos.cs`
+- `src/MyProject/MyProject.Web/Email/NotificationMailer.cs`、`Shell/AnnouncementCache.cs`（0.10.9 起含公告挑選規則 `Select`；0.10.10 起從 `Components/Layout/` 搬來）、`Scheduling/Jobs/NotificationRetentionJob.cs`；鈴鐺與公告橫幅在 `MyProject.Web.Client/Layout/ClientNotificationBell`、`ClientAnnouncementBanner`（0.10.9 起 Server 版 `NotificationBell`、`AnnouncementBanner` 已刪除）；0.10.6 起公告管理在 `MyProject.Web.Client/Views/Admins/AnnouncementView`、`Api/AnnouncementApi.cs`、`Layout/ClientNotificationSignal.cs`（`ClientRefreshSignal`）、`MyProject.Web/Controllers/AnnouncementsController.cs`；0.10.7 起通知推播在 `MyProject.Web/Controllers/NotificationsController.cs`（`Stream`）、`Streaming/NotificationPushStream.cs`（`NotificationPushOptions`、`NotificationPushConnections`）、`Streaming/NdjsonHeartbeat.cs`、`MyProject.Web.Client/Layout/ClientPushConnection.cs`、`MyProject.Dtos/Shell/PushDtos.cs`
 - 規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「站內通知」；操作說明 `announcements.md`、`app.md`

@@ -1,4 +1,4 @@
-namespace MyProject.Web.Components.Commons;
+namespace MyProject.Web.Shell;
 
 /// <summary>頁面說明的一個章節。<see cref="Markdown"/> 是原始 Markdown，轉 HTML 留在 Razor 端。</summary>
 /// <param name="Heading">章節標題（不含 <c>## </c>），例如「一、功能摘要」。</param>

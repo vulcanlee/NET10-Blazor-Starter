@@ -53,15 +53,62 @@ export async function send(method, url, token, data, fileIds, removedFileIds) {
 }
 
 /**
- * 以一次性票證網址讓瀏覽器原生下載（伺服器回 Content-Disposition: attachment）。
- * ⚠️ 用帶 download 屬性的連結，不可用 location.assign：後者會先開始一次換頁（觸發 beforeunload），
+ * 以一次性票證網址下載（伺服器回 Content-Disposition: attachment）。成功回 null，失敗回要顯示的訊息。
+ * ⚠️ 同一個網址用帶 download 屬性的連結，不可用 location.assign：後者會先開始一次換頁（觸發 beforeunload），
  * 之後頁面上的 AntDesign 表格切換欄位時會出錯（顯示已刪除時整頁空白，M4 實機發現）。
+ * ⚠️ 跨來源（0.10.10 起雙站台）時瀏覽器會忽略 download 屬性、改成整頁導過去（失敗時整個前端換成 API 的 JSON），
+ * 所以改用 fetch 取回內容（檔案放在瀏覽器記憶體，不經過 WASM）再以 blob 網址存檔；CORS 已公開 Content-Disposition。
  */
-export function download(url) {
+export async function download(url) {
+  if (new URL(url, location.href).origin === location.origin) {
+    save(url, '');
+    return null;
+  }
+
+  let response;
+  try {
+    response = await fetch(url, { credentials: 'omit' });
+  } catch {
+    return '目前無法連線到伺服器，請稍後再試。';
+  }
+
+  if (!response.ok) {
+    try {
+      const result = await response.json();
+      return result.message || result.Message || `下載失敗（HTTP ${response.status}）。`;
+    } catch {
+      return `下載失敗（HTTP ${response.status}）。`;
+    }
+  }
+
+  const blobUrl = URL.createObjectURL(await response.blob());
+  save(blobUrl, fileNameOf(response.headers.get('Content-Disposition')));
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  return null;
+}
+
+function save(href, fileName) {
   const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = '';
+  anchor.href = href;
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+}
+
+/** Content-Disposition 的檔名：優先 filename*（RFC 5987，中文檔名），其次 filename。 */
+function fileNameOf(disposition) {
+  if (!disposition) {
+    return '';
+  }
+
+  const extended = /filename\*\s*=\s*([^']*)''([^;]+)/i.exec(disposition);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[2].trim());
+    } catch { /* 編碼不對就退回 filename */ }
+  }
+
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition);
+  return plain ? plain[1].trim() : '';
 }

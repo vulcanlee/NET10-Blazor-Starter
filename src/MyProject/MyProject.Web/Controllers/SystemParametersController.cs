@@ -6,7 +6,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Admins;
 using MyProject.Dtos.Commons;
 using MyProject.Models.Systems;
-using MyProject.Web.Components.Commons;
+using MyProject.Web.Auditing;
 using MyProject.Web.Configuration.Parameters;
 using MyProject.Web.Filters;
 

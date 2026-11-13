@@ -1,10 +1,10 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -58,7 +58,7 @@
   「此專案未指定團隊，將對所有使用者公開可見。確定要這樣儲存嗎？」，
   確認鈕「仍要儲存」、取消鈕「回去編輯」；取消時 Modal 保持開啟、表單內容不消失。
 - 附件：「專案附件」區一次可多選，單檔上限 1GB（超過即提示並略過）；待上傳清單可移除，已上傳檔案可點檔名下載或標記移除。待上傳與待移除的檔案都在按「儲存」後才真正寫入／刪除。
-  0.10.3 起（WASM）：選的檔案留在瀏覽器（`BrowserFiles`＋`browser-files.js`，不讀進 WASM 記憶體），儲存時以 multipart 送 `POST`／`PUT api/v1/Project`，資料與附件在同一次存檔寫入；點檔名先申請一次性下載票證（`POST api/v1/Project/files/{fileId}/ticket`），再由暫時的 `<a download>` 讓瀏覽器原生下載（60 秒、只能用一次、不支援續傳）。選檔時就依 `GET options` 的 `AllowedExtensions` 擋下類型不符的檔案（「檔案 X 的類型不在允許清單中。」，不加進待上傳清單），儲存時伺服器再檢查一次。之前是以 Cookie 驗證的 `/api/project-files/{id}/download`（新分頁開啟、支援續傳），已移除。
+  0.10.3 起（WASM）：選的檔案留在瀏覽器（`BrowserFiles`＋`browser-files.js`，不讀進 WASM 記憶體），儲存時以 multipart 送 `POST`／`PUT api/v1/Project`，資料與附件在同一次存檔寫入；點檔名先申請一次性下載票證（`POST api/v1/Project/files/{fileId}/ticket`），再由暫時的 `<a download>` 讓瀏覽器原生下載（60 秒、只能用一次、不支援續傳；0.10.10 起雙站台（前端與 API 不同來源）時瀏覽器會忽略 `download` 屬性，改由 `browser-files.js` 以 `fetch` 取回、在瀏覽器記憶體組成 blob 網址存檔（不經 WASM 記憶體；檔案先整個下載完才存檔），失敗時畫面顯示伺服器的訊息、留在原頁）。選檔時就依 `GET options` 的 `AllowedExtensions` 擋下類型不符的檔案（「檔案 X 的類型不在允許清單中。」，不加進待上傳清單），儲存時伺服器再檢查一次。之前是以 Cookie 驗證的 `/api/project-files/{id}/download`（新分頁開啟、支援續傳），已移除。
 - **附件副檔名白名單（0.4.35 起）**：不在白名單內的檔案由 `UploadFileTypePolicy.IsAllowed` 直接拒收；
   儲存的 `ContentType` 一律由 `UploadFileTypePolicy.ResolveContentType` **依副檔名決定**，
   不採用呼叫端提供的值（避免偽裝）。白名單可經 `SystemSettings.Upload.AllowedExtensions` 覆寫，

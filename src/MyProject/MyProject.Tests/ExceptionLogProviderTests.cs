@@ -92,21 +92,6 @@ public sealed class ExceptionLogProviderTests
         Assert.Empty(harness.DrainEntries());
     }
 
-    /// <summary>連線中斷後的 JS 呼叫失敗（0.9.172 起）同屬預期情況：不論直接記或包在 AggregateException 裡都不收錄。</summary>
-    [Fact]
-    public void Log_CircuitDisconnect_ShouldNotBeCaptured()
-    {
-        using var harness = new ProviderHarness();
-        var logger = harness.CreateLogger("Some.Service");
-
-        logger.LogError(new Microsoft.JSInterop.JSDisconnectedException("circuit gone"), "Interop failed.");
-        logger.LogError(new AggregateException(new Microsoft.JSInterop.JSDisconnectedException("circuit gone")), "Interop failed.");
-        logger.LogError(new AggregateException(new Microsoft.JSInterop.JSDisconnectedException("x"), new InvalidOperationException("real")), "Mixed.");
-
-        var entry = Assert.Single(harness.DrainEntries());
-        Assert.Contains("AggregateException", entry.ExceptionType, StringComparison.Ordinal);
-    }
-
     [Theory]
     [InlineData(typeof(OperationCanceledException))]
     [InlineData(typeof(TaskCanceledException))]

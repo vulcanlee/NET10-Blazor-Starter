@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.8
+- 文件版本：2.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 目的
 
@@ -170,8 +170,8 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 
 ## 5. 果凍視覺規格
 
-⚠️ **色票的唯一來源是 `src/MyProject/MyProject.Web/wwwroot/theme.css` 的 `:root`**
-（0.9.30 起；完整色票表見 [介面視覺設計規範](介面視覺設計規範.md) §3）。
+⚠️ **色票的唯一來源是 `src/MyProject/MyProject.Web.Client/wwwroot/theme.css` 的 `:root`**
+（0.9.30 起；0.10.10 起從 `MyProject.Web/wwwroot` 搬到 Client；完整色票表見 [介面視覺設計規範](介面視覺設計規範.md) §3）。
 `OverlayStyles.razor` 的 `--ov-*` 是**別名層**，一律寫成 `var(--app-*)`，不得寫死色碼
 —— 由 `ThemeConventionTests.PaletteHexes_ShouldOnlyLiveInThemeCss` 守門。
 

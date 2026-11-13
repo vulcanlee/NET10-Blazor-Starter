@@ -1,10 +1,10 @@
 ﻿# 團隊清單 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.2
+- 現行系統版本：0.10.10
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -143,7 +143,7 @@
 - `src/MyProject/MyProject.AccessDatas/Models/Team.cs`（Entity 欄位）
 - `src/MyProject/MyProject.Dtos/Models/TeamCreateUpdateDto.cs`、`TeamDto.cs`、`TeamNodeDto.cs`、`src/MyProject/MyProject.Dtos/Commons/TeamSearchRequestDto.cs`
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`、`src/MyProject/MyProject.Share/Helpers/PermissionKeys.cs`
-- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`、`src/MyProject/MyProject.Web/Datas/Menu.json`
+- `src/MyProject/MyProject.Web/Shell/SidebarMenuService.cs`（0.10.10 起；之前在 `Components/Layout/`）、`src/MyProject/MyProject.Web/Datas/Menu.json`
 - `src/MyProject/MyProject.Tests/TeamServiceTests.cs`、`TeamTreeTests.cs`、`TeamTreeMigrationTests.cs`、`StatusToggleServiceTests.cs`
 - `src/MyProject/MyProject.Business/Helpers/NameNormalizer.cs`、`src/MyProject/MyProject.Business/Helpers/UniqueConstraintHelper.cs`
 - `src/MyProject/MyProject.Business/Helpers/AuditActions.cs`（`Team.*` 稽核代碼：Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export）

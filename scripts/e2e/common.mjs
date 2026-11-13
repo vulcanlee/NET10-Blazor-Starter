@@ -14,6 +14,13 @@ if (!playwrightDir) {
 const { chromium } = await import(pathToFileURL(join(playwrightDir, 'index.mjs')).href);
 
 export const baseUrl = process.env.E2E_BASE_URL ?? 'https://localhost:7144';
+// API 主機（0.10.10 起，M11）：雙站台時前端與 API 在不同網址；沒設定時與前端同一個網址（同站台）。
+export const apiUrl = process.env.E2E_API_URL ?? baseUrl;
+
+/** `/api/...` 這類路徑在頁面裡要打到 API 主機（雙站台時跨來源，實際經過 CORS）。 */
+function apiTarget(path) {
+  return path.startsWith('/api/') ? new URL(path, apiUrl).href : path;
+}
 export const supportPassword = process.env.E2E_SUPPORT_PASSWORD;
 export const outDir = process.env.E2E_OUT_DIR ?? join(process.cwd(), 'e2e-out');
 export const databaseFile = process.env.E2E_DB_FILE;
@@ -65,7 +72,7 @@ export async function callApi(page, path, { method = 'GET', headers = {}, body }
     let json = null;
     try { json = await response.json(); } catch { /* 沒有內容 */ }
     return { status: response.status, json };
-  }, { path, method, headers, body });
+  }, { path: apiTarget(path), method, headers, body });
 }
 
 /** 唯讀查詢隔離資料庫（Start-E2EHost.ps1 印出的資料庫目錄下的 BackendDB.db）。 */
@@ -181,7 +188,7 @@ export async function isWasmPage(page) {
  * 必須在登入過、同一個分頁（sessionStorage）或勾了記住我（localStorage）的頁面上呼叫。
  */
 export async function pageAccessToken(page) {
-  return page.evaluate(async () => {
+  return page.evaluate(async (refreshUrl) => {
     const key = 'myproject.auth';
     const persistent = localStorage.getItem(key) !== null;
     const raw = localStorage.getItem(key) ?? sessionStorage.getItem(key);
@@ -191,7 +198,7 @@ export async function pageAccessToken(page) {
 
     let tokens = JSON.parse(raw);
     if (new Date(tokens.AccessTokenExpiresAt).getTime() < Date.now() + 30000) {
-      const response = await fetch('/api/v1/Auth/refresh', {
+      const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: tokens.RefreshToken }),
@@ -202,7 +209,7 @@ export async function pageAccessToken(page) {
     }
 
     return tokens.AccessToken;
-  });
+  }, apiTarget('/api/v1/Auth/refresh'));
 }
 
 /** 這個分頁存的 Token（0.10.8 起登入後存在瀏覽器）：{ AccessToken, RefreshToken, IsPersistent, UserId, storage: 'local'|'session' }；沒有回 null。 */
@@ -233,5 +240,5 @@ export async function apiJsonAsPageUser(page, path, { method = 'GET', body } = {
     let json = null;
     try { json = JSON.parse(text); } catch { /* 檔案或空白 */ }
     return { status: response.status, json, length: text.length };
-  }, { path, method, body, token });
+  }, { path: apiTarget(path), method, body, token });
 }

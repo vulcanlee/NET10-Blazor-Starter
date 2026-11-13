@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.107
+- 文件版本：6.108
 - 文件狀態：維護中
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| WASM 遷移 M11 獨立靜態站台＋API 主機：前端 `MyProject.Web.Client` 改成獨立的 WebAssembly 靜態站台（入口 `wwwroot/index.html` 取代 `Components/App.razor`、`wwwroot/appsettings.json` 的 `ApiBaseUrl` 經 `ApiAddress`、IIS 靜態站 `web.config`：SPA 回退、MIME、預先壓縮 Brotli、快取、安全標頭），靜態檔與全站色票 `theme.css` 搬到 Client；`MyProject.Web` 只剩 API，`ClientSettings:BaseUrl` 留空＝同站台（API 主機直接提供前端、不需反向代理）、有值＝雙站台（CORS 只允許前端、預檢排在驗證與限流前，Google 登入、信中連結與錯誤頁導回前端）；前端加上 CSP（import map 雜湊）；雙站台以發佈參數 `-p:StaticSiteApiOrigin` 填入 `ApiBaseUrl` 與 `connect-src`；靜態站加 HSTS；跨來源下載改 fetch＋blob 存檔；`/api/` 找不到回 404 `ApiResult`，取代重跑 `/not-found`；M10 暫留的類別搬到 `Shell/`、`Auditing/`、`Export/`，刪除 `App.razor`、`CircuitDisconnect`、`BrowserErrorReporter` 的 `[JSInvokable]`；新增守門測試 `ApiOnlyHostTests`（取代 `WasmOnlyHostTests`）、`SameSiteHostTests`、`DualSiteHostTests`、`StaticSiteWebConfigTests`、`ApiAddressTests`、`ServerUrlConventionTests`；畫面不變；測試 3,040 → 3,098（0.10.10） | [2026-11-13-WASM遷移M11獨立靜態站台](2026-11-13-WASM遷移M11獨立靜態站台.md) |
 | WASM 遷移 M10 移除 Server 模式：移除 Blazor Server 互動模式（電路、SignalR `/_blazor`、重連畫面、Server 版 `Routes.razor` 與外框、`ApplicationCircuitHandler`、`LoggingErrorBoundary`、`AuthenticationStateHelper`、`ServerPagePermissions` 等），`MyProject.Web` 只剩 Web API、WASM 主機頁 `Components/App.razor` 與靜態檔；`RequestActorResolver`、`HasPermissionAttribute` 只認 JWT；外框 API 用的選單、操作說明、公告快取類別暫留原資料夾（M11 再搬）；新增守門測試 `WasmOnlyHostTests`、`SourceTree.UiRoots` 只剩 Client 並新增 `UiFiles`、`AuthenticationStateHelperTests` 改寫為 `CurrentUserLoaderTests`；畫面與 API 不變；測試 3,050 → 3,040（0.10.9） | [2026-11-11-WASM遷移M10移除Server模式](2026-11-11-WASM遷移M10移除Server模式.md) |
 | WASM 遷移 M9 純 Token 登入：網頁改成只用 Token 登入、不再發登入 Cookie（移除 bridge、`/Auths/RefreshSession`、登入 Cookie 的 scheme 與 `/UploadFiles`）；登入、兩步驟驗證、忘記／重設密碼、等待審核、登出、變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面改用 WebAssembly（36 個頁面全部在 WASM）；新 API `api/v1/Auth`（`login-settings`、`login/web`、`two-factor`、`google/exchange`、`session/fork`、`password/*`、`two-factor/setup/*`）；`SessionSettings` 取代 `CookieSettings`（記住我 30 天存 localStorage、未勾閒置 8 小時存 sessionStorage 關掉分頁就登出、存取 Token 15 分鐘；舊鍵相容）；新分頁向已開分頁取得 Token（每個分頁各一串）、同一瀏覽器只有一個身分、登出與重用偵測撤銷整次登入、存取 Token 帶串的識別（登出立即生效）；Google 改一次性代碼（綁定發起的瀏覽器）；頁面不標 `[Authorize]`、由外框把關；限流移到驗證之後、網頁登入不算嚴格登入配額；改到自己後直接回新 Token（0.10.8） | [2026-11-11-WASM遷移M9純Token登入](2026-11-11-WASM遷移M9純Token登入.md) |
 | WASM 遷移 M8 Agent、系統管理助理與通知推播：Agent 測試台、Agent 工作流程、系統管理助理（含巡檢報告窗）改用 WebAssembly（外觀相同，WASM 頁面共 25 個）、Web API（`api/v1/agent-playground`、`api/v1/admin-assistant`、`api/v1/agent-workflows`，對話與執行以 NDJSON 串流並加心跳）、Agent 對話每個請求接續一次＋每段對話一把鎖（兩個分頁排隊、同一個核准只執行一次）、網址帶對話（重新整理回到同一段）、工作流程伺服器端執行登錄表（等人回覆時重新整理 30 分鐘內可接回、一人一次執行）、通知推播串流 `POST api/v1/notifications/stream`（鈴鐺與公告幾秒內更新、60 秒輪詢保留為備援、`NotificationSettings:PushEnabled`）、對話內容檔共用讀寫（0.10.7） | [2026-11-11-WASM遷移M8Agent系統管理助理與通知推播](2026-11-11-WASM遷移M8Agent系統管理助理與通知推播.md) |

@@ -69,15 +69,25 @@ public static class StartupSafetyValidator
                 errors.Add("EmailSettings:FromAddress 在 Production 使用 Smtp 時不可留空。");
             }
 
+            // 雙站台（0.10.10 起）時信中連結改用 ClientSettings:BaseUrl（下面另外檢查），可以不填 PublicBaseUrl。
             var publicBaseUrl = configuration[$"{EmailSettings.SectionName}:PublicBaseUrl"];
-            if (!Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var baseUri)
-                || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp))
+            if (string.IsNullOrWhiteSpace(configuration[$"{ClientSettings.SectionName}:BaseUrl"])
+                && (!Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var baseUri)
+                    || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp)))
             {
                 // 公開網址不是機密，直接帶出讀到的值，現場看事件檢視器就知道是沒填還是少了 http(s)://
                 var actual = string.IsNullOrWhiteSpace(publicBaseUrl) ? "（空白）" : $"「{publicBaseUrl}」";
                 errors.Add($"EmailSettings:PublicBaseUrl 在 Production 使用 Smtp 時必須是完整的 http(s) 網址（信中連結以它為準，不採用請求的 Host header），目前讀到的值：{actual}。"
                     + "請填使用者實際開啟系統的網址，例如 https://erp.example.com（只有 http 的環境可填 http://erp.example.com）；若暫不寄信，可將 EmailSettings:Provider 改回 None。");
             }
+        }
+
+        // 前端網址（0.10.10 起，雙站台）：會被當成 CORS 允許的來源、Google 登入導回與信中連結，正式環境必須是 https。
+        var clientBaseUrl = configuration[$"{ClientSettings.SectionName}:BaseUrl"];
+        if (!string.IsNullOrWhiteSpace(clientBaseUrl)
+            && (!Uri.TryCreate(clientBaseUrl.Trim(), UriKind.Absolute, out var clientUri) || clientUri.Scheme != Uri.UriSchemeHttps))
+        {
+            errors.Add($"ClientSettings:BaseUrl 在 Production 必須是完整的 https 網址（例如 https://app.example.com/），目前讀到的值：「{clientBaseUrl}」；同站台部署請留空。");
         }
 
         // AI 分析是 opt-in，而「有沒有填金鑰」就是那個開關：沒填等於功能關閉，

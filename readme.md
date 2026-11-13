@@ -2,7 +2,7 @@
 
 一份基於 **.NET 10** 與 **Blazor WebAssembly＋ASP.NET Core Web API**（0.10.9 起已移除 Blazor Server 模式）所建立的企業級應用程式樣板，預先整合 Ant Design Blazor、EF Core、Token（JWT）登入、角色權限、繁體中文本地化、檔案上傳、Swagger 與 NLog，協助開發團隊以最低成本啟動內部管理類系統。
 
-> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**（主機只剩 Web API、WASM 主機頁與靜態檔）。
+> 0.10.0 起進行 WebAssembly 改寫（[WASM 遷移計畫](docs/migration/WASM遷移計畫.md)）：**0.10.8 起 36 個頁面全部以 WebAssembly 在瀏覽器執行、網頁只用 Token 登入（不發登入 Cookie）**；**0.10.9 起 Server 渲染模式已移除**；**0.10.10 起前端是獨立的靜態站台**（入口 `MyProject.Web.Client/wwwroot/index.html`），可以由 API 主機一併提供（同站台），也可以部署成兩個 IIS 站台（雙站台，`ClientSettings:BaseUrl`），見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)。
 
 當前版本資訊定義在 [`src/MyProject/MyProject.Web/appsettings.json`](src/MyProject/MyProject.Web/appsettings.json) 之 `SystemSettings.SystemInformation.SystemVersion` 欄位。
 
@@ -21,7 +21,7 @@
 | 類別 | 採用方案 | 版本 |
 |------|----------|------|
 | 框架 | .NET / ASP.NET Core | 10.0 |
-| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；0.10.9 起已移除 Blazor Server 互動模式，`MyProject.Web` 只當 API 主機與 WASM 主機頁 | — |
+| 前端 | Blazor WebAssembly（0.10.8 起全部頁面；`MyProject.Web.Client`）；0.10.9 起已移除 Blazor Server 互動模式；0.10.10 起是獨立的靜態站台（`wwwroot/index.html`），`MyProject.Web` 只當 API 主機（同站台時順便提供前端檔案） | — |
 | UI 元件庫 | AntDesign Blazor | 1.6.2 |
 | 圖示 | BlazorMaterialIcons（Google Material Icons） | 0.0.1 |
 | 資料存取 | Entity Framework Core | 10.0.14 |
@@ -52,7 +52,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 
 | 專案 | 角色 |
 |------|------|
-| `MyProject.Web` | 網站宿主、Web API Controller（含登入相關的 `api/v1/Auth`）、本地化、靜態資源；0.10.8 起頁面全部在 `MyProject.Web.Client`，0.10.9 起只剩 API、WASM 主機頁（`Components/App.razor`）與靜態檔。 |
+| `MyProject.Web` | 網站宿主、Web API Controller（含登入相關的 `api/v1/Auth`）、本地化；0.10.8 起頁面全部在 `MyProject.Web.Client`，0.10.10 起只剩 API（沒有任何 Razor 元件與主機頁；`ClientSettings:BaseUrl` 留空時另提供前端的靜態檔）。 |
 | `MyProject.Business` | 商業邏輯：Services、AutoMapper Profile、Helpers（0.10.3 起已沒有 Repository，Web API 與畫面共用 Services）。 |
 | `MyProject.AccessDatas` | EF Core `BackendDBContext`、Entity 定義、Migrations。 |
 | `MyProject.Models` | 系統設定、AdapterModel、共用領域模型。 |
@@ -191,8 +191,10 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
     ├── Directory.Packages.props    ← 套件版本單一來源（Central Package Management）
-    ├── MyProject.Web/              ← API 主機＋WASM 主機頁（0.10.9 起沒有 Blazor Server 互動模式）
-    │   ├── Components/             ← WASM 主機頁 App.razor，以及外框 API 用的選單、操作說明、公告快取類別（0.10.9 起已沒有畫面）
+    ├── MyProject.Web/              ← API 主機（0.10.10 起沒有任何 Razor 元件；同站台時一併提供前端的靜態檔）
+    │   ├── Shell/                  ← 外框 API 用的選單、操作說明、公告快取類別（0.10.10 起，原本在 Components/）
+    │   ├── Hosting/                ← 同站台提供前端（UseFrontend、SPA 回退）與前端的 CSP（0.10.10 起）
+    │   ├── Auditing/               ← 寫稽核的共用樣板 ViewAudit（操作者取自目前使用者；0.10.10 起，原本在 Components/Commons）
     │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs / ExceptionLogs / Logs / LogLevel / AiCallLogs / TokenUsage / PromptTemplates / ScheduledJobs / SystemHealth / Backups / DataRetention / DatabaseUsage / SystemParameters / Announcements / Dashboard / Downloads / AgentPlayground / AdminAssistant / AgentWorkflows …）
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
@@ -210,7 +212,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Health/                 ← 健康檢查與計分
     │   ├── Properties/             ← launchSettings.json、發行設定檔
     │   ├── Scheduling/             ← 排程作業框架與內建作業（Jobs/）
-    │   ├── wwwroot/                ← 靜態資源
     │   ├── nlog.config
     │   ├── Datas/Menu.json         ← Sidebar 導覽與權限定義
     │   ├── Datas/HelpTopics.json   ← 頁面操作說明索引（路由 → 標題 → 檔名）
@@ -218,7 +219,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）；0.10.10 起是獨立的靜態站台：wwwroot/ 放入口頁 index.html、theme.css 等全站靜態檔與 appsettings.json（ApiBaseUrl），web.config 是 IIS 靜態站設定
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← CurrentUserLoader、CurrentUserService 等
@@ -243,7 +244,8 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `Logging` | .NET 預設記錄等級設定（NLog 啟動後會接管實際輸出）。 |
 | `Swagger.EnabledInProduction` | 是否在 Production 環境暴露 Swagger UI，預設 `false`。 |
 | `Security.ReturnExceptionDetails` | 是否於 `ApiResult.Exception` 回傳例外細節；`null` 時依環境決定。 |
-| `Cors.AllowedOrigins` | CORS 允許來源白名單（陣列）；留空表示不額外開放跨來源。 |
+| `Cors.AllowedOrigins` | CORS 允許來源白名單（陣列）：前端以外還有別的網站要跨網域呼叫 API 時才填；留空表示不額外開放跨來源。 |
+| `ClientSettings.BaseUrl` | 前端的網址（0.10.10 起）：留空＝同站台（API 主機一併提供前端）；前端另外部署成獨立站台時填它的網址（正式環境必須 https），API 主機就只提供 API、CORS 允許它，Google 登入與信中連結導回它。見[正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md)。 |
 | `RateLimit.ApiRequestsPerMinute` | 一般 API 每分鐘配額，**每個呼叫端各自計算**，預設 `120`。 |
 | `RateLimit.LoginRequestsPerMinute` | 登入端點每分鐘配額，預設 `10`（比一般 API 嚴格）。 |
 | `ForwardedHeaders.KnownProxies` / `KnownNetworks` | **預設未寫入 `appsettings.json`**（程式面支援，未設定時採空白預設）。信任的反向代理 IP／網段；走代理時必設，否則來源 IP 會全部變成代理伺服器且 `X-Forwarded-For` 可被偽造。 |
@@ -389,7 +391,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 ### 維運與部署（operations）
 
 - [維護規範](docs/operations/維護規範.md) — 版本 bump、文件同步、commit 前自我檢查清單。
-- [正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目。
+- [正式部署與安全檢查清單](docs/operations/正式部署與安全檢查清單.md) — 上線前 JWT、預設帳號、Swagger、例外揭露等必查項目；前端同站台與雙站台兩種部署方式（0.10.10 起）。
 - [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md) — NLog 配置、各層級用法、`appsettings.json` 全表。
 - [備份與還原操作手冊](docs/operations/備份與還原操作手冊.md) — 系統備份的範圍與理由、下載、停站後以 `scripts/Restore-Backup.ps1` 還原。
 - [Gmail 寄信設定指南](docs/operations/Gmail寄信設定指南.md) — 用 Gmail 帳號寄信：應用程式密碼、`EmailSettings` 逐值設定與疑難排解。

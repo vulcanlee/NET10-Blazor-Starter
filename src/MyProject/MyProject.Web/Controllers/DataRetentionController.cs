@@ -6,7 +6,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Admins;
 using MyProject.Dtos.Commons;
 using MyProject.Share.Helpers;
-using MyProject.Web.Components.Commons;
+using MyProject.Web.Auditing;
 using MyProject.Web.DataRetention;
 using MyProject.Web.Filters;
 using MyProject.Web.Scheduling;

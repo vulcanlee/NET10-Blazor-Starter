@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.21
+- 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -30,7 +30,7 @@
 
 ## 三、畫面與欄位
 
-- **登入頁**：帳號、密碼、驗證碼（4 碼數字，前端產生存於隱藏欄位 `CaptchaCode`，以 `Ordinal` 比對）、「記住我」核取方塊。`GoogleOAuthSettings.IsConfigured` 為真時顯示「使用 Google 登入」按鈕，連結至 `/Auths/Google/Login`（帶 `returnUrl`；0.10.8 起另帶這個分頁產生的驗證值雜湊 `binding`）。0.10.8 起系統名稱、Google／寄信是否啟用、鎖定規則等讀匿名的 `GET api/v1/Auth/login-settings`；元素 id 與隱藏欄位不變（實機腳本依賴）。前端逐項檢查空值與驗證碼，錯誤顯示「請輸入帳號／密碼／驗證碼」「驗證碼錯誤」。
+- **登入頁**：帳號、密碼、驗證碼（4 碼數字，前端產生存於隱藏欄位 `CaptchaCode`，以 `Ordinal` 比對）、「記住我」核取方塊。`GoogleOAuthSettings.IsConfigured` 為真時顯示「使用 Google 登入」按鈕，連結至 `/Auths/Google/Login`（帶 `returnUrl`；0.10.8 起另帶這個分頁產生的驗證值雜湊 `binding`；0.10.10 起由 `ApiAddress.GoogleLogin` 組成 API 主機的完整網址，雙站台時整頁導到 API 主機）。0.10.8 起系統名稱、Google／寄信是否啟用、鎖定規則等讀匿名的 `GET api/v1/Auth/login-settings`；元素 id 與隱藏欄位不變（實機腳本依賴）。前端逐項檢查空值與驗證碼，錯誤顯示「請輸入帳號／密碼／驗證碼」「驗證碼錯誤」。
 - **登入頁（0.9.60 起）**：`EmailSettings:Provider` 不是 `None` 時，「記住我」右側的「企業級安全登入」改為「忘記密碼？」連結；從重設頁成功導回（`?reset=1`）時，表單上方顯示綠色「密碼已重設，請以新密碼登入。」。外觀由共用元件 `AuthShell` 提供，三頁一致。出貨與開發環境都是 `None`（0.9.62 起；0.9.61 曾在 `appsettings.Development.json` 預設 `Pickup`），預設看不到；本機要測，用 User Secrets 設 `Provider=Pickup`。
 - **忘記密碼頁**：帳號或 Email、驗證碼（與登入頁同一套 4 碼）。送出後**一律**以中性色說明框（`.info-message`）顯示「申請已送出。若帳號存在、為啟用狀態且登記了有效的 Email，您會在幾分鐘內收到重設密碼的信，信中連結 N 分鐘內有效。若一直沒收到…請聯絡系統管理員協助。」—— 不論帳號是否存在、有沒有真的寄出（0.9.85 起；之前是綠色「…信已經寄出…」）。唯一例外：輸入 `support`（不分大小寫）時留在表單，紅字顯示「support 是系統內建帳號，不提供忘記密碼服務…」。寄信未啟用時整頁只顯示「系統目前未啟用寄信功能…請聯絡系統管理員」。
 - **重設密碼頁**：副標題顯示「為帳號「X」設定新密碼。密碼規則：…」（0.9.101 起由 `IPasswordPolicy.Describe()` 產生）；新密碼、確認新密碼。token 無效／過期／已用過一律顯示「重設連結無效或已過期，請重新申請。」並提供「重新申請重設信」連結。成功後導回登入頁。
@@ -49,7 +49,7 @@
 - **Google 登入**：處理順序集中在 `ExternalLoginResult.Evaluate`：已刪除 → 待開通 → **鎖定（0.9.101 起，導回 `?sso=locked`）** → 登入。
 - **雜湊自動升級**：驗證回傳 `SuccessRehashNeeded`（舊格式）時，即時以 PBKDF2 重新雜湊並存回。
 - **網頁登入發 Token**（0.10.8 起，`WebAuthController` `POST api/v1/Auth/login/web`＋`WebSessionTokens`；取代 Server 版登入頁的 Cookie 簽發與 `CookieClaims`）：密碼通過後開一串新的網頁 Token（發出管道 `web`，新的 `LoginSessionId`），存取 Token 帶 `security_stamp`、`fid`（這一串）與 `client_kind`。效期依「記住我」：勾了 → 前端存 localStorage，整串上限 `SessionSettings:RememberMeDays`（30 天，從登入算、不滑動）；沒勾 → 存 sessionStorage，刷新 Token 閒置 `IdleTimeoutMinutes`（480 分鐘，每次刷新重新起算；`IdleTimeoutSliding=false` 時改為從登入起的絕對上限）；存取 Token `AccessTokenMinutes`（15 分鐘）。前端存好 Token 後整頁導到 `returnUrl`（經 `ReturnUrlGuard`）或 `/App`，並廣播「誰登入了」：同一個瀏覽器顯示另一個人的分頁丟掉自己的 Token、重新載入改用這次的登入（**同一個瀏覽器只有一個身分**，與 Cookie 時代相同）。必須改密碼或設定兩步驟驗證的帳號照樣拿到 Token，由閘門擋（見「登入後狀態」）。
-- **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`。0.10.8 起回呼不再簽發 Cookie：產生一次性代碼（`GoogleLoginCodes`：只存雜湊、60 秒、只能兌換一次、綁定發起登入的瀏覽器）導回 `/Auths/Login#code=…`，登入頁以 `POST api/v1/Auth/google/exchange`（出示 sessionStorage 裡的驗證值原值）換 Token 或待驗票證；沒帶綁定值的舊流程一律導回登入頁，不建立也不連結帳號。代碼只在這個行程的記憶體，多台主機要黏著工作階段。
+- **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`。0.10.8 起回呼不再簽發 Cookie：產生一次性代碼（`GoogleLoginCodes`：只存雜湊、60 秒、只能兌換一次、綁定發起登入的瀏覽器）導回 `/Auths/Login#code=…`，登入頁以 `POST api/v1/Auth/google/exchange`（出示 sessionStorage 裡的驗證值原值）換 Token 或待驗票證；沒帶綁定值的舊流程一律導回登入頁，不建立也不連結帳號。代碼只在這個行程的記憶體，多台主機要黏著工作階段。0.10.10 起所有導回前端的網址（代碼、`?sso=…`、`/Auths/Pending`、錯誤頁）經 `ClientSettings.FrontendUrl`：雙站台時接在 `ClientSettings:BaseUrl` 後面，同站台時是本站路徑；只用設定值，不採用請求的 Host。
 - **登出**（0.10.8 起）：`ClientSession.LogoutAsync` 呼叫 `POST api/v1/Auth/logout`，依 `LoginSessionId` 撤銷**這次網頁登入的每一串**（每個分頁各一串），清掉瀏覽器存的 Token、以 BroadcastChannel 通知其他分頁（它們刷新失敗就回登入頁），再整頁回 `/Auths/Login`。已發出的存取 Token 驗證時檢查那一串是否已撤銷：同一台主機立即失效，多台最晚 30 秒。連不上伺服器時照樣清掉瀏覽器的 Token。0.10.7 以前是 `SignOutAsync(CookieScheme)`。
   - **使用者主動登出**（0.9.29 起）先經二次確認：UI 入口都走
     `MyProject.Web.Client/Commons/LogoutConfirm.cs`，確認後才登出。
@@ -65,7 +65,7 @@
   Google 回呼：帳號已啟用時同樣走第二步（稽核 `Login.Sso.Success`，detail 帶 `provider=Google; mfa=…`）。API 登入以 `twoFactorCode` 欄位帶驗證碼。
 - **登入後狀態**：伺服器端每個 API 請求由 `ApiActorMiddleware`＋`ICurrentUserLoader`（0.10.8 以前 Server 頁的 `AuthenticationStateHelper` 也用同一套規則，0.10.9 起已刪除）確認使用者存在且 `Status` 啟用、具主要角色，載入 `CurrentUser`（`RoleList` 以 `IPermissionChecker.GetEffectivePermissionKeysAsync` 為權威、`TeamList` 由 `EffectiveTeamResolver` 決定）。網頁 Token 遇到沒有主要角色的帳號一律 403 `NO_PRIMARY_ROLE`（0.10.8 起；App 的 API 登入不受影響），前端登出。
   `IPasswordPolicy.RequiresChange`（0.9.101 起：`MustChangePassword` 旗標或密碼已到期；support 與沒有本機密碼的帳號豁免）或必須使用兩步驟驗證卻還沒設定（0.9.104 起）時，業務 API 一律 403 並帶錯誤代碼 `PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`（`ApiSessionGateFilter`）；完成設定與顯示外框需要的端點（`me`、`logout`、`password/change`、`two-factor/setup`、shell、通知、公告的讀取與關閉）標 `[AllowDuringForcedSetup]` 放行。前端 `ClientSession` 讀 `/me` 後整頁導到 `/ChangePassword` 或 `/TwoFactorSetup`；⚠️ 已經在那一頁就不再導（0.10.8 起那兩頁也在 WASM，再導會無限重新載入）。
-  頁面不在 HTTP 層擋（0.10.8 起頁面一律不標 `[Authorize]`）：未登入的整頁請求只拿到空的 WASM 外殼，`ClientMainLayout` 登入檢查通過前不渲染內容，沒有 Token 就帶 `returnUrl` 回登入頁。
+  頁面不在 HTTP 層擋（0.10.8 起頁面一律不標 `[Authorize]`）：未登入的整頁請求只拿到空的 WASM 外殼（0.10.10 起前端是靜態網站，任何網址都回 `index.html`），`ClientMainLayout` 登入檢查通過前不渲染內容，沒有 Token 就帶 `returnUrl` 回登入頁。
 - **API 登入**（`AuthController`）：`login` 以帳密（已啟用兩步驟驗證時加 `twoFactorCode`）換 `TokenResponseDto`（JWT + Refresh，發出管道 `api`，效期看 `JwtSettings`），`refresh` 換新 Token（依那一串的發出管道決定效期），`me` 回目前使用者；一律包 `ApiResult<T>`，失敗回 401。契約 0.10.8 不變。
 - **新分頁取得 Token**（0.10.8 起）：沒勾「記住我」的 Token 在 sessionStorage，新分頁讀不到。新分頁以 BroadcastChannel 向已開的分頁要，對方在跨分頁刷新鎖內呼叫 `POST api/v1/Auth/session/fork`，以自己的刷新 Token 開**一串新的**（沿用 `LoginSessionId`、記住我與整串上限，自己那一串不輪替）交過去；每個分頁各一串，不會互相觸發重用偵測。1 秒沒人回應就回登入頁。fork 後再確認來源沒被撤銷（與登出同時發生時新串作廢）。勾了「記住我」的 Token 在 localStorage 共用，另監聽 `storage` 事件：被清掉（別的分頁登出）→ 回登入頁、換成別人 → 整頁重新載入、同一人刷新 → 沿用。
 - **刷新與重用偵測**：網頁與 App 都經 `IRefreshTokenStore` 輪替；剛換掉的 Token 在 30 秒寬限內又被用視為同時刷新（不撤銷），超過就是重用：撤銷整串，網頁 Token 另撤銷**同一次登入的每一串**（0.10.8 獨立審查：避免偷到的 Token 先 fork 一串自己的躲過偵測）。多個分頁刷新以 Web Locks 排隊，拿到鎖先重讀 storage。
@@ -77,7 +77,7 @@
   3. 符合資格：刪掉該帳號舊 token → 產生 32 bytes 亂數（Base64Url）→ **資料表 `PasswordResetToken` 只存 SHA-256** 與到期時間（`TokenLifetimeMinutes`，預設 30 分；0.9.98 起可在「系統參數」頁修改，`PasswordResetService` 以 `IOptionsMonitor` 即時讀取，只影響之後寄出的連結）→ 重設信交給 `IEmailQueue` 背景寄出（回應時間不因「有寄信」而變長）。
   4. 重設頁開啟：`ValidateTokenAsync` 只讀不寫，決定顯示表單或「連結無效」。
   5. `ResetAsync`：先驗密碼規則（0.9.101 起依 `PasswordPolicySettings`）與兩次一致，再查歷史（不可與最近 N 次相同，含目前的），**不過時不消耗 token**；再於交易內以 `ExecuteDelete` **搶占** token（刪到 1 列才繼續，並發送出兩次只有一次成功）→ `IPasswordPolicy.ApplyAsync`（雜湊、記設定時間、清旗標、解除鎖定、寫歷史）→ 刪除該帳號其餘 token → commit → 稽核 `Password.ResetCompleted` → 背景寄「密碼已變更」通知信。
-  6. 信中連結的網址基準是 `EmailSettings:PublicBaseUrl`；留白時只有非 Production 會退回目前請求的網址（不信任 Host header）。
+  6. 信中連結的網址基準是 `EmailSettings:PublicBaseUrl`；留白時只有非 Production 會退回目前請求的網址（不信任 Host header）。0.10.10 起前端另外部署成獨立站台（`ClientSettings:BaseUrl` 有值）時一律改用 `ClientSettings:BaseUrl`，連結指向前端。
 
 ## 五、權限與安全
 

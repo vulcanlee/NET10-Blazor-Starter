@@ -1,4 +1,5 @@
 ﻿using AntDesign;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Logging;
 using MyProject.Web.Client.Api;
@@ -11,7 +12,8 @@ using MyProject.Web.Localization;
 namespace MyProject.Web.Client;
 
 /// <summary>
-/// WASM 前端的進入點（0.10.0 起；0.10.1 起有第一個頁面「個人資料」）。遷移期間由 MyProject.Web 一併提供，同一個網域，API 走相對路徑。
+/// WASM 前端的進入點（0.10.0 起；0.10.1 起有第一個頁面「個人資料」）。0.10.10 起（WASM 遷移 M11）是獨立的 Blazor WebAssembly 靜態站台：
+/// 入口頁是 <c>wwwroot/index.html</c>，API 主機的網址是 <c>wwwroot/appsettings.json</c> 的 <c>ApiBaseUrl</c>（留空＝同一個網址，見 <see cref="ApiAddress"/>）。
 /// ⚠️ 刻意不用 top-level statements：那會產生一個全域的 <c>Program</c> 類別，和主機的 <c>Program</c>（測試的 <c>WebApplicationFactory&lt;Program&gt;</c>）撞名。
 /// </summary>
 public static class ClientProgram
@@ -20,7 +22,14 @@ public static class ClientProgram
     {
         var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-        builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+        // 根元件（0.10.10 起由 index.html 的 #app 與 <head> 承接；0.10.9 以前由主機頁 App.razor 渲染）。
+        builder.RootComponents.Add<ClientRoutes>("#app");
+        builder.RootComponents.Add<HeadOutlet>("head::after");
+
+        // API 主機的網址：所有呼叫 API 的 HttpClient、整頁導到伺服器端點與瀏覽器直接送出的上傳下載都以它為準。
+        var apiAddress = ApiAddress.Resolve(builder.Configuration[ApiAddress.SettingKey], builder.HostEnvironment.BaseAddress);
+        builder.Services.AddSingleton(apiAddress);
+        builder.Services.AddScoped(_ => apiAddress.CreateHttpClient());
         builder.Services.AddScoped<TokenStore>();
         builder.Services.AddScoped<ClientSession>();
         builder.Services.AddScoped<ApiClient>();
@@ -78,7 +87,7 @@ public static class ClientProgram
         var host = builder.Build();
 
         // 語系一律 zh-TW，日期時間格式用伺服器那一組（ClientCulture）；必須在 RunAsync 之前。
-        using (var http = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) })
+        using (var http = apiAddress.CreateHttpClient())
         {
             await ClientCulture.LoadAsync(http, host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ClientCulture).FullName!));
         }

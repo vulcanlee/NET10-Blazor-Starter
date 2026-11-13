@@ -33,6 +33,9 @@ public partial class Login
     public ApiClient Api { get; set; } = default!;
 
     [Inject]
+    public ApiAddress ApiAddress { get; set; } = default!;
+
+    [Inject]
     public ClientSession Session { get; set; } = default!;
 
     [Inject]
@@ -113,9 +116,8 @@ public partial class Login
         {
             var binding = await LoginStorage.NewGoogleBindingAsync(Store);
             var returnUrl = string.IsNullOrWhiteSpace(ReturnUrl) ? null : ReturnUrlGuard.Sanitize(ReturnUrl);
-            googleLoginUrl = returnUrl is null
-                ? $"/Auths/Google/Login?binding={binding}"
-                : $"/Auths/Google/Login?returnUrl={Uri.EscapeDataString(returnUrl)}&binding={binding}";
+            // 整頁導到 API 主機（0.10.10 起，雙站台時在另一個網址）。
+            googleLoginUrl = ApiAddress.GoogleLogin(returnUrl, binding);
         }
 
         Logger.LogDebug("Login page initialized.");

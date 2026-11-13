@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <!--
+        前端的入口頁（0.10.10 起，WASM 遷移 M11；取代 MyProject.Web 的主機頁 App.razor）。
+        建置與發佈時 SDK 會填入下面兩個佔位（OverrideHtmlAssetPlaceholders）：preload 的連結、import map（指紋檔名與完整性雜湊），
+        並把 blazor.webassembly 檔名裡的指紋佔位換成實際的檔名。
+        ⚠️ import map 是唯一的行內腳本，CSP 帶它的 SHA-256（同站台由 API 主機算、靜態站發佈時寫進 web.config）；不要再加其他行內腳本。
+    -->
+    <link rel="preload" id="webassembly" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="MyProject.Web.Client.styles.css" />
+    <script type="importmap"></script>
+    <link rel="icon" type="image/png" href="favicon.png" />
+
+    <link href="_content/AntDesign/css/ant-design-blazor.css" rel="stylesheet" />
+
+    <!-- ⚠️ theme.css 必須排在 AntDesign 之後：排在前面的話，對 .ant-* 的覆寫會
+         在同分特異性上輸給 AntDesign 而靜默失效。由 ThemeConventionTests 守門。 -->
+    <link rel="stylesheet" href="theme.css" />
+
+    <link href="https://fonts.googleapis.com/css?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Sharp|Material+Icons+Round|Material+Icons+Two+Tone" rel="stylesheet" />
+</head>
+
+<body>
+    <!-- 根元件 ClientRoutes 掛在這裡（Program.cs）；下載完成前維持空白（與 0.10.9 以前相同）。 -->
+    <div id="app"></div>
+
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script src="_content/AntDesign/js/ant-design-blazor.js"></script>
+    <script src="js/file-download.js"></script>
+    <script src="js/clipboard.js"></script>
+    <script src="js/nav-state.js"></script>
+    <script src="js/client-error-reporter.js"></script>
+</body>
+
+</html>

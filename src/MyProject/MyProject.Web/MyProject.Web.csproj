@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>83f6d54f-9f33-4cd9-a626-d4c05c996e5d</UserSecretsId>
   </PropertyGroup>
 
@@ -33,7 +32,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyProject.Business\MyProject.Business.csproj" />
-    <!-- WASM 前端（0.10.0 起）：遷移期間由這個主機一併提供，見 docs/migration/WASM遷移計畫.md。 -->
+    <!--
+      WASM 前端（0.10.0 起）。0.10.10 起前端是獨立的靜態站台；這個參考讓同站台部署（ClientSettings:BaseUrl 留空）時
+      主機的發佈輸出帶著前端的靜態檔（wwwroot），由 UseFrontend 提供。見 docs/migration/WASM遷移計畫.md。
+    -->
     <ProjectReference Include="..\MyProject.Web.Client\MyProject.Web.Client.csproj" />
   </ItemGroup>
 
@@ -59,13 +61,54 @@
     </Content>
   </ItemGroup>
 
+  <!--
+    同站台發佈（0.10.10 起）：前端的 index.html 要用處理過佔位的版本（import map、帶指紋的 blazor.webassembly 檔名）。
+    SDK 從參考的 MyProject.Web.Client 帶進來的是原始檔（import map 空白、檔名還是佔位，瀏覽器載不到 WebAssembly），
+    所以 Web 發佈後另外發佈一次 Client 到中繼資料夾，拿它的 index.html 覆蓋過去。兩邊是同一份建置結果，檔名指紋相同；
+    覆蓋後逐一確認 index.html 引用的 _framework 檔案都在 Web 的發佈輸出裡，對不上就讓發佈失敗。
+  -->
+  <UsingTask TaskName="VerifyFrontendIndexHtml" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <WebRoot ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var html = File.ReadAllText(Path.Combine(WebRoot, "index.html"));
+        // 檢查 src／href 與 import map 對應到的檔案（import map 左邊的未加指紋名稱不是實體檔）。
+        var references = Regex.Matches(html, @"(?:(?:src|href)=""|:\s*""\./)(?<file>_framework/[^""]+)""").Cast<Match>().Select(x => x.Groups["file"].Value).Distinct().ToList();
+        if (references.Count == 0 || html.Contains("{fingerprint}"))
+        {
+          Log.LogError("發佈輸出的 index.html 沒有處理過佔位（import map 或帶指紋的檔名）：" + Path.Combine(WebRoot, "index.html"));
+          return false;
+        }
+
+        foreach (var reference in references.Where(x => !File.Exists(Path.Combine(WebRoot, x))))
+        {
+          Log.LogError("index.html 引用的 " + reference + " 不在發佈輸出裡（前端檔名指紋對不上）。");
+        }
+]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="UseProcessedFrontendIndexHtml" AfterTargets="Publish">
+    <PropertyGroup>
+      <_FrontendPublishDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)frontend-publish\</_FrontendPublishDir>
+    </PropertyGroup>
+    <!-- RemoveProperties：外層的 -r／發行設定檔等不能傳給前端（0.10.10 獨立審查：-r win-x64 會讓前端發佈失敗）。 -->
+    <MSBuild Projects="..\MyProject.Web.Client\MyProject.Web.Client.csproj" Targets="Publish" Properties="Configuration=$(Configuration);PublishDir=$(_FrontendPublishDir)"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishProfile;PublishReadyToRun;PublishSingleFile;PublishTrimmed;_TargetId;StaticSiteApiOrigin" />
+    <Copy SourceFiles="$(_FrontendPublishDir)wwwroot\index.html" DestinationFiles="$(PublishDir)wwwroot\index.html" />
+    <VerifyFrontendIndexHtml WebRoot="$(PublishDir)wwwroot" />
+  </Target>
+
   <!-- 慣例守門測試需要讀取 SidebarMenuService.MenuPermissionMap 等宣告式登錄表。 -->
   <ItemGroup>
     <InternalsVisibleTo Include="MyProject.Tests" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Components\Dialogs\" />
     <Folder Include="Datas\" />
   </ItemGroup>
 

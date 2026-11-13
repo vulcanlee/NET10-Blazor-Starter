@@ -7,7 +7,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
-using MyProject.Web.Components.Commons;
+using MyProject.Web.Auditing;
 using static MyProject.Web.Ai.Agents.AdminAssistant.AdminAssistantToolText;
 
 namespace MyProject.Web.Ai.Agents.AdminAssistant;

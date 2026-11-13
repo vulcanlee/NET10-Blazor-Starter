@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 守住全站色票層（<c>wwwroot/theme.css</c>）的三個前提。
+/// 守住全站色票層（<c>MyProject.Web.Client/wwwroot/theme.css</c>，0.10.10 起；以前在 <c>MyProject.Web/wwwroot</c>）的三個前提。
 ///
 /// 三條規則的失敗症狀都是**完全靜默的**：建置不會紅、<c>dotnet format</c> 看不到 CSS、
 /// <c>TreatWarningsAsErrors</c> 也管不到樣式表。只有實際開頁面才會發現，
@@ -35,7 +35,7 @@ public sealed class ThemeConventionTests
     private static readonly Regex HexColor = new(@"#[0-9a-fA-F]{6}\b", RegexOptions.Compiled);
 
     /// <summary>
-    /// theme.css 的 link 必須排在 AntDesign 的 CSS 之後。
+    /// theme.css 的 link 必須排在 AntDesign 的 CSS 之後（0.10.10 起檢查前端的 <c>index.html</c>；0.10.9 以前是主機頁 <c>App.razor</c>）。
     ///
     /// ⚠️ 這是本專案最容易「整批無聲失效」的一條。theme.css 對 <c>.ant-table</c>、
     /// <c>.ant-pagination</c>、<c>.ant-input</c> 的覆寫若排在 AntDesign 之前，
@@ -43,27 +43,38 @@ public sealed class ThemeConventionTests
     /// **同時**退回 AntDesign 預設，而且沒有任何錯誤訊息。
     ///
     /// 會踩到的情境不是「有人故意改」，而是整理 &lt;head&gt;、把 link 依字母排序，
-    /// 或 AntDesign 升版換了引入方式。
+    /// 或 AntDesign 升版換了引入方式。其餘的順序（bootstrap → app.css → 元件的 Scoped CSS → AntDesign → theme.css → Material Icons）
+    /// 照 0.10.9 以前的主機頁，一起釘住。
     /// </summary>
     [Fact]
     public void ThemeCss_ShouldLoadAfterAntDesignStylesheet()
     {
-        var appRazor = Path.Combine(FindWebRoot(), "Components", "App.razor");
-        var content = File.ReadAllText(appRazor);
+        var indexHtml = Path.Combine(SourceTree.ClientWebRoot, "index.html");
+        var content = File.ReadAllText(indexHtml);
 
         // 掃描路徑若失效，測試會空跑綠燈，等於沒有守門。
-        Assert.False(string.IsNullOrWhiteSpace(content), $"讀不到 {appRazor}。");
+        Assert.False(string.IsNullOrWhiteSpace(content), $"讀不到 {indexHtml}。");
 
-        var antIndex = content.IndexOf("ant-design-blazor.css", StringComparison.Ordinal);
-        var themeIndex = content.IndexOf("theme.css", StringComparison.Ordinal);
+        string[] expectedOrder =
+        [
+            "lib/bootstrap/dist/css/bootstrap.min.css",
+            "\"app.css\"",
+            "MyProject.Web.Client.styles.css",
+            "_content/AntDesign/css/ant-design-blazor.css",
+            "\"theme.css\"",
+            "fonts.googleapis.com/css?family=Material+Icons",
+        ];
 
-        Assert.True(antIndex >= 0, "App.razor 裡找不到 AntDesign 的樣式表引入。");
-        Assert.True(themeIndex >= 0, "App.razor 裡找不到 theme.css 的引入。");
+        var positions = expectedOrder.Select(marker => (Marker: marker, Index: content.IndexOf(marker, StringComparison.Ordinal))).ToList();
+        foreach (var (marker, index) in positions)
+        {
+            Assert.True(index >= 0, $"index.html 裡找不到 {marker} 的引入。");
+        }
 
         Assert.True(
-            themeIndex > antIndex,
-            "theme.css 必須排在 AntDesign 的 CSS 之後，否則對 .ant-* 的覆寫會在同分特異性上"
-                + "輸給後載入的 AntDesign —— 十個清單頁的表格／分頁／輸入框樣式會同時靜默失效，"
+            positions.Zip(positions.Skip(1)).All(pair => pair.First.Index < pair.Second.Index),
+            "index.html 的樣式順序必須是 " + string.Join(" → ", expectedOrder) + "。theme.css 尤其必須排在 AntDesign 的 CSS 之後，"
+                + "否則對 .ant-* 的覆寫會在同分特異性上輸給後載入的 AntDesign —— 十個清單頁的表格／分頁／輸入框樣式會同時靜默失效，"
                 + "建置與格式檢查都看不出來。");
     }
 
@@ -80,8 +91,7 @@ public sealed class ThemeConventionTests
     [Fact]
     public void PaletteHexes_ShouldOnlyLiveInThemeCss()
     {
-        var webRoot = FindWebRoot();
-        var themeCss = Path.Combine(webRoot, "wwwroot", "theme.css");
+        var themeCss = Path.Combine(SourceTree.ClientWebRoot, "theme.css");
 
         Assert.True(File.Exists(themeCss), $"找不到色票檔 {themeCss}。");
 
@@ -89,7 +99,7 @@ public sealed class ThemeConventionTests
         var files = SourceTree.UiFiles("*.css")
             .Concat(SourceTree.UiFiles("*.razor"))
             .Where(path => !Path.GetRelativePath(SourceTree.Client, path).Split(Path.DirectorySeparatorChar).Contains("wwwroot"))
-            .Concat([Path.Combine(webRoot, "wwwroot", "app.css")])
+            .Concat([Path.Combine(SourceTree.ClientWebRoot, "app.css")])
             .Where(File.Exists)
             .ToList();
 
@@ -141,7 +151,7 @@ public sealed class ThemeConventionTests
     [Fact]
     public void PaletteHexes_ShouldStillExistInThemeCss()
     {
-        var themeCss = Path.Combine(FindWebRoot(), "wwwroot", "theme.css");
+        var themeCss = Path.Combine(SourceTree.ClientWebRoot, "theme.css");
         Assert.True(File.Exists(themeCss), $"找不到色票檔 {themeCss}。");
 
         var declared = HexColor
@@ -176,6 +186,4 @@ public sealed class ThemeConventionTests
             @"/\*.*?\*/",
             match => new string('\n', match.Value.Count(c => c == '\n')),
             RegexOptions.Singleline);
-
-    private static string FindWebRoot() => SourceTree.Web;
 }

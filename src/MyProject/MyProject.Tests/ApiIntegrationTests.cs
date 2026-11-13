@@ -858,6 +858,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     /// .NET 範本殘留的 WeatherForecastController 已於 0.4.34 移除。
     /// 它沒有任何授權標註、路由不在 /api 之下（連 ApiExceptionFilter 都不涵蓋），
     /// 卻會被 New-StarterProject.ps1 複製到每一個客戶專案。
+    /// 0.10.10 起同站台模式下不是 API 的網址一律回前端的 index.html（SPA 回退），所以改成確認拿到的是前端入口頁、不是 API 的回應。
     /// </summary>
     [Fact]
     public async Task WeatherForecastEndpoint_ShouldNotExist()
@@ -869,7 +870,8 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
 
         var response = await client.GetAsync("/WeatherForecast");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("<div id=\"app\">", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -954,6 +956,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     /// <summary>
     /// /UploadFiles 曾是把 DownloadPath 直接掛出去的靜態檔案端點（只認登入 Cookie）。0.10.8 起不發 Cookie、也沒有地方連到它，整個移除：
     /// 下載一律走一次性票證（DownloadsController）。
+    /// 0.10.10 起同站台模式下不是實體檔案的網址一律回前端的 index.html（SPA 回退），所以改成確認拿到的是前端入口頁、不是檔案。
     /// </summary>
     [Fact]
     public async Task UploadFilesStaticPath_ShouldNoLongerExist()
@@ -965,7 +968,8 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
 
         var response = await client.GetAsync("/UploadFiles/anything.txt");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("<div id=\"app\">", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>

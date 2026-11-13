@@ -8,6 +8,7 @@ using System.Net;
 using Microsoft.Extensions.Options;
 using MyProject.Web.Auth;
 using MyProject.Web.Diagnostics;
+using MyProject.Web.Hosting;
 
 namespace MyProject.Web.Extensions;
 
@@ -71,21 +72,23 @@ public static class ApplicationBuilderExtensions
         return app;
     }
 
+    /// <summary>以信中連結重設密碼的頁面（網址帶 Token）。</summary>
+    internal const string ResetPasswordPath = "/Auths/ResetPassword";
+
     /// <summary>
     /// 基本安全回應標頭。
     ///
     /// <c>nosniff</c> 尤其重要：專案的附件下載會回吐儲存時記下的 ContentType，
     /// 少了它，瀏覽器可能把附件當成 HTML 解析而造成同源 XSS。
     ///
-    /// CSP 刻意不放在這裡：WebAssembly 執行需要 <c>'wasm-unsafe-eval'</c>（0.10.9 起已沒有 Blazor Server），且
-    /// <c>App.razor</c> 會從 fonts.googleapis.com 載入字型、AntDesign 會注入 inline style。
-    /// 導入時請先以 <c>Content-Security-Policy-Report-Only</c> 觀察，確認無誤再轉為正式標頭。
+    /// CSP（0.10.10 起）：同站台時這個主機也提供前端，前端的回應帶 <see cref="FrontendIndexPage.ContentSecurityPolicy"/>，
+    /// 與獨立靜態站 web.config 的內容一致。Swagger UI 用行內腳本與樣式，不套用；雙站台時主機只提供 API，不加。
     /// </summary>
-    /// <summary>以信中連結重設密碼的頁面（網址帶 Token）。</summary>
-    internal const string ResetPasswordPath = "/Auths/ResetPassword";
-
     public static WebApplication UseSecurityHeaders(this WebApplication app)
     {
+        var servesFrontend = !app.Services.GetRequiredService<IOptions<ClientSettings>>().Value.IsSeparateSite;
+        var indexPage = app.Services.GetRequiredService<FrontendIndexPage>();
+
         app.Use(async (context, next) =>
         {
             var headers = context.Response.Headers;
@@ -93,7 +96,12 @@ public static class ApplicationBuilderExtensions
             headers["X-Frame-Options"] = "DENY";
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
 
-            // 重設密碼頁的網址帶 Token（0.10.8 起這一頁在 WASM，由主機在整頁請求時加）：不讓它經 Referer 外流，也不讓瀏覽器與代理快取。
+            if (servesFrontend && !context.Request.Path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase))
+            {
+                headers.ContentSecurityPolicy = indexPage.ContentSecurityPolicy;
+            }
+
+            // 重設密碼頁的網址帶 Token（前端頁面，同站台時由主機在整頁請求時加；獨立靜態站由 web.config 加）：不讓它經 Referer 外流，也不讓瀏覽器與代理快取。
             if (context.Request.Path.StartsWithSegments(ResetPasswordPath, StringComparison.OrdinalIgnoreCase))
             {
                 headers["Referrer-Policy"] = "no-referrer";
@@ -132,7 +140,7 @@ public static class ApplicationBuilderExtensions
 
     public static WebApplication UseConfiguredCors(this WebApplication app)
     {
-        app.UseCors("ConfiguredCors");
+        app.UseCors(ServiceCollectionExtensions.CorsPolicyName);
         return app;
     }
 
@@ -144,14 +152,13 @@ public static class ApplicationBuilderExtensions
     /// </summary>
     private static readonly string[] LowValueRequestPrefixes =
     [
-        "/_framework", "/_content", "/_blazor", "/css", "/js", "/lib",
+        "/_framework", "/_content", "/css", "/js", "/lib", "/images",
         "/health", "/favicon", "/UploadFiles", "/swagger",
     ];
 
     /// <summary>
     /// 慢 HTTP 請求（LOG-21）。
     /// ⚠️ 排除通知推播串流（0.10.7 起）：每個分頁一條、最長 30 分鐘才由伺服器結束，不排除的話每個分頁離開時都會記一筆慢請求。
-    /// （0.10.8 以前另排除 Blazor Server 的 <c>/_blazor</c> 長連線，0.10.9 起已沒有。）
     /// </summary>
     private static void LogIfSlowRequest(HttpContext context, ILogger requestLogger, TimeSpan elapsed)
     {
@@ -213,7 +220,7 @@ public static class ApplicationBuilderExtensions
         return false;
     }
 
-    /// <summary>HttpContext.Items 的鍵：記住這個請求的追蹤碼，讓重新執行（/Error、/not-found）沿用同一個碼。</summary>
+    /// <summary>HttpContext.Items 的鍵：記住這個請求的追蹤碼，讓同一個請求再次經過這裡時（例外處理重跑管線）沿用同一個碼。</summary>
     private const string TraceCodeItemKey = "MyProject.TraceCode";
 
     public static WebApplication UseHttpRequestLogging<TProgram>(this WebApplication app)
@@ -224,7 +231,7 @@ public static class ApplicationBuilderExtensions
             var stopwatch = Stopwatch.StartNew();
 
             // 錯誤追蹤碼（LOG-10）：取代 TraceIdentifier，API 回應的 TraceId、/Error 頁、日誌檔都是同一個碼。
-            // ⚠️ UseExceptionHandler 與 UseStatusCodePagesWithReExecute 會拿同一個 HttpContext 重跑管線，
+            // ⚠️ UseExceptionHandler 可能拿同一個 HttpContext 重跑管線（0.10.9 以前另有 UseStatusCodePagesWithReExecute），
             // 再次經過這裡時必須沿用原本的碼，否則錯誤頁顯示的碼在日誌裡找不到。
             if (context.Items[TraceCodeItemKey] is not string traceCode)
             {

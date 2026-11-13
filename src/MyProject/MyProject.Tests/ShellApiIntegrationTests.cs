@@ -11,7 +11,7 @@ using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
 using MyProject.Share.Helpers;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
 using MyProject.Web.Controllers;
 
 namespace MyProject.Tests;

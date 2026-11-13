@@ -1,10 +1,10 @@
 ﻿# 系統備份與還原 PRD
 
-- 文件版本：1.7
+- 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.99
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -30,7 +30,7 @@
 - 表格（新到舊）：檔名、建立時間、大小、系統版本、觸發（排程／補跑／手動）、內容（各資料夾檔案數、打包時已消失的檔案數）；每列「下載」「刪除」（危險確認）。
 
 **WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/BackupPage.razor`、`Views/Admins/BackupView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `BackupsController`（`api/v1/backups`：`GET` 清單與作業狀態、`POST run`〔放進排程佇列；執行中 409〕、`DELETE {檔名}`、`POST {檔名}/ticket`）。
-**下載改用一次性票證**（與專案附件相同）：`POST {檔名}/ticket` 回 60 秒內有效、只能用一次的網址，畫面以暫時的 `<a download>` 讓瀏覽器原生下載 `GET api/v1/downloads/{票證}`（不經 WASM 記憶體）。兌換時重新檢查帳號、工作階段版本、強制改密碼／兩步驟驗證、**仍是管理員**，檔名經 `BackupStore.TryResolveFullPath`；任何一關不過都回同一個 404。⚠️ **不能續傳**：下載中斷要回頁面重新點（Server 版的 Cookie 下載可以續傳；遷移計畫已拍板一次性票證）。舊的 `BackupController`（`GET api/backups/{檔名}/download`，只收 Cookie）已刪除。
+**下載改用一次性票證**（與專案附件相同）：`POST {檔名}/ticket` 回 60 秒內有效、只能用一次的網址，畫面以暫時的 `<a download>` 讓瀏覽器原生下載 `GET api/v1/downloads/{票證}`（不經 WASM 記憶體）；0.10.10 起雙站台（前端與 API 不同來源）時瀏覽器會忽略 `download` 屬性，改由 `browser-files.js` 以 `fetch` 取回、在瀏覽器記憶體組成 blob 網址存檔（不經 WASM 記憶體；檔案先整個下載完才存檔），失敗時畫面顯示伺服器的訊息、留在原頁——⚠️ 大型備份會佔用同樣大小的瀏覽器記憶體、看不到瀏覽器的下載進度。兌換時重新檢查帳號、工作階段版本、強制改密碼／兩步驟驗證、**仍是管理員**，檔名經 `BackupStore.TryResolveFullPath`；任何一關不過都回同一個 404。⚠️ **不能續傳**：下載中斷要回頁面重新點（Server 版的 Cookie 下載可以續傳；遷移計畫已拍板一次性票證）。舊的 `BackupController`（`GET api/backups/{檔名}/download`，只收 Cookie）已刪除。
 
 ## 四、內部系統運作
 

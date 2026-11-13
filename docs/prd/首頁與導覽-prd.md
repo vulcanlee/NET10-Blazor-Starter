@@ -1,10 +1,10 @@
 ﻿# 首頁與導覽 PRD
 
-- 文件版本：1.31
+- 文件版本：1.32
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -128,7 +128,7 @@
 ## 六、錯誤與邊界
 
 - 找不到／無法解析 `Menu.json`：記錄警告或錯誤並回傳空清單，選單顯示「尚無可用選單」，不致中斷頁面。
-- 未登入者進入 `/App` 等受保護頁：0.10.8 起（WASM 遷移 M9）頁面不在 HTTP 層擋（頁面一律不標 `[Authorize]`），整頁請求只拿到空的 WASM 外殼，`ClientMainLayout` 在登入檢查（Token 與 `/me`）通過前不渲染內容，沒有 Token 就帶 `returnUrl`（經 `ReturnUrlGuard`）回 `/Auths/Login`。帳號停用、工作階段失效者刷新被拒而回登入頁，沒有主要角色者（`NO_PRIMARY_ROLE`）登出，需改密碼或設定兩步驟驗證者整頁導向 `/ChangePassword`／`/TwoFactorSetup`。0.9.41～0.10.7 是 HTTP 層 `[Authorize]` 以 Cookie 導去登入頁。
+- 未登入者進入 `/App` 等受保護頁：0.10.8 起（WASM 遷移 M9）頁面不在 HTTP 層擋（頁面一律不標 `[Authorize]`），整頁請求只拿到空的 WASM 外殼（0.10.10 起是靜態的 `index.html`），`ClientMainLayout` 在登入檢查（Token 與 `/me`）通過前不渲染內容，沒有 Token 就帶 `returnUrl`（經 `ReturnUrlGuard`）回 `/Auths/Login`。帳號停用、工作階段失效者刷新被拒而回登入頁，沒有主要角色者（`NO_PRIMARY_ROLE`）登出，需改密碼或設定兩步驟驗證者整頁導向 `/ChangePassword`／`/TwoFactorSetup`。0.9.41～0.10.7 是 HTTP 層 `[Authorize]` 以 Cookie 導去登入頁。
 - 使用者無任一項目權限：選單為空，僅顯示提示文字。
 
 ## 七、驗收與測試
@@ -153,12 +153,12 @@
 - `src/MyProject/MyProject.Web.Client/Pages/ProjectPage.razor`（`/projects` 專案清單）
 - `src/MyProject/MyProject.Web.Client/Views/Commons/SplashView.razor`
 - `src/MyProject/MyProject.Web/Datas/Menu.json`
-- `src/MyProject/MyProject.Web/Components/Layout/SidebarMenuService.cs`（`MenuPermissionMap`、`LoadAuthorizedMenuItemsAsync` 載入與過濾）
+- `src/MyProject/MyProject.Web/Shell/SidebarMenuService.cs`（`MenuPermissionMap`、`LoadAuthorizedMenuItemsAsync` 載入與過濾；0.10.9 以前在 `Components/Layout/`）
 - `src/MyProject/MyProject.Web.Client/Layout/ClientNavMenu.razor`、`ClientSidebarMenuNode.razor`、`ClientMenuItem.cs`（0.10.9 起；Server 版 `NavMenu`／`SidebarMenuNode` 已刪除）
 - `src/MyProject/MyProject.Web.Client/Layout/ClientMainLayout.razor`（使用者選單與「關於」對話窗）
 - `src/MyProject/MyProject.Web.Client/Layout/ClientMainLayout.razor.cs`（`OnAboutClick`、`ResolvePageTitle`）
-- `src/MyProject/MyProject.Web.Client/Commons/ClientPageHelpDialog.razor`／`.razor.cs`／`.razor.css`（操作說明對話窗）；`src/MyProject/MyProject.Web/Components/Commons/PageHelpMarkdownParser.cs`、`HelpMarkdownRenderer.cs`（伺服器端解析與轉 HTML）
-- `src/MyProject/MyProject.Web/Components/Layout/PageHelpService.cs`、`src/MyProject/MyProject.Web/Datas/HelpTopics.json`、`Datas/Help/*.md`
+- `src/MyProject/MyProject.Web.Client/Commons/ClientPageHelpDialog.razor`／`.razor.cs`／`.razor.css`（操作說明對話窗）；`src/MyProject/MyProject.Web/Shell/PageHelpMarkdownParser.cs`、`HelpMarkdownRenderer.cs`（0.10.9 以前在 `Components/Commons/`）（伺服器端解析與轉 HTML）
+- `src/MyProject/MyProject.Web/Shell/PageHelpService.cs`（0.10.9 以前在 `Components/Layout/`）、`src/MyProject/MyProject.Web/Datas/HelpTopics.json`、`Datas/Help/*.md`
 - `src/MyProject/MyProject.Web/Health/SystemStartupState.cs`（啟動時間來源）
 - `src/MyProject/MyProject.Models/Others/PermissionRules.cs`（`CanAccessPage`；0.10.9 前在 `AuthenticationStateHelper`）
 - `src/MyProject/MyProject.Share/Helpers/MagicObjectHelper.cs`（角色權限鍵常數）
