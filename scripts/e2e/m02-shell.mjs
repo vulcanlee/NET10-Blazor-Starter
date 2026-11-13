@@ -131,14 +131,15 @@ try {
   await openProfile(page, () => page.goto('/Profile'));
   await ctx.setOffline(true);
   await page.getByRole('button', { name: /儲\s*存/ }).click();
-  const offlineToast = page.locator('.ant-notification-notice', { hasText: '目前無法連線到伺服器' });
+  // 0.10.11 起瀏覽器確定離線時訊息是「目前離線，請恢復連線後再試。」（只是伺服器連不上時才是「目前無法連線到伺服器…」）。
+  const offlineToast = page.locator('.ant-notification-notice', { hasText: '目前離線，請恢復連線後再試' });
   await offlineToast.waitFor({ timeout: 15000 });
   await screenshot(page, 'W8-offline');
   await ctx.setOffline(false);
   await page.locator('.ant-notification-notice-close').first().click().catch(() => {});
   await page.getByRole('button', { name: /儲\s*存/ }).click();
   await page.locator('.ant-notification-notice', { hasText: '已更新姓名' }).waitFor({ timeout: 15000 });
-  recorder.add('W8', '斷線時操作出現提示、不卡死；恢復後可存檔', true, '離線時出現「目前無法連線到伺服器，請稍後再試。」；恢復連線後存檔成功');
+  recorder.add('W8', '斷線時操作出現提示、不卡死；恢復後可存檔', true, '離線時出現「目前離線，請恢復連線後再試。」；恢復連線後存檔成功');
 
   // W9：從 WASM 頁面登出：確認窗、撤銷刷新 Token、清掉瀏覽器存的 Token、回到登入頁。
   const tokenBefore = await page.evaluate(() => localStorage.getItem('myproject.auth') ?? sessionStorage.getItem('myproject.auth'));

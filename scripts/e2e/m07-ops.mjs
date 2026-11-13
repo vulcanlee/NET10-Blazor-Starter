@@ -3,7 +3,7 @@
 // 非管理員直打 M7 的 API 得 403、舊的 Cookie 備份下載網址已退役，最後跑全部路由的煙霧測試。
 // 結果寫到 E2E_OUT_DIR/m07-results.json 與 smoke-results.json。
 import { readFileSync } from 'node:fs';
-import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
 import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { seedOpsData, seedTag, userAccount, userPassword } from './m07-views.mjs';
@@ -72,7 +72,7 @@ try {
     }
 
     check(after === before + 1, '作業沒有執行');
-    await page.waitForFunction(([text]) => {
+    await waitForPredicate(page, ([text]) => {
       const rows = [...document.querySelectorAll('.scheduled-job-table .ant-table-row')];
       return rows.some((r) => r.innerText !== text && r.innerText.includes(text.split('\n')[0]));
     }, [rowBefore], { timeout: 20000 });
@@ -88,7 +88,7 @@ try {
     check(await isWasmPage(page), '備份頁不是 WASM');
     await clickToolbar(page, '立即備份');
     await confirm(page, '立即備份');
-    await page.waitForFunction(() => document.querySelectorAll('.backup-table .ant-table-row').length >= 3, null, { timeout: 120000 });
+    await waitForPredicate(page, () => document.querySelectorAll('.backup-table .ant-table-row').length >= 3, null, { timeout: 120000 });
     const newest = page.locator('.backup-table .ant-table-row').first();
     const name = (await newest.innerText()).match(/backup-\d{8}-\d{6}(-\d+)?\.zip/)[0];
     const file = await download(page, () => newest.locator('button', { hasText: '下載' }).click());

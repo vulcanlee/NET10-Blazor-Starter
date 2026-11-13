@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
 
-<Tooltip Title="@Title">
+<Tooltip Title="@Title" @bind-Visible="tooltipVisible">
     @if (!string.IsNullOrWhiteSpace(Href))
     {
         <a class="@CssClass"
@@ -52,6 +52,15 @@
         ? "crud-action-button crud-action-button-danger"
         : "crud-action-button";
 
+    /// <summary>
+    /// 提示框是否顯示：按下時收起（0.10.11 最終巡檢發現）—— 按鈕在處理期間重新渲染時，滑鼠離開的事件可能不會觸發，
+    /// 提示框就一直停著（例如 AI 對話窗的「產生 PDF 報告並下載」蓋住右上角的關閉鈕）。
+    /// </summary>
+    private bool tooltipVisible;
+
     private Task HandleClickAsync(MouseEventArgs args)
-        => OnClick.InvokeAsync();
+    {
+        tooltipVisible = false;
+        return OnClick.InvokeAsync();
+    }
 }

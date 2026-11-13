@@ -51,6 +51,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m11-split.mjs         # M11 雙站台情境 S1～S7＋全部路由煙霧測試（前端與 API 分開啟動，見下方）
    node ./scripts/e2e/m11-split.mjs hosted  # M11 同站台版（API 主機直接提供前端）
    node ./scripts/e2e/m12-pwa.mjs           # M12 PWA 與離線 W1～W7＋全部路由煙霧測試（發佈版前端、雙站台，見下方）
+   node ./scripts/e2e/walkthrough.mjs       # 最終巡檢：看得到的 Chrome 開遍畫面與主要對話窗並截圖（先設 $env:E2E_HEADED = '1'，見下方）
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    ```
 
@@ -94,6 +95,14 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 **M12 的 PWA 與離線情境（0.10.11 起）**：`m12-pwa.mjs` 必須以**發佈版前端**執行（開發用的 `service-worker.js` 不快取、不會出現新版本提示），照 M11 的雙站台方式準備：前端以 `-p:StaticSiteApiOrigin=<API 主機來源>` 發佈，由 `static-site.mjs` 提供（Service Worker 只在 HTTPS 或 localhost 生效，`http://localhost:<埠>` 可以），API 主機以 `Start-E2EHost.ps1` 啟動並設 `ClientSettings__BaseUrl`；執行時 `E2E_BASE_URL` 設前端網址、`E2E_API_URL` 設 API 主機網址、**`E2E_STATIC_ROOT` 設前端發佈根目錄**（`web.config` 所在；W5 會改裡面的 `service-worker-assets.js` 版本模擬部署新版，跑完要重新發佈）。情境：W1 Service Worker 安裝並接管、快取只有 `offline-cache-<範圍>:<版本>` 且沒有任何 `/api` 回應、W2 可安裝（Chrome 的安裝條件檢查沒有錯誤）與 manifest、W3 離線提示列與「目前離線」訊息與離線重新整理外框仍開得起來且不被登出、側邊選單換頁不卡死、W4 恢復連線（提示列消失、自動重新載入、推播重新連線）、W5 部署新版（「有新版本」提示列、「稍後」收起、按下後重新載入一次並換成新版快取）、W6 英文瀏覽器（en-US）的日期仍是 zh-TW 格式、W7 瀏覽器有網路但伺服器暫時連不上（攔下送往 API 主機的請求）：顯示連不上的訊息不登出、恢復後 15 秒內自動重新載入；＋36 路由煙霧測試（Service Worker 接管下）。結果寫到 `m12-results.json` 與 `smoke-results.json`。
 
+**最終巡檢（0.10.12 起）**：`walkthrough.mjs` 以看得到的 Chrome（`E2E_HEADED=1`）把每個畫面實際開一次並截圖，供人逐張目視檢查：V01～V30 登入後 30 個路由（每頁等外框與內容出現）、D01～D10 主要對話窗與浮層（分類、團隊、專案、使用者、角色、公告的新增窗、操作說明窗、使用者選單、通知鈴鐺、關於）、T01 按過 AI 對話窗的「產生 PDF 報告並下載」後以分段移動的滑鼠點右上角關閉鈕要關得掉（**會呼叫一次真實模型**，需要 AI 設定）、A01～A05 登入相關頁面（未登入）、A99 登出。記錄頁面錯誤、主控台錯誤、CSP 違規（AntDesign 頁籤的 `ondragover` 為已知、另計）與錯誤列；截圖 `screenshots/walk-*.png`，結果寫到 `walkthrough-results.json`。同站台對 `Start-E2EHost.ps1` 啟動的主機執行；雙站台照 M11／M12 的方式以發佈版前端（`static-site.mjs`）＋API 主機執行。
+
+**實機腳本的慣例（0.10.12 起）**：
+- ⚠️ **不要用 `page.waitForFunction`**：第一次判斷不成立、開始輪詢時要在頁面裡 eval，被前端的 CSP（M11 起沒有 `'unsafe-eval'`）擋下而偶發失敗。一律用 `common.mjs` 的 `waitForPredicate(page, predicate, arg, { timeout, polling })`（在 Node 端以 `page.evaluate` 輪詢，用法同 `waitForFunction`）。
+- ⚠️ **`m03-crud.mjs` 與 `m04-projects.mjs` 要分開以各自的主機執行**（每支各用一個新啟動的 `Start-E2EHost.ps1`）：同一個資料庫依序跑時，M3 會刪掉 M4 要用的測試團隊。
+- `crud-ui.mjs` 的 `confirm` 等「按下的那一個」確認窗關掉（接著跳出的下一個確認窗會變成新的 `.last()`，不可再等 `.last()`）。
+- `m06-ai.mjs` 失敗時截下當下畫面（`<情境>-失敗當下.png`），並在結果記下擋住點擊的元素，方便判斷是程式還是腳本的問題。
+
 `Start-E2EHost.ps1` 0.10.8 起**信件一律存成 .eml 檔**到隔離資料夾的 `Mails`（`EmailSettings__Provider=Pickup`、`PickupDirectory`、`PublicBaseUrl=https://localhost:7144`）：開發機的 User Secrets 可能設了真的 SMTP，情境腳本不可以真的寄信出去。
 
 `Start-E2EHost.ps1` 0.10.5 起把 API 限流放寬到每分鐘 1000 次（`RateLimit__ApiRequestsPerMinute`）：腳本換頁比人快得多，正式的每人每分鐘 120 次會被打滿。
@@ -104,10 +113,10 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 | 檔案 | 內容 |
 |---|---|
-| `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs`；0.10.8 起 Token 從瀏覽器的 storage 讀（`pageTokens`、`pageAccessToken`，快到期先刷新），另有 `apiJsonAsPageUser`（回狀態碼與 JSON）。0.10.10 起有 `apiUrl`（`E2E_API_URL`），`/api/` 開頭的路徑打到 API 主機。⚠️ 不要用 `waitForLoadState('networkidle')`：WASM 頁面一直開著通知推播連線，網路永遠不閒置 |
+| `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs`；0.10.8 起 Token 從瀏覽器的 storage 讀（`pageTokens`、`pageAccessToken`，快到期先刷新），另有 `apiJsonAsPageUser`（回狀態碼與 JSON）。0.10.10 起有 `apiUrl`（`E2E_API_URL`），`/api/` 開頭的路徑打到 API 主機。⚠️ 不要用 `waitForLoadState('networkidle')`：WASM 頁面一直開著通知推播連線，網路永遠不閒置。0.10.12 起有 `waitForPredicate`，取代 `page.waitForFunction`（後者輪詢時要在頁面裡 eval，被前端的 CSP 擋下）——⚠️ 不要用 `page.waitForFunction` |
 | `smoke-routes.mjs` | 全部 36 個路由的煙霧測試（0.10.8 起移除 `/Auths/RefreshSession`；登入相關頁面在 WASM，等元素出現才截圖）：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖；0.10.5 起登入後的頁面被丟回登入頁、或停在「請求過於頻繁」的限流提示，也算失敗 |
 | `m01-tokens.mjs` | M1 情境（0.10.8 起改為純 Token 登入）：記住我的 Token 存放（localStorage／sessionStorage、`web` 管道紀錄、不發登入 Cookie）、刷新輪替與重用偵測、登出撤銷整次登入、強制改密碼擋 API、改密碼後這台維持登入而舊 Token 失效、登入 Token 清理排程 |
-| `crud-ui.mjs` | 資料維護頁的共用操作：開清單、新增、修改、刪除、還原、永久刪除、確認窗、右下角通知（0.10.2 起） |
+| `crud-ui.mjs` | 資料維護頁的共用操作：開清單、新增、修改、刪除、還原、永久刪除、確認窗、右下角通知（0.10.2 起）；`confirm` 等按下的那一個確認窗關掉（0.10.11 起） |
 | `crud-generated.mjs` | CRUD 產生器產生的頁面實跑（`E2E_CRUD_ROUTES` 指定路由）；由 `scripts/Test-CrudGenerator.ps1` 在暫存 worktree 呼叫 |
 | `m03-views.mjs` | M3 外觀比對：佈置固定的分類、團隊、唯讀角色，拍分類頁與團隊頁的 8 個畫面（清單、修改窗、已刪除、部門樹、搜尋、唯讀） |
 | `m03-crud.mjs` | M3 情境：分類完整流程、重名、兩個分頁同時修改、匯出、異動歷程、團隊批次刪除、改名同步、資料保留頁「前往」、Server／WASM 切換、團隊範圍、唯讀角色、沒有權限開頁的稽核 |
@@ -127,5 +136,6 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 | `m10-no-server.mjs` | M10 情境（0.10.9 起）：N1 36 個路由全程沒有 WebSocket／`_blazor` 請求、N2 整頁請求只回 WASM 外殼（0.10.10 起認得前端的 `index.html`）、N3 `/_blazor/negotiate` 不存在、N4 都以 WebAssembly 執行；最後跑全部路由的煙霧測試 |
 | `m11-split.mjs` | M11 情境（0.10.10 起）：S1～S7（雙站台與同站台、CORS、靜態站標頭與快取、API 主機不提供前端、Google 導向、冷啟動下載量、CSP 違規）＋全部路由的煙霧測試；參數 `hosted`、`google`，見上方說明 |
 | `static-site.mjs` | 雙站台實機用的靜態站模擬（0.10.10 起）：照前端 web.config 的規則提供發佈輸出（`wwwroot` 實體檔、`.br`、`_framework` 404、SPA 回退、快取、重設密碼頁標頭），安全標頭與 CSP 取自 web.config；0.10.11 起認得 `.webmanifest`；不能取代上線前在真的 IIS 驗證一次 |
+| `walkthrough.mjs` | 最終巡檢（0.10.12 起）：V01～V30 登入後路由、D01～D10 主要對話窗與浮層、T01 提示框不擋關閉鈕（真實模型一次）、A01～A05 登入相關頁面、A99 登出；截圖 `walk-*.png`，記錄頁面錯誤、主控台錯誤與 CSP 違規；以 `E2E_HEADED=1` 執行，見上方說明 |
 | `m12-pwa.mjs` | M12 情境（0.10.11 起）：W1～W7（Service Worker 接管與快取內容、可安裝、離線提示與訊息與離線重新整理、恢復連線、部署新版提示、英文瀏覽器日期、伺服器暫時連不上自動恢復）＋全部路由的煙霧測試；須以發佈版前端、雙站台執行，`E2E_STATIC_ROOT` 必填，見上方說明 |
 | `m02-shell.mjs` | M2 情境：WASM 版個人資料頁與外框（選單、通知、公告、操作說明）、Server／WASM 頁面互相切換、斷線不卡死、從 WASM 頁登出、換人登入、強制改密碼導向、跨模式換頁的開頁稽核只記一筆（`Start-E2EHost.ps1` 會開啟瀏覽類稽核） |

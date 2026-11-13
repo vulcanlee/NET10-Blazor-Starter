@@ -1,7 +1,7 @@
 // M5 外觀比對用的固定畫面（0.10.4 起，WASM 遷移 M5）：在隔離資料庫佈置固定的使用者、角色、稽核紀錄與寄信紀錄，
 // 拍下使用者、角色、稽核紀錄、寄信紀錄頁的各個狀態。改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。
 // 沿用 m03-views 的團隊與唯讀角色。資料只佈置一次，同一個資料庫可以重跑。
-import { createUser, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { createUser, execute, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
 import { seedFixedData as seedM03 } from './m03-views.mjs';
 
 const fixedTime = '2026-11-01 09:00:00';
@@ -130,7 +130,7 @@ export async function captureViews(browser, prefix) {
   await waitForRows(page, 'audit-log-table');
   await page.fill('.audit-log-search-input', seedTag);
   await toolbar(page, '查詢');
-  await page.waitForFunction(() => document.querySelectorAll('.audit-log-table .ant-table-row').length === 3, null, { timeout: 15000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.audit-log-table .ant-table-row').length === 3, null, { timeout: 15000 });
   await settle(page);
   files.push(await screenshot(page, `${prefix}-06-稽核紀錄`));
 
@@ -144,7 +144,7 @@ export async function captureViews(browser, prefix) {
   await page.waitForSelector('.email-log-table', { timeout: 60000 });
   await page.fill('.email-log-search-input', seedTag);
   await toolbar(page, '查詢');
-  await page.waitForFunction(() => document.querySelectorAll('.email-log-table .ant-table-row').length === 4, null, { timeout: 15000 });
+  await waitForPredicate(page, () => document.querySelectorAll('.email-log-table .ant-table-row').length === 4, null, { timeout: 15000 });
   await settle(page);
   files.push(await screenshot(page, `${prefix}-08-寄信紀錄`));
 

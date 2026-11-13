@@ -2,7 +2,7 @@
 // 寫入工具核准與拒絕、核准中重新整理可恢復、兩分頁同時送出被排隊、工作流程人工介入（中途重新整理接回）、系統管理助理不可復原動作要輸入「確認」、
 // 巡檢報告連結、推播 2 秒內到達，最後跑全部路由的煙霧測試。參數 nopush：只跑「關閉推播仍可輪詢」（主機要以 NotificationSettings__PushEnabled=false 啟動）。
 // 結果寫到 E2E_OUT_DIR/m08-results.json（nopush 模式為 m08-nopush-results.json）與 smoke-results.json。
-import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
 import { clickToolbar, closeToasts, watchErrors } from './crud-ui.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -57,7 +57,7 @@ async function send(page, root, text) {
 /** 等到不在產生中（沒有「停止產生」）。 */
 async function waitIdle(page, timeout = 600000) {
   await page.waitForTimeout(1000);
-  await page.waitForFunction(() => ![...document.querySelectorAll('button')].some((b) => b.offsetParent !== null && b.textContent.includes('停止產生')),
+  await waitForPredicate(page, () => ![...document.querySelectorAll('button')].some((b) => b.offsetParent !== null && b.textContent.includes('停止產生')),
     null, { timeout });
 }
 
