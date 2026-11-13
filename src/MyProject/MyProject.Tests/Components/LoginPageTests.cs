@@ -41,6 +41,31 @@ public sealed class LoginPageTests : ComponentTestBase
         Services.AddSingleton(sp => new ClientSession(Http(), sp.GetRequiredService<TokenStore>(), sp.GetRequiredService<NavigationManager>(), NullLogger<ClientSession>.Instance));
         Services.AddSingleton(sp => new ApiClient(Http(), sp.GetRequiredService<ClientSession>(), sp.GetRequiredService<NavigationManager>(), NullLogger<ApiClient>.Instance));
         Services.AddSingleton<LoginPageSettingsSource>();
+        // API 主機的網址（0.10.10 起）：這裡模擬雙站台，前端在 localhost、API 在 api.example.com。
+        Services.AddSingleton(ApiAddress.Resolve("https://api.example.com/", "https://localhost/"));
+    }
+
+    /// <summary>
+    /// Google 登入是整頁導到 API 主機（0.10.10 起，雙站台時 API 在另一個網址）：連結一定要帶上 <c>ApiBaseUrl</c>，
+    /// 否則會導到前端靜態站，只拿到 index.html。
+    /// </summary>
+    [Fact]
+    public void GoogleLoginLink_ShouldPointAtTheApiHost()
+    {
+        handler.Respond("api/v1/Auth/login-settings", HttpStatusCode.OK, ApiResult<LoginPageSettingsDto>.SuccessResult(new LoginPageSettingsDto
+        {
+            SystemName = "測試系統",
+            GoogleEnabled = true,
+            MaxFailedAttempts = 5,
+            LockoutMinutes = 15,
+        }));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/Auths/Login?returnUrl=%2Fprojects");
+
+        var page = Render<Login>();
+
+        page.WaitForAssertion(() => Assert.StartsWith(
+            "https://api.example.com/Auths/Google/Login?returnUrl=%2Fprojects&binding=",
+            page.Find("a.google-login-button").GetAttribute("href")));
     }
 
     [Fact]

@@ -5,7 +5,7 @@
 import { createHmac } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { baseUrl, createRecorder, createUser, databaseFile, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { apiUrl, baseUrl, createRecorder, createUser, databaseFile, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
 import { watchErrors } from './crud-ui.mjs';
 import { mustChangeAccount, seedAuthUsers, setupAccount, userPassword } from './m09-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -14,6 +14,7 @@ const recorder = createRecorder('m09-results.json');
 const smoke = createRecorder('smoke-results.json');
 const lockAccount = 'e2e-m9-lock';
 const resetAccount = 'e2e-m9-reset';
+const frontendRoot = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 const resetEmail = 'e2e-m9-reset@e2e.test';
 
 async function step(id, title, action) {
@@ -222,7 +223,7 @@ try {
     const call = (path) => page.evaluate(async ([p, t]) => {
       const r = await fetch(p, { method: p.endsWith('search') ? 'POST' : 'GET', headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }, body: p.endsWith('search') ? '{}' : undefined });
       return { status: r.status, body: await r.text() };
-    }, [path, access]);
+    }, [new URL(path, apiUrl).href, access]);
     const blocked = await call('/api/v1/Project/options');
     const me = await call('/api/v1/Auth/me');
     await page.waitForTimeout(3000);
@@ -250,16 +251,19 @@ try {
       try {
         for (const file of readdirSync(mails)) {
           const text = readFileSync(join(mails, file), 'utf8').replace(/=\r?\n/g, '').replace(/=3D/g, '=');
-          const match = text.match(/https:\/\/localhost:7144\/Auths\/ResetPassword\?token=[A-Za-z0-9_-]+/);
-          if (match && text.includes(resetEmail)) {
-            link = match[0];
+          // 信中連結必須指向前端（0.10.10 起雙站台時是 ClientSettings:BaseUrl，同站台時是 EmailSettings:PublicBaseUrl，兩者都等於 baseUrl）。
+          const prefix = `${frontendRoot}Auths/ResetPassword?token=`;
+          const at = text.indexOf(prefix);
+          const token = at < 0 ? '' : /^[A-Za-z0-9_-]+/.exec(text.slice(at + prefix.length))?.[0] ?? '';
+          if (token && text.includes(resetEmail)) {
+            link = prefix + token;
           }
         }
       } catch { /* 資料夾還沒建立 */ }
     }
 
     check(link, '找不到重設密碼信件');
-    await page.goto(link.replace('https://localhost:7144', baseUrl));
+    await page.goto(link);
     await page.waitForSelector('#newPassword', { timeout: 60000 });
     const newPassword = 'Reset!E2e2026y';
     await page.fill('#newPassword', newPassword);
@@ -279,9 +283,9 @@ try {
     const page = await context.newPage();
     await login(page, { rememberMe: true });
     const old = field(await storedTokens(page), 'refreshToken');
-    const refresh = (token) => page.evaluate(async (t) => (await fetch('/api/v1/Auth/refresh', {
+    const refresh = (token) => page.evaluate(async ([t, url]) => (await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: t }),
-    })).status, token);
+    })).status, [token, new URL('/api/v1/Auth/refresh', apiUrl).href]);
     const first = await refresh(old);
     check(first === 200, `第一次刷新：${first}`);
     await page.waitForTimeout(32000);

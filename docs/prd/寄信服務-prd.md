@@ -1,10 +1,10 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.4
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.59
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -73,7 +73,7 @@
 - 設定鍵見 [日誌與設定檔說明 §4.3.2.2](../operations/日誌與設定檔說明.md)。
 - 所有環境（`ValidateOnStart`）：Provider／Security 必須可解析、`Port` 1–65535、`TimeoutSeconds` 1–300；
   `Smtp` 時 `Host` 不可空、`FromAddress` 必須是有效 Email。
-- Production（`StartupSafetyValidator`）：`Pickup` 拒絕啟動；`Smtp` 另需 `Host`、`FromAddress` 與完整的 http(s) `PublicBaseUrl`（`http://` 亦可）。
+- Production（`StartupSafetyValidator`）：`Pickup` 拒絕啟動；`Smtp` 另需 `Host`、`FromAddress` 與完整的 http(s) `PublicBaseUrl`（`http://` 亦可；0.10.10 起有填 `ClientSettings:BaseUrl` 的雙站台不檢查 `PublicBaseUrl`）。
   - ⚠️ `ASPNETCORE_ENVIRONMENT` 未設定時預設即為 Production（例如 IIS 不讀 `launchSettings.json`），所以開發機正常、IIS 主機卻啟動即中止是常見情況。
   - 0.9.86 起錯誤訊息開頭會說明上述環境預設；`PublicBaseUrl` 的錯誤帶出**目前讀到的值**（空白顯示「（空白）」，否則以「」括起原值）、
     範例 `https://erp.example.com`（只有 http 的環境可填 `http://erp.example.com`），並提示暫不寄信可把 `Provider` 改回 `None`。
@@ -99,7 +99,7 @@
 - 日誌只記 `Kind`（信件種類）、`Provider`、`Host`，不記收件者、主旨、內文。
 - `Password` 出貨一律空字串，以 User Secrets／環境變數提供。
 - 不略過 TLS 憑證驗證（不設 `ServerCertificateValidationCallback`）。
-- 信中連結以 `PublicBaseUrl` 為準，不採用請求的 Host header。
+- 信中連結以 `PublicBaseUrl` 為準，不採用請求的 Host header。0.10.10 起前端另外部署成獨立站台（`ClientSettings:BaseUrl` 有值）時，註冊 `EmailSettings` 時就以 `ClientSettings:BaseUrl` 蓋過 `PublicBaseUrl`（`PostConfigure`），所有信中連結（重設密碼、站內通知、巡檢報告、例外告警）一起指向前端。
 
 ## 六、錯誤與邊界
 

@@ -7,8 +7,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
 using MyProject.Models.Systems;
-using MyProject.Web.Components.Commons;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Health;
@@ -18,7 +17,7 @@ namespace MyProject.Web.Controllers;
 
 /// <summary>
 /// WASM 前端外框用的 API（0.10.1 起，WASM 遷移 M2）：系統資訊、側邊選單、操作說明、開頁稽核、瀏覽器錯誤回報。
-/// 規則在 <see cref="SidebarMenuService"/>、<see cref="PageHelpService"/>、<see cref="BrowserErrorReporter"/>（原本 Server 版外框用的服務，0.10.9 起只剩這裡使用）。
+/// 規則在 <see cref="SidebarMenuService"/>、<see cref="PageHelpService"/>、<see cref="BrowserErrorReporter"/>（原本 Server 版外框用的服務，0.10.10 起放在 MyProject.Web/Shell）。
 /// </summary>
 [Route("api/v1/shell")]
 [ApiController]
@@ -181,7 +180,7 @@ public sealed class ShellController : ControllerBase
     [HttpPost("client-errors")]
     public ActionResult<ApiResult<object>> ClientErrors([FromBody] ClientErrorReportDto report)
     {
-        // 每位使用者每分鐘的上限沿用 ClientErrorReporting:MaxPerCircuitPerMinute（BrowserErrorReporter 本身的計數是每個實例，在 API 路徑上不成立）。
+        // 每位使用者每分鐘的上限：設定鍵沿用 ClientErrorReporting:MaxPerCircuitPerMinute（Blazor Server 時代的名稱，不改以免現有設定失效）。
         if (!rateLimiter.TryAcquire("client-error", currentUserService.CurrentUser.Id, clientErrorOptions.CurrentValue.MaxPerCircuitPerMinute))
         {
             pipelineMonitor.RecordClientErrorDropped();

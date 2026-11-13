@@ -1,10 +1,10 @@
 ﻿# 通用匯出 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.107
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -44,7 +44,7 @@
 
 ## 四、內部系統運作
 
-- `Web/Export/TabularExport.cs`：`ExportColumn<T>(Header, Value, ExcelFormat, Width)`；`ToXlsx`（ClosedXML，固定欄寬 —— 自動欄寬要量字型，伺服器上不可靠）、`ToCsvText`／`ToCsv`（標題列不加引號、每一格以雙引號包住並把雙引號加倍、`AppendLine` 換行，經 `TextDownloadPayload.Utf8WithBom`）、`DownloadAsync`（`appFileDownload.downloadFromStream`，與 PDF 同一條路）。
+- `Web/Export/TabularExport.cs`：`ExportColumn<T>(Header, Value, ExcelFormat, Width)`；`ToXlsx`（ClosedXML，固定欄寬 —— 自動欄寬要量字型，伺服器上不可靠）、`ToCsvText`／`ToCsv`（標題列不加引號、每一格以雙引號包住並把雙引號加倍、`AppendLine` 換行，經 `TextDownloadPayload.Utf8WithBom`；0.10.10 起 `TextDownloadPayload` 也在 `Web/Export/`，之前在 `Components/Commons/`）、`DownloadAsync`（`appFileDownload.downloadFromStream`，與 PDF 同一條路）。
   字串一律寫成文字值，以「=」開頭的內容不會變成公式。
 - `Web/Export/BusinessExports.cs`：`BuildAsync(query, 目前條件, …)` 以第一頁、`PageSize = 10000`、`Take = 1` 呼叫畫面同一個服務方法（`GetAsync`／`GetDeletedAsync`），服務回的總筆數超過上限就不產生檔案；團隊範圍由服務內的 `RecordTeamScope` 套用，與畫面一致。四頁的欄位定義與 `WriteAuditAsync` 也在這裡。
 - 稽核：`Project.Export`／`Category.Export`／`Team.Export`／`User.Export`，目標 `*`，detail `format=xlsx; rows=N`（顯示已刪除時加 `; deleted=true`），不記內容。

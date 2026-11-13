@@ -41,7 +41,7 @@ public sealed record DashboardQuickLink(string Url, string Icon, string Title, s
 public static class DashboardQuickLinks
 {
     /// <summary>
-    /// ⚠️ 圖示名稱必須是 <b>classic Material Icons</b>（App.razor 載入的是 Material Icons，
+    /// ⚠️ 圖示名稱必須是 <b>classic Material Icons</b>（前端 index.html 載入的是 Material Icons，
     /// 不是 Material Symbols）。用 Symbols 專有名稱會渲染失敗。見開發慣例速查 §6.1。
     /// </summary>
     public static readonly IReadOnlyList<DashboardQuickLink> All =

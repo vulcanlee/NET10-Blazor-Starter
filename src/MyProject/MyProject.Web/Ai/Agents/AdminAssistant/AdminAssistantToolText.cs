@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using MyProject.Web.Components.Commons;
+using MyProject.Web.Auditing;
 
 namespace MyProject.Web.Ai.Agents.AdminAssistant;
 

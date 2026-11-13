@@ -121,10 +121,11 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
     }
 
     /// <summary>
-    /// 不存在的網址維持 404（API 呼叫端要靠它），回應裡也沒有任何頁面內容。
+    /// 不存在的網址（0.10.10 起）：不是 API 的一律拿到前端的入口頁（SPA 回退，由前端路由顯示找不到頁面），回應裡沒有任何頁面內容；
+    /// API 底下不存在的路由維持 404（API 呼叫端要靠它，見 SameSiteHostTests）。
     /// </summary>
     [Fact]
-    public async Task UnknownUrl_WithoutLogin_ShouldKeep404AndRenderNoPageContent()
+    public async Task UnknownUrl_WithoutLogin_ShouldServeOnlyTheEmptyShell_AndUnknownApisShouldKeep404()
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -133,10 +134,12 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
 
         var response = await client.GetAsync("/no-such-page");
         var body = await response.Content.ReadAsStringAsync();
+        var api = await client.GetAsync("/api/v1/no-such-page");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.DoesNotContain("Not Found", body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<div id=\"app\"></div>", body, StringComparison.Ordinal);
         Assert.DoesNotContain("sidebar", body);
+        Assert.Equal(HttpStatusCode.NotFound, api.StatusCode);
     }
 
     [Theory]
@@ -193,7 +196,7 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         Assert.True(code.IndexOf("isAuthenticated = true", StringComparison.Ordinal) > initialize, "isAuthenticated 只能在登入檢查通過之後設為 true。");
     }
 
-    /// <summary>兩個組件裡的所有頁面：0.10.9 起頁面只在 WASM（MyProject.Web.Client），主機組件一併掃描，有人把頁面加回主機時也會被這裡的規則涵蓋（另見 WasmOnlyHostTests）。</summary>
+    /// <summary>兩個組件裡的所有頁面：0.10.9 起頁面只在 WASM（MyProject.Web.Client），主機組件一併掃描，有人把頁面加回主機時也會被這裡的規則涵蓋（另見 ApiOnlyHostTests）。</summary>
     private static List<Type> GetRoutablePages()
     {
         return new[] { typeof(MyProject.Web.Program).Assembly, typeof(MyProject.Web.Client.ClientRouteTable).Assembly }

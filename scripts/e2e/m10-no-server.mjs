@@ -24,8 +24,9 @@ try {
   const htmlChecks = [];
   for (const path of pages) {
     const { status, text } = await raw(path);
-    const hasLoader = text.includes('_framework/blazor.web.js');
-    const hasWasmMarker = /<!--Blazor:\{[^}]*"type":"webassembly"/.test(text);
+    // 0.10.10 起入口頁是前端的 index.html（blazor.webassembly.js＋<div id="app">），之前是主機頁（blazor.web.js＋WebAssembly 根元件註解）。
+    const hasLoader = text.includes('_framework/blazor.web.js') || /_framework\/blazor\.webassembly(\.[a-z0-9]+)?\.js/.test(text);
+    const hasWasmMarker = /<!--Blazor:\{[^}]*"type":"webassembly"/.test(text) || /<div id="app"/.test(text);
     const hasServerMarker = /<!--Blazor:\{[^}]*"type":"server"/.test(text);
     const hasReconnect = /components-reconnect|ReconnectModal/i.test(text);
     htmlChecks.push({ path, status, ok: hasLoader && hasWasmMarker && !hasServerMarker && !hasReconnect,

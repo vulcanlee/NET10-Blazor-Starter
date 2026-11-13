@@ -46,7 +46,8 @@ public sealed class ProjectApi : CrudApi<ProjectDto, ProjectSearchRequestDto>
             return ticket.ToVerify();
         }
 
-        await files.DownloadAsync(ticket.Data.Url);
-        return new VerifyRecordResult { Success = true };
+        // 0.10.10 起：跨來源下載失敗時（票證失效、權限已失去）回伺服器的訊息，頁面留在原地。
+        var error = await files.DownloadAsync(ticket.Data.Url);
+        return error is null ? new VerifyRecordResult { Success = true } : new VerifyRecordResult { Success = false, Message = error };
     }
 }

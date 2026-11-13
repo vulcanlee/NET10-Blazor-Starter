@@ -14,13 +14,13 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Auth;
-using MyProject.Web.Components;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Parameters;
 using MyProject.Web.Configuration.Validation;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Extensions;
 using MyProject.Web.Filters;
+using MyProject.Web.Hosting;
 using MyProject.Web.Localization;
 using NLog;
 using NLog.Web;
@@ -42,6 +42,11 @@ namespace MyProject.Web
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
+
+                // 同站台時提供的前端靜態檔來自參考的 MyProject.Web.Client（0.10.10 起）。發佈後實際在 wwwroot；
+                // 從原始碼執行時只有 Development 會自動讀建置產生的靜態資產清單，測試主機（Testing）等其他環境要明確呼叫。
+                // 發佈輸出沒有那份清單，這一行不做任何事。
+                builder.WebHost.UseStaticWebAssets();
 
                 // 系統參數覆寫層（0.9.98 起）：疊在 appsettings、環境變數、命令列之上，管理員在「系統參數」頁修改的值。
                 // ⚠️ 必須是最後加入的設定來源（最後加入的優先權最高）；內容在資料庫初始化之後才由 SystemParameterRuntime 載入。
@@ -98,11 +103,8 @@ namespace MyProject.Web
 
                 #region 系統使用服務
                 // Add services to the container.
-                // 0.10.9 起（WASM 遷移 M10）只有 WebAssembly 互動模式：所有頁面在 MyProject.Web.Client，
-                // 這個主機只提供 API、WASM 的主機頁（Components/App.razor）與靜態檔。計畫見 docs/migration/WASM遷移計畫.md。
-                builder.Services.AddRazorComponents()
-                .AddInteractiveWebAssemblyComponents();
-
+                // 0.10.10 起（WASM 遷移 M11）這個主機只提供 API：前端是獨立的 Blazor WebAssembly 靜態站台（MyProject.Web.Client），
+                // 同站台部署（ClientSettings:BaseUrl 留空）時才順便提供前端的靜態檔。計畫見 docs/migration/WASM遷移計畫.md。
                 builder.Services.AddControllers(options =>
                 {
                     options.Filters.Add<ApiExceptionFilterAttribute>();
@@ -144,7 +146,7 @@ namespace MyProject.Web
                 });
                 builder.Services.AddConfiguredLocalization();
                 builder.Services.AddConfiguredOptions(builder.Configuration);
-                builder.Services.AddConfiguredCors(builder.Configuration);
+                builder.Services.AddConfiguredCors();
                 builder.Services.AddConfiguredRateLimiting();
                 builder.Services.AddConfiguredHealthChecks();
                 builder.Services.AddConfiguredCache(builder.Configuration);
@@ -416,8 +418,8 @@ namespace MyProject.Web
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
                 {
-                    // 0.10.8 起 /Error 在 WebAssembly 執行，拿不到這次請求的 HttpContext：改成把追蹤碼放進網址導過去
-                    // （/Error?trace=…；API 回 500 ApiResult），見 ErrorPageRedirect。
+                    // 未處理的例外：API 回 500 ApiResult；其他（Google 登入的導向端點）把追蹤碼放進網址導到前端的 /Error?trace=…，
+                    // 雙站台時導到 ClientSettings:BaseUrl 的錯誤頁。見 ErrorPageRedirect。
                     app.UseExceptionHandler(new ExceptionHandlerOptions { ExceptionHandler = ErrorPageRedirect.HandleAsync });
                     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                     app.UseHsts();
@@ -428,24 +430,18 @@ namespace MyProject.Web
                 app.UseConfiguredSwagger(logger);
                 app.UseHttpRequestLogging<Program>();
 
-                // 排在請求日誌之後（被擋的請求記一筆 Information 400）、StatusCodePages 之前（400 不會被重跑成 /not-found）。
+                // 排在請求日誌之後（被擋的請求記一筆 Information 400）。
                 app.UseRejectInvalidHost();
 
-                // ⚠️ 這個中介軟體只會對「沒有 body」的錯誤狀態碼重跑 /not-found。
-                // 對 API 而言那是災難：它會拿原始的 POST + JSON 去執行 Blazor 頁面，
-                // 被 antiforgery 擋下後回給呼叫端 400 HTML，真正的狀態碼就此消失。
-                // 因此**每一條 API 錯誤路徑都必須自己寫入 ApiResult body**
-                // （JWT 的 401/403 事件、ApiExceptionFilter、ApiValidationFilter、
-                // HasPermissionAttribute、限流的 OnRejected 都已如此）。
-                app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+                // API 路徑上沒有本文的錯誤狀態碼（找不到路由、方法不符…）補上 ApiResult（0.10.10 起；0.10.9 以前是重跑成 /not-found 頁）。
+                // 有本文的錯誤（JWT 的 401/403 事件、ApiExceptionFilter、ApiValidationFilter、HasPermissionAttribute、限流的 OnRejected）不受影響。
+                app.UseApiStatusCodePages();
                 app.UseHttpsRedirection();
 
                 app.UseConfiguredLocalization();
+
+                // ⚠️ CORS 必須排在驗證與限流之前：跨來源的預檢（OPTIONS）由這裡直接回應，不可被 401 或 429 擋下。
                 app.UseConfiguredCors();
-
-                app.UseAntiforgery();
-
-                app.MapStaticAssets();
 
                 app.UseAuthentication();
 
@@ -462,12 +458,15 @@ namespace MyProject.Web
                 // ⚠️ 與上一行同理，必須在 UseAuthorization 之後。
                 app.UseMiddleware<ApiActorMiddleware>();
 
+                // 同站台時提供前端的靜態檔與 SPA 回退（雙站台不提供，非 API 路徑 404）。⚠️ 排在最後：見 FrontendHostingExtensions.UseFrontend。
+                app.UseFrontend();
+
                 // /UploadFiles（把 DownloadPath 直接掛成靜態檔案）0.10.8 起移除：只認登入 Cookie、沒有任何地方連到它；
                 // 下載一律走一次性票證（DownloadsController）。
 
                 // 預設拒絕：Controller 未明確標註授權就不給進。
                 // 刻意「只」套在 Controller 上，不用 AuthorizationOptions.FallbackPolicy。
-                // 頁面（0.10.8 起全部在 WASM）不在 HTTP 層擋：整頁請求只回空的 WASM 外殼（不預先渲染），
+                // 頁面（全部在 WASM 前端）不在 HTTP 層擋：前端只是靜態檔（index.html），
                 // 由 ClientMainLayout 在登入檢查（Token 與 /me）通過前不渲染任何內容，未登入就帶 returnUrl 回登入頁。
                 app.MapControllers()
                     .RequireRateLimiting("api")
@@ -480,9 +479,6 @@ namespace MyProject.Web
                 {
                     Predicate = check => check.Tags.Contains("ready")
                 });
-                app.MapRazorComponents<App>()
-                    .AddInteractiveWebAssemblyRenderMode()
-                    .AddAdditionalAssemblies(typeof(MyProject.Web.Client._Imports).Assembly);
                 #endregion
 
                 logger.LogInformation("Application startup completed. Listening for requests.");

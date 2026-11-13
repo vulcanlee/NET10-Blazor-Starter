@@ -1,10 +1,10 @@
 ﻿# WASM 遷移計畫
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：進行中
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.10.0
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 文件目的
 
@@ -27,7 +27,7 @@
 | M8 | 0.10.7 | Agent 與系統管理助理＋通知推播 | 完成 | [M08-Agent系統管理助理與通知推播](測試報告/M08-Agent系統管理助理與通知推播.md) |
 | M9 | 0.10.8 | 純 Token 登入 | 完成 | [M09-純Token登入](測試報告/M09-純Token登入.md) |
 | M10 | 0.10.9 | 移除 Server 模式 | 完成 | [M10-移除Server模式](測試報告/M10-移除Server模式.md) |
-| M11 | 0.10.10 | 拆成獨立靜態站台＋API 主機 | 未開始 | — |
+| M11 | 0.10.10 | 拆成獨立靜態站台＋API 主機 | 完成 | [M11-獨立靜態站台](測試報告/M11-獨立靜態站台.md) |
 | M12 | 0.10.11 | PWA 與離線 | 未開始 | — |
 
 ---
@@ -37,7 +37,7 @@
 | 項目 | 決定 |
 |---|---|
 | Server 版 | 整個取代，最終不留 Server 渲染模式（0.10.9 已移除） |
-| 部署網域 | 前後端同一主網域（app.公司.com＋api.公司.com，或同站台 /api） |
+| 部署網域 | 前後端同一主網域（app.公司.com＋api.公司.com，或同站台 /api）；0.10.10 起同站台由 API 主機直接提供前端，雙站台是兩個 IIS 站台，以 `ClientSettings:BaseUrl` 切換 |
 | 登入 | 最終純 JWT Token、不發 Cookie；理由：未來可能開發 App，API 要共用 |
 | Token 存放 | 勾「記住我」→ localStorage；未勾 → sessionStorage |
 | 過渡期登入 | M1～M8 沿用 Cookie 登入頁，WASM 頁以 Cookie 換 Token（`/auth/bridge`）後只用 Token 呼叫 API；M9 一次改純 Token（0.10.8 已完成：不發登入 Cookie、移除 bridge） |
@@ -250,6 +250,22 @@
 - Client 改為獨立站台（`index.html`、`ApiBaseUrl`）；後端移除 Razor 元件、加 CORS 與 `ClientBaseUrl`（信件連結、Google 導回）；靜態站 web.config（SPA 回退、MIME、Brotli、CSP）。
 - 複刻腳本處理兩個主機；IIS 雙站台與同站台反向代理兩種部署寫入文件。
 - **實機情境**：雙主機啟動、非允許來源被 CORS 擋下、重設密碼信件連結指向前端、Google 導回前端、記錄冷啟動下載量與時間。
+
+> **M11 實際做法與計畫的差異**：
+> - **同站台不用反向代理，由 API 主機直接提供前端**（計畫原寫「同站台反向代理」）：`ClientSettings:BaseUrl` 留空時，`UseFrontend` 以 `MapStaticAssets` 提供 Client 的靜態檔，沒有任何端點的 GET／HEAD（不是 `/api/`、`/_framework/`）回 `index.html`，`_framework` 找不到回 404；主機執行時從 index.html 算 CSP（`FrontendIndexPage`）。一個 IIS 站台、不必另裝 ARR。SPA 回退刻意做成「沒有端點時」的中介軟體，不用 `MapFallback`（萬用回退端點會讓 `/api/` 的 POST 變 405、沒帶 Content-Type 的 API 請求變 404）。雙站台是兩個 IIS 站台（`app.公司.com`＋`api.公司.com`）。
+> - **設定鍵叫 `ClientSettings:BaseUrl`**（計畫寫 `ClientBaseUrl`）：有值＝雙站台，API 主機非 API 路徑 404；CORS 允許它的來源＋既有的 `Cors:AllowedOrigins`，只收 `Authorization`／`Content-Type`、方法 GET／POST／PUT／DELETE、公開 `Content-Disposition`、不帶憑證，`UseConfiguredCors` 移到驗證與限流之前（預檢不被 401／429 擋下）；Google 登入導回、所有信中連結（`PostConfigure` 以它蓋過 `EmailSettings:PublicBaseUrl`，重設密碼、站內通知、巡檢報告、例外告警一起換）、非 API 例外導頁一律經 `ClientSettings.FrontendUrl`，只用設定值。必須是完整 http(s) 網址、不帶 `?`／`#`（`ClientSettingsValidator`），正式環境必須 https（`StartupSafetyValidator`；雙站台時可不填 `PublicBaseUrl`），寫錯不啟動。
+> - **前端**：`wwwroot/index.html` 取代 `MyProject.Web/Components/App.razor`（`OverrideHtmlAssetPlaceholders` 填 import map 與帶指紋的檔名，`ClientProgram` 掛 `ClientRoutes`／`HeadOutlet`）；`wwwroot/appsettings.json` 的 `ApiBaseUrl`（留空＝與網頁同一個網址）經 `Api/ApiAddress` 套到 `HttpClient`、Google 登入的整頁導向、附件上傳與下載網址（`BrowserFiles`）。靜態檔（`app.css`、`theme.css`、`favicon.png`、`images/`、`js/`、`lib/bootstrap`）從 `MyProject.Web/wwwroot` 搬到 `MyProject.Web.Client/wwwroot`，**全站色票唯一來源改成 `MyProject.Web.Client/wwwroot/theme.css`**。
+> - **靜態站 `web.config`**（`MyProject.Web.Client/web.config`，只在發佈 Client 時放到輸出根目錄；輸出是 `web.config`＋`wwwroot/`，需要 IIS URL Rewrite 模組）：預先壓縮的 `.br`、實體檔、`_framework` 找不到回 404、其他回 `index.html`；MIME（`.wasm`、`.dll`、`.webcil`、`.dat`、`.blat`、`.pdb`、`.json`、`.woff(2)`）；`index.html` 與 `appsettings.json` 一律 `no-cache`、帶指紋的 `_framework` 檔一年 `immutable`（獨立審查後只套用在 200 回應，部署途中缺檔的 404 不會被快取一年）；安全標頭、CSP 與主機相同，獨立審查後加上 `Strict-Transport-Security: max-age=2592000`（與 `UseHsts` 相同）；`/Auths/ResetPassword` 加 `no-referrer` 與 `no-store`。`appsettings.json` 不產生壓縮副本。
+> - **雙站台的 API 網址用發佈參數，不手改輸出**（獨立審查）：`dotnet publish … -p:StaticSiteApiOrigin=https://api.公司.com`（只要 scheme＋主機＋連接埠）在發佈時同時填 `wwwroot/appsettings.json` 的 `ApiBaseUrl` 與 web.config CSP 的 `connect-src`。兩處一律從專案裡的範本重寫：重新發佈照樣填好，不帶參數回到空白（同站台）。原本是部署後手改兩個檔、每次發佈都會被蓋回去。
+> - **重複發佈修正**（獨立審查）：import map 雜湊原本從輸出裡的 web.config 讀佔位，同一個輸出資料夾第二次發佈必定失敗，改成一律從範本讀；Web 的補救步驟呼叫前端發佈時以 `RemoveProperties` 拿掉 `RuntimeIdentifier`、`SelfContained`、`PublishProfile` 等（原本 Web 帶 `-r win-x64` 發佈會失敗）。實測前端與 Web 各連續發佈兩次、Web 帶 `-r win-x64` 都成功。
+> - **雙站台的下載**（獨立審查）：跨來源時瀏覽器會忽略 `<a download>` 而整頁導過去（失敗時整個前端換成 API 的 JSON），改成 `browser-files.js` 以 `fetch` 取回、blob 網址存檔（檔案在瀏覽器記憶體、不經過 WASM），失敗（票證失效、權限已失去）時回伺服器訊息、畫面顯示錯誤通知、頁面留在原地；同一個來源照舊原生下載。`BrowserFiles.DownloadAsync` 改回傳 `string?`（`null`＝成功）。代價：跨來源時大檔先整個放進瀏覽器記憶體、看不到下載進度。
+> - **CSP**：`default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-<import map>'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'`。import map 的雜湊每次建置不同：同站台由主機執行時算，靜態站由 `MyProject.Web.Client.csproj` 在發佈時填進 web.config。雙站台部署時 `connect-src` 要有 API 的來源（以上述發佈參數填入）。已知：AntDesign 頁籤的 `ondragover="event.preventDefault();"` 行內事件會被擋（頁籤不開放拖曳，沒有功能影響），刻意不加 `'unsafe-hashes'`。
+> - **同站台發佈多一步**：SDK 從參考的 Client 帶進 Web 發佈輸出的 index.html 是沒處理佔位的原始檔，`MyProject.Web.csproj` 在發佈後另外發佈一次 Client、拿它的 index.html 覆蓋，並確認引用的 `_framework` 檔都在（多花一次 Client 發佈的時間）。同站台不可在部署後改 `wwwroot/appsettings.json`（維持空白）。
+> - **後端整理**：刪除 `App.razor`、`_Imports.razor`、`CircuitDisconnect`；拿掉 `AddRazorComponents`／`MapRazorComponents`／`UseAntiforgery`、`BlazorDisableThrowNavigationException`；`UseStatusCodePagesWithReExecute("/not-found")` 改為 `UseApiStatusCodePages`（`/api/` 找不到回 404 `ApiResult`，其他網址由前端路由顯示找不到頁面）。M10 暫留的類別搬到 `Shell/`（命名空間 `MyProject.Web.Shell`：`SidebarMenuService`、`SidebarMenuItemModel`、`PageHelpService`、`PageHelpTopicModel`、`PageHelpDocument`、`PageHelpMarkdownParser`、`HelpMarkdownRenderer`、`AnnouncementCache`）、`ViewAudit` 到 `Auditing/`、`TextDownloadPayload` 到 `Export/`（CRUD 產生器錨點跟著改）。`BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每實例計數（`ClientErrorReporting:MaxPerCircuitPerMinute` 鍵名保留，仍是每人每分鐘上限）。`CurrentUserService.Changed` 沒有處理（仍由 `ProfileService` 發出，伺服器上沒有訂閱者），列入速查表 §10。
+> - **複刻腳本沒有改成處理兩個主機**：前端沒有自己的開發主機（本機開發與測試都是同站台），`New-StarterProject.ps1` 只把 `.html` 加進文字取代（index.html 引用 `<專案>.Web.Client.styles.css`）。`New-CrudModule.ps1` 順手補登記 `MaintenanceApiTests` 的資料保留種類（M7 遺留：之前產生新模組後這個測試會失敗）。
+> - **守門測試**：`WasmOnlyHostTests` 改寫為 `ApiOnlyHostTests`（主機組件沒有任何元件、`MyProject.Web` 沒有 `.razor` 與 `wwwroot`、原始檔不提 Blazor Web App 的主機寫法）；新增 `SameSiteHostTests`、`DualSiteHostTests`（CORS、預檢不被限流、非 API 路徑 404、Google 與重設密碼信導回前端）、`StaticSiteWebConfigTests`（解析 web.config，CSP 與安全標頭必須與主機一致）、`Client/ApiAddressTests`、`Client/ServerUrlConventionTests`（畫面不可寫死伺服器端點路徑）；`ThemeConventionTests` 改查 index.html 的樣式順序，`SourceTree.Components` 換成 `ClientWebRoot`。測試 3,040 → 3,098。
+> - **與 0.10.9 不同（使用者看得到的）**：沒有，畫面與行為不變。
+> - 實機腳本：`scripts/e2e/m11-split.mjs`（S1 登入後 API 請求打到哪裡、S2 CORS 允許與擋下、S3 靜態站 SPA 回退／安全標頭與 CSP／快取／Brotli／重設密碼頁、S4 API 主機不提供前端、S5 Google 導向〔參數 `google`〕、S6 冷啟動下載量與時間、S7 36 個路由沒有 CSP 違規＋煙霧測試；參數 `hosted` 跑同站台版）；`common.mjs` 新增 `E2E_API_URL`（雙站台時 `/api/` 打到 API 主機）；`m09-auth.mjs` 信件連結改比對前端網址；`m10-no-server.mjs` 的 N2 認得 index.html；`m04-projects.mjs` 新增 P2b（雙站台下載失敗時留在原頁並顯示訊息），P2 雙站台時記下實際的票證網址。⚠️ 這台的 IIS Express 連內建範本都讀不了設定檔而無法啟動，雙站台實機改用照 web.config 規則寫的 Node 模擬靜態站（標頭與 CSP 取自發佈出來的 web.config）；web.config 的 IIS 規則本身靠 `StaticSiteWebConfigTests` 守門，上線前要在真的 IIS 驗證一次（已列入部署清單）。結果見測試報告。
 
 ### M12 PWA 與離線（0.10.11）
 

@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using MyProject.Share.Helpers;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
 
 namespace MyProject.Tests;
 

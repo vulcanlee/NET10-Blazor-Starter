@@ -11,8 +11,8 @@ using MyProject.Dtos.Commons;
 using MyProject.Dtos.Shell;
 using MyProject.Models.AdapterModel;
 using MyProject.Web.Client.Api;
-using MyProject.Web.Components.Commons;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
+using MyProject.Web.Auditing;
 using MyProject.Web.Filters;
 
 namespace MyProject.Web.Controllers;

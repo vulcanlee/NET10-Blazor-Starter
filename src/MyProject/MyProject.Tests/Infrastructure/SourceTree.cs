@@ -23,10 +23,10 @@ internal static class SourceTree
     public static string Client => Path.Combine(SourceRoot, "MyProject.Web.Client");
 
     /// <summary>
-    /// <c>MyProject.Web/Components</c>：0.10.9 起（WASM 遷移 M10）只剩 WASM 的主機頁 <c>App.razor</c>，
-    /// 以及外框 API 用的服務類別（<c>Layout/SidebarMenuService.cs</c> 等），已沒有任何畫面。
+    /// 前端的靜態檔根目錄 <c>MyProject.Web.Client/wwwroot</c>（0.10.10 起，WASM 遷移 M11）：<c>index.html</c>、<c>theme.css</c>、<c>app.css</c>、
+    /// <c>js/</c>、<c>images/</c>、<c>lib/</c>、<c>appsettings.json</c>。0.10.9 以前這些在 <c>MyProject.Web/wwwroot</c>，主機頁是 <c>MyProject.Web/Components/App.razor</c>。
     /// </summary>
-    public static string Components => Path.Combine(Web, "Components");
+    public static string ClientWebRoot => Path.Combine(Client, "wwwroot");
 
     /// <summary>
     /// 所有畫面程式的根目錄：0.10.9 起（WASM 遷移 M10 移除 Server 模式）只有 WASM 的 <c>MyProject.Web.Client</c>。

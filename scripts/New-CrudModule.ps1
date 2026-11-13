@@ -427,7 +427,7 @@ Update-Source 'MyProject.Web/Datas/Menu.json' "選單（id $menuId）" "`"url`":
     $t.Insert($lastBrace + 1, $entry)
 }
 
-Update-Source 'MyProject.Web/Components/Layout/SidebarMenuService.cs' '選單權限對照' "] = MagicObjectHelper.$permConst," {
+Update-Source 'MyProject.Web/Shell/SidebarMenuService.cs' '選單權限對照' "] = MagicObjectHelper.$permConst," {
     param($t)
     Insert-Before $t "        [4] = MagicObjectHelper.角色_登出," "        [$menuId] = MagicObjectHelper.$permConst,`n"
 }
@@ -497,6 +497,12 @@ Update-Source 'MyProject.Web/DataRetention/DataRetentionOverviewService.cs' '資
 Update-Source 'MyProject.Tests/DataRetentionOverviewServiceTests.cs' '資料保留與清理測試' "`"deleted-$routeKey`"" {
     param($t)
     Insert-AfterRequired $t '["deleted-project", "deleted-category", ' "`"deleted-$routeKey`", " '資料保留與清理測試'
+}
+
+# 資料保留與清理 API 的整合測試也列了完整的種類清單（0.10.6 起；0.10.10 補登記，之前產生新模組後這個測試會失敗）。
+Update-Source 'MyProject.Tests/MaintenanceApiTests.cs' '資料保留與清理 API 測試' "`"deleted-$routeKey`"" {
+    param($t)
+    Insert-AfterRequired $t '["deleted-project", "deleted-category", ' "`"deleted-$routeKey`", " '資料保留與清理 API 測試'
 }
 
 Update-Source 'MyProject.Web/Scheduling/Jobs/SoftDeletePurgeJob.cs' '已刪除資料清理（作業稽核）' "[`"$Name`"] = (AuditActions.$Name.AutoPurge" {

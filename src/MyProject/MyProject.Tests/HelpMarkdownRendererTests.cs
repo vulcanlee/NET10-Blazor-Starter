@@ -1,4 +1,4 @@
-using MyProject.Web.Components.Commons;
+using MyProject.Web.Shell;
 
 namespace MyProject.Tests;
 

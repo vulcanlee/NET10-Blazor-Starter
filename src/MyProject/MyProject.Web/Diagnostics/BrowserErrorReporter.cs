@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using Microsoft.JSInterop;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
@@ -9,7 +8,8 @@ namespace MyProject.Web.Diagnostics;
 /// <summary>
 /// 接收瀏覽器端錯誤（0.9.79 起，LOG-20）：WASM 的 <c>ClientErrorReporter</c> 送到 <c>api/v1/shell/client-errors</c>，由 <c>ShellController</c> 呼叫 <see cref="Report"/>。
 ///
-/// Scoped（＝每個請求一份），本身的頻率計數在 API 路徑上不成立，每人的上限由 <c>ShellController</c> 另外控管。
+/// Scoped（＝每個請求一份）。每人每分鐘的上限由 <c>ShellController</c> 控管（<c>PerUserRateLimiter</c>）；
+/// 0.10.9 以前這裡另有給 Blazor Server 連線用的 <c>[JSInvokable]</c> 與每個實例的計數，0.10.10 起移除。
 /// 只有已登入的人能回報；帳號取自 <see cref="CurrentUserService"/>（<c>ApiActorMiddleware</c> 已載入）。
 ///
 /// 前端送來的東西一律不信任：長度在這裡再截一次、頁面只取路徑並截短。
@@ -22,49 +22,31 @@ public sealed class BrowserErrorReporter
     private const int MaxSourceLength = 500;
     private const int MaxPathLength = 200;
 
-    private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
-
     private readonly ILogger<BrowserErrorReporter> logger;
     private readonly ExceptionContextAccessor contextAccessor;
     private readonly CurrentUserService currentUserService;
     private readonly IOptionsMonitor<ClientErrorReportingSettings> options;
-    private readonly LoggingPipelineMonitor monitor;
-    private readonly TimeProvider timeProvider;
-
-    private readonly Queue<DateTimeOffset> recent = new();
-    private readonly object gate = new();
 
     public BrowserErrorReporter(
         ILogger<BrowserErrorReporter> logger,
         ExceptionContextAccessor contextAccessor,
         CurrentUserService currentUserService,
-        IOptionsMonitor<ClientErrorReportingSettings> options,
-        LoggingPipelineMonitor monitor,
-        TimeProvider timeProvider)
+        IOptionsMonitor<ClientErrorReportingSettings> options)
     {
         this.logger = logger;
         this.contextAccessor = contextAccessor;
         this.currentUserService = currentUserService;
         this.options = options;
-        this.monitor = monitor;
-        this.timeProvider = timeProvider;
     }
 
     public bool IsEnabled => options.CurrentValue.Enabled;
 
-    /// <returns>是否記錄了（供測試斷言）。</returns>
-    [JSInvokable]
+    /// <returns>是否記錄了（關閉回報時為 false）。</returns>
     public bool Report(string? kind, string? message, string? stack, string? source, string? path)
     {
         var settings = options.CurrentValue;
         if (settings.Enabled == false)
         {
-            return false;
-        }
-
-        if (TryAcquire(settings.MaxPerCircuitPerMinute) == false)
-        {
-            monitor.RecordClientErrorDropped();
             return false;
         }
 
@@ -101,26 +83,6 @@ public sealed class BrowserErrorReporter
         }
 
         return true;
-    }
-
-    private bool TryAcquire(int maxPerMinute)
-    {
-        var now = timeProvider.GetUtcNow();
-        lock (gate)
-        {
-            while (recent.Count > 0 && now - recent.Peek() >= Window)
-            {
-                recent.Dequeue();
-            }
-
-            if (recent.Count >= maxPerMinute)
-            {
-                return false;
-            }
-
-            recent.Enqueue(now);
-            return true;
-        }
     }
 
     /// <summary>只留路徑：去掉查詢字串與片段（可能含個資或 token），確保以 / 開頭，並截短。</summary>

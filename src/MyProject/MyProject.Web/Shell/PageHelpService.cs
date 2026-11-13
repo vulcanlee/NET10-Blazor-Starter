@@ -1,9 +1,8 @@
 using System.Text.Json;
 using MyProject.Share.Helpers;
 using MyProject.Web.Caching;
-using MyProject.Web.Components.Commons;
 
-namespace MyProject.Web.Components.Layout;
+namespace MyProject.Web.Shell;
 
 /// <summary>
 /// 頁面操作說明的讀取與路由比對。比照 <see cref="SidebarMenuService"/>：同一個 <see cref="ICacheService"/>、

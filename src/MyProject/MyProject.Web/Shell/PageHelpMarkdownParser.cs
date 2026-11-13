@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MyProject.Web.Components.Commons;
+namespace MyProject.Web.Shell;
 
 /// <summary>
 /// 把頁面說明的 Markdown 切成章節，並解析「相關頁面」清單。純函式、不碰 IO，行為由 PageHelpParsingTests 覆蓋。

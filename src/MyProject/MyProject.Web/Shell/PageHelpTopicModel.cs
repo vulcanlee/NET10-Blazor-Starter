@@ -1,4 +1,4 @@
-namespace MyProject.Web.Components.Layout;
+namespace MyProject.Web.Shell;
 
 /// <summary>
 /// <c>Datas/HelpTopics.json</c> 的一筆：一條路由的頁面操作說明登記。比照 <see cref="SidebarMenuItemModel"/>，純 POCO。

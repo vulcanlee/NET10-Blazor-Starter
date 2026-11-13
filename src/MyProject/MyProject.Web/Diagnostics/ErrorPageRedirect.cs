@@ -1,12 +1,15 @@
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using MyProject.Dtos.Commons;
+using MyProject.Web.Configuration;
 
 namespace MyProject.Web.Diagnostics;
 
 /// <summary>
 /// 正式環境未處理例外的回應（0.10.8 起，WASM 遷移 M9；取代重跑 Server 版 <c>/Error</c> 頁）。
-/// <c>/Error</c> 改在 WebAssembly 執行，拿不到這次請求的 <c>HttpContext.TraceIdentifier</c>，所以把錯誤追蹤碼放進網址導過去：
-/// <c>302 /Error?trace={追蹤碼}</c>。API 請求不導頁，回 500 <see cref="ApiResult"/>（帶同一個追蹤碼）。
+/// API 請求回 500 <see cref="ApiResult"/>（帶追蹤碼）。其他請求（0.10.10 起只剩 Google 登入的導向端點與同站台的前端靜態檔）
+/// 是瀏覽器的整頁請求，把錯誤追蹤碼放進網址導到前端的錯誤頁：<c>302 /Error?trace={追蹤碼}</c>；
+/// 雙站台時導到 <c>ClientSettings:BaseUrl</c> 的錯誤頁（只用設定值，不採用請求的 Host）。
 /// 例外本身已由請求日誌中介軟體以 Error 記過；這裡只記「使用者被帶到錯誤頁」，靠追蹤碼與那筆對上。
 /// </summary>
 public sealed class ErrorPageRedirect
@@ -33,6 +36,7 @@ public sealed class ErrorPageRedirect
         }
 
         logger.LogWarning("Redirecting the user to the error page. TraceId={TraceId}", traceCode);
-        context.Response.Redirect($"{ErrorPath}?trace={Uri.EscapeDataString(traceCode)}");
+        var client = context.RequestServices.GetRequiredService<IOptions<ClientSettings>>().Value;
+        context.Response.Redirect(client.FrontendUrl($"{ErrorPath}?trace={Uri.EscapeDataString(traceCode)}"));
     }
 }

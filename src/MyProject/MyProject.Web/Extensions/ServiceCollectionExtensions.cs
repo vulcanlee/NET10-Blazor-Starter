@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.DataProtection;
+﻿using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.Sqlite;
@@ -20,11 +21,12 @@ using MyProject.Web.Ai.Workflows;
 using MyProject.Web.Auth;
 using MyProject.Web.Backup;
 using MyProject.Web.Caching;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Validation;
 using MyProject.Web.Email;
 using MyProject.Web.Health;
+using MyProject.Web.Hosting;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Localization;
 using MyProject.Web.Dashboard;
@@ -371,6 +373,9 @@ public static class ServiceCollectionExtensions
         services.AddValidatedOptions<SystemSettings, SystemSettingsValidator>(configuration, nameof(SystemSettings));
         services.AddValidatedOptions<BootstrapSettings, BootstrapSettingsValidator>(configuration, nameof(BootstrapSettings));
         services.AddValidatedOptions<CorsSettings, CorsSettingsValidator>(configuration, CorsSettings.SectionName);
+        // 前端在哪裡（0.10.10 起，WASM 遷移 M11）：留空＝同站台，有值＝獨立的靜態站台。
+        services.AddValidatedOptions<ClientSettings, ClientSettingsValidator>(configuration, ClientSettings.SectionName);
+        services.AddSingleton<FrontendIndexPage>();
         services.AddValidatedOptions<CacheSettings, CacheSettingsValidator>(configuration, CacheSettings.SectionName);
         services.AddValidatedOptions<RateLimitSettings, RateLimitSettingsValidator>(configuration, RateLimitSettings.SectionName);
         services.AddValidatedOptions<AiSettings, AiSettingsValidator>(configuration, AiSettings.SectionName);
@@ -609,6 +614,10 @@ public static class ServiceCollectionExtensions
             .Validate(
                 s => string.IsNullOrWhiteSpace(s.PublicBaseUrl) || OptionsErrors.IsHttpUrl(s.PublicBaseUrl),
                 "EmailSettings:PublicBaseUrl 有填時必須是以 http:// 或 https:// 開頭的完整網址（信件裡的連結以它為開頭）。")
+            // 信中連結指向前端（0.10.10 起）：雙站台時 ClientSettings:BaseUrl 優先，所有讀 PublicBaseUrl 的地方
+            // （重設密碼、站內通知、巡檢報告、例外告警）一起換成前端網址；同站台（留空）照舊用 PublicBaseUrl。
+            .PostConfigure<IOptions<ClientSettings>>((settings, client) =>
+                settings.PublicBaseUrl = client.Value.IsSeparateSite ? client.Value.BaseUrl.Trim() : settings.PublicBaseUrl)
             .ValidateOnStart();
 
         // 例外告警（0.9.78 起，LOG-12）。收件人為空即停用；實際寄出仍要 Provider 不是 None。
@@ -651,25 +660,48 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddConfiguredCors(this IServiceCollection services, IConfiguration configuration)
-    {
-        var settings = configuration.GetSection(CorsSettings.SectionName).Get<CorsSettings>() ?? new CorsSettings();
-        services.AddCors(options =>
-        {
-            options.AddPolicy("ConfiguredCors", policy =>
-            {
-                if (settings.AllowedOrigins.Length == 0)
-                {
-                    policy.SetIsOriginAllowed(_ => false);
-                    return;
-                }
+    /// <summary>CORS 原則名稱（<c>UseConfiguredCors</c> 套用）。</summary>
+    public const string CorsPolicyName = "ConfiguredCors";
 
-                policy
-                    .WithOrigins(settings.AllowedOrigins)
-                    .AllowAnyHeader()
-                    .AllowAnyMethod();
+    /// <summary>
+    /// CORS（0.10.10 起改由 <see cref="ClientSettings"/> 決定）：允許的來源是 <c>ClientSettings:BaseUrl</c> 的來源（雙站台的前端）
+    /// 加上 <c>Cors:AllowedOrigins</c>（其他要跨來源呼叫 API 的網站）；兩者都沒有＝不開放（同站台的預設），不回任何 CORS 標頭。
+    /// <list type="bullet">
+    /// <item>只允許前端實際送的標頭（<c>Authorization</c>、<c>Content-Type</c>）與用到的方法；不允許憑證（不用 Cookie）。</item>
+    /// <item>前端要讀下載檔名，所以公開 <c>Content-Disposition</c>（NDJSON 串流與上傳只讀 Content-Type，本來就讀得到）。</item>
+    /// <item>預檢由 CORS 中介軟體直接回應，不經過驗證與限流（<c>UseConfiguredCors</c> 排在前面），也快取 10 分鐘。</item>
+    /// </list>
+    /// ⚠️ 在請求時才讀設定（Options），不在註冊時讀：WebApplicationFactory 的設定覆寫要到建置主機時才套用。
+    /// </summary>
+    public static IServiceCollection AddConfiguredCors(this IServiceCollection services)
+    {
+        services.AddCors();
+        services.AddOptions<CorsOptions>()
+            .Configure<IOptions<ClientSettings>, IOptions<CorsSettings>>((options, client, cors) =>
+            {
+                var origins = new[] { client.Value.Origin }
+                    .Concat(cors.Value.AllowedOrigins)
+                    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+                    .Select(origin => origin!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                options.AddPolicy(CorsPolicyName, policy =>
+                {
+                    if (origins.Length == 0)
+                    {
+                        policy.SetIsOriginAllowed(_ => false);
+                        return;
+                    }
+
+                    policy
+                        .WithOrigins(origins)
+                        .WithHeaders("Authorization", "Content-Type")
+                        .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Delete)
+                        .WithExposedHeaders("Content-Disposition")
+                        .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+                });
             });
-        });
 
         return services;
     }
@@ -680,10 +712,8 @@ public static class ServiceCollectionExtensions
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // 被限流時也要維持 ApiResult 信封（專案不變量：Web API 回應一律包信封）。
-            // 另一個作用是「先把 body 寫掉」—— 否則空 body 的 429 會被
-            // UseStatusCodePagesWithReExecute 拿原始的 POST + JSON 去重跑 /not-found，
-            // 那是 Blazor 頁面、會被 antiforgery 擋下，最後回給呼叫端的是 400 HTML。
+            // 被限流時也要維持 ApiResult 信封（專案不變量：Web API 回應一律包信封），訊息寫明「請求過於頻繁」。
+            // （0.10.9 以前另一個作用是避免空 body 的 429 被重跑成 /not-found 頁；0.10.10 起 API 路徑的空錯誤由 UseApiStatusCodePages 補信封。）
             options.OnRejected = async (context, cancellationToken) =>
             {
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;

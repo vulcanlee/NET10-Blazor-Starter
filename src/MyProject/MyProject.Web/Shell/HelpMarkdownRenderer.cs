@@ -1,6 +1,6 @@
 using Markdig;
 
-namespace MyProject.Web.Components.Commons;
+namespace MyProject.Web.Shell;
 
 /// <summary>
 /// 頁面操作說明（<c>Datas/Help/*.md</c>）專用的 Markdown 轉 HTML。

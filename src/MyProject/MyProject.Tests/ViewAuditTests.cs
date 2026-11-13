@@ -1,5 +1,5 @@
 using MyProject.Business.Services.Other;
-using MyProject.Web.Components.Commons;
+using MyProject.Web.Auditing;
 
 namespace MyProject.Tests;
 

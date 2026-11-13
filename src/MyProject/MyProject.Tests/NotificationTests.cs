@@ -10,7 +10,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
-using MyProject.Web.Components.Layout;
+using MyProject.Web.Shell;
 using MyProject.Web.Configuration;
 using MyProject.Web.Email;
 using MyProject.Web.Scheduling;

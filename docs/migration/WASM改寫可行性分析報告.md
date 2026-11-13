@@ -1,10 +1,10 @@
 ﻿# WASM 改寫可行性分析報告
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：規劃中
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：—（尚未實作，預計 0.10.0 起）
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 文件目的
 
@@ -135,6 +135,8 @@
 `Menu.json`、`HelpTopics.json`、`Datas/Help/*.md` 留在後端，由 API 提供（權限過濾與 Markdig 渲染維持在伺服器）；`theme.css`、`app.css`、`js/` 移到前端。
 
 > **實作補記（0.10.9，M10）**：Server 頁在 M9 全部搬完，M10 移除 Server 互動模式（電路、`/_blazor`、重連畫面、`AuthenticationStateHelper`、Server 版外框）。M10 到 M11 之間 `MyProject.Web` 只剩 Web API、WASM 的主機頁 `Components/App.razor`（一律渲染 `ClientRoutes`）與靜態檔；外框 API 還在用的伺服器類別（選單 `SidebarMenuService`、操作說明 `PageHelpService` 與 Markdown 解析、公告快取 `AnnouncementCache` 等）暫留原本的 `Components/` 資料夾，M11 再搬。細節見 [WASM 遷移計畫](WASM遷移計畫.md) 的 M10 節。
+
+> **實作補記（0.10.10，M11）**：`MyProject.Web.Client` 成為獨立的靜態站台（入口 `wwwroot/index.html`、`wwwroot/appsettings.json` 的 `ApiBaseUrl`、IIS 靜態站 `web.config`），`theme.css`、`app.css`、`js/`、`images/`、`lib/bootstrap`、`favicon.png` 搬到 Client；`MyProject.Web` 只剩 API，暫留的伺服器類別搬到 `Shell/`、`Auditing/`、`Export/`。部署有兩種：同站台由 API 主機直接提供前端（`ClientSettings:BaseUrl` 留空，不需反向代理），雙站台是兩個 IIS 站台（`BaseUrl` 填前端網址）。複刻腳本沒有改成處理兩個主機的連接埠：前端沒有自己的開發主機（本機開發用同站台），只把 `.html` 加進文字取代。細節見 [WASM 遷移計畫](WASM遷移計畫.md) 的 M11 節。
 
 ### 5.2 認證：純 Token（為了未來 App）
 

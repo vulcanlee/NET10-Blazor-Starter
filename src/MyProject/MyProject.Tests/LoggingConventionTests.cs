@@ -370,7 +370,6 @@ public sealed class LoggingConventionTests
             "ExceptionStackFileStore.cs",   // 由管線內呼叫的檔案存取；用 ILogger 會遞迴
             "CrashMarkerStore.cs",          // 程序即將結束或 host 尚未建立時寫補登檔，記錄機制可能已失效
             "TraceCode.cs",                 // 純函式：產生與讀取錯誤追蹤碼（LOG-10）
-            "CircuitDisconnect.cs",         // 純函式：判斷例外是否只是連線中斷（0.9.172）；記錄管線內呼叫，用 ILogger 會遞迴
             "ExceptionAlertService.cs",     // 在例外記錄管線內被呼叫；寄信失敗走 ILogger 會再被收成例外、再觸發告警
             "LoggingPipelineMonitor.cs",    // 由 NLog 內部事件與例外寫入器呼叫；在 NLog 內部事件裡用 logger 會死結或遞迴
             "BrowserScriptException.cs",    // 例外型別，無行為

@@ -11,9 +11,7 @@ namespace MyProject.Tests;
 /// <summary>瀏覽器端錯誤回報（LOG-20）。前端送來的內容一律不信任。</summary>
 public sealed class BrowserErrorReporterTests : IDisposable
 {
-    private readonly ManualTimeProvider clock = new(new DateTimeOffset(2026, 10, 1, 1, 0, 0, TimeSpan.Zero));
     private readonly ExceptionContextAccessor accessor = new();
-    private readonly LoggingPipelineMonitor monitor = new();
     private readonly CapturingLogger logger;
     private readonly CurrentUserService currentUser = new() { CurrentUser = new CurrentUser { Id = 7, Account = "alice" } };
 
@@ -39,21 +37,6 @@ public sealed class BrowserErrorReporterTests : IDisposable
         Assert.Equal("alice", entry.Context?.Account);
         Assert.Equal(7, entry.Context?.UserId);
         Assert.Null(accessor.Current);                      // 情境用完要還原
-    }
-
-    [Fact]
-    public void Report_OverRateLimit_ShouldDropAndCount()
-    {
-        var reporter = CreateReporter(new ClientErrorReportingSettings { MaxPerCircuitPerMinute = 3 });
-
-        var results = Enumerable.Range(0, 5).Select(index => reporter.Report("error", $"e{index}", null, null, "/")).ToList();
-
-        Assert.Equal([true, true, true, false, false], results);
-        Assert.Equal(3, logger.Entries.Count);
-        Assert.Equal(2, monitor.Snapshot().ClientErrorsDropped);
-
-        clock.Advance(TimeSpan.FromMinutes(1));
-        Assert.True(reporter.Report("error", "after window", null, null, "/"));
     }
 
     [Fact]
@@ -92,7 +75,7 @@ public sealed class BrowserErrorReporterTests : IDisposable
     }
 
     private BrowserErrorReporter CreateReporter(ClientErrorReportingSettings? settings = null)
-        => new(logger, accessor, currentUser, new StaticMonitor(settings ?? new ClientErrorReportingSettings()), monitor, clock);
+        => new(logger, accessor, currentUser, new StaticMonitor(settings ?? new ClientErrorReportingSettings()));
 
     public void Dispose() => accessor.Clear();
 

@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 一、目標與範圍
 
@@ -43,7 +43,7 @@
 - 刪除、清除、清空、匯出 0.9.78 起各寫一筆稽核（`ExceptionLog.Delete`／`Purge`／`ClearAll`／`Export`）。
 - 破壞性動作（單列刪除、清除、清空）以 `ConfirmDialog.AskDestructiveAsync` 二次確認。
 - 匯出的 CSV 為 **UTF-8 含 BOM**（0.9.16 起；先前少了 BOM，Excel 開啟繁中會亂碼），
-  位元組由 `Components/Commons/TextDownloadPayload.Utf8WithBom` 產生。
+  位元組由 `MyProject.Web/Export/TextDownloadPayload.Utf8WithBom` 產生（0.10.9 以前在 `Components/Commons/`）。
 - **複製目前查詢結果**（0.9.73）：與匯出同範圍（目前條件下的全部、依目前排序，最多 5,000 列，
   兩者共用 `BuildFullQuery()`），每列內容與點列複製相同、以一行 50 個 `=` 分隔；堆疊以
   `ExceptionLogService.GetStackTracesAsync` 一次查出檔名再逐檔讀取。超過 **100 列**先以
@@ -131,7 +131,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 **不收**：
 - `OperationCanceledException`／`TaskCanceledException` —— 使用者取消、正常關機。
-- 只是連線中斷造成的 `JSDisconnectedException`（本身，或 `AggregateException` 展開後全部都是）—— 使用者關掉分頁（0.9.172 起，`CircuitDisconnect`；0.10.9 起沒有 Blazor Server 連線，實際上不再出現）。
+- 只是連線中斷造成的 `JSDisconnectedException`（本身，或 `AggregateException` 展開後全部都是）—— 使用者關掉分頁（0.9.172 起，`CircuitDisconnect`；0.10.9 起沒有 Blazor Server 連線，實際上不再出現；0.10.10 起 `CircuitDisconnect` 已刪除，這一條不再有特別處理）。
 - 本子系統自己的記錄器（`ExceptionLogProvider`／`ExceptionLogWriter`／`ExceptionLogService`／`ExceptionStackFileStore`）。
 - `AsyncLocal` 抑制旗標開啟時（寫入器執行期間全程開啟）。
 - 同一個例外實例的第二次以後（0.9.77）。

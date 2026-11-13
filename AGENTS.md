@@ -84,7 +84,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 本系統**只支援 SQLite**；模型變更要在 `MyProject.AccessDatas/Migrations/` 產生 migration（0.4.24 起已移除 SQL Server 軌道）。
 - 分層依賴一律向上：Web → Business → AccessDatas；`Share` 不相依其他專案，`Models`/`Dtos` 只相依 `Share`；UI 不直接 `using BackendDBContext`。
   0.10.0 起進行 WASM 改寫（計畫與各里程碑測試報告在 `docs/migration/`）：WASM 前端 `MyProject.Web.Client` 只能參考 Dtos／Models／Share；
-  0.10.9 起已移除 Blazor Server 模式：畫面一律放 `MyProject.Web.Client`，`MyProject.Web` 只剩 API、WASM 主機頁 `Components/App.razor` 與靜態檔（`WasmOnlyHostTests` 守門）；
+  0.10.9 起已移除 Blazor Server 模式；0.10.10 起前端是獨立的 WASM 靜態站台（入口 `MyProject.Web.Client/wwwroot/index.html`）：畫面一律放 `MyProject.Web.Client`，
+  `MyProject.Web` 只剩 API（`ClientSettings:BaseUrl` 留空＝同站台時另提供前端靜態檔；有值＝雙站台）；前端連伺服器的網址一律經 `ApiAddress`（`ApiOnlyHostTests`／`SameSiteHostTests`／`DualSiteHostTests` 守門）；
   刷新 Token 一律經 `IRefreshTokenStore`（落庫、輪替、重用撤銷）；API 的目前使用者由 `ApiActorMiddleware`＋`ICurrentUserLoader` 載入（唯一的載入規則）；
   測試讀原始碼一律經 `SourceTree`。見速查表 §1、§6.20、§6.33。
 - Web API 一律回傳 `ApiResult<T>`，分頁包 `PagedResult<T>`；UI（WASM）與 API 一律用 JWT Bearer（0.10.8 起純 Token 登入，不再發登入 Cookie）。受保護 CRUD 另以 `[HasPermission("resource:action")]` + `IPermissionChecker` 做動作級授權（無權限回 403，維持 `ApiResult`；管理員短路）；UI 與 API 共用此單一 RBAC 權威來源。
@@ -92,7 +93,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   改注入 `IDbContextFactory<BackendDBContext>`，每個方法用完即棄，`CleanTrackingHelper` 已移除。
 - 新增頁面權限採**宣告式**：`Menu.json`（每項唯一 `id`）＋ `SidebarMenuService.MenuPermissionMap`（`id→權限鍵`）＋ `MagicObjectHelper` 權限鍵常數；以 id 對應、重排 `Menu.json` 不錯位（舊「位置索引三處同步」已移除）。
 - 單一版本來源 `SystemSettings.SystemInformation.SystemVersion`（有建置內容〔程式、設定、會隨網站發佈的檔案，例如 `Datas/Help` 的操作說明〕才 Patch +1，例：`0.4.0 → 0.4.1`；只改 `docs/` 或根目錄文件不升版；格式 `Major.Minor.Patch (YYYY/MM/DD)`）。
-- **全站色票的唯一來源是 `src/MyProject/MyProject.Web/wwwroot/theme.css` 的 `:root`**；`--ov-*`（浮層）與
+- **全站色票的唯一來源是 `src/MyProject/MyProject.Web.Client/wwwroot/theme.css` 的 `:root`**；`--ov-*`（浮層）與
   `--login-*`（登入頁）只是別名層。樣式要寫哪裡的判準是 **DOM 位置**不是元件名稱：AntDesign 渲染在
   `AntContainer` 底下的浮層 → `OverlayStyles.razor`；渲染在頁面內的（Table／Pagination／Input／Tag）→
   `theme.css`。見速查表 §6.9 與 `docs/architecture/介面視覺設計規範.md`。由 `ThemeConventionTests` 守門。

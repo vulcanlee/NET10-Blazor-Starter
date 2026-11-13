@@ -1,4 +1,4 @@
-namespace MyProject.Web.Components.Layout;
+namespace MyProject.Web.Shell;
 
 public sealed class SidebarMenuItemModel
 {

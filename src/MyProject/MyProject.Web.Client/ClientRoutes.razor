@@ -3,8 +3,8 @@
 @inject NavigationManager NavigationManager
 
 @*
-    WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的根元件，Server 版的 Routes.razor 已刪除）。
-    只認得本組件的頁面（ClientRouteTable）；導向其他網址時改成整頁載入，交給主機處理（API、Swagger，或找不到時的 404）。
+    WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的根元件；0.10.10 起由 Program.cs 掛在 index.html 的 #app）。
+    只認得本組件的頁面（ClientRouteTable）；導向其他網址時改成整頁載入，交給網站處理（同站台時主機的 Swagger 等；其他網址主機或靜態站都回 index.html，再由這裡顯示找不到頁面）。
 *@
 <ConfigProvider>
     <Router AppAssembly="typeof(ClientRoutes).Assembly" OnNavigateAsync="OnNavigateAsync">
@@ -23,8 +23,8 @@
             </ClientErrorBoundary>
         </Found>
         @*
-            找不到路由（0.10.8 起 /not-found 在 WASM）：主機把 404 重跑成 /not-found 時，瀏覽器網址還是原本那個，
-            這裡顯示與 /not-found 頁相同的內容與外框。
+            找不到路由（0.10.8 起 /not-found 在 WASM）：0.10.10 起不是頁面的網址一律拿到 index.html（主機或靜態站的 SPA 回退），
+            瀏覽器網址還是原本那個，這裡顯示與 /not-found 頁相同的內容與外框。
         *@
         <NotFound>
             <LayoutView Layout="typeof(ClientMainLayout)">
@@ -63,7 +63,7 @@
     }
 
     /// <summary>
-    /// 不是 WASM 頁面的網址（例如連到 Swagger 或 API）：整頁載入目前的網址，交給主機。
+    /// 不是 WASM 頁面的網址（例如同站台時連到 Swagger）：整頁載入目前的網址，交給網站。
     /// ⚠️ 用 NavigationManager.Uri（本站的完整網址），不從路徑重組（避免 //evil.com 被當成別的網站）；
     /// 剛整頁載入的第一次導覽不再重載 —— 主機判定是 WASM 頁面、這裡卻不認得時，重載只會無限迴圈，改顯示找不到頁面。
     /// </summary>

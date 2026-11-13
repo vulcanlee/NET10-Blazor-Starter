@@ -1,10 +1,10 @@
 ﻿# Gmail 寄信設定指南
 
-- 文件版本：1.0
+- 文件版本：1.1
 - 文件狀態：維護中
-- 現行系統版本：0.9.163
+- 現行系統版本：0.10.10
 - 首次實作版本：0.9.84
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/13
 
 本文件一步一步說明：如何讓系統透過**某一個 Gmail 帳號**寄信（忘記密碼、例外告警、測試信），
 `appsettings.json` 的 `EmailSettings` 每個值要填什麼、要到 Gmail／Google 帳戶網頁的哪裡取得。
@@ -64,7 +64,7 @@ Gmail 不允許用一般登入密碼走 SMTP，必須用「應用程式密碼」
 | `Password` | 步驟二的 16 碼應用程式密碼（無空白） | 步驟二。🔴 **機密**，不寫進 `appsettings.json`，見步驟五 |
 | `FromAddress` | 與 `UserName` 相同 | 收件者看到的寄件位址。要用別的位址，見下方說明 |
 | `FromName` | 例如 `MyProject 系統通知`；留空則用系統名稱 | 自行決定。收件者信箱裡顯示的寄件人名稱 |
-| `PublicBaseUrl` | 使用者實際打開系統的網址，例如 `https://erp.example.com` | 自行決定。信中所有連結（如重設密碼連結）以它為開頭；本機測試可填 `https://localhost:<埠號>` |
+| `PublicBaseUrl` | 使用者實際打開系統的網址，例如 `https://erp.example.com` | 自行決定。信中所有連結（如重設密碼連結）以它為開頭；本機測試可填 `https://localhost:<埠號>`。0.10.10 起前端另外部署成獨立站台（雙站台，`ClientSettings:BaseUrl` 有值）時，信中連結一律改用 `ClientSettings:BaseUrl`（前端的網址），這一欄被蓋過、可以不填；同站台（`ClientSettings:BaseUrl` 留空）照舊用這一欄 |
 | `TimeoutSeconds` | `30` | 維持預設即可 |
 | `PickupDirectory` | 不用改 | `Smtp` 模式不會用到 |
 
@@ -126,12 +126,12 @@ Windows 伺服器（以系統管理員身分執行 PowerShell）：
 ## 6. 步驟六：重啟並驗證
 
 1. 重新啟動系統。`EmailSettings` 在啟動時驗證，**填錯會直接啟動失敗**（例如 `Port` 超出範圍、`Security` 拼錯、`Host` 空白、`FromAddress` 不是 Email）；
-   Production 另外要求 `PublicBaseUrl` 必須是完整的 `http(s)` 網址。錯誤原因寫在啟動日誌。
+   Production 另外要求 `PublicBaseUrl` 必須是完整的 `http(s)` 網址（雙站台有填 `ClientSettings:BaseUrl` 時不檢查）。錯誤原因寫在啟動日誌。
 2. 以管理員登入，開啟「**系統健康監控**」（`/system-health`）：
    - 「**寄信服務**」項：會實際連線 `smtp.gmail.com` 並登入（不寄信）。**綠燈**代表主機、連接埠與帳密都正確。
    - 「**寄信測試**」區塊：按「**寄出測試信**」寄一封給自己，到收件匣（或垃圾郵件匣）確認有收到。
 3. 登出後看登入頁：寄信啟用後會出現「**忘記密碼？**」。建議用測試帳號實際走一次「忘記密碼 → 收信 → 點連結重設 → 登入」，
-   並確認信中連結的網域就是 `PublicBaseUrl`。
+   並確認信中連結的網域就是 `PublicBaseUrl`（雙站台時是 `ClientSettings:BaseUrl` 的前端網域）。
 
 ## 7. 疑難排解
 
@@ -148,7 +148,7 @@ Windows 伺服器（以系統管理員身分執行 PowerShell）：
 | 收件者看到的寄件者不是 `FromAddress` | 該位址沒在 Gmail「選擇寄件地址」登記 | 見步驟三下方說明，或把 `FromAddress` 改成與 `UserName` 相同 |
 | 信進了垃圾郵件匣 | 收件端判斷為可疑 | 請收件者標示「不是垃圾郵件」；`FromName` 取有意義的名稱；避免短時間大量寄送 |
 | 原本可以寄，某天突然 535 | 帳號變更過 Google 密碼，所有應用程式密碼已被撤銷 | 重新產生應用程式密碼並更新 User Secrets／環境變數 |
-| 系統啟動失敗 | `Host` 空白、`FromAddress` 不是有效 Email；Production 另有 `PublicBaseUrl` 不是完整 `http(s)` 網址 | 依啟動日誌的錯誤訊息補齊 |
+| 系統啟動失敗 | `Host` 空白、`FromAddress` 不是有效 Email；Production 另有 `PublicBaseUrl` 不是完整 `http(s)` 網址（雙站台時改查 `ClientSettings:BaseUrl` 必須是 https） | 依啟動日誌的錯誤訊息補齊 |
 
 ## 8. 安全提醒
 

@@ -1,6 +1,6 @@
 using MyProject.Business.Services.DataAccess;
 
-namespace MyProject.Web.Components.Layout;
+namespace MyProject.Web.Shell;
 
 /// <summary>
 /// 公告橫幅用的快取（singleton，0.9.100 起）：所有連線共用一份「還沒結束的公告」，每次換頁不必查資料庫。

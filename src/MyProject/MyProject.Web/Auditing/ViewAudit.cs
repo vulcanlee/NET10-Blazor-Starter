@@ -2,7 +2,7 @@ using System.Globalization;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 
-namespace MyProject.Web.Components.Commons;
+namespace MyProject.Web.Auditing;
 
 /// <summary>
 /// 檢視層寫稽核的共用樣板（LOG-14）：操作者一律取自 <see cref="CurrentUserService"/>。

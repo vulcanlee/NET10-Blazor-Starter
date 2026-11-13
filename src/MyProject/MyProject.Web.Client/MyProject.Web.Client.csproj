@@ -3,18 +3,27 @@
   <!--
     WASM 前端（0.10.0 起，WASM 遷移 M1 建立空殼）。在使用者的瀏覽器執行：
     ⚠️ 只能參考 Dtos、Models、Share（ClientProjectBoundaryTests 守門），不可參考 Business、AccessDatas 或 Web。
-    遷移期間由 MyProject.Web 一併提供（Blazor Web App 的 InteractiveWebAssembly 渲染模式），
-    M11 起改為獨立的靜態站台。計畫見 docs/migration/WASM遷移計畫.md。
+    0.10.10 起（WASM 遷移 M11）是獨立的 Blazor WebAssembly 靜態站台：入口頁 wwwroot/index.html，發佈輸出可以直接放上自己的 IIS 站台（web.config）；
+    同站台部署時由 MyProject.Web 參考本專案、一併提供這些靜態檔。計畫見 docs/migration/WASM遷移計畫.md。
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
-    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
     <!--
       載入完整的地區資料（0.10.2 起）：語系固定 zh-TW（見 ClientCulture），不跟著瀏覽器語言；
       預設只依瀏覽器語言載入一部分，英文瀏覽器會缺 zh-TW 的資料。下載量多約 1～2 MB，正式發佈的大小在 M12 量測。
     -->
     <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
+    <!--
+      index.html 的佔位（0.10.10 起，.NET 10 獨立 WebAssembly 的做法）：建置與發佈時填入 import map、preload 連結，
+      並把 blazor.webassembly 的檔名換成帶指紋的版本。
+    -->
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!--
+      ⚠️ appsettings.json 不產生 .br／.gz 壓縮副本：部署後要改 ApiBaseUrl，有壓縮副本的話伺服器（web.config 的 Brotli 規則、
+      同站台的 MapStaticAssets）會繼續送出舊的壓縮版，改了等於沒改。其他檔案照常預先壓縮。
+    -->
+    <CompressionExcludePatterns>$(CompressionExcludePatterns);appsettings*.json;**/appsettings*.json</CompressionExcludePatterns>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,6 +52,113 @@
     <None Update="Views\Auths\ResetPassword.razor.css" CssScope="b-auth-shell" />
     <None Update="Views\Auths\TwoFactor.razor.css" CssScope="b-auth-shell" />
   </ItemGroup>
+
+  <!--
+    靜態站台的 IIS 設定（0.10.10 起）：只在發佈本專案時放到輸出根目錄（取代 SDK 預設的 web.config）。
+    刻意不當 Content：否則參考本專案的 MyProject.Web 發佈時也會帶上它，蓋掉 API 主機自己的 web.config。
+  -->
+  <ItemGroup>
+    <Content Remove="web.config" />
+    <None Include="web.config" />
+  </ItemGroup>
+
+  <Target Name="AddStaticSiteWebConfigToPublish" BeforeTargets="_AddWasmWebConfigFile">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(MSBuildProjectDirectory)\web.config" RelativePath="web.config" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    把 index.html 裡 import map 的 SHA-256 填進發佈出去的 web.config（CSP 的 script-src）。import map 的內容是發佈時才產生的
+    （檔名指紋），每次都不同，所以不能寫死。雜湊的算法與 API 主機的 FrontendContentSecurityPolicy.ImportMapHash 相同：先把換行正規化成 LF。
+    ⚠️ 一律從專案裡的 web.config 範本讀、寫到發佈輸出（0.10.10 獨立審查：讀輸出裡的那份時，同一個資料夾第二次發佈會因佔位已被換掉而失敗）。
+
+    雙站台（0.10.10 起）：發佈時帶 -p:StaticSiteApiOrigin=https://api.公司.com（只要 scheme＋主機＋連接埠），
+    同時填入 wwwroot/appsettings.json 的 ApiBaseUrl 與 CSP 的 connect-src —— 兩處一致，重新發佈也不會被蓋回空白。
+  -->
+  <UsingTask TaskName="FillImportMapHash" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <IndexHtml ParameterType="System.String" Required="true" />
+      <Template ParameterType="System.String" Required="true" />
+      <WebConfig ParameterType="System.String" Required="true" />
+      <ApiOrigin ParameterType="System.String" />
+      <AppSettingsTemplate ParameterType="System.String" Required="true" />
+      <AppSettings ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Security.Cryptography" />
+      <Using Namespace="System.Text" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var html = File.ReadAllText(IndexHtml);
+        var match = Regex.Match(html, @"<script type=""importmap"">(?<content>[\s\S]*?)</script>");
+        if (!match.Success)
+        {
+          Log.LogError("發佈的 index.html 裡找不到 import map，無法填入 web.config 的 CSP 雜湊：" + IndexHtml);
+          return false;
+        }
+
+        var content = match.Groups["content"].Value.Replace("\r\n", "\n").Replace('\r', '\n');
+        string hash;
+        using (var sha = SHA256.Create())
+        {
+          hash = Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(content)));
+        }
+
+        var config = File.ReadAllText(Template);
+        if (!config.Contains("__IMPORTMAP_SHA256__"))
+        {
+          Log.LogError("web.config 範本的 CSP 裡找不到 __IMPORTMAP_SHA256__ 佔位：" + Template);
+          return false;
+        }
+
+        config = config.Replace("__IMPORTMAP_SHA256__", hash);
+        // appsettings.json 也一律從專案裡的範本重寫：上一次發佈填過 API 網址、這次沒帶時不能沿用舊值。
+        var settings = File.ReadAllText(AppSettingsTemplate);
+        if (!string.IsNullOrWhiteSpace(ApiOrigin))
+        {
+          Uri origin;
+          if (!Uri.TryCreate(ApiOrigin.Trim(), UriKind.Absolute, out origin)
+              || (origin.Scheme != "https" && origin.Scheme != "http")
+              || origin.AbsolutePath != "/" || origin.Query.Length > 0 || origin.Fragment.Length > 0)
+          {
+            Log.LogError("StaticSiteApiOrigin 必須是只有 scheme＋主機＋連接埠的 http(s) 網址（例如 https://api.example.com），目前是：" + ApiOrigin);
+            return false;
+          }
+
+          var originText = origin.GetLeftPart(UriPartial.Authority);
+          var csp = Regex.Match(config, @"(<add name=""Content-Security-Policy"" value=""[^""]*connect-src 'self')");
+          if (!csp.Success)
+          {
+            Log.LogError("web.config 範本的 Content-Security-Policy 裡找不到 connect-src 'self'：" + Template);
+            return false;
+          }
+
+          config = config.Substring(0, csp.Index + csp.Length) + " " + originText + config.Substring(csp.Index + csp.Length);
+          var pattern = new Regex(@"""ApiBaseUrl""\s*:\s*""[^""]*""");
+          if (!pattern.IsMatch(settings))
+          {
+            Log.LogError("wwwroot/appsettings.json 範本裡找不到 ApiBaseUrl：" + AppSettingsTemplate);
+            return false;
+          }
+
+          settings = pattern.Replace(settings, "\"ApiBaseUrl\": \"" + originText + "/\"");
+          Log.LogMessage(MessageImportance.High, "雙站台：ApiBaseUrl 與 CSP 的 connect-src 已填入 " + originText);
+        }
+
+        File.WriteAllText(AppSettings, settings, new UTF8Encoding(false));
+
+        File.WriteAllText(WebConfig, config, new UTF8Encoding(false));
+        Log.LogMessage(MessageImportance.High, "web.config 的 CSP 已填入 import map 的雜湊 sha256-" + hash);
+]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="FillStaticSiteImportMapHash" AfterTargets="Publish">
+    <FillImportMapHash IndexHtml="$(PublishDir)wwwroot\index.html" Template="$(MSBuildProjectDirectory)\web.config" WebConfig="$(PublishDir)web.config"
+                       ApiOrigin="$(StaticSiteApiOrigin)" AppSettingsTemplate="$(MSBuildProjectDirectory)\wwwroot\appsettings.json" AppSettings="$(PublishDir)wwwroot\appsettings.json" />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\MyProject.Dtos\MyProject.Dtos.csproj" />

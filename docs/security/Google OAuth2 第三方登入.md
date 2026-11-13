@@ -1,10 +1,10 @@
 ﻿# Google OAuth2 第三方登入
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.10
 - 首次實作版本：0.2.6
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/13
 
 ## 目的
 
@@ -40,6 +40,7 @@
      - 開發（https）：`https://localhost:7144/signin-google`
      - 開發（http）：`http://localhost:5109/signin-google`
      - 正式：`https://<your-domain>/signin-google`
+     - 正式且前端另外部署成獨立站台（雙站台，0.10.10 起）：填 **API 主機**的網址，例如 `https://api.公司.com/signin-google`（回呼在 API 主機，不是前端的 `app.公司.com`）。
    - `/signin-google` 是 Google 中介軟體預設的回呼路徑（對應 `CallbackPath`），請務必與系統設定**完全一致**（差一個字 Google 就會拒絕）。本機開發埠以 `Properties/launchSettings.json` 為準；用 `scripts/New-StarterProject.ps1` 產生的衍生專案會拿到另一組隨機埠，腳本結尾會印出要註冊的 redirect URI。
 4. 建立完成後，畫面會顯示 **用戶端 ID（ClientId）** 與 **用戶端密鑰（ClientSecret）**，複製下來填入下一節的設定。
 
@@ -131,7 +132,7 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 
 ### 流程步驟
 
-1. 使用者開啟 `/Auths/Login`（WASM）：登入頁在這個分頁的 sessionStorage 產生一個隨機**驗證值**，把它的 SHA-256（Base64Url）放進「使用 Google 登入」按鈕的連結：`/Auths/Google/Login?returnUrl=…&binding=<雜湊>`。
+1. 使用者開啟 `/Auths/Login`（WASM）：登入頁在這個分頁的 sessionStorage 產生一個隨機**驗證值**，把它的 SHA-256（Base64Url）放進「使用 Google 登入」按鈕的連結：`/Auths/Google/Login?returnUrl=…&binding=<雜湊>`。0.10.10 起這個連結由 `ApiAddress.GoogleLogin` 組成，是 **API 主機**的完整網址（同站台時與網頁同一個網址；雙站台時是前端 `wwwroot/appsettings.json` 的 `ApiBaseUrl`），按下後整頁導到 API 主機。
 2. 系統發出 `Challenge`（綁定雜湊放進 OAuth 的 state，加密、防竄改），瀏覽器導向 Google 完成驗證，Google 再導回 `/signin-google`。
 3. Google 中介軟體把身分寫入外部暫存 Cookie，並導向 `/Auths/Google/Callback`。
 4. Callback 讀取外部 Cookie 的 Email、Name、`sub` 與 state 裡的綁定雜湊（沒有綁定值 → 回登入頁重新開始，不建立也不連結帳號），呼叫 `ExternalLoginService.FindOrCreateAsync(...)`：
@@ -148,6 +149,7 @@ GoogleOAuthSettings__ClientSecret=你的用戶端密鑰
 6. 若 `Status = false` → 導向 `/Auths/Pending`（帳號待審核頁，**不**登入）。
 7. 若帳號因密碼輸錯被鎖定（0.9.101 起）→ 導向 `/Auths/Login?sso=locked`，不登入。判斷順序集中在 `ExternalLoginResult.Evaluate`：帳號已被使用（0.9.171 起）→ 已刪除 → 待開通 → 鎖定 → 登入。
 8. 否則產生**一次性代碼**（記下使用者 Id、工作階段版本、`returnUrl`、是否要第二步、綁定雜湊），導回 `/Auths/Login#code=<代碼>`。代碼放在網址片段（`#` 後面），不會送到伺服器、不進日誌。
+   0.10.10 起第 4、6、7、8 步所有導回前端的網址都經 `ClientSettings.FrontendUrl` 組成：雙站台時接在 API 主機的 `ClientSettings:BaseUrl`（前端網址）後面，例如 `https://app.公司.com/Auths/Login#code=…`；同站台時是本站路徑。只用設定值，不採用請求的 Host 或任何參數（不可成為開放式重新導向）。
 9. 登入頁讀出代碼、立刻從網址拿掉，連同第 1 步的驗證值原值與記住裝置 Token 送 `POST api/v1/Auth/google/exchange`：
    - 代碼不存在、過期（60 秒）、已用過、驗證值不符，或回呼之後帳號被停用、改了工作階段版本 → 401「Google 登入已逾時，請重新登入。」，留在登入頁；
    - 帳號已啟用兩步驟驗證（0.9.104 起）且這台裝置沒有被記住 → 回待驗票證，前端帶到 `/Auths/TwoFactor` 完成第二步；
@@ -211,7 +213,7 @@ Google 使用者預設沒有本地密碼，因此無法用 App 的 `/api/v1/auth
 - **開放註冊風險**：目前為「任何 Google 帳號皆可驗證並自動建帳」。資安閘門是 `Status = false` 預設停用 + 管理者人工審核，請務必落實審核流程。若要更嚴格，可改為限制特定網域或關閉自動建帳。
 - 自動建立的帳號雖套用「預設角色」，但在管理者啟用前無法登入。
 - `ClientSecret` 請勿進版控；正式環境一律用 user-secrets / 環境變數。
-- 回呼 URI（`/signin-google`）必須與 Google Console 設定完全一致，否則 Google 會拒絕。0.10.8 改成純 Token 登入時回呼網址**沒有變**，不必改 Google Console。
+- 回呼 URI（`/signin-google`）必須與 Google Console 設定完全一致，否則 Google 會拒絕。0.10.8 改成純 Token 登入時回呼網址**沒有變**，不必改 Google Console。0.10.10 起改成雙站台部署時，回呼網址要改成 API 主機的網域（同站台不變）。
 - **一次性代碼**（0.10.8 起）：只存代碼的雜湊、60 秒、只能兌換一次（兌換時先移除再檢查，出示錯的驗證值也算用掉）；並綁定發起的瀏覽器 —— 代碼經瀏覽器歷史或側錄外流，沒有那個分頁裡的驗證值原值也換不到 Token。
-- ⚠️ 代碼只存在**單一行程的記憶體**：回呼與兌換要落在同一台主機（IIS 單站台即是）；多台主機要設定黏著工作階段，否則兌換會失敗、要重新按 Google 登入。IIS 回收時還沒兌換的代碼失效。
+- ⚠️ 代碼只存在**單一行程的記憶體**：回呼與兌換要落在同一台主機（IIS 單站台即是；雙站台時回呼與兌換都在 API 主機，同樣成立）；多台主機要設定黏著工作階段，否則兌換會失敗、要重新按 Google 登入。IIS 回收時還沒兌換的代碼失效。
 - 外部暫存 Cookie 與 OAuth state 以 Data Protection 金鑰加密：金鑰環要固定（`SystemSettings:ExternalFileSystem:DataProtectionKeyPath`），否則 Google 驗證到一半回收就會失敗。

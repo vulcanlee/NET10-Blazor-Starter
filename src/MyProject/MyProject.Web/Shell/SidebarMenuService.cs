@@ -4,7 +4,7 @@ using MyProject.Models.Others;
 using MyProject.Share.Helpers;
 using MyProject.Web.Caching;
 
-namespace MyProject.Web.Components.Layout;
+namespace MyProject.Web.Shell;
 
 public sealed class SidebarMenuService
 {

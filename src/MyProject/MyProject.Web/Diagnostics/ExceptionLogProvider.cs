@@ -151,8 +151,8 @@ public sealed class ExceptionLogProvider : ILoggerProvider
             }
 
             // 使用者取消、正常關機等刻意忽略的情況不該出現在本頁。
-            // 連線中斷後的 JS 呼叫失敗也是（0.9.172 起，見 CircuitDisconnect）：關一次分頁就有幾十筆，會灌爆暴增告警。
-            if (exception is OperationCanceledException || CircuitDisconnect.IsOnlyDisconnect(exception))
+            // （0.9.172～0.10.9 另略過 Blazor Server 連線中斷後的 JS 呼叫失敗；0.10.10 起主機已沒有 JS interop。）
+            if (exception is OperationCanceledException)
             {
                 return false;
             }
