@@ -200,6 +200,8 @@ else
                     <FormItem Label="帳號" Required>
                         <Input @bind-Value="CurrentRecord.Account" Placeholder="請輸入帳號" />
                         <ValidationMessage For="() => CurrentRecord.Account" />
+                        @* 帳號是否已被使用（只在新增時；0.10.15 起，.NET 11 的非同步表單驗證）。 *@
+                        <AsyncFieldCheck For="() => CurrentRecord.Account" Check="CheckAccountAvailableAsync" SaveContext="editContext" />
                     </FormItem>
 
                     <FormItem Label="密碼" Required="@isNewRecordMode">
@@ -314,6 +316,7 @@ else
                     <FormItem Label="帳號" Required>
                         <Input @bind-Value="copyRecord.Account" Placeholder="請輸入帳號" />
                         <ValidationMessage For="() => copyRecord.Account" />
+                        <AsyncFieldCheck For="() => copyRecord.Account" Check="CheckCopyAccountAvailableAsync" SaveContext="copyFormEditContext" />
                     </FormItem>
 
                     <FormItem Label="名稱" Required>

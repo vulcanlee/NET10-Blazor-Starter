@@ -99,18 +99,7 @@ public partial class __Name__ViewView
         }
 
 #IF TEAMS
-        var options = await Api.OptionsAsync();
-        if (options.Success && options.Data is { } data)
-        {
-            availableTeams = data.Teams;
-            isAdmin = data.IsAdmin;
-            myTeams = data.MyTeams;
-        }
-        else
-        {
-            // 讀不到選項時「團隊」會是空的：告訴使用者，而不是默默少了選項。
-            ViewNotification.Error(NotificationService, $"讀取「團隊」選項失敗：{options.UserMessage()}");
-        }
+        await LoadFormOptionsAsync();
 
 #ENDIF
         canDelete = Permissions.CanAccessAction(MagicObjectHelper.__PermConst__, PermissionActions.Delete);
@@ -225,20 +214,51 @@ public partial class __Name__ViewView
     private void OnRecordTeamsChanged(IEnumerable<string> values) => CurrentRecord.Teams = values?.ToList() ?? [];
 #ENDIF
 
-    private Task OnAddAsync()
+#IF TEAMS
+    /// <summary>
+    /// 表單的「團隊」選項與自己的團隊範圍：開頁、每次開窗、存檔失敗後都重讀 —— 別人可能剛新增或停用了團隊
+    /// （速查表「畫面選項資料一致性」，FormOptionsConventionTests 守門）。回傳是否讀到。
+    /// </summary>
+    private async Task<bool> LoadFormOptionsAsync()
     {
+        var options = await Api.OptionsAsync();
+        if (options.Success && options.Data is { } data)
+        {
+            availableTeams = data.Teams;
+            isAdmin = data.IsAdmin;
+            myTeams = data.MyTeams;
+            return true;
+        }
+
+        // 讀不到選項時「團隊」會是空的：告訴使用者，而不是默默少了選項。
+        ViewNotification.Error(NotificationService, $"讀取「團隊」選項失敗：{options.UserMessage()}");
+        return false;
+    }
+
+#ENDIF
+    private async Task OnAddAsync()
+    {
+#IF TEAMS
+        await LoadFormOptionsAsync();
+#ENDIF
         CurrentRecord = new();
         isNewRecordMode = true;
         modalTitle = "新增__Item__";
         // ⚠️ 必須是開窗前的最後一步：任何預設值都要先塞完，否則會被當成使用者的變更。
         dirtyTracker.Capture(CurrentRecord);
         modalVisible = true;
-        return Task.CompletedTask;
+        await Task.CompletedTask; // 沒有團隊選項的模組不必讀任何東西；保留 async 讓兩種變化的簽章一致
     }
+
+    /// <summary>名稱欄位的非同步檢查（AsyncFieldCheck）：回「名稱已存在」的訊息，沒衝突回 null。</summary>
+    private Task<string?> CheckNameAvailableAsync() => Api.NameConflictAsync(__Name__DtoMapper.ToDto(CurrentRecord));
 
     /// <summary>開修改窗：向伺服器讀這一筆的最新資料與版本號（伺服器寫「查看」稽核）。</summary>
     private async Task OnEditAsync(__Name__AdapterModel record)
     {
+#IF TEAMS
+        await LoadFormOptionsAsync();
+#ENDIF
         var result = await Api.GetAsync(record.Id);
         if (!result.Success || result.Data is null)
         {
@@ -293,6 +313,9 @@ public partial class __Name__ViewView
         if (!check.Success)
         {
             ViewNotification.Error(NotificationService, check.Message);
+#IF TEAMS
+            await LoadFormOptionsAsync(); // 失敗可能是選的團隊剛被停用：讓下拉換成最新的選項
+#ENDIF
             return false;
         }
 
@@ -302,6 +325,9 @@ public partial class __Name__ViewView
         if (!result.Success)
         {
             ViewNotification.Error(NotificationService, result.Message);
+#IF TEAMS
+            await LoadFormOptionsAsync(); // 失敗可能是選的團隊剛被停用：讓下拉換成最新的選項
+#ENDIF
             return false;
         }
 

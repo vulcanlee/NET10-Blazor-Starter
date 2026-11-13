@@ -30,6 +30,16 @@ public class CrudApi<TDto, TSearch>
     /// <summary>存檔前的名稱檢查；<paramref name="dto"/> 的 Id 有值時是修改。</summary>
     public async Task<VerifyRecordResult> CheckAsync(object dto) => (await Api.PostAsync<object>($"{BaseUrl}/check", dto)).ToVerify();
 
+    /// <summary>
+    /// 名稱是否已被使用（0.10.15 起，表單欄位的非同步檢查 <c>AsyncFieldCheck</c>）：只回「已存在」（409）的訊息；
+    /// 其他失敗（例如選的團隊剛被停用、沒有權限）不在這裡顯示，存檔時會有完整的檢查。
+    /// </summary>
+    public async Task<string?> NameConflictAsync(object dto)
+    {
+        var result = await Api.PostAsync<object>($"{BaseUrl}/check", dto);
+        return !result.Success && result.StatusCode == 409 ? result.UserMessage() : null;
+    }
+
     public async Task<VerifyRecordResult> CreateAsync(object dto) => (await Api.PostAsync<TDto>(BaseUrl, dto)).ToVerify();
 
     public async Task<VerifyRecordResult> UpdateAsync(int id, object dto) => (await Api.PutAsync<object>($"{BaseUrl}/{id}", dto)).ToVerify();

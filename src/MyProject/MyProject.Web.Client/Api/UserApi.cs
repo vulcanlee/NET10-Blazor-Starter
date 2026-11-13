@@ -32,6 +32,13 @@ public sealed class UserApi
     /// <summary>新增前的檢查（帳號是否已存在等），「複製」建立時先檢查帳號再問 Email。</summary>
     public async Task<VerifyRecordResult> CheckAsync(UserDto dto) => (await api.PostAsync<object>($"{BaseUrl}/check", dto)).ToVerify();
 
+    /// <summary>帳號是否已被使用（0.10.15 起，表單欄位的非同步檢查 <c>AsyncFieldCheck</c>）：只回「已存在」（409）的訊息，其他失敗留給存檔時的完整檢查。</summary>
+    public async Task<string?> AccountConflictAsync(UserDto dto)
+    {
+        var result = await api.PostAsync<object>($"{BaseUrl}/check", dto);
+        return !result.Success && result.StatusCode == 409 ? result.UserMessage() : null;
+    }
+
     public async Task<VerifyRecordResult> CreateAsync(UserDto dto) => (await api.PostAsync<UserDto>(BaseUrl, dto)).ToVerify();
 
     /// <summary>修改；成功時 <c>Data.Tokens</c> 有值代表改到自己：存下新 Token 後整頁重新載入。</summary>

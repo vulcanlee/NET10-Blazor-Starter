@@ -528,6 +528,13 @@ public class RoleViewService
             return VerifyRecordResultFactory.Conflict("角色名稱已存在，無法新增。");
         }
 
+        // 這次新選的預設團隊已不存在或已停用（0.10.15 起，見 SelectedOptionGuard）。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.DefaultTeams, null, await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            Logger.LogInformation("Pre-create validation failed because a selected default team is no longer available. Name={RoleName}", paraObject.Name);
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
+        }
+
         return VerifyRecordResultFactory.Build(true);
     }
 
@@ -550,6 +557,13 @@ public class RoleViewService
         {
             Logger.LogInformation("Pre-update validation failed because the default role cannot be renamed. RoleViewId={RoleViewId}", paraObject.Id);
             return VerifyRecordResultFactory.Invalid(renameBlocked);
+        }
+
+        // 這次新選的預設團隊已不存在或已停用（原本就有的不擋；0.10.15 起，見 SelectedOptionGuard）。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.DefaultTeams, TeamJsonHelper.Deserialize(searchItem.DefaultTeamsJson), await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            Logger.LogInformation("Pre-update validation failed because a selected default team is no longer available. RoleViewId={RoleViewId}", paraObject.Id);
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name);

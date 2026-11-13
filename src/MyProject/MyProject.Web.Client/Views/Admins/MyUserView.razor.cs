@@ -136,7 +136,7 @@ namespace MyProject.Web.Client.Views.Admins
                 return;
             }
 
-            await LoadRoleViewsAsync();
+            await LoadFormOptionsAsync();
 
             // ⚠️ 勾選欄要在表格第一次畫出來之前定案（見分類頁的說明）：選項讀完才開始畫。
             isAccessChecked = true;
@@ -229,7 +229,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>開修改窗：向伺服器讀這一筆的最新資料、額外角色、團隊與版本號（伺服器寫「查看」稽核）。</summary>
         async Task OnEditAsync(MyUserAdapterModel myUserAdapterModel)
         {
-            await LoadRoleViewsAsync();
+            await LoadFormOptionsAsync();
             var result = await Api.GetAsync(myUserAdapterModel.Id);
             if (!result.Success || result.Data is null)
             {
@@ -539,7 +539,7 @@ namespace MyProject.Web.Client.Views.Admins
 
         async Task OnAddAsync(bool continueOnCapturedContext)
         {
-            await LoadRoleViewsAsync();
+            await LoadFormOptionsAsync();
 
             CurrentRecord = new();
             if (defaultRoleId is { } roleId)
@@ -641,6 +641,7 @@ namespace MyProject.Web.Client.Views.Admins
                     // 0.9.92 之前這裡不看結果，失敗也顯示「新增成功」。
                     logger.LogInformation("User create rejected. Account={Account}, Message={Message}", CurrentRecord.Account, actionResult.Message);
                     ViewNotification.Error(notificationService, actionResult.Message);
+                    await LoadFormOptionsAsync(); // 失敗可能是選的角色或團隊剛被刪除、停用：讓下拉換成最新的選項
                     return false;
                 }
 
@@ -658,6 +659,7 @@ namespace MyProject.Web.Client.Views.Admins
                     // 0.9.92 之前這裡不看結果，失敗也顯示「修改成功」；0.9.93 起的並行衝突訊息也走這裡，表單維持開啟。
                     logger.LogInformation("User update rejected. UserId={UserId}, Message={Message}", CurrentRecord.Id, updateResult.UserMessage());
                     ViewNotification.Error(notificationService, updateResult.UserMessage());
+                    await LoadFormOptionsAsync(); // 失敗可能是選的角色或團隊剛被刪除、停用：讓下拉換成最新的選項
                     return false;
                 }
 
@@ -785,7 +787,7 @@ namespace MyProject.Web.Client.Views.Admins
         {
             try
             {
-                await LoadRoleViewsAsync();
+                await LoadFormOptionsAsync();
                 var copy = await Api.CopyDraftAsync(source.Id);
                 if (!copy.Success || copy.Data is null)
                 {
@@ -877,6 +879,8 @@ namespace MyProject.Web.Client.Views.Admins
             {
                 logger.LogInformation("User copy pre-check failed. Message={Message}", precheck.Message);
                 ViewNotification.Error(notificationService, precheck.Message);
+                await LoadFormOptionsAsync(); // 失敗可能是選的角色或團隊剛被刪除、停用：讓下拉換成最新的選項
+                DropUnavailableCopyTeams();
                 return false;
             }
 
@@ -899,6 +903,8 @@ namespace MyProject.Web.Client.Views.Admins
             {
                 logger.LogInformation("User copy rejected. Account={Account}, Message={Message}", copyRecord.Account, actionResult.Message);
                 ViewNotification.Error(notificationService, actionResult.Message);
+                await LoadFormOptionsAsync(); // 失敗可能是選的角色或團隊剛被刪除、停用：讓下拉換成最新的選項
+                DropUnavailableCopyTeams();
                 return false;
             }
 
@@ -974,8 +980,25 @@ namespace MyProject.Web.Client.Views.Admins
 
         #endregion
 
-        /// <summary>角色、團隊、預設角色與密碼規則（伺服器的 options；開窗時重讀，角色可能剛被別人改過）。</summary>
-        private async Task LoadRoleViewsAsync()
+        /// <summary>帳號欄位的非同步檢查（<see cref="AsyncFieldCheck"/>，0.10.15 起）：只在新增時檢查（伺服器的檢查端點只處理新帳號）。</summary>
+        private Task<string?> CheckAccountAvailableAsync()
+            => isNewRecordMode ? Api.AccountConflictAsync(UserDtoMapper.ToDto(CurrentRecord)) : Task.FromResult<string?>(null);
+
+        /// <summary>
+        /// 複製窗的團隊是唯讀的（照範本帶入）：開窗後範本的團隊被停用時，伺服器擋下並說明，這裡把它從要建立的資料拿掉，
+        /// 窗內的團隊清單跟著更新，再按一次就能建立（0.10.15 起，否則只能關窗重來）。
+        /// </summary>
+        private void DropUnavailableCopyTeams()
+            => copyRecord.TeamNames = copyRecord.TeamNames.Where(t => availableTeams.Contains(t, StringComparer.OrdinalIgnoreCase)).ToList();
+
+        /// <summary>複製建立時帳號欄位的非同步檢查。</summary>
+        private Task<string?> CheckCopyAccountAvailableAsync() => Api.AccountConflictAsync(UserDtoMapper.ToDto(copyRecord));
+
+        /// <summary>
+        /// 角色、團隊、預設角色與密碼規則（伺服器的 options）：開頁、每次開窗（新增、修改、複製）、存檔失敗後都重讀 —— 角色與團隊可能剛被別人改過
+        /// （0.10.15 起統一名稱與規則，速查表「畫面選項資料一致性」，<c>FormOptionsConventionTests</c> 守門）。
+        /// </summary>
+        private async Task LoadFormOptionsAsync()
         {
             var options = await Api.OptionsAsync();
             if (!options.Success || options.Data is not { } data)

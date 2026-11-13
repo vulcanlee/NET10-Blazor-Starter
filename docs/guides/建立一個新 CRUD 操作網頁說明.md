@@ -66,6 +66,11 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 - ⚠️ 日期時間欄位一律指定 `Format="@ClientCulture.DateTimeFormat"`：不指定時用的是瀏覽器內建的 zh-TW 格式（「上午9:00:00」），與伺服器（「上午 09:00:00」）不同。
 - ⚠️ `isAccessChecked = true` 要等「決定勾選欄（`<Selection />`）要不要出現」的權限與選項都拿到之後才設：表格先畫出來、之後才加上 `<Selection />`，AntDesign 會在 `Selection.Dispose` 丟 `NullReferenceException`（頁面出現錯誤列）。
 
+0.10.15 起另有兩條「畫面選項資料一致性」的規則（速查 §6.33 第 126～128 點），新增下拉選項時照做：
+
+- ⚠️ 表單的選項（`-WithTeams` 的團隊）由 `LoadFormOptionsAsync()` 讀，`OnAddAsync`／`OnEditAsync` 第一行就呼叫、存檔失敗後再呼叫一次——別人可能剛新增或停用了選項；服務的 `BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 以 `SelectedOptionGuard` 擋下新選的、已停用的團隊（400）。自己加的下拉照這個寫法（`FormOptionsConventionTests` 守門）。
+- 名稱欄位有 `<AsyncFieldCheck For="() => CurrentRecord.Name" Check="CheckNameAvailableAsync" SaveContext="editContext" />`：輸入後不必按儲存，就在欄位下方看到「名稱已存在」（呼叫 `POST check`，只認 409）。⚠️ `SaveContext` 不可拿掉（外層 `EditForm` 的 `Context`；`AntDesign.Form` 另有自己的 `EditContext`，沒給的話儲存不會等檢查）。
+
 ## 4. 自動登記了哪些地方
 
 重跑不會重複插入（已存在就略過並列出）；找不到登記位置時停止並說明是哪一項。

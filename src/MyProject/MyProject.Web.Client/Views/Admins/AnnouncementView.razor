@@ -19,7 +19,7 @@ else
                 <span class="announcement-hint">公告在起訖時間內顯示在每個登入後頁面的上方；每位使用者可以各自關閉。內容為純文字。</span>
             </div>
             <div class="announcement-toolbar-right">
-                <ToolbarIconButton Title="新增" Icon="add" OnClick="OnAdd" />
+                <ToolbarIconButton Title="新增" Icon="add" OnClick="OnAddAsync" />
                 <ToolbarIconButton Title="重新整理" Icon="refresh" OnClick="@(async () => await OnRefreshAsync())" />
                 <BatchDeleteButton Count="@selectedRows.Count()" Busy="@batchDeleting"
                                    OnClick="@(async () => await OnBatchDeleteAsync())" />
@@ -55,7 +55,7 @@ else
                     <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             <SpaceItem>
-                                <CrudActionButton Title="修改" Icon="edit" OnClick="@(() => OnEdit(context))" />
+                                <CrudActionButton Title="修改" Icon="edit" OnClick="@(() => OnEditAsync(context))" />
                             </SpaceItem>
                             <SpaceItem>
                                 <CrudActionButton Title="刪除" Icon="delete" OnClick="@(async () => await OnDeleteAsync(context))" />

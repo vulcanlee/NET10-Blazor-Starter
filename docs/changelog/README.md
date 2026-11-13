@@ -2,7 +2,7 @@
 
 - 文件版本：6.110
 - 文件狀態：維護中
-- 現行系統版本：0.10.14
+- 現行系統版本：0.10.15
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/14
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 畫面選項資料一致性：有表單選項的頁面（專案、分類、角色、使用者、公告）開窗時與存檔失敗後重讀選項（`LoadFormOptionsAsync`），專案頁「重新整理」連工具列過濾一起更新；伺服器存檔前以 `SelectedOptionGuard` 擋下新選的、已不存在或已停用的分類或團隊（API 回 400，原本就掛著的不擋）；分類與團隊名稱、使用者帳號輸入後即時顯示「已存在」（`AsyncFieldCheck`，.NET 11 非同步表單驗證）；CRUD 產生器樣板照做；新增 `FormOptionsConventionTests`、`SelectedOptionValidationApiTests`、`AsyncFieldCheckTests` 與實機腳本 `ux-data-freshness.mjs`（0.10.15） | [2026-11-14-畫面選項資料一致性](2026-11-14-畫面選項資料一致性.md) |
 | 升級 .NET 11：所有專案 `net11.0`、SDK 11.0.100、ASP.NET Core／EF Core 11.0.0、AntDesign `1.6.3-dotnet11.rc3`、Swashbuckle 11.0.1；處理 .NET 11 新的 Blazor 分析器（BL0016／BL0012，BL0014 分析器本身當掉暫時關閉）、`Validate()`→`ValidateAsync()`、`IStartupValidator`→`IAsyncStartupValidator`；WASM 發佈瘦身（關掉計量、事件追蹤、HTTP 追蹤傳遞，Brotli 後比 .NET 10 只多 2.9%）；EF Core `.config/dotnet-ef.json`；複刻腳本檢查 dotnet-ef 版本；移除沒用的 OpenApi 套件；對話窗頁尾維持「儲存　取消」（AntDesign RC 改了順序，待使用者決定）；效能沒有退步、多數變快；測試 3,184 → 3,188（0.10.14） | [2026-11-14-升級NET11](2026-11-14-升級NET11.md) |
 | 首次載入畫面、錯誤頁與找不到頁面：首次下載與登入檢查期間顯示同一張載入卡片（系統名稱、進度條與百分比，讀 Blazor 的 `--blazor-load-percentage`，不再整片空白）；系統錯誤頁改成整頁置中卡片（追蹤碼可複製、回首頁、回上一頁）；找不到頁面改成繁中卡片、頁首「找不到頁面」；`#blazor-error-ui` 文字繁中；只有 Development 的前端 CSP 允許 localhost 開發工具（VS 瀏覽器連結、熱重載不再被擋）；新增 `ux-loading-pages.mjs`、`perf.mjs`、`Start-E2EHost.ps1 -Published`（0.10.13） | [2026-11-14-載入畫面錯誤頁與找不到頁面](2026-11-14-載入畫面錯誤頁與找不到頁面.md) |
 | WASM 遷移最終驗收與提示框修正：M1～M12 全部完成後的最終驗收（全功能回歸：同站台 124 個、雙站台 45 個情境全部通過，真實模型 AI、離線與 PWA、53 個畫面外觀比對、看得到的 Chrome 巡檢 94 張截圖），結論是遷移完成、原功能全部保留；修正工具列按鈕的提示框停住並擋住 AI 對話窗的關閉鈕（`OverlayStyles` 讓 `.ant-tooltip` 不攔截點擊、`ToolbarIconButton`／`CrudActionButton` 按下時收起提示框），新增 `TooltipDismissTests`；實機腳本新增 `walkthrough.mjs`、以 `waitForPredicate` 取代被 CSP 擋下的 `page.waitForFunction`；測試 3,158 → 3,161（0.10.12） | [2026-11-14-最終驗收與提示框修正](2026-11-14-最終驗收與提示框修正.md) |

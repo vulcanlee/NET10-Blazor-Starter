@@ -154,6 +154,8 @@ else
                     <FormItem Label="名稱" Required>
                         <Input @bind-Value="CurrentRecord.Name" Placeholder="請輸入名稱" />
                         <ValidationMessage For="() => CurrentRecord.Name" />
+                        @* 名稱是否已被使用：離開欄位後就檢查，不必等按儲存（.NET 11 的非同步表單驗證）。 *@
+                        <AsyncFieldCheck For="() => CurrentRecord.Name" Check="CheckNameAvailableAsync" SaveContext="editContext" />
                     </FormItem>
 
                     <FormItem Label="啟用狀態">

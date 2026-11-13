@@ -443,22 +443,45 @@ public class __Name__Service
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var name = NameNormalizer.Normalize(paraObject.Name).ToLower();
-        return await context.__Name__.AsNoTracking().AnyAsync(x => x.Name.ToLower() == name)
-            ? VerifyRecordResultFactory.Conflict("名稱已存在，無法新增。")
-            : VerifyRecordResultFactory.Build(true);
+        if (await context.__Name__.AsNoTracking().AnyAsync(x => x.Name.ToLower() == name))
+        {
+            return VerifyRecordResultFactory.Conflict("名稱已存在，無法新增。");
+        }
+#IF TEAMS
+
+        // 這次新選的團隊已不存在或已停用（畫面選項資料一致性，見 SelectedOptionGuard）。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.Teams, null, await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
+        }
+#ENDIF
+
+        return VerifyRecordResultFactory.Build(true);
     }
 
     public async Task<VerifyRecordResult> BeforeUpdateCheckAsync(__Name__AdapterModel paraObject)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        if (!await context.__Name__.AsNoTracking().AnyAsync(x => x.Id == paraObject.Id))
+        var existing = await context.__Name__.AsNoTracking().FirstOrDefaultAsync(x => x.Id == paraObject.Id);
+        if (existing is null)
         {
             return VerifyRecordResultFactory.NotFound("要修改的__Item__資料不存在。");
         }
 
         var name = NameNormalizer.Normalize(paraObject.Name).ToLower();
-        return await context.__Name__.AsNoTracking().AnyAsync(x => x.Name.ToLower() == name && x.Id != paraObject.Id)
-            ? VerifyRecordResultFactory.Conflict("名稱已存在，無法修改。")
-            : VerifyRecordResultFactory.Build(true);
+        if (await context.__Name__.AsNoTracking().AnyAsync(x => x.Name.ToLower() == name && x.Id != paraObject.Id))
+        {
+            return VerifyRecordResultFactory.Conflict("名稱已存在，無法修改。");
+        }
+#IF TEAMS
+
+        // 這次新選的團隊已不存在或已停用（原本就有的不擋；畫面選項資料一致性，見 SelectedOptionGuard）。
+        if (SelectedOptionGuard.FindUnavailable(paraObject.Teams, TagStringHelper.ToList(existing.Teams), await SelectedOptionGuard.EnabledTeamNamesAsync(context)) is { } team)
+        {
+            return VerifyRecordResultFactory.Invalid(SelectedOptionGuard.Message("團隊", team));
+        }
+#ENDIF
+
+        return VerifyRecordResultFactory.Build(true);
     }
 }

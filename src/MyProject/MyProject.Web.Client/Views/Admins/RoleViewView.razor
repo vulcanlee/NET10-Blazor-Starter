@@ -95,7 +95,7 @@ else
                             </SpaceItem>
                             <SpaceItem>
                                 <CrudActionButton Title="複製" Icon="content_copy"
-                                                  OnClick="@(() => OnCopy(@context))" />
+                                                  OnClick="@(async () => await OnCopyAsync(@context))" />
                             </SpaceItem>
                             <SpaceItem>
                                 <CrudActionButton Title="刪除" Icon="delete" Danger

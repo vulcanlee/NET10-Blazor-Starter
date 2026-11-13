@@ -201,6 +201,16 @@ public sealed class ProjectApiTests : IClassFixture<ApiTestApplicationFactoryWit
         var a = NewDto(Unique("甲"));
         a.Owner = owner;
         a.Status = "已完成";
+        // 0.10.15 起存檔時檢查分類存在且啟用（SelectedOptionGuard）：先建好分類。
+        await using (var context = await CreateContextAsync())
+        {
+            if (!await context.Category.AnyAsync(x => x.Name == "搜尋分類"))
+            {
+                context.Category.Add(new Category { Name = "搜尋分類", IsEnabled = true, CreatedAt = DateTime.Now, UpdatedAt = DateTime.Now });
+                await context.SaveChangesAsync();
+            }
+        }
+
         a.Categories = "\n搜尋分類\n";
         var b = NewDto(Unique("乙"));
         b.Owner = owner;
