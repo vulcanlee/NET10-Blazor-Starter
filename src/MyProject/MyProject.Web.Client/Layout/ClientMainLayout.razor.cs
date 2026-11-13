@@ -1,4 +1,4 @@
-using AntDesign;
+﻿using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.Logging;
@@ -23,6 +23,8 @@ namespace MyProject.Web.Client.Layout;
 public partial class ClientMainLayout : LayoutComponentBase, IDisposable
 {
     private const string DefaultPageTitle = "系統首頁";
+
+    private const string NotFoundPageTitle = "找不到頁面";
     private const string DefaultUserDisplayName = "使用者";
 
     [Inject]
@@ -143,7 +145,13 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     internal static string ResolvePageTitle(IEnumerable<ClientMenuItem> menuItems, IReadOnlyList<HelpTopicDto> helpTopics, string normalizedPath)
         => TryFindMenuTitle(menuItems, normalizedPath, out var pageTitle)
             ? pageTitle
-            : ClientPageHelpDialog.MatchTopic(helpTopics, normalizedPath)?.Title ?? DefaultPageTitle;
+            : ClientPageHelpDialog.MatchTopic(helpTopics, normalizedPath)?.Title
+                ?? (IsNotFound(normalizedPath) ? NotFoundPageTitle : DefaultPageTitle);
+
+    /// <summary>不是任何頁面的網址與 /not-found（0.10.13 起）：頁首顯示「找不到頁面」，不再顯示「系統首頁」。</summary>
+    private static bool IsNotFound(string normalizedPath)
+        => !ClientRouteTable.IsClientRoute(normalizedPath)
+            || string.Equals(ClientRouteTable.Normalize(normalizedPath), "not-found", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryFindMenuTitle(IEnumerable<ClientMenuItem> items, string currentPath, out string pageTitle)
     {

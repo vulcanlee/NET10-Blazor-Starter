@@ -13,6 +13,7 @@
 | [WASM 改寫可行性分析報告](WASM改寫可行性分析報告.md) | Blazor Server → WebAssembly＋獨立 Web API：結論、現況盤點、37 個路由的功能對照、技術決策（純 Token 登入、串流 HTTP、下載票證、PWA）、風險與測試報告格式 |
 | [WASM 遷移計畫](WASM遷移計畫.md) | 已確認的決策、每個里程碑的固定流程與範圍、實機情境、進度表 |
 | [最終驗收報告](測試報告/最終驗收.md) | 0.10.12：M1～M12 全部完成後的最終驗收——依分析報告第 4 節功能對照表逐項驗證；同站台 12 支腳本 124 個情境、雙站台 4 支腳本 45 個情境、真實模型 AI、離線與 PWA、53 個畫面外觀比對、看得到的 Chrome 巡檢（`walkthrough.mjs`，兩種部署共 94 張截圖）全部通過；驗收中修正工具列按鈕的提示框擋住對話窗關閉鈕；已知限制彙整 |
+| [首次載入畫面、錯誤頁與找不到頁面](測試報告/介面改善-載入與錯誤頁.md) | 0.10.13（遷移完成後的改善）：首次下載與登入檢查期間的載入卡片（不再空白）、錯誤頁與找不到頁面改成繁中卡片、只有 Development 放寬 CSP（VS 瀏覽器連結）；`ux-loading-pages.mjs` 同站台與雙站台全部通過，兩種部署的巡檢截圖逐張目視 |
 | [M12 PWA 與離線 測試報告](測試報告/M12-PWA與離線.md) | 0.10.11：前端成為可安裝的 PWA（manifest、Service Worker 只快取前端檔案、API 與伺服器端點一律走網路）、離線提示列與「目前離線」訊息、離線開頁不登出且恢復後自動重新載入、部署新版的「有新版本」提示列、地區資料改只載中日韓；自動化測試（新增 `PwaConventionTests`、`PwaStatusBarTests`）、品質關卡、實機情境 W1～W7（發佈版前端、雙站台）＋36 路由煙霧測試 |
 | [M11 獨立靜態站台＋API 主機 測試報告](測試報告/M11-獨立靜態站台.md) | 0.10.10：前端改成獨立的 WebAssembly 靜態站台（`index.html`、`ApiBaseUrl`、IIS 靜態站 `web.config`、CSP），`MyProject.Web` 只剩 API；同站台（API 主機直接提供前端）與雙站台（CORS、Google 登入與信中連結導回前端）兩種部署；自動化測試（新增 `ApiOnlyHostTests`、`SameSiteHostTests`、`DualSiteHostTests`、`StaticSiteWebConfigTests` 等）、品質關卡、實機情境 S1～S7（雙站台與同站台、CORS、靜態站標頭與快取、Google 導向、冷啟動下載量、CSP 違規）＋36 路由煙霧測試 |
 | [M10 移除 Server 模式 測試報告](測試報告/M10-移除Server模式.md) | 0.10.9：移除 Blazor Server 互動模式（電路、`/_blazor`、重連畫面、Server 版外框與路由、`AuthenticationStateHelper`），`MyProject.Web` 只剩 API、WASM 主機頁與靜態檔，身分只認 JWT；自動化測試（新增 `WasmOnlyHostTests`）、品質關卡、實機情境 N1～N4（沒有 WebSocket／`_blazor` 連線、整頁請求只回 WASM 外殼）＋36 路由煙霧測試 |

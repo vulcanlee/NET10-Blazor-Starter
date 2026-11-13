@@ -1,10 +1,10 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 
 @*
     WASM 頁面的版面（0.10.1 起，WASM 遷移 M2）：資料來自 Web API。0.10.9 起 Server 版 MainLayout 已刪除，這裡是唯一的一份。
 
     ⚠️ 這裡就是登入的閘門（0.10.8 起純 Token 登入，伺服器不再以 [Authorize] 擋整頁請求）：
-    登入檢查（ClientSession.InitializeAsync：Token、/me）完成前整個版面（側邊欄、頁首、頁面本體、對話窗）都不渲染；
+    登入檢查（ClientSession.InitializeAsync：Token、/me）完成前整個版面（側邊欄、頁首、頁面本體、對話窗）都不渲染（0.10.13 起改顯示載入卡片）；
     沒有 Token 或 Token 失效就帶 returnUrl 回登入頁，帳號停用／被刪／沒有主要角色也一樣不渲染。由 PageAuthorizationTests 守門。
 *@
 @if (isAuthenticated)
@@ -97,9 +97,17 @@ else if (Session.IsUnreachable)
         <button type="button" class="btn btn-primary" @onclick="ReloadPage">重新整理</button>
     </div>
 }
+else
+{
+    @*
+        登入檢查（Token、/me）與讀取外框資料期間（0.10.13 起）：接續 index.html 下載期間的載入卡片，不再整片空白。
+        卡片只有固定的系統名稱與說明文字，不含任何需要登入才能看的內容；檢查失敗時 ClientSession 會帶到登入頁。
+    *@
+    <ClientLoadingScreen Message="正在確認登入狀態…" />
+}
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    系統發生未預期的錯誤。
+    <a href="." class="reload">重新整理</a>
     <span class="dismiss">關閉</span>
 </div>

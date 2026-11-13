@@ -1,0 +1,41 @@
+﻿@*
+    狀態卡片（0.10.13 起）：系統錯誤頁（整頁、深色漸層，風格同帳號待審核頁與登入頁）與找不到頁面（外框內）共用。
+    按鈕由使用端放進 Actions，class 用 status-card-primary／status-card-secondary（樣式在 StatusCard.razor.css，以 ::deep 套用）。
+*@
+<section class="status-card-shell @(FullScreen ? "status-card-fullscreen" : "status-card-inline")">
+    <div class="status-card">
+        <div class="status-card-icon" aria-hidden="true">
+            @* 大小只能用 Size 參數（元件輸出行內 font-size，CSS 蓋不過去，見 MaterialIconOpticalSize）。 *@
+            <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@Icon" Size="46" />
+        </div>
+        <h1 class="status-card-title">@Title</h1>
+        <div class="status-card-body">
+            @ChildContent
+        </div>
+        @if (Actions is not null)
+        {
+            <div class="status-card-actions">
+                @Actions
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    /// <summary>Material Icons 的圖示名稱，例如 <c>error_outline</c>。</summary>
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>true：佔滿整個畫面（沒有外框的頁面）；false：放在外框的內容區。</summary>
+    [Parameter]
+    public bool FullScreen { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}

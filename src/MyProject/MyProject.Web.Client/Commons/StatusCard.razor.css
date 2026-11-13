@@ -1,0 +1,195 @@
+﻿/* 狀態卡片（0.10.13 起）：顏色一律用 theme.css 的變數。整頁版的玻璃卡片手法沿用 Pending.razor.css 的 .pending-card。 */
+.status-card-shell {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+}
+
+/* 固定鋪滿視窗：沒有外框的版面（ClientEmptyLayout）底下有 60px 的下邊距，用 min-height 會多出捲軸、露出底色。 */
+.status-card-fullscreen {
+    animation: statusCardGradient 18s ease infinite;
+    background: var(--app-dark-grad);
+    background-size: 300% 300%;
+    inset: 0;
+    overflow: auto;
+    padding: 32px 16px;
+    position: fixed;
+}
+
+.status-card-inline {
+    min-height: 60vh;
+    padding: 24px 0;
+}
+
+.status-card {
+    border-radius: 28px;
+    padding: 44px 36px;
+    text-align: center;
+    width: min(520px, 100%);
+}
+
+.status-card-fullscreen .status-card {
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    box-shadow: 0 30px 80px rgba(var(--app-shadow-rgb), 0.45);
+    color: var(--app-on-accent);
+}
+
+/* 外框的內容區本身就是白色卡片：這裡不再疊一層卡片。 */
+.status-card-inline .status-card {
+    color: var(--app-text);
+}
+
+.status-card-icon {
+    align-items: center;
+    border-radius: 24px;
+    display: inline-flex;
+    height: 84px;
+    justify-content: center;
+    margin-bottom: 20px;
+    width: 84px;
+}
+
+.status-card-icon ::deep .material-icons-outlined {
+    line-height: 1;
+}
+
+.status-card-fullscreen .status-card-icon {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--app-accent-light);
+}
+
+.status-card-inline .status-card-icon {
+    background: var(--app-accent-soft);
+    color: var(--app-accent);
+}
+
+/* color: inherit —— bootstrap 給 h1 固定的標題色，深色整頁版會看不清楚。 */
+.status-card-title {
+    color: inherit;
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin: 0 0 14px;
+}
+
+.status-card-body ::deep p {
+    line-height: 1.85;
+    margin: 0 0 12px;
+}
+
+.status-card-fullscreen .status-card-body ::deep p {
+    color: rgba(255, 247, 250, 0.84);
+}
+
+.status-card-inline .status-card-body ::deep p {
+    color: var(--app-muted);
+}
+
+.status-card-body ::deep .status-card-trace {
+    align-items: center;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 6px 0 4px;
+}
+
+.status-card-body ::deep .status-card-trace code {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    color: inherit;
+    font-family: var(--app-code-font);
+    font-size: 0.95rem;
+    padding: 3px 10px;
+}
+
+.status-card-body ::deep .status-card-copy {
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 2px 12px;
+}
+
+.status-card-body ::deep .status-card-copied {
+    color: var(--app-accent-light);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.status-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 22px;
+}
+
+.status-card-actions ::deep .status-card-primary,
+.status-card-actions ::deep .status-card-secondary {
+    border-radius: 16px;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 11px 26px;
+    text-decoration: none;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.status-card-actions ::deep .status-card-primary {
+    background: var(--app-primary-grad);
+    border: none;
+    box-shadow: 0 16px 30px rgba(var(--app-shadow-rgb), 0.38);
+    color: var(--app-on-accent);
+}
+
+.status-card-actions ::deep .status-card-primary:hover {
+    box-shadow: 0 20px 34px rgba(var(--app-shadow-rgb), 0.46);
+    transform: translateY(-2px);
+}
+
+.status-card-actions ::deep .status-card-secondary {
+    background: transparent;
+    border: 1px solid currentColor;
+    color: inherit;
+}
+
+.status-card-actions ::deep .status-card-secondary:hover {
+    transform: translateY(-2px);
+}
+
+@keyframes statusCardGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+@media (max-width: 640.98px) {
+    .status-card {
+        padding: 32px 20px;
+    }
+}
+
+/* 介面規範 §7：位移與動畫都要有減少動態的降級，顏色回饋保留。 */
+@media (prefers-reduced-motion: reduce) {
+    .status-card-fullscreen {
+        animation: none;
+    }
+
+    .status-card-actions ::deep .status-card-primary:hover,
+    .status-card-actions ::deep .status-card-secondary:hover {
+        transform: none;
+    }
+}

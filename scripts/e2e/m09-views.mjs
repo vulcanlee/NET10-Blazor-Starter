@@ -92,10 +92,10 @@ export async function captureViews(browser, prefix) {
   await setupPage.waitForSelector('.tfa-page', { timeout: 60000 });
   await shot(setupPage, `${prefix}-08-兩步驟驗證設定`, files);
   await setupPage.goto('/no-such-page-e2e');
-  await setupPage.getByText('Not Found').waitFor({ timeout: 60000 });
+  await setupPage.getByText('找不到這個頁面').waitFor({ timeout: 60000 }); // 0.10.13 起改成繁體中文
   await shot(setupPage, `${prefix}-09-找不到頁面`, files);
   await setupPage.goto('/Error');
-  await setupPage.waitForSelector('h1.text-danger', { timeout: 60000 });
+  await setupPage.waitForSelector('.status-card-title', { timeout: 60000 }); // 0.10.13 起改成置中卡片
   await shot(setupPage, `${prefix}-10-錯誤頁`, files);
   await setupContext.close();
   return files;

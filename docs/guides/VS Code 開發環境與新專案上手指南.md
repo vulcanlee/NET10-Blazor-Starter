@@ -456,6 +456,7 @@ done
 ```
 
 > ⚠️ 0.10.11 起：改 `SystemName` 時一併改 `MyProject.Web.Client/wwwroot/manifest.webmanifest` 的 `name` 與 `short_name`（安裝成 App 時的名稱）。它是固定值，系統參數頁改系統名稱不會跟著變；兩者不一致時 `PwaConventionTests` 會失敗。
+> 0.10.13 起還有首次載入畫面的系統名稱：`MyProject.Web.Client/wwwroot/index.html` 的載入卡片（`app-loading-title`）與 `MyProject.Web.Client/Commons/ClientLoadingScreen.razor` 的 `FixedSystemName`，同樣一起改（`LoadingAndStatusPageTests` 比對）。
 
 版面提示：
 
@@ -495,7 +496,7 @@ done
 | `MyProject.Web.Client/Layout/ClientNavMenu.razor`（0.10.9 起 Server 版 `NavMenu` 已刪除） | `管理後台功能清單`（品牌文字下方副標）/ `功能選單`（選單區塊標題） |
 | `MyProject.Web.Client/Layout/ClientMainLayout.razor.cs` 的 `DefaultPageTitle` | `系統首頁`（頂列標題的 fallback，**不是**瀏覽器分頁標題） |
 | `MyProject.Web.Client/Commons/ViewNotification.cs` 的 `SystemTitle`（0.10.2 起放在 Client 專案） | `系統訊息`（全站通知的標題） |
-| `MyProject.Web.Client/Layout/` 的 `ClientMainLayout.razor`、`ClientEmptyLayout.razor`、`ClientNoFooterLayout.razor` | `An unhandled error has occurred.`（Blazor 預設，尚未中文化） |
+| `MyProject.Web.Client/Layout/` 的 `ClientMainLayout.razor`、`ClientEmptyLayout.razor`、`ClientNoFooterLayout.razor` | `系統發生未預期的錯誤。`／`重新整理`（畫面底部的未處理例外提示列；0.10.13 起中文化） |
 
 另註：全專案**沒有** footer 或版權文字，`.csproj` 也沒有設定 `<Product>` / `<AssemblyTitle>`，所以組件層級沒有產品名要改。
 

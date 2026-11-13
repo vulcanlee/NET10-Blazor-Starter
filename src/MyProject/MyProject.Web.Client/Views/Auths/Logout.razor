@@ -10,6 +10,9 @@
 *@
 <PageTitle>登出</PageTitle>
 
+@* 登出期間（0.10.13 起）：顯示載入卡片，不留白。 *@
+<ClientLoadingScreen Message="正在登出…" />
+
 @code {
     protected override async Task OnInitializedAsync()
     {

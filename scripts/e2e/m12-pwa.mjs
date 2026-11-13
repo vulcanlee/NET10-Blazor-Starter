@@ -122,7 +122,9 @@ try {
   const reloadedPath = new URL(page.url()).pathname;
   const unreachable = (await page.getByText('目前無法連線到伺服器，恢復連線後會自動重新載入。').count()) > 0;
   const barAfterReload = (await page.locator('.app-offline-bar').count()) > 0;
-  const appRendered = (await page.locator('#app').innerText().catch(() => '')).trim().length > 0;
+  // 0.10.13 起 index.html 的 #app 本身就有靜態的載入卡片：要看到 WebAssembly 已經接手（不是還停在下載期間的那張卡片）。
+  const appRendered = (await page.locator('#app').innerText().catch(() => '')).trim().length > 0
+    && (await page.locator('#app .app-loading:not(.app-loading-done)').count()) === 0;
   await screenshot(page, 'W3-離線重新整理');
   recorder.add('W3', '離線：提示列、離線訊息、離線重新整理外框仍開得起來且不被登出',
     offlineBar && offlineToast.includes('目前離線') && falseSuccess === 0 && reloadedPath === '/projects' && appRendered && barAfterReload,

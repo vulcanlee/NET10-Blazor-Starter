@@ -1,0 +1,26 @@
+﻿@*
+    載入卡片（0.10.13 起）：外框（ClientMainLayout）在登入檢查與讀取選單期間顯示，接續 index.html 下載期間的同一張卡片，中間不再整片空白。
+    ⚠️ 標記與 wwwroot/index.html 的 #app 內容一致，樣式寫在 wwwroot/app.css（全域：index.html 是靜態頁，用不到 Scoped CSS）。
+    這裡的進度條一律是滿的（下載已完成），不顯示「第一次開啟需要下載程式」的提示。
+*@
+<div class="app-loading app-loading-done" role="status" aria-live="polite">
+    <div class="app-loading-card">
+        <img class="app-loading-logo" src="images/icon-192.png" alt="" />
+        @* 不用 h1：ClientRoutes 的 FocusOnNavigate 會把焦點放到 h1，卡片被取代後焦點就掉了。 *@
+        <p class="app-loading-title">@FixedSystemName</p>
+        <div class="app-loading-bar" aria-hidden="true"><div class="app-loading-bar-fill"></div></div>
+        <p class="app-loading-text">@Message</p>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 載入期間的系統名稱：這時還讀不到伺服器設定，用固定值，與 index.html、manifest.webmanifest、appsettings 的 SystemName 一致
+    /// （LoadingAndStatusPageTests 守門；改 SystemName 時四處一起改）。
+    /// </summary>
+    public const string FixedSystemName = "企業管理平台";
+
+    /// <summary>卡片下方的說明文字，例如「正在確認登入狀態…」。</summary>
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = string.Empty;
+}

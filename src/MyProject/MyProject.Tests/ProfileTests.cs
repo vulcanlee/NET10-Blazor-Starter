@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -198,7 +198,8 @@ public sealed class ProfileTests : IDisposable
         Assert.Equal("專案項目", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/projects"));
         Assert.Equal("個人資料", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/Profile"));
         Assert.Equal("變更密碼", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/changepassword"));
-        Assert.Equal("系統首頁", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/somewhere"));
+        Assert.Equal("系統首頁", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/App"));
+        Assert.Equal("找不到頁面", MyProject.Web.Client.Layout.ClientMainLayout.ResolvePageTitle(menu, topics, "/somewhere")); // 0.10.13 起
     }
 
     // ---------- 共用 ----------

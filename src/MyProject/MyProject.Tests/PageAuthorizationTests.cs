@@ -137,7 +137,9 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         var api = await client.GetAsync("/api/v1/no-such-page");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("<div id=\"app\"></div>", body, StringComparison.Ordinal);
+        // #app 裡只有靜態的載入卡片（0.10.13 起：固定的系統名稱與「正在載入」），沒有任何頁面內容。
+        Assert.Contains("<div id=\"app\">", body, StringComparison.Ordinal);
+        Assert.Contains("class=\"app-loading\"", body, StringComparison.Ordinal);
         Assert.DoesNotContain("sidebar", body);
         Assert.Equal(HttpStatusCode.NotFound, api.StatusCode);
     }

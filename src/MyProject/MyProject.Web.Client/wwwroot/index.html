@@ -31,8 +31,24 @@
 </head>
 
 <body>
-    <!-- 根元件 ClientRoutes 掛在這裡（Program.cs）；下載完成前維持空白（與 0.10.9 以前相同）。 -->
-    <div id="app"></div>
+    <!--
+        根元件 ClientRoutes 掛在這裡（Program.cs），掛上後取代下面的載入卡片（0.10.13 起：下載與初始化期間不再整片空白）。
+        進度條與百分比由 Blazor 下載時設定的 CSS 變數 --blazor-load-percentage／--blazor-load-percentage-text 驅動（樣式在 app.css），不需要行內腳本。
+        ⚠️ 系統名稱是固定值（這時還讀不到伺服器設定），與 manifest.webmanifest、Commons/ClientLoadingScreen.razor 一致（LoadingAndStatusPageTests 守門）。
+    -->
+    <div id="app">
+        <div class="app-loading" role="status" aria-live="polite">
+            <div class="app-loading-card">
+                <img class="app-loading-logo" src="images/icon-192.png" alt="" />
+                <p class="app-loading-title">企業管理平台</p>
+                <div class="app-loading-bar" aria-hidden="true"><div class="app-loading-bar-fill"></div></div>
+                <p class="app-loading-text">正在載入，請稍候… <span class="app-loading-percent"></span></p>
+                <p class="app-loading-hint">第一次開啟需要下載程式，之後會更快</p>
+                <!-- 啟動失敗（離線第一次開、檔案被手改導致完整性驗證失敗、瀏覽器不支援…）時卡片不會被取代：30 秒後才浮現這句（純 CSS，app.css 的 .app-loading-stuck）。 -->
+                <p class="app-loading-stuck">若一直停在這個畫面，請重新整理；仍然無法開啟請聯絡系統管理員。</p>
+            </div>
+        </div>
+    </div>
 
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
     <script src="_content/AntDesign/js/ant-design-blazor.js"></script>
