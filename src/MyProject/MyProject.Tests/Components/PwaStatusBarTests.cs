@@ -132,8 +132,11 @@ public sealed class PwaStatusBarTests : ComponentTestBase
 
         await bar.InvokeAsync(() => bar.Instance.OnUpdateAvailable());
 
+        // 0.10.20 起：說明文字與按鈕分開，講清楚要先存檔、按哪個按鈕。
+        Assert.Equal("系統已更新到新版本。請先儲存編輯中的資料，再按「立即更新」。", bar.Find(".app-update-text").TextContent.Trim());
+        Assert.Equal("稍後", bar.Find("button.app-update-later").TextContent.Trim());
         var button = bar.Find("button.app-update-apply");
-        Assert.Equal("有新版本，按這裡重新整理", button.TextContent.Trim());
+        Assert.Equal("立即更新", button.TextContent.Trim());
         apply.VerifyNotInvoke("appPwa.applyUpdate");
 
         button.Click();

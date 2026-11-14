@@ -5,13 +5,15 @@
 
 @*
     新版本提示列（0.10.11 起，WASM 遷移 M12）：掛在根元件 ClientRoutes。部署新版後，新的 Service Worker 裝好、停在等待時由 js/pwa.js 通知；
-    使用者按下才套用（送 SKIP_WAITING、換好後整頁重新載入一次），不強制重新載入 —— 使用者可能正在編輯。
-    開發模式（不快取的 service-worker.js）不會出現。樣式在 ClientUpdateBar.razor.css。
+    使用者按「立即更新」才套用（送 SKIP_WAITING、換好後整頁重新載入一次），不強制重新載入 —— 使用者可能正在編輯。
+    0.10.20 起文字說清楚要先存檔、按哪個按鈕（以前整列是一個按鈕「有新版本，按這裡重新整理」，容易誤以為是自動更新沒做完）。
+    開發模式不會出現：開發用的 service-worker.js 會表明身分，js/pwa.js 讓它默默接手、不通知這裡。樣式在 ClientUpdateBar.razor.css。
 *@
 @if (isUpdateAvailable)
 {
     <div class="app-update-bar" role="status">
-        <button type="button" class="app-update-apply" @onclick="ApplyAsync">有新版本，按這裡重新整理</button>
+        <span class="app-update-text">系統已更新到新版本。請先儲存編輯中的資料，再按「立即更新」。</span>
+        <button type="button" class="app-update-apply" @onclick="ApplyAsync">立即更新</button>
         <button type="button" class="app-update-later" @onclick="Later">稍後</button>
     </div>
 }

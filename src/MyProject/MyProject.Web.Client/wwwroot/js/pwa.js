@@ -5,7 +5,9 @@
 // 新版本的流程：
 //   1. 檢查新版：瀏覽器在開頁（導覽）時自己會檢查；另外在分頁回到前景時（visibilitychange）呼叫 registration.update()，最多每 30 分鐘一次。
 //   2. 新版的 Service Worker 安裝完、停在 waiting（registration.waiting、updatefound／statechange）→ 通知 .NET 顯示提示列。
-//      第一次安裝（還沒有 Service Worker 控制這個頁面）不算新版本。開發用的 service-worker.js 內容固定，不會出現提示。
+//      第一次安裝（還沒有 Service Worker 控制這個頁面）不算新版本。
+//      開發模式不顯示（0.10.20 起）：Debug 建置時 SDK 會在開發用的 service-worker.js 檔頭加上清單版本，程式一改內容就變、每次都像新版。
+//      所以顯示之前先問 worker 的身分（handleNewWorker → isDevelopmentWorker）：開發版直接請它接手、不顯示；發佈版才顯示。
 //   3. 使用者按下提示列：送 SKIP_WAITING 給等待中的 Service Worker → 收到 controllerchange 後整頁重新載入，只重新載入一次。
 //      別的分頁先套用了新版（這個分頁的 controller 被換掉、但不是這裡按的）：也顯示提示列，按下時直接重新載入（不強制，可能正在編輯）。
 //   安裝失敗（從 installing 直接變成 redundant）：經瀏覽器錯誤回報記進伺服器日誌（reportInstallFailure）。
@@ -23,6 +25,44 @@
         if (updateListener) {
             updateListener.invokeMethodAsync('OnUpdateAvailable').catch(() => { /* 元件已關閉 */ });
         }
+    }
+
+    // 問 Service Worker 是不是開發用的那一份（0.10.20 起）：開發版以 GET_KIND 回答 'development'；
+    // 發佈版不回答，1 秒內沒回應（或送不出去）就當成發佈版，照舊顯示提示列。
+    function isDevelopmentWorker(worker) {
+        return new Promise(resolve => {
+            if (!worker) {
+                resolve(false);
+                return;
+            }
+
+            const channel = new MessageChannel();
+            const timer = setTimeout(() => resolve(false), 1000);
+            channel.port1.onmessage = event => {
+                clearTimeout(timer);
+                resolve(event.data === 'development');
+            };
+            try {
+                worker.postMessage({ type: 'GET_KIND' }, [channel.port2]);
+            } catch {
+                clearTimeout(timer);
+                resolve(false);
+            }
+        });
+    }
+
+    // 有新的 Service Worker（等待中，或已經在別處換上）：開發版不顯示提示列 —— 等待中的直接請它接手
+    // （開發版不快取、不攔截，換上不會改變畫面）；發佈版才顯示提示列，等使用者按。
+    async function handleNewWorker(worker, { activate }) {
+        if (await isDevelopmentWorker(worker)) {
+            if (activate) {
+                worker.postMessage({ type: 'SKIP_WAITING' });
+            }
+
+            return;
+        }
+
+        notifyUpdate();
     }
 
     // 新版安裝失敗：某個檔案下載失敗，或與資產清單的完整性雜湊不符（例如有人手改了發佈輸出裡的檔案）時，新版直接變成 redundant，
@@ -49,7 +89,7 @@
 
             // 已經有 Service Worker 控制這個頁面時，新版裝好會停在 waiting。
             if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                notifyUpdate();
+                handleNewWorker(worker, { activate: true });
             } else if (worker.state === 'redundant' && !installed) {
                 reportInstallFailure(worker);
             }
@@ -69,7 +109,8 @@
                     window.location.reload();
                 }
             } else if (hadController) {
-                notifyUpdate();
+                // 別的分頁按了提示列（或這裡默默換上開發版）：發佈版才顯示提示列。
+                handleNewWorker(navigator.serviceWorker.controller, { activate: false });
             }
         });
 
@@ -82,7 +123,7 @@
         }
 
         if (registration.waiting && navigator.serviceWorker.controller) {
-            notifyUpdate();
+            handleNewWorker(registration.waiting, { activate: true });
         }
 
         watchInstalling(registration.installing);
@@ -115,7 +156,7 @@
             }
         },
 
-        // 使用者按下「有新版本」：請等待中的 Service Worker 接手，換好後（controllerchange）重新載入一次。
+        // 使用者按下提示列的「立即更新」：請等待中的 Service Worker 接手，換好後（controllerchange）重新載入一次。
         applyUpdate: () => {
             const waiting = registration && registration.waiting;
             if (!waiting) {

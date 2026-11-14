@@ -76,7 +76,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 紀錄分類/團隊標籤：專案可標記分類與團隊，並支援團隊行級權控（非管理員僅見公開或團隊交集紀錄）；
   使用者的有效團隊＝直接綁定的 `UserTeam` ∪ 其角色的 `DefaultTeamsJson`
 - 每筆紀錄可附加多檔案，自動依年月分目錄存放
-- PWA 與離線（0.10.11 起）：可安裝成桌面或手機主畫面的 App；Service Worker 只快取前端程式檔（不快取 API 與資料），斷線時畫面底部出現離線提示、離線重新整理不登出、恢復連線自動復原；部署新版時出現「有新版本，按這裡重新整理」（需要 HTTPS）
+- PWA 與離線（0.10.11 起）：可安裝成桌面或手機主畫面的 App；Service Worker 只快取前端程式檔（不快取 API 與資料），斷線時畫面底部出現離線提示、離線重新整理不登出、恢復連線自動復原；部署新版時畫面底部提示「系統已更新到新版本」，按「立即更新」才換（需要 HTTPS；開發模式不出現）
 - Web API（含 Swagger UI、`ApiResult<T>` 信封、分頁搜尋）
 - 平行 API 路由：保留 `/api/...`，新增 `/api/v1/...` 作為新用戶端標準入口
 - Health checks：`/health/live`、`/health/ready`

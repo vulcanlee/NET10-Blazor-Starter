@@ -220,6 +220,44 @@ public sealed class PwaConventionTests
         Assert.Matches(new Regex(@"addEventListener\('activate'[\s\S]*caches\.keys\(\)[\s\S]*key\.startsWith\(cacheNamePrefix\)[\s\S]*caches\.delete"), code);
     }
 
+    /// <summary>
+    /// 開發模式不出現「有新版本」提示列（0.10.20 起）：Debug 建置時 SDK 會在開發用的 service-worker.js 檔頭加上清單版本，
+    /// 程式一改內容就變，瀏覽器每次都當成新版。開發版以 GET_KIND 回答「development」表明身分，pwa.js 問過才決定要不要顯示提示列；
+    /// 發佈版不回答（逾時當成發佈版），照舊顯示。
+    /// </summary>
+    [Fact]
+    public void DevelopmentServiceWorker_ShouldIdentifyItself()
+    {
+        var code = WithoutComments(File.ReadAllText(Path.Combine(SourceTree.ClientWebRoot, "service-worker.js")));
+
+        Assert.Matches(new Regex(@"type === 'GET_KIND'[\s\S]*?event\.ports\[0\]\.postMessage\('development'\)"), code);
+        Assert.DoesNotContain("GET_KIND", WithoutComments(PublishedServiceWorker), StringComparison.Ordinal);
+    }
+
+    /// <summary>pwa.js 顯示提示列之前先問 worker 的身分：開頁時已在等待、剛裝好、別處換上新版，三個入口都經 handleNewWorker。</summary>
+    [Fact]
+    public void Pwa_ShouldOnlyShowTheUpdateBarForThePublishedServiceWorker()
+    {
+        var pwa = WithoutComments(File.ReadAllText(Path.Combine(SourceTree.ClientWebRoot, "js", "pwa.js")));
+
+        var ask = Regex.Match(pwa, @"function isDevelopmentWorker\(worker\)\s*\{[\s\S]*?\n    \}");
+        Assert.True(ask.Success, "pwa.js 找不到 isDevelopmentWorker。");
+        Assert.Contains("new MessageChannel()", ask.Value, StringComparison.Ordinal);
+        Assert.Contains("type: 'GET_KIND'", ask.Value, StringComparison.Ordinal);
+        Assert.Contains("=== 'development'", ask.Value, StringComparison.Ordinal);
+
+        var handle = Regex.Match(pwa, @"async function handleNewWorker\(worker, \{ activate \}\)\s*\{[\s\S]*?\n    \}");
+        Assert.True(handle.Success, "pwa.js 找不到 handleNewWorker。");
+        Assert.Matches(new Regex(@"if \(await isDevelopmentWorker\(worker\)\)\s*\{[\s\S]*?postMessage\(\{ type: 'SKIP_WAITING' \}\)[\s\S]*?return;[\s\S]*?\}\s*notifyUpdate\(\);"), handle.Value);
+
+        // 只有 handleNewWorker 會呼叫 notifyUpdate（watchUpdates 補發已偵測到的除外）。
+        var callers = Regex.Matches(pwa, @"\bnotifyUpdate\(\);").Count;
+        Assert.Equal(2, callers);
+        Assert.Contains("handleNewWorker(registration.waiting, { activate: true })", pwa, StringComparison.Ordinal);
+        Assert.Contains("handleNewWorker(worker, { activate: true })", pwa, StringComparison.Ordinal);
+        Assert.Contains("handleNewWorker(navigator.serviceWorker.controller, { activate: false })", pwa, StringComparison.Ordinal);
+    }
+
     /// <summary>發佈時以 service-worker.published.js 取代 service-worker.js，並產生資產清單。</summary>
     [Fact]
     public void ClientProject_ShouldGenerateTheServiceWorkerAssetsManifest()
