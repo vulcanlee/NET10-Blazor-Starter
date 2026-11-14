@@ -18,7 +18,7 @@ export const baseUrl = process.env.E2E_BASE_URL ?? 'https://localhost:7144';
 export const apiUrl = process.env.E2E_API_URL ?? baseUrl;
 
 /** `/api/...` 這類路徑在頁面裡要打到 API 主機（雙站台時跨來源，實際經過 CORS）。 */
-function apiTarget(path) {
+export function apiTarget(path) {
   return path.startsWith('/api/') ? new URL(path, apiUrl).href : path;
 }
 export const supportPassword = process.env.E2E_SUPPORT_PASSWORD;

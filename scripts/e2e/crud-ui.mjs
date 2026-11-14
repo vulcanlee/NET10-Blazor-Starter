@@ -10,7 +10,18 @@ export async function openList(page, route) {
   await page.waitForTimeout(500);
 }
 
+/**
+ * 按工具列按鈕（依標籤文字完全相符）。0.10.16 起：以前用「含有」比對，「搜尋」會先比到排在前面的「清空搜尋」
+ * （有輸入搜尋字時才出現），變成按了清空——全面實機探索時發現。標籤完全相符的找不到才退回「含有」。
+ */
 export async function clickToolbar(page, title) {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const exact = page.locator('button.toolbar-icon-button', { has: page.locator('.toolbar-icon-button-label', { hasText: new RegExp(`^${escaped}$`) }) });
+  if (await exact.count()) {
+    await exact.first().click();
+    return;
+  }
+
   await page.locator('button.toolbar-icon-button', { hasText: title }).first().click();
 }
 
@@ -42,8 +53,14 @@ export async function confirmIfShown(page, okText, timeout = 1500) {
     return false;
   }
 
+  // 等「按下的這一個」關掉（0.10.16 起，同 confirm）：接著跳出的下一個確認窗會變成新的 .last()，不能拿它來等。
+  const clicked = await dialog.elementHandle();
   await dialog.locator('.ant-modal-confirm-btns button', { hasText: okText }).click();
-  await dialog.waitFor({ state: 'hidden', timeout: 15000 });
+  await clicked.waitForElementState('hidden', { timeout: 15000 }).catch(async (error) => {
+    if (await clicked.evaluate((node) => node.isConnected).catch(() => false)) {
+      throw error;
+    }
+  });
   return true;
 }
 

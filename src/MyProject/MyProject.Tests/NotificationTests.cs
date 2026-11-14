@@ -490,6 +490,32 @@ public sealed class NotificationTests : IDisposable
         Assert.Equal([role], await service.GetUserRoleIdsAsync(user));
     }
 
+    [Fact]
+    public async Task DismissingAnAnnouncementThatNoLongerExists_ShouldNotTryToSave()
+    {
+        // .NET 11 全面實機探索（0.10.16）發現：公告剛被刪除時使用者按「關閉」，寫入關閉紀錄撞外鍵。服務雖然接住了，
+        // EF Core 在丟出之前已經把失敗記成 Error，系統例外紀錄多一筆。改成先確認公告還在，不在就不寫。
+        var user = AddUser("u");
+        var failures = new SaveFailureCounter();
+        var service = new AnnouncementService(new TestDbContextFactory(connection, failures), TimeProvider.System, NullLogger<AnnouncementService>.Instance);
+
+        await service.DismissAsync(user, 999);
+
+        Assert.Equal(0, failures.Count);
+        Assert.Empty(await service.GetDismissedIdsAsync(user));
+    }
+
+    private sealed class SaveFailureCounter : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public int Count { get; private set; }
+
+        public override Task SaveChangesFailedAsync(Microsoft.EntityFrameworkCore.Diagnostics.DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            Count++;
+            return Task.CompletedTask;
+        }
+    }
+
     // ---------- 內建事件與資料完整性 ----------
 
     [Fact]

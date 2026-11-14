@@ -204,6 +204,14 @@ public class AnnouncementService
             return;
         }
 
+        // 公告剛被刪除（使用者的畫面還留著橫幅）：不寫。不能只靠下面接住外鍵錯誤——EF Core 在丟出之前已經把失敗記成 Error，
+        // 系統例外紀錄會多一筆（0.10.16 起，.NET 11 全面實機探索發現）。
+        if (!await context.Announcement.AnyAsync(x => x.Id == announcementId))
+        {
+            logger.LogDebug("Announcement dismissal skipped because the announcement no longer exists. AnnouncementId={AnnouncementId}", announcementId);
+            return;
+        }
+
         context.AnnouncementDismissal.Add(new AnnouncementDismissal { AnnouncementId = announcementId, MyUserId = userId, DismissedAtUtc = timeProvider.GetUtcNow().UtcDateTime });
         try
         {

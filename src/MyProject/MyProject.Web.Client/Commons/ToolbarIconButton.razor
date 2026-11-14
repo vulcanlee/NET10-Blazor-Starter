@@ -42,9 +42,12 @@
     /// </summary>
     private bool tooltipVisible;
 
-    private Task HandleClickAsync(MouseEventArgs args)
+    private async Task HandleClickAsync(MouseEventArgs args)
     {
         tooltipVisible = false;
-        return OnClick.InvokeAsync();
+        await OnClick.InvokeAsync();
+        // 處理期間滑鼠還停在按鈕上，提示框可能又被打開，之後滑鼠離開的事件卻沒有觸發（例如「匯出 Excel」下載完）：
+        // 處理完再收起一次（0.10.16 起，.NET 11 全面實機探索發現）。
+        tooltipVisible = false;
     }
 }

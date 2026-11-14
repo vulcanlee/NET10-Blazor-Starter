@@ -175,7 +175,7 @@ else
                                 AllowClear EnableSearch Style="width: 100%;">
                             @foreach (var team in AssignableTeams)
                             {
-                                <SelectOption TItemValue="string" TItem="string" Value="@team">@team</SelectOption>
+                                <SelectOption TItemValue="string" TItem="string" Value="@team" Label="@team">@team</SelectOption>
                             }
                         </Select>
                     </FormItem>
