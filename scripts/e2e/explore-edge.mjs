@@ -143,8 +143,8 @@ try {
       await page.goto(route);
       await page.waitForTimeout(2500);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      // 已知殘留（速查表 §10）：AntDesign 頁籤的 ondragover 行內事件被 CSP 擋下，刻意不放行，沒有功能影響（m11-split S7 同樣排除）。
-      const issues = (await problems.take()).filter((x) => !(['/token-usage', '/prompt-templates'].includes(route) && /Executing inline event handler/.test(x)));
+      // 已知殘留（速查表 §10）：AntDesign 頁籤的 ondragover 行內事件被 CSP 擋下，刻意不放行，沒有功能影響（m11-split S7 同樣排除）；AI 提示詞 0.10.21 起不用頁籤。
+      const issues = (await problems.take()).filter((x) => !(route === '/token-usage' && /Executing inline event handler/.test(x)));
       await screenshot(page, `explore-edge-E4-${String(++index).padStart(2, '0')}${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
       if (overflow > 1 || issues.length) {
         bad.push(`${route}${overflow > 1 ? ` 橫向多出 ${overflow}px` : ''}${issues.length ? ' ' + issues.join('；') : ''}`);

@@ -238,7 +238,7 @@
     font-weight: 700 !important;
 }
 
-/* ── 分頁籤（Token 用量、AI 提示詞）──
+/* ── 分頁籤（Token 用量；AI 提示詞 0.10.21 起改用左側分組清單）──
    0.9.108 起：之前沒有覆寫，作用中的分頁籤與底線是 AntDesign 的藍色。 */
 .ant-tabs-tab:hover,
 .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {

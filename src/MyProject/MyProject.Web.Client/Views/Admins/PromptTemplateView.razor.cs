@@ -16,7 +16,7 @@ namespace MyProject.Web.Client.Views.Admins
     /// </summary>
     public partial class PromptTemplateView
     {
-        /// <summary>第一個頁籤（日誌分析）的鍵；種類清單由伺服器帶來。</summary>
+        /// <summary>開頁時選中的種類（日誌分析）的鍵；種類清單由伺服器帶來。</summary>
         private const string FirstKey = "LogAnalysis";
 
         [Inject]
@@ -34,7 +34,7 @@ namespace MyProject.Web.Client.Views.Admins
         [Inject]
         public ILogger<PromptTemplateView> logger { get; set; } = default!;
 
-        /// <summary>全部種類（依頁籤順序），每種含版本紀錄、內建預設與固定規則。</summary>
+        /// <summary>全部種類（依伺服器給的順序），每種含版本紀錄、內建預設與固定規則。</summary>
         private List<PromptTemplateDto> templates = [];
         private string activeKey = FirstKey;
         private bool isLoading;
@@ -70,6 +70,19 @@ namespace MyProject.Web.Client.Views.Admins
         private PromptTemplateDto? TemplateOf(string key) => templates.FirstOrDefault(x => x.Key == key);
 
         private string TitleOf(string key) => TemplateOf(key)?.Title ?? key;
+
+        /// <summary>
+        /// 左側清單的分組（0.10.21 起取代頁籤，16 個種類一次全部看得到）：標題「狀態報告／蒐集」→ 組「狀態報告」、項目「蒐集」；
+        /// 沒有「／」的歸「一般」。組依第一次出現的位置排序，組內照伺服器給的順序。
+        /// </summary>
+        internal static List<PromptTemplateGroup> GroupsOf(IEnumerable<PromptTemplateDto> source)
+            => source
+                .Select(x => x.Title.Split('／', 2) is [var group, var label]
+                    ? (Group: group, Item: new PromptTemplateGroupItem(x.Key, label))
+                    : (Group: "一般", Item: new PromptTemplateGroupItem(x.Key, x.Title)))
+                .GroupBy(x => x.Group)
+                .Select(g => new PromptTemplateGroup(g.Key, g.Select(x => x.Item).ToList()))
+                .ToList();
 
         /// <summary>重新讀取全部種類；回傳是否成功（失敗時已顯示通知）。</summary>
         private async Task<bool> ReloadAsync()
@@ -206,6 +219,12 @@ namespace MyProject.Web.Client.Views.Admins
 
         public string? Note { get; set; }
     }
+
+    /// <summary>左側清單的一組。</summary>
+    public sealed record PromptTemplateGroup(string Name, List<PromptTemplateGroupItem> Items);
+
+    /// <summary>左側清單的一項；<see cref="Label"/> 是標題「／」後面的短名稱。</summary>
+    public sealed record PromptTemplateGroupItem(string Key, string Label);
 
     /// <summary>版本紀錄的一列；<see cref="Version"/> 為 null 代表程式內建的預設。</summary>
     public sealed record PromptHistoryRow(int? Version, string Content, bool IsActive, string? Note, string? CreatedByAccount, DateTime? CreatedAt);

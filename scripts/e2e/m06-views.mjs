@@ -205,7 +205,7 @@ async function captureAll(page, prefix, files) {
   await settle(page);
   files.push(await screenshot(page, `${prefix}-08-AI提示詞`));
 
-  await page.locator('.ant-tabs-tabpane-active button', { hasText: '編輯' }).first().click();
+  await page.locator('.prompt-main button', { hasText: '編輯' }).first().click();
   await page.waitForSelector('.ant-modal-content', { state: 'visible', timeout: 15000 });
   await settle(page);
   files.push(await screenshot(page, `${prefix}-09-提示詞編輯窗`));

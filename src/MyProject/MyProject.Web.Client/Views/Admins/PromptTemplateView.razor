@@ -19,17 +19,41 @@ else
         </div>
 
         @*
-            種類、標題、內建預設與固定規則由伺服器帶來（0.10.5 起）。⚠️ 資料到了才畫 Tabs：
-            AntDesign 的 Tabs 若先以零個頁籤畫出、之後才補上頁籤，ActiveKey 不會套用，畫面變成沒有任何頁籤被選中（實機發現）。
+            種類、標題、內建預設與固定規則由伺服器帶來（0.10.5 起），資料到了才畫。
+            0.10.21 起以左側分組清單取代頁籤：16 個種類一次全部看得到、點一下就到（頁籤一行放不下，其餘會收進「…」）。
+            分組依標題的「／」（GroupsOf）；窄螢幕時清單移到內容上方、橫向換行（見 .razor.css）。
         *@
         @if (templates.Count > 0)
         {
-        <Tabs @bind-ActiveKey="activeKey">
-            @foreach (var template in templates)
+        <div class="prompt-layout">
+            <nav class="prompt-nav" aria-label="提示詞種類">
+                @foreach (var (group, groupIndex) in GroupsOf(templates).Select((g, i) => (g, i)))
+                {
+                    @* role="group"＋aria-labelledby：報讀軟體念項目時一併念出組名（「管理助理」的「分派」）。 *@
+                    var groupTitleId = $"prompt-nav-group-{groupIndex}";
+                    <div class="prompt-nav-group" role="group" aria-labelledby="@groupTitleId">
+                        <div class="prompt-nav-group-title" id="@groupTitleId">@group.Name</div>
+                        <div class="prompt-nav-items">
+                            @foreach (var item in group.Items)
+                            {
+                                var itemKey = item.Key;
+                                var selected = itemKey == activeKey;
+                                <button type="button"
+                                        class="prompt-nav-item@(selected ? " active" : string.Empty)"
+                                        aria-current="@(selected ? "true" : null)"
+                                        @onclick="@(() => activeKey = itemKey)">@item.Label</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </nav>
+
+            @if (TemplateOf(activeKey) is { } template)
             {
                 var key = template.Key;
                 var active = template.Versions.FirstOrDefault(x => x.IsActive);
-                <TabPane Key="@key" Tab="@template.Title">
+                @* @key：切換種類時重建內容，版本紀錄表格的分頁不會沿用上一個種類的頁碼。 *@
+                <div class="prompt-main" @key="key">
                     <section class="prompt-section">
                         <div class="prompt-section-head">
                             <div>
@@ -52,7 +76,7 @@ else
 
                     <section class="prompt-section">
                         <div class="prompt-section-title">固定附加的規則（不能修改）</div>
-                        <div class="prompt-muted">送出時一律接在分析指示後面：防止使用者輸入、日誌、例外或工具回傳的文字被當成指令，並限定輸出格式（各分頁的規則不同，以下方內容為準）。</div>
+                        <div class="prompt-muted">送出時一律接在分析指示後面：防止使用者輸入、日誌、例外或工具回傳的文字被當成指令，並限定輸出格式（各提示詞的規則不同，以下方內容為準）。</div>
                         <pre class="prompt-content prompt-locked">@template.LockedRules</pre>
                     </section>
 
@@ -93,9 +117,9 @@ else
                             </Table>
                         </div>
                     </section>
-                </TabPane>
+                </div>
             }
-        </Tabs>
+        </div>
         }
 
         @*
