@@ -2,9 +2,9 @@
 
 - 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -36,14 +36,14 @@
 
 單頁清單 + Modal 表單（`TeamViewView`）：
 
-- 工具列：新增（需 `團隊清單:create`）、重新整理、匯出 Excel（0.9.107 起；樹狀模式匯出全部並含「上層團隊」，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
+- 工具列：新增（需 `團隊清單:create`）、重新整理、匯出 Excel（0.9.107 起；樹狀模式匯出全部並含「上層團隊」，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入（0.10.17 起按 Enter 就搜尋，`ListSearchEnterConventionTests`）、清空搜尋（有輸入時才出現）、搜尋。
 - **團隊樹**（0.9.105 起）：沒有搜尋、不是「顯示已刪除」時，一次載入全部團隊在畫面上組樹（`TreeChildren`），下屬收在上層底下、可展開收合；分頁以最上層計，排序作用在最上層（預設依名稱），下屬一律依名稱。上層不存在（資料異常）的團隊當作最上層顯示。
 - 搜尋：關鍵字比對 `Name`、`Code` 或 `Description`（`Contains`），結果為平面清單並多一欄「上層團隊」。
 - 排序：可排序欄位 `Name`、`Code`、`IsEnabled`、`UpdatedAt`；平面清單預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆）；平面清單由服務端分頁。
 - 清單欄位：名稱、代號、描述、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `團隊清單:edit` 時點徽章直接切換，停用先確認，`TeamService.SetEnabledAsync` 只改狀態並換版本號、稽核 `Team.Enable`／`Team.Disable`；已是目標狀態時回成功、不寫稽核；已刪除或不存在時失敗；下屬團隊不連動；沒有修改權限或在「顯示已刪除」時為不可點的一般標籤）、更新時間、操作（修改需 `團隊清單:edit`、刪除需 `團隊清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「團隊資料」一區）：
-  - 名稱 `Name`（必填，最長 100）
+  - 名稱 `Name`（必填，最長 100；0.10.15 起輸入後即時檢查重複〔`AsyncFieldCheck` 呼叫 `POST check`，按「儲存」會等檢查完成；檢查時刻意不帶代號〔代號重複也是 409，帶著問會把「代號已存在」顯示在名稱下面〕，代號留到存檔時檢查；`AsyncFieldCheckTests`〕）
   - 上層團隊 `ParentId`（0.9.105 起，選填＝最上層）：選項排除自己與自己的所有下屬（`TeamService.GetParentCandidatesAsync`）；修改時名稱欄下方提示「改名時，專案、分類與角色預設團隊裡的這個名稱會一起改。」
   - 代號 `Code`（選填，最長 50，有填須唯一）
   - 描述 `Description`（選填，最長 2000，獨占整行）
@@ -83,14 +83,14 @@
 - API 一律 `[Authorize(JwtBearer)]`；每個動作以 `[HasPermission(MagicObjectHelper.角色_團隊清單, PermissionActions.*)]` 做動作級授權。
 - 權限鍵組合規則 `頁面:動作`（`PermissionKey.For`）：`團隊清單:view`、`團隊清單:create`、`團隊清單:edit`、`團隊清單:delete`。裸鍵「團隊清單」代表該頁全部動作（向後相容）。
 - 無權限回 403，且維持 `ApiResult` 格式；系統管理員短路（不需個別權限）。
-- UI 與 API 共用單一 RBAC 權威來源：UI 以 `CanAccessPage`（頁面鍵）控制進入頁面、以 `<RequirePermission>` 元件（0.9.110 起，規則同 `CheckAccessAction(角色_團隊清單, 動作)`）控制新增／修改／刪除按鈕是否顯示；0.10.2 起頁面在 WASM 執行，判斷經 `PagePermissions`（`/me` 回傳的權限），這只是畫面顯示，實際操作一律由 API 以 JWT Bearer 與動作鍵把關。
+- UI 與 API 共用單一 RBAC 權威來源：UI 以 `CanAccessPage`（頁面鍵）控制進入頁面、以 `<RequirePermission>` 元件（0.9.110 起，規則同 `PermissionRules.CanAccessAction(使用者, 角色_團隊清單, 動作)`）控制新增／修改／刪除按鈕是否顯示；0.10.2 起頁面在 WASM 執行，判斷經 `PagePermissions`（`/me` 回傳的權限），這只是畫面顯示，實際操作一律由 API 以 JWT Bearer 與動作鍵把關。
 - 頁面被權限擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/teams`，0.9.78 起；0.10.2 起由伺服器在開頁紀錄 `POST /api/v1/shell/page-view` 時寫，內容 `via=WASM`）。
 
 ## 六、錯誤與邊界
 
 - 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（先以 `NameNormalizer` 去除前後空白，再 `ToLower()` 不分大小寫，修改時排除自身），重複回「團隊名稱已存在，無法新增／修改。」。API 端走同一個檢查，重複回 409 Conflict（0.10.2 起訊息與畫面相同）；修改時先確認資料存在，再比對名稱。
 - 代號重複：僅在 `Code` 非空白時檢查唯一（以 `NameNormalizer.NormalizeOptional` 判斷，0.10.2 起 API 走同一個檢查），重複回「團隊代號已存在，無法新增／修改。」/409；空白代號可重複（見測試 `WithEmptyCode...`）。
-- 名稱／代號正規化與唯一索引（0.4.41 起）：寫入前一律經 `NameNormalizer` 處理（掛在 AutoMapper 的「→ Entity」映射上），`Name` 去除前後空白、**`Code` 空白一律存為 `null`**。資料庫另有 `IX_Team_Name` 與 `IX_Team_Code` 唯一索引兜底；SQLite 視 NULL 互不相等，因此多筆「未填代號」的團隊仍可共存。並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「團隊名稱／代號已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
+- 名稱／代號正規化與唯一索引（0.4.41 起）：寫入前一律經 `NameNormalizer` 處理（掛在 AutoMapper 的「→ Entity」映射上），`Name` 去除前後空白、**`Code` 空白一律存為 `null`**。資料庫另有 `IX_Team_Name` 與 `IX_Team_Code` 唯一索引兜底；SQLite 視 NULL 互不相等，因此多筆「未填代號」的團隊仍可共存。並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「團隊名稱已存在，無法儲存。」或「團隊代號已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
   名稱／代號重複屬使用者錯誤（0.9.78 起，LOG-11）：只記 `Information`、不帶例外物件，不會進「系統例外紀錄」。
   - ⚠️ 沿革：0.4.41 之前是「檢查時 Trim、寫入時不 Trim」，「研發部 」（尾隨空白）會原樣入庫，之後「研發部」再也比不到它。`Code` 則可能混雜 `NULL`／`""`／`"   "` 三種「未填」表示法。
   - ⚠️ 團隊名稱的唯一性不只是清單好看：`Category.Teams` 與 `Project.Teams` 以**團隊名稱字串**做精確比對，一旦出現只差空白的兩個團隊，資料可見性會靜默出錯。

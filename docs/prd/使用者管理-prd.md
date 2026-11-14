@@ -2,9 +2,9 @@
 
 - 文件版本：1.23
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.18
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -30,16 +30,17 @@
 
 ## 三、畫面與欄位
 
-- **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、匯出 Excel（0.9.107 起，不含密碼與金鑰欄位，見[通用匯出](通用匯出-prd.md)）、搜尋、清空搜尋，以及「顯示已刪除」切換。0.9.120 起點「啟用／停用」徽章直接切換（停用先確認「要停用「帳號」嗎？他所有已登入的瀏覽器與 API 會被登出…」，啟用直接切換，結果以右下角提示「已停用／已啟用「帳號」」顯示；`MyUserService.SetStatusAsync` 以 `ExecuteUpdateAsync` 只改狀態與更新時間，換工作階段版本 `SecurityStamp` 與版本號 `ConcurrencyStamp`、不動角色與團隊，已經是目標值時回成功、不寫稽核，稽核 `User.Enable`／`User.Disable`（detail `account=…`）；support 與自己不可停用，`CanToggleStatus` 為假時那一列徽章不可點（啟用中的 support 與自己），「顯示已刪除」清單中也不可點）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
+- **清單**：遠端分頁 `Table`，欄位 帳號、名稱、Email、角色（`RoleViewName`）、狀態、管理員、建立時間、更新時間，皆可排序；工具列含新增、重新整理、匯出 Excel（0.9.107 起，不含密碼與金鑰欄位，見[通用匯出](通用匯出-prd.md)）、搜尋（0.10.17 起在搜尋框按 Enter 就搜尋，`ListSearchEnterConventionTests`）、清空搜尋，以及「顯示已刪除」切換。0.9.120 起點「啟用／停用」徽章直接切換（停用先確認「要停用「帳號」嗎？他所有已登入的瀏覽器與 API 會被登出…」，啟用直接切換，結果以右下角提示「已停用／已啟用「帳號」」顯示；`MyUserService.SetStatusAsync` 以 `ExecuteUpdateAsync` 只改狀態與更新時間，換工作階段版本 `SecurityStamp` 與版本號 `ConcurrencyStamp`、不動角色與團隊，已經是目標值時回成功、不寫稽核，稽核 `User.Enable`／`User.Disable`（detail `account=…`）；support 與自己不可停用，`CanToggleStatus` 為假時那一列徽章不可點（啟用中的 support 與自己），「顯示已刪除」清單中也不可點）；「管理員」僅在為「是」時顯示徽章，為「否」時顯示「—」。搜尋比對帳號／名稱／Email／角色名稱。
   0.9.101 起：被登入鎖定的帳號在「狀態」多一個黃色「鎖定至 HH:mm」徽章（不是今天時顯示 MM-dd HH:mm；0.10.4 起這段文字由伺服器依伺服器時區算好、放在 `UserDto.LockedText` 送來，瀏覽器時區不同也不會顯示錯），操作欄多一個「解鎖」（確認後解除，稽核 `User.Unlock`）。
   0.9.104 起：已開啟兩步驟驗證的帳號在「狀態」多一個「兩步驟驗證」徽章，操作欄（自己那一列除外）多「重設兩步驟驗證」（確認後清除驗證器設定與備用碼，見[兩步驟驗證](兩步驟驗證-prd.md)）。
 - **維護表單**（Modal）欄位：
-  - 帳號（必填，唯一；0.9.171 起去頭尾空白、不分大小寫）、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
+  - 帳號（必填，唯一；0.9.171 起去頭尾空白、不分大小寫；0.10.17 起只能用英文字母、數字與 `- _ . @`（`AccountRules`），只在新增或改帳號時檢查，既有帳號（例如 Google 登入以 Email 建立、含 `+` 的）不改帳號時照樣能存，違反回 400「帳號只能使用英文字母、數字與 - _ . @。」；0.10.15 起新增與複製窗的帳號欄位即時檢查重複（`AsyncFieldCheck` 呼叫 `UserApi.AccountConflictAsync`，0.10.17 起也顯示格式訊息））、密碼（新增必填；編輯留白＝沿用既有密碼；下方顯示密碼規則）、名稱（必填）、Email。
   - 「下次登入須變更密碼」核取方塊（0.9.101 起，`MustChangePassword`）：新增時預設勾選；編輯時輸入新密碼會自動勾選（仍可取消）；也可以不改密碼只勾選，要求對方下次登入先換密碼。
     ⚠️ 0.9.60 起 **Email 是「忘記密碼」寄信的收件者**：留空的帳號無法自助重設密碼（只記在稽核 `Password.ResetRequested` 的 `reason=InvalidEmail`）。0.9.85 起 `BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查格式（`MailAddress.TryCreate`，與 `PasswordResetService` 判斷能否寄信的規則相同）：有填但不合法時擋下並顯示「Email 格式不正確；不使用可留空。」。既有錯誤資料不自動修正（例如出貨預設 `BootstrapSettings:SupportEmail = "support"`），修改該帳號時須改正或清空。多個帳號可以共用同一個 Email，申請時每個帳號各收一封。
   - 角色（必填，單選主要角色 `RoleViewId`）。
   - 額外角色（多選，`AdditionalRoleIds`，與主要角色權限取聯集）。
   - 團隊（多選團隊名稱，直接綁定此使用者；不設定則沿用其角色的預設團隊）。**非必填**，但留空時儲存前會跳出確認（見 §六）。
+  - 0.10.15 起每次開窗（新增、修改、複製）與存檔失敗後都重讀角色、團隊選項（`LoadFormOptionsAsync`，`FormOptionsConventionTests`）；存檔時伺服器擋下**新選的**已停用或已刪除團隊，回 400「所選的團隊「X」已不存在或已停用，請重新選擇（選項已更新）。」（`SelectedOptionGuard`；原本就掛著的不擋）。複製窗的團隊是唯讀的，被擋時把不能用的團隊從要建立的資料拿掉，再按一次就能建立。
   - 啟用（`Status`）、管理員（`IsAdmin`）核取方塊。
 - 編輯前以 `Clone()` 複製當前列並載入既有指派回填；新增時預設帶入「預設角色」。
 - **複製**（0.9.127 起，操作欄「複製」，support 那一列沒有、已刪除清單沒有）：以這一列為範本開精簡窗（`form-modal`，獨立的 `copyRecord`，不共用修改窗的 `CurrentRecord`）。
@@ -51,7 +52,7 @@
 
 ## 四、內部系統運作
 
-View（`MyUserView`）→ `MyUserService` → `BackendDBContext`：
+WASM View（`MyUserView`）→ `UserApi` → `UsersController`（`api/v1/users`）→ `MyUserService` → `BackendDBContext`：
 
 - **新增**（`AddAsync`）：0.9.101 起先以 `IPasswordPolicy.Check` 檢查規則，再由 `ApplyAsync` 雜湊並寫入設定時間、旗標與歷史；存檔後 `SyncAssignmentsAsync` 雙寫角色與團隊；寫 `User.Create` 稽核。0.9.127 起選填參數 `copiedFromAccount`（複製建立時傳範本帳號），稽核 Detail 末尾加 `; copiedFrom=帳號`。
 - **複製範本**（0.9.127 起）：`BuildCopyDraftAsync(sourceUserId)` 讀來源與 `GetUserAssignmentsAsync`，回傳全新的 `MyUserAdapterModel`（Id 0、個人欄位空、新 List）與被略過的停用團隊；來源不存在或為 support（`CanCopy`，不分大小寫）回 null。`GetAccountsUsingEmailAsync(email)` 以 Trim＋不分大小寫比對未刪除使用者，供 Email 重複提醒。

@@ -2,9 +2,9 @@
 
 - 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.9
+- 現行系統版本：0.10.18
 - 首次實作版本：0.4.0
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -53,8 +53,8 @@
    - 使用者角色（`UserRole` ∪ legacy `RoleViewId`）的預設團隊（`RoleView.DefaultTeamsJson`）。
    - 反查 `GetUserIdsInTeamAsync(團隊)`（發通知、公告用）＝ 被指派了這個團隊或它任一個上層團隊的人，與正向定義相同（測試互相對照）。
 3. 存取範圍解析（`RecordAccessScopeProvider.GetAsync` → `RecordAccessScope(IsAdmin, Teams)`）：
-   - Blazor 互動情境用已填入的 `CurrentUserService`。
-   - Web API／檔案下載情境以 `RequestActorResolver` 取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier），載入使用者並解析有效團隊。
+   - 已填入 `CurrentUserService` 時直接使用（存取 Token 的請求由 `ApiActorMiddleware` 填入；0.10.8 以前另有 Blazor 互動情境）。
+   - 其他已驗證的 JWT 身分（例如檔案下載）以 `RequestActorResolver` 取出使用者 Id（JWT 在 NameIdentifier；0.10.9 起移除登入 Cookie〔Sid〕的分支），載入使用者並解析有效團隊。
    - 未登入：「非管理員、無團隊」，僅能看到公開紀錄。⚠️ 已登入卻解析不到是誰（0.9.105 起）：`RecordAccessScope.None`（`Denied`），什麼都看不到 —— 0.9.104 之前退回「只看公開」，而 JWT 的 Id 不在 Sid，Web API 等於不過濾，分類更是全部看得到。
 4. 查詢範圍套用：一律經 `RecordTeamScope`（0.9.105 起）—— `Apply`／`CanAccess`（紀錄）、`ApplyCategory`／`CanAccessCategory`（分類的反向規則）、`CheckAssignment`（指派）。
    `ProjectService`／`CategoryService` 使用，Web API 直接呼叫同一個服務（0.10.2 起 `CategoryController`、0.10.3 起 `ProjectController`；`CategoryRepository`、`ProjectRepository` 都已刪除），清單、單筆、修改、刪除都套用（0.9.120 起分類清單點狀態標籤的 `CategoryService.SetEnabledAsync` 也檢查範圍）；範圍外的單筆在 API 一律回 404。
@@ -69,7 +69,7 @@
 - 團隊權控為資安不變量：列級可見性由伺服器端查詢述詞強制，UI 過濾僅為輔助，不可作為授權邊界。
 - 0.9.105 起這條不變量**同時涵蓋 Web API**（之前只有 Blazor 路徑有，持 JWT 呼叫 `POST /api/Project/search` 可取得全部紀錄）。⚠️ 新增會讀寫紀錄的服務或 Controller 時，一律經 `RecordTeamScope`（0.10.2 起 Controller 原則上呼叫服務，不另寫一套查詢）。
 - 0.9.105 起修改也檢查既有紀錄的範圍（之前 `ProjectService`／`CategoryService` 的 `UpdateAsync` 不檢查，知道 Id 就能改看不到的紀錄）。
-- 管理員豁免：`IsAdmin` 於 `PermissionChecker`、`CheckAccessPage/Action`、`IsTeamAccessible`、查詢範圍皆短路，一律通行且可見全部。
+- 管理員豁免：`IsAdmin` 於 `PermissionChecker`（API 的 `[HasPermission]`）、`PermissionRules.CanAccessPage`／`CanAccessAction`（WASM 頁的 `Permissions.CanAccessPage`／`CanAccessAction`）、`IsTeamAccessible`、查詢範圍皆短路，一律通行且可見全部（0.10.8 以前 Server 頁為 `CheckAccessPage/Action`）。
 
 ## 六、錯誤與邊界
 

@@ -2,7 +2,7 @@
 
 - 文件版本：2.10
 - 文件狀態：已實作
-- 現行系統版本：0.10.12
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.25
 - 最後核對日期：2026/11/14
 
@@ -41,6 +41,11 @@
 
 尺寸與版型**只寫在** `src/MyProject/MyProject.Web.Client/Commons/OverlayStyles.razor` 的
 `.form-modal` 區塊（0.10.1 起此檔放在 `MyProject.Web.Client`，命名空間不變）。⚠️ 不要改用 Modal 的 `Width` 參數（速查表 §6.4）。
+
+⚠️ **按鈕列只能用預設頁尾或 `Footer="null"`**（0.10.14 起，升級 .NET 11）：AntDesign RC 的預設頁尾改成先「取消」再「儲存」，
+`OverlayStyles.razor` 以 `.ant-modal .ant-modal-footer { flex-direction: row-reverse; }` 維持原本的「儲存　取消」；
+自訂頁尾（`Footer="…"`、`<Footer>`、程式裡的 `Footer = …`）會被一起反轉、順序就亂了。由 `ModalFooterOrderTests` 守門，
+見速查表 [§6.33 第 124 點](開發慣例與限制速查.md)。
 
 ## 2.1 果凍是共用基底，不是逐窗複製 ⚠️
 

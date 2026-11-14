@@ -2,9 +2,9 @@
 
 - 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -41,7 +41,7 @@
 
 ## 四、內部系統運作
 
-- **本地登入**（`MyUserServiceLogin.LoginAsync`，View → Service → `BackendDBContext`）：以 `Account` 查 `MyUser`（0.9.171 起去頭尾空白、不分大小寫；萬一多筆符合優先取大小寫完全相同的）；帳號不存在、密碼錯誤、鎖定中一律回 `InvalidCredentialsMessage`「帳號或密碼不正確，或帳號已被暫時鎖定。」（0.9.101 起；不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
+- **本地登入**（`MyUserServiceLogin.LoginAsync`，WASM 登入頁 → `POST api/v1/Auth/login/web`〔`WebAuthController`；App 走 `POST api/v1/Auth/login`〔`AuthController`〕〕→ Service → `BackendDBContext`）：以 `Account` 查 `MyUser`（0.9.171 起去頭尾空白、不分大小寫；萬一多筆符合優先取大小寫完全相同的）；帳號不存在、密碼錯誤、鎖定中一律回 `InvalidCredentialsMessage`「帳號或密碼不正確，或帳號已被暫時鎖定。」（0.9.101 起；不區分，避免帳號枚舉）。密碼以 `SecurePasswordHasher.VerifyPassword`（PBKDF2）驗證。
 - **登入失敗告警**（0.9.166 起，`LoginFailureAlertSettings`，系統參數可調）：全系統最近 10 分鐘（預設）內登入失敗達 20 次（預設，含不存在的帳號、驗證碼錯誤、Google 登入失敗）就通知全體管理員並寄信，60 分鐘內不重發；不分帳號、不分 IP，抓的是帳號鎖定擋不到的橫向猜測。見 [稽核紀錄 PRD](稽核紀錄-prd.md) §七。
 - **帳號鎖定**（0.9.101 起讀 `LockoutSettings`，系統參數可調）：失敗時 `AccessFailedCount++`，達 `MaxFailedAttempts`（預設 5）設 `LockoutEndUtc = UtcNow + LockoutMinutes`（預設 15 分）並通知全體管理員（同時寄信）；
   鎖定期間不驗證密碼、不累加次數，稽核記 `Login.Failed`（`reason=Locked`），`Login.LockedOut` 只記造成鎖定的那一次。⚠️ 鎖定**到期時先歸零再驗證**（之前到期後錯一次就再鎖）。成功登入後 `AccessFailedCount` 歸零。
@@ -82,7 +82,7 @@
 ## 五、權限與安全
 
 - 網頁與 App 都用 Token（0.10.8 起），以發出管道（`client_kind`：`web`／`api`）區分效期與規則；權限判定統一由 RBAC 表（`IPermissionChecker`）為單一權威，管理員短路一律通過。
-- 待驗票證、記住裝置 Token、兩步驟驗證設定票證都以 Data Protection 加密（各自不同用途字串），到期時間在加密內容裡；**金鑰環遺失或換掉，這些全部失效**（使用者要重新輸入驗證碼、重新設定），正式環境要保存 `KeyPath`。
+- 待驗票證、記住裝置 Token、兩步驟驗證設定票證都以 Data Protection 加密（各自不同用途字串），到期時間在加密內容裡；**金鑰環遺失或換掉，這些全部失效**（使用者要重新輸入驗證碼、重新設定），正式環境要保存 `SystemSettings:ExternalFileSystem:DataProtectionKeyPath`。
 - 錯誤訊息不洩漏帳號是否存在（登入與忘記密碼皆然；忘記密碼的信一律走背景佇列，回應時間也一致）；輸出模型不含密碼、`Salt`、Token（`MyUserService.OtherDependencyData` 清空密碼欄位）。
 - 帳號停用者的 Token 下一個請求就被拒（刷新 401、API 401），前端回登入頁；Google 自動建帳預設停用並導向待審核，須管理者啟用。
 - 重設 token 只存 SHA-256、效期 30 分、單次使用；新申請與重設成功都作廢該帳號其餘 token。重設頁回應 `Referrer-Policy: no-referrer` 與 `Cache-Control: no-store`。

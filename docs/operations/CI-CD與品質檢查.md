@@ -2,9 +2,9 @@
 
 - 文件版本：1.16
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.9.164
+- 現行系統版本：0.10.18
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/14
 
 > ⚠️ **腳手架沒有 CI。** 原本的 GitHub Actions 工作流程已於 **2026-09-20** 移除，repo 根目錄沒有 `.github/` 資料夾。
 > **沒有任何機制會自動擋下違規**，品質關卡全靠提交前在本機執行 `scripts/Invoke-QualityGate.ps1`（0.9.89 起，見 §1）。
@@ -27,7 +27,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）
 | 1 | Restore | `dotnet restore` | 套件還原失敗（腳本會把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180，見 §4）|
 | 2 | Build | `dotnet build --configuration Release --no-restore` | 編譯錯誤與**任何警告**（`TreatWarningsAsErrors`）|
 | 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
-| 4 | Test | `dotnet test --configuration Release --no-build` | 2282 個測試（0.9.162），含十多組慣例守門測試 |
+| 4 | Test | `dotnet test --configuration Release --no-build` | 約 3,224 個測試（0.10.17），含十多組慣例守門測試 |
 | 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
 | 6 | CRUD anchors | `scripts/New-CrudModule.ps1 -CheckAnchors`（一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒）| CRUD 產生器的登記錨點失效：被登記的檔案改了寫法，產生器下次使用時才會「找不到登記位置」（0.9.153 起；0.9.133 起壞了兩週才發現）。只檢查插得進去、不寫檔；產出的模組能否建置與通過測試仍要跑 `Test-CrudGenerator.ps1`。repo 沒有產生器時略過 |
 | 7 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
@@ -65,14 +65,14 @@ pwsh ./scripts/Install-GitHooks.ps1 -Uninstall  # 移除
 | 檔案 | 作用 |
 |------|------|
 | [`.editorconfig`](../../.editorconfig)（repo 根目錄）| 程式碼格式規則，供 `dotnet format` 與 IDE 依循；提交前以 `dotnet format --verify-no-changes` 檢查（§1）。 |
-| [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) | 全方案共用建置屬性：`Nullable`、`ImplicitUsings`、**`TreatWarningsAsErrors`**，以及 CVE 抑制。 |
+| [`src/MyProject/Directory.Build.props`](../../src/MyProject/Directory.Build.props) | 全方案共用建置屬性：`Nullable`、`ImplicitUsings`、**`TreatWarningsAsErrors`** 與唯一的警告豁免 `WarningsNotAsErrors`。 |
 | [`src/MyProject/Directory.Packages.props`](../../src/MyProject/Directory.Packages.props) | Central Package Management：所有套件版本的單一來源。 |
 | [`global.json`](../../global.json)（repo 根目錄）| 鎖定 .NET SDK 版本（0.10.14 起 `11.0.100` + `rollForward: latestFeature`；之前是 `10.0.400`）。 |
 
 幾個要點：
 
 - **`TreatWarningsAsErrors` = true**：專案長期維持 0 warning，此設定是為了鎖住這個成果、避免警告悄悄回流。
-  需要豁免時請針對**單一規則碼**加 `NoWarn` 並註明原因與解除條件（比照 `NuGetAuditSuppress` 的寫法），**不要整包關閉**。
+  需要豁免時請針對**單一規則碼**加 `NoWarn` 並註明原因與解除條件（比照 `Directory.Build.props` 裡 `WarningsNotAsErrors` 的註解寫法），**不要整包關閉**。
   注意它是 MSBuild 屬性，**不只影響編譯** —— NuGet restore 階段的 `NU****` 警告同樣會被升級為 error。
 - **全方案唯一的警告豁免：`WarningsNotAsErrors` = `NU1900`**（0.4.47 起）。
   `NU1900` 是「**取不到**弱點資料」（NuGet Audit 連不上 nuget.org 弱點索引，逾時／限流／暫時性網路失敗），
@@ -192,6 +192,11 @@ $stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 �
 ### 4.4 刻意不升到最新版的套件（0.9.164）
 
 0.9.164 把套件全部升到最新，只有下面兩個例外。原因與升級條件也寫在 `Directory.Packages.props` 的註解；兩者都是**編譯通過、執行才出錯**，只有完整測試抓得到。
+
+0.10.14 升級 .NET 11：ASP.NET Core／EF Core（含 Redis 快取）11.0.0、Swashbuckle.AspNetCore 11.0.1、bunit 2.15.2、NLog.Web.AspNetCore 6.3.0、Microsoft.NET.Test.Sdk 18.12.0；
+AntDesign 改用預覽版 `1.6.3-dotnet11.rc3`（唯一替 net11.0 編譯的版本，正式版釋出後換掉）；沒有在用的 `Microsoft.AspNetCore.OpenApi` 移除。
+刻意不變的：Agent Framework（`Microsoft.Agents.AI` ×3）1.28、`Microsoft.Extensions.AI.OpenAI` 10.11、`OpenAI` 2.14（MAF 已是最新且綁 M.E.AI 10.11）、`PDFsharp-MigraDoc`、`ClosedXML`（授權原因）、`MailKit`、`AutoMapper`（新版是主版號升級，另案評估）。
+完整理由見 [升級 .NET 11 測試報告 A.1](../migration/測試報告/升級NET11.md)。
 
 | 套件 | 停在 | 不升的原因 | 什麼時候可以升 |
 |------|------|------|------|

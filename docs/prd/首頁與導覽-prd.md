@@ -2,9 +2,9 @@
 
 - 文件版本：1.32
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：既有腳手架核心功能（「關於」對話窗為 0.4.24 新增）
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -18,7 +18,7 @@
 | 路由 | 選單 | 所需權限 | 主要使用者 |
 | --- | --- | --- | --- |
 | `/` | 非選單（啟動頁） | 無（`ClientEmptyLayout`，任何人） | 尚未完成驗證者 |
-| `/App` | 選單 id=1「首頁」 | 頁面鍵「首頁」（管理員豁免） | 已登入使用者 |
+| `/App` | 選單 id=1「首頁」 | 0.10.17 起不受權限限制（`PermissionRules.OpenToEveryone`，每個登入的人都能開；之前為頁面鍵「首頁」、管理員豁免） | 已登入使用者 |
 | 側邊選單 | — | 各項目依 `MenuPermissionMap` 對應之權限鍵過濾 | 已登入使用者 |
 
 ## 三、畫面與欄位
@@ -28,8 +28,8 @@
 
   | 區塊 | 內容 | 來源 |
   | --- | --- | --- |
-  | 歡迎列 | 品牌圖片（72px）、`Welcome` 標籤、系統名稱、系統說明、「系統版本 … · 執行環境 …」 | `wwwroot/images/brand-logo.png`（以 `@Assets[...]` 取 fingerprint URL）＋ `ISystemIdentity` ＋ `IWebHostEnvironment.EnvironmentName` |
-  | 快速入口 | 專案項目／分類清單／團隊清單，**依使用者權限過濾**，全數無權限時整區不顯示 | `AllQuickLinks` ＋ `CheckAccessPage(權限鍵)` |
+  | 歡迎列 | 品牌圖片（72px）、`Welcome` 標籤、系統名稱、系統說明、「系統版本 … · 執行環境 …」 | `wwwroot/images/brand-logo.png` ＋ `ISystemIdentity` ＋ `IWebHostEnvironment.EnvironmentName` |
+  | 快速入口 | 專案項目／分類清單／團隊清單，**依使用者權限過濾**，全數無權限時整區不顯示 | 伺服器的 `DashboardQuickLinks`（`MyProject.Web/Dashboard/DashboardWidgets.cs`）經 `GET api/v1/dashboard` 依 `PermissionRules.CanAccessPage` 過濾 |
   | 儀表板 | 依權限過濾的小工具卡片（我的通知、我的帳號、排程作業〔管理員〕），各自有錯誤邊界 | `DashboardWidgetCatalog.VisibleTo`（0.10.6 起在伺服器的 `DashboardController`）＋ `DashboardGrid`，見 [首頁儀表板 PRD](首頁儀表板-prd.md) |
 
   0.9.105 之前另有六張寫死的「系統能力」卡片與底部「系統資訊」區塊，0.9.106 移除（版本與環境移到歡迎列）。
@@ -47,6 +47,7 @@
   - 依 `Menu.json` 階層渲染，支援展開與「收合」兩種型態（收合時以圖示 flyout 呈現）。
   - 初始狀態（0.9.112 起）：寬螢幕第一次開啟為展開，之後沿用該瀏覽器上次的選擇（`wwwroot/js/nav-state.js`，localStorage `app.sidebarCollapsed`）；
     寬度 ≤ 640px 一律從收合開始，且不寫入偏好。`ClientMainLayout` 在登入檢查完成、版面渲染前讀取，不會先閃另一種狀態；讀不到（腳本未載入、隱私模式）時為展開。
+    手機寬度（≤ 640px）收合時（0.10.17 起）品牌文字隱藏、選單鈕浮在頁首列左側，頁首只剩一列（之前品牌文字被擠成直排、佔約 220px 高；`ClientMainLayout.razor.css` 的 `.page.sidebar-collapsed`）；展開時照舊是整片選單，桌機不受影響。
     目前頁面所屬的群組在選單第一次渲染後（`ClientNavMenu.OnAfterRender`）才套用 `OpenKeys` 展開 —— 0.9.113 修正：之前在同一次渲染設定，AntDesign 的 SubMenu 尚未註冊，一開始就展開時群組不會自動打開。
   - 每項含 `name`、`icon`（Material 圖示）、`url` 或子選單 `subMenu`。
 
@@ -103,7 +104,7 @@
    - `ReadMenuItemsFromDisk` 由 `MagicObjectHelper.Menu結構定義`（`Datas/Menu.json`）反序列化，經 `ICacheService` 快取（key `sidebar:menu:raw`）。
    - `ApplyPermissionStructure` 依每項唯一 `id` 從 `MenuPermissionMap`（id→權限鍵）填入 `PermissionName`；找不到對應時退回以 `Name` 為權限名。
    - `FilterAuthorizedMenuItems` 遞迴過濾：項目自身權限（`Name` 或 `PermissionName` 任一）通過，或其子項尚有可見項目時保留。
-2. 權限判定唯一來源為 `PermissionRules.CanAccessPage(user, name)`（0.10.9 起；之前經 `AuthenticationStateHelper.CheckAccessPage`）：比對 `CurrentUser.RoleList`（由 `IPermissionChecker.GetEffectivePermissionKeysAsync` 供給的 RBAC 有效權限鍵集合）；管理員短路一律通過。
+2. 權限判定唯一來源為 `PermissionRules.CanAccessPage(user, name)`（0.10.9 起；之前經 `AuthenticationStateHelper.CheckAccessPage`）：比對 `CurrentUser.RoleList`（由 `IPermissionChecker.GetEffectivePermissionKeysAsync` 供給的 RBAC 有效權限鍵集合）；管理員短路一律通過，`PermissionRules.OpenToEveryone` 裡的頁面（0.10.17 起，目前只有「首頁」）也一律通過。
 3. `Menu.json` 以 `id` 對應權限鍵，重排選單順序不會錯位（已移除舊「位置索引三處同步」耦合）。
 4. 頁面操作說明：`PageHelpService` 讀 `Datas/HelpTopics.json` 與 `Datas/Help/*.md`（經 `ICacheService` 快取），以**精確比對**（非頂欄標題的前綴比對）找出目前路由的說明；
    `PageHelpMarkdownParser` 以行首 `## ` 切章節，`HelpMarkdownRenderer`（`DisableHtml` ＋ `UsePipeTables`）轉 HTML。
@@ -113,15 +114,15 @@
 ## 五、權限與安全
 
 - 頁面權限採宣告式三件組：`Menu.json`（每項唯一 `id`）＋ `SidebarMenuService.MenuPermissionMap`（id→權限鍵）＋ `MagicObjectHelper` 權限鍵常數。
-- id→權限鍵對應（節錄）：1→`角色_首頁`「首頁」、2→`角色_專案管理`「專案管理功能」、21→`角色_專案項目`「專案項目」、3→`角色_系統管理`「系統管理功能」（管理員專屬，不在矩陣）、34→`角色_帳號與權限`「帳號與權限」（同左）、6→`角色_監控與診斷`「監控與診斷功能」（同左）、7→`角色_AI管理`「AI 管理功能」（同左）、8→`角色_系統設定與維運`「系統設定與維運功能」（同左）、65→`角色_系統健康監控`「系統健康監控」（同左）、61→`角色_日誌檢視`「日誌檢視」（同左）、63→`角色_日誌等級設定`「日誌等級設定」（同左）、33→`角色_系統例外紀錄`「系統例外紀錄」（同左）、62→`角色_資料庫用量`「資料庫用量」（同左）、64→`角色_Token用量`「Token 用量」（同左）、31→`角色_使用者管理`「使用者管理」（同左）、32→`角色_角色管理`「角色管理」（同左）、35→`角色_稽核紀錄`「稽核紀錄」（同左）、39→`角色_AI提示詞`「AI 提示詞」（同左）、66→`角色_AI對話紀錄`「AI 對話紀錄」（同左）、36→`角色_系統參數`「系統參數」（同左）、38→`角色_公告管理`「公告管理」（同左）、67→`角色_排程作業`「排程作業」（同左）、37→`角色_系統備份`「系統備份」（同左）、68→`角色_資料保留與清理`「資料保留與清理」（同左）、10→`角色_管理助理`「管理助理功能」（同左）、101→`角色_系統管理助理`「系統管理助理」（同左）、5→`角色_資料定義`「資料定義管理功能」、51→`角色_分類清單`「分類清單」、52→`角色_團隊清單`「團隊清單」、9→`角色_AI助理`「AI 助理」、91→`角色_Agent測試台`「Agent 測試台」、92→`角色_Agent工作流程`「Agent 工作流程」、4→`角色_登出`「登出」。
+- id→權限鍵對應（節錄）：1→`角色_首頁`「首頁」（0.10.17 起不在角色矩陣裡，選單一律顯示，見 `PermissionRules.OpenToEveryone`）、2→`角色_專案管理`「專案管理功能」、21→`角色_專案項目`「專案項目」、3→`角色_系統管理`「系統管理功能」（管理員專屬，不在矩陣）、34→`角色_帳號與權限`「帳號與權限」（同左）、6→`角色_監控與診斷`「監控與診斷功能」（同左）、7→`角色_AI管理`「AI 管理功能」（同左）、8→`角色_系統設定與維運`「系統設定與維運功能」（同左）、65→`角色_系統健康監控`「系統健康監控」（同左）、61→`角色_日誌檢視`「日誌檢視」（同左）、63→`角色_日誌等級設定`「日誌等級設定」（同左）、33→`角色_系統例外紀錄`「系統例外紀錄」（同左）、62→`角色_資料庫用量`「資料庫用量」（同左）、64→`角色_Token用量`「Token 用量」（同左）、31→`角色_使用者管理`「使用者管理」（同左）、32→`角色_角色管理`「角色管理」（同左）、35→`角色_稽核紀錄`「稽核紀錄」（同左）、39→`角色_AI提示詞`「AI 提示詞」（同左）、66→`角色_AI對話紀錄`「AI 對話紀錄」（同左）、36→`角色_系統參數`「系統參數」（同左）、38→`角色_公告管理`「公告管理」（同左）、67→`角色_排程作業`「排程作業」（同左）、37→`角色_系統備份`「系統備份」（同左）、68→`角色_資料保留與清理`「資料保留與清理」（同左）、10→`角色_管理助理`「管理助理功能」（同左）、101→`角色_系統管理助理`「系統管理助理」（同左）、5→`角色_資料定義`「資料定義管理功能」、51→`角色_分類清單`「分類清單」、52→`角色_團隊清單`「團隊清單」、9→`角色_AI助理`「AI 助理」、91→`角色_Agent測試台`「Agent 測試台」、92→`角色_Agent工作流程`「Agent 工作流程」、4→`角色_登出`「登出」。
 - **例外：系統管理整支（3、其下五個子群組 34／6／7／8／10 與所有頁面）的權限鍵都是管理員專屬**。
   這些鍵刻意未列入 `RolePermissionService.GetRoleListPermissionAllName()`，因此不會種出 `Permission` 資料列、
-  角色矩陣不顯示、任何角色都無法被授予，只有 `CheckAccessPage` 的管理員短路能通過
+  角色矩陣不顯示、任何角色都無法被授予，只有 `PermissionRules.CanAccessPage` 的管理員短路能通過
   （`MyUserView`／`RoleViewView` 另以管理員檢查守門：0.10.4 起是 WASM 頁的 `PagePermissions.IsAdmin`，API 為 `[AdminOnly]`）。由 `AdminOnlyPermissionTests` 守住，**請勿補上**。
   詳見 [日誌檢視 PRD](日誌檢視-prd.md)、[使用者管理 PRD](使用者管理-prd.md)、[角色管理 PRD](角色管理-prd.md)。
 - AI 助理（9／91／92）**不是**管理員專屬，可以授權給角色；但列在 `RolePermissionService.NotGrantedToDefaultRole`，不自動開給預設角色（見 [AI Agent PRD](AI-Agent-prd.md)）。
 - 選單過濾僅隱藏無權項目，並非授權邊界；實際資料存取由 API 端 `[HasPermission]` 與團隊權控把關（見「紀錄分類與團隊權控 PRD」）。
-- 管理員（`IsAdmin`）於 `CheckAccessPage` 短路，選單全可見。
+- 管理員（`IsAdmin`）於 `PermissionRules.CanAccessPage` 短路，選單全可見（WASM 頁以 `Permissions.CanAccessPage`／`Permissions.IsAdmin` 判斷，API 以 `[HasPermission]`／`[AdminOnly]` 把關）。
 - 「操作說明」按鈕不另做權限判斷：能進入該頁的人就看得到該頁說明；說明內的「相關頁面」依已授權選單過濾（管理員短路自然成立）。說明內容是隨原始碼進版控的可信檔案，仍以 `DisableHtml()` 防止夾帶 raw HTML。
 - 右上角使用者選單與「關於」對話窗不做權限過濾：任何已登入者皆可開啟；內容僅為系統識別資訊，不含連線字串、金鑰或其他機敏設定。
 

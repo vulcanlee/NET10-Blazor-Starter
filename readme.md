@@ -141,7 +141,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 右上角使用者選單「關於」對話窗：顯示系統名稱／描述／版本、執行環境、啟動與已運作時間（0.4.45 起不再顯示 .NET 版本）
 - 語系固定 zh-TW（0.9.136 起移除 en-US），AntDesign 元件以繁中本地化
 - 全站請求耗時 / 例外統一寫入 NLog
-- 靜態資源外部對應（`/UploadFiles` → 實體下載目錄；**0.4.35 起需登入**才可取用）
+- 靜態資源外部對應（`/UploadFiles` → 實體下載目錄）：0.10.8 起移除，下載一律走一次性票證
 
 ---
 
@@ -330,7 +330,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 2670 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 3,220 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell

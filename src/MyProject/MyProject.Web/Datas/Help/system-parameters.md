@@ -49,7 +49,7 @@
 
 | 設定檔區段 | 管什麼 | 改了之後 |
 |---|---|---|
-| `SystemSettings:ConnectionStrings` | 資料庫連線 | 重新啟動網站後 |
+| `SystemSettings:ConnectionStrings` | 沒有作用（程式不讀；搬資料庫要改 `SystemSettings:ExternalFileSystem:DatabasePath`） | — |
 | `SystemSettings:ExternalFileSystem` | 資料庫、附件、例外堆疊、Token 原始檔、AI 對話內容、Agent 對話（含 Agent 工作流程的執行紀錄）、金鑰、備份、上傳與下載等目錄 | 重新啟動網站後 |
 | `SystemSettings:SystemInformation:SystemVersion` | 系統版本號（每次發行由開發人員更新） | 重新啟動網站後 |
 | `SystemSettings:Upload` | 允許上傳的副檔名 | 重新啟動網站後 |
@@ -65,6 +65,7 @@
 | `ScheduledJobSettings:Enabled`、`ScheduledJobSettings:Jobs` | 排程總開關、各作業的執行時間（執行紀錄保留天數在這一頁；各作業的啟用／停用在「排程作業」頁） | 立即，從現在重新排定下一次執行 |
 | `CacheSettings` | 快取方式與 Redis 連線 | 重新啟動網站後 |
 | `Cors` | 允許哪些網站跨網域呼叫 Web API | 重新啟動網站後 |
+| `ClientSettings:BaseUrl` | 前後端分開部署時前端的網址（留空＝同站台） | 重新啟動網站後 |
 | `AllowedHosts`、`ForwardedHeaders` | 允許的主機名稱、信任的反向代理 | 重新啟動網站後 |
 | `Swagger`、`Security` | 正式環境是否開放 API 文件、錯誤回應是否附上例外細節 | 重新啟動網站後 |
 | `AutoMapper:LicenseKey` | 元件授權碼 | 重新啟動網站後 |

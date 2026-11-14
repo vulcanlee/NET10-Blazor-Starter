@@ -2,9 +2,9 @@
 
 - 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -45,9 +45,9 @@
 - 匯出的 CSV 為 **UTF-8 含 BOM**（0.9.16 起；先前少了 BOM，Excel 開啟繁中會亂碼），
   位元組由 `MyProject.Web/Export/TextDownloadPayload.Utf8WithBom` 產生（0.10.9 以前在 `Components/Commons/`）。
 - **複製目前查詢結果**（0.9.73）：與匯出同範圍（目前條件下的全部、依目前排序，最多 5,000 列，
-  兩者共用 `BuildFullQuery()`），每列內容與點列複製相同、以一行 50 個 `=` 分隔；堆疊以
-  `ExceptionLogService.GetStackTracesAsync` 一次查出檔名再逐檔讀取。超過 **100 列**先以
-  `ConfirmDialog.AskAsync` 確認（「仍要複製」）—— 每列含完整堆疊，比日誌檢視的單行大得多，門檻因此低於其 1,000。
+  兩者在 `ExceptionLogsController` 以同一個 `ToQuery` 查詢），每列內容與點列複製相同、以一行 50 個 `=` 分隔；堆疊以
+  `ExceptionLogService.GetStackTracesAsync` 一次查出檔名再逐檔讀取。`ExceptionLogView.OnCopyAllAsync` 先問伺服器筆數，
+  超過 **100 列**先以 `ConfirmDialog.AskAsync` 確認（「仍要複製」），確認後才向 `POST api/v1/exception-logs/copy-text` 取全文—— 每列含完整堆疊，比日誌檢視的單行大得多，門檻因此低於其 1,000。
   查無資料時按鈕停用。
 
 ### 3.2 表格
@@ -131,6 +131,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 **不收**：
 - `OperationCanceledException`／`TaskCanceledException` —— 使用者取消、正常關機。
+- 用戶端中斷的 API 請求（0.10.16 起）：使用者在查詢還沒回來時就換頁、關分頁，`ApiExceptionFilterAttribute` 在 `RequestAborted` 已觸發、且例外是連線中斷造成的（取消、`IOException` 本身〔不含子類別〕、連線重設、`BadHttpRequestException`）時只記 Information、回 499，不進系統例外紀錄；找不到檔案、磁碟錯誤這類 `IOException` 子類別照常記 Error（`ApiClientAbortTests`）。
 - 只是連線中斷造成的 `JSDisconnectedException`（本身，或 `AggregateException` 展開後全部都是）—— 使用者關掉分頁（0.9.172 起，`CircuitDisconnect`；0.10.9 起沒有 Blazor Server 連線，實際上不再出現；0.10.10 起 `CircuitDisconnect` 已刪除，這一條不再有特別處理）。
 - 本子系統自己的記錄器（`ExceptionLogProvider`／`ExceptionLogWriter`／`ExceptionLogService`／`ExceptionStackFileStore`）。
 - `AsyncLocal` 抑制旗標開啟時（寫入器執行期間全程開啟）。
@@ -150,7 +151,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | 瀏覽器 | `BrowserErrorReporter`：登入後頁面的 JavaScript 錯誤與 WASM 元件的未處理例外（`ClientErrorBoundary`）經 `api/v1/shell/client-errors` 回報（0.9.79 起；0.10.8 以前 Server 頁經 circuit），例外型別 `BrowserScriptException`，堆疊是瀏覽器端的呼叫路徑；每位使用者每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`） | `瀏覽器` |
 | 其他 | 未設定時 | `未知` |
 
-⚠️ `CreateInboundActivityHandler` 是**全站每一次互動都會經過**的路徑，內部全程 `try/catch`，設定情境失敗絕不影響使用者操作。
+⚠️ 0.10.8 以前 `CreateInboundActivityHandler` 是**全站每一次互動都會經過**的路徑，內部全程 `try/catch`，設定情境失敗絕不影響使用者操作（0.10.9 起 `ApplicationCircuitHandler` 已刪除）。
 
 ### 4.4 合併規則
 
@@ -177,7 +178,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 ## 五、權限與安全
 
-- **管理員專屬**：檢視以 `CheckIsAdmin()` 守門，`角色_系統例外紀錄` **刻意不列入**
+- **管理員專屬**：WASM 頁以 `Permissions.IsAdmin` 判斷、API（`ExceptionLogsController`）以 `[AdminOnly]` 擋（0.10.8 以前是 `CheckIsAdmin()`），`角色_系統例外紀錄` **刻意不列入**
   `RolePermissionService.GetRoleListPermissionAllName()` —— 不種 `Permission` 資料列、角色矩陣不顯示、
   任何角色都無法被授予。由 `AdminOnlyPermissionTests` 守門，**請勿補上**。
 - 例外訊息可能含使用者輸入，**刻意不做遮罩**：本頁與「日誌檢視」同級（皆管理員專屬、皆看得到原始內容）。

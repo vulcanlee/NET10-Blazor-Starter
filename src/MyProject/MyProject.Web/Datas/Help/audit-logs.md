@@ -73,7 +73,7 @@
 | 定時巡檢報告 | 排程作業每天刪除超過保留天數的巡檢報告（0.9.161 起），摘要只記筆數與天數 | `AdminPatrol.AutoPurge` |
 | 稽核 | 在這一頁清除、清空或匯出稽核紀錄（0.9.174 起清除一次會留下兩筆 `Audit.Purge`：異動與安全一筆、瀏覽一筆）；排程作業每天自動清除，每一類刪到資料各一筆，摘要像 `rows=12; days=90; kind=browsing; trigger=Schedule`（`kind=change` 是異動與安全、`kind=browsing` 是瀏覽）；在這一頁按「驗證完整性」或每天的排程「稽核紀錄完整性檢查」（0.9.175 起），摘要像 `result=ok; signed=12; issues=0; legacy=5; keyMismatch=0; trigger=manual`（`result=failed` 代表發現問題、`legacy` 是升級前的紀錄筆數、`keyMismatch` 是金鑰不同的筆數；排程作業自動跑時 `trigger` 是 `Schedule`、在排程作業頁按「立即執行」時是 `Manual`），發現問題時結果記為失敗 | `Audit.Purge`、`Audit.ClearAll`、`Audit.Export`、`Audit.AutoPurge`、`Audit.Verify` |
 | 開啟頁面 | **要在「系統參數」開啟「稽核：記錄瀏覽類事件」才記**（0.9.174 起預設關閉）。已登入的人每換一頁就記一筆（0.9.131 起）；目標是頁面路徑，摘要是 `from=上一頁`（剛進系統的第一頁為 `from=entry`）。只換篩選條件、沒換頁不記 | `Page.View` |
-| 查詢 | **要開啟「稽核：記錄瀏覽類事件」才記**（0.9.174 起預設關閉，包含這一頁的查詢）。在分類、專案、團隊、使用者、角色頁按「搜尋」，或在日誌檢視、系統例外紀錄、AI 對話紀錄、Token 用量、這一頁按「查詢」（0.9.131 起）；摘要只記有沒有填關鍵字等條件，完整條件（含輸入的文字）在「詳細內容」。翻頁、排序、清除不記。在資料頁打開「異動歷程」也記一筆 `Audit.Search`，摘要為 `targetType=…; targetId=…; via=history`（0.9.173 起） | `Category.Search`、`Project.Search`、`Team.Search`、`User.Search`、`Role.Search`、`LogViewer.Search`、`ExceptionLog.Search`、`AiCallLog.Search`、`TokenUsage.Search`、`Audit.Search` |
+| 查詢 | **要開啟「稽核：記錄瀏覽類事件」才記**（0.9.174 起預設關閉，包含這一頁的查詢）。在分類、專案、團隊、使用者、角色頁按「搜尋」或在搜尋框按 Enter（0.10.17 起，專案、分類、團隊、使用者、角色五個清單），或在日誌檢視、系統例外紀錄、AI 對話紀錄、Token 用量、這一頁按「查詢」（0.9.131 起）；摘要只記有沒有填關鍵字等條件，完整條件（含輸入的文字）在「詳細內容」。翻頁、排序、清除不記。在資料頁打開「異動歷程」也記一筆 `Audit.Search`，摘要為 `targetType=…; targetId=…; via=history`（0.9.173 起） | `Category.Search`、`Project.Search`、`Team.Search`、`User.Search`、`Role.Search`、`LogViewer.Search`、`ExceptionLog.Search`、`AiCallLog.Search`、`TokenUsage.Search`、`Audit.Search` |
 | 查看單筆 | **要開啟「稽核：記錄瀏覽類事件」才記**（0.9.174 起預設關閉，包含在這一頁打開明細）。在分類、專案、團隊、使用者、角色頁按「修改」打開某一筆；在系統例外紀錄、AI 對話紀錄、Token 用量、這一頁打開明細（0.9.131 起）；在「異動歷程」視窗點選一筆也記 `Audit.View`，摘要為 `action=…; via=history`（0.9.173 起） | `Category.View`、`Project.View`、`Team.View`、`User.View`、`Role.View`、`ExceptionLog.View`、`AiCallLog.View`、`TokenUsage.View`、`Audit.View` |
 
 系統自動清除的紀錄，操作者顯示「（系統／匿名）」。
@@ -84,7 +84,7 @@
 
 ### 來源 IP
 
-0.9.117 起每筆紀錄都會記下操作者的來源 IP：登入、登出與 Web API 取該次連線的 IP；個人資料、分類、團隊、專案、使用者管理、角色管理、稽核紀錄、寄信紀錄這幾頁的操作也是經 Web API 送出（0.10.1 起陸續改成這樣，使用者管理等四頁是 0.10.4 起），同樣取該次連線的 IP；其他頁面的操作（例如在「系統參數」存檔）取的是瀏覽器連上系統時的 IP，網路斷線重連後會更新。系統排程作業自動做的事，以及 0.9.117 之前的舊紀錄，沒有來源 IP，顯示「—」。
+0.9.117 起每筆紀錄都會記下操作者的來源 IP：登入、登出與各頁面的操作都經 Web API 送出，取該次連線（每個 API 請求）的 IP。系統排程作業自動做的事，以及 0.9.117 之前的舊紀錄，沒有來源 IP，顯示「—」。
 
 ### 時間的顯示方式
 

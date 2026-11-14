@@ -36,7 +36,7 @@ public sealed class MenuPermissionConsistencyTests
     };
 
     /// <summary>
-    /// 管理員專屬檢視：刻意以 CheckIsAdmin() 守門，不使用 CheckAccessPage。
+    /// 管理員專屬檢視：刻意以 Permissions.IsAdmin 守門，不使用 Permissions.CanAccessPage（0.10.8 以前是 CheckIsAdmin／CheckAccessPage）。
     /// 對應的權限鍵不會上架角色矩陣（見 AdminOnlyPermissionTests）。
     /// </summary>
     private static readonly IReadOnlySet<string> AdminOnlyViews = new HashSet<string>(StringComparer.Ordinal)

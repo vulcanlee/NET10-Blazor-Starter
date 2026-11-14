@@ -2,9 +2,9 @@
 
 - 文件版本：1.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.8
+- 現行系統版本：0.10.18
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/14
 
 ## 目標
 - [x] 明確定義 API、UI、Business、Entity 的資料邊界，避免腳手架日後擴充時直接暴露資料庫 Entity。
@@ -12,7 +12,7 @@
 ## 邊界原則
 - [x] Web API request/response 只使用 `MyProject.Dtos`，不可直接接收或回傳 `AccessDatas.Models` Entity。
 - [x] Entity 僅作為 EF Core persistence model 使用。
-- [x] AdapterModel 目前主要供 Blazor UI/後台頁面使用，不應與 API DTO 混用。
+- [x] AdapterModel 給 WASM 頁面與服務層使用，不應與 API DTO 混用。
 - [x] Controller 使用 AutoMapper 或明確 mapping 在 DTO 與 Entity 之間轉換。
 - [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`，0.10.6 起再加 `AnnouncementDtoMapper`，0.10.7 起再加 `AgentDtoMapper`、`AgentWorkflowDtoMapper`），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
 

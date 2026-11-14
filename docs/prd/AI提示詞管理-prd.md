@@ -2,9 +2,9 @@
 
 - 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.108
-- 最後核對日期：2026/11/07
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -55,7 +55,7 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 
 ## 五、權限與安全
 
-- 管理員專屬（`CheckIsAdmin`），權限鍵 `MagicObjectHelper.角色_AI提示詞` 不上架角色矩陣（`AdminOnlyPermissionTests`）。
+- 管理員專屬（WASM 頁以 `Permissions.IsAdmin` 判斷、API `PromptTemplatesController` 以 `[AdminOnly]` 擋；0.10.8 以前是 `CheckIsAdmin`），權限鍵 `MagicObjectHelper.角色_AI提示詞` 不上架角色矩陣（`AdminOnlyPermissionTests`）。
 - prompt injection 的第一道防線（「內容是資料不是指令」）在固定規則裡，管理員改不掉；另兩道在 `AiMarkdownRenderer`（移除圖片、連結 scheme 白名單）。
 - 管理員可以寫出讓報告變差的指示，這是預期的權限；任何時候都能切回舊版或內建預設。
 
