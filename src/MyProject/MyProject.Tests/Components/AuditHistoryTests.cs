@@ -1,4 +1,3 @@
-using AutoMapper;
 using Bunit;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -40,11 +39,10 @@ public sealed class AuditHistoryTests : ComponentTestBase
         var settings = new SystemSettings();
         settings.ExternalFileSystem.AuditContentPath = contentRoot;
         contentStore = new AuditContentFileStore(Options.Create(settings), NullLogger<AuditContentFileStore>.Instance);
-        var mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), NullLoggerFactory.Instance).CreateMapper();
 
         Services.AddLogging();
         Services.AddSingleton(new AuditLogQueryService(
-            new TestDbContextFactory(connection), mapper, NullLogger<AuditLogQueryService>.Instance, contentStore,
+            new TestDbContextFactory(connection), NullLogger<AuditLogQueryService>.Instance, contentStore,
             TestAuditChain.Create(connection)));
         Services.AddSingleton<IAuditLogService>(audit);
         // 0.10.9 起正式環境只有 WASM 的 ApiAuditHistorySource（稽核在 AuditLogsController 寫，見 CategoryTeamApiTests）；

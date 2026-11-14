@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -84,7 +83,7 @@ public sealed class MyUserServiceCopyTests
     [Fact]
     public void CanCopy_ShouldExcludeSupportOnly()
     {
-        var service = new MyUserService(null!, null!, NullLogger<MyUserService>.Instance, null!, null!, new CurrentUserService(),
+        var service = new MyUserService(null!, NullLogger<MyUserService>.Instance, null!, null!, new CurrentUserService(),
             Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         Assert.False(service.CanCopy(new MyUserAdapterModel { Account = "SUPPORT" }));
@@ -142,7 +141,6 @@ public sealed class MyUserServiceCopyTests
     private sealed class CopyFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private CopyFixture(SqliteConnection connection, BackendDBContext context)
@@ -150,7 +148,6 @@ public sealed class MyUserServiceCopyTests
             this.connection = connection;
             Context = context;
             loggerFactory = LoggerFactory.Create(_ => { });
-            mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -166,7 +163,7 @@ public sealed class MyUserServiceCopyTests
         }
 
         public MyUserService CreateService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
+            => new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public async Task<RoleView> AddRoleAsync(string name)

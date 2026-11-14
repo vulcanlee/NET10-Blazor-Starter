@@ -1,10 +1,10 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -18,19 +18,16 @@ public class TeamService
     private readonly CurrentUserService currentUserService;
     private readonly ITeamTreeCache teamTree;
 
-    public IMapper Mapper { get; }
     public ILogger<TeamService> Logger { get; }
 
     public TeamService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<TeamService> logger,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
         ITeamTreeCache teamTree)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
@@ -42,7 +39,7 @@ public class TeamService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var records = await context.Team.AsNoTracking().OrderBy(x => x.Name).ThenBy(x => x.Id).ToListAsync();
-        return Mapper.Map<List<TeamAdapterModel>>(records);
+        return TeamMapper.ToModels(records);
     }
 
     /// <summary>可以當作上層的部門：排除自己與自己的所有下屬（新增時 <paramref name="teamId"/> 傳 0）。存檔時伺服器會再檢查一次。</summary>
@@ -158,7 +155,7 @@ public class TeamService
         }
 
         List<Team> records = await dataSource.ToListAsync();
-        result.Result = Mapper.Map<List<TeamAdapterModel>>(records);
+        result.Result = TeamMapper.ToModels(records);
         Logger.LogDebug("Loaded teams successfully. Count={Count}", result.Count);
         return result;
     }
@@ -178,7 +175,7 @@ public class TeamService
             return new TeamAdapterModel();
         }
 
-        return Mapper.Map<TeamAdapterModel>(item);
+        return TeamMapper.ToModel(item);
     }
 
     public async Task<VerifyRecordResult> AddAsync(TeamAdapterModel paraObject)
@@ -196,7 +193,7 @@ public class TeamService
                 return VerifyRecordResultFactory.Invalid(parentError);
             }
 
-            Team itemParameter = Mapper.Map<Team>(paraObject);
+            Team itemParameter = TeamMapper.ToEntity(paraObject);
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.CreatedAt = DateTime.Now;
             itemParameter.UpdatedAt = DateTime.Now;
@@ -253,7 +250,7 @@ public class TeamService
                 return VerifyRecordResultFactory.Invalid(parentError);
             }
 
-            Team itemData = Mapper.Map<Team>(paraObject);
+            Team itemData = TeamMapper.ToEntity(paraObject);
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
@@ -416,7 +413,7 @@ public class TeamService
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        result.Result = Mapper.Map<List<TeamAdapterModel>>(await dataSource.ToListAsync());
+        result.Result = TeamMapper.ToModels(await dataSource.ToListAsync());
         return result;
     }
 

@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,8 +25,7 @@ public sealed class OpsIrreversibleToolsTests : IDisposable
 {
     private const string RetentionKey = "LogRetentionSettings:AuditLogDays";
 
-    private readonly Harness harness = Harness.Create(configure: services => services.AddSingleton(
-        new MapperConfiguration(c => c.AddProfile<AutoMapping>(), NullLoggerFactory.Instance).CreateMapper()));
+    private readonly Harness harness = Harness.Create();
     private readonly string backupRoot = Path.Combine(Path.GetTempPath(), "MyProjectTests", Guid.NewGuid().ToString("N"));
     private readonly RecordingAuditLogService audit = new();
     private readonly CountingSignal signal = new();

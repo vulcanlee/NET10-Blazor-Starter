@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -30,7 +29,6 @@ public sealed class PasswordPolicyTests : IDisposable
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
     private readonly ManualTimeProvider time = new(Now);
-    private readonly IMapper mapper;
     private readonly RecordingAuditLogService audit = new();
     private readonly RecordingNotificationSender notifications = new();
     private readonly List<IDisposable> disposables = [];
@@ -42,7 +40,6 @@ public sealed class PasswordPolicyTests : IDisposable
         factory = new TestDbContextFactory(connection);
         using var context = factory.CreateDbContext();
         context.Database.EnsureCreated();
-        mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), LoggerFactory.Create(_ => { })).CreateMapper();
     }
 
     private DateTime NowUtc => Now.UtcDateTime;
@@ -486,7 +483,7 @@ public sealed class PasswordPolicyTests : IDisposable
     {
         var rbacContext = factory.CreateDbContext();
         disposables.Add(rbacContext);
-        return new MyUserService(factory, mapper, NullLogger<MyUserService>.Instance,
+        return new MyUserService(factory, NullLogger<MyUserService>.Instance,
             new RbacWriteService(rbacContext, NullLogger<RbacWriteService>.Instance), audit, new CurrentUserService(),
             Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy(timeProvider: time));
     }
@@ -495,7 +492,7 @@ public sealed class PasswordPolicyTests : IDisposable
     {
         var context = factory.CreateDbContext();
         disposables.Add(context);
-        return new MyUserServiceLogin(context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
+        return new MyUserServiceLogin(context, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
             new RolePermissionService(), audit, PasswordTestDefaults.Lockout(maxFailedAttempts, lockoutMinutes), notifications, time,
             TwoFactorTestDefaults.Service(factory, audit, time));
     }

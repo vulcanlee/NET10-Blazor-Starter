@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
-using AutoMapper;
 using ClosedXML.Excel;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +32,6 @@ public sealed class ExportTests : IDisposable
 {
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
-    private readonly IMapper mapper;
 
     public ExportTests()
     {
@@ -42,7 +40,6 @@ public sealed class ExportTests : IDisposable
         factory = new TestDbContextFactory(connection);
         using var context = factory.CreateDbContext();
         context.Database.EnsureCreated();
-        mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), LoggerFactory.Create(_ => { })).CreateMapper();
     }
 
     // ---------- 診斷頁 CSV：與 0.9.106 之前各頁手寫的輸出逐字相同 ----------
@@ -266,7 +263,7 @@ public sealed class ExportTests : IDisposable
     private ProjectService ProjectService(FakeRecordAccessScopeProvider scope)
     {
         var settings = new SystemSettings();
-        return new ProjectService(factory, mapper, NullLogger<ProjectService>.Instance, Options.Create(settings), scope, new RecordingAuditLogService(), new CurrentUserService(),
+        return new ProjectService(factory, NullLogger<ProjectService>.Instance, Options.Create(settings), scope, new RecordingAuditLogService(), new CurrentUserService(),
             new ProjectFileStore(Options.Create(settings), NullLogger<ProjectFileStore>.Instance));
     }
 

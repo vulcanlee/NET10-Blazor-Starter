@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -163,7 +162,6 @@ public sealed class MyUserServiceAssignmentTests
     private sealed class MyUserServiceAssignmentFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private MyUserServiceAssignmentFixture(SqliteConnection connection, BackendDBContext context)
@@ -171,10 +169,6 @@ public sealed class MyUserServiceAssignmentTests
             this.connection = connection;
             Context = context;
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -192,7 +186,7 @@ public sealed class MyUserServiceAssignmentTests
         public MyUserService CreateService(IAuditLogService? auditLogService = null, bool failTeamSync = false)
         {
             IRbacWriteService rbac = new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance);
-            return new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), failTeamSync ? new FailingTeamSyncRbacWriteService(rbac) : rbac,
+            return new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<MyUserService>(), failTeamSync ? new FailingTeamSyncRbacWriteService(rbac) : rbac,
                 auditLogService ?? new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()), new CurrentUserService(), Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
         }
 

@@ -1,10 +1,10 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Admins;
@@ -22,12 +22,10 @@ public class RoleViewService
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
 
-    public IMapper Mapper { get; }
     public ILogger<RoleViewService> Logger { get; }
 
     public RoleViewService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<RoleViewService> logger,
         RolePermissionService rolePermissionService,
         IRbacWriteService rbacWriteService,
@@ -35,7 +33,6 @@ public class RoleViewService
         CurrentUserService currentUserService)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.rolePermissionService = rolePermissionService;
         this.rbacWriteService = rbacWriteService;
@@ -132,7 +129,7 @@ public class RoleViewService
         }
 
         List<RoleView> records = await dataSource.ToListAsync();
-        List<RoleViewAdapterModel> adapterModelObjects = Mapper.Map<List<RoleViewAdapterModel>>(records);
+        List<RoleViewAdapterModel> adapterModelObjects = RoleViewMapper.ToModels(records);
         foreach (var adapterModelItem in adapterModelObjects)
         {
             await OtherDependencyData(adapterModelItem);
@@ -158,7 +155,7 @@ public class RoleViewService
             return new RoleViewAdapterModel();
         }
 
-        RoleViewAdapterModel result = Mapper.Map<RoleViewAdapterModel>(item);
+        RoleViewAdapterModel result = RoleViewMapper.ToModel(item);
         await OtherDependencyData(result);
         return result;
     }
@@ -170,7 +167,7 @@ public class RoleViewService
 
         try
         {
-            RoleView itemParameter = Mapper.Map<RoleView>(paraObject);
+            RoleView itemParameter = RoleViewMapper.ToEntity(paraObject);
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
@@ -216,7 +213,7 @@ public class RoleViewService
 
         try
         {
-            RoleView itemData = Mapper.Map<RoleView>(paraObject);
+            RoleView itemData = RoleViewMapper.ToEntity(paraObject);
             itemData.TabViewJson = rolePermissionService.GetPermissionInputToJson(paraObject.RolePermission);
 
             RoleView? item = await context.RoleView
@@ -392,7 +389,7 @@ public class RoleViewService
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        var items = Mapper.Map<List<RoleViewAdapterModel>>(await dataSource.ToListAsync());
+        var items = RoleViewMapper.ToModels(await dataSource.ToListAsync());
         foreach (var item in items)
         {
             await OtherDependencyData(item);
@@ -630,7 +627,7 @@ public class RoleViewService
             return new RoleViewAdapterModel();
         }
 
-        RoleViewAdapterModel result = Mapper.Map<RoleViewAdapterModel>(item);
+        RoleViewAdapterModel result = RoleViewMapper.ToModel(item);
         await OtherDependencyData(result);
         return result;
     }

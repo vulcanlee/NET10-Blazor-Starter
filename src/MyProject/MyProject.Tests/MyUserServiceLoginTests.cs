@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -189,7 +188,6 @@ public sealed class MyUserServiceLoginTests
     private sealed class LoginFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         public RecordingNotificationSender Notifications { get; } = new();
@@ -199,10 +197,6 @@ public sealed class MyUserServiceLoginTests
             this.connection = connection;
             Context = context;
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -223,7 +217,6 @@ public sealed class MyUserServiceLoginTests
         {
             return new MyUserServiceLogin(
                 Context,
-                mapper,
                 new ConfigurationBuilder().Build(),
                 loggerFactory.CreateLogger<MyUserServiceLogin>(),
                 new RolePermissionService(),

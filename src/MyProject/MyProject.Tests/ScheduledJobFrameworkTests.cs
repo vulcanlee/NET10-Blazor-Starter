@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -592,7 +591,6 @@ public sealed class ScheduledJobFrameworkTests : IDisposable
             this.options = options;
             var services = new ServiceCollection();
             services.AddSingleton<IDbContextFactory<BackendDBContext>>(new FileDbContextFactory(connectionString));
-            services.AddSingleton<IMapper>(new MapperConfiguration(c => c.AddProfile<AutoMapping>(), NullLoggerFactory.Instance).CreateMapper());
             services.AddSingleton(probe);
             services.AddSingleton<ExceptionContextAccessor>();
             services.AddScoped<ScopeMarker>();
@@ -601,7 +599,7 @@ public sealed class ScheduledJobFrameworkTests : IDisposable
             provider = services.BuildServiceProvider();
 
             Accessor = provider.GetRequiredService<ExceptionContextAccessor>();
-            RunService = new ScheduledJobRunService(provider.GetRequiredService<IDbContextFactory<BackendDBContext>>(), provider.GetRequiredService<IMapper>(), NullLogger<ScheduledJobRunService>.Instance);
+            RunService = new ScheduledJobRunService(provider.GetRequiredService<IDbContextFactory<BackendDBContext>>(), NullLogger<ScheduledJobRunService>.Instance);
             Runner = new ScheduledJobRunner(
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 RunService,

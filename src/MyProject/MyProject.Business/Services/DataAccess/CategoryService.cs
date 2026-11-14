@@ -1,10 +1,10 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -18,19 +18,16 @@ public class CategoryService
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
 
-    public IMapper Mapper { get; }
     public ILogger<CategoryService> Logger { get; }
 
     public CategoryService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<CategoryService> logger,
         IRecordAccessScopeProvider accessScope,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.accessScope = accessScope;
         this.auditLogService = auditLogService;
@@ -152,7 +149,7 @@ public class CategoryService
         }
 
         List<Category> records = await dataSource.ToListAsync();
-        result.Result = Mapper.Map<List<CategoryAdapterModel>>(records);
+        result.Result = CategoryMapper.ToModels(records);
         Logger.LogDebug("Loaded categories successfully. Count={Count}", result.Count);
         return result;
     }
@@ -178,7 +175,7 @@ public class CategoryService
             return new CategoryAdapterModel();
         }
 
-        return Mapper.Map<CategoryAdapterModel>(item);
+        return CategoryMapper.ToModel(item);
     }
 
     public async Task<VerifyRecordResult> AddAsync(CategoryAdapterModel paraObject)
@@ -195,7 +192,7 @@ public class CategoryService
                 return VerifyRecordResultFactory.Invalid(teamError);
             }
 
-            Category itemParameter = Mapper.Map<Category>(paraObject);
+            Category itemParameter = CategoryMapper.ToEntity(paraObject);
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             itemParameter.CreatedAt = DateTime.Now;
             itemParameter.UpdatedAt = DateTime.Now;
@@ -257,7 +254,7 @@ public class CategoryService
                 return VerifyRecordResultFactory.Invalid(teamError);
             }
 
-            Category itemData = Mapper.Map<Category>(paraObject);
+            Category itemData = CategoryMapper.ToEntity(paraObject);
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 
@@ -408,7 +405,7 @@ public class CategoryService
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        result.Result = Mapper.Map<List<CategoryAdapterModel>>(await dataSource.ToListAsync());
+        result.Result = CategoryMapper.ToModels(await dataSource.ToListAsync());
         return result;
     }
 

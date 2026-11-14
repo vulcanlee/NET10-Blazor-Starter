@@ -1,5 +1,4 @@
 using System.Net.Mail;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -7,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -23,12 +23,10 @@ public class MyUserService
     private readonly BootstrapSettings bootstrapSettings;
     private readonly IPasswordPolicy passwordPolicy;
 
-    public IMapper Mapper { get; }
     public ILogger<MyUserService> Logger { get; }
 
     public MyUserService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<MyUserService> logger,
         IRbacWriteService rbacWriteService,
         IAuditLogService auditLogService,
@@ -37,7 +35,6 @@ public class MyUserService
         IPasswordPolicy passwordPolicy)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.rbacWriteService = rbacWriteService;
         this.auditLogService = auditLogService;
@@ -201,7 +198,7 @@ public class MyUserService
         }
 
         List<MyUser> records = await dataSource.ToListAsync();
-        List<MyUserAdapterModel> adapterModelObjects = Mapper.Map<List<MyUserAdapterModel>>(records);
+        List<MyUserAdapterModel> adapterModelObjects = MyUserMapper.ToModels(records);
         foreach (var adapterModelItem in adapterModelObjects)
         {
             await OtherDependencyData(adapterModelItem);
@@ -228,7 +225,7 @@ public class MyUserService
             return new MyUserAdapterModel();
         }
 
-        MyUserAdapterModel result = Mapper.Map<MyUserAdapterModel>(item);
+        MyUserAdapterModel result = MyUserMapper.ToModel(item);
         await OtherDependencyData(result);
         return result;
     }
@@ -244,7 +241,7 @@ public class MyUserService
             .ToListAsync();
 
         Logger.LogDebug("Loaded role views successfully. Count={Count}", roleViews.Count);
-        return Mapper.Map<List<RoleViewAdapterModel>>(roleViews);
+        return RoleViewMapper.ToModels(roleViews);
     }
 
     /// <param name="copiedFromAccount">由清單「複製」建立時的範本帳號（0.9.127 起），記在稽核 Detail。</param>
@@ -272,7 +269,7 @@ public class MyUserService
                 return VerifyRecordResultFactory.Invalid(roleError);
             }
 
-            MyUser itemParameter = Mapper.Map<MyUser>(paraObject);
+            MyUser itemParameter = MyUserMapper.ToEntity(paraObject);
             itemParameter.RoleView = null;
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
             await passwordPolicy.ApplyAsync(context, itemParameter, paraObject.Password, paraObject.MustChangePassword);
@@ -774,7 +771,7 @@ public class MyUserService
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        var items = Mapper.Map<List<MyUserAdapterModel>>(await dataSource.ToListAsync());
+        var items = MyUserMapper.ToModels(await dataSource.ToListAsync());
         foreach (var item in items)
         {
             await OtherDependencyData(item);

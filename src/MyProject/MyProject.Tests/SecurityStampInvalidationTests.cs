@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -27,7 +26,6 @@ public sealed class SecurityStampInvalidationTests : IDisposable
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
     private readonly SecurityStampService stamps;
-    private readonly IMapper mapper;
     private readonly List<IDisposable> disposables = [];
 
     public SecurityStampInvalidationTests()
@@ -42,7 +40,6 @@ public sealed class SecurityStampInvalidationTests : IDisposable
         }
 
         stamps = new SecurityStampService(factory, cache, TimeProvider.System, NullLogger<SecurityStampService>.Instance);
-        mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), LoggerFactory.Create(_ => { })).CreateMapper();
     }
 
     [Fact]
@@ -161,7 +158,7 @@ public sealed class SecurityStampInvalidationTests : IDisposable
     {
         var rbacContext = factory.CreateDbContext();
         disposables.Add(rbacContext);
-        return new MyUserService(factory, mapper, NullLogger<MyUserService>.Instance,
+        return new MyUserService(factory, NullLogger<MyUserService>.Instance,
             new RbacWriteService(rbacContext, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(),
             new CurrentUserService { CurrentUser = new CurrentUser { Id = 999_999, Account = "admin" } },
             Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());

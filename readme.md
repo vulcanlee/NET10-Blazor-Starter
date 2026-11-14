@@ -29,7 +29,7 @@
 | 認證 | JWT Bearer：網頁與 API 都用 Token（0.10.8 起不發登入 Cookie；記住我存 localStorage、未勾存 sessionStorage，刷新 Token 落庫輪替）| — |
 | 授權 | 宣告式 RBAC：`Menu.json` id → 權限鍵 → `IPermissionChecker`（動作級 `view/create/edit/delete`）| — |
 | 語系 | `RequestLocalization` + `AntDesignLocaleFactory` | 只支援 zh-TW（0.9.136 起）|
-| 物件對映 | AutoMapper | 16.3.0 |
+| 物件對映 | Mapperly（`Riok.Mapperly`，編譯時產生對應程式；0.10.23 起取代 AutoMapper）| 4.3.1 |
 | API 文件 | Swashbuckle Swagger UI | 11.0.1 |
 | 日誌 | NLog.Web.AspNetCore | 6.3.0 |
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.6.0 |
@@ -53,7 +53,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 | 專案 | 角色 |
 |------|------|
 | `MyProject.Web` | 網站宿主、Web API Controller（含登入相關的 `api/v1/Auth`）、本地化；0.10.8 起頁面全部在 `MyProject.Web.Client`，0.10.10 起只剩 API（沒有任何 Razor 元件與主機頁；`ClientSettings:BaseUrl` 留空時另提供前端的靜態檔）。 |
-| `MyProject.Business` | 商業邏輯：Services、AutoMapper Profile、Helpers（0.10.3 起已沒有 Repository，Web API 與畫面共用 Services）。 |
+| `MyProject.Business` | 商業邏輯：Services、物件對應 Mappers（Mapperly）、Helpers（0.10.3 起已沒有 Repository，Web API 與畫面共用 Services）。 |
 | `MyProject.AccessDatas` | EF Core `BackendDBContext`、Entity 定義、Migrations。 |
 | `MyProject.Models` | 系統設定、AdapterModel、共用領域模型。 |
 | `MyProject.Dtos` | API 對外傳輸物件：`ApiResult<T>`、`PagedResult<T>`、各模組 DTO。 |
@@ -223,12 +223,12 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← CurrentUserLoader、CurrentUserService 等
-    │   └── Models/AutoMapping.cs   ← AutoMapper Profile
+    │   └── Mappers/                ← 物件對應（Mapperly，編譯時產生；0.10.23 起取代 AutoMapper）
     ├── MyProject.AccessDatas/
     │   ├── BackendDBContext.cs
     │   ├── Models/                 ← Entity（MyUser、Project、Category、Team…）
     │   └── Migrations/
-    ├── MyProject.Models/           ← AdapterModel、Systems、AutoMapper 來源
+    ├── MyProject.Models/           ← AdapterModel、Systems
     ├── MyProject.Dtos/             ← API DTO（含 ApiResult/PagedResult）
     ├── MyProject.Share/            ← Helpers、Extensions
     └── MyProject.Tests/            ← xUnit 測試（含慣例守門測試；Components/ 為 bUnit 元件測試）
@@ -299,7 +299,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `ExceptionAlertSettings` | 系統例外 Email 告警（0.9.78 起）：`Recipients`（預設空清單＝停用）、`BurstThreshold`／`BurstWindowMinutes`（暴增門檻，預設 20 次／10 分）、`PerSignatureCooldownMinutes`（預設 60）、`MaxEmailsPerHour`（預設 20）。需寄信已啟用。見 [日誌與設定檔說明 §4.12](docs/operations/日誌與設定檔說明.md)。 |
 | `SlowOperationSettings` | 慢操作門檻（0.9.79 起，毫秒，超過記 Warning，`0`＝停用）：`HttpRequestMs`（3000）、`DbCommandMs`（1000）、`ExternalCallMs`（寄信，10000）、`AiCallMs`（60000）。見 [日誌與設定檔說明 §4.13](docs/operations/日誌與設定檔說明.md)。 |
 | `ClientErrorReporting` | 瀏覽器端 JavaScript 錯誤回報（0.9.79 起）：`Enabled`（預設 `true`）、`MaxPerCircuitPerMinute`（預設 10，範圍 1～1000）。見 [日誌與設定檔說明 §4.14](docs/operations/日誌與設定檔說明.md)。 |
-| `AutoMapper:LicenseKey` | AutoMapper 商業授權金鑰（可留空）。 |
 
 > 本表是摘要。**完整且具權威性的逐鍵說明在 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md) §4**
 > —— 新增 `appsettings.json` 區段時請以那份為主、本表為輔（見 [維護規範](docs/operations/維護規範.md) §2）。
@@ -420,7 +419,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - BlazorMaterialIcons — https://github.com/dimohy/BlazorMaterialIcons
 - Google Material Icons — https://fonts.google.com/icons
 - NLog — https://nlog-project.org/
-- AutoMapper — https://automapper.org/
+- Mapperly — https://mapperly.riok.app/
 
 ---
 

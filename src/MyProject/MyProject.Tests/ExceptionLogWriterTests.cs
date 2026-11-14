@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -97,9 +96,6 @@ public sealed class ExceptionLogWriterTests : IAsyncDisposable
 
         var collection = new ServiceCollection();
         collection.AddSingleton<IDbContextFactory<BackendDBContext>>(new TestDbContextFactory(connection));
-        collection.AddSingleton<IMapper>(new MapperConfiguration(
-            configuration => configuration.AddProfile<AutoMapping>(),
-            NullLoggerFactory.Instance).CreateMapper());
         collection.AddSingleton<ILogger<ExceptionLogService>>(NullLogger<ExceptionLogService>.Instance);
         collection.AddSingleton(Options.Create(settings));
         collection.AddScoped<ExceptionStackFileStore>();

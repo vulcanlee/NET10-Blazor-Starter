@@ -1,8 +1,8 @@
 ﻿# 使用者管理 PRD
 
-- 文件版本：1.23
+- 文件版本：1.24
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.23
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/14
 
@@ -66,7 +66,7 @@ WASM View（`MyUserView`）→ `UserApi` → `UsersController`（`api/v1/users`�
 - **存檔驗證角色**（0.9.95 起）：新增與修改時，主要角色與額外角色必須存在且未刪除（null 跳過），否則回「選擇的角色已被刪除或不存在，請關閉視窗、重新開啟後再選擇角色。」—— 編輯視窗開著的期間角色可能被刪掉，存進去的話那個人每次換頁都會被登出。`SyncUserRolesAsync` 只在有效角色之間計算差異，指向已刪除角色的連結保留。
 - **啟動回填**（`RbacBackfillService.RunAsync`）：開機時將既有 `MyUser.RoleViewId` 補寫成 `UserRole`、角色預設團隊補寫成 `UserTeam`，冪等執行，確保舊資料進入 RBAC 表。
 - **有效團隊**：登入後由 `EffectiveTeamResolver` 決定（使用者直綁團隊優先，否則沿用角色預設團隊）。
-- **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查帳號唯一性（0.9.171 起 `NameNormalizer` 後以 `ToLower()` 比對，還原時同規則）；寫入前 `AutoMapping` 與 `UpdateAsync` 都去頭尾空白。資料庫有部分唯一索引 `IX_MyUser_Account`（`WHERE "IsDeleted" = 0`）兜底，違反時經 `UniqueConstraintHelper` 回「帳號已存在（不分大小寫），無法儲存。」。
+- **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查帳號唯一性（0.9.171 起 `NameNormalizer` 後以 `ToLower()` 比對，還原時同規則）；寫入前 `MyUserMapper.ToEntity`（0.10.23 起 Mapperly）與 `UpdateAsync` 都去頭尾空白。資料庫有部分唯一索引 `IX_MyUser_Account`（`WHERE "IsDeleted" = 0`）兜底，違反時經 `UniqueConstraintHelper` 回「帳號已存在（不分大小寫），無法儲存。」。
 - **稽核 actor**：`ResolveActor` 取目前登入者；未登入時 actor 為 null。
 
 > ℹ️ `RbacWriteService` 在 0.4.36 `IDbContextFactory` 遷移後**仍直接接收 DI 注入的 scoped `BackendDBContext`**

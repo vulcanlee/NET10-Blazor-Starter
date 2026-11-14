@@ -1,5 +1,4 @@
 using System.Text.Json;
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -506,7 +505,6 @@ public sealed class AiCallLogServiceTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private Fixture(SqliteConnection connection, string rootPath)
@@ -515,7 +513,6 @@ public sealed class AiCallLogServiceTests
             RootPath = rootPath;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            mapper = new MapperConfiguration(configuration => configuration.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
         }
 
         public string RootPath { get; }
@@ -545,7 +542,6 @@ public sealed class AiCallLogServiceTests
 
             return new AiCallLogService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<AiCallLogService>(),
                 new AiCallLogFileStore(Options.Create(settings), loggerFactory.CreateLogger<AiCallLogFileStore>()),
                 new StaticOptionsMonitor<AiCallLogSettings>(new AiCallLogSettings { Enabled = enabled, RetentionDays = retentionDays }));

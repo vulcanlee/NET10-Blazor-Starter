@@ -1,11 +1,11 @@
 ﻿using System.Linq.Expressions;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -31,17 +31,14 @@ public class ExceptionLogService
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly ExceptionStackFileStore fileStore;
 
-    public IMapper Mapper { get; }
     public ILogger<ExceptionLogService> Logger { get; }
 
     public ExceptionLogService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<ExceptionLogService> logger,
         ExceptionStackFileStore fileStore)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.fileStore = fileStore;
     }
@@ -263,7 +260,7 @@ public class ExceptionLogService
             .Take(query.PageSize);
 
         List<ExceptionLog> records = await dataSource.ToListAsync();
-        result.Result = Mapper.Map<List<ExceptionLogAdapterModel>>(records);
+        result.Result = LogMappers.ToModels(records);
         return result;
     }
 
@@ -272,7 +269,7 @@ public class ExceptionLogService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var item = await context.ExceptionLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        return item is null ? null : Mapper.Map<ExceptionLogAdapterModel>(item);
+        return item is null ? null : LogMappers.ToModel(item);
     }
 
     /// <summary>讀取堆疊全文。檔案不存在時回 null，由畫面顯示友善訊息。</summary>

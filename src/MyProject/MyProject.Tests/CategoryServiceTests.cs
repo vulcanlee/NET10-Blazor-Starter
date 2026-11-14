@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -169,7 +168,6 @@ public sealed class CategoryServiceTests
     private sealed class CategoryServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private CategoryServiceFixture(SqliteConnection connection, BackendDBContext context)
@@ -178,10 +176,6 @@ public sealed class CategoryServiceTests
             Context = context;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -208,7 +202,6 @@ public sealed class CategoryServiceTests
             // 這組測試只驗證 CRUD 前置檢查，用管理員範圍避免團隊可見性介入。
             return new CategoryService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<CategoryService>(),
                 new FakeRecordAccessScopeProvider(isAdmin: true, []),
                 Audit,

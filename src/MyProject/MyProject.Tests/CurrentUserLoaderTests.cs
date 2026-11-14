@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -238,7 +237,6 @@ public sealed class CurrentUserLoaderTests
     private sealed class LoaderFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private LoaderFixture(SqliteConnection connection, BackendDBContext context)
@@ -246,7 +244,6 @@ public sealed class CurrentUserLoaderTests
             this.connection = connection;
             Context = context;
             loggerFactory = LoggerFactory.Create(_ => { });
-            mapper = new MapperConfiguration(configuration => configuration.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -266,14 +263,13 @@ public sealed class CurrentUserLoaderTests
         {
             var currentUserService = new CurrentUserService();
             var myUserService = new MyUserService(
-                new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(),
+                new TestDbContextFactory(connection), loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()),
                 currentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
             return new CurrentUserLoader(
                 loggerFactory.CreateLogger<CurrentUserLoader>(),
-                mapper,
                 myUserService,
                 new RolePermissionService(),
                 new EffectiveTeamResolver(Context, new ContextTeamTreeCache(Context), NullLogger<EffectiveTeamResolver>.Instance),

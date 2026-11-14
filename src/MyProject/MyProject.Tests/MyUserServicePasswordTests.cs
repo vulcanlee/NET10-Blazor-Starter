@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -125,7 +124,6 @@ public sealed class MyUserServicePasswordTests
     private sealed class MyUserServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private MyUserServiceFixture(SqliteConnection connection, BackendDBContext context)
@@ -134,10 +132,6 @@ public sealed class MyUserServicePasswordTests
             Context = context;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -161,7 +155,6 @@ public sealed class MyUserServicePasswordTests
         {
             return new MyUserService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance),
                 new AuditLogService(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>()),

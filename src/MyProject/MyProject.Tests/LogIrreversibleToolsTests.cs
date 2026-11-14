@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -38,17 +37,16 @@ public sealed class LogIrreversibleToolsTests : IAsyncDisposable
         }
 
         Directory.CreateDirectory(root);
-        var mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
         var settings = new SystemSettings();
         settings.ExternalFileSystem.ExceptionPath = Path.Combine(root, "ex");
         settings.ExternalFileSystem.AiCallLogPath = Path.Combine(root, "ai");
         settings.ExternalFileSystem.TokenUsagePath = Path.Combine(root, "tk");
-        var exceptions = new ExceptionLogService(Factory(), mapper, loggerFactory.CreateLogger<ExceptionLogService>(),
+        var exceptions = new ExceptionLogService(Factory(), loggerFactory.CreateLogger<ExceptionLogService>(),
             new ExceptionStackFileStore(Options.Create(settings)));
-        callLogs = new AiCallLogService(Factory(), mapper, loggerFactory.CreateLogger<AiCallLogService>(),
+        callLogs = new AiCallLogService(Factory(), loggerFactory.CreateLogger<AiCallLogService>(),
             new AiCallLogFileStore(Options.Create(settings), loggerFactory.CreateLogger<AiCallLogFileStore>()),
             new StaticOptionsMonitor<AiCallLogSettings>(new AiCallLogSettings { Enabled = true, RetentionDays = 90 }));
-        var tokenUsage = new TokenUsageLogService(Factory(), mapper, loggerFactory.CreateLogger<TokenUsageLogService>(),
+        var tokenUsage = new TokenUsageLogService(Factory(), loggerFactory.CreateLogger<TokenUsageLogService>(),
             new TokenUsageRawStore(Options.Create(settings), loggerFactory.CreateLogger<TokenUsageRawStore>()), null!, new StubAiQuotaService());
 
         monitoring = new MonitoringAssistantTools(null!, null!, null!, exceptions, null!, audit, currentUser, null!, null!);

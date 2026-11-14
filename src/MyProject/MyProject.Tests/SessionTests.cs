@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -37,7 +36,6 @@ public sealed class SessionTests : IDisposable
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
     private readonly ManualTimeProvider time = new(new DateTimeOffset(2026, 10, 4, 1, 0, 0, TimeSpan.Zero));
-    private readonly IMapper mapper;
     private readonly RecordingAuditLogService audit = new();
     private readonly CurrentUserService currentUser = new() { CurrentUser = new CurrentUser { Id = 999_999, Account = "admin" } };
     private readonly List<IDisposable> disposables = [];
@@ -49,7 +47,6 @@ public sealed class SessionTests : IDisposable
         factory = new TestDbContextFactory(connection);
         using var context = factory.CreateDbContext();
         context.Database.EnsureCreated();
-        mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), LoggerFactory.Create(_ => { })).CreateMapper();
     }
 
     // ---------- 哪些操作會換版本 ----------
@@ -245,7 +242,7 @@ public sealed class SessionTests : IDisposable
     {
         var rbacContext = factory.CreateDbContext();
         disposables.Add(rbacContext);
-        return new MyUserService(factory, mapper, NullLogger<MyUserService>.Instance,
+        return new MyUserService(factory, NullLogger<MyUserService>.Instance,
             new RbacWriteService(rbacContext, NullLogger<RbacWriteService>.Instance), audit, currentUser,
             Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
     }
@@ -254,7 +251,7 @@ public sealed class SessionTests : IDisposable
     {
         var context = factory.CreateDbContext();
         disposables.Add(context);
-        return new MyUserServiceLogin(context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
+        return new MyUserServiceLogin(context, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
             new RolePermissionService(), audit, PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
             TwoFactorTestDefaults.Service(factory, audit));
     }

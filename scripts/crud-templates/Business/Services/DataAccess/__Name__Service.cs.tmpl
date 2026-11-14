@@ -1,10 +1,10 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -29,12 +29,10 @@ public class __Name__Service
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
 
-    public IMapper Mapper { get; }
     public ILogger<__Name__Service> Logger { get; }
 
     public __Name__Service(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<__Name__Service> logger,
 #IF TEAMS
         IRecordAccessScopeProvider accessScope,
@@ -43,7 +41,6 @@ public class __Name__Service
         CurrentUserService currentUserService)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
 #IF TEAMS
         this.accessScope = accessScope;
@@ -116,7 +113,7 @@ public class __Name__Service
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        result.Result = Mapper.Map<List<__Name__AdapterModel>>(await dataSource.ToListAsync());
+        result.Result = __Name__Mapper.ToModels(await dataSource.ToListAsync());
         Logger.LogDebug("Loaded __name__ records. Count={Count}", result.Count);
         return result;
     }
@@ -140,7 +137,7 @@ public class __Name__Service
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        result.Result = Mapper.Map<List<__Name__AdapterModel>>(await dataSource.ToListAsync());
+        result.Result = __Name__Mapper.ToModels(await dataSource.ToListAsync());
         return result;
     }
 
@@ -158,7 +155,7 @@ public class __Name__Service
             return new __Name__AdapterModel();
         }
 
-        return Mapper.Map<__Name__AdapterModel>(item);
+        return __Name__Mapper.ToModel(item);
     }
 
     public async Task<VerifyRecordResult> AddAsync(__Name__AdapterModel paraObject)
@@ -175,7 +172,7 @@ public class __Name__Service
             }
 
 #ENDIF
-            var item = Mapper.Map<__Name__>(paraObject);
+            var item = __Name__Mapper.ToEntity(paraObject);
             item.ConcurrencyStamp = ConcurrencyStampHelper.New();
             item.CreatedAt = DateTime.Now;
             item.UpdatedAt = DateTime.Now;
@@ -229,7 +226,7 @@ public class __Name__Service
             }
 #ENDIF
 
-            var itemData = Mapper.Map<__Name__>(paraObject);
+            var itemData = __Name__Mapper.ToEntity(paraObject);
             itemData.CreatedAt = item.CreatedAt;
             itemData.UpdatedAt = DateTime.Now;
 

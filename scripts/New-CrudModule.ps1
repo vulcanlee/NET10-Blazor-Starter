@@ -3,14 +3,14 @@
     一行指令產生一個符合本專案現行慣例的 CRUD 模組，並完成所有登記與 migration（0.9.110 起）。
 
 .DESCRIPTION
-    產生的模組包含：實體（軟刪除＋樂觀並行）、畫面模型、DTO、資料服務（規則與稽核的唯一一份）、
+    產生的模組包含：實體（軟刪除＋樂觀並行）、畫面模型、DTO、對應（Mapperly，0.10.23 起）、資料服務（規則與稽核的唯一一份）、
     Web API（走資料服務；GET／search／check／POST／PUT／enabled／DELETE／restore／purge／export，各自 [HasPermission]）、
     WASM 頁面與檢視（0.10.2 起只產生 WASM 版；權限閘門、依動作顯示按鈕、搜尋排序分頁、顯示已刪除／還原／永久刪除、
     匯出 Excel）與 API 用戶端、操作說明、服務測試與 API 測試。
     -WithTeams 另加「團隊」欄位與團隊範圍（RecordTeamScope）。
 
     並自動登記（重複執行不會重複插入，已存在就略過並列出）：
-      DbSet 與名稱唯一索引、AutoMapper、DI、權限鍵常數、稽核動作、Menu.json（下一個可用 id）、選單權限對照、
+      DbSet 與名稱唯一索引、DI、權限鍵常數、稽核動作、Menu.json（下一個可用 id）、選單權限對照、
       角色權限矩陣（或管理員專屬清單）、選單／權限一致性測試、操作說明目錄、WASM 的 API 用戶端（Program.cs）、
       已刪除資料清理（服務與作業）、資料保留與清理（頁面與測試）、並行／軟刪除實體清單、
       服務生命週期／畫面模型 Clone／API DI 測試清單、選單圖示允許清單。
@@ -344,25 +344,6 @@ Update-Source 'MyProject.AccessDatas/BackendDBContext.cs' '名稱唯一索引' "
         {
             entity.HasIndex(x => x.Name).IsUnique().HasFilter(ActiveRowsOnly);
         });
-        #endregion
-
-
-"@
-}
-
-$teamsMapIn = if ($WithTeams) { "`n            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToList(s.Teams)))" } else { '' }
-$teamsMapOut = if ($WithTeams) { "`n            .ForMember(d => d.Teams, o => o.MapFrom(s => TagStringHelper.ToStored(s.Teams)))" } else { '' }
-Update-Source 'MyProject.Business/Models/AutoMapping.cs' 'AutoMapper' "CreateMap<$Name, ${Name}AdapterModel>" {
-    param($t)
-    Insert-Before $t "        #region TokenUsageLog" @"
-        #region $Name（$GeneratedMarker 產生）
-        CreateMap<$Name, ${Name}AdapterModel>()$teamsMapIn;
-        CreateMap<${Name}AdapterModel, $Name>().IgnoreSoftDeleteFields()
-            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)))$teamsMapOut;
-        CreateMap<$Name, ${Name}Dto>();
-        CreateMap<$Name, ${Name}CreateUpdateDto>();
-        CreateMap<${Name}CreateUpdateDto, $Name>().IgnoreSoftDeleteFields()
-            .ForMember(d => d.Name, o => o.MapFrom(s => NameNormalizer.Normalize(s.Name)));
         #endregion
 
 

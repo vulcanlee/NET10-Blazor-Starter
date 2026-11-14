@@ -1,10 +1,10 @@
 using System.Linq.Expressions;
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Mappers;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
 
@@ -23,16 +23,13 @@ public class ScheduledJobRunService
     private const int MaxMessageLength = 1000;
 
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
-    private readonly IMapper mapper;
     private readonly ILogger<ScheduledJobRunService> logger;
 
     public ScheduledJobRunService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<ScheduledJobRunService> logger)
     {
         this.contextFactory = contextFactory;
-        this.mapper = mapper;
         this.logger = logger;
     }
 
@@ -162,7 +159,7 @@ public class ScheduledJobRunService
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var states = await context.ScheduledJobState.AsNoTracking().ToListAsync(cancellationToken);
-        return mapper.Map<List<ScheduledJobStateAdapterModel>>(states);
+        return LogMappers.ToModels(states);
     }
 
     /// <summary>每個作業最近一次的執行紀錄（以 Id 判斷先後：Id 依寫入順序遞增）。</summary>
@@ -194,13 +191,13 @@ public class ScheduledJobRunService
             .OrderByDescending(x => x.Id)
             .Take(take)
             .ToListAsync();
-        return mapper.Map<List<JobRunAdapterModel>>(runs);
+        return LogMappers.ToModels(runs);
     }
 
     private async Task<Dictionary<string, JobRunAdapterModel>> LoadByIdsAsync(BackendDBContext context, List<int> ids)
     {
         var runs = await context.JobRun.AsNoTracking().Where(x => ids.Contains(x.Id)).ToListAsync();
-        return mapper.Map<List<JobRunAdapterModel>>(runs).ToDictionary(x => x.JobName, StringComparer.OrdinalIgnoreCase);
+        return LogMappers.ToModels(runs).ToDictionary(x => x.JobName, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string? Truncate(string? message)

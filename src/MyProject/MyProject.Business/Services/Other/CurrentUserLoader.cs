@@ -1,6 +1,6 @@
 using System.Text.Json;
-using AutoMapper;
 using Microsoft.Extensions.Logging;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Others;
@@ -60,7 +60,6 @@ public sealed class CurrentUserLoader : ICurrentUserLoader
     private static readonly TimeSpan SessionRecheckWindow = TimeSpan.FromSeconds(5);
 
     private readonly ILogger<CurrentUserLoader> logger;
-    private readonly IMapper mapper;
     private readonly MyUserService myUserService;
     private readonly RolePermissionService rolePermissionService;
     private readonly IEffectiveTeamResolver effectiveTeamResolver;
@@ -71,7 +70,6 @@ public sealed class CurrentUserLoader : ICurrentUserLoader
 
     public CurrentUserLoader(
         ILogger<CurrentUserLoader> logger,
-        IMapper mapper,
         MyUserService myUserService,
         RolePermissionService rolePermissionService,
         IEffectiveTeamResolver effectiveTeamResolver,
@@ -81,7 +79,6 @@ public sealed class CurrentUserLoader : ICurrentUserLoader
         ITwoFactorService twoFactorService)
     {
         this.logger = logger;
-        this.mapper = mapper;
         this.myUserService = myUserService;
         this.rolePermissionService = rolePermissionService;
         this.effectiveTeamResolver = effectiveTeamResolver;
@@ -132,7 +129,7 @@ public sealed class CurrentUserLoader : ICurrentUserLoader
     {
         try
         {
-            var currentUser = mapper.Map<CurrentUser>(myUser);
+            var currentUser = MyUserMapper.ToCurrentUser(myUser);
 
             // CurrentUser.CopyFrom 會解析 RoleJson，沒有主要角色時給空清單而不是空字串。
             currentUser.RoleJson = "[]";

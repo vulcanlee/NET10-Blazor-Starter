@@ -1,8 +1,8 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.23
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/14
 
@@ -17,7 +17,7 @@
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
 - **每個 action 都要標明授權意圖**（0.10.4 起，`ApiAuthorizationConventionTests` 守門）：`[HasPermission]`、`[AdminOnly]`、`[SignedInUser]`、`[AllowAnonymous]` 四選一（標在類別上等於每個 action，繼承來的 action 也算），漏標測試就失敗；除了 `[AllowAnonymous]`，controller 或 action 上還要有 `[Authorize]`。只有 `[Authorize]` 的端點任何登入的人都能呼叫，新增端點時忘了加權限是最常見的越權漏洞。見「功能級／動作級授權」節的選法。
 - API request/response 必須使用 DTO，不可以直接接收或回傳 Entity。
-- Entity 與 DTO 轉換優先使用 AutoMapper profile 維護。
+- Controller 不直接轉換 Entity：DTO ↔ 畫面模型用 `MyProject.Web.Client/Api/*DtoMapper.cs`（手寫），畫面模型 ↔ Entity 在服務層的 `MyProject.Business/Mappers/`（0.10.23 起以 Mapperly 在編譯時產生，取代 AutoMapper）。
 - **資料一律經畫面同一個 Service**（0.10.2 起，WASM 遷移 M3）：Controller 不另寫查詢或寫入邏輯，團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份。分類、團隊 0.10.2 起、專案 0.10.3 起已改，專案中已沒有任何 Repository（`CategoryRepository`／`TeamRepository`／`ProjectRepository` 都已刪除）；新模組不要再寫 Repository（CRUD 產生器也不再產生）。DTO 與畫面模型的對應放在 `MyProject.Web.Client/Api/*DtoMapper.cs`，WASM 頁面與 Controller 共用。
 - 寫入動作（新增、修改、刪除）成功後要寫稽核（0.9.78 起，LOG-14）。走服務的 Controller 由服務寫（與畫面相同，操作者是 `ApiActorMiddleware` 依存取 Token 載入的目前使用者），Controller 只補服務不寫的查看、搜尋、匯出稽核；不經服務的少數動作（例如 `AuthController` 的 Token 事件）呼叫 `this.WriteAuditAsync(AuditActions.Xxx..., ...)`
   （`Controllers/ControllerAuditExtensions.cs`，操作者由 `RequestActorResolver` 從 JWT 身分解析；0.10.8 起不再有登入 Cookie）。

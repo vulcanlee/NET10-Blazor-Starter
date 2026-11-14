@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -132,7 +131,6 @@ public sealed class AuditEventsTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
         private readonly CurrentUserService currentUserService;
 
@@ -141,10 +139,6 @@ public sealed class AuditEventsTests
             this.connection = connection;
             Context = context;
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
             currentUserService = new CurrentUserService();
             currentUserService.CurrentUser.Id = actorId;
             currentUserService.CurrentUser.Account = actorAccount;
@@ -165,10 +159,10 @@ public sealed class AuditEventsTests
         private AuditLogService Audit() => new(TestAuditChain.Create(connection), loggerFactory.CreateLogger<AuditLogService>());
 
         public MyUserService CreateUserService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
+            => new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<MyUserService>(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public RoleViewService CreateRoleService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
+            => new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<RoleViewService>(), new RolePermissionService(), new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit(), currentUserService);
 
         public async ValueTask DisposeAsync()
         {

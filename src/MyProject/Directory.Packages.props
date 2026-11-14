@@ -26,7 +26,6 @@
   <!-- UI 與工具 -->
   <ItemGroup>
     <PackageVersion Include="AntDesign"              Version="1.6.3-dotnet11.rc3" />
-    <PackageVersion Include="AutoMapper"             Version="16.3.0" />
     <PackageVersion Include="BlazorMaterialIcons"    Version="0.0.1" />
     <PackageVersion Include="Cronos"                 Version="0.13.0" />
     <PackageVersion Include="MailKit"                Version="4.18.2" />
@@ -38,6 +37,9 @@
          升級前要先決定授權方式（AGPL 會要求公開衍生產品原始碼）。 -->
     <PackageVersion Include="PDFsharp-MigraDoc"      Version="6.2.4" />
     <PackageVersion Include="QRCoder"                Version="1.8.1" />
+    <!-- 0.10.23 起以 Mapperly 取代 AutoMapper：Apache-2.0、沒有任何使用條件（AutoMapper 15 版起改商業授權）；
+         只在編譯時產生對應程式碼，執行時不需要它的任何組件（見 MyProject.Business.csproj 的 ExcludeAssets）。 -->
+    <PackageVersion Include="Riok.Mapperly"          Version="4.3.1" />
     <!-- 0.9.107 起：業務頁匯出 Excel。傳遞相依 SixLabors.Fonts 解析到 1.0.0（Apache-2.0；2.x 起改為 Split License，升級前要確認）。 -->
     <PackageVersion Include="ClosedXML"              Version="0.105.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="11.0.1" />

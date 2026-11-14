@@ -1,8 +1,8 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.17
+- 文件版本：3.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.23
 - 首次實作版本：0.9.1
 - 最後核對日期：2026/11/14
 
@@ -258,12 +258,13 @@ code "$dir\secrets.json"
   "EmailSettings": {
     "UserName": "",
     "Password": ""
-  },
-  "AutoMapper:LicenseKey": ""
+  }
 }
 ```
 
-> **兩種寫法等價**：`dotnet user-secrets set "JwtSettings:SigningKey" "..."` 存進檔案後就是上面的巢狀結構。而 `"AutoMapper:LicenseKey"` 之所以維持扁平的冒號鍵，是因為 `appsettings.json` 本來就是這樣宣告（檔案最後一個鍵）、`Program.cs` 也以 `builder.Configuration["AutoMapper:LicenseKey"]` 讀取；兩種格式 .NET 都認得。
+> **兩種寫法等價**：`dotnet user-secrets set "JwtSettings:SigningKey" "..."` 存進檔案後就是上面的巢狀結構；檔案裡寫成扁平的冒號鍵（例如 `"JwtSettings:SigningKey": "..."`）.NET 也認得。
+>
+> 0.10.23 起物件對應改用 Mapperly，設定 `AutoMapper:LicenseKey` 已移除。以前設過的可以刪掉（`dotnet user-secrets remove "AutoMapper:LicenseKey" --project src/MyProject/MyProject.Web`），留著也只會被忽略。
 
 ### 5.5 該搬哪些鍵
 
@@ -274,7 +275,6 @@ code "$dir\secrets.json"
 | `GoogleOAuthSettings:ClientSecret` | `""` | 同上 | 同上。**這是真正的密鑰，絕不可進版控** |
 | `CacheSettings:RedisConnection` | `""` | `CacheSettings:Provider` 改成 `Redis` 時必要 | 連線字串通常含密碼；Production 下留空會被 `StartupSafetyValidator` 的 Redis 檢查擋下 |
 | `EmailSettings:UserName` / `EmailSettings:Password` | `""` | `EmailSettings:Provider` 改成 `Smtp` 且 SMTP 需要登入時必要 | 登入失敗、信寄不出去（健康監控「寄信服務」紅燈）。**密碼絕不可進版控**。開發機預設是 `Provider=None`（與出貨值相同）；本機要測忘記密碼，用 User Secrets 設 `Provider=Pickup`，信寫成 `.eml` 檔，不需要任何帳密；要測真的 SMTP，才用 User Secrets 設 `Provider=Smtp` 與這兩個鍵 |
-| `AutoMapper:LicenseKey` | `""` | 商業授權情境 | 留空不影響開發（`Program.cs` 讀不到就不設定授權），但授權金鑰不應進版控 |
 
 > ⚠️ `BootstrapSettings:SupportPassword`（預設管理者密碼）**不建議**放進 User Secrets —— 它的行為與一般機密不同，改動會反向覆寫資料庫。詳見 [§6.4](#64-預設管理者帳號)。
 

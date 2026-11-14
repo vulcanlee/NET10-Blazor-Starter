@@ -297,7 +297,6 @@ public sealed class AiQuotaTests : IDisposable
         var quota = new StubAiQuotaService();
         var service = new MyProject.Business.Services.DataAccess.TokenUsageLogService(
             factory,
-            new AutoMapper.MapperConfiguration(x => x.AddProfile<MyProject.Models.Systems.AutoMapping>(), Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance).CreateMapper(),
             NullLogger<MyProject.Business.Services.DataAccess.TokenUsageLogService>.Instance,
             new MyProject.Business.Services.Other.TokenUsageRawStore(
                 Microsoft.Extensions.Options.Options.Create(new SystemSettings { ExternalFileSystem = new ExternalFileSystem { TokenUsagePath = Path.Combine(Path.GetTempPath(), "quota-" + Guid.NewGuid().ToString("N")) } }),

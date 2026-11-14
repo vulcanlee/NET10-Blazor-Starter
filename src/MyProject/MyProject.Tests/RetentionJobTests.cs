@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -473,7 +472,6 @@ public sealed class RetentionJobTests : IAsyncDisposable
 
         var collection = new ServiceCollection();
         collection.AddSingleton<IDbContextFactory<BackendDBContext>>(new TestDbContextFactory(connection));
-        collection.AddSingleton<IMapper>(new MapperConfiguration(c => c.AddProfile<AutoMapping>(), NullLoggerFactory.Instance).CreateMapper());
         collection.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         collection.AddSingleton(Options.Create(systemSettings));
         collection.AddSingleton<IOptionsMonitor<LogRetentionSettings>>(new StaticOptionsMonitor<LogRetentionSettings>(retention));

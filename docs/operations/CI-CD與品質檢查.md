@@ -1,8 +1,8 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.23
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/14
 
@@ -27,7 +27,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）
 | 1 | Restore | `dotnet restore` | 套件還原失敗（腳本會把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180，見 §4）|
 | 2 | Build | `dotnet build --configuration Release --no-restore` | 編譯錯誤與**任何警告**（`TreatWarningsAsErrors`）|
 | 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
-| 4 | Test | `dotnet test --configuration Release --no-build` | 約 3,200 個測試（0.10.22），含十多組慣例守門測試 |
+| 4 | Test | `dotnet test --configuration Release --no-build` | 約 3,212 個測試（0.10.23），含十多組慣例守門測試 |
 | 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
 | 6 | CRUD anchors | `scripts/New-CrudModule.ps1 -CheckAnchors`（一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒）| CRUD 產生器的登記錨點失效：被登記的檔案改了寫法，產生器下次使用時才會「找不到登記位置」（0.9.153 起；0.9.133 起壞了兩週才發現）。只檢查插得進去、不寫檔；產出的模組能否建置與通過測試仍要跑 `Test-CrudGenerator.ps1`。repo 沒有產生器時略過 |
 | 7 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
@@ -195,7 +195,7 @@ $stale = @($allowed | Where-Object { $found -notcontains $_ })        # 非空 �
 
 0.10.14 升級 .NET 11：ASP.NET Core／EF Core（含 Redis 快取）11.0.0、Swashbuckle.AspNetCore 11.0.1、bunit 2.15.2、NLog.Web.AspNetCore 6.3.0、Microsoft.NET.Test.Sdk 18.12.0；
 AntDesign 改用預覽版 `1.6.3-dotnet11.rc3`（唯一替 net11.0 編譯的版本，正式版釋出後換掉）；沒有在用的 `Microsoft.AspNetCore.OpenApi` 移除。
-刻意不變的：Agent Framework（`Microsoft.Agents.AI` ×3）1.28、`Microsoft.Extensions.AI.OpenAI` 10.11、`OpenAI` 2.14（MAF 已是最新且綁 M.E.AI 10.11）、`PDFsharp-MigraDoc`、`ClosedXML`（授權原因）、`MailKit`、`AutoMapper`（新版是主版號升級，另案評估）。
+刻意不變的：Agent Framework（`Microsoft.Agents.AI` ×2，0.10.22 起拿掉 Workflows）1.28、`Microsoft.Extensions.AI.OpenAI` 10.11、`OpenAI` 2.14（MAF 已是最新且綁 M.E.AI 10.11）、`PDFsharp-MigraDoc`、`ClosedXML`（授權原因）、`MailKit`（新版是主版號升級，另案評估）；`AutoMapper` 0.10.23 起已改為 Mapperly（15 版起改商業授權）。
 完整理由見 [升級 .NET 11 測試報告 A.1](../migration/測試報告/升級NET11.md)。
 
 | 套件 | 停在 | 不升的原因 | 什麼時候可以升 |

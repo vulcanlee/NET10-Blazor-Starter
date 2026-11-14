@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -282,7 +281,6 @@ public sealed class SoftDeleteTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory = LoggerFactory.Create(_ => { });
         private readonly CurrentUserService currentUser = new();
         private readonly string fileRoot = Path.Combine(Path.GetTempPath(), "MyProjectSoftDelete", Guid.NewGuid().ToString("N"));
@@ -291,7 +289,6 @@ public sealed class SoftDeleteTests
         {
             this.connection = connection;
             Context = context;
-            mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
             currentUser.CurrentUser = new CurrentUser { Id = 7, Account = "alice" };
         }
 
@@ -315,22 +312,22 @@ public sealed class SoftDeleteTests
         }
 
         public CategoryService CategoryService(FakeRecordAccessScopeProvider? scope = null)
-            => new(Factory(), mapper, NullLogger<CategoryService>.Instance, scope ?? new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
+            => new(Factory(), NullLogger<CategoryService>.Instance, scope ?? new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
 
         public TeamService TeamService()
-            => new(Factory(), mapper, NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser, new ContextTeamTreeCache(Context));
+            => new(Factory(), NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser, new ContextTeamTreeCache(Context));
 
         public ProjectService ProjectService(FakeRecordAccessScopeProvider? scope = null)
         {
             var settings = new SystemSettings();
             settings.ExternalFileSystem.ProjectFilePath = fileRoot;
-            return new(Factory(), mapper, NullLogger<ProjectService>.Instance, Options.Create(settings),
+            return new(Factory(), NullLogger<ProjectService>.Instance, Options.Create(settings),
                 scope ?? new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser,
                 new ProjectFileStore(Options.Create(settings), NullLogger<ProjectFileStore>.Instance));
         }
 
         public MyUserService UserService()
-            => new(Factory(), mapper, NullLogger<MyUserService>.Instance,
+            => new(Factory(), NullLogger<MyUserService>.Instance,
                 new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public async Task<int> AddCategoryAsync(CategoryService service, string name, List<string>? teams = null)

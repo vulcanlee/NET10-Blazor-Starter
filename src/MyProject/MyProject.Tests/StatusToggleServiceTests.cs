@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -183,7 +182,6 @@ public sealed class StatusToggleServiceTests
     private sealed class StatusToggleFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private StatusToggleFixture(SqliteConnection connection, BackendDBContext context)
@@ -191,7 +189,6 @@ public sealed class StatusToggleServiceTests
             this.connection = connection;
             Context = context;
             loggerFactory = LoggerFactory.Create(_ => { });
-            mapper = new MapperConfiguration(configuration => configuration.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -208,10 +205,10 @@ public sealed class StatusToggleServiceTests
         }
 
         public TeamService CreateTeamService()
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<TeamService>(), Audit, new CurrentUserService(), new ContextTeamTreeCache(Context));
+            => new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<TeamService>(), Audit, new CurrentUserService(), new ContextTeamTreeCache(Context));
 
         public CategoryService CreateCategoryService(bool isAdmin, params string[] teams)
-            => new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<CategoryService>(),
+            => new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<CategoryService>(),
                 new FakeRecordAccessScopeProvider(isAdmin, teams), Audit, new CurrentUserService());
 
         public MyUserService CreateUserService(int currentUserId)
@@ -222,7 +219,7 @@ public sealed class StatusToggleServiceTests
                 currentUser.CurrentUser = new MyProject.Models.Others.CurrentUser { Id = currentUserId, Account = "alice" };
             }
 
-            return new(new TestDbContextFactory(connection), mapper, loggerFactory.CreateLogger<MyUserService>(),
+            return new(new TestDbContextFactory(connection), loggerFactory.CreateLogger<MyUserService>(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), Audit, currentUser,
                 Options.Create(new BootstrapSettings { SupportAccount = "support" }), PasswordTestDefaults.Policy());
         }

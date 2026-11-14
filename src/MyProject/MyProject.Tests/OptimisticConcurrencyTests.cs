@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -216,7 +215,6 @@ public sealed class OptimisticConcurrencyTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory = LoggerFactory.Create(_ => { });
         private readonly CurrentUserService currentUser = new();
 
@@ -224,7 +222,6 @@ public sealed class OptimisticConcurrencyTests
         {
             this.connection = connection;
             Context = context;
-            mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -239,26 +236,26 @@ public sealed class OptimisticConcurrencyTests
         }
 
         public CategoryService CategoryService()
-            => new(Factory(), mapper, NullLogger<CategoryService>.Instance, new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
+            => new(Factory(), NullLogger<CategoryService>.Instance, new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser);
 
         public TeamService TeamService()
-            => new(Factory(), mapper, NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser, new ContextTeamTreeCache(Context));
+            => new(Factory(), NullLogger<TeamService>.Instance, new RecordingAuditLogService(), currentUser, new ContextTeamTreeCache(Context));
 
         public ProjectService ProjectService()
-            => new(Factory(), mapper, NullLogger<ProjectService>.Instance, Options.Create(new SystemSettings()),
+            => new(Factory(), NullLogger<ProjectService>.Instance, Options.Create(new SystemSettings()),
                 new FakeRecordAccessScopeProvider(true, []), new RecordingAuditLogService(), currentUser,
                 new ProjectFileStore(Options.Create(new SystemSettings()), NullLogger<ProjectFileStore>.Instance));
 
         public RoleViewService RoleService()
-            => new(Factory(), mapper, NullLogger<RoleViewService>.Instance, new RolePermissionService(),
+            => new(Factory(), NullLogger<RoleViewService>.Instance, new RolePermissionService(),
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser);
 
         public MyUserService UserService()
-            => new(Factory(), mapper, NullLogger<MyUserService>.Instance,
+            => new(Factory(), NullLogger<MyUserService>.Instance,
                 new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser, Options.Create(new BootstrapSettings()), PasswordTestDefaults.Policy());
 
         public MyUserServiceLogin LoginService()
-            => new(Context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
+            => new(Context, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
                 new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
                 TwoFactorTestDefaults.Service(Factory()));
 
