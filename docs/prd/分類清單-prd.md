@@ -2,9 +2,9 @@
 
 - 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：0.3.0
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -37,16 +37,16 @@
 
 單頁清單 + Modal 表單（`CategoryViewView`）：
 
-- 工具列：新增（需 `分類清單:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入、清空搜尋（有輸入時才出現）、搜尋。
+- 工具列：新增（需 `分類清單:create`）、重新整理、匯出 Excel（0.9.107 起，見[通用匯出](通用匯出-prd.md)）；右側為關鍵字輸入（0.10.17 起按 Enter 就搜尋，`ListSearchEnterConventionTests`）、清空搜尋（有輸入時才出現）、搜尋。
 - 搜尋：關鍵字比對 `Name` 或 `Description`（`Contains`）。
 - 排序：可排序欄位 `Name`、`IsEnabled`、`UpdatedAt`；預設以 `UpdatedAt` 遞減、再以 `Id` 遞減。
 - 分頁：`PageSize` 取自 `MagicObjectHelper.PageSize`（8 筆），`RemoteDataSource=true` 由服務端分頁。
 - 清單欄位：名稱、描述、適用團隊、啟用狀態（`StatusPill` 徽章：啟用／停用；0.9.120 起有 `分類清單:edit` 時點徽章直接切換，停用先確認，`CategoryService.SetEnabledAsync` 只改狀態並換版本號、檢查團隊範圍、稽核 `Category.Enable`／`Category.Disable`；已是目標狀態時回成功、不寫稽核；沒有修改權限或在「顯示已刪除」時為不可點的一般標籤）、更新時間、操作（修改需 `分類清單:edit`、刪除需 `分類清單:delete`，無權限時不顯示按鈕）。
 - 新增／編輯表單（`form-modal` 大量資料輸入對話窗，見 [對話窗 UI 設計規範](../architecture/對話窗%20UI%20設計規範.md)；「分類資料」一區）：
-  - 名稱 `Name`（必填，最長 100）
+  - 名稱 `Name`（必填，最長 100；0.10.15 起輸入後即時檢查重複〔`AsyncFieldCheck` 呼叫 `POST check`，衝突訊息顯示在欄位下方，按「儲存」會等檢查完成；`AsyncFieldCheckTests`〕）
   - 啟用狀態 `IsEnabled`（Switch，預設啟用）
   - 描述 `Description`（選填，最長 2000，獨占整行）
-  - 適用團隊 `Teams`（多選，選填，獨占整行；選項為啟用中的團隊；不設定表示所有團隊皆可使用）
+  - 適用團隊 `Teams`（多選，選填，獨占整行；選項為啟用中的團隊；不設定表示所有團隊皆可使用）。0.10.15 起每次開窗（新增、修改）與存檔失敗後都重讀團隊選項（`LoadFormOptionsAsync`，`FormOptionsConventionTests`）；存檔時伺服器擋下**新選的**已停用或已刪除團隊，回 400「所選的團隊「X」已不存在或已停用，請重新選擇（選項已更新）。」（`SelectedOptionGuard`；原本就掛著的不擋）。
 - 儲存流程（`SaveAsync`）依序為：表單驗證 → 修改模式下若沒有任何變更，提示「沒有任何變更，未進行儲存。」並關窗 →
   儲存確認「確定要儲存這筆紀錄嗎？」（「儲存」／「再檢查」）→ 名稱重複檢查 → 團隊確認（見下）→ 寫入；寫入失敗會顯示原因且不關窗。
 - 取消／✕／ESC：有未儲存變更時先詢問是否放棄（`FormDirtyTracker`；改了又改回原值視為無變更）；點遮罩不會關窗。
@@ -77,7 +77,7 @@
 - API 一律 `[Authorize(JwtBearer)]`；每個動作以 `[HasPermission(MagicObjectHelper.角色_分類清單, PermissionActions.*)]` 做動作級授權。
 - 權限鍵組合規則 `頁面:動作`（`PermissionKey.For`）：`分類清單:view`、`分類清單:create`、`分類清單:edit`、`分類清單:delete`。裸鍵「分類清單」代表該頁全部動作（向後相容）。
 - 無權限回 403，且維持 `ApiResult` 格式；系統管理員短路（不需個別權限）。
-- UI 與 API 共用單一 RBAC 權威來源：UI 以 `CanAccessPage`（頁面鍵）控制進入頁面、以 `<RequirePermission>` 元件（0.9.110 起，規則同 `CheckAccessAction(角色_分類清單, 動作)`）控制新增／修改／刪除按鈕是否顯示；0.10.2 起頁面在 WASM 執行，判斷經 `PagePermissions`（`/me` 回傳的權限），這只是畫面顯示，實際操作一律由 API 以 JWT Bearer 與動作鍵把關。
+- UI 與 API 共用單一 RBAC 權威來源：UI 以 `CanAccessPage`（頁面鍵）控制進入頁面、以 `<RequirePermission>` 元件（0.9.110 起，規則同 `PermissionRules.CanAccessAction(使用者, 角色_分類清單, 動作)`）控制新增／修改／刪除按鈕是否顯示；0.10.2 起頁面在 WASM 執行，判斷經 `PagePermissions`（`/me` 回傳的權限），這只是畫面顯示，實際操作一律由 API 以 JWT Bearer 與動作鍵把關。
 - 頁面被權限擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/categories`，0.9.78 起；0.10.2 起由伺服器在開頁紀錄 `POST /api/v1/shell/page-view` 時寫，內容 `via=WASM`）。
 
 ## 六、錯誤與邊界

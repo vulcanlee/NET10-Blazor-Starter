@@ -2,9 +2,9 @@
 
 - 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.11
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
@@ -130,7 +130,7 @@
 | 外部呼叫可預期的失敗（逾時、4xx、SMTP 拒收），會重試或降級 | Warning | `Attempt`、失敗原因 |
 | 外部呼叫重試後仍失敗 | Error（帶例外物件） | — |
 | 背景作業啟動、停止 | Information | 作業名稱 |
-| 背景作業每一輪 | **有處理到資料**時 Information（摘要：筆數、耗時）；**空跑**時 Debug | `ProcessedCount`、`ElapsedMilliseconds` |
+| 背景作業每一輪 | **有處理到資料**時 Information（摘要：筆數、耗時）；**空跑**時 Debug | 筆數（現行各資料保留清理記為 `Rows`，例如 `Audit log retention completed. Rows=…`）、`ElapsedMilliseconds` |
 | 慢操作（超過 §6 LOG-21 的門檻） | Warning | 操作名稱、耗時、門檻 |
 | 設定值缺漏或不合法、改用預設值 | **啟動時記一次** Warning，不可每次使用都記 | 設定鍵名稱（不含值） |
 | 迴圈或批次處理 | 迴圈結束後記一筆摘要（Debug 或 Information）；逐筆細節才用 Trace | 總筆數、成功／失敗筆數 |
@@ -172,7 +172,7 @@
 | 時間、等級、Logger 名稱 | ✔ | ✔ | 已具備 |
 | 追蹤碼（TraceId） | ✔ | ✔ | 8 碼錯誤追蹤碼：每次 HTTP 請求與每次排程作業各一個（0.10.8 以前 Blazor Server 每次互動也各一個）；例外紀錄存 `LastTraceId`（0.9.78，LOG-10） |
 | 來源（Source） | | ✔ | `畫面`／`WebAPI`／`系統啟動`／`背景作業`／`系統`（0.9.77，LOG-04）／`瀏覽器`（0.9.79，LOG-20）／`未知` |
-| 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/projects/{id}`），不記帶 Id 的原始路徑（0.9.78，LOG-16） |
+| 頁面 | 依訊息 | ✔ | **一律記路由樣板**（`/api/v1/Project/{id}`），不記帶 Id 的原始路徑（0.9.78，LOG-16） |
 | Account、UserId | 依訊息 | ✔ | **可記錄的身分只有這兩項** |
 | CircuitId | Blazor 相關訊息 | | 用於串起同一位使用者的連續操作（0.10.8 以前；0.10.9 起沒有 circuit，以 Account 與追蹤碼串起） |
 
@@ -183,7 +183,7 @@
 - **查詢關鍵字**：不記原文，只記 `HasSearch`（有無）與 `SearchLength`（長度）；Web API 的參數名稱是 Keyword，對應 `HasKeyword`／`KeywordLength`。0.9.77 起由慣例測試守門（LOG-08）。
 - 不記 QueryString、HTTP header、cookie。
 - 例外紀錄、稽核 `Detail`、告警信、日誌檔**都不得**寫入 AI Prompt／Response 內文；內文只存在 AI 對話紀錄。
-- Cookie 驗證下 `ClaimTypes.Name` 是**使用者姓名**，不可記錄（claim 對應見操作文件 §2.4）。
+- 0.10.8 以前 Cookie 驗證下 `ClaimTypes.Name` 是**使用者姓名**，不可記錄（claim 對應見操作文件 §2.4；0.10.8 起純 Token 登入，不再發登入 Cookie）。
 
 ### 4.5 記錄機制不可破壞業務流程
 
@@ -255,7 +255,7 @@
 | LOG-05 | 關機時佇列中的例外遺失 | `ExceptionLogWriter` 收到停止訊號後清空佇列，上限 5 秒；逾時剩餘筆數輸出到 InternalLogger | `ExceptionLogWriterTests` |
 | LOG-06 | 啟動失敗只進日誌檔；host 建立前的失敗連日誌檔都沒有 | `StartupSafetyValidator` 移到 NLog 設定之後；host 建立前的失敗直接經 NLog 寫檔；所有啟動失敗寫入**補登檔**（`{ExceptionPath}/pending/*.json`，`CrashMarkerStore`），下次成功啟動於遷移後補進例外紀錄（來源 `系統啟動`）。`HostAbortedException`（`dotnet ef` 的正常中止）排除在外 | `CrashMarkerStoreTests`；實機驗證：以 Production 設定啟動失敗一次 → 日誌檔有 FATAL、產生補登檔 → 正常啟動後例外紀錄出現該列、補登檔已刪 |
 | LOG-07 | 浮層（`AntContainer`）在錯誤邊界外，出錯整個 circuit 中斷 | `Routes.razor` 以第二個 `LoggingErrorBoundary` 包住 `AntContainer`，觸發時在畫面底部顯示「畫面元件發生錯誤，已記錄」並提供重新整理；換頁自動 `Recover()`。追蹤碼待 LOG-10。（0.10.8 以前的做法；0.10.9 起 Server 版 `Routes.razor`／`LoggingErrorBoundary` 刪除，改由 WASM 根元件 `ClientRoutes.razor` 以 `ClientErrorBoundary` 包住 `AntContainer`，同一條守門測試） | `FormModalConventionTests.AntContainer_ShouldBeWrappedInErrorBoundary`（結構守門）；2026/11/08 瀏覽器人工驗收通過（驗收時發現並修正追蹤碼沒顯示，0.9.172） |
-| LOG-08 | 查詢關鍵字記錄原文；多處 JSON 解析失敗與情境設定失敗的 catch 不留紀錄 | 17 處改記 `HasSearch`／`SearchLength`（API 為 `HasKeyword`／`KeywordLength`、專案擁有者篩選為 `HasOwner`）；團隊／權限 JSON 解析失敗、健康檢查失敗、例外情境設定失敗補記 Warning；Try 型 API（回傳 false／null 即結果）維持不動 | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`、`LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（取消／斷線類例外與管線類別列白名單並附理由） |
+| LOG-08 | 查詢關鍵字記錄原文；多處 JSON 解析失敗與情境設定失敗的 catch 不留紀錄 | 17 處改記 `HasSearch`／`SearchLength`（API 為 `HasKeyword`／`KeywordLength`）；團隊／權限 JSON 解析失敗、健康檢查失敗、例外情境設定失敗補記 Warning；Try 型 API（回傳 false／null 即結果）維持不動 | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`、`LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（取消／斷線類例外與管線類別列白名單並附理由） |
 
 ### 6.3 已實作 —— P1：可追蹤性與主動通知（0.9.78）
 
@@ -329,12 +329,13 @@
 - **Google SSO 使用者的 Account 就是 Email**：記 Account 等於記 Email，為既有且已接受的取捨（見操作文件 §2.4）。
 - ~~**稽核不記修改前後值**~~（**0.9.131 已實作**）：`AuditDiff` 比對分類、專案、團隊、使用者、角色與個人資料修改前後的純量欄位，寫進稽核的詳細內容檔，見稽核紀錄 PRD §六。
 - **連線中斷後的 JS 呼叫失敗不收錄**（0.9.172 起）：使用者關掉分頁時，還在路上的 JS 呼叫會變成一批沒人等的 `JSDisconnectedException`（實測每次 13～48 筆），以前記成系統例外、也計入暴增告警。現在由 `CircuitDisconnect.IsOnlyDisconnect` 判斷，未觀察 Task 只記 Debug、`ExceptionLogProvider` 不收錄；同一批裡混了別的例外就照常記錄。0.10.9 起伺服器已沒有 Blazor Server 連線，這個判斷暫留、實際上不再觸發；0.10.10 起 `CircuitDisconnect` 已刪除（主機沒有 JS interop），未觀察 Task 一律記 Error。
+- **用戶端中斷的 API 請求不是系統錯誤**（0.10.16 起）：使用者在查詢還沒回來時就換頁、關分頁，`ApiExceptionFilterAttribute` 在 `RequestAborted` 已觸發、且例外是連線中斷造成的（取消、`IOException` 本身〔不含子類別〕、連線重設、`BadHttpRequestException`）時只記 Information、回 499，不進系統例外紀錄；其他例外照常記 Error（`ApiClientAbortTests`）。以前記成 Error 並回 500。
 - **單機設計**：例外合併、告警節流、前端回報計數都在單一程序的記憶體中；未來若改為多台主機需重新設計。
 - **時區**：例外紀錄與日誌檔使用伺服器本地時間，稽核使用 UTC（見稽核紀錄 PRD §四），跨表比對時須注意。
 - **告警只有 Email**：Teams、Slack、LINE 等通道不在本次範圍。
 - ~~**Web API（JWT）的紀錄存取範圍只看得到公開紀錄**~~（0.9.78 補日誌時發現；**0.9.105 已修正**）：原本 `RecordAccessScopeProvider` 以 `Sid` claim
   找使用者，但 JWT 的 UserId 放在 `NameIdentifier`，因此 API 使用者一律退回「非管理員、無團隊」。0.9.105 起改以 `RequestActorResolver`
-  取出使用者 Id（Cookie 在 Sid、JWT 在 NameIdentifier）；已登入卻解析不到是誰時回 `RecordAccessScope.None`（什麼都看不到）並記 Warning。
+  取出使用者 Id（JWT 在 NameIdentifier；0.10.9 起移除登入 Cookie〔Sid〕的分支）；已登入卻解析不到是誰時回 `RecordAccessScope.None`（什麼都看不到）並記 Warning。
 - **Blazor 互動的追蹤碼、前端錯誤回報、浮層錯誤提示尚未在瀏覽器內人工驗證**：HTTP 請求的追蹤碼與慢操作日誌已實機確認；
   circuit 內的行為由程式碼與單元測試保證。0.10.9 起已沒有 circuit：畫面操作一律經 API，追蹤碼就是 HTTP 請求的追蹤碼。
 - **管線監控的數字是本次啟動以來的累計**，重啟歸零；也不會主動告警（例外告警本身失敗時無法再用告警通知）。

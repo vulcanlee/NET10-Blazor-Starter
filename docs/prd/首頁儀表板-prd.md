@@ -2,9 +2,9 @@
 
 - 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.10.6
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.106
-- 最後核對日期：2026/11/11
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -24,8 +24,8 @@
 
 | 路由 | 版面 | 所需權限 | 主要使用者 |
 |---|---|---|---|
-| `/App`（0.10.6 起 `MyProject.Web.Client/Pages/HomeAuthed.razor` → `Views/Commons/HomeWelcomeView`，WebAssembly） | `ClientMainLayout`（0.10.6 前 `MainLayout`） | 頁面鍵「首頁」 | 所有登入者 |
-| `api/v1/dashboard`（0.10.6 起） | — | 頁面鍵「首頁」的 view（`scheduled-jobs` 端點 `[AdminOnly]`） | WASM 首頁 |
+| `/App`（0.10.6 起 `MyProject.Web.Client/Pages/HomeAuthed.razor` → `Views/Commons/HomeWelcomeView`，WebAssembly） | `ClientMainLayout`（0.10.6 前 `MainLayout`） | 0.10.17 起不受權限限制（`PermissionRules.OpenToEveryone`；之前為頁面鍵「首頁」） | 所有登入者 |
+| `api/v1/dashboard`（0.10.6 起） | — | 0.10.17 起三個端點（`dashboard`、`account`、`notifications`）為 `[SignedInUser]`，`scheduled-jobs` 仍 `[AdminOnly]`（之前為頁面鍵「首頁」的 view） | WASM 首頁 |
 
 | 小工具 | 代號 | 順序 | 誰看得到 |
 |---|---|---|---|

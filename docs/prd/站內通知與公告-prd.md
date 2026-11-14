@@ -2,9 +2,9 @@
 
 - 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.100
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -21,13 +21,13 @@
 |------|------|----------|-----------|
 | 通知鈴鐺 | 每個登入後頁面的右上角（`ClientMainLayout`） | 登入即可（只看得到自己的） | 所有使用者 |
 | 公告橫幅 | 每個登入後頁面的內容上方（`ClientMainLayout`） | 登入即可（依對象） | 所有使用者 |
-| `/announcements` | 系統管理 → 系統設定與維運 → 公告管理（`Menu.json` id=38）| 僅管理員（`CheckIsAdmin`；0.10.6 起 WASM 以 `Permissions.IsAdmin`；權限鍵 `角色_公告管理` 不進角色矩陣）| 系統管理員 |
+| `/announcements` | 系統管理 → 系統設定與維運 → 公告管理（`Menu.json` id=38）| 僅管理員（0.10.6 起 WASM 頁 `Permissions.IsAdmin`＋API `[AdminOnly]`，之前是 `CheckIsAdmin`；權限鍵 `角色_公告管理` 不進角色矩陣）| 系統管理員 |
 
 ## 三、畫面與欄位
 
 - **鈴鐺**：未讀數徽章（超過 99 顯示 99+）；下拉列出最新 10 則（未讀以粗體標示）；點一則標為已讀，連結經 `ReturnUrlGuard` 確認是站內網址才導向；「全部標為已讀」。0.9.125 起每則右邊有 ×（刪除單則）、標題列有「清除已讀」（刪除自己所有已讀的通知，未讀的不動；0.9.136 起只要有任何已讀的通知就能按，`NotificationQueryService.HasReadAsync`，之前只看下拉顯示的 10 則）；都不跳確認、不寫稽核，只刪得到自己的。
 - **公告橫幅**：顯示期間內、對象包含目前使用者、而且他沒有關閉過的公告；標題＋純文字內容（保留換行）；「知道了」只對自己關閉。
-- **公告管理**：表格（標題與內容開頭、狀態未開始／進行中／已結束、期間、對象、建立者）；新增、修改（小型表單窗：標題、內容、開始與結束時間、對象全體／角色／團隊）、刪除（危險確認）。
+- **公告管理**：表格（標題與內容開頭、狀態未開始／進行中／已結束、期間、對象、建立者）；新增、修改（小型表單窗：標題、內容、開始與結束時間、對象全體／角色／團隊）、刪除（危險確認）。0.10.15 起每次開窗（新增、修改）與存檔失敗後都重讀角色、團隊選項（`LoadFormOptionsAsync`，`FormOptionsConventionTests`）。
 
 **公告管理 WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/AnnouncementPage.razor`、`Views/Admins/AnnouncementView.*`；Server 版已刪除），畫面與訊息和之前相同。資料經 `AnnouncementsController` 新增的只限管理員端點（`GET api/v1/announcements`〔清單、角色與團隊選項、伺服器的「現在」〕、`POST`、`PUT {id}`、`DELETE {id}?concurrencyStamp=`），走同一個 `AnnouncementService`，稽核 `Announcement.Create`／`Update`／`Delete` 由伺服器寫（刪除的標題取自資料庫）；原有的 `active`、`dismiss` 改為各自標 `[SignedInUser]`。公告對象種類 `AnnouncementTargetKinds` 搬到 `MyProject.Share`（命名空間仍是 `MyProject.AccessDatas.Models`）。
 存檔或刪除後伺服器照舊 `AnnouncementCache.Invalidate()`＋`PublishAnnouncementsChanged()`（0.10.8 以前讓還在 Server 的頁面即時更新；0.10.7 起推播串流也訂閱這個訊號）；WASM 公告頁另以 `ClientAnnouncementSignal` 請**同一個分頁**的橫幅立即重讀，其他分頁與其他使用者照舊 60 秒輪詢與切回分頁時重讀。
@@ -81,6 +81,7 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 - 寄信佇列滿 → 剩下的信略過並記一筆警告；站內通知照常。
 - 公告對象的角色或團隊被刪除 → 公告不再對任何人顯示，管理頁標示「（已刪除）」。
 - 兩位管理員同時修改同一則公告 → 第二位得到並行衝突訊息。
+- 關閉（「知道了」）已被刪除的公告（畫面還留著橫幅）→ `AnnouncementService.DismissAsync` 先確認公告還在，不在就不寫入、只記 Debug（0.10.16 起；之前交給外鍵錯誤，EF Core 先記一筆 Error 進系統例外紀錄；`NotificationTests.DismissingAnAnnouncementThatNoLongerExists_ShouldNotTryToSave`）。
 - 已開啟的畫面：同一行程內立即更新；其他行程最晚 60 秒。WASM 頁面（0.10.7 起）經通知推播通常幾秒內更新；推播關閉、斷線或超過每人 3 條連線時最晚 60 秒。
 - 推播長連線只在開始時檢查一次身分：帳號停用、強制登出在 Token 到期前 1 分鐘或滿 30 分鐘重連時生效（期間外框的其他 API 照常被擋）。
 
@@ -90,8 +91,8 @@ WASM 外框的鈴鐺另外訂閱 `ClientNotificationSignal`：系統健康監控
 - `ScheduledJobFrameworkTests`：失敗通知管理員與觸發者並寄信、排程失敗只通知管理員、成功與中斷不通知。
 - `Components/NotificationComponentTests`（bUnit，0.10.8 以前）：Server 版鈴鐺收到訊號不重新整理就更新、全部標為已讀；橫幅「知道了」立即隱藏且下一次連線不再出現。0.10.9 起隨 Server 版鈴鐺與橫幅刪除（WASM 版由實機情境涵蓋；徽章上限 `BadgeText` 改測 `ClientNotificationBell`，公告挑選規則改測 `AnnouncementCache.Select`）。
 - 0.9.122 起：`NotificationTests.MarkRead_ShouldSignalTheUser_OnlyWhenSomethingChanged`（標為已讀才發訊號）、`DashboardTests` 小工具輪詢與 Dispose 停止輪詢、`NotificationTestServiceTests`（測試通知）。
-- 0.9.136 起：`NotificationTests.SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted`、`RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly`；`NotificationComponentTests.Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead`。
-- 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`。
+- 0.9.136 起：`NotificationTests.SourceKey_ShouldStillPreventDuplicates_AfterTheNotificationIsDeleted`、`RetentionJob_ShouldPurgeDispatchRecordsByCreationRetentionOnly`；`NotificationComponentTests.Bell_ClearRead_ShouldBeClickable_WhenOnlyOlderNotificationsAreRead`（0.10.8 以前，0.10.9 已隨 Server 版鈴鐺刪除）。
+- 0.9.125 起：`NotificationTests.Delete_ShouldOnlyAffectTheCurrentUsersNotifications_AndSignalOnlyWhenSomethingChanged`（刪除只動自己的、清除已讀不碰未讀、有刪到才發訊號）、`RetentionJob_ShouldPurgeReadOnesByReadTime_AndKeepUnreadOnes`；`NotificationComponentTests.Bell_DeleteOne_AndClearRead_ShouldOnlyRemoveThoseNotifications`（0.10.8 以前，0.10.9 已隨 Server 版鈴鐺刪除）。
 - 0.10.6 起：`SystemParameterAnnouncementApiTests` 的公告部分（新增、修改、刪除與畫面相同且每個動作一筆稽核、不存在 404、Id 不符 400、輸入不合法不寫稽核、其他使用者的橫幅下一次輪詢就看得到、非管理員 403 但仍看得到橫幅）；`ShellApiIntegrationTests.NotificationsProfileAndShellInfo_ShouldSendLocalTimesWithoutAnOffset`（鈴鐺的時間不帶時差）、`Client/ClientRefreshSignalTests`（略過呼叫端、沒有訂閱者）；實機 `m07-ops.mjs` M7-P4／P5。
 - 0.10.7 起：`NotificationPushApiTests`（沒有 Token 401、以 `ready` 開始、發通知／全部已讀／公告變動立即推送、別人的不推給我、斷線釋放訂閱與名額、Token 到期前 `renew`、最長時間 `reconnect`、閒置心跳、每人連線數上限、網站關閉、推播關閉時 404）、`Client/ClientPushConnectionTests`（觸發對應訊號、退避重連、`renew` 先刷新、重連後補讀、401／403／404 不再重試）、`NdjsonHeartbeatTests`；實機 `m08-agents.mjs` M8-G8（另一個瀏覽器的鈴鐺 2 秒內更新）、`m08-agents.mjs nopush` M8-N1（關閉推播仍會在輪詢時更新）。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`DataAccessServiceLifetimeTests`、`LoggingConventionTests`、`PageHelpCatalogTests`。

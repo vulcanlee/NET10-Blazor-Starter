@@ -2,9 +2,9 @@
 
 - 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.11
+- 現行系統版本：0.10.18
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -39,7 +39,7 @@
 |------|------|------|------|
 | 取得單筆 | `GET {controller}/{id}` | View | `ApiResult<TDto>`（查無或範圍外回 404）；寫一筆「查看」稽核（`*.View`）|
 | 搜尋分頁 | `POST {controller}/search` | View | `ApiResult<PagedResult<TDto>>`。0.10.2 起多三個欄位：`Deleted`（查「顯示已刪除」，**要有 Delete 權限**，沒有回 403）、`RecordSearch`（true 時寫一筆搜尋稽核 `*.Search`；換頁、排序不帶）、`SortBy` 不分大小寫（可用 `name`、`isEnabled`、`createdAt`、`updatedAt`，團隊另有 `code`；不認得的退回預設排序）|
-| 存檔前檢查 | `POST {controller}/check` | View＋（`Id=0` 要 Create、`Id>0` 要 Edit，否則 403）| `ApiResult`：名稱（團隊另有代號）會不會重複；修改時範圍外的 `Id` 回 404。WASM 頁在存檔確認流程中呼叫，順序與 Server 版相同 |
+| 存檔前檢查 | `POST {controller}/check` | View＋（`Id=0` 要 Create、`Id>0` 要 Edit，否則 403）| `ApiResult`：名稱（團隊另有代號）會不會重複；修改時範圍外的 `Id` 回 404。WASM 頁在存檔確認流程中呼叫 |
 | 新增 | `POST {controller}` | Create | `ApiResult<TDto>`（回傳含資料庫配的 `Id` 與 `ConcurrencyStamp`；同名回 409，團隊另檢查代號；指派範圍外的團隊、上層團隊不合法回 400；客戶端傳來的 `Id` 一律忽略，0.9.94 起）|
 | 更新 | `PUT {controller}/{id}` | Edit | `ApiResult`（路由/資料 ID 不符回 400；**沒帶 `ConcurrencyStamp` 回 400**；先查範圍：查無或範圍外回 404，再比對名稱；版本號不符或名稱重複回 409；團隊指派或團隊樹規則不過回 400；團隊改成已刪除團隊的名稱回 409）|
 | 啟用／停用 | `PUT {controller}/{id}/enabled` | Edit | body `{ "enabled": true/false }`，只改狀態並換版本號；已經是目標值回成功、不寫稽核 |
@@ -126,11 +126,11 @@
 
 | 動作 | 路由 | 回傳／說明 |
 |------|------|------|
-| 搜尋分頁 | `POST users/search` | `ApiResult<PagedResult<UserDto>>`。`Deleted`（顯示已刪除）、`RecordSearch`（true 時寫 `User.Search`）、`SortBy` 不分大小寫（`account`、`name`、`email`、`roleViewName`、`statusText`、`isAdminText`、`createAt`、`updateAt`）。每列帶這一列能做的操作 `CanDelete`／`CanCopy`／`CanToggleStatus`／`CanForceLogout`／`CanResetTwoFactor`（規則與 Server 版畫面相同），以及鎖定中的文字 `LockedText`（「鎖定至 HH:mm」，不是今天時「鎖定至 MM-dd HH:mm」，**依伺服器時區算好**）；`Password` 一律是空的 |
+| 搜尋分頁 | `POST users/search` | `ApiResult<PagedResult<UserDto>>`。`Deleted`（顯示已刪除）、`RecordSearch`（true 時寫 `User.Search`）、`SortBy` 不分大小寫（`account`、`name`、`email`、`roleViewName`、`statusText`、`isAdminText`、`createAt`、`updateAt`）。每列帶這一列能做的操作 `CanDelete`／`CanCopy`／`CanToggleStatus`／`CanForceLogout`／`CanResetTwoFactor`，以及鎖定中的文字 `LockedText`（「鎖定至 HH:mm」，不是今天時「鎖定至 MM-dd HH:mm」，**依伺服器時區算好**）；`Password` 一律是空的 |
 | 取得單筆 | `GET users/{id}` | `ApiResult<UserDto>`，含額外角色 `AdditionalRoleIds` 與團隊 `TeamNames`（WASM 頁開修改窗時呼叫）；寫 `User.View`；找不到回 404 |
 | 表單選項 | `GET users/options` | `ApiResult<UserFormOptionsDto>`：角色（含各角色的預設團隊）、啟用中的團隊、新增時的預設角色 `DefaultRoleId`、密碼規則說明 `PasswordRule` |
 | 產生密碼 | `GET users/password/generate` | `ApiResult<string>`：一組符合密碼原則的隨機密碼（「複製」的「產生」用，不存）；回應帶 `Cache-Control: no-store`、`Pragma: no-cache` |
-| 新增前檢查 | `POST users/check` | body 同新增的 `UserDto`；`ApiResult`：帳號是否已存在（409）、Email 格式等規則（400）。「複製」建立時與 Server 版同樣順序：先呼叫這裡檢查帳號，再問「Email 已有人使用」，最後才新增 |
+| 新增前檢查 | `POST users/check` | body 同新增的 `UserDto`；`ApiResult`：帳號是否已存在（409）、Email 格式等規則（400）。「複製」建立時的順序：先呼叫這裡檢查帳號，再問「Email 已有人使用」，最後才新增 |
 | 複製範本 | `GET users/{id}/copy-draft` | `ApiResult<UserCopyDraftDto>`：範本 `Draft` 與已不存在而略過的團隊 `SkippedTeamNames`；support 或已不存在回 404 |
 | 誰在用這個 Email | `POST users/accounts-using-email` | body `{ "email": "…" }`，回帳號清單（複製建立前提醒「重設信會寄到同一個信箱」）|
 | 新增 | `POST users` | `ApiResult<UserDto>`。沒帶密碼、帳號／名稱／角色沒填回 400；帳號重複 409。一般新增與「複製」共用，`CopiedFromAccount` 有值時 `User.Create` 稽核記 `copiedFrom` |
@@ -169,7 +169,7 @@
 | 搜尋分頁 | `POST audit-logs/search` | `ApiResult<PagedResult<AuditLogItemDto>>`；條件：起訖時間、動作、成功與否、帳號、IP、關鍵字、目標類型、目標識別（精確）。`RecordSearch` 為 true 時寫 `Audit.Search`，自由輸入的欄位（帳號、IP、關鍵字、目標識別）只記有沒有填。每列另帶 `OccurredAtUtc`（伺服器算好）與簽章 |
 | 查詢選項 | `GET audit-logs/options` | `ApiResult<AuditLogOptionsDto>`：資料庫裡出現過的動作與目標類型、清除用的兩個保留天數（`PurgeDays`、`BrowsingPurgeDays`）、記錄範圍提示 `ScopeNotice` |
 | 明細 | `GET audit-logs/{id}` | `ApiResult<AuditLogDetailDto>`：一筆稽核與它的詳細內容，本地時間與 UTC 時間都由伺服器算；寫 `Audit.View`；找不到回 404 |
-| 匯出 | `POST audit-logs/export` | 目前條件下的資料，CSV（UTF-8 含 BOM，只匯前 10000 筆，與 Server 版相同；欄位定義在 `MyProject.Web/Export/AuditLogExport.cs`），不包 `ApiResult`；寫 `Audit.Export`，detail 記實際匯出筆數（`format=csv; rows=N`），被截掉時另記總筆數（`rows=10000; total=N`）|
+| 匯出 | `POST audit-logs/export` | 目前條件下的資料，CSV（UTF-8 含 BOM，只匯前 10000 筆；欄位定義在 `MyProject.Web/Export/AuditLogExport.cs`），不包 `ApiResult`；寫 `Audit.Export`，detail 記實際匯出筆數（`format=csv; rows=N`），被截掉時另記總筆數（`rows=10000; total=N`）|
 | 清除 | `POST audit-logs/purge` | 先清超過保留天數的異動與安全紀錄，成功後才清瀏覽紀錄，兩段各寫一筆 `Audit.Purge`；回 `AuditLogPurgeResultDto` |
 | 清空全部 | `POST audit-logs/clear-all` | 清空後寫一筆 `Audit.ClearAll`（清空後查得到是誰清的）|
 | 驗證完整性 | `POST audit-logs/verify` | 重算全部簽章（只比對、不更新檢查點），寫 `Audit.Verify`；回 `AuditIntegrityReportDto`。時間與筆數成正比，WASM 端這個請求最長等 30 分鐘（`ApiClient.LongRunningTimeout`），不受一般 100 秒逾時限制 |
@@ -178,14 +178,14 @@
 
 | 動作 | 路由 | 回傳／說明 |
 |------|------|------|
-| 搜尋分頁 | `POST email-logs/search` | `ApiResult<PagedResult<EmailLogItemDto>>`（時間欄位不帶時差）：依建立時間新到舊；條件為起訖時間（`FromLocal`、`ToLocal`）、狀態、種類、關鍵字（比對收件者與主旨），每頁 1～200 筆。唯讀、不寫稽核（與 Server 版相同）|
+| 搜尋分頁 | `POST email-logs/search` | `ApiResult<PagedResult<EmailLogItemDto>>`（時間欄位不帶時差）：依建立時間新到舊；條件為起訖時間（`FromLocal`、`ToLocal`）、狀態、種類、關鍵字（比對收件者與主旨），每頁 1～200 筆。唯讀、不寫稽核 |
 
 ## 二之二、日誌與 AI 管理頁 API（0.10.5 起，WASM 遷移 M6）
 
 日誌檢視、日誌等級設定、系統例外紀錄、AI 對話紀錄、Token 用量、AI 提示詞六頁改在 WebAssembly 執行，背後是下面這組 API。規則與第二之一節相同：只有 `api/v1` 路由、每個 action 都是 **`[AdminOnly]`**（非管理員 403 並寫 `Permission.Denied`，detail「需要管理員」）、套 `[ApiValidationFilter]`、回 `ApiResult`；時間是伺服器本地時間、以不帶時差（`DateTimeKind.Unspecified`）送出。
 
 - **AI 分析回 NDJSON 串流**（`application/x-ndjson`，見《[Web API 設計慣例](Web%20API%20設計慣例.md)》「串流回應」）：每行一個 `AiStreamFrameDto`，`Kind` 依序是 `start`（帶 `AiStreamScopeDto`，例如日誌分析實際用的時間範圍）、零到多個 `delta`（`Text` 是新收到的一段文字）、最後一定是一筆 `result`（`AiResultDto`：成功與否、失敗原因、模型名稱、用量 `AiUsageDto`）。請求在進入串流之前就被拒絕時（403、404、400），回的仍是一般 `ApiResult`。
-- **停止產生／關窗＝中斷請求**：伺服器的 `RequestAborted` 取消上游 AI 呼叫，最後一筆是「已取消」的結果，稽核與記帳照寫（與 Server 版相同）；畫面收不到那筆結果，用已收到的文字自己收尾。
+- **停止產生／關窗＝中斷請求**：伺服器的 `RequestAborted` 取消上游 AI 呼叫，最後一筆是「已取消」的結果，稽核與記帳照寫；畫面收不到那筆結果，用已收到的文字自己收尾。
 - **「刪除選取」沒有批次端點**：與 M5 相同，畫面逐筆呼叫 `DELETE {id}`，每筆一列稽核。
 - 匯出的 CSV 欄位定義在 `MyProject.Web/Export/`（`ExceptionLogExport`、`AiCallLogExport`、`TokenUsageExport`）；`AiCallLogService`、`TokenUsageLogService`、`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
 - DTO 在 `MyProject.Dtos/Admins`（例外、日誌、Token 用量、提示詞）與 `MyProject.Dtos/Ai`（串流、AI 對話紀錄）；WASM 端的呼叫在 `MyProject.Web.Client/Api/ExceptionLogApi.cs`、`LogApi.cs`、`AiCallLogApi.cs`、`TokenUsageApi.cs`、`PromptTemplateApi.cs`。
@@ -255,8 +255,8 @@
 排程作業、系統健康監控、系統備份、資料保留與清理、資料庫用量、系統參數、公告管理七頁與首頁 `/App` 改在 WebAssembly 執行，背後是下面這組 API。規則與第二之二節相同：只有 `api/v1` 路由、回 `ApiResult`、本地時間以不帶時差（`DateTimeKind.Unspecified`）送出；**除了首頁，每個 action 都是 `[AdminOnly]`**（非管理員 403 並寫 `Permission.Denied`，detail「需要管理員」）。
 
 - **「現在」用伺服器時間**：資料保留的「今天」、公告的「現在」、警告日誌的「最近 24 小時」都由伺服器算好送來（或由伺服器驗證），不看瀏覽器時鐘。
-- **稽核與 Server 版頁面相同、改由伺服器寫**：動作代碼、目標、detail 都照抄；首頁與資料庫用量不寫稽核（與 Server 版相同）。
-- **背景作業放進排程佇列**：「立即執行」「立即備份」「立即清理」與 Server 版相同交給排程框架（與排程共用作業鎖），請求本身馬上回來；已在佇列或執行中回 409。畫面自己輪詢看進度（排程頁有作業排隊或執行中時每 2 秒，備份與資料保留頁每 5 秒）。
+- **稽核由伺服器寫**：首頁與資料庫用量不寫稽核。
+- **背景作業放進排程佇列**：「立即執行」「立即備份」「立即清理」交給排程框架（與排程共用作業鎖），請求本身馬上回來；已在佇列或執行中回 409。畫面自己輪詢看進度（排程頁有作業排隊或執行中時每 2 秒，備份與資料保留頁每 5 秒）。
 - **「刪除選取」沒有批次端點**：與 M5、M6 相同，畫面逐筆呼叫 `DELETE`，每筆一列稽核（公告、備份）。
 - DTO 在 `MyProject.Dtos/Admins`（`ScheduledJobDtos`、`SystemHealthDtos`、`MaintenanceDtos`〔備份、資料保留、資料庫用量〕、`SystemParameterDtos`、`AnnouncementDtos`）與 `MyProject.Dtos/Shell/DashboardDtos.cs`；WASM 端的呼叫在 `MyProject.Web.Client/Api/OpsApi.cs`（`ScheduledJobApi`、`SystemHealthApi`、`DashboardApi`）、`MaintenanceApi.cs`（`BackupApi`、`DataRetentionApi`、`DatabaseUsageApi`）、`SystemParameterApi.cs`、`AnnouncementApi.cs`。排程、備份、資料保留共用的作業狀態轉換在 `MyProject.Web/Controllers/MaintenanceJobMapper.cs`。
 
@@ -275,7 +275,7 @@
 
 | 動作 | 路由 | 回傳／說明 |
 |------|------|------|
-| 健康報告 | `GET system-health` | `ApiResult<SystemHealthReportDto>`：全部檢查項目與寄信測試區的設定。⚠️ **每次呼叫都會執行全部檢查**；AI 已設定時「LLM API」一項會真的呼叫模型（產生費用、記進 Token 用量），與 Server 版開頁相同 |
+| 健康報告 | `GET system-health` | `ApiResult<SystemHealthReportDto>`：全部檢查項目與寄信測試區的設定。⚠️ **每次呼叫都會執行全部檢查**；AI 已設定時「LLM API」一項會真的呼叫模型（產生費用、記進 Token 用量） |
 | 警告日誌 | `GET system-health/warn-logs` | 最近 24 小時 WARN 以上（新到舊，沿用日誌檢視的上限）；讀取失敗仍回 200，原因放在 `EmptyText`（只影響這一區）|
 | 寄信測試 | `POST system-health/test-email` | body `{ "to": "…" }`，同步寄送、當場知道成敗；稽核 `Email.Test` 由 `EmailTestService` 寫 |
 | 通知測試 | `POST system-health/test-notification` | 發一則測試通知給全體管理員（不寄信）；稽核 `Notification.Test` 由 `NotificationTestService` 寫 |
@@ -298,7 +298,7 @@
 | 總覽 | `GET data-retention` | `ApiResult<DataRetentionOverviewDto>`：每種資料的數量、檔案空間、最舊一筆、保留規則、下次會清掉幾筆、負責的排程，以及伺服器的「今天」 |
 | 立即清理 | `POST data-retention/{種類}/purge-now` | 伺服器重新讀一次總覽，確認那一列現在能清理（不能時 409 並說明原因、沒有排程作業 400），放進排程佇列；寫 `Job.Trigger`（`job=…; source=data-retention; expected=N`，**N 由伺服器在按下時重算**，可能與確認窗的數字差幾筆）。已刪除資料的五列共用一個作業 |
 | 自訂清除預覽 | `POST data-retention/{種類}/preview` | body `CustomPurgeRequestDto`；回會刪掉幾筆。條件由伺服器以自己的「今天」驗證，不合法回 400 |
-| 自訂清除 | `POST data-retention/{種類}/custom-purge` | 刪除早於條件的資料（連同檔案），只影響這一次、不改系統參數；刪到資料才寫稽核（動作代碼與 detail 同 Server 版）。可能跑很久，WASM 端用 `ApiClient.PostLongRunningAsync`（最長 30 分鐘）|
+| 自訂清除 | `POST data-retention/{種類}/custom-purge` | 刪除早於條件的資料（連同檔案），只影響這一次、不改系統參數；刪到資料才寫稽核。可能跑很久，WASM 端用 `ApiClient.PostLongRunningAsync`（最長 30 分鐘）|
 
 ### 2.16 資料庫用量（`DatabaseUsageController`，`api/v1/database-usage`）
 
@@ -316,7 +316,7 @@
 | 修改 | `POST system-parameters/save` | body `Key`、`Value`、`ExpectedStamp`。不在目錄的鍵（例如 `JwtSettings:SigningKey`）404；輸入不合法或值沒變 400；開窗後別人改過或設定檔本身有誤 409。寫 `SystemParameter.Update`（值與設定檔相同時改記 `SystemParameter.Reset`），detail `key=…; old=…(來源); new=…(來源)` |
 | 還原 | `POST system-parameters/reset` | body `Key`、`ExpectedStamp`；還原成設定檔的值，或移除資料庫裡不認得的參數；覆寫已不存在 404、版本不同 409；寫 `SystemParameter.Reset` |
 
-縮短保留天數的確認窗在畫面上（與 Server 版相同）。
+縮短保留天數的確認窗在畫面上。
 
 ### 2.18 公告管理（`AnnouncementsController`，`api/v1/announcements`）
 
@@ -347,7 +347,7 @@
 Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流程三頁改在 WebAssembly 執行，背後是下面這組 API。只有 `api/v1` 路由、要 Bearer、回 `ApiResult`；本地時間以不帶時差送出。
 
 - **對話與執行一律回 NDJSON 串流**（見《[Web API 設計慣例](Web%20API%20設計慣例.md)》「串流回應」）：閒置超過 **15 秒**插一筆 `ping`（`NdjsonHeartbeat`），工具或推論模型很久沒輸出時中間的代理伺服器才不會把連線切斷；畫面收到 `ping` 直接忽略。請求在進入串流之前就被拒絕時（400、403、404、409）回一般 `ApiResult`。
-- **稽核與 Server 版相同、都在原本的服務裡**：工具的 `Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected` 由工具外殼寫，刪除對話或紀錄的 `AiAgentConversation.Delete` 由對話服務寫，測試專案由專案服務寫；開啟、改名、看巡檢報告不寫。
+- **稽核都在原本的服務裡**：工具的 `Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected` 由工具外殼寫，刪除對話或紀錄的 `AiAgentConversation.Delete` 由對話服務寫，測試專案由專案服務寫；開啟、改名、看巡檢報告不寫。
 - DTO 在 `MyProject.Dtos/Ai`（`AgentDtos`、`AgentStreamDtos`、`AgentWorkflowDtos`、`WorkflowStreamDtos`）與 `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`；WASM 端的呼叫在 `MyProject.Web.Client/Api/AgentConversationApi.cs`（`AgentPlaygroundApi`、`AdminAssistantApi`）、`AgentWorkflowApi.cs`，對應在 `AgentDtoMapper`、`AgentWorkflowDtoMapper`（伺服器端 `Controllers/AgentWorkflowMapper.cs`）。
 
 ### 2.20 Agent 測試台與系統管理助理（`AgentPlaygroundController`，`api/v1/agent-playground`；`AdminAssistantController`，`api/v1/admin-assistant`）
@@ -392,7 +392,7 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 
 - **串流每一行**（`AgentWorkflowFrameDto`）：`start`、`agentStarted`、`delta`、`tool`、`agentCompleted`、`output`、`request`（等人：工具核准、提問、審閱）或 `result`（`Completed`／`Ended`／`Failed`／`Canceled`／`Interrupted`），閒置時 `ping`；每一行附上這之前新增的紀錄。
 - **執行登錄表** `AiWorkflowRunRegistry`：每次執行有自己的 `AsyncServiceScope`，填入目前使用者與來源 IP（每次回覆時以那個請求載入的最新資料更新，權限被改了下一步就照新的算）；只有擁有者能操作（別人一律 404）；同一次執行一次只有一個請求在讀。停下來等人超過 **30 分鐘**沒有動作就結束成「中斷」並釋放 scope；網站關閉時先中斷、等收尾最多 5 秒再釋放。
-- **串流途中斷線＝整個流程中斷**（同 Server 版「離開頁面就中斷」，不在背景繼續花 AI 費用）；停下來等人時沒有開著的串流，重新整理或關分頁不影響它，回到頁面以 `runs/active` 接回。
+- **串流途中斷線＝整個流程中斷**（離開頁面就中斷，不在背景繼續花 AI 費用）；停下來等人時沒有開著的串流，重新整理或關分頁不影響它，回到頁面以 `runs/active` 接回。
 - ⚠️ 登錄表只在單一行程有效：IIS 回收或重啟後執行就沒了（紀錄停在最後一次存檔），多台主機也不共用。
 
 ## 三、一次性下載票證 `DownloadsController`（0.10.3 起）
@@ -430,13 +430,13 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 
 ## 四之一、網頁登入與帳號自助 API（0.10.8 起，WASM 遷移 M9）
 
-只有 `api/v1` 路由、回 `ApiResult`。網頁發出的 Token 屬於發出管道 `web`：勾「記住我」整串上限 `SessionSettings:RememberMeDays`（30 天，從登入算），沒勾刷新 Token 閒置 `IdleTimeoutMinutes`（480 分鐘）；存取 Token `AccessTokenMinutes`（15 分鐘）。DTO 在 `MyProject.Dtos/Auths/WebAuthDtos.cs`；Business 層的稽核代碼與 Server 版相同。
-**登入配額**：路徑在 `LoginQuotaPaths` 的端點算進每 IP 每分鐘 `RateLimit:LoginRequestsPerMinute`（預設 10）——`two-factor`（含 `two-factor/setup`）、`google`、`password`、`session`；**`login/web` 與 `login-settings` 不算**（網頁登入照 Server 版靠帳號鎖定，受一般 API 配額）。
+只有 `api/v1` 路由、回 `ApiResult`。網頁發出的 Token 屬於發出管道 `web`：勾「記住我」整串上限 `SessionSettings:RememberMeDays`（30 天，從登入算），沒勾刷新 Token 閒置 `IdleTimeoutMinutes`（480 分鐘）；存取 Token `AccessTokenMinutes`（15 分鐘）。DTO 在 `MyProject.Dtos/Auths/WebAuthDtos.cs`。
+**登入配額**：路徑在 `LoginQuotaPaths` 的端點算進每 IP 每分鐘 `RateLimit:LoginRequestsPerMinute`（預設 10）——`two-factor`（含 `two-factor/setup`）、`google`、`password`、`session`；**`login/web` 與 `login-settings` 不算**（網頁登入靠帳號鎖定，受一般 API 配額）。
 
 | 控制器 | 動作 | 路由 | 授權 | 回傳／說明 |
 |---|---|---|---|---|
 | `WebAuthController` | 登入頁設定 | `GET Auth/login-settings` | `[AllowAnonymous]` | `LoginPageSettingsDto`：系統名稱與說明、Google／寄信是否啟用、鎖定次數與分鐘、記住裝置與記住我天數、密碼規則、重設連結有效分鐘 |
-| | 網頁登入 | `POST Auth/login/web` | `[AllowAnonymous]` | body `WebLoginRequestDto`（帳號、密碼、記住我、記住裝置 Token、返回網址）；回 `WebLoginResultDto`：完成時 `Tokens`；需要第二步時 `RequiresTwoFactor`＋`TwoFactorTicket`（待驗票證，5 分鐘）；記住過的裝置直接完成。失敗訊息與鎖定規則同 Server 版登入頁；必須設定兩步驟驗證的帳號照樣拿到 Token，由閘門帶到設定頁 |
+| | 網頁登入 | `POST Auth/login/web` | `[AllowAnonymous]` | body `WebLoginRequestDto`（帳號、密碼、記住我、記住裝置 Token、返回網址）；回 `WebLoginResultDto`：完成時 `Tokens`；需要第二步時 `RequiresTwoFactor`＋`TwoFactorTicket`（待驗票證，5 分鐘）；記住過的裝置直接完成。必須設定兩步驟驗證的帳號照樣拿到 Token，由閘門帶到設定頁 |
 | | 登入第二步 | `POST Auth/two-factor` | `[AllowAnonymous]` | body `TwoFactorLoginRequestDto`（票證、驗證碼或備用碼、記住這台裝置）；回 `WebLoginResultDto`（勾記住時另回 `RememberDeviceToken`）。驗證碼錯了計入登入失敗、票證仍可用；等待期間改了密碼、被停用或強制登出回 `TWO_FACTOR_TICKET_INVALID` |
 | | Google 代碼兌換 | `POST Auth/google/exchange` | `[AllowAnonymous]` | body `GoogleExchangeRequestDto`（代碼、瀏覽器驗證值原值、記住裝置 Token）；代碼 60 秒、只能用一次（出示錯的驗證值也算用掉）。已啟用兩步驟驗證時回待驗票證（記住過的裝置除外）|
 | | 新分頁取得 Token | `POST Auth/session/fork` | `[AllowAnonymous]`（憑刷新 Token）| body `RefreshTokenRequestDto`；以目前有效的網頁刷新 Token 開一串新的（沿用登入識別、記住我、整串上限，原本那一串不輪替）；開完再確認來源沒被撤銷，否則作廢 |
@@ -470,10 +470,10 @@ Agent 測試台、系統管理助理（含巡檢報告窗）、Agent 工作流�
 | 控制器 | 動作 | 路由 | 回傳／說明 |
 |---|---|---|---|
 | `ShellController` | 系統資訊 | `GET shell/info` | `ShellInfoDto`：系統名稱、描述、版本、環境、啟動時間、各頁說明主題（路由、標題）；0.10.7 起多 `NotificationPushEnabled`（`NotificationSettings:PushEnabled`，外框依它決定要不要連推播）|
-| | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（`SidebarMenuService` 以 `PermissionRules.CanAccessPage` 過濾；0.10.8 以前 Server 版側邊欄的 `CheckAccessPage` 規則相同），以及全部選單網址 |
+| | 選單 | `GET shell/menu` | `ShellMenuDto`：依目前使用者權限過濾後的選單（`SidebarMenuService` 以 `PermissionRules.CanAccessPage` 過濾），以及全部選單網址 |
 | | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
-| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下，規則同 0.10.8 以前的 Server 版電路）。只接受 WASM 的頁面路徑（`ClientRouteTable`；0.10.8 起即全部頁面），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
-| | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與 Server 版相同。內容只有格式字串 |
+| | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下）。只接受 WASM 的頁面路徑（`ClientRouteTable`；0.10.8 起即全部頁面），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
+| | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與伺服器的格式一致。內容只有格式字串 |
 | | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘；0.10.10 起 `BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每個實例的計數，只剩這裡計數），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |

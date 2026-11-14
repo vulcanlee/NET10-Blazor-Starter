@@ -2,16 +2,16 @@
 
 - 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.10
+- 現行系統版本：0.10.18
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/13
+- 最後核對日期：2026/11/14
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
 
 ## Controller 規範
 - API Controller 放在 `src/MyProject/MyProject.Web/Controllers/`。
-- 路由需同時提供 `[Route("api/[controller]")]` 與 `[Route("api/v1/[controller]")]`；新用戶端優先使用 `/api/v1/...`。
+- 新的 Controller 只用 `api/v1` 路由（例如 `[Route("api/v1/users")]`）；只有既有的 `Auth`、`Category`、`Project`、`Team` 四個 Controller 同時提供 `[Route("api/[controller]")]` 與 `[Route("api/v1/[controller]")]`。新用戶端優先使用 `/api/v1/...`。
 - Controller 必須使用 `[ApiController]` 與 `[ApiValidationFilter]`。
 - 需要保護的 CRUD API 必須加上 `[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`。
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
@@ -69,7 +69,7 @@ AI 分析（日誌分析、例外分析與追問）要邊產生邊顯示，回�
 相容欄位：
 - `ErrorMessage`：舊版錯誤訊息欄位，暫時保留。
 - `ErrorDetail`：舊版錯誤詳細欄位，暫時保留。
-- `ErrorCode`（0.10.0 起）：機器可判讀的錯誤代碼，讓 WASM 前端與 App 不必比對中文訊息就能決定下一步；可能的值集中在 `MyProject.Dtos.Commons.ApiErrorCodes`（目前是 `PASSWORD_CHANGE_REQUIRED`、`TWO_FACTOR_SETUP_REQUIRED`），沒有特別代碼時為 `null`。新增代碼時加在 `ApiErrorCodes`，不要在各處寫字串。
+- `ErrorCode`（0.10.0 起）：機器可判讀的錯誤代碼，讓 WASM 前端與 App 不必比對中文訊息就能決定下一步；可能的值集中在 `MyProject.Dtos.Commons.ApiErrorCodes`（目前是 `PASSWORD_CHANGE_REQUIRED`、`TWO_FACTOR_SETUP_REQUIRED`、`NO_PRIMARY_ROLE`、`TWO_FACTOR_TICKET_INVALID`），沒有特別代碼時為 `null`。新增代碼時加在 `ApiErrorCodes`，不要在各處寫字串。
 - `Timestamp`：舊版時間戳欄位，暫時保留。
 
 ## HTTP 狀態碼
@@ -121,7 +121,7 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 - 全站 API 套 `api` 分區（`MapControllers().RequireRateLimiting("api")`），分區鍵：**已登入依每人、未登入依 IP**（`ResolvePartitionKey`）。
 - ⚠️ **`UseRateLimiter` 必須排在 `UseAuthentication` 之後**（0.10.8 獨立審查）：分區鍵要讀已驗證的使用者，排在前面全部都是匿名、全部依 IP 分區——同一個出口 IP（NAT、反向代理）的所有人共用一份配額。`PerUserRateLimitTests` 守門。
 - **較嚴格的登入配額**（每 IP 每分鐘 `RateLimit:LoginRequestsPerMinute`，預設 10）寫在同一個 policy 裡、依路徑判斷（`LoginQuotaPaths`）：App 的 `Auth/login`、`two-factor`（含 `two-factor/setup`：重新產生備用碼與停用時驗證碼錯了不計入鎖定，只靠這裡擋）、`google`、`password`、`session`。
-  **不算**的例外（`LoginQuotaExcludedPaths` 與路徑本身）：網頁登入 `login/web`（照 Server 版畫面登入靠帳號鎖定，受一般 API 每 IP 配額；算進每 IP 10 次的話同一個出口 IP 的公司早上登入尖峰會被擋）、`login-settings`（每次開登入頁、啟動頁都呼叫，沒有可猜的東西）。
+  **不算**的例外（`LoginQuotaExcludedPaths` 與路徑本身）：網頁登入 `login/web`（靠帳號鎖定，受一般 API 每 IP 配額；算進每 IP 10 次的話同一個出口 IP 的公司早上登入尖峰會被擋）、`login-settings`（每次開登入頁、啟動頁都呼叫，沒有可猜的東西）。
 - ⚠️ 不要用 `[EnableRateLimiting("login")]` 屬性另設 policy：端點慣例 `RequireRateLimiting("api")` 套用時機晚於屬性，會把它蓋掉而靜默失效。
 
 ## 功能級／動作級授權
@@ -142,9 +142,9 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 | `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知（0.10.7 起含推播串流 `notifications/stream`）、公告、`Auth/me`；0.10.8 起變更自己的密碼、兩步驟驗證設定 |
 | `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換；0.10.8 起登入頁設定、網頁登入、兩步驟驗證第二步、Google 代碼兌換、新分頁取得 Token（憑刷新 Token）、忘記／重設密碼 |
 
-**強制改密碼／設定兩步驟驗證期間**（0.10.0 起，全域 `ApiSessionGateFilter`）：業務 API 一律 403＋`errorCode`（`PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`）。只有完成設定所需的端點才另外標 `[AllowDuringForcedSetup]`——0.10.8 起是 `Auth/me`、`Auth/logout`、`Auth/password/change`、`Auth/two-factor/setup`，以及強制頁外框要用的 `shell`、`notifications`、`announcements/active` 與 `dismiss`（強制頁照 Server 版顯示完整外框）。⚠️ 新增的業務端點**不要**標。
+**強制改密碼／設定兩步驟驗證期間**（0.10.0 起，全域 `ApiSessionGateFilter`）：業務 API 一律 403＋`errorCode`（`PASSWORD_CHANGE_REQUIRED`／`TWO_FACTOR_SETUP_REQUIRED`）。只有完成設定所需的端點才另外標 `[AllowDuringForcedSetup]`——0.10.8 起是 `Auth/me`、`Auth/logout`、`Auth/password/change`、`Auth/two-factor/setup`，以及強制頁外框要用的 `shell`、`notifications`、`announcements/active` 與 `dismiss`（強制頁顯示完整外框）。⚠️ 新增的業務端點**不要**標。
 
-**沒有主要角色的帳號**（0.10.8 起）：網頁管道的 Token 一律 403 `NO_PRIMARY_ROLE`，前端登出（與 Server 版相同）；App 的 API 登入不受影響。
+**沒有主要角色的帳號**（0.10.8 起）：網頁管道的 Token 一律 403 `NO_PRIMARY_ROLE`，前端登出；App 的 API 登入不受影響。
 
 - `[AdminOnly]`（`MyProject.Web/Filters/AdminOnlyAttribute.cs`）是授權篩選器：沒登入回 401；不是管理員回 403 `ApiResult`（預設訊息「只有管理員可以使用這個功能。」，可用 `[AdminOnly("訊息")]` 換），並與 `HasPermission` 一樣寫一筆 `Permission.Denied`（目標 `ApiEndpoint`／請求路徑，detail「需要管理員」）。管理員身分看 `ApiActorMiddleware` 從資料庫載入的目前使用者，所以剛被取消管理員的人下一個請求就被擋。
   ⚠️ 只對 JWT Bearer 的請求有效（0.10.6 起已沒有以 Cookie 驗證的 API；0.10.8 起網頁也不發登入 Cookie）。

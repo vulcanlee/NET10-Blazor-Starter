@@ -2,9 +2,9 @@
 
 - 文件版本：2.8
 - 文件狀態：已實作
-- 現行系統版本：0.10.5
+- 現行系統版本：0.10.18
 - 首次實作版本：0.9.14
-- 最後核對日期：2026/11/10
+- 最後核對日期：2026/11/14
 
 ## 一、目標與範圍
 
@@ -327,7 +327,7 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 
 ## 五、權限與安全
 
-- **管理員專屬**：`CheckIsAdmin()` 守門，`角色_Token用量` **不列入**
+- **管理員專屬**：WASM 頁以 `Permissions.IsAdmin` 判斷、API（`TokenUsageController`）以 `[AdminOnly]` 擋（0.10.8 以前是 `CheckIsAdmin()`），`角色_Token用量` **不列入**
   `RolePermissionService.GetRoleListPermissionAllName()`，由 `AdminOnlyPermissionTests` 守住。
 - 只記 `Account` 與 `UserId`，**不記姓名／Email**，與全站日誌規範一致。
 - ⚠️ 記錄相關的日誌訊息**不得含 `token` 字樣**（`LoggingConventionTests` 的禁用清單），
