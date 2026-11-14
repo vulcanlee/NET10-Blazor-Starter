@@ -286,10 +286,12 @@ public sealed class SystemHealthApiTests : IClassFixture<ApiTestApplicationFacto
 [Collection(nameof(IntegrationHostCollection))]
 public sealed class DashboardApiTests : IClassFixture<ApiTestApplicationFactory>
 {
+    private readonly ApiTestApplicationFactory factory;
     private readonly OpsApiTestUsers users;
 
     public DashboardApiTests(ApiTestApplicationFactory factory)
     {
+        this.factory = factory;
         users = new OpsApiTestUsers(factory);
     }
 
@@ -323,18 +325,29 @@ public sealed class DashboardApiTests : IClassFixture<ApiTestApplicationFactory>
     }
 
     [Fact]
-    public async Task Dashboard_WithoutTheHomePermission_ShouldBeForbidden()
+    public async Task Dashboard_ShouldBeOpenToEverySignedInUser_EvenWithoutAnyHomePermission()
     {
+        // 0.10.17 起首頁不受權限限制（使用者 2026/11/14 決定）：角色沒有「首頁」也看得到首頁與儀表板；
+        // 儀表板裡的小工具仍依各自權限（排程作業只限管理員）。
         var user = await users.AddUserAsync(isAdmin: false, permissions: [MagicObjectHelper.角色_專案項目]);
         using var client = await users.SignedInClientAsync(user);
 
-        await users.AssertForbiddenAsync(client, user,
-        [
-            (HttpMethod.Get, "/api/v1/dashboard", null),
-            (HttpMethod.Get, "/api/v1/dashboard/account", null),
-            (HttpMethod.Get, "/api/v1/dashboard/notifications", null),
-            (HttpMethod.Get, "/api/v1/dashboard/scheduled-jobs", null),
-        ]);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/dashboard")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/dashboard/account")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/dashboard/notifications")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/dashboard/scheduled-jobs")).StatusCode);
+
+        // 側邊欄也看得到「首頁」。
+        var menu = await OpsApiTestUsers.SendAsync<ShellMenuDto>(client, HttpMethod.Get, "/api/v1/shell/menu");
+        Assert.Contains(menu.Items, x => x.Name == "首頁");
+    }
+
+    [Fact]
+    public async Task Dashboard_WithoutSigningIn_ShouldBeUnauthorized()
+    {
+        using var client = factory.CreateClient();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/dashboard")).StatusCode);
     }
 
     [Fact]

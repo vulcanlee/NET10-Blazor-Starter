@@ -220,8 +220,26 @@ main {
 }
 
 @media (max-width: 640.98px) {
+    /* 手機收合時側邊欄不再自己佔一列（0.10.17 起）：選單鈕浮在頁首列左側，頁首只剩一列（選單鈕＋通知＋使用者選單）。
+       展開時照舊是整片選單。 */
+    .page.sidebar-collapsed {
+        position: relative;
+    }
+
     .page.sidebar-collapsed .sidebar {
-        box-shadow: 0 10px 24px rgba(var(--app-shadow-rgb), 0.18);
+        background: transparent;
+        border-right: none;
+        box-shadow: none;
+        left: 0;
+        overflow: visible;
+        position: absolute;
+        top: 0;
+        width: auto;
+        z-index: 20;
+    }
+
+    .page.sidebar-collapsed main > .top-row {
+        padding-left: 4.5rem !important;
     }
 
     .top-row {

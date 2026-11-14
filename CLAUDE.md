@@ -84,6 +84,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 0.10.14 起是 **.NET 11**（`net11.0`、SDK 11.0.100；專案名稱沿用 NET10）：Blazor 的新分析器（BL0016／BL0012）、`ValidateAsync`、WASM 瘦身開關與 `.config/dotnet-ef.json` 見速查表 §6.33 第 116～125 點；dotnet-ef 全域工具要 11 版；對話窗只能用預設頁尾（第 124 點）。
 - **畫面選項資料一致性**（0.10.15 起）：下拉選項**開窗時重讀**（每個 `OnAddAsync`／`OnEditAsync`／`OnCopyAsync` 第一行 `await LoadFormOptionsAsync()`，存檔失敗後再讀；只有查詢條件的頁面在「重新整理」時重讀），**存檔時伺服器以 `SelectedOptionGuard` 擋下新選的、已不存在或已停用的選項**（400）；`FormOptionsConventionTests` 守門，CRUD 產生器樣板照做。見速查表 §6.33 第 126～129 點。
 - 0.10.16 起（.NET 11 全面實機探索）：可搜尋的下拉（`EnableSearch`）每個 `SelectOption` 都要有 `Label`（否則打字比不到，`SearchableSelectConventionTests` 守門）；預期會發生的狀況不要靠 `catch (DbUpdateException)`（EF Core 會先記成 Error）；用戶端中斷的請求回 499、不算系統錯誤。見速查表 §6.33 第 130～135 點。
+- 0.10.17 起**首頁不受權限限制**（`PermissionRules.OpenToEveryone`，角色矩陣沒有「首頁」）；清單搜尋框按 Enter 就搜尋；專案標題上限 200 字；帳號只能用英數字與 `- _ . @`（只在新增或改帳號時檢查）。見速查表 §6.33 第 136～140 點。
 - 本系統**只支援 SQLite**；模型變更要在 `MyProject.AccessDatas/Migrations/` 產生 migration（0.4.24 起已移除 SQL Server 軌道）。
 - 分層依賴一律向上：Web → Business → AccessDatas；`Share` 不相依其他專案，`Models`/`Dtos` 只相依 `Share`；UI 不直接 `using BackendDBContext`。
   0.10.0 起進行 WASM 改寫（計畫與各里程碑測試報告在 `docs/migration/`）：WASM 前端 `MyProject.Web.Client` 只能參考 Dtos／Models／Share；

@@ -12,8 +12,8 @@ import { authenticatedRoutes } from './smoke-routes.mjs';
 
 execute("UPDATE MyUser SET Email = 'support@e2e.test' WHERE Account = 'support'");
 const password = 'Perm!E2e-' + Date.now().toString(36) + 'Aa9';
-// 一般角色都有「首頁」（沒有的話登入後的首頁也顯示沒有權限，見測試報告）。
-createScopedUser('e2e-perm-low', password, 'E2E 只看專案X', ['首頁', '專案項目:view']);
+// 0.10.17 起首頁不受權限限制：角色只有專案檢視、沒有「首頁」，首頁照樣開得起來（X1 驗證）。
+createScopedUser('e2e-perm-low', password, 'E2E 只看專案X', ['專案項目:view']);
 
 const recorder = createRecorder('explore-perm-results.json');
 

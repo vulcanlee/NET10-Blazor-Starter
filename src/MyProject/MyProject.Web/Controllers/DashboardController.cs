@@ -52,7 +52,7 @@ public sealed class DashboardController : ControllerBase
 
     /// <summary>歡迎列、快速入口與這個人看得到的小工具。</summary>
     [HttpGet]
-    [HasPermission(MagicObjectHelper.角色_首頁, PermissionActions.View)]
+    [SignedInUser] // 0.10.17 起首頁不受權限限制（PermissionRules.OpenToEveryone）
     public ActionResult<ApiResult<DashboardDto>> Get()
     {
         var user = currentUserService.CurrentUser;
@@ -78,7 +78,7 @@ public sealed class DashboardController : ControllerBase
 
     /// <summary>「我的帳號」：上一次登入（不含這一次）、密碼到期、兩步驟驗證。</summary>
     [HttpGet("account")]
-    [HasPermission(MagicObjectHelper.角色_首頁, PermissionActions.View)]
+    [SignedInUser] // 0.10.17 起首頁不受權限限制（PermissionRules.OpenToEveryone）
     public async Task<ActionResult<ApiResult<DashboardAccountDto>>> Account([FromServices] ProfileService profileService)
     {
         var userId = currentUserService.CurrentUser.Id;
@@ -100,7 +100,7 @@ public sealed class DashboardController : ControllerBase
 
     /// <summary>「我的通知」：未讀數與最新 5 則（只保留安全的站內連結，規則與通知鈴鐺相同）。</summary>
     [HttpGet("notifications")]
-    [HasPermission(MagicObjectHelper.角色_首頁, PermissionActions.View)]
+    [SignedInUser] // 0.10.17 起首頁不受權限限制（PermissionRules.OpenToEveryone）
     public async Task<ActionResult<ApiResult<DashboardNotificationsDto>>> Notifications([FromServices] NotificationQueryService queryService)
     {
         var userId = currentUserService.CurrentUser.Id;

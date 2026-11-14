@@ -40,7 +40,7 @@ else
                 </RequirePermission>
             </div>
             <div class="team-view-toolbar-right">
-                <Input class="team-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                <Input class="team-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" OnPressEnter="@(async _ => await OnSearchAsync())" />
                 @if (!string.IsNullOrWhiteSpace(searchText))
                 {
                     <ToolbarIconButton Title="清空搜尋" Icon="close"

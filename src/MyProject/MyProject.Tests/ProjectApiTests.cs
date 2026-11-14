@@ -109,6 +109,29 @@ public sealed class ProjectApiTests : IClassFixture<ApiTestApplicationFactoryWit
     }
 
     [Fact]
+    public async Task TitleLimit_ShouldNotBlockALegacyLongTitle_UnlessTheTitleIsChanged()
+    {
+        // 0.10.17 起標題上限 200 字；以前沒有上限，舊的長標題只改其他欄位時照常可存（獨立審查提醒，同重名與帳號格式的做法）。
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
+        int legacyId;
+        await using (var context = await CreateContextAsync())
+        {
+            var legacy = new Project { Title = Unique("長") + new string('長', 300), Status = "進行中", Priority = "中", Owner = "舊資料", ConcurrencyStamp = ConcurrencyStampHelper.New() };
+            context.Project.Add(legacy);
+            await context.SaveChangesAsync();
+            legacyId = legacy.Id;
+        }
+
+        var opened = await SendAsync<ProjectDto>(client, HttpMethod.Get, $"{BaseUrl}/{legacyId}");
+        opened.Description = "只改描述";
+        await SendAsync<object>(client, HttpMethod.Put, $"{BaseUrl}/{legacyId}", opened);
+
+        var again = await SendAsync<ProjectDto>(client, HttpMethod.Get, $"{BaseUrl}/{legacyId}");
+        again.Title = again.Title + "改";
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"{BaseUrl}/{legacyId}", again)).StatusCode);
+    }
+
+    [Fact]
     public async Task DuplicateTitle_ShouldReturn409_IgnoringCase_ButAnUnchangedLegacyDuplicateCanStillBeSaved()
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
@@ -152,6 +175,13 @@ public sealed class ProjectApiTests : IClassFixture<ApiTestApplicationFactoryWit
         badDates.StartDate = DateTime.Today;
         badDates.EndDate = DateTime.Today.AddDays(-1);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(BaseUrl, badDates)).StatusCode);
+
+        // 0.10.17 起專案標題上限 200 字（使用者 2026/11/14 決定；以前沒有上限，5,000 字也存得進去）。
+        var longTitle = NewDto(new string('長', 201));
+        var tooLong = await client.PostAsJsonAsync(BaseUrl, longTitle);
+        Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+        Assert.Contains("200", await tooLong.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        await SendAsync<ProjectDto>(client, HttpMethod.Post, BaseUrl, NewDto(Unique("滿") + new string('滿', 189)));
 
         // 日期可以不填（與畫面相同）。
         var noDates = NewDto(Unique("無日期"));

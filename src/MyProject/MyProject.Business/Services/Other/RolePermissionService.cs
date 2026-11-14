@@ -8,9 +8,9 @@ public class RolePermissionService
 {
     public List<List<string>> GetRoleListPermissionAllName()
     {
+        // 「首頁」0.10.17 起不在矩陣裡：每個登入的人都能開（PermissionRules.OpenToEveryone）。既有角色存著的「首頁」鍵留著無妨。
         return
         [
-            [MagicObjectHelper.角色_首頁],
             [
                 MagicObjectHelper.角色_專案管理,
                 MagicObjectHelper.角色_專案項目,

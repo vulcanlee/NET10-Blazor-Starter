@@ -1,6 +1,7 @@
 using MyProject.Dtos.Admins;
 using MyProject.Dtos.Commons;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Client.Api;
 
@@ -32,11 +33,20 @@ public sealed class UserApi
     /// <summary>新增前的檢查（帳號是否已存在等），「複製」建立時先檢查帳號再問 Email。</summary>
     public async Task<VerifyRecordResult> CheckAsync(UserDto dto) => (await api.PostAsync<object>($"{BaseUrl}/check", dto)).ToVerify();
 
-    /// <summary>帳號是否已被使用（0.10.15 起，表單欄位的非同步檢查 <c>AsyncFieldCheck</c>）：只回「已存在」（409）的訊息，其他失敗留給存檔時的完整檢查。</summary>
+    /// <summary>
+    /// 帳號欄位的非同步檢查（0.10.15 起，<c>AsyncFieldCheck</c>）：回「已存在」（409）或帳號格式不符（0.10.17 起）的訊息，
+    /// 其他失敗（例如選的團隊剛被停用）留給存檔時的完整檢查。
+    /// </summary>
     public async Task<string?> AccountConflictAsync(UserDto dto)
     {
         var result = await api.PostAsync<object>($"{BaseUrl}/check", dto);
-        return !result.Success && result.StatusCode == 409 ? result.UserMessage() : null;
+        if (result.Success)
+        {
+            return null;
+        }
+
+        var message = result.UserMessage();
+        return result.StatusCode == 409 || message == AccountRules.FormatMessage ? message : null;
     }
 
     public async Task<VerifyRecordResult> CreateAsync(UserDto dto) => (await api.PostAsync<UserDto>(BaseUrl, dto)).ToVerify();

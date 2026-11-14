@@ -248,6 +248,45 @@ public sealed class UserApiTests : IClassFixture<ApiTestApplicationFactoryWithBr
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"{BaseUrl}/search", new UserSearchRequestDto { PageSize = 0 })).StatusCode);
     }
 
+    /// <summary>
+    /// 帳號格式（0.10.17 起，使用者 2026/11/14 決定）：只能用英數字與 <c>- _ . @</c>，新增或改帳號時檢查（畫面與 API 相同）。
+    /// 以前含空白與 HTML 字元（例如 <c>bad account&lt;b&gt;</c>）也能建立。既有帳號（例如 Google 登入建立、含 + 的）不改帳號時照樣能存。
+    /// </summary>
+    [Fact]
+    public async Task AccountFormat_ShouldBeCheckedWhenCreatingOrRenaming_ButNotForUntouchedLegacyAccounts()
+    {
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
+        var options = await SendAsync<UserFormOptionsDto>(client, HttpMethod.Get, $"{BaseUrl}/options");
+        UserDto New(string account) => new() { Account = account, Name = "格式", Password = "Abcd!2345678", RoleViewId = options.DefaultRoleId };
+
+        foreach (var bad in new[] { "bad account", "bad<b>", "中文帳號", "a+b@corp.test", "semi;colon" })
+        {
+            var response = await client.PostAsJsonAsync(BaseUrl, New(bad + Unique("x")));
+            Assert.True(response.StatusCode == HttpStatusCode.BadRequest, $"{bad} 應該被擋，卻是 {(int)response.StatusCode}");
+            Assert.Contains("帳號只能使用", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+
+        var good = await SendAsync<UserDto>(client, HttpMethod.Post, BaseUrl, New("good.user-1_x@corp." + Unique("t")));
+
+        // 改成不合格式的帳號：擋。
+        var renamed = await SendAsync<UserDto>(client, HttpMethod.Get, $"{BaseUrl}/{good.Id}");
+        renamed.Account = "has space";
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"{BaseUrl}/{good.Id}", renamed)).StatusCode);
+
+        // 既有的「不合格式」帳號（例如 Google 登入建立、Email 含 +）：不改帳號、只改名字，照樣能存。
+        var legacy = await AddUserAsync(isAdmin: false);
+        await using (var context = await CreateContextAsync())
+        {
+            var row = await context.MyUser.SingleAsync(x => x.Id == legacy.Id);
+            row.Account = "legacy+" + Unique("g") + "@gmail.test";
+            await context.SaveChangesAsync();
+        }
+
+        var legacyDto = await SendAsync<UserDto>(client, HttpMethod.Get, $"{BaseUrl}/{legacy.Id}");
+        legacyDto.Name = "改名字";
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"{BaseUrl}/{legacy.Id}", legacyDto)).StatusCode);
+    }
+
     [Fact]
     public async Task NonAdmins_ShouldBeForbidden()
     {

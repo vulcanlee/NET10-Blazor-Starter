@@ -226,6 +226,17 @@
     .nav-scrollable-collapsed {
         display: none;
     }
+
+    /* 手機收合時只留選單鈕（0.10.17 起，使用者 2026/11/14 決定）：以前品牌文字沒有隱藏，寬度被擠到幾乎是零，
+       字一個一個往下排成 186px 高，整條深色區塊佔掉約 220px。選單鈕由外框浮在頁首列左側（ClientMainLayout.razor.css）。 */
+    .top-row-collapsed {
+        min-height: auto;
+        padding: 0.9rem 0 0 1rem;
+    }
+
+    .top-row-collapsed .sidebar-brand {
+        display: none;
+    }
 }
 
 @media (min-width: 641px) {

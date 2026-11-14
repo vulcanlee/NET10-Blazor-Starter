@@ -59,7 +59,7 @@ else
                         }
                     </Select>
                 }
-                <Input class="project-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                <Input class="project-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" OnPressEnter="@(async _ => await OnSearchAsync())" />
                 @if (!string.IsNullOrWhiteSpace(searchText))
                 {
                     <ToolbarIconButton Title="清空搜尋" Icon="close"
@@ -172,7 +172,7 @@ else
 
                 <FormSection Title="基本資料">
                     <FormItem Label="標題" Required>
-                        <Input @bind-Value="CurrentRecord.Title" Placeholder="請輸入專案標題" />
+                        <Input @bind-Value="CurrentRecord.Title" MaxLength="@ProjectAdapterModel.ProjectTitleMaxLength" Placeholder="請輸入專案標題" />
                         <ValidationMessage For="() => CurrentRecord.Title" />
                     </FormItem>
 

@@ -67,6 +67,7 @@
 
 - 關鍵字比對標題、描述、狀態、優先級、負責人（以前只比對標題與描述）。
 - 狀態、優先級不在畫面的選項裡回 400；結束日期早於開始日期回 400。
+- 0.10.17 起標題最多 200 字（去頭尾空白後），新增或改標題時超過回 400「專案標題長度不可超過 200 字元。」；以前存下的長標題不改標題時照常可存。
 - 0.10.15 起**新選的**分類或團隊已不存在或已停用時回 400「所選的分類「X」已不存在或已停用，請重新選擇（選項已更新）。」（團隊同理；原本就掛著的不檢查，舊專案照樣能存；速查表 §6.33 第 127 點）。
 - 開始、結束日期可以不填（`ProjectCreateUpdateDto.StartDate`／`EndDate` 改成可為 null，拿掉 `[Required]`）。
 - **專案標題不能重複**：新增時、或修改且標題真的有變時，與另一筆未刪除專案的標題相同（去頭尾空白、英文不分大小寫）回 409「專案名稱已存在，無法新增。」／「專案名稱已存在，無法修改。」。0.10.3 之前畫面允許重複（API 原本就回 409）；以前留下的重複標題，只要不改標題仍可存檔；還原時已有同名的未刪除專案也回 409「已有同名的專案「X」，無法還原。請先將現有的同名專案改名後再還原。」（與分類相同）。存檔時標題以 `NameNormalizer.Normalize` 去掉前後空白（含 Tab、全形空白）。這個檢查在 `ProjectService.BeforeAddCheckAsync`／`BeforeUpdateCheckAsync`，AI Agent 工具與「產生測試專案」直接呼叫 `AddAsync`，不受影響。
@@ -114,6 +115,7 @@
 - 搜尋的每頁筆數 1～200、頁碼 ≥ 1，不合法回 400（`[ApiValidationFilter]`）；畫面上的必填（使用者的帳號、名稱、角色，角色的名稱）由伺服器再驗一次，缺了回 400。
 - **時間**：本地時間一律以不帶時差（`DateTimeKind.Unspecified`，JSON 沒有 `+08:00`）送出，前端照字面顯示；UTC 欄位（`*Utc`）以 `Z` 結尾。送來的日期篩選也不帶時差，伺服器照自己的時區解讀。
 - 失敗依服務回傳的 `VerifyRecordResult.Kind` 決定狀態碼（找不到 404、重複或版本衝突 409、規則不符 400、未預期 500；0.10.4 起 `MyUserService`、`RoleViewService`、`TwoFactorService` 的失敗都標上 Kind），錯誤訊息就是畫面那一句。
+- 0.10.17 起使用者帳號只能用英文字母、數字與 `- _ . @`：新增（含 `POST users/check`）或修改時改了帳號，格式不符回 400「帳號只能使用英文字母、數字與 - _ . @。」；既有帳號不改帳號時不檢查（例如 Google 登入以 Email 建立、含 `+` 的）。
 - 0.10.15 起使用者的團隊（`TeamNames`）、角色的預設團隊（`DefaultTeams`）**新選的**團隊已不存在或已停用時，新增、修改（使用者另含 `POST users/check`）回 400「所選的團隊「X」已不存在或已停用，請重新選擇（選項已更新）。」（原本就掛著的不檢查；速查表 §6.33 第 127 點）。
 - 寫入的稽核由服務寫（與畫面相同、每個動作一筆）；查看、搜尋、匯出由 Controller 寫。
 - DTO 在 `MyProject.Dtos/Admins`；WASM 端的呼叫在 `MyProject.Web.Client/Api/UserApi.cs`、`RoleApi.cs`、`AdminLogApi.cs`，DTO 與畫面模型的對應在 `UserDtoMapper`、`RoleDtoMapper`（WASM 與 Controller 共用）。
@@ -331,7 +333,7 @@
 
 ### 2.19 首頁儀表板（`DashboardController`，`api/v1/dashboard`）
 
-首頁 view 權限（`[HasPermission(角色_首頁, View)]`；「排程作業」小工具的端點例外，是 `[AdminOnly]`），不寫稽核。
+只要登入就能呼叫（0.10.17 起 `[SignedInUser]`：首頁不受權限限制，`PermissionRules.OpenToEveryone`；0.10.16 以前要首頁 view 權限）；「排程作業」小工具的端點例外，是 `[AdminOnly]`。不寫稽核。
 
 | 動作 | 路由 | 回傳／說明 |
 |------|------|------|

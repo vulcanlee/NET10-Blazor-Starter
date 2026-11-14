@@ -33,7 +33,7 @@ else
                                    OnClick="@(async () => await OnToggleDeletedAsync())" />
             </div>
             <div class="role-view-toolbar-right">
-                <Input class="role-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" />
+                <Input class="role-view-search-input" @bind-Value="searchText" Placeholder="請輸入搜尋關鍵字" OnPressEnter="@(async _ => await OnSearchAsync())" />
                 @if (!string.IsNullOrWhiteSpace(searchText))
                 {
                     <ToolbarIconButton Title="清空搜尋" Icon="close"

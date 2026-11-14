@@ -918,6 +918,13 @@ public class MyUserService
         // 0.9.171 起去頭尾空白、不分大小寫（同分類名稱，速查表 §4.2）。
         // ⚠️ 程式端用 NameNormalizer.ToLowerAscii（同 SQLite 的 lower()，只折疊 A-Z），不可用 C# 的 ToLower()：Émile 這類帳號會比對不到。
         var account = NameNormalizer.Normalize(paraObject.Account);
+        // 帳號格式（0.10.17 起）：只能用英數字與 - _ . @。
+        if (!string.IsNullOrEmpty(account) && !AccountRules.IsValidFormat(account))
+        {
+            Logger.LogInformation("Pre-create validation failed because the account format is invalid. Account={Account}", paraObject.Account);
+            return VerifyRecordResultFactory.Invalid(AccountRules.FormatMessage);
+        }
+
         MyUser? searchItem = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(account));
@@ -954,6 +961,13 @@ public class MyUserService
         }
 
         var account = NameNormalizer.Normalize(paraObject.Account);
+        // 帳號格式（0.10.17 起）：只在改帳號時檢查——既有帳號（例如 Google 登入以 Email 建立、含 +）不改帳號時照樣能存。
+        if (!string.Equals(account, searchItem.Account, StringComparison.Ordinal) && !AccountRules.IsValidFormat(account))
+        {
+            Logger.LogInformation("Pre-update validation failed because the new account format is invalid. UserId={UserId}", paraObject.Id);
+            return VerifyRecordResultFactory.Invalid(AccountRules.FormatMessage);
+        }
+
         searchItem = await context.MyUser
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Account.ToLower() == NameNormalizer.ToLowerAscii(account) && x.Id != paraObject.Id);

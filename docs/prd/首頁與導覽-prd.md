@@ -24,7 +24,7 @@
 ## 三、畫面與欄位
 
 - 啟動頁（`/` → `SplashPage.razor` → `SplashView`，0.10.8 起在 WebAssembly）：品牌圖示（`wwwroot/images/brand-logo.png`，於圓角容器內以 `object-fit: cover` 滿版呈現）、標題（取自 `SystemSettings:SystemInformation:SystemName`）、說明文字（0.9.2 起取自 `SystemSettings:SystemInformation:SystemDescription`，先前為寫死字串）與「系統載入中」狀態列；採 `ClientEmptyLayout`，不含側邊選單。驗證通過即導向 `/App`，未登入則導向 `/Auths/Login`（0.9.39 起；帳號停用等其他失敗仍導向 `/Auths/Logout`）。此頁與 `Error`、`NotFound`、登入相關頁是全系統僅有的匿名頁面（0.9.41 起其餘頁面一律需登入，未登入者直接輸入網址會在 HTTP 層被導去登入頁、看不到任何畫面，見 [開發慣例與限制速查 §5.1](../architecture/開發慣例與限制速查.md)）。
-- 首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**；0.9.106 起改為儀表板；0.10.6 起在 WebAssembly 執行，頁面與檢視在 `MyProject.Web.Client`，快速入口與小工具由 `GET api/v1/dashboard` 依權限決定）：登入後的第一個畫面，套用主版面與側邊選單。三個區塊由上而下：
+- 首頁（`/App` → `HomeAuthed.razor` → `HomeWelcomeView`，**0.9.9 起**；0.9.106 起改為儀表板；0.10.6 起在 WebAssembly 執行，頁面與檢視在 `MyProject.Web.Client`，快速入口與小工具由 `GET api/v1/dashboard` 依權限決定）：登入後的第一個畫面，套用主版面與側邊選單；0.10.17 起每個登入的人都能開（不受權限限制）。三個區塊由上而下：
 
   | 區塊 | 內容 | 來源 |
   | --- | --- | --- |
@@ -138,7 +138,7 @@
 - `MyProject.Tests/MenuPermissionConsistencyTests.cs::Views_CheckAccessPageKey_ShouldMatch_MenuPermissionMap`：`ViewToMenuId` 已登錄 `HomeWelcomeView.razor.cs` → 選單 id 1，驗證它檢查的權限鍵確為 `角色_首頁`。
 - 手動驗收：以不同角色登入，確認選單僅顯示具權限之項目；管理員可見全部；重排 `Menu.json` 順序不影響權限對應。
 - 手動驗收（首頁）：登入後落在 `/App`，可見品牌圖、系統名稱、系統說明、版本（須與 `appsettings.json` 的 `SystemVersion` 一致）、快速入口與儀表板（一般使用者兩張卡片、管理員三張，圖示皆為單一圖示）。儀表板的測試見 [首頁儀表板 PRD](首頁儀表板-prd.md)。
-- 手動驗收（權限）：以**未授予「首頁」權限**的角色登入，直接輸入 `/App` 應顯示「你沒有權限存取此頁面」且不渲染介紹內容，側邊欄亦無「首頁」；以**未授予分類／團隊清單**的角色登入，快速入口只剩「專案項目」。
+- 手動驗收（權限）：0.10.17 起首頁不受權限限制（`PermissionRules.OpenToEveryone`，角色矩陣沒有「首頁」），任何登入的角色都看得到首頁與側邊欄的「首頁」（0.10.16 以前未授予「首頁」會顯示「你沒有權限存取此頁面」）；以**未授予分類／團隊清單**的角色登入，快速入口只剩「專案項目」。
 - 手動驗收（RWD）：視窗縮至 400px 寬，歡迎列改直向、儀表板卡片改單欄、快速入口滿版，頁面不出現水平捲軸。
 - 手動驗收（關於）：點右上角使用者名稱 →「關於」，對話窗顯示六列資訊，系統版本須與 `appsettings.json` 之 `SystemVersion` 一致；關閉後再次開啟，「已運作時間」應有增加。
 - `MyProject.Tests/PageHelpCatalogTests.cs`：每個 `@page` 都登記說明或明列排除理由、索引與檔案雙向一致、七段章節、頁名＝索引＝選單、「一分鐘看懂」六標籤、第三段四欄表頭、常見問題（≥3 題且以「還是解決不了怎麼辦？」結尾）、相關頁可解析、UTF-8 BOM、csproj 複製規則；`PageHelpParsingTests.cs`、`HelpMarkdownRendererTests.cs` 覆蓋解析、比對、權限過濾與管線；`PageHelpFontSizesTests.cs`（0.9.121 起）覆蓋字體大小的存值往返、讀不到或無效回「中」、選項依小／中／大排列。
