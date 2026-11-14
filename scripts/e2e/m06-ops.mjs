@@ -96,14 +96,14 @@ try {
   await step('M6-O2', '提示詞：存成第 3 版、切回內建預設（稽核 version=3、version=default）', async () => {
     await page.goto('/prompt-templates');
     await page.waitForSelector('.prompt-table', { timeout: 60000 });
-    await page.locator('.ant-tabs-tabpane-active button', { hasText: '編輯' }).first().click();
+    await page.locator('.prompt-main button', { hasText: '編輯' }).first().click();
     const dialog = page.locator('.ant-modal-content:visible');
     await dialog.locator('textarea').first().fill('E2E 第三版：請先列出錯誤次數最多的三種訊息。');
     await dialog.locator('textarea').first().press('Tab');
     await dialog.locator('button', { hasText: '存成新版本' }).click();
     await waitForToast(page, '已存成第 3 版');
     await closeToasts(page);
-    await page.locator('.ant-tabs-tabpane-active .prompt-table .ant-table-row', { hasText: '內建預設' }).locator('button', { hasText: '設為作用中' }).click();
+    await page.locator('.prompt-main .prompt-table .ant-table-row', { hasText: '內建預設' }).locator('button', { hasText: '設為作用中' }).click();
     await confirm(page, '切換');
     await waitForToast(page, '已改用');
     const update = audits('Prompt.Update', since);

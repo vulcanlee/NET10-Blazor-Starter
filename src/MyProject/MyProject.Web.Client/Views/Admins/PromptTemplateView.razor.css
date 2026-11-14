@@ -57,3 +57,120 @@
 .prompt-table-wrap ::deep table {
     min-width: 640px;
 }
+
+/* ── 左側分組清單（0.10.21 起取代頁籤）──
+   16 個種類一次全部看得到；清單黏在頂部列下方，看版本紀錄時仍能直接切換。
+   矮螢幕（例如 1366×768 的筆電）放不下整份清單時，清單自己捲動，不會有項目落在畫面外。 */
+.prompt-layout {
+    align-items: flex-start;
+    display: flex;
+    gap: 1.5rem;
+}
+
+.prompt-nav {
+    border-right: 1px solid var(--app-line);
+    flex: 0 0 11.5rem;
+    max-height: calc(100vh - 7rem);
+    overflow-y: auto;
+    padding-right: 0.75rem;
+    position: sticky;
+    top: 6rem;
+}
+
+.prompt-nav-group + .prompt-nav-group {
+    margin-top: 0.75rem;
+}
+
+.prompt-nav-group-title {
+    color: var(--app-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+    padding: 0 0.75rem;
+}
+
+.prompt-nav-items {
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-nav-item {
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 0 8px 8px 0;
+    color: var(--app-text);
+    cursor: pointer;
+    padding: 0.35rem 0.75rem;
+    text-align: left;
+}
+
+.prompt-nav-item:hover {
+    color: var(--app-accent);
+}
+
+.prompt-nav-item.active {
+    background: var(--app-accent-soft);
+    border-left-color: var(--app-accent);
+    color: var(--app-accent);
+    font-weight: 600;
+}
+
+.prompt-nav-item:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+}
+
+/* min-width: 0 讓內容區可以縮小，長行由 .prompt-content 折行、表格由 .prompt-table-wrap 橫向捲動。 */
+.prompt-main {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 窄螢幕：清單移到內容上方，每組一行、項目橫向排，放不下就換行。 */
+@media (max-width: 860.98px) {
+    /* stretch：直排時內容要撐滿寬度；沿用 flex-start 會依最長的一行決定寬度，整頁被撐出橫向捲動。 */
+    .prompt-layout {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .prompt-nav {
+        border-bottom: 1px solid var(--app-line);
+        border-right: none;
+        flex: none;
+        max-height: none;
+        overflow-y: visible;
+        padding: 0 0 0.75rem;
+        position: static;
+        width: 100%;
+    }
+
+    .prompt-nav-group {
+        align-items: baseline;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .prompt-nav-group + .prompt-nav-group {
+        margin-top: 0.35rem;
+    }
+
+    .prompt-nav-group-title {
+        flex: 0 0 4.5rem;
+        padding: 0;
+    }
+
+    .prompt-nav-items {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .prompt-nav-item {
+        border-left: none;
+        border-radius: var(--app-radius-pill);
+        padding: 0.2rem 0.65rem;
+    }
+}

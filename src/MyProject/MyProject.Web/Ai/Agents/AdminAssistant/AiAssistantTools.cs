@@ -526,7 +526,7 @@ public sealed class AiAssistantTools
     public static int TokenDays(int? days, List<string> notes)
         => days is { } value ? ClampWithNote(value, 1, MaxRangeDays, "天數", notes) : DefaultTokenDays;
 
-    /// <summary>提示詞種類：接受英文鍵（不分大小寫）或「AI 提示詞」頁的中文分頁名稱；找不到回 null。</summary>
+    /// <summary>提示詞種類：接受英文鍵（不分大小寫）或「AI 提示詞」頁的中文完整名稱（例：「管理助理／分派」）；找不到回 null。</summary>
     public static string? ResolvePromptKey(string? input)
     {
         var text = input?.Trim();

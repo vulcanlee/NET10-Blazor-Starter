@@ -2,7 +2,7 @@
 
 - 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.21
 - 首次實作版本：0.9.108
 - 最後核對日期：2026/11/14
 
@@ -28,12 +28,12 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 | 管理員 | 左側選單「系統管理 › AI 管理 › AI 提示詞」`/prompt-templates` | 檢視、編輯並存成新版本、檢視歷史版本、切換作用中的版本（含內建預設） |
 | 其他人 | — | 看不到選單；直接開網址顯示「你沒有權限存取此頁面」並記稽核（權限鍵 `AI 提示詞` 不上架角色矩陣） |
 
-**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面在瀏覽器執行（`MyProject.Web.Client/Pages/PromptTemplatePage.razor`、`Views/Admins/PromptTemplateView.*`；Server 版已刪除），畫面與操作和之前相同。資料經只限管理員的 `PromptTemplatesController`（`api/v1/prompt-templates`）：`GET` 回 16 個種類的標題、版本、內建預設與固定附加規則；`POST {key}/versions` 存新版本（樂觀鎖衝突回 409，建立者由伺服器取目前帳號，記 `Prompt.Update`）；`POST {key}/activate` 切換版本（記 `Prompt.Activate`）。分頁標題 0.10.5 起寫在伺服器的 `MyProject.Web/Ai/PromptTemplateTitles.cs`（與系統管理助理的提示詞工具共用）。⚠️ 頁籤資料到了才畫：AntDesign `Tabs` 先以零個頁籤畫出、之後才補頁籤時 `ActiveKey` 不套用，畫面上沒有頁籤被選中（實機發現）。`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面在瀏覽器執行（`MyProject.Web.Client/Pages/PromptTemplatePage.razor`、`Views/Admins/PromptTemplateView.*`；Server 版已刪除），畫面與操作和之前相同。資料經只限管理員的 `PromptTemplatesController`（`api/v1/prompt-templates`）：`GET` 回 16 個種類的標題、版本、內建預設與固定附加規則；`POST {key}/versions` 存新版本（樂觀鎖衝突回 409，建立者由伺服器取目前帳號，記 `Prompt.Update`）；`POST {key}/activate` 切換版本（記 `Prompt.Activate`）。分頁標題 0.10.5 起寫在伺服器的 `MyProject.Web/Ai/PromptTemplateTitles.cs`（與系統管理助理的提示詞工具共用）。資料到了才畫。0.10.21 起不用 AntDesign `Tabs`（16 個一行放不下，其餘收進「…」，使用者反映不好切換），改成左側分組清單：依標題的「／」分成「一般」「狀態報告」「審查」「管理助理」四組（`PromptTemplateView.GroupsOf`，`PromptTemplateGroupingTests`），一次全部看得到、點一下就切換；往下捲動時清單留在畫面上；窄螢幕時清單在內容上方。`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
 
 ## 三、畫面與欄位
 
 - 上方：說明文字、重新整理。
-- 分頁「日誌分析」「例外分析」「Agent 測試台」（0.9.142 起），以及 Agent 工作流程各 agent 的 7 個分頁（0.9.144 起）「狀態報告／蒐集」「狀態報告／撰寫」「狀態報告／收尾」「審查／需求完整性」「審查／技術可行性」「審查／使用者體驗」「審查／彙整」，以及系統管理助理的 6 個分頁（0.9.155 起）「管理助理／共同」「管理助理／分派」「管理助理／帳號與權限」「管理助理／監控與診斷」「管理助理／AI 管理」「管理助理／系統設定與維運」，共 16 個，各有三塊：
+- 左側分組清單（0.10.21 起；以前是頁籤）的「日誌分析」「例外分析」「Agent 測試台」（0.9.142 起），以及 Agent 工作流程各 agent 的 7 個（0.9.144 起）「狀態報告／蒐集」「狀態報告／撰寫」「狀態報告／收尾」「審查／需求完整性」「審查／技術可行性」「審查／使用者體驗」「審查／彙整」，以及系統管理助理的 6 個（0.9.155 起）「管理助理／共同」「管理助理／分派」「管理助理／帳號與權限」「管理助理／監控與診斷」「管理助理／AI 管理」「管理助理／系統設定與維運」，共 16 個，各有三塊：
   - **目前使用的分析指示**：作用中版本的全文與摘要（第 N 版 · 建立者 · 時間 · 備註；升級匯入的版本沒有建立者）；沒有作用中的版本時顯示「內建預設」。右側「編輯」。
   - **固定附加的規則（不能修改）**：`AiPromptGuardrails.For(key)` 的全文。
   - **版本紀錄**：版本、狀態（作用中）、建立者、建立時間、備註、操作（檢視、設為作用中）；最後一列是「內建預設」。
