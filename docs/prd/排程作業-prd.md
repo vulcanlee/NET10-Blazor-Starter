@@ -1,8 +1,8 @@
 ﻿# 排程作業 PRD
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.96
 - 最後核對日期：2026/11/14
 
@@ -53,7 +53,7 @@
 | `AuditIntegrityVerify` | 稽核紀錄完整性檢查（0.9.175 起，預設 `30 3 * * *`，避開 02:00 的備份與 03:00 的清理）| —（不刪資料）：重算每一筆稽核紀錄的簽章並更新資料庫以外的檢查點；**發現問題時回 Failure**，由下方的失敗通知送全體管理員＋寄信（不另設通知分類）；問題另以 ERROR 寫進 NLog。一次性事件（金鑰變更、鏈頭重建、資料庫倒回）只報一次，持續性損壞每天報。見[稽核紀錄 PRD §九](稽核紀錄-prd.md) | `Audit.Verify`（每次都寫，detail `result=ok\|failed; signed=N; issues=M; legacy=L; keyMismatch=K; trigger=T`）|
 | `ExceptionLogRetention` | 系統例外紀錄清理 | `LogRetentionSettings:ExceptionLogDays`（90，本地門檻）| `ExceptionLog.AutoPurge` |
 | `AiCallLogRetention` | AI 對話紀錄清理 | `AiCallLogSettings:RetentionDays`（90）| `AiCallLog.AutoPurge` |
-| `AiAgentConversationRetention` | Agent 對話清理（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）| `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間 `UpdatedAt`，全體使用者）| `AiAgentConversation.AutoPurge` |
+| `AiAgentConversationRetention` | Agent 對話清理（0.9.143 起；現行是系統管理助理的對話）| `AiAgentConversationSettings:RetentionDays`（90，依最後一次對話時間 `UpdatedAt`，全體使用者）| `AiAgentConversation.AutoPurge` |
 | `AdminPatrolReportRetention` | 巡檢報告清理（0.9.161 起）| `AdminPatrolSettings:RetentionDays`（90，依產出時間 `CreatedAt`）| `AdminPatrol.AutoPurge` |
 | `AdminPatrol` | 系統管理助理巡檢（0.9.161 起，預設 `30 7 * * *`）| `AdminPatrolSettings:RetentionDays`（報告保留天數）；AI 未設定時回成功並略過 | —（工具呼叫寫 `Ai.ToolInvoked`，操作者留空、註明「排程巡檢」；需要注意時發站內通知＋寄信） |
 | `TokenUsageLogRetention` | Token 用量紀錄清理 | `LogRetentionSettings:TokenUsageLogDays`（365，分批刪除）| `TokenUsage.AutoPurge` |

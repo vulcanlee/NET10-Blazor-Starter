@@ -19,15 +19,6 @@ public class AiReasoningSettings
 {
     public const string SectionName = "AiReasoningSettings";
 
-    /// <summary>Agent 測試台。</summary>
-    public string AgentPlayground { get; set; } = string.Empty;
-
-    /// <summary>Agent 工作流程「專案狀態報告」（流程裡每個 agent 都用它）。</summary>
-    public string ProjectStatusReport { get; set; } = string.Empty;
-
-    /// <summary>Agent 工作流程「多觀點審查」（流程裡每個 agent 都用它）。</summary>
-    public string MultiPerspectiveReview { get; set; } = string.Empty;
-
     /// <summary>系統管理助理的對話與定時巡檢。</summary>
     public string AdminAssistant { get; set; } = string.Empty;
 

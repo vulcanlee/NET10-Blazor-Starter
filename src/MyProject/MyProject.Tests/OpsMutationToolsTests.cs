@@ -76,7 +76,7 @@ public sealed class OpsMutationToolsTests : IDisposable
 
         using var document = System.Text.Json.JsonDocument.Parse(text);
         var reasoning = document.RootElement.GetProperty("parameters").EnumerateArray()
-            .Single(item => item.GetProperty("key").GetString() == "AiReasoningSettings:AgentPlayground");
+            .Single(item => item.GetProperty("key").GetString() == "AiReasoningSettings:AdminAssistant");
         Assert.Equal(
             new[] { "none", "low", "medium", "high", "xhigh" },
             reasoning.GetProperty("allowedValues").EnumerateArray().Select(x => x.GetString()!).ToArray());

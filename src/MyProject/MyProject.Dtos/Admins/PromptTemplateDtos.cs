@@ -9,7 +9,7 @@ public class PromptTemplateDto
     /// <summary>範本鍵（例：<c>LogAnalysis</c>）。</summary>
     public string Key { get; set; } = string.Empty;
 
-    /// <summary>顯示名稱（例：「日誌分析」「狀態報告／蒐集」；畫面依「／」分組）。</summary>
+    /// <summary>顯示名稱（例：「日誌分析」「管理助理／分派」；畫面依「／」分組）。</summary>
     public string Title { get; set; } = string.Empty;
 
     /// <summary>程式內建的分析指示（沒有作用中的版本時使用）。</summary>

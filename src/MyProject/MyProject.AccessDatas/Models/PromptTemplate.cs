@@ -40,30 +40,6 @@ public static class PromptTemplateKeys
     /// <summary>系統例外紀錄的 AI 例外分析（含追問）。</summary>
     public const string ExceptionAnalysis = "ExceptionAnalysis";
 
-    /// <summary>「Agent 測試台」的範例 Agent（0.9.142 起）。</summary>
-    public const string AgentPlayground = "AgentPlayground";
-
-    /// <summary>「Agent 工作流程」專案狀態報告：蒐集（0.9.144 起，以下 7 種同）。</summary>
-    public const string ProjectReportGatherer = "ProjectReportGatherer";
-
-    /// <summary>專案狀態報告：撰寫。</summary>
-    public const string ProjectReportWriter = "ProjectReportWriter";
-
-    /// <summary>專案狀態報告：收尾（附加狀態摘要）。</summary>
-    public const string ProjectReportFinalizer = "ProjectReportFinalizer";
-
-    /// <summary>多觀點審查：需求完整性。</summary>
-    public const string ReviewRequirements = "ReviewRequirements";
-
-    /// <summary>多觀點審查：技術可行性與風險。</summary>
-    public const string ReviewTechnical = "ReviewTechnical";
-
-    /// <summary>多觀點審查：使用者體驗。</summary>
-    public const string ReviewUsability = "ReviewUsability";
-
-    /// <summary>多觀點審查：彙整。</summary>
-    public const string ReviewAggregator = "ReviewAggregator";
-
     /// <summary>「系統管理助理」的共同說明（0.9.155 起，含巡檢報告格式；以下 5 種同）。</summary>
     public const string AdminAssistant = "AdminAssistant";
 
@@ -84,9 +60,7 @@ public static class PromptTemplateKeys
 
     public static readonly IReadOnlyList<string> All =
     [
-        LogAnalysis, ExceptionAnalysis, AgentPlayground,
-        ProjectReportGatherer, ProjectReportWriter, ProjectReportFinalizer,
-        ReviewRequirements, ReviewTechnical, ReviewUsability, ReviewAggregator,
+        LogAnalysis, ExceptionAnalysis,
         AdminAssistant, AdminAssistantRouter, AdminAssistantAccounts, AdminAssistantMonitoring, AdminAssistantAi, AdminAssistantOps,
     ];
 }

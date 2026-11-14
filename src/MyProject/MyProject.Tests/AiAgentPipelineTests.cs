@@ -175,7 +175,7 @@ public sealed class AiAgentPipelineTests
         var handle = factory.CreateAgent(
             new AiCallContext
             {
-                Operation = TokenUsageOperations.AgentPlayground,
+                Operation = TokenUsageOperations.AdminAssistant,
                 Timeout = TimeSpan.FromSeconds(30),
                 TimeoutHint = "請稍後再試。",
                 UseResponsesApi = useResponses,
@@ -221,8 +221,8 @@ public sealed class AiAgentPipelineTests
         var handler = StubHttpMessageHandler.Json(HttpStatusCode.OK, useResponses ? ResponsesSuccessPayload : SuccessPayload);
         var settings = AzureSettings();
         settings.AgentReasoningEffort = global;
-        var factory = CreateFactory(handler, settings, new AiReasoningSettings { AgentPlayground = feature, AdminAssistant = "medium" });
-        var handle = factory.CreateAgent(PlaygroundContext(useResponses));
+        var factory = CreateFactory(handler, settings, new AiReasoningSettings { AdminAssistant = feature });
+        var handle = factory.CreateAgent(AgentContext(useResponses));
 
         await handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]);
 
@@ -243,7 +243,7 @@ public sealed class AiAgentPipelineTests
     /// 推論等級被模型拒絕時，訊息要指出是哪個設定：用到功能自己的值就指名系統參數，空白沿用時指名 <c>AiSettings:AgentReasoningEffort</c>。
     /// </summary>
     [Theory]
-    [InlineData("none", "high", "系統參數「Agent 測試台的推論等級」")]
+    [InlineData("none", "high", "系統參數「系統管理助理的推論等級」")]
     [InlineData("", "none", "AiSettings:AgentReasoningEffort")]
     public async Task RejectedReasoningEffort_ShouldNameTheSettingThatWasUsed(string feature, string? global, string expectedSource)
     {
@@ -260,8 +260,8 @@ public sealed class AiAgentPipelineTests
         var settings = AzureSettings();
         settings.AgentReasoningEffort = global;
         var factory = CreateFactory(
-            StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload), settings, new AiReasoningSettings { AgentPlayground = feature });
-        var handle = factory.CreateAgent(PlaygroundContext(useResponses: true));
+            StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload), settings, new AiReasoningSettings { AdminAssistant = feature });
+        var handle = factory.CreateAgent(AgentContext(useResponses: true));
 
         var exception = await Assert.ThrowsAsync<AiCallException>(() => handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]));
 
@@ -270,7 +270,7 @@ public sealed class AiAgentPipelineTests
     }
 
     /// <summary>
-    /// Agent 測試台依對話選的推論等級（0.9.170 起，<see cref="AiCallContext.ReasoningEffortOverride"/>）優先於系統參數與全域值；
+    /// 依對話選的推論等級（0.9.170 起，<see cref="AiCallContext.ReasoningEffortOverride"/>；原本給 Agent 測試台，0.10.22 起留作 Agent 基礎建設）優先於系統參數與全域值；
     /// 被拒時訊息請使用者在對話上方改選，而不是去改設定。
     /// </summary>
     [Fact]
@@ -279,9 +279,9 @@ public sealed class AiAgentPipelineTests
         var okHandler = StubHttpMessageHandler.Json(HttpStatusCode.OK, ResponsesSuccessPayload);
         var settings = AzureSettings();
         settings.AgentReasoningEffort = "medium";
-        var factory = CreateFactory(okHandler, settings, new AiReasoningSettings { AgentPlayground = "low" });
+        var factory = CreateFactory(okHandler, settings, new AiReasoningSettings { AdminAssistant = "low" });
 
-        await factory.CreateAgent(PlaygroundContext(useResponses: true) with { ReasoningEffortOverride = "XHIGH" })
+        await factory.CreateAgent(AgentContext(useResponses: true) with { ReasoningEffortOverride = "XHIGH" })
             .Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]);
 
         using (var document = System.Text.Json.JsonDocument.Parse(okHandler.RequestBodies.Single()))
@@ -300,8 +300,8 @@ public sealed class AiAgentPipelineTests
             }
             """;
         var rejecting = CreateFactory(
-            StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload), settings, new AiReasoningSettings { AgentPlayground = "low" });
-        var handle = rejecting.CreateAgent(PlaygroundContext(useResponses: true) with { ReasoningEffortOverride = "none" });
+            StubHttpMessageHandler.Json(HttpStatusCode.BadRequest, payload), settings, new AiReasoningSettings { AdminAssistant = "low" });
+        var handle = rejecting.CreateAgent(AgentContext(useResponses: true) with { ReasoningEffortOverride = "none" });
 
         var exception = await Assert.ThrowsAsync<AiCallException>(() => handle.Agent.RunAsync([new ChatMessage(ChatRole.User, "q")]));
 
@@ -309,13 +309,13 @@ public sealed class AiAgentPipelineTests
         Assert.Contains("對話上方", exception.Message, StringComparison.Ordinal);
     }
 
-    private static AiCallContext PlaygroundContext(bool useResponses) => new()
+    private static AiCallContext AgentContext(bool useResponses) => new()
     {
-        Operation = TokenUsageOperations.AgentPlayground,
+        Operation = TokenUsageOperations.AdminAssistant,
         Timeout = TimeSpan.FromSeconds(30),
         TimeoutHint = "請稍後再試。",
         UseResponsesApi = useResponses,
-        ModelKey = nameof(AiModelSettings.AgentPlayground),
+        ModelKey = nameof(AiModelSettings.AdminAssistant),
     };
 
     private static AiAgentFactory CreateFactory(StubHttpMessageHandler handler, AiSettings settings, AiReasoningSettings reasoning)

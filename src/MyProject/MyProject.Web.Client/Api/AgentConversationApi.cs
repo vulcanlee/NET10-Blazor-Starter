@@ -6,7 +6,7 @@ namespace MyProject.Web.Client.Api;
 
 /// <summary>
 /// Agent 對話頁共用的 API 用戶端（0.10.7 起，WASM 遷移 M8）：開頁資訊、我的對話（清單、打開、改名、刪除）、
-/// 送訊息與回覆核准（NDJSON 串流，每一行交給 <c>onFrame</c>）。兩頁只差網址。
+/// 送訊息與回覆核准（NDJSON 串流，每一行交給 <c>onFrame</c>）。各 Agent 頁只差網址；0.10.22 起只剩系統管理助理（Agent 測試台已移除）。
 /// </summary>
 public abstract class AgentConversationApi
 {
@@ -41,19 +41,6 @@ public abstract class AgentConversationApi
     /// <summary>回覆待核准的工具。</summary>
     public Task<ApiResult<object>> RespondAsync(Guid conversationId, AgentApprovalResponseRequestDto request, Func<AgentStreamFrameDto, Task> onFrame, CancellationToken cancellationToken)
         => api.StreamAsync($"{baseUrl}/conversations/{conversationId}/approvals", request, onFrame, cancellationToken);
-}
-
-/// <summary>Agent 測試台（<c>api/v1/agent-playground</c>）：另有產生／清除測試專案。</summary>
-public sealed class AgentPlaygroundApi : AgentConversationApi
-{
-    public AgentPlaygroundApi(ApiClient api)
-        : base(api, "api/v1/agent-playground")
-    {
-    }
-
-    public Task<ApiResult<AgentSampleResultDto>> GenerateSamplesAsync() => Api.PostAsync<AgentSampleResultDto>($"{BaseUrl}/samples");
-
-    public Task<ApiResult<object>> ClearSamplesAsync() => Api.DeleteAsync<object>($"{BaseUrl}/samples");
 }
 
 /// <summary>系統管理助理（<c>api/v1/admin-assistant</c>，只限管理員）：另有巡檢報告。</summary>

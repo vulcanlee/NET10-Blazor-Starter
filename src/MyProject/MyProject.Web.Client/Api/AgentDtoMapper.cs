@@ -7,7 +7,7 @@ namespace MyProject.Web.Client.Api;
 
 /// <summary>
 /// Agent 對話與巡檢報告的 DTO 與畫面模型互轉（0.10.7 起，WASM 遷移 M8；WASM 頁面與伺服器的
-/// <c>AgentPlaygroundController</c>、<c>AdminAssistantController</c> 共用同一份）。
+/// <c>AdminAssistantController</c> 共用同一份）。
 /// 本地時間（對話清單、巡檢報告）以不帶時差送出：帶了 +08:00，WASM 會換成瀏覽器的時區。
 /// </summary>
 public static class AgentDtoMapper

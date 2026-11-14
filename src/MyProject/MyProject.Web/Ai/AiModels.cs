@@ -103,6 +103,9 @@ public sealed record AiChatCompletionRequest
     /// <summary>用哪個功能的模型設定（0.9.142 起，見 <see cref="AiCallContext.ModelKey"/>）。</summary>
     public string? ModelKey { get; init; }
 
+    /// <summary>用快速模型（0.10.22 起，見 <see cref="AiCallContext.UseFastModel"/>）。</summary>
+    public bool UseFastModel { get; init; }
+
     /// <summary>這次呼叫的逾時（0.9.157 起）；null 用 <c>AiSettings:TimeoutSeconds</c>。系統管理助理的分派用較短的逾時，逾時就退回全部領域。</summary>
     public TimeSpan? Timeout { get; init; }
 }

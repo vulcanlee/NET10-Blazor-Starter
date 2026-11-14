@@ -40,6 +40,18 @@ public class AiSettings
     /// </summary>
     public string Model { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 快速模型（0.10.22 起，選填）：給不複雜的工作用，例如把一段文字或一個標題產生標籤或摘要；
+    /// 呼叫端在 <c>AiCallContext.UseFastModel</c>（或 <c>AiChatCompletionRequest.UseFastModel</c>）標明才會用它。
+    /// 空白＝一律用 <see cref="Model"/>。Azure 一樣填部署名稱；新模型記得在 <c>AiPricingSettings</c> 補費率。
+    /// 系統參數頁替某個功能指定的模型（<c>AiModelSettings</c>）優先於它。
+    /// </summary>
+    public string? FastModel { get; set; }
+
+    /// <summary>沒有功能專屬設定時用的模型：要求快速且 <see cref="FastModel"/> 有填就用它，否則用 <see cref="Model"/>。</summary>
+    public string DefaultModel(bool fast)
+        => fast && !string.IsNullOrWhiteSpace(FastModel) ? FastModel.Trim() : Model;
+
     /// <summary>送出給 AI 的日誌筆數上限。超過時取最新的 N 筆。</summary>
     public int MaxEntries { get; set; } = 100;
 
@@ -84,7 +96,7 @@ public class AiSettings
     public double? Temperature { get; set; }
 
     /// <summary>
-    /// Agent 功能（Agent 測試台、Agent 工作流程、系統管理助理，0.9.149 起走 Responses API）送出的 <c>reasoning.effort</c> 的<b>全域預設</b>。
+    /// Agent 功能（0.9.149 起走 Responses API；0.10.22 起只剩系統管理助理）送出的 <c>reasoning.effort</c> 的<b>全域預設</b>。
     /// 0.9.168 起各功能可在 <see cref="AiReasoningSettings"/>（系統參數頁）覆寫，空白的功能才用這個值。
     /// <c>null</c>（預設）代表不送，由模型自己決定。接受 <see cref="AgentReasoningEffortValues"/>（不分大小寫）。
     /// AI 日誌分析、AI 例外分析走 Chat Completions，一律不送。

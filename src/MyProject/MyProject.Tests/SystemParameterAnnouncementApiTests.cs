@@ -94,7 +94,7 @@ public sealed class SystemParameterAnnouncementApiTests : IClassFixture<ApiTestA
     [InlineData(ExternalCallKey, "-1", "必須介於 0 到 3,600,000 之間。")]
     [InlineData("SystemSettings:SystemInformation:SystemName", "   ", "不可留空。")]
     [InlineData("SystemSettings:SystemInformation:SystemName", "第一行\n第二行", "不可包含換行或控制字元。")]
-    [InlineData("AiReasoningSettings:AgentPlayground", "ultra", null)]
+    [InlineData("AiReasoningSettings:AdminAssistant", "ultra", null)]
     public async Task Save_InvalidValues_ShouldBeRejectedByTheServer_AndNothingSavedOrAudited(string key, string value, string? message)
     {
         var admin = await AddUserAsync(isAdmin: true);

@@ -1,8 +1,8 @@
 ﻿# AI 模型計費更新指南
 
-- 文件版本：1.1
+- 文件版本：1.2
 - 文件狀態：維護中
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.56
 - 最後核對日期：2026/11/14
 
@@ -23,9 +23,9 @@ AI 助手說「照 `docs/operations/AI模型計費更新指南.md` 更新計費�
 
 - **定期**：建議每月一次。
 - **OpenAI 發表新模型或宣布調價時**。
-- **系統要切換 `AiSettings.Model` 或系統參數「AI 模型」（`AiModelSettings:*`）的任何一個覆寫值之前**：新模型沒有費率，切過去的第一筆呼叫就開始漏帳。
-  注意範本的 `AiSettings.Model` 是空字串，實際值在部署環境（`appsettings.Production.json`
-  或環境變數）裡，要看**實際部署的值**；0.9.142 起各功能可在 `/system-parameters` 的「AI 模型」分組覆寫模型（0.9.155 起共 7 個鍵），實際送出的模型不只 `AiSettings.Model`。
+- **系統要切換 `AiSettings.Model`、`AiSettings.FastModel` 或系統參數「AI 模型」（`AiModelSettings:*`）的任何一個覆寫值之前**：新模型沒有費率，切過去的第一筆呼叫就開始漏帳。
+  注意範本的 `AiSettings.Model` 與 `AiSettings.FastModel`（0.10.22 起，選填的快速模型）都是空字串，實際值在部署環境（`appsettings.Production.json`
+  或環境變數）裡，要看**實際部署的值**；0.9.142 起各功能可在 `/system-parameters` 的「AI 模型」分組覆寫模型（0.10.22 起共 4 個鍵），再加上有填的 `AiSettings.FastModel`，實際送出的模型不只 `AiSettings.Model`。
 - `/token-usage` 出現大量「未定價」時（先排除 [§4.9.4 Azure 部署名稱](日誌與設定檔說明.md)
   這個已知成因）。
 
@@ -51,7 +51,7 @@ AI 助手說「照 `docs/operations/AI模型計費更新指南.md` 更新計費�
 
 ## 3. 盤點表
 
-先把 `appsettings.json` 現有的每個鍵與 `models/all` 逐一比對，產出下表；並到 `/system-parameters` 的「AI 模型」分組列出目前的覆寫值（空白＝用 `AiSettings.Model`）。
+先把 `appsettings.json` 現有的每個鍵與 `models/all` 逐一比對，產出下表；並列出實際部署的 `AiSettings.Model`、`AiSettings.FastModel`（空白＝用 `Model`），以及 `/system-parameters` 的「AI 模型」分組目前的覆寫值（空白＝用 `AiSettings.Model`；系統管理助理分派空白時用 `FastModel`）。
 **改任何東西之前，先把這張表給人確認。**
 
 | 模型鍵 | 系列 | models/all 狀態 | 目前 Rates（入／快取／出）| 官方 Rates | 長脈絡（門檻／入／快取／出）| 判定 |
@@ -66,7 +66,7 @@ AI 助手說「照 `docs/operations/AI模型計費更新指南.md` 更新計費�
 **收錄原則**（哪些新模型要加）：
 
 - 費率表裡**已有的系列**出了新版（例如 GPT-6 多一個型號、`gpt-image` 出新版）→ 列為候選。
-- **`AiSettings.Model` 以及系統參數「AI 模型」（`AiModelSettings:*`）的每一個覆寫值實際在用的模型 → 一定要有費率**，不論系列。
+- **`AiSettings.Model`、有填的 `AiSettings.FastModel` 以及系統參數「AI 模型」（`AiModelSettings:*`）的每一個覆寫值實際在用的模型 → 一定要有費率**，不論系列。
 - 其他系列（例如 Realtime、HD 版 TTS）→ 在表下另列一行「未收錄的其他模型」，**讓人決定**，不自動加。
 
 ## 4. 情況 A：既有模型調價
@@ -118,7 +118,7 @@ AI 助手說「照 `docs/operations/AI模型計費更新指南.md` 更新計費�
 **先留著，確定沒在用才刪。**
 
 1. 到 `/token-usage`，起訖日設成近 30 天，看「依模型」頁籤裡這個模型（含它帶日期的名稱）
-   還有沒有呼叫。也確認 `AiSettings.Model` 的實際部署值，以及系統參數「AI 模型」（`AiModelSettings:*`）的每一個覆寫值都不是它。
+   還有沒有呼叫。也確認 `AiSettings.Model`、`AiSettings.FastModel` 的實際部署值，以及系統參數「AI 模型」（`AiModelSettings:*`）的每一個覆寫值都不是它。
 2. **還有呼叫 → 保留**，在 changelog 記一筆「已被標為 Deprecated，仍在使用，暫不移除」。
 3. **近 30 天沒有呼叫 → 移除**：刪掉 `appsettings.json` 的鍵、刪掉測試裡對應的 `InlineData`，
    並依第 5 節第 3 步把模型總數減一。
@@ -160,7 +160,7 @@ AI 助手說「照 `docs/operations/AI模型計費更新指南.md` 更新計費�
 - [ ] `dotnet test` 全部通過（特別是 `AiPricingSettingsTests`、`AiUsageCostCalculatorTests`）
 - [ ] 擷取日期已更新（§4.9.5、PRD §7 #7）；有增減模型時模型總數與清單也已更新（見第 5 節第 3 步）
 - [ ] `/system-health` 的「AI 計費表」檢查項仍是正常（它會檢查匯率大於 0，以及目前的
-      `AiSettings.Model` 與系統參數「AI 模型」（`AiModelSettings:*`）的每一個覆寫值都找得到費率）
+      `AiSettings.Model`、有填的 `AiSettings.FastModel` 與系統參數「AI 模型」（`AiModelSettings:*`）的每一個覆寫值都找得到費率）
 - [ ] 新增一篇 `docs/changelog/YYYY-MM-DD-<主題>.md`，並在 `docs/changelog/README.md` 與
       `docs/README.md` 加一條
 - [ ] `appsettings.json` 的 `SystemVersion` Patch +1

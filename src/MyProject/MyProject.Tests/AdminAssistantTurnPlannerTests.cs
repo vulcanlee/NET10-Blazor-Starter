@@ -12,6 +12,7 @@ public sealed class AdminAssistantTurnPlannerTests
 {
     private readonly FakeCompletionClient client = new();
     private readonly AiModelSettings models = new();
+    private readonly AiSettings ai = new() { Model = "default-model" };
 
     [Fact]
     public async Task Plan_RouterSaysOps_LabelAndInstructions()
@@ -28,12 +29,20 @@ public sealed class AdminAssistantTurnPlannerTests
         Assert.Equal(AdminAssistantAgent.Name, turn.Definition.Name);
     }
 
+    /// <summary>
+    /// 分派用哪個模型（0.10.22 起）：系統參數「系統管理助理分派使用的模型」有值就用它；
+    /// 否則用快速模型 <c>AiSettings:FastModel</c>；快速模型也空白時照舊用「系統管理助理使用的模型」。
+    /// （<c>ModelKey</c> 指向分派、<c>UseFastModel</c> 一律為 true：分派沒設定時才輪到快速模型，見 AiAgentFactory。）
+    /// </summary>
     [Theory]
-    [InlineData("gpt-mini", nameof(AiModelSettings.AdminAssistantRouter))]
-    [InlineData("", nameof(AiModelSettings.AdminAssistant))]
-    public async Task Plan_RouterRequest_UsesRouterOperationConversationAndModel(string routerModel, string expectedModelKey)
+    [InlineData("gpt-mini", "", nameof(AiModelSettings.AdminAssistantRouter))]
+    [InlineData("gpt-mini", "fast-model", nameof(AiModelSettings.AdminAssistantRouter))]
+    [InlineData("", "fast-model", nameof(AiModelSettings.AdminAssistantRouter))]
+    [InlineData("", "", nameof(AiModelSettings.AdminAssistant))]
+    public async Task Plan_RouterRequest_UsesRouterOperationConversationAndModel(string routerModel, string fastModel, string expectedModelKey)
     {
         models.AdminAssistantRouter = routerModel;
+        ai.FastModel = fastModel;
         client.Replies.Enqueue(Success("monitoring"));
         var conversationId = Guid.NewGuid();
         List<AiAgentTranscriptEntry> transcript = [new() { Kind = AiAgentTranscriptKinds.User, Text = "前一則" }];
@@ -44,6 +53,7 @@ public sealed class AdminAssistantTurnPlannerTests
         Assert.Equal(TokenUsageOperations.AdminAssistantRouter, request.Operation);
         Assert.Equal(conversationId, request.ConversationId);
         Assert.Equal(expectedModelKey, request.ModelKey);
+        Assert.True(request.UseFastModel);
         Assert.Equal(AdminAssistantTurnPlanner.RouterTimeout, request.Timeout);
         Assert.Equal(TimeSpan.FromSeconds(20), AdminAssistantTurnPlanner.RouterTimeout);
         Assert.Equal(2, request.Messages.Count);
@@ -152,6 +162,7 @@ public sealed class AdminAssistantTurnPlannerTests
         client,
         new KeyNamePromptProvider(),
         new StaticOptionsMonitor<AiModelSettings>(models),
+        new StaticOptionsMonitor<AiSettings>(ai),
         NullLogger<AdminAssistantTurnPlanner>.Instance);
 
     /// <summary>提示詞內容就是「[種類]」，看得出組了哪些段落。</summary>

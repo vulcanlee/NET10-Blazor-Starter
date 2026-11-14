@@ -132,8 +132,8 @@ public sealed class TokenUsagePromptApiTests : IClassFixture<ApiTestApplicationF
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         var tag = Unique("時差");
         var id = await SeedUsageAsync(tag, DateTime.Now, total: 5, costTwd: 0.01);
-        await SendAsync<PromptTemplateSaveResultDto>(client, HttpMethod.Post, "/api/v1/prompt-templates/ProjectReportWriter/versions",
-            new PromptTemplateSaveRequestDto { Content = "時差測試", ExpectedActiveVersion = await ActiveVersionAsync(client, PromptTemplateKeys.ProjectReportWriter) });
+        await SendAsync<PromptTemplateSaveResultDto>(client, HttpMethod.Post, "/api/v1/prompt-templates/AdminAssistantOps/versions",
+            new PromptTemplateSaveRequestDto { Content = "時差測試", ExpectedActiveVersion = await ActiveVersionAsync(client, PromptTemplateKeys.AdminAssistantOps) });
 
         var offset = new Regex(@"T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2}|Z)");
         var texts = new[]
@@ -345,7 +345,7 @@ public sealed class TokenUsagePromptApiTests : IClassFixture<ApiTestApplicationF
     {
         var admin = await AddUserAsync(isAdmin: true);
         using var client = await SignedInClientAsync(admin);
-        const string key = PromptTemplateKeys.ReviewTechnical;
+        const string key = PromptTemplateKeys.AdminAssistantAccounts;
         var expected = await ActiveVersionAsync(client, key);
 
         var saved = await SendAsync<PromptTemplateSaveResultDto>(client, HttpMethod.Post, $"/api/v1/prompt-templates/{key}/versions",
@@ -378,7 +378,7 @@ public sealed class TokenUsagePromptApiTests : IClassFixture<ApiTestApplicationF
     {
         var admin = await AddUserAsync(isAdmin: true);
         using var client = await SignedInClientAsync(admin);
-        const string key = PromptTemplateKeys.ReviewUsability;
+        const string key = PromptTemplateKeys.AdminAssistantMonitoring;
         var first = await SendAsync<PromptTemplateSaveResultDto>(client, HttpMethod.Post, $"/api/v1/prompt-templates/{key}/versions",
             new PromptTemplateSaveRequestDto { Content = "第一版", ExpectedActiveVersion = await ActiveVersionAsync(client, key) });
         await SendAsync<PromptTemplateSaveResultDto>(client, HttpMethod.Post, $"/api/v1/prompt-templates/{key}/versions",

@@ -5,7 +5,7 @@
 
 @*
     系統管理助理（0.9.155 起）：只限管理員的單一對話入口，每則訊息先自動分派領域，再由對應的專家回答。
-    版面與互動沿用 Agent 測試台（AgentPlaygroundView）；差別是用每輪規劃器開對話，每則 AI 回覆標示「由誰回答」。
+    版面與互動沿用 Agent 測試台（0.10.22 起已移除，class 名稱 agent-playground-* 沿用）；用每輪規劃器開對話，每則 AI 回覆標示「由誰回答」。
     0.10.7 起在 WASM 執行（WASM 遷移 M8）：標記照抄 Server 版；資料走 api/v1/admin-assistant（每個請求接續一次對話、NDJSON 串流）。
 *@
 @* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
@@ -164,7 +164,7 @@ else
                               MaxLength="@MaxInputLength"
                               Disabled="@(IsBusy || IsAwaitingApproval)"
                               Placeholder="輸入問題或指示…" />
-                    @* 「送出」刻意不看輸入框有沒有字（同 Agent 測試台）：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
+                    @* 「送出」刻意不看輸入框有沒有字：TextArea 失焦才回寫值，空白內容由 OnSendAsync 忽略。 *@
                     <Button Type="@ButtonType.Primary"
                             Disabled="@(IsBusy || IsAwaitingApproval)"
                             OnClick="@(async () => await OnSendAsync())">送出</Button>
@@ -173,7 +173,7 @@ else
         </div>
     </div>
 
-    @* 核准窗：會異動資料的工具執行前一定要經過這裡（不能點遮罩或 × 略過，必須選一個）。寬度沿用 Agent 測試台的全域樣式。 *@
+    @* 核准窗：會異動資料的工具執行前一定要經過這裡（不能點遮罩或 × 略過，必須選一個）。寬度沿用全域樣式 .agent-playground-approval-modal（class 名稱沿用自 0.10.21 前的 Agent 測試台）。 *@
     <Modal Title="系統管理助理要執行會修改資料的操作"
            Class="agent-playground-approval-modal"
            @bind-Visible="@approvalVisible"
@@ -237,7 +237,7 @@ else
 
     <AdminPatrolReportsModal @ref="patrolReportsModal" />
 
-    @* 重新命名：只有一個欄位（標題只給本人看，改了不寫稽核）。寬度沿用 Agent 測試台的全域樣式。 *@
+    @* 重新命名：只有一個欄位（標題只給本人看，改了不寫稽核）。寬度沿用全域樣式 .agent-playground-rename-modal（class 名稱沿用自 0.10.21 前的 Agent 測試台）。 *@
     <Modal Title="重新命名對話"
            Class="agent-playground-rename-modal"
            @bind-Visible="@renameVisible"

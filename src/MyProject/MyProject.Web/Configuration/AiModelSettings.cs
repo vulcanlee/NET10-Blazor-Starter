@@ -30,23 +30,11 @@ public class AiModelSettings
     [MaxLength(MaxModelLength)]
     public string ExceptionAnalysis { get; set; } = string.Empty;
 
-    /// <summary>Agent 測試台。</summary>
-    [MaxLength(MaxModelLength)]
-    public string AgentPlayground { get; set; } = string.Empty;
-
-    /// <summary>Agent 工作流程「專案狀態報告」（0.9.144 起；流程裡每個 agent 都用它）。</summary>
-    [MaxLength(MaxModelLength)]
-    public string ProjectStatusReport { get; set; } = string.Empty;
-
-    /// <summary>Agent 工作流程「多觀點審查」（0.9.144 起；流程裡每個 agent 都用它）。</summary>
-    [MaxLength(MaxModelLength)]
-    public string MultiPerspectiveReview { get; set; } = string.Empty;
-
     /// <summary>系統管理助理（0.9.155 起）的對話。</summary>
     [MaxLength(MaxModelLength)]
     public string AdminAssistant { get; set; } = string.Empty;
 
-    /// <summary>系統管理助理每則訊息前的分派判斷（0.9.155 起）；空白時用 <see cref="AdminAssistant"/>。</summary>
+    /// <summary>系統管理助理每則訊息前的分派判斷（0.9.155 起）；空白時用 <c>AiSettings:FastModel</c>（0.10.22 起），它也空白才用 <see cref="AdminAssistant"/>。</summary>
     [MaxLength(MaxModelLength)]
     public string AdminAssistantRouter { get; set; } = string.Empty;
 

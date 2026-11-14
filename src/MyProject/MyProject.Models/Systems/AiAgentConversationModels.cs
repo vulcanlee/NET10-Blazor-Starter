@@ -6,8 +6,8 @@ namespace MyProject.Models.Systems;
 /// Agent 對話內容檔（0.9.143 起）：<c>{AiAgentConversationPath}/{yyyyMM}/{ConversationId:N}.json</c>，每次儲存整份覆寫。
 ///
 /// <para>
-/// 0.9.144 起「Agent 工作流程」的執行紀錄也存在這裡（<c>AgentName</c> 是流程名稱）：只用 <see cref="Transcript"/>，
-/// <see cref="Session"/> 為 JSON null、沒有待核准（工作流程不能接續）。
+/// 0.9.144～0.10.21「Agent 工作流程」的執行紀錄也存在這裡（<c>AgentName</c> 是流程名稱，<see cref="Session"/> 為 JSON null）；
+/// 0.10.22 起該頁移除，舊紀錄由「Agent 對話清理」依保留天數刪除。
 ///
 /// 對話的三樣東西缺一不可：<see cref="Session"/> 讓 AI 記得前文，<see cref="Transcript"/> 讓畫面還原，
 /// <see cref="PendingApprovals"/> 讓停在核准的對話回來時重新跳出核准窗。
@@ -30,7 +30,7 @@ public sealed class AiAgentConversationContent
     public List<AiAgentPendingApprovalRecord> PendingApprovals { get; set; } = [];
 
     /// <summary>
-    /// 這段對話選的推論等級（0.9.170 起，Agent 測試台）；null＝系統預設。接續時沿用。
+    /// 這段對話選的推論等級（0.9.170 起，給開放「依對話選推論等級」的 Agent 頁；0.10.22 起目前沒有）；null＝系統預設。接續時沿用。
     /// 只加不改，所以 <see cref="SchemaVersion"/> 不變（舊檔讀出來是 null）。
     /// </summary>
     public string? ReasoningEffort { get; set; }
@@ -52,8 +52,8 @@ public sealed class AiAgentTranscriptEntry
     public string Text { get; set; } = string.Empty;
 
     /// <summary>
-    /// 工作流程紀錄才有（0.9.144 起）：這一則屬於哪個 agent（或審閱關卡、產出標題）的顯示名稱。
-    /// Agent 測試台的對話為 null。只加不改，所以 <see cref="AiAgentConversationContent.SchemaVersion"/> 不變。
+    /// 這一則由誰回答的顯示名稱（0.9.144 起；系統管理助理是分派到的專家，例如「監控與診斷」；0.10.21 前也用於工作流程的 agent）。
+    /// 沒有分派的 Agent 為 null。只加不改，所以 <see cref="AiAgentConversationContent.SchemaVersion"/> 不變。
     /// </summary>
     public string? Agent { get; set; }
 }

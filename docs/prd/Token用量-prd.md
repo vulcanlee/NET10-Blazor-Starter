@@ -1,8 +1,8 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：2.8
+- 文件版本：2.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.14
 - 最後核對日期：2026/11/14
 
@@ -17,15 +17,13 @@
   它在本頁上的呈現。
 - 非範圍：不提供對外的 Web API（0.10.5 起只有本頁 WebAssembly 畫面用的、只限管理員的 `api/v1/token-usage`，見 §2.1）。費用相關的非範圍見該 PRD。
 
-> **現況提醒**：本腳手架目前有**九種**作業會記入本頁：
+> **現況提醒**：本腳手架目前有**六種**作業會記入本頁：
 > 「AI 日誌分析」（日誌檢視頁，使用者主動觸發）、
 > 「AI 例外分析」（0.9.68 起，系統例外紀錄明細窗，使用者主動觸發；初始分析與每一輪追問各記一筆）、
-> 「系統健康檢測」（0.9.24 起，系統健康監控頁每次載入自動發出一句 hello）與
-> 「Agent 測試台」（0.9.142 起，使用者主動對話；Agent 一次回覆可能呼叫模型好幾次（工具呼叫迴圈），每一次各記一筆、共用同一個 `RunId`）、
-> 「專案狀態報告」與「多觀點審查」（0.9.144 起，「Agent 工作流程」頁；一次執行裡每個 agent 的每一次模型呼叫各記一筆，全部記在流程名稱下、共用同一個 `RunId`，是哪個 agent 看關聯說明「流程／agent」）、
-> 「系統管理助理」與「系統管理助理（分派）」（0.9.155 起，「系統管理助理」頁，使用者主動對話；每則訊息先做一次分派判斷，主呼叫同 Agent 測試台每一次模型呼叫各記一筆，兩者共用同一個 ConversationId）與
+> 「系統健康檢測」（0.9.24 起，系統健康監控頁每次載入自動發出一句 hello）、
+> 「系統管理助理」與「系統管理助理（分派）」（0.9.155 起，「系統管理助理」頁，使用者主動對話；每則訊息先做一次分派判斷，主呼叫一次回覆可能呼叫模型好幾次（工具呼叫迴圈），每一次各記一筆、共用同一個 `RunId`，兩者共用同一個 ConversationId）與
 > 「系統管理助理（排程巡檢）」（0.9.161 起，排程作業「系統管理助理巡檢」預設每天 07:30 執行；ConversationId 是巡檢報告編號，沒有登入使用者，用量不屬於任何人）。
-> 可用「作業」篩選器分開檢視。
+> 可用「作業」篩選器分開檢視。0.9.142～0.10.21 另有「Agent 測試台」「專案狀態報告」「多觀點審查」三種作業，0.10.22 起隨頁面移除，舊資料保留原本的作業名稱直到清理。
 >
 > ⚠️ 健康檢測的**次數**會遠多於日誌分析（每開一次 `/system-health` 就一筆），
 > 但每筆只有幾十個 token、費用約 NT$0.005。未套用作業篩選時，
@@ -237,7 +235,7 @@ LLM 呼叫點（發出 HTTP 的那一層）
 
 **⚠️ 記錄點必須放在發出 HTTP 的那一層，不可放畫面層** —— 原始 usage、實際模型名稱與耗時，
 回到畫面之前就已經丟失了。目前的呼叫點是 `AiChatCompletionClient.CompleteAsync`（0.9.68 起由 AI 日誌分析與
-AI 例外分析共用）、`AiHealthProbe.ProbeAsync`、0.9.142 起的 `AiAgentRunner`（Agent 測試台）、0.9.144 起的 `AiWorkflowRunner`（Agent 工作流程）、0.9.155 起的 `AdminAssistantTurnPlanner`（系統管理助理的分派，經 `AiChatCompletionClient`；主呼叫經 `AiAgentRunner`）與 0.9.161 起的 `AdminPatrolRunner`（定時巡檢）；0.9.140 起都經 `IAiAgentFactory` 建立的 MAF agent 送出，
+AI 例外分析共用）、`AiHealthProbe.ProbeAsync`、0.9.142 起的 `AiAgentRunner`（現行由系統管理助理使用）、0.9.155 起的 `AdminAssistantTurnPlanner`（系統管理助理的分派，經 `AiChatCompletionClient`；主呼叫經 `AiAgentRunner`）與 0.9.161 起的 `AdminPatrolRunner`（定時巡檢）；0.9.140 起都經 `IAiAgentFactory` 建立的 MAF agent 送出，
 實際的記錄點是 agent 管線上的記帳中介層 `AiAccountingChatClient`（每一次模型呼叫記一筆），
 見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
 
@@ -343,8 +341,7 @@ AI 日誌分析的**提示詞就是整份日誌內容**（AI 例外分析則是�
 | `AiUsageCostCalculatorTests`、`AiPricingSettingsTests` | 費用估算的計算與設定守門，見 [LLM 呼叫費用估算 PRD](LLM呼叫費用估算-prd.md) 第八節 |
 | `AiLogAnalysisServiceTests` | 成功／空回應／上游錯誤三種分支都有記錄；設定不完整不記；**只存 usage JSON、不含回應 body** |
 | `AiAgentRunnerTests`（0.9.142 新增）| Agent 工具呼叫迴圈的兩次模型呼叫各記一筆、成功且 `RunId` 相同 |
-| `AgentToolsAndModelTests`（0.9.142 新增）| 系統參數指定的模型（`AiModelSettings`）真的用在送出與記帳的 `Model` |
-| `AiWorkflowRunnerTests`（0.9.144 新增）| 工作流程一次執行裡每個 agent 的模型呼叫各記一筆、作業名稱是流程名稱、`RunId` 相同 |
+| `AiModelSelectionTests`（0.10.22 新增，取代 `AgentToolsAndModelTests` 的模型部分）| 系統參數指定的模型（`AiModelSettings`）與快速模型（`AiSettings:FastModel`）真的用在送出與記帳的 `Model` |
 | `AiStreamingTests`、`AiChatStreamParserTests`、`AiInterruptionTests`（0.9.141 新增）| 串流成功記用量；⭐ 已收到文字才停止記一筆 `Canceled`、用量空白，收到前停止不記；串流的空回應、上游錯誤、逾時；SSE 的 usage JSON 只回 usage 子物件；`IsCanceled` 只認 `Canceled` |
 | `TokenUsageReportPdfBuilderTests` | PDF 簽章、無資料、明細上限 200 筆、依時長計費與失敗列都排得出來 |
 | `TokenUsageReportPdfBuilderTests`（0.9.51 新增）| 趨勢區塊真的有排進去（比沒有趨勢時大）、趨勢空陣列不炸、⭐ **全部費用為 0 時不可除以零**、六種範圍都產得出且都小於整份、⭐ **單頁籤仍含條件區**、每個範圍的標題後綴不重複 |

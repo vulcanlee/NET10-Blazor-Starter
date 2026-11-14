@@ -17,7 +17,6 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Ai.Agents;
-using MyProject.Web.Ai.Workflows;
 using MyProject.Web.Auth;
 using MyProject.Web.Backup;
 using MyProject.Web.Caching;
@@ -77,10 +76,9 @@ public static class ServiceCollectionExtensions
         // 所有 LLM 呼叫一律經由這裡建立的 MAF agent（0.9.140 起），記帳與 AI 對話紀錄都掛在它的管線上。
         services.AddScoped<IAiAgentFactory, AiAgentFactory>();
 
-        // Agent 骨架（0.9.142 起）：工具的權限檢查與稽核、工具外殼、範例工具、給畫面用的執行器。
+        // Agent 骨架（0.9.142 起）：工具的權限檢查與稽核、工具外殼、給畫面用的執行器（範例專案工具 0.10.22 起隨 Agent 測試台移除）。
         services.AddScoped<IAiToolPermissionGuard, AiToolPermissionGuard>();
         services.AddScoped<AiAgentToolFactory>();
-        services.AddScoped<ProjectAgentTools>();
         services.AddScoped<IAiAgentRunner, AiAgentRunner>();
         services.AddScoped<Ai.Agents.AdminAssistant.AdminAssistantTurnPlanner>();
         services.AddScoped<Ai.Agents.AdminAssistant.MonitoringAssistantTools>();
@@ -90,10 +88,6 @@ public static class ServiceCollectionExtensions
         // Agent 對話的 Web API（0.10.7 起，WASM 遷移 M8）：每段對話一把鎖（行程內、singleton）與共用流程。
         services.AddSingleton<AiAgentConversationLocks>();
         services.AddScoped<Controllers.AgentConversationEndpoint>();
-        // 多 Agent 工作流程（0.9.144 起）：每個 agent 仍經 IAiAgentFactory 建立，記帳不變。
-        services.AddScoped<IAiWorkflowRunner, AiWorkflowRunner>();
-        // 跨請求的工作流程執行（0.10.7 起，WASM 遷移 M8）：每次執行有自己的 scope，閒置 30 分鐘結束；只在單一行程有效。
-        services.AddSingleton<AiWorkflowRunRegistry>();
         services.AddScoped<IAiChatCompletionClient, AiChatCompletionClient>();
         services.AddScoped<IAiLogAnalysisService, AiLogAnalysisService>();
         services.AddScoped<IAiSystemPromptProvider, AiSystemPromptProvider>();
@@ -128,9 +122,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AuditIntegrityVerifier>();
         // 稽核的長內容（修改差異、查詢條件）寫成檔案（0.9.131 起）。
         services.AddScoped<AuditContentFileStore>();
-        // 稽核來源 IP（0.9.117 起）：工作流程執行登錄表寫入、AuditLogService 讀取，兩者必須拿到同一個實例。
-        services.AddScoped<ClientIpProvider>();
-        services.AddScoped<IClientIpProvider>(sp => sp.GetRequiredService<ClientIpProvider>());
+        // 稽核來源 IP（0.9.117 起）：AuditLogService 讀取。
+        services.AddScoped<IClientIpProvider, ClientIpProvider>();
         // 站內通知與公告（0.9.100 起）。訊號與公告快取是 singleton（跨連線共用）；發送服務是 scoped。
         services.AddSingleton<INotificationSignal, NotificationSignal>();
         // 通知推播串流（0.10.7 起，WASM 遷移 M8）：時間設定與每位使用者的連線數。
@@ -197,8 +190,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BackupStore>();
         services.AddScoped<SystemBackupService>();
         services.AddScoped<ProjectService>();
-        // Agent 測試台的「產生／清除測試專案」（0.9.145 起），一律經 ProjectService。
-        services.AddScoped<ProjectSampleDataService>();
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
         services.AddScoped<SoftDeletePurgeService>();
         // 專案、分類、團隊的 Web API 與畫面共用同一個服務（0.10.2 起刪除 CategoryRepository、TeamRepository，0.10.3 起刪除 ProjectRepository）。

@@ -102,7 +102,7 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 | `C:\temp\MyProject\DB\BackendDB.db` | SQLite 資料庫 | `SystemSettings:ExternalFileSystem:DatabasePath` |
 | `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
 | `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
-| `C:\temp\MyProject\AiAgentConversation` | Agent 測試台保存的對話（0.9.143 起）與 Agent 工作流程的執行紀錄（0.9.144 起） | 同上區段的 `AiAgentConversationPath` |
+| `C:\temp\MyProject\AiAgentConversation` | 系統管理助理保存的對話與巡檢報告（0.9.155 起；0.10.22 前也包含 Agent 測試台的對話與 Agent 工作流程的執行紀錄） | 同上區段的 `AiAgentConversationPath` |
 | `C:\temp\MyProject\AuditContent` | 稽核紀錄的詳細內容檔（0.9.131 起） | 同上區段的 `AuditContentPath` |
 | `C:\temp\MyProject\Keys` | Data Protection 金鑰環（兩步驟驗證密鑰、記住裝置與登入票證靠它；刪掉後開了兩步驟驗證的人登入不了。0.10.7 以前登入 Cookie 也靠它） | 同上區段的 `DataProtectionKeyPath` |
 | `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |

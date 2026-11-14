@@ -26,15 +26,15 @@ using MyProject.Web.Controllers;
 namespace MyProject.Tests;
 
 /// <summary>
-/// Agent 測試台與系統管理助理的 Web API（0.10.7 起，WASM 遷移 M8）：每個請求接續一次對話、NDJSON 串流、
-/// 伺服器端的規則（2,000 字、等待核准不能送、核准冪等、不可復原要輸入「確認」）、同一段對話的請求排隊、權限與稽核。
+/// Agent 對話的 Web API（0.10.7 起，WASM 遷移 M8；0.10.22 起 Agent 測試台移除，共用流程改經系統管理助理驗證）：
+/// 每個請求接續一次對話、NDJSON 串流、伺服器端的規則（2,000 字、等待核准不能送、核准冪等、不可復原要輸入「確認」）、
+/// 同一段對話的請求排隊、權限與稽核。
 /// 上游模型換成可控的假回應（Responses API 的 SSE），系統管理助理的分派換成假的（回固定領域）；其餘（存檔、工具、稽核、記帳）都是真的。
 /// </summary>
 [Collection(nameof(IntegrationHostCollection))]
 public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplicationFactoryWithFakeAgentAi>
 {
     private const string Password = "Passw0rd-1";
-    private const string Playground = "/api/v1/agent-playground";
     private const string Assistant = "/api/v1/admin-assistant";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly ApiTestApplicationFactoryWithFakeAgentAi factory;
@@ -55,12 +55,11 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         using var client = await SignedInClientAsync(admin);
         factory.Upstream.Enqueue(AiSse.Responses(["你好", "，我是小幫手。"]));
 
-        var frames = await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = "  嗨  ", ReasoningEffort = "high" });
+        var frames = await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "  嗨  " });
 
         var start = frames[0];
         Assert.Equal(AgentStreamFrameKinds.Start, start.Kind);
         Assert.NotNull(start.ConversationId);
-        Assert.Equal("high", start.ReasoningEffort);
         Assert.False(string.IsNullOrEmpty(start.ModelName));
         Assert.Equal(
             [(AiAgentTranscriptKinds.User, "嗨"), (AiAgentTranscriptKinds.Assistant, "你好，我是小幫手。")],
@@ -73,35 +72,28 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         // 使用者那一則要比任何文字先到（畫面才能先顯示自己的訊息）。
         Assert.True(frames.FindIndex(frame => frame.Kind == AgentStreamFrameKinds.Entry) < frames.FindIndex(frame => frame.Kind == AgentStreamFrameKinds.Delta));
 
-        var list = await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Playground}/conversations");
+        var list = await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Assistant}/conversations");
         var item = Assert.Single(list, x => x.ConversationId == start.ConversationId);
         Assert.Equal("嗨", item.Title);
         Assert.False(item.HasPendingApproval);
-
-        // 推論等級跟著對話存起來（送給模型的請求也帶了）。
-        Assert.Contains("\"effort\":\"high\"", factory.Upstream.Bodies[0], StringComparison.Ordinal);
-        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Playground}/conversations/{start.ConversationId}");
-        Assert.Equal("high", opened.ReasoningEffort);
     }
 
     [Fact]
-    public async Task Send_ShouldContinueTheSavedConversation_AndApplyANewReasoningEffort()
+    public async Task Send_ShouldContinueTheSavedConversation()
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         factory.Upstream.Enqueue(AiSse.Responses(["第一則回覆"]));
-        var id = (await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = "第一則" }))[0].ConversationId!.Value;
+        var id = (await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "第一則" }))[0].ConversationId!.Value;
         factory.Upstream.Enqueue(AiSse.Responses(["第二則回覆"]));
 
-        var frames = await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "第二則", ReasoningEffort = "low" });
+        var frames = await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "第二則" });
 
         Assert.Equal(id, frames[0].ConversationId);
         Assert.True(frames[^1].Result!.Success);
-        // 接續：第二次呼叫帶著前文（第一則的回覆），推論等級改成 low。
+        // 接續：第二次呼叫帶著前文（第一則的回覆）。
         Assert.Contains("第一則回覆", Regex.Unescape(factory.Upstream.Bodies[1]), StringComparison.Ordinal);
-        Assert.Contains("\"effort\":\"low\"", factory.Upstream.Bodies[1], StringComparison.Ordinal);
-        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Playground}/conversations/{id}");
+        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Assistant}/conversations/{id}");
         Assert.Equal(["第一則", "第一則回覆", "第二則", "第二則回覆"], opened.Transcript.Select(entry => entry.Text));
-        Assert.Equal("low", opened.ReasoningEffort);
     }
 
     [Theory]
@@ -111,7 +103,7 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
 
-        var response = await client.PostAsJsonAsync($"{Playground}/messages", new AgentMessageRequestDto { Message = new string('字', length) });
+        var response = await client.PostAsJsonAsync($"{Assistant}/messages", new AgentMessageRequestDto { Message = new string('字', length) });
 
         Assert.Equal(expected, response.StatusCode);
         Assert.Empty(factory.Upstream.Bodies);
@@ -123,19 +115,9 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         factory.Upstream.Enqueue(AiSse.Responses(["收到"]));
 
-        var frames = await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = new string('字', AgentConversationLimits.MaxMessageLength) });
+        var frames = await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = new string('字', AgentConversationLimits.MaxMessageLength) });
 
         Assert.True(frames[^1].Result!.Success);
-    }
-
-    [Fact]
-    public async Task Send_WithAnUnknownReasoningEffort_ShouldReturn400()
-    {
-        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
-
-        var response = await client.PostAsJsonAsync($"{Playground}/messages", new AgentMessageRequestDto { Message = "嗨", ReasoningEffort = "ultra" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -143,12 +125,12 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         using var owner = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         factory.Upstream.Enqueue(AiSse.Responses(["回覆"]));
-        var id = (await StreamAsync(owner, $"{Playground}/messages", new AgentMessageRequestDto { Message = "我的" }))[0].ConversationId!.Value;
+        var id = (await StreamAsync(owner, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "我的" }))[0].ConversationId!.Value;
         using var other = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
 
-        Assert.Equal(HttpStatusCode.NotFound, (await other.PostAsJsonAsync($"{Playground}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "偷看" })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"{Playground}/conversations/{id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await other.DeleteAsync($"{Playground}/conversations/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await other.PostAsJsonAsync($"{Assistant}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "偷看" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"{Assistant}/conversations/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await other.DeleteAsync($"{Assistant}/conversations/{id}")).StatusCode);
     }
 
     /// <summary>使用者中斷連線：這次執行被取消，已有的內容（使用者訊息與「已停止產生」）照樣存檔。</summary>
@@ -162,7 +144,7 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         Guid id;
         using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{Playground}/messages") { Content = JsonContent.Create(new AgentMessageRequestDto { Message = "會被中斷" }) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{Assistant}/messages") { Content = JsonContent.Create(new AgentMessageRequestDto { Message = "會被中斷" }) };
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(cts.Token));
             id = Frame((await reader.ReadLineAsync(cts.Token))!).ConversationId!.Value;
@@ -173,7 +155,7 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         Assert.True(await factory.Upstream.Canceled.Task.WaitAsync(TimeSpan.FromSeconds(10)));
         var opened = await WaitForAsync(async () =>
         {
-            var response = await client.GetAsync($"{Playground}/conversations/{id}");
+            var response = await client.GetAsync($"{Assistant}/conversations/{id}");
             return response.StatusCode == HttpStatusCode.OK ? (await response.Content.ReadFromJsonAsync<ApiResult<AgentConversationDto>>(Json))!.Data : null;
         });
         Assert.Equal(
@@ -189,34 +171,33 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         var admin = await AddUserAsync(isAdmin: true);
         using var client = await SignedInClientAsync(admin);
-        var (id, requestId) = await AskForProjectEditAsync(client);
+        var (id, requestId) = await AskForTestNotificationAsync(client);
 
         // 重新整理：清單標「待核准」、打開對話時待核准還在（同一個編號）。
-        var list = await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Playground}/conversations");
+        var list = await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Assistant}/conversations");
         Assert.True(Assert.Single(list, x => x.ConversationId == id).HasPendingApproval);
-        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Playground}/conversations/{id}");
+        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Assistant}/conversations/{id}");
         var pending = Assert.Single(opened.PendingApprovals);
         Assert.Equal(requestId, pending.RequestId);
-        Assert.Equal("修改專案描述", pending.DisplayName);
-        Assert.Contains(pending.Arguments, argument => argument.Name == "description" && argument.Value == "已結案");
+        Assert.Equal("發送測試通知", pending.DisplayName);
 
         // 等待核准時不能送新訊息。
-        var blocked = await client.PostAsJsonAsync($"{Playground}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "再問一次" });
+        var blocked = await client.PostAsJsonAsync($"{Assistant}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "再問一次" });
         Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
         Assert.Contains(AgentConversationEndpoint.AwaitingApprovalMessage, await blocked.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
-        factory.Upstream.Enqueue(AiSse.Responses(["已修改。"]));
-        var frames = await StreamAsync(client, $"{Playground}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = [requestId] });
+        factory.Upstream.Enqueue(AiSse.Responses(["已發送。"]));
+        var frames = await StreamAsync(client, $"{Assistant}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = [requestId] });
 
         Assert.True(frames[^1].Result!.Success);
-        Assert.Contains(frames, frame => frame.Entry is { Kind: AiAgentTranscriptKinds.Notice, Text: "你核准了：修改專案描述" });
+        Assert.Contains(frames, frame => frame.Entry is { Kind: AiAgentTranscriptKinds.Notice, Text: "你核准了：發送測試通知" });
         var invoked = Assert.Single(await AuditsAsync(AuditActions.Ai.ToolInvoked, admin.Id));
         Assert.Equal("AiTool", invoked.TargetType);
-        Assert.Equal("update_project_description", invoked.TargetId);
+        Assert.Equal("send_test_notification", invoked.TargetId);
 
         // 同一個核准再送一次：已經處理過，409，工具不會再執行、也不會再呼叫模型。
         var calls = factory.Upstream.Bodies.Count;
-        var again = await client.PostAsJsonAsync($"{Playground}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = [requestId] });
+        var again = await client.PostAsJsonAsync($"{Assistant}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = [requestId] });
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
         Assert.Single(await AuditsAsync(AuditActions.Ai.ToolInvoked, admin.Id));
         Assert.Equal(calls, factory.Upstream.Bodies.Count);
@@ -227,18 +208,18 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         var admin = await AddUserAsync(isAdmin: true);
         using var client = await SignedInClientAsync(admin);
-        var (id, requestId) = await AskForProjectEditAsync(client);
-        factory.Upstream.Enqueue(AiSse.Responses(["好的，沒有修改。"]));
+        var (id, requestId) = await AskForTestNotificationAsync(client);
+        factory.Upstream.Enqueue(AiSse.Responses(["好的，沒有發送。"]));
 
-        var frames = await StreamAsync(client, $"{Playground}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { RejectedRequestIds = [requestId] });
+        var frames = await StreamAsync(client, $"{Assistant}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { RejectedRequestIds = [requestId] });
 
         Assert.True(frames[^1].Result!.Success);
-        Assert.Contains(frames, frame => frame.Entry is { Kind: AiAgentTranscriptKinds.Notice, Text: "你拒絕了：修改專案描述" });
+        Assert.Contains(frames, frame => frame.Entry is { Kind: AiAgentTranscriptKinds.Notice, Text: "你拒絕了：發送測試通知" });
         Assert.Empty(await AuditsAsync(AuditActions.Ai.ToolInvoked, admin.Id));
         var rejected = Assert.Single(await AuditsAsync(AuditActions.Ai.ToolRejected, admin.Id));
         Assert.False(rejected.Success);
-        Assert.Equal("update_project_description", rejected.TargetId);
-        Assert.StartsWith("agent=AgentPlayground; tool=update_project_description", rejected.Detail, StringComparison.Ordinal);
+        Assert.Equal("send_test_notification", rejected.TargetId);
+        Assert.StartsWith("agent=AdminAssistant; tool=send_test_notification", rejected.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -246,20 +227,20 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         factory.Upstream.Enqueue(AiSse.Responses(["回覆"]));
-        var plain = (await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = "嗨" }))[0].ConversationId!.Value;
-        var (id, _) = await AskForProjectEditAsync(client);
+        var plain = (await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "嗨" }))[0].ConversationId!.Value;
+        var (id, _) = await AskForTestNotificationAsync(client);
         var calls = factory.Upstream.Bodies.Count;
 
-        var nothing = await client.PostAsJsonAsync($"{Playground}/conversations/{plain}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = ["x"] });
-        var unknown = await client.PostAsJsonAsync($"{Playground}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = ["not-pending"] });
-        var empty = await client.PostAsJsonAsync($"{Playground}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto());
+        var nothing = await client.PostAsJsonAsync($"{Assistant}/conversations/{plain}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = ["x"] });
+        var unknown = await client.PostAsJsonAsync($"{Assistant}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = ["not-pending"] });
+        var empty = await client.PostAsJsonAsync($"{Assistant}/conversations/{id}/approvals", new AgentApprovalResponseRequestDto());
 
         Assert.Equal(HttpStatusCode.Conflict, nothing.StatusCode);
         Assert.Contains(AgentConversationEndpoint.NothingPendingMessage, await nothing.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Conflict, unknown.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
         Assert.Equal(calls, factory.Upstream.Bodies.Count);
-        Assert.Single((await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Playground}/conversations/{id}")).PendingApprovals);
+        Assert.Single((await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Assistant}/conversations/{id}")).PendingApprovals);
     }
 
     /// <summary>兩個分頁同時按「核准」：後到的排隊，輪到時已沒有待核准（結果那一行 Conflict），工具只執行一次。</summary>
@@ -268,13 +249,13 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         var admin = await AddUserAsync(isAdmin: true);
         using var client = await SignedInClientAsync(admin);
-        var (id, requestId) = await AskForProjectEditAsync(client);
-        var gate = factory.Upstream.EnqueueGated(AiSse.Responses(["已修改。"]));
+        var (id, requestId) = await AskForTestNotificationAsync(client);
+        var gate = factory.Upstream.EnqueueGated(AiSse.Responses(["已發送。"]));
         var body = new AgentApprovalResponseRequestDto { ApprovedRequestIds = [requestId] };
 
-        var first = OpenStreamAsync(client, $"{Playground}/conversations/{id}/approvals", body);
+        var first = OpenStreamAsync(client, $"{Assistant}/conversations/{id}/approvals", body);
         await factory.Upstream.WaitForCallsAsync(2);
-        var second = await OpenStreamAsync(client, $"{Playground}/conversations/{id}/approvals", body).WaitAsync(TimeSpan.FromSeconds(10));
+        var second = await OpenStreamAsync(client, $"{Assistant}/conversations/{id}/approvals", body).WaitAsync(TimeSpan.FromSeconds(10));
         gate.SetResult();
         var firstFrames = await ReadFramesAsync(await first);
         var secondText = await second.Content.ReadAsStringAsync();
@@ -306,20 +287,20 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         factory.Upstream.Enqueue(AiSse.Responses(["開場"]));
-        var id = (await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = "開始" }))[0].ConversationId!.Value;
+        var id = (await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "開始" }))[0].ConversationId!.Value;
         var gate = factory.Upstream.EnqueueGated(AiSse.Responses(["A 的回覆"]));
         factory.Upstream.Enqueue(AiSse.Responses(["B 的回覆"]));
 
-        var a = OpenStreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "分頁 A" });
+        var a = OpenStreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "分頁 A" });
         await factory.Upstream.WaitForCallsAsync(2);
-        var b = OpenStreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "分頁 B" });
+        var b = OpenStreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { ConversationId = id, Message = "分頁 B" });
         var bResponse = await b.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(HttpStatusCode.OK, bResponse.StatusCode);
         await Task.Delay(300);
         Assert.Equal(2, factory.Upstream.Bodies.Count);
 
         // 執行中打開這段對話（例如第三個分頁）：等不到就讀上次存下的內容，不會卡到執行結束。
-        var whileRunning = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Playground}/conversations/{id}");
+        var whileRunning = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Assistant}/conversations/{id}");
         Assert.Equal(["開始", "開場"], whileRunning.Transcript.Select(entry => entry.Text));
 
         gate.SetResult();
@@ -329,7 +310,7 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         Assert.True(aFrames[^1].Result!.Success);
         Assert.True(bFrames[^1].Result!.Success);
         Assert.Contains("A 的回覆", Regex.Unescape(factory.Upstream.Bodies[2]), StringComparison.Ordinal);
-        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Playground}/conversations/{id}");
+        var opened = await SendAsync<AgentConversationDto>(client, HttpMethod.Get, $"{Assistant}/conversations/{id}");
         Assert.Equal(["開始", "開場", "分頁 A", "A 的回覆", "分頁 B", "B 的回覆"], opened.Transcript.Select(entry => entry.Text));
         Assert.Equal(0, factory.Services.GetRequiredService<AiAgentConversationLocks>().Count);
     }
@@ -342,81 +323,27 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
         var admin = await AddUserAsync(isAdmin: true);
         using var client = await SignedInClientAsync(admin);
         factory.Upstream.Enqueue(AiSse.Responses(["回覆"]));
-        var id = (await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = "原本的標題" }))[0].ConversationId!.Value;
+        var id = (await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "原本的標題" }))[0].ConversationId!.Value;
 
-        var listText = await (await client.GetAsync($"{Playground}/conversations")).Content.ReadAsStringAsync();
+        var listText = await (await client.GetAsync($"{Assistant}/conversations")).Content.ReadAsStringAsync();
         AssertNoOffset(listText);
         Assert.Contains("updatedAt", listText, StringComparison.Ordinal);
 
-        await SendAsync<object>(client, HttpMethod.Put, $"{Playground}/conversations/{id}/title", new AgentRenameRequestDto { Title = "新標題" });
-        Assert.Equal("新標題", Assert.Single(await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Playground}/conversations"), x => x.ConversationId == id).Title);
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"{Playground}/conversations/{id}/title", new AgentRenameRequestDto { Title = " " })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"{Playground}/conversations/{Guid.NewGuid()}/title", new AgentRenameRequestDto { Title = "x" })).StatusCode);
+        await SendAsync<object>(client, HttpMethod.Put, $"{Assistant}/conversations/{id}/title", new AgentRenameRequestDto { Title = "新標題" });
+        Assert.Equal("新標題", Assert.Single(await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Assistant}/conversations"), x => x.ConversationId == id).Title);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"{Assistant}/conversations/{id}/title", new AgentRenameRequestDto { Title = " " })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"{Assistant}/conversations/{Guid.NewGuid()}/title", new AgentRenameRequestDto { Title = "x" })).StatusCode);
 
-        await SendAsync<object>(client, HttpMethod.Delete, $"{Playground}/conversations/{id}");
+        await SendAsync<object>(client, HttpMethod.Delete, $"{Assistant}/conversations/{id}");
 
-        Assert.DoesNotContain(await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Playground}/conversations"), x => x.ConversationId == id);
+        Assert.DoesNotContain(await SendAsync<List<AgentConversationSummaryDto>>(client, HttpMethod.Get, $"{Assistant}/conversations"), x => x.ConversationId == id);
         var audit = Assert.Single(await AuditsAsync(AuditActions.AiAgentConversation.Delete, admin.Id));
         Assert.Equal(id.ToString(), audit.TargetId);
-        Assert.Equal("agent=AgentPlayground", audit.Detail);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{Playground}/conversations/{id}")).StatusCode);
-    }
-
-    [Fact]
-    public async Task Info_ShouldListTheReasoningOptionsRetentionAndSamplePermissions()
-    {
-        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
-
-        var info = await SendAsync<AgentPageInfoDto>(client, HttpMethod.Get, $"{Playground}/info");
-
-        Assert.Null(info.UnavailableReason);
-        Assert.Equal(MyProject.Web.Configuration.AiSettings.AgentReasoningEffortValues, info.ReasoningEffortValues);
-        Assert.StartsWith("系統預設", info.SystemDefaultReasoningLabel, StringComparison.Ordinal);
-        Assert.True(info.RetentionDays > 0);
-        Assert.True(info.CanCreateSamples);
-        Assert.True(info.CanClearSamples);
-        Assert.Equal(ProjectSampleDataService.TitlePrefix, info.SampleTitlePrefix);
-    }
-
-    [Fact]
-    public async Task Samples_ShouldGenerateOnce_ThenConflict_ThenClear()
-    {
-        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
-        await client.DeleteAsync($"{Playground}/samples");
-
-        var created = await SendAsync<AgentSampleResultDto>(client, HttpMethod.Post, $"{Playground}/samples");
-        var again = await client.PostAsync($"{Playground}/samples", null);
-        var cleared = await client.DeleteAsync($"{Playground}/samples");
-
-        Assert.Equal(10, created.Count);
-        Assert.All(created.Titles, title => Assert.StartsWith(ProjectSampleDataService.TitlePrefix, title, StringComparison.Ordinal));
-        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
-        Assert.Contains("請先按「清除測試專案」", await again.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
-        Assert.Contains("已永久刪除 10 筆測試專案。", await cleared.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal("agent=AdminAssistant", audit.Detail);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{Assistant}/conversations/{id}")).StatusCode);
     }
 
     // ───────────────────────────── 權限 ─────────────────────────────
-
-    [Fact]
-    public async Task Playground_WithoutThePagePermission_ShouldReturn403_AndAuditTheDenial()
-    {
-        var user = await AddUserAsync(isAdmin: false);
-        using var client = await SignedInClientAsync(user);
-
-        var responses = new[]
-        {
-            await client.GetAsync($"{Playground}/info"),
-            await client.GetAsync($"{Playground}/conversations"),
-            await client.PostAsJsonAsync($"{Playground}/messages", new AgentMessageRequestDto { Message = "嗨" }),
-            await client.PostAsJsonAsync($"{Playground}/conversations/{Guid.NewGuid()}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = ["x"] }),
-            await client.PostAsync($"{Playground}/samples", null),
-        };
-
-        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode));
-        Assert.Empty(factory.Upstream.Bodies);
-        Assert.Equal(responses.Length, (await AuditsAsync(AuditActions.Permission.Denied, user.Id)).Count);
-    }
 
     [Fact]
     public async Task AdminAssistant_ForANonAdmin_ShouldReturn403()
@@ -513,7 +440,7 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     }
 
     [Fact]
-    public async Task AdminAssistant_Info_ShouldNotOfferReasoningOrSamples()
+    public async Task AdminAssistant_Info_ShouldNotOfferReasoning_AndListTheRetention()
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
 
@@ -521,7 +448,7 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
 
         Assert.Null(info.UnavailableReason);
         Assert.Empty(info.ReasoningEffortValues);
-        Assert.False(info.CanCreateSamples);
+        Assert.True(info.RetentionDays > 0);
     }
 
     /// <summary>巡檢報告與通知連結（/admin-assistant?patrolReport={id}）：清單、單份（Markdown 由畫面消毒）、找不到 404；時間不帶時差、不寫稽核。</summary>
@@ -559,11 +486,12 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
 
     // ───────────────────────────── 工具 ─────────────────────────────
 
-    /// <summary>請模型修改一筆不存在的專案描述（工具會執行但找不到專案），停在核准。</summary>
-    private async Task<(Guid ConversationId, string RequestId)> AskForProjectEditAsync(HttpClient client)
+    /// <summary>請模型發一則測試通知（可復原的異動工具，分派到監控），停在核准。</summary>
+    private async Task<(Guid ConversationId, string RequestId)> AskForTestNotificationAsync(HttpClient client)
     {
-        factory.Upstream.Enqueue(AiSse.ResponsesToolCall("call_edit", "update_project_description", """{"projectId":987654,"description":"已結案"}"""));
-        var frames = await StreamAsync(client, $"{Playground}/messages", new AgentMessageRequestDto { Message = "把專案 987654 的描述改成已結案" });
+        factory.Router.Codes.Enqueue("monitoring");
+        factory.Upstream.Enqueue(AiSse.ResponsesToolCall("call_notify", "send_test_notification", "{}"));
+        var frames = await StreamAsync(client, $"{Assistant}/messages", new AgentMessageRequestDto { Message = "發一則測試通知" });
         Assert.DoesNotContain(frames, frame => frame.Kind == AgentStreamFrameKinds.Result);
         Assert.Equal(AgentStreamFrameKinds.Approvals, frames[^1].Kind);
         return (frames[0].ConversationId!.Value, Assert.Single(frames[^1].Approvals!).RequestId);

@@ -1,8 +1,8 @@
 ﻿# 專案項目 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/14
 
@@ -26,8 +26,7 @@
 
 > 頁面進入檢查用 `Permissions.CanAccessPage(角色_專案項目)`（0.10.3 起 WASM 版經 `PagePermissions`；通過條件：管理員、裸鍵「專案項目」或 `專案項目:view`），工具列與操作鈕再以 `RequirePermission`（`CanAccessAction(角色_專案項目, 動作)`）個別控管。群組鍵「專案管理功能」（`角色_專案管理`）只用於側邊選單的群組節點（`MenuPermissionMap[2]`）。
 > 頁面被擋下時顯示「你沒有權限存取此頁面」，並寫一筆 `Permission.Denied` 稽核（目標 `Page`／`/projects`，0.9.78 起；0.10.3 起由伺服器在 `POST /api/v1/shell/page-view` 寫，detail `via=WASM`）。
-> 另一個建立／刪除專案的入口（0.9.145 起）：「Agent 測試台」的「產生 10 筆測試專案」與「清除測試專案」（`ProjectSampleDataService`），分別需要 `create`／`delete` 權限，一律經 `ProjectService`（驗證、團隊範圍、`Project.Create`／`Delete`／`Purge` 稽核照常）；測試專案標題開頭「【測試】」、不指定團隊，清除為永久刪除（含已刪除的）。
-> 修改專案描述的入口（0.9.142／0.9.144 起）：Agent 測試台的工具 `update_project_description` 與「專案狀態報告」工作流程的 `append_project_status_summary`（`ProjectAgentTools`），需要 `edit` 權限且經使用者核准，一律經 `ProjectService.UpdateAsync`（團隊範圍、`Project.Update` 稽核與並行版本號照常），見 [AI Agent PRD](AI-Agent-prd.md) §3.1、§4.1。
+> 0.9.142～0.10.21 另有 Agent 測試台與工作流程的專案工具、「產生／清除測試專案」可建立、修改、刪除專案，0.10.22 起已移除。
 
 ## 三、畫面與欄位
 
@@ -99,7 +98,7 @@
 
 ## 六、錯誤與邊界
 
-- **標題重複**（0.10.3 起，使用者決定畫面與 API 統一擋）：新增時、或修改且標題真的有變時，與另一筆未刪除專案的標題相同（去頭尾空白、英文不分大小寫）就擋下：「專案名稱已存在，無法新增。」／「專案名稱已存在，無法修改。」（API 回 409）。以前留下的同名專案不改標題仍可存檔。檢查在 `ProjectService.BeforeAddCheckAsync`／`BeforeUpdateCheckAsync`，所以直接呼叫 `AddAsync` 的 AI Agent 工具與「產生測試專案」不受影響。還原也擋（見第三節）。
+- **標題重複**（0.10.3 起，使用者決定畫面與 API 統一擋）：新增時、或修改且標題真的有變時，與另一筆未刪除專案的標題相同（去頭尾空白、英文不分大小寫）就擋下：「專案名稱已存在，無法新增。」／「專案名稱已存在，無法修改。」（API 回 409）。以前留下的同名專案不改標題仍可存檔。檢查在 `ProjectService.BeforeAddCheckAsync`／`BeforeUpdateCheckAsync`，所以直接呼叫 `AddAsync` 的程式不受影響。還原也擋（見第三節）。
   `AddAsync`／`UpdateAsync` 存檔時以 `NameNormalizer.Normalize` 去掉標題前後的空白、Tab、全形空白，空白不能繞過檢查。
   ⚠️ 已知限制：唯一性只在程式檢查，資料庫沒有唯一索引，兩個同時送出的新增可能都通過；標題全系統唯一，409 可能透露範圍外有同名專案（見第五節）。0.10.2 之前只有 Web API 擋（`ProjectRepository.ExistsByNameAsync`），畫面允許同名。
 - 路由 ID 與 payload ID 不一致：`Update` 回 400。

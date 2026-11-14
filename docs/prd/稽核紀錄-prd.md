@@ -1,8 +1,8 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.32
+- 文件版本：1.33
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/14
 
@@ -182,8 +182,8 @@ Controller 另套 `[ApiValidationFilter]`：每頁筆數 1～200、頁碼 ≥ 1�
 Blazor 頁面權限拒絕、各頁匯出與維護、自動清理）見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) §6.3 LOG-14。
 **來源 IP（0.9.117 起）** 不由呼叫端傳入：`AuditLogService` 寫入時向 `IClientIpProvider` 取，
 實作 `Web/Auth/ClientIpProvider` 依情境決定 —— Web API 讀 `HttpContext.Connection.RemoteIpAddress`（0.10.9 起所有頁面都是 WASM，含登入、登出、兩步驟驗證的操作都經 Web API，記該次請求的 IP）；
-跨請求的工作流程執行（`AiWorkflowRunRegistry`）自己的 scope 沒有可靠的 HttpContext，每次回覆時以 `SetCircuitClientIp` 寫入、取用時優先（0.10.8 以前 Blazor Server circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入）；
-排程作業兩者皆無，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
+0.10.8 以前 Blazor Server circuit 由 `ApplicationCircuitHandler.OnConnectionUpAsync` 在連線建立與重連時寫入，0.10.9～0.10.21 工作流程執行登錄表以 `SetCircuitClientIp` 寫入（0.10.22 起隨工作流程移除）；
+排程作業沒有 HttpContext，存 null。IPv4-mapped IPv6 轉回 IPv4。部署在反向代理後面時必須設定 `ForwardedHeaders`，否則記到的是代理的 IP。
 
 **記錄範圍：可設定、預設關閉（0.9.174 起）**。0.9.131～0.9.173 一律記錄下表的瀏覽類事件與修改前後差異；0.9.174 起由 `AuditLogSettings` 兩個開關決定，**預設都關**，可在「系統參數」頁「資料保留」分類即時切換（改了寫 `SystemParameter.Update`）：
 
@@ -225,7 +225,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Role.Create` / `Role.Update` / `Role.Delete`（0.9.95 起為軟刪除）/ `Role.Restore` / `Role.Purge` | `RoleViewService` |
 | `Job.Trigger` / `Job.Enable` / `Job.Disable` | `ScheduledJobView`（「排程作業」頁的手動操作，0.9.96 起；排程自己跑的結果記在執行紀錄）；「系統備份」頁的立即備份也由 `BackupView` 記 `Job.Trigger`。0.10.6 起由 `ScheduledJobsController`、`BackupsController`、`DataRetentionController`（立即清理，detail `job=…; source=data-retention; expected=N`，N 由伺服器在按下時重算）寫，內容同 Server 版 |
 | `AiCallLog.AutoPurge` / `TokenUsage.AutoPurge` | 排程作業的自動清除（0.9.96 起） |
-| `AiAgentConversation.Delete` / `AiAgentConversation.Purge` / `AiAgentConversation.AutoPurge` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄，`agent=` 為流程名稱）：`AiAgentConversationService.DeleteAsync`（使用者刪自己的對話或執行紀錄，detail `agent=…`）、「資料保留與清理」的自訂清除、排程作業「Agent 對話清理」（detail `rows=N; days=D; trigger=T`）；不記標題與內容，改標題不寫稽核 |
+| `AiAgentConversation.Delete` / `AiAgentConversation.Purge` / `AiAgentConversation.AutoPurge` | Agent 對話（0.9.143 起；0.10.22 起只有系統管理助理的對話，舊的工作流程執行紀錄 `agent=` 為流程名稱）：`AiAgentConversationService.DeleteAsync`（使用者刪自己的對話，detail `agent=…`）、「資料保留與清理」的自訂清除、排程作業「Agent 對話清理」（detail `rows=N; days=D; trigger=T`）；不記標題與內容，改標題不寫稽核 |
 | `Backup.Create` / `Backup.AutoPurge` / `Backup.Download` / `Backup.Delete` | 系統備份（0.9.99 起）：`SystemBackupJob`（建立、依份數刪除）、下載（0.10.6 起 `DownloadsController` 在兌換一次性票證時寫一筆；之前是 `BackupController`，續傳只記第一段）、刪除（0.10.6 起 `BackupsController`，之前是 `BackupView`） |
 | `Announcement.Create` / `Announcement.Update` / `Announcement.Delete` | `AnnouncementView`（「公告管理」頁，0.9.100 起；0.10.6 起由 `AnnouncementsController` 寫，刪除的標題取自資料庫） |
 | `Notification.AutoPurge` | 排程作業「站內通知清理」（0.9.100 起） |
@@ -242,7 +242,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Audit.Verify` | 完整性驗證（0.9.175 起）：稽核紀錄頁的「驗證完整性」（0.10.4 起由 `AuditLogsController.Verify` 寫）與排程作業「稽核紀錄完整性檢查」；`TargetType=AuditLog`、`TargetId=*`，結果有問題時 `Success=false`；Detail `result=ok\|failed; signed=N; issues=M; legacy=L; keyMismatch=K; trigger=T`（排程為 `Schedule`、補跑為 `CatchUp`、在排程作業頁按「立即執行」為 `Manual`、稽核紀錄頁的按鈕為 `manual`）。寫在檢查之後，所以這一筆本身由下一次檢查驗證 |
 | `Email.Test` | `EmailTestService`（系統健康監控頁的寄信測試，0.9.59 起；detail 只有 provider 與成敗，不含收件者）|
 | `Ai.QuotaBlocked` | `AiAccountingChatClient`（AI 用量上限在送出前擋下，0.9.109 起；detail `operation=…; limit=…; used=…`）|
-| `Ai.ToolInvoked` / `Ai.ToolDenied` / `Ai.ToolRejected` | Agent 工具（0.9.142 起）：`AiAgentToolFactory`（執行成功或失敗、權限擋下）、`AiToolApprovals`（核准時權限擋下，detail 加 `stage=approval`）、`AiAgentRunner`／`AiAgentStep`（使用者拒絕核准）；detail `agent=…; tool=…; permission=…`，不記參數與回傳內容 |
+| `Ai.ToolInvoked` / `Ai.ToolDenied` / `Ai.ToolRejected` | Agent 工具（0.9.142 起）：`AiAgentToolFactory`（執行成功或失敗、權限擋下）、`AiToolApprovals`（核准時權限擋下，detail 加 `stage=approval`）、`AiAgentRunner`（使用者拒絕核准）；detail `agent=…; tool=…; permission=…`，不記參數與回傳內容 |
 | `Prompt.Update` / `Prompt.Activate` | `PromptTemplateView`（「AI 提示詞」頁，0.9.108 起；0.10.5 起由 `PromptTemplatesController` 寫）與系統管理助理的 `AiAssistantTools`；detail 記 `version=…`（經系統管理助理時另加 `via=`），不記提示詞內容 |
 | `AdminPatrol.AutoPurge` | 排程作業「巡檢報告清理」（0.9.161 起；detail `rows=N; days=D; trigger=T`，不記報告內容）|
 
@@ -297,7 +297,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 
 ## 八、測試
 
-- `AuditLogServiceTests`、`ClientIpProviderTests`（0.9.117 起）：來源 IP 寫入、IPv4-mapped 轉換、`SetCircuitClientIp` 寫入的值優先（0.10.9 起是工作流程執行登錄表在用）、無情境時為 null。
+- `AuditLogServiceTests`、`ClientIpProviderTests`（0.9.117 起）：來源 IP 寫入、IPv4-mapped 轉換、無情境時為 null（`SetCircuitClientIp` 0.10.22 起已移除）。
 - `AuditLogQueryServiceTests`（28 項）：時區三條、過濾（關鍵字含來源 IP、來源 IP 前綴篩選）、排序、同秒分頁不重複、
   總筆數、下拉去重排序、清除門檻以 UTC 計算、清空。
 - `AdminOnlyPermissionTests`：`角色_稽核紀錄` 不得出現在角色矩陣。

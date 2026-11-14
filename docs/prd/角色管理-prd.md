@@ -1,8 +1,8 @@
 ﻿# 角色管理 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/14
 
@@ -39,7 +39,7 @@
   - 名稱（必填，唯一；0.9.171 起去頭尾空白、不分大小寫）。
   - 預設團隊（多選團隊名稱；不設定表示僅能看到無團隊的公開紀錄）。0.10.15 起每次開窗（新增、修改、複製）與存檔失敗後都重讀團隊選項（`LoadFormOptionsAsync`，`FormOptionsConventionTests`）；存檔時伺服器擋下**新選的**已停用或已刪除團隊，回 400「所選的團隊「X」已不存在或已停用，請重新選擇（選項已更新）。」（`SelectedOptionGuard`；原本就掛著的不擋）。
   - 「需要兩步驟驗證」（0.9.104 起，`RoleView.RequireTwoFactor`）：有這個角色（主要或額外）的人必須開啟兩步驟驗證，還沒設定的人下一次換頁被帶到設定頁；稽核 detail 帶 `requireTwoFactor=`。見[兩步驟驗證](兩步驟驗證-prd.md)。
-  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」，0.9.142 起加「AI 助理」（底下「Agent 測試台」；0.9.144 起再加「Agent 工作流程」）；系統管理及其子群組不上架矩陣；0.10.17 起沒有「首頁」——每個登入的人都能開（`PermissionRules.OpenToEveryone`），既有角色存著的「首頁」鍵留著無妨）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
+  - **動作粒度權限矩陣**（角色項目）：依 `RolePermissionService` 的群組結構呈現。每個群組（母項，如「專案管理功能」「資料定義管理功能」；0.9.142～0.10.21 另有「AI 助理」群組（Agent 測試台、Agent 工作流程），0.10.22 起已移除；系統管理及其子群組不上架矩陣；0.10.17 起沒有「首頁」——每個登入的人都能開（`PermissionRules.OpenToEveryone`），既有角色存著的「首頁」鍵留著無妨）有一個群組核取方塊；群組下每個頁面節點提供「（全部）」核取方塊，以及四個動作核取方塊：檢視、新增、編輯、刪除（`view/create/edit/delete`）。⚠️ 0.9.37 之前還有第五個「匯出」，但全系統沒有任何地方檢查 `export`，屬「勾了等於沒勾」的死權限，已下架並由 `AdminOnlyPermissionTests` 守門；要重新上架必須**先**有會檢查它的程式。
 - **矩陣呈現**（0.9.139 起）：群組下每個頁面一張卡片、固定兩欄（640px 以下單欄），第一行「（全部）」、第二行四個動作；有子項目的群組可摺疊，開窗時只展開有任何勾選的群組（`RolePermissionMatrix.HasAnyGrant`），勾選群組時自動展開。展開狀態只是畫面狀態，不影響未儲存變更判斷。
 - **矩陣互動語意**：勾「（全部）」等同該頁裸鍵、代表全部動作，並停用個別動作核取方塊（舊制相容），停用的動作顯示為打勾（0.9.139 起，`RolePermissionMatrix.IsActionShownChecked`；`Actions` 不動，取消「（全部）」後回到原本的個別勾選）；勾任一動作或頁面會自動點亮所屬群組；取消群組會連帶清掉其下所有頁面權限。
 - **異動歷程**（0.9.173 起）：每列操作欄最後一顆「異動歷程」（`AuditHistoryButton`，圖示 `history`），一般清單與「顯示已刪除」都有；**只有管理員看得到**（這一頁本來就只有管理員能進來）。按下開「異動歷程：<名稱>」窗（`AuditHistoryDialog.ShowAsync("RoleView", Id, 名稱)`，標題顯示角色名稱（`Name`）），左側列出這一筆的異動（排除換頁、搜尋、查看等瀏覽類，每頁 10 筆），右側顯示點選那一筆的摘要與修改前後差異；打開寫 `Audit.Search`、點一筆寫 `Audit.View`（摘要含 `via=history`）。目標類型 `RoleView` 必須與服務寫稽核的 `TargetType` 相同。詳見 [稽核紀錄 PRD §3.4](稽核紀錄-prd.md)。
@@ -58,7 +58,7 @@ WASM View（`RoleViewView`）→ `RoleApi` → `RolesController`（`api/v1/roles
 - **權限判定**（`PermissionChecker`）：使用者角色取自 `UserRole`（多角色）並容錯併入 legacy `RoleViewId`；join `RolePermissionMap`／**`RoleView`（0.9.95 起，排除已刪除的角色）**／`Permission` 得有效權限鍵集合；管理員短路回 true；擁有裸頁面鍵者視為具該頁全部動作。
 - **前置檢查**：`BeforeAddCheckAsync`／`BeforeUpdateCheckAsync` 檢查角色名稱唯一性（0.9.171 起去頭尾空白、不分大小寫，還原時同規則）。資料庫有部分唯一索引 `IX_RoleView_Name` 兜底，違反時回「角色名稱已存在（不分大小寫），無法儲存。」；升級時既有的重複名稱，後建的改名為「原名 (重複-Id)」。
 - **預設角色**：`Get預設新建帳號角色Async` 以名稱「預設角色」查詢，供新使用者預帶。0.9.95 起不可刪除；`DefaultRoleViewSeeder` 以 `IgnoreQueryFilters` 查找並優先取未刪除的列，找到已刪除的就還原（不會重建第二個帶全部權限的預設角色）。
-  0.9.142 起，建立預設角色與升級時自動加入新頁面都略過 `RolePermissionService.NotGrantedToDefaultRole`（「AI 助理」、「Agent 測試台」與 0.9.144 起的「Agent 工作流程」：會花 AI 費用，由管理員自己決定開給哪些角色）；這些頁面照樣出現在權限矩陣、可勾選授權。
+  建立預設角色與升級時自動加入新頁面，預設角色拿到權限矩陣上的全部頁面（0.9.142～0.10.21 曾以 `NotGrantedToDefaultRole` 略過「AI 助理」群組，0.10.22 起隨該群組移除）。
 
 > ℹ️ 0.9.136 起 `RoleViewService.AddAsync`／`UpdateAsync` 以工廠建立的 context 開一個交易：存 `RoleView`（含 `TabViewJson`）→
 > `RbacWriteService.SyncRolePermissionsAsync(context, …)` 用**同一個 context** 寫 `RolePermissionMap` → 提交；權限對應寫入失敗時整筆回復。

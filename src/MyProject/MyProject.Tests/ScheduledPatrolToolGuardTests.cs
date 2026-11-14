@@ -51,12 +51,22 @@ public sealed class ScheduledPatrolToolGuardTests
         Assert.False(await CreateGuard(PatrolTools).CanInvokeAsync(ToolNamed(name)));
     }
 
+    /// <summary>不屬於系統管理助理的唯讀工具（0.10.22 前用 Agent 測試台的專案工具，改用測試自己定義的）。</summary>
     [Fact]
     public async Task ReadTool_NotInAllowedList_IsDenied()
     {
         var guard = CreateGuard(PatrolTools);
+        var outsider = new AiToolDefinition
+        {
+            Name = "search_things",
+            DisplayName = "搜尋",
+            Description = "搜尋資料。",
+            PermissionPage = "測試頁",
+            PermissionAction = "view",
+            Create = _ => throw new InvalidOperationException("不應被呼叫"),
+        };
 
-        Assert.False(await guard.CanInvokeAsync(ProjectAgentTools.SearchTool));
+        Assert.False(await guard.CanInvokeAsync(outsider));
     }
 
     [Fact]

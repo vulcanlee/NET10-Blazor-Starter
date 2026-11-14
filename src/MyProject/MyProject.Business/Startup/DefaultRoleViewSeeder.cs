@@ -12,7 +12,7 @@ namespace MyProject.Business.Startup;
 /// 「預設角色」（新建帳號與 Google 自動建立的帳號預設取得的角色）。
 ///
 /// <list type="bullet">
-/// <item>不存在 → 以全部頁面建立（扣掉 <see cref="RolePermissionService.NotGrantedToDefaultRole"/>）。</item>
+/// <item>不存在 → 以全部頁面建立。</item>
 /// <item>已存在 → 只加入<b>新頁面</b>：程式碼有、但權限目錄（<see cref="Permission"/> 表）裡從未出現過的頁面鍵。
 /// 管理員移除過的頁面仍在目錄裡，因此不會被加回去。</item>
 /// </list>
@@ -81,11 +81,7 @@ public sealed class DefaultRoleViewSeeder : IDatabaseSeeder
         }
         else if (newPermissions.Count > 0)
         {
-            // 會花 AI 費用的 Agent 頁面（0.9.142 起）只進權限目錄、不自動開給預設角色。
-            AddNewPages(role, newPermissions
-                .Select(x => x.Key)
-                .Where(key => !RolePermissionService.NotGrantedToDefaultRole.Contains(key))
-                .ToList());
+            AddNewPages(role, newPermissions.Select(x => x.Key).ToList());
         }
 
         dbContext.Permission.AddRange(newPermissions);
