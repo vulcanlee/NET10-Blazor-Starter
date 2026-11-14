@@ -5,7 +5,7 @@ using MyProject.Business.Helpers;
 namespace MyProject.Web.Ai.Agents;
 
 /// <summary>
-/// 工具核准的共用規則（0.9.144 起由 <see cref="AiAgentChat"/> 抽出，Agent 測試台與工作流程共用）：
+/// 工具核准的共用規則（0.9.144 起由 <see cref="AiAgentChat"/> 抽出，各 Agent 共用）：
 /// 先替使用者檢查權限，沒有權限的直接拒絕（寫 <c>Ai.ToolDenied</c>、不跳核准窗），有權限的才請使用者決定。
 /// </summary>
 internal static class AiToolApprovals

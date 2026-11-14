@@ -5,10 +5,7 @@ using MyProject.Web.Auth;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 稽核紀錄的來源 IP（0.9.117 起）。
-///
-/// SSR 頁面與 Web API 從 HttpContext 取；Blazor 互動 circuit 內沒有可靠的 HttpContext，
-/// 改由 <c>ApplicationCircuitHandler</c> 在連線建立時寫進來，取用時優先。
+/// 稽核紀錄的來源 IP（0.9.117 起）：Web API 從 HttpContext 取，排程作業沒有 HttpContext。
 /// </summary>
 public sealed class ClientIpProviderTests
 {
@@ -32,18 +29,9 @@ public sealed class ClientIpProviderTests
         Assert.Equal("203.0.113.5", provider.GetClientIp());
     }
 
+    /// <summary>排程作業：沒有 HttpContext。</summary>
     [Fact]
-    public void GetClientIp_CircuitIp_ShouldWinOverHttpContext()
-    {
-        var provider = new ClientIpProvider(CreateAccessor("203.0.113.5"));
-        provider.SetCircuitClientIp(IPAddress.Parse("198.51.100.9"));
-
-        Assert.Equal("198.51.100.9", provider.GetClientIp());
-    }
-
-    /// <summary>排程作業：沒有 HttpContext、也沒有 circuit。</summary>
-    [Fact]
-    public void GetClientIp_WithoutHttpContextOrCircuit_ShouldReturnNull()
+    public void GetClientIp_WithoutHttpContext_ShouldReturnNull()
     {
         var provider = new ClientIpProvider(new HttpContextAccessor());
 

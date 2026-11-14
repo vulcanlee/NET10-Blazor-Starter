@@ -118,9 +118,11 @@ public sealed class AiAgentFactory : IAiAgentFactory
         // 等於 SignalR circuit，可存活數小時，IOptions 的一次性快照會讓設定變更永遠吃不到。
         var settings = optionsMonitor.CurrentValue;
         var state = new AiCallState();
-        // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model。
+        // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model，
+        // 呼叫端要求快速模型且 AiSettings:FastModel 有填時改用它（0.10.22 起）。
+        var defaultModel = settings.DefaultModel(context.UseFastModel);
         var model = string.IsNullOrWhiteSpace(context.ModelOverride)
-            ? modelOptions?.CurrentValue.Resolve(context.ModelKey, settings.Model) ?? settings.Model
+            ? modelOptions?.CurrentValue.Resolve(context.ModelKey, defaultModel) ?? defaultModel
             : context.ModelOverride.Trim();
 
         // 推論等級：這段對話選的（0.9.170 起）優先；其次是功能自己在系統參數設的（0.9.168 起）；都空白沿用 AiSettings:AgentReasoningEffort。

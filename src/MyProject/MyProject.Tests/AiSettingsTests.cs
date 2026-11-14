@@ -65,6 +65,8 @@ public sealed class AiSettingsTests
         Assert.Equal(string.Empty, settings.Endpoint);
         Assert.Equal(string.Empty, settings.ApiKey);
         Assert.Equal(string.Empty, settings.Model);
+        // 快速模型（0.10.22 起）選填，空白＝用 Model。
+        Assert.Null(settings.FastModel);
         Assert.Equal(100, settings.MaxEntries);
         Assert.Equal(10, settings.MaxFollowUpRounds);
         Assert.Equal(600, settings.TimeoutSeconds);

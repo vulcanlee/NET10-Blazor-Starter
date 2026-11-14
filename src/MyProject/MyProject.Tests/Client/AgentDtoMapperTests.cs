@@ -40,7 +40,7 @@ public sealed class AgentDtoMapperTests
     {
         var local = new DateTime(2026, 11, 8, 7, 30, 0, DateTimeKind.Local);
 
-        var conversation = AgentDtoMapper.ToDto(new AiAgentConversationSummary(Guid.NewGuid(), "AgentPlayground", "標題", local, local, true));
+        var conversation = AgentDtoMapper.ToDto(new AiAgentConversationSummary(Guid.NewGuid(), "AdminAssistant", "標題", local, local, true));
         var report = AgentDtoMapper.ToDto(new AdminPatrolReportSummary(Guid.NewGuid(), local, AdminPatrolStatuses.Normal, "", JobRunTriggers.Schedule, null, "gpt", false));
 
         Assert.Equal(DateTimeKind.Unspecified, conversation.CreatedAt.Kind);

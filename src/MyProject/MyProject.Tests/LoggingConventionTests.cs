@@ -384,14 +384,13 @@ public sealed class LoggingConventionTests
             "AuditHashV1.cs",               // 稽核簽章格式與鏈別常數：純函式，無 I/O（0.9.175 起）
             "PasswordPolicy.cs",            // 密碼原則：純規則計算與雜湊，失敗由呼叫端記錄（0.9.101 起）
             "CookieClaims.cs",              // 登入 Cookie 的 claims 組裝，純函式（0.9.103 起）
-            "ClientIpProvider.cs",          // 稽核來源 IP：持有工作流程執行寫入的 IP 並格式化，無 I/O（0.9.117 起）
+            "ClientIpProvider.cs",          // 稽核來源 IP：從 HttpContext 取 IP 並格式化，無 I/O（0.9.117 起）
             "QrCodeImage.cs",               // 文字轉 QR Code 圖片，純函式（0.9.104 起）
             "SystemIdentity.cs",            // 例外告警服務（例外記錄管線內）使用它讀系統名稱；用 ILogger 會遞迴（0.9.98 起）
             "RetentionStats.cs",            // 資料保留頁的統計（record：筆數、最舊、過期），無行為（0.9.133 起）
             "RetentionCutoffs.cs",          // 純函式：各類資料超過保留天數的門檻（0.9.133 起）
             "CronDescriber.cs",             // 純函式：cron 轉白話（0.9.133 起）
             "MaintenanceJobMapper.cs",      // 純轉換：排程作業狀態轉 DTO（0.10.6 起）
-            "AgentWorkflowMapper.cs",       // 純轉換：工作流程的定義、請求、結果轉 DTO（0.10.7 起）
         ];
 
         if (name.EndsWith("Extensions.cs", StringComparison.Ordinal))

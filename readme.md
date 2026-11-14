@@ -34,7 +34,7 @@
 | 日誌 | NLog.Web.AspNetCore | 6.3.0 |
 | Markdown 渲染 | Markdig（AI 分析結果，經安全管線後渲染）| 1.6.0 |
 | PDF 產生 | PDFsharp + MigraDoc（AI 分析報告，內嵌中文字型；6.5 起改為 AGPL／商業授權，刻意停在 MIT 的 6.2.4）| 6.2.4 |
-| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`；0.9.144 起含 `Microsoft.Agents.AI.Workflows`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.28.0／2.14.0 |
+| AI 呼叫 | Microsoft Agent Framework（`Microsoft.Agents.AI`；0.9.144～0.10.21 另含 `Microsoft.Agents.AI.Workflows`）＋ OpenAI 官方 SDK（Azure OpenAI 也用它，0.9.140 起）| 1.28.0／2.14.0 |
 | 寄信 | MailKit（`EmailSettings` 切換 None／Pickup／Smtp，0.9.59）| 4.18.2 |
 | QR Code | QRCoder（兩步驟驗證的設定 QR，0.9.104）| 1.8.1 |
 | Excel 匯出 | ClosedXML（業務頁匯出 .xlsx，0.9.107）| 0.105.1 |
@@ -119,9 +119,8 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - 通用匯出：專案、分類、團隊、使用者頁「匯出 Excel」，依目前條件與團隊範圍、上限 10000 筆、寫稽核；診斷頁的 CSV 匯出收斂到同一個服務（0.9.107）
 - AI 提示詞：管理員在畫面上修改日誌分析與例外分析的提示詞，存成版本、可切回；防注入與 PDF 格式規則固定附加、改不到（0.9.108）
 - AI 用量上限：全系統與每人的每日、每月新台幣上限（系統參數），達到時不再送出 AI 呼叫，80%／100% 通知本人或管理員；健康檢測記帳不擋（0.9.109）
-- Agent 骨架與 Agent 測試台：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型；新選單「AI 助理 › Agent 測試台」（`/agent-playground`，可授權給角色，不自動開給預設角色）以範例 Agent 搜尋專案、核准後修改專案描述（0.9.142）
-- Agent 對話保存：Agent 測試台的對話自動保存在左側「我的對話」，只有本人看得到，可以接續（AI 記得前文、停在核准的重新跳核准窗）、重新命名、刪除；最後一次對話超過保留天數（系統參數，預設 90 天）自動刪除，資料保留頁多一列「Agent 對話」，備份可選擇是否包含（0.9.143）
-- Agent 工作流程：新選單「AI 助理 › Agent 工作流程」（`/agent-workflows`，可授權給角色，不自動開給預設角色），多個 Agent 依流程協作的兩個範例 ——「專案狀態報告」（蒐集 → 撰寫 → 你審閱、可退回 3 次 → 核准後把一行狀態摘要附加到專案描述）與「多觀點審查」（三位 AI 審查者同時審查、再彙整）；工具核准、AI 提問、審閱在頁面上當下回覆，一次執行的所有模型呼叫共用一個執行編號、Token 用量記在流程名稱下；執行紀錄存在「我的執行紀錄」只能回顧、不能從中途接續，與 Agent 對話共用保留天數、清理與備份；兩條流程可在系統參數「AI 模型」各自指定模型（0.9.144）
+- Agent 骨架：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型（0.9.142）；簡單工作可用設定檔的快速模型 `AiSettings:FastModel`（0.10.22）。現行由系統管理助理使用；0.9.142～0.10.21 的範例頁「Agent 測試台」「Agent 工作流程」（選單「AI 助理」）0.10.22 起已移除，可從 git 標籤 `AI助理-0.10.21` 取回
+- Agent 對話保存：系統管理助理的對話自動保存在左側「我的對話」，只有本人看得到，可以接續（AI 記得前文、停在核准的重新跳核准窗）、重新命名、刪除；最後一次對話超過保留天數（系統參數，預設 90 天）自動刪除，資料保留頁多一列「Agent 對話」，備份可選擇是否包含（0.9.143）
 - 系統管理助理（0.9.155 起）：新選單「系統管理 › 管理助理 › 系統管理助理」（`/admin-assistant`，只限管理員），管理員以對話查詢系統狀態（健康、錯誤、排程、備份、用量、帳號安全），每則訊息先分派給帳號與權限、監控與診斷、AI 管理、系統設定與維運四位專家；要修改時一律先跳核准窗，無法復原的動作要紅字確認；0.9.161 起每天 07:30 由排程作業定時巡檢，報告存在「巡檢報告」，有注意／異常時通知所有管理員並寄信
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
 - 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
@@ -196,11 +195,11 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Shell/                  ← 外框 API 用的選單、操作說明、公告快取類別（0.10.10 起，原本在 Components/）
     │   ├── Hosting/                ← 同站台提供前端（UseFrontend、SPA 回退）與前端的 CSP（0.10.10 起）
     │   ├── Auditing/               ← 寫稽核的共用樣板 ViewAudit（操作者取自目前使用者；0.10.10 起，原本在 Components/Commons）
-    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs / ExceptionLogs / Logs / LogLevel / AiCallLogs / TokenUsage / PromptTemplates / ScheduledJobs / SystemHealth / Backups / DataRetention / DatabaseUsage / SystemParameters / Announcements / Dashboard / Downloads / AgentPlayground / AdminAssistant / AgentWorkflows …）
+    │   ├── Controllers/            ← Web API（Project / Category / Team / Auth / Users / Roles / AuditLogs / EmailLogs / ExceptionLogs / Logs / LogLevel / AiCallLogs / TokenUsage / PromptTemplates / ScheduledJobs / SystemHealth / Backups / DataRetention / DatabaseUsage / SystemParameters / Announcements / Dashboard / Downloads / AdminAssistant …）
     │   ├── Extensions/             ← ★ 服務與中介軟體註冊（AddApplicationServices 等）
     │   ├── Configuration/          ← 強型別設定（CacheSettings、RateLimitSettings …）與 StartupSafetyValidator
     │   ├── Auth/                   ← JwtTokenService、RecordAccessScopeProvider、SessionSettings（0.10.8 起取代 CookieSettings）、WebSessionTokens、TwoFactorLoginTickets、GoogleLoginCodes
-    │   ├── Ai/                     ← LLM 日誌／例外分析、PDF 報告、用量與計價、AI 串流保護（AiStreamGuard）、Agent 與工作流程（Agents/、Workflows/）；安全 Markdown 渲染 0.10.5 起在 Web.Client/Ai
+    │   ├── Ai/                     ← LLM 日誌／例外分析、PDF 報告、用量與計價、AI 串流保護（AiStreamGuard）、Agent（Agents/）；安全 Markdown 渲染 0.10.5 起在 Web.Client/Ai
     │   ├── Backup/                 ← 系統備份（VACUUM INTO 快照＋檔案打包成 zip）
     │   ├── Caching/                ← ICacheService（Memory ↔ Redis）
     │   ├── Dashboard/              ← 首頁儀表板小工具登記
@@ -220,7 +219,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
     │   ├── Filters/                ← ApiValidationFilter、HasPermission、AdminOnly／SignedInUser（0.10.4 起）等
     │   ├── Program.cs              ← 啟動主程式
     │   └── appsettings.json        ← 系統設定（含 SystemVersion）
-    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含 Agent 測試台、Agent 工作流程、系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 36 頁＝全部頁面）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）；0.10.10 起是獨立的靜態站台：wwwroot/ 放入口頁 index.html、theme.css 等全站靜態檔與 appsettings.json（ApiBaseUrl），web.config 是 IIS 靜態站設定；0.10.11 起 wwwroot/ 另有 PWA 的 manifest.webmanifest、service-worker.js（開發用）／service-worker.published.js（發佈用）與 js/pwa.js
+    ├── MyProject.Web.Client/       ← WASM 前端（0.10.0 起）：Pages／Views（0.10.2 起含分類、團隊，0.10.3 起含專案，0.10.4 起含使用者、角色、稽核紀錄、寄信紀錄，0.10.5 起含日誌檢視、日誌等級、系統例外、AI 對話紀錄、Token 用量、AI 提示詞，0.10.6 起含排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理與首頁，0.10.7 起含系統管理助理，0.10.8 起含變更密碼、兩步驟驗證設定、啟動頁、錯誤頁、找不到頁面與登入相關六頁，共 34 頁＝全部頁面；0.10.7 加入的 Agent 測試台、Agent 工作流程 0.10.22 起已移除）／Layout（WASM 版外框，0.10.7 起含通知推播連線 ClientPushConnection；0.10.8 起另有 ClientEmptyLayout、ClientNoFooterLayout）、Ai（伺服器與 WASM 共用的 AI 型別與安全 Markdown 渲染）、Api（CrudApi 與各模組用戶端）、Auth（PagePermissions；0.10.8 起 ClientSession、TokenStore、LoginStorage 等純 Token 工作階段）；Commons/ 放共用元件（0.10.9 起畫面只在這個專案；OverlayStyles、StatusPill、ConfirmDialog、ViewNotification、RequirePermission、AuditHistoryDialog …）；0.10.10 起是獨立的靜態站台：wwwroot/ 放入口頁 index.html、theme.css 等全站靜態檔與 appsettings.json（ApiBaseUrl），web.config 是 IIS 靜態站設定；0.10.11 起 wwwroot/ 另有 PWA 的 manifest.webmanifest、service-worker.js（開發用）／service-worker.published.js（發佈用）與 js/pwa.js
     ├── MyProject.Business/
     │   ├── Services/DataAccess/    ← Domain Service（CRUD）
     │   ├── Services/Other/         ← CurrentUserLoader、CurrentUserService 等
@@ -272,19 +271,19 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
 | `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.ExternalFileSystem.AiCallLogPath` | AI 對話紀錄的內容檔目錄（完整 Prompt／Response，0.9.72 起）。⚠️ 內容含日誌與例外堆疊，**絕不可放在 `DownloadPath` 底下**。 |
-| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 測試台保存的對話內容檔目錄（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
+| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 對話的內容檔目錄（0.9.143 起；現行是系統管理助理的對話與巡檢報告）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.AuditContentPath` | 稽核紀錄的詳細內容檔目錄（0.9.131 起）：修改前後差異與完整查詢條件，系統備份會打包、清除時同步刪檔。⚠️ 可能含 Email、姓名與搜尋原文，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。0.10.8 起以此加密兩步驟驗證的待驗票證、記住裝置 Token、設定票證、Google 登入的暫存 Cookie 與兩步驟驗證金鑰；⚠️ 金鑰換掉記住的裝置要重新驗證、兩步驟驗證金鑰解不開；多機部署須共用此目錄。 |
 | `SystemSettings.ExternalFileSystem.AuditKeyPath` | 稽核紀錄防竄改金鑰目錄（0.9.175 起）：`audit-hmac.key`（第一次寫稽核時自動產生）與每天檢查留下的檢查點。⚠️ **刻意不進系統備份**，不可與其他資料目錄重疊、不可在網站目錄底下（啟動時檢查）；請另外離線保存金鑰檔，換主機時一起帶過去。 |
 | `SystemSettings.Upload.AllowedExtensions` | **預設未寫入 `appsettings.json`**。允許上傳的副檔名白名單（陣列）；留空採用 `UploadFileTypePolicy` 內建預設（不含 `.html`/`.svg`/`.exe` 等）。 |
-| `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model` 與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
-| `AiReasoningSettings` | 各 Agent 功能的推論等級（0.9.168 起）：`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`、`AdminAssistant`，空白＝沿用 `AiSettings:AgentReasoningEffort`；系統參數頁「AI 模型」分類可改 |
-| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`、`ProjectStatusReport`、`MultiPerspectiveReview`（這兩個 0.9.144 起，Agent 工作流程用）、`AdminAssistant`、`AdminAssistantRouter`（系統管理助理與其路由判斷，0.9.155 起），**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
+| `AiSettings` | 日誌 AI 分析：`Provider`（`AzureOpenAI` / `OpenAI`）、`Endpoint`、`ApiKey`、`Model`、選填的快速模型 `FastModel`（0.10.22 起，給簡單工作用，空白＝用 `Model`）與 `TimeoutSeconds`（預設 600 秒）；其餘欄位刻意不寫進範本、走程式預設，完整預設值表見 [AI 日誌分析 §2.1](docs/features/AI日誌分析.md)。Azure 走 v1 API，`Endpoint` 直接貼入口網站的「Azure OpenAI 端點」、`Model` 填部署名稱；OpenAI 則 `Endpoint` 留空、`Model` 填模型 id。沒有獨立的啟用開關，**有沒有填 `ApiKey` 就是開關**。⚠️ `ApiKey` 在 `appsettings.json` 一律留空，實際值走 User Secrets 或環境變數。 |
+| `AiReasoningSettings` | 各 Agent 功能的推論等級（0.9.168 起）：`AdminAssistant`，空白＝沿用 `AiSettings:AgentReasoningEffort`；系統參數頁「AI 模型」分類可改 |
+| `AiModelSettings` | 各 AI 功能使用的模型（0.9.142 起）：`LogAnalysis`、`ExceptionAnalysis`、`AdminAssistant`、`AdminAssistantRouter`（系統管理助理與其路由判斷，0.9.155 起；路由空白時用 `AiSettings:FastModel`，那也空白才用 `AdminAssistant`），**空字串＝用 `AiSettings:Model`**（Azure 填部署名稱）；通常在系統參數頁「AI 模型」調整。見 [日誌與設定檔說明 §4.17](docs/operations/日誌與設定檔說明.md)。 |
 | `AiQuotaSettings` | AI 用量上限（0.9.109 起）：全系統與每人的每日、每月新台幣上限（`GlobalDailyTwd`、`GlobalMonthlyTwd`、`PerUserDailyTwd`、`PerUserMonthlyTwd`，`0`＝不限制）；通常在系統參數頁「AI 用量」調整。見 [日誌與設定檔說明 §4.16](docs/operations/日誌與設定檔說明.md)。 |
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
-| `AiAgentConversationSettings` | Agent 對話（0.9.143 起；0.9.144 起含 Agent 工作流程的執行紀錄）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
+| `AiAgentConversationSettings` | Agent 對話（0.9.143 起；現行是系統管理助理的對話）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
 | `AdminPatrolSettings` | 系統管理助理定時巡檢報告（0.9.161 起）：`RetentionDays`（預設 90，範圍 1～3650），產出超過天數的報告連同內容檔刪除；巡檢執行時間在 `ScheduledJobSettings`。見 [日誌與設定檔說明 §4.10.2](docs/operations/日誌與設定檔說明.md)。 |
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.174 起另有 `AuditBrowsingLogDays`（瀏覽類稽核，預設 90）；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `AuditLogSettings` | 稽核記錄範圍（0.9.174 起）：`RecordFieldChanges`（記錄修改前後差異）、`RecordBrowsing`（記錄換頁、搜尋、查看等瀏覽類事件），預設都 `false`；登入、權限拒絕、新增、修改、刪除永遠照記；通常在系統參數頁「資料保留」切換。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
@@ -330,7 +329,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 3,220 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 3,200 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell
@@ -349,7 +348,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 - [開發慣例與限制速查](docs/architecture/開發慣例與限制速查.md) — **AI/開發者必讀**：分層、SQLite migration、DbContextFactory（0.4.36 起取代追蹤清理）、權限同步等不變量速查。
 - [架構總覽](docs/architecture/架構總覽.md) — 8 個專案（0.10.0 起含 WASM 前端 MyProject.Web.Client）分層、依賴方向、啟動流程、DI 註冊清單。
-- [MAF AI 呼叫架構](docs/architecture/MAF-AI呼叫架構.md) — 所有 LLM 呼叫經 Microsoft Agent Framework 送出（0.9.140 起）：管線、記帳中介層、技術決定、Agent 骨架、對話保存與多 Agent 工作流程（0.9.144 起）。
+- [MAF AI 呼叫架構](docs/architecture/MAF-AI呼叫架構.md) — 所有 LLM 呼叫經 Microsoft Agent Framework 送出（0.9.140 起）：管線、記帳中介層、技術決定、Agent 骨架、快速模型與選模型順序、對話保存（多 Agent 工作流程 0.10.22 起已移除）。
 - [資料模型與資料庫](docs/architecture/資料模型與資料庫.md) — `BackendDBContext`、主要 Entity、關聯與刪除政策。
 - [DTO 與模型邊界規範](docs/architecture/DTO%20與模型邊界規範.md) — API / UI / Business / Entity 資料邊界原則與新 CRUD 模組待辦。
 - [Web API 設計慣例](docs/architecture/Web%20API%20設計慣例.md) — Controller 樣板、`ApiResult<T>`、`PagedResult<T>`、Search DTO。

@@ -1,7 +1,7 @@
 namespace MyProject.Dtos.Ai;
 
 /// <summary>
-/// Agent 對話（Agent 測試台、系統管理助理）的共用上限（0.10.7 起，WASM 遷移 M8）：伺服器驗證與畫面輸入框用同一份。
+/// Agent 對話（0.10.22 起只有系統管理助理）的共用上限（0.10.7 起，WASM 遷移 M8）：伺服器驗證與畫面輸入框用同一份。
 /// </summary>
 public static class AgentConversationLimits
 {
@@ -16,8 +16,8 @@ public static class AgentConversationLimits
 }
 
 /// <summary>
-/// 開頁要的資訊（<c>GET api/v1/agent-playground/info</c>、<c>GET api/v1/admin-assistant/info</c>）：
-/// AI 是否可用、對話保存天數、推論等級選項（只有 Agent 測試台）、範例資料權限（只有 Agent 測試台）。
+/// 開頁要的資訊（<c>GET api/v1/admin-assistant/info</c>）：AI 是否可用、對話保存天數、
+/// 推論等級選項（只有開放「依對話選推論等級」的 Agent 頁才有；0.10.22 起 Agent 測試台移除後目前沒有）。
 /// </summary>
 public class AgentPageInfoDto
 {
@@ -35,15 +35,6 @@ public class AgentPageInfoDto
 
     /// <summary>推論等級下拉第一項的文字（「系統預設（目前：low）」或「系統預設（不指定，由模型決定）」）。</summary>
     public string SystemDefaultReasoningLabel { get; set; } = string.Empty;
-
-    /// <summary>可以「產生 10 筆測試專案」（專案項目的新增權限）。</summary>
-    public bool CanCreateSamples { get; set; }
-
-    /// <summary>可以「清除測試專案」（專案項目的刪除權限）。</summary>
-    public bool CanClearSamples { get; set; }
-
-    /// <summary>測試專案的標題前綴（「【測試】」）。</summary>
-    public string SampleTitlePrefix { get; set; } = string.Empty;
 }
 
 /// <summary>「我的對話」清單的一列。時間是伺服器本地時間，以不帶時差送出。</summary>
@@ -130,7 +121,7 @@ public class AgentMessageRequestDto
 
     public string Message { get; set; } = string.Empty;
 
-    /// <summary>推論等級（只有 Agent 測試台）；null 或空字串＝系統預設。已有對話時改了就從這則訊息起生效。</summary>
+    /// <summary>推論等級（只有開放「依對話選推論等級」的 Agent 頁才送，0.10.22 起目前沒有）；null 或空字串＝系統預設。已有對話時改了就從這則訊息起生效。</summary>
     public string? ReasoningEffort { get; set; }
 }
 
@@ -152,12 +143,4 @@ public class AgentApprovalResponseRequestDto
 public class AgentRenameRequestDto
 {
     public string Title { get; set; } = string.Empty;
-}
-
-/// <summary>產生測試專案的結果（成功時跳說明窗列出標題）。</summary>
-public class AgentSampleResultDto
-{
-    public int Count { get; set; }
-
-    public List<string> Titles { get; set; } = [];
 }

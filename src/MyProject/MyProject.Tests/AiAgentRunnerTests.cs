@@ -828,7 +828,7 @@ public sealed class AiAgentRunnerTests
             Name = "TestAgent",
             DisplayName = "測試 Agent",
             Operation = "測試作業",
-            PromptTemplateKey = MyProject.AccessDatas.Models.PromptTemplateKeys.AgentPlayground,
+            PromptTemplateKey = MyProject.AccessDatas.Models.PromptTemplateKeys.AdminAssistant,
             Tools = [Read, Write],
         };
 

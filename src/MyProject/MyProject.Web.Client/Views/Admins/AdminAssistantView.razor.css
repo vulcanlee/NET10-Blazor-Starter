@@ -1,4 +1,4 @@
-/* ===== 系統管理助理（0.9.155 起）：版面沿用 Agent 測試台（AgentPlaygroundView.razor.css 的同名 class，scoped 樣式各自一份） ===== */
+/* ===== 系統管理助理（0.9.155 起）：版面沿用 Agent 測試台的 class 名稱 agent-playground-*（測試台 0.10.22 起已移除，樣式只剩這一份） ===== */
 /* 顏色一律取 theme.css 的變數（ThemeConventionTests 守門）。泡泡樣式比照 AI 例外分析對話窗。 */
 
 .agent-playground-layout {

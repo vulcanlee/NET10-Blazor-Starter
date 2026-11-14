@@ -1,4 +1,4 @@
-// M8 外觀比對用的固定畫面（0.10.7 起，WASM 遷移 M8）：Agent 測試台、Agent 工作流程、系統管理助理（含巡檢報告窗）的初始畫面。
+// M8 外觀比對用的固定畫面（0.10.7 起，WASM 遷移 M8）：系統管理助理（含巡檢報告窗）的初始畫面（Agent 測試台與 Agent 工作流程 0.10.22 起已移除，檔名編號沿用 03、04）。
 // 改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。對話與執行紀錄的畫面含 AI 輸出，不放進逐像素比對（改由 m08-agents.mjs 的情境驗證）。
 import { launchBrowser, login, newContext, screenshot } from './common.mjs';
 import { freezeTimes } from './m05-views.mjs';
@@ -15,16 +15,6 @@ export async function captureViews(browser, prefix) {
   await login(page);
   freezeTimes();
   try {
-    await page.goto('/agent-playground');
-    await page.waitForSelector('.agent-playground-layout', { timeout: 60000 });
-    await settle(page);
-    files.push(await screenshot(page, `${prefix}-01-Agent測試台`));
-
-    await page.goto('/agent-workflows');
-    await page.waitForSelector('.agent-workflow-layout', { timeout: 60000 });
-    await settle(page);
-    files.push(await screenshot(page, `${prefix}-02-Agent工作流程`));
-
     await page.goto('/admin-assistant');
     await page.waitForSelector('.agent-playground-layout', { timeout: 60000 });
     await settle(page);

@@ -3,8 +3,6 @@
   { "route": "/projects", "title": "專案項目", "file": "projects.md" },
   { "route": "/categories", "title": "分類清單", "file": "categories.md" },
   { "route": "/teams", "title": "團隊清單", "file": "teams.md" },
-  { "route": "/agent-playground", "title": "Agent 測試台", "file": "agent-playground.md" },
-  { "route": "/agent-workflows", "title": "Agent 工作流程", "file": "agent-workflows.md" },
   { "route": "/admin-assistant", "title": "系統管理助理", "file": "admin-assistant.md" },
   { "route": "/ChangePassword", "title": "變更密碼", "file": "changepassword.md" },
   { "route": "/Profile", "title": "個人資料", "file": "profile.md" },

@@ -75,10 +75,7 @@ public static class ClientProgram
         // 系統參數、公告管理（0.10.6 起，WASM 遷移 M7）。
         builder.Services.AddScoped<SystemParameterApi>();
         builder.Services.AddScoped<AnnouncementApi>();
-        // Agent 工作流程（0.10.7 起，WASM 遷移 M8）。
-        builder.Services.AddScoped<AgentWorkflowApi>();
-        // Agent 測試台、系統管理助理（0.10.7 起，WASM 遷移 M8）。
-        builder.Services.AddScoped<AgentPlaygroundApi>();
+        // 系統管理助理（0.10.7 起，WASM 遷移 M8；Agent 測試台與 Agent 工作流程 0.10.22 起已移除）。
         builder.Services.AddScoped<AdminAssistantApi>();
         builder.Services.AddAntDesign();
 

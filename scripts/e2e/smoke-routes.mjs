@@ -1,4 +1,4 @@
-// 全部 36 個路由的煙霧測試（0.10.0 起，WASM 遷移 M1；0.10.8 起移除 /Auths/RefreshSession，37 → 36）：每頁都要開得起來、沒有錯誤畫面，並截圖。
+// 全部 34 個路由的煙霧測試（0.10.0 起，WASM 遷移 M1；0.10.8 起移除 /Auths/RefreshSession，37 → 36；0.10.22 起移除 Agent 測試台與 Agent 工作流程，36 → 34）：每頁都要開得起來、沒有錯誤畫面，並截圖。
 // 以 support（管理員）登入跑需要登入的頁面，另開一個未登入的視窗跑登入相關頁面（0.10.8 起都在 WASM，等元素出現才截圖）。
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,7 +9,7 @@ export const authenticatedRoutes = [
   '/projects', '/categories', '/teams', '/myusers', '/roleviews', '/audit-logs', '/email-logs',
   '/logs', '/log-level-setting', '/system-exceptions', '/ai-call-logs', '/token-usage', '/prompt-templates',
   '/system-health', '/database-usage', '/scheduled-jobs', '/backups', '/data-retention', '/system-parameters', '/announcements',
-  '/agent-playground', '/agent-workflows', '/admin-assistant', '/Error', '/not-found',
+  '/admin-assistant', '/Error', '/not-found',
 ];
 
 export const anonymousRoutes = ['/Auths/Login', '/Auths/ForgotPassword', '/Auths/ResetPassword', '/Auths/Pending', '/Auths/TwoFactor'];

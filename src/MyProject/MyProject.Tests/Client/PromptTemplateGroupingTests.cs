@@ -12,20 +12,18 @@ namespace MyProject.Tests.Client;
 public sealed class PromptTemplateGroupingTests
 {
     [Fact]
-    public void RealTitles_ShouldBeGroupedIntoFourGroupsInServerOrder()
+    public void RealTitles_ShouldBeGroupedInServerOrder()
     {
-        // 和 PromptTemplatesController 一樣的順序與標題。
+        // 和 PromptTemplatesController 一樣的順序與標題（0.10.22 起 Agent 測試台與 Agent 工作流程的 8 份已移除）。
         var templates = PromptTemplateKeys.All
             .Select(key => new PromptTemplateDto { Key = key, Title = PromptTemplateTitles.Of(key) })
             .ToList();
 
         var groups = PromptTemplateView.GroupsOf(templates);
 
-        Assert.Equal(["一般", "狀態報告", "審查", "管理助理"], groups.Select(g => g.Name));
-        Assert.Equal(["日誌分析", "例外分析", "Agent 測試台"], groups[0].Items.Select(i => i.Label));
-        Assert.Equal(["蒐集", "撰寫", "收尾"], groups[1].Items.Select(i => i.Label));
-        Assert.Equal(["需求完整性", "技術可行性", "使用者體驗", "彙整"], groups[2].Items.Select(i => i.Label));
-        Assert.Equal(["共同", "分派", "帳號與權限", "監控與診斷", "AI 管理", "系統設定與維運"], groups[3].Items.Select(i => i.Label));
+        Assert.Equal(["一般", "管理助理"], groups.Select(g => g.Name));
+        Assert.Equal(["日誌分析", "例外分析"], groups[0].Items.Select(i => i.Label));
+        Assert.Equal(["共同", "分派", "帳號與權限", "監控與診斷", "AI 管理", "系統設定與維運"], groups[1].Items.Select(i => i.Label));
 
         // 每個種類剛好出現一次，鍵照原本的順序。
         Assert.Equal(PromptTemplateKeys.All, groups.SelectMany(g => g.Items).Select(i => i.Key));

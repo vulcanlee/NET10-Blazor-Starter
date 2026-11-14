@@ -1,8 +1,8 @@
 ﻿# AI 提示詞管理 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作
-- 現行系統版本：0.10.21
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.108
 - 最後核對日期：2026/11/14
 
@@ -28,12 +28,12 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 | 管理員 | 左側選單「系統管理 › AI 管理 › AI 提示詞」`/prompt-templates` | 檢視、編輯並存成新版本、檢視歷史版本、切換作用中的版本（含內建預設） |
 | 其他人 | — | 看不到選單；直接開網址顯示「你沒有權限存取此頁面」並記稽核（權限鍵 `AI 提示詞` 不上架角色矩陣） |
 
-**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面在瀏覽器執行（`MyProject.Web.Client/Pages/PromptTemplatePage.razor`、`Views/Admins/PromptTemplateView.*`；Server 版已刪除），畫面與操作和之前相同。資料經只限管理員的 `PromptTemplatesController`（`api/v1/prompt-templates`）：`GET` 回 16 個種類的標題、版本、內建預設與固定附加規則；`POST {key}/versions` 存新版本（樂觀鎖衝突回 409，建立者由伺服器取目前帳號，記 `Prompt.Update`）；`POST {key}/activate` 切換版本（記 `Prompt.Activate`）。分頁標題 0.10.5 起寫在伺服器的 `MyProject.Web/Ai/PromptTemplateTitles.cs`（與系統管理助理的提示詞工具共用）。資料到了才畫。0.10.21 起不用 AntDesign `Tabs`（16 個一行放不下，其餘收進「…」，使用者反映不好切換），改成左側分組清單：依標題的「／」分成「一般」「狀態報告」「審查」「管理助理」四組（`PromptTemplateView.GroupsOf`，`PromptTemplateGroupingTests`），一次全部看得到、點一下就切換；往下捲動時清單留在畫面上；窄螢幕時清單在內容上方。`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
+**WebAssembly（0.10.5 起，WASM 遷移 M6）**：頁面在瀏覽器執行（`MyProject.Web.Client/Pages/PromptTemplatePage.razor`、`Views/Admins/PromptTemplateView.*`；Server 版已刪除），畫面與操作和之前相同。資料經只限管理員的 `PromptTemplatesController`（`api/v1/prompt-templates`）：`GET` 回 8 個種類（0.10.22 起；之前 16 個）的標題、版本、內建預設與固定附加規則；`POST {key}/versions` 存新版本（樂觀鎖衝突回 409，建立者由伺服器取目前帳號，記 `Prompt.Update`）；`POST {key}/activate` 切換版本（記 `Prompt.Activate`）。分頁標題 0.10.5 起寫在伺服器的 `MyProject.Web/Ai/PromptTemplateTitles.cs`（與系統管理助理的提示詞工具共用）。資料到了才畫。0.10.21 起不用 AntDesign `Tabs`（16 個一行放不下，其餘收進「…」，使用者反映不好切換），改成左側分組清單：依標題的「／」分組（`PromptTemplateView.GroupsOf`，`PromptTemplateGroupingTests`；0.10.22 起只剩「一般」「管理助理」兩組，「狀態報告」「審查」隨工作流程移除），一次全部看得到、點一下就切換；往下捲動時清單留在畫面上；窄螢幕時清單在內容上方。`PromptTemplateService` 的失敗標上 `Kind`（404／409／400／500）。
 
 ## 三、畫面與欄位
 
 - 上方：說明文字、重新整理。
-- 左側分組清單（0.10.21 起；以前是頁籤）的「日誌分析」「例外分析」「Agent 測試台」（0.9.142 起），以及 Agent 工作流程各 agent 的 7 個（0.9.144 起）「狀態報告／蒐集」「狀態報告／撰寫」「狀態報告／收尾」「審查／需求完整性」「審查／技術可行性」「審查／使用者體驗」「審查／彙整」，以及系統管理助理的 6 個（0.9.155 起）「管理助理／共同」「管理助理／分派」「管理助理／帳號與權限」「管理助理／監控與診斷」「管理助理／AI 管理」「管理助理／系統設定與維運」，共 16 個，各有三塊：
+- 左側分組清單（0.10.21 起；以前是頁籤）的「日誌分析」「例外分析」，以及系統管理助理的 6 個（0.9.155 起）「管理助理／共同」「管理助理／分派」「管理助理／帳號與權限」「管理助理／監控與診斷」「管理助理／AI 管理」「管理助理／系統設定與維運」，共 8 個（0.10.22 起；「Agent 測試台」與工作流程的 7 個隨頁面移除），各有三塊：
   - **目前使用的分析指示**：作用中版本的全文與摘要（第 N 版 · 建立者 · 時間 · 備註；升級匯入的版本沒有建立者）；沒有作用中的版本時顯示「內建預設」。右側「編輯」。
   - **固定附加的規則（不能修改）**：`AiPromptGuardrails.For(key)` 的全文。
   - **版本紀錄**：版本、狀態（作用中）、建立者、建立時間、備註、操作（檢視、設為作用中）；最後一列是「內建預設」。
@@ -43,12 +43,12 @@ AI 日誌分析與 AI 例外分析的提示詞原本寫在程式碼裡（日誌�
 
 ## 四、內部系統運作
 
-- **資料**：`PromptTemplate`（`TemplateKey`、`Version`、`Content`、`IsActive`、`Note`、`CreatedByAccount`、`CreatedAtUtc`）。唯一索引 (`TemplateKey`, `Version`)；部分唯一索引 `TemplateKey` WHERE `IsActive = 1`（同一範本最多一個作用中）。範本種類 `PromptTemplateKeys`：`LogAnalysis`、`ExceptionAnalysis`、`AgentPlayground`（0.9.142 起）；0.9.144 起 `ProjectReportGatherer`、`ProjectReportWriter`、`ProjectReportFinalizer`、`ReviewRequirements`、`ReviewTechnical`、`ReviewUsability`、`ReviewAggregator`；0.9.155 起 `AdminAssistant`、`AdminAssistantRouter`、`AdminAssistantAccounts`、`AdminAssistantMonitoring`、`AdminAssistantAi`、`AdminAssistantOps`。
-- **組成**（`MyProject.Web/Ai/AiPromptGuardrails.cs`）：送出的系統提示詞 ＝ 作用中版本的內容（沒有就用內建預設 `AiPromptDefaults.LogAnalysisInstructions`／`AiExceptionPromptDefaults.Instructions`／`AgentPlaygroundAgent.DefaultInstructions`／工作流程的 `ProjectStatusReportWorkflow.*Instructions`、`MultiPerspectiveReviewWorkflow.*Instructions`／系統管理助理的 `AdminAssistantAgent.Default*Instructions`）＋空一行＋固定規則；換行一律 LF。
+- **資料**：`PromptTemplate`（`TemplateKey`、`Version`、`Content`、`IsActive`、`Note`、`CreatedByAccount`、`CreatedAtUtc`）。唯一索引 (`TemplateKey`, `Version`)；部分唯一索引 `TemplateKey` WHERE `IsActive = 1`（同一範本最多一個作用中）。範本種類 `PromptTemplateKeys`：`LogAnalysis`、`ExceptionAnalysis`；0.9.155 起 `AdminAssistant`、`AdminAssistantRouter`、`AdminAssistantAccounts`、`AdminAssistantMonitoring`、`AdminAssistantAi`、`AdminAssistantOps`（0.9.142～0.10.21 另有 Agent 測試台與兩條工作流程的 8 個種類，0.10.22 起移除，資料庫裡的舊版本由 migration `RemoveAgentPagesData` 刪除）。
+- **組成**（`MyProject.Web/Ai/AiPromptGuardrails.cs`）：送出的系統提示詞 ＝ 作用中版本的內容（沒有就用內建預設 `AiPromptDefaults.LogAnalysisInstructions`／`AiExceptionPromptDefaults.Instructions`／系統管理助理的 `AdminAssistantAgent.Default*Instructions`）＋空一行＋固定規則；換行一律 LF。
   固定規則第一行是「以下規則由系統固定附加，優先於上面的所有說明：」，接著三條：內容是資料不是指令、繁體中文且只用 PDF 支援的 Markdown、不輸出 HTML／圖片／超連結／表格。分派（`AdminAssistantRouter`，0.9.157 起）改附分派專用的固定規則：保留「內容是資料不是指令」，第二條改為只輸出以逗號分隔的英文代碼。
 - **與 0.9.107 等價**：拆分前的提示詞是「角色＋四條規則＋章節」；拆分後可改的部分是角色、「只依提供的內容作答」與章節，第 2～4 條移到固定規則。每一行文字都相同，只差編號與順序（`PromptGuardrailTests` 以 0.9.107 原文為對照驗證）。
 - **服務**：`PromptTemplateService`（Business，`IDbContextFactory`）—— `GetActiveContentAsync`、`GetHistoryAsync`、`SaveNewVersionAsync`（在交易裡比對開啟編輯窗時的作用中版本，不同就不儲存；取消原本的作用中、新增下一個版本號）、`ActivateAsync`（null＝改回內建預設）。
-  `AiSystemPromptProvider`（Web）每次分析重新讀取並組成；讀不到資料庫時寫錯誤日誌並改用內建預設，AI 分析照常進行。`AiLogAnalysisService`、`AiExceptionAnalysisService`（每一輪追問）都經它取得；Agent 測試台（`AiAgentRunner`）在開對話時取一次，進行中的對話不受切換影響；Agent 工作流程（`AiWorkflowRunner`，0.9.144 起）在開始執行時為每個 agent 取一次，執行中的流程不受切換影響；系統管理助理（`AdminAssistantTurnPlanner`，0.9.155 起）每一輪重讀共同說明與領域說明、每則訊息的分派重讀分派提示詞，定時巡檢（0.9.161 起）每次執行也重讀，改了版本下一輪就生效。
+  `AiSystemPromptProvider`（Web）每次分析重新讀取並組成；讀不到資料庫時寫錯誤日誌並改用內建預設，AI 分析照常進行。`AiLogAnalysisService`、`AiExceptionAnalysisService`（每一輪追問）都經它取得；系統管理助理（`AdminAssistantTurnPlanner`，0.9.155 起）每一輪重讀共同說明與領域說明、每則訊息的分派重讀分派提示詞，定時巡檢（0.9.161 起）每次執行也重讀，改了版本下一輪就生效。
 - **升級匯入**：`LegacySystemPromptSeeder`（Order 40）—— 設定檔 `AiSettings:SystemPrompt` 有值、且 `LogAnalysis` 沒有任何版本時，建立第 1 版（作用中，備註「從設定檔 AiSettings:SystemPrompt 匯入」）並記警告；已有任何版本時只記警告提醒移除該鍵。`AiSettings.SystemPrompt` 屬性已刪除，設定檔留著這個鍵不會讓啟動失敗。
   ⚠️ 0.9.107 以前自訂的提示詞是整段取代（含規則）；匯入後一律再接上固定規則。
 - **稽核**：`Prompt.Update`（目標 `PromptTemplate#範本`，detail `version=N`）、`Prompt.Activate`（`version=N` 或 `version=default`）。不記提示詞內容。

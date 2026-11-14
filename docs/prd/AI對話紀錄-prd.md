@@ -1,8 +1,8 @@
 ﻿# AI 對話紀錄 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.72
 - 最後核對日期：2026/11/14
 
@@ -58,19 +58,18 @@
 | AI 日誌分析 | `AiChatCompletionClient`（經 `AiLogAnalysisService`）| `CurrentUserService` | 「日誌 起～迄，送出 n／N 筆」（實際送出的最新 n 筆）|
 | AI 例外分析 | `AiChatCompletionClient`（經 `AiExceptionAnalysisService`）| 同上 | 第一次：「例外紀錄 #id（例外類型）」；追問：「例外紀錄 #id，追問第 n 輪」|
 | 系統健康檢測 | `AiHealthProbe` | 同上 | 「系統健康監控 AI 連線探測」|
-| Agent 測試台（0.9.142 起）| `AiAgentRunner`／`AiAgentChat` | 同上 | 「專案小幫手（範例）」（Agent 的顯示名稱）|
-| 專案狀態報告、多觀點審查（0.9.144 起，Agent 工作流程）| `AiWorkflowRunner`／`AiWorkflowRun` | 同上 | 「流程／agent」，例如「專案狀態報告／撰寫」「多觀點審查／彙整」|
 | 系統管理助理（0.9.155 起）| `AiAgentRunner`／`AiAgentChat`（經 `AdminAssistantTurnPlanner`）| 同上 | 「系統管理助理」|
 | 系統管理助理（分派）（0.9.155 起）| `AiChatCompletionClient`（經 `AdminAssistantTurnPlanner`），與主呼叫共用同一個 `ConversationId` | 同上 | 「系統管理助理（分派）」|
 | 系統管理助理（排程巡檢）（0.9.161 起）| `AdminPatrolRunner`（排程作業「系統管理助理巡檢」）| 無（沒有登入使用者）| 「系統管理助理（排程巡檢）」；`ConversationId` 是巡檢報告編號 |
+
+0.9.142～0.10.21 另有「Agent 測試台」「專案狀態報告」「多觀點審查」三種作業，0.10.22 起隨頁面移除；舊紀錄保留原本的作業名稱，到期照常清除。
 
 0.9.140 起所有呼叫點都經 `IAiAgentFactory` 建立的 MAF agent 送出，實際寫入本功能的是 agent 管線上的記帳中介層
 `AiAccountingChatClient`（單一 `finally`）；請求與回應原文由 SDK 管線原則 `AiHttpCapturePolicy` 擷取。見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
 
 AI 例外分析與它的每一輪追問共用同一個 `ConversationId`（由 `ExceptionAiAnalysisModal` 開窗時產生，經 `AiExceptionCallContext`
 傳給無狀態的服務；0.10.5 起對話窗在 WASM，每次追問把 `ConversationId` 一起送到 `POST api/v1/exception-logs/{id}/ai`），明細窗會列出同一段對話的所有呼叫。本專案的追問與第一次分析共用作業名稱「AI 例外分析」，以關聯說明區分輪數。
-Agent 測試台的一段對話同樣共用一個 `ConversationId`（開對話時產生）；0.9.143 起對話會保存，日後從「我的對話」接續時沿用同一個 `ConversationId`，前後的呼叫仍串成同一段（對話本身的保存與過期是另一套，見 [MAF AI 呼叫架構 §6.7](../architecture/MAF-AI呼叫架構.md)；刪除或過期的 Agent 對話不影響本功能的紀錄）。
-Agent 工作流程（0.9.144 起）的一次執行共用一個 `ConversationId` 與一個 `RunId`：流程裡每個 agent、人工介入（工具核准、Agent 提問、審閱）停頓前後的所有呼叫都串在一起，以關聯說明區分是哪個 agent。
+系統管理助理的一段對話同樣共用一個 `ConversationId`（開對話時產生）；0.9.143 起對話會保存，日後從「我的對話」接續時沿用同一個 `ConversationId`，前後的呼叫仍串成同一段（對話本身的保存與過期是另一套，見 [MAF AI 呼叫架構 §6.7](../architecture/MAF-AI呼叫架構.md)；刪除或過期的 Agent 對話不影響本功能的紀錄）。
 
 **同一次執行（`RunId`，0.9.142 起）**：一次執行（一次按鈕、一輪追問、Agent 的一則訊息或一次核准回覆）一個 `RunId`。
 Agent 一次執行裡的工具呼叫迴圈會呼叫模型好幾次（先決定要用哪個工具、執行後再整理答案），每一次各記一筆、`RunId` 相同；
@@ -88,7 +87,7 @@ Token 用量同一次呼叫也帶同一個 `RunId`。健康探測與 0.9.141 以
 
 | 項目 | 說明 |
 |---|---|
-| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`；0.9.149 起 Agent 測試台與 Agent 工作流程、0.9.155 起系統管理助理（分派除外）、0.9.161 起定時巡檢走 Responses API，請求是 `instructions`＋`input` 格式、帶 `"store": false`）。**不含 HTTP 標頭與金鑰** |
+| 原始請求 | OpenAI 官方 SDK 產生的 JSON（0.9.140 起；之前為 `AiChatRequestFactory`），**逐字**保存（中文直接以 UTF-8 保存，0.9.139 以前的紀錄為 `\uXXXX`；畫面另行排版；省略 `"stream": false`、欄位順序與 0.9.139 以前不同，`AiCallLogMessages.Parse` 照樣解析；0.9.141 起串流呼叫帶 `"stream": true` 與 `stream_options`；0.9.149 起 Agent 類呼叫（現行是 0.9.155 起的系統管理助理，分派除外）、0.9.161 起定時巡檢走 Responses API，請求是 `instructions`＋`input` 格式、帶 `"store": false`）。**不含 HTTP 標頭與金鑰** |
 | 原始回應 | 回應 body（含錯誤 body）；沒拿到回應（逾時、連線失敗、取消）時為 null。串流呼叫（0.9.141 起）為 **SSE 原文**（`data: {…}` 逐行，由 `AiCapturingStream` 邊讀邊記）；中途取消或逾時時是已收到的部分 |
 | 解析後的回應文字 | `choices[0].message.content`；串流為各 chunk `delta.content` 串起來；Responses API（0.9.149 起）為 `output` 裡各 `output_text` 串起來，串流取最後的 `response.completed`，沒有時串起 `response.output_text.delta`；中途取消時是**已收到的部分** |
 | 中繼資料 | 送出時間（本地時間）、作業、帳號／UserId、供應商、要求模型與實際模型、端點（只含 scheme／主機／連接埠／路徑）、HTTP 狀態、結束原因、成敗與原因、例外型別、耗時、關聯說明、ConversationId、RunId（0.9.142 起）、CallId |
@@ -188,7 +187,6 @@ Token 用量明細窗新增「AI 對話紀錄」列：
 |---|---|
 | 記錄、停用、寫檔失敗、截斷、DB 失敗不丟例外、篩選、排序分頁、明細（訊息／用量／對話／同一次執行）、刪除、清除、清空、過期與孤兒目錄 | `AiCallLogServiceTests` |
 | Agent 工具呼叫迴圈每次模型呼叫各記一筆且 RunId 相同（0.9.142 起） | `AiAgentRunnerTests` |
-| 工作流程一次執行所有 agent 共用同一個 RunId 與 ConversationId、關聯說明為「流程／agent」（0.9.144 起） | `AiWorkflowRunnerTests` |
 | 結果預設值、送出旗標、記錄失敗不外拋、端點去除查詢字串、訊息解析 | `AiCallCaptureTests` |
 | 成功／錯誤 body／逾時／傳輸失敗／取消／非預期錯誤／未設定不記、CallId 與 Token 用量一致、內容不含金鑰、recorder 丟例外不影響結果 | `AiChatCompletionClientTests`、`AiLogAnalysisServiceTests`、`AiHealthProbeTests` |
 | SDK 產生的請求 body 仍能解析成訊息、自己的逾時記一筆（0.9.140 起） | `AiAgentPipelineTests` |

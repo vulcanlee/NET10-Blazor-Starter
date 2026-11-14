@@ -17,7 +17,7 @@ namespace MyProject.Web.Client.Views.Admins;
 
 /// <summary>
 /// 系統管理助理（0.9.155 起）：管理員專屬，權限鍵刻意不進角色矩陣，以 IsAdmin 判斷。
-/// 互動與 Agent 測試台相同（對話保存、接續、核准窗、停止產生）；每則訊息由伺服器的規劃器先分派領域，
+/// 互動沿用 Agent 測試台（0.10.22 起已移除）：對話保存、接續、核准窗、停止產生；每則訊息由伺服器的規劃器先分派領域，
 /// AI 回覆上方顯示「由誰回答」（<see cref="AiAgentTranscriptEntry.Agent"/>）。
 /// 0.10.7 起在 WASM 執行（WASM 遷移 M8）：畫面、對話窗與提示訊息照 Server 版；每次送出或核准都是一個請求
 /// （<see cref="AdminAssistantApi"/>，NDJSON 串流），核准後沿用分派到的領域（伺服器存在對話裡）。

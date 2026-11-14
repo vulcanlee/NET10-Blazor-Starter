@@ -43,7 +43,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/m07-views.mjs server  # M7 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
    node ./scripts/e2e/m07-ops.mjs           # M7 情境 M7-P1～P9＋全部路由煙霧測試（會先佈置 m07-views 的固定資料）
    node ./scripts/e2e/m08-views.mjs server  # M8 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
-   node ./scripts/e2e/m08-agents.mjs        # M8 情境 M8-G1～G9（真實模型，需要 AI 設定）＋全部路由煙霧測試
+   node ./scripts/e2e/m08-agents.mjs        # M8 情境 M8-G6～G9（真實模型，需要 AI 設定）＋全部路由煙霧測試
    node ./scripts/e2e/m08-agents.mjs nopush # M8 關閉推播情境 M8-N1（主機要另外啟動，見下方）
    node ./scripts/e2e/m09-views.mjs server  # M9 外觀比對用的固定畫面（改版前後各跑一次，前綴不同）
    node ./scripts/e2e/m09-auth.mjs          # M9 純 Token 登入情境 M9-T1～T11＋全部路由煙霧測試
@@ -95,7 +95,7 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 **M12 的 PWA 與離線情境（0.10.11 起）**：`m12-pwa.mjs` 必須以**發佈版前端**執行（開發用的 `service-worker.js` 不快取；0.10.20 起它會表明身分、默默接手，不會出現新版本提示），照 M11 的雙站台方式準備：前端以 `-p:StaticSiteApiOrigin=<API 主機來源>` 發佈，由 `static-site.mjs` 提供（Service Worker 只在 HTTPS 或 localhost 生效，`http://localhost:<埠>` 可以），API 主機以 `Start-E2EHost.ps1` 啟動並設 `ClientSettings__BaseUrl`；執行時 `E2E_BASE_URL` 設前端網址、`E2E_API_URL` 設 API 主機網址、**`E2E_STATIC_ROOT` 設前端發佈根目錄**（`web.config` 所在；W5 會改裡面的 `service-worker-assets.js` 版本模擬部署新版，跑完要重新發佈）。情境：W1 Service Worker 安裝並接管、快取只有 `offline-cache-<範圍>:<版本>` 且沒有任何 `/api` 回應、W2 可安裝（Chrome 的安裝條件檢查沒有錯誤）與 manifest、W3 離線提示列與「目前離線」訊息與離線重新整理外框仍開得起來且不被登出、側邊選單換頁不卡死、W4 恢復連線（提示列消失、自動重新載入、推播重新連線）、W5 部署新版（新版本提示列、「稍後」收起、按「立即更新」後重新載入一次並換成新版快取）、W6 英文瀏覽器（en-US）的日期仍是 zh-TW 格式、W7 瀏覽器有網路但伺服器暫時連不上（攔下送往 API 主機的請求）：顯示連不上的訊息不登出、恢復後 15 秒內自動重新載入；＋36 路由煙霧測試（Service Worker 接管下）。結果寫到 `m12-results.json` 與 `smoke-results.json`。
 
-**最終巡檢（0.10.12 起）**：`walkthrough.mjs` 以看得到的 Chrome（`E2E_HEADED=1`）把每個畫面實際開一次並截圖，供人逐張目視檢查：V01～V30 登入後 30 個路由（每頁等外框與內容出現）、D01～D10 主要對話窗與浮層（分類、團隊、專案、使用者、角色、公告的新增窗、操作說明窗、使用者選單、通知鈴鐺、關於）、T01 按過 AI 對話窗的「產生 PDF 報告並下載」後以分段移動的滑鼠點右上角關閉鈕要關得掉（**會呼叫一次真實模型**，需要 AI 設定）、A01～A05 登入相關頁面（未登入）、A99 登出。記錄頁面錯誤、主控台錯誤、CSP 違規（AntDesign 頁籤的 `ondragover` 為已知、另計）與錯誤列；截圖 `screenshots/walk-*.png`，結果寫到 `walkthrough-results.json`。同站台對 `Start-E2EHost.ps1` 啟動的主機執行；雙站台照 M11／M12 的方式以發佈版前端（`static-site.mjs`）＋API 主機執行。
+**最終巡檢（0.10.12 起）**：`walkthrough.mjs` 以看得到的 Chrome（`E2E_HEADED=1`）把每個畫面實際開一次並截圖，供人逐張目視檢查：V01～V28 登入後 28 個路由（每頁等外框與內容出現；0.10.22 起少了 Agent 測試台與 Agent 工作流程）、D01～D10 主要對話窗與浮層（分類、團隊、專案、使用者、角色、公告的新增窗、操作說明窗、使用者選單、通知鈴鐺、關於）、T01 按過 AI 對話窗的「產生 PDF 報告並下載」後以分段移動的滑鼠點右上角關閉鈕要關得掉（**會呼叫一次真實模型**，需要 AI 設定）、A01～A05 登入相關頁面（未登入）、A99 登出。記錄頁面錯誤、主控台錯誤、CSP 違規（AntDesign 頁籤的 `ondragover` 為已知、另計）與錯誤列；截圖 `screenshots/walk-*.png`，結果寫到 `walkthrough-results.json`。同站台對 `Start-E2EHost.ps1` 啟動的主機執行；雙站台照 M11／M12 的方式以發佈版前端（`static-site.mjs`）＋API 主機執行。
 
 **實機腳本的慣例（0.10.12 起）**：
 - ⚠️ **不要用 `page.waitForFunction`**：第一次判斷不成立、開始輪詢時要在頁面裡 eval，被前端的 CSP（M11 起沒有 `'unsafe-eval'`）擋下而偶發失敗。一律用 `common.mjs` 的 `waitForPredicate(page, predicate, arg, { timeout, polling })`（在 Node 端以 `page.evaluate` 輪詢，用法同 `waitForFunction`）。
@@ -131,14 +131,14 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 | `m06-ops.mjs` | M6 操作情境（0.10.5 起，不呼叫 AI）：M6-O1 日誌等級套用與還原、O2 提示詞存新版本與切回內建預設、O3 系統例外排序／匯出同序／刪除、O4 AI 對話紀錄深連結與匯出、O5 Token 用量匯出與明細窗連到 AI 對話紀錄、O6 日誌快速區間與匯出含 BOM、O7 非管理員直打 M6 的 API 得 403、O8 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試 |
 | `m07-views.mjs` | M7 外觀比對（0.10.6 起）：佈置固定的公告、兩個空 zip 備份檔與一般使用者，拍 9 個畫面（排程作業、系統健康、系統備份、資料保留、資料庫用量、系統參數、公告管理、首頁〔管理員〕、首頁〔一般使用者〕）。系統健康、資料庫用量、排程的「下次執行」含即時數值，差異集中在數值處 |
 | `m07-ops.mjs` | M7 情境（0.10.6 起）：M7-P1 排程立即執行後狀態自動更新（不重新整理）、P2 立即備份→清單自動出現→以一次性票證下載 zip（第二次 404、舊的 Cookie 下載網址 404）、P3 修改系統名稱立即生效並還原、P4 公告新增後同一個分頁的橫幅立即出現、P5 另一個分頁（一般使用者）切回時看得到、P6 首頁小工具依權限（一般使用者直接呼叫排程小工具的 API 得 403）、P7 系統健康／資料保留／資料庫用量在 WASM 開得起來、P8 非管理員直打 M7 的 13 個 API 得 403、P9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試 |
-| `m08-views.mjs` | M8 外觀比對（0.10.7 起）：拍 4 個初始畫面（Agent 測試台、Agent 工作流程、系統管理助理、巡檢報告窗）。對話與執行過程含 AI 輸出，不做逐像素比對，改由 `m08-agents.mjs` 的情境驗證 |
-| `m08-agents.mjs` | M8 情境（0.10.7 起，真實模型）：M8-G1 Agent 測試台在 WASM、產生測試專案、G2 寫入工具跳出核准窗 → 核准 → 真的寫入且稽核一筆、G3 核准中重新整理回到同一段對話、核准窗再跳出 → 拒絕 → 沒有寫入、G4 兩個分頁同時送出同一段對話（後到的排隊，兩則都完成）、G5 工作流程「專案狀態報告」人工介入中重新整理可接回直到完成、G6 系統管理助理不可復原的動作要輸入「確認」才能核准（這次按拒絕）、G7 排程巡檢產生報告且 `?patrolReport=` 直接打開、G8 推播：另一個瀏覽器的鈴鐺 2 秒內更新、G9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試。`nopush` 參數只跑 M8-N1 |
+| `m08-views.mjs` | M8 外觀比對（0.10.7 起）：拍 2 個初始畫面（系統管理助理、巡檢報告窗；Agent 測試台與 Agent 工作流程 0.10.22 起已移除）。對話與執行過程含 AI 輸出，不做逐像素比對，改由 `m08-agents.mjs` 的情境驗證 |
+| `m08-agents.mjs` | M8 情境（0.10.7 起，真實模型）：0.10.22 起 Agent 測試台與 Agent 工作流程移除，G1～G5 一併拿掉（共用的對話流程由 `AgentConversationApiTests` 守門）；G6 系統管理助理不可復原的動作要輸入「確認」才能核准（這次按拒絕）、G7 排程巡檢產生報告且 `?patrolReport=` 直接打開、G8 推播：另一個瀏覽器的鈴鐺 2 秒內更新、G9 沒有未處理的瀏覽器錯誤；最後跑全部路由的煙霧測試。`nopush` 參數只跑 M8-N1 |
 | `m09-views.mjs` | M9 外觀比對（0.10.8 起）：佈置三個測試帳號（必須改密碼、已啟用兩步驟驗證、要設定兩步驟驗證），拍 10 個畫面（登入、登入失敗、忘記密碼、重設密碼〔無效連結〕、Google 待審、兩步驟驗證、強制改密碼、兩步驟驗證設定、找不到頁面、錯誤頁）。驗證碼圖片與兩步驟驗證設定的 QR 碼每次不同，比對時另外說明。⚠️ 一律等畫面元素出現，不用 `networkidle` |
 | `m09-auth.mjs` | M9 情境（0.10.8 起）：M9-T1 登入後瀏覽器只有 Token、沒有登入 Cookie、T2 記住我關掉所有分頁再開仍登入、T3 不記住我時新分頁由已開分頁交接 Token、全部關掉要重新登入、T4 跨分頁登出、T5 連錯 5 次鎖定、T6 兩步驟驗證＋記住這台裝置、T7 強制改密碼直打業務 API 得 403 而 `/me` 可用、T8 忘記密碼信件連結重設、T9 Token 重用偵測（超過寬限期整串撤銷、頁面被登出）、T10 兩個分頁同時刷新不被登出、T11 Google 按鈕（實際登入需人工驗證）；最後跑全部路由的煙霧測試 |
 | `m10-no-server.mjs` | M10 情境（0.10.9 起）：N1 36 個路由全程沒有 WebSocket／`_blazor` 請求、N2 整頁請求只回 WASM 外殼（0.10.10 起認得前端的 `index.html`）、N3 `/_blazor/negotiate` 不存在、N4 都以 WebAssembly 執行；最後跑全部路由的煙霧測試 |
 | `m11-split.mjs` | M11 情境（0.10.10 起）：S1～S7（雙站台與同站台、CORS、靜態站標頭與快取、API 主機不提供前端、Google 導向、冷啟動下載量、CSP 違規）＋全部路由的煙霧測試；參數 `hosted`、`google`，見上方說明 |
 | `static-site.mjs` | 雙站台實機用的靜態站模擬（0.10.10 起）：照前端 web.config 的規則提供發佈輸出（`wwwroot` 實體檔、`.br`、`_framework` 404、SPA 回退、快取、重設密碼頁標頭），安全標頭與 CSP 取自 web.config；0.10.11 起認得 `.webmanifest`；不能取代上線前在真的 IIS 驗證一次 |
-| `walkthrough.mjs` | 最終巡檢（0.10.12 起）：V01～V30 登入後路由、D01～D10 主要對話窗與浮層、T01 提示框不擋關閉鈕（真實模型一次）、A01～A05 登入相關頁面、A99 登出；截圖 `walk-*.png`，記錄頁面錯誤、主控台錯誤與 CSP 違規；以 `E2E_HEADED=1` 執行，見上方說明 |
+| `walkthrough.mjs` | 最終巡檢（0.10.12 起）：V01～V28 登入後路由、D01～D10 主要對話窗與浮層、T01 提示框不擋關閉鈕（真實模型一次）、A01～A05 登入相關頁面、A99 登出；截圖 `walk-*.png`，記錄頁面錯誤、主控台錯誤與 CSP 違規；以 `E2E_HEADED=1` 執行，見上方說明 |
 | `ux-loading-pages.mjs` | 首次載入畫面、錯誤頁、找不到頁面（0.10.13 起）：L1 未登入、無快取、CDP 限速（約 4 Mbps）下開登入頁，每 150 毫秒取樣，第一個畫面之後不可有空白、進度條與百分比會前進；L2 已登入限速下重新整理，下載卡片接著登入檢查卡片、不空白；L2b `/me` 延遲 3 秒時看得到「正在確認登入狀態…」；L3 錯誤頁繁中、追蹤碼複製（剪貼簿內容核對）、回上一頁、回首頁；L4 找不到頁面在外框內、頁首「找不到頁面」、回首頁；L5 未登入開錯誤頁、手機尺寸；L6 同站台（Development）連到 localhost 的開發工具沒有 CSP 違規，雙站台（靜態站的正式 CSP）照樣被擋。同站台與雙站台都可跑 |
 | `perf.mjs` | 效能量測（0.10.13 起，升級 .NET 11 前後比較用；建議以 `Start-E2EHost.ps1 -Published` 的發佈版執行）：P1 第一次開啟（無快取、擋掉 Service Worker）的時間、傳輸量、請求數；P2 再次開啟；P3 登入後以 `Blazor.navigateTo` 換頁到 API 全部完成的時間（每個畫面）；P4 主要 API 的回應時間（含存檔）；P5 伺服器工作集、瀏覽器 JS heap 與 WebAssembly 記憶體。`PERF_RUNS`（預設 5，取中位數）、`PERF_SEED=1`（灌 2,000 筆專案、300 個分類）、`PERF_LABEL`；結果寫到 `perf-<PERF_LABEL>.json`。0.10.14 的 .NET 10／11 對照見[升級 .NET 11 測試報告](../../docs/migration/測試報告/升級NET11.md) A.7 |
 | `ux-data-freshness.mjs` | 畫面選項資料一致性（0.10.15 起）：兩個瀏覽器、兩個帳號（腳本自建管理員 `e2e-fresh-other`，密碼只在記憶體）。F1 別人新增的分類，不重新整理直接開「新增專案」就看得到；F2 選的分類被別人停用，存檔擋下並顯示原因、對話窗不關；F3「重新整理」更新工具列的分類過濾；F4～F7 分類、角色、使用者、公告開窗看得到別人剛新增的團隊；F8 分類名稱、F9 使用者帳號輸入重複時不必按儲存就在欄位下方看到「已存在」；F8b 打完立刻按儲存也會等檢查並擋下；F10 角色被拿掉「新增」權限時（既有機制）沒重新整理的畫面存檔被伺服器擋下、重新整理後按鈕消失（另建受限帳號 `e2e-fresh-limited`）。截圖 `fresh-*.png` |

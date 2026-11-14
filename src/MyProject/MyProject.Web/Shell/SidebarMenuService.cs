@@ -53,9 +53,6 @@ public sealed class SidebarMenuService
         [5] = MagicObjectHelper.角色_資料定義,
         [51] = MagicObjectHelper.角色_分類清單,
         [52] = MagicObjectHelper.角色_團隊清單,
-        [9] = MagicObjectHelper.角色_AI助理,
-        [91] = MagicObjectHelper.角色_Agent測試台,
-        [92] = MagicObjectHelper.角色_Agent工作流程,
         [4] = MagicObjectHelper.角色_登出,
     };
 

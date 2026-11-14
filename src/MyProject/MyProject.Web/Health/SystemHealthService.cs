@@ -654,6 +654,17 @@ public sealed class SystemHealthService : ISystemHealthService
     }
 
     /// <summary>
+    /// 要查得到費率的模型：預設模型、快速模型（0.10.22 起，有填才算）與系統參數替各功能指定的模型（0.9.142 起），不分大小寫去重。
+    /// </summary>
+    internal static List<string> ModelsToPrice(AiSettings aiSettings, AiModelSettings modelSettings)
+        => new[] { aiSettings.Model, aiSettings.FastModel?.Trim() }
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Select(model => model!)
+            .Concat(modelSettings.OverriddenModels())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    /// <summary>
     /// AI 計費表涵蓋率（權重 5）：確認目前使用的模型在 AiPricingSettings 裡查得到價格。
     ///
     /// 查不到不影響系統運作，但「Token 用量」頁的費用會靜默記成未定價（估算為 0），
@@ -689,12 +700,7 @@ public sealed class SystemHealthService : ISystemHealthService
                 "UsdToTwd 未設定（小於等於 0），所有呼叫都會記為未定價。");
         }
 
-        // 0.9.142 起各功能可在系統參數指定模型：預設模型與所有覆寫的模型都要查得到費率。
-        var models = new[] { aiSettings.Model }
-            .Concat(aiModelOptions.CurrentValue.OverriddenModels())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var resolved = models
+        var resolved = ModelsToPrice(aiSettings, aiModelOptions.CurrentValue)
             .Select(model => (Model: model, Price: AiUsageCostCalculator.Resolve(pricing, model)))
             .ToList();
         var unpriced = resolved.Where(x => x.Price is null).Select(x => x.Model).ToList();

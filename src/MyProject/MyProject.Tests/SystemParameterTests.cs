@@ -199,7 +199,7 @@ public sealed class SystemParameterTests
     [InlineData("SystemSettings:SystemInformation:SystemName", "   ")]
     [InlineData("SystemSettings:SystemInformation:SystemName", "第一行\n第二行")]
     [InlineData("JwtSettings:SigningKey", "anything")]
-    [InlineData("AiReasoningSettings:AgentPlayground", "ultra")]
+    [InlineData("AiReasoningSettings:AdminAssistant", "ultra")]
     public async Task InvalidValues_ShouldBeRejected_AndNothingSaved(string key, string value)
     {
         using var harness = Harness.Create();
@@ -221,7 +221,7 @@ public sealed class SystemParameterTests
     [InlineData("ultra", false, "")]
     public void AllowedValues_ShouldBeMatchedCaseInsensitively(string raw, bool ok, string expected)
     {
-        var definition = SystemParameterCatalog.Find("AiReasoningSettings:AgentPlayground")!;
+        var definition = SystemParameterCatalog.Find("AiReasoningSettings:AdminAssistant")!;
 
         var success = SystemParameterValueCodec.TryNormalize(definition, raw, out var normalized, out var error);
 

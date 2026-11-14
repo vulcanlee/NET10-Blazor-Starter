@@ -99,22 +99,8 @@ public static class TokenUsageOperations
     public const string AiExceptionAnalysis = "AI 例外分析";
 
     /// <summary>
-    /// 「Agent 測試台」的範例 Agent（0.9.142 起）。Agent 一次執行可能呼叫模型好幾次（工具呼叫迴圈），
-    /// 每一次各記一筆、共用同一個執行編號（RunId）。
-    /// </summary>
-    public const string AgentPlayground = "Agent 測試台";
-
-    /// <summary>
-    /// 「Agent 工作流程」的兩條範例（0.9.144 起）。一次執行裡所有 agent 的模型呼叫都記在流程名稱下、共用同一個 RunId；
-    /// 是哪個 agent 呼叫的看 AI 對話紀錄的「關聯說明」（流程／agent）。
-    /// </summary>
-    public const string ProjectStatusReport = "專案狀態報告";
-
-    /// <inheritdoc cref="ProjectStatusReport"/>
-    public const string MultiPerspectiveReview = "多觀點審查";
-
-    /// <summary>
-    /// 「系統管理助理」的對話（0.9.155 起）。同 <see cref="AgentPlayground"/>，一次執行的每一次模型呼叫各記一筆、共用 RunId；
+    /// 「系統管理助理」的對話（0.9.155 起）。Agent 一次執行可能呼叫模型好幾次（工具呼叫迴圈），每一次各記一筆、共用同一個執行編號（RunId）；
+    /// 0.10.22 起 Agent 測試台（「Agent 測試台」）與 Agent 工作流程（「專案狀態報告」「多觀點審查」）已移除，舊紀錄仍保留原本的作業名稱；
     /// 分派判斷另記在 <see cref="AdminAssistantRouter"/>，兩者共用同一個 ConversationId。
     /// </summary>
     public const string AdminAssistant = "系統管理助理";

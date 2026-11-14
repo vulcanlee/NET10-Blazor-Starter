@@ -17,17 +17,20 @@ public sealed class AdminAssistantTurnPlanner : IAiAgentTurnPlanner
     private readonly IAiChatCompletionClient client;
     private readonly IAiSystemPromptProvider prompts;
     private readonly IOptionsMonitor<AiModelSettings> models;
+    private readonly IOptionsMonitor<AiSettings> ai;
     private readonly ILogger<AdminAssistantTurnPlanner> logger;
 
     public AdminAssistantTurnPlanner(
         IAiChatCompletionClient client,
         IAiSystemPromptProvider prompts,
         IOptionsMonitor<AiModelSettings> models,
+        IOptionsMonitor<AiSettings> ai,
         ILogger<AdminAssistantTurnPlanner> logger)
     {
         this.client = client;
         this.prompts = prompts;
         this.models = models;
+        this.ai = ai;
         this.logger = logger;
     }
 
@@ -84,9 +87,12 @@ public sealed class AdminAssistantTurnPlanner : IAiAgentTurnPlanner
                     new AiChatMessage(AiChatRoles.User, AdminAssistantRouting.BuildRouterInput(message, transcript)),
                 ],
                 ConversationId = conversationId,
-                ModelKey = string.IsNullOrWhiteSpace(models.CurrentValue.AdminAssistantRouter)
+                // 分派只回幾個代碼，是快速模型的典型工作（0.10.22 起）：系統參數「分派使用的模型」有值就用它，
+                // 否則用 AiSettings:FastModel；兩者都空白才照舊用系統管理助理的模型。
+                ModelKey = string.IsNullOrWhiteSpace(models.CurrentValue.AdminAssistantRouter) && string.IsNullOrWhiteSpace(ai.CurrentValue.FastModel)
                     ? nameof(AiModelSettings.AdminAssistant)
                     : nameof(AiModelSettings.AdminAssistantRouter),
+                UseFastModel = true,
                 RelatedInfo = TokenUsageOperations.AdminAssistantRouter,
                 Timeout = RouterTimeout,
                 ContextLengthExceededMessage = "對話內容太長，無法判斷領域。",

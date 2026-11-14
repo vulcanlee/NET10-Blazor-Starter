@@ -133,6 +133,7 @@ public sealed class AdminPatrolRunnerTests
             new NeverCalledCompletionClient(),
             new StubSystemPromptProvider(),
             new StaticOptionsMonitor<AiModelSettings>(new AiModelSettings()),
+            options,
             NullLogger<AdminAssistantTurnPlanner>.Instance);
 
         return new AdminPatrolRunner(factory, services, guard, planner, options, currentUser, NullLogger<AdminPatrolRunner>.Instance);

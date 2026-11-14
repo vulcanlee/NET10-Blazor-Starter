@@ -1,8 +1,8 @@
 ﻿# 系統管理助理 PRD
 
-- 文件版本：1.4
+- 文件版本：1.5
 - 文件狀態：已實作（里程碑 1～4、第二版定時巡檢）
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.155
 - 最後核對日期：2026/11/14
 
@@ -12,7 +12,7 @@
 
 「系統管理助理」在系統管理底下提供**單一入口**的 AI 代理人：管理員用一般說話的方式提問或下指令，它在背後**自動分派**給各領域的專家。專家能查詢、分析，也能**實際執行異動，但每一次異動都必須由管理員核准**。
 
-這個功能建立在既有的 MAF Agent 骨架上，見 [AI Agent PRD](AI-Agent-prd.md) 與 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)。
+這個功能建立在既有的 MAF Agent 骨架上，見 [MAF AI 呼叫架構](../architecture/MAF-AI呼叫架構.md)（0.10.22 起是系統中唯一使用這套骨架的頁面）。
 使用說明、操作手冊、實機截圖與測試報告見 [系統管理助理：功能說明、使用手冊與測試報告](../features/系統管理助理.md)。
 
 | 包含 | 不包含 |
@@ -52,7 +52,7 @@
 
 | 項目 | 設定 |
 |---|---|
-| 模型 | `AiModelSettings:AdminAssistant`（空白時用 `AiSettings:Model`）、`AiModelSettings:AdminAssistantRouter`（空白時用 AdminAssistant） |
+| 模型 | `AiModelSettings:AdminAssistant`（空白時用 `AiSettings:Model`）、`AiModelSettings:AdminAssistantRouter`（空白時用 `AiSettings:FastModel`，那也空白才用 AdminAssistant 的模型） |
 | 提示詞（「AI 提示詞」頁可改） | `AdminAssistant`（共同說明，含巡檢報告格式）、`AdminAssistantRouter`、`AdminAssistantAccounts`、`AdminAssistantMonitoring`、`AdminAssistantAi`、`AdminAssistantOps` |
 | Token 用量作業名稱 | 「系統管理助理」、「系統管理助理（分派）」；0.9.161 起定時巡檢另記「系統管理助理（排程巡檢）」（沒有登入使用者，只受全系統上限） |
 | 對話保存 | 沿用 `AiAgentConversation`，AgentName 為 `AdminAssistant`，只限本人 |
@@ -92,12 +92,12 @@
 
 ## 五、畫面
 
-- 版面與 Agent 測試台相同：左側「我的對話」（可重新命名、刪除，有待核准標籤）；右側是對話區、輸入框、停止產生、新對話，並顯示目前使用的模型。
+- 版面：左側「我的對話」（可重新命名、刪除，有待核准標籤）；右側是對話區、輸入框、停止產生、新對話，並顯示目前使用的模型。
 - 每則 AI 回答上方標示「由 某某 回答」；跨領域時列出多個，巡檢時標「巡檢」。
 - 空白對話時顯示範例問句：「幫我巡一下系統」「最近排程的執行狀況」「昨晚備份為什麼失敗」「哪些帳號超過 180 天沒登入」「把日誌等級調成 Debug」。
 - 核准窗不能按 × 或遮罩關閉。窗中顯示工具名稱、參數與完整的批次對象清單，不可復原的動作加紅字警告。
 
-**WebAssembly（0.10.7 起，WASM 遷移 M8）**：頁面與巡檢報告窗改在瀏覽器執行（`MyProject.Web.Client/Pages/AdminAssistantPage.razor`、`Views/Admins/AdminAssistantView.*`、`AdminPatrolReportsModal.*`；Server 版已刪除），畫面與訊息和之前相同。資料經只限管理員的 `api/v1/admin-assistant`（頁面資訊、我的對話、打開、改名、刪除、送出訊息與回覆核准〔NDJSON 串流〕、巡檢報告清單與單份），流程與 Agent 測試台共用 `AgentConversationEndpoint`：
+**WebAssembly（0.10.7 起，WASM 遷移 M8）**：頁面與巡檢報告窗改在瀏覽器執行（`MyProject.Web.Client/Pages/AdminAssistantPage.razor`、`Views/Admins/AdminAssistantView.*`、`AdminPatrolReportsModal.*`；Server 版已刪除），畫面與訊息和之前相同。資料經只限管理員的 `api/v1/admin-assistant`（頁面資訊、我的對話、打開、改名、刪除、送出訊息與回覆核准〔NDJSON 串流〕、巡檢報告清單與單份），流程經共用的 `AgentConversationEndpoint`：
 - 每則訊息與每次核准都在伺服器「讀存檔 → 接續 → 執行 → 存檔」；停在核准的對話接續時**沿用提出核准的那一輪**（分派結果代碼存進對話檔的 `TurnKey`，由 `AdminAssistantTurnPlanner.RestoreTurnAsync` 重建，不呼叫分派模型）。「由誰回答」的標籤每個請求至少送一次。
 - 網址帶 `?conversation={id}`，重新整理回到同一段對話（停在核准的再跳出核准窗）；`?patrolReport={id}` 深連結照舊。
 - 同一段對話一把鎖：兩個分頁同時操作時後到的排隊；核准以條件式更新搶占，同一個核准送兩次只執行一次。核准不可復原的動作沒輸入「確認」伺服器也擋（400，`AdminAssistantApproval` 搬到 Client 與伺服器共用）。

@@ -215,7 +215,7 @@ public sealed class AiAgentConversationServiceTests
     public void TitleFrom_ShouldCollapseWhitespaceAndTruncate(string message, string expected)
         => Assert.Equal(expected, AiAgentConversationService.TitleFrom(message));
 
-    private const string AgentName = "AgentPlayground";
+    private const string AgentName = "AdminAssistant";
 
     private static AiAgentConversationSnapshot Snapshot(Guid id, string title, params string[] messages)
         => Snapshot(id, title, messages, pending: false);

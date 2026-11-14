@@ -408,7 +408,7 @@ public sealed class DataRetentionOverviewService
         {
             Key = "agent-conversation",
             Label = "Agent 對話",
-            Note = "全體使用者，連同內容檔；含 Agent 工作流程的執行紀錄；依最後一次對話時間",
+            Note = "全體使用者，連同內容檔；依最後一次對話時間",
             Count = stats.Total,
             CountUnit = "段",
             Folder = await folder,
@@ -416,7 +416,7 @@ public sealed class DataRetentionOverviewService
             RuleText = $"最後一次對話後保留 {agentConversationService.RetentionDays} 天",
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
-            ManageUrl = "/agent-playground",
+            ManageUrl = "/admin-assistant",
             CanCustomPurge = true,
         }, AiAgentConversationRetentionJob.JobName, jobByName.GetValueOrDefault(AiAgentConversationRetentionJob.JobName), ruleActive: true);
     }

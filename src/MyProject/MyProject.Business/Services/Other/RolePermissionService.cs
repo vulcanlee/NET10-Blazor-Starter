@@ -20,11 +20,6 @@ public class RolePermissionService
                 MagicObjectHelper.角色_分類清單,
                 MagicObjectHelper.角色_團隊清單,
             ],
-            [
-                MagicObjectHelper.角色_AI助理,
-                MagicObjectHelper.角色_Agent測試台,
-                MagicObjectHelper.角色_Agent工作流程,
-            ],
             [MagicObjectHelper.角色_登出],
         ];
     }
@@ -68,19 +63,11 @@ public class RolePermissionService
     }
 
     /// <summary>
-    /// 不自動開給「預設角色」的頁面（0.9.142 起）：會花 AI 費用的 Agent 頁面，由管理員自己決定開給哪些角色。
-    /// 這些頁面照樣在權限目錄裡、照樣可以授權；只是建立預設角色與升級加入新頁面時略過它們。
+    /// 預設角色應有的頁面：全部頁面。
+    /// （0.9.142～0.10.21 另有「不自動開給預設角色」的 Agent 頁面清單；0.10.22 起 Agent 測試台與 Agent 工作流程移除後已拿掉。）
     /// </summary>
-    public static IReadOnlySet<string> NotGrantedToDefaultRole { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        MagicObjectHelper.角色_AI助理,
-        MagicObjectHelper.角色_Agent測試台,
-        MagicObjectHelper.角色_Agent工作流程,
-    };
-
-    /// <summary>預設角色應有的頁面：全部頁面扣掉 <see cref="NotGrantedToDefaultRole"/>。</summary>
     public List<string> GetDefaultRolePermissionNames()
-        => GetRolePermissionAllName().Where(x => !NotGrantedToDefaultRole.Contains(x)).ToList();
+        => GetRolePermissionAllName();
 
     public string GetDefaultRolePermissionNamesToJson()
         => Newtonsoft.Json.JsonConvert.SerializeObject(GetDefaultRolePermissionNames());

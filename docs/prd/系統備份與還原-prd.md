@@ -1,8 +1,8 @@
 ﻿# 系統備份與還原 PRD
 
-- 文件版本：1.8
+- 文件版本：1.9
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：0.9.99
 - 最後核對日期：2026/11/14
 
@@ -48,7 +48,7 @@
 - **manifest.json**：`formatVersion`、`createdAtUtc`、`systemVersion`、`lastMigration`、`migrationCount`、`databaseEntry`、`databaseSha256`、`folders[]`（zip 資料夾 → `ExternalFileSystem` 設定鍵名與檔案數）、`missingFiles`、`missingFileCount`、`trigger`。
 - **還原腳本**：確認網站已停（獨佔開啟資料庫）→ 解壓並核對格式版本與雜湊 → 備份版本比部署的新時中止（`-Force` 略過）→ 現有資料庫與 `-wal`、`-shm` 改名保留 → 刪鎖檔 → 放入資料庫 → 各資料夾換成備份內容（舊的改名保留）、金鑰合併不覆蓋 → 印出回復步驟。還原腳本不碰 `AuditKeyPath`；還原後第一次「稽核紀錄完整性檢查」會回報一次「資料庫被倒回」，屬預期（見[稽核紀錄 PRD §九](稽核紀錄-prd.md)）。腳本不寫死專案名稱（`New-StarterProject.ps1` 會文字替換）。
 - **設定**：`ExternalFileSystem:BackupPath`（啟動驗證：完整路徑、不與其他 11 個目錄重疊〔0.9.175 起含 `AuditKeyPath`〕、不在網站目錄底下）、`BackupSettings { KeepCount = 7, IncludeAiCallLogs = false, IncludeAiAgentConversations = false }`（系統參數「備份」分類；後者 0.9.143 起，「備份 Agent 對話」）。
-- **Agent 對話不備份時**：還原後資料表 `AiAgentConversation` 的列還在（在資料庫裡），「我的對話」清單照常列出，但點開會提示「這段對話無法接續」，使用者刪除即可。0.9.144 起 Agent 工作流程的執行紀錄也在同一處、跟著同一個開關；不備份時「我的執行紀錄」清單照常列出，點開提示內容已不存在。0.9.161 起定時巡檢報告的內容檔也放在 `{AiAgentConversationPath}\AdminPatrol`、跟著同一個開關；不備份時還原後巡檢報告清單照常列出，內容檔不見。
+- **Agent 對話不備份時**：還原後資料表 `AiAgentConversation` 的列還在（在資料庫裡），「我的對話」清單照常列出，但點開會提示「這段對話無法接續」，使用者刪除即可。0.9.161 起定時巡檢報告的內容檔也放在 `{AiAgentConversationPath}\AdminPatrol`、跟著同一個開關；不備份時還原後巡檢報告清單照常列出，內容檔不見。
 
 ## 五、權限與安全
 

@@ -1,8 +1,8 @@
 ﻿# 系統健康監控 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.22
 - 首次實作版本：既有腳手架核心功能
 - 最後核對日期：2026/11/14
 
@@ -56,7 +56,7 @@
    - 安全設定：Production 是否開啟 Swagger 或回傳例外細節（風險→Degraded）。
    - LLM API：`IAiHealthProbe` 送一句 `hello`（30 秒上限）；未設定→Degraded，失敗→Unhealthy。
    - 快取服務：寫一筆 sentinel 再讀回比對（5 秒上限）；Provider 無法解析或拋例外→Unhealthy，讀回不符→Degraded。
-   - AI 計費表：AI 未啟用→Healthy；匯率 ≤ 0 或目前模型查無價格（沿用 `AiUsageCostCalculator.Resolve`）→Degraded。
+   - AI 計費表：AI 未啟用→Healthy；匯率 ≤ 0 或使用中的任一模型（預設模型、有填的快速模型 `AiSettings:FastModel`〔0.10.22 起〕、系統參數「AI 模型」指定的模型）查無價格（沿用 `AiUsageCostCalculator.Resolve`）→Degraded。
    - 寄信服務：依 Provider 判斷；Smtp 走 `IEmailHealthProbe`（連線＋TLS＋登入，5 秒上限，永不拋例外）。
    - 日誌管線：讀 `LoggingPipelineMonitor` 快照、例外佇列長度與 `NLog:BasePath` 所在磁碟，由純函式 `EvaluateLoggingPipeline` 判定（佇列滿或磁碟 < 200 MB→Unhealthy；任何丟棄／寫入或告警失敗／NLog 內部錯誤、佇列達八成、磁碟 < 1 GB→Degraded）。
    - 排程作業（0.9.96 起）：讀 `ScheduledJobOverviewService` 的總覽，由 `EvaluateScheduledJobs` 判定（啟用中的作業最近一次執行失敗→Unhealthy；排程總開關關閉、作業逾期未執行、排程設定有誤→Degraded；讀取失敗→Unhealthy）。

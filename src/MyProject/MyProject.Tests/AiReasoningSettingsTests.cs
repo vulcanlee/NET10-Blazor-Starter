@@ -1,7 +1,5 @@
 using System.Reflection;
-using MyProject.Web.Ai.Agents;
 using MyProject.Web.Ai.Agents.AdminAssistant;
-using MyProject.Web.Ai.Workflows;
 using MyProject.Web.Configuration;
 using MyProject.Web.Configuration.Parameters;
 using MyProject.Web.Configuration.Validation;
@@ -16,36 +14,23 @@ public sealed class AiReasoningSettingsTests
     [Fact]
     public void GetOverride_ShouldReturnTheFeatureValueInLowerCase()
     {
-        var settings = new AiReasoningSettings { AgentPlayground = " LOW " };
+        var settings = new AiReasoningSettings { AdminAssistant = " LOW " };
 
-        Assert.Equal("low", settings.GetOverride(nameof(AiReasoningSettings.AgentPlayground)));
+        Assert.Equal("low", settings.GetOverride(nameof(AiReasoningSettings.AdminAssistant)));
     }
 
     /// <summary>沒有自己的值時回 null，由 <c>AiAgentFactory</c> 改用 <c>AiSettings:AgentReasoningEffort</c>。</summary>
     [Theory]
-    [InlineData("AgentPlayground", "")]
-    [InlineData("AgentPlayground", "   ")]
+    [InlineData("AdminAssistant", "")]
+    [InlineData("AdminAssistant", "   ")]
     [InlineData(null, "low")]
     [InlineData("LogAnalysis", "low")]
     [InlineData("AdminAssistantRouter", "low")]
-    public void GetOverride_ShouldBeNull_WhenTheFeatureHasNoValueOfItsOwn(string? key, string playground)
+    public void GetOverride_ShouldBeNull_WhenTheFeatureHasNoValueOfItsOwn(string? key, string adminAssistant)
     {
-        var settings = new AiReasoningSettings { AgentPlayground = playground, AdminAssistant = "low" };
+        var settings = new AiReasoningSettings { AdminAssistant = adminAssistant };
 
         Assert.Null(settings.GetOverride(key));
-    }
-
-    /// <summary>
-    /// 審查發現（0.9.168）：Agent 測試台在開對話或接續時才建立 agent（沒有規劃器，不會每則訊息重建），
-    /// 生效時機要和「使用模型」一樣寫「下一段新對話」，不能寫「下一則訊息起」。
-    /// </summary>
-    [Fact]
-    public void AgentPlaygroundEffectNote_ShouldSayNewConversation()
-    {
-        var note = SystemParameterCatalog.Find("AiReasoningSettings:AgentPlayground")!.EffectNote;
-
-        Assert.Contains("下一段新對話", note, StringComparison.Ordinal);
-        Assert.DoesNotContain("下一則訊息", note, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -53,15 +38,15 @@ public sealed class AiReasoningSettingsTests
     [InlineData("High")]
     [InlineData("xhigh")]
     public void Validator_ShouldAcceptBlankAndKnownValues(string value)
-        => Assert.True(new AiReasoningSettingsValidator().Validate(null, new AiReasoningSettings { ProjectStatusReport = value }).Succeeded);
+        => Assert.True(new AiReasoningSettingsValidator().Validate(null, new AiReasoningSettings { AdminAssistant = value }).Succeeded);
 
     [Fact]
     public void Validator_ShouldRejectUnknownValues_AndNameTheKey()
     {
-        var result = new AiReasoningSettingsValidator().Validate(null, new AiReasoningSettings { MultiPerspectiveReview = "ultra" });
+        var result = new AiReasoningSettingsValidator().Validate(null, new AiReasoningSettings { AdminAssistant = "ultra" });
 
         Assert.True(result.Failed);
-        Assert.Contains("AiReasoningSettings:MultiPerspectiveReview", result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains("AiReasoningSettings:AdminAssistant", result.FailureMessage, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -71,8 +56,7 @@ public sealed class AiReasoningSettingsTests
     [Fact]
     public void EveryResponsesAgent_ShouldHaveItsOwnReasoningSetting()
     {
-        var keys = new[] { AgentPlaygroundAgent.Definition.ModelKey, AdminAssistantAgent.Home.ModelKey, AdminAssistantAgent.ScheduledPatrol.ModelKey }
-            .Concat(AiWorkflowCatalog.All.Select(x => x.ModelKey))
+        var keys = new[] { AdminAssistantAgent.Home.ModelKey, AdminAssistantAgent.ScheduledPatrol.ModelKey }
             .Distinct()
             .ToArray();
 

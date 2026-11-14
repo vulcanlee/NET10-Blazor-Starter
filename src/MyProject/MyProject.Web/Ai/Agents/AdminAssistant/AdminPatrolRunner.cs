@@ -27,7 +27,7 @@ public interface IAdminPatrolRunner
 /// <item>它的權限檢查來自 DI，沒有使用者時拒絕所有工具；這裡改用只放行唯讀工具的 <see cref="ScheduledPatrolToolGuard"/>。</item>
 /// <item>它每輪都先做一次分派模型呼叫；巡檢直接用 <see cref="AdminAssistantTurnPlanner.PatrolTurnAsync"/>。</item>
 /// </list>
-/// 記帳、AI 對話紀錄與用量上限一樣走 <see cref="IAiAgentFactory"/> 的管線（同 <c>AiWorkflowRunner</c>）。
+/// 記帳、AI 對話紀錄與用量上限一樣走 <see cref="IAiAgentFactory"/> 的管線。
 /// ConversationId 是報告編號，可以從「AI 對話紀錄」追到這次巡檢的每一次模型呼叫。
 /// </summary>
 public sealed class AdminPatrolRunner : IAdminPatrolRunner

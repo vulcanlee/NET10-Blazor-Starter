@@ -51,14 +51,6 @@ public static class AiPromptGuardrails
     {
         PromptTemplateKeys.LogAnalysis => AiPromptDefaults.LogAnalysisInstructions,
         PromptTemplateKeys.ExceptionAnalysis => AiExceptionPromptDefaults.Instructions,
-        PromptTemplateKeys.AgentPlayground => Agents.AgentPlaygroundAgent.DefaultInstructions,
-        PromptTemplateKeys.ProjectReportGatherer => Workflows.ProjectStatusReportWorkflow.GathererInstructions,
-        PromptTemplateKeys.ProjectReportWriter => Workflows.ProjectStatusReportWorkflow.WriterInstructions,
-        PromptTemplateKeys.ProjectReportFinalizer => Workflows.ProjectStatusReportWorkflow.FinalizerInstructions,
-        PromptTemplateKeys.ReviewRequirements => Workflows.MultiPerspectiveReviewWorkflow.RequirementsInstructions,
-        PromptTemplateKeys.ReviewTechnical => Workflows.MultiPerspectiveReviewWorkflow.TechnicalInstructions,
-        PromptTemplateKeys.ReviewUsability => Workflows.MultiPerspectiveReviewWorkflow.UsabilityInstructions,
-        PromptTemplateKeys.ReviewAggregator => Workflows.MultiPerspectiveReviewWorkflow.AggregatorInstructions,
         PromptTemplateKeys.AdminAssistant => Agents.AdminAssistant.AdminAssistantAgent.DefaultCommonInstructions,
         PromptTemplateKeys.AdminAssistantRouter => Agents.AdminAssistant.AdminAssistantAgent.DefaultRouterInstructions,
         PromptTemplateKeys.AdminAssistantAccounts => Agents.AdminAssistant.AdminAssistantAgent.DefaultAccountsInstructions,
@@ -72,13 +64,6 @@ public static class AiPromptGuardrails
     {
         PromptTemplateKeys.LogAnalysis => "日誌內容",
         PromptTemplateKeys.ExceptionAnalysis => "例外內容（訊息、頁面、堆疊等）",
-        PromptTemplateKeys.AgentPlayground => "使用者的訊息與工具回傳的資料（專案名稱、描述等）",
-        PromptTemplateKeys.ProjectReportGatherer => "使用者的訊息、回答與工具回傳的資料（專案名稱、描述等）",
-        PromptTemplateKeys.ProjectReportWriter => "專案事實清單（含專案描述）與審閱意見",
-        PromptTemplateKeys.ProjectReportFinalizer => "報告內容與工具回傳的資料",
-        PromptTemplateKeys.ReviewRequirements or PromptTemplateKeys.ReviewTechnical or PromptTemplateKeys.ReviewUsability
-            => "待審查的文件",
-        PromptTemplateKeys.ReviewAggregator => "審查者的意見（其中引用了待審查的文件）",
         PromptTemplateKeys.AdminAssistant or PromptTemplateKeys.AdminAssistantAccounts or PromptTemplateKeys.AdminAssistantMonitoring
             or PromptTemplateKeys.AdminAssistantAi or PromptTemplateKeys.AdminAssistantOps
             => "使用者的訊息與工具回傳的資料（日誌、例外、稽核紀錄、帳號資料、AI 對話內容等）",

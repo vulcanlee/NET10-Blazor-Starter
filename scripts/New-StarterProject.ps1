@@ -475,7 +475,7 @@ if (Test-Path -LiteralPath $migrationsDirectory) {
 
 # 這些測試寫死了腳手架的舊 migration 名稱（驗證腳手架自己的升級路徑），重建後在新專案必定失效。
 # 新增這類測試時請獨立成檔並加進這份清單，否則衍生專案一複刻就有測試失敗（ScaffoldScriptConventionTests 守門）。
-$starterMigrationTests = @("AccountRoleUniqueIndexMigrationTests.cs", "CategoryTeamUniqueIndexMigrationTests.cs", "TeamTreeMigrationTests.cs")
+$starterMigrationTests = @("AccountRoleUniqueIndexMigrationTests.cs", "AgentPagesDataCleanupMigrationTests.cs", "CategoryTeamUniqueIndexMigrationTests.cs", "TeamTreeMigrationTests.cs")
 foreach ($testFile in $starterMigrationTests) {
     $starterMigrationTest = Join-Path $projectRoot "$ProjectName.Tests/$testFile"
     if (Test-Path -LiteralPath $starterMigrationTest) {

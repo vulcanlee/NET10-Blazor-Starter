@@ -13,7 +13,7 @@ using MyProject.Web.Streaming;
 namespace MyProject.Web.Controllers;
 
 /// <summary>
-/// 一種 Agent 對話頁的設定（Agent 測試台、系統管理助理）：怎麼開新對話、怎麼接續、能不能選推論等級、未預期錯誤的訊息。
+/// 一種 Agent 對話頁的設定（0.10.22 起只有系統管理助理）：怎麼開新對話、怎麼接續、能不能選推論等級、未預期錯誤的訊息。
 /// </summary>
 public sealed class AgentConversationProfile
 {
@@ -26,7 +26,7 @@ public sealed class AgentConversationProfile
     /// <summary>接續一段對話；不存在、不是本人的、讀不懂時回 null。</summary>
     public required Func<Guid, CancellationToken, Task<AiAgentChat?>> ResumeAsync { get; init; }
 
-    /// <summary>可以選推論等級（只有 Agent 測試台）。</summary>
+    /// <summary>畫面可以替每段對話選推論等級（0.10.22 起 Agent 測試台移除後目前沒有頁面開啟；系統管理助理不開）。</summary>
     public bool SupportsReasoningEffort { get; init; }
 
     /// <summary>執行中發生未預期例外時給畫面的訊息（同 Server 版畫面外層的防護）。</summary>
@@ -34,7 +34,7 @@ public sealed class AgentConversationProfile
 }
 
 /// <summary>
-/// Agent 對話 API 的共用流程（0.10.7 起，WASM 遷移 M8）：<see cref="AgentPlaygroundController"/> 與 <see cref="AdminAssistantController"/>
+/// Agent 對話 API 的共用流程（0.10.7 起，WASM 遷移 M8；0.10.22 起只有 <see cref="AdminAssistantController"/>）：各 Agent 頁的 controller
 /// 的 action 只標授權、選 <see cref="AgentConversationProfile"/>，其餘都在這裡。
 ///
 /// <para>
@@ -277,7 +277,7 @@ public sealed class AgentConversationEndpoint
             return Prepared.Fail(StatusCodes.Status409Conflict, "Conflict", AwaitingApprovalMessage);
         }
 
-        // 推論等級（Agent 測試台）：畫面送的與存的不同時，從這則訊息起生效（Server 版改下拉就立即重建 agent，效果相同）。
+        // 推論等級（有開 SupportsReasoningEffort 的頁面）：畫面送的與存的不同時，從這則訊息起生效。
         if (profile.SupportsReasoningEffort && AiAgentChat.Normalize(effort) != chat.ReasoningEffort)
         {
             try
