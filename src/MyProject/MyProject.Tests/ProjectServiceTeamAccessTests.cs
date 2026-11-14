@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -261,7 +260,6 @@ public sealed class ProjectServiceTeamAccessTests
     internal sealed class ProjectServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private ProjectServiceFixture(SqliteConnection connection, BackendDBContext context, string sandbox)
@@ -272,10 +270,6 @@ public sealed class ProjectServiceTeamAccessTests
             FileRoot = Path.Combine(sandbox, "root");
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -315,7 +309,6 @@ public sealed class ProjectServiceTeamAccessTests
 
             return new ProjectService(
                 interceptor is null ? new TestDbContextFactory(connection) : new InterceptingFactory(connection, interceptor),
-                mapper,
                 loggerFactory.CreateLogger<ProjectService>(),
                 Options.Create(settings),
                 new FakeScopeProvider(isAdmin, teams),

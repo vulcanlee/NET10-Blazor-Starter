@@ -1,8 +1,8 @@
 ﻿# 分類清單 PRD
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.23
 - 首次實作版本：0.3.0
 - 最後核對日期：2026/11/14
 
@@ -65,7 +65,7 @@
 - UI 路徑（0.10.2 起，WASM）：`CategoryViewView` → `CategoryApi`（`MyProject.Web.Client/Api`，經 `ApiClient` 帶 Bearer Token）→ `CategoryController`。DTO 與畫面模型的轉換集中在 `CategoryDtoMapper`（WASM 頁面與 Controller 共用）。
 - API 路徑：`CategoryController` → `CategoryService` → `BackendDBContext`（0.10.2 起與畫面同一個服務：團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份；`CategoryRepository` 已刪除），回傳 `ApiResult<T>` / `PagedResult<T>`。
   端點：`GET {id}`（寫查看稽核）、`POST search`（`Deleted` 顯示已刪除需刪除權限，否則 403；`RecordSearch` 為 true 時寫搜尋稽核；`SortBy` 不分大小寫）、`GET options`（表單用的啟用中團隊名稱與自己的團隊範圍）、`POST check`（存檔前名稱檢查，新增要新增權限、修改要修改權限）、`POST`、`PUT {id}`、`PUT {id}/enabled`、`DELETE {id}`（軟刪除）、`POST {id}/restore`、`DELETE {id}/purge`、`POST export`。完整清單見 [Web API 端點目錄](../architecture/Web%20API%20端點目錄.md)。
-- Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`，另有樂觀並行 `ConcurrencyStamp` 與軟刪除 `IsDeleted/DeletedAt/DeletedBy`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），AutoMapper 以 `ForMember` 在 `List<string>` 與字串間轉換。
+- Entity `Category`（`Id/Name/Description/Teams/IsEnabled/CreatedAt/UpdatedAt`，另有樂觀並行 `ConcurrencyStamp` 與軟刪除 `IsDeleted/DeletedAt/DeletedBy`），DbSet 為 `context.Category`。`Teams` 以換行分隔字串儲存（`TagStringHelper`），`CategoryMapper`（0.10.23 起 Mapperly）以 `[MapProperty(..., Use = ...)]` 在 `List<string>` 與字串間轉換。
 - 查詢一律 `AsNoTracking()`；每個方法以 `IDbContextFactory<BackendDBContext>` 建立獨立 context、用完即棄（0.4.36 起，不再需要清追蹤）。
 - 編輯前於 UI 以 `CurrentRecord = model.Clone()` 複製，避免污染清單資料；`UpdateAsync` 保留原 `CreatedAt`、更新 `UpdatedAt`，以 `Entry(item).State = Modified` 提交；刪除以 `SoftDeleteHelper.MarkDeleted` 標記（軟刪除），永久刪除才 `Remove`。
 - 稽核（0.9.78 起，LOG-14）：新增、修改、刪除成功後各寫一筆 `Category.Create`／`Category.Update`／`Category.Delete`（代碼定義於 `AuditActions`，目標為 `Category`／Id），可在「稽核紀錄」頁查詢；點狀態標籤切換另寫 `Category.Enable`／`Category.Disable`（0.9.120 起），匯出寫 `Category.Export`（0.9.107 起）。
@@ -83,7 +83,7 @@
 ## 六、錯誤與邊界
 
 - 名稱重複：新增／修改前以 `BeforeAddCheckAsync` / `BeforeUpdateCheckAsync` 比對（先以 `NameNormalizer` 去除前後空白，再 `ToLower()` 不分大小寫，修改時排除自身），重複回「分類名稱已存在，無法新增／修改。」。API 端走同一個檢查，重複回 409 Conflict（0.10.2 起訊息與畫面相同）；修改時先確認在團隊範圍內（範圍外 404），再比對名稱。
-- 名稱正規化與唯一索引（0.4.41 起）：寫入前一律 `Trim()`（AutoMapper 的「→ Entity」映射上），資料庫另有 `IX_Category_Name` 唯一索引兜底。前置檢查與寫入不在同一個交易裡，並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「分類名稱已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
+- 名稱正規化與唯一索引（0.4.41 起）：寫入前一律 `Trim()`（`CategoryMapper.ToEntity` 的 `NameNormalizer`，0.10.23 起 Mapperly），資料庫另有 `IX_Category_Name` 唯一索引兜底。前置檢查與寫入不在同一個交易裡，並發時由索引擋下，訊息經 `UniqueConstraintHelper` 轉譯為「分類名稱已存在，無法儲存。」。UI 會檢查 `AddAsync` / `UpdateAsync` 的回傳值後才顯示成功。
   名稱重複屬使用者錯誤（0.9.78 起，LOG-11）：只記 `Information`、不帶例外物件，不會進「系統例外紀錄」。
   - ⚠️ 沿革：0.4.41 之前是「檢查時 Trim、寫入時不 Trim」，「技術文件 」（尾隨空白）會原樣入庫，之後「技術文件」再也比不到它，兩筆看起來一模一樣的資料同時存在。
 - 找不到資料：修改／刪除時查無記錄回「找不到要修改／刪除的分類資料」；API 回 404 NotFound（`VerifyRecordResult.Kind` 決定狀態碼，見 [Web API 設計慣例](../architecture/Web%20API%20設計慣例.md)）。
@@ -124,7 +124,7 @@
 - `Category_SetEnabled_ShouldChangeStatusAndAudit`：只改狀態、換版本號並寫 `Category.Disable`。
 - `Category_SetEnabled_OutsideTeamScope_ShouldBeDenied`：團隊範圍外的分類被擋下。
 
-測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，透過 `AutoMapping` 設定 Mapper；存取範圍以 `FakeRecordAccessScopeProvider` 替身指定。
+測試以 SQLite in-memory + `EnsureCreatedAsync` 建立隔離環境，物件對應是 `CategoryMapper` 的靜態方法（0.10.23 起 Mapperly，不必另外設定）；存取範圍以 `FakeRecordAccessScopeProvider` 替身指定。
 
 對應測試檔 `src/MyProject/MyProject.Tests/CategoryTeamApiTests.cs`（0.10.2 起，取代已刪除的 `CategoryTeamRepositoryUniquenessTests`）：API 的完整生命週期與每個動作只寫一筆稽核、版本號過期回 409、名稱重複（不分大小寫與空白）回 409、還原撞名 409、永久刪除只限已刪除、找不到 404、搜尋排序與稽核、匯出內容與清單一致、團隊範圍、只能看的角色寫入一律 403、沒有刪除權限看已刪除 403、檢查端點與範圍外寫入不透露別隊資料、沒權限開 WASM 頁寫權限拒絕稽核。
 

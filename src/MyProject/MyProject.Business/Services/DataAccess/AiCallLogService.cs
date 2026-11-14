@@ -1,13 +1,13 @@
 using System.Linq.Expressions;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -49,19 +49,16 @@ public class AiCallLogService : IAiCallLogRecorder
     private readonly AiCallLogFileStore fileStore;
     private readonly IOptionsMonitor<AiCallLogSettings> settings;
 
-    public IMapper Mapper { get; }
     public ILogger<AiCallLogService> Logger { get; }
 
     // ⚠️ 只能有一個建構式：DataAccessServiceLifetimeTests 用 GetConstructors().Single()。
     public AiCallLogService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<AiCallLogService> logger,
         AiCallLogFileStore fileStore,
         IOptionsMonitor<AiCallLogSettings> settings)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.fileStore = fileStore;
         this.settings = settings;
@@ -174,7 +171,7 @@ public class AiCallLogService : IAiCallLogRecorder
             .Take(query.PageSize)
             .ToListAsync();
 
-        result.Result = Mapper.Map<List<AiCallLogAdapterModel>>(records);
+        result.Result = LogMappers.ToModels(records);
         return result;
     }
 
@@ -212,7 +209,7 @@ public class AiCallLogService : IAiCallLogRecorder
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var item = await context.AiCallLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        return item is null ? null : Mapper.Map<AiCallLogAdapterModel>(item);
+        return item is null ? null : LogMappers.ToModel(item);
     }
 
     /// <summary>明細：資料列、內容檔、解析後的訊息、對應用量與同一對話的其他紀錄。找不到回 null。</summary>
@@ -255,12 +252,12 @@ public class AiCallLogService : IAiCallLogRecorder
 
         return new AiCallLogDetail
         {
-            Item = Mapper.Map<AiCallLogAdapterModel>(item),
+            Item = LogMappers.ToModel(item),
             Content = content,
             Messages = AiCallLogMessages.Parse(content?.RequestBody),
-            Usage = usage is null ? null : Mapper.Map<TokenUsageLogAdapterModel>(usage),
-            Conversation = Mapper.Map<List<AiCallLogAdapterModel>>(conversation),
-            Run = Mapper.Map<List<AiCallLogAdapterModel>>(run),
+            Usage = usage is null ? null : LogMappers.ToModel(usage),
+            Conversation = LogMappers.ToModels(conversation),
+            Run = LogMappers.ToModels(run),
         };
     }
 
@@ -335,10 +332,10 @@ public class AiCallLogService : IAiCallLogRecorder
             var content = Deserialize(await fileStore.ReadAsync(row.ContentFile), row.CallId);
             items.Add(new AiCallLogExportItem
             {
-                Item = Mapper.Map<AiCallLogAdapterModel>(row),
+                Item = LogMappers.ToModel(row),
                 Messages = content is null ? [] : AiCallLogMessages.Parse(content.RequestBody) ?? [],
                 ResponseText = content?.ResponseText ?? string.Empty,
-                Usage = usages.TryGetValue(row.CallId, out var usage) ? Mapper.Map<TokenUsageLogAdapterModel>(usage) : null,
+                Usage = usages.TryGetValue(row.CallId, out var usage) ? LogMappers.ToModel(usage) : null,
                 ContentMissing = content is null,
             });
         }

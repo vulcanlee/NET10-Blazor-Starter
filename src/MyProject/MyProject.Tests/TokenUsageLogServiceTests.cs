@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -525,7 +524,6 @@ public sealed class TokenUsageLogServiceTests
     private sealed class TokenUsageFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private TokenUsageFixture(SqliteConnection connection, string tokenUsagePath)
@@ -534,10 +532,6 @@ public sealed class TokenUsageLogServiceTests
             TokenUsagePath = tokenUsagePath;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public string TokenUsagePath { get; }
@@ -570,7 +564,6 @@ public sealed class TokenUsageLogServiceTests
 
             return new TokenUsageLogService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<TokenUsageLogService>(),
                 new TokenUsageRawStore(Options.Create(settings), loggerFactory.CreateLogger<TokenUsageRawStore>()),
                 costCalculator ?? CreateCostCalculator(),

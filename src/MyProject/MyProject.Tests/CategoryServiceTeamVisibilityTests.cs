@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -153,7 +152,6 @@ public sealed class CategoryServiceTeamVisibilityTests
     private sealed class CategoryVisibilityFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private CategoryVisibilityFixture(SqliteConnection connection, BackendDBContext context)
@@ -162,10 +160,6 @@ public sealed class CategoryServiceTeamVisibilityTests
             Context = context;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -189,7 +183,6 @@ public sealed class CategoryServiceTeamVisibilityTests
         {
             return new CategoryService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<CategoryService>(),
                 new FakeRecordAccessScopeProvider(isAdmin, teams),
                 new RecordingAuditLogService(),

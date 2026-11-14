@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -298,7 +297,6 @@ public sealed class ExceptionLogServiceTests
     internal sealed class ExceptionLogFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private ExceptionLogFixture(SqliteConnection connection, string exceptionPath)
@@ -307,10 +305,6 @@ public sealed class ExceptionLogServiceTests
             ExceptionPath = exceptionPath;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public string ExceptionPath { get; }
@@ -345,7 +339,6 @@ public sealed class ExceptionLogServiceTests
 
             return new ExceptionLogService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<ExceptionLogService>(),
                 fileStore);
         }

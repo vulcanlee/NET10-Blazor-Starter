@@ -285,18 +285,8 @@ namespace MyProject.Web
                 builder.Services.AddAuthorization();
                 #endregion
 
-                #region AutoMapper 使用的宣告
-                builder.Services.AddAutoMapper(c =>
-                {
-                    var autoMapperLicenseKey = builder.Configuration["AutoMapper:LicenseKey"];
-                    if (string.IsNullOrWhiteSpace(autoMapperLicenseKey) == false)
-                    {
-                        c.LicenseKey = autoMapperLicenseKey;
-                    }
-
-                    c.AddProfile<AutoMapping>();
-                });
-                #endregion
+                // 物件對應（0.10.23 起以 Mapperly 取代 AutoMapper）：對應在編譯時產生（MyProject.Business/Mappers），
+                // 都是靜態方法，不需要在這裡註冊，也沒有授權金鑰。
 
                 #endregion
 

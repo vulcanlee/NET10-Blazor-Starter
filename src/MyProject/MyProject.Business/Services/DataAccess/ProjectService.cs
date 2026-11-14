@@ -1,11 +1,11 @@
-﻿using AutoMapper;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -24,12 +24,10 @@ public class ProjectService
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
 
-    public IMapper Mapper { get; }
     public ILogger<ProjectService> Logger { get; }
 
     public ProjectService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<ProjectService> logger,
         IOptions<SystemSettings> systemSettings,
         IRecordAccessScopeProvider accessScope,
@@ -39,7 +37,6 @@ public class ProjectService
     {
         this.fileStore = fileStore;
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.accessScope = accessScope;
         this.auditLogService = auditLogService;
@@ -181,7 +178,7 @@ public class ProjectService
         }
 
         var records = await dataSource.ToListAsync();
-        result.Result = Mapper.Map<List<ProjectAdapterModel>>(records);
+        result.Result = ProjectMapper.ToModels(records);
         Logger.LogDebug("Loaded projects successfully. Count={Count}", result.Count);
         return result;
     }
@@ -209,7 +206,7 @@ public class ProjectService
             return new ProjectAdapterModel();
         }
 
-        return Mapper.Map<ProjectAdapterModel>(item);
+        return ProjectMapper.ToModel(item);
     }
 
     /// <summary>
@@ -250,7 +247,7 @@ public class ProjectService
                 return VerifyRecordResultFactory.Invalid(teamError);
             }
 
-            Project itemParameter = Mapper.Map<Project>(paraObject);
+            Project itemParameter = ProjectMapper.ToEntity(paraObject);
             itemParameter.Files = [];
             itemParameter.ConcurrencyStamp = ConcurrencyStampHelper.New();
 
@@ -491,7 +488,7 @@ public class ProjectService
             dataSource = dataSource.Take(dataRequest.PageSize);
         }
 
-        result.Result = Mapper.Map<List<ProjectAdapterModel>>(await dataSource.ToListAsync());
+        result.Result = ProjectMapper.ToModels(await dataSource.ToListAsync());
         return result;
     }
 

@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -65,8 +64,7 @@ public sealed class AuditIntegrityFixture : IAsyncDisposable
 
     public AuditLogQueryService CreateQueryService()
     {
-        var mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
-        return new AuditLogQueryService(Factory, mapper, NullLogger<AuditLogQueryService>.Instance, ContentStore, Chain);
+        return new AuditLogQueryService(Factory, NullLogger<AuditLogQueryService>.Instance, ContentStore, Chain);
     }
 
     public AuditIntegrityVerifier CreateVerifier()

@@ -1,0 +1,42 @@
+using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
+using MyProject.Models.AdapterModel;
+using Riok.Mapperly.Abstractions;
+
+namespace MyProject.Business.Mappers;
+
+/// <summary>
+/// __Display__的對應（由 scripts/New-CrudModule.ps1 產生；Mapperly 在編譯時產生程式碼）。
+/// 「→ 實體」以 <see cref="NameNormalizer"/> 正規化名稱、不帶軟刪除欄位（刪除與還原只經由服務，見 SoftDeleteHelper）。
+/// 畫面模型或實體新增欄位卻沒有對應時，建置會失敗（RMG012）：要對應就補來源，不要對應就加 [MapperIgnoreTarget]。
+/// </summary>
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+public static partial class __Name__Mapper
+{
+#IF TEAMS
+    [MapProperty(nameof(__Name__.Teams), nameof(__Name__AdapterModel.Teams), Use = nameof(ToTagList))]
+#ENDIF
+    public static partial __Name__AdapterModel ToModel(__Name__ source);
+
+    public static partial List<__Name__AdapterModel> ToModels(IEnumerable<__Name__> source);
+
+    [MapperIgnoreTarget(nameof(__Name__.IsDeleted))]
+    [MapperIgnoreTarget(nameof(__Name__.DeletedAt))]
+    [MapperIgnoreTarget(nameof(__Name__.DeletedBy))]
+    [MapProperty(nameof(__Name__AdapterModel.Name), nameof(__Name__.Name), Use = nameof(NormalizeName))]
+#IF TEAMS
+    [MapProperty(nameof(__Name__AdapterModel.Teams), nameof(__Name__.Teams), Use = nameof(ToStoredTags))]
+#ENDIF
+    public static partial __Name__ ToEntity(__Name__AdapterModel source);
+
+    [UserMapping(Default = false)]
+    private static string NormalizeName(string? name) => NameNormalizer.Normalize(name);
+#IF TEAMS
+
+    [UserMapping(Default = false)]
+    private static List<string> ToTagList(string? stored) => TagStringHelper.ToList(stored);
+
+    [UserMapping(Default = false)]
+    private static string? ToStoredTags(List<string> tags) => TagStringHelper.ToStored(tags);
+#ENDIF
+}

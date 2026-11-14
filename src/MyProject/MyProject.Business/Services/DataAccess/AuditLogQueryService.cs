@@ -1,11 +1,11 @@
 ﻿using System.Linq.Expressions;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Business.Services.Other.AuditIntegrity;
 using MyProject.Models.AdapterModel;
@@ -38,18 +38,15 @@ public class AuditLogQueryService
     private readonly AuditContentFileStore contentFileStore;
     private readonly AuditChainStore chainStore;
 
-    public IMapper Mapper { get; }
     public ILogger<AuditLogQueryService> Logger { get; }
 
     public AuditLogQueryService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<AuditLogQueryService> logger,
         AuditContentFileStore contentFileStore,
         AuditChainStore chainStore)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.contentFileStore = contentFileStore;
         this.chainStore = chainStore;
@@ -60,7 +57,7 @@ public class AuditLogQueryService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var item = await context.AuditLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        return item is null ? null : Mapper.Map<AuditLogAdapterModel>(item);
+        return item is null ? null : LogMappers.ToModel(item);
     }
 
     /// <summary>
@@ -201,9 +198,9 @@ public class AuditLogQueryService
             .Take(query.PageSize);
 
         List<AuditLog> records = await dataSource.ToListAsync();
-        result.Result = Mapper.Map<List<AuditLogAdapterModel>>(records);
+        result.Result = LogMappers.ToModels(records);
 
-        // UTC → 本地，統一在這裡做完。AutoMapper 只會原封不動搬過去，不會幫忙換算。
+        // UTC → 本地，統一在這裡做完。LogMappers 只會原封不動搬過去，不會幫忙換算。
         foreach (var item in result.Result)
         {
             item.OccurredAt = ToLocal(item.OccurredAt);
@@ -269,7 +266,7 @@ public class AuditLogQueryService
 
         DataRequestResult<AuditLogAdapterModel> result = new() { Count = await dataSource.CountAsync() };
         var records = await dataSource.Skip((currentPage - 1) * pageSize).Take(pageSize).ToListAsync();
-        result.Result = Mapper.Map<List<AuditLogAdapterModel>>(records);
+        result.Result = LogMappers.ToModels(records);
         foreach (var item in result.Result)
         {
             item.OccurredAt = ToLocal(item.OccurredAt);

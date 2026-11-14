@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.115
+- 文件版本：6.116
 - 文件狀態：維護中
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.23
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/14
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 以 Mapperly 取代 AutoMapper（使用者 2026/11/14 決定）：AutoMapper 15 版起改商業授權（Community 授權限年營收 500 萬美元以下、政府不適用），最後的 MIT 版 14.0.0 有 CVE-2026-32933；改用 `Riok.Mapperly` 4.3.1（Apache-2.0），`Business/Mappers/` 每個主題一個靜態對應類別，服務不再注入 `IMapper`；`RequiredMappingStrategy.Target`＋警告視為錯誤，漏對應的欄位建置就失敗（RMG012）；行為不變（標籤、名稱正規化、軟刪除與帳號安全欄位不寫回實體）；移除 `AutoMapping.cs`、7 個沒人用的對應與 `AutoMapper:LicenseKey`；CRUD 產生器改產生 `__Name__Mapper`；新增 `MapperTests`（0.10.23） | [2026-11-14-以Mapperly取代AutoMapper](2026-11-14-以Mapperly取代AutoMapper.md) |
 | 移除 Agent 測試台與 Agent 工作流程（使用者 2026/11/14 決定）：側邊選單「AI 助理」整個區塊（`/agent-playground`、`/agent-workflows`）、對應 API、範例 Agent、專案工具、「產生／清除測試專案」、兩條工作流程與整個多 Agent 工作流程引擎（含 `Microsoft.Agents.AI.Workflows` 套件）移除；8 個提示詞、6 個系統參數、3 個權限與「不自動開給預設角色」機制一併拿掉；保留 MAF 基礎建設（`AiAgentFactory`、`AiAgentRunner`、工具核准、共用對話 API、對話保存與清理），系統管理助理當範例；資料表結構不變，新增只刪資料的 migration `RemoveAgentPagesData` 清除既有資料庫的舊資料；移除前版本標記為 tag `AI助理-0.10.21`（0.10.22） | [2026-11-14-移除Agent測試台與Agent工作流程](2026-11-14-移除Agent測試台與Agent工作流程.md) |
 | AI 快速模型 FastModel：`AiSettings:FastModel`（選填，只在設定檔）給不複雜的工作用，呼叫端以 `UseFastModel` 要求；選模型順序 ModelOverride → 系統參數指定 → FastModel → Model；系統管理助理的分派在沒另外指定時改用它；AI 計費表一併檢查它的費率；新增 `AiModelSelectionTests`（0.10.22） | [2026-11-14-AI快速模型FastModel](2026-11-14-AI快速模型FastModel.md) |
 | AI 提示詞頁改用左側分組清單（使用者 2026/11/14 決定）：16 份提示詞原本是 AntDesign 頁籤，一行只放得下約 10 個、其餘收進「…」；改成左側直排清單，依標題的「／」分成「一般」「狀態報告」「審查」「管理助理」四組（`PromptTemplateView.GroupsOf`），一次全部看得到、點一下就切換，捲動時清單黏在頂部列下方，窄螢幕改放內容上方；API 不變；新增 `PromptTemplateGroupingTests`（0.10.21） | [2026-11-14-AI提示詞頁改用左側分組清單](2026-11-14-AI提示詞頁改用左側分組清單.md) |

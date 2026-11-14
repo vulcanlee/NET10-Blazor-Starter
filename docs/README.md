@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：7.06
+- 文件版本：7.07
 - 文件狀態：維護中
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.23
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/14
 
@@ -337,6 +337,7 @@
 - [WASM 遷移 M2 外框與個人資料：第一個 WebAssembly 頁面、WASM 版外框、外框與個人資料 API（0.10.1）](changelog/2026-11-10-WASM遷移M2外框與個人資料.md)
 - [WASM 遷移 M3 分類、團隊與 CRUD 產生器：兩頁改用 WebAssembly、API 改走與畫面相同的服務、CRUD 產生器改產生 WASM 頁面（0.10.2）](changelog/2026-11-11-WASM遷移M3分類團隊與CRUD產生器.md)
 - [WASM 遷移 M4 專案、附件與下載票證：專案頁改用 WebAssembly、API 改走服務（不再有 Repository）、專案標題不能重複、附件改用一次性下載票證、IIS 請求上限放寬（0.10.3）](changelog/2026-11-11-WASM遷移M4專案附件與下載票證.md)
+- [以 Mapperly 取代 AutoMapper：AutoMapper 15 版起改商業授權、最後的 MIT 版有高風險漏洞；改用 Apache-2.0 的 Mapperly，在編譯時產生對應，漏對應的欄位建置就失敗；移除 `AutoMapper:LicenseKey`（0.10.23）](changelog/2026-11-14-以Mapperly取代AutoMapper.md)
 - [移除 Agent 測試台與 Agent 工作流程：側邊選單「AI 助理」整個區塊、範例 Agent、專案工具、測試專案與多 Agent 工作流程引擎移除，保留 MAF 基礎建設與系統管理助理；舊資料以 migration 清除（0.10.22）](changelog/2026-11-14-移除Agent測試台與Agent工作流程.md)
 - [AI 快速模型 FastModel：`AiSettings:FastModel` 給不複雜的工作用（標籤、摘要），系統管理助理的分派改用它；空白＝用 Model（0.10.22）](changelog/2026-11-14-AI快速模型FastModel.md)
 - [AI 提示詞頁改用左側分組清單：16 份提示詞原本是頁籤，一行放不下、其餘收進「…」；改成左側直排清單，依「一般」「狀態報告」「審查」「管理助理」分組，一次全部看得到、點一下就切換（0.10.21）](changelog/2026-11-14-AI提示詞頁改用左側分組清單.md)

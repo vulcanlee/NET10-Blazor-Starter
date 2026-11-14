@@ -60,7 +60,6 @@ public sealed class AppSettingsCommentConventionTests
         "EmailSettings:Password",
         "GoogleOAuthSettings:ClientSecret",
         "CacheSettings:RedisConnection",
-        "AutoMapper:LicenseKey",
     ];
 
     public static TheoryData<string> ProductionKeys => [.. Production];
@@ -95,9 +94,7 @@ public sealed class AppSettingsCommentConventionTests
         Assert.Contains(path.Replace(":", "__", StringComparison.Ordinal), line.Comment ?? string.Empty);
 
         using var document = JsonDocument.Parse(File.ReadAllText(AppSettingsPath()), ShippedAppSettings.JsonOptions);
-        var value = path == "AutoMapper:LicenseKey"
-            ? document.RootElement.GetProperty(path).GetString()
-            : path.Split(':').Aggregate(document.RootElement, (element, key) => element.GetProperty(key)).GetString();
+        var value = path.Split(':').Aggregate(document.RootElement, (element, key) => element.GetProperty(key)).GetString();
         Assert.Contains(value, AllowedSecretPlaceholders);
     }
 
@@ -180,7 +177,7 @@ public sealed class AppSettingsCommentConventionTests
     private static bool HasMark(string? comment)
         => comment is not null && (comment.Contains(ProductionMark, StringComparison.Ordinal) || comment.Contains(SecretMark, StringComparison.Ordinal));
 
-    /// <summary>同一層的分組鍵：最上層的成員（含鍵名本身帶冒號的 <c>AutoMapper:LicenseKey</c>）都歸在根層。</summary>
+    /// <summary>同一層的分組鍵：最上層的成員（含鍵名本身帶冒號的鍵，0.10.22 前的 <c>AutoMapper:LicenseKey</c> 就是）都歸在根層。</summary>
     private static string ParentOf(ParsedLine line)
         => line.Number > 0 && line.Path == line.Key ? string.Empty : line.Path[..^(line.Key!.Length + 1)];
 

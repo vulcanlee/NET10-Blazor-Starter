@@ -1,8 +1,8 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：2.9
+- 文件版本：3.0
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.23
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
 - 最後核對日期：2026/11/14
 
@@ -50,6 +50,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `AccessDatas/Models/Equipment.cs` | 實體：名稱、描述、啟用（、團隊）；`IConcurrencyStamped`（樂觀並行）＋`ISoftDeletable`（刪除可還原） |
 | `Models/AdapterModel/EquipmentAdapterModel.cs` | 畫面模型，`Clone()` |
 | `Dtos/Models/EquipmentDto.cs`、`EquipmentCreateUpdateDto.cs`、`Dtos/Commons/EquipmentSearchRequestDto.cs` | Web API 的 DTO（PUT 必須帶 `concurrencyStamp`；0.10.2 起 `EquipmentDto` 含 `IsDeleted`／`DeletedAt`／`DeletedBy`，搜尋可帶 `Deleted`、`IsEnabled`、`RecordSearch`） |
+| `Business/Mappers/EquipmentMapper.cs` | 0.10.23 起：實體 ↔ 畫面模型的對應（Mapperly，編譯時產生）：`ToModel`、`ToModels`、`ToEntity`；「→ 實體」以 `NameNormalizer` 正規化名稱、以 `[MapperIgnoreTarget]` 不帶三個軟刪除欄位，`-WithTeams` 另做團隊字串 ↔ 清單轉換。以前是登記進共用的 `AutoMapping.cs` |
 | `Business/Services/DataAccess/EquipmentService.cs` | 資料服務（`IDbContextFactory`），規則與稽核只有這一份，0.10.2 起 Web API 也走它：清單（可篩啟用狀態）、已刪除清單、新增（存檔後回填 Id 與版本號）、修改（並行比對）、只改啟用狀態的 `SetEnabledAsync`（0.9.120 起：換版本號、已是目標狀態不寫稽核）、刪除、還原、永久刪除、名稱重複檢查、稽核；失敗以 `VerifyRecordResult.Kind` 標示種類 |
 | `Web/Controllers/EquipmentController.cs` | 0.10.2 起走 `EquipmentService`：`GET {id}`、`POST search`、`POST check`（存檔前的名稱檢查）、`POST`、`PUT {id}`、`PUT {id}/enabled`、`DELETE {id}`（軟刪除）、`POST {id}/restore`、`DELETE {id}/purge`、`POST export`（Excel），`-WithTeams` 另有 `GET options`（團隊選項）；各自 `[HasPermission]`，回 `ApiResult`，失敗依種類回 404／409／400／500（`FromVerify`）；「顯示已刪除」要刪除權限，沒有回 403（`ForbidUnless`） |
 | `Web.Client/Api/EquipmentApi.cs` | 0.10.2 起：WASM 的 API 用戶端（繼承 `CrudApi`）＋ `EquipmentDtoMapper`（DTO ↔ 畫面模型，Controller 也用同一份） |
@@ -78,7 +79,6 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | 位置 | 內容 |
 |---|---|
 | `BackendDBContext` | `DbSet`、名稱唯一索引（只約束未刪除的資料） |
-| `AutoMapping` | 實體 ↔ 畫面模型／DTO（名稱正規化、`IgnoreSoftDeleteFields`、團隊字串轉換） |
 | `ServiceCollectionExtensions` | 服務的 DI（0.10.2 起不再產生 Repository） |
 | `MagicObjectHelper` | 權限鍵常數 |
 | `AuditActions` | `Equipment.Create／Update／Enable／Disable／Delete／Restore／Purge／AutoPurge／Export`（`Enable`／`Disable` 0.9.120 起） |
@@ -98,7 +98,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 
 ## 5. 產生之後的檢查清單
 
-1. [ ] **補上實際欄位**：實體、畫面模型、兩個 DTO、`AutoMapping`（有需要轉換時）、表單（短欄位自動兩欄，多行或多選加 `Class="form-field-full"`）、表格欄位、`ExportColumns`、服務的搜尋與排序、Controller 的 `SortableFields`、`EquipmentDtoMapper`（DTO ↔ 畫面模型）、測試。
+1. [ ] **補上實際欄位**：實體、畫面模型、兩個 DTO、`EquipmentMapper`（有需要轉換或不對應的欄位時；畫面模型或實體的欄位沒有對應會建置失敗 `RMG012`，見[開發指引 §3.6](腳手架開發指引.md#36-mapperly)）、表單（短欄位自動兩欄，多行或多選加 `Class="form-field-full"`）、表格欄位、`ExportColumns`、服務的搜尋與排序、Controller 的 `SortableFields`、`EquipmentDtoMapper`（DTO ↔ 畫面模型）、測試。
 2. [ ] **改了欄位就重新產生 migration**：刪掉產生器建立的 `Add<Name>` 再執行 `dotnet ef migrations add Add<Name>`（隔離路徑的做法見[開發指引](腳手架開發指引.md)），或另外加一個 migration。
 3. [ ] **操作說明**：把 `Datas/Help/<路由>.md` 第二段（這個頁面在做什麼）與第四段（建議操作）改成實際的業務說明；改了按鈕或欄位要同步改第三段（[速查 §6.14](../architecture/開發慣例與限制速查.md)）。
    **使用手冊**：改寫產生器在《新手完整操作指南》第六章加的那一節（「為什麼需要它」、欄位表與按鈕表），並把畫面加進 3.2 全畫面總覽表（[使用手冊寫作規範](使用手冊寫作規範.md)）。
@@ -120,7 +120,7 @@ pwsh ./scripts/Test-CrudGenerator.ps1            # 數分鐘；-KeepWorktree 保
 各做一次新增、修改、刪除、顯示已刪除、還原（`scripts/e2e/crud-generated.mjs`）。實跑需要環境變數 `PLAYWRIGHT_CORE_DIR`（見 [`scripts/e2e/README.md`](../../scripts/e2e/README.md)），
 沒有安裝 playwright-core 的機器加 `-SkipRealRun`；support 的暫時密碼只經環境變數 `E2E_SUPPORT_PASSWORD` 傳給子行程，不放在命令列。最後以 `-Force` 重跑確認沒有任何檔案再被改動。它不在品質關卡裡（太慢），**修改產生器、樣板或任何被登記的檔案的錨點之後必跑**。
 
-⚠️ 登記是以既有程式碼為錨點插入的（共 25 項，0.10.10 起多了 `MaintenanceApiTests`；例如 `services.AddScoped<CategoryService>();`、`builder.Services.AddScoped<TeamApi>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`。0.9.153 起**品質關卡會擋下**（「CRUD anchors」步驟以 `-CheckAnchors` 跑一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒），失敗訊息指名是哪一項登記；它只確認插得進去，產出的模組能不能建置、通過測試，仍要跑 `Test-CrudGenerator.ps1`。
+⚠️ 登記是以既有程式碼為錨點插入的（共 24 項，0.10.10 起多了 `MaintenanceApiTests`，0.10.23 起少了 `AutoMapping`；例如 `services.AddScoped<CategoryService>();`、`builder.Services.AddScoped<TeamApi>();` 之後）。改動這些錨點行時，同步更新 `New-CrudModule.ps1`。0.9.153 起**品質關卡會擋下**（「CRUD anchors」步驟以 `-CheckAnchors` 跑一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒），失敗訊息指名是哪一項登記；它只確認插得進去，產出的模組能不能建置、通過測試，仍要跑 `Test-CrudGenerator.ps1`。
 
 ## 7. 已知限制
 

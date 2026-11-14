@@ -28,7 +28,7 @@ public static class TeamJsonHelper
     /// <summary>從 JSON 還原團隊清單；無效或空白回傳空清單。</summary>
     /// <remarks>
     /// 拿得到 logger 的呼叫端請傳入：JSON 壞掉時回傳空清單等於「沒有任何團隊」，
-    /// 使用者會默默失去權限，必須留下紀錄（LOG-08）。AutoMapper 運算式內無法傳入，維持不傳。
+    /// 使用者會默默失去權限，必須留下紀錄（LOG-08）。RoleViewMapper（Mapperly 對應）裡拿不到 logger，維持不傳。
     /// </remarks>
     public static List<string> Deserialize(string? json, ILogger? logger = null)
     {

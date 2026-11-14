@@ -1,8 +1,8 @@
 ﻿# DTO 與模型邊界規範
 
-- 文件版本：1.9
+- 文件版本：2.0
 - 文件狀態：已實作
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.23
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/14
 
@@ -13,8 +13,8 @@
 - [x] Web API request/response 只使用 `MyProject.Dtos`，不可直接接收或回傳 `AccessDatas.Models` Entity。
 - [x] Entity 僅作為 EF Core persistence model 使用。
 - [x] AdapterModel 給 WASM 頁面與服務層使用，不應與 API DTO 混用。
-- [x] Controller 使用 AutoMapper 或明確 mapping 在 DTO 與 Entity 之間轉換。
-- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`，0.10.6 起再加 `AnnouncementDtoMapper`，0.10.7 起再加 `AgentDtoMapper`〔同時加入的 `AgentWorkflowDtoMapper` 0.10.22 起已移除〕），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，不另用 AutoMapper。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
+- [x] Controller 不直接轉換 Entity：在 DTO 與 AdapterModel 之間轉換（見下一點），Entity ↔ AdapterModel 的對應在服務層的 `MyProject.Business/Mappers/`（0.10.23 起以 Mapperly 在編譯時產生，取代 AutoMapper）。
+- [x] 0.10.2 起（WASM 遷移 M3）走服務的 Controller 是在 DTO 與 AdapterModel 之間轉換（服務收發 AdapterModel）：對應寫在 `MyProject.Web.Client/Api/` 的 `CategoryDtoMapper`、`TeamDtoMapper`（0.10.3 起再加 `ProjectDtoMapper`，0.10.4 起再加 `UserDtoMapper`、`RoleDtoMapper`，0.10.5 起再加 `ExceptionLogDtoMapper`、`AiCallLogDtoMapper`、`TokenUsageDtoMapper`，0.10.6 起再加 `AnnouncementDtoMapper`，0.10.7 起再加 `AgentDtoMapper`〔同時加入的 `AgentWorkflowDtoMapper` 0.10.22 起已移除〕），WASM 頁面（API 回來的 DTO → 畫面模型）與伺服器的 Controller（請求 DTO → 畫面模型 → 服務）共用同一份，是手寫的對應（不經 Mapperly）。API 的邊界仍然只有 DTO，AdapterModel 不出現在 request／response。
 
 ## 新 CRUD 模組待辦
 - [ ] 新增 `XxxDto` 作為 response DTO。

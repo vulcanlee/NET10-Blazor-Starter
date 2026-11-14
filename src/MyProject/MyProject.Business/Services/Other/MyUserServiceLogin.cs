@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -44,13 +43,11 @@ public class MyUserServiceLogin
     /// <summary>第二步驗證碼錯誤或帳號鎖定中（0.9.104 起）。</summary>
     public const string InvalidSecondFactorMessage = "驗證碼不正確，或帳號已被暫時鎖定。";
 
-    public IMapper Mapper { get; }
     public IConfiguration Configuration { get; }
     public ILogger<MyUserServiceLogin> Logger { get; }
 
     public MyUserServiceLogin(
         BackendDBContext context,
-        IMapper mapper,
         IConfiguration configuration,
         ILogger<MyUserServiceLogin> logger,
         RolePermissionService rolePermissionService,
@@ -61,7 +58,6 @@ public class MyUserServiceLogin
         ITwoFactorService twoFactorService)
     {
         this.context = context;
-        Mapper = mapper;
         Configuration = configuration;
         Logger = logger;
         this.rolePermissionService = rolePermissionService;

@@ -1,9 +1,9 @@
+using MyProject.Business.Mappers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
-using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +34,6 @@ public sealed class TeamTreeTests : IDisposable
 {
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
-    private readonly IMapper mapper;
     private readonly RecordingAuditLogService audit = new();
     private readonly CurrentUserService currentUser = new() { CurrentUser = new CurrentUser { Id = 1, Account = "admin" } };
     private readonly List<IDisposable> disposables = [];
@@ -46,7 +45,6 @@ public sealed class TeamTreeTests : IDisposable
         factory = new TestDbContextFactory(connection);
         using var context = factory.CreateDbContext();
         context.Database.EnsureCreated();
-        mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), LoggerFactory.Create(_ => { })).CreateMapper();
     }
 
     // ---------- 樹的走訪 ----------
@@ -140,7 +138,7 @@ public sealed class TeamTreeTests : IDisposable
             {
                 await using var context = fileFactory.CreateDbContext();
                 var team = await context.Team.AsNoTracking().SingleAsync(x => x.Id == id);
-                var service = new TeamService(fileFactory, mapper, NullLogger<TeamService>.Instance, audit, currentUser, new TeamTreeCache(fileFactory, TimeProvider.System, NullLogger<TeamTreeCache>.Instance));
+                var service = new TeamService(fileFactory, NullLogger<TeamService>.Instance, audit, currentUser, new TeamTreeCache(fileFactory, TimeProvider.System, NullLogger<TeamTreeCache>.Instance));
                 return (await service.UpdateAsync(new TeamAdapterModel { Id = id, Name = team.Name, ParentId = parent, ConcurrencyStamp = team.ConcurrencyStamp })).Success;
             }
 
@@ -450,7 +448,7 @@ public sealed class TeamTreeTests : IDisposable
         var context = factory.CreateDbContext();
         disposables.Add(context);
         tree = new ContextTeamTreeCache(context);
-        return new TeamService(factory, mapper, NullLogger<TeamService>.Instance, audit, currentUser, tree);
+        return new TeamService(factory, NullLogger<TeamService>.Instance, audit, currentUser, tree);
     }
 
     private EffectiveTeamResolver Resolver()
@@ -463,14 +461,14 @@ public sealed class TeamTreeTests : IDisposable
     private ProjectService ProjectService(FakeRecordAccessScopeProvider scope)
     {
         var settings = new SystemSettings();
-        return new ProjectService(factory, mapper, NullLogger<ProjectService>.Instance, Options.Create(settings), scope, audit, currentUser,
+        return new ProjectService(factory, NullLogger<ProjectService>.Instance, Options.Create(settings), scope, audit, currentUser,
             new ProjectFileStore(Options.Create(settings), NullLogger<ProjectFileStore>.Instance));
     }
 
     private async Task<ProjectAdapterModel> ProjectAdapterAsync(int id)
     {
         await using var context = factory.CreateDbContext();
-        return mapper.Map<ProjectAdapterModel>(await context.Project.AsNoTracking().SingleAsync(x => x.Id == id));
+        return ProjectMapper.ToModel(await context.Project.AsNoTracking().SingleAsync(x => x.Id == id));
     }
 
     private int AddTeam(string name, int? parentId = null, DateTime? deletedAt = null)
@@ -515,7 +513,7 @@ public sealed class TeamTreeTests : IDisposable
 
     private async Task<TeamAdapterModel> AdapterAsync(int id, int? parentId = null, string? name = null)
     {
-        var model = mapper.Map<TeamAdapterModel>(await LoadTeamAsync(id));
+        var model = TeamMapper.ToModel(await LoadTeamAsync(id));
         model.ParentId = parentId ?? model.ParentId;
         model.Name = name ?? model.Name;
         return model;

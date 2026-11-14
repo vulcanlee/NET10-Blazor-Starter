@@ -68,7 +68,6 @@
 | `ClientSettings:BaseUrl` | 前後端分開部署時前端的網址（留空＝同站台） | 重新啟動網站後 |
 | `AllowedHosts`、`ForwardedHeaders` | 允許的主機名稱、信任的反向代理 | 重新啟動網站後 |
 | `Swagger`、`Security` | 正式環境是否開放 API 文件、錯誤回應是否附上例外細節 | 重新啟動網站後 |
-| `AutoMapper:LicenseKey` | 元件授權碼 | 重新啟動網站後 |
 | `Logging:LogLevel` | 沒有作用（日誌等級由 `nlog.config` 決定，執行中可在「日誌等級設定」頁暫時調整，重新啟動網站後還原） | — |
 
 ### 需要的權限

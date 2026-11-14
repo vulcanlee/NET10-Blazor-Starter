@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -665,7 +664,6 @@ public sealed class SoftDeleteUserRoleTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory = LoggerFactory.Create(_ => { });
         private readonly CurrentUserService currentUser = new();
         private readonly BootstrapSettings bootstrapSettings;
@@ -674,7 +672,6 @@ public sealed class SoftDeleteUserRoleTests
         {
             this.connection = connection;
             Context = context;
-            mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
             bootstrapSettings = new BootstrapSettings { SupportAccount = supportAccount };
 
             // Id 刻意設很大，避免和測試建立的使用者撞號而觸發「不可刪除自己」。
@@ -695,17 +692,16 @@ public sealed class SoftDeleteUserRoleTests
         public void SignInAs(int id, string account) => currentUser.CurrentUser = new CurrentUser { Id = id, Account = account };
 
         public MyUserService UserService()
-            => new(new TestDbContextFactory(connection), mapper, NullLogger<MyUserService>.Instance,
+            => new(new TestDbContextFactory(connection), NullLogger<MyUserService>.Instance,
                 new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser,
                 Options.Create(bootstrapSettings), PasswordTestDefaults.Policy(supportAccount: bootstrapSettings.SupportAccount));
 
         public RoleViewService RoleService(IInterceptor? interceptor = null)
-            => new(interceptor is null ? new TestDbContextFactory(connection) : new InterceptingFactory(connection, interceptor),
-                mapper, NullLogger<RoleViewService>.Instance, new RolePermissionService(),
+            => new(interceptor is null ? new TestDbContextFactory(connection) : new InterceptingFactory(connection, interceptor), NullLogger<RoleViewService>.Instance, new RolePermissionService(),
                 new RbacWriteService(NewContext(), NullLogger<RbacWriteService>.Instance), new RecordingAuditLogService(), currentUser);
 
         public MyUserServiceLogin LoginService()
-            => new(NewContext(), mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
+            => new(NewContext(), new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
                 new RolePermissionService(), new RecordingAuditLogService(), PasswordTestDefaults.Lockout(), new RecordingNotificationSender(), TimeProvider.System,
                 TwoFactorTestDefaults.Service(new TestDbContextFactory(connection), supportAccount: bootstrapSettings.SupportAccount));
 

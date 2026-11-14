@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.46
+- 文件版本：2.47
 - 文件狀態：維護中
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.23
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/14
 
@@ -15,10 +15,10 @@
 | 首頁與導覽 | [首頁與導覽](首頁與導覽-prd.md) | `/`、`/App` | `Web.Client/Pages/SplashPage.razor`、`Web.Client/Pages/HomeAuthed.razor`（0.10.6 起 WASM）、`SidebarMenuService`、`Menu.json`、`Web.Client/Layout/ClientMainLayout`（含「關於」對話窗）、`ClientPageHelpDialog`／`PageHelpService`／`Datas/HelpTopics.json`＋`Datas/Help/*.md`（頂欄「操作說明」對話窗，每個登入後頁面一份） | 已實作（0.9.66 起含頁面操作說明對話窗；0.9.121 起說明窗可切換字體小／中／大；0.10.6 起首頁改用 WebAssembly，WASM 遷移 M7；0.10.9 起 Server 版外框刪除、只剩 WASM 版外框，WASM 遷移 M10）| 0.10.22 |
 | 登入與帳號流程 | [登入與帳號流程](登入與帳號流程-prd.md) | `/Auths/Login`、`/Auths/Logout`、`/Auths/Pending`、`/Auths/ForgotPassword`、`/Auths/ResetPassword`、`/ChangePassword` | `Web.Client/Views/Auths/*`（0.10.8 起 WASM）、`ClientSession`、`MyUserServiceLogin`、`ExternalLoginService`、`PasswordResetService`、`AuthController`、`WebAuthController`、`AuthPasswordController` | 已實作（0.9.60 起含忘記密碼；0.10.8 起純 Token 登入、不再發登入 Cookie，WASM 遷移 M9）| 0.10.18 |
 | 專案項目 | [專案項目](專案項目-prd.md) | `/projects` | `Web.Client/Pages/ProjectPage.razor`（0.10.3 起 WASM）、`ProjectService`、`ProjectController`、`DownloadsController` | 已實作（0.9.78 起增刪改與附件上傳／刪除寫稽核；0.10.3 起改用 WebAssembly、API 走服務、標題不可重複、附件以一次性下載票證下載）| 0.10.22 |
-| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Web.Client/Pages/MyUserPage.razor`（0.10.4 起 WASM）、`MyUserService`、`UsersController` | 已實作（0.9.120 起點狀態標籤切換啟用／停用；0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/users`（`[AdminOnly]`），不可強制登出自己、不可重設自己的兩步驟驗證也在 API 擋，改自己後經 `SessionRefreshUrl` 換發登入，WASM 遷移 M5；0.10.8 起改自己直接回新 Token，WASM 遷移 M9）| 0.10.18 |
+| 使用者管理 | [使用者管理](使用者管理-prd.md) | `/myusers` | `Web.Client/Pages/MyUserPage.razor`（0.10.4 起 WASM）、`MyUserService`、`UsersController` | 已實作（0.9.120 起點狀態標籤切換啟用／停用；0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/users`（`[AdminOnly]`），不可強制登出自己、不可重設自己的兩步驟驗證也在 API 擋，改自己後經 `SessionRefreshUrl` 換發登入，WASM 遷移 M5；0.10.8 起改自己直接回新 Token，WASM 遷移 M9）| 0.10.23 |
 | 角色管理 | [角色管理](角色管理-prd.md) | `/roleviews` | `Web.Client/Pages/RoleViewPage.razor`（0.10.4 起 WASM）、`RoleViewService`、`RbacWriteService`、`RolesController` | 已實作（0.10.4 起改用 WebAssembly，新增管理員專用 API `api/v1/roles`（`[AdminOnly]`，權限矩陣為樹狀 DTO），WASM 遷移 M5）| 0.10.22 |
-| 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `MyProject.Web.Client` 的 `Pages/CategoryPage.razor`、`Views/Categories/CategoryViewView`、`Api/CategoryApi`；`CategoryController`（`/api/v1/Category`）、`CategoryService` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `CategoryService`，WASM 遷移 M3） | 0.10.18 |
-| 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `MyProject.Web.Client` 的 `Pages/TeamPage.razor`、`Views/Teams/TeamViewView`、`Api/TeamApi`；`TeamController`（`/api/v1/Team`）、`TeamService` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `TeamService`，WASM 遷移 M3）| 0.10.18 |
+| 分類清單 | [分類清單](分類清單-prd.md) | `/categories` | `MyProject.Web.Client` 的 `Pages/CategoryPage.razor`、`Views/Categories/CategoryViewView`、`Api/CategoryApi`；`CategoryController`（`/api/v1/Category`）、`CategoryService` | 已實作（0.4.40 起可指定適用團隊；0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `CategoryService`，WASM 遷移 M3） | 0.10.23 |
+| 團隊清單 | [團隊清單](團隊清單-prd.md) | `/teams` | `MyProject.Web.Client` 的 `Pages/TeamPage.razor`、`Views/Teams/TeamViewView`、`Api/TeamApi`；`TeamController`（`/api/v1/Team`）、`TeamService` | 已實作（0.9.78 起增刪改寫稽核；0.9.120 起點狀態標籤切換啟用／停用；0.10.2 起在 WebAssembly 執行，API 改走 `TeamService`，WASM 遷移 M3）| 0.10.23 |
 | 系統健康監控 | [系統健康監控](系統健康監控-prd.md) | `/system-health` | `Web.Client/Pages/SystemHealthPage.razor`＋`Views/Admins/SystemHealthView`（0.10.6 起 WASM）、`SystemHealthController`、`Health/SystemHealthService` 等 | 已實作（14 項檢查；0.9.59 起含寄信服務項與寄信測試；0.9.79 起含日誌管線項；0.9.96 起含排程作業項；0.9.122 起含站內通知測試；0.9.175 起檔案系統項含稽核金鑰目錄；0.10.6 起改用 WebAssembly，管理員專用 API `api/v1/system-health`，WASM 遷移 M7）| 0.10.22 |
 | 日誌檢視 | [日誌檢視](日誌檢視-prd.md) | `/logs` | `Web.Client/Pages/LogViewerPage.razor`（0.10.5 起 WASM）、`LogsController`、`LogQueryService`、`NLogFilePathResolver`、`AiLogAnalysisService` | 已實作（0.9.69 起可展開收合與複製；0.9.78 起可依錯誤追蹤碼篩選；0.9.111 起有快速區間與「查前後 1 分鐘」；0.9.141 起 AI 分析串流顯示、可停止產生；0.10.5 起改用 WebAssembly，管理員專用 API `api/v1/logs`，AI 分析改以 NDJSON 串流，WASM 遷移 M6）| 0.10.18 |
 | 資料庫用量 | [資料庫用量](資料庫用量-prd.md) | `/database-usage` | `Web.Client/Pages/DatabaseUsagePage.razor`（0.10.6 起 WASM）、`DatabaseUsageController`、`DatabaseUsageService` | 已實作（0.10.6 起改用 WebAssembly，管理員專用 API `api/v1/database-usage`，WASM 遷移 M7）| 0.10.18 |

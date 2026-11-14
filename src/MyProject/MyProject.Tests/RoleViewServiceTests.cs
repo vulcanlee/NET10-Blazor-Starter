@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -99,7 +98,6 @@ public sealed class RoleViewServiceTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory = LoggerFactory.Create(_ => { });
         private readonly CurrentUserService currentUser = new();
         private readonly RolePermissionService rolePermissionService = new();
@@ -108,7 +106,6 @@ public sealed class RoleViewServiceTests
         {
             this.connection = connection;
             Context = context;
-            mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), loggerFactory).CreateMapper();
             currentUser.CurrentUser = new CurrentUser { Id = 7, Account = "alice" };
         }
 
@@ -126,7 +123,7 @@ public sealed class RoleViewServiceTests
         public RoleViewService Service(bool failPermissionSync = false)
         {
             IRbacWriteService rbac = new RbacWriteService(Context, NullLogger<RbacWriteService>.Instance);
-            return new(new TestDbContextFactory(connection), mapper, NullLogger<RoleViewService>.Instance, rolePermissionService,
+            return new(new TestDbContextFactory(connection), NullLogger<RoleViewService>.Instance, rolePermissionService,
                 failPermissionSync ? new FailingPermissionSyncRbacWriteService(rbac) : rbac, new RecordingAuditLogService(), currentUser);
         }
 

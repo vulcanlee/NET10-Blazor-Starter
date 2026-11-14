@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
-using AutoMapper;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -39,7 +38,6 @@ public sealed class TwoFactorTests : IDisposable
     private readonly SqliteConnection connection;
     private readonly TestDbContextFactory factory;
     private readonly ManualTimeProvider time = new(new DateTimeOffset(2026, 10, 4, 1, 0, 0, TimeSpan.Zero));
-    private readonly IMapper mapper;
     private readonly RecordingAuditLogService audit = new();
     private readonly TwoFactorSettings settings = new();
     private readonly TotpService totp = new();
@@ -52,7 +50,6 @@ public sealed class TwoFactorTests : IDisposable
         factory = new TestDbContextFactory(connection);
         using var context = factory.CreateDbContext();
         context.Database.EnsureCreated();
-        mapper = new MapperConfiguration(c => c.AddProfile<AutoMapping>(), LoggerFactory.Create(_ => { })).CreateMapper();
     }
 
     // ---------- 啟用 ----------
@@ -394,7 +391,7 @@ public sealed class TwoFactorTests : IDisposable
     {
         var context = factory.CreateDbContext();
         disposables.Add(context);
-        return new MyUserServiceLogin(context, mapper, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
+        return new MyUserServiceLogin(context, new ConfigurationBuilder().Build(), NullLogger<MyUserServiceLogin>.Instance,
             new RolePermissionService(), audit, PasswordTestDefaults.Lockout(maxFailedAttempts), new RecordingNotificationSender(), time, Service());
     }
 

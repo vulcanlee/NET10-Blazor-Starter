@@ -1,10 +1,10 @@
 ﻿using System.Linq.Expressions;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Factories;
+using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
@@ -26,20 +26,17 @@ public class TokenUsageLogService : ITokenUsageRecorder
     private readonly IAiUsageCostCalculator costCalculator;
     private readonly IAiQuotaService quotaService;
 
-    public IMapper Mapper { get; }
     public ILogger<TokenUsageLogService> Logger { get; }
 
     // ⚠️ 只能有一個建構式：DataAccessServiceLifetimeTests 用 GetConstructors().Single()。
     public TokenUsageLogService(
         IDbContextFactory<BackendDBContext> contextFactory,
-        IMapper mapper,
         ILogger<TokenUsageLogService> logger,
         TokenUsageRawStore rawStore,
         IAiUsageCostCalculator costCalculator,
         IAiQuotaService quotaService)
     {
         this.contextFactory = contextFactory;
-        Mapper = mapper;
         Logger = logger;
         this.rawStore = rawStore;
         this.costCalculator = costCalculator;
@@ -180,7 +177,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
             .Take(query.PageSize)
             .ToListAsync();
 
-        result.Result = Mapper.Map<List<TokenUsageLogAdapterModel>>(records);
+        result.Result = LogMappers.ToModels(records);
         return result;
     }
 
@@ -300,7 +297,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
     {
         await using var context = await contextFactory.CreateDbContextAsync();
         var item = await context.TokenUsageLog.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        return item is null ? null : Mapper.Map<TokenUsageLogAdapterModel>(item);
+        return item is null ? null : LogMappers.ToModel(item);
     }
 
     /// <summary>讀取原始 usage JSON。檔案不存在時回 null，由畫面顯示友善訊息。</summary>

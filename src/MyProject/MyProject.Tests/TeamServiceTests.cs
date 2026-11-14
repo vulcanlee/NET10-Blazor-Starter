@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -287,7 +286,6 @@ public sealed class TeamServiceTests
     private sealed class TeamServiceFixture : IAsyncDisposable
     {
         private readonly SqliteConnection connection;
-        private readonly IMapper mapper;
         private readonly ILoggerFactory loggerFactory;
 
         private TeamServiceFixture(SqliteConnection connection, BackendDBContext context)
@@ -296,10 +294,6 @@ public sealed class TeamServiceTests
             Context = context;
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public BackendDBContext Context { get; }
@@ -333,7 +327,6 @@ public sealed class TeamServiceTests
         {
             return new TeamService(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<TeamService>(),
                 Audit,
                 CurrentUser,

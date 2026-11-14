@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
@@ -647,7 +646,6 @@ public sealed class AuditLogQueryServiceTests
     {
         private readonly SqliteConnection connection;
         private readonly ILoggerFactory loggerFactory;
-        private readonly IMapper mapper;
 
         private Fixture(SqliteConnection connection)
         {
@@ -655,10 +653,6 @@ public sealed class AuditLogQueryServiceTests
             ContentRoot = Path.Combine(Path.GetTempPath(), "audit-content-" + Guid.NewGuid().ToString("N"));
 
             loggerFactory = LoggerFactory.Create(_ => { });
-            var mapperConfiguration = new MapperConfiguration(
-                configuration => configuration.AddProfile<AutoMapping>(),
-                loggerFactory);
-            mapper = mapperConfiguration.CreateMapper();
         }
 
         public static async Task<Fixture> CreateAsync()
@@ -689,7 +683,6 @@ public sealed class AuditLogQueryServiceTests
         public AuditLogQueryService CreateService()
             => new(
                 new TestDbContextFactory(connection),
-                mapper,
                 loggerFactory.CreateLogger<AuditLogQueryService>(),
                 CreateContentStore(),
                 TestAuditChain.Create(connection));
