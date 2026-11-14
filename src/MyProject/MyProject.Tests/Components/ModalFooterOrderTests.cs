@@ -4,7 +4,7 @@ namespace MyProject.Tests.Components;
 
 /// <summary>
 /// 對話窗頁尾的按鈕順序（0.10.14 起，升級 .NET 11）：AntDesign 1.6.3-dotnet11.rc3 的預設頁尾改成先「取消」再「儲存」（PR #4857），
-/// 升級時刻意維持使用者看慣的「儲存　取消」（<c>OverlayStyles</c> 以 <c>flex-direction: row-reverse</c> 反轉畫面順序），等使用者決定要不要採用新順序。
+/// 升級時刻意維持使用者看慣的「儲存　取消」（<c>OverlayStyles</c> 以 <c>flex-direction: row-reverse</c> 反轉畫面順序），使用者 2026/11/14 決定維持、不採用新順序。
 /// 反轉只對預設頁尾安全：自訂的 Footer 內容也會被反轉，所以對話窗不可以有自訂頁尾（只能用預設頁尾或 <c>Footer="null"</c>）。
 /// </summary>
 public sealed class ModalFooterOrderTests
