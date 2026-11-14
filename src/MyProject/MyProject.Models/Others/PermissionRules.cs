@@ -10,12 +10,18 @@ namespace MyProject.Business.Helpers;
 public static class PermissionRules
 {
     /// <summary>
-    /// 能否進入頁面（也用於側邊選單過濾）：管理員、擁有裸頁面鍵、或擁有該頁的 <c>view</c> 動作鍵。
-    /// ⚠️ 第三項不可省略 —— 角色矩陣只勾「檢視」時產生的是「頁面:view」，不含裸鍵；少了它唯讀角色連頁面都打不開。
+    /// 每個登入的人都能開的頁面（0.10.17 起，使用者 2026/11/14 決定）：首頁。不在角色矩陣裡、不能被授予或拿掉。
+    /// 首頁裡的小工具仍依各自的權限顯示。
+    /// </summary>
+    public static readonly IReadOnlySet<string> OpenToEveryone = new HashSet<string>(StringComparer.Ordinal) { MagicObjectHelper.角色_首頁 };
+
+    /// <summary>
+    /// 能否進入頁面（也用於側邊選單過濾）：管理員、每個人都能開的頁面（<see cref="OpenToEveryone"/>）、擁有裸頁面鍵、或擁有該頁的 <c>view</c> 動作鍵。
+    /// ⚠️ 最後一項不可省略 —— 角色矩陣只勾「檢視」時產生的是「頁面:view」，不含裸鍵；少了它唯讀角色連頁面都打不開。
     /// </summary>
     public static bool CanAccessPage(CurrentUser user, string page)
     {
-        if (user.IsAdmin)
+        if (user.IsAdmin || OpenToEveryone.Contains(page))
         {
             return true;
         }

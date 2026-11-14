@@ -604,6 +604,11 @@ public class ProjectService
     public async Task<VerifyRecordResult> BeforeAddCheckAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles = null)
     {
         Logger.LogDebug("Running pre-create validation for project. Title={Title}", paraObject.Title);
+        if (TitleTooLong(paraObject.Title) is { } tooLong)
+        {
+            return tooLong;
+        }
+
         var rules = await ValidateBusinessRulesAsync(paraObject, uploadFiles);
         if (!rules.Success)
         {
@@ -655,8 +660,13 @@ public class ProjectService
             return VerifyRecordResultFactory.Invalid(optionError);
         }
 
-        // 名稱沒改就不檢查：0.10.3 之前網頁允許重名，舊的重名資料只改其他欄位時照常可存。
+        // 名稱沒改就不檢查：0.10.3 之前網頁允許重名，舊的重名資料只改其他欄位時照常可存。標題上限（0.10.17 起）同理。
         var renamed = NormalizedTitle(searchItem.Title) != NormalizedTitle(paraObject.Title);
+        if (renamed && TitleTooLong(paraObject.Title) is { } tooLong)
+        {
+            return tooLong;
+        }
+
         if (renamed && await TitleTakenAsync(context, paraObject.Title, paraObject.Id))
         {
             Logger.LogInformation("Pre-update validation failed because project title already exists. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
@@ -748,6 +758,21 @@ public class ProjectService
             ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
             DownloadFileName = file.OriginalFileName
         };
+    }
+
+    /// <summary>
+    /// 標題上限（0.10.17 起，使用者 2026/11/14 決定；以前沒有上限）：去頭尾空白後計。新增時一律檢查；修改時只在標題有改時檢查，
+    /// 以前存下的長標題只改其他欄位時照常可存（同重名、帳號格式的做法）。畫面的輸入框另以 MaxLength 擋住新輸入。
+    /// </summary>
+    private VerifyRecordResult? TitleTooLong(string? title)
+    {
+        if (NameNormalizer.Normalize(title).Length <= ProjectAdapterModel.ProjectTitleMaxLength)
+        {
+            return null;
+        }
+
+        Logger.LogWarning("Project validation failed because the title is too long. Length={Length}", title?.Length ?? 0);
+        return VerifyRecordResultFactory.Invalid($"專案標題長度不可超過 {ProjectAdapterModel.ProjectTitleMaxLength} 字元。");
     }
 
     private Task<VerifyRecordResult> ValidateBusinessRulesAsync(ProjectAdapterModel paraObject, IEnumerable<ProjectUploadFileInput>? uploadFiles)

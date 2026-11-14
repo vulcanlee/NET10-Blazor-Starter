@@ -5,8 +5,9 @@
 //   I6 重名的變形：大小寫不同、前後有半形與全形空白 → 一律擋下。
 //   I7 搜尋含 % _ ' " \ 等特殊字元 → 不出錯，只找到真的含那個字元的資料（不是萬用字元）。
 //   I8 專案結束日期早於開始日期（API）→ 400。      I9 完成百分比 150（API）→ 400。
-//   I10 專案標題 5,000 字（API）→ 不可以 5xx（記錄伺服器怎麼處理）。
-//   I11 使用者 Email 格式錯誤 → 擋下。              I12 使用者帳號含空白與 HTML（API）→ 不可以 5xx（記錄處理方式）。
+//   I10 專案標題 5,000 字（API）→ 400（0.10.17 起上限 200 字）。
+//   I11 使用者 Email 格式錯誤 → 擋下。              I12 使用者帳號含空白與 HTML（API）→ 400（0.10.17 起帳號格式規則）。
+//   I16 新增使用者時帳號打空白 → 不必按儲存，欄位下方就提示格式（0.10.17 起）。
 //   I13 在名稱欄按 Enter → 對話窗不關、沒寫入。     I14 改了內容按右上角 ✕ → 問要不要放棄，選「放棄變更」才關、沒寫入。
 //   I15 改了內容、打開下拉後按 Esc（Esc 會連對話窗一起關）→ 一樣先問要不要放棄，選「繼續編輯」內容還在。
 //   每一項都檢查沒有頁面錯誤、主控台錯誤、伺服器 5xx。
@@ -131,7 +132,7 @@ try {
   const r9 = await apiJsonAsPageUser(page, '/api/v1/Project', { method: 'POST', body: project({ completionPercentage: 150 }) });
   recorder.add('I9', '完成百分比 150：400', r9.status === 400, `HTTP ${r9.status}「${r9.json?.errorMessage ?? r9.json?.message ?? ''}」`);
   const r10 = await apiJsonAsPageUser(page, '/api/v1/Project', { method: 'POST', body: project({ title: '題'.repeat(5000) }) });
-  recorder.add('I10', '專案標題 5,000 字：不可以 5xx（記錄處理方式）', r10.status < 500, `HTTP ${r10.status}「${r10.json?.errorMessage ?? r10.json?.message ?? ''}」`);
+  recorder.add('I10', '專案標題 5,000 字：400（上限 200 字）', r10.status === 400, `HTTP ${r10.status}「${r10.json?.errorMessage ?? r10.json?.message ?? ''}」`);
 
   // I11、I12：使用者。
   await openList(page, '/myusers');
@@ -152,7 +153,18 @@ try {
 
   const roleId = query("SELECT RoleViewId AS id FROM MyUser WHERE Account = 'support'")[0].id;
   const r12 = await apiJsonAsPageUser(page, '/api/v1/users', { method: 'POST', body: { id: 0, account: `bad account<b>${stamp}`, name: '怪帳號', password: 'Good!Pass2026x', roleViewId: roleId, teamNames: [], additionalRoleIds: [] } });
-  recorder.add('I12', '使用者帳號含空白與 HTML（API）：不可以 5xx（記錄處理方式）', r12.status < 500, `HTTP ${r12.status}「${r12.json?.errorMessage ?? r12.json?.message ?? ''}」`);
+  recorder.add('I12', '使用者帳號含空白與 HTML（API）：400（帳號格式規則）', r12.status === 400, `HTTP ${r12.status}「${r12.json?.errorMessage ?? r12.json?.message ?? ''}」`);
+
+  // I16：新增使用者時帳號打空白，欄位下方立刻提示格式。
+  await openList(page, '/myusers');
+  await clickToolbar(page, '新增');
+  await page.locator('.form-modal').waitFor({ state: 'visible', timeout: 15000 });
+  await formField(page, '帳號').fill(`bad account${stamp}`);
+  await formField(page, '名稱').click();
+  const formatHint = await page.locator('.form-modal .validation-message', { hasText: '帳號只能使用' }).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  await screenshot(page, 'explore-input-I16');
+  recorder.add('I16', '新增使用者時帳號打空白：欄位下方立刻提示格式', formatHint, `提示出現=${formatHint}`);
+  await closeFormDiscard(page);
 
   // I13：名稱欄按 Enter。
   await openList(page, '/categories');

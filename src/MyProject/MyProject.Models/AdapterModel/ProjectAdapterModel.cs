@@ -35,6 +35,12 @@ public class ProjectAdapterModel : ICloneable, IValidatableObject
     [Required(ErrorMessage = "專案標題 不可為空白")]
     public string Title { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 專案標題上限（0.10.17 起，使用者 2026/11/14 決定；以前沒有上限）。畫面的輸入框以 MaxLength 擋住新輸入，伺服器在新增或改標題時檢查。
+    /// 刻意不加 [StringLength]：以前存下的長標題要能只改其他欄位就存檔。
+    /// </summary>
+    public const int ProjectTitleMaxLength = 200;
+
     public string? Description { get; set; }
 
     public DateTime? StartDate { get; set; }

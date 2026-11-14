@@ -1,6 +1,6 @@
 // .NET 11 全面實機探索（0.10.16 起）：五個資料維護清單（分類、團隊、專案、使用者、角色）的共用操作，每一頁都逐項按過。
 //   每頁先在隔離資料庫灌 30 筆帶「L列表」字樣的資料（另 1 筆已刪除），然後：
-//   Lx-1 搜尋：輸入關鍵字按「搜尋」，每一列都含關鍵字；「清空搜尋」後恢復。
+//   Lx-1 搜尋：輸入關鍵字按「搜尋」，每一列都含關鍵字；「清空搜尋」後恢復；0.10.17 起在搜尋框按 Enter 也會搜尋。
 //   Lx-2 排序：每個可排序的欄位標題各點兩次（遞增、遞減），表格照常更新、第一列會變（值都相同的欄位除外）。
 //   Lx-3 分頁：第 2 頁的資料與第 1 頁不同；每頁筆數改 20，列數變多。
 //   Lx-4 顯示已刪除：看得到已刪除的那一筆，「返回清單」回來。
@@ -94,8 +94,19 @@ try {
     await clickToolbar(page, '清空搜尋');
     await page.waitForTimeout(1500);
     const cleared = await rowTexts(page);
-    recorder.add(`${p.id}-1`, `${p.name}：搜尋只列出符合的、清空後恢復`, allMatch && cleared.length > 0,
-      `搜尋後 ${searched.length} 列、全部含關鍵字=${allMatch}；清空後 ${cleared.length} 列`);
+    // 按 Enter 也會搜尋（0.10.17 起）。
+    const box = page.locator('input[placeholder="請輸入搜尋關鍵字"]').first();
+    await box.fill(`${token}${p.name}`);
+    const beforeEnter = (await rowTexts(page)).join(String.fromCharCode(10));
+    await box.press('Enter');
+    await waitRowsChange(page, beforeEnter);
+    await page.waitForTimeout(500);
+    const entered = await rowTexts(page);
+    const enterMatch = entered.length > 0 && entered.every((x) => x.includes(`${token}${p.name}`) || x.includes(token));
+    await clickToolbar(page, '清空搜尋');
+    await page.waitForTimeout(1500);
+    recorder.add(`${p.id}-1`, `${p.name}：搜尋只列出符合的、清空後恢復；按 Enter 也會搜尋`, allMatch && cleared.length > 0 && enterMatch && entered.length < cleared.length + 30,
+      `搜尋後 ${searched.length} 列、全部含關鍵字=${allMatch}；清空後 ${cleared.length} 列；按 Enter 搜尋後 ${entered.length} 列、符合=${enterMatch}`);
 
     // 2. 排序：每個可排序的欄位點兩次。
     await search(page, token);

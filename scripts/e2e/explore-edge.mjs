@@ -3,7 +3,7 @@
 //      新增專案的分類下拉有 300 多個選項，打字篩選正常。
 //   E2 慢速網路（CDP：延遲 400 毫秒、下載約 1.5 Mbps）：新增分類成功；儲存確認窗連按兩下「儲存」只會寫入一筆。
 //   E3 離線：清單按「重新整理」顯示離線訊息、畫面不壞；恢復連線後重新整理正常。
-//   E4 手機尺寸（390×844）：每個登入後路由都開得起來、整頁沒有橫向捲動、沒有錯誤，並截圖。
+//   E4 手機尺寸（390×844）：每個登入後路由都開得起來、整頁沒有橫向捲動、沒有錯誤，並截圖；0.10.17 起收合的側邊欄只留選單鈕，頁首只有一列（不超過 80px）。
 //   E5 英文瀏覽器語系＋東京時區、UTC 時區：同一筆資料的時間與中文、台北時區看到的一字不差（時間照伺服器的本地時間顯示）。
 // 結果寫到 E2E_OUT_DIR/explore-edge-results.json，截圖 explore-edge-*.png。
 import { readFileSync } from 'node:fs';
@@ -150,8 +150,16 @@ try {
         bad.push(`${route}${overflow > 1 ? ` 橫向多出 ${overflow}px` : ''}${issues.length ? ' ' + issues.join('；') : ''}`);
       }
     }
-    recorder.add('E4', '手機尺寸（390×844）：每個路由開得起來、沒有橫向捲動、沒有錯誤', bad.length === 0,
-      `${authenticatedRoutes.length} 個路由；${bad.length ? '不符：' + bad.join('；') : '全部正常'}`);
+    await page.goto('/App');
+    await page.waitForTimeout(2500);
+    const header = await page.evaluate(() => {
+      const main = document.querySelector('main > .top-row')?.getBoundingClientRect();
+      const ham = document.querySelector('.sidebar-hamburger')?.getBoundingClientRect();
+      return { mainTop: Math.round(main?.top ?? -1), mainBottom: Math.round(main?.bottom ?? -1), hamBottom: Math.round(ham?.bottom ?? -1) };
+    });
+    const oneRow = header.mainTop === 0 && header.mainBottom <= 80 && header.hamBottom <= header.mainBottom;
+    recorder.add('E4', '手機尺寸（390×844）：每個路由開得起來、沒有橫向捲動、沒有錯誤；收合時頁首只有一列', bad.length === 0 && oneRow,
+      `${authenticatedRoutes.length} 個路由；${bad.length ? '不符：' + bad.join('；') : '全部正常'}；頁首 ${header.mainTop}～${header.mainBottom}px、選單鈕下緣 ${header.hamBottom}px`);
     await context.close();
   }
 
