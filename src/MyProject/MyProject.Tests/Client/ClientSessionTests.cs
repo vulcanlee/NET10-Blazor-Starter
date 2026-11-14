@@ -999,12 +999,12 @@ public sealed class ClientSessionTests
         var waiting = session.WaitUntilReachableAsync(TimeSpan.FromMilliseconds(20), timeout.Token);
         // 等到至少試過兩次（第一次的 5xx 之後還在試），而不是固定等一段時間 —— 系統忙時 200 毫秒可能還沒送出第一個請求。
         var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") < 2 && DateTime.UtcNow < deadline)
+        while (handler.CountRequests("api/v1/shell/culture") < 2 && DateTime.UtcNow < deadline)
         {
             await Task.Delay(20);
         }
 
-        Assert.True(handler.Requests.ToArray().Count(x => x.Path == "api/v1/shell/culture") >= 2, "30 秒內沒有重試。");
+        Assert.True(handler.CountRequests("api/v1/shell/culture") >= 2, "30 秒內沒有重試。");
         Assert.False(waiting.IsCompleted, $"伺服器回 {(int)status} 時就當成恢復了。");
 
         handler.On("api/v1/shell/culture", HttpStatusCode.OK, Ok(new DateTimeFormatDto()));
@@ -1193,7 +1193,26 @@ public sealed class ClientSessionTests
             => On(path, bodies.Select(body => (status, body)).ToArray());
 
         public void On(string path, params (HttpStatusCode Status, object Body)[] sequence)
-            => responses[path] = new Queue<(HttpStatusCode, object)>(sequence);
+        {
+            lock (gate)
+            {
+                responses[path] = new Queue<(HttpStatusCode, object)>(sequence);
+            }
+        }
+
+        /// <summary>
+        /// 某個路徑被呼叫了幾次。背景重試（例如 <c>WaitUntilReachableAsync</c>）與測試執行緒同時讀寫時用這個，
+        /// 不要直接讀 <see cref="Requests"/>（0.10.16：全套測試負載高時 List 同時新增與複製偶爾失敗）。
+        /// </summary>
+        public int CountRequests(string path)
+        {
+            lock (gate)
+            {
+                return Requests.Count(x => x.Path == path);
+            }
+        }
+
+        private readonly object gate = new();
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -1203,14 +1222,20 @@ public sealed class ClientSessionTests
                 throw new HttpRequestException("offline");
             }
 
-            Requests.Add((path, request.Headers.Authorization?.ToString(), request.Headers.TryGetValues("X-MyProject-Client", out var values) ? values.Single() : null));
-            if (!responses.TryGetValue(path, out var queue) || queue.Count == 0)
+            (HttpStatusCode Status, object Body) next;
+            lock (gate)
             {
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                Requests.Add((path, request.Headers.Authorization?.ToString(), request.Headers.TryGetValues("X-MyProject-Client", out var values) ? values.Single() : null));
+                if (!responses.TryGetValue(path, out var queue) || queue.Count == 0)
+                {
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+                }
+
+                // 最後一個回應重複使用，前面的依序用掉。
+                next = queue.Count > 1 ? queue.Dequeue() : queue.Peek();
             }
 
-            // 最後一個回應重複使用，前面的依序用掉。
-            var (status, body) = queue.Count > 1 ? queue.Dequeue() : queue.Peek();
+            var (status, body) = next;
             // HttpContent 照原樣回（例如 NDJSON 串流），其他序列化成 JSON。
             var content = body as HttpContent ?? JsonContent.Create(body, body.GetType());
             return Task.FromResult(new HttpResponseMessage(status) { Content = content });

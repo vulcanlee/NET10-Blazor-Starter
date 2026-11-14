@@ -251,7 +251,7 @@ else
                                 AllowClear EnableSearch Style="width: 100%;">
                             @foreach (var r in roleViewAdapterModels)
                             {
-                                <SelectOption TItemValue="int" TItem="int" Value="@r.Id">@r.Name</SelectOption>
+                                <SelectOption TItemValue="int" TItem="int" Value="@r.Id" Label="@r.Name">@r.Name</SelectOption>
                             }
                         </Select>
                     </FormItem>
@@ -263,7 +263,7 @@ else
                                 AllowClear EnableSearch Style="width: 100%;">
                             @foreach (var t in availableTeams)
                             {
-                                <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                                <SelectOption TItemValue="string" TItem="string" Value="@t" Label="@t">@t</SelectOption>
                             }
                         </Select>
                     </FormItem>

@@ -47,7 +47,7 @@ else
                             Placeholder="分類過濾" AllowClear EnableSearch Style="min-width: 160px;">
                         @foreach (var c in availableCategories)
                         {
-                            <SelectOption TItemValue="string" TItem="string" Value="@c">@c</SelectOption>
+                            <SelectOption TItemValue="string" TItem="string" Value="@c" Label="@c">@c</SelectOption>
                         }
                     </Select>
                     <Select TItem="string" TItemValue="string" Mode="SelectMode.Multiple"
@@ -55,7 +55,7 @@ else
                             Placeholder="團隊過濾" AllowClear EnableSearch Style="min-width: 160px;">
                         @foreach (var t in availableTeams)
                         {
-                            <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                            <SelectOption TItemValue="string" TItem="string" Value="@t" Label="@t">@t</SelectOption>
                         }
                     </Select>
                 }
@@ -233,7 +233,7 @@ else
                                 Placeholder="選擇分類" AllowClear EnableSearch Style="width: 100%;">
                             @foreach (var c in modalCategoryOptions)
                             {
-                                <SelectOption TItemValue="string" TItem="string" Value="@c">@CategoryOptionLabel(c)</SelectOption>
+                                <SelectOption TItemValue="string" TItem="string" Value="@c" Label="@CategoryOptionLabel(c)">@CategoryOptionLabel(c)</SelectOption>
                             }
                         </Select>
                     </FormItem>
@@ -244,7 +244,7 @@ else
                                 Placeholder="選擇團隊（不設定表示公開）" AllowClear EnableSearch Style="width: 100%;">
                             @foreach (var t in AssignableTeams)
                             {
-                                <SelectOption TItemValue="string" TItem="string" Value="@t">@t</SelectOption>
+                                <SelectOption TItemValue="string" TItem="string" Value="@t" Label="@t">@t</SelectOption>
                             }
                         </Select>
                     </FormItem>

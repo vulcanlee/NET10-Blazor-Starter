@@ -46,6 +46,54 @@ public sealed class TooltipDismissTests : ComponentTestBase
     }
 
     [Fact]
+    public async Task ToolbarIconButton_ShouldHideItsTooltipAgain_WhenTheClickFinishes()
+    {
+        // 0.10.16 起（.NET 11 全面實機探索發現，.NET 10 也一樣）：按「匯出 Excel」後，處理期間滑鼠還停在按鈕上，提示框又被打開；
+        // 處理完之後滑鼠離開的事件沒有觸發，提示框就一直停在畫面上。處理完成後再收起一次。
+        var finish = new TaskCompletionSource();
+        Tooltip? tooltip = null;
+        var cut = Render<ToolbarIconButton>(parameters => parameters
+            .Add(p => p.Title, "匯出 Excel")
+            .Add(p => p.Icon, "file_download")
+            .Add(p => p.OnClick, async () =>
+            {
+                await tooltip!.VisibleChanged.InvokeAsync(true); // 處理期間提示框又被打開
+                await finish.Task;
+            }));
+        tooltip = cut.FindComponent<Tooltip>().Instance;
+
+        cut.Find("button.toolbar-icon-button").Click();
+        cut.WaitForAssertion(() => Assert.True(cut.FindComponent<Tooltip>().Instance.Visible), TimeSpan.FromSeconds(5));
+
+        await cut.InvokeAsync(finish.SetResult);
+
+        cut.WaitForAssertion(() => Assert.False(cut.FindComponent<Tooltip>().Instance.Visible), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task CrudActionButton_ShouldHideItsTooltipAgain_WhenTheClickFinishes()
+    {
+        var finish = new TaskCompletionSource();
+        Tooltip? tooltip = null;
+        var cut = Render<CrudActionButton>(parameters => parameters
+            .Add(p => p.Title, "修改")
+            .Add(p => p.Icon, "edit")
+            .Add(p => p.OnClick, async () =>
+            {
+                await tooltip!.VisibleChanged.InvokeAsync(true);
+                await finish.Task;
+            }));
+        tooltip = cut.FindComponent<Tooltip>().Instance;
+
+        cut.Find("button.crud-action-button").Click();
+        cut.WaitForAssertion(() => Assert.True(cut.FindComponent<Tooltip>().Instance.Visible), TimeSpan.FromSeconds(5));
+
+        await cut.InvokeAsync(finish.SetResult);
+
+        cut.WaitForAssertion(() => Assert.False(cut.FindComponent<Tooltip>().Instance.Visible), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Tooltips_ShouldNotInterceptClicks()
     {
         var styles = File.ReadAllText(Path.Combine(SourceTree.Client, "Commons", "OverlayStyles.razor"));
