@@ -7,6 +7,19 @@
     [Parameter(Mandatory = $true)]
     [string]$DestinationPath,
 
+    # 畫面上的系統名稱（0.10.24 起必填）：啟動頁、首次載入卡片、登入頁、首頁、側邊欄、「關於」、信件、PDF 與安裝成 App 的名稱。
+    # 長度上限與「系統參數」頁相同（ScaffoldScriptConventionTests 比對）；擋掉 " \ < > & |（會弄壞 JSON、HTML、C# 字串與說明的表格）、
+    # 控制與格式字元、私用區字元（\p{C}）、換行類分隔字元（\p{Zl}\p{Zp}，C# 字串會編譯錯誤）以及頭尾空白。
+    [Parameter(Mandatory = $true)]
+    [ValidateLength(1, 50)]
+    [ValidatePattern('^(?=\S)(?!.*\s$)[^"\\<>&|\p{C}\p{Zl}\p{Zp}]+$')]
+    [string]$SystemName,
+
+    # 一句話的系統簡介（選填）：登入頁、啟動頁、首頁與「關於」顯示。沒給時沿用來源的簡介。
+    [ValidateLength(1, 200)]
+    [ValidatePattern('^(?=\S)(?!.*\s$)[^"\\<>&|\p{C}\p{Zl}\p{Zp}]+$')]
+    [string]$SystemDescription,
+
     [string]$SourceProjectName = "MyProject",
 
     [string]$UserSecretsId = [guid]::NewGuid().ToString(),
@@ -250,6 +263,85 @@ function Get-FreeDevPort {
 $httpPort = Get-FreeDevPort -Minimum 5000 -Maximum 5300 -Exclude $sourceHttpPort
 $httpsPort = Get-FreeDevPort -Minimum 7000 -Maximum 7300 -Exclude $sourceHttpsPort
 
+# 畫面上的系統名稱與簡介（0.10.24 起）：從來源的 appsettings.json 讀，不寫死（比照連接埠）——從衍生專案再衍生時，來源已經不是腳手架的名稱。
+# ⚠️ 只換下列檔案裡「固定位置」的字樣，不做全檔取代：衍生專案的名稱可能剛好是代號（Acme）或常見詞（管理系統），
+# 全檔取代會在下一代把命名空間、文件裡的同樣字詞一起改壞（獨立審查指出）。測試資料與文件裡的舊名稱只是範例，不必換。
+# Kind 決定比對的位置；Required 的位置沒換到時結尾會警告（ScaffoldScriptConventionTests 確認這些檔案存在且含名稱）。
+$systemNameTargets = @(
+    @{ Path = 'src/{0}/{0}.Web/appsettings.json'; Kind = 'AppSettings'; Required = $true }
+    @{ Path = 'src/{0}/{0}.Web.Client/wwwroot/manifest.webmanifest'; Kind = 'Manifest'; Required = $true }
+    @{ Path = 'src/{0}/{0}.Web.Client/wwwroot/index.html'; Kind = 'LoadingCard'; Required = $true }
+    @{ Path = 'src/{0}/{0}.Web.Client/Commons/ClientLoadingScreen.razor'; Kind = 'LoadingScreen'; Required = $true }
+    @{ Path = 'src/{0}/{0}.Web/Datas/Help'; Kind = 'Help'; Required = $false }
+)
+
+$sourceAppSettings = Join-Path $repoRoot "src/$SourceProjectName/$SourceProjectName.Web/appsettings.json"
+if (-not (Test-Path -LiteralPath $sourceAppSettings)) {
+    throw "Could not find the source appsettings.json to read the system name: $sourceAppSettings"
+}
+
+$sourceAppSettingsContent = [System.IO.File]::ReadAllText($sourceAppSettings)
+$sourceSystemName = [regex]::Match($sourceAppSettingsContent, '"SystemName"\s*:\s*"(?<value>[^"]*)"').Groups['value'].Value
+$sourceSystemDescription = [regex]::Match($sourceAppSettingsContent, '"SystemDescription"\s*:\s*"(?<value>[^"]*)"').Groups['value'].Value
+if ([string]::IsNullOrWhiteSpace($sourceSystemName)) {
+    throw "Could not read SystemSettings:SystemInformation:SystemName from: $sourceAppSettings"
+}
+
+$replaceSystemDescription = $PSBoundParameters.ContainsKey('SystemDescription') -and -not [string]::IsNullOrWhiteSpace($sourceSystemDescription)
+if ($PSBoundParameters.ContainsKey('SystemDescription') -and -not $replaceSystemDescription) {
+    Write-Warning "The source has no SystemDescription to replace; set SystemSettings:SystemInformation:SystemDescription in appsettings.json manually."
+}
+
+# 先換成佔位字串、其他取代做完再換成新值：新名稱裡若剛好含來源代號，不會被後面的代號取代改到。
+# 佔位字串用私用區字元：代號只有英數字與底線（換不到它），名稱的驗證也擋掉 \p{C}（使用者給不出它），腳本裡也不會出現完整字樣。
+$systemNameToken = [string][char]0xE000 + [char]0xE001
+$systemDescriptionToken = [string][char]0xE000 + [char]0xE002
+
+$systemNameTargetKinds = @{}
+foreach ($target in $systemNameTargets) {
+    $relative = ($target.Path -f $SourceProjectName).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+    $systemNameTargetKinds[$relative.ToLowerInvariant()] = $target.Kind
+}
+$systemNameHits = @{}
+
+function Get-SystemNameTargetKind {
+    param([Parameter(Mandatory = $true)][string]$FullName)
+
+    $relative = [System.IO.Path]::GetRelativePath($destinationFullPath, $FullName).ToLowerInvariant()
+    if ($systemNameTargetKinds.ContainsKey($relative)) {
+        return $systemNameTargetKinds[$relative]
+    }
+
+    # 操作說明：資料夾底下的每個 .md
+    $folder = [System.IO.Path]::GetDirectoryName($relative)
+    if ($systemNameTargetKinds.ContainsKey($folder) -and $relative.EndsWith('.md')) {
+        return $systemNameTargetKinds[$folder]
+    }
+
+    return $null
+}
+
+function Set-SystemNameTokens {
+    param([Parameter(Mandatory = $true)][string]$Kind, [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content)
+
+    $name = [regex]::Escape($sourceSystemName)
+    $nameToken = '${1}' + $systemNameToken + '${2}'
+    switch ($Kind) {
+        'AppSettings' {
+            $Content = [regex]::Replace($Content, '("SystemName"\s*:\s*")[^"]*(")', $nameToken)
+            if ($replaceSystemDescription) {
+                $Content = [regex]::Replace($Content, '("SystemDescription"\s*:\s*")[^"]*(")', '${1}' + $systemDescriptionToken + '${2}')
+            }
+        }
+        'Manifest' { $Content = [regex]::Replace($Content, '("(?:name|short_name)"\s*:\s*")' + $name + '(")', $nameToken) }
+        'LoadingCard' { $Content = [regex]::Replace($Content, '(<p class="app-loading-title">)' + $name + '(</p>)', $nameToken) }
+        'LoadingScreen' { $Content = [regex]::Replace($Content, '(FixedSystemName\s*=\s*")' + $name + '(")', $nameToken) }
+        'Help' { $Content = [regex]::Replace($Content, '(\[)' + $name + '(\])', $nameToken) }
+    }
+
+    return $Content
+}
+
 if ((Test-Path -LiteralPath $destinationFullPath) -and -not $Force) {
     throw "Destination already exists. Use -Force to overwrite: $destinationFullPath"
 }
@@ -310,9 +402,10 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -Directory -Force |
 # 衍生專案的 Backup/ 程式碼會被 Backup*/ 忽略而提交不進 git，乾淨 clone 建置失敗。
 # .html：前端的入口頁 MyProject.Web.Client/wwwroot/index.html 引用 <專案>.Web.Client.styles.css（0.10.10 起）；
 # 靜態站的 web.config 與 wwwroot/appsettings.json 由 .config／.json 涵蓋。
+# .mjs：scripts/e2e 的實機腳本（讀 <代號>.auth、預設連開發埠）；.webmanifest：安裝成 App 的名稱（0.10.24 起，ScaffoldScriptConventionTests 守門）。
 $textExtensions = @(
-    ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js", ".html",
-    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props"
+    ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js", ".mjs", ".html",
+    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props", ".webmanifest"
 )
 
 # 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。
@@ -395,6 +488,15 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
         # 注意：Set-Content -Encoding utf8 在 PowerShell 7 是「不含 BOM」。
         $hasBom = Test-Utf8Bom -Path $_.FullName
         $content = [System.IO.File]::ReadAllText($_.FullName)
+        # 系統名稱與簡介只在固定位置換（見 $systemNameTargets），先換成佔位字串，最後才放新值。
+        $systemNameKind = Get-SystemNameTargetKind -FullName $_.FullName
+        if ($systemNameKind) {
+            $marked = Set-SystemNameTokens -Kind $systemNameKind -Content $content
+            if ($marked -ne $content) {
+                $systemNameHits[$systemNameKind] = $true
+            }
+            $content = $marked
+        }
         $content = $content.Replace($SourceProjectName, $ProjectName)
         # 全小寫的形式（例如文件裡的範例信箱 myproject.noreply@gmail.com）另外換成新名稱的小寫；String.Replace 區分大小寫。
         $content = $content.Replace($SourceProjectName.ToLowerInvariant(), $ProjectName.ToLowerInvariant())
@@ -418,6 +520,10 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
             # 文件頭的「現行系統版本」跟著新版本線走；「首次實作版本」是功能的歷史，保留原值。
             # ⚠️ 用 [^\r\n]* 而非 .*$：.NET 的 . 會吃掉 CRLF 的 \r，把行尾弄壞。
             $content = [regex]::Replace($content, '(?m)^- 現行系統版本：[^\r\n]*', "- 現行系統版本：$initialVersion")
+        }
+        $content = $content.Replace($systemNameToken, $SystemName)
+        if ($replaceSystemDescription) {
+            $content = $content.Replace($systemDescriptionToken, $SystemDescription)
         }
         [System.IO.File]::WriteAllText($_.FullName, $content, (New-Object System.Text.UTF8Encoding($hasBom)))
     }
@@ -459,6 +565,14 @@ if ((Test-Path -LiteralPath $webAppSettings) -and ([System.IO.File]::ReadAllText
 }
 else {
     Write-Warning "Could not locate SystemVersion in $ProjectName.Web/appsettings.json; set SystemSettings:SystemInformation:SystemVersion manually."
+}
+
+$missedSystemNameTargets = @($systemNameTargets | Where-Object { $_.Required -and -not $systemNameHits.ContainsKey($_.Kind) } | ForEach-Object { $_.Path -f $ProjectName })
+if ($missedSystemNameTargets.Count -eq 0) {
+    Write-Host "SystemName set to '$SystemName' (was '$sourceSystemName')$(if ($replaceSystemDescription) { '; SystemDescription replaced' } else { '; SystemDescription kept' })."
+}
+else {
+    Write-Warning "SystemName '$sourceSystemName' was not found in these files; set the system name there manually:$([Environment]::NewLine)$(Format-PathList -Lines $missedSystemNameTargets)"
 }
 
 # 清空腳手架的 migration 歷史，改由新專案自己的第一次 migration（Init）起算。
@@ -618,9 +732,21 @@ else {
     Write-Host "Removed $removedLines stale index lines and downgraded $downgradedLinks stale links. Use -KeepStarterHistory to keep them."
 }
 
+# 系統名稱不在這裡掃：它只換固定位置（上面已逐一確認），測試資料與文件裡的舊名稱是範例。
+$residualPatterns = @($SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", $sourceUserSecretsId, "localhost:$sourceHttpPort", "localhost:$sourceHttpsPort")
+
+# 新代號本身含舊代號時（例如 Acme.Sn → Acme.Sn2），換好的地方也會被掃到；
+# 先把新代號從該行拿掉，剩下的仍含來源字樣才算殘留（0.10.24 起，否則會印出上千條假警告）。
+$newValues = @($ProjectName, $ProjectName.ToLowerInvariant())
+
 $remainingMatches = Get-ChildItem -LiteralPath $destinationFullPath -Recurse -File |
     Where-Object { ($textExtensions -contains $_.Extension) -and ($_.FullName -ne $scriptCopyPath) } |
-    Select-String -Pattern $SourceProjectName, "DevelopmentOnly-ChangeThisJwtSigningKey", $sourceUserSecretsId, "localhost:$sourceHttpPort", "localhost:$sourceHttpsPort" -SimpleMatch
+    Select-String -Pattern $residualPatterns -SimpleMatch |
+    Where-Object {
+        $rest = $_.Line
+        foreach ($value in $newValues) { $rest = $rest.Replace($value, '') }
+        @($residualPatterns | Where-Object { $rest.IndexOf($_, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count -gt 0
+    }
 
 if ($remainingMatches) {
     Write-Warning "Scaffold completed, but safety checks found values that still need review:"
@@ -632,4 +758,4 @@ if ($remainingMatches) {
 Write-Host "Created starter project at $destinationFullPath"
 Write-Host "Dev URLs: https://localhost:$httpsPort / http://localhost:$httpPort (Properties/launchSettings.json)"
 Write-Host "Google OAuth redirect URIs to register: https://localhost:$httpsPort/signin-google , http://localhost:$httpPort/signin-google"
-Write-Host "Next: see docs/guides/VS Code 開發環境與新專案上手指南.md - section 7 (branding: favicon, brand image, product name/description) and sections 8.1 / 8.3 for the manual follow-up items."
+Write-Host "Next: see docs/guides/VS Code 開發環境與新專案上手指南.md - section 7 (branding: favicon, brand image; the system name and description are already set) and sections 8.1 / 8.3 for the manual follow-up items."

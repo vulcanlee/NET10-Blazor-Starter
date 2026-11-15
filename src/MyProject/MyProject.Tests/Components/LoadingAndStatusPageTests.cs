@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.Web.Client.Commons;
 using MyProject.Web.Client.Pages;
+using MyProject.Web.Client.Views.Commons;
 
 namespace MyProject.Tests.Components;
 
@@ -62,6 +63,22 @@ public sealed class LoadingAndStatusPageTests : ComponentTestBase
     public void LoadingScreen_ShouldUseTheSameFixedSystemName()
     {
         Assert.Equal(ClientLoadingScreen.FixedSystemName, ShippedSystemName());
+    }
+
+    /// <summary>
+    /// 啟動頁（<c>/</c>）的瀏覽器分頁標題是系統名稱（0.10.24 起；原本是範本殘留的英文「Home」）；設定還沒讀到的那一瞬間顯示「系統啟動中」。
+    /// </summary>
+    [Fact]
+    public void SplashTabTitle_ShouldBeTheSystemName_OrStartingUpBeforeTheSettingsArrive()
+    {
+        Assert.Equal("艾克米企業系統", SplashView.ResolveTabTitle("艾克米企業系統"));
+        Assert.Equal("系統啟動中", SplashView.ResolveTabTitle(string.Empty));
+        Assert.Equal("系統啟動中", SplashView.ResolveTabTitle("  "));
+
+        var page = File.ReadAllText(Path.Combine(SourceTree.Client, "Pages", "SplashPage.razor"));
+        var view = File.ReadAllText(Path.Combine(SourceTree.Client, "Views", "Commons", "SplashView.razor"));
+        Assert.DoesNotContain("<PageTitle>", page, StringComparison.Ordinal);
+        Assert.Contains("<PageTitle>@ResolveTabTitle(SystemName)</PageTitle>", view, StringComparison.Ordinal);
     }
 
     [Fact]

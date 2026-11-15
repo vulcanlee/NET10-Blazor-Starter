@@ -28,6 +28,12 @@ public partial class SplashView
     [Inject]
     public ILogger<SplashView> Logger { get; set; } = default!;
 
+    /// <summary>
+    /// 瀏覽器分頁標題（0.10.24 起；原本是範本殘留的英文「Home」）：系統名稱；設定還沒讀到的那一瞬間顯示「系統啟動中」。
+    /// </summary>
+    internal static string ResolveTabTitle(string systemName) =>
+        string.IsNullOrWhiteSpace(systemName) ? "系統啟動中" : systemName;
+
     private string SystemName { get; set; } = string.Empty;
 
     private string SystemDescription { get; set; } = string.Empty;
