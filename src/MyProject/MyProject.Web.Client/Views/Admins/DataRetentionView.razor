@@ -38,9 +38,14 @@ else
             </div>
         }
 
+        @*
+            0.10.25 起：ScrollX 是欄位寬度加總。表格放不下時在表格內橫向捲動，右側固定的「操作」欄會出現陰影，
+            提示右邊還有「下次會清掉」「自動清理」（以前捲動發生在外層，AntDesign 不知道，沒有陰影）。
+        *@
         <div class="data-retention-table-wrap">
             <Table TItem="DataRetentionRowDto"
                    Class="data-retention-table"
+                   ScrollX="1280"
                    DataSource="@(overview?.Rows ?? [])"
                    Loading="@isLoading"
                    Size="TableSize.Small"
@@ -118,7 +123,7 @@ else
                         }
                     </Column>
                     @* 0.9.134 起固定在右側：欄位多時其他欄在它左邊捲動，按鈕一進來就看得到。 *@
-                    <ActionColumn Title="操作" Width="130" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="180" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             @if (context.CanPurgeNow || context.PurgeDisabledReason is not null)
                             {

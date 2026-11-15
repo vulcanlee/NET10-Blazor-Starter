@@ -157,8 +157,19 @@
     font-weight: 700;
 }
 
+/* 0.10.25 起：檢查結果裡的長路徑（日誌、檔案系統）沒有空白可斷，格子又預設不會比內容窄，
+   會把整頁撐出橫向捲軸（1440 寬實測多出 86px）。讓格子可以縮、長字串在任何位置折行。 */
+.health-item {
+    min-width: 0;
+}
+
 .health-item p {
     font-size: 0.875rem;
+}
+
+.health-item p,
+.health-failure {
+    overflow-wrap: anywhere;
 }
 
 .health-item-heading {

@@ -123,6 +123,7 @@ else
         <div class="ai-call-log-table-wrap">
             <Table @ref="table"
                    TItem="AiCallLogAdapterModel"
+                   ScrollX="1290"
                    RemoteDataSource="true"
                    DataSource="@items"
                    Loading="@isLoading"
@@ -132,8 +133,12 @@ else
                    @bind-PageSize="_pageSize"
                    @bind-Total="_total"
                    @bind-SelectedRows="selectedRows">
+                @*
+                    0.10.25 起：每欄都設 Width，ScrollX 是欄位寬度加總（含勾選欄）。放不下時在表格內橫向捲動，
+                    右側固定的「操作」欄會出現陰影；以前「關聯說明」與操作欄沒寬度，按鈕被切掉一半也看不出右邊還有內容。
+                *@
                 @* 0.9.132 起：勾選後可「刪除選取」。 *@
-                <Selection />
+                <Selection Width="50" />
                 <Column TData="DateTime" DataIndex="@nameof(AiCallLogAdapterModel.OccurredAt)"
                         Title="送出時間" Width="165" Sortable DefaultSortOrder="SortDirection.Descending">
                     @context.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")
@@ -152,8 +157,8 @@ else
                         Title="送出字元" Width="105" Align="ColumnAlign.Right" Sortable>
                     @context.RequestCharacters.ToString("N0")
                 </Column>
-                <Column TData="string" Title="關聯說明" Ellipsis>@(context.RelatedInfo ?? "—")</Column>
-                <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                <Column TData="string" Title="關聯說明" Width="200" Ellipsis>@(context.RelatedInfo ?? "—")</Column>
+                <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
                     <Space>
                         <SpaceItem>
                             <CrudActionButton Title="查看對話" Icon="visibility"

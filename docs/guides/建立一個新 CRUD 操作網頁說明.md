@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：3.0
+- 文件版本：3.1
 - 文件狀態：已實作
-- 現行系統版本：0.10.23
+- 現行系統版本：0.10.25
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/15
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -61,6 +61,14 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `Tests/EquipmentApiTests.cs` | 0.10.2 起：經 Web API 走完整流程（新增、查看、修改、版本衝突、切換啟用、刪除、顯示已刪除、還原、永久刪除），每個動作的稽核只記一筆；重名 409（不分大小寫）；匯出 Excel；沒有權限時寫入回 403 |
 
 工具列與表格容器用 `MyProject.Web.Client/wwwroot/theme.css`（0.10.10 起；以前在 `MyProject.Web/wwwroot`）的共用類別（`.view-toolbar`、`.view-table-wrap`），不另產生 `.razor.css`。
+`.view-table-wrap` 讓表格放不下時自己橫向捲動，不把整頁撐寬，不要拿掉（`TableLayoutConventionTests` 守門）。
+
+產生的清單欄位少，在 1440 寬、側邊欄展開時放得下，所以沒有設欄寬。**補欄位後如果放不下**（看到欄位被擠成一字一行，或操作欄蓋住其他欄），請照 [介面視覺設計規範 §4.2](../architecture/介面視覺設計規範.md) 補上（0.10.25 起）：
+
+- 每一欄都設 `Width`，勾選欄也要設：`<Selection Width="50" />`。
+- 長文字欄加 `Ellipsis`。
+- `ActionColumn` 設 `Width`。
+- `Table` 設 `ScrollX`，值是欄寬加總。可以參考 `ProjectViewView.razor`。
 
 產出的 WASM 檢視已照下列兩條規則寫好，補欄位時要維持（速查 §6.33）：
 
