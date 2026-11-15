@@ -100,9 +100,13 @@
     <PropertyGroup>
       <_FrontendPublishDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)frontend-publish\</_FrontendPublishDir>
     </PropertyGroup>
-    <!-- RemoveProperties：外層的 -r／發行設定檔等不能傳給前端（0.10.10 獨立審查：-r win-x64 會讓前端發佈失敗）。 -->
+    <!--
+      RemoveProperties：外層的 -r／發行設定檔等不能傳給前端（0.10.10 獨立審查：-r win-x64 會讓前端發佈失敗）。
+      0.10.30 起另外拿掉 DeployOnBuild 與 WebPublishProfileFile：Visual Studio 發佈會把 DeployOnBuild=true 設成全域屬性，
+      傳給前端會在 Build 之後再觸發一次 DotNetPublish，造成 MSB4006 循環相依（FrontendPublishConventionTests 守門）。
+    -->
     <MSBuild Projects="..\MyProject.Web.Client\MyProject.Web.Client.csproj" Targets="Publish" Properties="Configuration=$(Configuration);PublishDir=$(_FrontendPublishDir)"
-             RemoveProperties="RuntimeIdentifier;SelfContained;PublishProfile;PublishReadyToRun;PublishSingleFile;PublishTrimmed;_TargetId;StaticSiteApiOrigin" />
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishProfile;PublishReadyToRun;PublishSingleFile;PublishTrimmed;_TargetId;StaticSiteApiOrigin;DeployOnBuild;WebPublishProfileFile" />
     <Copy SourceFiles="$(_FrontendPublishDir)wwwroot\index.html" DestinationFiles="$(PublishDir)wwwroot\index.html" />
     <VerifyFrontendIndexHtml WebRoot="$(PublishDir)wwwroot" />
   </Target>

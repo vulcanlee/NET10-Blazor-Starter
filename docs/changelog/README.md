@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.122
+- 文件版本：6.123
 - 文件狀態：維護中
-- 現行系統版本：0.10.29
+- 現行系統版本：0.10.30
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/15
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| Visual Studio 發佈循環相依（使用者 2026/11/15 回報）：VS 用 FolderProfile 發佈 `MyProject.Web` 出現 MSB4006（Publish ← _CopyAspNetCoreFilesToIntermediateOutputPath ← CorePublish ← DotNetPublish ← _PublishBuildAlternative ← Publish）；`UseProcessedFrontendIndexHtml` 另外發佈前端時繼承了 VS 設的全域 `DeployOnBuild=true`，前端 Build 後又觸發 DotNetPublish；`RemoveProperties` 加上 `DeployOnBuild`、`WebPublishProfileFile`，新增 `FrontendPublishConventionTests`；以 `dotnet build -p:DeployOnBuild=true -p:PublishProfile=FolderProfile` 重現與驗證（0.10.30）| [2026-11-15-VS發佈循環相依](2026-11-15-VS發佈循環相依.md) |
 | 帳號待審核頁文字對比（使用者 2026/11/15 回報）：`/Auths/Pending` 的標題在深紅漸層上是深色字看不到——頁面自己寫一份卡片樣式、`h1` 沒設定顏色（錯誤頁 0.10.13 在 `StatusCard` 修過，這頁漏了）；改用 `StatusCard FullScreen`、刪掉 `Pending.razor.css`；整頁版內文改成不透明 `--app-on-accent` 加淡陰影，新增 `status-card-hint`（粗體、文字色）取代對比不足的粉紅提示；`LoadingAndStatusPageTests` 加兩個測試，e2e 腳本的選擇器 `.pending-card` → `.status-card`（0.10.29）| [2026-11-15-帳號待審核頁文字對比](2026-11-15-帳號待審核頁文字對比.md) |
 | 使用者管理清單精簡欄位（使用者 2026/11/15 決定）：清單欄位太多、1440 寬放不下，拿掉 Email、建立時間、更新時間，帳號 160→150，`ScrollX` 1650→1000，一個畫面看得完；匯出 Excel 仍含三欄、搜尋仍比對 Email；操作說明與新手手冊同步，E6 量這張表不用左右捲（0.10.28）| [2026-11-15-使用者管理清單精簡欄位](2026-11-15-使用者管理清單精簡欄位.md) |
 | 操作按鈕改成無框線小方塊（使用者 2026/11/15 要求）：操作欄按鈕比照 KnowledgeExtraction.AI 改成 28×28、沒有框線，間隔 8px；原因是 `CrudActionButton`／`ToolbarIconButton` 的外觀寫在 scoped CSS，套不到 AntDesign 輸出的 `<button>`，實際一直是 56×32 加框線。外觀改寫在 theme.css（滑鼠移上淡粉紅底、不出現框線，工具列按鈕一起改），兩個 `.razor.css` 只留 label；操作欄寬度＝36×按鈕數＋24（角色 280→170、使用者 360→280…），`ScrollX` 同步重算，CRUD 樣板 140（940／870）；新增 `ActionButtonStyleConventionTests`，E4／E6 查按鈕尺寸、操作欄一列與滑鼠移上（0.10.27）| [2026-11-15-操作按鈕改成無框線小方塊](2026-11-15-操作按鈕改成無框線小方塊.md) |
