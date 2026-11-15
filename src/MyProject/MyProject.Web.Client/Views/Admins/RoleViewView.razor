@@ -46,6 +46,7 @@ else
         <div class="view-table-wrap">
             <Table @ref="table"
             TItem="RoleViewAdapterModel"
+            ScrollX="950"
             Class="role-view-table"
             RemoteDataSource="true"
             DataSource="@roleViewAdapterModels"
@@ -60,18 +61,18 @@ else
                 *@
                 @if (!showDeleted)
                 {
-                    <Selection Disabled="@(context.Name == MagicObjectHelper.預設角色)" />
+                    <Selection Width="50" Disabled="@(context.Name == MagicObjectHelper.預設角色)" />
                 }
-                <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.Name)" Title="名稱" Width="200" Ellipsis Sortable DefaultSortOrder="SortDirection.Ascending" />
                 @* 0.10.4 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
-                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Sortable Format="@ClientCulture.DateTimeFormat" />
-                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.CreateAt)" Title="建立時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(RoleViewAdapterModel.UpdateAt)" Title="更新時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(RoleViewAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
-                    <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.DeletedBy)" Title="刪除者" />
+                    <Column TData="DateTime?" DataIndex="@nameof(RoleViewAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
+                    <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="280">
                     @if (showDeleted)
                     {
                         <Space>

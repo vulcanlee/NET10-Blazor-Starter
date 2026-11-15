@@ -56,6 +56,7 @@ else
 
         <div class="email-log-table-wrap">
             <Table TItem="EmailLogItemDto"
+                   ScrollX="1505"
                    Class="email-log-table"
                    RemoteDataSource="true"
                    DataSource="@items"
@@ -69,7 +70,7 @@ else
                     <Column TData="DateTime" Title="建立時間" Width="165">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</Column>
                     <Column TData="string" Title="種類" Width="110">@KindLabel(context.Kind)</Column>
                     <Column TData="string" Title="收件者" Width="200" Ellipsis>@context.To</Column>
-                    <Column TData="string" Title="主旨" Ellipsis>@context.Subject</Column>
+                    <Column TData="string" Title="主旨" Width="240" Ellipsis>@context.Subject</Column>
                     <Column TData="string" Title="狀態" Width="150">
                         <Tag Color="@StatusColor(context.Status)">@StatusLabel(context.Status)</Tag>
                     </Column>

@@ -7,11 +7,12 @@
 *@
 <div class="token-usage-table-wrap">
     <Table TItem="TokenUsageGroupRow"
+           ScrollX="1000"
            DataSource="@Rows"
            Size="TableSize.Small"
            RowKey="@(row => row.Key)"
            HidePagination="true">
-        <Column TData="string" Title="@KeyTitle">@context.Key</Column>
+        <Column TData="string" Title="@KeyTitle" Width="150">@context.Key</Column>
         <Column TData="string" Title="輸入" Width="120" Align="ColumnAlign.Right">
             @TokenUsageFormat.Compact(context.InputCount)
         </Column>

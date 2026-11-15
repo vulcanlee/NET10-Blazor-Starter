@@ -69,6 +69,7 @@ else
 
         <div class="backup-table-wrap">
             <Table TItem="BackupFileDto"
+                   ScrollX="1000"
                    Class="backup-table"
                    DataSource="@backups"
                    Loading="@isLoading"
@@ -77,15 +78,15 @@ else
                    @bind-SelectedRows="selectedRows">
                 <ColumnDefinitions>
                     @* 0.9.132 起：勾選後可「刪除選取」。備份進行中每 5 秒自動重新整理，勾選會被清掉。 *@
-                    <Selection />
-                    <Column TData="string" Title="檔名">
+                    <Selection Width="50" />
+                    <Column TData="string" Title="檔名" Width="235" Ellipsis>
                         <code class="backup-name">@context.FileName</code>
                     </Column>
-                    <Column TData="string" Title="建立時間" Width="160">@context.CreatedAtLocal.ToString("yyyy-MM-dd HH:mm:ss")</Column>
-                    <Column TData="string" Title="大小" Width="110">@SizeFormatHelper.FormatBytes(context.SizeBytes)</Column>
-                    <Column TData="string" Title="系統版本" Width="170">@(context.Manifest?.SystemVersion ?? "—")</Column>
-                    <Column TData="string" Title="觸發" Width="90">@TriggerText(context.Manifest?.Trigger)</Column>
-                    <Column TData="string" Title="內容">
+                    <Column TData="string" Title="建立時間" Width="145">@context.CreatedAtLocal.ToString("yyyy-MM-dd HH:mm:ss")</Column>
+                    <Column TData="string" Title="大小" Width="80">@SizeFormatHelper.FormatBytes(context.SizeBytes)</Column>
+                    <Column TData="string" Title="系統版本" Width="155">@(context.Manifest?.SystemVersion ?? "—")</Column>
+                    <Column TData="string" Title="觸發" Width="65">@TriggerText(context.Manifest?.Trigger)</Column>
+                    <Column TData="string" Title="內容" Width="120">
                         @if (context.Manifest is { } manifest)
                         {
                             <span class="backup-muted">@ContentText(manifest)</span>
@@ -95,7 +96,7 @@ else
                             <span class="backup-muted">（讀不到備份說明檔）</span>
                         }
                     </Column>
-                    <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             <SpaceItem>
                                 <CrudActionButton Title="下載" Icon="file_download"

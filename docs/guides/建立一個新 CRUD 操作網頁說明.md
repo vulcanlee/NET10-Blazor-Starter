@@ -1,8 +1,8 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：3.1
+- 文件版本：3.2
 - 文件狀態：已實作
-- 現行系統版本：0.10.25
+- 現行系統版本：0.10.26
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
 - 最後核對日期：2026/11/15
 
@@ -63,12 +63,13 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 工具列與表格容器用 `MyProject.Web.Client/wwwroot/theme.css`（0.10.10 起；以前在 `MyProject.Web/wwwroot`）的共用類別（`.view-toolbar`、`.view-table-wrap`），不另產生 `.razor.css`。
 `.view-table-wrap` 讓表格放不下時自己橫向捲動，不把整頁撐寬，不要拿掉（`TableLayoutConventionTests` 守門）。
 
-產生的清單欄位少，在 1440 寬、側邊欄展開時放得下，所以沒有設欄寬。**補欄位後如果放不下**（看到欄位被擠成一字一行，或操作欄蓋住其他欄），請照 [介面視覺設計規範 §4.2](../architecture/介面視覺設計規範.md) 補上（0.10.25 起）：
+產生的清單每一欄都已設好寬度（0.10.26 起，規則見 [介面視覺設計規範 §4.2](../architecture/介面視覺設計規範.md)）：
 
-- 每一欄都設 `Width`，勾選欄也要設：`<Selection Width="50" />`。
-- 長文字欄加 `Ellipsis`。
-- `ActionColumn` 設 `Width`。
-- `Table` 設 `ScrollX`，值是欄寬加總。可以參考 `ProjectViewView.razor`。
+- 勾選欄 `<Selection Width="50" />`，名稱、描述、團隊加 `Ellipsis`，操作欄 200；
+- `Table` 的 `ScrollX` 是平常會出現的欄寬加總：有團隊欄時 1000、沒有時 930。這樣在 1440 寬、側邊欄展開時放得下；手機或窄視窗時在表格內左右捲，不會把欄位擠成一字一行。
+- 「刪除時間」「刪除者」只在顯示已刪除時出現，不算進 `ScrollX`。
+
+**補欄位時**一起設 `Width`，並把 `ScrollX` 改成新的加總（`TableLayoutConventionTests` 會檢查）。長文字欄加 `Ellipsis`。
 
 產出的 WASM 檢視已照下列兩條規則寫好，補欄位時要維持（速查 §6.33）：
 

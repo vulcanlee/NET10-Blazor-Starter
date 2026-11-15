@@ -345,6 +345,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 12px;
 }
@@ -353,6 +354,7 @@
 .view-toolbar-right {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -360,10 +362,37 @@
     width: 260px;
 }
 
+/* 0.10.26 起：手機寬度時工具列折行，右半邊占滿一整列、搜尋框拉長（不然工具列會把整頁撐寬）。 */
+@media (max-width: 640.98px) {
+    .view-toolbar-right {
+        width: 100%;
+    }
+
+    .view-toolbar-right .ant-input,
+    .view-toolbar-right .ant-select {
+        flex: 1 1 160px;
+        min-width: 0;
+    }
+}
+
 /* 欄位多的表格需要自己的橫向捲動，否則整頁被撐寬。
    這個需求在 ExceptionLogView 與 TokenUsageView 各被獨立重新發現過一次。 */
 .view-table-wrap {
     overflow-x: auto;
+}
+
+/* 0.10.26 起：手機寬度時「操作」欄不固定在右側，跟著表格一起左右捲。
+   桌機固定在右側、捲動時有陰影提示（§4.2）；但手機上表格只剩約 290px，
+   使用者管理的操作欄 360px、角色 280px，固定住會把資料整個蓋掉，捲到哪裡都只看得到按鈕。
+   AntDesign 把 position: sticky 寫在儲存格的行內樣式，要用 !important 蓋；固定欄的陰影（::after）一起關掉。 */
+@media (max-width: 640.98px) {
+    .ant-table .ant-table-cell-fix-right {
+        position: static !important;
+    }
+
+    .ant-table .ant-table-cell-fix-right-first::after {
+        display: none !important;
+    }
 }
 
 /* ── Bootstrap 的 alert（無權限時整頁只有這一塊）── */

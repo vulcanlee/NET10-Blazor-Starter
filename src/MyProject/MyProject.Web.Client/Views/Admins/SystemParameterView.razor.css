@@ -49,7 +49,7 @@
 }
 
 /* 0.10.25 起：設定鍵（AiSettings:AgentReasoningEffort 之類）沒有空白可斷，會把「目前值」「設定檔的值」撐寬，
-   AI 模型那組整張表比畫面寬、說明的尾巴被固定的操作欄蓋住。參數、目前值、設定檔的值、操作都有固定寬度，
+   AI 模型那組整張表比畫面寬、說明的尾巴被固定的操作欄蓋住。每一欄都有固定寬度（0.10.26 起連說明欄也是），
    所以讓儲存格裡的長字串在任何位置折行，不會再把參數欄擠窄。儲存格由 AntDesign 渲染，需要 ::deep。 */
 .system-parameter-table-wrap ::deep td {
     overflow-wrap: anywhere;

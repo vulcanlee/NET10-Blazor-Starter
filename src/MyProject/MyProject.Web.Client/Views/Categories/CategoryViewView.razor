@@ -53,6 +53,7 @@ else
         <div class="view-table-wrap">
             <Table @ref="table"
                    TItem="CategoryAdapterModel"
+                   ScrollX="1000"
                    Class="category-view-table"
                    RemoteDataSource="true"
                    DataSource="@categoryAdapterModels"
@@ -69,12 +70,12 @@ else
                 *@
                 @if (!showDeleted && canDelete)
                 {
-                    <Selection />
+                    <Selection Width="50" />
                 }
-                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Name)" Title="名稱" Sortable />
-                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Description)" Title="描述" />
-                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.TeamsText)" Title="適用團隊" />
-                <Column TData="bool" DataIndex="@nameof(CategoryAdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
+                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Name)" Title="名稱" Width="150" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.Description)" Title="描述" Width="140" Ellipsis />
+                <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.TeamsText)" Title="適用團隊" Width="140" Ellipsis />
+                <Column TData="bool" DataIndex="@nameof(CategoryAdapterModel.IsEnabled)" Title="啟用狀態" Width="110" Sortable>
                     @* 0.9.120 起：有修改權限時點標籤直接切換（停用先確認）；已刪除的資料不可點。 *@
                     @if (showDeleted)
                     {
@@ -98,13 +99,13 @@ else
                     }
                 </Column>
                 @* 0.10.2 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
-                <Column TData="DateTime" DataIndex="@nameof(CategoryAdapterModel.UpdatedAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Descending" Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(CategoryAdapterModel.UpdatedAt)" Title="更新時間" Width="210" Sortable DefaultSortOrder="SortDirection.Descending" Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(CategoryAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
-                    <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.DeletedBy)" Title="刪除者" />
+                    <Column TData="DateTime?" DataIndex="@nameof(CategoryAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
+                    <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="200">
                     @if (showDeleted)
                     {
                         <Space>

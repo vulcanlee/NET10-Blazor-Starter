@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.118
+- 文件版本：6.119
 - 文件狀態：維護中
-- 現行系統版本：0.10.25
+- 現行系統版本：0.10.26
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/15
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 手機寬度的工具列與每一張表（使用者 2026/11/15 決定）：手機 390 寬時專案清單工具列撐寬 343px、分類／團隊／使用者 7px，約 10 頁表格被擠成直排；工具列設 `flex-wrap`、手機時右半邊占滿一列；其餘 17 張表每欄設寬、`ScrollX`＝欄寬加總（桌機 1440 仍放得下）；手機寬度時操作欄不固定（使用者 360px、角色 280px 會蓋掉資料）；CRUD 產生器樣板同步；`TableLayoutConventionTests` 擴大到全部 21 張表；`explore-edge.mjs` 的 E4 改用 `clientWidth`（模擬手機時 `innerWidth` 會跟著內容變大，以前永遠量不出橫向捲軸）並查表頭與擠窄（0.10.26） | [2026-11-15-手機寬度的工具列與每一張表](2026-11-15-手機寬度的工具列與每一張表.md) |
 | 清單表格欄寬與橫向捲動（使用者 2026/11/15 決定）：Acme.Erp 巡檢發現 1440 寬側邊欄展開時專案清單、使用者管理被擠成一字一行並撐出整頁橫向捲軸，資料保留的「下次會清掉」「自動清理」被固定的操作欄蓋住；放不下時一律在表格內橫向捲動：五個沒有 CSS 的 `*-table-wrap` 改用 `.view-table-wrap`，專案、使用者、資料保留、AI 對話紀錄每欄設寬（含勾選欄）、長文字 `Ellipsis`、`ScrollX` 讓操作欄出現陰影，使用者操作欄 `Space Wrap`；系統參數的參數與操作欄設寬、儲存格長字串可折行（AI 模型那組參數欄原本被擠到 50px）；系統健康監控長路徑折行；新增 `TableLayoutConventionTests` 與 `explore-edge.mjs` E6（0.10.25） | [2026-11-15-清單表格欄寬與橫向捲動](2026-11-15-清單表格欄寬與橫向捲動.md) |
 | 複刻腳本換系統名稱與實機全測（使用者 2026/11/15 要求）：實際產生 `Acme.Erp`／「艾克米企業系統」測腳本每項功能與新專案每個畫面；`New-StarterProject.ps1` 新增必填 `-SystemName`、選填 `-SystemDescription`（從來源 `appsettings.json` 讀舊值、四處一次換好、長度與字元驗證）；`.mjs`、`.webmanifest` 加入改名範圍（新專案的實機腳本原本連 `localhost:7144`、讀 `myproject.auth`）；殘留掃描不再因新代號含舊代號而印出上千條假警告；啟動頁分頁標題由「Home」改為系統名稱；新增 `ScaffoldScriptConventionTests` 守門（0.10.24） | [2026-11-15-複刻腳本換系統名稱與實機全測](2026-11-15-複刻腳本換系統名稱與實機全測.md) |
 | 以 Mapperly 取代 AutoMapper（使用者 2026/11/14 決定）：AutoMapper 15 版起改商業授權（Community 授權限年營收 500 萬美元以下、政府不適用），最後的 MIT 版 14.0.0 有 CVE-2026-32933；改用 `Riok.Mapperly` 4.3.1（Apache-2.0），`Business/Mappers/` 每個主題一個靜態對應類別，服務不再注入 `IMapper`；`RequiredMappingStrategy.Target`＋警告視為錯誤，漏對應的欄位建置就失敗（RMG012）；行為不變（標籤、名稱正規化、軟刪除與帳號安全欄位不寫回實體）；移除 `AutoMapping.cs`、7 個沒人用的對應與 `AutoMapper:LicenseKey`；CRUD 產生器改產生 `__Name__Mapper`；新增 `MapperTests`（0.10.23） | [2026-11-14-以Mapperly取代AutoMapper](2026-11-14-以Mapperly取代AutoMapper.md) |

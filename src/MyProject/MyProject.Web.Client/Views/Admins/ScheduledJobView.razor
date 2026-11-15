@@ -40,13 +40,14 @@ else
 
         <div class="scheduled-job-table-wrap">
             <Table TItem="ScheduledJobItemDto"
+                   ScrollX="1000"
                    Class="scheduled-job-table"
                    DataSource="@(overview?.Items ?? [])"
                    Loading="@isLoading"
                    Size="TableSize.Small"
                    HidePagination="true">
                 <ColumnDefinitions>
-                    <Column TData="string" Title="作業">
+                    <Column TData="string" Title="作業" Width="240">
                         <div class="scheduled-job-name">@context.DisplayName</div>
                         <div class="scheduled-job-description">@context.Description</div>
                     </Column>
@@ -88,7 +89,7 @@ else
                         <Switch Value="@context.IsEnabled" CheckedChildren="啟用" UnCheckedChildren="停用"
                                 OnChange="@(async (bool enabled) => await OnToggleEnabledAsync(context, enabled))" />
                     </Column>
-                    <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             <SpaceItem>
                                 <CrudActionButton Title="立即執行" Icon="play_arrow"
@@ -116,6 +117,7 @@ else
                Footer="null"
                OnCancel="@(() => runsVisible = false)">
             <Table TItem="ScheduledJobRunDto"
+                   ScrollX="820"
                    DataSource="@runs"
                    Loading="@isRunsLoading"
                    Size="TableSize.Small"
@@ -129,7 +131,7 @@ else
                         @TriggerText(item.Trigger)@(item.TriggeredByAccount is { } account ? $"（{account}）" : string.Empty)
                     </Column>
                     <Column TData="string" Title="耗時" Width="90">@(item.DurationMs is { } d ? DurationText(d) : "—")</Column>
-                    <Column TData="string" Title="訊息">@(item.Message ?? "—")</Column>
+                    <Column TData="string" Title="訊息" Width="250">@(item.Message ?? "—")</Column>
                     <Column TData="string" Title="追蹤碼" Width="110">@(item.TraceId ?? "—")</Column>
                 </ColumnDefinitions>
             </Table>
