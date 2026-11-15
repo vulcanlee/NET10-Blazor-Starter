@@ -10,6 +10,7 @@
 //   E6 寬螢幕清單版面（0.10.25 起）：1440×900、側邊欄展開，每個登入後頁面整頁沒有橫向捲軸；有表格的頁面表頭每格一行、
 //      儲存格沒有被擠成一字一行；表格放不下而右側有固定「操作」欄時，操作欄要有「右邊還有內容」的陰影；專案清單與使用者管理的資料列不被撐高。
 //      0.10.27 起同 E4 查按鈕尺寸與操作欄，並在角色管理把滑鼠移到操作按鈕上：出現淡色底、仍然沒有框線。
+//      0.10.28 起使用者管理的表格在 1440 寬不用左右捲（清單只留帳號、名稱、角色、狀態、管理員、操作）。
 // 結果寫到 E2E_OUT_DIR/explore-edge-results.json，截圖 explore-edge-*.png。
 import { readFileSync } from 'node:fs';
 import { createRecorder, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
@@ -299,8 +300,16 @@ try {
       await takeIssues(route);
       await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
       const tallRows = ['/projects', '/myusers'].includes(route) && m.rowHeight > 80;
-      if (m.overflow > 1 || m.wrappedHeaders.length || m.squeezed.length || m.noShadow || tallRows || m.badButtons.length || m.crampedActions.length) {
+      // 0.10.28 起使用者管理只留 6 欄（使用者決定：拿掉 Email、建立／更新時間），1440 寬、側邊欄展開時一個畫面看得完，不用左右捲。
+      const userTableScroll = route === '/myusers'
+        ? await page.evaluate(() => {
+          const c = document.querySelector('.ant-table-content, .ant-table-body');
+          return c ? c.scrollWidth - c.clientWidth : 0;
+        })
+        : 0;
+      if (m.overflow > 1 || m.wrappedHeaders.length || m.squeezed.length || m.noShadow || tallRows || m.badButtons.length || m.crampedActions.length || userTableScroll > 1) {
         bad.push(`${route}${m.overflow > 1 ? ` 整頁橫向多出 ${m.overflow}px` : ''}${m.wrappedHeaders.length ? ` 表頭折行：${m.wrappedHeaders.join('、')}` : ''}`
+          + `${userTableScroll > 1 ? ` 表格還要左右捲 ${userTableScroll}px` : ''}`
           + `${m.squeezed.length ? ` 被擠窄：${m.squeezed.slice(0, 3).join('、')}` : ''}${m.noShadow ? ' 操作欄沒有陰影' : ''}${tallRows ? ` 資料列高 ${m.rowHeight}px` : ''}`
           + `${m.badButtons.length ? ` 按鈕不是 28×28 無框：${m.badButtons.slice(0, 3).join('、')}` : ''}${m.crampedActions.length ? ` 操作欄按鈕放不下（${m.crampedActions.join('、')}）` : ''}`);
       }

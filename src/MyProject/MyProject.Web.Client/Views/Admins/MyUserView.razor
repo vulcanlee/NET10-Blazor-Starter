@@ -49,7 +49,7 @@ else
             <Table @ref="table"
                    TItem="MyUserAdapterModel"
                    Class="my-user-table"
-                   ScrollX="1650"
+                   ScrollX="1000"
                    RemoteDataSource="true"
                    DataSource="@myUserAdapterModels"
                    OnChange=OnTableChange
@@ -62,15 +62,17 @@ else
                     右側固定的「操作」欄會出現陰影，提示右邊還有內容，整頁不會被撐寬（TableLayoutConventionTests 守門）。
                     ⚠️ ScrollX 不要用 max-content：設了 Ellipsis 的欄會被撐到整段文字那麼寬。
                     已刪除模式多出來的欄位會讓欄寬加總超過 ScrollX，這時表格會自動變寬，不用另外改。
+                    0.10.28 起清單不顯示 Email、建立時間、更新時間（使用者 2026/11/15 決定：欄位太多，1440 寬一個畫面放不下）：
+                    加總 1,000，1440 寬、側邊欄展開時一個畫面看得完。這三個值在「修改」視窗與匯出 Excel 仍看得到，搜尋仍比對 Email。
+                    要加回欄位前先想清楚，加了就要左右捲（介面視覺設計規範 §4.2）。
                 *@
                 @* 0.9.132 起：勾選後可「刪除選取」；自己與 support 不可勾（同刪除按鈕），已刪除的資料不可勾選。 *@
                 @if (!showDeleted)
                 {
                     <Selection Width="50" Disabled="@(!Row(context).CanDelete)" />
                 }
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Width="160" Ellipsis Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Width="150" Ellipsis Sortable DefaultSortOrder="SortDirection.Ascending" />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Width="140" Ellipsis Sortable />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Width="220" Ellipsis Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Width="130" Ellipsis Sortable />
                 <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Width="150" Sortable>
                     @* 0.9.120 起：點標籤直接切換（停用先確認）；自己與 support 不可停用，已刪除的資料不可點。 *@
@@ -108,8 +110,6 @@ else
                     }
                 </Column>
                 @* 0.10.4 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
                     <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
