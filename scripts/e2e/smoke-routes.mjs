@@ -24,7 +24,7 @@ const readySelectors = {
   '/Auths/Login': '#account',
   '/Auths/ForgotPassword': '.login-card',
   '/Auths/ResetPassword': '.login-card',
-  '/Auths/Pending': '.pending-card',
+  '/Auths/Pending': '.status-card',
   '/Auths/TwoFactor': '#account',
 };
 

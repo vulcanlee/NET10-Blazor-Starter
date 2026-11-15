@@ -162,7 +162,7 @@ try {
   for (const route of anonymousRoutes) {
     const id = `A${String(a++).padStart(2, '0')}`;
     await anon.goto(route);
-    await anon.locator('#account, .login-card, .pending-card').first().waitFor({ timeout: 60000 }).catch(() => {});
+    await anon.locator('#account, .login-card, .status-card').first().waitFor({ timeout: 60000 }).catch(() => {});
     await anon.waitForTimeout(2000);
     const file = await screenshot(anon, `walk-${id}-${name(route)}`);
     const problems = wa.take();

@@ -1,4 +1,4 @@
-﻿/* 狀態卡片（0.10.13 起）：顏色一律用 theme.css 的變數。整頁版的玻璃卡片手法沿用 Pending.razor.css 的 .pending-card。 */
+﻿/* 狀態卡片（0.10.13 起）：顏色一律用 theme.css 的變數。整頁版（深色漸層＋玻璃卡片）由系統錯誤頁與帳號待審核頁（0.10.29 起）共用。 */
 .status-card-shell {
     align-items: center;
     display: flex;
@@ -80,12 +80,27 @@
     margin: 0 0 12px;
 }
 
+/* 0.10.29 起完全不透明＋淡陰影：原本 84% 不透明，背景漸層流到亮粉紅時對比不到 4.5:1。 */
 .status-card-fullscreen .status-card-body ::deep p {
-    color: rgba(255, 247, 250, 0.84);
+    color: var(--app-on-accent);
+    text-shadow: 0 1px 2px rgba(var(--app-shadow-rgb), 0.35);
 }
 
 .status-card-inline .status-card-body ::deep p {
     color: var(--app-muted);
+}
+
+/* 最重要的那句指示（例：帳號待審核頁「請在管理者啟用…」）：粗體，用文字色而不是對比不足的粉紅。 */
+.status-card-body ::deep .status-card-hint {
+    font-weight: 700;
+}
+
+.status-card-fullscreen .status-card-body ::deep .status-card-hint {
+    color: var(--app-on-accent);
+}
+
+.status-card-inline .status-card-body ::deep .status-card-hint {
+    color: var(--app-text);
 }
 
 .status-card-body ::deep .status-card-trace {

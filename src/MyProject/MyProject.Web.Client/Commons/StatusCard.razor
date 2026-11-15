@@ -1,6 +1,7 @@
 ﻿@*
-    狀態卡片（0.10.13 起）：系統錯誤頁（整頁、深色漸層，風格同帳號待審核頁與登入頁）與找不到頁面（外框內）共用。
-    按鈕由使用端放進 Actions，class 用 status-card-primary／status-card-secondary（樣式在 StatusCard.razor.css，以 ::deep 套用）。
+    狀態卡片（0.10.13 起）：系統錯誤頁與帳號待審核頁（0.10.29 起；整頁、深色漸層，風格同登入頁）與找不到頁面（外框內）共用。
+    按鈕由使用端放進 Actions，class 用 status-card-primary／status-card-secondary（樣式在 StatusCard.razor.css，以 ::deep 套用）；
+    最重要的那句指示可加 class status-card-hint（粗體、文字色）。
 *@
 <section class="status-card-shell @(FullScreen ? "status-card-fullscreen" : "status-card-inline")">
     <div class="status-card">
