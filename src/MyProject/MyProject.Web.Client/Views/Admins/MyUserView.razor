@@ -45,10 +45,11 @@ else
                                    OnClick="@(async () => await OnSearchAsync())" />
             </div>
         </div>
-        <div class="my-user-table-wrap">
+        <div class="view-table-wrap">
             <Table @ref="table"
                    TItem="MyUserAdapterModel"
                    Class="my-user-table"
+                   ScrollX="1730"
                    RemoteDataSource="true"
                    DataSource="@myUserAdapterModels"
                    OnChange=OnTableChange
@@ -56,16 +57,22 @@ else
                    @bind-PageSize="_pageSize"
                    @bind-Total="_total"
                    @bind-SelectedRows="selectedRows">
+                @*
+                    0.10.25 起：每欄都設 Width，ScrollX 是平常會出現的欄位寬度加總（含勾選欄；勾選欄沒設寬度會被擠到 0、整欄消失）。表格放不下時在表格內橫向捲動，
+                    右側固定的「操作」欄會出現陰影，提示右邊還有內容，整頁不會被撐寬（TableLayoutConventionTests 守門）。
+                    ⚠️ ScrollX 不要用 max-content：設了 Ellipsis 的欄會被撐到整段文字那麼寬。
+                    已刪除模式多出來的欄位會讓欄寬加總超過 ScrollX，這時表格會自動變寬，不用另外改。
+                *@
                 @* 0.9.132 起：勾選後可「刪除選取」；自己與 support 不可勾（同刪除按鈕），已刪除的資料不可勾選。 *@
                 @if (!showDeleted)
                 {
-                    <Selection Disabled="@(!Row(context).CanDelete)" />
+                    <Selection Width="50" Disabled="@(!Row(context).CanDelete)" />
                 }
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Sortable DefaultSortOrder="SortDirection.Ascending" />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Sortable />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Sortable />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Sortable />
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Sortable>
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Account)" Title="帳號" Width="160" Ellipsis Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Name)" Title="名稱" Width="140" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.Email)" Title="Email" Width="220" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.RoleViewName)" Title="角色" Width="130" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.StatusText)" Title="狀態" Width="150" Sortable>
                     @* 0.9.120 起：點標籤直接切換（停用先確認）；自己與 support 不可停用，已刪除的資料不可點。 *@
                     @if (!showDeleted && Row(context).CanToggleStatus)
                     {
@@ -90,7 +97,7 @@ else
                     }
                 </Column>
                 @* 只有「是」值得一個徽章；每一列都掛一顆「否」只會讓這一欄變成雜訊。 *@
-                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.IsAdminText)" Title="管理員" Sortable>
+                <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.IsAdminText)" Title="管理員" Width="100" Sortable>
                     @if (context.IsAdmin)
                     {
                         <StatusPill Text="@context.IsAdminText" Tone="StatusTone.Accent" />
@@ -101,14 +108,14 @@ else
                     }
                 </Column>
                 @* 0.10.4 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Sortable Format="@ClientCulture.DateTimeFormat" />
-                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.CreateAt)" Title="建立時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(MyUserAdapterModel.UpdateAt)" Title="更新時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
-                    <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.DeletedBy)" Title="刪除者" />
+                    <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
+                    <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="360">
                     @if (showDeleted)
                     {
                         <Space>
@@ -125,7 +132,8 @@ else
                     }
                     else
                     {
-                        <Space>
+                        @* 最多 6 顆（被鎖定的一般使用者多一顆「解鎖」）：放不下時折到第二列，不撐寬固定欄（0.10.25 起）。 *@
+                        <Space Wrap>
                             <SpaceItem>
                                 <CrudActionButton Title="修改" Icon="edit"
                                                   OnClick="@(async () => await OnEditAsync(@context))" />

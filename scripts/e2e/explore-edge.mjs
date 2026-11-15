@@ -5,6 +5,8 @@
 //   E3 離線：清單按「重新整理」顯示離線訊息、畫面不壞；恢復連線後重新整理正常。
 //   E4 手機尺寸（390×844）：每個登入後路由都開得起來、整頁沒有橫向捲動、沒有錯誤，並截圖；0.10.17 起收合的側邊欄只留選單鈕，頁首只有一列（不超過 80px）。
 //   E5 英文瀏覽器語系＋東京時區、UTC 時區：同一筆資料的時間與中文、台北時區看到的一字不差（時間照伺服器的本地時間顯示）。
+//   E6 寬螢幕清單版面（0.10.25 起）：1440×900、側邊欄展開，每個登入後頁面整頁沒有橫向捲軸；有表格的頁面表頭每格一行、
+//      儲存格沒有被擠成一字一行；表格放不下而右側有固定「操作」欄時，操作欄要有「右邊還有內容」的陰影；專案清單與使用者管理的資料列不被撐高。
 // 結果寫到 E2E_OUT_DIR/explore-edge-results.json，截圖 explore-edge-*.png。
 import { readFileSync } from 'node:fs';
 import { createRecorder, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
@@ -191,6 +193,81 @@ try {
     const issues = [...base.issues, ...tokyo.issues, ...utc.issues];
     recorder.add('E5', '英文語系＋東京、UTC 時區：專案的日期時間與中文台北一字不差，畫面沒有錯誤', same && dates(base.row) !== '' && issues.length === 0,
       `台北：${dates(base.row)}；東京：${dates(tokyo.row)}；UTC：${dates(utc.row)}；稽核第一列 台北「${base.audit.slice(0, 60)}」東京「${tokyo.audit.slice(0, 60)}」${issues.length ? '；問題：' + issues.join('；') : ''}`);
+  }
+
+  // ── E6 寬螢幕清單版面 ──
+  {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, baseURL: process.env.E2E_BASE_URL ?? 'https://localhost:7144', viewport: { width: 1440, height: 900 }, locale: 'zh-TW' });
+    const page = await context.newPage();
+    const problems = collectProblems(page);
+    await login(page);
+    const bad = [];
+    const checked = [];
+    const issues = [];
+    // 已知殘留（速查表 §10）：AntDesign 頁籤的 ondragover 行內事件被 CSP 擋下，只在 /token-usage（同 E4）。
+    const takeIssues = async (route) => issues.push(...(await problems.take())
+      .filter((x) => !(route === '/token-usage' && /Executing inline event handler/.test(x))).map((x) => `${route} ${x}`));
+    for (const route of authenticatedRoutes) {
+      await page.goto(route);
+      await page.waitForTimeout(2500);
+      // 沒有表格的頁面也不能被撐寬（系統健康監控的長路徑曾撐出 86px）。
+      if ((await page.locator('.ant-table').count()) === 0) {
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        if (overflow > 1) {
+          await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
+          bad.push(`${route} 整頁橫向多出 ${overflow}px`);
+        }
+        await takeIssues(route);
+        continue;
+      }
+      await page.locator('.ant-table-tbody .ant-table-row').first().waitFor({ timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(500);
+      const m = await page.evaluate(() => {
+        // 一段文字實際排成幾行：把每個文字框的上緣排序，相差超過 4px 才算新的一行。
+        const lines = (element) => {
+          const tops = [];
+          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            for (const rect of range.getClientRects()) {
+              if (rect.width > 0) tops.push(rect.top);
+            }
+          }
+          tops.sort((a, b) => a - b);
+          return tops.filter((top, i) => i === 0 || top - tops[i - 1] > 4).length;
+        };
+        const visible = (element) => element.getClientRects().length > 0;
+        const tables = [...document.querySelectorAll('.ant-table')].filter(visible);
+        const wrappedHeaders = tables.flatMap((t) => [...t.querySelectorAll('.ant-table-thead th')]).filter((th) => th.innerText.trim() && lines(th) > 1).map((th) => th.innerText.trim());
+        // 被擠窄：4 個字以上的文字排成 3 行以上，而且平均每行不到 4 個字（一字一行、兩三個字一行都算）。
+        const squeezed = tables.flatMap((t) => [...t.querySelectorAll('.ant-table-tbody td')]).filter((td) => {
+          const text = td.innerText.replace(/\s+/g, '');
+          const n = lines(td);
+          return text.length >= 4 && n >= 3 && text.length / n < 4;
+        }).map((td) => td.innerText.replace(/\s+/g, '').slice(0, 12));
+        const noShadow = tables.filter((t) => {
+          const content = t.querySelector('.ant-table-content, .ant-table-body');
+          return t.classList.contains('ant-table-has-fix-right') && content && content.scrollWidth > content.clientWidth + 1 && !t.classList.contains('ant-table-ping-right');
+        }).length;
+        // 被鎖定的使用者有 6 顆操作按鈕，刻意折成兩列，不算撐高。
+        const rowHeight = Math.max(0, ...[...document.querySelectorAll('.ant-table-tbody .ant-table-row')].slice(0, 5)
+          .filter((r) => r.querySelectorAll('td:last-child button').length <= 5).map((r) => r.getBoundingClientRect().height));
+        return { overflow: document.documentElement.scrollWidth - window.innerWidth, wrappedHeaders, squeezed, noShadow, rowHeight: Math.round(rowHeight) };
+      });
+      checked.push(route);
+      await takeIssues(route);
+      await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
+      const tallRows = ['/projects', '/myusers'].includes(route) && m.rowHeight > 80;
+      if (m.overflow > 1 || m.wrappedHeaders.length || m.squeezed.length || m.noShadow || tallRows) {
+        bad.push(`${route}${m.overflow > 1 ? ` 整頁橫向多出 ${m.overflow}px` : ''}${m.wrappedHeaders.length ? ` 表頭折行：${m.wrappedHeaders.join('、')}` : ''}`
+          + `${m.squeezed.length ? ` 被擠窄：${m.squeezed.slice(0, 3).join('、')}` : ''}${m.noShadow ? ' 操作欄沒有陰影' : ''}${tallRows ? ` 資料列高 ${m.rowHeight}px` : ''}`);
+      }
+    }
+    recorder.add('E6', '寬螢幕（1440×900、側邊欄展開）：每頁沒有整頁橫向捲軸；清單頁表頭一行、欄位沒被擠窄、放不下時操作欄有陰影',
+      checked.length >= 15 && bad.length === 0 && issues.length === 0,
+      `${authenticatedRoutes.length} 個路由、${checked.length} 個表格頁；${bad.length ? '不符：' + bad.join('；') : '全部正常'}${issues.length ? '；問題：' + issues.join('；') : ''}`);
+    await context.close();
   }
 } finally {
   await browser.close();

@@ -75,7 +75,11 @@ else
                        Size="TableSize.Small"
                        HidePagination="true">
                     <ColumnDefinitions>
-                        <Column TData="string" Title="參數">
+                        @*
+                            0.10.25 起：參數與操作欄設寬，說明欄吃剩下的寬度。以前參數欄沒寬度，AI 那組的說明很長，
+                            參數欄被擠到 50px、一兩個字一行（explore-edge E6 抓到）；各組是各自的表格，設寬後欄位也會對齊。
+                        *@
+                        <Column TData="string" Title="參數" Width="220">
                             <div class="system-parameter-name">@context.Definition.Label</div>
                             <code class="system-parameter-key">@context.Definition.Key</code>
                         </Column>
@@ -102,7 +106,7 @@ else
                             }
                             <div class="system-parameter-muted">生效：@context.Definition.EffectNote</div>
                         </Column>
-                        <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                        <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
                             <Space>
                                 <SpaceItem>
                                     <CrudActionButton Title="修改" Icon="edit"

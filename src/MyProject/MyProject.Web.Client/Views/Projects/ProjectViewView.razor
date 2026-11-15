@@ -69,10 +69,11 @@ else
                                    OnClick="@(async () => await OnSearchAsync())" />
             </div>
         </div>
-        <div class="project-view-table-wrap">
+        <div class="view-table-wrap">
             <Table @ref="table"
                    TItem="ProjectAdapterModel"
                    Class="project-view-table"
+                   ScrollX="2240"
                    RemoteDataSource="true"
                    DataSource="@projectAdapterModels"
                    OnChange="OnTableChange"
@@ -80,6 +81,12 @@ else
                    @bind-PageSize="_pageSize"
                    @bind-Total="_total"
                    @bind-SelectedRows="selectedRows">
+                @*
+                    0.10.25 起：每欄都設 Width，ScrollX 是平常會出現的欄位寬度加總（含勾選欄；勾選欄沒設寬度會被擠到 0、整欄消失）。表格放不下時在表格內橫向捲動，
+                    右側固定的「操作」欄會出現陰影，提示右邊還有內容，整頁不會被撐寬（TableLayoutConventionTests 守門）。
+                    ⚠️ ScrollX 不要用 max-content：設了 Ellipsis 的欄會被撐到整段文字那麼寬。
+                    已刪除模式多出來的欄位會讓欄寬加總超過 ScrollX，這時表格會自動變寬，不用另外改。
+                *@
                 @* 0.9.132 起：勾選後可「刪除選取」；已刪除的資料不可勾選。 *@
                 @*
                     ⚠️ 勾選欄不可包在 <RequirePermission> 裡（0.9.150）：AntDesign 會讓第 3 列起的欄位序號錯位，
@@ -88,29 +95,29 @@ else
                 *@
                 @if (!showDeleted && canDelete)
                 {
-                    <Selection />
+                    <Selection Width="50" />
                 }
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Title)" Title="標題" Sortable DefaultSortOrder="SortDirection.Ascending" />
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Description)" Title="描述" />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Title)" Title="標題" Width="180" Ellipsis Sortable DefaultSortOrder="SortDirection.Ascending" />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Description)" Title="描述" Width="220" Ellipsis />
                 @* 0.10.3 起（WASM）：時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
-                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.StartDate)" Title="開始日期" Sortable Format="@ClientCulture.DateTimeFormat" />
-                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.EndDate)" Title="結束日期" Sortable Format="@ClientCulture.DateTimeFormat" />
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Status)" Title="狀態" Sortable>
+                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.StartDate)" Title="開始日期" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.EndDate)" Title="結束日期" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Status)" Title="狀態" Width="100" Sortable>
                     <StatusPill Text="@context.Status" Tone="@ResolveStatusTone(context.Status)" />
                 </Column>
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Priority)" Title="優先級" Sortable />
-                <Column TData="int" DataIndex="@nameof(ProjectAdapterModel.CompletionPercentage)" Title="完成百分比" Sortable />
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Owner)" Title="負責人" Sortable />
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.CategoriesText)" Title="分類" />
-                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.TeamsText)" Title="團隊" />
-                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.CreatedAt)" Title="建立時間" Sortable Format="@ClientCulture.DateTimeFormat" />
-                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.UpdatedAt)" Title="更新時間" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Priority)" Title="優先級" Width="100" Sortable />
+                <Column TData="int" DataIndex="@nameof(ProjectAdapterModel.CompletionPercentage)" Title="完成百分比" Width="130" Sortable />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.Owner)" Title="負責人" Width="120" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.CategoriesText)" Title="分類" Width="150" Ellipsis />
+                <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.TeamsText)" Title="團隊" Width="150" Ellipsis />
+                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.CreatedAt)" Title="建立時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(ProjectAdapterModel.UpdatedAt)" Title="更新時間" Width="210" Sortable Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
-                    <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.DeletedBy)" Title="刪除者" />
+                    <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
+                    <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="200">
                     @if (showDeleted)
                     {
                         <Space>
