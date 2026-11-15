@@ -113,6 +113,11 @@
     --app-warn: #c77700;
     --app-warn-bg: #fff8e6;
     --app-warn-line: #ffd591;
+    /* 危險操作（刪除、永久刪除）的圖示按鈕；0.10.27 起從 CrudActionButton.razor.css 搬來（那裡的規則從來沒生效）。 */
+    --app-danger: #b42318;
+    --app-danger-strong: #cf1322;
+    /* 半透明：滑鼠移上按鈕時整列也在 hover（--app-row-hover），不透明的淺紅會比列底還淺而看不出來。 */
+    --app-danger-bg: rgba(207, 19, 34, 0.12);
 
     /* ── 形狀與動態 ── */
     --app-radius-card: 28px;
@@ -307,31 +312,90 @@
     border-radius: var(--app-radius-pill) !important;
 }
 
-/* ── 工具列與操作欄按鈕 ──
-   ⚠️ 刻意不寫成裸的 .ant-btn：那會連對話窗內文的按鈕一起改到
-      （角色權限矩陣、Token 用量的清除列）。只針對這兩個共用元件的 class。 */
-.toolbar-icon-button.ant-btn,
-.crud-action-button.ant-btn {
-    transition: transform 0.22s var(--app-ease-jelly), border-color 0.2s ease,
-                background-color 0.2s ease, color 0.2s ease;
+/* ── 工具列與操作欄按鈕（0.10.27 起：28×28、沒有框線的小方塊，比照 KnowledgeExtraction.AI）──
+   CrudActionButton（操作欄）與 ToolbarIconButton（工具列）共用同一個外觀：平常只有圖示，
+   滑鼠移上或鍵盤焦點時圖示變主色、出現淡色底，**都不出現框線**（使用者 2026/11/15 的決定）。
+   ⚠️ 一定要寫在這裡（全站），不能寫在元件的 .razor.css：CSS 隔離的 scope 屬性只加在元件自己輸出的元素上，
+      AntDesign <Button> 輸出的 <button> 沒有，規則套不到 —— 0.10.26 以前兩個元件的 .razor.css 都寫了 28×28／36×36，
+      畫面上卻一直是 AntDesign 預設的 56×32 加框線（ActionButtonStyleConventionTests 守門）。
+   ⚠️ 刻意不寫成裸的 .ant-btn：那會連對話窗內文的按鈕一起改到（角色權限矩陣、Token 用量的清除列）。
+   class 重複兩次是為了權重壓過 AntDesign 1.6.3 的 .ant-btn:hover／:focus／:active；也涵蓋 Href 版的 <a>。
+   ⚠️ 停用的規則要排在這一段最後：它和 AntDesign 的 .ant-btn[disabled]:hover 權重相同，只靠「排在後面」贏。 */
+.crud-action-button.crud-action-button,
+.toolbar-icon-button.toolbar-icon-button {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    border-color: transparent;
+    border-radius: 4px;
+    color: var(--app-muted);
+    background: transparent;
+    box-shadow: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    text-decoration: none;
+    transition: transform 0.22s var(--app-ease-jelly), background-color 0.2s ease, color 0.2s ease;
 }
 
-.toolbar-icon-button.ant-btn {
-    border-radius: 12px !important;
-    border-color: var(--app-line) !important;
-    color: var(--app-muted) !important;
+.crud-action-button.crud-action-button:hover,
+.crud-action-button.crud-action-button:focus-visible,
+.toolbar-icon-button.toolbar-icon-button:hover,
+.toolbar-icon-button.toolbar-icon-button:focus-visible {
+    color: var(--app-accent);
+    border-color: transparent;
+    /* 不用 --app-tint：它比整列 hover 的 --app-row-hover 還淺，在列上幾乎看不出來（0.10.27 實測）。 */
+    background: var(--app-accent-soft);
+    text-decoration: none;
 }
 
-.toolbar-icon-button.ant-btn:hover,
-.toolbar-icon-button.ant-btn:focus-visible {
-    background: var(--app-tint) !important;
-    border-color: var(--app-accent-dim) !important;
-    color: var(--app-accent) !important;
+/* 滑鼠點過之後焦點還留在按鈕上：維持平常的樣子，不要一直亮著淡色底（AntDesign 的 :focus 會套藍色）。 */
+.crud-action-button.crud-action-button:focus:not(:focus-visible):not(:hover),
+.toolbar-icon-button.toolbar-icon-button:focus:not(:focus-visible):not(:hover) {
+    color: var(--app-muted);
+    border-color: transparent;
+    background: transparent;
+}
+
+/* 鍵盤使用者要看得到焦點在哪一顆；框線拿掉了，改用外圈 outline。 */
+.crud-action-button.crud-action-button:focus-visible,
+.toolbar-icon-button.toolbar-icon-button:focus-visible {
+    /* 用 --app-accent 不用 --app-accent-dim：後者對白底約 3.1:1、對整列 hover 約 2.6:1，焦點外框要 3:1 以上。 */
+    outline: 2px solid var(--app-accent);
+    outline-offset: 1px;
+}
+
+.toolbar-icon-button.toolbar-icon-button:hover {
     transform: translateY(-1px);
 }
 
-.toolbar-icon-button.ant-btn:active {
+.toolbar-icon-button.toolbar-icon-button:active {
     transform: scale(0.97);
+}
+
+.crud-action-button.crud-action-button-danger {
+    color: var(--app-danger);
+}
+
+.crud-action-button.crud-action-button-danger:hover,
+.crud-action-button.crud-action-button-danger:focus-visible {
+    color: var(--app-danger-strong);
+    background: var(--app-danger-bg);
+}
+
+.crud-action-button.crud-action-button-danger:focus:not(:focus-visible):not(:hover) {
+    color: var(--app-danger);
+}
+
+.crud-action-button.crud-action-button[disabled],
+.toolbar-icon-button.toolbar-icon-button[disabled] {
+    color: var(--app-off);
+    border-color: transparent;
+    background: transparent;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* ── 清單頁工具列與表格容器 ──
@@ -417,14 +481,14 @@
 
 /* ⚠️ 位移與縮放一律降級，顏色回饋保留 —— 做法比照 Login.razor.css 與 OverlayStyles.razor。 */
 @media (prefers-reduced-motion: reduce) {
-    .toolbar-icon-button.ant-btn,
-    .crud-action-button.ant-btn {
+    .toolbar-icon-button.toolbar-icon-button,
+    .crud-action-button.crud-action-button {
         transition: none !important;
     }
 
-    .toolbar-icon-button.ant-btn:hover,
-    .toolbar-icon-button.ant-btn:focus-visible,
-    .toolbar-icon-button.ant-btn:active {
+    .toolbar-icon-button.toolbar-icon-button:hover,
+    .toolbar-icon-button.toolbar-icon-button:focus-visible,
+    .toolbar-icon-button.toolbar-icon-button:active {
         transform: none !important;
     }
 }

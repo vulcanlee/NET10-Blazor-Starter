@@ -1,55 +1,9 @@
-﻿.crud-action-button {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    padding: 0;
-    border-color: transparent;
-    border-radius: 4px;
-    color: var(--app-muted);
-    background: transparent;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    text-decoration: none;
-    box-shadow: none;
-}
+﻿/* ⚠️ 0.10.27 起按鈕外觀（28×28、無框、滑鼠移上的淡色底、危險色、停用）一律寫在 wwwroot/theme.css。
+   這裡寫 .crud-action-button 套不到：CSS 隔離的 scope 屬性只加在這個元件自己輸出的元素上，
+   AntDesign <Button> 輸出的 <button> 沒有（0.10.26 以前這裡寫的 28×28 透明框從來沒生效，畫面是 56×32 加框線）。
+   ActionButtonStyleConventionTests 守門。下面的 label 是這個元件自己輸出的 <span>，所以套得到。 */
 
-.crud-action-button:hover,
-.crud-action-button:focus {
-    color: var(--app-accent);
-    border-color: var(--app-line);
-    background: var(--app-tint);
-    text-decoration: none;
-}
-
-.crud-action-button-danger {
-    color: #b42318;
-}
-
-.crud-action-button-danger:hover,
-.crud-action-button-danger:focus {
-    color: #cf1322;
-    border-color: #ffccc7;
-    background: #fff1f0;
-}
-
-.crud-action-button[disabled],
-.crud-action-button.ant-btn[disabled] {
-    color: #9ca3af;
-    border-color: transparent;
-    background: transparent;
-    cursor: not-allowed;
-}
-
-/* ⚠️ 圖示大小只能從 MaterialIcon 的 Size 參數改：
-   該元件會輸出行內的 style="font-size:…"，CSS 的 font-size 蓋不過去。
-   0.9.16 已把這裡原本無效的 font-size 宣告移除。 */
-.crud-action-button ::deep .material-icons,
-.crud-action-button ::deep .material-icons-outlined {
-    line-height: 1;
-}
-
+/* 視覺隱藏，只給螢幕閱讀器；純圖示按鈕沒有它就沒有可讀名稱。 */
 .crud-action-button-label {
     position: absolute;
     width: 1px;

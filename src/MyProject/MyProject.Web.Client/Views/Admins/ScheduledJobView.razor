@@ -40,7 +40,7 @@ else
 
         <div class="scheduled-job-table-wrap">
             <Table TItem="ScheduledJobItemDto"
-                   ScrollX="1000"
+                   ScrollX="950"
                    Class="scheduled-job-table"
                    DataSource="@(overview?.Items ?? [])"
                    Loading="@isLoading"
@@ -89,7 +89,7 @@ else
                         <Switch Value="@context.IsEnabled" CheckedChildren="啟用" UnCheckedChildren="停用"
                                 OnChange="@(async (bool enabled) => await OnToggleEnabledAsync(context, enabled))" />
                     </Column>
-                    <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="100" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             <SpaceItem>
                                 <CrudActionButton Title="立即執行" Icon="play_arrow"

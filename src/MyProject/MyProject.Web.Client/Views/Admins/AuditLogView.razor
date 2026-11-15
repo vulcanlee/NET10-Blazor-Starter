@@ -92,7 +92,7 @@ else
         <div class="audit-log-table-wrap">
             <Table @ref="table"
                    TItem="AuditLogAdapterModel"
-                   ScrollX="1000"
+                   ScrollX="970"
                    Class="audit-log-table"
                    RemoteDataSource="true"
                    DataSource="@auditLogAdapterModels"
@@ -122,7 +122,7 @@ else
                     <Column TData="string" Title="來源 IP" Width="130" Ellipsis>@(context.ClientIp ?? "—")</Column>
                     <Column TData="string" Title="目標" Width="150" Ellipsis>@TargetText(context)</Column>
                     <Column TData="string" Title="摘要" Width="105" Ellipsis>@(context.Detail ?? "—")</Column>
-                    <ActionColumn Title="操作" Width="90" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="60" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             <SpaceItem>
                                 <CrudActionButton Title="查看" Icon="visibility"
