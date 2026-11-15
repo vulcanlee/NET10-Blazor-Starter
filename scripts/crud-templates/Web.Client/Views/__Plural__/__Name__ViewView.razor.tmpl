@@ -47,7 +47,17 @@ else
             </div>
         </div>
         <div class="view-table-wrap">
+            @*
+                每一欄都設 Width，ScrollX＝平常會出現的欄寬加總（含勾選欄；不含已刪除模式的刪除時間、刪除者）：
+                放不下時（手機或窄視窗）在表格內左右捲動、固定的操作欄有陰影，不會把欄位擠成一字一行（TableLayoutConventionTests 守門）。
+                加欄位時一起加 Width 並更新 ScrollX，見 docs/architecture/介面視覺設計規範.md §4.2。
+            *@
             <Table TItem="__Name__AdapterModel"
+#IF TEAMS
+                   ScrollX="1000"
+#ELSE
+                   ScrollX="930"
+#ENDIF
                    RemoteDataSource="true"
                    DataSource="@records"
                    OnChange="OnTableChange"
@@ -63,14 +73,17 @@ else
                 *@
                 @if (!showDeleted && canDelete)
                 {
-                    <Selection />
+                    <Selection Width="50" />
                 }
-                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Name)" Title="名稱" Sortable />
-                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Description)" Title="描述" />
 #IF TEAMS
-                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.TeamsText)" Title="團隊" />
+                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Name)" Title="名稱" Width="150" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Description)" Title="描述" Width="140" Ellipsis />
+                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.TeamsText)" Title="團隊" Width="140" Ellipsis />
+#ELSE
+                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Name)" Title="名稱" Width="160" Ellipsis Sortable />
+                <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.Description)" Title="描述" Width="200" Ellipsis />
 #ENDIF
-                <Column TData="bool" DataIndex="@nameof(__Name__AdapterModel.IsEnabled)" Title="啟用狀態" Sortable>
+                <Column TData="bool" DataIndex="@nameof(__Name__AdapterModel.IsEnabled)" Title="啟用狀態" Width="110" Sortable>
                     @* 有修改權限時點標籤直接切換（停用先確認）；已刪除的資料不可點。 *@
                     @if (showDeleted)
                     {
@@ -91,13 +104,13 @@ else
                     }
                 </Column>
                 @* 時間格式明確指定為伺服器那一套（ClientCulture.DateTimeFormat），否則瀏覽器內建的 zh-TW 會顯示成「上午9:00:00」。 *@
-                <Column TData="DateTime" DataIndex="@nameof(__Name__AdapterModel.UpdatedAt)" Title="更新時間" Sortable DefaultSortOrder="SortDirection.Descending" Format="@ClientCulture.DateTimeFormat" />
+                <Column TData="DateTime" DataIndex="@nameof(__Name__AdapterModel.UpdatedAt)" Title="更新時間" Width="210" Sortable DefaultSortOrder="SortDirection.Descending" Format="@ClientCulture.DateTimeFormat" />
                 @if (showDeleted)
                 {
-                    <Column TData="DateTime?" DataIndex="@nameof(__Name__AdapterModel.DeletedAt)" Title="刪除時間" Format="@ClientCulture.DateTimeFormat" />
-                    <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.DeletedBy)" Title="刪除者" />
+                    <Column TData="DateTime?" DataIndex="@nameof(__Name__AdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
+                    <Column TData="string" DataIndex="@nameof(__Name__AdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="200">
                     <Space>
                         @if (showDeleted)
                         {

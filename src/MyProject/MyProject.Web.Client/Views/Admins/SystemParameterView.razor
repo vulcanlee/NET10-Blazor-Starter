@@ -69,6 +69,7 @@ else
             }
             <div class="system-parameter-table-wrap">
                 <Table TItem="SystemParameterItemDto"
+                       ScrollX="1000"
                        Class="system-parameter-table"
                        DataSource="@group.ToList()"
                        Loading="@isLoading"
@@ -76,8 +77,9 @@ else
                        HidePagination="true">
                     <ColumnDefinitions>
                         @*
-                            0.10.25 起：參數與操作欄設寬，說明欄吃剩下的寬度。以前參數欄沒寬度，AI 那組的說明很長，
-                            參數欄被擠到 50px、一兩個字一行（explore-edge E6 抓到）；各組是各自的表格，設寬後欄位也會對齊。
+                            0.10.25 起參數與操作欄設寬：以前參數欄沒寬度，AI 那組的說明很長，參數欄被擠到 50px、一兩個字一行（explore-edge E6 抓到）。
+                            0.10.26 起說明欄也設寬、ScrollX＝欄寬加總：1440 寬時剛好放得下（多出的寬度依比例分給各欄），
+                            手機或窄視窗時在表格內左右捲，說明不會再被擠成很窄的一條。各組是各自的表格，設寬後欄位也會對齊。
                         *@
                         <Column TData="string" Title="參數" Width="220">
                             <div class="system-parameter-name">@context.Definition.Label</div>
@@ -98,7 +100,7 @@ else
                         <Column TData="string" Title="設定檔的值" Width="160">
                             <span class="system-parameter-muted">@SystemParameterValueCodec.Display(context.Definition, context.BaseValue)</span>
                         </Column>
-                        <Column TData="string" Title="說明">
+                        <Column TData="string" Title="說明" Width="270">
                             <div>@context.Definition.Description</div>
                             @if (RangeText(context.Definition) is { } range)
                             {

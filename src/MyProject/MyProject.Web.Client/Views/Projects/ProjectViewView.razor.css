@@ -2,6 +2,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 12px;
 }
@@ -10,6 +11,7 @@
 .project-view-toolbar-right {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -17,3 +19,17 @@
     width: 260px;
 }
 
+/* 0.10.26 起：手機寬度時工具列放不下就折到下一列，右半邊（篩選、搜尋）占滿一整列，搜尋框拉長。
+   以前不折行，專案清單在 390 寬多出 343px、其他頁多出 7px，把整頁撐出橫向捲軸。
+   搜尋框與下拉是 AntDesign 渲染的元素，拿不到本元件的 scope 屬性，要從工具列用 ::deep 套。 */
+@media (max-width: 640.98px) {
+    .project-view-toolbar-right {
+        width: 100%;
+    }
+
+    .project-view-toolbar-right ::deep .ant-input,
+    .project-view-toolbar-right ::deep .ant-select {
+        flex: 1 1 160px;
+        min-width: 0;
+    }
+}

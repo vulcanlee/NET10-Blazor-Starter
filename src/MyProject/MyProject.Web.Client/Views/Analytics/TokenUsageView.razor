@@ -328,6 +328,7 @@ else
                 <div class="token-usage-table-wrap">
                     <Table @ref="table"
                            TItem="TokenUsageLogAdapterModel"
+                           ScrollX="1400"
                            RemoteDataSource="true"
                            DataSource="@rows"
                            Loading="@isLoading"
@@ -338,7 +339,7 @@ else
                            @bind-Total="_total"
                            @bind-SelectedRows="selectedRows">
                         @* 0.9.132 起：勾選後可「刪除選取」。 *@
-                        <Selection />
+                        <Selection Width="50" />
                         <Column TData="DateTime" DataIndex="@nameof(TokenUsageLogAdapterModel.OccurredAt)"
                                 Title="時間" Width="160" Sortable DefaultSortOrder="SortDirection.Descending">
                             @context.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")
@@ -396,7 +397,7 @@ else
                                 </Tooltip>
                             }
                         </Column>
-                        <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                        <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
                             <Space>
                                 <SpaceItem>
                                     <CrudActionButton Title="詳細" Icon="visibility"

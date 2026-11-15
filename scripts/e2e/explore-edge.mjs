@@ -3,7 +3,8 @@
 //      新增專案的分類下拉有 300 多個選項，打字篩選正常。
 //   E2 慢速網路（CDP：延遲 400 毫秒、下載約 1.5 Mbps）：新增分類成功；儲存確認窗連按兩下「儲存」只會寫入一筆。
 //   E3 離線：清單按「重新整理」顯示離線訊息、畫面不壞；恢復連線後重新整理正常。
-//   E4 手機尺寸（390×844）：每個登入後路由都開得起來、整頁沒有橫向捲動、沒有錯誤，並截圖；0.10.17 起收合的側邊欄只留選單鈕，頁首只有一列（不超過 80px）。
+//   E4 手機尺寸（390×844）：每個登入後路由都開得起來、整頁沒有橫向捲動、沒有錯誤，並截圖；0.10.17 起收合的側邊欄只留選單鈕，頁首只有一列（不超過 80px）；
+//      0.10.26 起整頁寬度改用 clientWidth 比（模擬手機時 innerWidth 會跟著內容變大），並查表頭折行與欄位被擠窄。
 //   E5 英文瀏覽器語系＋東京時區、UTC 時區：同一筆資料的時間與中文、台北時區看到的一字不差（時間照伺服器的本地時間顯示）。
 //   E6 寬螢幕清單版面（0.10.25 起）：1440×900、側邊欄展開，每個登入後頁面整頁沒有橫向捲軸；有表格的頁面表頭每格一行、
 //      儲存格沒有被擠成一字一行；表格放不下而右側有固定「操作」欄時，操作欄要有「右邊還有內容」的陰影；專案清單與使用者管理的資料列不被撐高。
@@ -23,6 +24,48 @@ insertRows('Project', [...Array(2000).keys()].map((i) => ({
   Priority: ['低', '中', '高'][i % 3], CompletionPercentage: i % 101, Owner: `負責人${i % 37}`, StartDate: '2026-01-01 00:00:00', EndDate: '2026-12-31 00:00:00',
   Categories: `\nE大量分類${pad((i % 300) + 1, 3)}\n`,
 })));
+
+// E4、E6 共用（0.10.26 起）：量整頁有沒有被撐寬，以及表格的表頭、儲存格、固定欄陰影。
+// ⚠️ 整頁寬度一律用 document.documentElement.clientWidth 比，不可用 window.innerWidth：
+//    模擬手機（isMobile）時 innerWidth 會跟著內容一起變大（實測專案清單 733），永遠量不出橫向捲軸 —— 0.10.25 以前的 E4 就是這樣漏掉工具列撐寬。
+async function measureLayout(page) {
+  return page.evaluate(() => {
+    // 一段文字實際排成幾行：把每個文字框的上緣排序，相差超過 4px 才算新的一行。
+    const lines = (element) => {
+      const tops = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) {
+          if (rect.width > 0) tops.push(rect.top);
+        }
+      }
+      tops.sort((a, b) => a - b);
+      return tops.filter((top, i) => i === 0 || top - tops[i - 1] > 4).length;
+    };
+    const visible = (element) => element.getClientRects().length > 0;
+    const tables = [...document.querySelectorAll('.ant-table')].filter(visible);
+    const wrappedHeaders = tables.flatMap((t) => [...t.querySelectorAll('.ant-table-thead th')]).filter((th) => th.innerText.trim() && lines(th) > 1).map((th) => th.innerText.trim());
+    // 被擠窄：4 個字以上的文字排成 3 行以上，而且平均每行不到 4 個字（一字一行、兩三個字一行都算）。
+    const squeezed = tables.flatMap((t) => [...t.querySelectorAll('.ant-table-tbody td')]).filter((td) => {
+      const text = td.innerText.replace(/\s+/g, '');
+      const n = lines(td);
+      return text.length >= 4 && n >= 3 && text.length / n < 4;
+    }).map((td) => td.innerText.replace(/\s+/g, '').slice(0, 12));
+    const noShadow = tables.filter((t) => {
+      const content = t.querySelector('.ant-table-content, .ant-table-body');
+      return t.classList.contains('ant-table-has-fix-right') && content && content.scrollWidth > content.clientWidth + 1 && !t.classList.contains('ant-table-ping-right');
+    }).length;
+    // 被鎖定的使用者有 6 顆操作按鈕，刻意折成兩列，不算撐高。
+    const rowHeight = Math.max(0, ...[...document.querySelectorAll('.ant-table-tbody .ant-table-row')].slice(0, 5)
+      .filter((r) => r.querySelectorAll('td:last-child button').length <= 5).map((r) => r.getBoundingClientRect().height));
+    return {
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      wrappedHeaders, squeezed, noShadow, rowHeight: Math.round(rowHeight),
+    };
+  });
+}
 
 const recorder = createRecorder('explore-edge-results.json');
 const browser = await launchBrowser();
@@ -144,12 +187,18 @@ try {
     for (const route of authenticatedRoutes) {
       await page.goto(route);
       await page.waitForTimeout(2500);
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (await page.locator('.ant-table').count()) {
+        await page.locator('.ant-table-tbody .ant-table-row').first().waitFor({ timeout: 15000 }).catch(() => {});
+        await page.waitForTimeout(500);
+      }
+      // 0.10.26 起另查表頭折行與欄位被擠窄：手機上表格要在表格內左右捲，不可把欄位擠成直排。
+      const { overflow, wrappedHeaders, squeezed } = await measureLayout(page);
       // 已知殘留（速查表 §10）：AntDesign 頁籤的 ondragover 行內事件被 CSP 擋下，刻意不放行，沒有功能影響（m11-split S7 同樣排除）；AI 提示詞 0.10.21 起不用頁籤。
       const issues = (await problems.take()).filter((x) => !(route === '/token-usage' && /Executing inline event handler/.test(x)));
       await screenshot(page, `explore-edge-E4-${String(++index).padStart(2, '0')}${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
-      if (overflow > 1 || issues.length) {
-        bad.push(`${route}${overflow > 1 ? ` 橫向多出 ${overflow}px` : ''}${issues.length ? ' ' + issues.join('；') : ''}`);
+      if (overflow > 1 || wrappedHeaders.length || squeezed.length || issues.length) {
+        bad.push(`${route}${overflow > 1 ? ` 橫向多出 ${overflow}px` : ''}${wrappedHeaders.length ? ` 表頭折行：${wrappedHeaders.join('、')}` : ''}`
+          + `${squeezed.length ? ` 被擠窄：${squeezed.slice(0, 3).join('、')}` : ''}${issues.length ? ' ' + issues.join('；') : ''}`);
       }
     }
     await page.goto('/App');
@@ -160,7 +209,7 @@ try {
       return { mainTop: Math.round(main?.top ?? -1), mainBottom: Math.round(main?.bottom ?? -1), hamBottom: Math.round(ham?.bottom ?? -1) };
     });
     const oneRow = header.mainTop === 0 && header.mainBottom <= 80 && header.hamBottom <= header.mainBottom;
-    recorder.add('E4', '手機尺寸（390×844）：每個路由開得起來、沒有橫向捲動、沒有錯誤；收合時頁首只有一列', bad.length === 0 && oneRow,
+    recorder.add('E4', '手機尺寸（390×844）：每個路由開得起來、整頁沒有橫向捲動、表頭一行、欄位沒被擠窄、沒有錯誤；收合時頁首只有一列', bad.length === 0 && oneRow,
       `${authenticatedRoutes.length} 個路由；${bad.length ? '不符：' + bad.join('；') : '全部正常'}；頁首 ${header.mainTop}～${header.mainBottom}px、選單鈕下緣 ${header.hamBottom}px`);
     await context.close();
   }
@@ -212,7 +261,7 @@ try {
       await page.waitForTimeout(2500);
       // 沒有表格的頁面也不能被撐寬（系統健康監控的長路徑曾撐出 86px）。
       if ((await page.locator('.ant-table').count()) === 0) {
-        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        const { overflow } = await measureLayout(page);
         if (overflow > 1) {
           await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
           bad.push(`${route} 整頁橫向多出 ${overflow}px`);
@@ -222,39 +271,7 @@ try {
       }
       await page.locator('.ant-table-tbody .ant-table-row').first().waitFor({ timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(500);
-      const m = await page.evaluate(() => {
-        // 一段文字實際排成幾行：把每個文字框的上緣排序，相差超過 4px 才算新的一行。
-        const lines = (element) => {
-          const tops = [];
-          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            const range = document.createRange();
-            range.selectNodeContents(node);
-            for (const rect of range.getClientRects()) {
-              if (rect.width > 0) tops.push(rect.top);
-            }
-          }
-          tops.sort((a, b) => a - b);
-          return tops.filter((top, i) => i === 0 || top - tops[i - 1] > 4).length;
-        };
-        const visible = (element) => element.getClientRects().length > 0;
-        const tables = [...document.querySelectorAll('.ant-table')].filter(visible);
-        const wrappedHeaders = tables.flatMap((t) => [...t.querySelectorAll('.ant-table-thead th')]).filter((th) => th.innerText.trim() && lines(th) > 1).map((th) => th.innerText.trim());
-        // 被擠窄：4 個字以上的文字排成 3 行以上，而且平均每行不到 4 個字（一字一行、兩三個字一行都算）。
-        const squeezed = tables.flatMap((t) => [...t.querySelectorAll('.ant-table-tbody td')]).filter((td) => {
-          const text = td.innerText.replace(/\s+/g, '');
-          const n = lines(td);
-          return text.length >= 4 && n >= 3 && text.length / n < 4;
-        }).map((td) => td.innerText.replace(/\s+/g, '').slice(0, 12));
-        const noShadow = tables.filter((t) => {
-          const content = t.querySelector('.ant-table-content, .ant-table-body');
-          return t.classList.contains('ant-table-has-fix-right') && content && content.scrollWidth > content.clientWidth + 1 && !t.classList.contains('ant-table-ping-right');
-        }).length;
-        // 被鎖定的使用者有 6 顆操作按鈕，刻意折成兩列，不算撐高。
-        const rowHeight = Math.max(0, ...[...document.querySelectorAll('.ant-table-tbody .ant-table-row')].slice(0, 5)
-          .filter((r) => r.querySelectorAll('td:last-child button').length <= 5).map((r) => r.getBoundingClientRect().height));
-        return { overflow: document.documentElement.scrollWidth - window.innerWidth, wrappedHeaders, squeezed, noShadow, rowHeight: Math.round(rowHeight) };
-      });
+      const m = await measureLayout(page);
       checked.push(route);
       await takeIssues(route);
       await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);

@@ -67,6 +67,7 @@ else
         <div class="exception-log-table-wrap">
             <Table @ref="table"
                    TItem="ExceptionLogAdapterModel"
+                   ScrollX="1000"
                    Class="exception-log-table"
                    RemoteDataSource="true"
                    DataSource="@exceptionLogAdapterModels"
@@ -84,7 +85,7 @@ else
                         0.9.132 起：勾選後可「刪除選取」。
                         點列會複製該筆，勾選框的點擊要在這裡擋掉冒泡（同操作欄），否則勾一下就順便複製一次。
                     *@
-                    <Selection>
+                    <Selection Width="50">
                         <CellRender Context="cell">
                             <span @onclick:stopPropagation="true">
                                 <Checkbox Checked="@cell.RowData.Selected" CheckedChanged="@((bool v) => cell.RowData.Selected = v)" />
@@ -110,10 +111,10 @@ else
                             <span>@context.ShortExceptionType</span>
                         </Tooltip>
                     </Column>
-                    <Column TData="string" Title="訊息" Ellipsis>@context.Message</Column>
+                    <Column TData="string" Title="訊息" Width="145" Ellipsis>@context.Message</Column>
                     <Column TData="string" Title="頁面" Width="150" Ellipsis>@(context.Page ?? "—")</Column>
                     <Column TData="string" Title="使用者" Width="110" Ellipsis>@(context.Account ?? "—")</Column>
-                    <ActionColumn Title="操作" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
                         @* 點列會複製該筆；按鈕的點擊在這裡擋掉冒泡，否則按「查看」「刪除」也會順便複製一次。 *@
                         <div @onclick:stopPropagation="true">
                             <Space>

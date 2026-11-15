@@ -124,11 +124,14 @@ else
             {
                 <div class="warn-log-table-wrap">
                     <Table TItem="LogEntryDto"
+                           ScrollX="952"
                            DataSource="@warnLogEntries"
                            Size="TableSize.Small"
                            RowKey="@(entry => entry.Sequence)"
                            PageSize="20">
                         <ColumnDefinitions>
+                            @* 0.10.26 起：有展開列，AntDesign 會自動多一欄展開圖示（48px，不在下面的欄位裡）。ScrollX 是下面各欄的加總，
+                               加上展開欄實際 1,000，1440 寬時放得下；欄寬加總超過 ScrollX 時表格會自動變寬。 *@
                             <Column TData="DateTime" Title="時間" Width="180">
                                 @context.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")
                             </Column>
@@ -136,7 +139,7 @@ else
                                 <Tag Color="@LogLevelRankHelper.ToTagColor(RankOf(context))">@(string.IsNullOrEmpty(context.Level) ? "－" : context.Level)</Tag>
                             </Column>
                             <Column TData="string" Title="記錄器" Width="260" Ellipsis>@context.Logger</Column>
-                            <Column TData="string" Title="訊息" Ellipsis>@context.Message</Column>
+                            <Column TData="string" Title="訊息" Width="292" Ellipsis>@context.Message</Column>
                             <Column TData="string" Title="TraceId" Width="130" Ellipsis>@context.TraceId</Column>
                         </ColumnDefinitions>
                         <ExpandTemplate Context="rowData">

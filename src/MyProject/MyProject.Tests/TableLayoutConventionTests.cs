@@ -3,11 +3,12 @@ using System.Text.RegularExpressions;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 清單表格的版面規則（0.10.25 起）。
+/// 清單表格的版面規則（0.10.25 起；0.10.26 起擴大到每一張表與手機寬度）。
 ///
 /// 1440 寬、側邊欄展開時，專案清單與使用者管理的欄位被擠到一個字一行、整頁出現橫向捲軸，
-/// 資料保留頁的「下次會清掉」「自動清理」被固定的「操作」欄蓋住而看不出右邊還有內容。
-/// 兩個原因都不會讓建置或測試變紅，只有實際開頁面才看得到：
+/// 資料保留頁的「下次會清掉」「自動清理」被固定的「操作」欄蓋住而看不出右邊還有內容；
+/// 手機寬度（390）時分類、團隊、角色的表頭也是一字一行。
+/// 這些原因都不會讓建置或測試變紅，只有實際開頁面才看得到：
 /// 外層容器少了 <c>overflow-x: auto</c>（表格撐寬整頁），以及欄位沒設 <c>Width</c>（AntDesign 自動版面把中文逐字斷行）。
 /// 規則全文見 docs/architecture/介面視覺設計規範.md §4.2。
 /// </summary>
@@ -21,8 +22,13 @@ public sealed class TableLayoutConventionTests
 
     private static readonly Regex WidthAttribute = new(@"\bWidth=""(?<value>\d+)""", RegexOptions.Compiled);
 
-    /// <summary>已刪除模式才出現的欄：不算進 ScrollX（欄寬加總超過 ScrollX 時表格會自動變寬）。</summary>
-    private static readonly string[] DeletedModeColumns = ["刪除時間", "刪除者"];
+    private static readonly Regex TableBlock = new(@"<Table\b.*?</Table>", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>
+    /// 只在特定模式才出現的欄：不算進 ScrollX（欄寬加總超過 ScrollX 時表格會自動變寬）。
+    /// 刪除時間、刪除者只在「顯示已刪除」；上層團隊只在團隊清單不是樹狀（搜尋或顯示已刪除）時。
+    /// </summary>
+    private static readonly string[] OptionalColumns = ["刪除時間", "刪除者", "上層團隊"];
 
     /// <summary>
     /// 每個表格的外層容器都要能自己橫向捲動：用共用的 <c>.view-table-wrap</c>（theme.css），
@@ -60,34 +66,47 @@ public sealed class TableLayoutConventionTests
     }
 
     /// <summary>
-    /// 欄位多的四張表（專案清單、使用者管理、資料保留、AI 對話紀錄）每一欄（含勾選欄）都要有寬度，
-    /// 而且 <c>ScrollX</c> 要等於平常會出現的欄寬加總（不含已刪除模式才有的欄）。
-    /// 沒有寬度時 AntDesign 會把所有欄壓進容器寬度、中文逐字斷行；固定在右側的「操作」欄沒寬度時，
-    /// 相鄰固定欄的計算還會丟 ArgumentNullException（TokenUsageView 的註解）；
+    /// 每一張表（0.10.26 起擴大到全部；0.10.25 只有欄位多的四張）每一欄（含勾選欄、操作欄）都要有寬度，
+    /// 而且 <c>ScrollX</c> 要等於平常會出現的欄寬加總（不含只在特定模式才出現的欄）。
+    /// 沒有寬度時 AntDesign 會把所有欄壓進容器寬度、中文逐字斷行：0.10.25 在 1440 寬修好四張表後，
+    /// 手機寬度（390）時分類、團隊、角色的表頭仍是一字一行，系統參數、AI 提示詞、公告、備份的內容也被擠窄。
+    /// 固定在右側的「操作」欄沒寬度時，相鄰固定欄的計算還會丟 ArgumentNullException（TokenUsageView 的註解）；
     /// 設了 ScrollX 之後，沒寬度的勾選欄會被擠到 0、整欄消失（0.10.25 實測）。
-    /// ScrollX 比加總小時畫面不會壞（表格自動變寬），但註解與文件寫的規則就不成立了（獨立審查抓到 AI 對話紀錄少算 100）。
+    /// ScrollX 比加總小時畫面不會壞（表格自動變寬），但註解與文件寫的規則就不成立了（0.10.25 獨立審查抓到 AI 對話紀錄少算 100）。
     /// </summary>
-    [Theory]
-    [InlineData("Views/Projects/ProjectViewView.razor")]
-    [InlineData("Views/Admins/MyUserView.razor")]
-    [InlineData("Views/Admins/DataRetentionView.razor")]
-    [InlineData("Views/Analytics/AiCallLogView.razor")]
-    public void WideTables_ShouldGiveEveryColumnAWidth_AndScrollXShouldBeTheirSum(string relativePath)
+    [Fact]
+    public void EveryTable_ShouldGiveEveryColumnAWidth_AndScrollXShouldBeTheirSum()
     {
-        var content = File.ReadAllText(SourceTree.UiFile(relativePath));
-        var columns = ColumnTag.Matches(content).Select(match => match.Value).ToList();
-        Assert.NotEmpty(columns);
+        var tables = SourceTree.UiFiles("*.razor")
+            .SelectMany(file => TableBlock.Matches(File.ReadAllText(file)).Select(match => (File: Path.GetFileName(file), Block: match.Value)))
+            .ToList();
+        Assert.True(tables.Count >= 20, $"只找到 {tables.Count} 張表，掃描路徑可能失效了。");
 
-        var missing = columns.Where(column => !WidthAttribute.IsMatch(column)).Select(TitleOf).ToList();
-        Assert.True(missing.Count == 0, $"{relativePath} 這些欄沒有 Width：{string.Join("、", missing)}。");
+        var problems = new List<string>();
+        foreach (var (file, block) in tables)
+        {
+            var columns = ColumnTag.Matches(block).Select(match => match.Value).ToList();
+            var missing = columns.Where(column => !WidthAttribute.IsMatch(column)).Select(TitleOf).ToList();
+            if (missing.Count > 0)
+            {
+                problems.Add($"{file}：這些欄沒有 Width：{string.Join("、", missing)}");
+                continue;
+            }
 
-        var scrollX = Regex.Match(content, @"\bScrollX=""(?<value>\d+)""");
-        Assert.True(scrollX.Success, $"{relativePath} 的 Table 沒有設 ScrollX（數字）：捲動要交給 AntDesign，固定的操作欄才會有陰影。");
+            var scrollX = Regex.Match(block.Split('>')[0], @"\bScrollX=""(?<value>\d+)""");
+            var expected = columns.Where(column => !OptionalColumns.Contains(TitleOf(column)))
+                .Sum(column => int.Parse(WidthAttribute.Match(column).Groups["value"].Value));
+            if (!scrollX.Success)
+            {
+                problems.Add($"{file}：Table 沒有設 ScrollX（數字），平常會出現的欄寬加總是 {expected}");
+            }
+            else if (int.Parse(scrollX.Groups["value"].Value) != expected)
+            {
+                problems.Add($"{file}：ScrollX 是 {scrollX.Groups["value"].Value}，平常會出現的欄寬加總（含勾選欄、不含特定模式才有的欄）是 {expected}");
+            }
+        }
 
-        var expected = columns.Where(column => !DeletedModeColumns.Contains(TitleOf(column)))
-            .Sum(column => int.Parse(WidthAttribute.Match(column).Groups["value"].Value));
-        Assert.True(int.Parse(scrollX.Groups["value"].Value) == expected,
-            $"{relativePath} 的 ScrollX 是 {scrollX.Groups["value"].Value}，平常會出現的欄寬加總（含勾選欄、不含已刪除模式的欄）是 {expected}。");
+        Assert.True(problems.Count == 0, string.Join("\n", problems));
     }
 
     private static string TitleOf(string columnTag)
