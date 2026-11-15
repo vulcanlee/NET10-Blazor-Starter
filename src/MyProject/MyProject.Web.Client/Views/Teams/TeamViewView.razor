@@ -53,7 +53,7 @@ else
         <div class="view-table-wrap">
             <Table @ref="table"
                    TItem="TeamAdapterModel"
-                   ScrollX="1000"
+                   ScrollX="940"
                    Class="team-view-table"
                    RemoteDataSource="true"
                    DataSource="@teamAdapterModels"
@@ -116,7 +116,7 @@ else
                     <Column TData="DateTime?" DataIndex="@nameof(TeamAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(TeamAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="200">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="140">
                     @if (showDeleted)
                     {
                         <Space>

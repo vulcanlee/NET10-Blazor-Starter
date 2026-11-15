@@ -53,7 +53,7 @@ else
         <div class="view-table-wrap">
             <Table @ref="table"
                    TItem="CategoryAdapterModel"
-                   ScrollX="1000"
+                   ScrollX="940"
                    Class="category-view-table"
                    RemoteDataSource="true"
                    DataSource="@categoryAdapterModels"
@@ -105,7 +105,7 @@ else
                     <Column TData="DateTime?" DataIndex="@nameof(CategoryAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(CategoryAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="200">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="140">
                     @if (showDeleted)
                     {
                         <Space>

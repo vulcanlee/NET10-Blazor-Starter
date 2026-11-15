@@ -1,21 +1,7 @@
-﻿.toolbar-icon-button {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    padding: 0;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    line-height: 1;
-}
-
-/* ⚠️ 圖示大小只能從 MaterialIcon 的 Size 參數改：
-   該元件會輸出行內的 style="font-size:…"，CSS 的 font-size 蓋不過去。
-   0.9.16 已把這裡原本無效的 font-size 宣告移除。 */
-.toolbar-icon-button ::deep .material-icons,
-.toolbar-icon-button ::deep .material-icons-outlined {
-    line-height: 1;
-}
+﻿/* ⚠️ 0.10.27 起按鈕外觀（28×28、無框，與 CrudActionButton 相同）一律寫在 wwwroot/theme.css。
+   這裡寫 .toolbar-icon-button 套不到：CSS 隔離的 scope 屬性只加在這個元件自己輸出的元素上，
+   AntDesign <Button> 輸出的 <button> 沒有（0.10.26 以前這裡寫的 36×36 從來沒生效，畫面是 56×32 加框線）。
+   ActionButtonStyleConventionTests 守門。下面的 label 是這個元件自己輸出的 <span>，所以套得到。 */
 
 /* 視覺隱藏但保留給螢幕閱讀器，與 CrudActionButton 一致 */
 .toolbar-icon-button-label {

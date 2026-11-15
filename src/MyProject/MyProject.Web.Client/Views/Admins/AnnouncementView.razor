@@ -29,7 +29,7 @@ else
         <div class="announcement-table-wrap">
             <Table @ref="table"
                    TItem="AnnouncementAdapterModel"
-                   ScrollX="1000"
+                   ScrollX="950"
                    Class="announcement-table"
                    DataSource="@items"
                    Loading="@isLoading"
@@ -53,7 +53,7 @@ else
                     </Column>
                     <Column TData="string" Title="對象" Width="140">@context.TargetName</Column>
                     <Column TData="string" Title="建立者" Width="110">@context.CreatedByAccount</Column>
-                    <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="100" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             <SpaceItem>
                                 <CrudActionButton Title="修改" Icon="edit" OnClick="@(() => OnEditAsync(context))" />

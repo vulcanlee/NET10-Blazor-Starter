@@ -5,9 +5,11 @@
 //   E3 離線：清單按「重新整理」顯示離線訊息、畫面不壞；恢復連線後重新整理正常。
 //   E4 手機尺寸（390×844）：每個登入後路由都開得起來、整頁沒有橫向捲動、沒有錯誤，並截圖；0.10.17 起收合的側邊欄只留選單鈕，頁首只有一列（不超過 80px）；
 //      0.10.26 起整頁寬度改用 clientWidth 比（模擬手機時 innerWidth 會跟著內容變大），並查表頭折行與欄位被擠窄。
+//      0.10.27 起也查按鈕：每顆操作按鈕與工具列按鈕是 28×28、沒有框線，操作欄的按鈕排在同一列、沒有超出儲存格。
 //   E5 英文瀏覽器語系＋東京時區、UTC 時區：同一筆資料的時間與中文、台北時區看到的一字不差（時間照伺服器的本地時間顯示）。
 //   E6 寬螢幕清單版面（0.10.25 起）：1440×900、側邊欄展開，每個登入後頁面整頁沒有橫向捲軸；有表格的頁面表頭每格一行、
 //      儲存格沒有被擠成一字一行；表格放不下而右側有固定「操作」欄時，操作欄要有「右邊還有內容」的陰影；專案清單與使用者管理的資料列不被撐高。
+//      0.10.27 起同 E4 查按鈕尺寸與操作欄，並在角色管理把滑鼠移到操作按鈕上：出現淡色底、仍然沒有框線。
 // 結果寫到 E2E_OUT_DIR/explore-edge-results.json，截圖 explore-edge-*.png。
 import { readFileSync } from 'node:fs';
 import { createRecorder, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
@@ -57,12 +59,31 @@ async function measureLayout(page) {
       const content = t.querySelector('.ant-table-content, .ant-table-body');
       return t.classList.contains('ant-table-has-fix-right') && content && content.scrollWidth > content.clientWidth + 1 && !t.classList.contains('ant-table-ping-right');
     }).length;
-    // 被鎖定的使用者有 6 顆操作按鈕，刻意折成兩列，不算撐高。
+    // 0.10.27 起操作按鈕 28×28，被鎖定的使用者 6 顆也排成一列，每一列都算。
     const rowHeight = Math.max(0, ...[...document.querySelectorAll('.ant-table-tbody .ant-table-row')].slice(0, 5)
-      .filter((r) => r.querySelectorAll('td:last-child button').length <= 5).map((r) => r.getBoundingClientRect().height));
+      .map((r) => r.getBoundingClientRect().height));
+    // 0.10.27 起：操作按鈕與工具列按鈕是 28×28、沒有框線的方塊（比照 KnowledgeExtraction.AI）。
+    // 外觀寫在 theme.css；寫在元件的 .razor.css 套不到 AntDesign 的 <button>（之前一直是 56×32 加框線）。
+    const clear = (color) => color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color);
+    const badButtons = [...new Set([...document.querySelectorAll('.crud-action-button, .toolbar-icon-button')].filter(visible).filter((b) => {
+      const r = b.getBoundingClientRect();
+      const style = getComputedStyle(b);
+      return Math.abs(r.width - 28) > 0.5 || Math.abs(r.height - 28) > 0.5 || !(parseFloat(style.borderTopWidth) === 0 || clear(style.borderTopColor));
+    }).map((b) => {
+      const r = b.getBoundingClientRect();
+      return `${b.getAttribute('aria-label') || b.innerText.trim() || '?'} ${Math.round(r.width)}×${Math.round(r.height)}`;
+    }))];
+    // 操作欄的按鈕排在同一列、沒有超出儲存格（欄寬＝36×按鈕數＋24，見介面視覺設計規範 §4.2）。
+    const crampedActions = [...new Set(tables.flatMap((t) => [...t.querySelectorAll('.ant-table-tbody td')])
+      .filter((td) => td.querySelector('.crud-action-button')).filter((td) => {
+        // 上緣相差超過 4px 才算另一列（「前往」是 <a>，跟 <button> 的上緣可能差 1px）。
+        const tops = [...td.querySelectorAll('.crud-action-button')].filter(visible).map((b) => b.getBoundingClientRect().top).sort((x, y) => x - y);
+        const rows = tops.filter((top, i) => i === 0 || top - tops[i - 1] > 4).length;
+        return rows > 1 || td.scrollWidth > td.clientWidth + 1;
+      }).map((td) => td.closest('.ant-table-wrapper')?.parentElement?.className || 'table'))];
     return {
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      wrappedHeaders, squeezed, noShadow, rowHeight: Math.round(rowHeight),
+      wrappedHeaders, squeezed, noShadow, rowHeight: Math.round(rowHeight), badButtons, crampedActions,
     };
   });
 }
@@ -192,13 +213,14 @@ try {
         await page.waitForTimeout(500);
       }
       // 0.10.26 起另查表頭折行與欄位被擠窄：手機上表格要在表格內左右捲，不可把欄位擠成直排。
-      const { overflow, wrappedHeaders, squeezed } = await measureLayout(page);
+      const { overflow, wrappedHeaders, squeezed, badButtons, crampedActions } = await measureLayout(page);
       // 已知殘留（速查表 §10）：AntDesign 頁籤的 ondragover 行內事件被 CSP 擋下，刻意不放行，沒有功能影響（m11-split S7 同樣排除）；AI 提示詞 0.10.21 起不用頁籤。
       const issues = (await problems.take()).filter((x) => !(route === '/token-usage' && /Executing inline event handler/.test(x)));
       await screenshot(page, `explore-edge-E4-${String(++index).padStart(2, '0')}${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
-      if (overflow > 1 || wrappedHeaders.length || squeezed.length || issues.length) {
+      if (overflow > 1 || wrappedHeaders.length || squeezed.length || badButtons.length || crampedActions.length || issues.length) {
         bad.push(`${route}${overflow > 1 ? ` 橫向多出 ${overflow}px` : ''}${wrappedHeaders.length ? ` 表頭折行：${wrappedHeaders.join('、')}` : ''}`
-          + `${squeezed.length ? ` 被擠窄：${squeezed.slice(0, 3).join('、')}` : ''}${issues.length ? ' ' + issues.join('；') : ''}`);
+          + `${squeezed.length ? ` 被擠窄：${squeezed.slice(0, 3).join('、')}` : ''}${badButtons.length ? ` 按鈕不是 28×28 無框：${badButtons.slice(0, 3).join('、')}` : ''}`
+          + `${crampedActions.length ? ' 操作欄按鈕放不下' : ''}${issues.length ? ' ' + issues.join('；') : ''}`);
       }
     }
     await page.goto('/App');
@@ -209,7 +231,7 @@ try {
       return { mainTop: Math.round(main?.top ?? -1), mainBottom: Math.round(main?.bottom ?? -1), hamBottom: Math.round(ham?.bottom ?? -1) };
     });
     const oneRow = header.mainTop === 0 && header.mainBottom <= 80 && header.hamBottom <= header.mainBottom;
-    recorder.add('E4', '手機尺寸（390×844）：每個路由開得起來、整頁沒有橫向捲動、表頭一行、欄位沒被擠窄、沒有錯誤；收合時頁首只有一列', bad.length === 0 && oneRow,
+    recorder.add('E4', '手機尺寸（390×844）：每個路由開得起來、整頁沒有橫向捲動、表頭一行、欄位沒被擠窄、按鈕 28×28 無框且操作欄放得下、沒有錯誤；收合時頁首只有一列', bad.length === 0 && oneRow,
       `${authenticatedRoutes.length} 個路由；${bad.length ? '不符：' + bad.join('；') : '全部正常'}；頁首 ${header.mainTop}～${header.mainBottom}px、選單鈕下緣 ${header.hamBottom}px`);
     await context.close();
   }
@@ -253,6 +275,7 @@ try {
     const bad = [];
     const checked = [];
     const issues = [];
+    let hover = null;
     // 已知殘留（速查表 §10）：AntDesign 頁籤的 ondragover 行內事件被 CSP 擋下，只在 /token-usage（同 E4）。
     const takeIssues = async (route) => issues.push(...(await problems.take())
       .filter((x) => !(route === '/token-usage' && /Executing inline event handler/.test(x))).map((x) => `${route} ${x}`));
@@ -261,10 +284,10 @@ try {
       await page.waitForTimeout(2500);
       // 沒有表格的頁面也不能被撐寬（系統健康監控的長路徑曾撐出 86px）。
       if ((await page.locator('.ant-table').count()) === 0) {
-        const { overflow } = await measureLayout(page);
-        if (overflow > 1) {
+        const { overflow, badButtons } = await measureLayout(page);
+        if (overflow > 1 || badButtons.length) {
           await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
-          bad.push(`${route} 整頁橫向多出 ${overflow}px`);
+          bad.push(`${route}${overflow > 1 ? ` 整頁橫向多出 ${overflow}px` : ''}${badButtons.length ? ` 按鈕不是 28×28 無框：${badButtons.slice(0, 3).join('、')}` : ''}`);
         }
         await takeIssues(route);
         continue;
@@ -276,14 +299,46 @@ try {
       await takeIssues(route);
       await screenshot(page, `explore-edge-E6${route.replace(/[^A-Za-z0-9]+/g, '_')}`);
       const tallRows = ['/projects', '/myusers'].includes(route) && m.rowHeight > 80;
-      if (m.overflow > 1 || m.wrappedHeaders.length || m.squeezed.length || m.noShadow || tallRows) {
+      if (m.overflow > 1 || m.wrappedHeaders.length || m.squeezed.length || m.noShadow || tallRows || m.badButtons.length || m.crampedActions.length) {
         bad.push(`${route}${m.overflow > 1 ? ` 整頁橫向多出 ${m.overflow}px` : ''}${m.wrappedHeaders.length ? ` 表頭折行：${m.wrappedHeaders.join('、')}` : ''}`
-          + `${m.squeezed.length ? ` 被擠窄：${m.squeezed.slice(0, 3).join('、')}` : ''}${m.noShadow ? ' 操作欄沒有陰影' : ''}${tallRows ? ` 資料列高 ${m.rowHeight}px` : ''}`);
+          + `${m.squeezed.length ? ` 被擠窄：${m.squeezed.slice(0, 3).join('、')}` : ''}${m.noShadow ? ' 操作欄沒有陰影' : ''}${tallRows ? ` 資料列高 ${m.rowHeight}px` : ''}`
+          + `${m.badButtons.length ? ` 按鈕不是 28×28 無框：${m.badButtons.slice(0, 3).join('、')}` : ''}${m.crampedActions.length ? ` 操作欄按鈕放不下（${m.crampedActions.join('、')}）` : ''}`);
+      }
+      // 滑鼠移到操作按鈕上：出現淡色底，仍然沒有框線（使用者 2026/11/15 的決定）。一般與危險（刪除）各量一顆。
+      // 底色要不透明度不為 0、不是白色（AntDesign 預設 hover 是白底），也不能跟整列 hover 的列底一樣（那樣看不出來）。
+      if (route === '/roleviews') {
+        hover = [];
+        for (const [label, selector] of [['修改', '.ant-table-tbody .crud-action-button:not(.crud-action-button-danger)'], ['刪除', '.ant-table-tbody .crud-action-button-danger']]) {
+          const button = page.locator(selector).first();
+          try {
+            await button.hover({ timeout: 10000 });
+            await page.waitForTimeout(400);
+            hover.push({ label, ...(await button.evaluate((b) => {
+              const style = getComputedStyle(b);
+              const clear = (color) => color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color);
+              const rowBg = getComputedStyle(b.closest('td')).backgroundColor;
+              const bg = style.backgroundColor;
+              return {
+                border: parseFloat(style.borderTopWidth) === 0 || clear(style.borderTopColor),
+                tint: !clear(bg) && bg !== 'rgb(255, 255, 255)' && bg !== rowBg,
+                bg, color: style.color,
+              };
+            })) });
+            await screenshot(page, `explore-edge-E6-hover-${label === '修改' ? 'edit' : 'delete'}`);
+          } catch (error) {
+            hover.push({ label, border: false, tint: false, bg: `量不到（${error.message.split('\n')[0]}）`, color: '' });
+          }
+          await page.mouse.move(5, 5);
+          await page.waitForTimeout(300);
+        }
       }
     }
-    recorder.add('E6', '寬螢幕（1440×900、側邊欄展開）：每頁沒有整頁橫向捲軸；清單頁表頭一行、欄位沒被擠窄、放不下時操作欄有陰影',
-      checked.length >= 15 && bad.length === 0 && issues.length === 0,
-      `${authenticatedRoutes.length} 個路由、${checked.length} 個表格頁；${bad.length ? '不符：' + bad.join('；') : '全部正常'}${issues.length ? '；問題：' + issues.join('；') : ''}`);
+    const hoverOk = hover !== null && hover.length === 2 && hover.every((h) => h.border && h.tint);
+    recorder.add('E6', '寬螢幕（1440×900、側邊欄展開）：每頁沒有整頁橫向捲軸；清單頁表頭一行、欄位沒被擠窄、放不下時操作欄有陰影；按鈕 28×28 無框、操作欄放得下、滑鼠移上有淡色底沒有框線',
+      checked.length >= 15 && bad.length === 0 && issues.length === 0 && hoverOk,
+      `${authenticatedRoutes.length} 個路由、${checked.length} 個表格頁；${bad.length ? '不符：' + bad.join('；') : '全部正常'}`
+      + `；滑鼠移上：${hover ? hover.map((h) => `${h.label} ${h.border ? '沒有框線' : '有框線'}、${h.tint ? '看得出底色' : '看不出底色'}（${h.bg}）、圖示 ${h.color}`).join('；') : '沒量到'}`
+      + `${issues.length ? '；問題：' + issues.join('；') : ''}`);
     await context.close();
   }
 } finally {

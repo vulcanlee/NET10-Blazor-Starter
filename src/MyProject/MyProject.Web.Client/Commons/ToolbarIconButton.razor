@@ -4,9 +4,9 @@
 @using Microsoft.AspNetCore.Components.Web
 
 @*
-    工具列圖示按鈕。與 CrudActionButton 刻意保持相同結構，差別只在視覺定位：
-    CrudActionButton 是 28x28 透明無框，塞在表格操作欄；本元件是 36x36 的一般
-    AntDesign Default 外觀，用於檢視上方的工具列。
+    工具列圖示按鈕。與 CrudActionButton 刻意保持相同結構；0.10.27 起外觀也相同
+    （28×28、沒有框線，滑鼠移上出現淡色底，比照 KnowledgeExtraction.AI），寫在 wwwroot/theme.css。
+    ⚠️ 外觀不能寫在本元件的 .razor.css：AntDesign <Button> 輸出的 <button> 沒有 CSS 隔離的 scope 屬性，套不到。
 *@
 
 <Tooltip Title="@Title" @bind-Visible="tooltipVisible">

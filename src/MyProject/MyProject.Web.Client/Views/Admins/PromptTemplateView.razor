@@ -84,7 +84,7 @@ else
                         <div class="prompt-section-title">版本紀錄</div>
                         <div class="prompt-table-wrap">
                             <Table TItem="PromptHistoryRow"
-                                   ScrollX="780"
+                                   ScrollX="730"
                                    Class="prompt-table"
                                    DataSource="@RowsOf(template)"
                                    Loading="@isLoading"
@@ -101,7 +101,7 @@ else
                                     <Column TData="string" Title="建立者" Width="110">@context.CreatedByAccount</Column>
                                     <Column TData="string" Title="建立時間" Width="150">@context.CreatedAt?.ToString("yyyy-MM-dd HH:mm")</Column>
                                     <Column TData="string" Title="備註" Width="160" Ellipsis>@context.Note</Column>
-                                    <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
+                                    <ActionColumn Title="操作" Width="100" Fixed="ColumnFixPlacement.Right">
                                         <Space>
                                             <SpaceItem>
                                                 <CrudActionButton Title="檢視" Icon="visibility" OnClick="@(() => OnView(key, context))" />

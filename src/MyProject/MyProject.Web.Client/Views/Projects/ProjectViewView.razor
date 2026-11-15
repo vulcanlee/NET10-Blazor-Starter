@@ -73,7 +73,7 @@ else
             <Table @ref="table"
                    TItem="ProjectAdapterModel"
                    Class="project-view-table"
-                   ScrollX="2240"
+                   ScrollX="2180"
                    RemoteDataSource="true"
                    DataSource="@projectAdapterModels"
                    OnChange="OnTableChange"
@@ -117,7 +117,7 @@ else
                     <Column TData="DateTime?" DataIndex="@nameof(ProjectAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(ProjectAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="200">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="140">
                     @if (showDeleted)
                     {
                         <Space>

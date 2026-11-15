@@ -45,7 +45,7 @@ else
         <div class="data-retention-table-wrap">
             <Table TItem="DataRetentionRowDto"
                    Class="data-retention-table"
-                   ScrollX="1280"
+                   ScrollX="1240"
                    DataSource="@(overview?.Rows ?? [])"
                    Loading="@isLoading"
                    Size="TableSize.Small"
@@ -123,7 +123,7 @@ else
                         }
                     </Column>
                     @* 0.9.134 起固定在右側：欄位多時其他欄在它左邊捲動，按鈕一進來就看得到。 *@
-                    <ActionColumn Title="操作" Width="180" Fixed="ColumnFixPlacement.Right">
+                    <ActionColumn Title="操作" Width="140" Fixed="ColumnFixPlacement.Right">
                         <Space>
                             @if (context.CanPurgeNow || context.PurgeDisabledReason is not null)
                             {

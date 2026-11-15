@@ -69,7 +69,7 @@ else
             }
             <div class="system-parameter-table-wrap">
                 <Table TItem="SystemParameterItemDto"
-                       ScrollX="1000"
+                       ScrollX="950"
                        Class="system-parameter-table"
                        DataSource="@group.ToList()"
                        Loading="@isLoading"
@@ -108,7 +108,7 @@ else
                             }
                             <div class="system-parameter-muted">生效：@context.Definition.EffectNote</div>
                         </Column>
-                        <ActionColumn Title="操作" Width="150" Fixed="ColumnFixPlacement.Right">
+                        <ActionColumn Title="操作" Width="100" Fixed="ColumnFixPlacement.Right">
                             <Space>
                                 <SpaceItem>
                                     <CrudActionButton Title="修改" Icon="edit"

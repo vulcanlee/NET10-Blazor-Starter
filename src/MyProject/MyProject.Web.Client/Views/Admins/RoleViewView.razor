@@ -46,7 +46,7 @@ else
         <div class="view-table-wrap">
             <Table @ref="table"
             TItem="RoleViewAdapterModel"
-            ScrollX="950"
+            ScrollX="840"
             Class="role-view-table"
             RemoteDataSource="true"
             DataSource="@roleViewAdapterModels"
@@ -72,7 +72,7 @@ else
                     <Column TData="DateTime?" DataIndex="@nameof(RoleViewAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(RoleViewAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="280">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="170">
                     @if (showDeleted)
                     {
                         <Space>

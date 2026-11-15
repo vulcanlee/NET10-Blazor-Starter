@@ -49,7 +49,7 @@ else
             <Table @ref="table"
                    TItem="MyUserAdapterModel"
                    Class="my-user-table"
-                   ScrollX="1730"
+                   ScrollX="1650"
                    RemoteDataSource="true"
                    DataSource="@myUserAdapterModels"
                    OnChange=OnTableChange
@@ -115,7 +115,7 @@ else
                     <Column TData="DateTime?" DataIndex="@nameof(MyUserAdapterModel.DeletedAt)" Title="刪除時間" Width="210" Format="@ClientCulture.DateTimeFormat" />
                     <Column TData="string" DataIndex="@nameof(MyUserAdapterModel.DeletedBy)" Title="刪除者" Width="120" Ellipsis />
                 }
-                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="360">
+                <ActionColumn Fixed="ColumnFixPlacement.Right" Title="操作" Width="280">
                     @if (showDeleted)
                     {
                         <Space>
@@ -132,7 +132,8 @@ else
                     }
                     else
                     {
-                        @* 最多 6 顆（被鎖定的一般使用者多一顆「解鎖」）：放不下時折到第二列，不撐寬固定欄（0.10.25 起）。 *@
+                        @* 最多 7 顆（修改、複製、解鎖、強制登出、重設兩步驟驗證、刪除、異動歷程）。0.10.27 起按鈕 28×28，
+                           操作欄 280＝36×7＋24，全部排成一列；Wrap 留著，萬一放不下時折到第二列，不撐寬固定欄（0.10.25 起）。 *@
                         <Space Wrap>
                             <SpaceItem>
                                 <CrudActionButton Title="修改" Icon="edit"
