@@ -51,7 +51,9 @@ try {
     const overview = await api('/api/v1/data-retention');
     const row = overview.json?.data?.rows?.find((x) => x.canCustomPurge);
     const key = row?.key;
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    // 伺服器以本機日期判斷「未來」；用 toISOString（UTC）在台灣 00:00～08:00 會算成今天而誤判（0.10.24 修正）。
+    const next = new Date(Date.now() + 86400000);
+    const tomorrow = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
     const negative = key ? await api(`/api/v1/data-retention/${key}/preview`, { method: 'POST', body: { keepDays: -1 } }) : { status: 0 };
     const future = key ? await api(`/api/v1/data-retention/${key}/preview`, { method: 'POST', body: { beforeDate: tomorrow } }) : { status: 0 };
     const valid = key ? await api(`/api/v1/data-retention/${key}/preview`, { method: 'POST', body: { keepDays: 3650 } }) : { status: 0 };

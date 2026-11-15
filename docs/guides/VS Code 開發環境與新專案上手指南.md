@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.18
+- 文件版本：3.19
 - 文件狀態：已實作
-- 現行系統版本：0.10.23
+- 現行系統版本：0.10.24
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/15
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -443,6 +443,8 @@ done
 
 ### 7.4 更換產品名稱與簡短說明
 
+> 0.10.24 起用 `New-StarterProject.ps1` 複刻時，`-SystemName`（必填）與 `-SystemDescription`（選填）已經把本節要改的四處（`appsettings.json`、`manifest.webmanifest`、`index.html` 的載入卡片、`ClientLoadingScreen.razor`）一次換好；本節是日後要再改名時的手動步驟。
+
 0.9.2 起兩者都是單一來源，**只改 `appsettings.json` 一處**，啟動頁、登入頁、登入後首頁（0.9.9 起）、側邊欄品牌文字（0.9.13 起）與「關於」對話窗五處同步生效：
 
 ```json
@@ -468,13 +470,9 @@ done
 
 ### 7.5 ⚠️ 瀏覽器分頁標題是另一件事
 
-前端入口頁 `MyProject.Web.Client/wwwroot/index.html`（0.10.9 以前是 `Components/App.razor`）**沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— **`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
+前端入口頁 `MyProject.Web.Client/wwwroot/index.html`（0.10.9 以前是 `Components/App.razor`）**沒有全域 `<title>`**，瀏覽器分頁標題完全由各頁自己的 `<PageTitle>` 決定 —— 除了啟動頁，**`SystemName` 不參與**。沒有宣告 `<PageTitle>` 的頁面會顯示空白標題。
 
-全專案 36 個 `<PageTitle>`（0.10.17）中只剩一處是範本殘留的英文：
-
-| 檔案 | 目前標題 |
-|------|------|
-| `MyProject.Web.Client/Pages/SplashPage.razor`（0.10.8 起；0.10.7 以前是 Server 版 `Components/Pages/Home.razor`） | `Home` ← **這就是啟動頁（網站根路徑 `/`）的分頁標題** |
+啟動頁（網站根路徑 `/`）的分頁標題 0.10.24 起是**系統名稱**（`MyProject.Web.Client/Views/Commons/SplashView.razor` 的 `<PageTitle>`；設定還沒讀到的那一瞬間顯示「系統啟動中」）。之前是範本殘留的英文 `Home`（寫在 `Pages/SplashPage.razor`，0.10.7 以前是 Server 版 `Components/Pages/Home.razor`）。
 
 > 首頁 `HomeAuthed.razor`（0.10.6 起在 `MyProject.Web.Client/Pages/`）原本也是 `Home`，0.9.9 已改為「首頁」；錯誤頁（0.10.8 起 `ErrorPage.razor`）已是「系統錯誤」。
 
@@ -526,15 +524,19 @@ repo 已附一支腳本能一次做掉絕大部分工作：
 ```powershell
 pwsh ./scripts/New-StarterProject.ps1 `
      -ProjectName Acme.Erp `
-     -DestinationPath D:\Work\Acme.Erp
+     -DestinationPath D:\Work\Acme.Erp `
+     -SystemName 艾克米企業系統 `
+     -SystemDescription 艾克米公司內部專案與人員管理系統。
 ```
+
+> `-SystemName`（0.10.24 起必填）是畫面上的系統名稱，`-SystemDescription`（選填）是一句話簡介；§7.4 那四處（`appsettings.json`、`manifest.webmanifest`、`index.html` 首次載入卡片、`ClientLoadingScreen.razor`）由腳本一次換好。
 
 > **整個方案跑這一次就好。** `-ProjectName` 是整份腳手架的代號，不是單一專案名：
 > `.slnx` 內的 8 個專案（0.10.0 起含 WASM 前端 `MyProject.Web.Client`）、方案檔本身，以及外層 `src/MyProject/` 目錄，都在這一次執行中一起改名。
 > 對照 [§8.2 步驟 2](#步驟-2改資料夾名稱由深到淺) 的資料夾對照表 —— **那整張表腳本會一次做完**，
 > 不需要為了八個專案跑八次。
 
-> 完整參數（`-Force`、`-SourceProjectName`、`-UserSecretsId`、`-KeepStarterHistory`、`-AllowUnsyncedSource`）見 [腳手架開發指引 §2.1](腳手架開發指引.md#21-建議順序)。
+> 完整參數（`-SystemName`、`-SystemDescription`、`-Force`、`-SourceProjectName`、`-UserSecretsId`、`-KeepStarterHistory`、`-AllowUnsyncedSource`）見 [腳手架開發指引 §2.1](腳手架開發指引.md#21-建議順序)。
 
 > ⚠️ **前置需求**：必須先安裝 `dotnet-ef`，主版號要與 EF Core 相同（0.10.14 起是 11：`dotnet tool install --global dotnet-ef --version 11.*`）；版本不符時腳本一開始就中止並告訴你升級指令。
 > 腳本一開始就會檢查，找不到會直接中止，不會留下半成品。
@@ -545,15 +547,15 @@ pwsh ./scripts/New-StarterProject.ps1 `
   有未提交修改或未追蹤檔、不在 origin 的預設分支、落後 origin 任一項就列出並中止（確定要照現狀複製時加 `-AllowUnsyncedSource`）；
   不是 git repo、沒有 origin 或 fetch 失敗只警告。被 `.gitignore` 忽略、卻不在下方排除清單裡的檔案也會列出警告（不中止）
 - 複製整個 repo 到目標路徑，跳過 `.git` / `bin` / `obj` / `.vs` / `.playwright-cli` / `output`，以及開發機上的本機產物 `artifacts` / `.gstack` / `PublishProfiles`、`*.user` / `*.suo`、`.claude\settings.local.json`（0.9.87 起）；複製完會刪掉因此變空的資料夾（例如已移除的 `SqlServerMigrations` 殘骸）
-- 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .ps1 .yml .yaml .config .xml .tmpl .gitignore .props`；`.tmpl` 0.9.136 起、`.gitignore`／`.props` 0.9.137 起）內的 `MyProject` 全部換成新代號；全小寫的 `myproject`（例如 Gmail 指南的範例信箱）換成新代號的小寫（0.9.87 起）。**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
+- 把文字檔（`.cs .csproj .slnx .json .md .razor .css .js .mjs .html .ps1 .yml .yaml .config .xml .tmpl .gitignore .props .webmanifest`；`.tmpl` 0.9.136 起、`.gitignore`／`.props` 0.9.137 起、`.mjs`／`.webmanifest` 0.10.24 起）內的 `MyProject` 全部換成新代號；系統名稱與簡介換成 `-SystemName`／`-SystemDescription`（0.10.24 起；來源的名稱從來源 `appsettings.json` 讀，只換 §7.4 的四處與操作說明的信件主旨範例，不做全檔取代）；全小寫的 `myproject`（例如 Gmail 指南的範例信箱）換成新代號的小寫（0.9.87 起）。**逐檔保留原本的 BOM 狀態**（`docs/*.md` 的 BOM 不會被抹掉）
 - 由深到淺改資料夾名，再改檔名
 - **產生一組新的 `UserSecretsId`** 寫入 Web 專案 csproj，並印在畫面上；文件裡引用到舊 Id 的路徑範例（本文 §5.2、§5.4）也會一併換成新值
 - **產生一組新的開發連接埠**寫入 `Properties/launchSettings.json`（http 從 5000–5300、https 從 7000–7300 隨機挑本機可用的埠，同一台機器開多個衍生專案不會搶埠）。舊埠是從來源的 `launchSettings.json` 讀出來的（0.9.87 起），所以從衍生專案再衍生一次，埠也會換新；文件裡的 `localhost:<埠>` 網址（本文 §4、§7.7、§9，以及 Google OAuth 文件的 redirect URI）一併換成新埠。腳本結尾會印出新網址與要到 Google 註冊的 redirect URI
 - **把 `SystemVersion` 重設為 `1.0.0 (執行當天)`**（0.9.71 起），文件開頭的「現行系統版本」也一併改為 `1.0.0`；「首次實作版本」保留原值（那是功能的歷史）
 - 把 `JwtSettings:SigningKey` 換成 `<新代號>-ChangeThisJwtSigningKey-AtLeast32Chars`，本文 §5.1／§5.5 的範例與整合測試資料也一起換（0.9.138 起）（⚠️ 仍是佔位符，上線前必須自己換掉；0.9.48 起 Production 啟動會擋下它）。`SupportPassword` 刻意**不動** —— 換成另一個固定佔位值並不會比較安全，真正的防線是啟動檢查
-- **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `AccountRoleUniqueIndexMigrationTests.cs`、`CategoryTeamUniqueIndexMigrationTests.cs` 與 `TeamTreeMigrationTests.cs`（`TeamTreeMigrationTests.cs` 0.9.116 起），先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
+- **重建 EF Core migration**：清空 `<新代號>.AccessDatas/Migrations/`（腳手架的 migration 歷史對新專案沒有意義），刪除寫死舊 migration 名稱的 `AccountRoleUniqueIndexMigrationTests.cs`、`AgentPagesDataCleanupMigrationTests.cs`（0.10.22 起）、`CategoryTeamUniqueIndexMigrationTests.cs` 與 `TeamTreeMigrationTests.cs`（`TeamTreeMigrationTests.cs` 0.9.116 起），先 `dotnet restore`，再以 `dotnet ef migrations add Init` 產生新專案的第一次 migration；失敗會中止並印出可手動重跑的指令
 - **清掉腳手架自己的開發史**：清掉 `docs/changelog/` 的歷史紀錄（保留 `README.md` 當索引骨架 —— 維護規範要求每次異動寫一篇，新專案從自己的第一篇開始）；索引與內文裡指向被刪檔案的連結會一併移除或降級為純文字。加上 `-KeepStarterHistory` 可原封不動保留
-- 最後掃一次殘留字串（舊代號、舊 UserSecretsId、舊連接埠、`DevelopmentOnly-…` 金鑰；腳本自己不掃）。**正常情況不會有任何警告**（0.9.138 起；之前固定會有 5 筆不用處理的金鑰命中）；出現警告就代表真的有東西沒換到，見 [腳手架開發指引 §2.4](腳手架開發指引.md#24-腳本跑完的警告訊息怎麼讀-)
+- 最後掃一次殘留字串（舊代號、舊 UserSecretsId、舊連接埠、`DevelopmentOnly-…` 金鑰；腳本自己不掃；0.10.24 起新代號含舊代號時不算殘留，系統名稱的固定位置另外確認）。**正常情況不會有任何警告**（0.9.138 起；之前固定會有 5 筆不用處理的金鑰命中）；出現警告就代表真的有東西沒換到，見 [腳手架開發指引 §2.4](腳手架開發指引.md#24-腳本跑完的警告訊息怎麼讀-)
 
 > `-ProjectName` 每一段都必須是合法的 C# 識別字（0.9.87 起），`Acme..Erp`、`Acme.`、`Acme.1x` 會在一開始就被擋下。
 
