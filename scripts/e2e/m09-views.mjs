@@ -63,7 +63,7 @@ export async function captureViews(browser, prefix) {
     await shot(page, `${prefix}-04-重設密碼無效連結`, files);
 
     await page.goto('/Auths/Pending');
-    await page.waitForSelector('.pending-card', { timeout: 60000 });
+    await page.waitForSelector('.status-card', { timeout: 60000 });
     await shot(page, `${prefix}-05-Google待審`, files);
 
     await fillLogin(page, twoFactorAccount, userPassword);

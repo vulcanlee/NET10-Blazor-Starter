@@ -165,6 +165,32 @@ public sealed class LoadingAndStatusPageTests : ComponentTestBase
         Assert.DoesNotContain("Sorry", cut.Markup, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 帳號待審核頁（0.10.29 起）改用共用的整頁狀態卡片：原本自己寫一份卡片樣式，標題沒有設定顏色，
+    /// 在深色漸層上變成深色字看不到（錯誤頁 0.10.13 修過，這頁漏了）。提示行用近白色粗體，不再用對比不足的粉紅色。
+    /// </summary>
+    [Fact]
+    public void PendingPage_ShouldUseTheStatusCard_WithAHintAndABackToLoginButton()
+    {
+        var cut = Render<MyProject.Web.Client.Views.Auths.Pending>();
+
+        Assert.NotNull(cut.Find("section.status-card-fullscreen"));
+        Assert.Equal("帳號已建立，等待審核", cut.Find("h1.status-card-title").TextContent);
+        Assert.Contains("請在管理者啟用您的帳號後", cut.Find("p.status-card-hint").TextContent, StringComparison.Ordinal);
+        Assert.Contains("返回登入頁", cut.Find("a.status-card-primary[href='/Auths/Login']").TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>狀態卡片的標題要跟著卡片的文字色（深色整頁版才看得到），頁面也不要再自己寫一份卡片樣式。</summary>
+    [Fact]
+    public void StatusCardTitle_ShouldInheritTheCardColor_AndThePendingPageHasNoOwnCardStyles()
+    {
+        var css = File.ReadAllText(Path.Combine(SourceTree.Client, "Commons", "StatusCard.razor.css"));
+
+        Assert.Matches(@"\.status-card-title\s*\{[^}]*color:\s*inherit", css);
+        Assert.Matches(@"\.status-card-fullscreen \.status-card-body ::deep p\s*\{[^}]*color:\s*var\(--app-on-accent\)", css);
+        Assert.False(File.Exists(Path.Combine(SourceTree.Client, "Views", "Auths", "Pending.razor.css")), "帳號待審核頁改用 StatusCard，不要再自己寫一份卡片樣式。");
+    }
+
     /// <summary>Blazor 未處理例外時出現在畫面底部的黃色提示列（#blazor-error-ui）與預設錯誤邊界的文字，也要是繁體中文。</summary>
     [Fact]
     public void BuiltInErrorTexts_ShouldBeInChinese()
