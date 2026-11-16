@@ -9,11 +9,11 @@
 
 @if (topic is not null)
 {
-    <Tooltip Title="@("這個畫面怎麼用？")">
+    <SafeTooltip Title="@("這個畫面怎麼用？")">
         <button type="button" class="page-help-button" aria-label="@ModalTitle" @onclick="OpenAsync">
             <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="help_outline" />
         </button>
-    </Tooltip>
+    </SafeTooltip>
 
     <Modal Title="@ModalTitle"
            Class="page-help-modal"
