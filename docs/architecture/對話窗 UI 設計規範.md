@@ -1,10 +1,10 @@
 ﻿# 對話窗 UI 設計規範
 
-- 文件版本：2.10
+- 文件版本：2.11
 - 文件狀態：已實作
-- 現行系統版本：0.10.19
+- 現行系統版本：0.10.32
 - 首次實作版本：0.9.25
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/16
 
 ## 目的
 
@@ -217,7 +217,7 @@ private async Task OnModalCancelHandleAsync(MouseEventArgs args)
 | 想給個別確認窗掛 class | `ConfirmOptions.ClassName` 被 AntDesign 內部**無條件覆寫**，完全無效 | 只能吃全域 `.ant-modal-confirm`；要分辨輕重用 `OkButtonProps.Danger` 當 CSS hook |
 | 確認窗改寬度沒加 `!important` | 無效 —— 416px 是 AntDesign 寫在 `.ant-modal` 上的 inline style | `width: ... !important` |
 | 忘了中和 AntDesign 的 `antZoomIn` | 果凍動畫與它疊加，彈跳幅度比設計時選定的更誇張 | `.ant-modal.ant-zoom-enter { animation: none !important; transform: none !important; }` |
-| 按鈕的提示框停住、蓋住對話窗的關閉鈕（0.10.12 修正） | 按鈕在處理期間重新渲染（例如 AI 對話窗「產生 PDF 報告並下載」），滑鼠離開的事件沒觸發，提示框收不起來；它擋下點擊，關閉鈕點不到 | `OverlayStyles` 的 `.ant-tooltip { pointer-events: none; }`（提示框只是說明文字，不可攔截點擊）；帶提示框的按鈕以 `@bind-Visible` 在按下時收起（`ToolbarIconButton`、`CrudActionButton`），`TooltipDismissTests` 守門 |
+| 按鈕的提示框停住、蓋住對話窗的關閉鈕（0.10.12 修正） | 按鈕在處理期間重新渲染（例如 AI 對話窗「產生 PDF 報告並下載」），滑鼠離開的事件沒觸發，提示框收不起來；它擋下點擊，關閉鈕點不到 | `OverlayStyles` 的 `.ant-tooltip { pointer-events: none; }`（提示框只是說明文字，不可攔截點擊）；帶提示框的按鈕以 `@bind-Visible` 在按下時收起（`ToolbarIconButton`、`CrudActionButton`），`TooltipDismissTests` 守門。0.10.32 起提示框一律用 `SafeTooltip`：AntDesign 在 `Visible` 被綁定為 true 時滑鼠移開不會自己收起，`SafeTooltip` 預設 `ComplexAutoCloseAndVisible`（見速查表 §6.33 第 149 點） |
 | 各檢視自己寫 `ConfirmAsync` | 必定漏掉 `Danger`／`MaskClosable`，破壞性動作會長得像提醒、誤點遮罩就執行 | 一律走 `ConfirmDialog` 樣板，守門測試會擋 |
 
 ## 7. 守門測試

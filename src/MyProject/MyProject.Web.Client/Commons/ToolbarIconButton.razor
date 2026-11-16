@@ -9,7 +9,7 @@
     ⚠️ 外觀不能寫在本元件的 .razor.css：AntDesign <Button> 輸出的 <button> 沒有 CSS 隔離的 scope 屬性，套不到。
 *@
 
-<Tooltip Title="@Title" @bind-Visible="tooltipVisible">
+<SafeTooltip Title="@Title" @bind-Visible="tooltipVisible">
     <Button Type="ButtonType.Default"
             Class="toolbar-icon-button"
             Disabled="@Disabled"
@@ -17,7 +17,7 @@
         <MaterialIcon Theme="@MaterialIcon.Themes.Outlined" Kind="@Icon" />
         <span class="toolbar-icon-button-label">@Title</span>
     </Button>
-</Tooltip>
+</SafeTooltip>
 
 @code {
     [Parameter]

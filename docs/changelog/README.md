@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.124
+- 文件版本：6.125
 - 文件狀態：維護中
-- 現行系統版本：0.10.31
+- 現行系統版本：0.10.32
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/15
+- 最後核對日期：2026/11/16
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 提示框滑鼠移開後殘留（使用者 2026/11/16 回報）：專案項目操作欄的「修改」「刪除」提示框移開後不消失——0.10.12 起按鈕以 `@bind-Visible` 收起提示框，AntDesign 在 `Visible` 為 true 時滑鼠離開不自己收起（每次都停住）；另有 AntDesign「顯示到一半就離開會跳過收起」的漏洞（快速掃過偶爾停住，含標題列排序提示）。新增 `SafeTooltip`（預設 `ComplexAutoCloseAndVisible`、離開時等顯示完成再收起），全站 10 處改用；排序提示以 `js/sorter-tooltip-guard.js` 補送 mouseout；新增 `SafeTooltipTests`、`SafeTooltipConventionTests` 與實機腳本 `ux-tooltips.mjs`（修正前後對照）（0.10.32）| [2026-11-16-提示框殘留修正](2026-11-16-提示框殘留修正.md) |
 | http 也能啟動（使用者 2026/11/15 回報）：發佈到 IIS 用 `http://IP:85` 開停在載入卡片，主控台 `This engine doesn't support crypto.subtle`——.NET 11 的 `dotnet.js` 啟動時無條件檢查 `crypto.subtle`，瀏覽器只在 https 與 localhost 提供；新增 `js/insecure-context-crypto.js`（http 時補上執行環境唯一用到的 `crypto.subtle.digest('SHA-256')`，https 不動作），排在 `blazor.webassembly` 之前；新增 `InsecureContextConventionTests`；以發佈檔執行、Chrome 用 `--host-resolver-rules` 模擬非 localhost 的 http 重現與驗證（登入、首頁、使用者、專案，SHA-256 三組比對一致）；部署清單改正「http 其他功能照常」的說法；順便補回速查表第 147 點被吃掉的反引號（0.10.31）| [2026-11-15-http也能啟動](2026-11-15-http也能啟動.md) |
 | Visual Studio 發佈循環相依（使用者 2026/11/15 回報）：VS 用 FolderProfile 發佈 `MyProject.Web` 出現 MSB4006（Publish ← _CopyAspNetCoreFilesToIntermediateOutputPath ← CorePublish ← DotNetPublish ← _PublishBuildAlternative ← Publish）；`UseProcessedFrontendIndexHtml` 另外發佈前端時繼承了 VS 設的全域 `DeployOnBuild=true`，前端 Build 後又觸發 DotNetPublish；`RemoveProperties` 加上 `DeployOnBuild`、`WebPublishProfileFile`，新增 `FrontendPublishConventionTests`；以 `dotnet build -p:DeployOnBuild=true -p:PublishProfile=FolderProfile` 重現與驗證（0.10.30）| [2026-11-15-VS發佈循環相依](2026-11-15-VS發佈循環相依.md) |
 | 帳號待審核頁文字對比（使用者 2026/11/15 回報）：`/Auths/Pending` 的標題在深紅漸層上是深色字看不到——頁面自己寫一份卡片樣式、`h1` 沒設定顏色（錯誤頁 0.10.13 在 `StatusCard` 修過，這頁漏了）；改用 `StatusCard FullScreen`、刪掉 `Pending.razor.css`；整頁版內文改成不透明 `--app-on-accent` 加淡陰影，新增 `status-card-hint`（粗體、文字色）取代對比不足的粉紅提示；`LoadingAndStatusPageTests` 加兩個測試，e2e 腳本的選擇器 `.pending-card` → `.status-card`（0.10.29）| [2026-11-15-帳號待審核頁文字對比](2026-11-15-帳號待審核頁文字對比.md) |

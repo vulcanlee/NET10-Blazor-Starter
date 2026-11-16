@@ -33,9 +33,9 @@
             沒有單一匯率能代表整組。要看匯率請到明細列或明細窗。
         *@
         <Column TData="string" Title="費用" Width="140" Align="ColumnAlign.Right">
-            <Tooltip Title="@($"US$ {TokenUsageFormat.CostUsdTotal(context.CostUsd)}")">
+            <SafeTooltip Title="@($"US$ {TokenUsageFormat.CostUsdTotal(context.CostUsd)}")">
                 <span>NT$ @TokenUsageFormat.CostTwdTotal(context.CostTwd)</span>
-            </Tooltip>
+            </SafeTooltip>
             @if (context.UnpricedCount > 0)
             {
                 <span class="token-usage-unpriced">（@context.UnpricedCount 未計）</span>

@@ -107,9 +107,9 @@ else
                         <Tag Color="@GetCountColor(context.OccurrenceCount)">@context.OccurrenceCount.ToString("N0")</Tag>
                     </Column>
                     <Column TData="string" Title="類型" Width="150" Ellipsis>
-                        <Tooltip Title="@context.ExceptionType">
+                        <SafeTooltip Title="@context.ExceptionType">
                             <span>@context.ShortExceptionType</span>
-                        </Tooltip>
+                        </SafeTooltip>
                     </Column>
                     <Column TData="string" Title="訊息" Width="145" Ellipsis>@context.Message</Column>
                     <Column TData="string" Title="頁面" Width="150" Ellipsis>@(context.Page ?? "—")</Column>

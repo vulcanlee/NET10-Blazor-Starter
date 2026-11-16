@@ -355,15 +355,15 @@ else
                         <Column TData="string" Title="合計" Width="100" Align="ColumnAlign.Right">
                             @if (context.IsCanceled)
                             {
-                                <Tooltip Title="@context.FailureReason">
+                                <SafeTooltip Title="@context.FailureReason">
                                     <Tag>已取消</Tag>
-                                </Tooltip>
+                                </SafeTooltip>
                             }
                             else if (context.Success == false)
                             {
-                                <Tooltip Title="@context.FailureReason">
+                                <SafeTooltip Title="@context.FailureReason">
                                     <Tag Color=@("red")>失敗</Tag>
-                                </Tooltip>
+                                </SafeTooltip>
                             }
                             else if (context.IsDurationBilled)
                             {
@@ -386,15 +386,15 @@ else
                                 Title="費用" Width="110" Align="ColumnAlign.Right" Sortable>
                             @if (context.IsUnpriced)
                             {
-                                <Tooltip Title="@("找不到此模型的費率設定（appsettings.json 的 AiPricingSettings），因此不估算費用。")">
+                                <SafeTooltip Title="@("找不到此模型的費率設定（appsettings.json 的 AiPricingSettings），因此不估算費用。")">
                                     <span class="token-usage-unpriced">未定價</span>
-                                </Tooltip>
+                                </SafeTooltip>
                             }
                             else
                             {
-                                <Tooltip Title="@BuildCostTooltip(context)">
+                                <SafeTooltip Title="@BuildCostTooltip(context)">
                                     <span>@FormatCostTwdCell(context.CostTwd)</span>
-                                </Tooltip>
+                                </SafeTooltip>
                             }
                         </Column>
                         <ActionColumn Title="操作" Width="100" Fixed="ColumnFixPlacement.Right">
