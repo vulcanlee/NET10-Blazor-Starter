@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  覆蓋率量測設定（0.10.34 起，品質關卡 scripts/Invoke-QualityGate.ps1 使用）：
+  只量本系統的組件；排除測試專案、EF Core 產生的 Migrations、obj 底下的產生碼，以及標了 GeneratedCode／ExcludeFromCodeCoverage 的程式。
+  門檻檢查見 scripts/Test-CoverageThreshold.ps1；說明見 docs/guides/測試指南.md §4。
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[MyProject.*]*</Include>
+          <Exclude>[MyProject.Tests]*</Exclude>
+          <ExcludeByFile>**/Migrations/**/*.cs,**/obj/**/*.cs</ExcludeByFile>
+          <ExcludeByAttribute>GeneratedCodeAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

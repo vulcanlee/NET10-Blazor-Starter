@@ -12,6 +12,11 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $solution = "src/MyProject/MyProject.slnx"
 
+# 覆蓋率（0.10.34 起）：測試步驟順便蒐集（測試只跑一次），Coverage 步驟檢查門檻（scripts/Test-CoverageThreshold.ps1）。
+# 結果放在系統暫存資料夾，每次執行前清空；跑完保留，門檻沒過時可以打開 Cobertura 檔查是哪幾行。
+$coverageSettings = "src/MyProject/coverage.runsettings"
+$coverageResults = Join-Path ([System.IO.Path]::GetTempPath()) "MyProject-QualityGate-Coverage"
+
 # restore 是最常被 nuget.org 偶發逾時打到的一步；沿用 2026-09-20 移除的 CI 的 180 秒，使用者自己設定過就不覆蓋。
 if (-not $env:NUGET_HTTP_TIMEOUT_SECONDS) {
     $env:NUGET_HTTP_TIMEOUT_SECONDS = "180"
@@ -79,7 +84,14 @@ $steps = @(
     @{ Name = "Restore"; Action = { & dotnet restore $solution } },
     @{ Name = "Build"; Action = { & dotnet build $solution --configuration Release --no-restore -v:minimal } },
     @{ Name = "Format"; Action = { & dotnet format $solution --verify-no-changes --no-restore } },
-    @{ Name = "Test"; Action = { & dotnet test $solution --configuration Release --no-build } },
+    @{ Name = "Test"; Action = {
+            if (Test-Path -LiteralPath $coverageResults) { Remove-Item -LiteralPath $coverageResults -Recurse -Force }
+            & dotnet test $solution --configuration Release --no-build --collect:"XPlat Code Coverage" --settings $coverageSettings --results-directory $coverageResults
+        } },
+    @{ Name = "Coverage"; Action = {
+            & (Join-Path $PSScriptRoot "Test-CoverageThreshold.ps1") -ResultsDirectory $coverageResults
+            Write-Host "Coverage report: $coverageResults"
+        } },
     @{ Name = "Docs encoding"; Action = { & (Join-Path $PSScriptRoot "Test-DocsEncoding.ps1") } },
     @{ Name = "CRUD anchors"; Action = { Invoke-CrudAnchorCheck } },
     @{ Name = "Vulnerability"; Action = { Invoke-VulnerabilityScan }; SkipWhenQuick = $true }

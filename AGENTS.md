@@ -66,7 +66,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 * 有建置內容（程式、設定、會隨網站發佈的檔案，例如 `Datas/Help` 的操作說明）才把 appsettings.json 內的版本編號**最後一碼（Patch）加 1**（例：`0.4.0 → 0.4.1`，不進位、不分異動性質），並且在 commit message 中說明版本編號的變更；只改 `docs/` 或根目錄文件不升版。
 
-* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下與根目錄的 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機跑 `pwsh ./scripts/Invoke-QualityGate.ps1`，它依序執行建置、格式、測試、文件編碼、CRUD 產生器錨點與弱點掃描）
+* 所有文件都要採用 UTF-8 繁體中文編碼，並且不能夠有亂碼存在（`docs/` 下與根目錄的 `.md` 須**含 BOM**；專案沒有 CI，提交前在本機跑 `pwsh ./scripts/Invoke-QualityGate.ps1`，它依序執行建置、格式、測試（同時蒐集覆蓋率）、覆蓋率門檻、文件編碼、CRUD 產生器錨點與弱點掃描）
 
 * 需要 commit 的時候，不能自動去做 commit
 

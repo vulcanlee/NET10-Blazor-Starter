@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
@@ -265,6 +267,66 @@ public sealed class RefreshTokenStoreTests : IDisposable
         {
             SqliteConnection.ClearAllPools();
             File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// 搶輸的那一方（0.10.34 起補測）：上面的平行測試不一定真的撞在一起，這裡在「搶下這一筆」的條件式更新送出前，
+    /// 先替別的請求把這一筆改掉（服務已讀出、還沒搶），固定走到搶輸的路徑。被別人輪替掉 → 寬限期內回「已被取代」、不撤銷；
+    /// 只是同時被登出或撤銷 → 回「無效」，不能誤記成重用。
+    /// </summary>
+    [Theory]
+    [InlineData(true, RefreshRotationStatus.Superseded)]
+    [InlineData(false, RefreshRotationStatus.Invalid)]
+    public async Task Rotate_WhenAnotherRequestChangesTheSessionFirst_ShouldReportWhatHappened(bool replaced, RefreshRotationStatus expected)
+    {
+        var user = AddUser("alice");
+        var issued = await store.IssueAsync(user, isPersistent: true, RefreshClientKinds.Api, null, null, Lifetime);
+        var winner = await store.IssueAsync(user, isPersistent: true, RefreshClientKinds.Api, null, null, Lifetime);
+        int issuedId, winnerId;
+        await using (var context = factory.CreateDbContext())
+        {
+            var rows = await context.RefreshSession.AsNoTracking().OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
+            (issuedId, winnerId) = (rows[0], rows[1]);
+        }
+
+        var race = new ChangeSessionBeforeClaim(issuedId, replaced ? winnerId : null, time.GetUtcNow().UtcDateTime);
+        var racingStore = new RefreshTokenStore(new TestDbContextFactory(connection, race), time, NullLogger<RefreshTokenStore>.Instance);
+
+        var result = await racingStore.RotateAsync(issued.Token, Lifetime);
+
+        Assert.True(race.Fired, "讀使用者資料的查詢沒有被攔到，測試沒有走到搶輸的路徑。");
+        Assert.Equal(expected, result.Status);
+        Assert.Null(result.Token);
+        Assert.Equal(RefreshRotationStatus.Rotated, (await store.RotateAsync(winner.Token, Lifetime)).Status); // 沒有連帶撤銷整串
+    }
+
+    /// <summary>
+    /// RotateAsync 讀完這一筆、讀使用者資料時（還沒開始「搶」的交易），用同一條連線改掉該筆；只做一次。
+    /// 不能在搶的交易裡改：搶輸後服務會回滾，連這裡的修改一起撤掉。
+    /// </summary>
+    private sealed class ChangeSessionBeforeClaim(int sessionId, int? replacedById, DateTime now) : DbCommandInterceptor
+    {
+        public bool Fired { get; private set; }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (!Fired
+                && command.CommandText.Contains("FROM \"MyUser\"", StringComparison.Ordinal))
+            {
+                Fired = true;
+                await using var other = command.Connection!.CreateCommand();
+                other.Transaction = command.Transaction;
+                other.CommandText = "UPDATE \"RefreshSession\" SET \"RevokedAtUtc\" = $now, \"RevokedReason\" = $reason, \"ReplacedById\" = $replaced WHERE \"Id\" = $id";
+                other.Parameters.Add(new SqliteParameter("$now", now));
+                other.Parameters.Add(new SqliteParameter("$reason", replacedById is null ? "Logout" : "Rotated"));
+                other.Parameters.Add(new SqliteParameter("$replaced", (object?)replacedById ?? DBNull.Value));
+                other.Parameters.Add(new SqliteParameter("$id", sessionId));
+                await other.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return result;
         }
     }
 

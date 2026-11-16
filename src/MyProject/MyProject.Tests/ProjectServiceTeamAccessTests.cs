@@ -207,6 +207,109 @@ public sealed class ProjectServiceTeamAccessTests
     }
 
 
+    // ---- 還原、永久刪除的團隊範圍（0.10.34 起補測）：不在範圍內就當作找不到，資料不動 ----
+
+    [Fact]
+    public async Task RestoreAndPurge_NonAdminOutsideTeam_ShouldBeDenied_AndKeepTheRecord()
+    {
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        var ids = await fixture.SeedDefaultProjectsAsync();
+        Assert.True((await fixture.CreateService(isAdmin: true).DeleteAsync(ids["團隊B專案"])).Success);
+        var service = fixture.CreateService(isAdmin: false, "團隊A");
+
+        var restore = await service.RestoreAsync(ids["團隊B專案"]);
+        var purge = await service.PurgeAsync(ids["團隊B專案"]);
+
+        Assert.Equal(VerifyRecordErrorKind.NotFound, restore.Kind);
+        Assert.Contains("團隊範圍", restore.Message, StringComparison.Ordinal);
+        Assert.Equal(VerifyRecordErrorKind.NotFound, purge.Kind);
+        Assert.Contains("團隊範圍", purge.Message, StringComparison.Ordinal);
+        var row = await fixture.Context.Project.IgnoreQueryFilters().AsNoTracking().SingleAsync(x => x.Id == ids["團隊B專案"]);
+        Assert.True(row.IsDeleted);
+    }
+
+    [Fact]
+    public async Task GetDeletedAsync_WithTeamFilter_ShouldFilterByTeam()
+    {
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        var ids = await fixture.SeedDefaultProjectsAsync();
+        var admin = fixture.CreateService(isAdmin: true);
+        foreach (var id in ids.Values)
+        {
+            Assert.True((await admin.DeleteAsync(id)).Success);
+        }
+
+        var request = NewRequest();
+        request.TeamFilters = ["團隊B"];
+        var result = await admin.GetDeletedAsync(request);
+
+        Assert.Equal(["團隊B專案"], result.Result.Select(x => x.Title).ToList());
+    }
+
+    // ---- 排序與 API 篩選（0.10.34 起補測）：每個可排序欄位都要升冪、降冪各一次 ----
+
+    [Theory]
+    [InlineData(nameof(ProjectAdapterModel.StartDate))]
+    [InlineData(nameof(ProjectAdapterModel.EndDate))]
+    [InlineData(nameof(ProjectAdapterModel.Status))]
+    [InlineData(nameof(ProjectAdapterModel.Priority))]
+    [InlineData(nameof(ProjectAdapterModel.CompletionPercentage))]
+    [InlineData(nameof(ProjectAdapterModel.Owner))]
+    [InlineData(nameof(ProjectAdapterModel.CreatedAt))]
+    [InlineData(nameof(ProjectAdapterModel.UpdatedAt))]
+    public async Task GetAsync_ShouldSortByEachColumn_InBothDirections(string sortField)
+    {
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        await fixture.SeedRankedProjectsAsync();
+        var service = fixture.CreateService(isAdmin: true);
+
+        var request = NewRequest();
+        request.SortField = sortField;
+        request.SortDescending = false;
+        var ascending = await service.GetAsync(request);
+        request.SortDescending = true;
+        var descending = await service.GetAsync(request);
+
+        Assert.Equal(["第一", "第二", "第三"], ascending.Result.Select(x => x.Title).ToList());
+        Assert.Equal(["第三", "第二", "第一"], descending.Result.Select(x => x.Title).ToList());
+    }
+
+    public static TheoryData<string, string[]> ListFilters => new()
+    {
+        { "priority", ["第二"] },
+        { "startFrom", ["第二", "第三"] },
+        { "startTo", ["第一", "第二"] },
+        { "completionMin", ["第二", "第三"] },
+        { "completionMax", ["第一", "第二"] },
+        { "startRange+completionMax", ["第二"] },
+    };
+
+    [Theory]
+    [MemberData(nameof(ListFilters))]
+    public async Task GetAsync_WithApiFilter_ShouldOnlyReturnMatchingProjects(string filterName, string[] expected)
+    {
+        await using var fixture = await ProjectServiceFixture.CreateAsync();
+        await fixture.SeedRankedProjectsAsync();
+        var service = fixture.CreateService(isAdmin: true);
+        var middle = ProjectServiceFixture.RankedStartDate(2);
+        var filter = filterName switch
+        {
+            "priority" => new ProjectListFilter { Priority = "2" },
+            "startFrom" => new ProjectListFilter { StartDateFrom = middle },
+            "startTo" => new ProjectListFilter { StartDateTo = middle },
+            "completionMin" => new ProjectListFilter { CompletionPercentageMin = 50 },
+            "completionMax" => new ProjectListFilter { CompletionPercentageMax = 50 },
+            _ => new ProjectListFilter { StartDateFrom = middle, StartDateTo = ProjectServiceFixture.RankedStartDate(3), CompletionPercentageMax = 50 },
+        };
+
+        var request = NewRequest();
+        request.SortField = nameof(ProjectAdapterModel.CompletionPercentage);
+        request.SortDescending = false;
+        var result = await service.GetAsync(request, filter);
+
+        Assert.Equal(expected, result.Result.Select(x => x.Title).ToArray());
+    }
+
     // ---- 分頁排序退路（0.4.46）----
     // ProjectService 原本連預設排序都沒有；這兩個測例補上「欄位不認得」與「方向未指定」兩種落空輸入。
 
@@ -386,6 +489,30 @@ public sealed class ProjectServiceTeamAccessTests
             await Context.SaveChangesAsync();
             Context.ChangeTracker.Clear();
         }
+
+        /// <summary>「第一」到「第三」：每個可排序欄位的值都依序遞增（標題本身不照順序，避免碰巧依標題排也會過）。</summary>
+        public async Task SeedRankedProjectsAsync()
+        {
+            var baseTime = new DateTime(2026, 8, 27, 10, 0, 0);
+            foreach (var (title, rank) in new[] { ("第三", 3), ("第一", 1), ("第二", 2) })
+            {
+                var project = NewProject(title, null);
+                project.StartDate = RankedStartDate(rank);
+                project.EndDate = RankedStartDate(rank).AddDays(30);
+                project.Status = $"s{rank}";
+                project.Priority = rank.ToString();
+                project.CompletionPercentage = rank switch { 1 => 10, 2 => 50, _ => 90 };
+                project.Owner = $"owner{rank}";
+                project.CreatedAt = baseTime.AddMinutes(rank);
+                project.UpdatedAt = baseTime.AddHours(rank);
+                Context.Project.Add(project);
+            }
+
+            await Context.SaveChangesAsync();
+            Context.ChangeTracker.Clear();
+        }
+
+        public static DateTime RankedStartDate(int rank) => new(2026, 9, rank);
 
         private static Project NewProject(string title, IEnumerable<string>? teams) => new()
         {

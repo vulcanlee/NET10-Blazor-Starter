@@ -1,10 +1,10 @@
 ﻿# CI-CD 與品質檢查
 
-- 文件版本：1.22
+- 文件版本：1.23
 - 文件狀態：已實作（本機品質關卡）
-- 現行系統版本：0.10.27
+- 現行系統版本：0.10.34
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/11/15
+- 最後核對日期：2026/11/16
 
 > ⚠️ **腳手架沒有 CI。** 原本的 GitHub Actions 工作流程已於 **2026-09-20** 移除，repo 根目錄沒有 `.github/` 資料夾。
 > **沒有任何機制會自動擋下違規**，品質關卡全靠提交前在本機執行 `scripts/Invoke-QualityGate.ps1`（0.9.89 起，見 §1）。
@@ -14,7 +14,7 @@
 ## 1. 提交前跑一行品質關卡（0.9.89 起）
 
 ```powershell
-pwsh ./scripts/Invoke-QualityGate.ps1          # 完整關卡，約 1 分鐘（0.9.89 實測 42～66 秒，已建置過的情況）
+pwsh ./scripts/Invoke-QualityGate.ps1          # 完整關卡，約 5 分鐘（0.10.34 實測：測試含覆蓋率約 3.5 分鐘、format 約 1 分鐘）
 pwsh ./scripts/Invoke-QualityGate.ps1 -Quick   # 略過弱點掃描（不需連網），約少 10 秒
 pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）：修改 CRUD 產生器或樣板後必跑（0.9.110 起），在暫存 worktree 產生三種模組並跑全部測試
 ```
@@ -27,10 +27,11 @@ pwsh ./scripts/Test-CrudGenerator.ps1           # 不在關卡裡（數分鐘）
 | 1 | Restore | `dotnet restore` | 套件還原失敗（腳本會把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180，見 §4）|
 | 2 | Build | `dotnet build --configuration Release --no-restore` | 編譯錯誤與**任何警告**（`TreatWarningsAsErrors`）|
 | 3 | Format | `dotnet format --verify-no-changes --no-restore` | 格式不符 `.editorconfig`；改跑不帶旗標的 `dotnet format` 會自動修正 |
-| 4 | Test | `dotnet test --configuration Release --no-build` | 約 3,235 個測試（0.10.27），含十多組慣例守門測試 |
-| 5 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
-| 6 | CRUD anchors | `scripts/New-CrudModule.ps1 -CheckAnchors`（一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒）| CRUD 產生器的登記錨點失效：被登記的檔案改了寫法，產生器下次使用時才會「找不到登記位置」（0.9.153 起；0.9.133 起壞了兩週才發現）。只檢查插得進去、不寫檔；產出的模組能否建置與通過測試仍要跑 `Test-CrudGenerator.ps1`。repo 沒有產生器時略過 |
-| 7 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
+| 4 | Test | `dotnet test --configuration Release --no-build --collect:"XPlat Code Coverage" --settings src/MyProject/coverage.runsettings` | 約 3,319 個測試（0.10.34），含十多組慣例守門測試；同時蒐集覆蓋率（0.10.34 起），結果放在系統暫存資料夾的 `MyProject-QualityGate-Coverage` |
+| 5 | Coverage | `scripts/Test-CoverageThreshold.ps1` | 伺服器端整體的行／分支覆蓋率，與權限、資料範圍、登入與 Token、稽核共 18 個安全關鍵檔案低於門檻（0.10.34 起，只防退步；見[測試指南 §4](../guides/測試指南.md)）|
+| 6 | Docs encoding | `scripts/Test-DocsEncoding.ps1` | `docs/**/*.md` 與根目錄 `*.md` 沒有 BOM 或有亂碼（見 §3）|
+| 7 | CRUD anchors | `scripts/New-CrudModule.ps1 -CheckAnchors`（一般、`-WithTeams`、`-AdminOnly` 三種，約 1～2 秒）| CRUD 產生器的登記錨點失效：被登記的檔案改了寫法，產生器下次使用時才會「找不到登記位置」（0.9.153 起；0.9.133 起壞了兩週才發現）。只檢查插得進去、不寫檔；產出的模組能否建置與通過測試仍要跑 `Test-CrudGenerator.ps1`。repo 沒有產生器時略過 |
+| 8 | Vulnerability | 解析 `dotnet list package --vulnerable` 的輸出 | 不在允許清單中的套件弱點，以及已過時的允許清單（見 §4）。`-Quick` 時略過 |
 
 **為什麼用 Release**：與部署產物一致；而且開發中的網站鎖住的是 Debug 的 `bin`，
 用 Release 建置不會跟它搶檔案，網站開著也能跑關卡。
@@ -103,7 +104,7 @@ pwsh ./scripts/Install-GitHooks.ps1 -Uninstall  # 移除
 
 > 注意：檔案移入子目錄後，此腳本以 `-Recurse` 涵蓋所有層級。以 PowerShell 建立／另存文件時請使用含 BOM 的 UTF-8（例如 `Set-Content -Encoding utf8BOM`），避免被擋下。編碼規定詳見 [維護規範 §3](維護規範.md)。
 
-它是品質關卡（§1）的第 5 步，也可以單獨執行（從任何目錄都可以）：
+它是品質關卡（§1）的第 6 步，也可以單獨執行（從任何目錄都可以）：
 
 ```powershell
 pwsh ./scripts/Test-DocsEncoding.ps1
@@ -117,7 +118,7 @@ pwsh ./scripts/Test-DocsEncoding.ps1
 
 `dotnet list package --vulnerable --include-transitive` 會列出含已知弱點的直接與遞移相依套件。發現弱點時應升級對應套件版本。
 
-> 現況（0.9.89 起）：已納入本機品質關卡（§1 第 7 步），允許清單是 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`。
+> 現況（0.9.89 起）：已納入本機品質關卡（§1 第 8 步），允許清單是 `scripts/Invoke-QualityGate.ps1` 的 `$allowedAdvisories`。
 
 為降低 NuGet 來源偶發逾時造成的假失敗，品質關卡在開頭把 `NUGET_HTTP_TIMEOUT_SECONDS` 設為 180（你自己設定過就不覆蓋），涵蓋其後全部步驟。
 
