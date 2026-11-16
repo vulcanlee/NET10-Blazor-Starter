@@ -186,7 +186,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 │   ├── operations/                 ← 維護、部署、設定檔、品質檢查（含 CI 參考設計）
 │   ├── prd/                        ← 產品需求文件（能力覆蓋矩陣 + 各能力 PRD）
 │   └── changelog/                  ← 變更紀錄
-├── scripts/                        ← Invoke-QualityGate.ps1 / Install-GitHooks.ps1 / New-StarterProject.ps1 / New-CrudModule.ps1（樣板在 crud-templates/）/ Test-CrudGenerator.ps1 / Restore-Backup.ps1 / Test-DocsEncoding.ps1
+├── scripts/                        ← Invoke-QualityGate.ps1 / Install-GitHooks.ps1 / New-StarterProject.ps1 / New-CrudModule.ps1（樣板在 crud-templates/）/ Test-CrudGenerator.ps1 / Restore-Backup.ps1 / Test-DocsEncoding.ps1 / Test-CoverageThreshold.ps1
 └── src/MyProject/
     ├── MyProject.slnx              ← 方案檔（新版 .slnx 格式）
     ├── Directory.Build.props       ← 共用建置屬性（Nullable、TreatWarningsAsErrors）
@@ -328,7 +328,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
    引用程式檔請使用 `相對路徑:行號` 格式，避免假設、推測或外部連結失效。
 
 5. **提交前跑完品質關卡**（專案**沒有 CI**，2026-09-20 已移除 GitHub Actions 工作流程，這是唯一的關卡）：
-   一行指令依序跑 restore、Release 建置（0 warning）、format、約 3,200 個測試、文件編碼、CRUD 產生器錨點、弱點掃描共 7 步，遇到失敗就停；
+   一行指令依序跑 restore、Release 建置（0 warning）、format、約 3,300 個測試（同時蒐集覆蓋率）、覆蓋率門檻、文件編碼、CRUD 產生器錨點、弱點掃描共 8 步，遇到失敗就停；
    VS Code 可跑 `.vscode/tasks.json` 的 `quality-gate` 任務。想在每次 push 前自動執行，可選用 `pwsh ./scripts/Install-GitHooks.ps1`。
 
    ```powershell
@@ -395,7 +395,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [備份與還原操作手冊](docs/operations/備份與還原操作手冊.md) — 系統備份的範圍與理由、下載、停站後以 `scripts/Restore-Backup.ps1` 還原。
 - [Gmail 寄信設定指南](docs/operations/Gmail寄信設定指南.md) — 用 Gmail 帳號寄信：應用程式密碼、`EmailSettings` 逐值設定與疑難排解。
 - [AI 模型計費更新指南](docs/operations/AI模型計費更新指南.md) — 依 OpenAI 官方頁面更新 `AiPricingSettings` 的逐步流程（調價、新模型、Deprecated）。
-- [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — 提交前本機品質關卡（7 步，`Invoke-QualityGate.ps1`）、文件編碼檢查、弱點掃描；並保留已移除之 GitHub Actions 流程作為衍生專案自建 CI 的參考設計。
+- [CI-CD 與品質檢查](docs/operations/CI-CD與品質檢查.md) — 提交前本機品質關卡（8 步，`Invoke-QualityGate.ps1`）、文件編碼檢查、弱點掃描；並保留已移除之 GitHub Actions 流程作為衍生專案自建 CI 的參考設計。
 
 ### 產品需求文件（prd）
 

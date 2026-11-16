@@ -96,6 +96,29 @@ public sealed class CategoryServiceTeamVisibilityTests
         Assert.Equal("團隊A分類", allowed.Name);
     }
 
+    /// <summary>修改也要擋團隊範圍（0.9.105 起；0.10.34 起補測）：範圍外當作找不到，資料不動。</summary>
+    [Fact]
+    public async Task UpdateAsync_NonAdminOutsideTeam_ShouldBeDenied_AndKeepTheRecord()
+    {
+        await using var fixture = await CategoryVisibilityFixture.CreateAsync();
+        var ids = await fixture.SeedDefaultCategoriesAsync();
+        var service = fixture.CreateService(isAdmin: false, "團隊A");
+        var stored = await fixture.Context.Category.AsNoTracking().SingleAsync(x => x.Id == ids["團隊B分類"]);
+
+        var result = await service.UpdateAsync(new CategoryAdapterModel
+        {
+            Id = stored.Id,
+            Name = "被改的名稱",
+            IsEnabled = true,
+            Teams = ["團隊A"],
+            ConcurrencyStamp = stored.ConcurrencyStamp,
+        });
+
+        Assert.Equal(VerifyRecordErrorKind.NotFound, result.Kind);
+        Assert.Contains("團隊範圍", result.Message, StringComparison.Ordinal);
+        Assert.Equal("團隊B分類", (await fixture.Context.Category.AsNoTracking().SingleAsync(x => x.Id == stored.Id)).Name);
+    }
+
     [Fact]
     public async Task BeforeAddCheckAsync_WithNameOfInvisibleCategory_ShouldStillFail()
     {

@@ -403,9 +403,10 @@ Get-ChildItem -LiteralPath $destinationFullPath -Recurse -Directory -Force |
 # .html：前端的入口頁 MyProject.Web.Client/wwwroot/index.html 引用 <專案>.Web.Client.styles.css（0.10.10 起）；
 # 靜態站的 web.config 與 wwwroot/appsettings.json 由 .config／.json 涵蓋。
 # .mjs：scripts/e2e 的實機腳本（讀 <代號>.auth、預設連開發埠）；.webmanifest：安裝成 App 的名稱（0.10.24 起，ScaffoldScriptConventionTests 守門）。
+# .runsettings：覆蓋率量測的組件篩選 [<代號>.*]（0.10.34 起），沒換掉的話衍生專案量不到任何程式。
 $textExtensions = @(
     ".cs", ".csproj", ".slnx", ".json", ".md", ".razor", ".css", ".js", ".mjs", ".html",
-    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props", ".webmanifest"
+    ".ps1", ".yml", ".yaml", ".config", ".xml", ".tmpl", ".gitignore", ".props", ".webmanifest", ".runsettings"
 )
 
 # 每個衍生專案都必須擁有自己的 UserSecretsId，否則會共用同一份 secrets.json 互相污染。
