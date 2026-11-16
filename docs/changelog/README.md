@@ -1,8 +1,8 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.125
+- 文件版本：6.126
 - 文件狀態：維護中
-- 現行系統版本：0.10.32
+- 現行系統版本：0.10.33
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/16
 
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| 角色權限「（全部）」勾選說明更正（使用者 2026/11/16 比對四張角色截圖時發現）：操作說明與新手手冊寫「取消（全部）後回到原本個別勾選」，實際上儲存時只記下「（全部）」、個別勾選不保留，重新開窗取消後四個動作全空；另補「群組勾著、底下都沒勾沒有作用（選單不出現，收合時多一格空白）」。實機以隔離網站驗證；程式不動（0.10.33）| [2026-11-16-角色權限全部勾選說明更正](2026-11-16-角色權限全部勾選說明更正.md) |
 | 提示框滑鼠移開後殘留（使用者 2026/11/16 回報）：專案項目操作欄的「修改」「刪除」提示框移開後不消失——0.10.12 起按鈕以 `@bind-Visible` 收起提示框，AntDesign 在 `Visible` 為 true 時滑鼠離開不自己收起（每次都停住）；另有 AntDesign「顯示到一半就離開會跳過收起」的漏洞（快速掃過偶爾停住，含標題列排序提示）。新增 `SafeTooltip`（預設 `ComplexAutoCloseAndVisible`、離開時等顯示完成再收起），全站 10 處改用；排序提示以 `js/sorter-tooltip-guard.js` 補送 mouseout；新增 `SafeTooltipTests`、`SafeTooltipConventionTests` 與實機腳本 `ux-tooltips.mjs`（修正前後對照）（0.10.32）| [2026-11-16-提示框殘留修正](2026-11-16-提示框殘留修正.md) |
 | http 也能啟動（使用者 2026/11/15 回報）：發佈到 IIS 用 `http://IP:85` 開停在載入卡片，主控台 `This engine doesn't support crypto.subtle`——.NET 11 的 `dotnet.js` 啟動時無條件檢查 `crypto.subtle`，瀏覽器只在 https 與 localhost 提供；新增 `js/insecure-context-crypto.js`（http 時補上執行環境唯一用到的 `crypto.subtle.digest('SHA-256')`，https 不動作），排在 `blazor.webassembly` 之前；新增 `InsecureContextConventionTests`；以發佈檔執行、Chrome 用 `--host-resolver-rules` 模擬非 localhost 的 http 重現與驗證（登入、首頁、使用者、專案，SHA-256 三組比對一致）；部署清單改正「http 其他功能照常」的說法；順便補回速查表第 147 點被吃掉的反引號（0.10.31）| [2026-11-15-http也能啟動](2026-11-15-http也能啟動.md) |
 | Visual Studio 發佈循環相依（使用者 2026/11/15 回報）：VS 用 FolderProfile 發佈 `MyProject.Web` 出現 MSB4006（Publish ← _CopyAspNetCoreFilesToIntermediateOutputPath ← CorePublish ← DotNetPublish ← _PublishBuildAlternative ← Publish）；`UseProcessedFrontendIndexHtml` 另外發佈前端時繼承了 VS 設的全域 `DeployOnBuild=true`，前端 Build 後又觸發 DotNetPublish；`RemoveProperties` 加上 `DeployOnBuild`、`WebPublishProfileFile`，新增 `FrontendPublishConventionTests`；以 `dotnet build -p:DeployOnBuild=true -p:PublishProfile=FolderProfile` 重現與驗證（0.10.30）| [2026-11-15-VS發佈循環相依](2026-11-15-VS發佈循環相依.md) |
