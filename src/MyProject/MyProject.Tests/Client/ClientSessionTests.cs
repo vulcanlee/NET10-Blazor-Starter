@@ -13,6 +13,7 @@ using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
 using MyProject.Web.Client.Commons;
 using MyProject.Web.Client.Layout;
+using MyProject.Web.Components.Auths;
 
 namespace MyProject.Tests.Client;
 
@@ -165,6 +166,31 @@ public sealed class ClientSessionTests
     }
 
     /// <summary>
+    /// 外框資料（0.10.35 起）：系統資訊與選單一起讀；登入頁先讀好的只交給接下來的外框一次（之後再開外框照常自己讀、自己確認登入）。
+    /// </summary>
+    [Fact]
+    public async Task ShellData_ShouldLoadInfoAndMenu_AndHandThePreparedCopyOutOnlyOnce()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: false));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/shell/info", HttpStatusCode.OK, Ok(new ShellInfoDto { SystemName = "測試系統" }));
+        handler.On("api/v1/shell/menu", HttpStatusCode.OK, Ok(new ShellMenuDto { Items = [new MenuItemDto { Name = "首頁", Url = "/App" }] }));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var shell = new ClientShellData(new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance));
+
+        Assert.Null(shell.TakePrepared());
+        await shell.PrepareAsync();
+
+        var prepared = shell.TakePrepared();
+        Assert.Equal("測試系統", prepared!.Info!.SystemName);
+        Assert.Equal("首頁", Assert.Single(prepared.Menu!.Items).Name);
+        Assert.Equal("Bearer a1", handler.Requests.Single(x => x.Path == "api/v1/shell/menu").Authorization);
+        Assert.Null(shell.TakePrepared());
+    }
+
+    /// <summary>
     /// 0.10.8 起不再有「這次網頁登入是誰」可比對（ExpectedUserId 隨 Cookie 移除）：別的分頁換人登入（寫進 localStorage）時，
     /// 這個分頁收到 storage 事件就整頁重新載入成那個人；被清掉而自己用的就是那一份就回登入頁；同一個人刷新了就沿用。
     /// </summary>
@@ -214,6 +240,100 @@ public sealed class ClientSessionTests
 
         await session.SignedInAsync(Tokens("a5", "r5", persistent: false).Data!);
         Assert.Equal(7, store.BroadcastSignedIn);
+    }
+
+    /// <summary>
+    /// 登入成功後（0.10.35 起）：登入頁一定是剛整頁載入的，記憶體裡沒有任何使用者的資料，不整頁重新載入；
+    /// 而且在登入頁就先確認身分（/me）、讀好外框要的資料，再在程式內換頁 —— 外框不必再顯示「正在確認登入狀態…」。
+    /// 不是站內網址時一樣回預設頁。
+    /// </summary>
+    [Theory]
+    [InlineData("/projects", "/projects")]
+    [InlineData("https://evil.example/", ReturnUrlGuard.DefaultUrl)]
+    public async Task EnterAfterSignIn_InAFreshlyLoadedApp_ShouldPrepareTheShellAndNavigateWithoutAFullLoad(string returnUrl, string expected)
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7, Account = "alice" }));
+        var (session, store, navigation) = Create(handler, "Auths/Login");
+        await session.SignedInAsync(Tokens("a1", "r1", persistent: false).Data!);
+        var prepared = false;
+
+        await session.EnterAfterSignInAsync(returnUrl, () =>
+        {
+            prepared = navigation.NavigatedTo is null;
+            return Task.CompletedTask;
+        });
+
+        Assert.True(prepared, "外框資料要在換頁之前讀好。");
+        Assert.Equal("alice", session.Info!.Account);
+        Assert.True(store.Listening);
+        Assert.Equal(expected, navigation.NavigatedTo);
+        Assert.False(navigation.ForceLoad);
+    }
+
+    /// <summary>這個程式已經載入過某位使用者（例如從登入後的畫面以程式內連結到了登入頁）：照舊整頁載入，確保前一位的資料不留在記憶體。</summary>
+    [Fact]
+    public async Task EnterAfterSignIn_AfterAUserWasLoaded_ShouldStillDoAFullLoad()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: false));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        var (session, _, navigation) = Create(handler);
+        Assert.True(await session.InitializeAsync());
+        await session.SignedInAsync(Tokens("a2", "r2", persistent: false).Data!);
+        var prepared = false;
+
+        await session.EnterAfterSignInAsync("/projects", () =>
+        {
+            prepared = true;
+            return Task.CompletedTask;
+        });
+
+        Assert.False(prepared);
+        Assert.Equal("/projects", navigation.NavigatedTo);
+        Assert.True(navigation.ForceLoad);
+    }
+
+    /// <summary>登入後必須先改密碼：確認身分時就整頁導到變更密碼頁，不再導到 returnUrl、也不讀外框資料。</summary>
+    [Fact]
+    public async Task EnterAfterSignIn_WhenSetupIsForced_ShouldLeaveItToTheSessionCheck()
+    {
+        var handler = new FakeHandler();
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7, MustChangePassword = true }));
+        var (session, _, navigation) = Create(handler, "Auths/Login");
+        await session.SignedInAsync(Tokens("a1", "r1", persistent: false).Data!);
+        var prepared = false;
+
+        await session.EnterAfterSignInAsync("/projects", () =>
+        {
+            prepared = true;
+            return Task.CompletedTask;
+        });
+
+        Assert.False(prepared);
+        Assert.Equal(ClientSession.ChangePasswordPath, navigation.NavigatedTo);
+        Assert.True(navigation.ForceLoad);
+    }
+
+    /// <summary>登入後確認身分時剛好連不上伺服器：照樣導到 returnUrl，由外框顯示「無法連線」並在恢復後重新載入（與直接開頁面相同）。</summary>
+    [Fact]
+    public async Task EnterAfterSignIn_WhenTheServerCannotBeReached_ShouldStillNavigate()
+    {
+        var handler = new FakeHandler();
+        var (session, _, navigation) = Create(handler, "Auths/Login");
+        await session.SignedInAsync(Tokens("a1", "r1", persistent: false).Data!);
+        handler.Offline = true;
+        var prepared = false;
+
+        await session.EnterAfterSignInAsync("/projects", () =>
+        {
+            prepared = true;
+            return Task.CompletedTask;
+        });
+
+        Assert.False(prepared);
+        Assert.Equal("/projects", navigation.NavigatedTo);
+        Assert.False(navigation.ForceLoad);
     }
 
     /// <summary>別的分頁登出（廣播）：這次登入的每一串都已撤銷，刷新失敗就回登入頁；別人的登出不影響（刷新照常成功）。</summary>
@@ -286,6 +406,8 @@ public sealed class ClientSessionTests
         Assert.True(store.BroadcastLogout);
         Assert.Equal("/Auths/Login", navigation.NavigatedTo);
         Assert.True(navigation.ForceLoad);
+        // 0.10.35 起：整頁載入期間的卡片改說「已登出，正在回到登入頁…」（js/loading-hint.js 讀這個分頁的一次性記號）。
+        Assert.Equal("1", store.SessionItems[ClientSession.SignedOutMarkerKey]);
 
         // 登出中收到自己的廣播或 storage 事件不再處理。
         await session.OnStorageChangedAsync(null);
@@ -1087,6 +1209,19 @@ public sealed class ClientSessionTests
         {
             Stored = null;
             Cleared = true;
+            return Task.CompletedTask;
+        }
+
+        /// <summary>寫進 sessionStorage 的其他鍵。</summary>
+        public Dictionary<string, string> SessionItems { get; } = [];
+
+        public override Task SetItemAsync(string key, string value, bool persistent)
+        {
+            if (!persistent)
+            {
+                SessionItems[key] = value;
+            }
+
             return Task.CompletedTask;
         }
 

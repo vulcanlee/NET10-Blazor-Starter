@@ -20,6 +20,7 @@ namespace MyProject.Web.Client.Auth;
 /// 帳號沒有主要角色（伺服器回 403 <see cref="ApiErrorCodes.NoPrimaryRole"/>）時登出，與 Server 版相同。</item>
 /// <item>存取 Token 快到期或 API 回 401 時刷新：多個分頁以 Web Locks 排隊，拿到鎖先重讀 storage（別的分頁可能已經換好）；刷新失敗才回登入頁。</item>
 /// <item>監聽其他分頁：localStorage 的 Token 被清掉（別的分頁登出）就回登入頁、換成別人就整頁重新載入；收到「已登出」廣播就重新確認自己的登入。</item>
+/// <item>登出一律整頁載入回登入頁（清掉記憶體裡這位使用者的一切）；登入成功後先在登入頁確認身分、讀好外框資料，再在程式內換頁（<see cref="EnterAfterSignInAsync"/>，0.10.35 起）。</item>
 /// </list>
 /// 伺服器回 429（請求過於頻繁，0.10.5 起）是暫時的：不清 Token、不回登入頁，改由外框顯示 <see cref="ThrottledMessage"/> 請使用者稍後重新整理。
 /// 連不上伺服器（網路斷了、逾時，或伺服器回 502／503／504，0.10.11 起）也是暫時的：設 <see cref="IsUnreachable"/>，同樣不清 Token、不回登入頁。
@@ -38,6 +39,12 @@ public class ClientSession : IDisposable
     /// <summary>登入頁。</summary>
     public const string LoginPath = "/Auths/Login";
 
+    /// <summary>
+    /// 登出時寫進這個分頁 sessionStorage 的一次性記號（0.10.35 起）：接著整頁載入時，<c>wwwroot/js/loading-hint.js</c> 讀到就刪掉，
+    /// 載入卡片改說「已登出，正在回到登入頁…」。鍵名與腳本一致（<c>LoadingAndStatusPageTests</c> 守門）。
+    /// </summary>
+    public const string SignedOutMarkerKey = "app.signedOut";
+
     /// <summary>新分頁向已開的分頁要 Token 時最多等多久（沒人回應就回登入頁）。</summary>
     public static readonly TimeSpan OtherTabsTimeout = TimeSpan.FromSeconds(1);
 
@@ -53,6 +60,7 @@ public class ClientSession : IDisposable
     private StoredTokens? tokens;
     private bool hasNoPrimaryRole;
     private bool isLeaving;
+    private bool reloadAfterSignIn;
 
     public ClientSession(HttpClient http, TokenStore store, NavigationManager navigation, ILogger<ClientSession> logger)
     {
@@ -205,8 +213,43 @@ public class ClientSession : IDisposable
     /// </summary>
     public async Task SignedInAsync(TokenResponseDto value)
     {
+        // 這個程式已經載入過某位使用者：登入後要整頁載入（見 EnterAfterSignInAsync）。要在存新 Token 之前判斷。
+        reloadAfterSignIn = Info is not null;
         await ApplyTokensAsync(value);
         await TryAsync(() => store.BroadcastSignedInAsync(value.User.Id));
+    }
+
+    /// <summary>
+    /// 登入成功（登入頁、兩步驟驗證頁、Google 兌換，先呼叫過 <see cref="SignedInAsync"/>）之後前往 <paramref name="returnUrl"/>（經 <see cref="ReturnUrlGuard"/>）。0.10.35 起：
+    /// <list type="bullet">
+    /// <item>不整頁重新載入：登入頁一定是剛整頁載入的（登出、Token 失效、未登入導過來都整頁載入），記憶體裡沒有任何使用者的資料。以前整頁載入會再看到一次啟動卡片。</item>
+    /// <item>換頁前先在登入頁（按鈕顯示「登入中…」）以 <see cref="InitializeAsync"/> 確認身分，並由 <paramref name="prepareShell"/> 讀好外框要的系統資訊與選單；
+    /// 外框（<c>ClientMainLayout</c>）直接用，不必再顯示「正在確認登入狀態…」。</item>
+    /// <item>確認身分時被要求先改密碼或設定兩步驟驗證（或帳號不能用網頁）：<see cref="InitializeAsync"/> 已經導走，這裡不再導。
+    /// 連不上伺服器或被限流：照樣導到 returnUrl，由外框照常處理（顯示訊息、恢復後重新載入）。</item>
+    /// </list>
+    /// ⚠️ 這個程式在登入前已經載入過某位使用者（例如從登入後的畫面以程式內連結到了登入頁）時照舊整頁載入、不預先讀取，
+    /// 確保前一位的資料不留在記憶體 —— 與登出（<see cref="LogoutAsync"/>）一律整頁載入是同一個原則。
+    /// </summary>
+    public async Task EnterAfterSignInAsync(string? returnUrl, Func<Task> prepareShell)
+    {
+        var target = ReturnUrlGuard.Sanitize(returnUrl);
+        if (reloadAfterSignIn)
+        {
+            navigation.NavigateTo(target, forceLoad: true);
+            return;
+        }
+
+        if (await InitializeAsync())
+        {
+            await prepareShell();
+        }
+        else if (!IsUnreachable && !IsThrottled)
+        {
+            return;
+        }
+
+        navigation.NavigateTo(target);
     }
 
     /// <summary>別的分頁有人登入了：顯示的是另一個人就丟掉這個分頁的 Token、重新載入（改用那次的登入）。</summary>
@@ -388,6 +431,9 @@ public class ClientSession : IDisposable
     /// <summary>
     /// 登出（0.10.8 起）：呼叫 <c>/api/v1/Auth/logout</c> 撤銷這次登入的每一串（每個分頁各一串，以登入識別串起來），
     /// 清掉瀏覽器存的 Token、通知其他分頁，再回登入頁。連不上伺服器時照樣清掉（伺服器的 Token 到期自然失效）。
+    /// ⚠️ 回登入頁一律整頁載入：這位使用者的身分、選單、權限、推播連線與各頁的資料都還在記憶體裡，整頁載入才保證清乾淨
+    /// （共用電腦時下一位看不到）；登入成功後因此可以不必再整頁載入（<see cref="EnterAfterSignInAsync"/>）。
+    /// 0.10.35 起先寫下 <see cref="SignedOutMarkerKey"/>，整頁載入期間的卡片說「已登出，正在回到登入頁…」，不像是程式重新初始化。
     /// </summary>
     public virtual async Task LogoutAsync()
     {
@@ -408,6 +454,7 @@ public class ClientSession : IDisposable
         tokens = null;
         await store.ClearAsync();
         await TryAsync(store.BroadcastLogoutAsync);
+        await TryAsync(() => store.SetItemAsync(SignedOutMarkerKey, "1", persistent: false));
         navigation.NavigateTo(LoginPath, forceLoad: true);
     }
 

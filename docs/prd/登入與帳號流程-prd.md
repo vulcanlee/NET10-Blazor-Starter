@@ -1,10 +1,10 @@
 ﻿# 登入與帳號流程 PRD
 
-- 文件版本：1.22
+- 文件版本：1.23
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.35
 - 首次實作版本：既有腳手架核心功能
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/17
 
 ## 一、目標與範圍
 
@@ -48,7 +48,7 @@
 - **舊的 123456**：登入成功時明文是 `123456` 就設 `MustChangePassword`（舊資料只有雜湊，無法用 SQL 轉換）。
 - **Google 登入**：處理順序集中在 `ExternalLoginResult.Evaluate`：已刪除 → 待開通 → **鎖定（0.9.101 起，導回 `?sso=locked`）** → 登入。
 - **雜湊自動升級**：驗證回傳 `SuccessRehashNeeded`（舊格式）時，即時以 PBKDF2 重新雜湊並存回。
-- **網頁登入發 Token**（0.10.8 起，`WebAuthController` `POST api/v1/Auth/login/web`＋`WebSessionTokens`；取代 Server 版登入頁的 Cookie 簽發與 `CookieClaims`）：密碼通過後開一串新的網頁 Token（發出管道 `web`，新的 `LoginSessionId`），存取 Token 帶 `security_stamp`、`fid`（這一串）與 `client_kind`。效期依「記住我」：勾了 → 前端存 localStorage，整串上限 `SessionSettings:RememberMeDays`（30 天，從登入算、不滑動）；沒勾 → 存 sessionStorage，刷新 Token 閒置 `IdleTimeoutMinutes`（480 分鐘，每次刷新重新起算；`IdleTimeoutSliding=false` 時改為從登入起的絕對上限）；存取 Token `AccessTokenMinutes`（15 分鐘）。前端存好 Token 後整頁導到 `returnUrl`（經 `ReturnUrlGuard`）或 `/App`，並廣播「誰登入了」：同一個瀏覽器顯示另一個人的分頁丟掉自己的 Token、重新載入改用這次的登入（**同一個瀏覽器只有一個身分**，與 Cookie 時代相同）。必須改密碼或設定兩步驟驗證的帳號照樣拿到 Token，由閘門擋（見「登入後狀態」）。
+- **網頁登入發 Token**（0.10.8 起，`WebAuthController` `POST api/v1/Auth/login/web`＋`WebSessionTokens`；取代 Server 版登入頁的 Cookie 簽發與 `CookieClaims`）：密碼通過後開一串新的網頁 Token（發出管道 `web`，新的 `LoginSessionId`），存取 Token 帶 `security_stamp`、`fid`（這一串）與 `client_kind`。效期依「記住我」：勾了 → 前端存 localStorage，整串上限 `SessionSettings:RememberMeDays`（30 天，從登入算、不滑動）；沒勾 → 存 sessionStorage，刷新 Token 閒置 `IdleTimeoutMinutes`（480 分鐘，每次刷新重新起算；`IdleTimeoutSliding=false` 時改為從登入起的絕對上限）；存取 Token `AccessTokenMinutes`（15 分鐘）。前端存好 Token 後導到 `returnUrl`（經 `ReturnUrlGuard`）或 `/App`（0.10.35 起經 `ClientSession.EnterAfterSignInAsync`：按鈕顯示「登入中…」，先在登入頁確認身分並讀好外框資料，再在程式內換頁、不整頁重新載入，也不再出現「正在確認登入狀態…」；登出仍整頁載入回登入頁，卡片改說「已登出，正在回到登入頁…」），並廣播「誰登入了」：同一個瀏覽器顯示另一個人的分頁丟掉自己的 Token、重新載入改用這次的登入（**同一個瀏覽器只有一個身分**，與 Cookie 時代相同）。必須改密碼或設定兩步驟驗證的帳號照樣拿到 Token，由閘門擋（見「登入後狀態」）。
 - **Google 登入**（`ExternalAuthController` + `ExternalLoginService.FindOrCreateAsync`）：Callback 驗證 `ExternalCookieScheme` 後，依序「有效的 GoogleId → 已刪除的 GoogleId（拒絕）→ 有效的 Email 連結既有帳號 → 已刪除的 Email（拒絕）→ 自動建立停用新帳號」（`Status=false`、`IsAdmin=false`、`Password=""`、`Salt=null`、指派預設角色）。命中已刪除的使用者（0.9.95 起）時不寫入、不連結、不新建，稽核 `Login.Sso.Failed`（`reason=Deleted`）並導向 `/Auths/Login?sso=deleted`，登入頁顯示固定文字「此帳號已被刪除，請洽系統管理員。」（`sso` 只認得固定代碼，其他值一律忽略，不回顯網址內容）。GoogleId 排在 Email 前面（使用者決定）：否則已刪除者的 Google 帳號會被連到同 Email 的另一人，之後他就因 GoogleId 衝突而無法還原。`!Status` 導向 `/Auths/Pending`。0.10.8 起回呼不再簽發 Cookie：產生一次性代碼（`GoogleLoginCodes`：只存雜湊、60 秒、只能兌換一次、綁定發起登入的瀏覽器）導回 `/Auths/Login#code=…`，登入頁以 `POST api/v1/Auth/google/exchange`（出示 sessionStorage 裡的驗證值原值）換 Token 或待驗票證；沒帶綁定值的舊流程一律導回登入頁，不建立也不連結帳號。代碼只在這個行程的記憶體，多台主機要黏著工作階段。0.10.10 起所有導回前端的網址（代碼、`?sso=…`、`/Auths/Pending`、錯誤頁）經 `ClientSettings.FrontendUrl`：雙站台時接在 `ClientSettings:BaseUrl` 後面，同站台時是本站路徑；只用設定值，不採用請求的 Host。
 - **登出**（0.10.8 起）：`ClientSession.LogoutAsync` 呼叫 `POST api/v1/Auth/logout`，依 `LoginSessionId` 撤銷**這次網頁登入的每一串**（每個分頁各一串），清掉瀏覽器存的 Token、以 BroadcastChannel 通知其他分頁（它們刷新失敗就回登入頁），再整頁回 `/Auths/Login`。已發出的存取 Token 驗證時檢查那一串是否已撤銷：同一台主機立即失效，多台最晚 30 秒。連不上伺服器時照樣清掉瀏覽器的 Token。0.10.7 以前是 `SignOutAsync(CookieScheme)`。
   - **使用者主動登出**（0.9.29 起）先經二次確認：UI 入口都走

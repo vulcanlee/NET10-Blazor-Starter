@@ -60,7 +60,7 @@
 
             <div class="login-actions">
                 <button class="login-button" type="submit" disabled="@isBusy">
-                    登入系統
+                    @(isBusy ? "登入中…" : "登入系統")
                 </button>
             </div>
 

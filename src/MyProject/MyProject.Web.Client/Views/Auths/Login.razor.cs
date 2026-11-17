@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using MyProject.Dtos.Auths;
 using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Layout;
 using MyProject.Web.Components.Auths;
 
 namespace MyProject.Web.Client.Views.Auths;
@@ -10,7 +11,7 @@ namespace MyProject.Web.Client.Views.Auths;
 /// <summary>
 /// 登入頁（0.10.8 起在 WASM 執行，WASM 遷移 M9；畫面、文字、元素 id 與隱藏欄位照抄 Server 版）。
 /// <list type="bullet">
-/// <item>帳號密碼經 <c>POST api/v1/Auth/login/web</c> 換 Token，依「記住我」存 localStorage 或 sessionStorage，再整頁導到 returnUrl（經 <see cref="ReturnUrlGuard"/>）。</item>
+/// <item>帳號密碼經 <c>POST api/v1/Auth/login/web</c> 換 Token，依「記住我」存 localStorage 或 sessionStorage，再導到 returnUrl（經 <see cref="ReturnUrlGuard"/>；0.10.35 起按鈕顯示「登入中…」、先確認身分並讀好外框資料，再在程式內換頁、不整頁重新載入，見 <see cref="ClientSession.EnterAfterSignInAsync"/>）。</item>
 /// <item>帳號已啟用兩步驟驗證：記住過的裝置（localStorage 的記住裝置 Token）直接完成，否則把待驗票證存在這個分頁、帶到 <c>/Auths/TwoFactor</c>。</item>
 /// <item>Google：按鈕帶這個分頁產生的驗證值雜湊；回呼導回 <c>#code=</c> 時以原值兌換（<c>POST api/v1/Auth/google/exchange</c>）。</item>
 /// <item>驗證碼 4 碼、答案就在頁面上（不是防機器人），真正的防線是伺服器的登入配額與帳號鎖定。</item>
@@ -37,6 +38,10 @@ public partial class Login
 
     [Inject]
     public ClientSession Session { get; set; } = default!;
+
+    /// <summary>登入成功後換頁前先讀好外框的資料（0.10.35 起，見 <see cref="ClientSession.EnterAfterSignInAsync"/>）。</summary>
+    [Inject]
+    public ClientShellData ShellData { get; set; } = default!;
 
     [Inject]
     public TokenStore Store { get; set; } = default!;
@@ -187,14 +192,14 @@ public partial class Login
         errorMessage = string.IsNullOrEmpty(message) ? string.Empty : "alert-danger";
     }
 
-    /// <summary>登入或 Google 兌換成功之後：有 Token 就存起來整頁導過去；要第二步就帶到兩步驟驗證頁。處理了回 true。</summary>
+    /// <summary>登入或 Google 兌換成功之後：有 Token 就存起來導過去（0.10.35 起程式內換頁）；要第二步就帶到兩步驟驗證頁。處理了回 true。</summary>
     private async Task<bool> ContinueAsync(WebLoginResultDto data)
     {
         if (data.Tokens is { } tokens)
         {
             await Session.SignedInAsync(tokens);
             Logger.LogInformation("Login succeeded. UserId={UserId}", tokens.User.Id);
-            NavigationManager.NavigateTo(ReturnUrlGuard.Sanitize(data.ReturnUrl), forceLoad: true);
+            await Session.EnterAfterSignInAsync(data.ReturnUrl, ShellData.PrepareAsync);
             return true;
         }
 

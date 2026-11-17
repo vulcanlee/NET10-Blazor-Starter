@@ -26,7 +26,7 @@
             }
 
             <div class="login-actions">
-                <button class="login-button" type="submit" disabled="@isBusy">驗證並登入</button>
+                <button class="login-button" type="submit" disabled="@isBusy">@(isBusy ? "登入中…" : "驗證並登入")</button>
             </div>
 
             @if (!string.IsNullOrEmpty(message))

@@ -59,6 +59,56 @@ public sealed class LoadingAndStatusPageTests : ComponentTestBase
         Assert.Matches(@"\.app-loading-percent::after\s*\{[^}]*content:\s*var\(--blazor-load-percentage-text", AppCss);
     }
 
+    /// <summary>
+    /// 進度條不加寬度動畫（0.10.35 起）：從快取載入時百分比一下子到 100%，接著瀏覽器忙著啟動 .NET、動畫停在半途，
+    /// 實機看到「100%」但進度條只到八成。
+    /// </summary>
+    [Fact]
+    public void LoadingBar_ShouldNotAnimateItsWidth()
+    {
+        Assert.DoesNotMatch(@"\.app-loading-bar-fill\s*\{[^}]*transition", AppCss);
+    }
+
+    /// <summary>
+    /// 「第一次開啟需要下載程式」只在這個瀏覽器還沒成功啟動過時顯示（0.10.35 起；登出後、F5 看到這句會以為又重新下載）。
+    /// 判斷寫在外部腳本（CSP 不允許行內腳本），排在 head 讓卡片畫出來之前就決定好；成功啟動（卡片被取代）才記下來。
+    /// </summary>
+    [Fact]
+    public void FirstDownloadHint_ShouldOnlyShowUntilTheAppHasStartedOnce()
+    {
+        var head = IndexHtml[..IndexHtml.IndexOf("</head>", StringComparison.Ordinal)];
+        Assert.Contains("<script src=\"js/loading-hint.js\"></script>", head, StringComparison.Ordinal);
+        Assert.Matches(@"\.app-loaded-before\s+\.app-loading-hint\s*\{[^}]*display:\s*none", AppCss);
+
+        var script = File.ReadAllText(Path.Combine(SourceTree.ClientWebRoot, "js", "loading-hint.js"));
+        Assert.Contains("app.loadedBefore", script, StringComparison.Ordinal);
+        Assert.Contains("app-loaded-before", script, StringComparison.Ordinal);
+        Assert.Contains("MutationObserver", script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 登出後整頁載入時（0.10.35 起，登出刻意整頁載入以清掉記憶體）：卡片說「已登出，正在回到登入頁…」，不顯示百分比與「第一次開啟」，
+    /// 看起來是登出的過程而不是程式重新初始化。記號是登出時寫進這個分頁 sessionStorage 的一次性鍵，腳本讀到就刪掉（F5 不會再出現）。
+    /// </summary>
+    [Fact]
+    public void LoadingCard_AfterSignOut_ShouldSaySignedOut()
+    {
+        var app = Regex.Match(IndexHtml, "<div id=\"app\">(?<content>[\\s\\S]*?)</div>\\s*<script", RegexOptions.None).Groups["content"].Value;
+        Assert.Matches("class=\"app-loading-signed-out\"[^>]*>已登出，正在回到登入頁…<", app);
+        Assert.Matches(@"\.app-loading-signed-out\s*\{[^}]*display:\s*none", AppCss);
+        Assert.Matches(@"\.app-signed-out\s+\.app-loading-signed-out\s*\{[^}]*display:\s*block", AppCss);
+        Assert.Matches(@"\.app-signed-out\s+\.app-loading-text[^{]*\{[^}]*display:\s*none", AppCss);
+
+        var script = File.ReadAllText(Path.Combine(SourceTree.ClientWebRoot, "js", "loading-hint.js"));
+        Assert.Contains($"'{MyProject.Web.Client.Auth.ClientSession.SignedOutMarkerKey}'", script, StringComparison.Ordinal);
+        Assert.Contains("sessionStorage.removeItem", script, StringComparison.Ordinal);
+        Assert.Contains("classList.remove('app-signed-out')", script, StringComparison.Ordinal);
+
+        // 登入頁讀設定時的卡片接續同一句話（不會從「已登出…」跳成「正在載入…」）。
+        var cut = Render<ClientLoadingScreen>(parameters => parameters.Add(p => p.Message, "正在載入…"));
+        Assert.Equal("已登出，正在回到登入頁…", cut.Find(".app-loading-signed-out").TextContent);
+    }
+
     [Fact]
     public void LoadingScreen_ShouldUseTheSameFixedSystemName()
     {

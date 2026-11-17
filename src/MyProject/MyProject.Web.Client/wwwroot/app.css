@@ -119,7 +119,7 @@ h1:focus {
     background: var(--app-primary-grad);
     border-radius: 999px;
     height: 100%;
-    transition: width 0.2s ease-out;
+    /* 不加寬度動畫（0.10.35 起）：從快取載入時一下子到 100%，接著瀏覽器忙著啟動 .NET，動畫會停在半途（看到 100% 但進度條只到八成）。 */
     width: var(--blazor-load-percentage, 0%);
 }
 
@@ -146,6 +146,29 @@ h1:focus {
     margin: 0.45rem 0 0;
 }
 
+/* 這個瀏覽器成功啟動過（js/loading-hint.js 加上的 class，0.10.35 起）：不再說「第一次開啟」。 */
+.app-loaded-before .app-loading-hint {
+    display: none;
+}
+
+/* 剛登出（js/loading-hint.js 加上的 class，0.10.35 起）：說「已登出，正在回到登入頁…」，不顯示百分比與「第一次開啟」。 */
+.app-loading-signed-out {
+    color: var(--app-text);
+    display: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0.9rem 0 0;
+}
+
+.app-signed-out .app-loading-signed-out {
+    display: block;
+}
+
+.app-signed-out .app-loading-text,
+.app-signed-out .app-loading-hint {
+    display: none;
+}
+
 /* 啟動失敗時的提示：30 秒後才出現（正常載入早就被取代了）。 */
 .app-loading-stuck {
     animation: appLoadingStuck 0s linear 30s forwards;
@@ -158,11 +181,5 @@ h1:focus {
 @keyframes appLoadingStuck {
     to {
         visibility: visible;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .app-loading-bar-fill {
-        transition: none;
     }
 }

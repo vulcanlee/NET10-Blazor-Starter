@@ -9,15 +9,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
+using MyProject.Dtos.Shell;
 using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Layout;
 using MyProject.Web.Client.Views.Auths;
 
 namespace MyProject.Tests.Components;
 
 /// <summary>
 /// 登入頁（0.10.8 起在 WASM，WASM 遷移 M9b）：保留 Server 版的元素 id 與隱藏欄位（實機腳本沿用）、固定的 sso 訊息、
-/// 驗證碼在瀏覽器比對、登入成功依 returnUrl 整頁導過去、需要第二步時帶到兩步驟驗證頁。API 行為見 WebTokenLoginApiTests。
+/// 驗證碼在瀏覽器比對、登入成功先在登入頁確認身分並讀好外框資料、再依 returnUrl 在程式內換頁（0.10.35 起；以前整頁導過去）、需要第二步時帶到兩步驟驗證頁。API 行為見 WebTokenLoginApiTests。
 /// </summary>
 public sealed class LoginPageTests : ComponentTestBase
 {
@@ -41,6 +43,7 @@ public sealed class LoginPageTests : ComponentTestBase
         Services.AddSingleton(sp => new ClientSession(Http(), sp.GetRequiredService<TokenStore>(), sp.GetRequiredService<NavigationManager>(), NullLogger<ClientSession>.Instance));
         Services.AddSingleton(sp => new ApiClient(Http(), sp.GetRequiredService<ClientSession>(), sp.GetRequiredService<NavigationManager>(), NullLogger<ApiClient>.Instance));
         Services.AddSingleton<LoginPageSettingsSource>();
+        Services.AddSingleton(sp => new ClientShellData(sp.GetRequiredService<ApiClient>()));
         // API 主機的網址（0.10.10 起）：這裡模擬雙站台，前端在 localhost、API 在 api.example.com。
         Services.AddSingleton(ApiAddress.Resolve("https://api.example.com/", "https://localhost/"));
     }
@@ -118,13 +121,19 @@ public sealed class LoginPageTests : ComponentTestBase
     }
 
     [Fact]
-    public void SuccessfulLogin_ShouldStoreTheTokensAndGoToTheReturnUrlWithAFullLoad()
+    public void SuccessfulLogin_ShouldStoreTheTokensAndGoToTheReturnUrlWithoutAFullLoad()
     {
+        var tokens = new TokenResponseDto { AccessToken = "a1", RefreshToken = "r1", AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(15), RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(30), IsPersistent = true, User = new CurrentUserDto { Id = 7 } };
         handler.Respond("api/v1/Auth/login/web", HttpStatusCode.OK, ApiResult<WebLoginResultDto>.SuccessResult(new WebLoginResultDto
         {
-            Tokens = new TokenResponseDto { AccessToken = "a1", RefreshToken = "r1", AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(15), RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(30), IsPersistent = true, User = new CurrentUserDto { Id = 7 } },
+            Tokens = tokens,
             ReturnUrl = "/projects",
         }));
+        handler.Respond("api/v1/Auth/me", HttpStatusCode.OK, ApiResult<SessionInfoDto>.SuccessResult(new SessionInfoDto { Id = 7, Account = "alice" }));
+        handler.Respond("api/v1/shell/info", HttpStatusCode.OK, ApiResult<ShellInfoDto>.SuccessResult(new ShellInfoDto { SystemName = "測試系統" }));
+        handler.Respond("api/v1/shell/menu", HttpStatusCode.OK, ApiResult<ShellMenuDto>.SuccessResult(new ShellMenuDto()));
+        // 瀏覽器裡剛存好的 Token（bUnit 沒有真的 storage）。
+        JSInterop.SetupModule("./js/client-auth.js").Setup<string?>("read").SetResult(TokenStore.Serialize(new StoredTokens("a1", tokens.AccessTokenExpiresAt, "r1", tokens.RefreshTokenExpiresAt, true, 7)));
         var navigation = (BunitNavigationManager)Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/Auths/Login?returnUrl=%2Fprojects");
         var page = Render<Login>();
@@ -141,7 +150,12 @@ public sealed class LoginPageTests : ComponentTestBase
         Assert.Equal("alice", request.Account);
         Assert.True(request.RememberMe);
         Assert.Equal("/projects", request.ReturnUrl);
-        Assert.True(navigation.History.First().Options.ForceLoad);
+        // 0.10.35 起登入成功不再整頁重新載入（登入頁本來就是剛整頁載入的），改在程式內換頁。
+        Assert.False(navigation.History.First().Options.ForceLoad);
+        // 換頁之前已在登入頁確認身分、讀好外框資料（外框不必再顯示「正在確認登入狀態…」）。
+        Assert.Equal("alice", Services.GetRequiredService<ClientSession>().Info!.Account);
+        Assert.Contains("api/v1/shell/menu", handler.Paths);
+        Assert.NotNull(Services.GetRequiredService<ClientShellData>().TakePrepared());
     }
 
     [Fact]
