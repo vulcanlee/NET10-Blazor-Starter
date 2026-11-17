@@ -27,6 +27,9 @@
          在同分特異性上輸給 AntDesign 而靜默失效。由 ThemeConventionTests 守門。 -->
     <link rel="stylesheet" href="theme.css" />
 
+    <!-- 這個瀏覽器成功啟動過，就不顯示載入卡片的「第一次開啟需要下載程式」；剛登出時卡片改說「已登出，正在回到登入頁…」（0.10.35 起）。放在 head，卡片畫出來前就決定好。 -->
+    <script src="js/loading-hint.js"></script>
+
     <link href="https://fonts.googleapis.com/css?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Sharp|Material+Icons+Round|Material+Icons+Two+Tone" rel="stylesheet" />
 </head>
 
@@ -43,6 +46,8 @@
                 <p class="app-loading-title">企業管理平台</p>
                 <div class="app-loading-bar" aria-hidden="true"><div class="app-loading-bar-fill"></div></div>
                 <p class="app-loading-text">正在載入，請稍候… <span class="app-loading-percent"></span></p>
+                <!-- 剛登出時（js/loading-hint.js 加上 app-signed-out）取代上一行；登出刻意整頁載入，以清掉前一位使用者留在記憶體的資料。 -->
+                <p class="app-loading-signed-out">已登出，正在回到登入頁…</p>
                 <p class="app-loading-hint">第一次開啟需要下載程式，之後會更快</p>
                 <!-- 啟動失敗（離線第一次開、檔案被手改導致完整性驗證失敗、瀏覽器不支援…）時卡片不會被取代：30 秒後才浮現這句（純 CSS，app.css 的 .app-loading-stuck）。 -->
                 <p class="app-loading-stuck">若一直停在這個畫面，請重新整理；仍然無法開啟請聯絡系統管理員。</p>

@@ -10,6 +10,8 @@
         <p class="app-loading-title">@FixedSystemName</p>
         <div class="app-loading-bar" aria-hidden="true"><div class="app-loading-bar-fill"></div></div>
         <p class="app-loading-text">@Message</p>
+        @* 剛登出時（js/loading-hint.js 加上 app-signed-out，0.10.35 起）取代上一行，接續 index.html 卡片的同一句話；平常隱藏。 *@
+        <p class="app-loading-signed-out">已登出，正在回到登入頁…</p>
     </div>
 </div>
 

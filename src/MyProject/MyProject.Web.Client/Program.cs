@@ -72,6 +72,8 @@ public static class ClientProgram
         builder.Services.AddScoped<ClientAnnouncementSignal>();
         // 通知推播串流（0.10.7 起，WASM 遷移 M8）：整個 WASM 只有一條，由外框啟動。
         builder.Services.AddScoped<ClientPushConnection>();
+        // 外框的系統資訊與選單（0.10.35 起）：登入頁先讀好，外框直接用。
+        builder.Services.AddScoped<ClientShellData>();
         // 系統參數、公告管理（0.10.6 起，WASM 遷移 M7）。
         builder.Services.AddScoped<SystemParameterApi>();
         builder.Services.AddScoped<AnnouncementApi>();

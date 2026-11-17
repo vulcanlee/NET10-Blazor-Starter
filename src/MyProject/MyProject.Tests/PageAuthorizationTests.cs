@@ -185,6 +185,8 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
     /// <summary>
     /// ⭐ 0.10.8 起這就是登入的閘門（伺服器不再以 [Authorize] 擋整頁請求）：ClientMainLayout 在 <c>Session.InitializeAsync()</c>
     /// 通過之前不渲染任何東西（側邊欄、頁首、頁面本體），失敗就由 ClientSession 帶 returnUrl 回登入頁。
+    /// 0.10.35 起唯一的例外是剛登入：登入頁已經以同一個 <c>Session.InitializeAsync()</c> 確認過（成功才讀外框資料，
+    /// 見 <c>ClientSessionTests.EnterAfterSignIn_*</c>），外框拿到那份資料（只能拿一次，而且 <c>Session.Info</c> 要有值）時不再確認第二次。
     /// </summary>
     [Fact]
     public void ClientMainLayout_ShouldRenderNothingUntilTheSessionIsInitialized()
@@ -193,8 +195,10 @@ public sealed class PageAuthorizationTests : IClassFixture<ApiTestApplicationFac
         var code = File.ReadAllText(Path.Combine(SourceTree.Client, "Layout", "ClientMainLayout.razor.cs"));
 
         Assert.StartsWith("@if (isAuthenticated)", markup[markup.IndexOf("@if (", StringComparison.Ordinal)..]);
-        var initialize = code.IndexOf("if (!await Session.InitializeAsync())", StringComparison.Ordinal);
-        Assert.True(initialize >= 0, "ClientMainLayout 必須先呼叫 Session.InitializeAsync() 並在失敗時停止。");
+        var prepared = code.IndexOf("var shell = Session.Info is null ? null : ShellData.TakePrepared();", StringComparison.Ordinal);
+        var initialize = code.IndexOf("if (shell is null && !await Session.InitializeAsync())", StringComparison.Ordinal);
+        Assert.True(prepared >= 0, "只有登入頁確認過身分（Session.Info 有值）時，才能用它先讀好的外框資料。");
+        Assert.True(initialize > prepared, "ClientMainLayout 沒有登入頁先讀好的資料時，必須先呼叫 Session.InitializeAsync() 並在失敗時停止。");
         Assert.True(code.IndexOf("isAuthenticated = true", StringComparison.Ordinal) > initialize, "isAuthenticated 只能在登入檢查通過之後設為 true。");
     }
 

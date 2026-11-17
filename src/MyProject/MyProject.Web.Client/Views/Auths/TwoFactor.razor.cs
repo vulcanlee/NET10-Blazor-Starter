@@ -4,7 +4,7 @@ using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
 using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
-using MyProject.Web.Components.Auths;
+using MyProject.Web.Client.Layout;
 
 namespace MyProject.Web.Client.Views.Auths;
 
@@ -25,6 +25,10 @@ public partial class TwoFactor
 
     [Inject]
     public ClientSession Session { get; set; } = default!;
+
+    /// <summary>登入成功後換頁前先讀好外框的資料（0.10.35 起，見 <see cref="ClientSession.EnterAfterSignInAsync"/>）。</summary>
+    [Inject]
+    public ClientShellData ShellData { get; set; } = default!;
 
     [Inject]
     public TokenStore Store { get; set; } = default!;
@@ -81,7 +85,7 @@ public partial class TwoFactor
                 await LoginStorage.ClearPendingAsync(Store);
                 await Session.SignedInAsync(tokens);
                 Logger.LogInformation("Two-factor login completed. UserId={UserId}", tokens.User.Id);
-                NavigationManager.NavigateTo(ReturnUrlGuard.Sanitize(result.Data.ReturnUrl), forceLoad: true);
+                await Session.EnterAfterSignInAsync(result.Data.ReturnUrl, ShellData.PrepareAsync);
                 return;
             }
 

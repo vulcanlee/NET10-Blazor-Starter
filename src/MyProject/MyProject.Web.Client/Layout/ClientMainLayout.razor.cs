@@ -16,7 +16,9 @@ namespace MyProject.Web.Client.Layout;
 /// WASM 頁面的版面（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的一份）。資料來源：
 /// <list type="bullet">
 /// <item>登入檢查：<see cref="ClientSession.InitializeAsync"/>（Token 與 <c>/me</c>）；被要求改密碼或設定兩步驟驗證時整頁導走。</item>
-/// <item>選單、系統資訊、說明主題：<c>/api/v1/shell/menu</c>、<c>/api/v1/shell/info</c>。</item>
+/// <item>選單、系統資訊、說明主題：<c>/api/v1/shell/menu</c>、<c>/api/v1/shell/info</c>（<see cref="ClientShellData"/>，兩個同時讀）。</item>
+/// <item>登入成功後（0.10.35 起）：登入頁已經確認過身分、讀好上面兩項（<see cref="ClientShellData.TakePrepared"/>），直接用，
+/// 而且整個初始化不經過任何非同步等待，第一次渲染就是完整的外框，不會閃一下「正在確認登入狀態…」。</item>
 /// <item>開頁稽核：每次換頁呼叫 <c>/api/v1/shell/page-view</c>。</item>
 /// </list>
 /// </summary>
@@ -54,6 +56,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private ClientConnectivity Connectivity { get; set; } = default!;
 
+    [Inject]
+    private ClientShellData ShellData { get; set; } = default!;
+
     private IReadOnlyList<ClientMenuItem> MenuItems { get; set; } = [];
 
     private IReadOnlyList<HelpTopicDto> HelpTopics { get; set; } = [];
@@ -80,7 +85,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (!await Session.InitializeAsync())
+        // 登入頁先讀好的（只在剛登入時有）；Session.Info 有值才代表那次確認身分成功。
+        var shell = Session.Info is null ? null : ShellData.TakePrepared();
+        if (shell is null && !await Session.InitializeAsync())
         {
             // 連不上伺服器（0.10.11 起）：畫面顯示訊息，瀏覽器恢復連線時自動重新載入；
             // 另外每 15 秒試一次伺服器，有回應（不是 5xx）就重新載入（瀏覽器一直有網路、只是伺服器暫時連不上或停機時，收不到恢復連線的事件）。
@@ -93,12 +100,11 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
             return;
         }
 
-        var info = await Api.GetAsync<ShellInfoDto>("api/v1/shell/info");
-        var menu = await Api.GetAsync<ShellMenuDto>("api/v1/shell/menu");
-        shellInfo = info.Data;
+        shell ??= await ShellData.LoadAsync();
+        shellInfo = shell.Info;
         SystemName = shellInfo?.SystemName ?? string.Empty;
         HelpTopics = shellInfo?.HelpTopics ?? [];
-        MenuItems = menu.Data?.Items.Select(ClientMenuItem.From).ToList() ?? [];
+        MenuItems = shell.Menu?.Items.Select(ClientMenuItem.From).ToList() ?? [];
 
         UpdateCurrentUserStatus();
         currentPath = CurrentPath();
@@ -224,11 +230,16 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// 側邊選單上次的展開／收合。瀏覽器裡（WebAssembly）以同步呼叫讀：用到登入頁先讀好的資料時，初始化才不會在這裡停下、先渲染一次載入卡片（0.10.35 起）。
+    /// </summary>
     private async Task<bool> ReadInitialSidebarCollapsedAsync()
     {
         try
         {
-            return await JSRuntime.InvokeAsync<bool>("appNavState.isInitiallyCollapsed");
+            return JSRuntime is IJSInProcessRuntime inProcess
+                ? inProcess.Invoke<bool>("appNavState.isInitiallyCollapsed")
+                : await JSRuntime.InvokeAsync<bool>("appNavState.isInitiallyCollapsed");
         }
         catch (JSException ex)
         {
