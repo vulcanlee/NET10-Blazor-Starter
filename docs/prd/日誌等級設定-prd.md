@@ -1,10 +1,10 @@
 ﻿# 日誌等級設定 PRD
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.37
 - 首次實作版本：0.4.29
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/18
 
 ## 一、目標與範圍
 
@@ -12,7 +12,7 @@
 
 在此之前，唯一的辦法是編輯 `nlog.config` 的 `<logger name="*"> minlevel` —— 那是一個會進版控、且可能被誤留在 Debug 的檔案異動。
 
-- 範圍：兩張狀態卡片、行為說明橫幅、六級單選、套用與還原兩個動作、稽核紀錄。
+- 範圍：兩張狀態卡片、行為說明橫幅、六級單選、套用與還原兩個動作、稽核紀錄；0.10.37 起另有「前端診斷記錄」區塊（對指定使用者限時收集前端日誌）。
 - 非範圍：寫回設定檔、個別 logger 的細部調整、框架日誌（Microsoft／EntityFrameworkCore）的等級調整、排程自動還原。
 
 ## 二、使用者與入口
@@ -55,6 +55,20 @@
 > `<logger name="*">` 規則）時，畫面改顯示紅色錯誤區塊並停用所有調整動作，
 > 提示「無法讀取 NLog 設定，日誌等級無法在執行期調整」。
 
+**前端診斷記錄**（0.10.37 起，與上面的等級各自獨立）
+
+| 欄位 | 說明 |
+| --- | --- |
+| 帳號 | 要診斷的使用者帳號（不分大小寫）；空白時「開始前端診斷記錄」停用 |
+| 等級 | DEBUG（預設）或 TRACE（含每次換頁與 API 呼叫） |
+| 時間 | 15 分鐘、30 分鐘、1 小時（預設）、2、4、8 小時 |
+| 開始前端診斷記錄（播放圖示） | `POST api/v1/log-level/client-diagnostics`；成功時頂端出現「已對 X 開啟前端診斷記錄（TRACE，至 HH:mm）」、帳號欄清空；同一位使用者已經開著就以這次的設定取代。錯誤訊息：「前端診斷的等級只能是 DEBUG 或 TRACE。」「時間只能是 15、30、60、120、240、480 分鐘。」「找不到這個帳號。」 |
+| 清單 | 帳號、等級、開始時間、到期時間、開啟者、操作（停止圖示）；沒有時顯示「目前沒有開啟中的前端診斷記錄。」 |
+| 停止 | `DELETE api/v1/log-level/client-diagnostics/{userId}`；成功時「已關閉 X 的前端診斷記錄」；已經到期時回「這位使用者的前端診斷記錄已經關閉（或已到期）。」並重讀清單 |
+
+被診斷的使用者畫面底部出現「系統管理員已開啟診斷記錄（至 HH:mm）：這段時間的操作會詳細記錄，方便排查問題。」，到期或關閉後消失。
+寫進日誌檔的 Logger 是 `MyProject.Browser.*`，訊息以 `Browser log:` 開頭並帶 Page、ClientTime、Account、UserId。運作方式見 [日誌與例外處理 PRD](日誌與例外處理-prd.md) LOG-24。
+
 ## 四、內部系統運作
 
 1. `LogLevelSettingView.OnInitializedAsync`（0.10.5 起在 WASM 以 `Permissions.IsAdmin` 判斷、經 `api/v1/log-level` 讀寫；以下為 Server 版原文）：`Check` → `CheckIsAdmin`；非管理員設定 `RoleMessage`、寫一筆 `Permission.Denied` 稽核（目標 `/log-level-setting`）並中止，**權限通過前不讀取任何設定資訊**。
@@ -74,6 +88,8 @@
 - **`LogLevelRuntimeState` 是本專案第一個可變的 Singleton**（既有的 `SystemStartupState` 是不可變的），因此鎖的責任完全在它自己：`LoggingRules` 是普通的 `IList`，改動發生在處理 API 請求的執行緒上（0.10.8 以前是 Blazor circuit 執行緒），而其他執行緒同時正在寫日誌。
 - 多個管理員同時操作時最後套用者勝出；每次進頁都重讀真實狀態，不快取。
 
+- **前端診斷記錄只存記憶體**（0.10.37 起）：重新啟動就全部關閉；多台主機時每台各一份。開啟後最慢約 1 分鐘才開始送（等使用者下一次呼叫 API），開啟前的前端日誌不會補送。它的日誌走 `nlog.config` 的 `MyProject.Browser.*` 專屬規則，不受本頁的等級影響。
+
 ## 六、與 autoReload 的互動
 
 `nlog.config` 設了 `autoReload="true"`，NLog 重載時會**整個換掉 `LogManager.Configuration`**。`LogLevelRuntimeState` 訂閱 `ConfigurationChanged` 並依序處理：
@@ -91,6 +107,8 @@
 對應測試檔 `MyProject.Tests/LogLevelRuntimeStateTests.cs`（10 支）：涵蓋等級升降、還原預設、
 `IsAvailable` 判定，以及 `LoweringLevel_AgainstRealConfig_ShouldOnlyAffectApplicationLoggers`
 （調低等級只影響應用程式 logger，不會連帶打開框架的雜訊）。
+
+前端診斷記錄（0.10.37 起）：`ClientDiagnosticsTests`、`LogApiTests.ClientDiagnostics_*`；實機 `scripts/e2e/client-diagnostics.mjs`。
 
 > 該測試檔標記 `[CollectionDefinition(..., DisableParallelization = true)]`——
 > 它會動到真實的 `nlog.config`，不能與其他測試平行執行。

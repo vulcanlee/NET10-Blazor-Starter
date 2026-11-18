@@ -233,3 +233,41 @@ public class ClientReportBatchResultDto
     /// <summary>有項目被限流時，幾秒後再送。</summary>
     public int? RetryAfterSeconds { get; set; }
 }
+
+/// <summary>
+/// 前端診斷記錄的日誌批次（0.10.37 起，<c>POST /api/v1/shell/diagnostic-logs</c>）：管理員對這位使用者開啟診斷時，
+/// 前端把自己的日誌（達到門檻等級的）批次送來，伺服器依原等級寫進日誌檔。
+/// </summary>
+public class ClientLogBatchDto
+{
+    public List<ClientLogEntryDto> Items { get; set; } = [];
+
+    /// <summary>前端緩衝區滿了而捨棄的筆數。</summary>
+    public int Dropped { get; set; }
+}
+
+/// <summary>前端的一筆日誌。不帶例外物件，只帶例外型別名稱（不會進系統例外紀錄）。</summary>
+public class ClientLogEntryDto
+{
+    /// <summary><c>Trace</c>、<c>Debug</c>、<c>Information</c>、<c>Warning</c>、<c>Error</c>、<c>Critical</c>。</summary>
+    public string? Level { get; set; }
+
+    /// <summary>前端的日誌分類（例如 <c>MyProject.Web.Client.Api.ApiClient</c>）。</summary>
+    public string? Category { get; set; }
+
+    /// <summary>格式化後的訊息。</summary>
+    public string? Message { get; set; }
+
+    public string? ExceptionType { get; set; }
+
+    /// <summary>發生時的頁面路徑。</summary>
+    public string? Path { get; set; }
+
+    public DateTimeOffset? ClientTime { get; set; }
+}
+
+/// <summary>前端診斷記錄的結果：<see cref="Active"/> 為 false 表示這位使用者的診斷已經關閉（或到期），前端停止送。</summary>
+public class ClientLogBatchResultDto
+{
+    public bool Active { get; set; }
+}

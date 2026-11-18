@@ -157,4 +157,22 @@ public sealed class PwaStatusBarTests : ComponentTestBase
         Assert.Empty(bar.FindAll(".app-update-bar"));
         apply.VerifyNotInvoke("appPwa.applyUpdate");
     }
+
+    /// <summary>前端診斷記錄的提示列（0.10.37 起）：管理員開啟時出現、顯示到期時間；關閉時消失。</summary>
+    [Fact]
+    public void DiagnosticsBar_ShouldShowWhileDiagnosticsIsOn()
+    {
+        var state = new ClientDiagnosticsState();
+        Services.AddSingleton(state);
+        var bar = Render<ClientDiagnosticsBar>();
+        Assert.Empty(bar.FindAll(".app-diagnostics-bar"));
+
+        state.Update("Debug;15:30;3600");
+        bar.WaitForAssertion(() => Assert.Equal(
+            "系統管理員已開啟診斷記錄（至 15:30）：這段時間的操作會詳細記錄，方便排查問題。",
+            bar.Find(".app-diagnostics-bar").TextContent.Trim()));
+
+        state.Update(null);
+        bar.WaitForAssertion(() => Assert.Empty(bar.FindAll(".app-diagnostics-bar")));
+    }
 }

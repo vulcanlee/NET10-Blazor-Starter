@@ -136,6 +136,8 @@ public sealed class DualSiteHostTests : IClassFixture<DualSiteTestApplicationFac
         Assert.Contains("content-disposition", Header(response, "Access-Control-Expose-Headers").ToLowerInvariant());
         // 每個請求的追蹤碼（0.10.36 起）：前端記進操作軌跡，雙站台時要公開才讀得到。
         Assert.Contains("x-trace-code", Header(response, "Access-Control-Expose-Headers").ToLowerInvariant());
+        // 前端診斷記錄（0.10.37 起）：雙站台時也要讀得到。
+        Assert.Contains("x-client-diagnostics", Header(response, "Access-Control-Expose-Headers").ToLowerInvariant());
         Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
     }
 

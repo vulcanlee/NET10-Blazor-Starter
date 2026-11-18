@@ -499,6 +499,35 @@ public sealed class ClientSessionTests
         Assert.Equal(new object?[] { "GET", "https://localhost/api/v1/profile", 0 }, calls[1].Args.Take(3));
     }
 
+    /// <summary>
+    /// 前端診斷記錄（0.10.37 起）：帶 Token 的回應有 X-Client-Diagnostics 就開啟、沒有就關閉；匿名呼叫的回應不算（不能拿來關閉）。
+    /// </summary>
+    [Fact]
+    public async Task ApiClient_ShouldFollowTheDiagnosticsHeader_OnSignedInResponsesOnly()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/profile", HttpStatusCode.OK, Ok(new ProfileDto { Account = "alice" }));
+        handler.On("api/v1/Auth/login-settings", HttpStatusCode.OK, Ok(new object()));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var diagnostics = new ClientDiagnosticsState();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance, diagnostics: diagnostics);
+
+        handler.ResponseHeaders["X-Client-Diagnostics"] = "Debug;15:30;3600";
+        await api.GetAsync<ProfileDto>("api/v1/profile");
+        Assert.True(diagnostics.IsActive);
+        Assert.Equal("15:30", diagnostics.Until);
+
+        handler.ResponseHeaders.Clear();
+        await api.GetAnonymousAsync<object>("api/v1/Auth/login-settings");
+        Assert.True(diagnostics.IsActive);
+
+        await api.GetAsync<ProfileDto>("api/v1/profile");
+        Assert.False(diagnostics.IsActive);
+    }
+
     /// <summary>審查修正（0.10.2）：匯出被拒（例如超過筆數上限）時，畫面要顯示伺服器給的原因，不是「驗證失敗」這種分類字。</summary>
     [Fact]
     public async Task Download_WhenTheServerRefuses_ShouldReturnTheReason()
@@ -1363,6 +1392,9 @@ public sealed class ClientSessionTests
 
         public bool Offline { get; set; }
 
+        /// <summary>每個回應都帶的標頭（例如 0.10.37 起的 X-Client-Diagnostics）。</summary>
+        public Dictionary<string, string> ResponseHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>只有這幾個路徑連不上（例如 /me 回 401、刷新時才斷線）。</summary>
         public HashSet<string> Unreachable { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1426,7 +1458,13 @@ public sealed class ClientSessionTests
             var (status, body) = next;
             // HttpContent 照原樣回（例如 NDJSON 串流），其他序列化成 JSON。
             var content = body as HttpContent ?? JsonContent.Create(body, body.GetType());
-            return Task.FromResult(new HttpResponseMessage(status) { Content = content });
+            var response = new HttpResponseMessage(status) { Content = content };
+            foreach (var (name, value) in ResponseHeaders)
+            {
+                response.Headers.TryAddWithoutValidation(name, value);
+            }
+
+            return Task.FromResult(response);
         }
     }
 }

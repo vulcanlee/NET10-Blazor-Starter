@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject NavigationManager NavigationManager
 @inject ClientErrorCapture ErrorCapture
+@inject ILogger<ClientRoutes> Logger
 
 @*
     WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的根元件；0.10.10 起由 Program.cs 掛在 index.html 的 #app）。
@@ -61,6 +62,7 @@
     <div class="app-status-bars">
         <ClientOfflineBar />
         <ClientUpdateBar />
+        <ClientDiagnosticsBar />
     </div>
 </ConfigProvider>
 
@@ -93,7 +95,10 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        ErrorCapture.Navigated(new Uri(e.Location).AbsolutePath);
+        var path = new Uri(e.Location).AbsolutePath;
+        ErrorCapture.Navigated(path);
+        // 前端診斷記錄的操作軌跡（0.10.37 起，Trace；平常不輸出）。
+        Logger.LogTrace("Navigated. Path={Path}", path);
         _ = InvokeAsync(() =>
         {
             overlayBoundary?.Recover();

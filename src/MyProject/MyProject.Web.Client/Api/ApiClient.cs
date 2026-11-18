@@ -33,11 +33,13 @@ public class ApiClient
     private readonly ILogger<ApiClient> logger;
     private readonly ClientConnectivity? connectivity;
     private readonly ClientErrorCapture? errorCapture;
+    private readonly ClientDiagnosticsState? diagnostics;
 
     /// <param name="connectivity">瀏覽器的連線狀態（0.10.11 起）；沒有時一律用 <see cref="OfflineMessage"/>。</param>
     /// <param name="errorCapture">前端錯誤回報（0.10.36 起）：每次呼叫記進操作軌跡，連不上時由 JS 記成一段連線中斷；沒有時不記。</param>
+    /// <param name="diagnostics">前端診斷記錄的狀態（0.10.37 起）：帶 Token 的回應有沒有 <c>X-Client-Diagnostics</c> 標頭，決定要不要把日誌送去伺服器。</param>
     public ApiClient(HttpClient http, ClientSession session, NavigationManager navigation, ILogger<ApiClient> logger, ClientConnectivity? connectivity = null,
-        ClientErrorCapture? errorCapture = null)
+        ClientErrorCapture? errorCapture = null, ClientDiagnosticsState? diagnostics = null)
     {
         this.http = http;
         this.session = session;
@@ -45,13 +47,22 @@ public class ApiClient
         this.logger = logger;
         this.connectivity = connectivity;
         this.errorCapture = errorCapture;
+        this.diagnostics = diagnostics;
     }
+
+    /// <summary>回應標頭：這位使用者的前端診斷記錄開著（0.10.37 起，見 <see cref="ClientDiagnosticsState"/>）。</summary>
+    internal const string ClientDiagnosticsHeaderName = "X-Client-Diagnostics";
+
+    /// <summary>前端診斷記錄送出日誌的網址（0.10.37 起）：不記操作軌跡，否則每送一次就多一筆。</summary>
+    internal const string DiagnosticLogsUrl = "api/v1/shell/diagnostic-logs";
 
     /// <summary>回應標頭：伺服器這次請求的追蹤碼（0.10.36 起，記進操作軌跡）。</summary>
     internal const string TraceCodeHeaderName = "X-Trace-Code";
 
     /// <summary>不記進操作軌跡的呼叫：送出回報本身（否則每送一次就多一筆軌跡）。</summary>
-    private static bool IsQuiet(string url) => url.Contains(Layout.ClientErrorReporter.ReportsUrl, StringComparison.OrdinalIgnoreCase);
+    private static bool IsQuiet(string url)
+        => url.Contains(Layout.ClientErrorReporter.ReportsUrl, StringComparison.OrdinalIgnoreCase)
+            || url.Contains(DiagnosticLogsUrl, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// 送出並記進操作軌跡（0.10.36 起）：方法、路徑（JS 端去掉查詢字串）、狀態碼、耗時、伺服器追蹤碼。
@@ -66,6 +77,13 @@ public class ApiClient
             var response = await send();
             Track(request, (int)response.StatusCode, started,
                 response.Headers.TryGetValues(TraceCodeHeaderName, out var values) ? values.FirstOrDefault() : null);
+
+            // 前端診斷記錄（0.10.37 起）：只看帶 Token、身分有效的回應（匿名呼叫沒有這個標頭，不能拿來關閉）。
+            if (diagnostics is not null && request.Headers.Authorization is not null && response.StatusCode != HttpStatusCode.Unauthorized)
+            {
+                diagnostics.Update(response.Headers.TryGetValues(ClientDiagnosticsHeaderName, out var flags) ? flags.FirstOrDefault() : null);
+            }
+
             return response;
         }
         catch (Exception ex) when ((ex is HttpRequestException or TaskCanceledException) && !cancellationToken.IsCancellationRequested)
@@ -83,7 +101,12 @@ public class ApiClient
             return;
         }
 
-        errorCapture.Api(request.Method.Method, url, status, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, traceCode);
+        var elapsed = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        errorCapture.Api(request.Method.Method, url, status, elapsed, traceCode);
+
+        // 前端診斷記錄的操作軌跡（0.10.37 起，Trace；平常不輸出）。只記路徑，不記查詢字串。
+        logger.LogTrace("API call completed. Method={Method}, Path={Path}, Status={Status}, ElapsedMilliseconds={ElapsedMilliseconds}, TraceId={TraceId}",
+            request.Method.Method, request.RequestUri?.IsAbsoluteUri == true ? request.RequestUri.AbsolutePath : url.Split('?', '#')[0], status, elapsed, traceCode);
     }
 
     /// <summary>連不上伺服器時給使用者的訊息：瀏覽器確定離線就說離線，否則照舊。</summary>

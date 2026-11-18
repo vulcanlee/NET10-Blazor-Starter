@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyProject.Business.Helpers;
+using MyProject.Business.Services.DataAccess;
 using MyProject.Business.Services.Other;
 using MyProject.Dtos.Admins;
 using MyProject.Dtos.Commons;
@@ -25,17 +26,26 @@ public class LogLevelController : ControllerBase
     private readonly LogLevelRuntimeState logLevelState;
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
+    private readonly ClientDiagnosticsRegistry diagnosticsRegistry;
+    private readonly MyUserService userService;
+    private readonly TimeProvider timeProvider;
     private readonly ILogger<LogLevelController> logger;
 
     public LogLevelController(
         LogLevelRuntimeState logLevelState,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
+        ClientDiagnosticsRegistry diagnosticsRegistry,
+        MyUserService userService,
+        TimeProvider timeProvider,
         ILogger<LogLevelController> logger)
     {
         this.logLevelState = logLevelState;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
+        this.diagnosticsRegistry = diagnosticsRegistry;
+        this.userService = userService;
+        this.timeProvider = timeProvider;
         this.logger = logger;
     }
 
@@ -76,6 +86,87 @@ public class LogLevelController : ControllerBase
 
         await WriteAuditAsync(AuditActions.LogLevel.Restore, previous, logLevelState.EffectiveLevel);
         return Ok(ApiResult<LogLevelStateDto>.SuccessResult(State(), "還原日誌等級成功"));
+    }
+
+    /// <summary>開著的前端診斷記錄（0.10.37 起；到期的不列）。</summary>
+    [HttpGet("client-diagnostics")]
+    public ActionResult<ApiResult<List<ClientDiagnosticsSessionDto>>> ClientDiagnostics()
+        => Ok(ApiResult<List<ClientDiagnosticsSessionDto>>.SuccessResult(diagnosticsRegistry.List().Select(ToDto).ToList(), "取得前端診斷記錄成功"));
+
+    /// <summary>
+    /// 對某位使用者開啟前端診斷記錄（0.10.37 起）：那位使用者瀏覽器裡的日誌（DEBUG 或 TRACE 以上）在時限內送到伺服器、依原等級寫進日誌檔。
+    /// 只在執行期有效（重新啟動就關閉）；同一位使用者已經開著就以這次的設定取代。寫一筆 <c>LogLevel.ClientDiagnosticsStart</c>。
+    /// </summary>
+    [HttpPost("client-diagnostics")]
+    public async Task<ActionResult<ApiResult<ClientDiagnosticsSessionDto>>> StartClientDiagnostics([FromBody] ClientDiagnosticsStartRequestDto request)
+    {
+        LogLevel? level = request.Level?.Trim().ToUpperInvariant() switch
+        {
+            "DEBUG" => LogLevel.Debug,
+            "TRACE" => LogLevel.Trace,
+            _ => null,
+        };
+        if (level is null)
+        {
+            return BadRequest(ApiResult<ClientDiagnosticsSessionDto>.ValidationError("前端診斷的等級只能是 DEBUG 或 TRACE。"));
+        }
+
+        if (!ClientDiagnosticsRegistry.DurationMinutes.Contains(request.DurationMinutes))
+        {
+            return BadRequest(ApiResult<ClientDiagnosticsSessionDto>.ValidationError(
+                $"時間只能是 {string.Join("、", ClientDiagnosticsRegistry.DurationMinutes)} 分鐘。"));
+        }
+
+        if (await userService.FindByAccountAsync(request.Account ?? string.Empty) is not { } target)
+        {
+            return NotFound(ApiResult<ClientDiagnosticsSessionDto>.NotFoundResult("找不到這個帳號。"));
+        }
+
+        var admin = currentUserService.CurrentUser;
+        var session = diagnosticsRegistry.Enable(target.Id, target.Account, level.Value, TimeSpan.FromMinutes(request.DurationMinutes), admin.Account);
+        var dto = ToDto(session);
+        await WriteDiagnosticsAuditAsync(AuditActions.LogLevel.ClientDiagnosticsStart, target.Id,
+            $"對 {target.Account} 開啟前端診斷記錄 {dto.Level}，至 {dto.ExpiresAtLocal:yyyy/MM/dd HH:mm}（僅執行期有效）。");
+        return Ok(ApiResult<ClientDiagnosticsSessionDto>.SuccessResult(dto, "已開啟前端診斷記錄"));
+    }
+
+    /// <summary>提前關閉某位使用者的前端診斷記錄（0.10.37 起）；沒開著回 409。寫一筆 <c>LogLevel.ClientDiagnosticsStop</c>。</summary>
+    [HttpDelete("client-diagnostics/{userId:int}")]
+    public async Task<ActionResult<ApiResult<object>>> StopClientDiagnostics(int userId)
+    {
+        var session = diagnosticsRegistry.Find(userId);
+        if (session is null || !diagnosticsRegistry.Disable(userId))
+        {
+            return Conflict(ApiResult<object>.ConflictResult("這位使用者的前端診斷記錄已經關閉（或已到期）。"));
+        }
+
+        await WriteDiagnosticsAuditAsync(AuditActions.LogLevel.ClientDiagnosticsStop, userId, $"關閉 {session.Account} 的前端診斷記錄。");
+        return Ok(ApiResult<object>.SuccessResult(new { }, "已關閉前端診斷記錄"));
+    }
+
+    private ClientDiagnosticsSessionDto ToDto(ClientDiagnosticsSession session) => new()
+    {
+        UserId = session.UserId,
+        Account = session.Account,
+        Level = session.Level == LogLevel.Trace ? "TRACE" : "DEBUG",
+        StartedAtLocal = DateTime.SpecifyKind(TimeZoneInfo.ConvertTime(session.StartedAt, timeProvider.LocalTimeZone).DateTime, DateTimeKind.Unspecified),
+        ExpiresAtLocal = DateTime.SpecifyKind(TimeZoneInfo.ConvertTime(session.ExpiresAt, timeProvider.LocalTimeZone).DateTime, DateTimeKind.Unspecified),
+        EnabledByAccount = session.EnabledByAccount,
+    };
+
+    /// <summary>稽核寫入失敗不應推翻「已經開啟／關閉」這個事實，因此只記錯誤。</summary>
+    private async Task WriteDiagnosticsAuditAsync(string action, int targetUserId, string detail)
+    {
+        try
+        {
+            var user = currentUserService.CurrentUser;
+            await auditLogService.WriteAsync(action, success: true, actorUserId: user.Id, actorAccount: user.Account,
+                targetType: "MyUser", targetId: targetUserId.ToString(System.Globalization.CultureInfo.InvariantCulture), detail: detail);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to write audit log for client diagnostics. Action={Action}", action);
+        }
     }
 
     private LogLevelStateDto State() => new()

@@ -1,0 +1,13 @@
+/* 前端診斷記錄的提示列（0.10.37 起）：位置由 ClientRoutes.razor.css 的 .app-status-bars 決定（畫面底部置中）。
+   用柔和的強調色系（不是警示琥珀）：這不是錯誤，只是告知。 */
+.app-diagnostics-bar {
+    background: var(--app-accent-soft);
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-control);
+    box-shadow: var(--app-shadow);
+    color: var(--app-text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    padding: 0.6rem 1rem;
+    pointer-events: auto;
+}
