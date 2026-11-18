@@ -54,6 +54,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/walkthrough.mjs       # 最終巡檢：看得到的 Chrome 開遍畫面與主要對話窗並截圖（先設 $env:E2E_HEADED = '1'，見下方）
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    node ./scripts/e2e/browser-reports.mjs   # 前端錯誤與事件回報 B1～B8（0.10.36 起；讀隔離資料夾的資料庫與日誌檔）
+   node ./scripts/e2e/client-diagnostics.mjs # 前端診斷記錄 D1～D6（0.10.37 起；會建一個一般帳號，讀隔離資料夾的資料庫與日誌檔）
    ```
 
 | 環境變數 | 說明 |

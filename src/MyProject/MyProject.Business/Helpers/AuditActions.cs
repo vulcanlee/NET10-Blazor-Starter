@@ -209,6 +209,10 @@ public static class AuditActions
     {
         public const string Apply = "LogLevel.Apply";
         public const string Restore = "LogLevel.Restore";
+        /// <summary>對某位使用者開啟前端診斷記錄（0.10.37 起，只在執行期有效）。</summary>
+        public const string ClientDiagnosticsStart = "LogLevel.ClientDiagnosticsStart";
+        /// <summary>提前關閉某位使用者的前端診斷記錄（0.10.37 起；到期自動關閉不另記）。</summary>
+        public const string ClientDiagnosticsStop = "LogLevel.ClientDiagnosticsStop";
     }
 
     public static class LogViewer

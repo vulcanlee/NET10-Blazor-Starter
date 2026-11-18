@@ -18,6 +18,7 @@ using MyProject.Dtos.Admins;
 using MyProject.Dtos.Ai;
 using MyProject.Dtos.Auths;
 using MyProject.Dtos.Commons;
+using MyProject.Dtos.Shell;
 using MyProject.Share.Helpers;
 using MyProject.Web.Ai;
 using MyProject.Web.Diagnostics;
@@ -502,6 +503,9 @@ public sealed class LogApiTests : IClassFixture<LogApiTestApplicationFactory>
             (HttpMethod.Get, "/api/v1/log-level", null),
             (HttpMethod.Post, "/api/v1/log-level/apply", new LogLevelApplyRequestDto { Level = "WARN" }),
             (HttpMethod.Post, "/api/v1/log-level/restore", null),
+            (HttpMethod.Get, "/api/v1/log-level/client-diagnostics", null),
+            (HttpMethod.Post, "/api/v1/log-level/client-diagnostics", new ClientDiagnosticsStartRequestDto { Account = user.Account, Level = "DEBUG" }),
+            (HttpMethod.Delete, $"/api/v1/log-level/client-diagnostics/{user.Id}", null),
         };
 
         foreach (var (method, url, body) in calls)
@@ -514,6 +518,72 @@ public sealed class LogApiTests : IClassFixture<LogApiTestApplicationFactory>
         await using var context = await CreateContextAsync();
         Assert.Equal(calls.Length, await context.AuditLog.CountAsync(x => x.Action == AuditActions.Permission.Denied && x.ActorUserId == user.Id));
         Assert.Null(factory.Services.GetRequiredService<LogLevelRuntimeState>().OverrideLevel);
+        Assert.Null(factory.Services.GetRequiredService<ClientDiagnosticsRegistry>().Find(user.Id));
+    }
+
+    /// <summary>
+    /// 前端診斷記錄（0.10.37 起）：管理員對某位使用者開啟後，只有那位使用者的 API 回應帶 X-Client-Diagnostics，
+    /// 他送來的日誌被接受（Active=true）；關閉後回 Active=false、標頭消失。開啟與關閉各寫一筆稽核。
+    /// </summary>
+    [Fact]
+    public async Task ClientDiagnostics_ShouldOnlyApplyToTheChosenUser_AndBeAudited()
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        var target = await AddUserAsync(isAdmin: false);
+        var other = await AddUserAsync(isAdmin: false);
+        using var adminClient = await SignedInClientAsync(admin);
+        using var targetClient = await SignedInClientAsync(target);
+        using var otherClient = await SignedInClientAsync(other);
+
+        var session = await SendAsync<ClientDiagnosticsSessionDto>(adminClient, HttpMethod.Post, "/api/v1/log-level/client-diagnostics",
+            new ClientDiagnosticsStartRequestDto { Account = target.Account.ToUpperInvariant(), Level = "trace", DurationMinutes = 30 });
+        try
+        {
+            Assert.Equal(target.Id, session.UserId);
+            Assert.Equal("TRACE", session.Level);
+            Assert.Equal(TimeSpan.FromMinutes(30), session.ExpiresAtLocal - session.StartedAtLocal);
+            Assert.Contains(await SendAsync<List<ClientDiagnosticsSessionDto>>(adminClient, HttpMethod.Get, "/api/v1/log-level/client-diagnostics"), x => x.UserId == target.Id);
+
+            var targetResponse = await targetClient.GetAsync("/api/v1/shell/info");
+            var header = Assert.Single(targetResponse.Headers.GetValues(MyProject.Web.Extensions.ApplicationBuilderExtensions.ClientDiagnosticsHeaderName));
+            Assert.Matches(new Regex(@"^Trace;\d{2}:\d{2};\d+$"), header);
+            Assert.False((await otherClient.GetAsync("/api/v1/shell/info")).Headers.Contains(MyProject.Web.Extensions.ApplicationBuilderExtensions.ClientDiagnosticsHeaderName));
+
+            var batch = new ClientLogBatchDto { Items = [new ClientLogEntryDto { Level = "Debug", Category = "MyProject.Web.Client.Test", Message = "hello" }] };
+            Assert.True((await SendAsync<ClientLogBatchResultDto>(targetClient, HttpMethod.Post, "/api/v1/shell/diagnostic-logs", batch)).Active);
+            Assert.False((await SendAsync<ClientLogBatchResultDto>(otherClient, HttpMethod.Post, "/api/v1/shell/diagnostic-logs", batch)).Active);
+        }
+        finally
+        {
+            await SendAsync<object>(adminClient, HttpMethod.Delete, $"/api/v1/log-level/client-diagnostics/{target.Id}");
+        }
+
+        Assert.False((await targetClient.GetAsync("/api/v1/shell/info")).Headers.Contains(MyProject.Web.Extensions.ApplicationBuilderExtensions.ClientDiagnosticsHeaderName));
+        Assert.False((await SendAsync<ClientLogBatchResultDto>(targetClient, HttpMethod.Post, "/api/v1/shell/diagnostic-logs", new ClientLogBatchDto())).Active);
+        Assert.Equal(HttpStatusCode.Conflict, (await adminClient.DeleteAsync($"/api/v1/log-level/client-diagnostics/{target.Id}")).StatusCode);
+
+        var start = Assert.Single(await AuditsAsync(AuditActions.LogLevel.ClientDiagnosticsStart, admin.Id));
+        Assert.Equal("MyUser", start.TargetType);
+        Assert.Equal(target.Id.ToString(), start.TargetId);
+        Assert.StartsWith($"對 {target.Account} 開啟前端診斷記錄 TRACE，至 ", start.Detail);
+        Assert.Equal($"關閉 {target.Account} 的前端診斷記錄。", Assert.Single(await AuditsAsync(AuditActions.LogLevel.ClientDiagnosticsStop, admin.Id)).Detail);
+    }
+
+    [Theory]
+    [InlineData("INFO", 60, HttpStatusCode.BadRequest)]
+    [InlineData("DEBUG", 45, HttpStatusCode.BadRequest)]
+    [InlineData("DEBUG", 60, HttpStatusCode.NotFound)]
+    public async Task ClientDiagnostics_WithABadRequest_ShouldBeRejectedWithoutAudit(string level, int minutes, HttpStatusCode expected)
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        using var client = await SignedInClientAsync(admin);
+        var account = expected == HttpStatusCode.NotFound ? "no-such-account" : admin.Account;
+
+        var response = await client.PostAsJsonAsync("/api/v1/log-level/client-diagnostics",
+            new ClientDiagnosticsStartRequestDto { Account = account, Level = level, DurationMinutes = minutes });
+
+        Assert.Equal(expected, response.StatusCode);
+        Assert.Empty(await AuditsAsync(AuditActions.LogLevel.ClientDiagnosticsStart, admin.Id));
     }
 
     // ───────────────────────────── 工具 ─────────────────────────────

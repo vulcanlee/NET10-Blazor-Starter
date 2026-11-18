@@ -81,3 +81,51 @@ code {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* 前端診斷記錄（0.10.37 起） */
+.client-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--app-line);
+    background: #fff;
+}
+
+.client-diagnostics-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.client-diagnostics-help,
+.client-diagnostics-empty {
+    margin: 0;
+    color: var(--app-muted);
+}
+
+.client-diagnostics-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 20px;
+}
+
+.client-diagnostics-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+}
+
+.client-diagnostics-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.client-diagnostics-table th,
+.client-diagnostics-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--app-line);
+    text-align: left;
+}

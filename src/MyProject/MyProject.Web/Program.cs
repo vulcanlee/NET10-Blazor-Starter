@@ -448,6 +448,9 @@ namespace MyProject.Web
                 // ⚠️ 與上一行同理，必須在 UseAuthorization 之後。
                 app.UseMiddleware<ApiActorMiddleware>();
 
+                // 前端診斷記錄開著時（0.10.37 起），這位使用者的 API 回應帶 X-Client-Diagnostics（要在載入目前使用者之後）。
+                app.UseClientDiagnosticsHeader();
+
                 // 同站台時提供前端的靜態檔與 SPA 回退（雙站台不提供，非 API 路徑 404）。⚠️ 排在最後：見 FrontendHostingExtensions.UseFrontend。
                 app.UseFrontend();
 

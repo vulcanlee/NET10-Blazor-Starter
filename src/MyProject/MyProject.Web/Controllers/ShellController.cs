@@ -42,6 +42,12 @@ public sealed class ShellController : ControllerBase
     /// <summary>有項目被限流時，請前端幾秒後再送。</summary>
     internal const int ReportRetryAfterSeconds = 60;
 
+    /// <summary>前端診斷記錄每位使用者每分鐘最多幾批（0.10.37 起；前端每 5 秒送一批）。</summary>
+    internal const int DiagnosticBatchesPerMinute = 30;
+
+    /// <summary>前端診斷記錄每批最多處理幾筆。</summary>
+    internal const int MaxDiagnosticLogsPerBatch = 200;
+
     private readonly ISystemIdentity systemIdentity;
     private readonly IWebHostEnvironment environment;
     private readonly SystemStartupState startupState;
@@ -51,6 +57,8 @@ public sealed class ShellController : ControllerBase
     private readonly CurrentUserService currentUserService;
     private readonly BrowserErrorReporter browserErrorReporter;
     private readonly BrowserEventReporter browserEventReporter;
+    private readonly ClientDiagnosticsRegistry diagnosticsRegistry;
+    private readonly BrowserLogForwarder browserLogForwarder;
     private readonly TimeProvider timeProvider;
     private readonly PerUserRateLimiter rateLimiter;
     private readonly IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions;
@@ -68,6 +76,8 @@ public sealed class ShellController : ControllerBase
         CurrentUserService currentUserService,
         BrowserErrorReporter browserErrorReporter,
         BrowserEventReporter browserEventReporter,
+        ClientDiagnosticsRegistry diagnosticsRegistry,
+        BrowserLogForwarder browserLogForwarder,
         TimeProvider timeProvider,
         PerUserRateLimiter rateLimiter,
         IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions,
@@ -84,6 +94,8 @@ public sealed class ShellController : ControllerBase
         this.currentUserService = currentUserService;
         this.browserErrorReporter = browserErrorReporter;
         this.browserEventReporter = browserEventReporter;
+        this.diagnosticsRegistry = diagnosticsRegistry;
+        this.browserLogForwarder = browserLogForwarder;
         this.timeProvider = timeProvider;
         this.rateLimiter = rateLimiter;
         this.clientErrorOptions = clientErrorOptions;
@@ -272,6 +284,28 @@ public sealed class ShellController : ControllerBase
         }
 
         return Ok(ApiResult<ClientReportBatchResultDto>.SuccessResult(result, "已處理"));
+    }
+
+    /// <summary>
+    /// 前端診斷記錄（0.10.37 起）：管理員對這位使用者開啟診斷時（<see cref="ClientDiagnosticsRegistry"/>），前端把自己的日誌批次送來，
+    /// 由 <see cref="BrowserLogForwarder"/> 依原等級寫進日誌檔（<c>MyProject.Browser.*</c>）。沒開啟（或已到期）時一律不寫，回 <c>Active=false</c> 讓前端停止。
+    /// </summary>
+    [HttpPost("diagnostic-logs")]
+    [RequestSizeLimit(524_288)]
+    public ActionResult<ApiResult<ClientLogBatchResultDto>> DiagnosticLogs([FromBody] ClientLogBatchDto batch)
+    {
+        var user = currentUserService.CurrentUser;
+        if (diagnosticsRegistry.Find(user.Id) is not { } session)
+        {
+            return Ok(ApiResult<ClientLogBatchResultDto>.SuccessResult(new ClientLogBatchResultDto { Active = false }, "未開啟"));
+        }
+
+        if (rateLimiter.TryAcquire("client-diagnostics", user.Id, DiagnosticBatchesPerMinute))
+        {
+            browserLogForwarder.Forward(batch, session.Level, MaxDiagnosticLogsPerBatch);
+        }
+
+        return Ok(ApiResult<ClientLogBatchResultDto>.SuccessResult(new ClientLogBatchResultDto { Active = true }, "已記錄"));
     }
 
     private static MenuItemDto ToDto(SidebarMenuItemModel item) => new()

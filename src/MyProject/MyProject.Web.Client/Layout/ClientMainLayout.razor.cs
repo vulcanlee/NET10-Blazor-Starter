@@ -81,6 +81,16 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     private string currentPath = string.Empty;
     private DotNetObjectReference<ClientErrorReporter>? errorReporterReference;
 
+    [Inject]
+    private ClientDiagnosticsLoggerProvider DiagnosticsLogs { get; set; } = default!;
+
+    /// <summary>送出前端診斷記錄的日誌；回 true＝伺服器還開著、false＝已關閉、null＝沒送出。</summary>
+    private async Task<bool?> SendDiagnosticLogsAsync(ClientLogBatchDto batch)
+    {
+        var result = await Api.PostAsync<ClientLogBatchResultDto>(ApiClient.DiagnosticLogsUrl, batch);
+        return result.Success ? result.Data?.Active : null;
+    }
+
     /// <summary>頁面內容的錯誤邊界（0.10.36 起）：換頁時復原。</summary>
     private ClientErrorBoundary? bodyBoundary;
     private readonly CancellationTokenSource reachabilityWait = new();
@@ -323,6 +333,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         try
         {
             await JSRuntime.InvokeVoidAsync("appClientErrors.register", errorReporterReference, Session.Info?.Id);
+
+            // 前端診斷記錄的送件者（0.10.37 起）：只在登入後設定；伺服器回 Active=false 就停止。
+            DiagnosticsLogs.UseSender(SendDiagnosticLogsAsync, () => "/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Split('?', '#')[0]);
         }
         catch (JSException ex)
         {

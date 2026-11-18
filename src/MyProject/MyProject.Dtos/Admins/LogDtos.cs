@@ -148,6 +148,37 @@ public class LogLevelStateDto
     public bool HasOverride { get; set; }
 }
 
+/// <summary>一位使用者的前端診斷記錄（0.10.37 起，<c>api/v1/log-level/client-diagnostics</c>）。時間是伺服器本地時間，照字面顯示。</summary>
+public class ClientDiagnosticsSessionDto
+{
+    public int UserId { get; set; }
+
+    public string Account { get; set; } = string.Empty;
+
+    /// <summary><c>DEBUG</c> 或 <c>TRACE</c>。</summary>
+    public string Level { get; set; } = string.Empty;
+
+    public DateTime StartedAtLocal { get; set; }
+
+    public DateTime ExpiresAtLocal { get; set; }
+
+    /// <summary>開啟的管理員帳號。</summary>
+    public string EnabledByAccount { get; set; } = string.Empty;
+}
+
+/// <summary>開啟前端診斷記錄（<c>POST api/v1/log-level/client-diagnostics</c>）。</summary>
+public class ClientDiagnosticsStartRequestDto
+{
+    /// <summary>對象的帳號。</summary>
+    public string Account { get; set; } = string.Empty;
+
+    /// <summary><c>DEBUG</c> 或 <c>TRACE</c>。</summary>
+    public string Level { get; set; } = string.Empty;
+
+    /// <summary>15、30、60、120、240 或 480 分鐘。</summary>
+    public int DurationMinutes { get; set; } = 60;
+}
+
 /// <summary>套用日誌等級（<c>POST api/v1/log-level/apply</c>）。</summary>
 public class LogLevelApplyRequestDto
 {

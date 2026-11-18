@@ -50,6 +50,14 @@ namespace MyProject.Web.Client.Views.Analytics
         private string RoleMessage = string.Empty;
         private bool isAccessChecked;
 
+        /// <summary>前端診斷記錄可以選的時間（分鐘），與伺服器 <c>ClientDiagnosticsRegistry.DurationMinutes</c> 相同。</summary>
+        private static readonly int[] DiagnosticsDurations = [15, 30, 60, 120, 240, 480];
+
+        private string diagnosticsAccount = string.Empty;
+        private string diagnosticsLevel = "DEBUG";
+        private int diagnosticsMinutes = 60;
+        private List<ClientDiagnosticsSessionDto> diagnosticsSessions = [];
+
         protected override async Task OnInitializedAsync()
         {
             // 此頁為管理員專屬：權限鍵刻意未上架角色矩陣，以 IsAdmin 直接判斷。權限未通過前不讀取任何設定資訊；
@@ -74,6 +82,57 @@ namespace MyProject.Web.Client.Views.Analytics
 
             ApplyState(state);
             selectedLevel = effectiveLevel;
+            await LoadDiagnosticsAsync();
+        }
+
+        private static string DurationText(int minutes) => minutes < 60 ? $"{minutes} 分鐘" : $"{minutes / 60} 小時";
+
+        private async Task LoadDiagnosticsAsync()
+        {
+            var result = await Api.ClientDiagnosticsAsync();
+            if (result.Success && result.Data is { } sessions)
+            {
+                diagnosticsSessions = sessions;
+                return;
+            }
+
+            Logger.LogWarning("Failed to load the client diagnostics. Message={Message}", result.UserMessage());
+        }
+
+        private async Task OnStartDiagnosticsAsync()
+        {
+            // 伺服器開啟並寫稽核（LogLevel.ClientDiagnosticsStart）；同一位使用者已經開著就以這次的設定取代。
+            Logger.LogInformation("Client diagnostics start requested. Level={Level}, Minutes={Minutes}", diagnosticsLevel, diagnosticsMinutes);
+            var result = await Api.StartClientDiagnosticsAsync(new ClientDiagnosticsStartRequestDto
+            {
+                Account = diagnosticsAccount.Trim(),
+                Level = diagnosticsLevel,
+                DurationMinutes = diagnosticsMinutes,
+            });
+            if (!result.Success || result.Data is not { } session)
+            {
+                _ = MessageService.ErrorAsync(result.UserMessage());
+                return;
+            }
+
+            diagnosticsAccount = string.Empty;
+            await LoadDiagnosticsAsync();
+            _ = MessageService.SuccessAsync($"已對 {session.Account} 開啟前端診斷記錄（{session.Level}，至 {session.ExpiresAtLocal:HH:mm}）");
+        }
+
+        private async Task OnStopDiagnosticsAsync(ClientDiagnosticsSessionDto session)
+        {
+            // 伺服器關閉並寫稽核（LogLevel.ClientDiagnosticsStop）；已經到期的回 409，照樣重讀清單。
+            Logger.LogInformation("Client diagnostics stop requested. UserId={UserId}", session.UserId);
+            var result = await Api.StopClientDiagnosticsAsync(session.UserId);
+            await LoadDiagnosticsAsync();
+            if (!result.Success)
+            {
+                _ = MessageService.ErrorAsync(result.UserMessage());
+                return;
+            }
+
+            _ = MessageService.SuccessAsync($"已關閉 {session.Account} 的前端診斷記錄");
         }
 
         private void ApplyState(LogLevelStateDto state)

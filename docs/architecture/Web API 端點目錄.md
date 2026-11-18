@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.24
+- 文件版本：1.25
 - 文件狀態：已實作
-- 現行系統版本：0.10.36
+- 現行系統版本：0.10.37
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/18
 
@@ -217,6 +217,7 @@
 | 選項 | `GET logs/options` | AI 是否可用與原因 |
 | 讀取等級 | `GET log-level` | `ApiResult<LogLevelStateDto>` |
 | 套用／還原 | `POST log-level/apply`、`POST log-level/restore` | 寫 `LogLevel.Apply`（「由 X 調整為 Y（僅執行期有效）」）／`LogLevel.Restore` |
+| | 前端診斷記錄（0.10.37 起） | `GET log-level/client-diagnostics`、`POST log-level/client-diagnostics`、`DELETE log-level/client-diagnostics/{userId}` | 只限管理員。開啟：`ClientDiagnosticsStartRequestDto{Account,Level,DurationMinutes}`，等級只能 DEBUG／TRACE、時間 15／30／60／120／240／480 分鐘（400），帳號找不到 404；關閉時沒開著 409。開啟與關閉寫 `LogLevel.ClientDiagnosticsStart`／`Stop`。被診斷的使用者每個 `/api` 回應帶 `X-Client-Diagnostics: 等級;HH:mm;剩幾秒` |
 
 ### 2.9 AI 對話紀錄（`AiCallLogsController`，`api/v1/ai-call-logs`）
 
@@ -451,6 +452,7 @@
 | | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下）。只接受 WASM 的頁面路徑（`ClientRouteTable`；0.10.8 起即全部頁面），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
 | | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與伺服器的格式一致。內容只有格式字串 |
 | | 瀏覽器回報批次（0.10.36 起） | `POST shell/client-reports` | `ClientReportBatchDto{Items,Dropped}` → `ClientReportBatchResultDto{DoneIds,RetryAfterSeconds}`；每批最多 20 筆、本體 256KB。錯誤交給 `BrowserErrorReporter`（Error、系統例外紀錄；瀏覽器產生的追蹤碼格式正確時沿用；登入前發生的另一個樣板），連線中斷、資源載入、CSP 交給 `BrowserEventReporter`（只寫日誌檔）。錯誤沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`、事件每分鐘 30 筆；被限流的不在 `DoneIds`，回 `RetryAfterSeconds=60`；回報關閉時全部當成完成、不記錄 |
+| | 前端診斷記錄的日誌（0.10.37 起） | `POST shell/diagnostic-logs` | `ClientLogBatchDto{Items,Dropped}` → `ClientLogBatchResultDto{Active}`；本體 512KB、每批 200 筆、每位使用者每分鐘 30 批。沒開著回 `Active=false` 不寫；開著時 `BrowserLogForwarder` 以原等級寫到 `MyProject.Browser.*`，不帶例外物件 |
 | | 瀏覽器錯誤回報（舊） | `POST shell/client-errors` | ⚠️ 0.10.35 以前的前端用，0.10.36 起只留給瀏覽器裡還在快取的舊前端，之後移除。 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘；0.10.10 起 `BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每個實例的計數，只剩這裡計數），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |

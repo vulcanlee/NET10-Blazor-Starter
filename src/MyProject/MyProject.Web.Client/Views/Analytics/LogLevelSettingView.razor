@@ -77,5 +77,82 @@ else
                                Disabled="@(hasOverride == false)"
                                OnClick="@(async () => await OnRestoreAsync())" />
         </div>
+
+        @*
+            前端診斷記錄（0.10.37 起）：對某位使用者開啟，他的瀏覽器在時限內把前端日誌送到伺服器的日誌檔。
+            與上面的等級各自獨立（前端的日誌另有規則，不受上面的等級影響）；只在執行期有效，到期自動關閉。
+        *@
+        <section class="client-diagnostics" aria-labelledby="client-diagnostics-title">
+            <h2 id="client-diagnostics-title" class="client-diagnostics-title">前端診斷記錄</h2>
+            <p class="client-diagnostics-help">
+                某位使用者回報的問題在伺服器日誌看不出原因時，可以對他開啟：這段時間內他瀏覽器裡的前端日誌（DEBUG 或 TRACE 以上）會送到伺服器，
+                寫進日誌檔（「日誌檢視」的 Logger 是 <code>MyProject.Browser.*</code>）。對方畫面底部會看到「系統管理員已開啟診斷記錄」；
+                最慢約 1 分鐘後開始送。只在執行期有效，到期自動關閉。
+            </p>
+
+            <div class="client-diagnostics-form">
+                <label class="client-diagnostics-field">
+                    <span>帳號</span>
+                    <Input TValue="string" @bind-Value="diagnosticsAccount" Placeholder="要診斷的使用者帳號" MaxLength="100" />
+                </label>
+                <div class="client-diagnostics-field">
+                    <span>等級</span>
+                    <RadioGroup TValue="string" @bind-Value="diagnosticsLevel">
+                        <Radio TValue="string" Value="@("DEBUG")">DEBUG</Radio>
+                        <Radio TValue="string" Value="@("TRACE")">TRACE（含每次換頁與 API 呼叫）</Radio>
+                    </RadioGroup>
+                </div>
+                <label class="client-diagnostics-field">
+                    <span>時間</span>
+                    <Select TItem="int" TItemValue="int" @bind-Value="diagnosticsMinutes" Style="width: 10rem;">
+                        <SelectOptions>
+                            @foreach (var minutes in DiagnosticsDurations)
+                            {
+                                <SelectOption TItem="int" TItemValue="int" Value="@minutes" Label="@DurationText(minutes)" />
+                            }
+                        </SelectOptions>
+                    </Select>
+                </label>
+                <ToolbarIconButton Title="開始前端診斷記錄" Icon="play_arrow"
+                                   Disabled="@string.IsNullOrWhiteSpace(diagnosticsAccount)"
+                                   OnClick="@(async () => await OnStartDiagnosticsAsync())" />
+            </div>
+
+            @if (diagnosticsSessions.Count == 0)
+            {
+                <p class="client-diagnostics-empty">目前沒有開啟中的前端診斷記錄。</p>
+            }
+            else
+            {
+                <table class="client-diagnostics-table">
+                    <thead>
+                        <tr>
+                            <th>帳號</th>
+                            <th>等級</th>
+                            <th>開始時間</th>
+                            <th>到期時間</th>
+                            <th>開啟者</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in diagnosticsSessions)
+                        {
+                            <tr>
+                                <td>@session.Account</td>
+                                <td>@session.Level</td>
+                                <td>@session.StartedAtLocal.ToString("yyyy/MM/dd HH:mm")</td>
+                                <td>@session.ExpiresAtLocal.ToString("yyyy/MM/dd HH:mm")</td>
+                                <td>@session.EnabledByAccount</td>
+                                <td>
+                                    <ToolbarIconButton Title="@($"停止 {session.Account} 的前端診斷記錄")" Icon="stop"
+                                                       OnClick="@(async () => await OnStopDiagnosticsAsync(session))" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
     </div>
 }

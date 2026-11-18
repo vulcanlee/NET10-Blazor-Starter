@@ -47,4 +47,14 @@ public sealed class LogLevelApi
     public Task<ApiResult<LogLevelStateDto>> ApplyAsync(string level) => api.PostAsync<LogLevelStateDto>($"{BaseUrl}/apply", new LogLevelApplyRequestDto { Level = level });
 
     public Task<ApiResult<LogLevelStateDto>> RestoreAsync() => api.PostAsync<LogLevelStateDto>($"{BaseUrl}/restore");
+
+    /// <summary>開著的前端診斷記錄（0.10.37 起）。</summary>
+    public Task<ApiResult<List<ClientDiagnosticsSessionDto>>> ClientDiagnosticsAsync() => api.GetAsync<List<ClientDiagnosticsSessionDto>>($"{BaseUrl}/client-diagnostics");
+
+    /// <summary>對某位使用者開啟前端診斷記錄（0.10.37 起）。</summary>
+    public Task<ApiResult<ClientDiagnosticsSessionDto>> StartClientDiagnosticsAsync(ClientDiagnosticsStartRequestDto request)
+        => api.PostAsync<ClientDiagnosticsSessionDto>($"{BaseUrl}/client-diagnostics", request);
+
+    /// <summary>提前關閉某位使用者的前端診斷記錄（0.10.37 起）。</summary>
+    public Task<ApiResult<object>> StopClientDiagnosticsAsync(int userId) => api.DeleteAsync<object>($"{BaseUrl}/client-diagnostics/{userId}");
 }

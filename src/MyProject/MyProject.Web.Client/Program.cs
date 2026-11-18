@@ -42,6 +42,13 @@ public static class ClientProgram
         // 單例：靜態的 ViewNotification 與框架日誌接收器也要用得到。錯誤邊界以外的未處理例外由框架日誌接到。
         builder.Services.AddSingleton<ClientErrorCapture>();
         builder.Services.AddSingleton<ILoggerProvider, ClientFrameworkErrorLoggerProvider>();
+        // 前端診斷記錄（0.10.37 起）：管理員對這位使用者開啟時，本專案的日誌（Debug 或 Trace 以上）送到伺服器的日誌檔。
+        // 最低等級放到 Trace 讓它收得到；瀏覽器主控台照舊只顯示 Information 以上（下面的篩選）。
+        builder.Services.AddSingleton<ClientDiagnosticsState>();
+        builder.Services.AddSingleton<ClientDiagnosticsLoggerProvider>();
+        builder.Services.AddSingleton<ILoggerProvider>(services => services.GetRequiredService<ClientDiagnosticsLoggerProvider>());
+        builder.Logging.SetMinimumLevel(LogLevel.Trace);
+        builder.Logging.AddFilter((provider, _, level) => provider == typeof(ClientDiagnosticsLoggerProvider).FullName || level >= LogLevel.Information);
         builder.Services.AddScoped<PagePermissions, ClientPagePermissions>();
         builder.Services.AddScoped<IAuditHistorySource, ApiAuditHistorySource>();
         // 附件上傳與下載（0.10.3 起）：檔案留在瀏覽器，不經過 WASM 記憶體。

@@ -1,0 +1,32 @@
+@implements IDisposable
+@inject ClientDiagnosticsState Diagnostics
+
+@*
+    前端診斷記錄的提示列（0.10.37 起）：管理員在「日誌等級設定」頁對這位使用者開啟診斷時出現，讓使用者知道這段時間的操作會詳細記錄
+    （也知道可以開始重現問題）；到期或關閉時消失。掛在根元件 ClientRoutes 的狀態列區。樣式在 ClientDiagnosticsBar.razor.css。
+*@
+@if (Diagnostics.IsActive)
+{
+    <div class="app-diagnostics-bar" role="status">
+        系統管理員已開啟診斷記錄（至 @Diagnostics.Until）：這段時間的操作會詳細記錄，方便排查問題。
+    </div>
+}
+
+@code {
+    private Timer? expiryTimer;
+
+    protected override void OnInitialized()
+    {
+        Diagnostics.Changed += OnChanged;
+        // 到期時自己消失（不必等下一次 API 回應）：每 30 秒重畫一次就夠了。
+        expiryTimer = new Timer(_ => _ = InvokeAsync(StateHasChanged), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Diagnostics.Changed -= OnChanged;
+        expiryTimer?.Dispose();
+    }
+}

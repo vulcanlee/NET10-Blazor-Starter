@@ -1,8 +1,8 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.19
+- 文件版本：1.20
 - 文件狀態：已實作
-- 現行系統版本：0.10.36
+- 現行系統版本：0.10.37
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/11/18
 
@@ -106,6 +106,7 @@
 - `nlog.config` 的全域規則 `*` 最低等級是 **Info**，所以 **Debug 與 Trace 預設不會寫入檔案**；要到
   `/log-level-setting` 把等級調低才會出現（重啟後恢復）。
 - `Microsoft.*`、`System.*`、`Microsoft.EntityFrameworkCore.*` 只記 **Warning 以上**；`Microsoft.Hosting.Lifetime*` 記 Info 以上。
+- 例外：前端診斷記錄（0.10.37，LOG-24）寫到 `MyProject.Browser.*`，`nlog.config` 為它另設 Trace 以上、final 的規則，不受 `/log-level-setting` 的等級影響；是否送來由那位使用者的診斷等級決定。
 - **推論：必須事後查得到的事，不可只記 Debug。** 凡是會出現在 §3.4「Information 以上」欄的事件，若只寫成 Debug，視同沒有記錄。
 
 ### 3.4 事件目錄
@@ -292,6 +293,14 @@
 |---|---|---|
 | LOG-23 前端錯誤捕捉補強 | **一條管線**：`wwwroot/js/client-error-reporter.js` 排在所有腳本之前，每筆先存進 localStorage（30 筆、7 天、約 256KB），登入後由 `ClientErrorReporter.SendAsync` 批次送 `POST api/v1/shell/client-reports`（每批 20 筆、256KB），伺服器回 `DoneIds` 才移除。.NET 端經 `ClientErrorCapture`（單例）交給它。**等級**：錯誤（`error`、`unhandledrejection`、`boundary`、`unhandled`、`caught`、`sw-install`、`boot`）記 Error 進系統例外紀錄；連線中斷（一段一筆，有網路卻連不上 Warning、瀏覽器離線 Information）、資源載入失敗、CSP 違規記 Warning／Information、只寫日誌檔（`BrowserEventReporter`，不帶例外物件）；API 4xx／5xx 前端不另記。**追蹤碼**由瀏覽器產生、畫面立即顯示，伺服器格式正確時沿用（`TraceCode.IsValid`）；每個回應另帶 `X-Trace-Code`。**背景資訊**（瀏覽器端發生時間、前端指紋、伺服器版本、UA、最近 20 筆換頁與 API 呼叫）由伺服器以 `BrowserReportContext` 組成、附在堆疊後面，不影響簽章；登入前發生的用另一個訊息樣板。**限流**：錯誤沿用 `MaxPerCircuitPerMinute`，事件另計每分鐘 30 筆，被限流的留在瀏覽器 60 秒後再送 | `BrowserErrorReporterTests`、`BrowserEventReporterTests`、`BrowserReportContextTests`、`ShellApiIntegrationTests.ClientReports_*`、`ClientErrorReportingConventionTests`、`ViewNotificationTests.UnexpectedError_ShouldReportTheException_AndShowItsOwnTraceCode`；實機 `scripts/e2e/browser-reports.mjs`（8 項） |
 
+### 6.6 已實作 —— 前端診斷記錄（0.10.37）
+
+見 [變更紀錄](../changelog/2026-11-18-前端診斷記錄.md)。
+
+| 編號 | 0.10.37 的做法 | 守門測試 |
+|---|---|---|
+| LOG-24 前端診斷記錄 | 管理員在 `/log-level-setting` 對指定帳號開啟（DEBUG／TRACE、15 分鐘～8 小時），`ClientDiagnosticsRegistry` 只存記憶體、到期失效；被診斷者的 `/api` 回應帶 `X-Client-Diagnostics`，前端 `ClientDiagnosticsLoggerProvider` 收本專案達門檻的日誌、每 5 秒批次送 `api/v1/shell/diagnostic-logs`，`BrowserLogForwarder` 以原等級寫到 `MyProject.Browser.*`、不帶例外物件；被診斷者畫面底部有提示；開啟與關閉寫稽核 | `ClientDiagnosticsTests`、`LogApiTests.ClientDiagnostics_*`、`ClientSessionTests.ApiClient_ShouldFollowTheDiagnosticsHeader_OnSignedInResponsesOnly`、`PwaStatusBarTests.DiagnosticsBar_ShouldShowWhileDiagnosticsIsOn`；實機 `scripts/e2e/client-diagnostics.mjs`（6 項） |
+
 ## 七、設定鍵
 
 全部已實作：`ExceptionAlertSettings`、`LogRetentionSettings`（0.9.78）、`SlowOperationSettings`、`ClientErrorReporting`（0.9.79），
@@ -319,6 +328,7 @@
 - 前端回報入口只對已登入者開放（0.10.9 起 `api/v1/shell/client-errors` 要登入；之前是已登入的 circuit），並有頻率與長度上限（LOG-20）。
   0.10.36 起的 `client-reports` 同樣要登入：登入前的錯誤存在瀏覽器、登入後才送，**刻意不開匿名端點**（任何人都能呼叫的話，可能被灌垃圾、擠掉真正的例外）。
   前端送來的路徑、網址、UA、操作軌跡一律在伺服器去掉查詢字串與控制字元（避免偽造日誌行），追蹤碼格式不對就不用（LOG-23）。
+- 前端診斷記錄（LOG-24）只限管理員開啟、每次開啟與關閉寫稽核，被診斷的使用者畫面上看得到；只有被選的那位使用者送來的會寫入，分類只接受英數字與點。
 - 追蹤碼可以給使用者看，不得含帳號、主機名稱、時間戳以外的內部資訊。
 - 日誌檔與堆疊檔可從 `/logs` 原始匯出，因此 §4.4 的禁記規則同樣適用於例外訊息以外的所有日誌行。
 
@@ -333,6 +343,7 @@
 | LOG-08（0.9.77 已實作）、LOG-14、LOG-15（0.9.78 已實作） | 慣例測試＋各事件單元測試 |
 | LOG-11（0.9.78 已實作） | `ExceptionLogServiceTests`、服務測試 |
 | LOG-12、LOG-13（0.9.78 已實作） | 以假時鐘的單元測試（`ManualTimeProvider`） |
+| LOG-24（0.10.37 已實作） | §6.6 所列測試；實機 `scripts/e2e/client-diagnostics.mjs` 6 項：管理員開啟、使用者看到提示、換頁與 API 呼叫以 TRACE 寫入、其他人不送、停止後提示消失且不再送、稽核 |
 | LOG-23（0.10.36 已實作） | §6.5 所列單元與整合測試；實機 `scripts/e2e/browser-reports.mjs` 8 項：登入前的錯誤登入後送出、瀏覽器追蹤碼即例外紀錄的追蹤碼、回應帶 `X-Trace-Code`、連不上伺服器 Warning、離線 Information、資源載入 Warning、CSP Warning、啟動失敗登入後送出 |
 | LOG-20、LOG-21、LOG-22（0.9.79 已實作） | `BrowserErrorReporterTests`、`LoggingPipelineHealthTests`；**2026/11/08 已在瀏覽器驗收**：同步錯誤與未處理的 Promise 各記一筆（來源「瀏覽器」、`BrowserScriptException`）；一分鐘內共 14 筆時記 10 筆、丟棄 4 筆；健康監控「日誌管線」顯示「前端錯誤回報因限流丟棄 4」；門檻設 1 ms 時日誌有慢請求與慢資料庫指令的 Warning（資料庫只記指令類型） |
 

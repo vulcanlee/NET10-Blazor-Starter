@@ -234,6 +234,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<BrowserErrorReporter>();
         // 瀏覽器端的連線中斷、資源載入失敗、CSP（0.10.36 起）：只寫日誌檔，不進例外紀錄。
         services.AddScoped<BrowserEventReporter>();
+        // 前端診斷記錄（0.10.37 起）：對象只存記憶體（單例），日誌由轉送器依原等級寫進日誌檔。
+        services.AddSingleton<ClientDiagnosticsRegistry>();
+        services.AddScoped<BrowserLogForwarder>();
 
         // 以 DI 註冊 ILoggerProvider，讓它拿得到 Channel 與情境存取器。
         // ⚠️ 必須晚於 Program.cs 的 builder.Logging.ClearProviders()，否則會被清掉；
@@ -693,7 +696,8 @@ public static class ServiceCollectionExtensions
                         .WithHeaders("Authorization", "Content-Type")
                         .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Delete)
                         // X-Trace-Code（0.10.36 起）：前端把每次 API 呼叫的追蹤碼記進操作軌跡，錯誤回報時一起送回來。
-                        .WithExposedHeaders("Content-Disposition", "X-Trace-Code")
+                        // X-Client-Diagnostics（0.10.37 起）：這位使用者的前端診斷記錄開著（等級、到期時間），前端據此開始送日誌。
+                        .WithExposedHeaders("Content-Disposition", "X-Trace-Code", "X-Client-Diagnostics")
                         .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
                 });
             });

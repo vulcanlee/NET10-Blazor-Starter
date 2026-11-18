@@ -584,6 +584,25 @@ public class MyUserService
     private bool CanCopy(string account) => !string.Equals(account, bootstrapSettings.SupportAccount, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// 依帳號找未刪除的使用者（0.10.37 起，前端診斷記錄的對象）：不分大小寫、忽略前後空白；找不到回 null。
+    /// </summary>
+    public async Task<(int Id, string Account)?> FindByAccountAsync(string account)
+    {
+        var normalized = NameNormalizer.ToLowerAscii(account.Trim());
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var user = await context.MyUser.AsNoTracking()
+            .Where(x => x.Account.ToLower() == normalized)
+            .Select(x => new { x.Id, x.Account })
+            .FirstOrDefaultAsync();
+        return user is null ? null : (user.Id, user.Account);
+    }
+
+    /// <summary>
     /// 已使用這個 Email 的帳號（未刪除，不分大小寫、忽略前後空白）。Email 不要求唯一，
     /// 只給「複製」建立前提醒用（0.9.127 起）。
     /// </summary>

@@ -226,6 +226,35 @@ public static class ApplicationBuilderExtensions
     /// <summary>回應標頭：這個請求的追蹤碼（0.10.36 起）。CORS 另外公開，雙站台時前端才讀得到。</summary>
     public const string TraceCodeHeaderName = "X-Trace-Code";
 
+    /// <summary>回應標頭：這位使用者的前端診斷記錄開著（0.10.37 起）。值是「等級;到期時間 HH:mm;剩幾秒」，例如 <c>Debug;15:30;3540</c>。</summary>
+    public const string ClientDiagnosticsHeaderName = "X-Client-Diagnostics";
+
+    /// <summary>
+    /// 前端診斷記錄（0.10.37 起）：管理員對某位使用者開啟時，那位使用者的 API 回應帶 <see cref="ClientDiagnosticsHeaderName"/>；
+    /// 前端每次呼叫 API（鈴鐺每 60 秒也會呼叫一次）時讀到，就開始把自己的日誌送來，沒有這個標頭就停止。
+    /// 不另外輪詢、也不經推播，推播關閉時一樣有效。⚠️ 排在 <c>ApiActorMiddleware</c> 之後（要知道是誰）。
+    /// </summary>
+    public static WebApplication UseClientDiagnosticsHeader(this WebApplication app)
+    {
+        app.Use(async (context, next) =>
+        {
+            var userId = context.RequestServices.GetRequiredService<MyProject.Business.Services.Other.CurrentUserService>().CurrentUser.Id;
+            if (userId > 0
+                && context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+                && context.RequestServices.GetRequiredService<ClientDiagnosticsRegistry>().Find(userId) is { } session)
+            {
+                var timeProvider = context.RequestServices.GetRequiredService<TimeProvider>();
+                var remaining = Math.Max(0, (int)(session.ExpiresAt - timeProvider.GetUtcNow()).TotalSeconds);
+                var until = TimeZoneInfo.ConvertTime(session.ExpiresAt, timeProvider.LocalTimeZone).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+                context.Response.Headers[ClientDiagnosticsHeaderName] = $"{session.Level};{until};{remaining}";
+            }
+
+            await next();
+        });
+
+        return app;
+    }
+
     public static WebApplication UseHttpRequestLogging<TProgram>(this WebApplication app)
     {
         app.Use(async (context, next) =>

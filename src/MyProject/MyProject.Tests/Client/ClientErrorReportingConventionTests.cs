@@ -80,6 +80,10 @@ public sealed class ClientErrorReportingConventionTests
     {
         var program = File.ReadAllText(Path.Combine(SourceTree.Client, "Program.cs"));
 
+        // 前端診斷記錄（0.10.37 起）：最低等級放到 Trace 讓它收得到，主控台照舊只顯示 Information 以上。
+        Assert.Contains("builder.Logging.SetMinimumLevel(LogLevel.Trace);", program, StringComparison.Ordinal);
+        Assert.Contains("provider == typeof(ClientDiagnosticsLoggerProvider).FullName || level >= LogLevel.Information", program, StringComparison.Ordinal);
+
         Assert.Contains("builder.Services.AddSingleton<ClientErrorCapture>();", program, StringComparison.Ordinal);
         Assert.Contains("builder.Services.AddSingleton<ILoggerProvider, ClientFrameworkErrorLoggerProvider>();", program, StringComparison.Ordinal);
         Assert.Contains("ViewNotification.UseErrorCapture(exception => errorCapture.Capture(\"caught\", exception));", program, StringComparison.Ordinal);
