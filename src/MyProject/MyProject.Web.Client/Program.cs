@@ -38,6 +38,10 @@ public static class ClientProgram
         // 登入相關頁面與啟動頁的公開設定（0.10.8 起，WASM 遷移 M9）。
         builder.Services.AddScoped<LoginPageSettingsSource>();
         builder.Services.AddScoped<ClientErrorReporter>();
+        // 前端錯誤回報（0.10.36 起）：例外、API 呼叫、換頁交給 js/client-error-reporter.js（先存在瀏覽器、登入後批次送出）。
+        // 單例：靜態的 ViewNotification 與框架日誌接收器也要用得到。錯誤邊界以外的未處理例外由框架日誌接到。
+        builder.Services.AddSingleton<ClientErrorCapture>();
+        builder.Services.AddSingleton<ILoggerProvider, ClientFrameworkErrorLoggerProvider>();
         builder.Services.AddScoped<PagePermissions, ClientPagePermissions>();
         builder.Services.AddScoped<IAuditHistorySource, ApiAuditHistorySource>();
         // 附件上傳與下載（0.10.3 起）：檔案留在瀏覽器，不經過 WASM 記憶體。
@@ -93,9 +97,16 @@ public static class ClientProgram
             await ClientCulture.LoadAsync(http, host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ClientCulture).FullName!));
         }
 
-        // 右下角通知（ViewNotification）：日誌寫到瀏覽器主控台，追蹤碼取最近一次失敗的 API 回應。
+        // 前端程式的指紋（0.10.36 起）：附在每筆錯誤回報上，與伺服器收到時的系統版本對照，看得出使用者是否還在跑舊前端。
+        // 不把版本號寫進前端：那樣每次升版（即使只改後端）前端都會變，使用者每次都會看到「有新版本」。
+        var errorCapture = host.Services.GetRequiredService<ClientErrorCapture>();
+        errorCapture.SetAppBuild(typeof(ClientProgram).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..8]);
+
+        // 右下角通知（ViewNotification）：日誌寫到瀏覽器主控台，追蹤碼取最近一次失敗的 API 回應；
+        // UnexpectedError 的例外另外回報到伺服器，通知上附的是那筆回報的追蹤碼（0.10.36 起）。
         ViewNotification.UseLoggerFactory(host.Services.GetRequiredService<ILoggerFactory>());
         ViewNotification.UseTraceCodeProvider(ApiClient.TakeLastFailureTraceId);
+        ViewNotification.UseErrorCapture(exception => errorCapture.Capture("caught", exception));
 
         await host.RunAsync();
     }

@@ -80,6 +80,9 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
     private bool aboutVisible;
     private string currentPath = string.Empty;
     private DotNetObjectReference<ClientErrorReporter>? errorReporterReference;
+
+    /// <summary>頁面內容的錯誤邊界（0.10.36 起）：換頁時復原。</summary>
+    private ClientErrorBoundary? bodyBoundary;
     private readonly CancellationTokenSource reachabilityWait = new();
     private IReadOnlyList<KeyValuePair<string, string>> aboutItems = [];
 
@@ -212,7 +215,12 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         currentPath = CurrentPath();
         isUserMenuOpen = false;
         UpdateCurrentPageTitle();
-        InvokeAsync(StateHasChanged);
+        InvokeAsync(() =>
+        {
+            // 上一頁出錯時，換到別頁要顯示新頁面，而不是停在錯誤畫面。
+            bodyBoundary?.Recover();
+            StateHasChanged();
+        });
         // 導向不是頁面的網址時不記（接著會整頁載入交給主機，伺服器也只收 WASM 頁面的路徑）。
         if (!string.Equals(previous, currentPath, StringComparison.OrdinalIgnoreCase) && ClientRouteTable.IsClientRoute(currentPath))
         {
@@ -300,7 +308,10 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
 
     private void ToggleUserMenu() => isUserMenuOpen = !isUserMenuOpen;
 
-    /// <summary>登入後才註冊瀏覽器錯誤回報（與 Server 版相同：匿名者無從灌資料）。</summary>
+    /// <summary>
+    /// 登入後才註冊瀏覽器錯誤回報的送件者（匿名者無從灌資料）：之前暫存在瀏覽器的回報（含登入前發生的）這時才送出。
+    /// 帶上目前使用者的 Id，之後發生的錯誤會標記「登入後」（0.10.36 起）。
+    /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!isAuthenticated || errorReporterReference is not null)
@@ -311,7 +322,7 @@ public partial class ClientMainLayout : LayoutComponentBase, IDisposable
         errorReporterReference = DotNetObjectReference.Create(ErrorReporter);
         try
         {
-            await JSRuntime.InvokeVoidAsync("appClientErrors.register", errorReporterReference);
+            await JSRuntime.InvokeVoidAsync("appClientErrors.register", errorReporterReference, Session.Info?.Id);
         }
         catch (JSException ex)
         {

@@ -470,6 +470,35 @@ public sealed class ClientSessionTests
         Assert.Equal(ApiClient.OfflineMessage, result.ErrorMessage);
     }
 
+    /// <summary>
+    /// 操作軌跡（0.10.36 起）：每次 API 呼叫交給 client-error-reporter.js（方法、網址、狀態碼、耗時、伺服器追蹤碼）；
+    /// 連不上伺服器記狀態 0（JS 依此記一段連線中斷）；送出回報本身不記，否則每送一次就多一筆。
+    /// </summary>
+    [Fact]
+    public async Task ApiClient_ShouldTellTheErrorReporterAboutEveryCall_ExceptSendingReports()
+    {
+        var handler = new FakeHandler();
+        handler.SignedIn(Tokens("a1", "r1", persistent: true));
+        handler.On("api/v1/Auth/me", HttpStatusCode.OK, Ok(new SessionInfoDto { Id = 7 }));
+        handler.On("api/v1/profile", HttpStatusCode.OK, Ok(new ProfileDto { Account = "alice" }));
+        handler.On("api/v1/shell/client-reports", HttpStatusCode.OK, Ok(new ClientReportBatchResultDto()));
+        var (session, _, navigation) = Create(handler);
+        await session.InitializeAsync();
+        var js = new RecordingJsRuntime();
+        var api = new ApiClient(handler.Client, session, navigation, NullLogger<ApiClient>.Instance,
+            errorCapture: new ClientErrorCapture(js, NullLogger<ClientErrorCapture>.Instance));
+
+        await api.GetAsync<ProfileDto>("api/v1/profile?tab=1");
+        await api.PostAsync<ClientReportBatchResultDto>("api/v1/shell/client-reports", new ClientReportBatchDto());
+        handler.Offline = true;
+        await api.GetAsync<ProfileDto>("api/v1/profile");
+
+        var calls = js.Calls.Where(x => x.Identifier == "appClientErrors.api").ToList();
+        Assert.Equal(2, calls.Count);
+        Assert.Equal(new object?[] { "GET", "https://localhost/api/v1/profile?tab=1", 200 }, calls[0].Args.Take(3));   // 只留路徑由 JS 端處理（pathOf）
+        Assert.Equal(new object?[] { "GET", "https://localhost/api/v1/profile", 0 }, calls[1].Args.Take(3));
+    }
+
     /// <summary>審查修正（0.10.2）：匯出被拒（例如超過筆數上限）時，畫面要顯示伺服器給的原因，不是「驗證失敗」這種分類字。</summary>
     [Fact]
     public async Task Download_WhenTheServerRefuses_ShouldReturnTheReason()
@@ -1275,6 +1304,30 @@ public sealed class ClientSessionTests
             }
 
             return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>記下每一次同步 JS 呼叫（ClientErrorCapture 用 IJSInProcessRuntime）。</summary>
+    internal sealed class RecordingJsRuntime : IJSInProcessRuntime
+    {
+        public List<(string Identifier, object?[] Args)> Calls { get; } = [];
+
+        public TResult Invoke<TResult>(string identifier, params object?[]? args)
+        {
+            Calls.Add((identifier, args ?? []));
+            return default!;
+        }
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
+        {
+            Calls.Add((identifier, args ?? []));
+            return ValueTask.FromResult(default(TValue)!);
+        }
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        {
+            Calls.Add((identifier, args ?? []));
+            return ValueTask.FromResult(default(TValue)!);
         }
     }
 

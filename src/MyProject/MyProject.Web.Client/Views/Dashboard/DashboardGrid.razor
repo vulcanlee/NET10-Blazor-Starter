@@ -28,9 +28,9 @@
                         <ChildContent>
                             <DynamicComponent Type="@componentType" Parameters="@ParametersFor(widget.Id)" />
                         </ChildContent>
-                        <ErrorContent>
+                        <ErrorContent Context="exception">
                             <div class="dashboard-card-error" role="alert">
-                                這個區塊暫時無法顯示，其他區塊不受影響。
+                                這個區塊暫時無法顯示，其他區塊不受影響@(TraceCodeText.Suffix(ClientErrorCapture.TraceCodeOf(exception)))。
                             </div>
                         </ErrorContent>
                     </ClientErrorBoundary>

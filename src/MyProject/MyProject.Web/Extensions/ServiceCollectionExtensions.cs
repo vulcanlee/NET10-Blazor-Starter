@@ -232,6 +232,8 @@ public static class ServiceCollectionExtensions
         // 日誌管線自我監控（LOG-22）與瀏覽器錯誤回報（LOG-20，每個請求一份；每人的頻率上限在 ShellController）。
         services.AddSingleton<LoggingPipelineMonitor>();
         services.AddScoped<BrowserErrorReporter>();
+        // 瀏覽器端的連線中斷、資源載入失敗、CSP（0.10.36 起）：只寫日誌檔，不進例外紀錄。
+        services.AddScoped<BrowserEventReporter>();
 
         // 以 DI 註冊 ILoggerProvider，讓它拿得到 Channel 與情境存取器。
         // ⚠️ 必須晚於 Program.cs 的 builder.Logging.ClearProviders()，否則會被清掉；
@@ -659,7 +661,8 @@ public static class ServiceCollectionExtensions
     /// 加上 <c>Cors:AllowedOrigins</c>（其他要跨來源呼叫 API 的網站）；兩者都沒有＝不開放（同站台的預設），不回任何 CORS 標頭。
     /// <list type="bullet">
     /// <item>只允許前端實際送的標頭（<c>Authorization</c>、<c>Content-Type</c>）與用到的方法；不允許憑證（不用 Cookie）。</item>
-    /// <item>前端要讀下載檔名，所以公開 <c>Content-Disposition</c>（NDJSON 串流與上傳只讀 Content-Type，本來就讀得到）。</item>
+    /// <item>前端要讀下載檔名，所以公開 <c>Content-Disposition</c>（NDJSON 串流與上傳只讀 Content-Type，本來就讀得到）；
+    /// 0.10.36 起也公開 <c>X-Trace-Code</c>（每個請求的追蹤碼，前端記進操作軌跡）。</item>
     /// <item>預檢由 CORS 中介軟體直接回應，不經過驗證與限流（<c>UseConfiguredCors</c> 排在前面），也快取 10 分鐘。</item>
     /// </list>
     /// ⚠️ 在請求時才讀設定（Options），不在註冊時讀：WebApplicationFactory 的設定覆寫要到建置主機時才套用。
@@ -689,7 +692,8 @@ public static class ServiceCollectionExtensions
                         .WithOrigins(origins)
                         .WithHeaders("Authorization", "Content-Type")
                         .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Delete)
-                        .WithExposedHeaders("Content-Disposition")
+                        // X-Trace-Code（0.10.36 起）：前端把每次 API 呼叫的追蹤碼記進操作軌跡，錯誤回報時一起送回來。
+                        .WithExposedHeaders("Content-Disposition", "X-Trace-Code")
                         .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
                 });
             });

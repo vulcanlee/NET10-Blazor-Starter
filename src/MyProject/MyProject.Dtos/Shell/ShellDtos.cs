@@ -117,7 +117,10 @@ public class PageViewRequestDto
     public string From { get; set; } = string.Empty;
 }
 
-/// <summary>瀏覽器端的錯誤回報（<c>POST /api/v1/shell/client-errors</c>），規則同 Server 版的 BrowserErrorReporter。</summary>
+/// <summary>
+/// 瀏覽器端的錯誤回報（<c>POST /api/v1/shell/client-errors</c>），規則同 Server 版的 BrowserErrorReporter。
+/// ⚠️ 0.10.36 起前端改用 <see cref="ClientReportBatchDto"/>（<c>client-reports</c>）；這個舊端點只留給瀏覽器裡還在快取的舊前端，之後移除。
+/// </summary>
 public class ClientErrorReportDto
 {
     public string? Kind { get; set; }
@@ -129,4 +132,104 @@ public class ClientErrorReportDto
     public string? Source { get; set; }
 
     public string? Path { get; set; }
+}
+
+/// <summary>
+/// 瀏覽器端的回報批次（0.10.36 起，<c>POST /api/v1/shell/client-reports</c>）：前端把錯誤與事件先存在瀏覽器（localStorage），
+/// 登入後批次送出；登入前發生的、離線時送不出去的，都留到下一次送。
+/// </summary>
+public class ClientReportBatchDto
+{
+    public List<ClientReportDto> Items { get; set; } = [];
+
+    /// <summary>瀏覽器暫存區滿了而捨棄的筆數（累計到這次送出為止）。</summary>
+    public int Dropped { get; set; }
+}
+
+/// <summary>
+/// 一筆瀏覽器端的回報。<see cref="Kind"/> 決定等級：
+/// <c>error</c>／<c>unhandledrejection</c>／<c>boundary</c>／<c>unhandled</c>／<c>caught</c>／<c>sw-install</c>／<c>boot</c> 是錯誤（Error，進系統例外紀錄）；
+/// <c>resource</c>（資源載入失敗）、<c>csp</c>（安全政策擋下）是 Warning；<c>network</c>（一段連線中斷）依 <see cref="BrowserOnline"/> 是 Warning 或 Information。
+/// 前端送來的一律不信任：伺服器再截一次長度、去掉查詢字串。
+/// </summary>
+public class ClientReportDto
+{
+    /// <summary>瀏覽器產生的識別碼，伺服器回 <see cref="ClientReportBatchResultDto.DoneIds"/> 時用它對應。</summary>
+    public string? Id { get; set; }
+
+    public string? Kind { get; set; }
+
+    public string? Message { get; set; }
+
+    public string? Stack { get; set; }
+
+    /// <summary>錯誤來源（JS 檔案與行號、.NET 例外型別、出問題的資源網址、被擋下的網址…）。</summary>
+    public string? Source { get; set; }
+
+    /// <summary>發生時的頁面路徑。</summary>
+    public string? Path { get; set; }
+
+    /// <summary>瀏覽器產生的 8 碼錯誤追蹤碼（畫面上已經顯示給使用者）；格式不對時伺服器改用自己的。</summary>
+    public string? TraceCode { get; set; }
+
+    /// <summary>瀏覽器端的發生時間（UTC）。</summary>
+    public DateTimeOffset? OccurredAt { get; set; }
+
+    /// <summary>前端程式的指紋（前端主程式的模組識別碼前 8 碼；前端沒有改版就不變）。</summary>
+    public string? AppBuild { get; set; }
+
+    public string? UserAgent { get; set; }
+
+    /// <summary>發生時已登入的使用者 Id；沒有（登入前發生）或與送出時的使用者不同，就標記為「登入前」。</summary>
+    public int? SignedInUserId { get; set; }
+
+    /// <summary>發生前最近的操作軌跡（換頁、API 呼叫），只有錯誤才帶。</summary>
+    public List<ClientBreadcrumbDto>? Breadcrumbs { get; set; }
+
+    /// <summary>連線中斷（<c>network</c>）：第一次失敗的時間。</summary>
+    public DateTimeOffset? StartedAt { get; set; }
+
+    /// <summary>連線中斷：最後一次失敗的時間。</summary>
+    public DateTimeOffset? LastFailureAt { get; set; }
+
+    /// <summary>連線中斷：恢復連線（第一次成功）的時間。</summary>
+    public DateTimeOffset? RecoveredAt { get; set; }
+
+    /// <summary>連線中斷期間失敗的 API 呼叫次數。</summary>
+    public int? FailedCalls { get; set; }
+
+    /// <summary>連線中斷期間失敗的 API 路徑（不含查詢字串）。</summary>
+    public List<string>? Paths { get; set; }
+
+    /// <summary>連線中斷期間瀏覽器是否一直認為自己有網路（true＝伺服器連不上；false＝使用者端離線）。</summary>
+    public bool? BrowserOnline { get; set; }
+}
+
+/// <summary>操作軌跡的一筆：換頁（<c>nav</c>）或 API 呼叫（<c>api</c>）。只有路徑，不含查詢字串與輸入內容。</summary>
+public class ClientBreadcrumbDto
+{
+    public DateTimeOffset At { get; set; }
+
+    public string? Kind { get; set; }
+
+    public string? Method { get; set; }
+
+    public string? Path { get; set; }
+
+    /// <summary>HTTP 狀態碼；0＝連不上伺服器。</summary>
+    public int? Status { get; set; }
+
+    public long? ElapsedMs { get; set; }
+
+    /// <summary>伺服器回的追蹤碼（<c>X-Trace-Code</c> 標頭），可到 /logs 查同一次請求。</summary>
+    public string? TraceCode { get; set; }
+}
+
+/// <summary>回報批次的結果：<see cref="DoneIds"/> 是已處理（記錄了或確定不記）的項目，前端從暫存區移除；其餘下次再送。</summary>
+public class ClientReportBatchResultDto
+{
+    public List<string> DoneIds { get; set; } = [];
+
+    /// <summary>有項目被限流時，幾秒後再送。</summary>
+    public int? RetryAfterSeconds { get; set; }
 }

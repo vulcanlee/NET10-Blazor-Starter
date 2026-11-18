@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.23
+- 文件版本：1.24
 - 文件狀態：已實作
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.36
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/18
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -450,7 +450,8 @@
 | | 操作說明 | `GET shell/help?route=` | `HelpDocumentDto`：Markdown 已在伺服器端以 `HelpMarkdownRenderer`（停用 HTML）轉成 HTML，相關頁面已依權限過濾；沒有說明回 404 |
 | | 開頁稽核 | `POST shell/page-view` | 寫 `Page.View`（路徑去掉 query string；只有 `AuditLogSettings:RecordBrowsing` 開啟才會留下）。只接受 WASM 的頁面路徑（`ClientRouteTable`；0.10.8 起即全部頁面），每位使用者每分鐘最多 60 筆，超過的不記。0.10.2 起使用者沒有該頁權限時（依選單的權限鍵，`SidebarMenuService.FindPagePermissionAsync`）改寫「沒有權限開頁」稽核 `Permission.Denied`（detail `via=WASM`），WASM 頁面不自己寫 |
 | | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與伺服器的格式一致。內容只有格式字串 |
-| | 瀏覽器錯誤回報 | `POST shell/client-errors` | 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘；0.10.10 起 `BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每個實例的計數，只剩這裡計數），超過回 `accepted=false` |
+| | 瀏覽器回報批次（0.10.36 起） | `POST shell/client-reports` | `ClientReportBatchDto{Items,Dropped}` → `ClientReportBatchResultDto{DoneIds,RetryAfterSeconds}`；每批最多 20 筆、本體 256KB。錯誤交給 `BrowserErrorReporter`（Error、系統例外紀錄；瀏覽器產生的追蹤碼格式正確時沿用；登入前發生的另一個樣板），連線中斷、資源載入、CSP 交給 `BrowserEventReporter`（只寫日誌檔）。錯誤沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`、事件每分鐘 30 筆；被限流的不在 `DoneIds`，回 `RetryAfterSeconds=60`；回報關閉時全部當成完成、不記錄 |
+| | 瀏覽器錯誤回報（舊） | `POST shell/client-errors` | ⚠️ 0.10.35 以前的前端用，0.10.36 起只留給瀏覽器裡還在快取的舊前端，之後移除。 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘；0.10.10 起 `BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每個實例的計數，只剩這裡計數），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
 | | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |

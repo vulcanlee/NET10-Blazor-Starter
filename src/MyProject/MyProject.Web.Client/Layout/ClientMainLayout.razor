@@ -58,7 +58,18 @@
             <ClientAnnouncementBanner />
 
             <article class="content px-4">
-                @Body
+                @*
+                    頁面內容的錯誤邊界（0.10.36 起）：頁面出錯時只換掉內容區，側邊選單與頁首還在，可以直接點到別頁；換頁時自動復原（OnLocationChanged）。
+                    版面本身出錯由 ClientRoutes 的外層錯誤邊界接住。LayoutErrorBoundaryConventionTests 守門。
+                *@
+                <ClientErrorBoundary @ref="bodyBoundary">
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent Context="exception">
+                        <ClientPageErrorAlert Exception="exception" />
+                    </ErrorContent>
+                </ClientErrorBoundary>
             </article>
         </main>
     </div>

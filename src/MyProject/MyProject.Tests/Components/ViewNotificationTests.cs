@@ -124,6 +124,39 @@ public sealed class ViewNotificationTests : ComponentTestBase
         Assert.DoesNotContain("InvalidOperationException", Assert.Single(factory.Messages), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 0.10.36 起 UnexpectedError 的例外也回報到伺服器：通知上附的是這次回報的追蹤碼，
+    /// 不是「最近一次失敗的 API」的碼（前端程式自己的錯誤，那個碼在伺服器查不到）。
+    /// </summary>
+    [Fact]
+    public void UnexpectedError_ShouldReportTheException_AndShowItsOwnTraceCode()
+    {
+        var notificationService = Services.GetRequiredService<NotificationService>();
+        var container = Render<AntContainer>();
+        var reported = new List<Exception>();
+        var exception = new InvalidOperationException("boom");
+        ViewNotification.UseTraceCodeProvider(() => "APIFAIL1");
+        ViewNotification.UseErrorCapture(ex =>
+        {
+            reported.Add(ex);
+            return "CAUGHT23";
+        });
+        try
+        {
+            ViewNotification.UnexpectedError(notificationService, "匯出失敗", exception);
+            ViewNotification.Error(notificationService, "名稱重複");
+        }
+        finally
+        {
+            ViewNotification.UseErrorCapture(_ => null);
+            ViewNotification.UseTraceCodeProvider(() => TraceCode.Current);
+        }
+
+        Assert.Same(exception, Assert.Single(reported));   // 業務拒絕（Error）不回報
+        var buttons = container.FindComponents<ToastCopyButton>();
+        Assert.Contains(buttons, x => x.Instance.Description == "匯出失敗" && x.Instance.TraceCode == "CAUGHT23");
+    }
+
     [Fact]
     public void PlainConfig_ShouldKeepTheDefaultDuration_AndHaveNoButton()
     {

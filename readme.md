@@ -298,7 +298,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `ScheduledJobSettings` | 排程作業（0.9.96 起）：`Enabled`（總開關）、`JobRunRetentionDays`（執行紀錄保留天數，預設 90）、`Jobs:{作業}:Cron`（各作業執行時間）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `ExceptionAlertSettings` | 系統例外 Email 告警（0.9.78 起）：`Recipients`（預設空清單＝停用）、`BurstThreshold`／`BurstWindowMinutes`（暴增門檻，預設 20 次／10 分）、`PerSignatureCooldownMinutes`（預設 60）、`MaxEmailsPerHour`（預設 20）。需寄信已啟用。見 [日誌與設定檔說明 §4.12](docs/operations/日誌與設定檔說明.md)。 |
 | `SlowOperationSettings` | 慢操作門檻（0.9.79 起，毫秒，超過記 Warning，`0`＝停用）：`HttpRequestMs`（3000）、`DbCommandMs`（1000）、`ExternalCallMs`（寄信，10000）、`AiCallMs`（60000）。見 [日誌與設定檔說明 §4.13](docs/operations/日誌與設定檔說明.md)。 |
-| `ClientErrorReporting` | 瀏覽器端 JavaScript 錯誤回報（0.9.79 起）：`Enabled`（預設 `true`）、`MaxPerCircuitPerMinute`（預設 10，範圍 1～1000）。見 [日誌與設定檔說明 §4.14](docs/operations/日誌與設定檔說明.md)。 |
+| `ClientErrorReporting` | 瀏覽器端錯誤與事件回報（0.9.79 起；0.10.36 起含登入前、連線中斷、資源載入、CSP）：`Enabled`（預設 `true`）、`MaxPerCircuitPerMinute`（預設 10，範圍 1～1000）。見 [日誌與設定檔說明 §4.14](docs/operations/日誌與設定檔說明.md)。 |
 
 > 本表是摘要。**完整且具權威性的逐鍵說明在 [docs/operations/日誌與設定檔說明.md](docs/operations/日誌與設定檔說明.md) §4**
 > —— 新增 `appsettings.json` 區段時請以那份為主、本表為輔（見 [維護規範](docs/operations/維護規範.md) §2）。

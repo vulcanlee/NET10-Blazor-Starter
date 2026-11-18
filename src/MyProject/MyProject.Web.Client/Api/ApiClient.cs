@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -31,15 +32,58 @@ public class ApiClient
     private readonly NavigationManager navigation;
     private readonly ILogger<ApiClient> logger;
     private readonly ClientConnectivity? connectivity;
+    private readonly ClientErrorCapture? errorCapture;
 
     /// <param name="connectivity">瀏覽器的連線狀態（0.10.11 起）；沒有時一律用 <see cref="OfflineMessage"/>。</param>
-    public ApiClient(HttpClient http, ClientSession session, NavigationManager navigation, ILogger<ApiClient> logger, ClientConnectivity? connectivity = null)
+    /// <param name="errorCapture">前端錯誤回報（0.10.36 起）：每次呼叫記進操作軌跡，連不上時由 JS 記成一段連線中斷；沒有時不記。</param>
+    public ApiClient(HttpClient http, ClientSession session, NavigationManager navigation, ILogger<ApiClient> logger, ClientConnectivity? connectivity = null,
+        ClientErrorCapture? errorCapture = null)
     {
         this.http = http;
         this.session = session;
         this.navigation = navigation;
         this.logger = logger;
         this.connectivity = connectivity;
+        this.errorCapture = errorCapture;
+    }
+
+    /// <summary>回應標頭：伺服器這次請求的追蹤碼（0.10.36 起，記進操作軌跡）。</summary>
+    internal const string TraceCodeHeaderName = "X-Trace-Code";
+
+    /// <summary>不記進操作軌跡的呼叫：送出回報本身（否則每送一次就多一筆軌跡）。</summary>
+    private static bool IsQuiet(string url) => url.Contains(Layout.ClientErrorReporter.ReportsUrl, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 送出並記進操作軌跡（0.10.36 起）：方法、路徑（JS 端去掉查詢字串）、狀態碼、耗時、伺服器追蹤碼。
+    /// 連不上伺服器（<see cref="HttpRequestException"/>、逾時）記狀態 0，JS 據此開始一段連線中斷，下一次有回應時結束並回報；
+    /// 呼叫端自己取消的不算。例外照樣往外丟，由原本的 catch 處理。
+    /// </summary>
+    private async Task<HttpResponseMessage> TrackAsync(HttpRequestMessage request, Func<Task<HttpResponseMessage>> send, CancellationToken cancellationToken)
+    {
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var response = await send();
+            Track(request, (int)response.StatusCode, started,
+                response.Headers.TryGetValues(TraceCodeHeaderName, out var values) ? values.FirstOrDefault() : null);
+            return response;
+        }
+        catch (Exception ex) when ((ex is HttpRequestException or TaskCanceledException) && !cancellationToken.IsCancellationRequested)
+        {
+            Track(request, 0, started, null);
+            throw;
+        }
+    }
+
+    private void Track(HttpRequestMessage request, int status, long started, string? traceCode)
+    {
+        var url = request.RequestUri?.OriginalString ?? string.Empty;
+        if (errorCapture is null || IsQuiet(url))
+        {
+            return;
+        }
+
+        errorCapture.Api(request.Method.Method, url, status, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, traceCode);
     }
 
     /// <summary>連不上伺服器時給使用者的訊息：瀏覽器確定離線就說離線，否則照舊。</summary>
@@ -275,7 +319,7 @@ public class ApiClient
 
         // 讓瀏覽器的 fetch 邊收邊交給程式（不等整個回應收齊）。
         request.SetBrowserResponseStreamingEnabled(true);
-        return await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        return await TrackAsync(request, () => http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken), cancellationToken);
     }
 
     private ApiResult<T> Parse<T>(Commons.RawResponse raw, string url)
@@ -338,7 +382,7 @@ public class ApiClient
                 request.Content = JsonContent.Create(body);
             }
 
-            using var response = await http.SendAsync(request);
+            using var response = await TrackAsync(request, () => http.SendAsync(request), CancellationToken.None);
             var result = await ReadAsync<T>(response, url);
             Remember(result);
             return result;
@@ -414,7 +458,7 @@ public class ApiClient
 
         if (!longRunning)
         {
-            return await http.SendAsync(request, cancellationToken);
+            return await TrackAsync(request, () => http.SendAsync(request, cancellationToken), cancellationToken);
         }
 
         // 同一個網站、同一個瀏覽器的 fetch，只是逾時較長；第一次用到才建立。
@@ -424,7 +468,8 @@ public class ApiClient
             request.Headers.TryAddWithoutValidation(header.Key, header.Value);
         }
 
-        return await longRunningHttp.SendAsync(request, cancellationToken);
+        var client = longRunningHttp;
+        return await TrackAsync(request, () => client.SendAsync(request, cancellationToken), cancellationToken);
     }
 
     private async Task<ApiResult<T>> ReadAsync<T>(HttpResponseMessage response, string url)
