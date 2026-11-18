@@ -254,14 +254,14 @@ namespace MyProject.Web.Client.Views.Teams
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            Logger.LogInformation("Team search triggered. HasSearch={HasSearch}", string.IsNullOrWhiteSpace(searchText) == false);
+            Logger.LogDebug("Team search triggered. HasSearch={HasSearch}", string.IsNullOrWhiteSpace(searchText) == false);
             // 搜尋稽核由伺服器寫（只有按「搜尋」才帶 RecordSearch）。
             await ReloadAsync(recordSearch: true);
         }
 
         async Task OnRefreshAsync()
         {
-            Logger.LogInformation("Team refresh triggered.");
+            Logger.LogDebug("Team refresh triggered.");
             if (await ReloadAsync())
             {
                 ViewNotification.Warning(NotificationService, "已更新最新資料");
@@ -287,7 +287,7 @@ namespace MyProject.Web.Client.Views.Teams
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            Logger.LogInformation("Opened edit modal for team. TeamId={TeamId}", teamAdapterModel.Id);
+            Logger.LogDebug("Opened edit modal for team. TeamId={TeamId}", teamAdapterModel.Id);
         }
 
         /// <summary>名稱欄位的非同步檢查（<see cref="AsyncFieldCheck"/>）：回「名稱已存在」的訊息，沒衝突回 null（0.10.15 起）。</summary>
@@ -515,7 +515,7 @@ namespace MyProject.Web.Client.Views.Teams
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            Logger.LogInformation("Opened create modal for team.");
+            Logger.LogDebug("Opened create modal for team.");
         }
 
         /// <summary>

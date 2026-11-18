@@ -201,14 +201,14 @@ namespace MyProject.Web.Client.Views.Categories
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            Logger.LogInformation("Category search triggered. HasSearch={HasSearch}", string.IsNullOrWhiteSpace(searchText) == false);
+            Logger.LogDebug("Category search triggered. HasSearch={HasSearch}", string.IsNullOrWhiteSpace(searchText) == false);
             // 搜尋稽核由伺服器寫（只有按「搜尋」才帶 RecordSearch）。
             await ReloadAsync(recordSearch: true);
         }
 
         async Task OnRefreshAsync()
         {
-            Logger.LogInformation("Category refresh triggered.");
+            Logger.LogDebug("Category refresh triggered.");
             if (await ReloadAsync())
             {
                 ViewNotification.Warning(NotificationService, "已更新最新資料");
@@ -266,7 +266,7 @@ namespace MyProject.Web.Client.Views.Categories
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            Logger.LogInformation("Opened edit modal for category. CategoryId={CategoryId}", categoryAdapterModel.Id);
+            Logger.LogDebug("Opened edit modal for category. CategoryId={CategoryId}", categoryAdapterModel.Id);
         }
 
         /// <summary>
@@ -456,7 +456,7 @@ namespace MyProject.Web.Client.Views.Categories
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            Logger.LogInformation("Opened create modal for category.");
+            Logger.LogDebug("Opened create modal for category.");
         }
 
         /// <summary>

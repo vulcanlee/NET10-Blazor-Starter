@@ -31,7 +31,7 @@ public class DatabaseUsageController : ControllerBase
     public async Task<ActionResult<ApiResult<DatabaseUsageDto>>> Get()
     {
         var report = await databaseUsageService.GetReportAsync(HttpContext.RequestAborted);
-        logger.LogInformation("Database usage report loaded. Tables={Tables}, Warnings={Warnings}, ElapsedMs={ElapsedMs}",
+        logger.LogDebug("Database usage report loaded. Tables={Tables}, Warnings={Warnings}, ElapsedMs={ElapsedMs}",
             report.Tables.Count, report.Warnings.Count, report.ElapsedMilliseconds);
         return Ok(ApiResult<DatabaseUsageDto>.SuccessResult(new DatabaseUsageDto
         {

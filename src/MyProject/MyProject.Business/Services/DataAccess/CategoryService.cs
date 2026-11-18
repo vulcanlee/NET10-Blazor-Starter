@@ -274,7 +274,7 @@ public class CategoryService
         catch (DbUpdateConcurrencyException ex)
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
-            Logger.LogInformation("Category update rejected by concurrency conflict. CategoryId={CategoryId}", paraObject.Id);
+            Logger.LogWarning("Category update rejected by concurrency conflict. CategoryId={CategoryId}", paraObject.Id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -303,7 +303,7 @@ public class CategoryService
             Category? item = await context.Category.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
             if (item == null)
             {
-                Logger.LogInformation("Category status change rejected because record was not found. CategoryId={CategoryId}", id);
+                Logger.LogWarning("Category status change rejected because record was not found. CategoryId={CategoryId}", id);
                 return VerifyRecordResultFactory.NotFound("找不到這個分類，可能已被刪除。");
             }
 
@@ -369,7 +369,7 @@ public class CategoryService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Category deletion rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            Logger.LogWarning("Category deletion rejected by concurrency conflict. CategoryId={CategoryId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -449,7 +449,7 @@ public class CategoryService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Category restore rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            Logger.LogWarning("Category restore rejected by concurrency conflict. CategoryId={CategoryId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -498,7 +498,7 @@ public class CategoryService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Category purge rejected by concurrency conflict. CategoryId={CategoryId}", id);
+            Logger.LogWarning("Category purge rejected by concurrency conflict. CategoryId={CategoryId}", id);
             return VerifyRecordResultFactory.Conflict("這筆分類已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
@@ -545,7 +545,7 @@ public class CategoryService
 
         if (searchItem == null)
         {
-            Logger.LogInformation("Pre-update validation failed because category was not found. CategoryId={CategoryId}", paraObject.Id);
+            Logger.LogWarning("Pre-update validation failed because category was not found. CategoryId={CategoryId}", paraObject.Id);
             return VerifyRecordResultFactory.NotFound("要修改的分類資料不存在。");
         }
 

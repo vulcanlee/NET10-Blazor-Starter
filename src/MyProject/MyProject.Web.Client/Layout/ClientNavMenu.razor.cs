@@ -99,7 +99,7 @@ public partial class ClientNavMenu : ComponentBase, IDisposable
         var currentPath = relativePath.Split('?', '#')[0].Trim('/');
         var normalizedCurrentPath = string.IsNullOrEmpty(currentPath) ? "/" : $"/{currentPath}";
         ActiveMenuPath = TryFindActiveMenuPath(MenuItems, normalizedCurrentPath, "root", out var activePath) ? activePath : null;
-        Logger.LogDebug("Updated active menu path. Path={Path}, ActiveMenuPath={ActiveMenuPath}", normalizedCurrentPath, ActiveMenuPath);
+        Logger.LogTrace("Updated active menu path. Path={Path}, ActiveMenuPath={ActiveMenuPath}", normalizedCurrentPath, ActiveMenuPath);
     }
 
     private void SyncMenuStateFromRoute()

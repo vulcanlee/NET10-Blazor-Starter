@@ -125,7 +125,7 @@ namespace MyProject.Web.Client.Views.Admins
         private async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            Logger.LogInformation("Email logs searched. HasSearch={HasSearch}, SearchLength={SearchLength}",
+            Logger.LogDebug("Email logs searched. HasSearch={HasSearch}, SearchLength={SearchLength}",
                 string.IsNullOrWhiteSpace(keyword) == false, keyword.Length);
             await ReloadAsync();
         }

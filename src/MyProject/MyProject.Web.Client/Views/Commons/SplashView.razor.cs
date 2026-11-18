@@ -53,7 +53,7 @@ public partial class SplashView
             await Task.Delay(Delay);
             if (await Session.InitializeAsync())
             {
-                Logger.LogInformation("Splash view authentication succeeded. Redirecting to /app.");
+                Logger.LogDebug("Splash view authentication succeeded. Redirecting to /app.");
                 NavigationManager.NavigateTo("/app", true, true);
             }
             else

@@ -411,7 +411,7 @@ public class MyUserService
         catch (DbUpdateConcurrencyException ex)
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
-            Logger.LogInformation("User update rejected by concurrency conflict. UserId={UserId}", paraObject.Id);
+            Logger.LogWarning("User update rejected by concurrency conflict. UserId={UserId}", paraObject.Id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -662,7 +662,7 @@ public class MyUserService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("User deletion rejected by concurrency conflict. UserId={UserId}", id);
+            Logger.LogWarning("User deletion rejected by concurrency conflict. UserId={UserId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -724,7 +724,7 @@ public class MyUserService
                 .FirstOrDefaultAsync();
             if (item == null)
             {
-                Logger.LogInformation("User status change rejected because record was not found. UserId={UserId}", userId);
+                Logger.LogWarning("User status change rejected because record was not found. UserId={UserId}", userId);
                 return VerifyRecordResultFactory.NotFound("找不到這位使用者，可能已被刪除。");
             }
 
@@ -865,7 +865,7 @@ public class MyUserService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("User restore rejected by concurrency conflict. UserId={UserId}", id);
+            Logger.LogWarning("User restore rejected by concurrency conflict. UserId={UserId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -916,7 +916,7 @@ public class MyUserService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("User purge rejected by concurrency conflict. UserId={UserId}", id);
+            Logger.LogWarning("User purge rejected by concurrency conflict. UserId={UserId}", id);
             return VerifyRecordResultFactory.Conflict("這位使用者已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
@@ -1058,7 +1058,7 @@ public class MyUserService
 
         if (string.IsNullOrWhiteSpace(newPassword))
         {
-            Logger.LogWarning("Own password change rejected because new password is empty. UserId={UserId}", userId);
+            Logger.LogInformation("Own password change rejected because new password is empty. UserId={UserId}", userId);
             return VerifyRecordResultFactory.Invalid("新密碼不可為空白。");
         }
 

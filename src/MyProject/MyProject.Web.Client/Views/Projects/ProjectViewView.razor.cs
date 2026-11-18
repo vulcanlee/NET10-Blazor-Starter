@@ -305,14 +305,14 @@ public partial class ProjectViewView
     private async Task OnSearchAsync()
     {
         _pageIndex = 1;
-        Logger.LogInformation("Project search triggered. HasSearch={HasSearch}", string.IsNullOrWhiteSpace(searchText) == false);
+        Logger.LogDebug("Project search triggered. HasSearch={HasSearch}", string.IsNullOrWhiteSpace(searchText) == false);
         // 搜尋稽核由伺服器寫（只有按「搜尋」才帶 RecordSearch）。
         await ReloadAsync(recordSearch: true);
     }
 
     private async Task OnRefreshAsync()
     {
-        Logger.LogInformation("Project refresh triggered.");
+        Logger.LogDebug("Project refresh triggered.");
         // 工具列的分類、團隊過濾選項也一起更新（0.10.15 起）。
         if (await LoadFormOptionsAsync() & await ReloadAsync())
         {
@@ -345,7 +345,7 @@ public partial class ProjectViewView
         dirtyTracker.Capture(CurrentRecord, UploadStateFingerprint);
 
         modalVisible = true;
-        Logger.LogInformation("Opened edit modal for project. ProjectId={ProjectId}", projectAdapterModel.Id);
+        Logger.LogDebug("Opened edit modal for project. ProjectId={ProjectId}", projectAdapterModel.Id);
     }
 
     /// <summary>包住實際邏輯以捕捉未預期的例外：WASM 頁面的例外會讓整頁換成錯誤畫面，這裡改成右下角提示。</summary>
@@ -515,7 +515,7 @@ public partial class ProjectViewView
         dirtyTracker.Capture(CurrentRecord, UploadStateFingerprint);
 
         modalVisible = true;
-        Logger.LogInformation("Opened create modal for project.");
+        Logger.LogDebug("Opened create modal for project.");
     }
 
     /// <summary>

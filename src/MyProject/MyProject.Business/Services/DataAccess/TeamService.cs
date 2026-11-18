@@ -280,7 +280,7 @@ public class TeamService
         catch (DbUpdateConcurrencyException ex)
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
-            Logger.LogInformation("Team update rejected by concurrency conflict. TeamId={TeamId}", paraObject.Id);
+            Logger.LogWarning("Team update rejected by concurrency conflict. TeamId={TeamId}", paraObject.Id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -312,7 +312,7 @@ public class TeamService
                 .FirstOrDefaultAsync();
             if (item == null)
             {
-                Logger.LogInformation("Team status change rejected because record was not found. TeamId={TeamId}", id);
+                Logger.LogWarning("Team status change rejected because record was not found. TeamId={TeamId}", id);
                 return VerifyRecordResultFactory.NotFound("找不到這個團隊，可能已被刪除。");
             }
 
@@ -377,7 +377,7 @@ public class TeamService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Team deletion rejected by concurrency conflict. TeamId={TeamId}", id);
+            Logger.LogWarning("Team deletion rejected by concurrency conflict. TeamId={TeamId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -468,7 +468,7 @@ public class TeamService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Team restore rejected by concurrency conflict. TeamId={TeamId}", id);
+            Logger.LogWarning("Team restore rejected by concurrency conflict. TeamId={TeamId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -517,7 +517,7 @@ public class TeamService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Team purge rejected by concurrency conflict. TeamId={TeamId}", id);
+            Logger.LogWarning("Team purge rejected by concurrency conflict. TeamId={TeamId}", id);
             return VerifyRecordResultFactory.Conflict("這筆團隊已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
@@ -572,7 +572,7 @@ public class TeamService
 
         if (searchItem == null)
         {
-            Logger.LogInformation("Pre-update validation failed because team was not found. TeamId={TeamId}", paraObject.Id);
+            Logger.LogWarning("Pre-update validation failed because team was not found. TeamId={TeamId}", paraObject.Id);
             return VerifyRecordResultFactory.NotFound("要修改的團隊資料不存在。");
         }
 

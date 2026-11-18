@@ -100,7 +100,7 @@ public class AiCallLogsController : ControllerBase
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 // 使用者離開頁面：瀏覽器已經不等這個回應了。
-                logger.LogInformation("AI call log content search canceled by the client.");
+                logger.LogDebug("AI call log content search canceled by the client.");
                 return StatusCode(499, ApiResult<AiCallLogPageDto>.FailureResult("已取消。", 499));
             }
             catch (Exception ex)
