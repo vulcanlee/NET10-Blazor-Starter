@@ -7,11 +7,14 @@ using MyProject.Web.Client.Auth;
 namespace MyProject.Web.Client.Layout;
 
 /// <summary>
-/// WASM 頁面的瀏覽器錯誤回報（0.10.1 起）：接住 <c>js/client-error-reporter.js</c> 收集的錯誤，送到 <c>/api/v1/shell/client-errors</c>，
-/// 由伺服器端的 <c>BrowserErrorReporter</c> 以同一套規則（截斷、開關、系統例外紀錄）處理。版面完成登入後才註冊。
+/// 瀏覽器端回報的送件者（0.10.1 起；0.10.36 起改成批次）：<c>js/client-error-reporter.js</c> 把暫存在瀏覽器的錯誤與事件
+/// 一批批交給這裡，送到 <c>/api/v1/shell/client-reports</c>，回傳伺服器處理完的項目，JS 再從暫存區移除。
+/// 版面完成登入後才註冊（<c>ClientMainLayout</c>）；還沒登入時一律不送，留在瀏覽器等登入。
 /// </summary>
 public sealed class ClientErrorReporter
 {
+    internal const string ReportsUrl = "api/v1/shell/client-reports";
+
     private readonly ApiClient api;
     private readonly ClientSession session;
     private readonly ILogger<ClientErrorReporter> logger;
@@ -23,30 +26,23 @@ public sealed class ClientErrorReporter
         this.logger = logger;
     }
 
+    /// <returns>伺服器的處理結果；沒送出（還沒登入、連不上、伺服器拒絕）回 null，JS 留著下次再送。</returns>
     [JSInvokable]
-    public async Task<bool> Report(string? kind, string? message, string? stack, string? source, string? path)
+    public async Task<ClientReportBatchResultDto?> SendAsync(ClientReportBatchDto batch)
     {
-        // 還沒登入（登入、重設密碼這類匿名頁）：回報端點要登入，呼叫的話 401 → 刷新失敗 → 被導回登入頁（0.10.8 獨立審查）。
-        // 只留在瀏覽器主控台。
+        // 還沒登入（或已登出）：回報端點要登入，呼叫的話 401 → 刷新失敗 → 被導回登入頁（0.10.8 獨立審查）。
         if (session.Info is null)
         {
-            logger.LogWarning("Browser error on a page without a signed-in user (not reported to the server). Kind={Kind}, Path={Path}", kind, path);
-            return false;
+            return null;
         }
 
-        var result = await api.PostAsync<object>("api/v1/shell/client-errors", new ClientErrorReportDto
-        {
-            Kind = kind,
-            Message = message,
-            Stack = stack,
-            Source = source,
-            Path = path,
-        });
+        var result = await api.PostAsync<ClientReportBatchResultDto>(ReportsUrl, batch);
         if (!result.Success)
         {
-            logger.LogDebug("Client error report was not delivered. Status={Status}", result.StatusCode);
+            logger.LogDebug("Browser reports were not delivered; they stay in the browser. Status={Status}, Count={Count}", result.StatusCode, batch.Items.Count);
+            return null;
         }
 
-        return result.Success;
+        return result.Data;
     }
 }

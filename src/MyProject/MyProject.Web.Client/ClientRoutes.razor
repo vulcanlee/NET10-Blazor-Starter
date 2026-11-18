@@ -1,6 +1,7 @@
 @using MyProject.Web.Client.Commons
 @implements IDisposable
 @inject NavigationManager NavigationManager
+@inject ClientErrorCapture ErrorCapture
 
 @*
     WASM 頁面的根元件（0.10.1 起，WASM 遷移 M2；0.10.9 起是唯一的根元件；0.10.10 起由 Program.cs 掛在 index.html 的 #app）。
@@ -9,16 +10,17 @@
 <ConfigProvider>
     <Router AppAssembly="typeof(ClientRoutes).Assembly" OnNavigateAsync="OnNavigateAsync">
         <Found Context="routeData">
-            <ClientErrorBoundary>
+            @*
+                最後防線：版面本身（或不用 ClientMainLayout 的頁面，例如登入頁）出錯時接住。
+                用 ClientMainLayout 的頁面另有內容區的錯誤邊界（0.10.36 起），出錯時側邊選單仍在。換頁時兩者都會復原。
+            *@
+            <ClientErrorBoundary @ref="pageBoundary">
                 <ChildContent>
                     <RouteView RouteData="routeData" DefaultLayout="typeof(ClientMainLayout)" />
                     <FocusOnNavigate RouteData="routeData" Selector="h1" />
                 </ChildContent>
                 <ErrorContent Context="exception">
-                    <div class="alert alert-danger" role="alert">
-                        <strong>這個頁面發生未預期的錯誤。</strong>
-                        錯誤已記錄，請重新整理頁面；若持續發生請聯絡系統管理員。
-                    </div>
+                    <ClientPageErrorAlert Exception="exception" />
                 </ErrorContent>
             </ClientErrorBoundary>
         </Found>
@@ -64,11 +66,14 @@
 
 @code {
     private ClientErrorBoundary? overlayBoundary;
+    private ClientErrorBoundary? pageBoundary;
     private bool isInitialNavigation = true;
 
     protected override void OnInitialized()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
+        // 操作軌跡的第一筆（0.10.36 起）：這次載入的頁面；登入頁等匿名頁也記，登入前的錯誤才看得出發生在哪一步。
+        ErrorCapture.Navigated(new Uri(NavigationManager.Uri).AbsolutePath);
     }
 
     /// <summary>
@@ -88,7 +93,12 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        _ = InvokeAsync(() => overlayBoundary?.Recover());
+        ErrorCapture.Navigated(new Uri(e.Location).AbsolutePath);
+        _ = InvokeAsync(() =>
+        {
+            overlayBoundary?.Recover();
+            pageBoundary?.Recover();
+        });
     }
 
     private void ReloadPage() => NavigationManager.Refresh(forceReload: true);

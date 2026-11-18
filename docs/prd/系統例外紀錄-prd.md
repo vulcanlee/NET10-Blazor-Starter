@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.36
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/18
 
 ## 一、目標與範圍
 
@@ -148,7 +148,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 | 系統啟動 | `Program.cs` 的 migrate／seed／RBAC 回填區段；啟動失敗經補登檔補進 | `系統啟動` |
 | 背景作業 | `ScheduledJobRunner`（頁面欄位是作業名稱，手動觸發時帶觸發者帳號）、`EmailDispatchWorker`（`EmailDispatch`）、`SystemParameterRefreshWorker`（`SystemParameterRefresh`）| `背景作業` |
 | 程序層級 | `ProcessExceptionHooks`：射後不理的 Task（`UnobservedTaskException`）、其他執行緒的未處理例外（0.9.77） | `系統` |
-| 瀏覽器 | `BrowserErrorReporter`：登入後頁面的 JavaScript 錯誤與 WASM 元件的未處理例外（`ClientErrorBoundary`）經 `api/v1/shell/client-errors` 回報（0.9.79 起；0.10.8 以前 Server 頁經 circuit），例外型別 `BrowserScriptException`，堆疊是瀏覽器端的呼叫路徑；每位使用者每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`） | `瀏覽器` |
+| 瀏覽器 | `BrowserErrorReporter`：JavaScript 錯誤、WASM 元件的未處理例外（錯誤邊界）、錯誤邊界以外的框架例外、頁面以 `UnexpectedError` 顯示的例外、Service Worker 安裝失敗、WASM 啟動失敗（0.9.79 起；0.10.36 起經 `api/v1/shell/client-reports` 批次回報，**登入前發生的也會在登入後送來**，「操作」欄是 `Browser script error before sign-in. Kind={Kind}`；0.10.35 以前只有登入後頁面，經 `client-errors`；0.10.8 以前 Server 頁經 circuit），例外型別 `BrowserScriptException`，堆疊是瀏覽器端的呼叫路徑，後面附背景資訊（瀏覽器端發生時間、前端指紋、伺服器版本、UA、最近 20 筆換頁與 API 呼叫；只有第一次發生時的寫進堆疊檔）；最後追蹤碼是瀏覽器產生、使用者畫面上看到的那個；每位使用者每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`，超過的留在瀏覽器稍後再送） | `瀏覽器` |
 | 其他 | 未設定時 | `未知` |
 
 ⚠️ 0.10.8 以前 `CreateInboundActivityHandler` 是**全站每一次互動都會經過**的路徑，內部全程 `try/catch`，設定情境失敗絕不影響使用者操作（0.10.9 起 `ApplicationCircuitHandler` 已刪除）。
@@ -234,6 +234,6 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`、`CrashMarkerStore.cs`、`ProcessExceptionHooks.cs`（後兩者 0.9.77）
 - `src/MyProject/MyProject.Web.Client/Pages/ExceptionLogPage.razor`、`Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73；0.10.5 起在 Client）、`Api/ExceptionLogApi.cs`、`Api/ExceptionLogDtoMapper.cs`
 - `src/MyProject/MyProject.Web/Controllers/ExceptionLogsController.cs`、`Export/ExceptionLogExport.cs`、`Ai/AiExceptionConversation.cs`（對話檢查，0.10.5 起）、`MyProject.Dtos/Admins/ExceptionLogDtos.cs`
-- `src/MyProject/MyProject.Web/Diagnostics/BrowserErrorReporter.cs`、`Controllers/ShellController.cs`（`client-errors`，瀏覽器來源；0.10.9 起 Server 互動的情境設定 `ApplicationCircuitHandler` 已刪除）
+- `src/MyProject/MyProject.Web/Diagnostics/BrowserErrorReporter.cs`、`Controllers/ShellController.cs`（`client-reports`，0.10.36 起；`client-errors` 留給舊前端；瀏覽器來源；0.10.9 起 Server 互動的情境設定 `ApplicationCircuitHandler` 已刪除）
 - `src/MyProject/MyProject.Web.Client/Views/Admins/ExceptionAiAnalysisModal.razor`（0.10.5 起在 Client）、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
 - 交叉連結：[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

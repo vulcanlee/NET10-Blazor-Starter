@@ -317,13 +317,14 @@ public sealed class PwaConventionTests
 
         var report = Regex.Match(pwa, @"function reportInstallFailure\(worker\)\s*\{[\s\S]*?\n    \}");
         Assert.True(report.Success, "pwa.js 找不到 reportInstallFailure。");
-        Assert.Contains("window.appClientErrors.report('error', ", report.Value, StringComparison.Ordinal);
+        Assert.Contains("window.appClientErrors.report('sw-install', ", report.Value, StringComparison.Ordinal);
         Assert.Contains("worker.scriptURL", report.Value, StringComparison.Ordinal);
         Assert.Matches(new Regex(@"'Service worker [^'\p{IsCJKUnifiedIdeographs}]+'"), report.Value);
 
         // 錯誤回報的 report 走跟 window error 相同的路（過濾、截斷、登入前暫存）。
         var reporter = WithoutComments(File.ReadAllText(Path.Combine(SourceTree.ClientWebRoot, "js", "client-error-reporter.js")));
-        Assert.Matches(new Regex(@"report: \(kind, message, stack, source\) => capture\(kind, message, stack, source\)"), reporter);
+        Assert.Matches(new Regex(@"report: \(kind, message, stack, source, traceCode\) => capture\(kind, message, stack, source, traceCode\)"), reporter);
+        Assert.Contains("'sw-install'", reporter, StringComparison.Ordinal);
 
         var html = File.ReadAllText(Path.Combine(SourceTree.ClientWebRoot, "index.html"));
         var reporterAt = html.IndexOf("<script src=\"js/client-error-reporter.js\">", StringComparison.Ordinal);

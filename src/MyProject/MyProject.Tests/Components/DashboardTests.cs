@@ -20,6 +20,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Commons;
 using MyProject.Web.Client.Layout;
 using MyProject.Web.Client.Views.Dashboard;
 using MyProject.Web.Dashboard;
@@ -68,7 +69,7 @@ public sealed class DashboardTests : ComponentTestBase
         Services.AddSingleton(sp => new ClientSession(http, new TokenStore(sp.GetRequiredService<IJSRuntime>()), sp.GetRequiredService<NavigationManager>(), NullLogger<ClientSession>.Instance));
         Services.AddSingleton(sp => new ApiClient(http, sp.GetRequiredService<ClientSession>(), sp.GetRequiredService<NavigationManager>(), NullLogger<ApiClient>.Instance));
         Services.AddSingleton(sp => new DashboardApi(sp.GetRequiredService<ApiClient>()));
-        Services.AddSingleton<ClientErrorReporter>();
+        Services.AddSingleton<ClientErrorCapture>();
     }
 
     // ---------- 登記與過濾（伺服器） ----------

@@ -223,6 +223,9 @@ public static class ApplicationBuilderExtensions
     /// <summary>HttpContext.Items 的鍵：記住這個請求的追蹤碼，讓同一個請求再次經過這裡時（例外處理重跑管線）沿用同一個碼。</summary>
     private const string TraceCodeItemKey = "MyProject.TraceCode";
 
+    /// <summary>回應標頭：這個請求的追蹤碼（0.10.36 起）。CORS 另外公開，雙站台時前端才讀得到。</summary>
+    public const string TraceCodeHeaderName = "X-Trace-Code";
+
     public static WebApplication UseHttpRequestLogging<TProgram>(this WebApplication app)
     {
         app.Use(async (context, next) =>
@@ -241,6 +244,10 @@ public static class ApplicationBuilderExtensions
             }
 
             using var traceScope = TraceCode.Begin(traceCode);
+
+            // 每個回應都帶追蹤碼（0.10.36 起）：前端把每次 API 呼叫的碼記進操作軌跡，錯誤回報時附上，
+            // 管理員可以拿它到 /logs 找到同一次請求（原本只有失敗的 ApiResult 帶 TraceId）。回應開始前設定，重跑管線時沿用同一個碼。
+            context.Response.Headers[TraceCodeHeaderName] = traceCode;
 
             // 供系統例外紀錄使用：這個請求內任何 LogError 都會帶上來源與路徑。
             // ⚠️ 這裡在 UseAuthentication 之前，User 還是匿名 —— 帳號由排在 UseAuthorization 之後的

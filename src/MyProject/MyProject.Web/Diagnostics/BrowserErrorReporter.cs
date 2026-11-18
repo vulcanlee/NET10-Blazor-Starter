@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
+using MyProject.Dtos.Shell;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 
@@ -41,8 +42,27 @@ public sealed class BrowserErrorReporter
 
     public bool IsEnabled => options.CurrentValue.Enabled;
 
+    /// <summary>瀏覽器端錯誤的種類（0.10.36 起）；不認得的一律當 <c>error</c>。</summary>
+    internal static readonly IReadOnlySet<string> ErrorKinds = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "error", "unhandledrejection", "boundary", "unhandled", "caught", "sw-install", "boot",
+    };
+
+    /// <summary>舊端點 <c>client-errors</c>（0.10.35 以前的前端）：只有種類、訊息、堆疊、來源、頁面。</summary>
     /// <returns>是否記錄了（關閉回報時為 false）。</returns>
     public bool Report(string? kind, string? message, string? stack, string? source, string? path)
+        => Write(kind is "unhandledrejection" ? "unhandledrejection" : "error", message, stack, source, path, traceCode: null, context: null, beforeSignIn: false);
+
+    /// <summary>
+    /// 0.10.36 起的批次回報（<c>client-reports</c>）的一筆錯誤：沿用瀏覽器產生的追蹤碼（格式正確時；畫面上已經顯示給使用者），
+    /// 背景資訊（<see cref="BrowserReportContext"/>）附在堆疊後面；登入前發生的用另一個訊息樣板，在例外紀錄的「操作」欄看得出來、也各自合併計次。
+    /// </summary>
+    /// <returns>是否記錄了（關閉回報時為 false）。</returns>
+    public bool Report(ClientReportDto item, bool beforeSignIn, string? context)
+        => Write(item.Kind is { } kind && ErrorKinds.Contains(kind) ? kind : "error",
+            item.Message, item.Stack, item.Source, item.Path, item.TraceCode, context, beforeSignIn);
+
+    private bool Write(string safeKind, string? message, string? stack, string? source, string? path, string? traceCode, string? context, bool beforeSignIn)
     {
         var settings = options.CurrentValue;
         if (settings.Enabled == false)
@@ -50,12 +70,15 @@ public sealed class BrowserErrorReporter
             return false;
         }
 
-        var safeKind = kind is "unhandledrejection" ? "unhandledrejection" : "error";
         var exception = new BrowserScriptException(
             safeKind,
             Truncate(string.IsNullOrWhiteSpace(message) ? "(no message)" : message, MaxMessageLength),
             Truncate(stack, MaxStackLength),
-            Truncate(source, MaxSourceLength));
+            Truncate(source, MaxSourceLength),
+            context);
+
+        // 瀏覽器產生的追蹤碼：日誌檔的 TraceId 欄位與例外紀錄的「最後追蹤碼」都用它，管理員拿使用者看到的碼就查得到。
+        using var traceScope = TraceCode.IsValid(traceCode) ? TraceCode.Begin(traceCode!) : null;
 
         var user = currentUserService.CurrentUser;
         var previous = contextAccessor.Current;
@@ -68,7 +91,14 @@ public sealed class BrowserErrorReporter
                 user.Id > 0 ? user.Id : null));
 
             // 樣板固定，簽章才不會因參數不同而失控；訊息差異已在例外本身。
-            logger.LogError(exception, "Browser script error. Kind={Kind}", safeKind);
+            if (beforeSignIn)
+            {
+                logger.LogError(exception, "Browser script error before sign-in. Kind={Kind}", safeKind);
+            }
+            else
+            {
+                logger.LogError(exception, "Browser script error. Kind={Kind}", safeKind);
+            }
         }
         finally
         {

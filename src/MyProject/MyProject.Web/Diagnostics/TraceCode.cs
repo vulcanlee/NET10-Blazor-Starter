@@ -35,6 +35,13 @@ public static class TraceCode
         return new string(chars);
     }
 
+    /// <summary>
+    /// 是不是格式正確的追蹤碼（0.10.36 起）：瀏覽器端的錯誤由瀏覽器自己產生追蹤碼（<c>client-error-reporter.js</c>，同一組字元），
+    /// 畫面上立即顯示；伺服器收到時先確認格式，對了才沿用，避免前端塞進任意文字到日誌的 TraceId 欄位。
+    /// </summary>
+    public static bool IsValid(string? code)
+        => code is { Length: Length } && code.All(Alphabet.Contains);
+
     /// <summary>目前這次請求／互動的追蹤碼；不在任何請求或互動之內時為 null。</summary>
     public static string? Current
         => ScopeContext.TryGetProperty(ScopePropertyName, out var value) ? value as string : null;

@@ -50,6 +50,7 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
     [Theory]
     [InlineData("POST", "/api/v1/shell/page-view")]
     [InlineData("POST", "/api/v1/shell/client-errors")]
+    [InlineData("POST", "/api/v1/shell/client-reports")]
     [InlineData("POST", "/api/v1/notifications/1/read")]
     [InlineData("POST", "/api/v1/notifications/read-all")]
     [InlineData("DELETE", "/api/v1/notifications/1")]
@@ -202,6 +203,79 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
         using var other = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
         var otherResponse = await other.PostAsJsonAsync("/api/v1/shell/client-errors", new ClientErrorReportDto { Kind = "error", Message = "boom", Path = "/Profile" });
         Assert.True((await otherResponse.Content.ReadFromJsonAsync<ApiResult<AcceptedDto>>())!.Data!.Accepted);
+    }
+
+    /// <summary>瀏覽器端回報批次（0.10.36 起）：錯誤與事件都處理，回傳處理完的項目，前端才從暫存區移除。</summary>
+    [Fact]
+    public async Task ClientReports_ShouldAcknowledgeProcessedItems()
+    {
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
+
+        var result = await PostReportsAsync(client,
+        [
+            new ClientReportDto { Id = "e1", Kind = "caught", Message = "boom", Path = "/Profile", TraceCode = "ABCD1234" },
+            new ClientReportDto { Id = "n1", Kind = "network", BrowserOnline = true, FailedCalls = 3, Paths = ["/api/v1/shell/info?x=1"] },
+            new ClientReportDto { Kind = "resource", Message = "img", Source = "/images/missing.png" },
+        ]);
+
+        Assert.Equal(["e1", "n1"], result.DoneIds);   // 沒有 Id 的照樣處理，只是無從回報
+        Assert.Null(result.RetryAfterSeconds);
+    }
+
+    /// <summary>錯誤每分鐘的上限沿用舊端點的設定；被限流的那筆與之後的都不算完成，請前端稍後再送（不會遺失）。事件另外計數。</summary>
+    [Fact]
+    public async Task ClientReports_ErrorsOverTheLimit_ShouldBeLeftForLater_WhileEventsHaveTheirOwnLimit()
+    {
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
+        var limit = factory.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<MyProject.Web.Configuration.ClientErrorReportingSettings>>().CurrentValue.MaxPerCircuitPerMinute;
+
+        var errors = Enumerable.Range(0, limit + 2).Select(i => new ClientReportDto { Id = $"e{i}", Kind = "error", Message = $"boom {i}" }).ToList();
+        var result = await PostReportsAsync(client, errors);
+
+        Assert.Equal(errors.Take(limit).Select(x => x.Id), result.DoneIds);
+        Assert.Equal(ShellController.ReportRetryAfterSeconds, result.RetryAfterSeconds);
+
+        var events = await PostReportsAsync(client, [new ClientReportDto { Id = "csp", Kind = "csp", Message = "script-src", Source = "inline" }]);
+        Assert.Equal(["csp"], events.DoneIds);
+    }
+
+    [Fact]
+    public async Task ClientReports_ShouldProcessAtMostOneBatchSize()
+    {
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
+        var items = Enumerable.Range(0, ShellController.MaxReportsPerBatch + 5)
+            .Select(i => new ClientReportDto { Id = $"r{i}", Kind = "resource", Message = "img", Source = $"/images/{i}.png" }).ToList();
+
+        var result = await PostReportsAsync(client, items);
+
+        Assert.Equal(items.Take(ShellController.MaxReportsPerBatch).Select(x => x.Id), result.DoneIds);
+    }
+
+    /// <summary>每個回應都帶追蹤碼（0.10.36 起）；失敗的 ApiResult 帶的 TraceId 是同一個碼。</summary>
+    [Fact]
+    public async Task EveryResponse_ShouldCarryItsTraceCode()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/shell/info");
+
+        var header = Assert.Single(response.Headers.GetValues(MyProject.Web.Extensions.ApplicationBuilderExtensions.TraceCodeHeaderName));
+        Assert.True(MyProject.Web.Diagnostics.TraceCode.IsValid(header));
+        if ((await response.Content.ReadFromJsonAsync<ApiResult<object>>())!.TraceId is { } traceId)
+        {
+            Assert.Equal(header, traceId);
+        }
+
+        // 同一個連線的下一個請求是另一個碼。
+        var next = await client.GetAsync("/api/v1/shell/info");
+        Assert.NotEqual(header, Assert.Single(next.Headers.GetValues(MyProject.Web.Extensions.ApplicationBuilderExtensions.TraceCodeHeaderName)));
+    }
+
+    private static async Task<ClientReportBatchResultDto> PostReportsAsync(HttpClient client, List<ClientReportDto> items)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/shell/client-reports", new ClientReportBatchDto { Items = items });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ApiResult<ClientReportBatchResultDto>>())!.Data!;
     }
 
     [Fact]

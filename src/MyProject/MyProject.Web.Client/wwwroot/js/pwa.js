@@ -67,12 +67,12 @@
 
     // 新版安裝失敗：某個檔案下載失敗，或與資產清單的完整性雜湊不符（例如有人手改了發佈輸出裡的檔案）時，新版直接變成 redundant，
     // 使用者靜靜地留在舊版（或第一次就沒有離線功能）。經瀏覽器錯誤回報（client-error-reporter.js）送到伺服器日誌，讓維運看得到；
-    // 回報要登入，登入前先暫存、登入後才送出。
+    // 回報要登入，登入前先暫存在瀏覽器、登入後才送出（0.10.36 起種類是 sw-install）。
     function reportInstallFailure(worker) {
         const message = 'Service worker installation failed; the browser keeps using the previous version. Check that the deployed files match service-worker-assets.js.';
         console.error(message, worker.scriptURL);
         if (window.appClientErrors) {
-            window.appClientErrors.report('error', message, '', worker.scriptURL);
+            window.appClientErrors.report('sw-install', message, '', worker.scriptURL);
         }
     }
 

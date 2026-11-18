@@ -125,10 +125,10 @@ public static class SystemParameterCatalog
             "寄信失敗重試次數", "連線失敗、逾時、郵件伺服器回「稍後再試」這類暫時性失敗要重試幾次，間隔依序 1、5、15、30、60 分鐘。帳密錯誤、收件者被拒這類失敗不重試。",
             "下一次寄送失敗起", unit: "次", zeroMeaning: "不重試"),
         Define<ClientErrorReportingSettings, bool>(ClientErrorReportingSettings.SectionName, x => x.Enabled, GroupMonitoring,
-            "回報瀏覽器端錯誤", "使用者瀏覽器裡的 JavaScript 錯誤是否記進「系統例外紀錄」。",
+            "回報瀏覽器端錯誤", "使用者瀏覽器裡發生的錯誤（JavaScript 與畫面程式）是否記進「系統例外紀錄」；連線中斷、資源載入失敗與安全政策擋下的內容是否記進日誌檔。",
             "關閉立即生效；開啟只對之後才載入的頁面"),
         Define<ClientErrorReportingSettings, int>(ClientErrorReportingSettings.SectionName, x => x.MaxPerCircuitPerMinute, GroupMonitoring,
-            "瀏覽器錯誤每分鐘上限", "每個開著的頁面每分鐘最多回報幾筆，避免一個壞掉的頁面灌爆例外紀錄。",
+            "瀏覽器錯誤每分鐘上限", "每位使用者每分鐘最多記幾筆瀏覽器端錯誤，避免一個壞掉的頁面灌爆例外紀錄；超過的留在瀏覽器，稍後再送。",
             "立即", unit: "筆"),
 
         Define<RateLimitSettings, int>(RateLimitSettings.SectionName, x => x.ApiRequestsPerMinute, GroupSecurity,

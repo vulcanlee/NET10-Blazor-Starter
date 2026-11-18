@@ -33,6 +33,15 @@ public sealed class ShellController : ControllerBase
     /// <summary>開頁稽核每位使用者每分鐘的上限（正常換頁遠低於此；超過就不記，避免灌爆稽核表）。</summary>
     internal const int PageViewsPerMinute = 60;
 
+    /// <summary>瀏覽器非錯誤事件（連線中斷、資源載入、CSP）每位使用者每分鐘的上限（0.10.36 起）；錯誤沿用 <c>ClientErrorReporting:MaxPerCircuitPerMinute</c>。</summary>
+    internal const int ClientEventsPerMinute = 30;
+
+    /// <summary>一批回報最多處理幾筆（0.10.36 起）；其餘不算完成，前端下次再送。</summary>
+    internal const int MaxReportsPerBatch = 20;
+
+    /// <summary>有項目被限流時，請前端幾秒後再送。</summary>
+    internal const int ReportRetryAfterSeconds = 60;
+
     private readonly ISystemIdentity systemIdentity;
     private readonly IWebHostEnvironment environment;
     private readonly SystemStartupState startupState;
@@ -41,6 +50,8 @@ public sealed class ShellController : ControllerBase
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
     private readonly BrowserErrorReporter browserErrorReporter;
+    private readonly BrowserEventReporter browserEventReporter;
+    private readonly TimeProvider timeProvider;
     private readonly PerUserRateLimiter rateLimiter;
     private readonly IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions;
     private readonly LoggingPipelineMonitor pipelineMonitor;
@@ -56,6 +67,8 @@ public sealed class ShellController : ControllerBase
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
         BrowserErrorReporter browserErrorReporter,
+        BrowserEventReporter browserEventReporter,
+        TimeProvider timeProvider,
         PerUserRateLimiter rateLimiter,
         IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions,
         LoggingPipelineMonitor pipelineMonitor,
@@ -70,6 +83,8 @@ public sealed class ShellController : ControllerBase
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
         this.browserErrorReporter = browserErrorReporter;
+        this.browserEventReporter = browserEventReporter;
+        this.timeProvider = timeProvider;
         this.rateLimiter = rateLimiter;
         this.clientErrorOptions = clientErrorOptions;
         this.pipelineMonitor = pipelineMonitor;
@@ -176,7 +191,10 @@ public sealed class ShellController : ControllerBase
         return Ok(ApiResult<object>.SuccessResult(new { }, "已記錄"));
     }
 
-    /// <summary>瀏覽器端的錯誤回報：交給 <see cref="BrowserErrorReporter"/>（同一套截斷、開關與系統例外紀錄）。</summary>
+    /// <summary>
+    /// 瀏覽器端的錯誤回報：交給 <see cref="BrowserErrorReporter"/>（同一套截斷、開關與系統例外紀錄）。
+    /// ⚠️ 0.10.35 以前的前端用的舊端點；0.10.36 起前端改送 <see cref="ClientReports"/>，這裡只留給瀏覽器裡還在快取的舊前端，之後移除。
+    /// </summary>
     [HttpPost("client-errors")]
     public ActionResult<ApiResult<object>> ClientErrors([FromBody] ClientErrorReportDto report)
     {
@@ -194,6 +212,66 @@ public sealed class ShellController : ControllerBase
         }
 
         return Ok(ApiResult<object>.SuccessResult(new { accepted }, accepted ? "已記錄" : "未記錄"));
+    }
+
+    /// <summary>
+    /// 瀏覽器端的回報批次（0.10.36 起）：前端把錯誤與事件先存在瀏覽器，登入後批次送來（登入前發生的、離線時送不出去的都在裡面）。
+    /// <list type="bullet">
+    /// <item>錯誤 → <see cref="BrowserErrorReporter"/>：Error，進系統例外紀錄；背景資訊（前端指紋、瀏覽器、操作軌跡）附在堆疊後面。</item>
+    /// <item>連線中斷、資源載入失敗、CSP → <see cref="BrowserEventReporter"/>：Warning／Information，只寫日誌檔。</item>
+    /// <item>每位使用者每分鐘的上限：錯誤沿用舊端點的設定（同一個計數），事件另計 <see cref="ClientEventsPerMinute"/>。
+    /// 被限流的那筆與之後的都不算完成（不在 DoneIds 裡），前端 <see cref="ReportRetryAfterSeconds"/> 秒後再送，不會遺失。</item>
+    /// <item>回報關閉（<c>ClientErrorReporting:Enabled=false</c>）時全部當成完成、不記錄，前端的暫存區才會清空。</item>
+    /// </list>
+    /// </summary>
+    [HttpPost("client-reports")]
+    [RequestSizeLimit(262_144)]
+    public ActionResult<ApiResult<ClientReportBatchResultDto>> ClientReports([FromBody] ClientReportBatchDto batch)
+    {
+        var user = currentUserService.CurrentUser;
+        var settings = clientErrorOptions.CurrentValue;
+        var result = new ClientReportBatchResultDto();
+
+        if (batch.Dropped > 0)
+        {
+            logger.LogWarning("Browser report outbox overflowed and discarded old reports. Dropped={Dropped}, Account={Account}, UserId={UserId}",
+                batch.Dropped, user.Account, user.Id);
+        }
+
+        foreach (var item in batch.Items.Take(MaxReportsPerBatch))
+        {
+            if (settings.Enabled)
+            {
+                var isEvent = BrowserEventReporter.Handles(item.Kind);
+                var allowed = isEvent
+                    ? rateLimiter.TryAcquire("client-event", user.Id, ClientEventsPerMinute)
+                    : rateLimiter.TryAcquire("client-error", user.Id, settings.MaxPerCircuitPerMinute);
+                if (!allowed)
+                {
+                    result.RetryAfterSeconds = ReportRetryAfterSeconds;
+                    break;
+                }
+
+                if (isEvent)
+                {
+                    browserEventReporter.Report(item);
+                }
+                else
+                {
+                    // 發生時沒有登入（或是另一位使用者登入時發生的）：記成「登入前」，帳號只是送出時登入的人，不一定是遇到錯誤的人。
+                    var beforeSignIn = item.SignedInUserId != user.Id;
+                    var context = BrowserReportContext.Format(item, beforeSignIn, systemIdentity.Version, timeProvider.LocalTimeZone);
+                    browserErrorReporter.Report(item, beforeSignIn, context);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(item.Id))
+            {
+                result.DoneIds.Add(item.Id);
+            }
+        }
+
+        return Ok(ApiResult<ClientReportBatchResultDto>.SuccessResult(result, "已處理"));
     }
 
     private static MenuItemDto ToDto(SidebarMenuItemModel item) => new()

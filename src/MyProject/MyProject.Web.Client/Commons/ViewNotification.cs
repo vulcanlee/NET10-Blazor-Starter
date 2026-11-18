@@ -28,12 +28,19 @@ public static class ViewNotification
     // static 類別拿不到 DI，由 Program.cs 啟動時設定；沒設定（元件測試）就不寫。
     private static ILogger logger = NullLogger.Instance;
     private static Func<string?> traceCodeProvider = () => null;
+    private static Func<Exception, string?> errorCapture = _ => null;
 
     public static void UseLoggerFactory(ILoggerFactory loggerFactory)
         => logger = loggerFactory.CreateLogger(typeof(ViewNotification).FullName!);
 
     /// <summary>追蹤碼的來源（見類別說明）；沒設定時不附追蹤碼。</summary>
     public static void UseTraceCodeProvider(Func<string?> provider) => traceCodeProvider = provider;
+
+    /// <summary>
+    /// <see cref="UnexpectedError"/> 的例外回報（0.10.36 起，<c>ClientErrorCapture.Capture("caught", …)</c>）：
+    /// 回報到伺服器的系統例外紀錄，回傳那筆回報的追蹤碼 —— 通知上顯示的就是這個例外自己的碼，管理員查得到。沒設定（元件測試）就不回報。
+    /// </summary>
+    public static void UseErrorCapture(Func<Exception, string?> capture) => errorCapture = capture;
 
     /// <summary>
     /// 一般系統訊息。注意：本專案的「新增成功／修改成功／刪除成功」等訊息
@@ -64,12 +71,16 @@ public static class ViewNotification
     /// 未預期例外（catch 到並已 <c>LogError</c>）的錯誤通知：自動附上錯誤追蹤碼（LOG-10），
     /// 讓使用者複製或抄下來回報。「名稱重複」這類一般驗證訊息請用 <see cref="Error"/>，不附追蹤碼。
     ///
+    /// 0.10.36 起這個例外也回報到伺服器的系統例外紀錄（<see cref="UseErrorCapture"/>，來源「瀏覽器」），
+    /// 追蹤碼是這次回報的碼；之前附的是「最近一次失敗的 API」的碼，前端程式自己的錯誤在伺服器查不到。
+    ///
     /// <paramref name="exception"/> 必填（0.9.130 起）：管理員（或 <c>ExceptionDetailPolicy</c> 允許時）按「複製」會附上
     /// 完整的 <c>exception.ToString()</c>（類型、訊息、內層例外、堆疊）。畫面與這筆通知日誌都不含它 ——
     /// 例外本身已由呼叫端的 <c>LogError(ex, …)</c> 記錄。
     /// </summary>
     public static void UnexpectedError(NotificationService notificationService, string description, Exception exception)
-        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Error, showTraceCode: true, detail: exception.ToString());
+        => OpenCopyable(notificationService, SystemTitle, description, NotificationType.Error, LogLevel.Error, showTraceCode: true, detail: exception.ToString(),
+            traceCode: errorCapture(exception));
 
     /// <summary>
     /// 進行中或純資訊性的訊息（例如「正在送出，請稍候」）。
@@ -94,13 +105,14 @@ public static class ViewNotification
         NotificationType notificationType,
         LogLevel logLevel,
         bool showTraceCode = false,
-        string? detail = null)
+        string? detail = null,
+        string? traceCode = null)
     {
         // 在呼叫當下寫：這時 ScopeContext 裡是這次互動的追蹤碼，日誌的 TraceId 欄位才對得上。
         logger.Log(logLevel, "Notification shown to user. Title={Title}, Kind={NotificationKind}, Text={NotificationText}",
             title, notificationType, description);
 
-        var traceCode = traceCodeProvider();
+        traceCode ??= traceCodeProvider();
         Open(notificationService, BuildCopyableConfig(title, description, notificationType, traceCode, DateTime.Now, showTraceCode, detail));
     }
 

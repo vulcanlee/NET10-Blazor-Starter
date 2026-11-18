@@ -55,16 +55,19 @@
         </div>
     </div>
 
+    <script src="js/client-error-reporter.js"></script>
+    <!-- ↑ 錯誤回報排第一個（0.10.36 起）：後面任何腳本與 WASM 啟動失敗都接得到；錯誤先存在瀏覽器，登入後才送到伺服器。 -->
     <script src="js/insecure-context-crypto.js"></script>
     <!-- ↑ http（非 localhost）時補上執行環境啟動要用的 crypto.subtle.digest，否則停在載入卡片（0.10.31 起）；必須排在 blazor.webassembly 之前。 -->
-    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <!-- autostart="false"（0.10.36 起）：由最後的 js/app-start.js 呼叫 Blazor.start()，啟動失敗才接得到。 -->
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js" autostart="false"></script>
     <script src="_content/AntDesign/js/ant-design-blazor.js"></script>
     <script src="js/sorter-tooltip-guard.js"></script>
     <script src="js/file-download.js"></script>
     <script src="js/clipboard.js"></script>
     <script src="js/nav-state.js"></script>
-    <script src="js/client-error-reporter.js"></script>
     <script src="js/pwa.js"></script>
+    <script src="js/app-start.js"></script>
 </body>
 
 </html>

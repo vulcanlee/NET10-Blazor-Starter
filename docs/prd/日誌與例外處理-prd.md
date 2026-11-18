@@ -1,14 +1,14 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.18
+- 文件版本：1.19
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.36
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/18
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
-> （P0 於 0.9.77、P1 於 0.9.78、P2 於 0.9.79 完成；尚待處理的事項見 §十）。
+> （P0 於 0.9.77、P1 於 0.9.78、P2 於 0.9.79 完成；前端錯誤捕捉補強 LOG-23 於 0.10.36 完成；尚待處理的事項見 §十）。
 
 ## 一、目標與範圍
 
@@ -60,6 +60,7 @@
 | 系統缺陷（捕捉到的未預期例外） | ✔ | ✔ | | 依 §6 LOG-12 條件 |
 | 未捕捉例外 | ✔ | ✔ | | 依 §6 LOG-12 條件 |
 | 瀏覽器端錯誤 | ✔ | ✔ | | 依 §6 LOG-12 條件 |
+| 瀏覽器端事件：連線中斷、資源載入失敗、CSP 違規（0.10.36，LOG-23） | ✔ | | | |
 
 使用者錯誤與可預期的外部失敗**不帶例外物件、等級低於 Error**，因此不會進例外紀錄表；等級依 §三 判定。
 例外紀錄表的收錄門檻是「**Error 以上且帶例外物件**」（`OperationCanceledException` 除外），由
@@ -212,7 +213,9 @@
 |---|---|:-:|---|
 | Web API（`/api/*`） | `ApiExceptionFilterAttribute`：記 Error，回 `ApiResult` 500 附 `TraceId`；控制器自行 catch 的 `ApiServerError` 也帶（0.9.78） | ✅ | — |
 | 一般 HTTP 請求（非 API） | `UseHttpRequestLogging` 記 Error 後重拋；非開發環境 `UseExceptionHandler("/Error", createScopeForErrors: true)`；以例外實例去重、帳號於驗證後補上（0.9.77）；Host 空白或組不成網址由 `UseRejectInvalidHost` 回 400（0.9.115） | ✅ | —（0.9.78 起 `/Error` 頁顯示的追蹤碼與日誌一致；0.9.115 起 Blazor 頁面 SSR 例外也看得到錯誤頁，之前錯誤頁本身拋 "already initialized" 而回空白 500） |
-| Blazor 頁面元件 | 0.10.9 起：`ClientRoutes.razor` 以 `ClientErrorBoundary` 包住 `RouteView`，經 `api/v1/shell/client-errors` 送伺服器記 Error（來源 `瀏覽器`）並顯示錯誤訊息；0.10.8 以前 Server 頁是 `LoggingErrorBoundary` 包住 `AuthorizeRouteView`（0.9.78） | ✅ | — |
+| Blazor 頁面元件 | 0.10.36 起：`ClientMainLayout` 以 `ClientErrorBoundary` 包住 `@Body`（只換掉內容區，側邊選單與頁首還在），`ClientRoutes.razor` 外層的 `ClientErrorBoundary` 是版面本身與匿名頁的最後防線；**兩層都在換頁時復原**（0.10.35 以前只有外層、包住整個版面，而且換頁不復原 —— 本表原本誤標為已復原）。錯誤經 `ClientErrorCapture` 回報（LOG-23），錯誤畫面附追蹤碼；0.10.9～0.10.35 經 `api/v1/shell/client-errors`；0.10.8 以前 Server 頁是 `LoggingErrorBoundary` 包住 `AuthorizeRouteView`（0.9.78） | ✅ | — |
+| 錯誤邊界以外的 .NET 未處理例外 | 0.10.36 起 `ClientFrameworkErrorLoggerProvider` 接框架（`Microsoft.AspNetCore.Components.*`）Error 以上且帶例外的日誌，回報為 `unhandled`；同一個例外錯誤邊界已回報過就不再送 | ✅ | — |
+| 頁面 catch 到的未預期例外 | 0.10.36 起 `ViewNotification.UnexpectedError` 回報為 `caught`，通知附那筆回報的追蹤碼（之前只寫瀏覽器主控台） | ✅ | — |
 | Blazor 浮層（對話窗、通知、確認窗） | 0.10.9 起：`AntContainer` 包在 `ClientRoutes.razor` 的第二個 `ClientErrorBoundary` 內，換頁自動復原；0.10.8 以前是第二個 `LoggingErrorBoundary`（0.9.77），提示附追蹤碼（0.9.78） | ✅ | — |
 | 射後不理的 Task（`_ = XxxAsync()`） | `ProcessExceptionHooks`：`UnobservedTaskException` 記 Error，來源 `系統`（0.9.77） | ✅ | — |
 | 程序層級（其他執行緒） | `ProcessExceptionHooks`：`AppDomain.UnhandledException` 寫補登檔並記 Critical（0.9.77） | ✅ | — |
@@ -220,7 +223,7 @@
 | 啟動：`builder.Build()` 之前 | 頂層 catch 直接經 NLog 寫檔，並寫補登檔（0.9.77） | ✅ | — |
 | 啟動：遷移、種子資料 | 頂層 catch 記 Critical 並寫補登檔，下次啟動補進例外紀錄（0.9.77） | ✅ | — |
 | 關機 | 寫入背景服務停止時清空佇列，上限 5 秒（0.9.77） | ✅ | — |
-| 瀏覽器 JavaScript | `client-error-reporter.js` ＋ `BrowserErrorReporter`，來源 `瀏覽器`（0.9.79）；0.10.9 起一律經 WASM 的 `ClientErrorReporter` 呼叫 `api/v1/shell/client-errors`（之前 Server 頁經 circuit 回報） | ✅ | 僅限登入後頁面 |
+| 瀏覽器 JavaScript | `client-error-reporter.js` ＋ `BrowserErrorReporter`，來源 `瀏覽器`（0.9.79）；0.10.36 起排在所有腳本之前，先存在瀏覽器、登入後批次送 `api/v1/shell/client-reports`，**登入前（匿名頁）與 WASM 啟動失敗也接得到**（LOG-23）；0.10.9～0.10.35 經 `client-errors`、只限登入後頁面 | ✅ | — |
 
 ## 六、需求清單
 
@@ -281,6 +284,14 @@
 | LOG-21 慢操作記錄 | `SlowOperationSettings`：HTTP 請求 3 秒（`UseHttpRequestLogging`，排除通知推播串流；0.10.8 以前另排除 `/_blazor` 長連線）、資料庫指令 1 秒（`SlowDbCommandInterceptor`，只記指令類型）、寄信 10 秒（`EmailDispatchWorker`）、AI 呼叫 60 秒（0.9.140 起統一在記帳中介層 `AiAccountingChatClient`，含健康探測；之前為 `AiChatCompletionClient`、`AiHealthProbe`）；超過記 Warning。**調整**：不量「Blazor 單次互動」—— AI 分析在按鈕事件裡等待、確認窗等使用者按鈕都會算進互動時間，每次誤報；Google SSO 的往返本身就是 HTTP 請求，由 HTTP 門檻涵蓋，不另設 | `LoggingPipelineHealthTests`（門檻判斷、指令類型只取第一個關鍵字、`/_blazor` 排除）；實機以 1 毫秒門檻驗證三類 Warning 都寫入日誌檔 |
 | LOG-22 日誌管線自我監控 | `LoggingPipelineMonitor`（單例、不得注入 ILogger）累計：例外寫入失敗（`RecordAsync` 回傳 null）、前端回報限流丟棄、告警信入列失敗與寄送失敗、NLog 內部錯誤（訂閱 `InternalLogger.InternalEventOccurred`，Error 以上）。系統健康監控新增「日誌管線」（權重 10，總權重 145；之後加入「排程作業」權重 5，現行 14 項總權重 150），另讀例外佇列長度、`DroppedCount` 與日誌所在磁碟可用空間 | `LoggingPipelineHealthTests`、`ExceptionLogWriterTests.RunAsync_WhenRecordFails_ShouldCountWriteFailure`、`SystemHealthTests.CheckWeights_ShouldSumTo150` |
 
+### 6.5 已實作 —— 前端錯誤捕捉補強（0.10.36）
+
+使用者 2026/11/18 詢問前端出事時能不能留紀錄後補上；決定與限制見 [變更紀錄](../changelog/2026-11-18-前端錯誤捕捉補強.md)。
+
+| 編號 | 0.10.36 的做法 | 守門測試 |
+|---|---|---|
+| LOG-23 前端錯誤捕捉補強 | **一條管線**：`wwwroot/js/client-error-reporter.js` 排在所有腳本之前，每筆先存進 localStorage（30 筆、7 天、約 256KB），登入後由 `ClientErrorReporter.SendAsync` 批次送 `POST api/v1/shell/client-reports`（每批 20 筆、256KB），伺服器回 `DoneIds` 才移除。.NET 端經 `ClientErrorCapture`（單例）交給它。**等級**：錯誤（`error`、`unhandledrejection`、`boundary`、`unhandled`、`caught`、`sw-install`、`boot`）記 Error 進系統例外紀錄；連線中斷（一段一筆，有網路卻連不上 Warning、瀏覽器離線 Information）、資源載入失敗、CSP 違規記 Warning／Information、只寫日誌檔（`BrowserEventReporter`，不帶例外物件）；API 4xx／5xx 前端不另記。**追蹤碼**由瀏覽器產生、畫面立即顯示，伺服器格式正確時沿用（`TraceCode.IsValid`）；每個回應另帶 `X-Trace-Code`。**背景資訊**（瀏覽器端發生時間、前端指紋、伺服器版本、UA、最近 20 筆換頁與 API 呼叫）由伺服器以 `BrowserReportContext` 組成、附在堆疊後面，不影響簽章；登入前發生的用另一個訊息樣板。**限流**：錯誤沿用 `MaxPerCircuitPerMinute`，事件另計每分鐘 30 筆，被限流的留在瀏覽器 60 秒後再送 | `BrowserErrorReporterTests`、`BrowserEventReporterTests`、`BrowserReportContextTests`、`ShellApiIntegrationTests.ClientReports_*`、`ClientErrorReportingConventionTests`、`ViewNotificationTests.UnexpectedError_ShouldReportTheException_AndShowItsOwnTraceCode`；實機 `scripts/e2e/browser-reports.mjs`（8 項） |
+
 ## 七、設定鍵
 
 全部已實作：`ExceptionAlertSettings`、`LogRetentionSettings`（0.9.78）、`SlowOperationSettings`、`ClientErrorReporting`（0.9.79），
@@ -298,14 +309,16 @@
 | | `AuditBrowsingLogDays` | `90` | 瀏覽類稽核（0.9.174 起）；`0` 不自動清理（範圍 0～36500） |
 | | `TokenUsageLogDays` | `365` | Token 用量紀錄（0.9.96 起）；`0` 不自動清理（範圍 0～36500） |
 | `SlowOperationSettings` | `HttpRequestMs` ／ `DbCommandMs` ／ `ExternalCallMs` ／ `AiCallMs` | `3000` ／ `1000` ／ `10000` ／ `60000` | `0` 停用該項（無 `UiInteractionMs`，見 LOG-21 調整） |
-| `ClientErrorReporting` | `Enabled` | `true` | 前端錯誤回報開關 |
-| | `MaxPerCircuitPerMinute` | `10` | 防濫用；0.10.9 起是每位使用者每分鐘的上限（鍵名沿用 circuit 時代） |
+| `ClientErrorReporting` | `Enabled` | `true` | 前端錯誤回報開關；0.10.36 起也管連線中斷、資源載入與 CSP 事件（關閉時前端送來的一律當成已處理、不記錄） |
+| | `MaxPerCircuitPerMinute` | `10` | 防濫用；0.10.9 起是每位使用者每分鐘的上限（鍵名沿用 circuit 時代）；0.10.36 起只算錯誤，事件另計每分鐘 30 筆（固定值 `ShellController.ClientEventsPerMinute`） |
 
 ## 八、權限與安全
 
 - `/logs`、`/system-exceptions`、`/audit-logs`、`/ai-call-logs` 維持**管理員專屬**；本文件新增的畫面功能比照辦理。
 - 告警信可能被轉寄或留在信箱，因此**只含摘要**（LOG-12），完整內容須登入系統查看。
 - 前端回報入口只對已登入者開放（0.10.9 起 `api/v1/shell/client-errors` 要登入；之前是已登入的 circuit），並有頻率與長度上限（LOG-20）。
+  0.10.36 起的 `client-reports` 同樣要登入：登入前的錯誤存在瀏覽器、登入後才送，**刻意不開匿名端點**（任何人都能呼叫的話，可能被灌垃圾、擠掉真正的例外）。
+  前端送來的路徑、網址、UA、操作軌跡一律在伺服器去掉查詢字串與控制字元（避免偽造日誌行），追蹤碼格式不對就不用（LOG-23）。
 - 追蹤碼可以給使用者看，不得含帳號、主機名稱、時間戳以外的內部資訊。
 - 日誌檔與堆疊檔可從 `/logs` 原始匯出，因此 §4.4 的禁記規則同樣適用於例外訊息以外的所有日誌行。
 
@@ -320,6 +333,7 @@
 | LOG-08（0.9.77 已實作）、LOG-14、LOG-15（0.9.78 已實作） | 慣例測試＋各事件單元測試 |
 | LOG-11（0.9.78 已實作） | `ExceptionLogServiceTests`、服務測試 |
 | LOG-12、LOG-13（0.9.78 已實作） | 以假時鐘的單元測試（`ManualTimeProvider`） |
+| LOG-23（0.10.36 已實作） | §6.5 所列單元與整合測試；實機 `scripts/e2e/browser-reports.mjs` 8 項：登入前的錯誤登入後送出、瀏覽器追蹤碼即例外紀錄的追蹤碼、回應帶 `X-Trace-Code`、連不上伺服器 Warning、離線 Information、資源載入 Warning、CSP Warning、啟動失敗登入後送出 |
 | LOG-20、LOG-21、LOG-22（0.9.79 已實作） | `BrowserErrorReporterTests`、`LoggingPipelineHealthTests`；**2026/11/08 已在瀏覽器驗收**：同步錯誤與未處理的 Promise 各記一筆（來源「瀏覽器」、`BrowserScriptException`）；一分鐘內共 14 筆時記 10 筆、丟棄 4 筆；健康監控「日誌管線」顯示「前端錯誤回報因限流丟棄 4」；門檻設 1 ms 時日誌有慢請求與慢資料庫指令的 Warning（資料庫只記指令類型） |
 
 每一項實作完成後，須把該項從「規劃中」移到「已實作」（如 §6.2），並更新文件版本與現行系統版本。
@@ -338,6 +352,12 @@
   取出使用者 Id（JWT 在 NameIdentifier；0.10.9 起移除登入 Cookie〔Sid〕的分支）；已登入卻解析不到是誰時回 `RecordAccessScope.None`（什麼都看不到）並記 Warning。
 - **Blazor 互動的追蹤碼、前端錯誤回報、浮層錯誤提示尚未在瀏覽器內人工驗證**：HTTP 請求的追蹤碼與慢操作日誌已實機確認；
   circuit 內的行為由程式碼與單元測試保證。0.10.9 起已沒有 circuit：畫面操作一律經 API，追蹤碼就是 HTTP 請求的追蹤碼。
+- **前端錯誤捕捉的限制**（0.10.36，LOG-23）：
+  背景資訊與操作軌跡只寫進第一次發生時的堆疊檔（同簽章合併不重寫檔案，之後每次的完整內容在日誌檔那一行，用追蹤碼在 `/logs` 查）；
+  紀錄時間是伺服器收到的時間（瀏覽器端的發生時間在背景資訊裡）；啟動失敗要等同一個瀏覽器之後成功啟動並登入才送得出去；
+  追蹤碼在瀏覽器先產生，回報被暫存區擠掉、被限流或關閉時管理員查不到；資源載入只抓 `<img>`、`<script>`、`<link>`；
+  登入前的錯誤記在之後登入的帳號下（共用電腦時不一定是同一人，紀錄標「登入前」）；`ClientSession` 自己的請求與附件上傳不在操作軌跡與連線中斷的計算內；
+  http（非 localhost）沒有 Web Locks，多個分頁可能重複送。
 - **管線監控的數字是本次啟動以來的累計**，重啟歸零；也不會主動告警（例外告警本身失敗時無法再用告警通知）。
 
 ## 十一、相關程式與文件

@@ -1,0 +1,14 @@
+@using MyProject.Web.Diagnostics
+@*
+    頁面錯誤邊界的畫面（0.10.36 起）：版面裡的內容區（ClientMainLayout）與根元件的最後防線（ClientRoutes）共用。
+    錯誤已經由 ClientErrorBoundary 回報到伺服器；這裡附上同一個追蹤碼，使用者回報時管理員查得到。
+*@
+<div class="alert alert-danger" role="alert">
+    <strong>這個頁面發生未預期的錯誤。</strong>
+    錯誤已記錄，請換到其他頁面或重新整理；若持續發生請聯絡系統管理員。@TraceCodeText.Suffix(ClientErrorCapture.TraceCodeOf(Exception))
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Exception? Exception { get; set; }
+}
