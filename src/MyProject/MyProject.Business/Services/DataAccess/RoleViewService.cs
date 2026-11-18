@@ -265,7 +265,7 @@ public class RoleViewService
         catch (DbUpdateConcurrencyException ex)
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
-            Logger.LogInformation("Role view update rejected by concurrency conflict. RoleViewId={RoleViewId}", paraObject.Id);
+            Logger.LogWarning("Role view update rejected by concurrency conflict. RoleViewId={RoleViewId}", paraObject.Id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -334,7 +334,7 @@ public class RoleViewService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Role view deletion rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
+            Logger.LogWarning("Role view deletion rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -439,7 +439,7 @@ public class RoleViewService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Role view restore rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
+            Logger.LogWarning("Role view restore rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -497,7 +497,7 @@ public class RoleViewService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Role view purge rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
+            Logger.LogWarning("Role view purge rejected by concurrency conflict. RoleViewId={RoleViewId}", id);
             return VerifyRecordResultFactory.Conflict("這個角色已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
@@ -546,7 +546,7 @@ public class RoleViewService
 
         if (searchItem == null)
         {
-            Logger.LogInformation("Pre-update validation failed because role view was not found. RoleViewId={RoleViewId}", paraObject.Id);
+            Logger.LogWarning("Pre-update validation failed because role view was not found. RoleViewId={RoleViewId}", paraObject.Id);
             return VerifyRecordResultFactory.NotFound("要修改的角色資料不存在。");
         }
 

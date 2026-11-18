@@ -77,7 +77,7 @@ namespace MyProject.Web.Client.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            logger.LogDebug("Initializing role view management.");
+            logger.LogTrace("Initializing role view management.");
 
             // 登入檢查已由版面（ClientMainLayout）完成；沒有權限的開頁稽核由伺服器在開頁紀錄時寫（shell/page-view）。
             if (!Permissions.IsAdmin)
@@ -178,13 +178,13 @@ namespace MyProject.Web.Client.Views.Admins
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            logger.LogInformation("Role view search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
+            logger.LogDebug("Role view search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync(recordSearch: true);
         }
 
         async Task OnRefreshAsync()
         {
-            logger.LogInformation("Role view refresh triggered.");
+            logger.LogDebug("Role view refresh triggered.");
             if (await ReloadAsync())
             {
                 ViewNotification.Warning(notificationService, "已更新最新資料");
@@ -211,7 +211,7 @@ namespace MyProject.Web.Client.Views.Admins
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened edit modal for role view. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
+            logger.LogDebug("Opened edit modal for role view. RoleViewId={RoleViewId}", roleViewAdapterModel.Id);
         }
 
         /// <summary>
@@ -371,7 +371,7 @@ namespace MyProject.Web.Client.Views.Admins
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened create modal for role view.");
+            logger.LogDebug("Opened create modal for role view.");
         }
 
         /// <summary>
@@ -392,7 +392,7 @@ namespace MyProject.Web.Client.Views.Admins
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened copy modal for role view. SourceRoleViewId={RoleViewId}, SourceName={RoleName}", source.Id, source.Name);
+            logger.LogDebug("Opened copy modal for role view. SourceRoleViewId={RoleViewId}, SourceName={RoleName}", source.Id, source.Name);
         }
 
         /// <summary>

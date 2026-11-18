@@ -193,14 +193,14 @@ namespace MyProject.Web.Client.Views.Admins
         private async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            logger.LogInformation("Exception log search triggered.");
+            logger.LogDebug("Exception log search triggered.");
             // 搜尋稽核由伺服器寫（只有按「查詢」才帶 RecordSearch）。
             await ReloadAsync(recordSearch: true);
         }
 
         private async Task OnRefreshAsync()
         {
-            logger.LogInformation("Exception log refresh triggered.");
+            logger.LogDebug("Exception log refresh triggered.");
             await ReloadOptionsAsync();
             await ReloadAsync();
         }

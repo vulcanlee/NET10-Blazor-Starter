@@ -125,7 +125,7 @@ namespace MyProject.Web.Client.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            logger.LogDebug("Initializing user management view.");
+            logger.LogTrace("Initializing user management view.");
 
             // 登入檢查已由版面（ClientMainLayout）完成；沒有權限的開頁稽核由伺服器在開頁紀錄時寫（shell/page-view）。
             if (!Permissions.IsAdmin)
@@ -213,13 +213,13 @@ namespace MyProject.Web.Client.Views.Admins
         async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            logger.LogInformation("User search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
+            logger.LogDebug("User search triggered. HasSearch={HasSearch}, SearchLength={SearchLength}", string.IsNullOrWhiteSpace(searchText) == false, searchText.Length);
             await ReloadAsync(recordSearch: true);
         }
 
         async Task OnRefreshAsync()
         {
-            logger.LogInformation("User refresh triggered.");
+            logger.LogDebug("User refresh triggered.");
             if (await ReloadAsync())
             {
                 ViewNotification.Warning(notificationService, "已更新最新資料");
@@ -247,7 +247,7 @@ namespace MyProject.Web.Client.Views.Admins
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened edit modal for user. UserId={UserId}", myUserAdapterModel.Id);
+            logger.LogDebug("Opened edit modal for user. UserId={UserId}", myUserAdapterModel.Id);
         }
 
         /// <summary>
@@ -560,7 +560,7 @@ namespace MyProject.Web.Client.Views.Admins
             dirtyTracker.Capture(CurrentRecord);
 
             modalVisible = true;
-            logger.LogInformation("Opened create modal for user.");
+            logger.LogDebug("Opened create modal for user.");
         }
 
         /// <summary>
@@ -805,7 +805,7 @@ namespace MyProject.Web.Client.Views.Admins
                 copyDirtyTracker.Capture(copyRecord);
 
                 copyModalVisible = true;
-                logger.LogInformation("Opened copy modal for user. SourceUserId={SourceUserId}, SourceAccount={SourceAccount}", source.Id, source.Account);
+                logger.LogDebug("Opened copy modal for user. SourceUserId={SourceUserId}, SourceAccount={SourceAccount}", source.Id, source.Account);
             }
             catch (Exception ex)
             {

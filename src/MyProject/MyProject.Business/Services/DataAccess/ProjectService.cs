@@ -380,7 +380,7 @@ public class ProjectService
         catch (DbUpdateConcurrencyException ex)
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤（LOG-11），記 Information、不帶例外物件。
-            Logger.LogInformation("Project update rejected by concurrency conflict. ProjectId={ProjectId}", paraObject.Id);
+            Logger.LogWarning("Project update rejected by concurrency conflict. ProjectId={ProjectId}", paraObject.Id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -433,7 +433,7 @@ public class ProjectService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Project deletion rejected by concurrency conflict. ProjectId={ProjectId}", id);
+            Logger.LogWarning("Project deletion rejected by concurrency conflict. ProjectId={ProjectId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -532,7 +532,7 @@ public class ProjectService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Project restore rejected by concurrency conflict. ProjectId={ProjectId}", id);
+            Logger.LogWarning("Project restore rejected by concurrency conflict. ProjectId={ProjectId}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -588,7 +588,7 @@ public class ProjectService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("Project purge rejected by concurrency conflict. ProjectId={ProjectId}", id);
+            Logger.LogWarning("Project purge rejected by concurrency conflict. ProjectId={ProjectId}", id);
             return VerifyRecordResultFactory.Conflict("這筆專案已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)
@@ -641,7 +641,7 @@ public class ProjectService
 
         if (searchItem == null)
         {
-            Logger.LogInformation("Pre-update validation failed because project was not found. ProjectId={ProjectId}", paraObject.Id);
+            Logger.LogWarning("Pre-update validation failed because project was not found. ProjectId={ProjectId}", paraObject.Id);
             return VerifyRecordResultFactory.NotFound("要修改的專案資料不存在。");
         }
 
@@ -768,7 +768,7 @@ public class ProjectService
             return null;
         }
 
-        Logger.LogWarning("Project validation failed because the title is too long. Length={Length}", title?.Length ?? 0);
+        Logger.LogInformation("Project validation failed because the title is too long. Length={Length}", title?.Length ?? 0);
         return VerifyRecordResultFactory.Invalid($"專案標題長度不可超過 {ProjectAdapterModel.ProjectTitleMaxLength} 字元。");
     }
 
@@ -776,7 +776,7 @@ public class ProjectService
     {
         if (paraObject.StartDate.HasValue && paraObject.EndDate.HasValue && paraObject.EndDate.Value < paraObject.StartDate.Value)
         {
-            Logger.LogWarning("Project validation failed because end date is earlier than start date. Title={Title}", paraObject.Title);
+            Logger.LogInformation("Project validation failed because end date is earlier than start date. Title={Title}", paraObject.Title);
             return Task.FromResult(VerifyRecordResultFactory.Invalid("結束日期不可早於開始日期。"));
         }
 
@@ -794,7 +794,7 @@ public class ProjectService
 
         if (paraObject.CompletionPercentage < 0 || paraObject.CompletionPercentage > 100)
         {
-            Logger.LogWarning("Project validation failed because completion percentage is out of range. Title={Title}, CompletionPercentage={CompletionPercentage}", paraObject.Title, paraObject.CompletionPercentage);
+            Logger.LogInformation("Project validation failed because completion percentage is out of range. Title={Title}, CompletionPercentage={CompletionPercentage}", paraObject.Title, paraObject.CompletionPercentage);
             return Task.FromResult(VerifyRecordResultFactory.Invalid("完成百分比必須介於 0 到 100。"));
         }
 
@@ -804,7 +804,7 @@ public class ProjectService
             {
                 if (uploadFile.FileSize > MaxUploadFileSize)
                 {
-                    Logger.LogWarning("Project upload validation failed because file exceeded the size limit. FileName={FileName}, FileSize={FileSize}", uploadFile.FileName, uploadFile.FileSize);
+                    Logger.LogInformation("Project upload validation failed because file exceeded the size limit. FileName={FileName}, FileSize={FileSize}", uploadFile.FileName, uploadFile.FileSize);
                     return Task.FromResult(VerifyRecordResultFactory.Invalid($"檔案 {uploadFile.FileName} 超過 1GB 限制"));
                 }
 
@@ -812,7 +812,7 @@ public class ProjectService
                 // ContentType；允許 .html / .svg 等同在自己的網域上開一個 stored XSS。
                 if (!UploadFileTypePolicy.IsAllowed(uploadFile.FileName, allowedUploadExtensions))
                 {
-                    Logger.LogWarning("Project upload validation failed because the file extension is not allowed. FileName={FileName}", uploadFile.FileName);
+                    Logger.LogInformation("Project upload validation failed because the file extension is not allowed. FileName={FileName}", uploadFile.FileName);
                     return Task.FromResult(VerifyRecordResultFactory.Invalid($"檔案 {uploadFile.FileName} 的類型不在允許清單中。"));
                 }
             }

@@ -246,7 +246,7 @@ public class __Name__Service
         catch (DbUpdateConcurrencyException ex)
         {
             // 別人在這段期間先存過或刪除了這筆：使用者情境而非系統錯誤，記 Information、不帶例外物件。
-            Logger.LogInformation("__Name__ update rejected by concurrency conflict. __Name__Id={__Name__Id}", paraObject.Id);
+            Logger.LogWarning("__Name__ update rejected by concurrency conflict. __Name__Id={__Name__Id}", paraObject.Id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -336,7 +336,7 @@ public class __Name__Service
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("__Name__ deletion rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
+            Logger.LogWarning("__Name__ deletion rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -381,7 +381,7 @@ public class __Name__Service
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("__Name__ restore rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
+            Logger.LogWarning("__Name__ restore rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
             return VerifyRecordResultFactory.Conflict(ConcurrencyStampHelper.ConflictMessage, ex);
         }
         catch (Exception ex)
@@ -425,7 +425,7 @@ public class __Name__Service
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            Logger.LogInformation("__Name__ purge rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
+            Logger.LogWarning("__Name__ purge rejected by concurrency conflict. __Name__Id={__Name__Id}", id);
             return VerifyRecordResultFactory.Conflict("這筆__Item__已被其他人還原或變更，沒有執行永久刪除。", ex);
         }
         catch (Exception ex)

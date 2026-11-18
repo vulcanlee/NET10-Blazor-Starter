@@ -52,7 +52,7 @@ namespace MyProject.Web.Client.Views.Admins
 
         protected override async Task OnInitializedAsync()
         {
-            Logger.LogInformation("Initializing system health page.");
+            Logger.LogDebug("Initializing system health page.");
             isAccessChecked = true;
 
             // 沒有權限的開頁稽核由伺服器在開頁紀錄時寫（shell/page-view），這裡不讀任何資料。

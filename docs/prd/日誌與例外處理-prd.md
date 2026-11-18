@@ -1,8 +1,8 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.20
+- 文件版本：1.21
 - 文件狀態：已實作
-- 現行系統版本：0.10.37
+- 現行系統版本：0.10.38
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
 - 最後核對日期：2026/11/18
 
@@ -117,11 +117,23 @@
 |---|---|---|
 | 畫面切換 | Information | 0.10.9 起：WASM 前端換頁時呼叫 `POST api/v1/shell/page-view`，由 `ShellController` 集中處理（該請求本身有一筆 HTTP 請求完成日誌），**頁面不需自己寫**；0.10.8 以前由 `ApplicationCircuitHandler` 記錄 |
 | 改變狀態的按鈕（新增／修改／刪除／匯出／套用／登入登出） | Information | 各事件處理方法；**意圖與結果各記一筆** |
-| 純查詢的按鈕（搜尋／重新整理／分頁／排序） | Debug | 各事件處理方法 |
+| 純查詢的按鈕（搜尋／重新整理／分頁／排序） | Debug | 各事件處理方法；0.10.38 起由 `LoggingConventionTests.PureQueryAndUiEvents_ShouldBeDebugOrLower` 守門 |
+| 開關視窗（開啟新增／修改／複製視窗、取消） | Debug | 各事件處理方法（0.10.38 起明訂；之前前端記成 Information） |
+| 併發衝突、寫入時查無資料 | Warning | 各服務（0.10.38 起明訂並由 `ConcurrencyConflictsAndWritesOnMissingRecords_ShouldBeWarnings` 守門，含 CRUD 產生器樣板；0.9.93～0.10.37 記成 Information） |
 | circuit 開啟／關閉 | Information | `ApplicationCircuitHandler`（0.10.8 以前；0.10.9 起沒有 Blazor Server circuit，已移除） |
 | circuit 斷線 | Warning | `ApplicationCircuitHandler`（0.10.8 以前；同上） |
 | 權限拒絕、登入失敗、帳號鎖定 | Warning | 各自的處理方法 |
 | HTTP 請求完成 | Information（靜態資源〔0.10.10 起含 `/images`〕、`/health`、`/swagger` 為 Debug，0.10.9 以前另有 `_blazor`；狀態碼 ≥ 400 一律 Information 以上） | `UseHttpRequestLogging` |
+
+**WASM 前端**（0.10.38 起明訂）：前端日誌平常只在瀏覽器主控台（Information 以上），等級規則與伺服器相同；
+管理員開啟「前端診斷記錄」（LOG-24）時，那位使用者 Debug 或 Trace 以上的前端日誌依原等級寫到伺服器的 `MyProject.Browser.*`。
+
+| 事件 | 等級 | 記在哪 |
+|---|---|---|
+| 畫面狀態的雜訊（選單選中項目、畫面初始化步驟） | Trace | 各元件 |
+| 操作軌跡：每次 API 呼叫、每次換頁 | Trace | `ApiClient`（`API call completed.`）、`ClientRoutes`（`Navigated.`） |
+| 找不到頁面（使用者打錯網址） | Information | `NotFoundContent` |
+| 前端錯誤、連線中斷、資源載入、CSP | 見 LOG-23 | `client-error-reporter.js`（送到伺服器，與主控台的等級無關） |
 
 **本文件新增**（原本沒有規定）：
 
@@ -202,6 +214,7 @@
 | 訊息英文、PascalCase 佔位、禁 `{@}`、禁敏感佔位與敏感屬性、行為類別必有 `ILogger` | `LoggingConventionTests`（已有） |
 | 例外簽章用訊息樣板 | `ExceptionSignatureTests`、`ExceptionLogProviderTests`（已有） |
 | 禁查詢關鍵字佔位（`search`／`keyword`，`HasSearch` 等旗標除外） | `LoggingConventionTests.LogPlaceholders_ShouldNotRecordSearchText`（0.9.77） |
+| 純查詢、開關視窗、取消只能 Debug 以下；併發衝突與寫入查無資料只能 Warning（各要比對到至少 20 處，避免規則形同虛設） | `LoggingConventionTests.PureQueryAndUiEvents_ShouldBeDebugOrLower`、`ConcurrencyConflictsAndWritesOnMissingRecords_ShouldBeWarnings`（0.10.38） |
 | 禁空 catch（本體只有註解也算） | `LoggingConventionTests.CatchBlocks_ShouldNotBeEmpty`（0.9.77）；取消／斷線類例外與管線類別列白名單，須註明理由 |
 | 稽核動作代碼只能用 `AuditActions` 常數 | `AuditConventionTests`（0.9.78） |
 | 等級選得對不對、有沒有記到該記的事 | **人工 Code Review**，依本文件 §三 判斷 |

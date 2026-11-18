@@ -251,6 +251,52 @@ public sealed class LoggingConventionTests
     /// <summary>
     /// 允許空 catch 的檔案，逐一附理由。新增前請先確認真的不能記錄。
     /// </summary>
+    /// <summary>
+    /// 純查詢與畫面操作（0.10.38 起，PRD §3.4）：按搜尋／重新整理、換頁排序、開關視窗、使用者或用戶端自己取消，
+    /// 都只是「排查時才看」的流程細節，一律 Debug 以下 —— 記成 Information 會讓日常日誌被操作流水帳淹沒。
+    /// </summary>
+    private static readonly Regex PureQueryOrUiEvent = new(
+        @"(search|refresh) triggered\.|searched\.|^Opened (create|edit|copy) modal|[Tt]able changed\.|cancel(l)?ed by (the )?(user|client)",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// 併發衝突與寫入時查無資料（0.10.38 起，PRD §3.1、§3.2、§4.2）：畫面過期或有人在探測，維運要看一眼，一律 Warning。
+    /// </summary>
+    private static readonly Regex ConcurrencyOrWriteOnMissingRecord = new(
+        @"rejected by concurrency conflict\.|Pre-update validation failed because [a-z ]+ was not found\.|rejected because (deleted )?record was not found\.",
+        RegexOptions.Compiled);
+
+    [Fact]
+    public void PureQueryAndUiEvents_ShouldBeDebugOrLower()
+    {
+        var matches = EnumerateLogCalls().Where(call => PureQueryOrUiEvent.IsMatch(call.Template)).ToList();
+
+        // 比對不到東西時規則形同虛設（例如訊息改了寫法）：至少要認得出 20 處。
+        Assert.True(matches.Count >= 20, $"只比對到 {matches.Count} 處純查詢與畫面操作的日誌，請確認規則是否還認得現在的寫法。");
+        var violations = matches.Where(call => call.Level is not ("Trace" or "Debug")).Select(call => $"{call.Line} [{call.Level}] {call.Template}").ToList();
+        Assert.True(violations.Count == 0,
+            "按搜尋／重新整理、換頁排序、開關視窗、取消只是流程細節，請記 Debug（PRD §3.4）："
+                + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
+    [Fact]
+    public void ConcurrencyConflictsAndWritesOnMissingRecords_ShouldBeWarnings()
+    {
+        var templates = Directory.EnumerateFiles(Path.Combine(SourceTree.Scripts, "crud-templates"), "*.tmpl", SearchOption.AllDirectories)
+            .SelectMany(file => LogCall.Matches(File.ReadAllText(file)).Select(match =>
+                (Level: match.Groups[1].Value, Template: match.Groups[2].Value, Line: $"{Path.GetFileName(file)}（CRUD 產生器樣板）")));
+        var matches = EnumerateLogCalls().Select(call => (call.Level, call.Template, call.Line))
+            .Concat(templates)
+            .Where(call => ConcurrencyOrWriteOnMissingRecord.IsMatch(call.Template))
+            .ToList();
+
+        Assert.True(matches.Count >= 20, $"只比對到 {matches.Count} 處併發衝突與寫入查無資料的日誌，請確認規則是否還認得現在的寫法。");
+        var violations = matches.Where(call => call.Level != "Warning").Select(call => $"{call.Line} [{call.Level}] {call.Template}").ToList();
+        Assert.True(violations.Count == 0,
+            "併發衝突與寫入時查無資料一律 Warning（PRD §3.1、§4.2）："
+                + Environment.NewLine + string.Join(Environment.NewLine, violations));
+    }
+
     private static readonly string[] EmptyCatchAllowedFiles =
     [
         // 例外紀錄管線之內：不得用 ILogger（會遞迴），且記錄失敗不得影響呼叫端。

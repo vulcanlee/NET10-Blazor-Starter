@@ -138,7 +138,7 @@ public class ClientSession : IDisposable
         tokens = await store.ReadAsync();
         if (tokens is null && await RequestFromOtherTabsAsync() is { } handed)
         {
-            logger.LogInformation("Received tokens from another tab.");
+            logger.LogDebug("Received tokens from another tab.");
             await SaveAsync(handed);
         }
 
@@ -359,7 +359,7 @@ public class ClientSession : IDisposable
             var response = await http.PostAsJsonAsync("api/v1/Auth/session/fork", new RefreshTokenRequestDto { RefreshToken = current.RefreshToken });
             if (response.IsSuccessStatusCode && await ReadTokensAsync(response) is { } forked)
             {
-                logger.LogInformation("Handed a new token family to another tab.");
+                logger.LogDebug("Handed a new token family to another tab.");
                 return TokenStore.Serialize(forked);
             }
 

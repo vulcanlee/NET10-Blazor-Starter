@@ -20,6 +20,6 @@
 @code {
     protected override void OnInitialized()
     {
-        Logger.LogWarning("Not-found page displayed. RequestedUri={RequestedUri}", NavigationManager.Uri);
+        Logger.LogInformation("Not-found page displayed. RequestedUri={RequestedUri}", NavigationManager.Uri);
     }
 }

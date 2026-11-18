@@ -464,7 +464,7 @@ namespace MyProject.Web.Client.Views.Analytics
         private async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            logger.LogInformation("Usage search triggered.");
+            logger.LogDebug("Usage search triggered.");
             // 搜尋稽核由伺服器寫（只有按「查詢」才帶 RecordSearch）。
             await ReloadAsync(recordSearch: true);
         }

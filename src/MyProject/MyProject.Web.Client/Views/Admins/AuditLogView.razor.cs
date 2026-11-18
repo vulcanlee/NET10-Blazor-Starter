@@ -217,14 +217,14 @@ namespace MyProject.Web.Client.Views.Admins
         private async Task OnSearchAsync()
         {
             _pageIndex = 1;
-            Logger.LogInformation("Audit log search triggered.");
+            Logger.LogDebug("Audit log search triggered.");
             // 搜尋稽核由伺服器寫（只有按「查詢」才帶 RecordSearch）。
             await ReloadAsync(recordSearch: true);
         }
 
         private async Task OnRefreshAsync()
         {
-            Logger.LogInformation("Audit log refresh triggered.");
+            Logger.LogDebug("Audit log refresh triggered.");
             await ReloadActionOptionsAsync();
             await ReloadAsync();
         }
