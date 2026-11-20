@@ -109,10 +109,15 @@ public static class TokenUsageOperations
     public const string AdminAssistantRouter = "系統管理助理（分派）";
 
     /// <summary>
-    /// 排程作業「系統管理助理巡檢」的定時巡檢（0.9.161 起）。一次巡檢的每一次模型呼叫各記一筆、共用 RunId，
-    /// ConversationId 是巡檢報告編號；沒有登入的使用者，所以用量不屬於任何人、只受全系統上限限制。
+    /// 排程作業「系統管理助理巡檢」的定時巡檢（0.9.161～0.10.38；0.10.39 起由系統巡檢報告取代，舊紀錄仍保留這個名稱）。
     /// </summary>
     public const string AdminAssistantPatrol = "系統管理助理（排程巡檢）";
+
+    /// <summary>
+    /// 系統巡檢報告的 AI 說明（0.10.39 起）：一份報告一次呼叫，ConversationId 是報告編號。
+    /// 排程產生的沒有登入使用者，只受全系統上限；報告頁「立即產生」也在背景執行，同樣不屬於任何人。
+    /// </summary>
+    public const string SystemReportNarrative = "系統巡檢報告（AI 說明）";
 }
 
 /// <summary>

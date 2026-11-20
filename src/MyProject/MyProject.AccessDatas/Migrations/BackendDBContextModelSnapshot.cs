@@ -15,7 +15,7 @@ partial class BackendDBContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261114090345_RemoveAgentPagesData";
+    public override string LastMigrationId => "20261120054158_AddSystemReportAndCapacitySnapshot";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -385,6 +385,53 @@ partial class BackendDBContextModelSnapshot : ModelSnapshot
                 b.HasIndex("TargetType", "TargetId", "OccurredAt");
 
                 b.ToTable("AuditLog");
+            });
+
+        modelBuilder.Entity("MyProject.AccessDatas.Models.CapacitySnapshot", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("CapturedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Category")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<long?>("FreeBytes")
+                    .HasColumnType("INTEGER");
+
+                b.Property<long?>("ItemCount")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Key")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("SnapshotDate")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Status")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<long?>("TotalBytes")
+                    .HasColumnType("INTEGER");
+
+                b.Property<long?>("UsedBytes")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Id");
+
+                b.HasIndex("SnapshotDate", "Category", "Key")
+                    .IsUnique();
+
+                b.ToTable("CapacitySnapshot");
             });
 
         modelBuilder.Entity("MyProject.AccessDatas.Models.Category", b =>
@@ -1209,6 +1256,85 @@ partial class BackendDBContextModelSnapshot : ModelSnapshot
                 b.HasKey("ParameterKey");
 
                 b.ToTable("SystemParameter");
+            });
+
+        modelBuilder.Entity("MyProject.AccessDatas.Models.SystemReport", b =>
+            {
+                b.Property<int>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("ContentFile")
+                    .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("DeliveryStatus")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Frequency")
+                    .IsRequired()
+                    .HasMaxLength(10)
+                    .HasColumnType("TEXT");
+
+                b.Property<int?>("JobRunId")
+                    .HasColumnType("INTEGER");
+
+                b.Property<string>("Level")
+                    .IsRequired()
+                    .HasMaxLength(10)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("ModelName")
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("NarrativeStatus")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("OrangeCount")
+                    .HasColumnType("INTEGER");
+
+                b.Property<DateTime>("PeriodEnd")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("PeriodStart")
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("RedCount")
+                    .HasColumnType("INTEGER");
+
+                b.Property<Guid>("ReportId")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Trigger")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("TriggeredByAccount")
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<int>("YellowCount")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Id");
+
+                b.HasIndex("CreatedAt");
+
+                b.HasIndex("ReportId")
+                    .IsUnique();
+
+                b.HasIndex("Frequency", "PeriodStart");
+
+                b.ToTable("SystemReport");
             });
 
         modelBuilder.Entity("MyProject.AccessDatas.Models.Team", b =>

@@ -169,6 +169,12 @@
             "name": "資料保留與清理",
             "icon": "auto_delete",
             "url": "/data-retention"
+          },
+          {
+            "id": 70,
+            "name": "系統巡檢報告",
+            "icon": "assessment",
+            "url": "/system-reports"
           }
         ]
       },

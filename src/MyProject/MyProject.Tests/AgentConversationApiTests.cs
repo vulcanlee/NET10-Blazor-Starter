@@ -359,8 +359,6 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
             await client.PostAsJsonAsync($"{Assistant}/messages", new AgentMessageRequestDto { Message = "嗨" }),
             await client.PostAsJsonAsync($"{Assistant}/conversations/{Guid.NewGuid()}/approvals", new AgentApprovalResponseRequestDto { ApprovedRequestIds = ["x"] }),
             await client.DeleteAsync($"{Assistant}/conversations/{Guid.NewGuid()}"),
-            await client.GetAsync($"{Assistant}/patrol-reports"),
-            await client.GetAsync($"{Assistant}/patrol-reports/{Guid.NewGuid()}"),
         };
 
         Assert.All(responses, response => Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode));
@@ -452,38 +450,6 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     }
 
     /// <summary>巡檢報告與通知連結（/admin-assistant?patrolReport={id}）：清單、單份（Markdown 由畫面消毒）、找不到 404；時間不帶時差、不寫稽核。</summary>
-    [Fact]
-    public async Task PatrolReports_ListAndDeepLink()
-    {
-        var admin = await AddUserAsync(isAdmin: true);
-        using var client = await SignedInClientAsync(admin);
-        var id = Guid.NewGuid();
-        using (var scope = factory.Services.CreateScope())
-        {
-            var saved = await scope.ServiceProvider.GetRequiredService<AdminPatrolReportService>().SaveAsync(new AdminPatrolReportDraft(
-                id, new DateTime(2026, 11, 8, 7, 30, 0), AdminPatrolStatuses.Abnormal, "排程與備份", JobRunTriggers.Manual, "support", 1, "gpt-test", false,
-                "## 總結\n**備份失敗**"));
-            Assert.NotNull(saved);
-        }
-
-        var listText = await (await client.GetAsync($"{Assistant}/patrol-reports")).Content.ReadAsStringAsync();
-        var list = JsonSerializer.Deserialize<ApiResult<AdminPatrolReportListDto>>(listText, Json)!.Data!;
-        var detail = await SendAsync<AdminPatrolReportDetailDto>(client, HttpMethod.Get, $"{Assistant}/patrol-reports/{id}");
-        var missing = await client.GetAsync($"{Assistant}/patrol-reports/{Guid.NewGuid()}");
-
-        var item = Assert.Single(list.Items, x => x.ReportId == id);
-        Assert.Equal(new DateTime(2026, 11, 8, 7, 30, 0), item.CreatedAt);
-        Assert.Equal(DateTimeKind.Unspecified, item.CreatedAt.Kind);
-        Assert.Equal(("異常", "排程與備份", "Manual", "support"), (item.Status, item.AttentionSections, item.Trigger, item.TriggeredByAccount));
-        Assert.True(list.RetentionDays > 0);
-        AssertNoOffset(listText);
-        Assert.Equal("## 總結\n**備份失敗**", detail.Markdown);
-        Assert.Equal(id, detail.Summary.ReportId);
-        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
-        Assert.Contains(AdminAssistantController.PatrolReportNotFoundMessage, await missing.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Empty(await AuditsAsync(null, admin.Id, prefix: "AdminPatrol"));
-    }
-
     // ───────────────────────────── 工具 ─────────────────────────────
 
     /// <summary>請模型發一則測試通知（可復原的異動工具，分派到監控），停在核准。</summary>

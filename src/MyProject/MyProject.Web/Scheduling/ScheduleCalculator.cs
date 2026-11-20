@@ -26,6 +26,23 @@ public static class ScheduleCalculator
             ? jobOverride.Cron.Trim()
             : descriptor.DefaultCron;
 
+    /// <summary>
+    /// 作業實際使用的 cron（0.10.39 起）：<see cref="IScheduledJobCronOverride"/> 提供的優先（例如系統巡檢報告的時間在系統參數頁設定），
+    /// 其次是設定檔的覆寫，最後是預設。
+    /// </summary>
+    public static string GetEffectiveCron(ScheduledJobDescriptor descriptor, ScheduledJobSettings settings, IEnumerable<IScheduledJobCronOverride> overrides)
+    {
+        foreach (var provider in overrides)
+        {
+            if (provider.TryGetCron(descriptor.Name, out var cron) && !string.IsNullOrWhiteSpace(cron))
+            {
+                return cron.Trim();
+            }
+        }
+
+        return GetEffectiveCron(descriptor, settings);
+    }
+
     public static DateTime AsUtc(DateTime value)
         => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 

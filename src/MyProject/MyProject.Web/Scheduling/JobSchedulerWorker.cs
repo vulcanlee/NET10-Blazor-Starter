@@ -31,6 +31,7 @@ public sealed class JobSchedulerWorker : BackgroundService
     private readonly IOptionsMonitor<ScheduledJobSettings> options;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<JobSchedulerWorker> logger;
+    private readonly IReadOnlyList<IScheduledJobCronOverride> cronOverrides;
 
     private readonly Dictionary<string, PendingSlot> pendingSlots = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Task> manualRuns = [];
@@ -45,7 +46,8 @@ public sealed class JobSchedulerWorker : BackgroundService
         ScheduledJobTriggerQueue triggerQueue,
         IOptionsMonitor<ScheduledJobSettings> options,
         TimeProvider timeProvider,
-        ILogger<JobSchedulerWorker> logger)
+        ILogger<JobSchedulerWorker> logger,
+        IEnumerable<IScheduledJobCronOverride>? cronOverrides = null)
     {
         this.descriptors = descriptors.ToList();
         this.runner = runner;
@@ -54,6 +56,7 @@ public sealed class JobSchedulerWorker : BackgroundService
         this.options = options;
         this.timeProvider = timeProvider;
         this.logger = logger;
+        this.cronOverrides = cronOverrides?.ToList() ?? [];
         lastGoodSettings = options.CurrentValue;
     }
 
@@ -167,7 +170,7 @@ public sealed class JobSchedulerWorker : BackgroundService
         var settings = CurrentSettings();
         foreach (var descriptor in descriptors)
         {
-            var cronText = ScheduleCalculator.GetEffectiveCron(descriptor, settings);
+            var cronText = ScheduleCalculator.GetEffectiveCron(descriptor, settings, cronOverrides);
             if (!pendingSlots.TryGetValue(descriptor.Name, out var pending) || pending.Cron != cronText)
             {
                 // 第一次、或設定改了執行時間：從現在重新排，不追溯。
@@ -204,7 +207,7 @@ public sealed class JobSchedulerWorker : BackgroundService
                 }
 
                 // 由排程器自己的執行環境啟動並追蹤，關機時 StopAsync 會等它。
-                var task = RunManualAsync(descriptor, request.Account, request.UserId, stoppingToken);
+                var task = RunManualAsync(descriptor, request.Account, request.UserId, request.Arguments, stoppingToken);
                 lock (manualRunsLock)
                 {
                     manualRuns.RemoveAll(t => t.IsCompleted);
@@ -218,11 +221,11 @@ public sealed class JobSchedulerWorker : BackgroundService
         }
     }
 
-    private async Task RunManualAsync(ScheduledJobDescriptor descriptor, string? account, int? userId, CancellationToken stoppingToken)
+    private async Task RunManualAsync(ScheduledJobDescriptor descriptor, string? account, int? userId, string? arguments, CancellationToken stoppingToken)
     {
         try
         {
-            await RunSafelyAsync(descriptor, JobRunTriggers.Manual, null, stoppingToken, account, userId);
+            await RunSafelyAsync(descriptor, JobRunTriggers.Manual, null, stoppingToken, account, userId, arguments);
         }
         finally
         {
@@ -230,11 +233,11 @@ public sealed class JobSchedulerWorker : BackgroundService
         }
     }
 
-    private async Task RunSafelyAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? slotUtc, CancellationToken cancellationToken, string? account = null, int? userId = null)
+    private async Task RunSafelyAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? slotUtc, CancellationToken cancellationToken, string? account = null, int? userId = null, string? arguments = null)
     {
         try
         {
-            await runner.RunAsync(descriptor, trigger, slotUtc, account, cancellationToken, userId);
+            await runner.RunAsync(descriptor, trigger, slotUtc, account, cancellationToken, userId, arguments);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -249,7 +252,7 @@ public sealed class JobSchedulerWorker : BackgroundService
 
     private void Reschedule(ScheduledJobDescriptor descriptor, ScheduledJobSettings settings, DateTime fromUtc)
     {
-        var cronText = ScheduleCalculator.GetEffectiveCron(descriptor, settings);
+        var cronText = ScheduleCalculator.GetEffectiveCron(descriptor, settings, cronOverrides);
         DateTime? next = TryGetCron(descriptor, settings, out var cron)
             ? ScheduleCalculator.NextOccurrenceUtc(cron, fromUtc, timeProvider.LocalTimeZone)
             : null;
@@ -258,7 +261,7 @@ public sealed class JobSchedulerWorker : BackgroundService
 
     private bool TryGetCron(ScheduledJobDescriptor descriptor, ScheduledJobSettings settings, out CronExpression cron)
     {
-        if (ScheduleCalculator.TryParse(ScheduleCalculator.GetEffectiveCron(descriptor, settings), out var parsed))
+        if (ScheduleCalculator.TryParse(ScheduleCalculator.GetEffectiveCron(descriptor, settings, cronOverrides), out var parsed))
         {
             cron = parsed!;
             return true;

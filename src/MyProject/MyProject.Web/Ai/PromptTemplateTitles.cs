@@ -18,6 +18,7 @@ public static class PromptTemplateTitles
         PromptTemplateKeys.AdminAssistantMonitoring => "管理助理／監控與診斷",
         PromptTemplateKeys.AdminAssistantAi => "管理助理／AI 管理",
         PromptTemplateKeys.AdminAssistantOps => "管理助理／系統設定與維運",
+        PromptTemplateKeys.SystemReport => "系統巡檢報告",
         _ => key,
     };
 }

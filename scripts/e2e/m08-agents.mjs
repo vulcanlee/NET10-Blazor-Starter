@@ -1,7 +1,7 @@
 // WASM 遷移 M8（0.10.7）的實機情境（真實模型）：系統管理助理在 WebAssembly 執行，對話每個請求接續一次；通知推播串流。
 // 0.10.22 起 Agent 測試台與 Agent 工作流程移除，原本的 M8-G1～G5 一併拿掉（共用的對話流程由 AgentConversationApiTests 守門）。
 // 系統管理助理不可復原動作要輸入「確認」、
-// 巡檢報告連結、推播 2 秒內到達，最後跑全部路由的煙霧測試。參數 nopush：只跑「關閉推播仍可輪詢」（主機要以 NotificationSettings__PushEnabled=false 啟動）。
+// 系統巡檢報告連結（0.10.39 起）、推播 2 秒內到達，最後跑全部路由的煙霧測試。參數 nopush：只跑「關閉推播仍可輪詢」（主機要以 NotificationSettings__PushEnabled=false 啟動）。
 // 結果寫到 E2E_OUT_DIR/m08-results.json（nopush 模式為 m08-nopush-results.json）與 smoke-results.json。
 import { apiAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
 import { closeToasts, watchErrors } from './crud-ui.mjs';
@@ -85,15 +85,16 @@ async function runAgents(browser) {
     return '未輸入時核准停用，輸入後可按；按拒絕';
   });
 
-  await step('M8-G7', '巡檢報告：排程巡檢產生報告，網址 ?patrolReport= 直接打開', async () => {
+  // 0.10.39 起定時巡檢由「系統巡檢日報」取代，報告在 /system-reports（舊連結 ?patrolReport= 轉到那裡）。
+  await step('M8-G7', '巡檢報告：系統巡檢日報產生報告，網址 ?report= 直接打開', async () => {
     await closeToasts(page);
-    const before = query('SELECT COUNT(*) AS N FROM AdminPatrolReport')[0].N;
-    const status = await apiAsPageUser(page, '/api/v1/scheduled-jobs/AdminPatrol/trigger', { method: 'POST' });
-    check(status === 200, `觸發巡檢：${status}`);
-    await waitFor(() => query('SELECT COUNT(*) AS N FROM AdminPatrolReport')[0].N > before, 600000, '巡檢沒有產生報告');
-    const id = query('SELECT ReportId FROM AdminPatrolReport ORDER BY Id DESC LIMIT 1')[0].ReportId;
-    await page.goto(`/admin-assistant?patrolReport=${id}`);
-    await page.waitForSelector('.admin-patrol-report-modal .ant-modal-content', { state: 'visible', timeout: 60000 });
+    const before = query('SELECT COUNT(*) AS N FROM SystemReport')[0].N;
+    const status = await apiAsPageUser(page, '/api/v1/scheduled-jobs/SystemReportDaily/trigger', { method: 'POST' });
+    check(status === 200, `觸發日報：${status}`);
+    await waitFor(() => query('SELECT COUNT(*) AS N FROM SystemReport')[0].N > before, 600000, '日報沒有產生報告');
+    const id = query('SELECT ReportId FROM SystemReport ORDER BY Id DESC LIMIT 1')[0].ReportId;
+    await page.goto(`/system-reports?report=${id}`);
+    await page.waitForSelector('.system-report-modal .ant-modal-content', { state: 'visible', timeout: 60000 });
     await page.waitForTimeout(1500);
     await screenshot(page, 'm08-g7-巡檢報告');
     return `報告 ${id}`;

@@ -16,7 +16,7 @@ namespace MyProject.Web.Controllers;
 /// 系統管理助理（/admin-assistant）的 Web API（0.10.7 起，WASM 遷移 M8），只限管理員（權限鍵刻意不進角色矩陣）。
 /// 對話流程見 <see cref="AgentConversationEndpoint"/>：每則訊息先分派領域（<see cref="AdminAssistantTurnPlanner"/>），
 /// 停在核准的對話接續時沿用提出核准的那一輪（存在對話的 TurnKey），不會變成「全部工具＋全部領域」。
-/// 巡檢報告（全體管理員共用）也在這裡；看報告不寫稽核（同 Server 版）。
+/// 巡檢報告 0.10.39 起改由「系統巡檢報告」頁的 API（<see cref="SystemReportsController"/>）提供。
 /// </summary>
 [Route("api/v1/admin-assistant")]
 [ApiController]
@@ -24,12 +24,9 @@ namespace MyProject.Web.Controllers;
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public sealed class AdminAssistantController : ControllerBase
 {
-    public const string PatrolReportNotFoundMessage = "找不到這份巡檢報告，可能已超過保存期限被清除。";
-
     private readonly AgentConversationEndpoint endpoint;
     private readonly IAiAgentRunner runner;
     private readonly AiAgentConversationService conversationService;
-    private readonly AdminPatrolReportService reportService;
     private readonly ILogger<AdminAssistantController> logger;
     private readonly AgentConversationProfile profile;
 
@@ -38,13 +35,11 @@ public sealed class AdminAssistantController : ControllerBase
         IAiAgentRunner runner,
         AdminAssistantTurnPlanner planner,
         AiAgentConversationService conversationService,
-        AdminPatrolReportService reportService,
         ILogger<AdminAssistantController> logger)
     {
         this.endpoint = endpoint;
         this.runner = runner;
         this.conversationService = conversationService;
-        this.reportService = reportService;
         this.logger = logger;
         profile = new AgentConversationProfile
         {
@@ -92,30 +87,4 @@ public sealed class AdminAssistantController : ControllerBase
     [HttpPost("conversations/{id:guid}/approvals")]
     [AdminOnly]
     public Task<IActionResult> Respond(Guid id, [FromBody] AgentApprovalResponseRequestDto request) => endpoint.RespondAsync(this, profile, id, request);
-
-    /// <summary>巡檢報告清單（最新在前）與保存天數。</summary>
-    [HttpGet("patrol-reports")]
-    [AdminOnly]
-    public async Task<ActionResult<ApiResult<AdminPatrolReportListDto>>> PatrolReports()
-        => Ok(ApiResult<AdminPatrolReportListDto>.SuccessResult(new AdminPatrolReportListDto
-        {
-            RetentionDays = reportService.RetentionDays,
-            Items = (await reportService.ListAsync()).Select(AgentDtoMapper.ToDto).ToList(),
-        }));
-
-    /// <summary>一份巡檢報告（內文 Markdown 由畫面消毒）；找不到 404（通知連結的報告可能已過期）。</summary>
-    [HttpGet("patrol-reports/{id:guid}")]
-    [AdminOnly]
-    public async Task<ActionResult<ApiResult<AdminPatrolReportDetailDto>>> PatrolReport(Guid id)
-    {
-        if (await reportService.GetAsync(id) is not { } detail)
-        {
-            logger.LogInformation("Admin patrol report not found. ReportId={ReportId}", id);
-            var body = ApiResult<AdminPatrolReportDetailDto>.NotFoundResult(PatrolReportNotFoundMessage);
-            body.TraceId = HttpContext.TraceIdentifier;
-            return NotFound(body);
-        }
-
-        return Ok(ApiResult<AdminPatrolReportDetailDto>.SuccessResult(AgentDtoMapper.ToDto(detail)));
-    }
 }

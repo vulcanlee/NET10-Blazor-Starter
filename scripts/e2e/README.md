@@ -55,6 +55,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    node ./scripts/e2e/browser-reports.mjs   # 前端錯誤與事件回報 B1～B8（0.10.36 起；讀隔離資料夾的資料庫與日誌檔）
    node ./scripts/e2e/client-diagnostics.mjs # 前端診斷記錄 D1～D6（0.10.37 起；會建一個一般帳號，讀隔離資料夾的資料庫與日誌檔）
+   node ./scripts/e2e/system-reports.mjs    # 系統巡檢報告 R1～R7（0.10.39 起；會產生一份昨天的日報，讀隔離資料夾的資料庫）
    ```
 
 | 環境變數 | 說明 |
@@ -81,7 +82,7 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 **M7 的備份檔（0.10.6 起）**：`m07-views.mjs` 在隔離資料夾底下的 `Backup` 目錄（`E2E_DB_FILE` 往上兩層，即 `Start-E2EHost.ps1` 設定的 `BackupPath`）放兩個空的 zip（`backup-20261101-090000.zip`、`backup-20261101-100000-2.zip`），並佈置三則固定公告與一般使用者 `e2e-m7-user`；同一個資料庫可以重跑。`m07-ops.mjs` 的立即備份會真的執行系統備份作業。結果寫到 `m07-results.json`。
 
-**M8 的 Agent 與推播情境（0.10.7 起）**：`m08-agents.mjs` 呼叫真實模型（同 M6，金鑰照常讀 User Secrets），會產生測試專案、以排程觸發一次「系統管理助理巡檢」（最多等 10 分鐘），整體要跑好幾分鐘。真實模型常會先回問「請確認是否要修改？」才呼叫寫入工具，腳本遇到時會回答「確認」再等核准窗。
+**M8 的 Agent 與推播情境（0.10.7 起）**：`m08-agents.mjs` 呼叫真實模型（同 M6，金鑰照常讀 User Secrets），會產生測試專案、以排程觸發一次「系統巡檢日報」（0.10.39 起取代「系統管理助理巡檢」；最多等 10 分鐘），整體要跑好幾分鐘。真實模型常會先回問「請確認是否要修改？」才呼叫寫入工具，腳本遇到時會回答「確認」再等核准窗。
 `nopush` 參數只跑「關閉推播仍可輪詢」（M8-N1：另一個瀏覽器的鈴鐺在 75 秒內由輪詢更新），主機要以關閉推播啟動：
 
 ```powershell

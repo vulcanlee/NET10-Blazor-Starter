@@ -90,6 +90,8 @@ public sealed class DataRetentionOverviewService
     private readonly AiCallLogService aiCallLogService;
     private readonly AiAgentConversationService agentConversationService;
     private readonly AdminPatrolReportService adminPatrolReportService;
+    private readonly SystemReportService systemReportService;
+    private readonly CapacitySnapshotService capacitySnapshotService;
     private readonly AuditLogQueryService auditLogQueryService;
     private readonly NotificationQueryService notificationQueryService;
     private readonly EmailOutboxQueryService emailOutboxQueryService;
@@ -116,6 +118,8 @@ public sealed class DataRetentionOverviewService
         AiCallLogService aiCallLogService,
         AiAgentConversationService agentConversationService,
         AdminPatrolReportService adminPatrolReportService,
+        SystemReportService systemReportService,
+        CapacitySnapshotService capacitySnapshotService,
         AuditLogQueryService auditLogQueryService,
         NotificationQueryService notificationQueryService,
         EmailOutboxQueryService emailOutboxQueryService,
@@ -141,6 +145,8 @@ public sealed class DataRetentionOverviewService
         this.aiCallLogService = aiCallLogService;
         this.agentConversationService = agentConversationService;
         this.adminPatrolReportService = adminPatrolReportService;
+        this.systemReportService = systemReportService;
+        this.capacitySnapshotService = capacitySnapshotService;
         this.auditLogQueryService = auditLogQueryService;
         this.notificationQueryService = notificationQueryService;
         this.emailOutboxQueryService = emailOutboxQueryService;
@@ -185,6 +191,7 @@ public sealed class DataRetentionOverviewService
         rows.Add(await RowAsync("ai-call-log", "AI 對話紀錄", () => AiCallLogRowAsync(jobByName, aiFolder)));
         rows.Add(await RowAsync("agent-conversation", "Agent 對話", () => AgentConversationRowAsync(jobByName, agentFolder)));
         rows.Add(await RowAsync("admin-patrol-report", "巡檢報告", () => AdminPatrolReportRowAsync(jobByName, patrolFolder)));
+        rows.Add(await RowAsync("capacity-snapshot", "容量快照", () => CapacitySnapshotRowAsync(jobByName)));
         rows.Add(await RowAsync("audit-log", "稽核紀錄", () => AuditLogRowAsync(jobByName, auditFolder)));
         rows.Add(await RowAsync("notification", "站內通知", () => NotificationRowAsync(jobByName)));
         rows.Add(await RowAsync("email-log", "寄信紀錄", () => EmailLogRowAsync(jobByName)));
@@ -422,25 +429,48 @@ public sealed class DataRetentionOverviewService
     }
 
     /// <summary>
-    /// 定時巡檢報告（0.9.161 起）。內容檔放在 Agent 對話目錄底下的 AdminPatrol 子目錄，所以「Agent 對話」那一列的資料夾大小也包含它。
+    /// 巡檢報告（0.9.161 起；0.10.39 起是系統巡檢報告加上還沒過期的舊版巡檢報告，兩者用同一個保留天數、同一個清理作業）。
+    /// 內容檔放在 Agent 對話目錄底下的 AdminPatrol 子目錄，所以「Agent 對話」那一列的資料夾大小也包含它。
     /// 沒有自訂清除（報告小、一天一份，依天數過期就夠了）。
     /// </summary>
     private async Task<DataRetentionRow> AdminPatrolReportRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName, Task<FolderUsage> folder)
     {
-        var stats = await adminPatrolReportService.GetRetentionStatsAsync(timeProvider.GetLocalNow().DateTime);
+        var now = timeProvider.GetLocalNow().DateTime;
+        var current = await systemReportService.GetRetentionStatsAsync(now);
+        var legacy = await adminPatrolReportService.GetRetentionStatsAsync(now);
+        DateTime? oldest = current.Oldest is { } a && legacy.Oldest is { } b ? (a < b ? a : b) : current.Oldest ?? legacy.Oldest;
         return WithJob(new DataRetentionRow
         {
             Key = "admin-patrol-report",
             Label = "巡檢報告",
-            Note = "系統管理助理的定時巡檢，連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」",
-            Count = stats.Total,
+            Note = "系統巡檢報告（含舊版巡檢報告），連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」",
+            Count = current.Total + legacy.Total,
             CountUnit = "份",
             Folder = await folder,
+            OldestLocal = oldest,
+            RuleText = $"產出後保留 {systemReportService.DailyRetentionDays} 天",
+            ParameterGroup = SystemParameterCatalog.GroupRetention,
+            Expected = (current.Expired ?? 0) + (legacy.Expired ?? 0),
+            ManageUrl = "/system-reports",
+            CanCustomPurge = false,
+        }, AdminPatrolReportRetentionJob.JobName, jobByName.GetValueOrDefault(AdminPatrolReportRetentionJob.JobName), ruleActive: true);
+    }
+
+    /// <summary>容量快照（0.10.39 起）：一天一份，由「巡檢報告與容量快照清理」作業依保留天數刪除；沒有檔案、沒有自訂清除。</summary>
+    private async Task<DataRetentionRow> CapacitySnapshotRowAsync(Dictionary<string, ScheduledJobOverviewItem> jobByName)
+    {
+        var stats = await capacitySnapshotService.GetRetentionStatsAsync(timeProvider.GetLocalNow().DateTime);
+        return WithJob(new DataRetentionRow
+        {
+            Key = "capacity-snapshot",
+            Label = "容量快照",
+            Note = "每天記一次的磁碟與資料目錄用量，系統巡檢報告用來預估「幾天後用完」",
+            Count = stats.Total,
             OldestLocal = stats.Oldest,
-            RuleText = $"產出後保留 {adminPatrolReportService.RetentionDays} 天",
+            RuleText = $"保留 {capacitySnapshotService.RetentionDays} 天",
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = stats.Expired,
-            ManageUrl = "/admin-assistant",
+            ManageUrl = "/system-reports",
             CanCustomPurge = false,
         }, AdminPatrolReportRetentionJob.JobName, jobByName.GetValueOrDefault(AdminPatrolReportRetentionJob.JobName), ruleActive: true);
     }

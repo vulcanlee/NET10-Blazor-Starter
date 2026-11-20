@@ -21,6 +21,13 @@ namespace MyProject.Web.Health;
 public interface ISystemHealthService
 {
     Task<SystemHealthReport> GetReportAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 不花錢、不對外連線的檢查項目（0.10.39 起，給系統巡檢報告）：略過 LLM API 探測（會計費）與寄信伺服器登入，
+    /// 其餘 12 項照常檢查。AI 與寄信的健康改由報告從實際的呼叫與寄信紀錄判斷。
+    /// ⚠️ 項目的 <see cref="SystemHealthItem.Evidence"/> 含路徑與設定值，不可以放進報告內容。
+    /// </summary>
+    Task<IReadOnlyList<SystemHealthItem>> GetPassiveItemsAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class SystemHealthService : ISystemHealthService
@@ -130,6 +137,23 @@ public sealed class SystemHealthService : ISystemHealthService
             Items = items
         };
     }
+
+    public async Task<IReadOnlyList<SystemHealthItem>> GetPassiveItemsAsync(CancellationToken cancellationToken = default)
+        =>
+        [
+            CheckApplication(),
+            CheckApi(),
+            await CheckDatabaseAsync(cancellationToken),
+            CheckLogging(),
+            CheckAuthentication(),
+            CheckFileSystem(),
+            CheckHostResources(),
+            CheckSecuritySettings(),
+            await CheckCacheAsync(cancellationToken),
+            CheckAiPricing(),
+            CheckLoggingPipeline(),
+            await CheckScheduledJobsAsync(),
+        ];
 
     private SystemHealthItem CheckApplication()
     {

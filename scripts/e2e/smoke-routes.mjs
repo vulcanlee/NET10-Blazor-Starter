@@ -9,7 +9,7 @@ export const authenticatedRoutes = [
   '/projects', '/categories', '/teams', '/myusers', '/roleviews', '/audit-logs', '/email-logs',
   '/logs', '/log-level-setting', '/system-exceptions', '/ai-call-logs', '/token-usage', '/prompt-templates',
   '/system-health', '/database-usage', '/scheduled-jobs', '/backups', '/data-retention', '/system-parameters', '/announcements',
-  '/admin-assistant', '/Error', '/not-found',
+  '/admin-assistant', '/system-reports', '/Error', '/not-found',
 ];
 
 export const anonymousRoutes = ['/Auths/Login', '/Auths/ForgotPassword', '/Auths/ResetPassword', '/Auths/Pending', '/Auths/TwoFactor'];

@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.131
+- 文件版本：6.132
 - 文件狀態：維護中
-- 現行系統版本：0.10.38
+- 現行系統版本：0.10.39
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/18
+- 最後核對日期：2026/11/20
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 系統巡檢報告 M1（使用者 2026/11/20 要求定時巡檢報告與 PDF 分析報告寄給管理員，分四個里程碑）：新頁面 `/system-reports`（只限管理員）每天一份有燈號的日報——燈號由 `SystemReportRules` 程式規則判定（紅＝已發生、橙＝即將發生有期限、黃＝注意、綠＝正常），涵蓋健康（被動模式）、錯誤、排程、備份、容量、寄信、AI、安全；全面摘要＋每一項「不處理會怎樣／怎麼處理／處理完會怎樣」；新增「容量快照」排程與 `CapacitySnapshot` 表做線性預估與擴充建議；AI 只寫說明（第 9 份提示詞「系統巡檢報告」，輸入去識別，說明不進通知與 Email）；新排程「系統巡檢日報」時間由系統參數經 `IScheduledJobCronOverride` 提供，紅燈或橙燈才通知所有管理員；移除「系統管理助理巡檢」（`RetiredJobNames`），清理作業改名「巡檢報告與容量快照清理」；系統參數新分類「系統巡檢報告」與兩個保留天數，`SystemReportSettings` 取代 `AdminPatrolSettings`；API `api/v1/system-reports`（移除 admin-assistant 的 patrol-reports）；PDF 與附件在 M2（0.10.39）| [2026-11-20-系統巡檢報告M1](2026-11-20-系統巡檢報告M1.md) |
 | 前後端日誌等級稽核（使用者要求前後端都檢視哪些該用 Debug／Trace）：依 PRD §三 修正 75 處 —— 後端併發衝突與寫入查無資料 27 處（＋CRUD 產生器樣板 4 處）從 Information 改 Warning（0.9.93 起寫錯）、欄位驗證失敗 6 處從 Warning 改 Information、純讀取與用戶端取消 2 處改 Debug；前端搜尋、重新整理、開視窗等 32 處從 Information 改 Debug、畫面狀態 3 處改 Trace、找不到頁面改 Information；`LoggingConventionTests` 新增兩條依訊息寫法的守門（各至少比對 20 處）；PRD §3.4 補 WASM 前端事件目錄（0.10.38）| [2026-11-18-日誌等級稽核](2026-11-18-日誌等級稽核.md) |
 | 前端診斷記錄（延續 0.10.36，使用者問 Console 的訊息哪些該用 Debug／Trace 記）：管理員在「日誌等級設定」頁輸入帳號、選 DEBUG／TRACE 與時間（15 分鐘～8 小時），那位使用者的 API 回應帶 `X-Client-Diagnostics`，前端 `ClientDiagnosticsLoggerProvider` 把本專案的日誌批次送 `shell/diagnostic-logs`，伺服器以原等級寫到 `MyProject.Browser.*`（nlog.config 專屬規則、final，不受 `*` 等級影響），不帶例外物件；只存記憶體、到期自動關閉、開啟與關閉寫稽核；使用者畫面底部提示「系統管理員已開啟診斷記錄（至 HH:mm）」；`ApiClient`、`ClientRoutes` 加 Trace 操作軌跡；實機 `client-diagnostics.mjs` 6 項通過（0.10.37）| [2026-11-18-前端診斷記錄](2026-11-18-前端診斷記錄.md) |
 | 前端錯誤捕捉補強（使用者 2026/11/18 詢問前端出事能不能留紀錄）：原本只回報登入後的 JS 錯誤與元件例外；0.10.36 起 `js/client-error-reporter.js` 排在所有腳本之前、先存 localStorage、登入後批次送 `client-reports`，補上登入前、WASM 啟動失敗（.NET 11 下載失敗是未處理的 Promise 拒絕，`started()` 之前一律記 `boot`）、頁面 catch 到的例外（`UnexpectedError` 回報、通知附它自己的追蹤碼）、錯誤邊界以外的框架例外；連線中斷（一段一筆，有網路 Warning、離線 Information）、資源載入失敗與 CSP 違規 Warning、只寫日誌檔；錯誤附前端指紋、伺服器版本、UA、最近 20 筆換頁與 API 呼叫（伺服器組文字、不影響簽章）；每個回應帶 `X-Trace-Code`；頁面錯誤邊界移到內容區、換頁復原；實機 `browser-reports.mjs` 8 項通過（0.10.36）| [2026-11-18-前端錯誤捕捉補強](2026-11-18-前端錯誤捕捉補強.md) |

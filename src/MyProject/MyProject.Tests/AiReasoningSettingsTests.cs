@@ -56,7 +56,7 @@ public sealed class AiReasoningSettingsTests
     [Fact]
     public void EveryResponsesAgent_ShouldHaveItsOwnReasoningSetting()
     {
-        var keys = new[] { AdminAssistantAgent.Home.ModelKey, AdminAssistantAgent.ScheduledPatrol.ModelKey }
+        var keys = new[] { AdminAssistantAgent.Home.ModelKey }
             .Distinct()
             .ToArray();
 

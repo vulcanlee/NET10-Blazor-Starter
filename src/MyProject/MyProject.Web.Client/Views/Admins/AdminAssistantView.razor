@@ -74,9 +74,9 @@ else
                     }
                 </div>
                 <div class="agent-playground-actions">
-                    @* 巡檢報告（0.9.161 起）：定時巡檢的歷史報告，不需要 AI 可用也能看。 *@
+                    @* 巡檢報告（0.10.39 起連到「系統巡檢報告」頁），不需要 AI 可用也能看。 *@
                     <ToolbarIconButton Title="巡檢報告" Icon="fact_check"
-                                       OnClick="@(async () => await OnOpenPatrolReportsAsync())" />
+                                       OnClick="OnOpenSystemReports" />
                     <ToolbarIconButton Title="新對話" Icon="add_comment"
                                        Disabled="@(unavailableReason is not null || IsBusy)"
                                        OnClick="OnNewConversation" />
@@ -235,7 +235,6 @@ else
         </div>
     </Modal>
 
-    <AdminPatrolReportsModal @ref="patrolReportsModal" />
 
     @* 重新命名：只有一個欄位（標題只給本人看，改了不寫稽核）。寬度沿用全域樣式 .agent-playground-rename-modal（class 名稱沿用自 0.10.21 前的 Agent 測試台）。 *@
     <Modal Title="重新命名對話"

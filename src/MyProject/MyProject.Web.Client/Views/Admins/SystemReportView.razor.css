@@ -1,0 +1,48 @@
+/* 系統巡檢報告（0.10.39 起）的清單頁與「立即產生」視窗內容。視窗尺寸在 OverlayStyles.razor 的 .system-report-generate-modal。 */
+
+.system-report-toolbar {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.system-report-toolbar-left,
+.system-report-toolbar-right {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.system-report-range-separator {
+    color: var(--app-muted);
+}
+
+.system-report-alert {
+    font-size: 0.88rem;
+    margin-bottom: 0.75rem;
+}
+
+/* 欄位多，窄螢幕一定會超出，讓表格自己橫向捲動而不是把整頁撐寬。 */
+.system-report-table-wrap {
+    overflow-x: auto;
+}
+
+.system-report-generate-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.system-report-generate-label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.system-report-generate-hint {
+    font-size: 13px;
+    color: var(--app-muted);
+}

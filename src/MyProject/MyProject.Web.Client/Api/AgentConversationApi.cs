@@ -43,15 +43,11 @@ public abstract class AgentConversationApi
         => api.StreamAsync($"{baseUrl}/conversations/{conversationId}/approvals", request, onFrame, cancellationToken);
 }
 
-/// <summary>系統管理助理（<c>api/v1/admin-assistant</c>，只限管理員）：另有巡檢報告。</summary>
+/// <summary>系統管理助理（<c>api/v1/admin-assistant</c>，只限管理員）。巡檢報告 0.10.39 起改由 <see cref="SystemReportApi"/> 讀。</summary>
 public sealed class AdminAssistantApi : AgentConversationApi
 {
     public AdminAssistantApi(ApiClient api)
         : base(api, "api/v1/admin-assistant")
     {
     }
-
-    public Task<ApiResult<AdminPatrolReportListDto>> PatrolReportsAsync() => Api.GetAsync<AdminPatrolReportListDto>($"{BaseUrl}/patrol-reports");
-
-    public Task<ApiResult<AdminPatrolReportDetailDto>> PatrolReportAsync(Guid reportId) => Api.GetAsync<AdminPatrolReportDetailDto>($"{BaseUrl}/patrol-reports/{reportId}");
 }

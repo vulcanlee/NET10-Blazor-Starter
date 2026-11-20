@@ -188,7 +188,8 @@ public sealed class OpsMutationToolsTests : IDisposable
     {
         var names = harness.Services.GetRequiredService<ScheduledJobOverviewService>().Descriptors.Select(job => job.Name).ToHashSet();
         // 稽核紀錄完整性檢查（0.9.175 起）只讀不刪，不是清除作業。
-        string[] allowed = ["SystemBackup", "PasswordExpiryReminder", "AdminPatrol", "AuditIntegrityVerify"];
+        // 系統巡檢日報與容量快照（0.10.39 起）產生報告與快照，不是清除作業。
+        string[] allowed = ["SystemBackup", "PasswordExpiryReminder", "AuditIntegrityVerify", "SystemReportDaily", "CapacitySnapshot"];
 
         Assert.Equal(names.Except(allowed).Order(), OpsAssistantTools.PurgeJobNames.Order());
     }

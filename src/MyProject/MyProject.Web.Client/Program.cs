@@ -90,6 +90,8 @@ public static class ClientProgram
         builder.Services.AddScoped<AnnouncementApi>();
         // 系統管理助理（0.10.7 起，WASM 遷移 M8；Agent 測試台與 Agent 工作流程 0.10.22 起已移除）。
         builder.Services.AddScoped<AdminAssistantApi>();
+        // 系統巡檢報告（0.10.39 起）。
+        builder.Services.AddScoped<SystemReportApi>();
         builder.Services.AddAntDesign();
 
         // AntDesign 的繁體中文語系（與 Server 版相同的補充翻譯）。

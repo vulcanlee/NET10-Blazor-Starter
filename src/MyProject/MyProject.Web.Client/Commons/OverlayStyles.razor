@@ -275,6 +275,42 @@
             overflow: hidden !important;
         }
 
+    /* 系統巡檢報告的內容視窗（0.10.39 起）：內容長，視窗內自己捲動。窗內樣式在 SystemReportDetailModal.razor.css。 */
+    .system-report-modal {
+        width: 92vw !important;
+        max-width: 1280px !important;
+        top: 2vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
+        .system-report-modal .ant-modal-content {
+            height: 96vh !important;
+            max-height: 96vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        .system-report-modal .ant-modal-header {
+            flex-shrink: 0;
+        }
+
+        .system-report-modal .ant-modal-body {
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+
+    /* 系統巡檢報告的「立即產生」視窗（0.10.39 起）。窗內樣式在 SystemReportView.razor.css。 */
+    .system-report-generate-modal {
+        width: 520px !important;
+        max-width: 92vw !important;
+        top: 12vh !important;
+        padding-bottom: 0 !important;
+        margin: 0 auto !important;
+    }
+
     /* 資料頁的「異動歷程」（0.9.173 起）：清單與明細各自捲動，body 本身不捲。窗內樣式在 AuditHistoryDialog.razor.css。 */
     .audit-history-modal {
         width: 86vw !important;

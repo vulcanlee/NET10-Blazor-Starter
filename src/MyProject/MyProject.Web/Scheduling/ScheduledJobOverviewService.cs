@@ -17,6 +17,7 @@ public sealed class ScheduledJobOverviewService
     private readonly IOptionsMonitor<ScheduledJobSettings> options;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<ScheduledJobOverviewService> logger;
+    private readonly IReadOnlyList<IScheduledJobCronOverride> cronOverrides;
 
     public ScheduledJobOverviewService(
         IEnumerable<ScheduledJobDescriptor> descriptors,
@@ -24,7 +25,8 @@ public sealed class ScheduledJobOverviewService
         ScheduledJobTriggerQueue triggerQueue,
         IOptionsMonitor<ScheduledJobSettings> options,
         TimeProvider timeProvider,
-        ILogger<ScheduledJobOverviewService> logger)
+        ILogger<ScheduledJobOverviewService> logger,
+        IEnumerable<IScheduledJobCronOverride>? cronOverrides = null)
     {
         this.descriptors = descriptors.ToList();
         this.runService = runService;
@@ -32,6 +34,7 @@ public sealed class ScheduledJobOverviewService
         this.options = options;
         this.timeProvider = timeProvider;
         this.logger = logger;
+        this.cronOverrides = cronOverrides?.ToList() ?? [];
     }
 
     public IReadOnlyList<ScheduledJobDescriptor> Descriptors => descriptors;
@@ -60,7 +63,7 @@ public sealed class ScheduledJobOverviewService
 
         var items = descriptors.Select(descriptor =>
         {
-            var cron = ScheduleCalculator.GetEffectiveCron(descriptor, settings);
+            var cron = ScheduleCalculator.GetEffectiveCron(descriptor, settings, cronOverrides);
             var state = states.GetValueOrDefault(descriptor.Name);
             var isEnabled = state?.IsEnabled ?? true;
             DateTime? nextRunLocal = null;
@@ -105,8 +108,9 @@ public sealed class ScheduledJobOverviewService
         => runService.SetEnabledAsync(RequireDescriptor(jobName).Name, enabled, account, timeProvider.GetUtcNow().UtcDateTime);
 
     /// <summary>放入「立即執行」請求；同一個作業已在佇列或執行中時回 false。</summary>
-    public bool TryTrigger(string jobName, string? account, int? userId = null)
-        => triggerQueue.TryEnqueue(RequireDescriptor(jobName).Name, account, userId);
+    /// <param name="arguments">作業參數（0.10.39 起）；「排程作業」頁的立即執行不帶參數。</param>
+    public bool TryTrigger(string jobName, string? account, int? userId = null, string? arguments = null)
+        => triggerQueue.TryEnqueue(RequireDescriptor(jobName).Name, account, userId, arguments);
 
     public DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(ScheduleCalculator.AsUtc(utc), timeProvider.LocalTimeZone);
 

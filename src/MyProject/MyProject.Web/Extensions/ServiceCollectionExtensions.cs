@@ -273,11 +273,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiAgentConversationStore>(sp => sp.GetRequiredService<AiAgentConversationService>());
         #endregion
 
-        #region 定時巡檢報告（0.9.161 起）
-        // 執行器只給排程作業用（沒有登入的使用者時才肯跑，見 AdminPatrolRunner）；報告服務給作業與系統管理助理頁。
+        #region 系統巡檢報告（0.10.39 起，取代 0.9.161 的定時巡檢）
+        // 舊版巡檢報告（AdminPatrolReportService）只剩讀取與清理；新的報告由程式規則判燈號、AI 只寫說明。
         services.AddScoped<AdminPatrolReportFileStore>();
         services.AddScoped<AdminPatrolReportService>();
-        services.AddScoped<Ai.Agents.AdminAssistant.IAdminPatrolRunner, Ai.Agents.AdminAssistant.AdminPatrolRunner>();
+        services.AddScoped<SystemReportService>();
+        services.AddScoped<CapacitySnapshotService>();
+        services.AddScoped<SystemReportMetricsService>();
+        services.AddScoped<SystemReports.CapacityProbe>();
+        services.AddScoped<SystemReports.SystemReportCollector>();
+        services.AddScoped<SystemReports.SystemReportNarrator>();
+        services.AddScoped<SystemReports.SystemReportGenerator>();
+        services.AddScoped<SystemReports.SystemReportDelivery>();
+        // 日報的執行時間來自系統參數（排程器、驗證器與「排程作業」頁都讀它）。
+        services.AddSingleton<IScheduledJobCronOverride, SystemReports.SystemReportScheduleProvider>();
         #endregion
 
         #region 排程作業（0.9.96 起）
@@ -343,11 +352,14 @@ public static class ServiceCollectionExtensions
             RefreshSessionRetentionJob.JobName, "登入 Token 清理",
             "刪除已到期的登入 Token（刷新 Token）紀錄；已撤銷但還沒到期的會保留，用來偵測舊 Token 被重複使用。有效期由 JwtSettings.RefreshTokenDays 決定（預設 7 天）。", "0 3 * * *");
         services.AddScheduledJob<AdminPatrolReportRetentionJob>(
-            AdminPatrolReportRetentionJob.JobName, "巡檢報告清理",
-            "刪除產出超過保留天數的系統管理助理巡檢報告與內容檔（保留天數在「系統參數」頁設定，預設 90 天）。", "0 3 * * *");
-        services.AddScheduledJob<AdminPatrolJob>(
-            AdminPatrolJob.JobName, "系統管理助理巡檢",
-            "每天以系統管理助理巡檢一次系統（只用查詢工具，每次約 NT$ 3）；報告存在系統管理助理頁的「巡檢報告」，有「注意」或「異常」時通知所有管理員並寄信。AI 未設定時略過。", "30 7 * * *");
+            AdminPatrolReportRetentionJob.JobName, "巡檢報告與容量快照清理",
+            "刪除產出超過保留天數的系統巡檢報告（含舊版巡檢報告）與內容檔，以及過期的容量快照（天數在「系統參數」頁設定，預設 90 天與 730 天）。", "0 3 * * *");
+        services.AddScheduledJob<SystemReportDailyJob>(
+            SystemReportDailyJob.JobName, "系統巡檢日報",
+            "每天產生前一天的系統巡檢報告（燈號由程式判定，AI 只寫說明，沒有設定 AI 也照常產生）；有紅燈或橙燈時通知所有管理員並寄信。產生時間在「系統參數」頁設定（預設 07:30），報告在「系統巡檢報告」頁。", "30 7 * * *");
+        services.AddScheduledJob<CapacitySnapshotJob>(
+            CapacitySnapshotJob.JobName, "容量快照",
+            "記下各磁碟、資料庫與資料目錄的用量，系統巡檢報告用它預估「幾天後用完」。", "0 5 * * *");
         services.AddScheduledJob<SystemBackupJob>(
             SystemBackupJob.JobName, "系統備份",
             "備份資料庫、專案附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環到備份目錄，並依保留份數刪除較舊的備份（份數在「系統參數」頁設定，預設 7 份）。", "0 2 * * *");
@@ -414,8 +426,9 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddOptions<AdminPatrolSettings>()
-            .Bind(configuration.GetSection(AdminPatrolSettings.SectionName))
+        // 系統巡檢報告（0.10.39 起，取代 AdminPatrolSettings）；跨欄位規則在 IValidatableObject（DataAnnotations 一起跑）。
+        services.AddOptions<SystemReportSettings>()
+            .Bind(configuration.GetSection(SystemReportSettings.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 

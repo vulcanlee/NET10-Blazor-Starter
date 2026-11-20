@@ -138,7 +138,7 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 | 標註 | 什麼時候用 | 例 |
 | --- | --- | --- |
 | `[HasPermission(頁面鍵, 動作)]` | 屬於某個頁面、權限在角色矩陣裡 | 分類、團隊、專案（0.10.7 起的 Agent 測試台、Agent 工作流程 0.10.22 起已移除） |
-| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）；0.10.5 起日誌與 AI 管理頁；0.10.6 起維運頁（`scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`、公告管理）與首頁的「排程作業」小工具；0.10.7 起系統管理助理與巡檢報告（`admin-assistant`）|
+| `[AdminOnly]` | 只有管理員能用、權限鍵刻意不放進角色矩陣的頁面 | 使用者、角色、稽核紀錄、寄信紀錄（`api/v1/users`、`roles`、`audit-logs`、`email-logs`）；0.10.5 起日誌與 AI 管理頁；0.10.6 起維運頁（`scheduled-jobs`、`system-health`、`backups`、`data-retention`、`database-usage`、`system-parameters`、公告管理）與首頁的「排程作業」小工具；0.10.7 起系統管理助理（`admin-assistant`）；0.10.39 起系統巡檢報告（`system-reports`，含舊版巡檢報告）|
 | `[SignedInUser]` | 登入就能呼叫、刻意不檢查頁面權限（每個人只處理自己的東西）| 個人資料、WASM 外框、通知（0.10.7 起含推播串流 `notifications/stream`）、公告、`Auth/me`；0.10.8 起變更自己的密碼、兩步驟驗證設定 |
 | `[AllowAnonymous]` | 不需登入（自己另有憑證或只回公開資訊）| 登入、刷新、`shell/culture`、下載票證兌換；0.10.8 起登入頁設定、網頁登入、兩步驟驗證第二步、Google 代碼兌換、新分頁取得 Token（憑刷新 Token）、忘記／重設密碼 |
 

@@ -42,6 +42,7 @@ public sealed class MenuIconTests
         "settings",
         "backup",
         "auto_delete",
+        "assessment",
         "campaign",
         "smart_toy",
         "psychology",

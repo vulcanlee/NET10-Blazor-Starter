@@ -1,10 +1,10 @@
 ﻿# 資料保留與清理 PRD
 
-- 文件版本：1.11
+- 文件版本：1.12
 - 文件狀態：已實作
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.39
 - 首次實作版本：0.9.133
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/20
 
 ## 一、目標與範圍
 
@@ -14,7 +14,7 @@
 - **非範圍**：在這一頁修改保留天數（只在系統參數頁）；在這一頁挑選個別紀錄刪除（在各頁）；修改清理排程時間（設定檔）；日誌檔與公告的清理（日誌由 NLog 處理，公告不自動刪除，只顯示資訊）；Web API。
 
 0.9.134 起加上「自訂清除」：使用者自己選「只留最近 N 天」或「刪除某一天之前」，預覽後確認刪除，不改系統參數。
-0.9.143 起多一列「Agent 對話」（排在 AI 對話紀錄之後；0.10.22 起只有系統管理助理的對話）。0.9.161 起在「Agent 對話」之後多一列「巡檢報告」（系統管理助理的定時巡檢）。
+0.9.143 起多一列「Agent 對話」（排在 AI 對話紀錄之後；0.10.22 起只有系統管理助理的對話）。0.9.161 起在「Agent 對話」之後多一列「巡檢報告」（系統管理助理的定時巡檢）；0.10.39 起這一列是系統巡檢報告（含舊版巡檢報告），之後再多一列「容量快照」（見[系統巡檢報告 PRD](系統巡檢報告-prd.md)）。
 
 使用者決定（2026/10/21）：新增一頁、不擴充排程作業頁；每種資料一列，全部列出（已刪除資料分 5 列，共用一個排程）；顯示筆數、檔案空間、最舊一筆、下次會清掉幾筆；「立即清理」＋「前往」，系統備份只有「前往」；保留天數只顯示，連到系統參數修改。
 
@@ -27,15 +27,17 @@
 ## 三、畫面與欄位
 
 - 工具列：重新整理。排程總開關關閉、排程設定有誤時顯示警示。
-- 表格（固定 18 列，依序）：已刪除的專案／分類／團隊／使用者／角色、系統例外紀錄、Token 用量、AI 對話紀錄、Agent 對話（0.9.143 起）、巡檢報告（0.9.161 起）、稽核紀錄、站內通知、寄信紀錄（0.9.167 起）、登入 Token（0.10.0 起）、系統備份、排程執行紀錄、日誌檔、公告。
+- 表格（固定 19 列，依序；0.10.38 以前 18 列）：已刪除的專案／分類／團隊／使用者／角色、系統例外紀錄、Token 用量、AI 對話紀錄、Agent 對話（0.9.143 起）、巡檢報告（0.9.161 起）、容量快照（0.10.39 起）、稽核紀錄、站內通知、寄信紀錄（0.9.167 起）、登入 Token（0.10.0 起）、系統備份、排程執行紀錄、日誌檔、公告。
 - 欄位：資料（附一併處理的檔案）、目前數量、檔案空間、最舊一筆、保留規則（＋「修改」→ `/system-parameters?group=資料保留|備份`）、下次會清掉、自動清理（白話頻率、停用標籤、上次時間與結果訊息、下次執行；已刪除的後四列只註明與專案同一個排程）、操作（「立即清理」「自訂清除」「前往」，0.9.134 起固定在右側）。
-- 自訂清除窗（0.9.134 起，適用例外、Token、AI 對話、Agent 對話（0.9.143 起）、稽核、站內通知、寄信紀錄（0.9.167 起，「待寄」不刪）、排程執行紀錄與已刪除的五種；巡檢報告、登入 Token、備份、日誌檔、公告沒有）：二選一「只留最近 N 天」（1～3650）／「刪除這一天之前（不含當天，不可晚於今天）」，即時預覽會刪幾筆；「清除」→ 紅色確認 → 在頁面上同步刪除 → 通知刪了幾筆（已刪除資料附留下幾筆）。
+- 自訂清除窗（0.9.134 起，適用例外、Token、AI 對話、Agent 對話（0.9.143 起）、稽核、站內通知、寄信紀錄（0.9.167 起，「待寄」不刪）、排程執行紀錄與已刪除的五種；巡檢報告、容量快照、登入 Token、備份、日誌檔、公告沒有）：二選一「只留最近 N 天」（1～3650）／「刪除這一天之前（不含當天，不可晚於今天）」，即時預覽會刪幾筆；「清除」→ 紅色確認 → 在頁面上同步刪除 → 通知刪了幾筆（已刪除資料附留下幾筆）。
 - 一列讀取失敗只在那一列顯示「讀取失敗：例外類型」，其他列照常。
 - **WebAssembly（0.10.6 起，WASM 遷移 M7）**：頁面改在瀏覽器執行（`MyProject.Web.Client/Pages/DataRetentionPage.razor`、`Views/Admins/DataRetentionView.*`；Server 版已刪除），畫面與訊息和之前相同；開頁以 `Permissions.IsAdmin` 判斷。資料經只限管理員的 `DataRetentionController`（`api/v1/data-retention`：`GET` 總覽〔含伺服器的「今天」〕、`POST {種類}/purge-now`、`POST {種類}/preview`、`POST {種類}/custom-purge`〔長時間請求，WASM 用 `PostLongRunningAsync`〕），稽核與 Server 版相同、由伺服器寫；清理進行中仍每 5 秒自動更新。
   與 Server 版不同：立即清理稽核 `Job.Trigger` 的 `expected=N` 由伺服器在按下時重新讀總覽算出（可能和確認窗的數字差幾筆；那一列現在不能清理時回 409 並說明原因）；自訂清除的條件由伺服器以自己的「今天」驗證。
 - 「稽核紀錄」列（0.9.174 起分兩類）：保留規則「異動與安全事件保留 N 天；瀏覽類（換頁、搜尋、查看）保留 M 天」（`LogRetentionSettings:AuditLogDays`／`AuditBrowsingLogDays`，某一類為 0 時那一段為「不自動刪除（保留天數為 0）」）；目前數量、最舊一筆與下次會清掉是兩類合計（`AuditLogQueryService.GetRetentionStatsAsync(threshold, AuditLogKind.Change／Browsing)` 各算一次）；兩類都是 0 時才停用「立即清理」；自訂清除不分類（`AuditLogKind.All`）。
 - 「Agent 對話」列（列鍵 `agent-conversation`）：附註「全體使用者，連同內容檔；依最後一次對話時間」、數量單位「段」、保留規則「最後一次對話後保留 N 天」、「前往」`/admin-assistant`（只看得到自己的對話；0.10.22 起，之前前往已移除的 Agent 測試台）。
 - 「巡檢報告」列（0.9.161 起，列鍵 `admin-patrol-report`）：附註「系統管理助理的定時巡檢，連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」」、數量單位「份」、保留規則「產出後保留 N 天」（`AdminPatrolSettings:RetentionDays`）、負責作業「巡檢報告清理」、「前往」`/admin-assistant`；沒有自訂清除。
+  0.10.39 起：附註「系統巡檢報告（含舊版巡檢報告），連同內容檔；…」，數量、最舊一筆與下次會清掉是兩種報告合計，保留天數改為 `SystemReportSettings:DailyRetentionDays`（系統參數「巡檢報告保留天數（日報）」），負責作業改名「巡檢報告與容量快照清理」（作業名稱 `AdminPatrolReportRetention` 不變），「前往」`/system-reports`。
+- 「容量快照」列（0.10.39 起，列鍵 `capacity-snapshot`，排在巡檢報告之後）：附註「每天記一次的磁碟與資料目錄用量，系統巡檢報告用來預估「幾天後用完」」、數量單位「筆」、保留規則「保留 N 天」（`SystemReportSettings:CapacitySnapshotRetentionDays`，預設 730）、負責作業「巡檢報告與容量快照清理」、「前往」`/system-reports`；沒有檔案、沒有自訂清除。
 - 「登入 Token」列（0.10.0 起，列鍵 `refresh-session`，排在寄信紀錄之後）：附註「已撤銷但未到期的保留，用來偵測重複使用」、保留規則「到期即清除」（沒有保留天數，不顯示「修改」；有效期依發出管道：App 由 `JwtSettings:RefreshTokenDays`、網頁由 `SessionSettings`〔0.10.8 起〕決定）、下次會清掉＝已到期筆數、負責作業「登入 Token 清理」（`RefreshSessionRetention`，可「立即清理」）、「前往」`/myusers`（要讓某人的 Token 立刻失效，在那裡強制登出）；沒有自訂清除。
 
 ## 四、內部系統運作
@@ -66,7 +68,7 @@
 
 - 統計與清理一致：`RetentionJobTests`（例外、稽核、Token、AI 對話，資料放在本地與 UTC 相差的 8 小時內；Agent 對話依最後一次對話時間）、`SoftDeletePurgeTests`（五種、附件大小）、`NotificationTests`（兩條規則不重複計）、`ScheduledJobFrameworkTests`（執行中的不算）。
 - `CustomPurgeCutoffTests`（驗證、三種時間基準的換算）、`SoftDeletePurgeTests`（`PurgeExpiredTypeAsync` 只清一種、保護規則）。
-- `DataRetentionOverviewServiceTests`（真正的主機：自訂清除對 9 種資料「預覽＝實際刪除」、已刪除資料只清那一種、巡檢報告／備份／日誌／公告沒有自訂清除；16 列順序、沒有讀取失敗、負責作業、備份與沒有作業的列沒有「立即清理」、五個頁面支援 `?deleted=1`、確認窗文字）、`CronDescriberTests`、`DirectorySizeProbeTests`、`NLogRetentionTests`。
+- `DataRetentionOverviewServiceTests`（真正的主機：自訂清除對 9 種資料「預覽＝實際刪除」、已刪除資料只清那一種、巡檢報告／備份／日誌／公告沒有自訂清除（0.10.39 起含容量快照）；16 列順序、沒有讀取失敗、負責作業、備份與沒有作業的列沒有「立即清理」、五個頁面支援 `?deleted=1`、確認窗文字）、`CronDescriberTests`、`DirectorySizeProbeTests`、`NLogRetentionTests`。
 - `MaintenanceApiTests`（0.10.6 起）：總覽每種都有、帶伺服器的「今天」、時間不帶時差；立即清理放進佇列並寫稽核、不認得的種類 404、沒有作業 400；自訂清除先預覽再刪除並寫稽核、不合法條件與不支援的種類 400；非管理員 403。
 - 守門同步：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`PageHelpCatalogTests`、`PageAuthorizationTests`、`LoggingConventionTests`。
 

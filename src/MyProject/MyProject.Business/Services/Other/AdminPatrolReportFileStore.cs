@@ -14,6 +14,9 @@ namespace MyProject.Business.Services.Other;
 /// 根目錄是 <c>{AiAgentConversationPath}/AdminPatrol</c>：沿用 Agent 對話的路徑，免去新增外部路徑的十幾處同步；
 /// Agent 對話的清理只收根目錄下名稱為 <c>yyyyMM</c> 的空目錄，不會碰到這裡。代價是備份跟著 Agent 對話的開關走。
 /// 相對路徑為 <c>{yyyyMM(產出時間)}/{ReportId:N}.md</c>。全部方法<b>絕不拋出</b>；日誌只記路徑，絕不記內容。
+///
+/// 0.10.39 起系統巡檢報告（<c>SystemReport</c>）也存在這裡：內容是 <c>{ReportId:N}.json</c>（見 <see cref="WriteContentAsync"/>），
+/// 和舊版巡檢報告（.md）同一個根目錄與月份目錄，清理、備份與資料保留頁的目錄量測都不用另外處理。
 /// </summary>
 public class AdminPatrolReportFileStore
 {
@@ -57,6 +60,36 @@ public class AdminPatrolReportFileStore
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to write admin patrol report file. Path={RelativePath}", relativePath);
+            return null;
+        }
+    }
+
+    /// <summary>寫入系統巡檢報告的內容檔（0.10.39 起）。</summary>
+    /// <param name="extension">副檔名（不含點），只能是英文小寫字母，例如 <c>json</c>。</param>
+    /// <returns>成功時回傳相對路徑；失敗回 null。</returns>
+    public async Task<string?> WriteContentAsync(DateTime createdAt, Guid reportId, string extension, string content)
+    {
+        if (string.IsNullOrEmpty(content) || string.IsNullOrEmpty(extension) || extension.Any(c => c is < 'a' or > 'z'))
+        {
+            return null;
+        }
+
+        var relativePath = $"{createdAt:yyyyMM}/{reportId:N}.{extension}";
+        var fullPath = TryResolveFullPath(relativePath);
+        if (fullPath is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            await File.WriteAllTextAsync(fullPath, content);
+            return relativePath;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to write system report file. Path={RelativePath}", relativePath);
             return null;
         }
     }
