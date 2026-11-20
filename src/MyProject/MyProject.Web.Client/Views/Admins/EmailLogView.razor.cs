@@ -36,6 +36,7 @@ namespace MyProject.Web.Client.Views.Admins
             new("PasswordChanged", "密碼已變更"),
             new("ExceptionAlert", "例外告警"),
             new("Test", "測試信"),
+            new("SystemReport", "系統巡檢報告"),
         ];
 
         [Inject]

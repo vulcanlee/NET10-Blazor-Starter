@@ -81,20 +81,55 @@ public sealed class SystemReportsController : ControllerBase
             return NotFoundBody<SystemReportDetailDto>();
         }
 
-        SystemReportContentDto? content = null;
-        if (detail.ContentJson is { } json)
+        return Ok(ApiResult<SystemReportDetailDto>.SuccessResult(new SystemReportDetailDto { Summary = ToDto(detail.Summary), Content = ReadContent(detail) }));
+    }
+
+    /// <summary>報告內容；內容檔不見或格式壞掉回 null（後者記警告）。</summary>
+    private SystemReportContentDto? ReadContent(SystemReportDetail detail)
+    {
+        if (detail.ContentJson is not { } json)
         {
-            try
-            {
-                content = JsonSerializer.Deserialize<SystemReportContentDto>(json, SystemReportGenerator.ContentJsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                logger.LogWarning(ex, "System report content could not be read. ReportId={ReportId}", id);
-            }
+            return null;
         }
 
-        return Ok(ApiResult<SystemReportDetailDto>.SuccessResult(new SystemReportDetailDto { Summary = ToDto(detail.Summary), Content = content }));
+        try
+        {
+            return JsonSerializer.Deserialize<SystemReportContentDto>(json, SystemReportGenerator.ContentJsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "System report content could not be read. ReportId={ReportId}", detail.Summary.ReportId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 下載 PDF（0.10.40 起）：由報告內容產生，不另存檔；報告離開系統，寫一筆 <c>SystemReport.Download</c> 稽核。
+    /// 找不到報告或內容檔回 404；內嵌字型缺失回 500。
+    /// </summary>
+    [HttpPost("{id:guid}/pdf")]
+    public async Task<IActionResult> Pdf(Guid id)
+    {
+        if (await reportService.GetAsync(id) is not { } detail || ReadContent(detail) is not { } content)
+        {
+            logger.LogInformation("System report PDF not found. ReportId={ReportId}", id);
+            return NotFoundBody<object>();
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = SystemReportPdfBuilder.Build(content);
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogError(ex, "System report PDF export failed because the embedded font is missing.");
+            return this.ApiServerError("缺少內建中文字型，請確認建置產物完整。", ex);
+        }
+
+        logger.LogInformation("System report PDF exported. ReportId={ReportId}, Bytes={Bytes}", id, bytes.Length);
+        await this.WriteAuditAsync(AuditActions.SystemReport.Download, "SystemReport", id.ToString("N"), $"format=pdf; frequency={content.Frequency}");
+        return File(bytes, SystemReportPdfBuilder.ContentType, SystemReportPdfBuilder.FileName(content));
     }
 
     /// <summary>

@@ -2,7 +2,7 @@
 
 - 文件版本：1.34
 - 文件狀態：已實作
-- 現行系統版本：0.10.39
+- 現行系統版本：0.10.40
 - 首次實作版本：0.9.42
 - 最後核對日期：2026/11/20
 
@@ -246,6 +246,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Prompt.Update` / `Prompt.Activate` | `PromptTemplateView`（「AI 提示詞」頁，0.9.108 起；0.10.5 起由 `PromptTemplatesController` 寫）與系統管理助理的 `AiAssistantTools`；detail 記 `version=…`（經系統管理助理時另加 `via=`），不記提示詞內容 |
 | `AdminPatrol.AutoPurge` | 排程作業「巡檢報告清理」（0.9.161 起；detail `rows=N; days=D; trigger=T`，不記報告內容；0.10.39 起作業改名「巡檢報告與容量快照清理」，只在刪到舊版巡檢報告時寫）|
 | `SystemReport.AutoPurge` | 排程作業「巡檢報告與容量快照清理」（0.10.39 起；刪到系統巡檢報告或容量快照時寫，detail `reports=N; days=D; snapshots=S; snapshotDays=SD; trigger=T`，不記報告內容）|
+| `SystemReport.Download` | 「系統巡檢報告」頁報告視窗的「下載 PDF」（0.10.40 起；報告離開系統所以要記；targetType `SystemReport`、targetId 報告編號〔`N` 格式〕，detail `format=pdf; frequency=Daily`，不記報告內容）|
 
 **系統管理助理與定時巡檢**（定時巡檢 0.10.39 起由系統巡檢報告取代；系統巡檢報告收集資料時不寫稽核，「系統巡檢報告」頁的立即產生寫 `Job.Trigger`，detail `job=SystemReportDaily; date=…; send=…; via=system-reports`）：系統管理助理（0.9.155 起）執行的查詢與異動沿用原頁面的動作代碼（例如 `User.Search`、`Prompt.Activate`），detail 加 `via=admin-assistant`（0.9.155～0.9.156 的舊紀錄是 `source=`），工具本身另記 `Ai.ToolInvoked` 等。定時巡檢（0.9.161 起）沒有登入使用者，工具稽核的操作者留空（清單顯示「（系統／匿名）」），detail 最後註明「排程巡檢」。
 

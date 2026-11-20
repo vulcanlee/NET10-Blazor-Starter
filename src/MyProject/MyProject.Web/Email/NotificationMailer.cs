@@ -2,6 +2,7 @@ using System.Net.Mail;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
+using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 
 namespace MyProject.Web.Email;
@@ -26,7 +27,7 @@ public sealed class NotificationMailer : INotificationMailer
         this.logger = logger;
     }
 
-    public int Send(IReadOnlyList<string> emails, string title, string? body, string? link)
+    public int Send(IReadOnlyList<string> emails, string title, string? body, string? link, NotificationEmailOptions? options = null)
     {
         var settings = emailOptions.CurrentValue;
         if (settings.GetProvider() == EmailProvider.None)
@@ -38,12 +39,18 @@ public sealed class NotificationMailer : INotificationMailer
         var absoluteLink = string.IsNullOrEmpty(baseUrl) || string.IsNullOrWhiteSpace(link) || !link.StartsWith('/') ? null : baseUrl + link;
         var queued = 0;
         var valid = emails.Select(x => x.Trim()).Where(x => MailAddress.TryCreate(x, out _)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var emailBody = string.IsNullOrWhiteSpace(options?.ExtraText) ? body
+            : string.IsNullOrWhiteSpace(body) ? options.ExtraText
+            : body + "\n\n" + options.ExtraText;
+        var kind = options?.Kind ?? EmailKinds.Notification;
         foreach (var address in valid)
         {
-            if (!emailQueue.TryEnqueue(EmailTemplates.BuildNotification(address, systemIdentity.Name, title, body, absoluteLink)))
+            var template = EmailTemplates.BuildNotification(address, systemIdentity.Name, title, emailBody, absoluteLink);
+            var message = template with { Kind = kind, Attachments = options?.Attachments };
+            if (!emailQueue.TryEnqueue(message))
             {
                 logger.LogWarning("Email queue is full; remaining notification emails were skipped. Kind={Kind}, Skipped={Skipped}",
-                    "Notification", valid.Count - queued);
+                    kind, valid.Count - queued);
                 break;
             }
 

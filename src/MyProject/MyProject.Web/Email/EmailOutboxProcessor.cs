@@ -92,7 +92,7 @@ public sealed class EmailOutboxProcessor
                 To = Truncate(message.To, 320),
                 Subject = Truncate(message.Subject, 300),
                 Status = disabled ? EmailOutboxStatus.Skipped : EmailOutboxStatus.Pending,
-                ProtectedBody = disabled ? null : protector.Protect(message.HtmlBody, message.TextBody),
+                ProtectedBody = disabled ? null : protector.Protect(message.HtmlBody, message.TextBody, message.Attachments),
                 NextAttemptAtUtc = disabled ? null : now,
             });
             await context.SaveChangesAsync(CancellationToken.None);
@@ -184,10 +184,10 @@ public sealed class EmailOutboxProcessor
         await context.Entry(row).ReloadAsync(cancellationToken);
         try
         {
-            var (html, text) = row.ProtectedBody is { } body
+            var (html, text, attachments) = row.ProtectedBody is { } body
                 ? protector.Unprotect(body)
                 : throw new System.Security.Cryptography.CryptographicException("Email body is missing.");
-            await SendCoreAsync(new EmailMessage(row.To, row.Subject, html, text, row.Kind), cancellationToken);
+            await SendCoreAsync(new EmailMessage(row.To, row.Subject, html, text, row.Kind, attachments), cancellationToken);
 
             row.Status = EmailOutboxStatus.Sent;
             row.SentAtUtc = timeProvider.GetUtcNow().UtcDateTime;

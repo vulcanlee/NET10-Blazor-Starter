@@ -42,7 +42,7 @@ public sealed class SystemReportNarrator
         ## 整體狀況
         3～5 句話：系統現在是否健康、最需要管理者注意的是什麼。
         ## 建議處理順序
-        依急迫程度排序的編號清單，最多 7 項；每項說明要做什麼、到哪個頁面（用 JSON 裡的頁面路徑），有期限的寫出期限日期。
+        依急迫程度排序的編號清單，最多 7 項；每項說明要做什麼、到哪個頁面（用 JSON 裡的頁面名稱，不要寫網址），有期限的寫出期限日期。
         ## 下期預測
         2～4 句話：照目前趨勢，下一期可能發生什麼、哪些要提早準備（例如擴充磁碟）。
 
@@ -146,7 +146,7 @@ public sealed class SystemReportNarrator
                 title = x.Title,
                 detail = x.Detail,
                 deadline = x.Deadline?.ToString("yyyy/MM/dd"),
-                page = x.ActionRoute,
+                page = SystemReportPdfBuilder.PageName(x.ActionRoute),
             }),
             expansions = content.Expansions.Select(x => new { volume = x.Volume, fullDate = x.FullDate?.ToString("yyyy/MM/dd"), suggestedGb = Math.Round(x.SuggestedBytes / 1024d / 1024 / 1024, 1) }),
             predictions = content.Predictions,

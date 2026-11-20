@@ -4,7 +4,7 @@ using MyProject.Web.Configuration;
 
 namespace MyProject.Web.Email;
 
-/// <summary>把 <see cref="EmailMessage"/> 轉成 MIME（HTML ＋ 純文字 multipart/alternative）。</summary>
+/// <summary>把 <see cref="EmailMessage"/> 轉成 MIME（HTML ＋ 純文字 multipart/alternative；0.10.40 起有附件時外層是 multipart/mixed）。</summary>
 internal static class MimeMessageFactory
 {
     /// <summary>Pickup 模式允許不填寄件者，此時用這個位址 —— 信不會真的寄出。</summary>
@@ -21,11 +21,17 @@ internal static class MimeMessageFactory
         mime.From.Add(new MailboxAddress(fromName, fromAddress));
         mime.To.Add(MailboxAddress.Parse(message.To));
         mime.Subject = message.Subject;
-        mime.Body = new BodyBuilder
+        var builder = new BodyBuilder
         {
             HtmlBody = message.HtmlBody,
             TextBody = message.TextBody,
-        }.ToMessageBody();
+        };
+        foreach (var attachment in message.Attachments ?? [])
+        {
+            builder.Attachments.Add(attachment.FileName, attachment.Content, ContentType.Parse(attachment.ContentType));
+        }
+
+        mime.Body = builder.ToMessageBody();
 
         return mime;
     }

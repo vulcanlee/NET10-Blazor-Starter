@@ -471,6 +471,8 @@ public sealed class SystemReportRulesTests
         Assert.DoesNotContain(content.ReportId.ToString(), message, StringComparison.Ordinal);
         Assert.Contains("\"level\":\"紅燈\"", message, StringComparison.Ordinal);
         Assert.DoesNotContain("\"Red\"", message, StringComparison.Ordinal);
+        Assert.Contains("\"page\":\"系統備份\"", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("/backups", message, StringComparison.Ordinal);
     }
 
     // ───────────── 測試資料 ─────────────

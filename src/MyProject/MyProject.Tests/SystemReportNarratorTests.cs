@@ -90,10 +90,15 @@ public sealed class SystemReportNarratorTests : IAsyncLifetime
         await reports.SaveAsync(Draft(content));
         var sender = new RecordingNotificationSender();
 
-        var sent = await new SystemReportDelivery(sender, reports).SendToAdminsAsync(content, CancellationToken.None);
+        var sent = await Delivery(sender, reports).SendToAdminsAsync(content, CancellationToken.None);
 
         Assert.True(sent);
         var request = Assert.Single(sender.Requests);
+        var attachment = Assert.Single(request.Email!.Attachments!);
+        Assert.Equal((EmailKinds.SystemReport, "system-report-daily-20261119.pdf", "application/pdf"), (request.Email.Kind, attachment.FileName, attachment.ContentType));
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(attachment.Content, 0, 5));
+        Assert.Equal("完整報告請見附件 PDF（system-report-daily-20261119.pdf）。", request.Email.ExtraText);
+        Assert.DoesNotContain("附件", request.Body, StringComparison.Ordinal);
         Assert.Equal((NotificationCategories.SystemReport, true, $"SystemReport:{content.ReportId:N}"), (request.Category, request.AlsoEmail, request.SourceKey));
         Assert.True(request.Target.Admins);
         Assert.Equal(SystemReportDelivery.Link(content.ReportId), request.Link);
@@ -109,14 +114,32 @@ public sealed class SystemReportNarratorTests : IAsyncLifetime
         var failing = new FailingNotificationSender();
         var recording = new RecordingNotificationSender();
 
-        Assert.False(await new SystemReportDelivery(failing, reports).SendToAdminsAsync(content, CancellationToken.None));
-        await new SystemReportDelivery(recording, reports).NotifyRequesterAsync(content, 7, CancellationToken.None);
+        Assert.False(await Delivery(failing, reports).SendToAdminsAsync(content, CancellationToken.None));
+        await Delivery(recording, reports).NotifyRequesterAsync(content, 7, CancellationToken.None);
 
         Assert.Equal(SystemReportDeliveryStatuses.Failed, (await reports.GetAsync(content.ReportId))!.Summary.DeliveryStatus);
         var notice = Assert.Single(recording.Requests);
         Assert.False(notice.AlsoEmail);
         Assert.Equal([7], notice.Target.UserIds);
         Assert.StartsWith("報告已產生：", notice.Title, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Delivery_PdfTooLargeOrFailing_IsNotAttached_AndTheEmailSaysWhy()
+    {
+        var reports = ReportService();
+        var content = Content(SystemReportLevels.Red);
+
+        var tooLarge = new SystemReportDelivery(new RecordingNotificationSender(), reports, NullLogger<SystemReportDelivery>.Instance,
+            _ => new byte[EmailAttachment.MaxTotalBytes + 1]).EmailOptions(content);
+        var failing = new SystemReportDelivery(new RecordingNotificationSender(), reports, NullLogger<SystemReportDelivery>.Instance,
+            _ => throw new InvalidOperationException("font")).EmailOptions(content);
+
+        Assert.Null(tooLarge.Attachments);
+        Assert.Contains("PDF 太大", tooLarge.ExtraText, StringComparison.Ordinal);
+        Assert.Null(failing.Attachments);
+        Assert.Contains("PDF 產生失敗", failing.ExtraText, StringComparison.Ordinal);
+        Assert.All([tooLarge, failing], x => Assert.Equal(EmailKinds.SystemReport, x.Kind));
     }
 
     [Fact]
@@ -143,6 +166,9 @@ public sealed class SystemReportNarratorTests : IAsyncLifetime
                 : new AiSettings()),
             new StaticOptionsMonitor<SystemReportSettings>(settings ?? new SystemReportSettings()),
             NullLogger<SystemReportNarrator>.Instance);
+
+    private static SystemReportDelivery Delivery(INotificationSender sender, SystemReportService reports)
+        => new(sender, reports, NullLogger<SystemReportDelivery>.Instance);
 
     private SystemReportService ReportService()
     {

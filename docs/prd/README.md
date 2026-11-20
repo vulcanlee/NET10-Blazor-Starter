@@ -1,8 +1,8 @@
 ﻿# prd — 產品需求文件主控台
 
-- 文件版本：2.48
+- 文件版本：2.49
 - 文件狀態：維護中
-- 現行系統版本：0.10.39
+- 現行系統版本：0.10.40
 - 首次實作版本：0.4.23
 - 最後核對日期：2026/11/20
 
@@ -38,7 +38,7 @@
 | 站內通知與公告 | [站內通知與公告](站內通知與公告-prd.md) | 頂欄鈴鐺、頁面上方公告橫幅、`/announcements` | `INotificationSender`、`NotificationSignal`、`Web.Client/Layout/ClientNotificationBell`、`ClientAnnouncementBanner`、`AnnouncementCache`、`Web.Client/Pages/AnnouncementPage.razor`（0.10.6 起 WASM）、`AnnouncementsController`、`NotificationRetentionJob` | 已實作（0.9.100；0.9.125 起鈴鐺可刪除單則與清除已讀，已讀通知另依保留天數清除；0.9.161 起定時巡檢需要注意時通知管理員，0.10.39 起改為系統巡檢日報紅燈或橙燈時通知；0.10.6 起公告管理改用 WebAssembly，管理員專用 API `api/v1/announcements`，存檔後同一分頁的橫幅立即重讀，WASM 遷移 M7；0.10.7 起通知推播串流 `POST api/v1/notifications/stream`，鈴鐺與橫幅幾秒內更新、60 秒輪詢保留為備援，WASM 遷移 M8；0.10.9 起 Server 版鈴鐺與公告橫幅刪除，WASM 遷移 M10）| 0.10.18 |
 | 系統參數 | [系統參數](系統參數-prd.md) | `/system-parameters` | `Web.Client/Pages/SystemParameterPage.razor`（0.10.6 起 WASM）、`SystemParametersController`、`Web/Configuration/Parameters/*`、`SystemParameterService`、`SystemIdentity` | 已實作（0.9.98；0.9.142 起含「AI 模型」；0.9.143 起含 Agent 對話保留與備份；0.9.155 起含系統管理助理的模型；0.9.161 起含巡檢報告保留天數；0.10.39 起含「系統巡檢報告」分類與容量快照保留天數；0.9.174 起含稽核記錄範圍的兩個開關與瀏覽類保留天數；0.10.6 起改用 WebAssembly，管理員專用 API `api/v1/system-parameters`，驗證全在伺服器，WASM 遷移 M7）| 0.10.22 |
 | 排程作業 | [排程作業](排程作業-prd.md) | `/scheduled-jobs` | `Web.Client/Pages/ScheduledJobPage.razor`（0.10.6 起 WASM）、`ScheduledJobsController`、`Web/Scheduling/*`、`ScheduledJobRunService`、`CrossProcessFileLock`、`SoftDeletePurgeService` | 已實作（0.9.96；0.9.97 起含已刪除資料清理；0.9.143 起含 Agent 對話清理；0.9.161 起含系統管理助理巡檢與巡檢報告清理；0.10.39 起以系統巡檢日報與容量快照取代系統管理助理巡檢，清理改名「巡檢報告與容量快照清理」；0.9.174 起稽核紀錄清理分兩類；0.9.175 起含稽核紀錄完整性檢查；0.10.6 起改用 WebAssembly，管理員專用 API `api/v1/scheduled-jobs`，執行中每 2 秒自動更新，WASM 遷移 M7）| 0.10.22 |
-| 系統巡檢報告 | [系統巡檢報告](系統巡檢報告-prd.md) | `/system-reports`（管理員專屬；`?report=` 深連結）| `Web/SystemReports/*`（`SystemReportRules`、`SystemReportCollector`、`SystemReportGenerator`、`SystemReportNarrator`、`SystemReportDelivery`）、`Scheduling/Jobs/SystemReportDailyJob`、`CapacitySnapshotJob`、`SystemReportsController`、`SystemReportService`、`Web.Client/Pages/SystemReportPage.razor` | 部分實作（0.10.39 M1：程式規則判定燈號的日報、容量快照與用完預估、AI 說明、紅燈或橙燈時站內＋Email 通知全體管理員，取代系統管理助理巡檢；PDF、週報／月報、助理指定區間為 M2～M4 規劃中）| 0.10.39 |
+| 系統巡檢報告 | [系統巡檢報告](系統巡檢報告-prd.md) | `/system-reports`（管理員專屬；`?report=` 深連結）| `Web/SystemReports/*`（`SystemReportRules`、`SystemReportCollector`、`SystemReportGenerator`、`SystemReportNarrator`、`SystemReportDelivery`、`SystemReportPdfBuilder`）、`Scheduling/Jobs/SystemReportDailyJob`、`CapacitySnapshotJob`、`SystemReportsController`、`SystemReportService`、`Web.Client/Pages/SystemReportPage.razor` | 部分實作（0.10.39 M1：程式規則判定燈號的日報、容量快照與用完預估、AI 說明、紅燈或橙燈時站內＋Email 通知全體管理員，取代系統管理助理巡檢；0.10.40 M2：下載 PDF、通知信附 PDF〔寄信層通用附件〕；週報／月報、助理指定區間為 M3～M4 規劃中）| 0.10.40 |
 | 紀錄分類與團隊權控 | [紀錄分類與團隊權控](紀錄分類與團隊權控-prd.md) | 跨功能（所有清單查詢／檔案）| `PermissionChecker`、`EffectiveTeamResolver`、`RecordAccessScopeProvider`、`TagStringHelper` | 已實作 | 0.10.18 |
 | 稽核紀錄 | [稽核紀錄](稽核紀錄-prd.md) | `/audit-logs` | `Web.Client/Pages/AuditLogPage.razor`（0.10.4 起 WASM）、`AuditLogsController`、`AuditLogQueryService`、`AuditLogService`（寫入）| 已實作（0.9.42 補上查詢畫面；0.9.117 起顯示來源 IP，0.9.123 起可依來源 IP 篩選；0.9.173 起可依目標類型＋目標識別精確查詢，五個資料頁每列有管理員專用的「異動歷程」；0.9.174 起修改前後差異與瀏覽類事件改為可設定、預設不記，瀏覽類另有保留天數；0.9.175 起防竄改簽章（雜湊鏈）與完整性驗證；0.10.2 起異動歷程另有管理員專用 API `/api/v1/audit-logs`，供 WASM 頁面使用；0.10.4 起本頁改用 WebAssembly，查詢、明細、匯出、清除、清空與驗證都有 `[AdminOnly]` API，「發生時間」排序修正為依點選方向，WASM 遷移 M5）| 0.10.22 |
 

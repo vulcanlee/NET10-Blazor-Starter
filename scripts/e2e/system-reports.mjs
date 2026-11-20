@@ -8,7 +8,14 @@
 // R5 舊連結 /admin-assistant?patrolReport={id} 轉到 /system-reports?legacyReport={id}
 // R6 「排程作業」頁有「系統巡檢日報」與「容量快照」，沒有「系統管理助理巡檢」
 // R7 立即產生寫一筆 Job.Trigger 稽核（via=system-reports）
-import { createRecorder, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+// R8 報告視窗按「下載 PDF」得到 PDF 檔（0.10.40 起），寫一筆 SystemReport.Download 稽核
+// R9 「立即產生」勾選寄給所有管理員：Pickup 的信附上 PDF，寄信紀錄的種類是 SystemReport（0.10.40 起）
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot } from './common.mjs';
+
+const mailDir = process.env.E2E_MAIL_DIR ?? join(dirname(dirname(databaseFile)), 'Mails');
+const mailFiles = () => (existsSync(mailDir) ? readdirSync(mailDir).filter((x) => x.endsWith('.eml')) : []);
 
 const recorder = createRecorder('system-reports-results.json');
 
@@ -108,6 +115,40 @@ try {
   // R7
   const audits = query("SELECT Detail FROM AuditLog WHERE Action = 'Job.Trigger' AND TargetId = 'SystemReportDaily' ORDER BY Id DESC LIMIT 1");
   recorder.add('R7', '立即產生寫 Job.Trigger 稽核', audits.length === 1 && audits[0].Detail.includes('via=system-reports'), audits[0]?.Detail ?? '沒有稽核');
+
+  // R8
+  if (reportId) {
+    await page.goto(`/system-reports?report=${reportId}`);
+    await page.locator('.system-report-modal .system-report-verdict').waitFor({ timeout: 60000 });
+    const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
+    await page.locator('.system-report-modal button.toolbar-icon-button', { hasText: '下載 PDF' }).click();
+    const download = await downloadPromise;
+    const pdfPath = join(outDir, download.suggestedFilename());
+    await download.saveAs(pdfPath);
+    const head = readFileSync(pdfPath).subarray(0, 5).toString('ascii');
+    const downloads = query("SELECT COUNT(*) AS N FROM AuditLog WHERE Action = 'SystemReport.Download' AND TargetId = ?", reportId.replaceAll('-', '').toLowerCase())[0].N;
+    recorder.add('R8', '下載 PDF：得到 PDF 檔並寫稽核',
+      head === '%PDF-' && /^system-report-daily-\d{8}\.pdf$/.test(download.suggestedFilename()) && downloads >= 1,
+      JSON.stringify({ file: download.suggestedFilename(), head, downloads, saved: pdfPath }));
+  } else {
+    recorder.add('R8', '下載 PDF：得到 PDF 檔並寫稽核', false, '沒有產生報告');
+  }
+
+  // R9
+  const mailsBefore = new Set(mailFiles());
+  await page.goto('/system-reports');
+  await page.locator('.system-report-toolbar').waitFor({ timeout: 60000 });
+  await page.locator('button.toolbar-icon-button', { hasText: '立即產生' }).click();
+  const sendModal = page.locator('.system-report-generate-modal .ant-modal-content');
+  await sendModal.waitFor({ state: 'visible', timeout: 15000 });
+  await sendModal.locator('.ant-checkbox-wrapper', { hasText: '寄給所有管理員' }).click();
+  await sendModal.locator('button', { hasText: /^\s*產\s*生\s*$/ }).click();
+  const newMail = await waitFor(() => mailFiles().find((x) => !mailsBefore.has(x) && readFileSync(join(mailDir, x), 'utf8').includes('application/pdf')) ?? null);
+  const mailText = newMail ? readFileSync(join(mailDir, newMail), 'utf8') : '';
+  const outbox = query("SELECT Kind, Status FROM EmailOutbox ORDER BY Id DESC LIMIT 1")[0];
+  recorder.add('R9', '勾選寄送：信件附上 PDF，寄信紀錄種類是 SystemReport',
+    newMail !== null && /filename="?system-report-daily-\d{8}\.pdf/.test(mailText) && outbox?.Kind === 'SystemReport',
+    JSON.stringify({ mail: newMail, outbox }));
 
   await context.close();
 } finally {

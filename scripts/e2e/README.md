@@ -55,7 +55,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    node ./scripts/e2e/browser-reports.mjs   # 前端錯誤與事件回報 B1～B8（0.10.36 起；讀隔離資料夾的資料庫與日誌檔）
    node ./scripts/e2e/client-diagnostics.mjs # 前端診斷記錄 D1～D6（0.10.37 起；會建一個一般帳號，讀隔離資料夾的資料庫與日誌檔）
-   node ./scripts/e2e/system-reports.mjs    # 系統巡檢報告 R1～R7（0.10.39 起；會產生一份昨天的日報，讀隔離資料夾的資料庫）
+   node ./scripts/e2e/system-reports.mjs    # 系統巡檢報告 R1～R9（0.10.39 起；0.10.40 起含下載 PDF 與信件附件；會產生昨天的日報，讀隔離資料夾的資料庫與 `Mails`）
    ```
 
 | 環境變數 | 說明 |
