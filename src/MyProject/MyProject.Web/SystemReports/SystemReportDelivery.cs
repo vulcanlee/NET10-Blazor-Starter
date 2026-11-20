@@ -10,7 +10,8 @@ namespace MyProject.Web.SystemReports;
 /// 系統巡檢報告的通知（0.10.39 起）：站內通知＋Email 給全體啟用中的管理員，或只通知產生者。
 ///
 /// 通知與信件的內文<b>只用程式產生的文字</b>（整體結論、紅燈與橙燈的標題與期限），不放 AI 說明 ——
-/// AI 文字只留在報告頁（速查表 §6.7、§6.34）。同一份報告以 SourceKey 去重，不會重複寄。
+/// AI 文字只留在報告頁與 PDF（速查表 §6.7、§6.34）。同一份報告以 SourceKey 去重，不會重複寄。
+/// 0.10.40 起信件附上報告的 PDF；PDF 產生失敗或超過 <see cref="EmailAttachment.MaxTotalBytes"/> 時不附，信中寫明請由連結下載。
 /// </summary>
 public sealed class SystemReportDelivery
 {
@@ -19,14 +20,25 @@ public sealed class SystemReportDelivery
 
     private readonly INotificationSender notificationSender;
     private readonly SystemReportService reportService;
+    private readonly ILogger<SystemReportDelivery> logger;
+    private readonly Func<SystemReportContentDto, byte[]> buildPdf;
 
-    public SystemReportDelivery(INotificationSender notificationSender, SystemReportService reportService)
+    public SystemReportDelivery(INotificationSender notificationSender, SystemReportService reportService, ILogger<SystemReportDelivery> logger)
+        : this(notificationSender, reportService, logger, SystemReportPdfBuilder.Build)
+    {
+    }
+
+    /// <summary>測試用：換掉 PDF 產生（模擬過大或失敗）。</summary>
+    internal SystemReportDelivery(
+        INotificationSender notificationSender, SystemReportService reportService, ILogger<SystemReportDelivery> logger, Func<SystemReportContentDto, byte[]> buildPdf)
     {
         this.notificationSender = notificationSender;
         this.reportService = reportService;
+        this.logger = logger;
+        this.buildPdf = buildPdf;
     }
 
-    /// <summary>站內通知＋Email 給全體啟用中的管理員。回傳是否成功（並寫回報告的通知狀態）。</summary>
+    /// <summary>站內通知＋Email（附 PDF）給全體啟用中的管理員。回傳是否成功（並寫回報告的通知狀態）。</summary>
     public async Task<bool> SendToAdminsAsync(SystemReportContentDto content, CancellationToken cancellationToken)
     {
         var result = await notificationSender.SendAsync(new NotificationRequest(
@@ -36,7 +48,8 @@ public sealed class SystemReportDelivery
             Link(content.ReportId),
             NotificationTarget.AllAdmins(),
             AlsoEmail: true,
-            SourceKey: $"SystemReport:{content.ReportId:N}"), cancellationToken);
+            SourceKey: $"SystemReport:{content.ReportId:N}",
+            Email: EmailOptions(content)), cancellationToken);
         var status = result.Failed ? SystemReportDeliveryStatuses.Failed : SystemReportDeliveryStatuses.Sent;
         await reportService.UpdateDeliveryStatusAsync(content.ReportId, status);
         return !result.Failed;
@@ -52,6 +65,33 @@ public sealed class SystemReportDelivery
             NotificationTarget.Users(userId)), cancellationToken);
 
     public static string Link(Guid reportId) => $"/system-reports?report={reportId:N}";
+
+    /// <summary>信件的附件與附註：附上 PDF；產生失敗或太大時不附、改請收件人由連結下載。</summary>
+    internal NotificationEmailOptions EmailOptions(SystemReportContentDto content)
+    {
+        var fileName = SystemReportPdfBuilder.FileName(content);
+        byte[] pdf;
+        try
+        {
+            pdf = buildPdf(content);
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogError(ex, "System report PDF could not be generated for the email. ReportId={ReportId}", content.ReportId);
+            return new NotificationEmailOptions(EmailKinds.SystemReport, null, "PDF 產生失敗沒有附上，請由連結到系統查看與下載報告。");
+        }
+
+        if (pdf.Length > EmailAttachment.MaxTotalBytes)
+        {
+            logger.LogWarning("System report PDF is too large to attach. ReportId={ReportId}, Bytes={Bytes}", content.ReportId, pdf.Length);
+            return new NotificationEmailOptions(EmailKinds.SystemReport, null, "PDF 太大沒有附上，請由連結到系統查看與下載報告。");
+        }
+
+        return new NotificationEmailOptions(
+            EmailKinds.SystemReport,
+            [new EmailAttachment(fileName, SystemReportPdfBuilder.ContentType, pdf)],
+            $"完整報告請見附件 PDF（{fileName}）。");
+    }
 
     /// <summary>例：「系統巡檢日報 2026/11/19：紅燈」。</summary>
     public static string Title(SystemReportContentDto content)

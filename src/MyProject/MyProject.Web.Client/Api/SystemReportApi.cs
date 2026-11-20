@@ -19,6 +19,9 @@ public sealed class SystemReportApi
 
     public Task<ApiResult<SystemReportDetailDto>> GetAsync(Guid reportId) => api.GetAsync<SystemReportDetailDto>($"{BaseUrl}/{reportId}");
 
+    /// <summary>下載報告的 PDF（0.10.40 起；伺服器寫 SystemReport.Download 稽核）。</summary>
+    public Task<ApiDownload> DownloadPdfAsync(Guid reportId) => api.DownloadAsync($"{BaseUrl}/{reportId}/pdf");
+
     /// <summary>放進背景產生（完成時伺服器以站內通知告訴產生者）；已經有一份在產生時回 409。</summary>
     public Task<ApiResult<object>> GenerateAsync(SystemReportGenerateRequestDto request) => api.PostAsync<object>($"{BaseUrl}/generate", request);
 

@@ -26,6 +26,11 @@
         }
         else
         {
+            <div class="system-report-actions">
+                <ToolbarIconButton Title="下載 PDF" Icon="picture_as_pdf"
+                                   Disabled="@isDownloading"
+                                   OnClick="@(async () => await OnDownloadPdfAsync())" />
+            </div>
             <section class="system-report-summary">
                 <div class="system-report-verdict">
                     <Tag Color="@SystemReportView.LevelColor(content.Level)">@SystemReportView.LevelText(content.Level)</Tag>

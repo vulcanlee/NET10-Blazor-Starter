@@ -100,6 +100,58 @@ public sealed class EmailOutboxTests : IDisposable
     }
 
     [Fact]
+    public async Task Attachments_AreEncrypted_SurviveARetry_AndAreClearedWhenSent()
+    {
+        var pdf = Enumerable.Range(0, 5000).Select(i => (byte)(i % 251)).ToArray();
+        var message = Message("巡檢") with { Kind = EmailKinds.SystemReport, Attachments = [new EmailAttachment("report.pdf", "application/pdf", pdf)] };
+        var failures = 0;
+        var sender = new CapturingEmailSender(_ => failures++ == 0 ? new SocketException() : null);
+        var processor = Processor(sender);
+        await processor.PersistAsync(message, fallbackSend: true, CancellationToken.None);
+
+        await processor.SendDueAsync(CancellationToken.None);
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await processor.SendDueAsync(CancellationToken.None);
+
+        var sent = Assert.Single(sender.Sent);
+        var attachment = Assert.Single(sent.Attachments!);
+        Assert.Equal(("report.pdf", "application/pdf"), (attachment.FileName, attachment.ContentType));
+        Assert.Equal(pdf, attachment.Content);
+        var row = Row();
+        Assert.Equal((EmailOutboxStatus.Sent, EmailKinds.SystemReport), (row.Status, row.Kind));
+        Assert.Null(row.ProtectedBody);
+    }
+
+    [Fact]
+    public async Task OldBodiesWithoutAttachments_StillSend()
+    {
+        var dataProtection = new EphemeralDataProtectionProvider();
+        var oldFormat = dataProtection.CreateProtector("MyProject.EmailOutbox.v1")
+            .Protect("{\"Html\":\"<p>舊</p>\",\"Text\":\"舊的內文\"}");
+        using (var context = factory.CreateDbContext())
+        {
+            context.EmailOutbox.Add(new EmailOutbox
+            {
+                CreatedAtUtc = Start.UtcDateTime,
+                Kind = EmailKinds.Notification,
+                To = "a@example.com",
+                Subject = "舊信",
+                Status = EmailOutboxStatus.Pending,
+                ProtectedBody = oldFormat,
+                NextAttemptAtUtc = Start.UtcDateTime,
+            });
+            context.SaveChanges();
+        }
+
+        var sender = new CapturingEmailSender();
+        await Processor(sender, new EmailBodyProtector(dataProtection)).SendDueAsync(CancellationToken.None);
+
+        var sent = Assert.Single(sender.Sent);
+        Assert.Equal("舊的內文", sent.TextBody);
+        Assert.Null(sent.Attachments);
+    }
+
+    [Fact]
     public async Task TransientFailure_RetriesAt1_5_15Minutes_ThenFails()
     {
         var sender = new CapturingEmailSender(_ => new SocketException());

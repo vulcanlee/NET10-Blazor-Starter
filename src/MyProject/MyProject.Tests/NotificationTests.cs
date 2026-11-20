@@ -192,6 +192,11 @@ public sealed class NotificationTests : IDisposable
 
         await sender.SendAsync(Request(NotificationTarget.Users(withEmail, withoutEmail)) with { AlsoEmail = true });
         Assert.Equal(["a@example.com"], Assert.Single(mailer.Sent));
+        Assert.Null(Assert.Single(mailer.Options));
+
+        var options = new NotificationEmailOptions(EmailKinds.SystemReport, [new EmailAttachment("r.pdf", "application/pdf", [1, 2, 3])], "見附件。");
+        await sender.SendAsync(Request(NotificationTarget.Users(withEmail)) with { AlsoEmail = true, Email = options });
+        Assert.Same(options, mailer.Options[^1]);
     }
 
     [Fact]
@@ -397,6 +402,18 @@ public sealed class NotificationTests : IDisposable
         Assert.Equal(new[] { "a@example.com", "b@example.com" }, queue.Messages.Select(x => x.To));
         Assert.Contains("https://erp.example.com/scheduled-jobs", queue.Messages[0].TextBody, StringComparison.Ordinal);
         Assert.Equal(EmailKinds.Notification, queue.Messages[0].Kind);
+        Assert.Null(queue.Messages[0].Attachments);
+
+        // 0.10.40 起：信件的種類、附件與只在信裡的附註。
+        var reportQueue = new LimitedQueue(5);
+        var reportMailer = new NotificationMailer(
+            new StaticOptionsMonitor<EmailSettings>(new EmailSettings { Provider = "Pickup", PublicBaseUrl = "https://erp.example.com/" }), reportQueue, identity, NullLogger<NotificationMailer>.Instance);
+        var attachment = new EmailAttachment("r.pdf", "application/pdf", [1, 2, 3]);
+        reportMailer.Send(["a@example.com"], "報告", "摘要", "/system-reports", new NotificationEmailOptions(EmailKinds.SystemReport, [attachment], "完整報告請見附件。"));
+        var report = Assert.Single(reportQueue.Messages);
+        Assert.Equal(EmailKinds.SystemReport, report.Kind);
+        Assert.Same(attachment, Assert.Single(report.Attachments!));
+        Assert.Contains("摘要\n\n完整報告請見附件。", report.TextBody, StringComparison.Ordinal);
     }
 
     // ---------- 公告 ----------
@@ -747,9 +764,12 @@ public sealed class NotificationTests : IDisposable
     {
         public List<IReadOnlyList<string>> Sent { get; } = [];
 
-        public int Send(IReadOnlyList<string> emails, string title, string? body, string? link)
+        public List<NotificationEmailOptions?> Options { get; } = [];
+
+        public int Send(IReadOnlyList<string> emails, string title, string? body, string? link, NotificationEmailOptions? options = null)
         {
             Sent.Add(emails);
+            Options.Add(options);
             return emails.Count;
         }
     }

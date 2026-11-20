@@ -10,6 +10,12 @@
     color: var(--app-text);
 }
 
+.system-report-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: -12px;
+}
+
 .system-report-empty {
     padding: 24px 0;
     text-align: center;

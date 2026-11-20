@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Models.Systems;
 
 namespace MyProject.Business.Services.Other;
 
@@ -45,6 +46,7 @@ public sealed class NotificationTarget
 /// 一則通知。內容一律是純文字；<paramref name="Link"/> 是站內相對網址。
 /// <paramref name="SourceKey"/>：同一位收件人發過相同鍵就不再發（例如 <c>AccountPending:12</c>）；0.9.136 起看 <c>NotificationDispatch</c>，通知被刪除也不會重發。
 /// <paramref name="AlsoEmail"/>：同時寄信（沒有 Email、格式不合或寄信停用的收件人只收站內通知）。
+/// <paramref name="Email"/>：只影響信件的選項（0.10.40 起：種類、附件、只加在信件內文的一句話）；站內通知的內容不變。
 /// </summary>
 public sealed record NotificationRequest(
     string Category,
@@ -53,7 +55,16 @@ public sealed record NotificationRequest(
     string? Link,
     NotificationTarget Target,
     bool AlsoEmail = false,
-    string? SourceKey = null);
+    string? SourceKey = null,
+    NotificationEmailOptions? Email = null);
+
+/// <summary>
+/// 通知信的額外選項（0.10.40 起）。
+/// </summary>
+/// <param name="Kind">信件種類（<c>EmailKinds</c>）；寄信紀錄頁依它分類。</param>
+/// <param name="Attachments">附件（例如系統巡檢報告的 PDF）；總大小由呼叫端控制在 <see cref="EmailAttachment.MaxTotalBytes"/> 內。</param>
+/// <param name="ExtraText">只加在信件內文最後的一句話（例如「完整報告請見附件 PDF」），站內通知不會出現。</param>
+public sealed record NotificationEmailOptions(string Kind, IReadOnlyList<EmailAttachment>? Attachments = null, string? ExtraText = null);
 
 public sealed record NotificationSendResult(int Recipients, int Emailed, bool Failed = false);
 
@@ -68,7 +79,8 @@ public interface INotificationSender
 public interface INotificationMailer
 {
     /// <summary>回傳實際放進寄信佇列的封數。</summary>
-    int Send(IReadOnlyList<string> emails, string title, string? body, string? link);
+    /// <param name="options">信件的額外選項（0.10.40 起）；null 時是一般的通知信。</param>
+    int Send(IReadOnlyList<string> emails, string title, string? body, string? link, NotificationEmailOptions? options = null);
 }
 
 /// <summary>
@@ -156,7 +168,7 @@ public sealed class NotificationSender : INotificationSender
                     .Where(x => recipients.Contains(x.Id) && x.Email != null && x.Email != string.Empty)
                     .Select(x => x.Email!)
                     .ToListAsync(cancellationToken);
-                emailed = mailer.Send(emails, request.Title, request.Body, request.Link);
+                emailed = mailer.Send(emails, request.Title, request.Body, request.Link, request.Email);
             }
 
             logger.LogInformation(

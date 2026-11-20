@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.25
+- 文件版本：1.26
 - 文件狀態：已實作
-- 現行系統版本：0.10.37
+- 現行系統版本：0.10.40
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/18
+- 最後核對日期：2026/11/20
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -373,7 +373,7 @@
 ## 二之五、系統巡檢報告 API（0.10.39 起）
 
 「系統巡檢報告」頁（`/system-reports`）在 WebAssembly 執行，背後是下面這組 API。只有 `api/v1` 路由、要 Bearer、回 `ApiResult`；本地時間以不帶時差送出。
-每個 action 都是 `[AdminOnly]`（權限鍵不在角色矩陣）；報告全體管理員共用，看報告不寫稽核。設計見 [系統巡檢報告 PRD](../prd/系統巡檢報告-prd.md) 與[速查表 §6.34](開發慣例與限制速查.md)。
+每個 action 都是 `[AdminOnly]`（權限鍵不在角色矩陣）；報告全體管理員共用，看報告不寫稽核（下載 PDF 會寫，報告離開系統）。設計見 [系統巡檢報告 PRD](../prd/系統巡檢報告-prd.md) 與[速查表 §6.34](開發慣例與限制速查.md)。
 DTO 在 `MyProject.Dtos/Admins/SystemReportDtos.cs`（舊版巡檢報告沿用 `AdminPatrolReportDtos.cs`），WASM 端的呼叫在 `MyProject.Web.Client/Api/SystemReportApi.cs`。
 
 ### 2.21 系統巡檢報告（`SystemReportsController`，`api/v1/system-reports`）
@@ -383,6 +383,7 @@ DTO 在 `MyProject.Dtos/Admins/SystemReportDtos.cs`（舊版巡檢報告沿用 `
 | 報告清單 | `POST system-reports/search` | body `SystemReportSearchRequestDto`（種類、燈號、產生日期起迄、分頁）；回 `SystemReportListDto`：報告摘要（最新在前）、總筆數與保存天數 |
 | 一份報告 | `GET system-reports/{id}` | `SystemReportDetailDto`：摘要與內容（全面摘要、每一項發現、容量表、統計、AI 說明）；內容檔不見時 `Content` 為 null；找不到 404「找不到這份報告，可能已超過保存期限被清除。」|
 | 立即產生 | `POST system-reports/generate` | body `SystemReportGenerateRequestDto`（`Frequency`＝日報、`Date`、`SendToAdmins`）。不在請求裡產生：帶參數放進「系統巡檢日報」作業的佇列，完成時以站內通知告訴產生者；已在佇列或執行中 409「已經有一份報告正在產生，請等它完成。」；今天以後 400「只能產生今天以前的日報（今天還沒過完）。」、早於保存天數 400、不是日報 400。成功寫 `Job.Trigger`（`job=SystemReportDaily; date=…; send=…; via=system-reports`）|
+| 下載 PDF | `POST system-reports/{id}/pdf` | 0.10.40 起。無 body；由報告內容 JSON 隨需產生（不存檔），回 `application/pdf` 檔案（不包 `ApiResult`），檔名 `system-report-{頻率小寫}-{區間起日 yyyyMMdd}.pdf`（例 `system-report-daily-20261119.pdf`）。找不到報告或內容檔 404；內嵌字型缺失 500「缺少內建中文字型，請確認建置產物完整。」。成功寫 `SystemReport.Download`（targetType `SystemReport`、targetId 報告編號 `N` 格式、detail `format=pdf; frequency=Daily`）。舊版巡檢報告沒有 PDF |
 | 舊版巡檢報告清單 | `GET system-reports/legacy` | `AdminPatrolReportListDto`：0.9.161～0.10.38 的 AI 巡檢報告與保存天數（最新在前）|
 | 一份舊版巡檢報告 | `GET system-reports/legacy/{id}` | `AdminPatrolReportDetailDto`（內文 Markdown 由畫面消毒）；找不到 404 |
 

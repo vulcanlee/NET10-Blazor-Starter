@@ -1,8 +1,8 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.14
+- 文件版本：1.15
 - 文件狀態：已實作
-- 現行系統版本：0.10.39
+- 現行系統版本：0.10.40
 - 首次實作版本：0.9.59
 - 最後核對日期：2026/11/20
 
@@ -15,7 +15,7 @@
   背景佇列 `IEmailQueue`、系統健康監控的「寄信服務」檢查項與「寄信測試」區塊、Production 啟動安全檢查。
 - **使用者**：忘記密碼／重設密碼（0.9.60 起）是第一個使用 `IEmailQueue` 的功能，流程見 [登入與帳號流程](登入與帳號流程-prd.md)。
 - **非範圍**：
-  信件範本管理介面、附件、寄送紀錄查詢、退信處理、重試與持久化佇列。
+  信件範本管理介面、寄送紀錄查詢、退信處理、重試與持久化佇列（附件 0.10.40 起支援，見 §4.3）。
 
 ## 二、使用者與入口
 
@@ -67,6 +67,11 @@
 
 - `Business/Helpers/EmailTemplates` 產生 HTML＋純文字（multipart/alternative），變數一律 HTML 編碼，主旨以 `[系統名稱]` 開頭。
 - 寄件者：`FromName`（留空用系統名稱）＜`FromAddress`＞；`Pickup` 沒填位址時用 `no-reply@localhost`。
+- **附件**（0.10.40 起）：`EmailMessage.Attachments`（`EmailAttachment(FileName, ContentType, Content)`，可省略）。`MimeMessageFactory` 有附件時外層改成 multipart/mixed，沒有附件時維持 multipart/alternative。
+  - 一封信全部附件上限 `EmailAttachment.MaxTotalBytes`＝8 MB（多數郵件伺服器上限 10～25 MB，Base64 後約大 37%）；**由呼叫端檢查**，超過就不附、改在內文請收件人由連結下載。
+  - 檔名只用英數字（部分郵件軟體會把中文檔名變亂碼），例如 `system-report-daily-20261119.pdf`。
+  - 附件跟內文包在同一份 Data Protection 加密的 JSON（`EmailBodyProtector`：`{Html, Text, Attachments?}`，byte[] 存成 Base64）存進 `EmailOutbox.ProtectedBody`，**不新增欄位、沒有 migration**；寄出、失敗或未寄出後與內文一起清除；重試時寄出的位元組與第一次相同；升級前排入、沒有附件的舊格式照樣寄出。
+  - 通知信要帶附件時經 `NotificationRequest.Email`（`NotificationEmailOptions(Kind, Attachments, ExtraText)`，`INotificationMailer.Send` 的選擇性參數）：`Kind` 取代預設的 `Notification`、`ExtraText` 只加在信件內文最後（站內通知不會出現）。
 
 ### 4.4 設定與驗證
 
@@ -91,12 +96,13 @@
 | `PasswordChanged` | 重設成功後通知帳號主人「密碼已變更」（0.9.60 起） |
 | `ExceptionAlert` | 系統例外告警（0.9.78 起），收件人與節流見 `ExceptionAlertSettings` 與 [日誌與例外處理 PRD](日誌與例外處理-prd.md) LOG-12；寄信背景作業自己的失敗不會觸發告警 |
 | `Notification` | 站內通知的同步信（0.9.100 起，`NotificationMailer` 經 `IEmailQueue` 入列；寄信停用時只發站內通知、佇列滿就停止並記一筆警告），見 [站內通知與公告 PRD](站內通知與公告-prd.md) |
+| `SystemReport` | 系統巡檢報告的通知信（0.10.40 起，附報告 PDF；經 `NotificationEmailOptions` 指定種類，「寄信紀錄」頁顯示「系統巡檢報告」），見 [系統巡檢報告 PRD](系統巡檢報告-prd.md) |
 
 ## 五、權限與安全
 
 - 測試寄信只有管理員看得到（系統健康監控頁本身是管理員專屬）。
 - 稽核 `Email.Test`：成功與失敗都寫，detail 只有 provider 與例外型別，**不含收件者**。
-- 日誌只記 `Kind`（信件種類）、`Provider`、`Host`，不記收件者、主旨、內文。
+- 日誌只記 `Kind`（信件種類）、`Provider`、`Host`，不記收件者、主旨、內文；0.10.40 起附件的檔名與大小也不記（「寄信紀錄」頁也看不到附件）。
 - `Password` 出貨一律空字串，以 User Secrets／環境變數提供。
 - 不略過 TLS 憑證驗證（不設 `ServerCertificateValidationCallback`）。
 - 信中連結以 `PublicBaseUrl` 為準，不採用請求的 Host header。0.10.10 起前端另外部署成獨立站台（`ClientSettings:BaseUrl` 有值）時，註冊 `EmailSettings` 時就以 `ClientSettings:BaseUrl` 蓋過 `PublicBaseUrl`（`PostConfigure`），所有信中連結（重設密碼、站內通知、巡檢報告〔0.10.39 起是系統巡檢報告 `/system-reports?report=`〕、例外告警）一起指向前端。
@@ -122,7 +128,7 @@
   - 管理員專屬「寄信紀錄」頁（`/email-logs`，選單 id 69，監控與診斷）唯讀列出收件者、主旨、狀態、嘗試次數、下次嘗試、寄出時間與錯誤摘要（0.10.4 起以 WebAssembly 執行：`MyProject.Web.Client/Pages/EmailLogPage.razor`，資料經管理員專用的 `POST api/v1/email-logs/search`〔`EmailLogsController`，`[AdminOnly]`，非管理員 403 並寫 `Permission.Denied`〕；與 Server 版相同，查詢不寫稽核；時間以不帶時差送出、WASM 送出的起訖時間也先去掉時區，伺服器照自己的時區解讀，瀏覽器時區不同也不會偏；每頁筆數 1～200；畫面與操作不變，WASM 遷移 M5）；排程作業「寄信紀錄清理」（`EmailLogRetention`）依 `EmailDeliverySettings:RetentionDays`（預設 90）刪除，「待寄」不刪，稽核 `EmailLog.AutoPurge`／`EmailLog.Purge`。
 - 崩潰（不是正常關機）時，記憶體交接區裡還沒存進資料庫的那幾毫秒的信會遺失；正常關機時會先存進資料庫。
 - 系統健康監控的測試信直接寄出（`EmailTestService` → `IEmailSender`），不經佇列、不記寄信紀錄。
-- 不支援附件、CC／BCC、多收件者。
+- 不支援 CC／BCC、多收件者（附件 0.10.40 起支援，上限 8 MB，見 §4.3）。
 - 套件相依：0.9.126～0.9.163 曾由 `MyProject.Web` 直接參考修補版 `System.Security.Cryptography.Pkcs` 10.0.13，覆蓋 `MimeKit` 遞移帶入的弱點版；0.9.164 升到 `MailKit` 4.18.2（`MimeKit` 改相依 10.0.13）後已移除，見 [CI-CD 與品質檢查 §4.3](../operations/CI-CD與品質檢查.md)。
 
 **規劃中需求**
@@ -137,6 +143,9 @@
 - `EmailHealthProbeTests`：SMTP 連不上時回報失敗、不拋例外。
 - `EmailTestServiceTests`：None／無效收件者拒絕、成功與失敗都稽核且不含收件者。
 - `EmailTemplatesTests`：HTML 編碼、主旨。
+- `EmailOutboxTests`（0.10.40 起）：附件加密存進佇列、重試後附件不變、寄出後與內文一起清除；沒有附件的舊格式照樣寄出。
+- `NotificationTests`（0.10.40 起）：`NotificationEmailOptions` 傳到 `INotificationMailer`；寄信器套用種類、附件與只加在信件的附註。
+- `SystemReportPdfBuilderTests`（0.10.40 起）：有附件的 MIME 帶上 PDF（multipart/mixed），沒有附件的信維持 multipart/alternative。
 - `ApiIntegrationTests`：Production 下 Pickup 拒絕、Smtp 設定不完整拒絕、`PublicBaseUrl` 不是 http(s) 網址拒絕（`ProductionSafetyValidation_WithSmtpAndInvalidPublicBaseUrl_ShouldFailFast`）、完整設定通過。
 - `SystemHealthTests.CheckWeights_ShouldSumTo150`：寄信服務權重 10（0.9.79 加入「日誌管線」後總權重為 145，0.9.96 加入「排程作業」後為 150）。
 

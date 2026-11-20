@@ -171,6 +171,40 @@ public sealed class SystemReportsApiTests : IClassFixture<ApiTestApplicationFact
     }
 
     [Fact]
+    public async Task Pdf_DownloadsTheReport_AndAudits()
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        using var client = await SignedInClientAsync(admin);
+        var date = new DateTime(2003, 5, 6);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<SystemReportDailyJob>().ExecuteAsync(
+                new ScheduledJobContext(0, JobRunTriggers.Manual, null, admin.Account, admin.Id, new SystemReportJobArguments(date, SendToAdmins: false).ToJson()),
+                CancellationToken.None);
+            Assert.True(result.Succeeded, result.Message);
+        }
+
+        Guid reportId;
+        await using (var db = await CreateContextAsync())
+        {
+            reportId = (await db.SystemReport.SingleAsync(x => x.PeriodStart == date)).ReportId;
+        }
+
+        var response = await client.PostAsync($"{BaseUrl}/{reportId}/pdf", null);
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var missing = await client.PostAsync($"{BaseUrl}/{Guid.NewGuid()}/pdf", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("system-report-daily-20030506.pdf", response.Content.Headers.ContentDisposition!.FileNameStar ?? response.Content.Headers.ContentDisposition.FileName);
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(bytes, 0, 5));
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        await using var check = await CreateContextAsync();
+        var audit = await check.AuditLog.SingleAsync(x => x.Action == AuditActions.SystemReport.Download && x.ActorUserId == admin.Id);
+        Assert.Equal(("SystemReport", reportId.ToString("N"), "format=pdf; frequency=Daily"), (audit.TargetType, audit.TargetId, audit.Detail));
+    }
+
+    [Fact]
     public async Task Get_Unknown_Is404()
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));

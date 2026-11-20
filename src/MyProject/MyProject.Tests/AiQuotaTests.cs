@@ -365,7 +365,7 @@ public sealed class AiQuotaTests : IDisposable
 
     private sealed class NullMailer : INotificationMailer
     {
-        public int Send(IReadOnlyList<string> emails, string title, string? body, string? link) => 0;
+        public int Send(IReadOnlyList<string> emails, string title, string? body, string? link, NotificationEmailOptions? options = null) => 0;
     }
 
     private sealed class ThrowingFactory : IDbContextFactory<BackendDBContext>

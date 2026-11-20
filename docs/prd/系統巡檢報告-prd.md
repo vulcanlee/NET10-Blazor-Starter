@@ -1,8 +1,8 @@
 ﻿# 系統巡檢報告 PRD
 
-- 文件版本：1.0
-- 文件狀態：部分實作（里程碑 M1 已實作；M2～M4 見第九章「規劃中需求」）
-- 現行系統版本：0.10.39
+- 文件版本：1.1
+- 文件狀態：部分實作（里程碑 M1、M2 已實作；M3、M4 見第九章「規劃中需求」）
+- 現行系統版本：0.10.40
 - 首次實作版本：0.10.39
 - 最後核對日期：2026/11/20
 
@@ -53,8 +53,8 @@
 | 門檻 | 容量的紅燈、橙燈、黃燈門檻可在系統參數調整；其他規則的門檻先固定（候選需求：每條規則個別門檻） |
 | 收件人 | 所有啟用中的管理員 |
 | 何時寄出 | 週報、月報一律寄出；日報只有整份為橙燈以上才通知與寄信 |
-| Email 內容 | 程式產生的摘要＋PDF 附件（M2）＋報告連結；**信件內文不放 AI 文字** |
-| PDF | 去除敏感內容（不放路徑、設定值、例外內文、帳號），不加密碼；PDF 內含 AI 說明（M2） |
+| Email 內容 | 程式產生的摘要＋PDF 附件（M2，0.10.40 起）＋報告連結；**信件內文不放 AI 文字** |
+| PDF | 去除敏感內容（不放路徑、設定值、例外內文、帳號），不加密碼；PDF 內含 AI 說明（M2，0.10.40 起，見 5.4） |
 | 各頻率的段落 | 日報看昨天發生的事；週報、月報另有趨勢、備份可還原驗證、AI 費用（M3） |
 | 帳號與權限清查 | 每季一次，附在 1／4／7／10 月的月報（M3） |
 | 頁面 | 新增獨立頁面，不放在系統管理助理頁 |
@@ -153,6 +153,7 @@
 - 「立即產生」不在 HTTP 請求裡產生（可能超過一分鐘），而是帶參數（`Arguments`，JSON：日期、是否寄送）放進排程佇列，由排程器在背景執行；已經在佇列或執行中回 409「已經有一份報告正在產生，請等它完成。」。稽核 `Job.Trigger`，detail `job=SystemReportDaily; date=…; send=…; via=system-reports`。
 - 通知與 Email 內文**只用程式產生的文字**（結論、紅燈與橙燈的標題與期限、黃燈數量，純文字、1000 字內）與報告連結，不放 AI 說明；通知分類 `SystemReport`，以 `SourceKey`＝`SystemReport:{報告編號}` 去重。
 - 需要通知卻沒有通知到人時作業回失敗（「…；通知發送失敗，報告已存在「系統巡檢報告」頁。」），由排程框架另發排程失敗通知。
+- 0.10.40 起寄給全體管理員的信附上報告 PDF（見 5.4），信件種類 `SystemReport`；「立即產生」沒勾寄送時只發站內通知給產生者，不寄信也不產生 PDF。
 
 ### 5.3 AI 說明
 
@@ -160,6 +161,18 @@
 - 輸入只有去識別的發現（規則代碼、燈號、標題、數字、期限、處理頁面），不含帳號、路徑、例外內文；超過長度時先捨棄黃燈。指示不放現在時間（提示詞快取）。
 - 不呼叫 AI 的情況：日報全部綠燈、系統參數「AI 寫報告說明」關閉、沒有設定 AI（狀態 `Skipped`）。呼叫失敗、逾時或格式不對時狀態 `Fallback`，報告照常產生與通知。
 - Token 用量作業名稱「系統巡檢報告（AI 說明）」，ConversationId＝報告編號；沒有登入使用者，只受全系統用量上限。舊紀錄的「系統管理助理（排程巡檢）」照舊顯示。
+
+### 5.4 PDF 報告與信件附件（M2，0.10.40 起）
+
+- `SystemReportPdfBuilder`（`MyProject.Web/SystemReports`）由存好的報告內容 JSON **隨需產生** PDF：不另存 PDF 檔、不加欄位、沒有 migration；舊版巡檢報告沒有 PDF。字型用 `AiMarkdownPdfRenderer` 內嵌的 Noto Sans TC，中文可在任意字元間換行。
+- 版面順序與報告視窗相同：標題（例「系統巡檢日報 2026/11/19」）→ 系統、涵蓋區間、產生時間、整體燈號，並註明「燈號與數字由程式規則判定，AI 說明僅供參考」→ 全面摘要（燈號色塊＋結論、已發生問題與處理、即將發生與期限、注意即可最多 10 項、需要準備擴充容量、下期預測）→ AI 說明（沒有時寫出原因）→ 每一項發現（每項一個表格：現況／不處理會怎樣／怎麼處理／處理完會怎樣／期限；處理頁面寫**中文頁面名稱**，不放網址）→ 磁碟容量 → 資料目錄 → 統計 → 附錄（燈號的意思與量測限制）。
+- 燈號以**文字＋淺色底色**呈現，不用表情符號。檔名只用英數字：`system-report-{頻率小寫}-{區間起日 yyyyMMdd}.pdf`（例 `system-report-daily-20261119.pdf`）。
+- **下載**：報告內容視窗內右上方「下載 PDF」（下載中停用；成功提示「PDF 已產生並開始下載。」，失敗「PDF 下載失敗：…」）→ `POST api/v1/system-reports/{id}/pdf`（`[AdminOnly]`，回 `application/pdf`）。報告或內容檔不存在 404；內嵌字型缺失 500「缺少內建中文字型，請確認建置產物完整。」。報告離開系統，所以寫稽核 `SystemReport.Download`（targetType `SystemReport`、targetId 報告編號 `N` 格式、detail `format=pdf; frequency=Daily`）；看報告本身仍不寫稽核。
+- **信件附件**：`SystemReportDelivery.SendToAdminsAsync` 產生 PDF，經 `NotificationRequest.Email`（`NotificationEmailOptions`：種類 `SystemReport`、附件、只加在信件內文的一句話）交給寄信層。信件內文＝原本的程式摘要＋報告連結按鈕＋「完整報告請見附件 PDF（system-report-daily-20261119.pdf）。」。
+  - PDF 產生失敗：不附，內文改為「PDF 產生失敗沒有附上，請由連結到系統查看與下載報告。」並記 Error。
+  - PDF 超過 `EmailAttachment.MaxTotalBytes`（8 MB）：不附，內文改為「PDF 太大沒有附上，請由連結到系統查看與下載報告。」並記 Warning。
+  - 兩種情況通知照常送出，不算通知失敗。
+- AI 說明只在報告視窗與 PDF，**不進**站內通知與信件內文。
 
 ## 六、排程、設定與資料
 
@@ -207,6 +220,7 @@
 | POST | `search` | 依種類、燈號、產生日期分頁查詢 |
 | GET | `{id}` | 單份報告的內容 |
 | POST | `generate` | 立即產生（背景）；今天以後或早於保留天數 400，已在產生中 409 |
+| POST | `{id}/pdf` | 下載 PDF（0.10.40 起，由內容隨需產生，回 `application/pdf`）；報告或內容檔不存在 404、內嵌字型缺失 500；稽核 `SystemReport.Download` |
 | GET | `legacy` | 舊版巡檢報告清單 |
 | GET | `legacy/{id}` | 單份舊版巡檢報告 |
 
@@ -222,6 +236,10 @@
 - **移除作業不讓舊設定擋啟動**：`ScheduledJobSettingsValidator.RetiredJobNames = ["AdminPatrol"]`。
 - **內容檔沿用舊目錄**：放在 Agent 對話目錄的 `AdminPatrol` 子目錄（JSON），備份規則跟著 `IncludeAiAgentConversations`，不另開設定；資料表不放 AI 說明（速查表 §6.7）。
 - **AI 文字不進通知**：通知與 Email 內文只用程式產生的文字，取代 0.9.161 的 §6.7 明文例外（舊例外隨巡檢移除）。報告內容不放路徑、設定值、例外內文與帳號（只放數量），因為報告之後會以 PDF 寄出系統外。
+- **PDF 隨需產生、不存檔**（0.10.40）：內容 JSON 已是唯一來源，PDF 只是另一種呈現；不存檔就不必處理 PDF 與內容不一致、保留與清理、備份大小，舊報告升級後也能下載。代價是每次下載與寄信都要重新排版。
+- **附件放在加密的內文 JSON 裡**（0.10.40）：寄信佇列的內文本來就以 Data Protection 加密、寄出後清除；附件跟著它走就同樣受保護、同樣清除，不新增欄位與 migration，重試時寄出相同的位元組，升級前排入的舊格式照樣解得開。附件是通用能力（`EmailMessage.Attachments`），見[寄信服務 PRD](寄信服務-prd.md) §4.3。
+- **大小上限與退路**（0.10.40）：一封信附件總計 ≤ 8 MB（`EmailAttachment.MaxTotalBytes`），由呼叫端檢查；超過或產生失敗時不附，信中寫明原因並請收件人由連結下載——通知一定要送到，不能因為附件而整封失敗。
+- **下載要稽核**（0.10.40）：看報告不寫稽核（報告全體管理員共用），但下載的 PDF 會離開系統，所以寫 `SystemReport.Download`。
 - 規則見速查表 §6.34。
 
 ## 八、里程碑
@@ -229,7 +247,7 @@
 | 里程碑 | 內容 | 狀態 |
 |---|---|---|
 | M1 | 新頁面、規則引擎與日報、容量快照與預估、AI 說明、通知、系統參數、資料保留、取代「系統管理助理巡檢」、舊版巡檢報告移到本頁 | 0.10.39 已實作 |
-| M2 | PDF 報告（含 AI 說明，去除敏感內容、不加密碼）與 Email 附件 | 待實作 |
+| M2 | PDF 報告（含 AI 說明，去除敏感內容、不加密碼）、報告視窗「下載 PDF」與 Email 附件（寄信層新增通用附件能力） | 0.10.40 已實作 |
 | M3 | 週報與月報（各自在排程作業頁開關）、備份可還原驗證、AI 費用段落、每季帳號與權限清查（附在 1／4／7／10 月的月報） | 待實作 |
 | M4 | 系統管理助理：對話中指定區間產生報告與 PDF（「幫我巡一下系統」改用同一套規則；唯讀、不經核准窗） | 待實作 |
 
@@ -237,8 +255,7 @@
 
 以下內容**尚未實作**，不屬於目前的驗收範圍。
 
-- **M2**：PDF 版面與 Email 附件；週報、月報一律寄出。
-- **M3**：週報（上週）、月報（上個月）的產生時間在系統參數設定、開關在排程作業頁；趨勢比較、備份可還原驗證、AI 費用；每季帳號與權限清查。
+- **M3**：週報（上週）、月報（上個月）的產生時間在系統參數設定、開關在排程作業頁，一律寄出（附 PDF）；趨勢比較、備份可還原驗證、AI 費用；每季帳號與權限清查。
 - **M4**：系統管理助理以規則引擎產生指定區間的報告（種類「指定區間」），取代對話中的 AI 巡檢。
 - **候選需求**（尚未決定是否做）：清查的簽核流程、AI 模型 Deprecated 檢查、憑證到期、CPU／記憶體趨勢、每條規則個別調整門檻、在頁面上執行 VACUUM／WAL 維護。
 
@@ -246,15 +263,16 @@
 
 - 守門：`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`（每個參數鍵都要寫進日誌與設定檔說明）、`PageHelpCatalogTests`、`UserManualCoverageTests`。
 - 功能測試：`SystemReportRulesTests`（每條規則的邊界、門檻來自系統參數、健康只看狀態不複製 Evidence、讀不到的來源變黃燈、通知不含 AI 說明、AI 輸入去識別）、`SystemReportSchedulingTests`（容量預估、日報時間轉 cron、程式提供的 cron 優先、驗證器擋覆寫並忽略已移除的作業）、`SystemReportServiceTests`（內容檔、查詢、快照、清理作業）、`SystemReportsApiTests`（非管理員 403、立即產生的驗證與稽核、報告不含路徑、舊版報告端點）。
-- 品質關卡結果見 [changelog](../changelog/2026-11-20-系統巡檢報告M1.md)（品質關卡結果待補）。
+- M2（0.10.40）：`SystemReportPdfBuilderTests`（每種燈號有無 AI 說明都能產生 PDF、發現很多時跨頁、檔名與標題、MIME 帶附件、沒有附件的信維持 multipart/alternative）；`EmailOutboxTests`（附件加密、重試後不變、寄出後清除、舊格式照樣寄出）；`NotificationTests`（信件選項傳遞、寄信器套用種類／附件／附註）；`SystemReportNarratorTests`（寄送附 PDF、太大或產生失敗時不附並說明）；`SystemReportsApiTests`（下載 PDF 200＋檔名＋稽核、查無 404）。
+- 品質關卡結果見 [M1 changelog](../changelog/2026-11-20-系統巡檢報告M1.md) 與 [M2 changelog](../changelog/2026-11-20-系統巡檢報告M2.md)。
 
 ## 十一、相關程式與文件
 
-- `src/MyProject/MyProject.Web/SystemReports/`（`SystemReportRules`、`SystemReportCollector`、`SystemReportGenerator`、`SystemReportSummarizer`、`SystemReportNarrator`、`SystemReportDelivery`、`SystemReportScheduleProvider`、`CapacityForecast`、`CapacityProbe`、`VolumeResolver`）
+- `src/MyProject/MyProject.Web/SystemReports/`（`SystemReportPdfBuilder`〔0.10.40〕、`SystemReportRules`、`SystemReportCollector`、`SystemReportGenerator`、`SystemReportSummarizer`、`SystemReportNarrator`、`SystemReportDelivery`、`SystemReportScheduleProvider`、`CapacityForecast`、`CapacityProbe`、`VolumeResolver`）
 - `src/MyProject/MyProject.Web/Scheduling/Jobs/SystemReportDailyJob.cs`、`CapacitySnapshotJob.cs`、`AdminPatrolReportRetentionJob.cs`、`Scheduling/IScheduledJobCronOverride.cs`
 - `src/MyProject/MyProject.Web/Controllers/SystemReportsController.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/SystemReportService.cs`、`SystemReportMetricsService.cs`、`CapacitySnapshotService.cs`
 - `src/MyProject/MyProject.AccessDatas/Models/SystemReport.cs`、`CapacitySnapshot.cs`；`MyProject.Models/Systems/SystemReportSettings.cs`、`SystemReportModels.cs`；`MyProject.Dtos/Admins/SystemReportDtos.cs`
 - `src/MyProject/MyProject.Web.Client/Pages/SystemReportPage.razor`、`Views/Admins/SystemReportView.*`、`SystemReportDetailModal.*`、`AdminPatrolReportsModal.*`（舊版巡檢報告）、`Api/SystemReportApi.cs`
-- 相關 PRD：[排程作業](排程作業-prd.md)、[系統參數](系統參數-prd.md)、[資料保留與清理](資料保留與清理-prd.md)、[系統管理助理](系統管理助理-prd.md)、[系統健康監控](系統健康監控-prd.md)、[站內通知與公告](站內通知與公告-prd.md)、[AI 提示詞管理](AI提示詞管理-prd.md)、[Token 用量](Token用量-prd.md)
+- 相關 PRD：[排程作業](排程作業-prd.md)、[系統參數](系統參數-prd.md)、[資料保留與清理](資料保留與清理-prd.md)、[系統管理助理](系統管理助理-prd.md)、[系統健康監控](系統健康監控-prd.md)、[站內通知與公告](站內通知與公告-prd.md)、[AI 提示詞管理](AI提示詞管理-prd.md)、[Token 用量](Token用量-prd.md)、[寄信服務](寄信服務-prd.md)、[稽核紀錄](稽核紀錄-prd.md)
 - 設定：[日誌與設定檔說明](../operations/日誌與設定檔說明.md)；規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md) §6.34
