@@ -1,19 +1,20 @@
 @using MyProject.Models.Systems
 
 @*
-    系統管理助理頁的「巡檢報告」視窗（0.9.161 起；0.10.7 起在 WASM 執行，資料走 api/v1/admin-assistant/patrol-reports）：定時巡檢產出的報告，全體管理員都看得到。
+    「舊版巡檢報告」視窗（0.9.161 起；0.10.39 起從「系統巡檢報告」頁打開，資料走 api/v1/system-reports/legacy）：
+    0.9.161～0.10.38 的 AI 定時巡檢產出的報告，全體管理員都看得到，依保留天數自然過期。
     尺寸寫在 MyProject.Web.Client/Commons/OverlayStyles.razor 的 .admin-patrol-report-modal（Modal 外框渲染在元件 DOM 之外，見速查 §6.4）；
     窗內內容的樣式在本元件的 .razor.css。純唯讀，Esc 直接關閉。
 *@
-<Modal Title="巡檢報告"
+<Modal Title="舊版巡檢報告"
        Class="admin-patrol-report-modal"
        @bind-Visible="@visible"
        Keyboard="true"
        Footer="null">
     <div class="admin-patrol-report-body">
         <div class="admin-patrol-report-hint">
-            系統每天自動巡檢一次（可在「排程作業」頁停用「系統管理助理巡檢」或按「立即執行」），有「注意」或「異常」時會通知所有管理員並寄信。
-            報告全體管理員都看得到，保存 @retentionDays 天。
+            0.10.39 以前由 AI 判讀的每日巡檢報告；之後改由「系統巡檢報告」取代，不再產生新的舊版報告。
+            舊報告保存 @retentionDays 天後自動刪除。
         </div>
         @if (isLoading)
         {
@@ -21,7 +22,7 @@
         }
         else if (reports.Count == 0)
         {
-            <div class="admin-patrol-report-empty">還沒有巡檢報告。第一次排程執行後會出現在這裡。</div>
+            <div class="admin-patrol-report-empty">沒有舊版巡檢報告（都已過期，或系統升級前沒有產生過）。</div>
         }
         else
         {

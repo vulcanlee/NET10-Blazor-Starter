@@ -31,6 +31,7 @@ public static class SystemParameterCatalog
     public const string GroupPassword = "密碼與登入";
     public const string GroupAiQuota = "AI 用量";
     public const string GroupAiModel = "AI 模型";
+    public const string GroupSystemReport = "系統巡檢報告";
 
     private const string NextRetentionRun = "下一次排程清理時（預設每天 03:00）";
     private const string NextPasswordSet = "之後設定的密碼（現有的密碼不受影響）";
@@ -39,6 +40,8 @@ public static class SystemParameterCatalog
     private const string ReasoningBlank = "沿用 AiSettings:AgentReasoningEffort";
 
     private const string ModelNote = "空白代表使用 AiSettings:Model（設定檔的預設模型）。Azure OpenAI 請填部署名稱；端點與金鑰共用預設設定。新模型記得在 AiPricingSettings 補費率，否則記為未定價。";
+
+    private const string CapacityNote = "磁碟包含程式、資料庫、備份、日誌與各資料目錄所在的每一顆；預估天數依每日容量快照的成長速度推算，快照少於 7 天時不預估。";
 
     private const string QuotaNote = "以「Token 用量」記錄的台幣費用加總，未定價的模型以 0 計；達 80% 與 100% 各通知一次。";
 
@@ -78,9 +81,12 @@ public static class SystemParameterCatalog
         Define<AiAgentConversationSettings, int>(AiAgentConversationSettings.SectionName, x => x.RetentionDays, GroupRetention,
             "Agent 對話保留天數", "最後一次對話早於這麼多天前的 Agent 對話（連同內容檔）會被自動刪除。對話含工具查到的業務資料，不宜留太久。",
             NextRetentionRun + "；Agent 畫面上「會保存 N 天」的說明立即", unit: "天", isRetention: true),
-        Define<AdminPatrolSettings, int>(AdminPatrolSettings.SectionName, x => x.RetentionDays, GroupRetention,
-            "巡檢報告保留天數", "產出早於這麼多天前的系統管理助理巡檢報告（連同內容檔）會被自動刪除。",
-            NextRetentionRun + "；巡檢報告清單上「保存 N 天」的說明立即", unit: "天", isRetention: true),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.DailyRetentionDays, GroupRetention,
+            "巡檢報告保留天數（日報）", "產出早於這麼多天前的系統巡檢日報與手動產生的報告（連同內容檔）會被自動刪除；舊版巡檢報告也用這個天數。",
+            NextRetentionRun + "；「系統巡檢報告」頁上「保存 N 天」的說明立即", unit: "天", isRetention: true),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacitySnapshotRetentionDays, GroupRetention,
+            "容量快照保留天數", "每天記一次的磁碟與資料目錄用量保留多久。系統巡檢報告用它預估「幾天後用完」，太短會預估不準。",
+            NextRetentionRun, unit: "天", isRetention: true),
         Define<SoftDeleteSettings, int>(SoftDeleteSettings.SectionName, x => x.PurgeAfterDays, GroupRetention,
             "已刪除資料保留天數", "專案、分類、團隊、使用者、角色被刪除超過這麼多天，就永久刪除（專案連同附件檔）。",
             NextRetentionRun, unit: "天", zeroMeaning: "不自動永久刪除", isRetention: true),
@@ -206,8 +212,8 @@ public static class SystemParameterCatalog
             "系統管理助理使用的模型", "「系統管理助理」對話用的模型。工具呼叫需要支援 function calling 的模型。" + ModelNote,
             "下一則訊息起（每則訊息都重新建立助理；畫面上的「使用模型」在開對話或接續時更新）", maxLength: AiModelSettings.MaxModelLength),
         Define<AiReasoningSettings, string>(AiReasoningSettings.SectionName, x => x.AdminAssistant, GroupAiModel,
-            "系統管理助理的推論等級", "「系統管理助理」對話與定時巡檢送出的推論等級（每則訊息前的分派判斷不送）。" + ReasoningNote,
-            "下一則訊息、下一次巡檢起", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
+            "系統管理助理的推論等級", "「系統管理助理」對話送出的推論等級（每則訊息前的分派判斷不送）。" + ReasoningNote,
+            "下一則訊息起", allowedValues: AiSettings.AgentReasoningEffortValues, blankMeaning: ReasoningBlank),
         Define<AiModelSettings, string>(AiModelSettings.SectionName, x => x.AdminAssistantRouter, GroupAiModel,
             "系統管理助理分派使用的模型", "「系統管理助理」每則訊息前判斷屬於哪些領域用的模型，可以選便宜的模型。空白時用設定檔的快速模型（AiSettings:FastModel）；快速模型也沒填，才用「系統管理助理使用的模型」。",
             "下一則訊息起", maxLength: AiModelSettings.MaxModelLength),
@@ -221,6 +227,31 @@ public static class SystemParameterCatalog
         Define<BackupSettings, bool>(BackupSettings.SectionName, x => x.IncludeAiAgentConversations, GroupBackup,
             "備份 Agent 對話", "是否一併備份 Agent 對話的內容檔。不備份時，還原後對話清單仍在但點開會提示內容已不存在；預設不備份。",
             "下一次備份起"),
+
+        Define<SystemReportSettings, string>(SystemReportSettings.SectionName, x => x.DailyTime, GroupSystemReport,
+            "日報產生時間", "每天幾點產生系統巡檢日報（24 小時制 HH:mm），報告涵蓋前一天 00:00～24:00。要不要產生在「排程作業」頁的「系統巡檢日報」開關。有紅燈或橙燈才通知管理員並寄信。",
+            "約一分鐘內（「排程作業」頁的下次執行時間會跟著變）", required: true, maxLength: 5),
+        Define<SystemReportSettings, bool>(SystemReportSettings.SectionName, x => x.AiNarrativeEnabled, GroupSystemReport,
+            "AI 寫報告說明", "是否請 AI 依報告的燈號與數字寫「整體狀況、建議處理順序、下期預測」（只送去識別的數字，每份約 NT$ 1 以內）。關閉時改用固定句型；燈號與數字一律由程式判定，不受影響。日報全部綠燈時不呼叫 AI。",
+            "下一份報告起"),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacityRedFreePercent, GroupSystemReport,
+            "容量紅燈：可用空間低於", "任一顆磁碟的可用空間低於這個百分比就是紅燈（已發生問題）。" + CapacityNote,
+            "下一份報告起", unit: "%"),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacityRedFreeGb, GroupSystemReport,
+            "容量紅燈：可用空間低於（GB）", "不論百分比，可用空間低於這麼多 GB 也是紅燈（大容量磁碟的百分比看起來還很多時用）。",
+            "下一份報告起", unit: "GB", zeroMeaning: "不檢查"),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacityRedForecastDays, GroupSystemReport,
+            "容量紅燈：預估幾天內用完", "依成長速度預估這麼多天內會用完就是紅燈。",
+            "下一份報告起", unit: "天"),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacityOrangeFreePercent, GroupSystemReport,
+            "容量橙燈：可用空間低於", "可用空間低於這個百分比就是橙燈（即將發生，要開始處理）。設得比紅燈小時以紅燈為準。",
+            "下一份報告起", unit: "%"),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacityOrangeForecastDays, GroupSystemReport,
+            "容量橙燈：預估幾天內用完", "依成長速度預估這麼多天內會用完就是橙燈，報告會寫出預估用完的日期。設得比紅燈小時以紅燈為準。",
+            "下一份報告起", unit: "天"),
+        Define<SystemReportSettings, int>(SystemReportSettings.SectionName, x => x.CapacityYellowForecastDays, GroupSystemReport,
+            "容量黃燈：預估幾天內用完", "依成長速度預估這麼多天內會用完就是黃燈（注意，開始準備擴充）。設得比橙燈小時以橙燈為準。",
+            "下一份報告起", unit: "天"),
     ];
 
     private static readonly Dictionary<string, SystemParameterDefinition> ByKey =

@@ -16,7 +16,7 @@ using MyProject.Web.Client.Views.Admins;
 namespace MyProject.Tests.Components;
 
 /// <summary>
-/// 系統管理助理頁的「巡檢報告」視窗（0.9.161 起；0.10.7 起在 WASM 執行，資料走 <c>api/v1/admin-assistant/patrol-reports</c>）：
+/// 「舊版巡檢報告」視窗（0.9.161 起；0.10.39 起在系統巡檢報告頁，資料走 <c>api/v1/system-reports/legacy</c>）：
 /// 清單、打開一份報告（AI 產出經安全管線）、深連結找不到報告。HTTP 換成記憶體裡的假報告。
 /// </summary>
 public sealed class AdminPatrolReportsModalTests : ComponentTestBase
@@ -31,7 +31,7 @@ public sealed class AdminPatrolReportsModalTests : ComponentTestBase
             var http = new HttpClient(handler) { BaseAddress = new Uri("https://localhost/") };
             var navigation = sp.GetRequiredService<NavigationManager>();
             var session = new ClientSession(http, new TokenStore(sp.GetRequiredService<IJSRuntime>()), navigation, NullLogger<ClientSession>.Instance);
-            return new AdminAssistantApi(new ApiClient(http, session, navigation, NullLogger<ApiClient>.Instance));
+            return new SystemReportApi(new ApiClient(http, session, navigation, NullLogger<ApiClient>.Instance));
         });
     }
 
@@ -91,7 +91,7 @@ public sealed class AdminPatrolReportsModalTests : ComponentTestBase
 
         await cut.InvokeAsync(() => cut.Instance.OpenAsync());
 
-        cut.WaitForAssertion(() => Assert.Contains("還沒有巡檢報告", cut.Markup, StringComparison.Ordinal));
+        cut.WaitForAssertion(() => Assert.Contains("沒有舊版巡檢報告", cut.Markup, StringComparison.Ordinal));
     }
 
     private Guid Save(DateTime createdAt, string status, string attention, string markdown)
@@ -121,7 +121,7 @@ public sealed class AdminPatrolReportsModalTests : ComponentTestBase
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath.TrimEnd('/');
-            const string Base = "/api/v1/admin-assistant/patrol-reports";
+            const string Base = "/api/v1/system-reports/legacy";
             if (path == Base)
             {
                 return Json(HttpStatusCode.OK, ApiResult<AdminPatrolReportListDto>.SuccessResult(new AdminPatrolReportListDto

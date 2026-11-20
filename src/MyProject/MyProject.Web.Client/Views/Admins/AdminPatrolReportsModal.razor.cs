@@ -7,10 +7,10 @@ using MyProject.Web.Client.Api;
 namespace MyProject.Web.Client.Views.Admins;
 
 /// <summary>
-/// 「巡檢報告」視窗（0.9.161 起）：左邊是最新的巡檢報告清單，右邊是選中的那一份。
-/// 0.10.7 起在 WASM 執行（WASM 遷移 M8），資料走 <see cref="AdminAssistantApi"/>（只限管理員；看報告不寫稽核）。
+/// 「舊版巡檢報告」視窗（0.9.161 起）：左邊是最新的巡檢報告清單，右邊是選中的那一份。
+/// 0.10.39 起從「系統巡檢報告」頁打開，資料走 <see cref="SystemReportApi"/> 的 legacy 端點（只限管理員；看報告不寫稽核）。
 ///
-/// ⚠️ 只放在已做過管理員檢查的系統管理助理頁裡（報告全體管理員共用）。
+/// ⚠️ 只放在已做過管理員檢查的頁面裡（報告全體管理員共用）。
 /// 報告是 AI 產出，一律經 <see cref="AiMarkdownRenderer.ToSafeHtml"/>，超過 <see cref="MaxRenderedHtmlLength"/> 就不顯示（同系統管理助理頁）。
 /// </summary>
 public partial class AdminPatrolReportsModal
@@ -26,7 +26,7 @@ public partial class AdminPatrolReportsModal
     private string? detailHtml;
 
     [Inject]
-    public AdminAssistantApi Api { get; set; } = default!;
+    public SystemReportApi Api { get; set; } = default!;
 
     [Inject]
     public ILogger<AdminPatrolReportsModal> Logger { get; set; } = default!;
@@ -49,7 +49,7 @@ public partial class AdminPatrolReportsModal
 
         try
         {
-            var list = await Api.PatrolReportsAsync();
+            var list = await Api.LegacyListAsync();
             if (list.Success == false || list.Data is not { } data)
             {
                 // 讀不到就顯示空清單並記錯誤（同 Server 版）。
@@ -88,7 +88,7 @@ public partial class AdminPatrolReportsModal
 
     private async Task<bool> LoadAsync(Guid reportId)
     {
-        var result = await Api.PatrolReportAsync(reportId);
+        var result = await Api.LegacyGetAsync(reportId);
         if (result.Success == false || result.Data is not { } loaded)
         {
             Logger.LogInformation("Admin patrol report not found. ReportId={ReportId}, Status={Status}", reportId, result.StatusCode);

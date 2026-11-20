@@ -1,10 +1,10 @@
 ﻿# 寄信服務 PRD
 
-- 文件版本：1.13
+- 文件版本：1.14
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.39
 - 首次實作版本：0.9.59
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/20
 
 ## 一、目標與範圍
 
@@ -99,7 +99,7 @@
 - 日誌只記 `Kind`（信件種類）、`Provider`、`Host`，不記收件者、主旨、內文。
 - `Password` 出貨一律空字串，以 User Secrets／環境變數提供。
 - 不略過 TLS 憑證驗證（不設 `ServerCertificateValidationCallback`）。
-- 信中連結以 `PublicBaseUrl` 為準，不採用請求的 Host header。0.10.10 起前端另外部署成獨立站台（`ClientSettings:BaseUrl` 有值）時，註冊 `EmailSettings` 時就以 `ClientSettings:BaseUrl` 蓋過 `PublicBaseUrl`（`PostConfigure`），所有信中連結（重設密碼、站內通知、巡檢報告、例外告警）一起指向前端。
+- 信中連結以 `PublicBaseUrl` 為準，不採用請求的 Host header。0.10.10 起前端另外部署成獨立站台（`ClientSettings:BaseUrl` 有值）時，註冊 `EmailSettings` 時就以 `ClientSettings:BaseUrl` 蓋過 `PublicBaseUrl`（`PostConfigure`），所有信中連結（重設密碼、站內通知、巡檢報告〔0.10.39 起是系統巡檢報告 `/system-reports?report=`〕、例外告警）一起指向前端。
 
 ## 六、錯誤與邊界
 

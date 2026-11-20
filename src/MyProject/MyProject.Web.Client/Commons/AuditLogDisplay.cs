@@ -36,6 +36,7 @@ public static class AuditLogDisplay
         "AiCallLog" => "magenta",
         "AiAgentConversation" => "magenta",
         "AdminPatrol" => "magenta",
+        "SystemReport" => "magenta",
         "TokenUsage" => "magenta",
         "LogLevel" => "cyan",
         "LogViewer" => "cyan",

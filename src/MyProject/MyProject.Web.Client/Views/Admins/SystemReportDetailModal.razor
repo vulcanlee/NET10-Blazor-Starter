@@ -1,0 +1,220 @@
+@using MyProject.Dtos.Admins
+@using MyProject.Models.Systems
+@using MyProject.Share.Helpers
+
+@*
+    系統巡檢報告的內容視窗（0.10.39 起）。尺寸寫在 Commons/OverlayStyles.razor 的 .system-report-modal（Modal 外框渲染在元件 DOM 之外，見速查 §6.4）；
+    窗內內容的樣式在本元件的 .razor.css。純唯讀，Esc 直接關閉。最前面是全面摘要，其次是 AI 說明、每一項發現、容量與統計。
+*@
+<Modal Title="@title"
+       Class="system-report-modal"
+       @bind-Visible="@visible"
+       Keyboard="true"
+       Footer="null">
+    <div class="system-report-body">
+        @if (isLoading)
+        {
+            <div class="system-report-empty"><Spin Tip="讀取中…" /></div>
+        }
+        else if (detail is null)
+        {
+            <div class="system-report-empty">@loadError</div>
+        }
+        else if (detail.Content is not { } content)
+        {
+            <div class="alert alert-warning" role="alert">找不到這份報告的內容檔（可能已被刪除或搬移）。</div>
+        }
+        else
+        {
+            <section class="system-report-summary">
+                <div class="system-report-verdict">
+                    <Tag Color="@SystemReportView.LevelColor(content.Level)">@SystemReportView.LevelText(content.Level)</Tag>
+                    <span>@content.Verdict</span>
+                </div>
+                <div class="system-report-meta">
+                    產生時間 @content.CreatedAt.ToString("yyyy-MM-dd HH:mm")・@content.SystemName @content.SystemVersion
+                </div>
+
+                @foreach (var group in SummaryGroups(content))
+                {
+                    <h4 class="system-report-summary-heading">@group.Heading</h4>
+                    <ul class="system-report-summary-list">
+                        @foreach (var item in group.Items)
+                        {
+                            <li>
+                                <Tag Color="@SystemReportView.LevelColor(item.Level)">@SystemReportLevels.ShortName(item.Level)</Tag>
+                                <strong>@item.Title</strong>
+                                @if (item.Deadline is { } deadline)
+                                {
+                                    <span class="system-report-deadline">（期限 @deadline.ToString("yyyy-MM-dd")）</span>
+                                }
+                                @if (item.Level != SystemReportLevels.Yellow)
+                                {
+                                    <div class="system-report-summary-fix">處理：@item.HowToFix</div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @if (content.Expansions.Count > 0)
+                {
+                    <h4 class="system-report-summary-heading">需要準備擴充容量</h4>
+                    <ul class="system-report-summary-list">
+                        @foreach (var item in content.Expansions)
+                        {
+                            <li>@item.Volume：預估 @(item.FullDate?.ToString("yyyy-MM-dd")) 用完，建議擴充約 @SizeFormatHelper.FormatBytes(item.SuggestedBytes)（一年的成長量再加 15%）。</li>
+                        }
+                    </ul>
+                }
+
+                <h4 class="system-report-summary-heading">下期預測</h4>
+                <ul class="system-report-summary-list">
+                    @foreach (var prediction in content.Predictions)
+                    {
+                        <li>@prediction</li>
+                    }
+                </ul>
+            </section>
+
+            <section>
+                <h3 class="system-report-section-title">AI 說明</h3>
+                @if (narrativeHtml is not null)
+                {
+                    @* AI 產出屬不可信輸入，只能經 AiMarkdownRenderer.ToSafeHtml 之後用 MarkupString。燈號與數字以上面程式判定的為準。 *@
+                    <div class="system-report-markdown">@((MarkupString)narrativeHtml)</div>
+                }
+                else
+                {
+                    <div class="system-report-muted">@(content.NarrativeNote ?? "沒有 AI 說明。")</div>
+                }
+            </section>
+
+            @if (content.Findings.Count > 0)
+            {
+                <section>
+                    <h3 class="system-report-section-title">每一項發現</h3>
+                    @foreach (var finding in content.Findings)
+                    {
+                        <div class="system-report-finding">
+                            <div class="system-report-finding-title">
+                                <Tag Color="@SystemReportView.LevelColor(finding.Level)">@SystemReportLevels.ShortName(finding.Level)</Tag>
+                                <span class="system-report-finding-section">@finding.Section</span>
+                                <strong>@finding.Title</strong>
+                            </div>
+                            <dl class="system-report-finding-detail">
+                                <dt>現況</dt>
+                                <dd>@finding.Detail</dd>
+                                <dt>不處理會怎樣</dt>
+                                <dd>@finding.IfIgnored</dd>
+                                <dt>怎麼處理</dt>
+                                <dd>
+                                    @finding.HowToFix
+                                    @if (finding.ActionRoute is { } route)
+                                    {
+                                        <a class="system-report-action-link" href="@route">前往處理</a>
+                                    }
+                                </dd>
+                                <dt>處理完會怎樣</dt>
+                                <dd>@finding.AfterFix</dd>
+                                @if (finding.Deadline is { } deadline)
+                                {
+                                    <dt>期限</dt>
+                                    <dd>@deadline.ToString("yyyy-MM-dd")</dd>
+                                }
+                            </dl>
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (content.Volumes.Count > 0)
+            {
+                <section>
+                    <h3 class="system-report-section-title">磁碟容量</h3>
+                    <table class="system-report-grid">
+                        <thead>
+                            <tr><th>磁碟</th><th>用途</th><th>總容量</th><th>可用</th><th>每天成長</th><th>預估用完</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var volume in content.Volumes)
+                            {
+                                <tr>
+                                    <td>@volume.Name</td>
+                                    <td>@volume.Purposes</td>
+                                    <td>@SizeFormatHelper.FormatBytes(volume.TotalBytes)</td>
+                                    <td>@SizeFormatHelper.FormatBytes(volume.FreeBytes)（@volume.FreePercent.ToString("0.#")%）</td>
+                                    <td>@(volume.DailyGrowthBytes is { } growth ? SizeFormatHelper.FormatBytes(growth) : $"資料累積中（{volume.SampleDays} 天）")</td>
+                                    <td>@(volume.FullDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+            }
+
+            @if (content.Folders.Count > 0 || content.Database is not null)
+            {
+                <section>
+                    <h3 class="system-report-section-title">資料目錄</h3>
+                    <table class="system-report-grid">
+                        <thead>
+                            <tr><th>項目</th><th>磁碟</th><th>大小</th><th>檔案數</th></tr>
+                        </thead>
+                        <tbody>
+                            @if (content.Database is { } db)
+                            {
+                                <tr>
+                                    <td>資料庫</td>
+                                    <td>—</td>
+                                    <td>@SizeFormatHelper.FormatBytes(db.MainBytes)（暫存寫入檔 @SizeFormatHelper.FormatBytes(db.WalBytes)）</td>
+                                    <td>—</td>
+                                </tr>
+                            }
+                            @foreach (var folder in content.Folders)
+                            {
+                                <tr>
+                                    <td>@folder.Name</td>
+                                    <td>@(string.IsNullOrEmpty(folder.Volume) ? "—" : folder.Volume)</td>
+                                    <td>@FolderSize(folder)</td>
+                                    <td>@(folder.ItemCount?.ToString("N0") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+            }
+
+            @if (content.Stats.Count > 0)
+            {
+                <section>
+                    <h3 class="system-report-section-title">統計</h3>
+                    <table class="system-report-grid">
+                        <thead>
+                            <tr><th>區塊</th><th>項目</th><th>數值</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var stat in content.Stats)
+                            {
+                                <tr><td>@stat.Section</td><td>@stat.Label</td><td>@stat.Value</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+            }
+
+            @if (content.Limitations.Count > 0)
+            {
+                <section>
+                    <h3 class="system-report-section-title">量測限制</h3>
+                    <ul class="system-report-summary-list system-report-muted">
+                        @foreach (var note in content.Limitations)
+                        {
+                            <li>@note</li>
+                        }
+                    </ul>
+                </section>
+            }
+        }
+    </div>
+</Modal>

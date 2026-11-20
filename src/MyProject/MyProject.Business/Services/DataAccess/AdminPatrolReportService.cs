@@ -11,6 +11,8 @@ namespace MyProject.Business.Services.DataAccess;
 
 /// <summary>
 /// 定時巡檢報告的資料存取（0.9.161 起）：存檔、清單、讀取與自動過期。
+/// 0.10.39 起巡檢由「系統巡檢報告」（<see cref="SystemReportService"/>）取代，不再產生新的報告；
+/// 舊報告在「系統巡檢報告」頁的「舊版巡檢報告」頁籤看得到，保留天數沿用日報的 <see cref="SystemReportSettings.DailyRetentionDays"/>。
 ///
 /// 資料表只放固定用語的中繼資料，報告內文一律寫進 <see cref="AdminPatrolReportFileStore"/>（速查表 §6.7）。
 /// ⚠️ <b>不分使用者</b>：巡檢報告是全體管理員共用的。呼叫端只有排程作業與已做過管理員檢查的系統管理助理頁，
@@ -23,14 +25,14 @@ public class AdminPatrolReportService
 
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly AdminPatrolReportFileStore fileStore;
-    private readonly IOptionsMonitor<AdminPatrolSettings> settings;
+    private readonly IOptionsMonitor<SystemReportSettings> settings;
     private readonly ILogger<AdminPatrolReportService> logger;
 
     // ⚠️ 只能有一個建構式：DataAccessServiceLifetimeTests 用 GetConstructors().Single()。
     public AdminPatrolReportService(
         IDbContextFactory<BackendDBContext> contextFactory,
         AdminPatrolReportFileStore fileStore,
-        IOptionsMonitor<AdminPatrolSettings> settings,
+        IOptionsMonitor<SystemReportSettings> settings,
         ILogger<AdminPatrolReportService> logger)
     {
         this.contextFactory = contextFactory;
@@ -39,7 +41,7 @@ public class AdminPatrolReportService
         this.logger = logger;
     }
 
-    public int RetentionDays => settings.CurrentValue.RetentionDays;
+    public int RetentionDays => settings.CurrentValue.DailyRetentionDays;
 
     /// <summary>
     /// 存一份報告：先寫內容檔再寫資料列；寫資料列失敗就刪掉剛寫的檔。

@@ -93,7 +93,7 @@ public sealed class SystemParameterTests
             ScheduledJobSettings.SectionName, SlowOperationSettings.SectionName, ExceptionAlertSettings.SectionName,
             ClientErrorReportingSettings.SectionName, RateLimitSettings.SectionName, PasswordResetSettings.SectionName,
             BackupSettings.SectionName, NotificationSettings.SectionName, PasswordPolicySettings.SectionName, LockoutSettings.SectionName, LoginFailureAlertSettings.SectionName, EmailDeliverySettings.SectionName, TwoFactorSettings.SectionName,
-            AiQuotaSettings.SectionName, AiModelSettings.SectionName, AiReasoningSettings.SectionName, AiAgentConversationSettings.SectionName, AdminPatrolSettings.SectionName,
+            AiQuotaSettings.SectionName, AiModelSettings.SectionName, AiReasoningSettings.SectionName, AiAgentConversationSettings.SectionName, SystemReportSettings.SectionName,
             AuditLogSettings.SectionName,
         };
         var secretLike = new Regex("password|secret|apikey|signingkey|connection|licensekey|recipients|path", RegexOptions.IgnoreCase);
@@ -436,6 +436,12 @@ public sealed class SystemParameterTests
 
     // ---------- 測試工具 ----------
 
+    /// <summary>有固定格式的字串鍵（0.10.39 起：系統巡檢報告的時間 HH:mm），哨兵值要符合格式才綁定得進去。</summary>
+    private static readonly Dictionary<string, string> FormattedSentinels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SystemReportSettings:DailyTime"] = "06:45",
+    };
+
     private static string SentinelFor(SystemParameterDefinition definition, string? current)
     {
         switch (definition.Kind)
@@ -448,10 +454,10 @@ public sealed class SystemParameterTests
                     ? candidate + 1
                     : candidate).ToString(System.Globalization.CultureInfo.InvariantCulture);
             default:
-                // 限定選項：挑一個和目前不同的合法值。
+                // 限定選項：挑一個和目前不同的合法值；有固定格式的字串（例如 HH:mm）用一個合法的值。
                 return definition.AllowedValues is { } allowed
                     ? allowed.First(x => x != SystemParameterValueCodec.Canonical(definition, current))
-                    : "哨兵值";
+                    : FormattedSentinels.GetValueOrDefault(definition.Key, "哨兵值");
         }
     }
 

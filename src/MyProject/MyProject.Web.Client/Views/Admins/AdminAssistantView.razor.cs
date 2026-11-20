@@ -78,9 +78,6 @@ public partial class AdminAssistantView : IDisposable
     private CancellationTokenSource? cts;
     private bool isDisposed;
 
-    /// <summary>「巡檢報告」視窗（0.9.161 起）；只在管理員分支裡渲染，非管理員永遠打不開。</summary>
-    private AdminPatrolReportsModal? patrolReportsModal;
-
     [Inject]
     public AdminAssistantApi Api { get; set; } = default!;
 
@@ -100,10 +97,6 @@ public partial class AdminAssistantView : IDisposable
     public ILogger<AdminAssistantView> Logger { get; set; } = default!;
 
     public string RoleMessage { get; set; } = string.Empty;
-
-    /// <summary>定時巡檢通知的連結帶過來的報告編號（0.9.161 起）；有值時自動打開「巡檢報告」並選那一份。</summary>
-    [Parameter]
-    public Guid? InitialPatrolReportId { get; set; }
 
     /// <summary>網址帶過來的對話（重新整理前開著的那一段）。</summary>
     [Parameter]
@@ -159,28 +152,8 @@ public partial class AdminAssistantView : IDisposable
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        // 深連結（同 AI 對話紀錄頁）：等畫面渲染完才開，視窗的 @ref 才有值；只開一次。
-        if (InitialPatrolReportId is not { } reportId || patrolReportsModal is null)
-        {
-            return;
-        }
-
-        InitialPatrolReportId = null;
-        if (await patrolReportsModal.OpenAsync(reportId) == false)
-        {
-            ViewNotification.Caution(NotificationService, "找不到這份巡檢報告，可能已超過保存期限被清除。");
-        }
-    }
-
-    private async Task OnOpenPatrolReportsAsync()
-    {
-        if (patrolReportsModal is not null)
-        {
-            await patrolReportsModal.OpenAsync();
-        }
-    }
+    /// <summary>「巡檢報告」按鈕（0.10.39 起）：系統巡檢報告有自己的頁面。</summary>
+    private void OnOpenSystemReports() => NavigationManager.NavigateTo("/system-reports");
 
     private async Task OnNewConversation()
     {

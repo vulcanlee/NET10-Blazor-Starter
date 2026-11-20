@@ -106,7 +106,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
   0.9.175 起每筆紀錄以 HMAC 雜湊鏈簽章防竄改，稽核頁可「驗證完整性」，每天 03:30 的排程發現被改、被刪就通知全體管理員（金鑰放 `AuditKeyPath`，刻意不進備份）
 - Token 用量與費用：每次 LLM 呼叫記錄 token 與花費（USD／TWD），可依使用者／作業／模型／型別彙總，支援 CSV 與 PDF 匯出（0.9.14、0.9.17）
 - AI 對話紀錄：保存每次 AI 呼叫實際送出的 Prompt 與取得的 Response（管理員專屬、預設保留 90 天自動過期），五種檢視、JSON／PDF 匯出，並與 Token 用量以呼叫識別碼互相連結（0.9.72）
-- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 14 個作業：10 個清理作業（含登入 Token 清理，0.10.0）、系統備份、稽核紀錄完整性檢查（0.9.175）、系統管理助理巡檢（0.9.161）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
+- 排程作業：`/scheduled-jobs`，以 cron 排程的背景工作框架（0.9.96 起；現內建 15 個作業：10 個清理作業（含登入 Token 清理，0.10.0）、系統備份、稽核紀錄完整性檢查（0.9.175）、系統巡檢日報與容量快照（0.10.39；取代 0.9.161 的系統管理助理巡檢）、密碼到期提醒），可看下次執行與上次結果、立即執行、停用；啟動時補跑錯過的時段，IIS 重疊回收也只跑一次（0.9.96）；已刪除的專案、分類、團隊、使用者、角色預設 90 天後自動永久刪除（0.9.97）
 - 系統備份：`/backups`，每天 02:00 自動備份資料庫（一致快照）、附件、例外堆疊檔、Token 原始檔、稽核內容檔與金鑰環成 zip，保留 7 份（AI 對話紀錄與 Agent 對話可在系統參數選擇是否納入）；管理員可立即備份與下載；停站後以 `scripts/Restore-Backup.ps1` 還原（0.9.99）
 - 站內通知與公告：右上角鈴鐺保存通知並即時更新，排程作業失敗會通知管理員與觸發者（同時寄信）；程式以 `INotificationSender` 發通知；管理員在 `/announcements` 對全體或角色／團隊發公告，每頁上方顯示、各自關閉（0.9.100）；
   0.9.125 起鈴鐺每則可刪除、可「清除已讀」，已讀的通知預設 7 天後自動清除（`NotificationSettings:ReadRetentionDays`）
@@ -122,6 +122,7 @@ MyProject.Web ──► MyProject.Business ──► MyProject.AccessDatas
 - Agent 骨架：Agent 寫在 C#，工具依使用者權限執行、會改資料的工具要使用者核准、執行與被擋都寫稽核；同一次執行的多次模型呼叫以執行編號串起；各 AI 功能可在系統參數「AI 模型」指定模型（0.9.142）；簡單工作可用設定檔的快速模型 `AiSettings:FastModel`（0.10.22）。現行由系統管理助理使用；0.9.142～0.10.21 的範例頁「Agent 測試台」「Agent 工作流程」（選單「AI 助理」）0.10.22 起已移除，可從 git 標籤 `AI助理-0.10.21` 取回
 - Agent 對話保存：系統管理助理的對話自動保存在左側「我的對話」，只有本人看得到，可以接續（AI 記得前文、停在核准的重新跳核准窗）、重新命名、刪除；最後一次對話超過保留天數（系統參數，預設 90 天）自動刪除，資料保留頁多一列「Agent 對話」，備份可選擇是否包含（0.9.143）
 - 系統管理助理（0.9.155 起）：新選單「系統管理 › 管理助理 › 系統管理助理」（`/admin-assistant`，只限管理員），管理員以對話查詢系統狀態（健康、錯誤、排程、備份、用量、帳號安全），每則訊息先分派給帳號與權限、監控與診斷、AI 管理、系統設定與維運四位專家；要修改時一律先跳核准窗，無法復原的動作要紅字確認；0.9.161 起每天 07:30 由排程作業定時巡檢，報告存在「巡檢報告」，有注意／異常時通知所有管理員並寄信
+- 系統巡檢報告（0.10.39 起）：`/system-reports`（只限管理員），每天一份有紅、橙、黃、綠燈號的日報，涵蓋健康、錯誤、排程、備份、磁碟容量、寄信、AI 與帳號安全；燈號由程式規則判定，每一項寫出不處理會怎樣、怎麼處理、處理完會怎樣，並依每天的容量快照預估磁碟用完日期；AI 只寫說明（不進通知與 Email）；紅燈或橙燈才通知所有管理員。取代系統管理助理的定時巡檢；PDF 附件、週報與月報在後續版本
 - CRUD 產生器一行到位：`New-CrudModule.ps1` 直接產生實體、Web API、頁面（軟刪除、並行、稽核、匯出、說明、測試，可選團隊範圍或管理員專屬）並完成所有登記與 migration；`Test-CrudGenerator.ps1` 驗證；畫面依權限顯示按鈕改用可測的 `<RequirePermission>`（0.9.110）
 - 清單點狀態標籤切換：團隊、分類、使用者清單的「啟用／停用」標籤可直接點（停用先確認；沒有修改權限或已刪除時不可點；support 與自己不可停用；0.9.120）
 - 列表多筆刪除：列表工具列勾選後出現「刪除選取（N）」，先列出要刪的項目再逐筆刪除，刪不掉的列出原因、每筆各記稽核（0.9.132）
@@ -271,7 +272,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SystemSettings.ExternalFileSystem.ExceptionPath` | 系統例外紀錄的堆疊追蹤檔放置目錄（0.9.11 起）。 |
 | `SystemSettings.ExternalFileSystem.TokenUsagePath` | LLM 原始 usage JSON 放置目錄（0.9.14 起）。 |
 | `SystemSettings.ExternalFileSystem.AiCallLogPath` | AI 對話紀錄的內容檔目錄（完整 Prompt／Response，0.9.72 起）。⚠️ 內容含日誌與例外堆疊，**絕不可放在 `DownloadPath` 底下**。 |
-| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 對話的內容檔目錄（0.9.143 起；現行是系統管理助理的對話與巡檢報告）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
+| `SystemSettings.ExternalFileSystem.AiAgentConversationPath` | Agent 對話的內容檔目錄（0.9.143 起；現行是系統管理助理的對話與系統巡檢報告的內容檔）。⚠️ 內容含使用者與 AI 的對話、工具查到的業務資料，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.AuditContentPath` | 稽核紀錄的詳細內容檔目錄（0.9.131 起）：修改前後差異與完整查詢條件，系統備份會打包、清除時同步刪檔。⚠️ 可能含 Email、姓名與搜尋原文，**絕不可放在 `DownloadPath` 底下**。 |
 | `SystemSettings.ExternalFileSystem.BackupPath` | 系統備份 zip 放置目錄（0.9.99 起）。 |
 | `SystemSettings.ExternalFileSystem.DataProtectionKeyPath` | ASP.NET Core Data Protection 金鑰環目錄（0.9.39 起）。0.10.8 起以此加密兩步驟驗證的待驗票證、記住裝置 Token、設定票證、Google 登入的暫存 Cookie 與兩步驟驗證金鑰；⚠️ 金鑰換掉記住的裝置要重新驗證、兩步驟驗證金鑰解不開；多機部署須共用此目錄。 |
@@ -284,7 +285,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `AiPricingSettings` | LLM 費率表與匯率（0.9.17 起）。費用是**呼叫當下的快照**，改這裡不會回頭修正既有紀錄；模型找不到費率會記成「未定價」（不是 0）。費率表與模型比對規則見 [日誌與設定檔說明 §4.9](docs/operations/日誌與設定檔說明.md)。 |
 | `AiCallLogSettings` | AI 對話紀錄：`Enabled`（預設 `true`）與 `RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗）。停用只代表不再記，舊紀錄照樣過期。見 [日誌與設定檔說明 §4.10](docs/operations/日誌與設定檔說明.md)。 |
 | `AiAgentConversationSettings` | Agent 對話（0.9.143 起；現行是系統管理助理的對話）：`RetentionDays`（預設 90，範圍 1～3650，超出啟動失敗），最後一次對話超過天數就連同內容檔刪除；通常在系統參數頁「資料保留」調整。見 [日誌與設定檔說明 §4.10.1](docs/operations/日誌與設定檔說明.md)。 |
-| `AdminPatrolSettings` | 系統管理助理定時巡檢報告（0.9.161 起）：`RetentionDays`（預設 90，範圍 1～3650），產出超過天數的報告連同內容檔刪除；巡檢執行時間在 `ScheduledJobSettings`。見 [日誌與設定檔說明 §4.10.2](docs/operations/日誌與設定檔說明.md)。 |
+| `SystemReportSettings` | 系統巡檢報告（0.10.39 起，取代 `AdminPatrolSettings`）：`DailyTime`（日報產生時間，預設 07:30；不能用 `ScheduledJobSettings:Jobs` 覆寫）、`AiNarrativeEnabled`、容量紅橙黃燈門檻、`DailyRetentionDays`（預設 90，範圍 1～3650，舊版巡檢報告也用它）、`CapacitySnapshotRetentionDays`（預設 730，範圍 30～3650）；全部可在系統參數頁改。見 [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md)。 |
 | `LogRetentionSettings` | 自動保存期限（0.9.78 起）：`ExceptionLogDays`（系統例外紀錄，預設 90）、`AuditLogDays`（稽核紀錄，預設 365）、`TokenUsageLogDays`（Token 用量，預設 365，0.9.96 起），範圍 0～36500，`0`＝不自動清理；0.9.174 起另有 `AuditBrowsingLogDays`（瀏覽類稽核，預設 90）；0.9.96 起由排程作業清理（預設每日 03:00）。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `AuditLogSettings` | 稽核記錄範圍（0.9.174 起）：`RecordFieldChanges`（記錄修改前後差異）、`RecordBrowsing`（記錄換頁、搜尋、查看等瀏覽類事件），預設都 `false`；登入、權限拒絕、新增、修改、刪除永遠照記；通常在系統參數頁「資料保留」切換。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
 | `SoftDeleteSettings` | 已刪除資料（0.9.97 起）：`PurgeAfterDays`（預設 90，`0`＝不自動永久刪除），專案、分類、團隊、使用者、角色刪除超過天數後永久刪除。見 [日誌與設定檔說明 §4.11](docs/operations/日誌與設定檔說明.md)。 |
@@ -371,7 +372,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [系統健康監控](docs/features/系統健康監控.md) — 健康百分比、紅黃綠燈號、部署探針與最近 24 小時 WARN 以上日誌。
 - [AI 日誌分析](docs/features/AI日誌分析.md) — 日誌送 Azure OpenAI／OpenAI 整理、Markdown 安全渲染管線、PDF 報告與內嵌中文字型（0.9.4）。
 - [AI 例外分析](docs/features/AI例外分析.md) — 例外明細送 AI 產生分析報告、多輪追問、複製對話與 PDF 下載（0.9.68）。
-- [系統管理助理](docs/features/系統管理助理.md) — 管理員以對話查詢與管理系統、分派給四位專家、修改前核准與無法復原動作的紅字確認（0.9.155 起；0.9.161 定時巡檢）。
+- [系統管理助理](docs/features/系統管理助理.md) — 管理員以對話查詢與管理系統、分派給四位專家、修改前核准與無法復原動作的紅字確認（0.9.155 起；0.9.161 定時巡檢，0.10.39 起由系統巡檢報告取代）。
 
 ### 開發與操作指南（guides）
 

@@ -340,6 +340,12 @@ public static class AuditActions
         public const string AutoPurge = "AdminPatrol.AutoPurge";
     }
 
+    /// <summary>系統巡檢報告（0.10.39 起）：自動過期的報告與容量快照（detail 只記筆數與天數）。</summary>
+    public static class SystemReport
+    {
+        public const string AutoPurge = "SystemReport.AutoPurge";
+    }
+
     /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>
     public static class Prompt
     {

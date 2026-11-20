@@ -1,0 +1,18 @@
+@page "/system-reports"
+@using MyProject.Web.Client.Views.Admins
+
+@* 系統巡檢報告（0.10.39 起）。版面 ClientMainLayout 由 ClientRoutes 指定，登入檢查通過前不渲染。
+   網址可帶 ?report={id}（通知與 Email 的連結）直接打開那一份，?legacyReport={id} 打開舊版巡檢報告。 *@
+<PageTitle>系統巡檢報告</PageTitle>
+
+<SystemReportView InitialReportId="@Report" InitialLegacyReportId="@LegacyReport" />
+
+@code {
+    /// <summary>通知與 Email 連結帶過來的報告編號；有值時自動打開那一份。</summary>
+    [SupplyParameterFromQuery(Name = "report")]
+    public Guid? Report { get; set; }
+
+    /// <summary>舊版巡檢報告（0.9.161～0.10.38）的編號；有值時打開「舊版巡檢報告」並選那一份。</summary>
+    [SupplyParameterFromQuery(Name = "legacyReport")]
+    public Guid? LegacyReport { get; set; }
+}

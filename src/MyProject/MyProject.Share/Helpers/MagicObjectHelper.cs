@@ -88,6 +88,9 @@ public class MagicObjectHelper
     /// <inheritdoc cref="角色_系統管理"/>
     public const string 角色_資料保留與清理 = "資料保留與清理";
 
+    /// <summary>「系統巡檢報告」頁（0.10.39 起），管理員專屬；機制同 <see cref="角色_系統管理"/>。</summary>
+    public const string 角色_系統巡檢報告 = "系統巡檢報告";
+
     /// <inheritdoc cref="角色_系統管理"/>
     public const string 角色_公告管理 = "公告管理";
 

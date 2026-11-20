@@ -345,15 +345,15 @@
 
 ## 二之四、系統管理助理 API（0.10.7 起，WASM 遷移 M8）
 
-系統管理助理（含巡檢報告窗）在 WebAssembly 執行，背後是下面這組 API（0.10.7 同時加入的 Agent 測試台 `api/v1/agent-playground` 與 Agent 工作流程 `api/v1/agent-workflows` 0.10.22 起已移除，可從 git 標籤 `AI助理-0.10.21` 取回）。只有 `api/v1` 路由、要 Bearer、回 `ApiResult`；本地時間以不帶時差送出。
+系統管理助理在 WebAssembly 執行（0.10.38 以前的巡檢報告窗 0.10.39 起移到「系統巡檢報告」頁，見二之五），背後是下面這組 API（0.10.7 同時加入的 Agent 測試台 `api/v1/agent-playground` 與 Agent 工作流程 `api/v1/agent-workflows` 0.10.22 起已移除，可從 git 標籤 `AI助理-0.10.21` 取回）。只有 `api/v1` 路由、要 Bearer、回 `ApiResult`；本地時間以不帶時差送出。
 
 - **對話一律回 NDJSON 串流**（見《[Web API 設計慣例](Web%20API%20設計慣例.md)》「串流回應」）：閒置超過 **15 秒**插一筆 `ping`（`NdjsonHeartbeat`），工具或推論模型很久沒輸出時中間的代理伺服器才不會把連線切斷；畫面收到 `ping` 直接忽略。請求在進入串流之前就被拒絕時（400、403、404、409）回一般 `ApiResult`。
-- **稽核都在原本的服務裡**：工具的 `Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected` 由工具外殼寫，刪除對話的 `AiAgentConversation.Delete` 由對話服務寫；開啟、改名、看巡檢報告不寫。
-- DTO 在 `MyProject.Dtos/Ai`（`AgentDtos`、`AgentStreamDtos`）與 `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`；WASM 端的呼叫在 `MyProject.Web.Client/Api/AgentConversationApi.cs`（共用基底 `AgentConversationApi`，現行只有 `AdminAssistantApi` 繼承），對應在 `AgentDtoMapper`。
+- **稽核都在原本的服務裡**：工具的 `Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected` 由工具外殼寫，刪除對話的 `AiAgentConversation.Delete` 由對話服務寫；開啟、改名不寫。
+- DTO 在 `MyProject.Dtos/Ai`（`AgentDtos`、`AgentStreamDtos`）；WASM 端的呼叫在 `MyProject.Web.Client/Api/AgentConversationApi.cs`（共用基底 `AgentConversationApi`，現行只有 `AdminAssistantApi` 繼承），對應在 `AgentDtoMapper`。
 
 ### 2.20 系統管理助理（`AdminAssistantController`，`api/v1/admin-assistant`）
 
-控制器只標授權、選設定（`AgentConversationProfile`），流程寫在共用的 `Controllers/AgentConversationEndpoint.cs`，之後要加別的 Agent 頁可照樣套用。權限：每個 action（含巡檢報告）`[AdminOnly]`。
+控制器只標授權、選設定（`AgentConversationProfile`），流程寫在共用的 `Controllers/AgentConversationEndpoint.cs`，之後要加別的 Agent 頁可照樣套用。權限：每個 action `[AdminOnly]`。
 
 | 動作 | 路由（`{頁}` 為 `admin-assistant`）| 回傳／說明 |
 |------|------|------|
@@ -364,13 +364,29 @@
 | 刪除對話 | `DELETE {頁}/conversations/{id}` | 執行中就等它做完再刪（否則執行結束的存檔會把它建回來）；寫 `AiAgentConversation.Delete` |
 | 送出訊息 | `POST {頁}/messages` | body `AgentMessageRequestDto`（`ConversationId` 空＝開新對話，`Message`；`ReasoningEffort` 只在開了 `SupportsReasoningEffort` 的頁面採用，系統管理助理忽略）。回 NDJSON（見下）。空白或超過 **2,000 字** 400；推論等級不合法 400；等待核准時送新訊息 409；AI 不可用 409 |
 | 回覆核准 | `POST {頁}/conversations/{id}/approvals` | body `ApprovedRequestIds`、`RejectedRequestIds`、`ConfirmText`。回 NDJSON。沒有待核准 409「沒有待核准的操作…」；編號不在目前待核准裡 409「這些操作已經處理過了…」（**所以同一個核准送兩次只執行一次**）；核准不可復原的動作沒輸入「確認」400 |
-| 巡檢報告清單 | `GET admin-assistant/patrol-reports` | `AdminPatrolReportListDto`：保存天數與報告清單（最新在前）|
-| 一份巡檢報告 | `GET admin-assistant/patrol-reports/{id}` | `AdminPatrolReportDetailDto`（內文 Markdown 由畫面消毒）；已過期 404「找不到這份巡檢報告…」|
 
 - **每個請求接續一次對話**：伺服器不把對話物件留在記憶體，送訊息與回覆核准都是「讀存檔 → `IAiAgentRunner.ResumeAsync` 接續 → 執行 → 存檔」；每個請求用當下系統參數的模型。中斷連線就取消這次執行，已收到的內容照樣存檔。
 - **串流每一行**（`AgentStreamFrameDto`，`Kind`）：`start`（對話 ID、模型、推論等級）、`entry`（新增的一則紀錄）、`delta`（文字）、`tool`（工具開始／結束）、`label`（「由誰回答」，**每個請求至少送一次**）、最後是 `approvals`（停下來等核准）或 `result`（`AiResultDto`），閒置時 `ping`。
 - **每段對話一把鎖**（`AiAgentConversationLocks`）：鎖得到就先驗證，錯誤以狀態碼回；同一段對話正被另一個請求（例如另一個分頁）使用時**排隊**——先回 200 串流、等待期間送心跳，輪到之後才驗證，這時的錯誤放在 `result` 那一行（`Success=false`）。核准另以資料庫的條件式更新（`HasPendingApproval`）搶占，跨行程也只執行一次。
 - 系統管理助理接續停在核准的對話時，沿用提出核准的那一輪（分派結果存在對話檔的 `TurnKey`，由 `IAiAgentTurnPlanner.RestoreTurnAsync` 重建），不會變成「全部工具＋全部領域」。
+
+## 二之五、系統巡檢報告 API（0.10.39 起）
+
+「系統巡檢報告」頁（`/system-reports`）在 WebAssembly 執行，背後是下面這組 API。只有 `api/v1` 路由、要 Bearer、回 `ApiResult`；本地時間以不帶時差送出。
+每個 action 都是 `[AdminOnly]`（權限鍵不在角色矩陣）；報告全體管理員共用，看報告不寫稽核。設計見 [系統巡檢報告 PRD](../prd/系統巡檢報告-prd.md) 與[速查表 §6.34](開發慣例與限制速查.md)。
+DTO 在 `MyProject.Dtos/Admins/SystemReportDtos.cs`（舊版巡檢報告沿用 `AdminPatrolReportDtos.cs`），WASM 端的呼叫在 `MyProject.Web.Client/Api/SystemReportApi.cs`。
+
+### 2.21 系統巡檢報告（`SystemReportsController`，`api/v1/system-reports`）
+
+| 動作 | 路由 | 回傳／說明 |
+|------|------|------|
+| 報告清單 | `POST system-reports/search` | body `SystemReportSearchRequestDto`（種類、燈號、產生日期起迄、分頁）；回 `SystemReportListDto`：報告摘要（最新在前）、總筆數與保存天數 |
+| 一份報告 | `GET system-reports/{id}` | `SystemReportDetailDto`：摘要與內容（全面摘要、每一項發現、容量表、統計、AI 說明）；內容檔不見時 `Content` 為 null；找不到 404「找不到這份報告，可能已超過保存期限被清除。」|
+| 立即產生 | `POST system-reports/generate` | body `SystemReportGenerateRequestDto`（`Frequency`＝日報、`Date`、`SendToAdmins`）。不在請求裡產生：帶參數放進「系統巡檢日報」作業的佇列，完成時以站內通知告訴產生者；已在佇列或執行中 409「已經有一份報告正在產生，請等它完成。」；今天以後 400「只能產生今天以前的日報（今天還沒過完）。」、早於保存天數 400、不是日報 400。成功寫 `Job.Trigger`（`job=SystemReportDaily; date=…; send=…; via=system-reports`）|
+| 舊版巡檢報告清單 | `GET system-reports/legacy` | `AdminPatrolReportListDto`：0.9.161～0.10.38 的 AI 巡檢報告與保存天數（最新在前）|
+| 一份舊版巡檢報告 | `GET system-reports/legacy/{id}` | `AdminPatrolReportDetailDto`（內文 Markdown 由畫面消毒）；找不到 404 |
+
+0.10.38 以前的 `GET api/v1/admin-assistant/patrol-reports` 與 `patrol-reports/{id}` 已移除，改用上面兩個 `legacy` 端點。
 
 ## 三、一次性下載票證 `DownloadsController`（0.10.3 起）
 

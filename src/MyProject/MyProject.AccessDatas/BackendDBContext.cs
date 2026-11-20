@@ -30,6 +30,8 @@ public partial class BackendDBContext : DbContext
     public virtual DbSet<AiAgentConversation> AiAgentConversation { get; set; }
 
     public virtual DbSet<AdminPatrolReport> AdminPatrolReport { get; set; }
+    public virtual DbSet<SystemReport> SystemReport { get; set; }
+    public virtual DbSet<CapacitySnapshot> CapacitySnapshot { get; set; }
     public virtual DbSet<Permission> Permission { get; set; }
     public virtual DbSet<RolePermissionMap> RolePermissionMap { get; set; }
     public virtual DbSet<UserRole> UserRole { get; set; }
@@ -204,6 +206,31 @@ public partial class BackendDBContext : DbContext
             entity.Property(x => x.TriggeredByAccount).HasMaxLength(100);
             entity.Property(x => x.ModelName).HasMaxLength(100);
             entity.Property(x => x.ContentFile).HasMaxLength(200);
+        });
+
+        // 系統巡檢報告（0.10.39 起）：清單依產生時間；篩選頻率、燈號；同頻率同區間的排程報告只產一份。
+        modelBuilder.Entity<SystemReport>(entity =>
+        {
+            entity.HasIndex(x => x.ReportId).IsUnique();
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => new { x.Frequency, x.PeriodStart });
+            entity.Property(x => x.Frequency).HasMaxLength(10);
+            entity.Property(x => x.Level).HasMaxLength(10);
+            entity.Property(x => x.Trigger).HasMaxLength(20);
+            entity.Property(x => x.TriggeredByAccount).HasMaxLength(100);
+            entity.Property(x => x.NarrativeStatus).HasMaxLength(20);
+            entity.Property(x => x.ModelName).HasMaxLength(100);
+            entity.Property(x => x.DeliveryStatus).HasMaxLength(20);
+            entity.Property(x => x.ContentFile).HasMaxLength(200);
+        });
+
+        // 容量快照（0.10.39 起）：一天一個代碼一列。
+        modelBuilder.Entity<CapacitySnapshot>(entity =>
+        {
+            entity.HasIndex(x => new { x.SnapshotDate, x.Category, x.Key }).IsUnique();
+            entity.Property(x => x.Category).HasMaxLength(20);
+            entity.Property(x => x.Key).HasMaxLength(100);
+            entity.Property(x => x.Status).HasMaxLength(20);
         });
         #endregion
 

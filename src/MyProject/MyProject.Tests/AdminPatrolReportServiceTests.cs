@@ -217,7 +217,7 @@ public sealed class AdminPatrolReportServiceTests
             => new(
                 new TestDbContextFactory(Connection),
                 CreateFileStore(rootPath),
-                new StaticOptionsMonitor<AdminPatrolSettings>(new AdminPatrolSettings { RetentionDays = retentionDays }),
+                new StaticOptionsMonitor<SystemReportSettings>(new SystemReportSettings { DailyRetentionDays = retentionDays }),
                 Logger<AdminPatrolReportService>());
 
         public async Task<List<AdminPatrolReport>> ListRowsAsync()

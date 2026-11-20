@@ -22,7 +22,7 @@ public sealed class PromptTemplateGroupingTests
         var groups = PromptTemplateView.GroupsOf(templates);
 
         Assert.Equal(["一般", "管理助理"], groups.Select(g => g.Name));
-        Assert.Equal(["日誌分析", "例外分析"], groups[0].Items.Select(i => i.Label));
+        Assert.Equal(["日誌分析", "例外分析", "系統巡檢報告"], groups[0].Items.Select(i => i.Label));
         Assert.Equal(["共同", "分派", "帳號與權限", "監控與診斷", "AI 管理", "系統設定與維運"], groups[1].Items.Select(i => i.Label));
 
         // 每個種類剛好出現一次，鍵照原本的順序。

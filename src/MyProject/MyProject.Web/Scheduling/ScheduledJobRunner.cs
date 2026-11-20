@@ -65,7 +65,8 @@ public sealed class ScheduledJobRunner
         DateTime? scheduledForUtc,
         string? account,
         CancellationToken cancellationToken,
-        int? triggeredByUserId = null)
+        int? triggeredByUserId = null,
+        string? arguments = null)
     {
         if (trigger != JobRunTriggers.Manual)
         {
@@ -98,7 +99,7 @@ public sealed class ScheduledJobRunner
         }
 
         await RecoverStaleRunsCoreAsync(descriptor.Name);
-        await ExecuteCoreAsync(descriptor, trigger, scheduledForUtc, account, triggeredByUserId, cancellationToken);
+        await ExecuteCoreAsync(descriptor, trigger, scheduledForUtc, account, triggeredByUserId, arguments, cancellationToken);
         return ScheduledJobRunOutcome.Executed;
     }
 
@@ -121,7 +122,7 @@ public sealed class ScheduledJobRunner
         }
     }
 
-    private async Task ExecuteCoreAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? scheduledForUtc, string? account, int? triggeredByUserId, CancellationToken cancellationToken)
+    private async Task ExecuteCoreAsync(ScheduledJobDescriptor descriptor, string trigger, DateTime? scheduledForUtc, string? account, int? triggeredByUserId, string? arguments, CancellationToken cancellationToken)
     {
         // 每次執行一個新的追蹤碼：不可沿用呼叫端的（例如手動觸發時畫面那一次互動的碼）。
         var traceId = TraceCode.New();
@@ -150,7 +151,7 @@ public sealed class ScheduledJobRunner
 
             await using var scope = scopeFactory.CreateAsyncScope();
             var job = (IScheduledJob)scope.ServiceProvider.GetRequiredService(descriptor.JobType);
-            var result = await job.ExecuteAsync(new ScheduledJobContext(runId, trigger, scheduledForUtc, account, triggeredByUserId), cancellationToken);
+            var result = await job.ExecuteAsync(new ScheduledJobContext(runId, trigger, scheduledForUtc, account, triggeredByUserId, arguments), cancellationToken);
 
             status = result.Succeeded ? JobRunStatuses.Succeeded : JobRunStatuses.Failed;
             message = result.Message;

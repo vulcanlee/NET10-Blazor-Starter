@@ -52,7 +52,7 @@
 - [x] 0.10.7 起（WASM 遷移 M8）Agent、系統管理助理與通知推播（工作流程的 DTO 0.10.22 起已移除）：
   - `MyProject.Dtos/Ai/AgentDtos.cs`：`AgentConversationLimits`（訊息 2,000 字、標題 100 字、確認文字「確認」，伺服器與畫面共用）、`AgentPageInfoDto`、`AgentConversationSummaryDto`、`AgentConversationDto`、`AgentTranscriptEntryDto`、`AgentApprovalRequestDto`／`AgentApprovalArgumentDto`、`AgentMessageRequestDto`、`AgentApprovalResponseRequestDto`、`AgentRenameRequestDto`。
   - `MyProject.Dtos/Ai/AgentStreamDtos.cs`：串流的一行 `AgentStreamFrameDto`（`Kind` 見 `AgentStreamFrameKinds`：start、entry、delta、tool、label、approvals、result、ping；結果沿用 `AiResultDto`）、`AgentToolActivityDto`。
-  - `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`：`AdminPatrolReportListDto`、`AdminPatrolReportSummaryDto`、`AdminPatrolReportDetailDto`。
+  - `MyProject.Dtos/Admins/AdminPatrolReportDtos.cs`：`AdminPatrolReportListDto`、`AdminPatrolReportSummaryDto`、`AdminPatrolReportDetailDto`（0.10.39 起只給「舊版巡檢報告」用）。
   - `MyProject.Dtos/Shell/PushDtos.cs`：通知推播的一行 `PushFrameDto`（`Kind` 見 `PushFrameKinds`：ready、notifications、announcements、ping、renew、reconnect；不帶內容）；`ShellInfoDto` 多 `NotificationPushEnabled`。
   - 畫面也要用的型別搬到 `MyProject.Web.Client/Ai/`（命名空間不變）：`AiToolApprovalRequest`（`MyProject.Web.Ai.Agents`）、`AdminAssistantApproval`（不可復原的動作要輸入「確認」的判斷，伺服器與核准窗共用）。對話檔 `AiAgentConversationContent` 多一個 `TurnKey`（系統管理助理分派到的領域代碼，只加不改，`SchemaVersion` 不變）。
 - [x] 0.10.8 起（WASM 遷移 M9）純 Token 登入與帳號自助：
@@ -60,6 +60,10 @@
   - `SessionRenewalDto`（`Tokens`）：改到自己會換工作階段版本的回應都繼承它，前端拿到就存新 Token。`UserSaveResultDto` 改繼承它，**移除 `SessionRefreshUrl`**（0.10.4～0.10.7 的換發網址）。
   - `ApiErrorCodes` 新增 `NO_PRIMARY_ROLE`（沒有主要角色的帳號用網頁 Token 呼叫）、`TWO_FACTOR_TICKET_INVALID`（待驗票證無效或等待期間帳號變了）。
   - 新分頁取得 Token 與登出沿用 `RefreshTokenRequestDto`、回 `TokenResponseDto`（App 的 `Auth/login` 契約不變）。
+- [x] 0.10.39 起系統巡檢報告：
+  - `MyProject.Dtos/Admins/SystemReportDtos.cs`：查詢 `SystemReportSearchRequestDto`、清單 `SystemReportListDto`／`SystemReportSummaryDto`、明細 `SystemReportDetailDto`、立即產生 `SystemReportGenerateRequestDto`；
+    報告內容 `SystemReportContentDto`（發現 `SystemReportFindingDto`、磁碟 `SystemReportVolumeDto`、資料目錄 `SystemReportFolderDto` 等）同時是內容檔的 JSON 格式（`SchemaVersion`），只放固定用語、數字與站內路由，不放路徑與帳號。
+  - 燈號、頻率等代碼常數（`SystemReportLevels`、`SystemReportFrequencies` 等）放在 `MyProject.Models/Systems/SystemReportModels.cs`，伺服器與畫面共用。
 - [x] integration tests 已驗證 Project CRUD 成功 response 可用 DTO contract 反序列化。
 - [ ] 日後每新增一個 API Controller，都要在 PR checklist 檢查 DTO 邊界。
 

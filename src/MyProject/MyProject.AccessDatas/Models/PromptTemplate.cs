@@ -58,9 +58,13 @@ public static class PromptTemplateKeys
     /// <summary>系統管理助理：系統設定與維運專家。</summary>
     public const string AdminAssistantOps = "AdminAssistantOps";
 
+    /// <summary>系統巡檢報告的 AI 說明（0.10.39 起）：依程式判定的燈號與數字寫整體狀況、處理順序與下期預測。</summary>
+    public const string SystemReport = "SystemReport";
+
     public static readonly IReadOnlyList<string> All =
     [
-        LogAnalysis, ExceptionAnalysis,
+        // 順序就是「AI 提示詞」頁左側清單的順序：沒有「／」的放在「一般」組，所以 SystemReport 排在管理助理之前。
+        LogAnalysis, ExceptionAnalysis, SystemReport,
         AdminAssistant, AdminAssistantRouter, AdminAssistantAccounts, AdminAssistantMonitoring, AdminAssistantAi, AdminAssistantOps,
     ];
 }

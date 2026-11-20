@@ -95,24 +95,6 @@ public sealed class AdminAssistantTurnPlannerTests
         Assert.Same(AdminAssistantAgent.Home, planner.Home);
     }
 
-    /// <summary>定時巡檢（0.9.161 起）：不呼叫分派模型，直接組出巡檢的定義與提示詞。</summary>
-    [Fact]
-    public async Task PatrolTurn_DoesNotCallRouter_UsesPatrolDefinitionAndAllDomains()
-    {
-        var turn = await CreatePlanner().PatrolTurnAsync(CancellationToken.None);
-
-        Assert.Empty(client.Requests);
-        Assert.Same(AdminAssistantAgent.ScheduledPatrol, turn.Definition);
-        Assert.Equal(AdminAssistantRouting.NameOf(AdminAssistantDomain.Patrol), turn.Label);
-        foreach (var key in AdminAssistantAgent.DomainPromptKeys.Values)
-        {
-            Assert.Contains($"[{key}]", turn.Instructions, StringComparison.Ordinal);
-        }
-
-        Assert.Contains("這一則是巡檢", turn.Instructions, StringComparison.Ordinal);
-        Assert.EndsWith(AiPromptGuardrails.For(PromptTemplateKeys.AdminAssistant), turn.Instructions, StringComparison.Ordinal);
-    }
-
     /// <summary>
     /// 0.10.7 起：分派結果的代碼跟著對話存起來（TurnKey），接續停在核准的對話時用它重建同一輪（同樣的工具、提示詞與標籤），不再呼叫分派模型。
     /// </summary>

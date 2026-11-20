@@ -192,7 +192,7 @@ public sealed class MaintenanceApiTests : IClassFixture<ApiTestApplicationFactor
         Assert.Equal(DateTime.Today, overview.TodayLocal);
         Assert.Equal(
             ["deleted-project", "deleted-category", "deleted-team", "deleted-user", "deleted-role", "exception-log", "token-usage", "ai-call-log",
-             "agent-conversation", "admin-patrol-report", "audit-log", "notification", "email-log", "refresh-session", "backup", "job-run", "nlog", "announcement"],
+             "agent-conversation", "admin-patrol-report", "capacity-snapshot", "audit-log", "notification", "email-log", "refresh-session", "backup", "job-run", "nlog", "announcement"],
             overview.Rows.Select(x => x.Key));
         var audit = overview.Rows.Single(x => x.Key == "audit-log");
         Assert.Equal("AuditLogRetention", audit.Job!.Name);
@@ -282,6 +282,7 @@ public sealed class MaintenanceApiTests : IClassFixture<ApiTestApplicationFactor
     [Theory]
     [InlineData("backup")]
     [InlineData("admin-patrol-report")]
+    [InlineData("capacity-snapshot")]
     [InlineData("no-such-kind")]
     public async Task DataRetention_CustomPurge_ShouldReturn400ForKindsWithoutIt(string rowKey)
     {

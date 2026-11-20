@@ -1,0 +1,118 @@
+@using MyProject.Dtos.Admins
+@using MyProject.Models.Systems
+
+@* 權限判定完成前不渲染任何內容，否則沒有權限的人會先看到頁面框架（PageAuthorizationTests 守門）。 *@
+@if (!isAccessChecked)
+{
+}
+else if (string.IsNullOrEmpty(RoleMessage) == false)
+{
+    <div class="alert alert-danger" role="alert">
+        @RoleMessage
+    </div>
+}
+else
+{
+    <div>
+        <div class="system-report-toolbar">
+            <div class="system-report-toolbar-left">
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedFrequency" Style="width: 150px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="種類：不限" />
+                    @foreach (var option in Frequencies)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@option.Value" Label="@option.Label" />
+                    }
+                </Select>
+                <Select TItem="string" TItemValue="string" @bind-Value="selectedLevel" Style="width: 170px;">
+                    <SelectOption TItemValue="string" TItem="string" Value="@("")" Label="燈號：不限" />
+                    @foreach (var option in Levels)
+                    {
+                        <SelectOption TItemValue="string" TItem="string" Value="@option.Value" Label="@option.Label" />
+                    }
+                </Select>
+                <DatePicker TValue="DateTime?" @bind-Value="fromDate" Format="yyyy-MM-dd"
+                            Placeholder="@("產生日期（起）")" Style="width: 150px;" />
+                <span class="system-report-range-separator">～</span>
+                <DatePicker TValue="DateTime?" @bind-Value="toDate" Format="yyyy-MM-dd"
+                            Placeholder="@("產生日期（迄）")" Style="width: 150px;" />
+            </div>
+            <div class="system-report-toolbar-right">
+                <ToolbarIconButton Title="查詢" Icon="search"
+                                   OnClick="@(async () => await OnSearchAsync())" />
+                <ToolbarIconButton Title="重新整理" Icon="refresh"
+                                   OnClick="@(async () => await OnRefreshAsync())" />
+                <ToolbarIconButton Title="立即產生" Icon="note_add"
+                                   OnClick="OnOpenGenerate" />
+                <ToolbarIconButton Title="舊版巡檢報告" Icon="history"
+                                   OnClick="@(async () => await OnOpenLegacyAsync())" />
+            </div>
+        </div>
+
+        <div class="alert alert-info system-report-alert" role="alert">
+            每天在「系統參數」設定的時間產生前一天的日報（開關在「排程作業」頁的「系統巡檢日報」）。燈號由程式依固定規則判定：
+            紅燈＝已發生問題、要馬上處理；橙燈＝即將發生、有期限；黃燈＝注意；綠燈＝正常。日報有紅燈或橙燈時通知所有管理員並寄信。
+            報告保存 @retentionDays 天。
+        </div>
+
+        <div class="system-report-table-wrap">
+            <Table TItem="SystemReportSummaryDto"
+                   ScrollX="1160"
+                   Class="system-report-table"
+                   RemoteDataSource="true"
+                   DataSource="@items"
+                   Loading="@isLoading"
+                   Size="TableSize.Small"
+                   OnChange="OnTableChange"
+                   @bind-PageIndex="_pageIndex"
+                   @bind-PageSize="_pageSize"
+                   @bind-Total="_total">
+                <ColumnDefinitions>
+                    <Column TData="DateTime" Title="產生時間" Width="160">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Column>
+                    <Column TData="string" Title="種類" Width="90">@SystemReportFrequencies.DisplayName(context.Frequency)</Column>
+                    <Column TData="string" Title="涵蓋區間" Width="200">@PeriodText(context)</Column>
+                    <Column TData="string" Title="燈號" Width="140">
+                        <Tag Color="@LevelColor(context.Level)">@LevelText(context.Level)</Tag>
+                    </Column>
+                    <Column TData="string" Title="紅／橙／黃" Width="110">@context.RedCount／@context.OrangeCount／@context.YellowCount</Column>
+                    <Column TData="string" Title="產生方式" Width="170" Ellipsis>@TriggerText(context)</Column>
+                    <Column TData="string" Title="通知" Width="100">@DeliveryText(context.DeliveryStatus)</Column>
+                    <Column TData="string" Title="AI 說明" Width="110">@NarrativeText(context.NarrativeStatus)</Column>
+                    <ActionColumn Title="操作" Width="80" Fixed="ColumnFixPlacement.Right">
+                        <CrudActionButton Title="查看報告" Icon="visibility" OnClick="@(async () => await OnViewAsync(context.ReportId))" />
+                    </ActionColumn>
+                </ColumnDefinitions>
+            </Table>
+        </div>
+    </div>
+
+    <SystemReportDetailModal @ref="detailModal" />
+    <AdminPatrolReportsModal @ref="legacyModal" />
+
+    <Modal Title="立即產生報告"
+           Class="system-report-generate-modal"
+           @bind-Visible="@generateVisible"
+           Keyboard="true"
+           MaskClosable="false"
+           OkText="@("產生")"
+           CancelText="@("取消")"
+           ConfirmLoading="@isGenerating"
+           OnOk="OnGenerateOkAsync"
+           OnCancel="OnGenerateCancel">
+        <div class="system-report-generate-body">
+            <div>
+                <label class="system-report-generate-label">種類</label>
+                <div>日報（之後的版本會加入週報與月報）</div>
+            </div>
+            <div>
+                <label class="system-report-generate-label" for="system-report-generate-date">日期</label>
+                <DatePicker TValue="DateTime?" @bind-Value="generateDate" Format="yyyy-MM-dd" Id="system-report-generate-date"
+                            DisabledDate="@(date => date.Date >= DateTime.Today)" Style="width: 180px;" />
+            </div>
+            <Checkbox Checked="@generateSendToAdmins" CheckedChanged="@((bool value) => generateSendToAdmins = value)">產生後寄給所有管理員（不論燈號）</Checkbox>
+            <div class="system-report-generate-hint">
+                報告在背景產生，約需一分鐘；完成後右上角的鈴鐺會通知你，清單按「重新整理」就看得到。
+                沒有勾選寄送時，只有你會收到站內通知。
+            </div>
+        </div>
+    </Modal>
+}

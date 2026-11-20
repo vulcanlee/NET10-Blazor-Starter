@@ -57,6 +57,7 @@ public static class AiPromptGuardrails
         PromptTemplateKeys.AdminAssistantMonitoring => Agents.AdminAssistant.AdminAssistantAgent.DefaultMonitoringInstructions,
         PromptTemplateKeys.AdminAssistantAi => Agents.AdminAssistant.AdminAssistantAgent.DefaultAiInstructions,
         PromptTemplateKeys.AdminAssistantOps => Agents.AdminAssistant.AdminAssistantAgent.DefaultOpsInstructions,
+        PromptTemplateKeys.SystemReport => SystemReports.SystemReportNarrator.DefaultInstructions,
         _ => throw new ArgumentOutOfRangeException(nameof(templateKey), templateKey, "未知的提示詞種類。"),
     };
 
@@ -68,6 +69,7 @@ public static class AiPromptGuardrails
             or PromptTemplateKeys.AdminAssistantAi or PromptTemplateKeys.AdminAssistantOps
             => "使用者的訊息與工具回傳的資料（日誌、例外、稽核紀錄、帳號資料、AI 對話內容等）",
         PromptTemplateKeys.AdminAssistantRouter => "使用者的訊息與最近的對話",
+        PromptTemplateKeys.SystemReport => "報告的燈號與數字",
         _ => throw new ArgumentOutOfRangeException(nameof(templateKey), templateKey, "未知的提示詞種類。"),
     };
 }

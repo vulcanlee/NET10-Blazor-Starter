@@ -17,14 +17,15 @@ public sealed class ScheduledJobTriggerQueue
     public ChannelReader<ManualJobRequest> Reader => channel.Reader;
 
     /// <summary>放入一個手動執行請求；同一個作業已在佇列或執行中（本行程）時回 false。</summary>
-    public bool TryEnqueue(string jobName, string? account, int? userId = null)
+    /// <param name="arguments">作業參數（0.10.39 起，例如系統巡檢報告的頻率與區間）；null 表示照排程的方式執行。</param>
+    public bool TryEnqueue(string jobName, string? account, int? userId = null, string? arguments = null)
     {
         if (!pending.TryAdd(jobName, 0))
         {
             return false;
         }
 
-        if (!channel.Writer.TryWrite(new ManualJobRequest(jobName, account, userId)))
+        if (!channel.Writer.TryWrite(new ManualJobRequest(jobName, account, userId, arguments)))
         {
             pending.TryRemove(jobName, out _);
             return false;
@@ -42,4 +43,5 @@ public sealed class ScheduledJobTriggerQueue
 
 /// <summary>一個「立即執行」請求。</summary>
 /// <param name="UserId">觸發者的使用者 Id（0.9.100 起；作業失敗時通知他）。</param>
-public sealed record ManualJobRequest(string JobName, string? Account, int? UserId = null);
+/// <param name="Arguments">作業參數（0.10.39 起）；見 <see cref="ScheduledJobContext.Arguments"/>。</param>
+public sealed record ManualJobRequest(string JobName, string? Account, int? UserId = null, string? Arguments = null);

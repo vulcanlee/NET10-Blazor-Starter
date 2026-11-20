@@ -1,0 +1,140 @@
+/* 系統巡檢報告內容視窗（0.10.39 起）的窗內內容。視窗尺寸在 OverlayStyles.razor 的 .system-report-modal。 */
+
+.system-report-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    color: var(--app-text);
+}
+
+.system-report-empty {
+    padding: 24px 0;
+    text-align: center;
+    color: var(--app-muted);
+}
+
+.system-report-summary {
+    padding: 16px;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-control);
+    background: var(--app-row-alt);
+}
+
+.system-report-verdict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.system-report-meta,
+.system-report-muted,
+.system-report-deadline {
+    font-size: 13px;
+    color: var(--app-muted);
+}
+
+.system-report-summary-heading {
+    margin: 14px 0 6px;
+    font-size: 0.95rem;
+}
+
+.system-report-summary-list {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.system-report-summary-list li {
+    margin-bottom: 6px;
+}
+
+.system-report-summary-fix {
+    font-size: 13px;
+    color: var(--app-muted);
+}
+
+.system-report-section-title {
+    margin: 0 0 8px;
+    font-size: 1rem;
+}
+
+.system-report-markdown ::deep p {
+    margin: 0 0 8px;
+}
+
+/* AI 說明的 ## 標題比區塊標題（AI 說明）小，不搶摘要的視線。 */
+.system-report-markdown ::deep h2,
+.system-report-markdown ::deep h3 {
+    margin: 12px 0 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.system-report-finding {
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-control);
+}
+
+.system-report-finding-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.system-report-finding-section {
+    font-size: 12px;
+    color: var(--app-muted);
+}
+
+.system-report-finding-detail {
+    display: grid;
+    grid-template-columns: 7.5em 1fr;
+    gap: 4px 12px;
+    margin: 8px 0 0;
+}
+
+.system-report-finding-detail dt {
+    color: var(--app-muted);
+    font-weight: normal;
+}
+
+.system-report-finding-detail dd {
+    margin: 0;
+}
+
+.system-report-action-link {
+    margin-left: 8px;
+    color: var(--app-accent);
+}
+
+.system-report-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.system-report-grid th,
+.system-report-grid td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--app-line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.system-report-grid th {
+    background: var(--app-thead);
+}
+
+@media (max-width: 768px) {
+    .system-report-finding-detail {
+        grid-template-columns: 1fr;
+    }
+}
