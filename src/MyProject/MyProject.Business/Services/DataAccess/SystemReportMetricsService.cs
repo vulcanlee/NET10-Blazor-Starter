@@ -16,7 +16,7 @@ namespace MyProject.Business.Services.DataAccess;
 ///
 /// 時區：例外與 Token 用量存本地時間；稽核、排程執行、寄信、通知存 UTC。呼叫端兩種都傳進來，這裡不換算。
 /// </summary>
-public class SystemReportMetricsService
+public partial class SystemReportMetricsService
 {
     /// <summary>新例外算紅燈的次數門檻（同一個簽章在區間內第一次出現、而且已經發生這麼多次）。</summary>
     public const int HighOccurrenceThreshold = 20;

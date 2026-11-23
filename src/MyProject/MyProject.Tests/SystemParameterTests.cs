@@ -440,6 +440,8 @@ public sealed class SystemParameterTests
     private static readonly Dictionary<string, string> FormattedSentinels = new(StringComparer.OrdinalIgnoreCase)
     {
         ["SystemReportSettings:DailyTime"] = "06:45",
+        ["SystemReportSettings:WeeklyTime"] = "09:15",
+        ["SystemReportSettings:MonthlyTime"] = "10:20",
     };
 
     private static string SentinelFor(SystemParameterDefinition definition, string? current)

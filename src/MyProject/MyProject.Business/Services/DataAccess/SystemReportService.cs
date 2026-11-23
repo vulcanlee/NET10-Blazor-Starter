@@ -36,7 +36,8 @@ public class SystemReportService
         this.logger = logger;
     }
 
-    public int DailyRetentionDays => settings.CurrentValue.DailyRetentionDays;
+    /// <summary>某一種報告的保留天數（週報、月報各自；日報與指定區間用日報的天數）。</summary>
+    public int RetentionDays(string frequency) => settings.CurrentValue.RetentionDays(frequency);
 
     /// <summary>存一份報告：先寫內容檔再寫資料列；寫資料列失敗就刪掉剛寫的檔。任何一步失敗回 null（已記錯誤）。</summary>
     public async Task<SystemReportSummary?> SaveAsync(SystemReportDraft draft)
@@ -155,14 +156,14 @@ public class SystemReportService
         }
     }
 
-    /// <summary>自動過期：刪除產出早於保留天數（當天 0 點）的報告與內容檔。失敗回 null。</summary>
+    /// <summary>自動過期：刪除產出早於各種報告保留天數（當天 0 點）的報告與內容檔。失敗回 null。</summary>
     public async Task<int?> PurgeExpiredAsync(DateTime nowLocal)
     {
-        var threshold = ExpiryThreshold(nowLocal);
+        var expired = Expired(nowLocal);
         try
         {
             await using var context = await contextFactory.CreateDbContextAsync();
-            var stale = context.SystemReport.Where(OlderThan(threshold));
+            var stale = context.SystemReport.Where(expired);
             var contentFiles = await stale.Select(x => x.ContentFile).ToListAsync();
             if (contentFiles.Count == 0)
             {
@@ -177,7 +178,7 @@ public class SystemReportService
             }
 
             fileStore.DeleteEmptyMonthFolders();
-            logger.LogInformation("Purged system reports. Rows={Rows}, Threshold={Threshold}", removed, threshold);
+            logger.LogInformation("Purged system reports. Rows={Rows}, Now={Now}", removed, nowLocal);
             return removed;
         }
         catch (Exception ex)
@@ -187,23 +188,32 @@ public class SystemReportService
         }
     }
 
-    /// <summary>自動過期的門檻：今天往前保留天數的 0 點（本地時間）。</summary>
-    public DateTime ExpiryThreshold(DateTime nowLocal) => nowLocal.Date.AddDays(-DailyRetentionDays);
+    /// <summary>某一種報告自動過期的門檻：今天往前保留天數的 0 點（本地時間）。</summary>
+    public DateTime ExpiryThreshold(string frequency, DateTime nowLocal) => nowLocal.Date.AddDays(-RetentionDays(frequency));
 
     /// <summary>筆數、最舊一份與自動過期會刪掉的份數（資料保留頁）。</summary>
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime nowLocal)
     {
-        var threshold = ExpiryThreshold(nowLocal);
         await using var context = await contextFactory.CreateDbContextAsync();
         var total = await context.SystemReport.CountAsync();
         var oldest = await context.SystemReport.MinAsync(x => (DateTime?)x.CreatedAt);
-        var expired = await context.SystemReport.CountAsync(OlderThan(threshold));
+        var expired = await context.SystemReport.CountAsync(Expired(nowLocal));
         return new RetentionStats(total, oldest, expired);
     }
 
-    /// <summary>清理條件：自動過期與統計共用，「下次會清掉幾筆」才會等於實際刪掉的筆數（速查表 §6.29）。</summary>
-    private static Expression<Func<SystemReport, bool>> OlderThan(DateTime threshold)
-        => x => x.CreatedAt < threshold;
+    /// <summary>
+    /// 清理條件：自動過期與統計共用，「下次會清掉幾筆」才會等於實際刪掉的筆數（速查表 §6.29）。
+    /// 週報、月報各自的保留天數（0.10.41 起）；日報與指定區間用日報的天數。
+    /// </summary>
+    private Expression<Func<SystemReport, bool>> Expired(DateTime nowLocal)
+    {
+        var daily = ExpiryThreshold(SystemReportFrequencies.Daily, nowLocal);
+        var weekly = ExpiryThreshold(SystemReportFrequencies.Weekly, nowLocal);
+        var monthly = ExpiryThreshold(SystemReportFrequencies.Monthly, nowLocal);
+        return x => x.Frequency == SystemReportFrequencies.Weekly ? x.CreatedAt < weekly
+            : x.Frequency == SystemReportFrequencies.Monthly ? x.CreatedAt < monthly
+            : x.CreatedAt < daily;
+    }
 
     private static SystemReportSummary ToSummary(SystemReport item)
         => new(item.ReportId, item.Frequency, item.PeriodStart, item.PeriodEnd, item.CreatedAt, item.Level,

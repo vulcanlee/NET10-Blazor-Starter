@@ -138,6 +138,25 @@ public static class SystemReportSections
     public static IReadOnlyList<string> All { get; } = [Health, Errors, Jobs, Backup, Capacity, Email, Ai, Security];
 }
 
+/// <summary>週報、月報章節的代碼（0.10.41 起，<c>SystemReportSectionDto.Key</c>）。</summary>
+public static class SystemReportSectionKeys
+{
+    /// <summary>和上一期比較（週報、月報）。</summary>
+    public const string Trend = "Trend";
+
+    /// <summary>容量成長與一年後的需求（週報、月報）。</summary>
+    public const string Growth = "Growth";
+
+    /// <summary>備份可還原驗證（週報、月報）。</summary>
+    public const string BackupVerify = "BackupVerify";
+
+    /// <summary>AI 費用（月報）。</summary>
+    public const string AiCost = "AiCost";
+
+    /// <summary>帳號與權限清查（1／4／7／10 月產生的月報，涵蓋剛結束的那一季）。</summary>
+    public const string AccountReview = "AccountReview";
+}
+
 /// <summary>要存的一份報告（中繼資料＋內容 JSON）。</summary>
 public sealed record SystemReportDraft(
     Guid ReportId,

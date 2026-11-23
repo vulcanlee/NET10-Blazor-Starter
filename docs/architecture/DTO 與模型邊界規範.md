@@ -1,10 +1,10 @@
 ﻿# DTO 與模型邊界規範
 
-- 文件版本：2.0
+- 文件版本：2.1
 - 文件狀態：已實作
-- 現行系統版本：0.10.23
+- 現行系統版本：0.10.41
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/20
 
 ## 目標
 - [x] 明確定義 API、UI、Business、Entity 的資料邊界，避免腳手架日後擴充時直接暴露資料庫 Entity。
@@ -62,7 +62,7 @@
   - 新分頁取得 Token 與登出沿用 `RefreshTokenRequestDto`、回 `TokenResponseDto`（App 的 `Auth/login` 契約不變）。
 - [x] 0.10.39 起系統巡檢報告：
   - `MyProject.Dtos/Admins/SystemReportDtos.cs`：查詢 `SystemReportSearchRequestDto`、清單 `SystemReportListDto`／`SystemReportSummaryDto`、明細 `SystemReportDetailDto`、立即產生 `SystemReportGenerateRequestDto`；
-    報告內容 `SystemReportContentDto`（發現 `SystemReportFindingDto`、磁碟 `SystemReportVolumeDto`、資料目錄 `SystemReportFolderDto` 等）同時是內容檔的 JSON 格式（`SchemaVersion`），只放固定用語、數字與站內路由，不放路徑與帳號。
+    報告內容 `SystemReportContentDto`（發現 `SystemReportFindingDto`、磁碟 `SystemReportVolumeDto`、資料目錄 `SystemReportFolderDto` 等）同時是內容檔的 JSON 格式（`SchemaVersion`），只放固定用語、數字與站內路由，不放路徑與帳號；唯一的例外（0.10.41 起，使用者 2026/11/20 決定）是週報月報章節 `SystemReportSectionDto` 中「AI 費用」與「帳號與權限清查」兩節的表格列出帳號與姓名，這兩節的 `Highlights` 仍只放數量（通知、信件內文與 AI 說明只用 `Highlights`）。
   - 燈號、頻率等代碼常數（`SystemReportLevels`、`SystemReportFrequencies` 等）放在 `MyProject.Models/Systems/SystemReportModels.cs`，伺服器與畫面共用。
 - [x] integration tests 已驗證 Project CRUD 成功 response 可用 DTO contract 反序列化。
 - [ ] 日後每新增一個 API Controller，都要在 PR checklist 檢查 DTO 邊界。

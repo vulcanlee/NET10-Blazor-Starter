@@ -4,6 +4,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Admins;
 using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
+using MyProject.Web.Backup;
 using MyProject.Web.Health;
 using MyProject.Web.Scheduling.Jobs;
 
@@ -332,6 +333,28 @@ public static class SystemReportRules
                 "把設定檔的 BackupPath 改到另一顆磁碟或網路位置，或定期把備份複製到別處。",
                 "備份與資料庫在不同的磁碟。",
                 "/backups"));
+        }
+
+        // 週報、月報的備份可還原驗證（0.10.41 起）。
+        if (facts.BackupVerification is { } verification && verification.Outcome != BackupVerificationOutcomes.Passed)
+        {
+            var failed = string.Join("、", verification.Checks.Where(x => !x.Passed).Select(x => x.Name));
+            var detail = verification.Checks.FirstOrDefault(x => !x.Passed)?.Detail ?? string.Empty;
+            findings.Add(verification.Outcome == BackupVerificationOutcomes.Failed
+                ? Finding("BKP-VERIFY", SystemReportSections.Backup, SystemReportLevels.Red,
+                    "最新的備份無法還原",
+                    $"驗證 {verification.BackupCreatedAtLocal:yyyy/MM/dd HH:mm} 的備份，沒有通過：{failed}。{detail}",
+                    "真的需要還原時，這份備份救不回資料；較舊的備份也可能有同樣的問題。",
+                    "到「系統備份」頁按「立即備份」產生新的備份，再到「排程作業」頁立即執行「系統巡檢週報」重新驗證；持續失敗請檢查備份磁碟是否有壞軌。",
+                    "最新的備份通過可還原驗證，出事時可以還原。",
+                    "/backups")
+                : Finding("BKP-VERIFY", SystemReportSections.Backup, SystemReportLevels.Yellow,
+                    "這次沒有完成備份可還原驗證",
+                    $"{verification.BackupCreatedAtLocal:yyyy/MM/dd HH:mm} 的備份沒有驗證完：{detail}",
+                    "不確定最新的備份能不能還原。",
+                    "確認備份磁碟有足夠的空間（至少放得下一份資料庫），下一份週報會再驗證。",
+                    "下一份週報完成可還原驗證。",
+                    "/backups"));
         }
     }
 

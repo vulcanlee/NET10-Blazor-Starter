@@ -67,7 +67,9 @@ public sealed class SystemReportsController : ControllerBase
             TotalCount = total,
             PageIndex = request.PageIndex,
             PageSize = request.PageSize,
-            DailyRetentionDays = reportService.DailyRetentionDays,
+            DailyRetentionDays = reportService.RetentionDays(SystemReportFrequencies.Daily),
+            WeeklyRetentionDays = reportService.RetentionDays(SystemReportFrequencies.Weekly),
+            MonthlyRetentionDays = reportService.RetentionDays(SystemReportFrequencies.Monthly),
         }));
     }
 
@@ -133,39 +135,51 @@ public sealed class SystemReportsController : ControllerBase
     }
 
     /// <summary>
-    /// 立即產生：放進「系統巡檢日報」作業的佇列（背景產生，完成時通知產生者）。同一個作業已在佇列或執行中回 409。
+    /// 立即產生：放進對應作業（系統巡檢日報／週報／月報）的佇列（背景產生，完成時通知產生者）。
+    /// 區間要已經過完、而且在保留天數內；同一個作業已在佇列或執行中回 409。
     /// </summary>
     [HttpPost("generate")]
     public async Task<ActionResult<ApiResult<object>>> Generate([FromBody] SystemReportGenerateRequestDto request)
     {
-        if (request.Frequency != SystemReportFrequencies.Daily)
+        if (request.Frequency is not (SystemReportFrequencies.Daily or SystemReportFrequencies.Weekly or SystemReportFrequencies.Monthly))
         {
-            return BadRequest(ApiResult<object>.ValidationError("目前只能產生日報。"));
+            return BadRequest(ApiResult<object>.ValidationError("報告種類只能是日報、週報或月報。"));
         }
 
+        var name = SystemReportFrequencies.DisplayName(request.Frequency);
         var date = request.Date!.Value.Date;
+        var period = SystemReportPeriod.Containing(request.Frequency, date);
         var today = timeProvider.GetLocalNow().Date;
-        if (date >= today)
+        if (period.End > today)
         {
-            return BadRequest(ApiResult<object>.ValidationError("只能產生今天以前的日報（今天還沒過完）。"));
+            return BadRequest(ApiResult<object>.ValidationError(request.Frequency switch
+            {
+                SystemReportFrequencies.Weekly => "這一週還沒過完，只能產生上週以前的週報。",
+                SystemReportFrequencies.Monthly => "這個月還沒過完，只能產生上個月以前的月報。",
+                _ => "只能產生今天以前的日報（今天還沒過完）。",
+            }));
         }
 
-        if (date < today.AddDays(-reportService.DailyRetentionDays))
+        var retentionDays = reportService.RetentionDays(request.Frequency);
+        if (period.Start < today.AddDays(-retentionDays))
         {
-            return BadRequest(ApiResult<object>.ValidationError($"只能產生最近 {reportService.DailyRetentionDays} 天內的日報。"));
+            return BadRequest(ApiResult<object>.ValidationError($"只能產生最近 {retentionDays} 天內的{name}。"));
         }
 
+        var jobName = SystemReportJob.JobNameFor(request.Frequency);
         var user = currentUserService.CurrentUser;
         var arguments = new SystemReportJobArguments(date, request.SendToAdmins).ToJson();
-        if (!overviewService.TryTrigger(SystemReportDailyJob.JobName, user.Account, user.Id, arguments))
+        if (!overviewService.TryTrigger(jobName, user.Account, user.Id, arguments))
         {
-            return Conflict(ApiResult<object>.ConflictResult("已經有一份報告正在產生，請等它完成。"));
+            return Conflict(ApiResult<object>.ConflictResult($"已經有一份{name}正在產生，請等它完成。"));
         }
 
-        logger.LogInformation("System report generation queued. Date={Date}, SendToAdmins={SendToAdmins}", date, request.SendToAdmins);
-        await this.WriteAuditAsync(AuditActions.Job.Trigger, "ScheduledJob", SystemReportDailyJob.JobName,
-            $"job={SystemReportDailyJob.JobName}; date={date:yyyy-MM-dd}; send={request.SendToAdmins}; via=system-reports");
-        return Ok(ApiResult<object>.SuccessResult(new { }, "已開始產生報告，完成後會以站內通知告訴你（約需一分鐘）。"));
+        logger.LogInformation("System report generation queued. Frequency={Frequency}, Date={Date}, SendToAdmins={SendToAdmins}", request.Frequency, date, request.SendToAdmins);
+        await this.WriteAuditAsync(AuditActions.Job.Trigger, "ScheduledJob", jobName,
+            $"job={jobName}; date={date:yyyy-MM-dd}; send={request.SendToAdmins}; via=system-reports");
+        return Ok(ApiResult<object>.SuccessResult(new { }, request.Frequency == SystemReportFrequencies.Daily
+            ? "已開始產生報告，完成後會以站內通知告訴你（約需一分鐘）。"
+            : $"已開始產生{name}（{period.Display}），完成後會以站內通知告訴你（含備份可還原驗證，約需數分鐘）。"));
     }
 
     /// <summary>舊版巡檢報告清單（0.9.161～0.10.38 的 AI 巡檢；最新在前）與保存天數。</summary>

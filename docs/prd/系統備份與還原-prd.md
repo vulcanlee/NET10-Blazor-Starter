@@ -1,8 +1,8 @@
 ﻿# 系統備份與還原 PRD
 
-- 文件版本：1.10
+- 文件版本：1.11
 - 文件狀態：已實作
-- 現行系統版本：0.10.39
+- 現行系統版本：0.10.41
 - 首次實作版本：0.9.99
 - 最後核對日期：2026/11/20
 
@@ -10,7 +10,7 @@
 
 讓系統每天自動產生一份**可以還原**的完整備份，管理員可隨時立即備份、下載做異地保存；還原由部署人員停站後以腳本執行。
 
-- **範圍**：備份內容與格式（zip＋manifest）、排程作業 `SystemBackup`、依份數自動刪除、管理頁 `/backups`（立即備份、清單、下載、刪除）、下載端點、還原腳本 `scripts/Restore-Backup.ps1`、備份目錄的啟動驗證。
+- **範圍**：備份內容與格式（zip＋manifest）、排程作業 `SystemBackup`、依份數自動刪除、管理頁 `/backups`（立即備份、清單、下載、刪除）、下載端點、還原腳本 `scripts/Restore-Backup.ps1`、備份目錄的啟動驗證，以及 0.10.41 起系統巡檢週報與月報的備份可還原驗證（`BackupVerifier`）。
 - **非範圍**：線上還原（網站執行中替換資料庫檔不安全）；備份加密；備份到雲端或遠端主機（由維運流程把下載的檔案搬走）；日誌檔與網站程式本身；稽核防竄改金鑰 `AuditKeyPath`（0.9.175 起，刻意不備份，見 §五）；`DownloadPath`／`UploadPath`（腳手架不寫入要長期保存的檔案，附件一律放 `ProjectFilePath`）。各項不備份的理由見[備份與還原操作手冊](../operations/備份與還原操作手冊.md) §1。
 
 使用者決定（2026/10/04）：備份資料庫、專案附件、例外堆疊檔、Token 原始檔與金鑰環（0.9.131 起另含稽核詳細內容檔），預設不含 AI 對話內容；不加密；新增 `BackupPath`、管理員可下載；每天 02:00、保留 7 份。
@@ -47,6 +47,11 @@
 - **清單** `BackupStore`：只認根目錄下符合檔名規則的 zip；排序以「時間戳＋同秒序號」比較；下載與刪除都先經檔名與根目錄檢查。清單只存在檔案系統（放資料庫的話還原時會倒回去）。
 - **manifest.json**：`formatVersion`、`createdAtUtc`、`systemVersion`、`lastMigration`、`migrationCount`、`databaseEntry`、`databaseSha256`、`folders[]`（zip 資料夾 → `ExternalFileSystem` 設定鍵名與檔案數）、`missingFiles`、`missingFileCount`、`trigger`。
 - **還原腳本**：確認網站已停（獨佔開啟資料庫）→ 解壓並核對格式版本與雜湊 → 備份版本比部署的新時中止（`-Force` 略過）→ 現有資料庫與 `-wal`、`-shm` 改名保留 → 刪鎖檔 → 放入資料庫 → 各資料夾換成備份內容（舊的改名保留）、金鑰合併不覆蓋 → 印出回復步驟。還原腳本不碰 `AuditKeyPath`；還原後第一次「稽核紀錄完整性檢查」會回報一次「資料庫被倒回」，屬預期（見[稽核紀錄 PRD §九](稽核紀錄-prd.md)）。腳本不寫死專案名稱（`New-StarterProject.ps1` 會文字替換）。
+- **備份可還原驗證**（0.10.41 起，`Web/Backup/BackupVerifier`，singleton）：系統巡檢週報、月報產生時（`SystemReportCollector`）拿**最新的一份**備份做還原腳本會做的事，證明真的還原得回來：
+  1. 壓縮檔打得開、`manifest.json` 讀得到、格式版本認得（比這個版本新就失敗）。
+  2. 每個項目都解壓縮一遍，算出的 CRC32 要和壓縮檔記錄的相同；各資料夾的檔案數要和 manifest 相同。
+  3. 資料庫解到 `{BackupPath}/.work/verify-<guid>/`：SHA-256 要和 manifest 相同、`PRAGMA integrity_check` 是 ok、`__EFMigrationsHistory` 的最後一筆與筆數和 manifest 相同。
+  結果分三種：`Passed`（可以還原）、`Failed`（備份有問題）、`Unverifiable`（這次沒辦法驗證：可用空間不到資料庫大小 ×1.1、備份檔在驗證前被清理、讀取時 IO 錯誤）。**不碰正在用的資料庫、不改備份檔**，暫存目錄做完就刪（被強制結束時由下一次備份清掉 `.work/`）；結果只有數字與固定用語、不含路徑。系統巡檢報告的規則 `BKP-VERIFY`：`Failed` 紅燈「最新的備份無法還原」，`Unverifiable` 黃燈「這次沒有完成備份可還原驗證」；驗證明細在報告的「備份可還原驗證」一節，見[系統巡檢報告 PRD](系統巡檢報告-prd.md)。日誌 `Backup verification finished. FileName=…, Outcome=…, Failed=…, ElapsedMs=…`（Information）。
 - **設定**：`ExternalFileSystem:BackupPath`（啟動驗證：完整路徑、不與其他 11 個目錄重疊〔0.9.175 起含 `AuditKeyPath`〕、不在網站目錄底下）、`BackupSettings { KeepCount = 7, IncludeAiCallLogs = false, IncludeAiAgentConversations = false }`（系統參數「備份」分類；後者 0.9.143 起，「備份 Agent 對話」）。
 - **Agent 對話不備份時**：還原後資料表 `AiAgentConversation` 的列還在（在資料庫裡），「我的對話」清單照常列出，但點開會提示「這段對話無法接續」，使用者刪除即可。0.9.161 起定時巡檢報告的內容檔也放在 `{AiAgentConversationPath}\AdminPatrol`、跟著同一個開關；不備份時還原後巡檢報告清單照常列出，內容檔不見。0.10.39 起系統巡檢報告的內容檔（`.json`）放在同一個目錄、規則相同：不備份時還原後打開報告會提示「找不到這份報告的內容檔」，可在「系統巡檢報告」頁重新產生那一天；容量快照在資料庫裡，一律跟著資料庫備份。
 
@@ -64,16 +69,18 @@
 - 打包時檔案被刪除或被獨佔 → 只計數並列在 manifest。
 - 03:00 的清理作業若與仍在執行的備份重疊，被刪掉的檔案會記為已消失；建議 IIS 回收時間避開 02:00。
 - 從備份還原資料庫後，稽核雜湊鏈會比上次檢查時舊 → 每日的完整性檢查回報一次「資料庫被倒回」並通知管理員，下一次就恢復正常（一次性事件）。
+- 備份作業開始時會清掉 `.work/`：週報、月報的驗證若剛好和備份重疊，驗證會因暫存檔不見而失敗或無法驗證，所以週報產生時間預設 08:00、避開 02:00 的備份（系統參數說明也提醒）。
 - 衍生專案重新產生過 migration，不能用腳手架（或其他專案）的備份還原；金鑰在 Windows 上以 DPAPI 保護，換主機或換應用程式集區身分時可能解不開。
 
 ## 七、驗收與測試
 
 - `SystemBackupTests`：寫入中的 WAL 資料庫快照通過 quick_check 且資料完整、manifest 正確、資料夾內容（含子目錄）、AI 對話預設不含／開啟才含、打不開的檔案只計數、取消與失敗不留殘檔、空間不足先失敗、上次殘檔被清掉、檔名與根目錄檢查、份數刪除（同秒序號）、作業失敗不刪舊備份、備份目錄位置驗證（11 個目錄雙向〔0.9.175 起含 `AuditKeyPath`〕、大小寫、前綴相近、網站目錄）、備份不含稽核金鑰（0.9.175 起）。0.10.6 起續傳稽核的測試與 `BackupDownloadTests`（Cookie 下載端點）已刪除。
 - `MaintenanceApiTests`（0.10.6 起）：清單新到舊、含 manifest 與作業狀態、時間不帶時差；立即備份放進佇列並寫稽核；刪除稽核一筆、已不存在 404；票證下載只能用一次、兌換時才寫稽核；不再是管理員、工作階段已換、檔案已刪時兌換被拒；票證與刪除只認備份目錄裡的備份檔；舊的 Cookie 下載端點已不存在；非管理員 403。實機 `scripts/e2e/m07-ops.mjs` M7-P2（立即備份→清單自動出現→票證下載 zip、第二次 404、舊網址 404）。
+- `SystemBackupTests` 的備份可還原驗證（0.10.41 起，`Verify_*`）：正常備份通過六項檢查且不留暫存檔、壓縮資料損毀回 `Failed`、manifest 的資料庫雜湊或檔案數被改過回 `Failed`、不是壓縮檔回 `Failed`、空間不夠或備份檔消失回 `Unverifiable`。
 - 守門同步：`ScheduledJobWiringTests`、`AdminOnlyPermissionTests`、`MenuPermissionConsistencyTests`、`MenuIconTests`、`SystemParameterTests`、`PageHelpCatalogTests`、`DocumentationConventionTests`。
 
 ## 八、相關程式與文件
 
-- `src/MyProject/MyProject.Web/Backup/`（`SystemBackupService`、`BackupStore`、`BackupManifest`）、`Scheduling/Jobs/SystemBackupJob.cs`、`Controllers/BackupsController.cs`、`Controllers/DownloadsController.cs`、`Downloads/DownloadTicketService.cs`（0.10.6 起；舊的 `BackupController.cs` 已刪除）、`Configuration/BackupSettings.cs`
+- `src/MyProject/MyProject.Web/Backup/`（`SystemBackupService`、`BackupStore`、`BackupManifest`、`BackupVerifier`〔0.10.41〕）、`Scheduling/Jobs/SystemBackupJob.cs`、`Controllers/BackupsController.cs`、`Controllers/DownloadsController.cs`、`Downloads/DownloadTicketService.cs`（0.10.6 起；舊的 `BackupController.cs` 已刪除）、`Configuration/BackupSettings.cs`
 - `src/MyProject/MyProject.Web.Client/Views/Admins/BackupView.razor(.cs)`（0.10.6 起 WASM）、`Api/MaintenanceApi.cs`（`BackupApi`）、`Datas/Help/backups.md`
 - `scripts/Restore-Backup.ps1`；操作：[備份與還原操作手冊](../operations/備份與還原操作手冊.md)；規則：[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)「系統備份」

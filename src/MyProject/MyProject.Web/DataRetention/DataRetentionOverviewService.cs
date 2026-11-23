@@ -448,7 +448,7 @@ public sealed class DataRetentionOverviewService
             CountUnit = "份",
             Folder = await folder,
             OldestLocal = oldest,
-            RuleText = $"產出後保留 {systemReportService.DailyRetentionDays} 天",
+            RuleText = $"產出後保留：日報 {systemReportService.RetentionDays(SystemReportFrequencies.Daily)} 天、週報 {systemReportService.RetentionDays(SystemReportFrequencies.Weekly)} 天、月報 {systemReportService.RetentionDays(SystemReportFrequencies.Monthly)} 天",
             ParameterGroup = SystemParameterCatalog.GroupRetention,
             Expected = (current.Expired ?? 0) + (legacy.Expired ?? 0),
             ManageUrl = "/system-reports",

@@ -61,6 +61,7 @@ public static class SystemReportSummarizer
                 ? new SystemReportDatabaseDto { MainBytes = db.MainBytes, WalBytes = db.WalBytes, FreePageBytes = db.FreePageBytes }
                 : null,
             Stats = Stats(facts),
+            Sections = SystemReportPeriodicSections.Build(facts),
             Limitations = facts.Limitations.Distinct().ToList(),
         };
     }

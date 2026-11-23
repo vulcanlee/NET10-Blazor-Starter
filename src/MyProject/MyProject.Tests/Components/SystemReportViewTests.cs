@@ -79,6 +79,16 @@ public sealed class SystemReportViewTests : ComponentTestBase
             Assert.Contains("href=\"/backups\"", markup, StringComparison.Ordinal);
             Assert.Contains("日誌管線", markup, StringComparison.Ordinal);
             Assert.True(markup.IndexOf("已發生問題（要馬上處理）", StringComparison.Ordinal) < markup.IndexOf("AI 說明", StringComparison.Ordinal));
+
+            // 週報、月報的章節（0.10.41 起）：摘要的「本期重點」＋各節的表格、沒有資料的說明與附註。
+            Assert.Contains("本期重點", markup, StringComparison.Ordinal);
+            Assert.Contains(">備份可還原驗證</strong>", markup, StringComparison.Ordinal);
+            Assert.Contains("最新的備份可以還原。", markup, StringComparison.Ordinal);
+            Assert.Contains("data-section=\"BackupVerify\"", markup, StringComparison.Ordinal);
+            Assert.Contains(">檢查</th>", markup, StringComparison.Ordinal);
+            Assert.Contains(">壓縮檔可以開啟</td>", markup, StringComparison.Ordinal);
+            Assert.Contains("本季沒有異動。", markup, StringComparison.Ordinal);
+            Assert.Contains("做完就刪除暫存檔。", markup, StringComparison.Ordinal);
         });
     }
 
@@ -134,6 +144,21 @@ public sealed class SystemReportViewTests : ComponentTestBase
         Limitations = ["日誌管線與告警的計數從網站上次啟動起算，重新啟動後歸零。"],
         Narrative = "## 整體狀況\n**整體**還好。<script>alert(1)</script>",
         NarrativeStatus = SystemReportNarrativeStatuses.Written,
+        Sections =
+        [
+            new()
+            {
+                Key = SystemReportSectionKeys.BackupVerify,
+                Title = "備份可還原驗證",
+                Highlights = ["最新的備份可以還原。"],
+                Tables =
+                [
+                    new() { Caption = "檢查項目", Columns = ["檢查", "結果"], Rows = [["壓縮檔可以開啟", "通過"]] },
+                    new() { Caption = "本季異動", Columns = ["時間"], EmptyText = "本季沒有異動。" },
+                ],
+                Notes = ["做完就刪除暫存檔。"],
+            },
+        ],
     };
 
     private static SystemReportSummaryDto Summary() => new()

@@ -315,6 +315,119 @@ public sealed class SystemBackupTests : IDisposable
         AssertBackupPathInvalid(paths);
     }
 
+    // ---------- 備份可還原驗證（0.10.41 起，系統巡檢週報與月報） ----------
+
+    [Fact]
+    public async Task Verify_AGoodBackup_PassesEveryCheck_AndLeavesNoTempFiles()
+    {
+        var backup = await CreateBackupAsync();
+
+        var result = await NewVerifier().VerifyAsync(backup, CancellationToken.None);
+
+        Assert.Equal(BackupVerificationOutcomes.Passed, result.Outcome);
+        Assert.Equal(
+            ["壓縮檔可以開啟", "每個檔案都能解壓縮", "檔案數量相符", "資料庫雜湊相符", "資料庫完整性檢查", "資料庫可以開啟並讀取"],
+            result.Checks.Select(x => x.Name));
+        Assert.All(result.Checks, x => Assert.True(x.Passed, x.Detail));
+        Assert.True(result.DatabaseBytes > 0);
+        Assert.Equal(6, result.FileCount);
+        Assert.DoesNotContain(result.Checks, x => x.Detail.Contains(root, StringComparison.OrdinalIgnoreCase));
+        AssertNoLeftovers();
+    }
+
+    [Fact]
+    public async Task Verify_CorruptedBytes_Fails()
+    {
+        var backup = await CreateBackupAsync();
+        var path = Path.Combine(settings.ExternalFileSystem.BackupPath, backup.FileName);
+        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite))
+        {
+            // 資料庫是第一個、也是最大的項目：從檔頭後面一點開始蓋掉一段壓縮資料。
+            stream.Position = 200;
+            stream.Write(Enumerable.Repeat((byte)0x5A, 512).ToArray());
+        }
+
+        var result = await NewVerifier().VerifyAsync(backup, CancellationToken.None);
+
+        Assert.Equal(BackupVerificationOutcomes.Failed, result.Outcome);
+        Assert.Contains(result.Checks, x => !x.Passed);
+        AssertNoLeftovers();
+    }
+
+    [Fact]
+    public async Task Verify_ManifestHashOrFileCountMismatch_Fails()
+    {
+        var hashBackup = await CreateBackupAsync();
+        RewriteManifest(hashBackup, manifest => manifest.DatabaseSha256 = new string('0', 64));
+        var hash = await NewVerifier().VerifyAsync(hashBackup, CancellationToken.None);
+
+        var countBackup = await CreateBackupAsync();
+        RewriteManifest(countBackup, manifest => manifest.Folders[0].FileCount += 3);
+        var count = await NewVerifier().VerifyAsync(countBackup, CancellationToken.None);
+
+        Assert.Equal(BackupVerificationOutcomes.Failed, hash.Outcome);
+        Assert.False(hash.Checks.Single(x => x.Name == "資料庫雜湊相符").Passed);
+        Assert.Equal(BackupVerificationOutcomes.Failed, count.Outcome);
+        Assert.False(count.Checks.Single(x => x.Name == "檔案數量相符").Passed);
+    }
+
+    [Fact]
+    public async Task Verify_NotEnoughSpaceOrTheFileIsGone_IsUnverifiable_NotFailed()
+    {
+        var backup = await CreateBackupAsync();
+        var verifier = NewVerifier();
+        verifier.FreeSpaceProbe = _ => 1;
+        var noSpace = await verifier.VerifyAsync(backup, CancellationToken.None);
+
+        File.Delete(Path.Combine(settings.ExternalFileSystem.BackupPath, backup.FileName));
+        var gone = await NewVerifier().VerifyAsync(backup, CancellationToken.None);
+
+        Assert.Equal(BackupVerificationOutcomes.Unverifiable, noSpace.Outcome);
+        Assert.Contains("空間不夠", noSpace.Checks[^1].Detail, StringComparison.Ordinal);
+        Assert.Equal(BackupVerificationOutcomes.Unverifiable, gone.Outcome);
+        AssertNoLeftovers();
+    }
+
+    [Fact]
+    public async Task Verify_NotAZip_Fails()
+    {
+        var backupRoot = settings.ExternalFileSystem.BackupPath;
+        Directory.CreateDirectory(backupRoot);
+        var name = "backup-20261116-020000.zip";
+        await File.WriteAllTextAsync(Path.Combine(backupRoot, name), "not a zip");
+
+        var result = await NewVerifier().VerifyAsync(new BackupFileInfo(name, 9, new DateTime(2026, 11, 16, 2, 0, 0), null), CancellationToken.None);
+
+        Assert.Equal(BackupVerificationOutcomes.Failed, result.Outcome);
+        Assert.Equal("壓縮檔可以開啟", Assert.Single(result.Checks).Name);
+    }
+
+    private async Task<BackupFileInfo> CreateBackupAsync()
+    {
+        var created = await NewService().CreateAsync(JobRunTriggers.Manual, CancellationToken.None);
+        Assert.True(created.Success, created.Message);
+        return new BackupFileInfo(created.FileName!, created.SizeBytes, DateTime.Now, null);
+    }
+
+    private void RewriteManifest(BackupFileInfo backup, Action<BackupManifest> change)
+    {
+        using var zip = ZipFile.Open(Path.Combine(settings.ExternalFileSystem.BackupPath, backup.FileName), ZipArchiveMode.Update);
+        var entry = zip.GetEntry(BackupStore.ManifestEntryName)!;
+        BackupManifest manifest;
+        using (var stream = entry.Open())
+        {
+            manifest = JsonSerializer.Deserialize<BackupManifest>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        }
+
+        change(manifest);
+        entry.Delete();
+        using var target = zip.CreateEntry(BackupStore.ManifestEntryName).Open();
+        JsonSerializer.Serialize(target, manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
+
+    private BackupVerifier NewVerifier()
+        => new(new BackupStore(Options.Create(settings), NullLogger<BackupStore>.Instance), NullLogger<BackupVerifier>.Instance);
+
     // ---------- 測試工具 ----------
 
     private string Dir(string name)

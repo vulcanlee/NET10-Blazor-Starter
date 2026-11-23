@@ -164,7 +164,7 @@ public sealed class SystemReportServiceTests : IAsyncLifetime
         var second = await job.ExecuteAsync(Manual, CancellationToken.None);
 
         Assert.True(first.Succeeded);
-        Assert.Equal("刪除 2 份超過 30 天的巡檢報告、1 筆超過 30 天的容量快照。", first.Message);
+        Assert.Equal("刪除 2 份超過保留天數（日報 30 天、週報 365 天、月報 1095 天）的巡檢報告、1 筆超過 30 天的容量快照。", first.Message);
         Assert.True(second.Succeeded);
         Assert.Equal([AuditActions.AdminPatrol.AutoPurge, AuditActions.SystemReport.AutoPurge], audit.Entries.Select(x => x.Action));
         Assert.Contains("reports=1", audit.Entries[1].Detail, StringComparison.Ordinal);
@@ -240,6 +240,97 @@ public sealed class SystemReportServiceTests : IAsyncLifetime
         Assert.Equal((1, 1, 0), (metrics.SecurityEvents[AuditActions.Login.Failed], metrics.SecurityEvents[AuditActions.Token.ReuseDetected], metrics.SecurityEvents[AuditActions.Permission.Denied]));
         Assert.Equal(1, metrics.LoginFailureBursts);
         Assert.Equal((1, 1, 1), (metrics.LockedAccounts, metrics.EnabledAdmins, metrics.AdminsWithoutTwoFactor));
+    }
+
+    // ───────────── 月報（0.10.41 起）─────────────
+
+    [Fact]
+    public async Task AiCost_GroupsByFeatureModelAndUser_AndComparesWithTheMonthBefore()
+    {
+        var start = new DateTime(2026, 10, 1);
+        int aliceId;
+        await using (var context = CreateContext())
+        {
+            var alice = new MyUser { Account = "alice", Name = "愛麗絲", Status = true };
+            context.MyUser.Add(alice);
+            await context.SaveChangesAsync();
+            aliceId = alice.Id;
+            context.TokenUsageLog.AddRange(
+                new TokenUsageLog { Operation = "例外分析", Model = "gpt-a", UserId = aliceId, Account = "alice", Success = true, CostTwd = 3, OccurredAt = start.AddDays(2) },
+                new TokenUsageLog { Operation = "例外分析", Model = "gpt-b", UserId = aliceId, Account = "alice", Success = true, CostTwd = 1, OccurredAt = start.AddDays(3) },
+                new TokenUsageLog { Operation = "系統巡檢報告（AI 說明）", Model = "gpt-a", Success = true, CostTwd = null, OccurredAt = start.AddDays(4) },
+                new TokenUsageLog { Operation = "例外分析", Model = "gpt-a", UserId = aliceId, Account = "alice", Success = false, OccurredAt = start.AddDays(5) },
+                new TokenUsageLog { Operation = "例外分析", Model = "gpt-a", UserId = aliceId, Account = "alice", Success = true, CostTwd = 2, OccurredAt = start.AddDays(-3) },
+                new TokenUsageLog { Operation = "例外分析", Model = "gpt-a", UserId = aliceId, Account = "alice", Success = true, CostTwd = 50, OccurredAt = start.AddMonths(1) });
+            await context.SaveChangesAsync();
+        }
+
+        var cost = await Metrics().GetAiCostAsync(start, start.AddMonths(1), start.AddMonths(-1));
+
+        Assert.Equal((4.0, 2.0, 4, 1, 1, 1, 1), (cost.CostTwd, cost.PreviousCostTwd, cost.Calls, cost.PreviousCalls, cost.FailedCalls, cost.UnpricedCalls, cost.UserCount));
+        Assert.Equal(("例外分析", 3, 4.0, 2.0), (cost.ByOperation[0].Name, cost.ByOperation[0].Calls, cost.ByOperation[0].CostTwd, cost.ByOperation[0].PreviousCostTwd));
+        Assert.Equal(["gpt-a", "gpt-b"], cost.ByModel.Select(x => x.Name));
+        Assert.Equal(("alice", "愛麗絲", 3, 4.0), (cost.TopUsers[0].Account, cost.TopUsers[0].Name, cost.TopUsers[0].Calls, cost.TopUsers[0].CostTwd));
+        Assert.Null(cost.TopUsers[1].Account);
+    }
+
+    [Fact]
+    public async Task AccountReview_ListsAdminsStaleAccountsMissingTwoFactor_AndTheQuartersChanges()
+    {
+        var nowUtc = new DateTime(2027, 1, 1, 0, 30, 0);
+        var nowLocal = new DateTime(2027, 1, 1, 8, 30, 0);
+        var quarterStartUtc = new DateTime(2026, 9, 30, 16, 0, 0);
+        var endUtc = new DateTime(2026, 12, 31, 16, 0, 0);
+        await using (var context = CreateContext())
+        {
+            var admin = new MyUser { Account = "admin1", Name = "管理員一", IsAdmin = true, Status = true, TwoFactorEnabled = true, CreateAt = nowLocal.AddYears(-1) };
+            var stale = new MyUser { Account = "stale", Name = "很久沒來", Status = true, CreateAt = nowLocal.AddYears(-1) };
+            var fresh = new MyUser { Account = "fresh", Name = "剛建立", Status = true, CreateAt = nowLocal.AddDays(-3) };
+            var google = new MyUser { Account = "g", Name = "Google", Status = true, OAuthProvider = "Google", CreateAt = nowLocal.AddYears(-1) };
+            var disabled = new MyUser { Account = "off", Name = "停用", Status = false, CreateAt = nowLocal.AddYears(-1) };
+            var role = new RoleView { Name = "業務" };
+            context.AddRange(admin, stale, fresh, google, disabled, role);
+            await context.SaveChangesAsync();
+            context.AuditLog.AddRange(
+                new AuditLog { Action = AuditActions.Login.Success, ActorUserId = admin.Id, OccurredAt = nowUtc.AddDays(-2) },
+                new AuditLog { Action = AuditActions.Login.Success, ActorUserId = stale.Id, OccurredAt = nowUtc.AddDays(-200) },
+                new AuditLog { Action = AuditActions.Login.SsoSuccess, ActorUserId = google.Id, OccurredAt = nowUtc.AddDays(-1) },
+                new AuditLog { Action = AuditActions.User.Update, ActorAccount = "admin1", TargetType = nameof(MyUser), TargetId = stale.Id.ToString(), OccurredAt = quarterStartUtc.AddDays(10) },
+                new AuditLog { Action = AuditActions.Role.Update, ActorAccount = "admin1", TargetType = nameof(RoleView), TargetId = role.Id.ToString(), OccurredAt = quarterStartUtc.AddDays(20) },
+                new AuditLog { Action = AuditActions.User.Disable, ActorAccount = "admin1", TargetType = nameof(MyUser), TargetId = "9999", OccurredAt = quarterStartUtc.AddDays(30) },
+                new AuditLog { Action = AuditActions.User.Update, ActorAccount = "admin1", TargetType = nameof(MyUser), TargetId = stale.Id.ToString(), OccurredAt = quarterStartUtc.AddDays(-1) },
+                new AuditLog { Action = AuditActions.User.Update, Success = false, ActorAccount = "admin1", TargetType = nameof(MyUser), TargetId = stale.Id.ToString(), OccurredAt = quarterStartUtc.AddDays(11) });
+            await context.SaveChangesAsync();
+        }
+
+        var review = await Metrics().GetAccountReviewAsync(quarterStartUtc, endUtc, nowUtc, nowLocal, 90);
+
+        Assert.Equal((4, 1), (review.EnabledAccounts, review.DisabledAccounts));
+        Assert.Equal("admin1", Assert.Single(review.Admins).Account);
+        Assert.Equal("stale", Assert.Single(review.StaleAccounts).Account);
+        Assert.Equal(["fresh", "stale"], review.WithoutTwoFactor.Select(x => x.Account));
+        Assert.Equal(nowUtc.AddDays(-2), review.Admins[0].LastLoginUtc);
+        Assert.Equal(["使用者 stale", "角色 業務", "使用者（編號 9999）"], review.Changes.Select(x => x.Target));
+        Assert.Equal([AuditActions.User.Update, AuditActions.Role.Update, AuditActions.User.Disable], review.Changes.Select(x => x.Action));
+    }
+
+    private SystemReportMetricsService Metrics() => new(new TestDbContextFactory(connection), NullLogger<SystemReportMetricsService>.Instance);
+
+    [Fact]
+    public async Task Retention_IsPerFrequency()
+    {
+        var service = new SystemReportService(new TestDbContextFactory(connection), FileStore(),
+            new StaticOptionsMonitor<SystemReportSettings>(new SystemReportSettings { DailyRetentionDays = 10, WeeklyRetentionDays = 100, MonthlyRetentionDays = 1000 }),
+            NullLogger<SystemReportService>.Instance);
+        foreach (var (frequency, age) in new[] { (SystemReportFrequencies.Daily, 11), (SystemReportFrequencies.Weekly, 11), (SystemReportFrequencies.Weekly, 101), (SystemReportFrequencies.Monthly, 101), (SystemReportFrequencies.Custom, 11) })
+        {
+            Assert.NotNull(await service.SaveAsync(Draft(Now.AddDays(-age), SystemReportLevels.Green) with { Frequency = frequency }));
+        }
+
+        Assert.Equal(3, (await service.GetRetentionStatsAsync(Now)).Expired);
+        Assert.Equal(3, await service.PurgeExpiredAsync(Now));
+        await using var context = CreateContext();
+        Assert.Equal([SystemReportFrequencies.Monthly, SystemReportFrequencies.Weekly], (await context.SystemReport.Select(x => x.Frequency).ToListAsync()).Order());
     }
 
     private BackendDBContext CreateContext() => new TestDbContextFactory(connection).CreateDbContext();

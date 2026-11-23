@@ -10,9 +10,12 @@
 // R7 立即產生寫一筆 Job.Trigger 稽核（via=system-reports）
 // R8 報告視窗按「下載 PDF」得到 PDF 檔（0.10.40 起），寫一筆 SystemReport.Download 稽核
 // R9 「立即產生」勾選寄給所有管理員：Pickup 的信附上 PDF，寄信紀錄的種類是 SystemReport（0.10.40 起）
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+// R10 週報（0.10.41 起）：先備份一次，「立即產生」選週報，產生上週的週報，內容有趨勢比較、容量成長、備份可還原驗證（通過）
+// R11 月報（0.10.41 起）：產生最近一個季末月份的月報並寄給管理員：有 AI 費用與帳號與權限清查（表格列出 support），信件附 monthly 的 PDF
+// R12 立即產生的檢查：這一週的週報、這個月的月報都回 400（還沒過完）
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot } from './common.mjs';
+import { apiJsonAsPageUser, createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot } from './common.mjs';
 
 const mailDir = process.env.E2E_MAIL_DIR ?? join(dirname(dirname(databaseFile)), 'Mails');
 const mailFiles = () => (existsSync(mailDir) ? readdirSync(mailDir).filter((x) => x.endsWith('.eml')) : []);
@@ -149,6 +152,75 @@ try {
   recorder.add('R9', '勾選寄送：信件附上 PDF，寄信紀錄種類是 SystemReport',
     newMail !== null && /filename="?system-report-daily-\d{8}\.pdf/.test(mailText) && outbox?.Kind === 'SystemReport',
     JSON.stringify({ mail: newMail, outbox }));
+
+  // R10
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  await apiJsonAsPageUser(page, '/api/v1/backups/run', { method: 'POST', body: {} });
+  await waitFor(() => query("SELECT COUNT(*) AS N FROM JobRun WHERE JobName = 'SystemBackup' AND Status = 'Succeeded'")[0].N > 0 || null);
+  await page.goto('/system-reports');
+  await page.locator('.system-report-toolbar').waitFor({ timeout: 60000 });
+  await page.locator('button.toolbar-icon-button', { hasText: '立即產生' }).click();
+  const weeklyModal = page.locator('.system-report-generate-modal .ant-modal-content');
+  await weeklyModal.waitFor({ state: 'visible', timeout: 15000 });
+  await weeklyModal.locator('.ant-radio-wrapper', { hasText: '週報' }).click();
+  const weeklyLabel = (await weeklyModal.locator('label[for="system-report-generate-date"]').textContent()) ?? '';
+  await screenshot(page, 'system-reports-generate-weekly');
+  await weeklyModal.locator('button', { hasText: /^\s*取\s*消\s*$/ }).click();
+  const lastWeek = new Date();
+  lastWeek.setDate(lastWeek.getDate() - 7);
+  const weeklyCall = await apiJsonAsPageUser(page, '/api/v1/system-reports/generate', { method: 'POST', body: { frequency: 'Weekly', date: ymd(lastWeek), sendToAdmins: false } });
+  const weekly = await waitFor(() => query("SELECT ReportId FROM SystemReport WHERE Frequency = 'Weekly' ORDER BY Id DESC LIMIT 1")[0] ?? null, 600000);
+  let weeklyText = '';
+  if (weekly) {
+    const id = weekly.ReportId.replaceAll('-', '').toLowerCase();
+    await page.goto(`/system-reports?report=${id}`);
+    await page.locator('.system-report-modal .system-report-verdict').waitFor({ timeout: 60000 });
+    weeklyText = (await page.locator('.system-report-modal').textContent()) ?? '';
+    await screenshot(page, 'system-reports-weekly');
+  }
+
+  recorder.add('R10', '週報：趨勢比較、容量成長、備份可還原驗證（通過）',
+    weeklyLabel.includes('那一週') && weeklyCall.status === 200 && weekly !== null
+      && ['本期重點', '趨勢比較', '容量成長與規劃', '備份可還原驗證', '可以還原'].every((x) => weeklyText.includes(x)),
+    JSON.stringify({ weeklyLabel, status: weeklyCall.status, verify: (weeklyText.match(/最新的備份[^。]*。/) ?? [''])[0] }));
+
+  // R11
+  const now = new Date();
+  let quarterEnd = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  while ((quarterEnd.getMonth() + 1) % 3 !== 0) {
+    quarterEnd = new Date(quarterEnd.getFullYear(), quarterEnd.getMonth() - 1, 1);
+  }
+
+  const monthlyMailsBefore = new Set(mailFiles());
+  const monthlyCall = await apiJsonAsPageUser(page, '/api/v1/system-reports/generate', { method: 'POST', body: { frequency: 'Monthly', date: ymd(quarterEnd), sendToAdmins: true } });
+  const monthly = await waitFor(() => query("SELECT ReportId, DeliveryStatus FROM SystemReport WHERE Frequency = 'Monthly' ORDER BY Id DESC LIMIT 1")[0] ?? null, 600000);
+  let monthlyText = '';
+  let monthlyPdf = '';
+  if (monthly) {
+    const id = monthly.ReportId.replaceAll('-', '').toLowerCase();
+    await page.goto(`/system-reports?report=${id}`);
+    await page.locator('.system-report-modal .system-report-verdict').waitFor({ timeout: 60000 });
+    monthlyText = (await page.locator('.system-report-modal').textContent()) ?? '';
+    await screenshot(page, 'system-reports-monthly');
+    const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
+    await page.locator('.system-report-modal button.toolbar-icon-button', { hasText: '下載 PDF' }).click();
+    const download = await downloadPromise;
+    monthlyPdf = join(outDir, download.suggestedFilename());
+    await download.saveAs(monthlyPdf);
+  }
+
+  const monthlyMail = await waitFor(() => mailFiles().find((x) => !monthlyMailsBefore.has(x) && readFileSync(join(mailDir, x), 'utf8').includes('system-report-monthly-')) ?? null);
+  recorder.add('R11', '月報：AI 費用與帳號清查、寄出附 monthly PDF',
+    monthlyCall.status === 200 && monthly !== null && ['AI 費用', '帳號與權限清查', '費用最高的', '管理員', 'support'].every((x) => monthlyText.includes(x)) && monthlyMail !== null,
+    JSON.stringify({ quarterEnd: ymd(quarterEnd), status: monthlyCall.status, delivery: monthly?.DeliveryStatus, mail: monthlyMail, pdf: monthlyPdf }));
+
+  // R12
+  const thisWeek = await apiJsonAsPageUser(page, '/api/v1/system-reports/generate', { method: 'POST', body: { frequency: 'Weekly', date: ymd(now), sendToAdmins: false } });
+  const thisMonth = await apiJsonAsPageUser(page, '/api/v1/system-reports/generate', { method: 'POST', body: { frequency: 'Monthly', date: ymd(now), sendToAdmins: false } });
+  recorder.add('R12', '這一週的週報、這個月的月報不能產生（400）',
+    thisWeek.status === 400 && thisMonth.status === 400,
+    JSON.stringify({ week: [thisWeek.status, thisWeek.json?.message], month: [thisMonth.status, thisMonth.json?.message] }));
+  writeFileSync(join(outDir, 'system-reports-monthly.txt'), monthlyText);
 
   await context.close();
 } finally {
