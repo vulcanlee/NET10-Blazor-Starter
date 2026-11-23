@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.35
+- 文件版本：1.36
 - 文件狀態：已實作
-- 現行系統版本：0.10.41
+- 現行系統版本：0.10.42
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/20
+- 最後核對日期：2026/11/23
 
 ## 一、目標與範圍
 
@@ -246,9 +246,10 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
 | `Prompt.Update` / `Prompt.Activate` | `PromptTemplateView`（「AI 提示詞」頁，0.9.108 起；0.10.5 起由 `PromptTemplatesController` 寫）與系統管理助理的 `AiAssistantTools`；detail 記 `version=…`（經系統管理助理時另加 `via=`），不記提示詞內容 |
 | `AdminPatrol.AutoPurge` | 排程作業「巡檢報告清理」（0.9.161 起；detail `rows=N; days=D; trigger=T`，不記報告內容；0.10.39 起作業改名「巡檢報告與容量快照清理」，只在刪到舊版巡檢報告時寫）|
 | `SystemReport.AutoPurge` | 排程作業「巡檢報告與容量快照清理」（0.10.39 起；刪到系統巡檢報告或容量快照時寫，detail `reports=N; days=D; weeklyDays=W; monthlyDays=M; snapshots=S; snapshotDays=SD; trigger=T`〔`weeklyDays`、`monthlyDays` 0.10.41 起〕，不記報告內容）|
-| `SystemReport.Download` | 「系統巡檢報告」頁報告視窗的「下載 PDF」（0.10.40 起；報告離開系統所以要記；targetType `SystemReport`、targetId 報告編號〔`N` 格式〕，detail `format=pdf; frequency=Daily`〔0.10.41 起也有 `Weekly`、`Monthly`〕，不記報告內容）|
+| `SystemReport.Download` | 「系統巡檢報告」頁報告視窗的「下載 PDF」（0.10.40 起；報告離開系統所以要記；targetType `SystemReport`、targetId 報告編號〔`N` 格式〕，detail `format=pdf; frequency=Daily`〔0.10.41 起也有 `Weekly`、`Monthly`，0.10.42 起也有 `Custom`〕，不記報告內容；0.10.42 起系統管理助理回覆下方的「下載 PDF」也寫這一筆）|
+| `SystemReport.Generate` | 系統管理助理在對話中巡檢、以工具 `run_system_report` 產生指定區間的報告（0.10.42 起，`SystemReportAssistantService`；這個工具不經核准窗，是明文例外，所以另記這一筆）；targetType `SystemReport`、targetId 報告編號〔`N` 格式〕，detail `frequency=Custom; start=yyyy-MM-dd; end=yyyy-MM-dd; via=admin-assistant`，不記報告內容；工具本身另記 `Ai.ToolInvoked` |
 
-**系統管理助理與定時巡檢**（定時巡檢 0.10.39 起由系統巡檢報告取代；系統巡檢報告收集資料時不寫稽核，「系統巡檢報告」頁的立即產生寫 `Job.Trigger`，detail `job=SystemReportDaily; date=…; send=…; via=system-reports`，0.10.41 起週報、月報是 `job=SystemReportWeekly`、`job=SystemReportMonthly`；月報的帳號與權限清查讀取稽核紀錄的登入成功與帳號角色異動，也不寫稽核）：系統管理助理（0.9.155 起）執行的查詢與異動沿用原頁面的動作代碼（例如 `User.Search`、`Prompt.Activate`），detail 加 `via=admin-assistant`（0.9.155～0.9.156 的舊紀錄是 `source=`），工具本身另記 `Ai.ToolInvoked` 等。定時巡檢（0.9.161 起）沒有登入使用者，工具稽核的操作者留空（清單顯示「（系統／匿名）」），detail 最後註明「排程巡檢」。
+**系統管理助理與定時巡檢**（定時巡檢 0.10.39 起由系統巡檢報告取代；系統巡檢報告收集資料時不寫稽核，「系統巡檢報告」頁的立即產生寫 `Job.Trigger`，detail `job=SystemReportDaily; date=…; send=…; via=system-reports`，0.10.41 起週報、月報是 `job=SystemReportWeekly`、`job=SystemReportMonthly`；0.10.42 起系統管理助理在對話中產生的指定區間報告寫 `SystemReport.Generate`；月報的帳號與權限清查讀取稽核紀錄的登入成功與帳號角色異動，也不寫稽核）：系統管理助理（0.9.155 起）執行的查詢與異動沿用原頁面的動作代碼（例如 `User.Search`、`Prompt.Activate`），detail 加 `via=admin-assistant`（0.9.155～0.9.156 的舊紀錄是 `source=`），工具本身另記 `Ai.ToolInvoked` 等。定時巡檢（0.9.161 起）沒有登入使用者，工具稽核的操作者留空（清單顯示「（系統／匿名）」），detail 最後註明「排程巡檢」。
 
 ## 七、已知限制與規劃中需求
 

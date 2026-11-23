@@ -55,7 +55,7 @@ mkdir $env:TEMP\pw; cd $env:TEMP\pw; npm init -y; npm install playwright-core
    node ./scripts/e2e/smoke-routes.mjs      # 只跑全部路由煙霧測試
    node ./scripts/e2e/browser-reports.mjs   # 前端錯誤與事件回報 B1～B8（0.10.36 起；讀隔離資料夾的資料庫與日誌檔）
    node ./scripts/e2e/client-diagnostics.mjs # 前端診斷記錄 D1～D6（0.10.37 起；會建一個一般帳號，讀隔離資料夾的資料庫與日誌檔）
-   node ./scripts/e2e/system-reports.mjs    # 系統巡檢報告 R1～R12（0.10.39 起；0.10.40 起含下載 PDF 與信件附件；0.10.41 起 R10～R12 先備份一次再產生週報與季末月報、檢查立即產生的區間限制；會產生昨天的日報，讀隔離資料夾的資料庫與 `Mails`）
+   node ./scripts/e2e/system-reports.mjs    # 系統巡檢報告 R1～R15（0.10.39 起；0.10.40 起含下載 PDF 與信件附件；0.10.41 起 R10～R12 先備份一次再產生週報與季末月報、檢查立即產生的區間限制；0.10.42 起 R13～R15 在系統管理助理說「幫我巡一下系統」「幫我巡一下 M/D～M/D」與超過 31 天的區間，檢查 Custom／Assistant 報告、沒有核准窗、不寄信不通知、回覆下方的「查看報告」「下載 PDF」，**需要真的 AI 設定**；會產生昨天的日報，讀隔離資料夾的資料庫與 `Mails`）
    ```
 
 | 環境變數 | 說明 |

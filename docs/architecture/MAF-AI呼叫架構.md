@@ -1,10 +1,10 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：第一～三階段已實作（第四階段多 Agent 工作流程 0.10.22 起已移除）
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.42
 - 首次實作版本：0.9.140
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/23
 
 > 系統內**所有** LLM 呼叫都經由 Microsoft Agent Framework（MAF）建立的 agent 送出（0.9.140 起）。
 > 本文件說明管線怎麼組、記帳點在哪裡、為什麼這樣決定、Agent 骨架怎麼用（§6）、模型怎麼選（含快速模型，§6.5）、對話怎麼保存與接續（§6.7）、系統管理助理的每輪規劃（§6.9），以及各階段的範圍（多 Agent 工作流程已移除，見 §6.8）。
@@ -214,7 +214,7 @@ Agent 的對話（現行是系統管理助理）會自動保存，左側「我�
 | 位置 | 內容 |
 |---|---|
 | 資料表 `AiAgentConversation`（migration `AddAiAgentConversation`）| `ConversationId`（唯一，＝AI 對話紀錄的 `ConversationId`）、`UserId`、`Account`、`AgentName`、`Title`、`CreatedAt`、`UpdatedAt`（最後一次對話，排序與過期都依它）、`HasPendingApproval`、`ContentFile` |
-| 內容檔 `{AiAgentConversationPath}/{yyyyMM 建立時間}/{ConversationId:N}.json`，每次儲存整份覆寫 | `AiAgentConversationContent`（`SchemaVersion` 1）：`Session`（MAF `SerializeSessionAsync` 的結果，讓 AI 記得前文，含工具呼叫與結果）、`Transcript`（畫面紀錄：User／Assistant／Tool／Notice／Error，`Agent` 欄位是「由誰回答」；`Output` 種類是 0.9.144～0.10.21 工作流程用的，只加不改）、`PendingApprovals`（等使用者決定的核准請求，或因工具已不存在而自動拒絕的回覆，`AIContent` JSON）|
+| 內容檔 `{AiAgentConversationPath}/{yyyyMM 建立時間}/{ConversationId:N}.json`，每次儲存整份覆寫 | `AiAgentConversationContent`（`SchemaVersion` 1）：`Session`（MAF `SerializeSessionAsync` 的結果，讓 AI 記得前文，含工具呼叫與結果）、`Transcript`（畫面紀錄：User／Assistant／Tool／Notice／Error，`Agent` 欄位是「由誰回答」；`Output` 種類是 0.9.144～0.10.21 工作流程用的，只加不改；0.10.42 起加 `Report`〔工具產生的系統巡檢報告，`Text` 是報告編號、`Agent` 是標題〕，`SchemaVersion` 仍是 1）、`PendingApprovals`（等使用者決定的核准請求，或因工具已不存在而自動拒絕的回覆，`AIContent` JSON）|
 
 - **何時存**：`AiAgentChat` 自己維護 `Transcript`，每次執行結束都在 `finally` 存一次（用 `CancellationToken.None`）—— 成功、失敗、使用者停止、停下來等核准，以及呼叫端中途不再讀取（例如離開頁面）；已收到的文字收進紀錄並以 `AiInterruption` 標示不完整。第一則訊息之前不存（只按「新對話」不會多出空白對話）。自動標題是第一則訊息（空白收成一格）的前 40 字＋「…」，只在第一次儲存時寫入。存檔失敗只記警告，不影響對話；寫檔失敗時新的一列 `ContentFile` 為 null。
 - **誰看得到**：**只有本人**。`AiAgentConversationService` 的讀、列（依 `UpdatedAt` 新到舊，最多 100 段）、改名（1～100 字、不更新 `UpdatedAt`、不寫稽核）、刪除（先刪列再刪檔，稽核 `AiAgentConversation.Delete`，detail 只有 `agent=…`）都以目前使用者過濾，別人的對話一律當作找不到。規劃時寫「本人＋管理員可見」，實作改為只限本人：管理員要追查仍可在「AI 對話紀錄」以同一個 `ConversationId` 看到每一次模型呼叫。
@@ -256,7 +256,10 @@ Agent 的對話（現行是系統管理助理）會自動保存，左側「我�
   原頁面有寫查詢／檢視稽核的，工具寫同一個稽核代碼並加 `via=admin-assistant`（0.9.155～0.9.156 是 `source=`）；
   參數不合法時不丟例外，夾住範圍或用預設值並在回覆的 `note` 說明（`AdminAssistantToolText.ClampWithNote`、`ParseRange`）。
   最後登入由 `AuditLogQueryService.GetLastLoginTimesAsync` 從稽核推算；使用者輸出絕不含密碼與 Salt，系統參數的孤兒鍵只列鍵名。
-- **巡檢**：分派到 `patrol` 時只用唯讀工具，共同說明列出巡檢要呼叫的 9 個工具與七段報告格式（預設最近 24 小時，不呼叫耗時的資料保留總覽）。
+- **巡檢**：0.9.157～0.10.41 分派到 `patrol` 時只用唯讀工具，共同說明列出巡檢要呼叫的 9 個工具與七段報告格式（預設最近 24 小時，不呼叫耗時的資料保留總覽）。
+  0.10.42 起（系統巡檢報告 M4）改用系統巡檢報告的規則引擎：巡檢回合是唯讀工具＋`AdminAssistantAgent.PatrolTools`（`run_system_report`，`ReportAssistantTools`），共同說明要模型一律呼叫它、原樣傳使用者說的日期、用三段回覆；
+  它會存一份報告但 `IsMutating = false`（不經核准窗，使用者 2026/11/20 決定的明文例外，見[開發慣例與限制速查](開發慣例與限制速查.md) §6.7 與 §6.34 第 16 點）。
+  工具經 scoped 的 `AiAgentReportOutputs` 把報告交給 `AiAgentChat`，這一輪結束時在回覆後面加一則 `AiAgentTranscriptKinds.Report`（`Text`＝報告編號、`Agent`＝標題；回覆失敗也加），畫面顯示「查看報告」「下載 PDF」。
 - **異動工具**（0.9.158 起，22 個：帳號 10、監控 4、AI 2、維運 6）：`AdminAssistantAgent.MutatingTools[領域]`，`IsMutating = true`（包成 `ApprovalRequiredAIFunction`），
   `AiToolDefinition.ApprovalNote` 顯示在核准窗；`AiToolApprovalRequest` 帶 `Note` 與 `Label`（提出的專家），`Label` 也存進 `AiAgentPendingApprovalRecord`，接續時優先用它還原標籤。
   陣列參數在核准窗列成「共 N 筆」加逐行（最多 50 行），單一值上限 8000 字（`AiToolApprovals.ArgumentMaxLength`，容得下整份提示詞；更長的值工具自己拒絕）。

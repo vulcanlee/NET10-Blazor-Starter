@@ -346,6 +346,9 @@ public static class AuditActions
         public const string AutoPurge = "SystemReport.AutoPurge";
 
         public const string Download = "SystemReport.Download";
+
+        /// <summary>系統管理助理在對話中產生指定區間的報告（0.10.42 起；不經核准窗的明文例外）。</summary>
+        public const string Generate = "SystemReport.Generate";
     }
 
     /// <summary>AI 提示詞（0.9.108 起）：detail 只記範本與版本，不記提示詞內容。</summary>

@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.134
+- 文件版本：6.135
 - 文件狀態：維護中
-- 現行系統版本：0.10.41
+- 現行系統版本：0.10.42
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/20
+- 最後核對日期：2026/11/23
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 系統巡檢報告 M4：系統管理助理對話中的巡檢改用系統巡檢報告的規則引擎，新增巡檢工具 `run_system_report`「產生系統巡檢報告」（只在巡檢回合載入，`AdminAssistantAgent.PatrolTools`），產生種類「指定區間」（`Custom`）、觸發 `Assistant` 的報告；區間由 `SystemReportAssistantService.ResolveRange` 解析（沒講日期＝昨天到現在、使用者說的日期原樣傳入、年份由程式推、最多 31 天）；不寫 AI 說明、不通知、不寄信，稽核 `SystemReport.Generate`。使用者 2026/11/20 決定的兩個明文例外：不經核准窗、在對話請求裡產生。巡檢提示詞改為三段回覆（總結、需要處理、下期預測），舊的 9 個工具程序與七段格式移除；回覆下方新增報告卡片（`AiAgentReportOutputs` → 逐字稿 `Report`，「查看報告」「下載 PDF」）。沒有 migration（0.10.42）| [2026-11-23-系統巡檢報告M4](2026-11-23-系統巡檢報告M4.md) |
 | 系統巡檢報告 M3：新增排程作業「系統巡檢週報」`SystemReportWeekly`（預設星期一 08:00，上週一～週日）與「系統巡檢月報」`SystemReportMonthly`（預設每月 1 日 08:30，上個月），不論燈號一律寄給全體管理員（附 PDF），時間在系統參數（4 個新參數，經 `SystemReportScheduleProvider`，不可覆寫）；三種報告共用 `SystemReportJob`，區間由 `SystemReportPeriod` 推算。報告內容新增通用章節 `Sections`（重點＋表格，`SystemReportPeriodicSections`）：趨勢比較、容量成長與規劃、備份可還原驗證（週報、月報）、AI 費用（月報）、帳號與權限清查（1／4／7／10 月產生的月報，涵蓋上一季）；摘要多「本期重點」，通知與信件內文加每節重點，AI 只收重點不收表格。新增 `BackupVerifier` 照還原腳本驗證最新的備份（CRC、檔案數、SHA-256、`integrity_check`、migration 紀錄，解到 `.work/` 不碰正在用的資料庫），新規則 `BKP-VERIFY`（紅／黃）。使用者決定的窄例外：只在 AI 費用與帳號清查的表格列帳號與姓名。週報、月報各自的保留天數（365／1095 天）；`generate` 端點接受週報、月報；沒有 migration（0.10.41）| [2026-11-20-系統巡檢報告M3](2026-11-20-系統巡檢報告M3.md) |
 | 系統巡檢報告 M2：報告內容視窗新增「下載 PDF」——`SystemReportPdfBuilder` 由內容 JSON 隨需產生（不存檔、沒有 migration，舊版巡檢報告沒有 PDF；版面同報告頁、燈號以文字＋淺色底色、處理頁面寫中文名稱不放網址、內嵌 Noto Sans TC），`POST api/v1/system-reports/{id}/pdf` 寫稽核 `SystemReport.Download`；寄信層新增通用附件 `EmailMessage.Attachments`（與內文一起加密存進寄信佇列、寄出後清除、總計 ≤ 8 MB、不加欄位），站內通知新增 `NotificationEmailOptions`（種類、附件、只進信件的附註）；寄給全體管理員的巡檢報告信附上 PDF（新種類 `SystemReport`），PDF 太大或產生失敗時不附並請收件人由連結下載；AI 說明只在報告頁與 PDF，仍不進通知與信件內文（0.10.40）| [2026-11-20-系統巡檢報告M2](2026-11-20-系統巡檢報告M2.md) |
 | 系統巡檢報告 M1（使用者 2026/11/20 要求定時巡檢報告與 PDF 分析報告寄給管理員，分四個里程碑）：新頁面 `/system-reports`（只限管理員）每天一份有燈號的日報——燈號由 `SystemReportRules` 程式規則判定（紅＝已發生、橙＝即將發生有期限、黃＝注意、綠＝正常），涵蓋健康（被動模式）、錯誤、排程、備份、容量、寄信、AI、安全；全面摘要＋每一項「不處理會怎樣／怎麼處理／處理完會怎樣」；新增「容量快照」排程與 `CapacitySnapshot` 表做線性預估與擴充建議；AI 只寫說明（第 9 份提示詞「系統巡檢報告」，輸入去識別，說明不進通知與 Email）；新排程「系統巡檢日報」時間由系統參數經 `IScheduledJobCronOverride` 提供，紅燈或橙燈才通知所有管理員；移除「系統管理助理巡檢」（`RetiredJobNames`），清理作業改名「巡檢報告與容量快照清理」；系統參數新分類「系統巡檢報告」與兩個保留天數，`SystemReportSettings` 取代 `AdminPatrolSettings`；API `api/v1/system-reports`（移除 admin-assistant 的 patrol-reports）；PDF 與附件在 M2（0.10.39）| [2026-11-20-系統巡檢報告M1](2026-11-20-系統巡檢報告M1.md) |

@@ -40,26 +40,41 @@ public sealed class AdminAssistantAgentTests
         Assert.Equal(AdminAssistantAgent.Home.Name, definition.Name);
     }
 
-    /// <summary>里程碑 2（0.9.157）：四個領域共 26 個唯讀工具（監控 6、維運 7、帳號 7、AI 6）；巡檢指示列出的工具都存在。</summary>
+    /// <summary>
+    /// 里程碑 2（0.9.157）：四個領域共 26 個唯讀工具（監控 6、維運 7、帳號 7、AI 6）。
+    /// 0.10.42 起巡檢改用系統巡檢報告的規則引擎：指示要呼叫 run_system_report、原樣填使用者說的日期（模型不知道今天幾號）、不自己判燈號。
+    /// </summary>
     [Fact]
-    public void ReadTools_CoverAllFourDomains_AndPatrolToolsExist()
+    public void ReadTools_CoverAllFourDomains_AndPatrolUsesTheReportTool()
     {
         Assert.Equal(26, AdminAssistantAgent.ReadTools.Count);
-        string[] patrolTools =
-        [
-            "get_system_health", "query_logs", "search_exceptions", "get_scheduled_jobs_overview", "list_backups",
-            "get_database_usage", "get_token_usage", "get_ai_quota_status", "get_account_security_overview",
-        ];
-        Assert.All(patrolTools, name =>
-        {
-            Assert.Contains(AdminAssistantAgent.ReadTools, tool => tool.Name == name);
-            Assert.Contains(name, AdminAssistantAgent.DefaultCommonInstructions, StringComparison.Ordinal);
-        });
-        Assert.Contains("巡檢時不要呼叫 get_data_retention_overview", AdminAssistantAgent.DefaultCommonInstructions, StringComparison.Ordinal);
+        var instructions = AdminAssistantAgent.DefaultCommonInstructions;
+        Assert.Contains("一律呼叫 run_system_report", instructions, StringComparison.Ordinal);
+        Assert.Contains("原樣填入使用者說的字", instructions, StringComparison.Ordinal);
+        Assert.Contains("不要自己判斷燈號", instructions, StringComparison.Ordinal);
+        Assert.Contains("「查看報告」", instructions, StringComparison.Ordinal);
+        Assert.DoesNotContain("search_exceptions（hours=24）", instructions, StringComparison.Ordinal);
+        Assert.Contains("run_system_report", AdminAssistantAgent.ComposeInstructions("[共同]", DomainTexts, new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Patrol }), StringComparison.Ordinal);
+    }
 
-        // 模型不知道現在幾點：巡檢的時間範圍一律用相對參數，不能讓例外與用量落回各自 7 天的預設。
-        Assert.Contains("search_exceptions（hours=24）", AdminAssistantAgent.DefaultCommonInstructions, StringComparison.Ordinal);
-        Assert.Contains("get_token_usage（days=2", AdminAssistantAgent.DefaultCommonInstructions, StringComparison.Ordinal);
+    /// <summary>
+    /// 巡檢工具（0.10.42 起）：只在巡檢回合載入；會存一份報告但不經核准窗 —— 使用者 2026/11/20 決定的明文例外。
+    /// 不經核准卻會寫資料的工具只能是這裡列的；新增時要在這裡決定（並寫進速查表與系統管理助理 PRD）。
+    /// </summary>
+    [Fact]
+    public void PatrolTools_OnlyInPatrolTurns_AndAreTheOnlyApprovalFreeWriters()
+    {
+        string[] approvalFreeWriters = ["run_system_report"];
+        var patrol = AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Patrol }).Tools;
+        var ops = AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain> { AdminAssistantDomain.Ops }).Tools;
+        var fallback = AdminAssistantAgent.DefinitionFor(new HashSet<AdminAssistantDomain>()).Tools;
+
+        Assert.Equal(approvalFreeWriters, AdminAssistantAgent.PatrolTools.Select(tool => tool.Name));
+        Assert.All(AdminAssistantAgent.PatrolTools, tool => Assert.False(tool.IsMutating));
+        Assert.Contains(patrol, tool => tool.Name == "run_system_report");
+        Assert.DoesNotContain(ops, tool => tool.Name == "run_system_report");
+        Assert.DoesNotContain(fallback, tool => tool.Name == "run_system_report");
+        Assert.DoesNotContain(AdminAssistantAgent.ReadTools, tool => approvalFreeWriters.Contains(tool.Name));
     }
 
     [Fact]
@@ -72,7 +87,7 @@ public sealed class AdminAssistantAgentTests
 
     /// <summary>
     /// 里程碑 3～4：各領域的異動工具＝可復原（帳號 10、監控 4、AI 2、維運 6）＋不可復原（帳號 4、監控 2、AI 3、維運 5），
-    /// 另有共用的 custom_purge；都要核准、都有核准說明。Home 共 26＋22＋15＝63 個，名稱不重複。
+    /// 另有共用的 custom_purge；都要核准、都有核准說明。Home 共 26＋22＋15＋巡檢 1（0.10.42）＝64 個，名稱不重複。
     /// </summary>
     [Fact]
     public void MutatingTools_PerDomain_AllRequireApprovalWithNote()
@@ -84,7 +99,7 @@ public sealed class AdminAssistantAgentTests
         Assert.Equal(5, mutating[AdminAssistantDomain.Ai].Count);
         Assert.Equal(11, mutating[AdminAssistantDomain.Ops].Count);
         Assert.Equal(["custom_purge"], AdminAssistantAgent.SharedMutatingTools.Select(tool => tool.Name));
-        Assert.Equal(63, AdminAssistantAgent.Home.Tools.Count);
+        Assert.Equal(64, AdminAssistantAgent.Home.Tools.Count);
         Assert.Equal(15, AdminAssistantAgent.Home.Tools.Count(tool => tool.IsIrreversible));
         Assert.All(mutating.Values.SelectMany(tools => tools).Concat(AdminAssistantAgent.SharedMutatingTools), tool =>
         {

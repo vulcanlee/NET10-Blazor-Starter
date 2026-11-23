@@ -1,10 +1,10 @@
 ﻿# 系統巡檢報告 PRD
 
-- 文件版本：1.2
-- 文件狀態：部分實作（里程碑 M1、M2、M3 已實作；M4 見第九章「規劃中需求」）
-- 現行系統版本：0.10.41
+- 文件版本：1.3
+- 文件狀態：已實作（里程碑 M1～M4 已實作；候選需求見第九章）
+- 現行系統版本：0.10.42
 - 首次實作版本：0.10.39
-- 最後核對日期：2026/11/20
+- 最後核對日期：2026/11/23
 
 ## 一、目標與範圍
 
@@ -23,7 +23,7 @@
 | 燈號由程式規則判定（紅／橙／黃／綠），AI 只寫說明、不能改燈號 | 讓 AI 判定燈號，或讓 AI 文字進入通知與 Email 內文 |
 | 每天的容量快照與成長預估（幾天後用完、建議擴充量） | 即時監控與告警（仍由各頁面與既有通知負責） |
 | 日報（M1）；PDF 與 Email 附件（M2）；週報、月報與季度清查（M3）；系統管理助理指定區間（M4） | CPU／記憶體趨勢、憑證到期等（列在候選需求） |
-| 取代 0.9.161 的「系統管理助理巡檢」排程 | 系統管理助理在對話中「幫我巡一下系統」的 AI 巡檢（M1 不變，M4 改用同一套規則） |
+| 取代 0.9.161 的「系統管理助理巡檢」排程 | 系統管理助理在對話中「幫我巡一下系統」由 AI 自己判讀的巡檢（M1～M3 不變；M4〔0.10.42〕起改用同一套規則，見 5.7） |
 
 ### 成功標準
 
@@ -39,6 +39,7 @@
 
 - 通知鈴鐺與 Email 的連結是 `/system-reports?report={報告編號}`。
 - 系統管理助理頁的「巡檢報告」按鈕改為前往本頁；舊連結 `/admin-assistant?patrolReport={編號}` 轉到 `/system-reports?legacyReport={編號}`。
+- 0.10.42 起（M4）系統管理助理在對話中巡檢時產生一份「指定區間」報告，回覆下方的「查看報告」前往 `/system-reports?report={報告編號}`、「下載 PDF」直接下載（見 5.7）。
 - 操作說明：`MyProject.Web/Datas/Help/system-reports.md`（已登記 `HelpTopics.json`）。
 
 ## 三、使用者決定（2026/11/20）
@@ -47,7 +48,7 @@
 |---|---|
 | 報告種類 | 一種報告、三種頻率（日報／週報／月報），各自在「排程作業」頁啟用或停用 |
 | 設定位置 | 產生時間、容量門檻、AI 說明開關在「系統參數」頁的「系統巡檢報告」分類；保留天數在「資料保留」分類 |
-| 涵蓋區間 | 日曆區間：日報＝前一天 00:00～24:00；週報＝上週；月報＝上個月 |
+| 涵蓋區間 | 日曆區間：日報＝前一天 00:00～24:00；週報＝上週；月報＝上個月；指定區間（M4）＝系統管理助理對話中指定的起迄日（沒講日期＝昨天 00:00 到現在） |
 | 燈號 | 由程式規則判定（同樣狀況同樣結果）；AI 只依結果寫整體狀況、處理順序與下期預測 |
 | 容量預估 | 新增每天一次的容量快照，依成長速度預估幾天後用完，並提出擴充建議 |
 | 門檻 | 容量的紅燈、橙燈、黃燈門檻可在系統參數調整；其他規則的門檻先固定（候選需求：每條規則個別門檻） |
@@ -61,7 +62,7 @@
 | 保留天數 | 日報、週報、月報各自設定（M3）：預設日報 90 天、週報 365 天、月報 1095 天（季度清查的留存） |
 | 頁面 | 新增獨立頁面，不放在系統管理助理頁 |
 | 舊巡檢 | 0.9.161 的「系統管理助理巡檢」排程由日報取代；舊報告改在本頁「舊版巡檢報告」查看，依保留天數自然過期 |
-| 系統管理助理 | 對話中可指定區間產生報告（M4）；這是唯讀的產生動作，**不經核准窗**（明文例外，寫在系統管理助理 PRD） |
+| 系統管理助理 | 對話中可指定區間產生報告（M4，0.10.42 起，見 5.7）；只存一份內部報告、不寄信、不改業務資料，**不經核准窗**（明文例外，寫在系統管理助理 PRD 與速查表 §6.7「Agent 工具的三條紅線」第 3 點）；在對話請求裡直接產生，是速查表 §6.34 第 7 點「產生報告不在 HTTP 請求裡跑」的明文例外 |
 | 開發方式 | 分四個里程碑，見第八章 |
 
 ## 四、燈號與規則
@@ -83,7 +84,7 @@
 
 ### 4.2 規則目錄（M1；`BKP-VERIFY` 為 M3）
 
-區間天數記為 D（日報 D＝1、週報 D＝7、月報 D＝那個月的天數）；「每天」的門檻乘上 D。
+區間天數記為 D（日報 D＝1、週報 D＝7、月報 D＝那個月的天數、指定區間 D＝起迄日的天數）；「每天」的門檻乘上 D。
 
 | 區塊 | 規則代碼 | 條件 | 燈號 | 前往 |
 |---|---|---|---|---|
@@ -157,9 +158,10 @@
 | 排程「系統巡檢月報」（`SystemReportMonthly`，0.10.41 起）、補跑 | 上個月 1 日 00:00～這個月 1 日 00:00；同一個月已有排程產生的報告就略過 | 一律通知全體啟用中的管理員（站內＋Email 附 PDF） |
 | 「排程作業」頁的立即執行 | 同上（不略過） | 同上 |
 | 本頁「立即產生」 | 指定日期所在的區間（`SystemReportPeriod.Containing`：日報＝那一天；週報＝那一天所在的週一～週日；月報＝那一天所在的月份）；整個區間要已經過完，區間起日在那一種報告的保留天數內 | 勾「產生後寄給所有管理員」：不論燈號都通知全體管理員；不勾：只以站內通知告訴產生者 |
+| 系統管理助理對話中巡檢（M4，0.10.42 起；種類 `Custom`「指定區間」、觸發 `Assistant`） | 對話中指定的起日 00:00～迄日隔天 00:00（`SystemReportPeriod.Custom`）；沒講日期＝昨天 00:00 到現在；最多 31 天、迄日不晚於今天、起日在日報的保留天數內（見 5.7） | 不通知、不寄信、不寫 AI 說明（對話的回覆就是說明）；對話回覆下方出現「查看報告」「下載 PDF」 |
 
 - 區間的計算在 `SystemReportPeriod`（`MyProject.Web/SystemReports/SystemReportFacts.cs`）：`Containing`（某一天所在的區間）、`LastComplete`（今天以前最近一個完整的區間）、`Previous`（上一期，趨勢比較用）、`Quarter`（帳號清查涵蓋的季度＝這個月往前共三個月）、`IsPeriodic`（週報、月報）、`IncludesAiCost`（月報）、`IncludesAccountReview`（月報且區間月份是 3／6／9／12）。排程與補跑用「排程時段」的日期推算區間，補跑晚了才跑仍產生正確的區間。
-- 「立即產生」不在 HTTP 請求裡產生（可能超過一分鐘），而是帶參數（`Arguments`，JSON：日期、是否寄送）放進對應作業（`SystemReportJob.JobNameFor`：日報／週報／月報）的排程佇列，由排程器在背景執行；同一個作業已經在佇列或執行中回 409「已經有一份{日報／週報／月報}正在產生，請等它完成。」。稽核 `Job.Trigger`，detail `job={SystemReportDaily／SystemReportWeekly／SystemReportMonthly}; date=…; send=…; via=system-reports`。
+- 「立即產生」不在 HTTP 請求裡產生（可能超過一分鐘），而是帶參數（`Arguments`，JSON：日期、是否寄送）放進對應作業（`SystemReportJob.JobNameFor`：日報／週報／月報）的排程佇列，由排程器在背景執行；同一個作業已經在佇列或執行中回 409「已經有一份{日報／週報／月報}正在產生，請等它完成。」。稽核 `Job.Trigger`，detail `job={SystemReportDaily／SystemReportWeekly／SystemReportMonthly}; date=…; send=…; via=system-reports`。唯一的例外是系統管理助理的巡檢（0.10.42 起，見 5.7）：在對話的串流請求裡直接產生。
 - 通知與 Email 內文**只用程式產生的文字**（結論、紅燈與橙燈的標題與期限、黃燈數量；週報、月報另加每節一行「【節標題】重點」，純文字、1000 字內）與報告連結，不放 AI 說明、不放帳號；通知分類 `SystemReport`，以 `SourceKey`＝`SystemReport:{報告編號}` 去重。
 - 需要通知卻沒有通知到人時作業回失敗（「…；通知發送失敗，報告已存在「系統巡檢報告」頁。」），由排程框架另發排程失敗通知。
 - 0.10.40 起寄給全體管理員的信附上報告 PDF（見 5.4），信件種類 `SystemReport`；「立即產生」沒勾寄送時只發站內通知給產生者，不寄信也不產生 PDF。
@@ -170,7 +172,7 @@
 - 輸入只有去識別的發現（規則代碼、燈號、標題、數字、期限、處理頁面），不含帳號、路徑、例外內文；超過長度時先捨棄黃燈。指示不放現在時間（提示詞快取）。
 - 0.10.41 起週報、月報另送 `sections`：每節只送標題與重點（Highlights，只有數字），**不送表格**（AI 費用與帳號清查表格裡的帳號與姓名不送）。預設指示（`SystemReportNarrator.DefaultInstructions`）加一段：可以在整體狀況與下期預測引用這些重點（和上一期比較、一年後的容量、備份能不能還原）。已在「AI 提示詞」頁改過指示的，要自己補上這段才會引用。
 - 只有日報全部綠燈時才略過 AI；週報、月報全部綠燈仍會請 AI 寫說明。
-- 不呼叫 AI 的情況：日報全部綠燈、系統參數「AI 寫報告說明」關閉、沒有設定 AI（狀態 `Skipped`）。呼叫失敗、逾時或格式不對時狀態 `Fallback`，報告照常產生與通知。
+- 不呼叫 AI 的情況：日報全部綠燈、系統參數「AI 寫報告說明」關閉、沒有設定 AI、系統管理助理產生的指定區間報告（0.10.42 起，`SystemReportRequest.SkipNarrativeNote`；「AI 說明」一節寫「由系統管理助理在對話中產生，說明請見該次對話。」）（狀態 `Skipped`）。呼叫失敗、逾時或格式不對時狀態 `Fallback`，報告照常產生與通知。
 - Token 用量作業名稱「系統巡檢報告（AI 說明）」，ConversationId＝報告編號；沒有登入使用者，只受全系統用量上限。舊紀錄的「系統管理助理（排程巡檢）」照舊顯示。
 
 ### 5.4 PDF 報告與信件附件（M2，0.10.40 起）
@@ -218,6 +220,24 @@
 - 資料庫大時會花幾分鐘並暫時佔用約一份資料庫大小的空間，所以週報的時間預設避開系統備份（02:00），系統參數的說明也提醒避開。
 - 日誌：`Backup verification finished. FileName=…, Outcome=…, Failed=…, ElapsedMs=…`（Information）；讀不到備份檔或刪不掉暫存目錄記 Warning。
 
+### 5.7 系統管理助理指定區間（M4，0.10.42 起）
+
+系統管理助理（`/admin-assistant`）在對話中巡檢（「幫我巡一下系統」「幫我巡一下 11/1～11/15」，分派到 `patrol`）時，改用本報告的規則引擎產生一份「指定區間」報告，取代 0.9.157 起由 AI 逐一呼叫唯讀工具、自己判讀狀態的巡檢。燈號與數字因此和本頁的報告一致。
+
+- **工具** `run_system_report`「產生系統巡檢報告」（`Ai/Agents/AdminAssistant/ReportAssistantTools.cs`，權限 `角色_系統巡檢報告`／View，即管理員）：參數 `startDate`、`endDate` 原樣填入使用者說的日期；只在巡檢回合載入（`AdminAssistantAgent.PatrolTools`）。回給模型的只有規則的結果（整體燈號、結論、每一項發現的燈號／區塊／標題／現況／期限／處理方式／中文頁面名稱、需要擴充的磁碟、下期預測、統計），不含帳號、路徑、例外內文。
+- **區間由程式解析**（`SystemReportAssistantService.ResolveRange`）：模型不知道今天幾號，所以使用者說的日期原樣傳進來，年份由程式推。
+  - 兩個日期都沒給：昨天 00:00 到現在（今天到目前為止）。
+  - 接受 `yyyy-MM-dd`、`yyyy/M/d`、`yyyy.M.d`、`yyyyMMdd` 與沒有年份的 `M/d`、`M-d`、`M.d`；沒有年份時取不晚於今天的最近那一年（1 月說「12/28～1/3」會跨年；「2/29」往前找到最近的閏年）。
+  - 只給一個日期＝那一天；起日晚於迄日時自動對調。
+  - 不產生、把說明回給模型轉述的情況：迄日晚於今天、超過 31 天（`MaxDays`；建議整月改用本頁的月報）、起日早於日報的保留天數、看不懂的日期。
+- **產生**（`SystemReportAssistantService.GenerateAsync`）：種類 `Custom`、觸發 `Assistant`、產生者是目前的使用者；**不請 AI 寫說明**（`SystemReportRequest.SkipNarrativeNote`，狀態 `Skipped`，「AI 說明」一節寫「由系統管理助理在對話中產生，說明請見該次對話。」）、**不通知、不寄信**。沒有週報、月報的章節；保留天數用日報的天數。清單的「觸發方式」顯示「系統管理助理（帳號）」，種類篩選「指定區間」。
+- **稽核** `SystemReport.Generate`：targetType `SystemReport`、targetId 報告編號（`N` 格式）、detail `frequency=Custom; start=yyyy-MM-dd; end=yyyy-MM-dd; via=admin-assistant`；工具外殼另照常寫 `Ai.ToolInvoked`。
+- **不經核准窗**（使用者 2026/11/20 決定的明文例外）：工具會存一份報告，但只是內部報告、不寄信、不改任何業務資料，所以 `IsMutating = false`；`AdminAssistantAgentTests.PatrolTools_OnlyInPatrolTurns_AndAreTheOnlyApprovalFreeWriters` 以明確的清單守門。
+- **在對話請求裡產生**（速查表 §6.34 第 7 點的明文例外）：對話的串流有心跳、使用者可以按停止；停止會取消產生，不會存出報告。
+- **回覆下方的按鈕**：工具把（報告編號、標題）交給 scoped 的 `AiAgentReportOutputs`，`AiAgentChat` 在這一輪結束時（回覆失敗也一樣）在回覆後面加一則逐字稿 `AiAgentTranscriptKinds.Report`（`Text`＝報告編號 `N` 格式、`Agent`＝報告標題，例「系統巡檢指定區間 2026/11/22～2026/11/23」），隨既有的逐字稿串流送到畫面、跟著對話存檔。畫面顯示成一張卡片：標題＋「查看報告」（前往 `/system-reports?report={報告編號}`）＋「下載 PDF」（同報告視窗的下載，成功「PDF 已產生並開始下載。」、失敗「PDF 下載失敗：…」；伺服器寫 `SystemReport.Download`）。PDF 檔名 `system-report-custom-{起日 yyyyMMdd}.pdf`。
+- **回覆格式**（`AdminAssistantAgent.DefaultCommonInstructions` 的巡檢段落）：一律呼叫 `run_system_report`、原樣填日期、不自己判斷燈號、不改數字、不加工具結果沒有的問題；依序用「## 總結」「## 需要處理」「## 下期預測」三段回覆（需要處理依紅、橙、黃排序，寫要做什麼、到哪一頁〔中文頁名，不寫網址〕、期限），最後提醒可按「查看報告」「下載 PDF」。追問細節時再用其他唯讀工具查。
+- 已在「AI 提示詞」頁改過「系統管理助理」提示詞的，新的巡檢段落不會自動套用（已知限制）。
+
 ## 六、排程、設定與資料
 
 ### 6.1 排程作業
@@ -263,7 +283,7 @@
 | 資料表 `SystemReport` | 清單、篩選、通知與清理用的中繼資料：報告編號、頻率（Daily／Weekly／Monthly／Custom）、區間、產出時間、燈號、紅橙黃數量、觸發方式、產生者帳號、排程執行紀錄、AI 說明狀態與模型、通知狀態、內容檔 |
 | 資料表 `CapacitySnapshot` | 快照日期、量測時間、種類（Volume／Folder／Database）、代碼、已用、總容量、可用、檔案數、狀態 |
 | 內容檔 | `{AiAgentConversationPath}/AdminPatrol/{yyyyMM}/{報告編號}.json`（與舊版 `.md` 同一個目錄，經 `AdminPatrolReportFileStore`）；備份只在「備份 Agent 對話」開啟時包含 |
-| Migration | `20261120054158_AddSystemReportAndCapacitySnapshot`（M3 週報、月報沿用同一張表與內容檔格式，只在內容 JSON 多 `Sections`，沒有新的 migration） |
+| Migration | `20261120054158_AddSystemReportAndCapacitySnapshot`（M3 週報、月報沿用同一張表與內容檔格式，只在內容 JSON 多 `Sections`，沒有新的 migration；M4 指定區間沿用既有的頻率 `Custom` 與觸發 `Assistant`，也沒有 migration） |
 | 資料保留總覽 | 「巡檢報告」列＝系統巡檢報告＋舊版巡檢報告，前往 `/system-reports`；新增「容量快照」列（沒有檔案、不提供自訂清除，前往 `/system-reports`） |
 
 ### 6.4 Web API（`api/v1/system-reports`，`[AdminOnly]`）
@@ -277,7 +297,7 @@
 | GET | `legacy` | 舊版巡檢報告清單 |
 | GET | `legacy/{id}` | 單份舊版巡檢報告 |
 
-0.10.39 起移除 `api/v1/admin-assistant/patrol-reports` 與 `patrol-reports/{id}`。
+0.10.39 起移除 `api/v1/admin-assistant/patrol-reports` 與 `patrol-reports/{id}`。0.10.42 起系統管理助理產生的指定區間報告不新增端點：產生走系統管理助理的對話 API（工具 `run_system_report`），查看與下載沿用上表的 `{id}` 與 `{id}/pdf`。
 
 ## 七、技術決定
 
@@ -298,6 +318,11 @@
 - **備份驗證照還原腳本做、但不還原**（0.10.41）：證明「還原得回來」最直接的方式是實際解開並打開資料庫，但不能碰正在用的資料庫，所以解到備份目錄的 `.work/` 暫存、做完就刪；空間不夠時回 `Unverifiable`（黃燈）而不是 `Failed`，避免把「這次沒辦法驗」誤報成「備份壞了」。只驗最新的一份（舊備份壞了不影響「出事時能不能救回」的判斷，且每份都驗太花時間）。
 - **帳號的窄例外**（0.10.41，使用者 2026/11/20 決定）：季度清查與 AI 費用前幾名不列帳號就無法使用，所以只在這兩節的表格放帳號與姓名；會離開報告頁與 PDF 的管道（重點、通知、信件內文、AI 輸入）一律只用數量。PDF 因此是資安稽核的留存，月報預設保留 3 年。
 - **保留天數依種類**（0.10.41）：日報看的是最近的狀況、週報看趨勢、月報含季度清查要留存給稽核，三者需要的保留期差很多，所以各自一個參數；清理與統計共用同一個條件運算式。
+- **對話巡檢改用規則引擎**（0.10.42）：同樣的狀況在對話裡與報告頁得到同樣的燈號；模型只負責說明，不判燈號、不改數字。舊的「依序呼叫 9 個唯讀工具、用七段格式回覆」整段移除。
+- **兩個明文例外**（0.10.42，使用者 2026/11/20 決定）：①`run_system_report` 會存一份報告卻**不經核准窗**（速查表 §6.7「Agent 工具的三條紅線」第 3 點的例外）——只寫內部報告、不寄信、不改業務資料，跳核准窗只會讓「幫我巡一下」多一步；只在巡檢回合載入，一般的查詢問題不會產生報告；新增其他「不經核准卻會寫資料」的工具要在 `AdminAssistantAgentTests` 的清單裡明確決定。②**在 HTTP 請求裡產生**（§6.34 第 7 點的例外）——對話本來就是長時間的串流（有心跳、有停止按鈕），放進排程佇列反而要另做等待與回填結果的機制。
+- **區間由程式解析、年份由程式推**（0.10.42）：模型不知道今天幾號（指示不放現在時間，提示詞快取），讓它自己補年份或換算「上週」容易算錯，所以工具只收使用者說的原文；一次最多 31 天，整月以上請用月報（月報才有趨勢與章節）。
+- **指定區間不寫 AI 說明**（0.10.42）：對話的回覆就是說明，再呼叫一次 AI 只是多花錢；報告頁的「AI 說明」一節寫明說明在那次對話裡。
+- **畫面用的資料不經過模型**（0.10.42）：工具回給模型的文字不帶報告編號與按鈕資料，由 scoped 的 `AiAgentReportOutputs` 交給 `AiAgentChat` 加一則 `Report` 逐字稿，模型改寫或漏寫都不影響按鈕。
 - 規則見速查表 §6.34。
 
 ## 八、里程碑
@@ -307,13 +332,12 @@
 | M1 | 新頁面、規則引擎與日報、容量快照與預估、AI 說明、通知、系統參數、資料保留、取代「系統管理助理巡檢」、舊版巡檢報告移到本頁 | 0.10.39 已實作 |
 | M2 | PDF 報告（含 AI 說明，去除敏感內容、不加密碼）、報告視窗「下載 PDF」與 Email 附件（寄信層新增通用附件能力） | 0.10.40 已實作 |
 | M3 | 週報與月報（各自在排程作業頁開關，時間在系統參數、一律寄出）、趨勢比較與容量成長、備份可還原驗證（`BKP-VERIFY`）、AI 費用段落、每季帳號與權限清查（附在 1／4／7／10 月產生的月報）、各種報告各自的保留天數 | 0.10.41 已實作 |
-| M4 | 系統管理助理：對話中指定區間產生報告與 PDF（「幫我巡一下系統」改用同一套規則；唯讀、不經核准窗） | 待實作 |
+| M4 | 系統管理助理：對話中指定區間產生報告與 PDF（「幫我巡一下系統」改用同一套規則，工具 `run_system_report`；不經核准窗、在對話請求裡產生兩個明文例外；回覆下方「查看報告」「下載 PDF」） | 0.10.42 已實作 |
 
 ## 九、規劃中需求
 
 以下內容**尚未實作**，不屬於目前的驗收範圍。
 
-- **M4**：系統管理助理以規則引擎產生指定區間的報告（種類「指定區間」），取代對話中的 AI 巡檢。
 - **候選需求**（尚未決定是否做）：清查的簽核流程、AI 模型 Deprecated 檢查、憑證到期、CPU／記憶體趨勢、每條規則個別調整門檻、在頁面上執行 VACUUM／WAL 維護。
 
 ## 十、驗收與測試
@@ -322,12 +346,14 @@
 - 功能測試：`SystemReportRulesTests`（每條規則的邊界、門檻來自系統參數、健康只看狀態不複製 Evidence、讀不到的來源變黃燈、通知不含 AI 說明、AI 輸入去識別）、`SystemReportSchedulingTests`（容量預估、日報時間轉 cron、程式提供的 cron 優先、驗證器擋覆寫並忽略已移除的作業）、`SystemReportServiceTests`（內容檔、查詢、快照、清理作業）、`SystemReportsApiTests`（非管理員 403、立即產生的驗證與稽核、報告不含路徑、舊版報告端點）。
 - M2（0.10.40）：`SystemReportPdfBuilderTests`（每種燈號有無 AI 說明都能產生 PDF、發現很多時跨頁、檔名與標題、MIME 帶附件、沒有附件的信維持 multipart/alternative）；`EmailOutboxTests`（附件加密、重試後不變、寄出後清除、舊格式照樣寄出）；`NotificationTests`（信件選項傳遞、寄信器套用種類／附件／附註）；`SystemReportNarratorTests`（寄送附 PDF、太大或產生失敗時不附並說明）；`SystemReportsApiTests`（下載 PDF 200＋檔名＋稽核、查無 404）。
 - M3（0.10.41）：`SystemReportSchedulingTests`（區間 `Containing`／`LastComplete`／`Previous`／`Quarter` 與季度判斷、週報與月報時間轉 cron〔星期日＝0、只開放 1～28 號〕、三個作業都由程式提供 cron 並擋覆寫）；`SystemReportPeriodicSectionsTests`（日報沒有章節、週報三節、季末月報五節、趨勢的變化寫法、容量成長與一年後、`BKP-VERIFY` 的燈號、帳號與姓名只在表格〔Highlights、AI 輸入、信件內文都沒有〕、清單超過 200 筆的截斷、PDF 畫得出各節）；`SystemBackupTests` 的備份可還原驗證（正常備份通過六項檢查且不留暫存檔、壓縮資料損毀回 `Failed`、manifest 的資料庫雜湊或檔案數被改過回 `Failed`、不是壓縮檔回 `Failed`、空間不夠或備份檔消失回 `Unverifiable`）；`SystemReportServiceTests` 的月報資料（AI 費用依功能／模型／使用者分組並和前一個月比較（含沒有計價的呼叫與系統排程的呼叫）、帳號清查（管理員、久未登入〔有登入紀錄看最後登入、沒有看建立時間〕、沒有兩步驟驗證〔Google 登入不算〕、本季成功的帳號與角色異動，刪除的對象顯示編號））與各種報告各自的保留天數；`SystemReportsApiTests`（立即產生：這一週、這個月、指定區間、超過保留天數 400，排入週報作業並寫 `Job.Trigger`；季末月報五節；排程的週報一律通知）；`Components/SystemReportViewTests`（報告視窗的本期重點與各節表格）。
-- 品質關卡結果見 [M1 changelog](../changelog/2026-11-20-系統巡檢報告M1.md)、[M2 changelog](../changelog/2026-11-20-系統巡檢報告M2.md) 與 [M3 changelog](../changelog/2026-11-20-系統巡檢報告M3.md)。
+- M4（0.10.42）：`SystemReportAssistantServiceTests`（沒講日期＝昨天到現在、各種日期寫法與推年份、1 月的跨年區間、2/29 找最近的閏年、單一天、起迄對調、迄日晚於今天／超過 31 天／超過保留天數／看不懂的日期回錯誤、剛好 31 天可以）；`SystemReportsApiTests.AssistantTool_GeneratesACustomReport_WithoutAiOrNotifications_AndAudits`（存成 `Custom`／`Assistant`、AI 說明 `Skipped` 並寫明說明在對話、不通知、寫 `SystemReport.Generate`、交出報告標題）；`AiAgentRunnerTests.ToolReport_IsAppendedBelowTheReply_AndSaved`（`Report` 逐字稿接在回覆後面並存檔）；`AdminAssistantAgentTests`（巡檢指示指向 `run_system_report`、`PatrolTools_OnlyInPatrolTurns_AndAreTheOnlyApprovalFreeWriters`、`Home` 64 個工具）；`AdminAssistantToolsTests`（登記 `ReportAssistantTools`）。實機腳本 `scripts/e2e/system-reports.mjs` R13～R15（需要真的 AI 設定）。
+- 品質關卡結果見 [M1 changelog](../changelog/2026-11-20-系統巡檢報告M1.md)、[M2 changelog](../changelog/2026-11-20-系統巡檢報告M2.md)、[M3 changelog](../changelog/2026-11-20-系統巡檢報告M3.md) 與 [M4 changelog](../changelog/2026-11-23-系統巡檢報告M4.md)。
 
 ## 十一、相關程式與文件
 
-- `src/MyProject/MyProject.Web/SystemReports/`（`SystemReportPdfBuilder`〔0.10.40〕、`SystemReportPeriodicSections`〔0.10.41〕、`SystemReportRules`、`SystemReportCollector`、`SystemReportFacts`〔含 `SystemReportPeriod`〕、`SystemReportGenerator`、`SystemReportSummarizer`、`SystemReportNarrator`、`SystemReportDelivery`、`SystemReportScheduleProvider`、`CapacityForecast`、`CapacityProbe`、`VolumeResolver`）
+- `src/MyProject/MyProject.Web/SystemReports/`（`SystemReportPdfBuilder`〔0.10.40〕、`SystemReportPeriodicSections`〔0.10.41〕、`SystemReportAssistantService`〔0.10.42〕、`SystemReportRules`、`SystemReportCollector`、`SystemReportFacts`〔含 `SystemReportPeriod`〕、`SystemReportGenerator`、`SystemReportSummarizer`、`SystemReportNarrator`、`SystemReportDelivery`、`SystemReportScheduleProvider`、`CapacityForecast`、`CapacityProbe`、`VolumeResolver`）
 - `src/MyProject/MyProject.Web/Backup/BackupVerifier.cs`（0.10.41）
+- `src/MyProject/MyProject.Web/Ai/Agents/AdminAssistant/ReportAssistantTools.cs`、`Ai/Agents/AiAgentReportOutputs.cs`、`AdminAssistantAgent.PatrolTools`（0.10.42）；`MyProject.Web.Client/Views/Admins/AdminAssistantView.*`（回覆下方的報告卡片）
 - `src/MyProject/MyProject.Web/Scheduling/Jobs/SystemReportDailyJob.cs`（`SystemReportJob` 與日報、週報、月報三個作業）、`CapacitySnapshotJob.cs`、`AdminPatrolReportRetentionJob.cs`、`Scheduling/IScheduledJobCronOverride.cs`
 - `src/MyProject/MyProject.Web/Controllers/SystemReportsController.cs`
 - `src/MyProject/MyProject.Business/Services/DataAccess/SystemReportService.cs`、`SystemReportMetricsService.cs`、`SystemReportMetricsService.Monthly.cs`（0.10.41）、`CapacitySnapshotService.cs`

@@ -51,6 +51,12 @@ public static class AdminAssistantAgent
         };
 
     /// <summary>
+    /// 巡檢回合才載入的工具（0.10.42 起，系統巡檢報告 M4）：用規則引擎產生一份指定區間的報告。
+    /// 會存一份報告但<b>不經核准窗</b>（明文例外，見 <see cref="ReportAssistantTools"/>）；一般回合不載入，免得查詢問題也產生報告。
+    /// </summary>
+    public static IReadOnlyList<AiToolDefinition> PatrolTools { get; } = [ReportAssistantTools.RunSystemReportTool];
+
+    /// <summary>
     /// 跨領域共用的異動工具（0.9.159 起）：分派到任一個專家領域就載入。自訂清除涵蓋所有資料種類，
     /// 「清除 30 天前的稽核紀錄」會分到帳號領域、「清除舊的例外」會分到監控領域，都要用得到。
     /// </summary>
@@ -58,12 +64,19 @@ public static class AdminAssistantAgent
 
     /// <summary>開對話與接續用：全部工具（接續時才找得到待核准的工具）。</summary>
     public static AiAgentDefinition Home { get; } =
-        Build([.. ReadTools, .. MutatingTools.Values.SelectMany(tools => tools), .. SharedMutatingTools]);
+        Build([.. ReadTools, .. PatrolTools, .. MutatingTools.Values.SelectMany(tools => tools), .. SharedMutatingTools]);
 
-    /// <summary>這一輪的定義：全部唯讀工具＋被選中領域的異動工具＋共用異動工具；巡檢或沒有分出領域時只有唯讀工具。</summary>
+    /// <summary>
+    /// 這一輪的定義：全部唯讀工具＋被選中領域的異動工具＋共用異動工具；巡檢時是唯讀工具＋巡檢工具（0.10.42 起），沒有分出領域時只有唯讀工具。
+    /// </summary>
     public static AiAgentDefinition DefinitionFor(IReadOnlySet<AdminAssistantDomain> domains)
     {
-        if (domains.Count == 0 || domains.Contains(AdminAssistantDomain.Patrol))
+        if (domains.Contains(AdminAssistantDomain.Patrol))
+        {
+            return Build([.. ReadTools, .. PatrolTools]);
+        }
+
+        if (domains.Count == 0)
         {
             return Build(ReadTools);
         }
@@ -90,7 +103,7 @@ public static class AdminAssistantAgent
 
         if (domains.Contains(AdminAssistantDomain.Patrol))
         {
-            builder.Append("\n\n這一則是巡檢：請依共同說明的巡檢報告格式，用工具逐項查詢後產出報告。");
+            builder.Append("\n\n這一則是巡檢：請呼叫 run_system_report 產生系統巡檢報告，再依共同說明的巡檢方式說明結果。");
         }
 
         return builder.ToString();
@@ -124,15 +137,12 @@ public static class AdminAssistantAgent
         - 工具回覆「沒有權限」或「執行失敗」時照實轉告，不要嘗試繞過。
         - 回答簡潔，重點放前面；列多筆資料時用項目清單。
 
-        巡檢（使用者要求巡檢、全面檢查系統時）：預設範圍是最近 24 小時（使用者另外指定就照他的），依序呼叫下列工具取得資料：
-        get_system_health、query_logs（minimumLevel=warn）、search_exceptions（hours=24）、get_scheduled_jobs_overview、list_backups、
-        get_database_usage、get_token_usage（days=2，以日期統計昨天與今天）、get_ai_quota_status、get_account_security_overview（hours=24、inactiveDays=90）。
-        你不知道現在幾點，時間範圍一律用上面的相對參數（hours、days），不要自己推算起訖時間；報告中寫出工具回傳的實際區間（appliedStart～appliedEnd）。
-        使用者指定其他範圍時（例如最近 7 天），改用對應的 hours 或 days。巡檢時不要呼叫 get_data_retention_overview（會量測目錄大小，太慢）。
-
-        巡檢報告格式：依序用「## 總結」「## 健康狀態」「## 例外與錯誤」「## 排程與備份」「## 資源用量」「## 帳號與安全」「## 建議處理」七個段落。
-        除了總結與建議處理，每段第一行寫「狀態：正常／注意／異常」，再列重點；工具查詢失敗的段落寫「目前無法查詢」與原因。
-        總結用一兩句話說出整體狀況與最需要處理的事；建議處理依急迫程度排序，並指出要到哪一頁處理。
+        巡檢（使用者要求巡檢、全面檢查系統時）：一律呼叫 run_system_report 產生系統巡檢報告。使用者沒講日期時兩個日期都不要填（＝昨天到現在）；
+        有講日期就原樣填入使用者說的字（例如 11/1、11/15），不要自己補年份或推算日期，你不知道今天幾號。工具回傳錯誤時照實轉告並請使用者調整區間。
+        燈號與數字由系統的固定規則判定，你只負責說明，不要自己判斷燈號、不要改數字、不要加工具結果沒有的問題。依序用「## 總結」「## 需要處理」「## 下期預測」三段回覆：
+        總結寫報告區間、整體燈號（紅燈＝已發生問題、橙燈＝即將發生、黃燈＝注意、綠燈＝正常）與一句結論；需要處理依紅燈、橙燈、黃燈排序，
+        每項寫要做什麼、到哪個頁面（用工具回傳的頁面名稱，不要寫網址），有期限的寫出期限；全部綠燈就說系統正常。
+        最後提醒可以按回覆下方的「查看報告」看完整報告或「下載 PDF」。使用者追問細節時，再用其他唯讀工具查。
         """;
 
     /// <summary>分派說明：只回英文代碼。</summary>

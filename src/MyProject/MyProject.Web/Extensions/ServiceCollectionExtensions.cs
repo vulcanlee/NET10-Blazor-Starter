@@ -80,11 +80,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiToolPermissionGuard, AiToolPermissionGuard>();
         services.AddScoped<AiAgentToolFactory>();
         services.AddScoped<IAiAgentRunner, AiAgentRunner>();
+        // 工具產生的系統巡檢報告交給對話加「查看報告／下載 PDF」（0.10.42 起；scoped，工具與執行器同一個請求共用）。
+        services.AddScoped<AiAgentReportOutputs>();
         services.AddScoped<Ai.Agents.AdminAssistant.AdminAssistantTurnPlanner>();
         services.AddScoped<Ai.Agents.AdminAssistant.MonitoringAssistantTools>();
         services.AddScoped<Ai.Agents.AdminAssistant.OpsAssistantTools>();
         services.AddScoped<Ai.Agents.AdminAssistant.AccountsAssistantTools>();
         services.AddScoped<Ai.Agents.AdminAssistant.AiAssistantTools>();
+        services.AddScoped<Ai.Agents.AdminAssistant.ReportAssistantTools>();
         // Agent 對話的 Web API（0.10.7 起，WASM 遷移 M8）：每段對話一把鎖（行程內、singleton）與共用流程。
         services.AddSingleton<AiAgentConversationLocks>();
         services.AddScoped<Controllers.AgentConversationEndpoint>();
@@ -285,6 +288,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<SystemReports.SystemReportCollector>();
         services.AddScoped<SystemReports.SystemReportNarrator>();
         services.AddScoped<SystemReports.SystemReportGenerator>();
+        services.AddScoped<SystemReports.SystemReportAssistantService>();
         services.AddScoped<SystemReports.SystemReportDelivery>();
         // 日報的執行時間來自系統參數（排程器、驗證器與「排程作業」頁都讀它）。
         services.AddSingleton<IScheduledJobCronOverride, SystemReports.SystemReportScheduleProvider>();

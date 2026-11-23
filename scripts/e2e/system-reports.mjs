@@ -13,9 +13,12 @@
 // R10 週報（0.10.41 起）：先備份一次，「立即產生」選週報，產生上週的週報，內容有趨勢比較、容量成長、備份可還原驗證（通過）
 // R11 月報（0.10.41 起）：產生最近一個季末月份的月報並寄給管理員：有 AI 費用與帳號與權限清查（表格列出 support），信件附 monthly 的 PDF
 // R12 立即產生的檢查：這一週的週報、這個月的月報都回 400（還沒過完）
+// R13 系統管理助理「幫我巡一下系統」（0.10.42 起，需要真的 AI 設定）：產生一份 Custom／Assistant 報告（昨天～今天），沒有核准窗、不寄信、不通知，回覆下方有「查看報告」「下載 PDF」
+// R14 指定區間「幫我巡一下 M/D～M/D」：年份由程式推、區間正確；回覆下方「下載 PDF」得到 system-report-custom-*.pdf 並寫稽核，「查看報告」打開報告視窗
+// R15 超過 31 天的區間：不產生報告，助理轉述限制
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { apiJsonAsPageUser, createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot } from './common.mjs';
+import { apiJsonAsPageUser, createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot, waitForPredicate } from './common.mjs';
 
 const mailDir = process.env.E2E_MAIL_DIR ?? join(dirname(dirname(databaseFile)), 'Mails');
 const mailFiles = () => (existsSync(mailDir) ? readdirSync(mailDir).filter((x) => x.endsWith('.eml')) : []);
@@ -36,6 +39,17 @@ async function waitFor(check, timeout = 180000) {
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+}
+
+/** 系統管理助理：在輸入框打字並送出（TextArea 失焦才回寫值），等到不在產生中。 */
+async function ask(page, text) {
+  const box = page.locator('.agent-playground textarea').last();
+  await box.fill(text);
+  await box.press('Tab');
+  await page.locator('.agent-playground button', { hasText: /^\s*送\s*出\s*$/ }).last().click();
+  await page.waitForTimeout(1000);
+  await waitForPredicate(page, () => ![...document.querySelectorAll('button')].some((b) => b.offsetParent !== null && b.textContent.includes('停止產生')),
+    null, { timeout: 600000 });
 }
 
 const browser = await launchBrowser();
@@ -221,6 +235,67 @@ try {
     thisWeek.status === 400 && thisMonth.status === 400,
     JSON.stringify({ week: [thisWeek.status, thisWeek.json?.message], month: [thisMonth.status, thisMonth.json?.message] }));
   writeFileSync(join(outDir, 'system-reports-monthly.txt'), monthlyText);
+
+  // R13
+  const md = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+  const assistantCount = () => query("SELECT COUNT(*) AS N FROM SystemReport WHERE Trigger = 'Assistant'")[0].N;
+  const notificationsBefore = query('SELECT COUNT(*) AS N FROM Notification')[0].N;
+  const outboxBefore = query('SELECT COUNT(*) AS N FROM EmailOutbox')[0].N;
+  await page.goto('/admin-assistant');
+  await page.waitForSelector('.agent-playground-layout', { timeout: 60000 });
+  await ask(page, '幫我巡一下系統');
+  const r13 = query("SELECT ReportId, Frequency, PeriodStart, PeriodEnd, NarrativeStatus, DeliveryStatus FROM SystemReport WHERE Trigger = 'Assistant' ORDER BY Id DESC LIMIT 1")[0] ?? null;
+  const cards = page.locator('.admin-assistant-report');
+  const approvalVisible = await page.locator('.ant-modal-content', { hasText: '核准' }).isVisible().catch(() => false);
+  const reply13 = (await page.locator('.agent-playground-entry-assistant').last().textContent()) ?? '';
+  await screenshot(page, 'system-reports-assistant');
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  recorder.add('R13', '助理巡檢：產生 Custom 報告、沒有核准窗、不寄信不通知、回覆下方有按鈕',
+    r13 !== null && r13.Frequency === 'Custom' && String(r13.PeriodStart).startsWith(ymd(yesterday)) && r13.NarrativeStatus === 'Skipped'
+      && (await cards.count()) === 1 && (await cards.last().locator('button', { hasText: '下載 PDF' }).count()) === 1
+      && !approvalVisible && /燈/.test(reply13)
+      && query('SELECT COUNT(*) AS N FROM Notification')[0].N === notificationsBefore && query('SELECT COUNT(*) AS N FROM EmailOutbox')[0].N === outboxBefore,
+    JSON.stringify({ report: r13, cards: await cards.count(), approvalVisible, reply: reply13.replace(/\s+/g, ' ').slice(0, 160) }));
+
+  // R14
+  const from = new Date();
+  from.setDate(from.getDate() - 20);
+  const to = new Date();
+  to.setDate(to.getDate() - 10);
+  await ask(page, `幫我巡一下 ${md(from)}～${md(to)}`);
+  const r14 = query("SELECT ReportId, PeriodStart, PeriodEnd FROM SystemReport WHERE Trigger = 'Assistant' ORDER BY Id DESC LIMIT 1")[0] ?? null;
+  let r14File = '';
+  let r14Downloads = 0;
+  let r14Opened = false;
+  if (r14 && String(r14.PeriodStart).startsWith(ymd(from))) {
+    const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
+    await cards.last().locator('button', { hasText: '下載 PDF' }).click();
+    const download = await downloadPromise;
+    r14File = download.suggestedFilename();
+    await download.saveAs(join(outDir, r14File));
+    r14Downloads = query("SELECT COUNT(*) AS N FROM AuditLog WHERE Action = 'SystemReport.Download' AND TargetId = ?", r14.ReportId.replaceAll('-', '').toLowerCase())[0].N;
+    await cards.last().locator('button', { hasText: '查看報告' }).click();
+    await page.locator('.system-report-modal .system-report-verdict').waitFor({ timeout: 60000 });
+    r14Opened = page.url().includes('/system-reports?report=');
+    await screenshot(page, 'system-reports-assistant-open');
+  }
+
+  recorder.add('R14', '指定區間：年份推得對、下載 PDF 並寫稽核、查看報告打開視窗',
+    r14 !== null && String(r14.PeriodStart).startsWith(ymd(from)) && r14File === `system-report-custom-${ymd(from).replaceAll('-', '')}.pdf` && r14Downloads >= 1 && r14Opened,
+    JSON.stringify({ asked: `${md(from)}～${md(to)}`, report: r14, file: r14File, downloads: r14Downloads, opened: r14Opened }));
+
+  // R15
+  const longFrom = new Date();
+  longFrom.setDate(longFrom.getDate() - 60);
+  const countBefore = assistantCount();
+  await page.goto('/admin-assistant');
+  await page.waitForSelector('.agent-playground-layout', { timeout: 60000 });
+  await ask(page, `幫我巡一下 ${md(longFrom)}～${md(new Date())}`);
+  const reply15 = (await page.locator('.agent-playground-entry-assistant').last().textContent()) ?? '';
+  recorder.add('R15', '超過 31 天：不產生報告、助理轉述限制',
+    assistantCount() === countBefore && /31/.test(reply15),
+    JSON.stringify({ reply: reply15.replace(/\s+/g, ' ').slice(0, 200) }));
 
   await context.close();
 } finally {

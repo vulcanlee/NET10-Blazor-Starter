@@ -7,7 +7,8 @@ using MyProject.Models.Systems;
 namespace MyProject.Web.SystemReports;
 
 /// <summary>產生一份報告的請求。</summary>
-public sealed record SystemReportRequest(SystemReportPeriod Period, string Trigger, string? TriggeredByAccount, int? JobRunId);
+/// <param name="SkipNarrativeNote">有值時不請 AI 寫說明，報告的「AI 說明」改寫這句（0.10.42 起，系統管理助理：對話回覆就是說明）。</param>
+public sealed record SystemReportRequest(SystemReportPeriod Period, string Trigger, string? TriggeredByAccount, int? JobRunId, string? SkipNarrativeNote = null);
 
 /// <summary>產生的結果；存檔失敗時 <see cref="Summary"/> 為 null。</summary>
 public sealed record SystemReportResult(SystemReportSummary? Summary, SystemReportContentDto Content);
@@ -60,7 +61,9 @@ public sealed class SystemReportGenerator
         var info = systemSettings.Value.SystemInformation;
         var content = SystemReportSummarizer.Build(reportId, facts, findings, info.SystemName, info.SystemVersion);
 
-        var narration = await narrator.NarrateAsync(content, cancellationToken);
+        var narration = request.SkipNarrativeNote is { } note
+            ? new SystemReportNarration(SystemReportNarrativeStatuses.Skipped, null, null, note)
+            : await narrator.NarrateAsync(content, cancellationToken);
         content.Narrative = narration.Markdown;
         content.NarrativeStatus = narration.Status;
         content.NarrativeNote = narration.Note;
