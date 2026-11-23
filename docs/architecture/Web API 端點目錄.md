@@ -1,8 +1,8 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.26
+- 文件版本：1.27
 - 文件狀態：已實作
-- 現行系統版本：0.10.40
+- 現行系統版本：0.10.41
 - 首次實作版本：0.1.61
 - 最後核對日期：2026/11/20
 
@@ -380,9 +380,9 @@ DTO 在 `MyProject.Dtos/Admins/SystemReportDtos.cs`（舊版巡檢報告沿用 `
 
 | 動作 | 路由 | 回傳／說明 |
 |------|------|------|
-| 報告清單 | `POST system-reports/search` | body `SystemReportSearchRequestDto`（種類、燈號、產生日期起迄、分頁）；回 `SystemReportListDto`：報告摘要（最新在前）、總筆數與保存天數 |
-| 一份報告 | `GET system-reports/{id}` | `SystemReportDetailDto`：摘要與內容（全面摘要、每一項發現、容量表、統計、AI 說明）；內容檔不見時 `Content` 為 null；找不到 404「找不到這份報告，可能已超過保存期限被清除。」|
-| 立即產生 | `POST system-reports/generate` | body `SystemReportGenerateRequestDto`（`Frequency`＝日報、`Date`、`SendToAdmins`）。不在請求裡產生：帶參數放進「系統巡檢日報」作業的佇列，完成時以站內通知告訴產生者；已在佇列或執行中 409「已經有一份報告正在產生，請等它完成。」；今天以後 400「只能產生今天以前的日報（今天還沒過完）。」、早於保存天數 400、不是日報 400。成功寫 `Job.Trigger`（`job=SystemReportDaily; date=…; send=…; via=system-reports`）|
+| 報告清單 | `POST system-reports/search` | body `SystemReportSearchRequestDto`（種類、燈號、產生日期起迄、分頁）；回 `SystemReportListDto`：報告摘要（最新在前）、總筆數與保存天數（`DailyRetentionDays`；0.10.41 起另有 `WeeklyRetentionDays`、`MonthlyRetentionDays`）|
+| 一份報告 | `GET system-reports/{id}` | `SystemReportDetailDto`：摘要與內容（全面摘要、每一項發現、容量表、統計、AI 說明；0.10.41 起週報、月報另有 `Sections`〔`SystemReportSectionDto`：`Key`、`Title`、`Highlights`、`Tables`、`Notes`〕，月報的 AI 費用與帳號清查表格含帳號與姓名）；內容檔不見時 `Content` 為 null；找不到 404「找不到這份報告，可能已超過保存期限被清除。」|
+| 立即產生 | `POST system-reports/generate` | body `SystemReportGenerateRequestDto`（`Frequency`＝`Daily`／`Weekly`／`Monthly`〔週報、月報 0.10.41 起〕、`Date`＝區間內任一天、`SendToAdmins`）。不在請求裡產生：帶參數放進對應作業（系統巡檢日報／週報／月報）的佇列，完成時以站內通知告訴產生者；同一個作業已在佇列或執行中 409「已經有一份{日報／週報／月報}正在產生，請等它完成。」；區間還沒過完 400（「只能產生今天以前的日報（今天還沒過完）。」「這一週還沒過完，只能產生上週以前的週報。」「這個月還沒過完，只能產生上個月以前的月報。」）、區間起日早於那一種報告的保存天數 400「只能產生最近 N 天內的{日報／週報／月報}。」、其他種類 400「報告種類只能是日報、週報或月報。」。成功寫 `Job.Trigger`（`job={SystemReportDaily／SystemReportWeekly／SystemReportMonthly}; date=…; send=…; via=system-reports`），週報、月報的成功訊息是「已開始產生{週報}（{區間}），完成後會以站內通知告訴你（含備份可還原驗證，約需數分鐘）。」|
 | 下載 PDF | `POST system-reports/{id}/pdf` | 0.10.40 起。無 body；由報告內容 JSON 隨需產生（不存檔），回 `application/pdf` 檔案（不包 `ApiResult`），檔名 `system-report-{頻率小寫}-{區間起日 yyyyMMdd}.pdf`（例 `system-report-daily-20261119.pdf`）。找不到報告或內容檔 404；內嵌字型缺失 500「缺少內建中文字型，請確認建置產物完整。」。成功寫 `SystemReport.Download`（targetType `SystemReport`、targetId 報告編號 `N` 格式、detail `format=pdf; frequency=Daily`）。舊版巡檢報告沒有 PDF |
 | 舊版巡檢報告清單 | `GET system-reports/legacy` | `AdminPatrolReportListDto`：0.9.161～0.10.38 的 AI 巡檢報告與保存天數（最新在前）|
 | 一份舊版巡檢報告 | `GET system-reports/legacy/{id}` | `AdminPatrolReportDetailDto`（內文 Markdown 由畫面消毒）；找不到 404 |

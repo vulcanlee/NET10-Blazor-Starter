@@ -13,7 +13,7 @@ using MyProject.Web.Components.Commons;
 namespace MyProject.Web.Client.Views.Admins
 {
     /// <summary>
-    /// 系統巡檢報告（0.10.39 起）：日報清單、查看報告、立即產生，以及舊版巡檢報告（0.9.161～0.10.38 的 AI 巡檢）。
+    /// 系統巡檢報告（0.10.39 起；週報、月報 0.10.41 起）：報告清單、查看報告、立即產生，以及舊版巡檢報告（0.9.161～0.10.38 的 AI 巡檢）。
     /// 資料走 <see cref="SystemReportApi"/>（只限管理員；看報告不寫稽核，立即產生由伺服器寫 Job.Trigger 稽核）。
     /// 燈號用 AntDesign Tag 的顏色＋文字表示，不用 emoji（速查表 §6.1）。
     /// </summary>
@@ -24,7 +24,17 @@ namespace MyProject.Web.Client.Views.Admins
         internal static readonly IReadOnlyList<Option> Frequencies =
         [
             new(SystemReportFrequencies.Daily, "日報"),
+            new(SystemReportFrequencies.Weekly, "週報"),
+            new(SystemReportFrequencies.Monthly, "月報"),
             new(SystemReportFrequencies.Custom, "指定區間"),
+        ];
+
+        /// <summary>「立即產生」可選的種類（指定區間只由系統管理助理產生）。</summary>
+        internal static readonly IReadOnlyList<Option> GenerateFrequencies =
+        [
+            new(SystemReportFrequencies.Daily, "日報"),
+            new(SystemReportFrequencies.Weekly, "週報"),
+            new(SystemReportFrequencies.Monthly, "月報"),
         ];
 
         internal static readonly IReadOnlyList<Option> Levels =
@@ -62,6 +72,8 @@ namespace MyProject.Web.Client.Views.Admins
         private int _pageSize = MagicObjectHelper.PageSize;
         private int _total;
         private int retentionDays;
+        private int weeklyRetentionDays;
+        private int monthlyRetentionDays;
         private string selectedFrequency = string.Empty;
         private string selectedLevel = string.Empty;
         private DateTime? fromDate;
@@ -73,6 +85,7 @@ namespace MyProject.Web.Client.Views.Admins
         private bool generateVisible;
         private bool isGenerating;
         private DateTime? generateDate;
+        private string generateFrequency = SystemReportFrequencies.Daily;
         private bool generateSendToAdmins;
 
         public string RoleMessage { get; set; } = string.Empty;
@@ -132,6 +145,8 @@ namespace MyProject.Web.Client.Views.Admins
                     items = page.Items;
                     _total = page.TotalCount;
                     retentionDays = page.DailyRetentionDays;
+                    weeklyRetentionDays = page.WeeklyRetentionDays;
+                    monthlyRetentionDays = page.MonthlyRetentionDays;
                     return true;
                 }
 
@@ -188,6 +203,7 @@ namespace MyProject.Web.Client.Views.Admins
         private void OnOpenGenerate()
         {
             generateDate = DateTime.Today.AddDays(-1);
+            generateFrequency = SystemReportFrequencies.Daily;
             generateSendToAdmins = false;
             generateVisible = true;
             Logger.LogDebug("System report generate dialog opened.");
@@ -208,7 +224,7 @@ namespace MyProject.Web.Client.Views.Admins
             {
                 var result = await Api.GenerateAsync(new SystemReportGenerateRequestDto
                 {
-                    Frequency = SystemReportFrequencies.Daily,
+                    Frequency = generateFrequency,
                     Date = ClientCulture.Unzoned(generateDate),
                     SendToAdmins = generateSendToAdmins,
                 });
@@ -219,7 +235,7 @@ namespace MyProject.Web.Client.Views.Admins
                 }
 
                 generateVisible = false;
-                Logger.LogInformation("System report generation requested. SendToAdmins={SendToAdmins}", generateSendToAdmins);
+                Logger.LogInformation("System report generation requested. Frequency={Frequency}, SendToAdmins={SendToAdmins}", generateFrequency, generateSendToAdmins);
                 ViewNotification.Warning(NotificationService, result.Message);
             }
             finally
@@ -227,6 +243,14 @@ namespace MyProject.Web.Client.Views.Admins
                 isGenerating = false;
             }
         }
+
+        /// <summary>日期欄的說明：週報、月報選區間內任一天即可。</summary>
+        private string GenerateDateLabel => generateFrequency switch
+        {
+            SystemReportFrequencies.Weekly => "日期（選那一週的任一天）",
+            SystemReportFrequencies.Monthly => "日期（選那個月的任一天）",
+            _ => "日期",
+        };
 
         private static string PeriodText(SystemReportSummaryDto item)
         {

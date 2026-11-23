@@ -8,7 +8,8 @@ namespace MyProject.Web.Scheduling.Jobs;
 /// <summary>
 /// 巡檢報告與容量快照的自動過期（0.9.161 起，預設每天 03:00；0.10.39 起名稱改為「巡檢報告與容量快照清理」，作業名稱不變）：
 /// <list type="bullet">
-/// <item>系統巡檢報告與舊版巡檢報告：產出早於 <see cref="SystemReportSettings.DailyRetentionDays"/> 天前的連同內容檔刪除（1～3650，沒有「不清除」）。</item>
+/// <item>系統巡檢報告與舊版巡檢報告：產出早於保留天數（日報 <see cref="SystemReportSettings.DailyRetentionDays"/>、週報 <see cref="SystemReportSettings.WeeklyRetentionDays"/>、
+/// 月報 <see cref="SystemReportSettings.MonthlyRetentionDays"/>；舊版巡檢報告用日報的天數）的連同內容檔刪除，沒有「不清除」。</item>
 /// <item>容量快照：早於 <see cref="SystemReportSettings.CapacitySnapshotRetentionDays"/> 天前的刪除。</item>
 /// </list>
 /// 服務失敗時會自己記錄錯誤並回 null，這裡回報失敗即可（同 <see cref="AiAgentConversationRetentionJob"/>）。
@@ -43,7 +44,9 @@ public sealed class AdminPatrolReportRetentionJob : IScheduledJob
     public async Task<ScheduledJobResult> ExecuteAsync(ScheduledJobContext context, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetLocalNow().DateTime;
-        var days = reportService.DailyRetentionDays;
+        var days = reportService.RetentionDays(SystemReportFrequencies.Daily);
+        var weeklyDays = reportService.RetentionDays(SystemReportFrequencies.Weekly);
+        var monthlyDays = reportService.RetentionDays(SystemReportFrequencies.Monthly);
         var legacy = await legacyReportService.PurgeExpiredAsync(now);
         var reports = await reportService.PurgeExpiredAsync(now);
         var snapshotDays = snapshotService.RetentionDays;
@@ -68,10 +71,10 @@ public sealed class AdminPatrolReportRetentionJob : IScheduledJob
             await auditLogService.WriteAsync(
                 AuditActions.SystemReport.AutoPurge, success: true,
                 targetType: "SystemReport", targetId: "*",
-                detail: $"reports={reports}; days={days}; snapshots={snapshots}; snapshotDays={snapshotDays}; trigger={context.Trigger}");
+                detail: $"reports={reports}; days={days}; weeklyDays={weeklyDays}; monthlyDays={monthlyDays}; snapshots={snapshots}; snapshotDays={snapshotDays}; trigger={context.Trigger}");
         }
 
         return ScheduledJobResult.Success(
-            $"刪除 {reports + legacy} 份超過 {days} 天的巡檢報告、{snapshots} 筆超過 {snapshotDays} 天的容量快照。");
+            $"刪除 {reports + legacy} 份超過保留天數（日報 {days} 天、週報 {weeklyDays} 天、月報 {monthlyDays} 天）的巡檢報告、{snapshots} 筆超過 {snapshotDays} 天的容量快照。");
     }
 }

@@ -399,6 +399,7 @@ public sealed class LoggingConventionTests
             "DatabaseUsageModels.cs",       // 模型
             "NLogFilePathResolver.cs",      // 純路徑組字串
             "TokenUsageFormat.cs",          // 純數字格式化（K／M 精簡顯示），無任何行為
+            "SystemReportMetricsService.Monthly.cs", // 同一個類別的另一個部分檔，ILogger 在主檔注入
             "AiUsageCostCalculator.cs",     // 純算術：讀設定、套費率、回金額，沒有 I/O 也沒有可失敗的副作用
             "TotpService.cs",               // 純密碼學運算；所有輸入輸出都是機密，加 logger 只會誘使人記錄它
             "DatabaseInitializerOptions.cs", // 設定

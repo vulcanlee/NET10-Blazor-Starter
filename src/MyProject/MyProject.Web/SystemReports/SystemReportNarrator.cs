@@ -16,7 +16,8 @@ public sealed record SystemReportNarration(string Status, string? Markdown, stri
 /// 系統巡檢報告的 AI 說明（0.10.39 起）：把程式判定好的燈號與數字交給模型，寫「整體狀況、建議處理順序、下期預測」。
 ///
 /// <list type="bullet">
-/// <item>只送去識別的發現（規則代碼、燈號、標題、數字、期限、處理頁面），不送帳號、路徑、例外訊息；所以也沒有使用者輸入的文字。</item>
+/// <item>只送去識別的發現（規則代碼、燈號、標題、數字、期限、處理頁面），不送帳號、路徑、例外訊息；所以也沒有使用者輸入的文字。
+/// 週報、月報的章節只送 Highlights（只有數字），AI 費用與帳號清查表格裡的帳號與姓名不送。</item>
 /// <item>模型不能改燈號與數字：指示裡要求，畫面與 PDF 也以程式的結果為準，AI 說明只是附加的文字。</item>
 /// <item>指示不放現在時間（模型不知道今天幾號，放了會讓提示詞快取失效）；區間與產生時間放在使用者訊息。</item>
 /// <item>失敗、逾時、格式不對都不讓報告失敗：狀態記 Fallback，報告照常產生與寄出（只是少了 AI 說明）。</item>
@@ -35,6 +36,8 @@ public sealed class SystemReportNarrator
     public const string DefaultInstructions = """
         你是系統維運顧問，要替系統管理者寫巡檢報告最前面的說明。使用者訊息是一份 JSON：報告區間、整體燈號，
         以及程式依固定規則判定好的每一項發現（燈號、標題、現況、期限、處理頁面）、需要擴充的磁碟與下期預測。
+        週報與月報另有 sections：趨勢比較、容量成長與規劃、備份可還原驗證、AI 費用、帳號與權限清查的重點數字，
+        可以在整體狀況與下期預測引用（例如和上一期比較、一年後的容量、備份能不能還原）。
 
         燈號的意思：紅燈＝已發生問題，要馬上處理；橙燈＝即將發生，有期限；黃燈＝注意即可；綠燈＝正常。
 
@@ -150,6 +153,8 @@ public sealed class SystemReportNarrator
             }),
             expansions = content.Expansions.Select(x => new { volume = x.Volume, fullDate = x.FullDate?.ToString("yyyy/MM/dd"), suggestedGb = Math.Round(x.SuggestedBytes / 1024d / 1024 / 1024, 1) }),
             predictions = content.Predictions,
+            // 週報、月報的章節只送重點（只有數字，不含帳號；表格裡的帳號與姓名不送）。
+            sections = content.Sections.Count == 0 ? null : content.Sections.Select(x => new { title = x.Title, highlights = x.Highlights }),
         }, JsonOptions);
 
         var json = Serialize();

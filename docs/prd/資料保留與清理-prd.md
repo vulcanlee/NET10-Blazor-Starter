@@ -1,8 +1,8 @@
 ﻿# 資料保留與清理 PRD
 
-- 文件版本：1.12
+- 文件版本：1.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.39
+- 現行系統版本：0.10.41
 - 首次實作版本：0.9.133
 - 最後核對日期：2026/11/20
 
@@ -37,6 +37,7 @@
 - 「Agent 對話」列（列鍵 `agent-conversation`）：附註「全體使用者，連同內容檔；依最後一次對話時間」、數量單位「段」、保留規則「最後一次對話後保留 N 天」、「前往」`/admin-assistant`（只看得到自己的對話；0.10.22 起，之前前往已移除的 Agent 測試台）。
 - 「巡檢報告」列（0.9.161 起，列鍵 `admin-patrol-report`）：附註「系統管理助理的定時巡檢，連同內容檔；內容檔在 Agent 對話目錄底下，資料夾大小也算進「Agent 對話」」、數量單位「份」、保留規則「產出後保留 N 天」（`AdminPatrolSettings:RetentionDays`）、負責作業「巡檢報告清理」、「前往」`/admin-assistant`；沒有自訂清除。
   0.10.39 起：附註「系統巡檢報告（含舊版巡檢報告），連同內容檔；…」，數量、最舊一筆與下次會清掉是兩種報告合計，保留天數改為 `SystemReportSettings:DailyRetentionDays`（系統參數「巡檢報告保留天數（日報）」），負責作業改名「巡檢報告與容量快照清理」（作業名稱 `AdminPatrolReportRetention` 不變），「前往」`/system-reports`。
+  0.10.41 起週報、月報各有保留天數（`WeeklyRetentionDays` 預設 365、`MonthlyRetentionDays` 預設 1095），保留規則改為「產出後保留：日報 N 天、週報 N 天、月報 N 天」；「下次會清掉」與自動過期共用同一個條件（依各份報告的種類套各自的天數，日報、指定區間與舊版巡檢報告用日報的天數）。
 - 「容量快照」列（0.10.39 起，列鍵 `capacity-snapshot`，排在巡檢報告之後）：附註「每天記一次的磁碟與資料目錄用量，系統巡檢報告用來預估「幾天後用完」」、數量單位「筆」、保留規則「保留 N 天」（`SystemReportSettings:CapacitySnapshotRetentionDays`，預設 730）、負責作業「巡檢報告與容量快照清理」、「前往」`/system-reports`；沒有檔案、沒有自訂清除。
 - 「登入 Token」列（0.10.0 起，列鍵 `refresh-session`，排在寄信紀錄之後）：附註「已撤銷但未到期的保留，用來偵測重複使用」、保留規則「到期即清除」（沒有保留天數，不顯示「修改」；有效期依發出管道：App 由 `JwtSettings:RefreshTokenDays`、網頁由 `SessionSettings`〔0.10.8 起〕決定）、下次會清掉＝已到期筆數、負責作業「登入 Token 清理」（`RefreshSessionRetention`，可「立即清理」）、「前往」`/myusers`（要讓某人的 Token 立刻失效，在那裡強制登出）；沒有自訂清除。
 

@@ -188,6 +188,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ProjectFileStore>();
         // 系統備份（0.9.99 起）：檔案清單與建立備份。建立備份只由排程作業 SystemBackup 呼叫（含「立即備份」）。
         services.AddSingleton<BackupStore>();
+        services.AddSingleton<BackupVerifier>();
         services.AddScoped<SystemBackupService>();
         services.AddScoped<ProjectService>();
         // 依保留天數永久刪除已軟刪除的資料（0.9.97 起，系統層級、不套團隊範圍；由排程作業呼叫）。
@@ -357,6 +358,12 @@ public static class ServiceCollectionExtensions
         services.AddScheduledJob<SystemReportDailyJob>(
             SystemReportDailyJob.JobName, "系統巡檢日報",
             "每天產生前一天的系統巡檢報告（燈號由程式判定，AI 只寫說明，沒有設定 AI 也照常產生）；有紅燈或橙燈時通知所有管理員並寄信。產生時間在「系統參數」頁設定（預設 07:30），報告在「系統巡檢報告」頁。", "30 7 * * *");
+        services.AddScheduledJob<SystemReportWeeklyJob>(
+            SystemReportWeeklyJob.JobName, "系統巡檢週報",
+            "每週產生上週一～週日的系統巡檢報告，另有和前一週的趨勢比較、容量成長與備份可還原驗證；一律通知所有管理員並寄信（附 PDF）。星期幾與時間在「系統參數」頁設定（預設星期一 08:00）。", "0 8 * * 1");
+        services.AddScheduledJob<SystemReportMonthlyJob>(
+            SystemReportMonthlyJob.JobName, "系統巡檢月報",
+            "每月產生上個月的系統巡檢報告：週報的內容再加 AI 費用；1、4、7、10 月產生的那份另附上一季的帳號與權限清查。一律通知所有管理員並寄信（附 PDF）。幾號與時間在「系統參數」頁設定（預設每月 1 日 08:30）。", "30 8 1 * *");
         services.AddScheduledJob<CapacitySnapshotJob>(
             CapacitySnapshotJob.JobName, "容量快照",
             "記下各磁碟、資料庫與資料目錄的用量，系統巡檢報告用它預估「幾天後用完」。", "0 5 * * *");

@@ -53,11 +53,85 @@ public sealed class SystemReportsApiTests : IClassFixture<ApiTestApplicationFact
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
         var today = DateTime.Today;
 
-        var todayResponse = await client.PostAsJsonAsync($"{BaseUrl}/generate", new SystemReportGenerateRequestDto { Frequency = SystemReportFrequencies.Daily, Date = today });
-        var weekly = await client.PostAsJsonAsync($"{BaseUrl}/generate", new SystemReportGenerateRequestDto { Frequency = SystemReportFrequencies.Weekly, Date = today.AddDays(-1) });
+        async Task<(HttpStatusCode Status, string Body)> Generate(string frequency, DateTime date)
+        {
+            var response = await client.PostAsJsonAsync($"{BaseUrl}/generate", new SystemReportGenerateRequestDto { Frequency = frequency, Date = date });
+            return (response.StatusCode, await response.Content.ReadAsStringAsync());
+        }
 
-        Assert.Equal(HttpStatusCode.BadRequest, todayResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, weekly.StatusCode);
+        var todayResponse = await Generate(SystemReportFrequencies.Daily, today);
+        var thisWeek = await Generate(SystemReportFrequencies.Weekly, today);
+        var thisMonth = await Generate(SystemReportFrequencies.Monthly, today);
+        var custom = await Generate(SystemReportFrequencies.Custom, today.AddDays(-3));
+        var tooOldWeekly = await Generate(SystemReportFrequencies.Weekly, today.AddDays(-400));
+
+        Assert.Equal(HttpStatusCode.BadRequest, todayResponse.Status);
+        Assert.Equal(HttpStatusCode.BadRequest, thisWeek.Status);
+        Assert.Contains("這一週還沒過完", thisWeek.Body, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.BadRequest, thisMonth.Status);
+        Assert.Contains("這個月還沒過完", thisMonth.Body, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.BadRequest, custom.Status);
+        Assert.Equal(HttpStatusCode.BadRequest, tooOldWeekly.Status);
+        Assert.Contains("365 天內的週報", tooOldWeekly.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Generate_LastWeek_QueuesTheWeeklyJob_AndAudits()
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        using var client = await SignedInClientAsync(admin);
+        var date = DateTime.Today.AddDays(-7);
+
+        var response = await client.PostAsJsonAsync($"{BaseUrl}/generate", new SystemReportGenerateRequestDto { Frequency = SystemReportFrequencies.Weekly, Date = date });
+        var list = await SendAsync<SystemReportListDto>(client, HttpMethod.Post, $"{BaseUrl}/search", new SystemReportSearchRequestDto());
+
+        Assert.True(response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict, await response.Content.ReadAsStringAsync());
+        Assert.Equal((365, 1095), (list.WeeklyRetentionDays, list.MonthlyRetentionDays));
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            await using var context = await CreateContextAsync();
+            var audit = await context.AuditLog.SingleAsync(x => x.Action == AuditActions.Job.Trigger && x.ActorUserId == admin.Id);
+            Assert.Equal(("ScheduledJob", SystemReportWeeklyJob.JobName), (audit.TargetType, audit.TargetId));
+            Assert.Equal($"job=SystemReportWeekly; date={date:yyyy-MM-dd}; send=False; via=system-reports", audit.Detail);
+        }
+    }
+
+    [Fact]
+    public async Task MonthlyJob_AtQuarterEnd_HasEverySection_AndScheduledWeeklyAlwaysNotifiesAdmins()
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        using var client = await SignedInClientAsync(admin);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var monthly = await scope.ServiceProvider.GetRequiredService<SystemReportMonthlyJob>().ExecuteAsync(
+                new ScheduledJobContext(0, JobRunTriggers.Manual, null, admin.Account, admin.Id, new SystemReportJobArguments(new DateTime(2004, 12, 15), SendToAdmins: false).ToJson()),
+                CancellationToken.None);
+            Assert.True(monthly.Succeeded, monthly.Message);
+            Assert.StartsWith("2004/12/01～2004/12/31 的月報：", monthly.Message, StringComparison.Ordinal);
+
+            // 排程的週報：時段 2005/03/07（星期一）→ 2005/02/28～2005/03/06，不論燈號都通知管理員。
+            var slotUtc = TimeZoneInfo.ConvertTimeToUtc(new DateTime(2005, 3, 7, 8, 0, 0), TimeZoneInfo.Local);
+            var weekly = await scope.ServiceProvider.GetRequiredService<SystemReportWeeklyJob>().ExecuteAsync(
+                new ScheduledJobContext(0, JobRunTriggers.Schedule, slotUtc, null), CancellationToken.None);
+            Assert.True(weekly.Succeeded, weekly.Message);
+            Assert.StartsWith("2005/02/28～2005/03/06 的週報：", weekly.Message, StringComparison.Ordinal);
+            Assert.EndsWith("已通知管理員並寄信。", weekly.Message, StringComparison.Ordinal);
+        }
+
+        await using var db = await CreateContextAsync();
+        var monthlyReport = await db.SystemReport.SingleAsync(x => x.Frequency == SystemReportFrequencies.Monthly && x.PeriodStart == new DateTime(2004, 12, 1));
+        var weeklyReport = await db.SystemReport.SingleAsync(x => x.Frequency == SystemReportFrequencies.Weekly && x.PeriodStart == new DateTime(2005, 2, 28));
+        Assert.Equal(new DateTime(2005, 1, 1), monthlyReport.PeriodEnd);
+        Assert.Equal(SystemReportDeliveryStatuses.Sent, weeklyReport.DeliveryStatus);
+        Assert.True(await db.Notification.AnyAsync(x => x.RecipientUserId == admin.Id && x.Link!.Contains(weeklyReport.ReportId.ToString("N"))));
+
+        var text = await (await client.GetAsync($"{BaseUrl}/{monthlyReport.ReportId}")).Content.ReadAsStringAsync();
+        var content = JsonSerializer.Deserialize<ApiResult<SystemReportDetailDto>>(text, Json)!.Data!.Content!;
+        Assert.Equal(
+            [SystemReportSectionKeys.Trend, SystemReportSectionKeys.Growth, SystemReportSectionKeys.BackupVerify, SystemReportSectionKeys.AiCost, SystemReportSectionKeys.AccountReview],
+            content.Sections.Select(x => x.Key));
+        Assert.Equal("帳號與權限清查（2004/10～2004/12）", content.Sections[^1].Title);
+        Assert.Contains(content.Sections[^1].Tables[0].Rows, row => row[0] == admin.Account);
     }
 
     [Fact]

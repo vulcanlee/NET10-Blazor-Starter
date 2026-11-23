@@ -102,7 +102,7 @@ public sealed class SystemReportDelivery
         return $"系統巡檢{SystemReportFrequencies.DisplayName(content.Frequency)} {period}：{SystemReportLevels.ShortName(content.Level)}";
     }
 
-    /// <summary>純文字摘要：結論＋紅燈＋橙燈（附期限）＋黃燈數量。超過上限截斷。</summary>
+    /// <summary>純文字摘要：結論＋紅燈＋橙燈（附期限）＋黃燈數量＋週報月報的章節重點。超過上限截斷。</summary>
     public static string Body(SystemReportContentDto content)
     {
         var builder = new StringBuilder();
@@ -118,6 +118,12 @@ public sealed class SystemReportDelivery
         foreach (var expansion in content.Expansions.Take(3))
         {
             builder.AppendLine($"需要準備擴充：{expansion.Volume}，預估 {expansion.FullDate:yyyy/MM/dd} 用完。");
+        }
+
+        // 週報、月報的章節重點（只有數字；AI 費用與帳號清查的帳號只在報告與 PDF 的表格裡）。
+        foreach (var section in content.Sections.Where(x => x.Highlights.Count > 0))
+        {
+            builder.AppendLine($"【{section.Title}】{string.Join(string.Empty, section.Highlights)}");
         }
 
         var text = builder.ToString().TrimEnd();

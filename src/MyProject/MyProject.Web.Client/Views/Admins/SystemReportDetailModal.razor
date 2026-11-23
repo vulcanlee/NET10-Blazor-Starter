@@ -4,7 +4,8 @@
 
 @*
     系統巡檢報告的內容視窗（0.10.39 起）。尺寸寫在 Commons/OverlayStyles.razor 的 .system-report-modal（Modal 外框渲染在元件 DOM 之外，見速查 §6.4）；
-    窗內內容的樣式在本元件的 .razor.css。純唯讀，Esc 直接關閉。最前面是全面摘要，其次是 AI 說明、每一項發現、容量與統計。
+    窗內內容的樣式在本元件的 .razor.css。純唯讀，Esc 直接關閉。最前面是全面摘要，其次是 AI 說明、每一項發現、
+    週報月報的章節（0.10.41 起：趨勢、容量成長、備份可還原驗證、AI 費用、帳號清查）、容量與統計。
 *@
 <Modal Title="@title"
        Class="system-report-modal"
@@ -73,6 +74,20 @@
                     </ul>
                 }
 
+                @if (content.Sections.Any(x => x.Highlights.Count > 0))
+                {
+                    <h4 class="system-report-summary-heading">本期重點</h4>
+                    <ul class="system-report-summary-list">
+                        @foreach (var item in content.Sections)
+                        {
+                            @foreach (var highlight in item.Highlights)
+                            {
+                                <li><strong>@item.Title</strong>：@highlight</li>
+                            }
+                        }
+                    </ul>
+                }
+
                 <h4 class="system-report-summary-heading">下期預測</h4>
                 <ul class="system-report-summary-list">
                     @foreach (var prediction in content.Predictions)
@@ -129,6 +144,61 @@
                                 }
                             </dl>
                         </div>
+                    }
+                </section>
+            }
+
+            @* 週報、月報的章節（0.10.41 起）：重點＋表格，全部由程式產生。 *@
+            @foreach (var item in content.Sections)
+            {
+                <section class="system-report-extra" data-section="@item.Key">
+                    <h3 class="system-report-section-title">@item.Title</h3>
+                    <ul class="system-report-summary-list">
+                        @foreach (var highlight in item.Highlights)
+                        {
+                            <li>@highlight</li>
+                        }
+                    </ul>
+                    @foreach (var data in item.Tables)
+                    {
+                        <h4 class="system-report-summary-heading">@data.Caption</h4>
+                        @if (data.Rows.Count == 0)
+                        {
+                            <div class="system-report-muted">@data.EmptyText</div>
+                        }
+                        else
+                        {
+                            <table class="system-report-grid">
+                                <thead>
+                                    <tr>
+                                        @foreach (var column in data.Columns)
+                                        {
+                                            <th>@column</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in data.Rows)
+                                    {
+                                        <tr>
+                                            @foreach (var cell in row)
+                                            {
+                                                <td>@cell</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+                    @if (item.Notes.Count > 0)
+                    {
+                        <ul class="system-report-summary-list system-report-muted">
+                            @foreach (var note in item.Notes)
+                            {
+                                <li>@note</li>
+                            }
+                        </ul>
                     }
                 </section>
             }

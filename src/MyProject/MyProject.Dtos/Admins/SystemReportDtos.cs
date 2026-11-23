@@ -74,6 +74,12 @@ public class SystemReportListDto
     public int PageSize { get; set; }
 
     public int DailyRetentionDays { get; set; }
+
+    /// <summary>週報保留天數（0.10.41 起）。</summary>
+    public int WeeklyRetentionDays { get; set; }
+
+    /// <summary>月報保留天數（0.10.41 起）。</summary>
+    public int MonthlyRetentionDays { get; set; }
 }
 
 /// <summary>一份報告：清單資料＋內容（內容檔不見時為 null）。</summary>
@@ -89,11 +95,11 @@ public class SystemReportDetailDto
 /// </summary>
 public class SystemReportGenerateRequestDto
 {
-    /// <summary>Daily（0.10.39 起只開放日報；週報、月報在之後的版本）。</summary>
+    /// <summary>Daily、Weekly、Monthly（週報、月報 0.10.41 起）。</summary>
     [Required(ErrorMessage = "請選擇報告種類。")]
     public string Frequency { get; set; } = string.Empty;
 
-    /// <summary>區間內的任一天（日報＝那一天）；必須早於今天。</summary>
+    /// <summary>區間內的任一天（日報＝那一天；週報＝那一天所在的週一～週日；月報＝那一天所在的月份）；整個區間必須已經過完。</summary>
     [Required(ErrorMessage = "請選擇日期。")]
     public DateTime? Date { get; set; }
 
@@ -105,6 +111,8 @@ public class SystemReportGenerateRequestDto
 /// 報告內容（0.10.39 起）：也是內容檔（JSON）的格式。燈號、數字與三段說明都由程式規則產生；
 /// <see cref="Narrative"/> 是 AI 寫的說明（Markdown，畫面自己消毒成 HTML），沒有時為 null。
 /// ⚠️ 內容不放堆疊、設定值、檔案路徑；帳號只放數量（速查表 §6.34）。
+/// 唯一的例外（0.10.41 起）：月報的「AI 費用」與「帳號與權限清查」兩節的表格列出帳號與姓名（使用者 2026/11/20 決定，清查 PDF 是資安稽核的留存）；
+/// 這兩節的 <see cref="SystemReportSectionDto.Highlights"/> 仍只放數量，通知、信件內文與 AI 說明只用 Highlights。
 /// </summary>
 public class SystemReportContentDto
 {
@@ -148,6 +156,12 @@ public class SystemReportContentDto
 
     /// <summary>各區塊的統計數字（例如「錯誤與例外／Error 以上日誌／12 筆」）。</summary>
     public List<SystemReportStatDto> Stats { get; set; } = [];
+
+    /// <summary>
+    /// 週報、月報才有的章節（0.10.41 起）：趨勢比較、容量成長與規劃、備份可還原驗證、AI 費用、帳號與權限清查。日報是空的。
+    /// 畫面與 PDF 依序照樣呈現（通用的「重點＋表格」），不必為每一節寫專用的畫面。
+    /// </summary>
+    public List<SystemReportSectionDto> Sections { get; set; } = [];
 
     /// <summary>量測與資料的限制（例如「重新啟動後日誌管線計數歸零」「容量快照只有 3 天，暫時無法預估」）。</summary>
     public List<string> Limitations { get; set; } = [];
@@ -255,6 +269,38 @@ public class SystemReportDatabaseDto
 
     /// <summary>可回收的空頁（位元組）。</summary>
     public long FreePageBytes { get; set; }
+}
+
+/// <summary>週報、月報的一節（0.10.41 起）。全部由程式產生。</summary>
+public class SystemReportSectionDto
+{
+    /// <summary>固定代碼：Trend、Growth、BackupVerify、AiCost、AccountReview（見 SystemReportSectionKeys）。</summary>
+    public string Key { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 重點（1～4 句，只有數字與固定用語，<b>不放帳號</b>）：放在全面摘要的「本期重點」，也用在通知、信件內文與 AI 說明的輸入。
+    /// </summary>
+    public List<string> Highlights { get; set; } = [];
+
+    public List<SystemReportTableDto> Tables { get; set; } = [];
+
+    /// <summary>這一節的資料限制（例如「最後登入時間取自稽核紀錄」）。</summary>
+    public List<string> Notes { get; set; } = [];
+}
+
+/// <summary>一張表格（儲存格都是排好版的文字）。</summary>
+public class SystemReportTableDto
+{
+    public string Caption { get; set; } = string.Empty;
+
+    public List<string> Columns { get; set; } = [];
+
+    public List<List<string>> Rows { get; set; } = [];
+
+    /// <summary>沒有資料時顯示的文字。</summary>
+    public string EmptyText { get; set; } = "沒有資料。";
 }
 
 /// <summary>一個統計數字。</summary>

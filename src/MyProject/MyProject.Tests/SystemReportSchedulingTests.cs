@@ -139,11 +139,102 @@ public sealed class SystemReportSchedulingTests
     [Fact]
     public void DailyPeriod_IsTheWholeDay()
     {
-        var period = SystemReportDailyJob.DailyPeriod(new DateTime(2026, 11, 19, 15, 0, 0));
+        var period = SystemReportPeriod.Containing(SystemReportFrequencies.Daily, new DateTime(2026, 11, 19, 15, 0, 0));
 
         Assert.Equal((new DateTime(2026, 11, 19), new DateTime(2026, 11, 20)), (period.Start, period.End));
         Assert.Equal("2026/11/19", period.Display);
         Assert.Equal(1, period.Days);
+        Assert.False(period.IsPeriodic);
+    }
+
+    [Theory]
+    [InlineData("2026-11-16", "2026-11-16")] // 星期一
+    [InlineData("2026-11-19", "2026-11-16")] // 星期四
+    [InlineData("2026-11-22", "2026-11-16")] // 星期日
+    public void WeeklyPeriod_IsMondayToSunday(string date, string monday)
+    {
+        var period = SystemReportPeriod.Containing(SystemReportFrequencies.Weekly, DateTime.Parse(date));
+
+        Assert.Equal((DateTime.Parse(monday), DateTime.Parse(monday).AddDays(7)), (period.Start, period.End));
+        Assert.Equal(7, period.Days);
+        Assert.Equal("2026/11/16～2026/11/22", period.Display);
+        Assert.True(period.IsPeriodic);
+        Assert.False(period.IncludesAiCost);
+        Assert.Equal(new DateTime(2026, 11, 9), period.Previous().Start);
+    }
+
+    [Theory]
+    [InlineData("2026-11-23", "2026-11-16")] // 星期一跑：上週
+    [InlineData("2026-11-29", "2026-11-16")] // 星期日跑：還是上週（這一週還沒過完）
+    public void WeeklyLastComplete_IsLastWeek(string today, string monday)
+        => Assert.Equal(DateTime.Parse(monday), SystemReportPeriod.LastComplete(SystemReportFrequencies.Weekly, DateTime.Parse(today)).Start);
+
+    [Fact]
+    public void MonthlyPeriod_IsTheCalendarMonth_AndQuarterEndsCarryTheAccountReview()
+    {
+        var february = SystemReportPeriod.Containing(SystemReportFrequencies.Monthly, new DateTime(2028, 2, 15));
+        var lastComplete = SystemReportPeriod.LastComplete(SystemReportFrequencies.Monthly, new DateTime(2027, 1, 1));
+
+        Assert.Equal((new DateTime(2028, 2, 1), new DateTime(2028, 3, 1)), (february.Start, february.End));
+        Assert.Equal(29, february.Days);
+        Assert.True(february.IncludesAiCost);
+        Assert.False(february.IncludesAccountReview);
+        Assert.Equal(new DateTime(2028, 1, 1), february.Previous().Start);
+
+        // 1 月 1 日產生的是 12 月的月報，附 10～12 月的帳號清查。
+        Assert.Equal((new DateTime(2026, 12, 1), new DateTime(2027, 1, 1)), (lastComplete.Start, lastComplete.End));
+        Assert.True(lastComplete.IncludesAccountReview);
+        Assert.Equal((new DateTime(2026, 10, 1), new DateTime(2027, 1, 1)), (lastComplete.Quarter.Start, lastComplete.Quarter.End));
+        Assert.Equal([3, 6, 9, 12], Enumerable.Range(1, 12).Where(m => SystemReportPeriod.Containing(SystemReportFrequencies.Monthly, new DateTime(2026, m, 1)).IncludesAccountReview));
+    }
+
+    [Theory]
+    [InlineData(1, "08:00", "0 8 * * 1")]
+    [InlineData(7, "06:05", "5 6 * * 0")]
+    public void WeeklySettings_BecomeCron(int dayOfWeek, string time, string expected)
+    {
+        Assert.True(SystemReportScheduleProvider.TryBuildWeekly(dayOfWeek, time, out var cron));
+        Assert.Equal(expected, cron);
+        Assert.False(SystemReportScheduleProvider.TryBuildWeekly(0, time, out _));
+        Assert.False(SystemReportScheduleProvider.TryBuildWeekly(dayOfWeek, "8:00", out _));
+    }
+
+    [Fact]
+    public void MonthlySettings_BecomeCron_AndOnlyDaysEveryMonthHas()
+    {
+        Assert.True(SystemReportScheduleProvider.TryBuildMonthly(1, "08:30", out var cron));
+        Assert.Equal("30 8 1 * *", cron);
+        Assert.False(SystemReportScheduleProvider.TryBuildMonthly(29, "08:30", out _));
+        Assert.Contains(Validate(new SystemReportSettings { MonthlyDay = 29 }), x => x.MemberNames.Contains(nameof(SystemReportSettings.MonthlyDay)));
+        Assert.Contains(Validate(new SystemReportSettings { WeeklyDayOfWeek = 8 }), x => x.MemberNames.Contains(nameof(SystemReportSettings.WeeklyDayOfWeek)));
+        Assert.Contains(Validate(new SystemReportSettings { WeeklyTime = "25:00" }), x => x.MemberNames.Contains(nameof(SystemReportSettings.WeeklyTime)));
+    }
+
+    [Fact]
+    public void Provider_GivesEachReportItsOwnTime()
+    {
+        var provider = new SystemReportScheduleProvider(new StaticOptionsMonitor<SystemReportSettings>(
+            new SystemReportSettings { DailyTime = "06:00", WeeklyDayOfWeek = 2, WeeklyTime = "09:15", MonthlyDay = 5, MonthlyTime = "10:45" }));
+
+        Assert.Equal([SystemReportDailyJob.JobName, SystemReportWeeklyJob.JobName, SystemReportMonthlyJob.JobName], provider.JobNames);
+        Assert.True(provider.TryGetCron(SystemReportWeeklyJob.JobName, out var weekly));
+        Assert.True(provider.TryGetCron(SystemReportMonthlyJob.JobName, out var monthly));
+        Assert.Equal(("15 9 * * 2", "45 10 5 * *"), (weekly, monthly));
+        Assert.False(provider.TryGetCron("Other", out _));
+    }
+
+    [Fact]
+    public void WeeklyAndMonthly_AreAlwaysSent_DailyOnlyFromOrange()
+    {
+        Assert.True(SystemReportJob.ShouldSendScheduled(SystemReportFrequencies.Weekly, SystemReportLevels.Green));
+        Assert.True(SystemReportJob.ShouldSendScheduled(SystemReportFrequencies.Monthly, SystemReportLevels.Green));
+        Assert.False(SystemReportJob.ShouldSendScheduled(SystemReportFrequencies.Daily, SystemReportLevels.Yellow));
+        Assert.True(SystemReportJob.ShouldSendScheduled(SystemReportFrequencies.Daily, SystemReportLevels.Orange));
+        Assert.Equal(
+            [SystemReportDailyJob.JobName, SystemReportWeeklyJob.JobName, SystemReportMonthlyJob.JobName],
+            new[] { SystemReportFrequencies.Daily, SystemReportFrequencies.Weekly, SystemReportFrequencies.Monthly }.Select(SystemReportJob.JobNameFor));
+        Assert.Equal((90, 365, 1095, 90), (new SystemReportSettings().RetentionDays(SystemReportFrequencies.Daily), new SystemReportSettings().RetentionDays(SystemReportFrequencies.Weekly),
+            new SystemReportSettings().RetentionDays(SystemReportFrequencies.Monthly), new SystemReportSettings().RetentionDays(SystemReportFrequencies.Custom)));
     }
 
     [Fact]

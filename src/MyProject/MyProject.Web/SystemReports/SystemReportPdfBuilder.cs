@@ -14,7 +14,7 @@ namespace MyProject.Web.SystemReports;
 /// <list type="bullet">
 /// <item>沿用 <see cref="AiMarkdownPdfRenderer"/> 的文件樣式（A4、內嵌中文字型、頁首頁尾）；中文一律經 <see cref="CjkLineBreak"/> 補斷行機會。</item>
 /// <item>燈號以文字＋底色表示（字型沒有 emoji）。處理頁面寫中文頁名，不放網址。</item>
-/// <item>只輸出報告內容本來就有的東西（沒有路徑、設定值、例外內文、帳號，見速查表 §6.34）。</item>
+/// <item>只輸出報告內容本來就有的東西（沒有路徑、設定值、例外內文；帳號只在月報的 AI 費用與帳號清查表格，見速查表 §6.34）。</item>
 /// </list>
 /// 內嵌字型缺失時 <see cref="AiMarkdownPdfRenderer.CreateDocument"/> 丟 <see cref="InvalidOperationException"/>，由呼叫端處理。
 /// </summary>
@@ -79,6 +79,7 @@ public static class SystemReportPdfBuilder
         AddSummary(section, content);
         AddNarrative(section, content);
         AddFindings(section, content);
+        AddSections(section, content);
         AddVolumes(section, content);
         AddFolders(section, content);
         AddStats(section, content);
@@ -153,10 +154,71 @@ public static class SystemReportPdfBuilder
             }
         }
 
+        if (content.Sections.Any(x => x.Highlights.Count > 0))
+        {
+            section.AddParagraph("本期重點", StyleNames.Heading3);
+            foreach (var item in content.Sections)
+            {
+                foreach (var highlight in item.Highlights)
+                {
+                    Bullet(section, $"{item.Title}：{highlight}");
+                }
+            }
+        }
+
         section.AddParagraph("下期預測", StyleNames.Heading3);
         foreach (var prediction in content.Predictions)
         {
             Bullet(section, prediction);
+        }
+    }
+
+    // ───────────── 週報、月報的章節（0.10.41 起）─────────────
+
+    /// <summary>趨勢比較、容量成長、備份可還原驗證、AI 費用、帳號清查：重點＋表格（欄寬平均分配）。</summary>
+    private static void AddSections(Section section, SystemReportContentDto content)
+    {
+        foreach (var item in content.Sections)
+        {
+            section.AddParagraph(item.Title, StyleNames.Heading1);
+            foreach (var highlight in item.Highlights)
+            {
+                Bullet(section, highlight);
+            }
+
+            foreach (var data in item.Tables)
+            {
+                section.AddParagraph(data.Caption, StyleNames.Heading3);
+                if (data.Rows.Count == 0)
+                {
+                    Muted(section, data.EmptyText);
+                    continue;
+                }
+
+                var table = CreateTable(section);
+                var width = 17.0 / Math.Max(1, data.Columns.Count);
+                foreach (var _ in data.Columns)
+                {
+                    table.AddColumn(Unit.FromCentimeter(width));
+                }
+
+                Header(table, data.Columns.ToArray());
+                foreach (var values in data.Rows)
+                {
+                    var row = table.AddRow();
+                    for (var index = 0; index < data.Columns.Count; index++)
+                    {
+                        Cell(row, index, index < values.Count ? values[index] : string.Empty);
+                    }
+                }
+
+                section.AddParagraph().Format.SpaceAfter = Unit.FromPoint(2);
+            }
+
+            foreach (var note in item.Notes)
+            {
+                Muted(section, note);
+            }
         }
     }
 

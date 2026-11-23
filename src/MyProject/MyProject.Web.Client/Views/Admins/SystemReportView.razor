@@ -49,9 +49,9 @@ else
         </div>
 
         <div class="alert alert-info system-report-alert" role="alert">
-            每天在「系統參數」設定的時間產生前一天的日報（開關在「排程作業」頁的「系統巡檢日報」）。燈號由程式依固定規則判定：
-            紅燈＝已發生問題、要馬上處理；橙燈＝即將發生、有期限；黃燈＝注意；綠燈＝正常。日報有紅燈或橙燈時通知所有管理員並寄信。
-            報告保存 @retentionDays 天。
+            日報每天產生前一天的報告、週報每週產生上週一～週日的報告、月報每月產生上個月的報告（時間在「系統參數」頁，開關在「排程作業」頁）。
+            燈號由程式依固定規則判定：紅燈＝已發生問題、要馬上處理；橙燈＝即將發生、有期限；黃燈＝注意；綠燈＝正常。
+            日報有紅燈或橙燈時通知所有管理員並寄信；週報、月報一律寄出。報告保存：日報 @retentionDays 天、週報 @weeklyRetentionDays 天、月報 @monthlyRetentionDays 天。
         </div>
 
         <div class="system-report-table-wrap">
@@ -101,17 +101,22 @@ else
         <div class="system-report-generate-body">
             <div>
                 <label class="system-report-generate-label">種類</label>
-                <div>日報（之後的版本會加入週報與月報）</div>
+                <RadioGroup TValue="string" @bind-Value="generateFrequency">
+                    @foreach (var option in GenerateFrequencies)
+                    {
+                        <Radio TValue="string" Value="@option.Value">@option.Label</Radio>
+                    }
+                </RadioGroup>
             </div>
             <div>
-                <label class="system-report-generate-label" for="system-report-generate-date">日期</label>
+                <label class="system-report-generate-label" for="system-report-generate-date">@GenerateDateLabel</label>
                 <DatePicker TValue="DateTime?" @bind-Value="generateDate" Format="yyyy-MM-dd" Id="system-report-generate-date"
                             DisabledDate="@(date => date.Date >= DateTime.Today)" Style="width: 180px;" />
             </div>
             <Checkbox Checked="@generateSendToAdmins" CheckedChanged="@((bool value) => generateSendToAdmins = value)">產生後寄給所有管理員（不論燈號）</Checkbox>
             <div class="system-report-generate-hint">
-                報告在背景產生，約需一分鐘；完成後右上角的鈴鐺會通知你，清單按「重新整理」就看得到。
-                沒有勾選寄送時，只有你會收到站內通知。
+                報告在背景產生，日報約需一分鐘，週報與月報要驗證備份、約需數分鐘；完成後右上角的鈴鐺會通知你，清單按「重新整理」就看得到。
+                週報、月報要整週、整個月都過完才能產生。沒有勾選寄送時，只有你會收到站內通知。
             </div>
         </div>
     </Modal>

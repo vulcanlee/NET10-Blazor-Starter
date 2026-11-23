@@ -28,6 +28,7 @@ public sealed class SystemReportCollector
     private readonly CapacityProbe capacityProbe;
     private readonly CapacitySnapshotService snapshotService;
     private readonly IAiQuotaService quotaService;
+    private readonly BackupVerifier backupVerifier;
     private readonly IOptionsMonitor<EmailSettings> emailOptions;
     private readonly IOptionsMonitor<AiSettings> aiOptions;
     private readonly TimeProvider timeProvider;
@@ -42,6 +43,7 @@ public sealed class SystemReportCollector
         CapacityProbe capacityProbe,
         CapacitySnapshotService snapshotService,
         IAiQuotaService quotaService,
+        BackupVerifier backupVerifier,
         IOptionsMonitor<EmailSettings> emailOptions,
         IOptionsMonitor<AiSettings> aiOptions,
         TimeProvider timeProvider,
@@ -55,6 +57,7 @@ public sealed class SystemReportCollector
         this.capacityProbe = capacityProbe;
         this.snapshotService = snapshotService;
         this.quotaService = quotaService;
+        this.backupVerifier = backupVerifier;
         this.emailOptions = emailOptions;
         this.aiOptions = aiOptions;
         this.timeProvider = timeProvider;
@@ -90,13 +93,13 @@ public sealed class SystemReportCollector
             nextBackup = backupJob.NextRunLocal;
         }
 
-        var range = new SystemReportMetricsRange(
-            period.Start, period.End,
-            TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(period.Start, DateTimeKind.Unspecified), zone),
-            TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(period.End, DateTimeKind.Unspecified), zone),
-            nowUtc);
+        var range = Range(period, zone, nowUtc);
         var metrics = await TryAsync(SystemReportSections.Errors, "例外、排程、寄信、AI 與安全事件的統計", failures,
             () => metricsService.GetAsync(range, cancellationToken));
+        var previousMetrics = period.IsPeriodic
+            ? await TryAsync(SystemReportSections.Errors, "上一期的統計", failures,
+                () => metricsService.GetAsync(Range(period.Previous(), zone, nowUtc), cancellationToken))
+            : null;
 
         var (errorCount, errorCapped) = await CountErrorLogsAsync(period, failures, cancellationToken);
         if (errorCapped)
@@ -107,11 +110,13 @@ public sealed class SystemReportCollector
         var capacity = await TryAsync(SystemReportSections.Capacity, "磁碟與資料目錄", failures,
             () => capacityProbe.MeasureAsync(cancellationToken));
         var volumes = new List<SystemReportVolumeFact>();
+        IReadOnlyList<CapacitySnapshotRow>? history = null;
         if (capacity is not null)
         {
             limitations.AddRange(capacity.Notes);
-            var history = await TryAsync(SystemReportSections.Capacity, "容量快照", failures,
-                () => snapshotService.GetHistoryAsync(nowLocal.Date.AddDays(-CapacityForecast.WindowDays)));
+            var historyFrom = nowLocal.Date.AddDays(-CapacityForecast.WindowDays);
+            history = await TryAsync(SystemReportSections.Capacity, "容量快照", failures,
+                () => snapshotService.GetHistoryAsync(period.Start < historyFrom ? period.Start : historyFrom));
             foreach (var volume in capacity.Volumes)
             {
                 var samples = (history ?? [])
@@ -136,6 +141,21 @@ public sealed class SystemReportCollector
             ? await TryAsync(SystemReportSections.Ai, "AI 用量上限", failures, () => quotaService.GetStatusAsync(null, cancellationToken))
             : null;
 
+        // 週報、月報：備份可還原驗證（最新一份；沒有備份時另有 BKP-NONE）。
+        var verification = period.IsPeriodic && backups is { Count: > 0 }
+            ? await TryAsync(SystemReportSections.Backup, "備份可還原驗證", failures, () => backupVerifier.VerifyAsync(backups.MaxBy(x => x.CreatedAtLocal)!, cancellationToken))
+            : null;
+
+        // 月報：AI 費用（和上個月比）；季末那個月的月報：帳號與權限清查（涵蓋整季）。
+        var aiCost = period.IncludesAiCost
+            ? await TryAsync(SystemReportSections.Ai, "AI 費用", failures,
+                () => metricsService.GetAiCostAsync(period.Start, period.End, period.Previous().Start, cancellationToken))
+            : null;
+        var review = period.IncludesAccountReview
+            ? await TryAsync(SystemReportSections.Security, "帳號與權限清查", failures,
+                () => metricsService.GetAccountReviewAsync(Range(period.Quarter, zone, nowUtc).StartUtc, range.EndUtc, nowUtc, nowLocal, StaleAccountDays, cancellationToken))
+            : null;
+
         limitations.Add("日誌管線與告警的計數從網站上次啟動起算，重新啟動後歸零。");
 
         return new SystemReportFacts
@@ -155,10 +175,26 @@ public sealed class SystemReportCollector
             EmailProvider = emailOptions.CurrentValue.Provider,
             AiConfigured = aiConfigured,
             Quota = quota,
+            Zone = zone,
+            PreviousMetrics = previousMetrics,
+            CapacityHistory = history,
+            BackupVerification = verification,
+            AiCost = aiCost,
+            AccountReview = review,
             Failures = failures,
             Limitations = limitations,
         };
     }
+
+    /// <summary>帳號清查：超過這麼多天沒有登入算「久未登入」。</summary>
+    public const int StaleAccountDays = 90;
+
+    private static SystemReportMetricsRange Range(SystemReportPeriod period, TimeZoneInfo zone, DateTime nowUtc)
+        => new(
+            period.Start, period.End,
+            TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(period.Start, DateTimeKind.Unspecified), zone),
+            TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(period.End, DateTimeKind.Unspecified), zone),
+            nowUtc);
 
     /// <summary>區間內 Error 以上的日誌筆數：一天查一次（日誌查詢一次最多 3 天、最多 <see cref="LogQueryRequest.MaxTake"/> 筆）。</summary>
     private async Task<(int? Count, bool Capped)> CountErrorLogsAsync(SystemReportPeriod period, List<SystemReportSourceFailure> failures, CancellationToken cancellationToken)
