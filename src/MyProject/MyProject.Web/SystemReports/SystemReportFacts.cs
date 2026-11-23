@@ -44,6 +44,10 @@ public sealed record SystemReportPeriod(string Frequency, DateTime Start, DateTi
         };
     }
 
+    /// <summary>指定區間（0.10.42 起，系統管理助理）：起日 00:00～迄日隔天 00:00（迄日是今天時，數字只到現在）。</summary>
+    public static SystemReportPeriod Custom(DateTime start, DateTime endInclusive)
+        => new(SystemReportFrequencies.Custom, start.Date, endInclusive.Date.AddDays(1));
+
     /// <summary>今天以前最近一個完整的區間：日報＝昨天；週報＝上週一～週日；月報＝上個月。</summary>
     public static SystemReportPeriod LastComplete(string frequency, DateTime today)
         => Containing(frequency, frequency switch

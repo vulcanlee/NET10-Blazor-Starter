@@ -57,6 +57,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
     private readonly IOptionsMonitor<AiModelSettings> modelMonitor;
     private readonly IAiAgentConversationStore store;
     private readonly ILogger<AiAgentRunner> logger;
+    private readonly AiAgentReportOutputs? reportOutputs;
 
     public AiAgentRunner(
         IAiAgentFactory agentFactory,
@@ -66,7 +67,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
         IOptionsMonitor<AiSettings> settingsMonitor,
         IOptionsMonitor<AiModelSettings> modelMonitor,
         IAiAgentConversationStore store,
-        ILogger<AiAgentRunner> logger)
+        ILogger<AiAgentRunner> logger,
+        AiAgentReportOutputs? reportOutputs = null)
     {
         this.agentFactory = agentFactory;
         this.toolFactory = toolFactory;
@@ -76,6 +78,7 @@ public sealed class AiAgentRunner : IAiAgentRunner
         this.modelMonitor = modelMonitor;
         this.store = store;
         this.logger = logger;
+        this.reportOutputs = reportOutputs;
     }
 
     public string? UnavailableReason => AiChatEndpoint.Validate(settingsMonitor.CurrentValue);
@@ -137,7 +140,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
 
         return new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger,
             planner: planner, createHandle: (next, effort, pinnedModel) => CreateHandle(next, conversationId, effort, pinnedModel).Handle, approvalPreview: toolFactory.PreviewAsync,
-            turn: turn, reasoningEffort: reasoningEffort);
+            turn: turn, reasoningEffort: reasoningEffort)
+        { ReportOutputs = reportOutputs };
     }
 
     private async Task<AiAgentChat?> ResumeCoreAsync(
@@ -188,7 +192,8 @@ public sealed class AiAgentRunner : IAiAgentRunner
 
         var chat = new AiAgentChat(definition, conversationId, modelName, handle, session, guard, store, logger, loaded.Summary.Title,
             planner, (next, effort, pinnedModel) => CreateHandle(next, conversationId, effort, pinnedModel).Handle, toolFactory.PreviewAsync,
-            turn: turn, reasoningEffort: reasoningEffort);
+            turn: turn, reasoningEffort: reasoningEffort)
+        { ReportOutputs = reportOutputs };
         chat.Restore(content);
         return chat;
     }
@@ -262,6 +267,12 @@ public sealed class AiAgentChat
     private readonly List<AiAgentTranscriptEntry> transcript = [];
     private string? title;
     private readonly Func<AiToolDefinition, FunctionCallContent, Task<string?>>? approvalPreview;
+
+    /// <summary>
+    /// 工具這一輪產生的系統巡檢報告（0.10.42 起）：這一輪結束時在回覆下方各加一則 <see cref="AiAgentTranscriptKinds.Report"/>。
+    /// 沒有設定（例如測試或沒有報告工具的 agent）就不加。
+    /// </summary>
+    internal AiAgentReportOutputs? ReportOutputs { get; init; }
 
     internal AiAgentChat(
         AiAgentDefinition definition,
@@ -646,6 +657,7 @@ public sealed class AiAgentChat
             else
             {
                 FlushAssistant(text, interrupted: false);
+                AppendReports();
                 Append(Entry(AiAgentTranscriptKinds.Error, failure.ErrorMessage));
             }
 
@@ -656,6 +668,7 @@ public sealed class AiAgentChat
         // 收進紀錄會清掉 text，結果要用的全文先留下來。
         var markdown = text.ToString();
         FlushAssistant(text, interrupted: false);
+        AppendReports();
 
         if (approvals.Count > 0)
         {
@@ -710,6 +723,15 @@ public sealed class AiAgentChat
         }
 
         return autoRejected;
+    }
+
+    /// <summary>工具這一輪產生的報告：放在回覆下方（報告已存檔，回覆失敗也照樣顯示按鈕）。</summary>
+    private void AppendReports()
+    {
+        foreach (var report in ReportOutputs?.Drain() ?? [])
+        {
+            Append(new AiAgentTranscriptEntry { Kind = AiAgentTranscriptKinds.Report, Text = report.ReportId.ToString("N"), Agent = report.Title });
+        }
     }
 
     private void Append(AiAgentTranscriptEntry entry)

@@ -1,10 +1,10 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.27
+- 文件版本：1.28
 - 文件狀態：已實作
-- 現行系統版本：0.10.41
+- 現行系統版本：0.10.42
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/20
+- 最後核對日期：2026/11/23
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
@@ -369,6 +369,7 @@
 - **串流每一行**（`AgentStreamFrameDto`，`Kind`）：`start`（對話 ID、模型、推論等級）、`entry`（新增的一則紀錄）、`delta`（文字）、`tool`（工具開始／結束）、`label`（「由誰回答」，**每個請求至少送一次**）、最後是 `approvals`（停下來等核准）或 `result`（`AiResultDto`），閒置時 `ping`。
 - **每段對話一把鎖**（`AiAgentConversationLocks`）：鎖得到就先驗證，錯誤以狀態碼回；同一段對話正被另一個請求（例如另一個分頁）使用時**排隊**——先回 200 串流、等待期間送心跳，輪到之後才驗證，這時的錯誤放在 `result` 那一行（`Success=false`）。核准另以資料庫的條件式更新（`HasPendingApproval`）搶占，跨行程也只執行一次。
 - 系統管理助理接續停在核准的對話時，沿用提出核准的那一輪（分派結果存在對話檔的 `TurnKey`，由 `IAiAgentTurnPlanner.RestoreTurnAsync` 重建），不會變成「全部工具＋全部領域」。
+- 0.10.42 起巡檢回合的工具 `run_system_report` 在這個請求裡產生一份系統巡檢報告（不新增端點、不經核准）；這一輪結束時多一則 `entry`，`Kind`＝`Report`（`Text` 是報告編號 `N` 格式、`Agent` 是報告標題），畫面據此顯示「查看報告」「下載 PDF」（後者呼叫下方的 `POST system-reports/{id}/pdf`）。
 
 ## 二之五、系統巡檢報告 API（0.10.39 起）
 
@@ -383,7 +384,7 @@ DTO 在 `MyProject.Dtos/Admins/SystemReportDtos.cs`（舊版巡檢報告沿用 `
 | 報告清單 | `POST system-reports/search` | body `SystemReportSearchRequestDto`（種類、燈號、產生日期起迄、分頁）；回 `SystemReportListDto`：報告摘要（最新在前）、總筆數與保存天數（`DailyRetentionDays`；0.10.41 起另有 `WeeklyRetentionDays`、`MonthlyRetentionDays`）|
 | 一份報告 | `GET system-reports/{id}` | `SystemReportDetailDto`：摘要與內容（全面摘要、每一項發現、容量表、統計、AI 說明；0.10.41 起週報、月報另有 `Sections`〔`SystemReportSectionDto`：`Key`、`Title`、`Highlights`、`Tables`、`Notes`〕，月報的 AI 費用與帳號清查表格含帳號與姓名）；內容檔不見時 `Content` 為 null；找不到 404「找不到這份報告，可能已超過保存期限被清除。」|
 | 立即產生 | `POST system-reports/generate` | body `SystemReportGenerateRequestDto`（`Frequency`＝`Daily`／`Weekly`／`Monthly`〔週報、月報 0.10.41 起〕、`Date`＝區間內任一天、`SendToAdmins`）。不在請求裡產生：帶參數放進對應作業（系統巡檢日報／週報／月報）的佇列，完成時以站內通知告訴產生者；同一個作業已在佇列或執行中 409「已經有一份{日報／週報／月報}正在產生，請等它完成。」；區間還沒過完 400（「只能產生今天以前的日報（今天還沒過完）。」「這一週還沒過完，只能產生上週以前的週報。」「這個月還沒過完，只能產生上個月以前的月報。」）、區間起日早於那一種報告的保存天數 400「只能產生最近 N 天內的{日報／週報／月報}。」、其他種類 400「報告種類只能是日報、週報或月報。」。成功寫 `Job.Trigger`（`job={SystemReportDaily／SystemReportWeekly／SystemReportMonthly}; date=…; send=…; via=system-reports`），週報、月報的成功訊息是「已開始產生{週報}（{區間}），完成後會以站內通知告訴你（含備份可還原驗證，約需數分鐘）。」|
-| 下載 PDF | `POST system-reports/{id}/pdf` | 0.10.40 起。無 body；由報告內容 JSON 隨需產生（不存檔），回 `application/pdf` 檔案（不包 `ApiResult`），檔名 `system-report-{頻率小寫}-{區間起日 yyyyMMdd}.pdf`（例 `system-report-daily-20261119.pdf`）。找不到報告或內容檔 404；內嵌字型缺失 500「缺少內建中文字型，請確認建置產物完整。」。成功寫 `SystemReport.Download`（targetType `SystemReport`、targetId 報告編號 `N` 格式、detail `format=pdf; frequency=Daily`）。舊版巡檢報告沒有 PDF |
+| 下載 PDF | `POST system-reports/{id}/pdf` | 0.10.40 起。無 body；由報告內容 JSON 隨需產生（不存檔），回 `application/pdf` 檔案（不包 `ApiResult`），檔名 `system-report-{頻率小寫}-{區間起日 yyyyMMdd}.pdf`（例 `system-report-daily-20261119.pdf`）。找不到報告或內容檔 404；內嵌字型缺失 500「缺少內建中文字型，請確認建置產物完整。」。成功寫 `SystemReport.Download`（targetType `SystemReport`、targetId 報告編號 `N` 格式、detail `format=pdf; frequency=Daily`）。舊版巡檢報告沒有 PDF。0.10.42 起系統管理助理產生的指定區間報告也走這裡（檔名 `system-report-custom-…pdf`、detail `frequency=Custom`）|
 | 舊版巡檢報告清單 | `GET system-reports/legacy` | `AdminPatrolReportListDto`：0.9.161～0.10.38 的 AI 巡檢報告與保存天數（最新在前）|
 | 一份舊版巡檢報告 | `GET system-reports/legacy/{id}` | `AdminPatrolReportDetailDto`（內文 Markdown 由畫面消毒）；找不到 404 |
 

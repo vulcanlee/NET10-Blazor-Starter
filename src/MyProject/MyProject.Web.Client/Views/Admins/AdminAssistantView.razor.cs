@@ -94,6 +94,15 @@ public partial class AdminAssistantView : IDisposable
     public NavigationManager NavigationManager { get; set; } = default!;
 
     [Inject]
+    public SystemReportApi ReportApi { get; set; } = default!;
+
+    [Inject]
+    public Microsoft.JSInterop.IJSRuntime JSRuntime { get; set; } = default!;
+
+    /// <summary>正在下載 PDF 的報告編號（按鈕停用）。</summary>
+    private string? downloadingReport;
+
+    [Inject]
     public ILogger<AdminAssistantView> Logger { get; set; } = default!;
 
     public string RoleMessage { get; set; } = string.Empty;
@@ -154,6 +163,39 @@ public partial class AdminAssistantView : IDisposable
 
     /// <summary>「巡檢報告」按鈕（0.10.39 起）：系統巡檢報告有自己的頁面。</summary>
     private void OnOpenSystemReports() => NavigationManager.NavigateTo("/system-reports");
+
+    /// <summary>回覆下方的「查看報告」（0.10.42 起）：到系統巡檢報告頁打開那一份。</summary>
+    private void OnOpenReport(string reportId) => NavigationManager.NavigateTo($"/system-reports?report={reportId}");
+
+    /// <summary>回覆下方的「下載 PDF」（0.10.42 起）：同報告視窗的下載（伺服器寫 SystemReport.Download 稽核）。</summary>
+    private async Task OnDownloadReportAsync(string reportId)
+    {
+        if (!Guid.TryParse(reportId, out var id))
+        {
+            return;
+        }
+
+        downloadingReport = reportId;
+        StateHasChanged();
+        try
+        {
+            var outcome = await ReportApi.DownloadPdfAsync(id);
+            if (!outcome.Success)
+            {
+                ViewNotification.Error(NotificationService, $"PDF 下載失敗：{outcome.Message}");
+                return;
+            }
+
+            await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
+            Logger.LogInformation("System report PDF downloaded from the admin assistant. ReportId={ReportId}, Bytes={Bytes}", id, outcome.Content!.Length);
+            ViewNotification.Info(NotificationService, "PDF 已產生並開始下載。");
+        }
+        finally
+        {
+            downloadingReport = null;
+            StateHasChanged();
+        }
+    }
 
     private async Task OnNewConversation()
     {

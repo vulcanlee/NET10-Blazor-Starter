@@ -715,6 +715,35 @@ public sealed class AiAgentRunnerTests
 
     private Task<AiAgentChat> StartAsync() => CreateRunner().StartAsync(SampleTools.Agent);
 
+    /// <summary>
+    /// 工具產生的系統巡檢報告（0.10.42 起）：這一輪結束時在回覆「下方」加一則 Report 逐字稿（報告編號＋標題），
+    /// 經 EntryAdded 送給畫面、隨對話存檔；工具回給模型的文字不帶這些。
+    /// </summary>
+    [Fact]
+    public async Task ToolReport_IsAppendedBelowTheReply_AndSaved()
+    {
+        guard.Allowed.Add(SampleTools.Read.Name);
+        var reportId = Guid.NewGuid();
+        sample.ReportOnRead = (reportId, "系統巡檢指定區間 2026/11/22～2026/11/23");
+        upstream.Enqueue(AiSse.ResponsesToolCall("call_1", SampleTools.Read.Name, """{"keyword":"A"}"""));
+        upstream.Enqueue(AiSse.Responses(["巡檢完成。"]));
+        var outputs = new AiAgentReportOutputs();
+        sample.Outputs = outputs;
+        var chat = await CreateRunner(outputs).StartAsync(SampleTools.Agent);
+        var added = new List<AiAgentTranscriptEntry>();
+        chat.EntryAdded = added.Add;
+
+        await CollectAsync(chat.SendAsync("巡一下"));
+
+        var kinds = chat.Transcript.Select(entry => entry.Kind).ToList();
+        Assert.Equal([AiAgentTranscriptKinds.User, AiAgentTranscriptKinds.Tool, AiAgentTranscriptKinds.Assistant, AiAgentTranscriptKinds.Report], kinds);
+        var report = chat.Transcript[^1];
+        Assert.Equal((reportId.ToString("N"), "系統巡檢指定區間 2026/11/22～2026/11/23"), (report.Text, report.Agent));
+        Assert.Contains(added, entry => entry.Kind == AiAgentTranscriptKinds.Report);
+        Assert.Empty(outputs.Drain());
+        Assert.Contains(store.Saved[chat.ConversationId].Content.Transcript, entry => entry.Kind == AiAgentTranscriptKinds.Report && entry.Text == reportId.ToString("N"));
+    }
+
     /// <summary>所有執行器共用的 AI 設定（測試可以在對話途中改它，模擬管理員改系統參數）。</summary>
     private readonly AiSettings runnerSettings = new()
     {
@@ -724,7 +753,7 @@ public sealed class AiAgentRunnerTests
     };
 
     /// <summary>每呼叫一次就是一個新的執行器（等於重新整理頁面），共用同一個上游、存檔與記帳替身。</summary>
-    private AiAgentRunner CreateRunner()
+    private AiAgentRunner CreateRunner(AiAgentReportOutputs? reportOutputs = null)
     {
         var options = new StaticOptionsMonitor<AiSettings>(runnerSettings);
         var factory = AiTestAgents.CreateFactory(
@@ -743,7 +772,8 @@ public sealed class AiAgentRunnerTests
             options,
             new StaticOptionsMonitor<AiModelSettings>(new AiModelSettings()),
             store,
-            NullLogger<AiAgentRunner>.Instance);
+            NullLogger<AiAgentRunner>.Instance,
+            reportOutputs);
     }
 
     private static async Task<List<AiAgentUpdate>> CollectAsync(IAsyncEnumerable<AiAgentUpdate> stream)
@@ -802,6 +832,11 @@ public sealed class AiAgentRunnerTests
 
         public List<string> WriteCalls { get; } = [];
 
+        /// <summary>設定時，「讀取」會像巡檢工具一樣交出一份報告（0.10.42 起）。</summary>
+        public (Guid Id, string Title)? ReportOnRead { get; set; }
+
+        public AiAgentReportOutputs? Outputs { get; set; }
+
         public static AiToolDefinition Read { get; } = new()
         {
             Name = "read_things",
@@ -835,6 +870,11 @@ public sealed class AiAgentRunnerTests
         public Task<string> ReadAsync([Description("關鍵字")] string keyword)
         {
             ReadCalls.Add(keyword);
+            if (ReportOnRead is { } report)
+            {
+                Outputs?.Add(report.Id, report.Title);
+            }
+
             return Task.FromResult("[{\"id\":1,\"title\":\"A\"}]");
         }
 

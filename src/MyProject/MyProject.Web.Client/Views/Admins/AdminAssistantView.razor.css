@@ -337,3 +337,21 @@
     color: var(--app-error);
     font-size: 13px;
 }
+
+/* 回覆下方的系統巡檢報告（0.10.42 起）：標題＋查看報告、下載 PDF。 */
+.admin-assistant-report {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius-card);
+    background: var(--app-card);
+}
+
+.admin-assistant-report-title {
+    font-weight: 600;
+    margin-right: auto;
+}

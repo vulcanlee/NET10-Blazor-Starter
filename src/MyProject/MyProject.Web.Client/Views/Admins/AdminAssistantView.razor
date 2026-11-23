@@ -135,6 +135,17 @@ else
                             case AiAgentTranscriptKinds.Notice:
                                 <div class="agent-playground-notice">@entry.Text</div>
                                 break;
+                            case AiAgentTranscriptKinds.Report:
+                                @* 這一輪產生的系統巡檢報告（0.10.42 起）：Text 是報告編號、Agent 是標題。 *@
+                                <div class="admin-assistant-report">
+                                    <span class="admin-assistant-report-title">@entry.Agent</span>
+                                    <ToolbarIconButton Title="查看報告" Icon="assessment"
+                                                       OnClick="@(() => OnOpenReport(entry.Text))" />
+                                    <ToolbarIconButton Title="下載 PDF" Icon="picture_as_pdf"
+                                                       Disabled="@(downloadingReport == entry.Text)"
+                                                       OnClick="@(async () => await OnDownloadReportAsync(entry.Text))" />
+                                </div>
+                                break;
                             case AiAgentTranscriptKinds.Error:
                                 <div class="agent-playground-entry agent-playground-entry-error">@entry.Text</div>
                                 break;

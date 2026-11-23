@@ -229,6 +229,51 @@ public sealed class SystemReportsApiTests : IClassFixture<ApiTestApplicationFact
         Assert.Equal(shouldNotify ? SystemReportDeliveryStatuses.Sent : SystemReportDeliveryStatuses.NotRequired, report.DeliveryStatus);
     }
 
+    /// <summary>
+    /// 系統管理助理的巡檢工具（0.10.42 起，M4）：沒講日期＝昨天到現在；存成 Custom／Assistant、不請 AI 寫說明、不通知；
+    /// 寫 SystemReport.Generate 稽核，並把報告交給對話（回覆下方的按鈕）；區間不合法時不產生、回錯誤給模型。
+    /// </summary>
+    [Fact]
+    public async Task AssistantTool_GeneratesACustomReport_WithoutAiOrNotifications_AndAudits()
+    {
+        var admin = await AddUserAsync(isAdmin: true);
+        string json;
+        string error;
+        IReadOnlyList<MyProject.Web.Ai.Agents.AiAgentReportOutput> handedOver;
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<CurrentUserService>().CurrentUser = new MyProject.Models.Others.CurrentUser { Id = admin.Id, Account = admin.Account };
+            var tools = scope.ServiceProvider.GetRequiredService<MyProject.Web.Ai.Agents.AdminAssistant.ReportAssistantTools>();
+            json = await tools.RunSystemReportAsync();
+            error = await tools.RunSystemReportAsync("2026-01-01", "2026-03-31");
+            handedOver = scope.ServiceProvider.GetRequiredService<MyProject.Web.Ai.Agents.AiAgentReportOutputs>().Drain();
+        }
+
+        await using var db = await CreateContextAsync();
+        var report = await db.SystemReport.SingleAsync(x => x.TriggeredByAccount == admin.Account);
+        Assert.Equal((SystemReportFrequencies.Custom, SystemReportTriggers.Assistant, SystemReportNarrativeStatuses.Skipped, SystemReportDeliveryStatuses.NotRequired),
+            (report.Frequency, report.Trigger, report.NarrativeStatus, report.DeliveryStatus));
+        Assert.Equal((DateTime.Today.AddDays(-1), DateTime.Today.AddDays(1)), (report.PeriodStart, report.PeriodEnd));
+        Assert.Contains("\"saved\":true", json, StringComparison.Ordinal);
+        Assert.Contains($"\"period\":\"{DateTime.Today.AddDays(-1):yyyy/MM/dd} 00:00～{DateTime.Today:yyyy/MM/dd} ", json, StringComparison.Ordinal);
+        Assert.Contains("\"level\":", json, StringComparison.Ordinal);
+        Assert.Contains("\"error\":", error, StringComparison.Ordinal);
+        var output = Assert.Single(handedOver);
+        Assert.Equal(report.ReportId, output.ReportId);
+        Assert.StartsWith("系統巡檢指定區間 ", output.Title, StringComparison.Ordinal);
+
+        var reportService = factory.Services.GetRequiredService<SystemReportService>();
+        var content = JsonSerializer.Deserialize<SystemReportContentDto>((await reportService.GetAsync(report.ReportId))!.ContentJson!, MyProject.Web.SystemReports.SystemReportGenerator.ContentJsonOptions)!;
+        Assert.Null(content.Narrative);
+        Assert.Equal(MyProject.Web.SystemReports.SystemReportAssistantService.NarrativeNote, content.NarrativeNote);
+        Assert.Empty(content.Sections);
+
+        Assert.False(await db.Notification.AnyAsync(x => x.Link!.Contains(report.ReportId.ToString("N"))));
+        var audit = await db.AuditLog.SingleAsync(x => x.Action == AuditActions.SystemReport.Generate && x.ActorUserId == admin.Id);
+        Assert.Equal(("SystemReport", report.ReportId.ToString("N")), (audit.TargetType, audit.TargetId));
+        Assert.Equal($"frequency=Custom; start={DateTime.Today.AddDays(-1):yyyy-MM-dd}; end={DateTime.Today:yyyy-MM-dd}; via=admin-assistant", audit.Detail);
+    }
+
     [Fact]
     public async Task CapacitySnapshotJob_RecordsTodaysSnapshot()
     {

@@ -72,6 +72,12 @@ public static class AiAgentTranscriptKinds
 
     /// <summary>工作流程的產出（0.9.144 起，例如定稿的報告），<see cref="AiAgentTranscriptEntry.Agent"/> 是產出標題。</summary>
     public const string Output = "Output";
+
+    /// <summary>
+    /// 系統管理助理在這一輪產生的系統巡檢報告（0.10.42 起）：<see cref="AiAgentTranscriptEntry.Text"/> 是報告編號（N 格式）、
+    /// <see cref="AiAgentTranscriptEntry.Agent"/> 是報告標題。畫面在回覆下方顯示「查看報告」「下載 PDF」。
+    /// </summary>
+    public const string Report = "Report";
 }
 
 /// <summary>

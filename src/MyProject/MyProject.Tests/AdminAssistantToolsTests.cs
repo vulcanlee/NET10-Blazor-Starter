@@ -252,6 +252,7 @@ public sealed class AdminAssistantToolsTests
             .AddSingleton(new OpsAssistantTools(null!, null!, null!, null!, null!, null!, audit, currentUser, null!, null!))
             .AddSingleton(new AccountsAssistantTools(null!, null!, null!, audit, currentUser, null!, null!))
             .AddSingleton(new AiAssistantTools(null!, null!, null!, null!, audit, currentUser))
+            .AddSingleton(new ReportAssistantTools(null!, new MyProject.Web.Ai.Agents.AiAgentReportOutputs()))
             .BuildServiceProvider();
 
         foreach (var tool in AdminAssistantAgent.Home.Tools)
