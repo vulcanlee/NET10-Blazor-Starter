@@ -429,7 +429,6 @@ public sealed class SystemHealthService : ISystemHealthService
         var evidence =
             $"本次啟動以來：例外佇列 {queueLength:N0}/{queueCapacity:N0}；丟棄 {droppedEntries:N0}；"
             + $"寫入失敗 {snapshot.WriteFailures:N0}（最後 {lastWriteFailure}）；"
-            + $"前端錯誤回報因限流丟棄 {snapshot.ClientErrorsDropped:N0}；"
             + $"告警入列失敗 {snapshot.AlertQueueFailures:N0}、寄送失敗 {snapshot.AlertSendFailures:N0}；"
             + $"NLog 內部錯誤 {snapshot.NLogInternalErrors:N0}；日誌磁碟可用 {disk}。";
 

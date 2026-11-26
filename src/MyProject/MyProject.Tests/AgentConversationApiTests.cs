@@ -438,14 +438,13 @@ public sealed class AgentConversationApiTests : IClassFixture<ApiTestApplication
     }
 
     [Fact]
-    public async Task AdminAssistant_Info_ShouldNotOfferReasoning_AndListTheRetention()
+    public async Task AdminAssistant_Info_ShouldListTheRetention()
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: true));
 
         var info = await SendAsync<AgentPageInfoDto>(client, HttpMethod.Get, $"{Assistant}/info");
 
         Assert.Null(info.UnavailableReason);
-        Assert.Empty(info.ReasoningEffortValues);
         Assert.True(info.RetentionDays > 0);
     }
 

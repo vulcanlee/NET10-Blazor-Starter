@@ -1,10 +1,10 @@
 ﻿# MAF AI 呼叫架構
 
-- 文件版本：1.17
+- 文件版本：1.18
 - 文件狀態：第一～三階段已實作（第四階段多 Agent 工作流程 0.10.22 起已移除）
-- 現行系統版本：0.10.42
+- 現行系統版本：0.10.43
 - 首次實作版本：0.9.140
-- 最後核對日期：2026/11/23
+- 最後核對日期：2026/11/26
 
 > 系統內**所有** LLM 呼叫都經由 Microsoft Agent Framework（MAF）建立的 agent 送出（0.9.140 起）。
 > 本文件說明管線怎麼組、記帳點在哪裡、為什麼這樣決定、Agent 骨架怎麼用（§6）、模型怎麼選（含快速模型，§6.5）、對話怎麼保存與接續（§6.7）、系統管理助理的每輪規劃（§6.9），以及各階段的範圍（多 Agent 工作流程已移除，見 §6.8）。
@@ -182,17 +182,18 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 **快速模型（`AiSettings:FastModel`，0.10.22 起）**：給不複雜的工作用，例如從一段文字或一個標題產生標籤或摘要。選填、只在設定檔（**不是**系統參數，和 `Model` 一樣），空白＝用 `AiSettings:Model`。
 呼叫端在 `AiCallContext.UseFastModel`（經 `AiChatCompletionClient` 的走 `AiChatCompletionRequest.UseFastModel`）設 `true` 才會用它。`AiAgentFactory.CreateAgent` 選模型的順序：
 
-1. `AiCallContext.ModelOverride`（程式指定，例如接續對話時沿用開對話的模型）；
-2. `AiModelSettings` 替 `ModelKey` 設的值（系統參數）；
-3. `AiSettings:FastModel`（`UseFastModel` 且有填時）；
-4. `AiSettings:Model`。
+1. `AiModelSettings` 替 `ModelKey` 設的值（系統參數）；
+2. `AiSettings:FastModel`（`UseFastModel` 且有填時）；
+3. `AiSettings:Model`。
 
-第 3、4 步由 `AiSettings.DefaultModel(fast)` 決定，交給 `AiModelSettings.Resolve(ModelKey, 預設)` 當退路。現行唯一用快速模型的是系統管理助理的分派（§6.9）。`AiModelSelectionTests` 守門（送出與記帳的模型一致、系統參數優先於快速模型、快速模型空白時退回 `Model`、計費表會檢查它）。
+（0.9.170～0.10.42 另有排第一的 `AiCallContext.ModelOverride`，只給「依對話改推論等級」沿用開對話時的模型，0.10.43 隨該功能移除。）
+
+第 2、3 步由 `AiSettings.DefaultModel(fast)` 決定，交給 `AiModelSettings.Resolve(ModelKey, 預設)` 當退路。現行唯一用快速模型的是系統管理助理的分派（§6.9）。`AiModelSelectionTests` 守門（送出與記帳的模型一致、系統參數優先於快速模型、快速模型空白時退回 `Model`、計費表會檢查它）。
 
 **各功能的推論等級（`AiReasoningSettings`，0.9.168 起）**：鍵名和 `AiModelSettings` 的 Agent 功能同名（0.10.22 起只有 `AdminAssistant`），
 同樣以 `AiCallContext.ModelKey` 對應；`AiAgentFactory.CreateAgent` 每次讀 `GetOverride(ModelKey)`，空白（或沒有對應的鍵）時用 `AiSettings.AgentReasoningEffort`，仍只在 `UseResponsesApi` 時送 `reasoning.effort`。
 工廠把實際送出的值與設定來源（系統參數的名稱或 `AiSettings:AgentReasoningEffort`）交給記帳中介層，模型以 400 `reasoning.effort` 拒絕時，訊息指名要改的那一個設定。
-0.9.170 起 `AiCallContext.ReasoningEffortOverride` 優先於上述兩者（來源 `AiReasoningEffortOrigin.Conversation`）：替某段對話選的推論等級（只有 `AgentConversationProfile.SupportsReasoningEffort` 開著的頁面會收；0.10.21 以前是 Agent 測試台，0.10.22 起沒有頁面開，管線保留），`AiAgentRunner.StartAsync(definition, reasoningEffort)` 帶入、`AiAgentChat.SetReasoningEffort` 以同一個 session 重建 agent（以 `AiCallContext.ModelOverride` 沿用開對話時的模型），值存進 `AiAgentConversationContent.ReasoningEffort`，接續時沿用。
+0.9.170～0.10.42 另有「依對話選推論等級」（`AiCallContext.ReasoningEffortOverride`、`AiAgentChat.SetReasoningEffort`、內容檔的 `ReasoningEffort`），0.10.22 起沒有頁面使用，0.10.43 移除；舊內容檔裡的這個欄位讀取時略過，接續一律用上述兩者。
 不放進 `AiModelSettings`：`OverriddenModels()` 會把每個 string 屬性當成模型名稱拿去查費率。`AiReasoningSettingsTests` 守門：每個走 Responses 的 Agent 都有自己的推論等級設定，也都在系統參數頁。設定說明見 [日誌與設定檔說明 §4.18](../operations/日誌與設定檔說明.md)。
 
 ### 6.6 新增一個 Agent
@@ -201,7 +202,7 @@ Agent 一律寫在 **C# 程式碼**（不在畫面上設定），提示詞沿用
 2. `PromptTemplateKeys` 加種類（含 `All`）、`AiPromptGuardrails` 補內建提示詞與「不可信內容」說法、`PromptTemplateTitles`（0.10.5 起在 `MyProject.Web/Ai/`；之前是 `PromptTemplateView`）補分頁名稱。
 3. `TokenUsageOperations` 加作業名稱；新模型補 `AiPricingSettings.Models` 費率。
 4. `AiModelSettings` 加屬性 → `SystemParameterCatalog.All` 加一行 → appsettings.json 加鍵 → [日誌與設定檔說明 §4.15](../operations/日誌與設定檔說明.md) 加一列；`AiReasoningSettings` 照樣加同名的推論等級（0.9.168 起）。
-5. 執行用 `IAiAgentRunner`（對話保存內建，「我的對話」清單、改名、刪除用 `AiAgentConversationService`，見 §6.7）；Web API 照 `AdminAssistantController` 用 `AgentConversationEndpoint`＋`AgentConversationProfile`，WASM 端繼承 `AgentConversationApi`。頁面權限照新增頁面的四處同步（預設角色會自動拿到新頁面；0.10.21 以前的 `NotGrantedToDefaultRole` 已移除），並寫操作說明。
+5. 執行用 `IAiAgentRunner`（對話保存內建，「我的對話」清單、改名、刪除用 `AiAgentConversationService`，見 §6.7）；Web API 參考 `AdminAssistantController`＋`AgentConversationEndpoint`（0.10.43 起流程類別直接用系統管理助理的每輪規劃器，不再有給多個 Agent 頁共用的 `AgentConversationProfile`；新的 Agent 頁要照它另寫一份或把設定抽回參數），WASM 端參考 `AdminAssistantApi`。頁面權限照新增頁面的四處同步（預設角色會自動拿到新頁面；0.10.21 以前的 `NotGrantedToDefaultRole` 已移除），並寫操作說明。
 
 步驟細節見 [腳手架開發指引 §3.11](../guides/腳手架開發指引.md)「新增一個 Agent」。
 
@@ -307,7 +308,7 @@ Agent 的對話（現行是系統管理助理）會自動保存，左側「我�
 | `MyProject.Web/Ai/AiPipelinePolicies.cs` | `AiHttpCapturePolicy`（擷取原文）、`AzureApiKeyPolicy`（Azure 認證標頭）、`AiCapturingStream`（串流回應邊讀邊記，0.9.141 起）|
 | `MyProject.Web/Ai/AiChatResponseParser.cs` | 從回應原文解析用量、模型、`finish_reason`、過濾類別；`ParseStream`／`ExtractStreamUsageJson` 解析 SSE（0.9.141 起）|
 | `MyProject.Web.Client/Ai/AiInterruption.cs`（0.10.5 起搬到 Client 共用，命名空間不變）| 「產生途中被使用者停止」的註記文字與 `Annotate`（只用在畫面、複製、PDF）|
-| `MyProject.Web/Ai/AiCallContext.cs` | `AiCallContext`（0.9.142 起含 `RunId`、`ModelKey`；0.9.170 起 `ReasoningEffortOverride`、`ModelOverride`；0.10.22 起 `UseFastModel`）、`AiCallException`、`AiCallState`（0.9.142 起含 `RunId`）、`AiCallOutcome` |
+| `MyProject.Web/Ai/AiCallContext.cs` | `AiCallContext`（0.9.142 起含 `RunId`、`ModelKey`；0.9.170～0.10.42 有 `ReasoningEffortOverride`、`ModelOverride`；0.10.22 起 `UseFastModel`）、`AiCallException`、`AiCallState`（0.9.142 起含 `RunId`）、`AiCallOutcome` |
 | `MyProject.Web/Ai/Agents/AiAgentDefinition.cs` | `AiAgentDefinition`、`AiToolDefinition`（0.9.142 起）|
 | `MyProject.Web/Ai/Agents/AiAgentToolFactory.cs` | `AiAgentToolFactory`、`IAiToolPermissionGuard`／`AiToolPermissionGuard`（權限與稽核）、`PermissionCheckedAIFunction`（0.9.142 起）|
 | `MyProject.Web/Ai/Agents/AiAgentRunner.cs` | `IAiAgentRunner`、`AiAgentChat`（執行、RunId、核准分流；0.9.143 起 `Transcript`、存檔、`ResumeAsync`）、`AiAgentUpdate`、`AiToolActivity`（0.9.142 起；`AiToolApprovalRequest` 0.10.7 起在 Client）|
@@ -319,7 +320,7 @@ Agent 的對話（現行是系統管理助理）會自動保存，左側「我�
 | `MyProject.Web/Ai/Agents/AdminAssistant/` | 系統管理助理：`AdminAssistantAgent`（定義組裝與內建提示詞）、`AdminAssistantRouting`（領域、分派解析）、`AdminAssistantTurnPlanner`（0.10.7 起含 `RestoreTurnAsync`）、`AdminAssistantToolText`、`MonitoringAssistantTools`、`OpsAssistantTools`（0.9.155 起）、`AccountsAssistantTools`、`AiAssistantTools`（0.9.157 起）、`AdminAssistantMutation`（0.9.158 起，異動工具的批次與保護）|
 | `MyProject.Web.Client/Ai/AdminAssistantApproval.cs`、`AiToolApprovalRequest.cs`（0.10.7 起搬到 Client 共用，命名空間不變）| 有不可復原的動作時要輸入「確認」才能核准（0.9.159 起；伺服器與核准窗共用）；一筆待核准的工具呼叫 |
 | `MyProject.Web.Client/Pages/AdminAssistantPage.razor`、`Views/Admins/AdminAssistantView.razor(.cs/.css)`（0.10.7 起 WASM；之前在 `MyProject.Web/Components/`）| 「系統管理助理」頁（`/admin-assistant`，0.9.155 起；0.10.7 起網址帶 `?conversation=`）|
-| `MyProject.Web/Controllers/AgentConversationEndpoint.cs`（含 `AgentConversationProfile`）、`AdminAssistantController.cs`；`MyProject.Web/Ai/Agents/AiAgentConversationLocks.cs` | Agent 對話的 Web API（0.10.7 起）：每個請求接續一次、NDJSON 串流、每段對話一把鎖、核准搶占（0.10.38 以前另有巡檢報告端點，0.10.39 起移到 `SystemReportsController`）|
+| `MyProject.Web/Controllers/AgentConversationEndpoint.cs`（0.10.43 起拿掉 `AgentConversationProfile`）、`AdminAssistantController.cs`；`MyProject.Web/Ai/Agents/AiAgentConversationLocks.cs` | Agent 對話的 Web API（0.10.7 起）：每個請求接續一次、NDJSON 串流、每段對話一把鎖、核准搶占（0.10.38 以前另有巡檢報告端點，0.10.39 起移到 `SystemReportsController`）|
 | `MyProject.Web/Streaming/NdjsonHeartbeat.cs` | NDJSON 串流的心跳（0.10.7 起，資料源閒置時插 ping）|
 | `MyProject.Web/SystemReports/SystemReportNarrator.cs` | 系統巡檢報告的 AI 說明（0.10.39 起，取代 0.9.161～0.10.38 的 `AdminPatrolRunner`、`ScheduledPatrolToolGuard`、`AdminPatrolReportParser`）：去識別的發現 → Chat Completions 一次呼叫 |
 | `MyProject.Business/Services/DataAccess/AdminPatrolReportService.cs`、`Services/Other/AdminPatrolReportFileStore.cs`；`MyProject.AccessDatas/Models/AdminPatrolReport.cs` | 巡檢報告的存放（內容檔在 `AiAgentConversationPath\AdminPatrol`）、清單、讀取、過期與統計（0.9.161 起；0.10.39 起舊版報告只讀，內容檔存放也給系統巡檢報告用）|

@@ -1,10 +1,10 @@
 ﻿# 兩步驟驗證 PRD
 
-- 文件版本：1.2
+- 文件版本：1.3
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.43
 - 首次實作版本：0.9.104
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/26
 
 ## 一、目標與範圍
 
@@ -32,7 +32,7 @@
 | `/Auths/TwoFactor` | `ClientNoFooterLayout`＋`AuthShell`（0.10.8 起 WASM）| 匿名＋這個分頁有有效的待驗票證 | 密碼或 Google 已通過、帳號已開啟的人 |
 | `/myusers` 的「重設兩步驟驗證」 | — | 使用者管理頁權限 | 系統管理員（使用者手機遺失時） |
 | `/roleviews` 的「需要兩步驟驗證」 | — | 角色管理頁權限 | 系統管理員 |
-| `POST /api/Auth/login` 的 `twoFactorCode` | — | 匿名 | API 用戶端 |
+| `POST /api/v1/Auth/login` 的 `twoFactorCode` | — | 匿名 | API 用戶端 |
 | `POST api/v1/Auth/two-factor` | — | 匿名＋待驗票證 | 網頁登入第二步（0.10.8 起）|
 | `api/v1/Auth/two-factor/setup`（`GET`、`start`、`enable`、`backup-codes`、`disable`）| — | JWT Bearer，強制設定期間也可用 | 設定頁（0.10.8 起）|
 

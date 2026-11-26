@@ -12,7 +12,6 @@ namespace MyProject.Web.Diagnostics;
 public sealed class LoggingPipelineMonitor
 {
     private long writeFailures;
-    private long clientErrorsDropped;
     private long alertQueueFailures;
     private long alertSendFailures;
     private long nlogInternalErrors;
@@ -24,8 +23,6 @@ public sealed class LoggingPipelineMonitor
         Interlocked.Increment(ref writeFailures);
         Interlocked.Exchange(ref lastWriteFailureTicks, now.UtcTicks);
     }
-
-    public void RecordClientErrorDropped() => Interlocked.Increment(ref clientErrorsDropped);
 
     public void RecordAlertQueueFailure() => Interlocked.Increment(ref alertQueueFailures);
 
@@ -40,7 +37,6 @@ public sealed class LoggingPipelineMonitor
     public LoggingPipelineSnapshot Snapshot() => new(
         Interlocked.Read(ref writeFailures),
         ToTime(Interlocked.Read(ref lastWriteFailureTicks)),
-        Interlocked.Read(ref clientErrorsDropped),
         Interlocked.Read(ref alertQueueFailures),
         Interlocked.Read(ref alertSendFailures),
         Interlocked.Read(ref nlogInternalErrors),
@@ -73,7 +69,6 @@ public sealed class LoggingPipelineMonitor
 public sealed record LoggingPipelineSnapshot(
     long WriteFailures,
     DateTimeOffset? LastWriteFailureAt,
-    long ClientErrorsDropped,
     long AlertQueueFailures,
     long AlertSendFailures,
     long NLogInternalErrors,

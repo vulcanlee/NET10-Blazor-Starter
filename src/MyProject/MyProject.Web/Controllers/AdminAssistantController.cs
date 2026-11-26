@@ -28,12 +28,10 @@ public sealed class AdminAssistantController : ControllerBase
     private readonly IAiAgentRunner runner;
     private readonly AiAgentConversationService conversationService;
     private readonly ILogger<AdminAssistantController> logger;
-    private readonly AgentConversationProfile profile;
 
     public AdminAssistantController(
         AgentConversationEndpoint endpoint,
         IAiAgentRunner runner,
-        AdminAssistantTurnPlanner planner,
         AiAgentConversationService conversationService,
         ILogger<AdminAssistantController> logger)
     {
@@ -41,13 +39,6 @@ public sealed class AdminAssistantController : ControllerBase
         this.runner = runner;
         this.conversationService = conversationService;
         this.logger = logger;
-        profile = new AgentConversationProfile
-        {
-            AgentName = AdminAssistantAgent.Name,
-            StartAsync = (_, ct) => runner.StartAsync(planner, ct),
-            ResumeAsync = (id, ct) => runner.ResumeAsync(planner, id, ct),
-            UnexpectedMessage = "系統管理助理發生未預期的錯誤，請稍後再試。",
-        };
     }
 
     /// <summary>開頁資訊：AI 是否可用、對話保存天數。</summary>
@@ -64,27 +55,27 @@ public sealed class AdminAssistantController : ControllerBase
     [HttpGet("conversations")]
     [AdminOnly]
     public async Task<ActionResult<ApiResult<List<AgentConversationSummaryDto>>>> List()
-        => Ok(ApiResult<List<AgentConversationSummaryDto>>.SuccessResult(await endpoint.ListAsync(profile)));
+        => Ok(ApiResult<List<AgentConversationSummaryDto>>.SuccessResult(await endpoint.ListAsync()));
 
     [HttpGet("conversations/{id:guid}")]
     [AdminOnly]
-    public Task<ActionResult<ApiResult<AgentConversationDto>>> Get(Guid id) => endpoint.GetAsync(this, profile, id);
+    public Task<ActionResult<ApiResult<AgentConversationDto>>> Get(Guid id) => endpoint.GetAsync(this, id);
 
     [HttpPut("conversations/{id:guid}/title")]
     [AdminOnly]
-    public Task<ActionResult<ApiResult>> Rename(Guid id, [FromBody] AgentRenameRequestDto request) => endpoint.RenameAsync(this, profile, id, request.Title);
+    public Task<ActionResult<ApiResult>> Rename(Guid id, [FromBody] AgentRenameRequestDto request) => endpoint.RenameAsync(this, id, request.Title);
 
     [HttpDelete("conversations/{id:guid}")]
     [AdminOnly]
-    public Task<ActionResult<ApiResult>> Delete(Guid id) => endpoint.DeleteAsync(this, profile, id);
+    public Task<ActionResult<ApiResult>> Delete(Guid id) => endpoint.DeleteAsync(this, id);
 
     /// <summary>送出訊息（新對話或接續），回 NDJSON 串流。</summary>
     [HttpPost("messages")]
     [AdminOnly]
-    public Task<IActionResult> Send([FromBody] AgentMessageRequestDto request) => endpoint.SendAsync(this, profile, request);
+    public Task<IActionResult> Send([FromBody] AgentMessageRequestDto request) => endpoint.SendAsync(this, request);
 
     /// <summary>回覆待核准的工具（不可復原的動作要帶「確認」），回 NDJSON 串流。</summary>
     [HttpPost("conversations/{id:guid}/approvals")]
     [AdminOnly]
-    public Task<IActionResult> Respond(Guid id, [FromBody] AgentApprovalResponseRequestDto request) => endpoint.RespondAsync(this, profile, id, request);
+    public Task<IActionResult> Respond(Guid id, [FromBody] AgentApprovalResponseRequestDto request) => endpoint.RespondAsync(this, id, request);
 }

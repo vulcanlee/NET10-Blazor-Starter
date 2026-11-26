@@ -226,7 +226,4 @@ public static class CapacitySnapshotKinds
 
     /// <summary>目錄不存在或沒有設定。</summary>
     public const string StatusMissing = "Missing";
-
-    /// <summary>讀不到（權限、磁碟離線）。</summary>
-    public const string StatusUnavailable = "Unavailable";
 }

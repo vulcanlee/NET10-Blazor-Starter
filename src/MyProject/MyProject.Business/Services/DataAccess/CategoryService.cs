@@ -570,12 +570,6 @@ public class CategoryService
         return VerifyRecordResultFactory.Build(true);
     }
 
-    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(CategoryAdapterModel paraObject)
-    {
-        Logger.LogDebug("Running pre-delete validation for category. CategoryId={CategoryId}, Name={CategoryName}", paraObject.Id, paraObject.Name);
-        return Task.FromResult(VerifyRecordResultFactory.Build(true));
-    }
-
     /// <summary>
     /// 取得目前使用者可使用、且啟用中的分類名稱（依名稱排序），供其他頁面下拉選取使用。
     /// 可見性規則見 <see cref="ApplyTeamVisibility"/>。

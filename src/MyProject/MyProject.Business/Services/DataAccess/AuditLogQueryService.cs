@@ -305,17 +305,6 @@ public class AuditLogQueryService
         }
     }
 
-    /// <summary>
-    /// 刪除早於 <paramref name="thresholdUtc"/> 的稽核紀錄，回傳刪除筆數。
-    /// ⚠️ 門檻必須是 UTC（資料表存 UTC）。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出。
-    /// </summary>
-    /// <summary>
-    /// 清理條件：<see cref="PurgeBeforeAsync"/> 與 <see cref="GetRetentionStatsAsync"/> 共用，
-    /// 「資料保留與清理」頁的「下次會清掉幾筆」才會等於實際刪掉的筆數。
-    /// </summary>
-    private static Expression<Func<AuditLog, bool>> OlderThan(DateTime thresholdUtc)
-        => x => x.OccurredAt < thresholdUtc;
-
     /// <summary>瀏覽類（<see cref="NotBrowsing"/> 的反面）。</summary>
     private static readonly Expression<Func<AuditLog, bool>> Browsing = x =>
         x.Action == AuditActions.Page.View
@@ -367,6 +356,10 @@ public class AuditLogQueryService
         return await CountExpiredAsync(context, thresholdUtc, kind);
     }
 
+    /// <summary>
+    /// 刪除早於 <paramref name="thresholdUtc"/> 的稽核紀錄，回傳刪除筆數。
+    /// ⚠️ 門檻必須是 UTC（資料表存 UTC）。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出。
+    /// </summary>
     public Task<int> PurgeBeforeAsync(DateTime thresholdUtc) => PurgeBeforeAsync(thresholdUtc, AuditLogKind.All);
 
     /// <summary>

@@ -285,11 +285,11 @@ public sealed class ProjectApiOwnerTests : IClassFixture<ApiTestApplicationFacto
     public async Task CreateProject_WithoutOwner_ShouldBeABadRequest()
     {
         using var client = factory.CreateClient();
-        var login = await (await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = "support", Password = "support" }))
+        var login = await (await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = "support", Password = "support" }))
             .Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Data!.AccessToken);
 
-        var response = await client.PostAsJsonAsync("/api/Project", new ProjectCreateUpdateDto
+        var response = await client.PostAsJsonAsync("/api/v1/Project", new ProjectCreateUpdateDto
         {
             Id = 0,
             Title = $"無負責人-{Guid.NewGuid():N}",

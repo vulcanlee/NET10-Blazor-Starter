@@ -41,7 +41,7 @@ public sealed record AiCallContext
 
     /// <summary>
     /// 用快速模型（0.10.22 起，<c>AiSettings:FastModel</c>）：給不複雜的工作（標籤、摘要、分類）。
-    /// 選模型的順序：<see cref="ModelOverride"/> → 系統參數替 <see cref="ModelKey"/> 指定的模型 → 快速模型（有填才算）→ <c>AiSettings:Model</c>。
+    /// 選模型的順序：系統參數替 <see cref="ModelKey"/> 指定的模型 → 快速模型（有填才算）→ <c>AiSettings:Model</c>。
     /// </summary>
     public bool UseFastModel { get; init; }
 
@@ -52,18 +52,6 @@ public sealed record AiCallContext
     /// AI 日誌分析、AI 例外分析、健康探測維持 Chat Completions。
     /// </summary>
     public bool UseResponsesApi { get; init; }
-
-    /// <summary>
-    /// 這次呼叫明確指定的推論等級（0.9.170 起，給「畫面上替某段對話選推論等級」的 Agent 頁用；0.10.22 起 Agent 測試台移除後目前沒有頁面使用）：有值時優先於系統參數 <c>AiReasoningSettings</c>
-    /// 與 <c>AiSettings:AgentReasoningEffort</c>。null 代表照系統設定。仍只有 <see cref="UseResponsesApi"/> 時才送。
-    /// </summary>
-    public string? ReasoningEffortOverride { get; init; }
-
-    /// <summary>
-    /// 明確指定的模型（0.9.170 起）：有值時不再依 <see cref="ModelKey"/> 讀系統參數。
-    /// Agent 頁在對話途中只改推論等級、重建 agent 時用它沿用開對話時的模型（畫面上的「使用模型」才不會和實際不同）。
-    /// </summary>
-    public string? ModelOverride { get; init; }
 
     /// <summary>上游回 <c>context_length_exceeded</c> 時給使用者看的完整訊息。</summary>
     public string ContextLengthExceededMessage { get; init; } = string.Empty;

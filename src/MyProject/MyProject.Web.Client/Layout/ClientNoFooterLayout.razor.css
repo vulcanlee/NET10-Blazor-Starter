@@ -29,13 +29,13 @@ main {
     align-items: center;
 }
 
-    .top-row ::deep a, .top-row ::deep .btn-link {
+    .top-row ::deep a {
         white-space: nowrap;
         margin-left: 1.5rem;
         text-decoration: none;
     }
 
-        .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
+        .top-row ::deep a:hover {
             text-decoration: underline;
         }
 
@@ -49,7 +49,7 @@ main {
         justify-content: space-between;
     }
 
-        .top-row ::deep a, .top-row ::deep .btn-link {
+        .top-row ::deep a {
             margin-left: 0;
         }
 }

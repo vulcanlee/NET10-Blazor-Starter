@@ -345,7 +345,7 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
     {
         var user = await AddUserAsync(isAdmin: false, password: "Passw0rd-1");
         using var client = factory.CreateClient();
-        var login = await (await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = user.Account, Password = "Passw0rd-1" }))
+        var login = await (await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = "Passw0rd-1" }))
             .Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>();
         var tokens = login!.Data!;
 
@@ -361,13 +361,13 @@ public sealed class SessionIntegrationTests : IClassFixture<ApiTestApplicationFa
             Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(bearer)).StatusCode);
         }
 
-        var refreshed = await client.PostAsJsonAsync("/api/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = tokens.RefreshToken });
+        var refreshed = await client.PostAsJsonAsync("/api/v1/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = tokens.RefreshToken });
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
 
         // 0.10.0 起刷新 Token 每次使用就輪替：接下來要用的是剛換到的新 Token（再用舊的會被判定為重用，見 TokenApiIntegrationTests）。
         var current = (await refreshed.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!.RefreshToken;
         await factory.Services.GetRequiredService<ISecurityStampService>().RotateAsync(user.Id);
-        var rejected = await client.PostAsJsonAsync("/api/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = current });
+        var rejected = await client.PostAsJsonAsync("/api/v1/Auth/refresh", new RefreshTokenRequestDto { RefreshToken = current });
         Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
 
         using var scope = factory.Services.CreateScope();

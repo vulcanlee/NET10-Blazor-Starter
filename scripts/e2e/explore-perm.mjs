@@ -48,8 +48,8 @@ function endpoints() {
   return list;
 }
 
-// 錯誤回報端點收到的內容會寫進系統例外紀錄（設計如此），以空內容探測只會留下一筆假錯誤：跳過。
-const allEndpoints = endpoints().filter((x) => !x.path.endsWith('/shell/client-errors'));
+// 0.10.43 起舊的錯誤回報端點 client-errors 已移除（以空內容探測會留下一筆假錯誤，原本在這裡跳過）；client-reports 的空批次不會寫任何紀錄。
+const allEndpoints = endpoints();
 // 低權限帳號照常可以用的控制器（每個登入的人都有，或帳號有專案檢視權限）。
 const allowedForLow = new Set(['Profile', 'Shell', 'Notifications', 'Dashboard', 'Auth', 'WebAuth', 'AuthPassword', 'TwoFactorSetup', 'Downloads', 'Project']);
 

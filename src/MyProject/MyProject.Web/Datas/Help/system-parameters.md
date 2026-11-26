@@ -49,7 +49,6 @@
 
 | 設定檔區段 | 管什麼 | 改了之後 |
 |---|---|---|
-| `SystemSettings:ConnectionStrings` | 沒有作用（程式不讀；搬資料庫要改 `SystemSettings:ExternalFileSystem:DatabasePath`） | — |
 | `SystemSettings:ExternalFileSystem` | 資料庫、附件、例外堆疊、Token 原始檔、AI 對話內容、Agent 對話（系統管理助理）與系統巡檢報告的內容檔、金鑰、備份、上傳與下載等目錄 | 重新啟動網站後 |
 | `SystemSettings:SystemInformation:SystemVersion` | 系統版本號（每次發行由開發人員更新） | 重新啟動網站後 |
 | `SystemSettings:Upload` | 允許上傳的副檔名 | 重新啟動網站後 |

@@ -1,10 +1,10 @@
 ﻿# 日誌與例外處理 PRD
 
-- 文件版本：1.21
+- 文件版本：1.22
 - 文件狀態：已實作
-- 現行系統版本：0.10.38
+- 現行系統版本：0.10.43
 - 首次實作版本：0.9.11（例外自動記錄管線上線）
-- 最後核對日期：2026/11/18
+- 最後核對日期：2026/11/26
 
 > 本文件是**全系統共用**的需求規範，不是單一頁面。往後**任何功能的開發與驗收**，凡涉及日誌、例外處理、稽核、
 > 告警，一律以本文件為準。§三、§四 是「每個功能都必須遵守」的開發規範；§六 列出已實作的基線與尚待實作的缺口
@@ -294,9 +294,9 @@
 
 | 編號 | 0.9.79 的做法 | 守門測試 |
 |---|---|---|
-| LOG-20 瀏覽器端錯誤回報 | `MyProject.Web.Client/wwwroot/js/client-error-reporter.js` 掛上 `error` 與 `unhandledrejection`，交給 WASM 的 `ClientErrorReporter` 送到 `POST api/v1/shell/client-errors`，由 `ShellController` 呼叫 `BrowserErrorReporter.Report`，以 Error 記錄並帶 `BrowserScriptException`，進系統例外紀錄（來源 `瀏覽器`）。只有登入後的 `ClientMainLayout` 會註冊回報（匿名頁的錯誤只留在瀏覽器主控台、不送出）。防濫用：每位使用者每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`，`ShellController` 以 `PerUserRateLimiter` 計數），超過的丟棄並計數；（0.9.79～0.10.8 經 Blazor Server 的 circuit 呼叫 `[JSInvokable]` 的 `Report`、每個 circuit 一份計數；0.10.10 起 `[JSInvokable]` 與每實例計數已移除）訊息 1000 字、堆疊 4000 字、頁面只取路徑（去掉查詢字串與片段）；過濾瀏覽器外掛與 `ResizeObserver loop`、`Script error.` 等已知雜訊 | `BrowserErrorReporterTests` |
+| LOG-20 瀏覽器端錯誤回報 | `MyProject.Web.Client/wwwroot/js/client-error-reporter.js` 掛上 `error` 與 `unhandledrejection`，交給 WASM 的 `ClientErrorReporter` 送到 `POST api/v1/shell/client-reports`（0.10.35 以前是 `client-errors`，0.10.43 移除），由 `ShellController` 呼叫 `BrowserErrorReporter.Report`，以 Error 記錄並帶 `BrowserScriptException`，進系統例外紀錄（來源 `瀏覽器`）。只有登入後的 `ClientMainLayout` 會註冊回報（匿名頁的錯誤只留在瀏覽器主控台、不送出）。防濫用：每位使用者每分鐘最多 10 筆（`ClientErrorReporting:MaxPerCircuitPerMinute`，`ShellController` 以 `PerUserRateLimiter` 計數），超過的留在瀏覽器稍後再送（0.10.36 起；0.10.35 以前的 `client-errors` 是丟棄並計數）；（0.9.79～0.10.8 經 Blazor Server 的 circuit 呼叫 `[JSInvokable]` 的 `Report`、每個 circuit 一份計數；0.10.10 起 `[JSInvokable]` 與每實例計數已移除）訊息 1000 字、堆疊 4000 字、頁面只取路徑（去掉查詢字串與片段）；過濾瀏覽器外掛與 `ResizeObserver loop`、`Script error.` 等已知雜訊 | `BrowserErrorReporterTests` |
 | LOG-21 慢操作記錄 | `SlowOperationSettings`：HTTP 請求 3 秒（`UseHttpRequestLogging`，排除通知推播串流；0.10.8 以前另排除 `/_blazor` 長連線）、資料庫指令 1 秒（`SlowDbCommandInterceptor`，只記指令類型）、寄信 10 秒（`EmailDispatchWorker`）、AI 呼叫 60 秒（0.9.140 起統一在記帳中介層 `AiAccountingChatClient`，含健康探測；之前為 `AiChatCompletionClient`、`AiHealthProbe`）；超過記 Warning。**調整**：不量「Blazor 單次互動」—— AI 分析在按鈕事件裡等待、確認窗等使用者按鈕都會算進互動時間，每次誤報；Google SSO 的往返本身就是 HTTP 請求，由 HTTP 門檻涵蓋，不另設 | `LoggingPipelineHealthTests`（門檻判斷、指令類型只取第一個關鍵字、`/_blazor` 排除）；實機以 1 毫秒門檻驗證三類 Warning 都寫入日誌檔 |
-| LOG-22 日誌管線自我監控 | `LoggingPipelineMonitor`（單例、不得注入 ILogger）累計：例外寫入失敗（`RecordAsync` 回傳 null）、前端回報限流丟棄、告警信入列失敗與寄送失敗、NLog 內部錯誤（訂閱 `InternalLogger.InternalEventOccurred`，Error 以上）。系統健康監控新增「日誌管線」（權重 10，總權重 145；之後加入「排程作業」權重 5，現行 14 項總權重 150），另讀例外佇列長度、`DroppedCount` 與日誌所在磁碟可用空間 | `LoggingPipelineHealthTests`、`ExceptionLogWriterTests.RunAsync_WhenRecordFails_ShouldCountWriteFailure`、`SystemHealthTests.CheckWeights_ShouldSumTo150` |
+| LOG-22 日誌管線自我監控 | `LoggingPipelineMonitor`（單例、不得注入 ILogger）累計：例外寫入失敗（`RecordAsync` 回傳 null）、告警信入列失敗與寄送失敗（0.10.42 以前另有前端回報限流丟棄，隨舊端點 `client-errors` 移除）、NLog 內部錯誤（訂閱 `InternalLogger.InternalEventOccurred`，Error 以上）。系統健康監控新增「日誌管線」（權重 10，總權重 145；之後加入「排程作業」權重 5，現行 14 項總權重 150），另讀例外佇列長度、`DroppedCount` 與日誌所在磁碟可用空間 | `LoggingPipelineHealthTests`、`ExceptionLogWriterTests.RunAsync_WhenRecordFails_ShouldCountWriteFailure`、`SystemHealthTests.CheckWeights_ShouldSumTo150` |
 
 ### 6.5 已實作 —— 前端錯誤捕捉補強（0.10.36）
 
@@ -338,7 +338,7 @@
 
 - `/logs`、`/system-exceptions`、`/audit-logs`、`/ai-call-logs` 維持**管理員專屬**；本文件新增的畫面功能比照辦理。
 - 告警信可能被轉寄或留在信箱，因此**只含摘要**（LOG-12），完整內容須登入系統查看。
-- 前端回報入口只對已登入者開放（0.10.9 起 `api/v1/shell/client-errors` 要登入；之前是已登入的 circuit），並有頻率與長度上限（LOG-20）。
+- 前端回報入口只對已登入者開放（0.10.36 起 `api/v1/shell/client-reports` 要登入；0.10.9～0.10.35 是 `client-errors`；之前是已登入的 circuit），並有頻率與長度上限（LOG-20）。
   0.10.36 起的 `client-reports` 同樣要登入：登入前的錯誤存在瀏覽器、登入後才送，**刻意不開匿名端點**（任何人都能呼叫的話，可能被灌垃圾、擠掉真正的例外）。
   前端送來的路徑、網址、UA、操作軌跡一律在伺服器去掉查詢字串與控制字元（避免偽造日誌行），追蹤碼格式不對就不用（LOG-23）。
 - 前端診斷記錄（LOG-24）只限管理員開啟、每次開啟與關閉寫稽核，被診斷的使用者畫面上看得到；只有被選的那位使用者送來的會寫入，分類只接受英數字與點。

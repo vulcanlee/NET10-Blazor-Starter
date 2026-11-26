@@ -49,7 +49,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/Project/1");
+        var response = await client.GetAsync("/api/v1/Project/1");
         var result = await ReadApiResultAsync<object>(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -88,7 +88,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         }
 
         using var client = factory.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto
+        var login = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto
         {
             Account = account,
             Password = password,
@@ -97,7 +97,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
 
-        var response = await client.GetAsync("/api/Project/1");
+        var response = await client.GetAsync("/api/v1/Project/1");
         var result = await ReadApiResultAsync<object>(response);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -140,16 +140,16 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         }
 
         using var client = factory.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = password });
+        var login = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = account, Password = password });
         var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
 
         // 有 view：讀取被允許（不存在的 id → 404，而非 403）
-        var readResponse = await client.GetAsync("/api/Project/999999");
+        var readResponse = await client.GetAsync("/api/v1/Project/999999");
         Assert.Equal(HttpStatusCode.NotFound, readResponse.StatusCode);
 
         // 無 create：新增被拒（403）
-        var createResponse = await client.PostAsJsonAsync("/api/Project", new ProjectCreateUpdateDto
+        var createResponse = await client.PostAsJsonAsync("/api/v1/Project", new ProjectCreateUpdateDto
         {
             Id = 0,
             Title = "should be forbidden",
@@ -169,7 +169,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.False(string.IsNullOrWhiteSpace(loginResult.Data?.AccessToken));
         Assert.False(string.IsNullOrWhiteSpace(loginResult.Data?.RefreshToken));
 
-        var refreshResponse = await client.PostAsJsonAsync("/api/Auth/refresh", new RefreshTokenRequestDto
+        var refreshResponse = await client.PostAsJsonAsync("/api/v1/Auth/refresh", new RefreshTokenRequestDto
         {
             RefreshToken = loginResult.Data!.RefreshToken
         });
@@ -180,7 +180,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.False(string.IsNullOrWhiteSpace(refreshResult.Data?.AccessToken));
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data.AccessToken);
-        var meResponse = await client.GetAsync("/api/Auth/me");
+        var meResponse = await client.GetAsync("/api/v1/Auth/me");
         var meResult = await ReadApiResultAsync<CurrentUserDto>(meResponse);
 
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
@@ -215,10 +215,10 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         }
 
         using var client = factory.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = password });
+        var login = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = account, Password = password });
         var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/Auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/Auth/me")).StatusCode);
 
         using (var scope = factory.Services.CreateScope())
         {
@@ -237,7 +237,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
             }
         }
 
-        var response = await client.GetAsync("/api/Auth/me");
+        var response = await client.GetAsync("/api/v1/Auth/me");
         var result = await ReadApiResultAsync<CurrentUserDto>(response);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -267,7 +267,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         using var client = factory.CreateClient();
         await AuthorizeAsync(client);
 
-        var response = await client.PostAsJsonAsync("/api/Project", new { });
+        var response = await client.PostAsJsonAsync("/api/v1/Project", new { });
         var result = await ReadApiResultAsync<ProjectDto>(response);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -295,7 +295,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
             Owner = "integration-test"
         };
 
-        var createResponse = await client.PostAsJsonAsync("/api/Project", createDto);
+        var createResponse = await client.PostAsJsonAsync("/api/v1/Project", createDto);
         var createResult = await ReadApiResultAsync<ProjectDto>(createResponse);
 
         Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
@@ -304,7 +304,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         Assert.True(createResult.Data!.Id > 0);
         Assert.Equal(createDto.Title, createResult.Data.Title);
 
-        var getResponse = await client.GetAsync($"/api/Project/{createResult.Data.Id}");
+        var getResponse = await client.GetAsync($"/api/v1/Project/{createResult.Data.Id}");
         var getResult = await ReadApiResultAsync<ProjectDto>(getResponse);
 
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
@@ -321,7 +321,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         await AuthorizeAsync(client);
         await AssertPutRequiresCurrentStampAsync<CategoryCreateUpdateDto, CategoryDto>(
             client,
-            "/api/Category",
+            "/api/v1/Category",
             new CategoryCreateUpdateDto { Id = 0, Name = $"並行分類 {Guid.NewGuid():N}", IsEnabled = true },
             x => x.Id,
             x => x.ConcurrencyStamp,
@@ -335,7 +335,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         await AuthorizeAsync(client);
         await AssertPutRequiresCurrentStampAsync<TeamCreateUpdateDto, TeamDto>(
             client,
-            "/api/Team",
+            "/api/v1/Team",
             new TeamCreateUpdateDto { Id = 0, Name = $"並行團隊 {Guid.NewGuid():N}" },
             x => x.Id,
             x => x.ConcurrencyStamp,
@@ -349,7 +349,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         await AuthorizeAsync(client);
         await AssertPutRequiresCurrentStampAsync<ProjectCreateUpdateDto, ProjectDto>(
             client,
-            "/api/Project",
+            "/api/v1/Project",
             NewProjectDto(0, null),
             x => x.Id,
             x => x.ConcurrencyStamp,
@@ -375,15 +375,15 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
     {
         using var client = factory.CreateClient();
         await AuthorizeAsync(client);
-        var created = (await ReadApiResultAsync<CategoryDto>(await client.PostAsJsonAsync("/api/Category",
+        var created = (await ReadApiResultAsync<CategoryDto>(await client.PostAsJsonAsync("/api/v1/Category",
             new CategoryCreateUpdateDto { Id = 0, Name = $"軟刪除分類 {Guid.NewGuid():N}", IsEnabled = true }))).Data!;
 
-        var delete = await client.DeleteAsync($"/api/Category/{created.Id}");
+        var delete = await client.DeleteAsync($"/api/v1/Category/{created.Id}");
         Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
 
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/Category/{created.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/Category/{created.Id}")).StatusCode);
-        var put = await client.PutAsJsonAsync($"/api/Category/{created.Id}",
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/v1/Category/{created.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/v1/Category/{created.Id}")).StatusCode);
+        var put = await client.PutAsJsonAsync($"/api/v1/Category/{created.Id}",
             new CategoryCreateUpdateDto { Id = created.Id, Name = created.Name, IsEnabled = true, ConcurrencyStamp = created.ConcurrencyStamp });
         Assert.Equal(HttpStatusCode.NotFound, put.StatusCode);
     }
@@ -402,10 +402,10 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         }
 
         using var client = factory.CreateClient();
-        var login = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = password });
+        var login = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = account, Password = password });
         var loginResult = await ReadApiResultAsync<TokenResponseDto>(login);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Data!.AccessToken);
-        var created = await client.PostAsJsonAsync("/api/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除前 {Guid.NewGuid():N}", IsEnabled = true });
+        var created = await client.PostAsJsonAsync("/api/v1/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除前 {Guid.NewGuid():N}", IsEnabled = true });
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
 
         using (var scope = factory.Services.CreateScope())
@@ -416,7 +416,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
 
         // 0.10.0 起每個 API 請求都從資料庫載入目前使用者（ApiActorMiddleware）：帳號已刪除＝工作階段失效，回 401
         //（以前要到權限檢查才擋下、回 403）。與停用帳號的 Token 一致，見 AccessToken_AfterSessionRevokedOrAccountDisabled_ShouldReturnApiResult401。
-        var afterDelete = await client.PostAsJsonAsync("/api/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除後 {Guid.NewGuid():N}", IsEnabled = true });
+        var afterDelete = await client.PostAsJsonAsync("/api/v1/Category", new CategoryCreateUpdateDto { Id = 0, Name = $"刪除後 {Guid.NewGuid():N}", IsEnabled = true });
         Assert.Equal(HttpStatusCode.Unauthorized, afterDelete.StatusCode);
     }
 
@@ -427,8 +427,8 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         using var client = factory.CreateClient();
         await AuthorizeAsync(client);
 
-        var first = await client.PostAsJsonAsync("/api/Team", new TeamCreateUpdateDto { Id = 999, Name = $"指定 Id 團隊 {Guid.NewGuid():N}" });
-        var second = await client.PostAsJsonAsync("/api/Team", new TeamCreateUpdateDto { Id = 999, Name = $"指定 Id 團隊 {Guid.NewGuid():N}" });
+        var first = await client.PostAsJsonAsync("/api/v1/Team", new TeamCreateUpdateDto { Id = 999, Name = $"指定 Id 團隊 {Guid.NewGuid():N}" });
+        var second = await client.PostAsJsonAsync("/api/v1/Team", new TeamCreateUpdateDto { Id = 999, Name = $"指定 Id 團隊 {Guid.NewGuid():N}" });
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
@@ -901,7 +901,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
         using var client = factory.CreateClient();
         await AuthorizeAsync(client);
 
-        var response = await client.PostAsJsonAsync("/api/Project/search", new
+        var response = await client.PostAsJsonAsync("/api/v1/Project/search", new
         {
             PageIndex = pageIndex,
             PageSize = pageSize
@@ -1042,7 +1042,7 @@ public sealed class ApiIntegrationTests : IClassFixture<ApiTestApplicationFactor
 
     private static async Task<ApiResult<TokenResponseDto>> LoginAsync(HttpClient client)
     {
-        var response = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto
+        var response = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto
         {
             Account = "support",
             Password = "support"
@@ -1255,7 +1255,7 @@ public sealed class ApiExceptionDetailSuppressionTests
     {
         using var client = factory.CreateClient();
 
-        var loginResponse = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto
+        var loginResponse = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto
         {
             Account = "support",
             Password = "support"
@@ -1345,11 +1345,11 @@ public sealed class LoginRateLimitTests : IClassFixture<ApiTestApplicationFactor
         // 配額 2：前兩次應為 401（帳密錯誤），之後才被限流。
         for (var i = 0; i < 2; i++)
         {
-            var allowed = await client.PostAsJsonAsync("/api/Auth/login", request);
+            var allowed = await client.PostAsJsonAsync("/api/v1/Auth/login", request);
             Assert.Equal(HttpStatusCode.Unauthorized, allowed.StatusCode);
         }
 
-        var response = await client.PostAsJsonAsync("/api/Auth/login", request);
+        var response = await client.PostAsJsonAsync("/api/v1/Auth/login", request);
         var body = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
@@ -1362,7 +1362,7 @@ public sealed class LoginRateLimitTests : IClassFixture<ApiTestApplicationFactor
 
         // 登入配額已經吃光，但一般 API 是另一個分區（前綴 api:）：
         // 未帶 token 應為 401；若是 429 就代表兩者共用了計數器。
-        var generalApi = await client.PostAsJsonAsync("/api/Project/search", new { PageIndex = 1, PageSize = 10 });
+        var generalApi = await client.PostAsJsonAsync("/api/v1/Project/search", new { PageIndex = 1, PageSize = 10 });
         Assert.Equal(HttpStatusCode.Unauthorized, generalApi.StatusCode);
     }
 }

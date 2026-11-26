@@ -1,15 +1,16 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.135
+- 文件版本：6.136
 - 文件狀態：維護中
-- 現行系統版本：0.10.42
+- 現行系統版本：0.10.43
 - 首次實作版本：0.4.23
-- 最後核對日期：2026/11/23
+- 最後核對日期：2026/11/26
 
 本目錄收納改版與變更紀錄。每篇對應一次功能或機制異動，標題含版本號；能力現況以 [prd/](../prd/README.md) 為準。
 
 | 變更（版本）| 文件 |
 |------|------|
+| 死碼清理（使用者 2026/11/26 要求檢查重複程式碼與沒被使用的程式碼，分四批，本批是第一批）：移除全專案沒人用的程式碼（五個 CRUD 服務的 `BeforeDeleteCheckAsync`、`RecordVm`、`SizeEstimateMethod`、`AuditLogQueryService.OlderThan` 等）、巡檢退場殘留、死設定 `SystemSettings:ConnectionStrings`、沒用到的 CSS；退場功能的殘留（舊版巡檢報告寫入路徑、舊端點 `client-errors` 與「前端錯誤回報因限流丟棄」計數）；沉睡的擴充點（依對話選推論等級、Agent 對話設定層 `AgentConversationProfile`／`AgentConversationApi`、沒有版本號的路由別名 `api/[controller]`，CRUD 樣板一起改）。只有測試在用但在保護正式功能的檢查掛鉤保留。測試報告記錄每一項的刪除前引用證據、API 介面比對、測試數量對帳與 e2e 前後比對（0.10.43）| [2026-11-26-死碼清理](2026-11-26-死碼清理.md) |
 | 系統巡檢報告 M4：系統管理助理對話中的巡檢改用系統巡檢報告的規則引擎，新增巡檢工具 `run_system_report`「產生系統巡檢報告」（只在巡檢回合載入，`AdminAssistantAgent.PatrolTools`），產生種類「指定區間」（`Custom`）、觸發 `Assistant` 的報告；區間由 `SystemReportAssistantService.ResolveRange` 解析（沒講日期＝昨天到現在、使用者說的日期原樣傳入、年份由程式推、最多 31 天）；不寫 AI 說明、不通知、不寄信，稽核 `SystemReport.Generate`。使用者 2026/11/20 決定的兩個明文例外：不經核准窗、在對話請求裡產生。巡檢提示詞改為三段回覆（總結、需要處理、下期預測），舊的 9 個工具程序與七段格式移除；回覆下方新增報告卡片（`AiAgentReportOutputs` → 逐字稿 `Report`，「查看報告」「下載 PDF」）。沒有 migration（0.10.42）| [2026-11-23-系統巡檢報告M4](2026-11-23-系統巡檢報告M4.md) |
 | 系統巡檢報告 M3：新增排程作業「系統巡檢週報」`SystemReportWeekly`（預設星期一 08:00，上週一～週日）與「系統巡檢月報」`SystemReportMonthly`（預設每月 1 日 08:30，上個月），不論燈號一律寄給全體管理員（附 PDF），時間在系統參數（4 個新參數，經 `SystemReportScheduleProvider`，不可覆寫）；三種報告共用 `SystemReportJob`，區間由 `SystemReportPeriod` 推算。報告內容新增通用章節 `Sections`（重點＋表格，`SystemReportPeriodicSections`）：趨勢比較、容量成長與規劃、備份可還原驗證（週報、月報）、AI 費用（月報）、帳號與權限清查（1／4／7／10 月產生的月報，涵蓋上一季）；摘要多「本期重點」，通知與信件內文加每節重點，AI 只收重點不收表格。新增 `BackupVerifier` 照還原腳本驗證最新的備份（CRC、檔案數、SHA-256、`integrity_check`、migration 紀錄，解到 `.work/` 不碰正在用的資料庫），新規則 `BKP-VERIFY`（紅／黃）。使用者決定的窄例外：只在 AI 費用與帳號清查的表格列帳號與姓名。週報、月報各自的保留天數（365／1095 天）；`generate` 端點接受週報、月報；沒有 migration（0.10.41）| [2026-11-20-系統巡檢報告M3](2026-11-20-系統巡檢報告M3.md) |
 | 系統巡檢報告 M2：報告內容視窗新增「下載 PDF」——`SystemReportPdfBuilder` 由內容 JSON 隨需產生（不存檔、沒有 migration，舊版巡檢報告沒有 PDF；版面同報告頁、燈號以文字＋淺色底色、處理頁面寫中文名稱不放網址、內嵌 Noto Sans TC），`POST api/v1/system-reports/{id}/pdf` 寫稽核 `SystemReport.Download`；寄信層新增通用附件 `EmailMessage.Attachments`（與內文一起加密存進寄信佇列、寄出後清除、總計 ≤ 8 MB、不加欄位），站內通知新增 `NotificationEmailOptions`（種類、附件、只進信件的附註）；寄給全體管理員的巡檢報告信附上 PDF（新種類 `SystemReport`），PDF 太大或產生失敗時不附並請收件人由連結下載；AI 說明只在報告頁與 PDF，仍不進通知與信件內文（0.10.40）| [2026-11-20-系統巡檢報告M2](2026-11-20-系統巡檢報告M2.md) |

@@ -250,7 +250,7 @@ public sealed class AccountSelfServiceApiTests : IClassFixture<ApiTestApplicatio
     /// </summary>
     [Theory]
     [InlineData("/api/v1/Auth/login", true)]
-    [InlineData("/api/Auth/login", true)]
+    [InlineData("/api/Auth/login", false)] // 0.10.43 起沒有版本號的舊路由已移除（404），不再列在登入配額裡
     [InlineData("/api/v1/Auth/login/web", false)]
     [InlineData("/api/v1/Auth/two-factor", true)]
     [InlineData("/api/v1/Auth/two-factor/setup/disable", true)]

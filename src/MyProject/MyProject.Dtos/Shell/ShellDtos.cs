@@ -118,23 +118,6 @@ public class PageViewRequestDto
 }
 
 /// <summary>
-/// 瀏覽器端的錯誤回報（<c>POST /api/v1/shell/client-errors</c>），規則同 Server 版的 BrowserErrorReporter。
-/// ⚠️ 0.10.36 起前端改用 <see cref="ClientReportBatchDto"/>（<c>client-reports</c>）；這個舊端點只留給瀏覽器裡還在快取的舊前端，之後移除。
-/// </summary>
-public class ClientErrorReportDto
-{
-    public string? Kind { get; set; }
-
-    public string? Message { get; set; }
-
-    public string? Stack { get; set; }
-
-    public string? Source { get; set; }
-
-    public string? Path { get; set; }
-}
-
-/// <summary>
 /// 瀏覽器端的回報批次（0.10.36 起，<c>POST /api/v1/shell/client-reports</c>）：前端把錯誤與事件先存在瀏覽器（localStorage），
 /// 登入後批次送出；登入前發生的、離線時送不出去的，都留到下一次送。
 /// </summary>

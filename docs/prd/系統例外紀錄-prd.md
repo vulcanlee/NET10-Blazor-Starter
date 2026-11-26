@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.15
+- 文件版本：1.16
 - 文件狀態：已實作
-- 現行系統版本：0.10.36
+- 現行系統版本：0.10.43
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/18
+- 最後核對日期：2026/11/26
 
 ## 一、目標與範圍
 
@@ -234,6 +234,6 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 - `src/MyProject/MyProject.Web/Diagnostics/ExceptionContextAccessor.cs`、`ExceptionLogProvider.cs`、`ExceptionLogWriter.cs`、`CrashMarkerStore.cs`、`ProcessExceptionHooks.cs`（後兩者 0.9.77）
 - `src/MyProject/MyProject.Web.Client/Pages/ExceptionLogPage.razor`、`Views/Admins/ExceptionLogView.razor`、`ExceptionLogClipboardText.cs`（複製文字，0.9.73；0.10.5 起在 Client）、`Api/ExceptionLogApi.cs`、`Api/ExceptionLogDtoMapper.cs`
 - `src/MyProject/MyProject.Web/Controllers/ExceptionLogsController.cs`、`Export/ExceptionLogExport.cs`、`Ai/AiExceptionConversation.cs`（對話檢查，0.10.5 起）、`MyProject.Dtos/Admins/ExceptionLogDtos.cs`
-- `src/MyProject/MyProject.Web/Diagnostics/BrowserErrorReporter.cs`、`Controllers/ShellController.cs`（`client-reports`，0.10.36 起；`client-errors` 留給舊前端；瀏覽器來源；0.10.9 起 Server 互動的情境設定 `ApplicationCircuitHandler` 已刪除）
+- `src/MyProject/MyProject.Web/Diagnostics/BrowserErrorReporter.cs`、`Controllers/ShellController.cs`（`client-reports`，0.10.36 起；舊端點 `client-errors` 0.10.43 移除；瀏覽器來源；0.10.9 起 Server 互動的情境設定 `ApplicationCircuitHandler` 已刪除）
 - `src/MyProject/MyProject.Web.Client/Views/Admins/ExceptionAiAnalysisModal.razor`（0.10.5 起在 Client）、`MyProject.Web/Ai/AiExceptionAnalysisService.cs`（AI 例外分析，0.9.68）
 - 交叉連結：[AI 例外分析](../features/AI例外分析.md)、[日誌檢視 PRD](日誌檢視-prd.md)、[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)

@@ -62,7 +62,6 @@ public sealed class ShellController : ControllerBase
     private readonly TimeProvider timeProvider;
     private readonly PerUserRateLimiter rateLimiter;
     private readonly IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions;
-    private readonly LoggingPipelineMonitor pipelineMonitor;
     private readonly ILogger<ShellController> logger;
     private readonly IOptionsMonitor<NotificationSettings> notificationSettings;
 
@@ -81,7 +80,6 @@ public sealed class ShellController : ControllerBase
         TimeProvider timeProvider,
         PerUserRateLimiter rateLimiter,
         IOptionsMonitor<ClientErrorReportingSettings> clientErrorOptions,
-        LoggingPipelineMonitor pipelineMonitor,
         ILogger<ShellController> logger,
         IOptionsMonitor<NotificationSettings> notificationSettings)
     {
@@ -99,7 +97,6 @@ public sealed class ShellController : ControllerBase
         this.timeProvider = timeProvider;
         this.rateLimiter = rateLimiter;
         this.clientErrorOptions = clientErrorOptions;
-        this.pipelineMonitor = pipelineMonitor;
         this.logger = logger;
         this.notificationSettings = notificationSettings;
     }
@@ -204,34 +201,11 @@ public sealed class ShellController : ControllerBase
     }
 
     /// <summary>
-    /// 瀏覽器端的錯誤回報：交給 <see cref="BrowserErrorReporter"/>（同一套截斷、開關與系統例外紀錄）。
-    /// ⚠️ 0.10.35 以前的前端用的舊端點；0.10.36 起前端改送 <see cref="ClientReports"/>，這裡只留給瀏覽器裡還在快取的舊前端，之後移除。
-    /// </summary>
-    [HttpPost("client-errors")]
-    public ActionResult<ApiResult<object>> ClientErrors([FromBody] ClientErrorReportDto report)
-    {
-        // 每位使用者每分鐘的上限：設定鍵沿用 ClientErrorReporting:MaxPerCircuitPerMinute（Blazor Server 時代的名稱，不改以免現有設定失效）。
-        if (!rateLimiter.TryAcquire("client-error", currentUserService.CurrentUser.Id, clientErrorOptions.CurrentValue.MaxPerCircuitPerMinute))
-        {
-            pipelineMonitor.RecordClientErrorDropped();
-            return Ok(ApiResult<object>.SuccessResult(new { accepted = false }, "未記錄"));
-        }
-
-        var accepted = browserErrorReporter.Report(report.Kind, report.Message, report.Stack, report.Source, report.Path);
-        if (!accepted)
-        {
-            logger.LogDebug("Client error report was not recorded (reporting disabled or throttled).");
-        }
-
-        return Ok(ApiResult<object>.SuccessResult(new { accepted }, accepted ? "已記錄" : "未記錄"));
-    }
-
-    /// <summary>
     /// 瀏覽器端的回報批次（0.10.36 起）：前端把錯誤與事件先存在瀏覽器，登入後批次送來（登入前發生的、離線時送不出去的都在裡面）。
     /// <list type="bullet">
     /// <item>錯誤 → <see cref="BrowserErrorReporter"/>：Error，進系統例外紀錄；背景資訊（前端指紋、瀏覽器、操作軌跡）附在堆疊後面。</item>
     /// <item>連線中斷、資源載入失敗、CSP → <see cref="BrowserEventReporter"/>：Warning／Information，只寫日誌檔。</item>
-    /// <item>每位使用者每分鐘的上限：錯誤沿用舊端點的設定（同一個計數），事件另計 <see cref="ClientEventsPerMinute"/>。
+    /// <item>每位使用者每分鐘的上限：錯誤用 <c>ClientErrorReporting:MaxPerCircuitPerMinute</c>（設定鍵沿用 Blazor Server 時代的名稱，不改以免現有設定失效），事件另計 <see cref="ClientEventsPerMinute"/>。
     /// 被限流的那筆與之後的都不算完成（不在 DoneIds 裡），前端 <see cref="ReportRetryAfterSeconds"/> 秒後再送，不會遺失。</item>
     /// <item>回報關閉（<c>ClientErrorReporting:Enabled=false</c>）時全部當成完成、不記錄，前端的暫存區才會清空。</item>
     /// </list>

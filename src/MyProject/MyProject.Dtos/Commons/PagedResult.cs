@@ -33,14 +33,4 @@ public class PagedResult<T>
     /// 總頁數
     /// </summary>
     public int TotalPages { get; set; }
-
-    /// <summary>
-    /// 是否有上一頁
-    /// </summary>
-    public bool HasPreviousPage => PageIndex > 1;
-
-    /// <summary>
-    /// 是否有下一頁
-    /// </summary>
-    public bool HasNextPage => PageIndex < TotalPages;
 }

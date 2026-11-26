@@ -1020,12 +1020,6 @@ public class MyUserService
         return VerifyRecordResultFactory.Build(true);
     }
 
-    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(MyUserAdapterModel paraObject)
-    {
-        Logger.LogDebug("Running pre-delete validation for UserId={UserId}, Account={Account}", paraObject.Id, paraObject.Account);
-        return Task.FromResult(VerifyRecordResultFactory.Build(true));
-    }
-
     public async Task<VerifyRecordResult> ChangeOwnPasswordAsync(
         int userId,
         string currentPassword,

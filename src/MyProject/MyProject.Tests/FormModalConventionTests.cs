@@ -203,7 +203,7 @@ public sealed class FormModalConventionTests
 
         Assert.True(
             violations.Count == 0,
-            "確認窗請走 ConfirmDialog.AskDestructiveAsync／AskAsync／AskDeleteRecordAsync，"
+            "確認窗請走 ConfirmDialog.AskDestructiveAsync／AskAsync／AskSoftDeleteRecordAsync，"
                 + "不要自己寫 ConfirmAsync —— 自己寫必定會漏掉 Danger／MaskClosable／ZIndex。"
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));

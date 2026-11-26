@@ -16,8 +16,7 @@ public static class AgentConversationLimits
 }
 
 /// <summary>
-/// 開頁要的資訊（<c>GET api/v1/admin-assistant/info</c>）：AI 是否可用、對話保存天數、
-/// 推論等級選項（只有開放「依對話選推論等級」的 Agent 頁才有；0.10.22 起 Agent 測試台移除後目前沒有）。
+/// 開頁要的資訊（<c>GET api/v1/admin-assistant/info</c>）：AI 是否可用、對話保存天數。
 /// </summary>
 public class AgentPageInfoDto
 {
@@ -29,12 +28,6 @@ public class AgentPageInfoDto
 
     /// <summary>最後一次對話超過幾天自動刪除。</summary>
     public int RetentionDays { get; set; }
-
-    /// <summary>推論等級可選的值（小寫，依設定檔順序）；系統管理助理為空。</summary>
-    public List<string> ReasoningEffortValues { get; set; } = [];
-
-    /// <summary>推論等級下拉第一項的文字（「系統預設（目前：low）」或「系統預設（不指定，由模型決定）」）。</summary>
-    public string SystemDefaultReasoningLabel { get; set; } = string.Empty;
 }
 
 /// <summary>「我的對話」清單的一列。時間是伺服器本地時間，以不帶時差送出。</summary>
@@ -58,9 +51,6 @@ public class AgentConversationDto
 
     /// <summary>接續時解析出的模型（目前的系統參數）。</summary>
     public string ModelName { get; set; } = string.Empty;
-
-    /// <summary>這段對話存的推論等級；null＝系統預設。</summary>
-    public string? ReasoningEffort { get; set; }
 
     public List<AgentTranscriptEntryDto> Transcript { get; set; } = [];
 
@@ -120,9 +110,6 @@ public class AgentMessageRequestDto
     public Guid? ConversationId { get; set; }
 
     public string Message { get; set; } = string.Empty;
-
-    /// <summary>推論等級（只有開放「依對話選推論等級」的 Agent 頁才送，0.10.22 起目前沒有）；null 或空字串＝系統預設。已有對話時改了就從這則訊息起生效。</summary>
-    public string? ReasoningEffort { get; set; }
 }
 
 /// <summary>

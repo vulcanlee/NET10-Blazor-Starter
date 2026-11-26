@@ -85,15 +85,4 @@ public static class ConfirmDialog
             "確認刪除",
             "確定要刪除這筆紀錄嗎？刪除後可在工具列的「顯示已刪除」中還原。",
             "刪除");
-
-    /// <summary>
-    /// 實體刪除的「刪除這一筆」確認。0.9.95 起內建頁面全部改為軟刪除、改用 <see cref="AskSoftDeleteRecordAsync"/>；
-    /// 保留給衍生專案中真正無法復原的刪除（CRUD 樣板與守門測試仍引用）。
-    /// </summary>
-    public static Task<bool> AskDeleteRecordAsync(ModalService modalService)
-        => AskDestructiveAsync(
-            modalService,
-            "確認刪除",
-            "確定要刪除這筆紀錄嗎？此操作無法復原。",
-            "刪除");
 }

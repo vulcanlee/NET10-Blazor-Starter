@@ -586,12 +586,6 @@ public class RoleViewService
             ? $"「{MagicObjectHelper.預設角色}」是系統內建的角色，不可改名。"
             : null;
 
-    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(RoleViewAdapterModel paraObject)
-    {
-        Logger.LogDebug("Running pre-delete validation for role view. RoleViewId={RoleViewId}, Name={RoleName}", paraObject.Id, paraObject.Name);
-        return Task.FromResult(VerifyRecordResultFactory.Build(true));
-    }
-
     private Task OtherDependencyData(RoleViewAdapterModel data)
     {
         RolePermission rolePermission = rolePermissionService.InitializePermissionSetting();

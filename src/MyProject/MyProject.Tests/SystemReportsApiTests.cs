@@ -342,10 +342,11 @@ public sealed class SystemReportsApiTests : IClassFixture<ApiTestApplicationFact
         var id = Guid.NewGuid();
         using (var scope = factory.Services.CreateScope())
         {
-            var saved = await scope.ServiceProvider.GetRequiredService<AdminPatrolReportService>().SaveAsync(new AdminPatrolReportDraft(
-                id, DateTime.Now.AddDays(-1), AdminPatrolStatuses.Abnormal, "排程與備份", JobRunTriggers.Manual, "support", 1, "gpt-test", false,
-                "## 總結\n**備份失敗**"));
-            Assert.NotNull(saved);
+            await LegacyPatrolReports.SeedAsync(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<BackendDBContext>>(),
+                scope.ServiceProvider.GetRequiredService<IOptions<SystemSettings>>().Value.ExternalFileSystem.AiAgentConversationPath,
+                new LegacyPatrolReport(id, DateTime.Now.AddDays(-1), AdminPatrolStatuses.Abnormal, "排程與備份", JobRunTriggers.Manual, "support", 1, "gpt-test", false,
+                    "## 總結\n**備份失敗**"));
         }
 
         var list = await SendAsync<AdminPatrolReportListDto>(client, HttpMethod.Get, $"{BaseUrl}/legacy");

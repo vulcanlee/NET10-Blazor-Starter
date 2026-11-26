@@ -799,7 +799,6 @@ public static class ServiceCollectionExtensions
     /// </summary>
     internal static readonly string[] LoginQuotaPaths =
     [
-        "/api/Auth/login",
         "/api/v1/Auth/login",
         "/api/v1/Auth/two-factor",
         "/api/v1/Auth/google",
@@ -808,7 +807,7 @@ public static class ServiceCollectionExtensions
     ];
 
     /// <summary>
-    /// 登入相關端點（含 /api/v1 平行路由，清單見 <see cref="LoginQuotaPaths"/>）。登入是暴力破解的主要標的，配額比一般 API 嚴格得多；
+    /// 登入相關端點（清單見 <see cref="LoginQuotaPaths"/>）。登入是暴力破解的主要標的，配額比一般 API 嚴格得多；
     /// 帳號鎖定是第二道防線，但它擋不住「橫向」猜測多個帳號。
     /// </summary>
     internal static bool IsLoginRequest(HttpContext context)
