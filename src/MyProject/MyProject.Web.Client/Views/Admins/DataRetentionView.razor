@@ -111,7 +111,7 @@ else
                                 <StatusPill Text="已停用" Tone="StatusTone.Muted" />
                             }
                             <div class="data-retention-muted">
-                                上次：@(job.LastRun is { } run ? $"{run.StartedAtLocal:yyyy-MM-dd HH:mm} {StatusText(run.Status)}" : "尚未執行")
+                                上次：@(job.LastRun is { } run ? $"{run.StartedAtLocal:yyyy-MM-dd HH:mm} {JobRunText.Status(run.Status)}" : "尚未執行")
                             </div>
                             @if (job.LastRun?.Message is { Length: > 0 } message)
                             {

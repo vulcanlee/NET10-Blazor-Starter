@@ -175,17 +175,7 @@ namespace MyProject.Web.Client.Views.Admins
             _pageIndex = args.PageIndex;
             _pageSize = args.PageSize;
 
-            if (args.SortModel?.Any() == true)
-            {
-                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-                sortDirection = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                sortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
-            }
-            else
-            {
-                sortField = string.Empty;
-                sortDirection = "None";
-            }
+            (sortField, sortDirection) = TableSortHelper.ResolveSort(args.SortModel);
 
             await ReloadAsync();
         }
@@ -318,27 +308,19 @@ namespace MyProject.Web.Client.Views.Admins
         }
 
         /// <summary>
-        /// 走 appClipboard.copyText：https 用 navigator.clipboard，http 內網退回 execCommand，兩種部署都能用。
+        /// 走 <see cref="ClipboardCopy"/>（https 與 http 內網兩種部署都能用）。
         /// </summary>
         private async Task CopyToClipboardAsync(string text, int rows)
         {
-            try
-            {
-                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", text);
-                if (copied)
-                {
-                    logger.LogInformation("Exception logs copied to clipboard. Rows={Rows}, Characters={Characters}", rows, text.Length);
-                    ViewNotification.Info(notificationService, $"已複製 {rows:N0} 筆例外紀錄到剪貼簿。");
-                }
-                else
-                {
-                    ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
-                }
-            }
-            catch (Exception ex)
+            var copy = await JSRuntime.CopyTextAsync(
+                text, notificationService, $"已複製 {rows:N0} 筆例外紀錄到剪貼簿。", rows == 1 ? "複製失敗，請改按「查看」手動選取複製。" : "複製失敗，請手動選取複製。");
+            if (copy.Error is { } ex)
             {
                 logger.LogError(ex, "Failed to copy exception logs to clipboard. Rows={Rows}", rows);
-                ViewNotification.UnexpectedError(notificationService, rows == 1 ? "複製失敗，請改按「查看」手動選取複製。" : "複製失敗，請手動選取複製。", ex);
+            }
+            else if (copy.Copied)
+            {
+                logger.LogInformation("Exception logs copied to clipboard. Rows={Rows}, Characters={Characters}", rows, text.Length);
             }
         }
 
@@ -399,51 +381,31 @@ namespace MyProject.Web.Client.Views.Admins
 
         private async Task OnPurgeAsync()
         {
-            var confirmed = await ConfirmDialog.AskDestructiveAsync(
-                modalService,
-                $"清除 {PurgeDays} 天未再發生的紀錄",
-                $"將刪除「最後發生」早於 {PurgeDays} 天前的所有紀錄與其堆疊檔案。此動作無法復原。",
-                "清除");
-
-            if (confirmed == false)
+            if (await DestructiveAction.RunAsync(
+                    modalService,
+                    notificationService,
+                    $"清除 {PurgeDays} 天未再發生的紀錄",
+                    $"將刪除「最後發生」早於 {PurgeDays} 天前的所有紀錄與其堆疊檔案。此動作無法復原。",
+                    "清除",
+                    Api.PurgeAsync,
+                    result => DestructiveAction.ServerMessageOr(result, "清除完成")))
             {
-                return;
-            }
-
-            var result = await Api.PurgeAsync();
-            if (result.Success)
-            {
-                ViewNotification.Warning(notificationService, string.IsNullOrWhiteSpace(result.Message) ? "清除完成" : result.Message);
                 await ReloadAsync();
-            }
-            else
-            {
-                ViewNotification.Error(notificationService, result.UserMessage());
             }
         }
 
         private async Task OnClearAllAsync()
         {
-            var confirmed = await ConfirmDialog.AskDestructiveAsync(
-                modalService,
-                "清空全部例外紀錄",
-                "將刪除所有紀錄與整個堆疊檔案目錄。此動作無法復原。",
-                "清空");
-
-            if (confirmed == false)
+            if (await DestructiveAction.RunAsync(
+                    modalService,
+                    notificationService,
+                    "清空全部例外紀錄",
+                    "將刪除所有紀錄與整個堆疊檔案目錄。此動作無法復原。",
+                    "清空",
+                    Api.ClearAllAsync,
+                    _ => "已清空全部例外紀錄。"))
             {
-                return;
-            }
-
-            var result = await Api.ClearAllAsync();
-            if (result.Success)
-            {
-                ViewNotification.Warning(notificationService, "已清空全部例外紀錄。");
                 await ReloadAsync();
-            }
-            else
-            {
-                ViewNotification.Error(notificationService, result.UserMessage());
             }
         }
 
@@ -451,21 +413,14 @@ namespace MyProject.Web.Client.Views.Admins
         {
             // 匯出目前查詢條件下的全部資料，而非只有當頁 —— 管理員要的是整份對照（伺服器產生檔案並寫匯出稽核）。
             var outcome = await Api.ExportAsync(BuildRequest(1, MagicObjectHelper.PageSize));
-            if (!outcome.Success)
-            {
-                ViewNotification.Error(notificationService, $"匯出失敗：{outcome.Message}");
-                return;
-            }
-
-            try
-            {
-                await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
-                logger.LogInformation("Exception log export downloaded. Bytes={Bytes}", outcome.Content!.Length);
-            }
-            catch (Exception ex)
+            var download = await JSRuntime.SaveDownloadAsync(outcome, notificationService, "匯出失敗");
+            if (download.Error is { } ex)
             {
                 logger.LogError(ex, "Exception log export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
+            }
+            else if (download.Saved)
+            {
+                logger.LogInformation("Exception log export downloaded. Bytes={Bytes}", download.Bytes);
             }
         }
 

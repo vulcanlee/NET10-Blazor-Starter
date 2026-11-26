@@ -1,4 +1,3 @@
-using System.Globalization;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -24,11 +23,6 @@ namespace MyProject.Web.Client.Views.Analytics
         /// <summary>單段畫面顯示上限（完整內容用複製或下載 JSON 取得）。</summary>
         private const int MaxDisplayCharacters = AiCallLogDetailDto.MaxTextCharacters;
 
-        /// <summary>Markdown 渲染後的 HTML 上限；超過就退回純文字（與例外 AI 分析窗相同）。</summary>
-        private const int MaxRenderedHtmlLength = 512 * 1024;
-
-        private const int DefaultFontScalePercent = 100;
-
         private const string ViewConversation = "conversation";
         private const string ViewPrompt = "prompt";
         private const string ViewResponse = "response";
@@ -42,14 +36,6 @@ namespace MyProject.Web.Client.Views.Analytics
             (ViewResponse, "取得 Response"),
             (ViewRawRequest, "原始 Request"),
             (ViewRawResponse, "原始 Response"),
-        ];
-
-        /// <summary>與日誌檢視、例外 AI 分析兩個視窗相同的三段字級。</summary>
-        private static readonly (int Percent, string Label)[] FontScaleOptions =
-        [
-            (100, "一般"),
-            (125, "中"),
-            (150, "大"),
         ];
 
         [Inject]
@@ -70,7 +56,7 @@ namespace MyProject.Web.Client.Views.Analytics
         private bool isLoading;
         private bool isExporting;
         private bool renderMarkdown;
-        private int fontScalePercent = DefaultFontScalePercent;
+        private int fontScalePercent = AiFontScale.DefaultPercent;
         private string activeView = ViewConversation;
         private AiCallLogDetailDto? detail;
         private AiCallLogAdapterModel? currentItem;
@@ -80,8 +66,7 @@ namespace MyProject.Web.Client.Views.Analytics
 
         private bool IsTextView => activeView is ViewConversation or ViewPrompt or ViewResponse;
 
-        private string FontScaleCss
-            => (fontScalePercent / 100.0).ToString("0.##", CultureInfo.InvariantCulture);
+        private string FontScaleCss => AiFontScale.ToCss(fontScalePercent);
 
         private string ModelText
         {
@@ -140,7 +125,7 @@ namespace MyProject.Web.Client.Views.Analytics
             currentItem = null;
             currentBlocks = [];
             htmlCache.Clear();
-            fontScalePercent = DefaultFontScalePercent;
+            fontScalePercent = AiFontScale.DefaultPercent;
         }
 
         private void SwitchView(string key)
@@ -242,12 +227,9 @@ namespace MyProject.Web.Client.Views.Analytics
                 return cached;
             }
 
-            var html = AiMarkdownRenderer.ToSafeHtml(DisplayText(block));
-            if (html.Length > MaxRenderedHtmlLength)
-            {
-                // 渲染結果異常龐大就不注入，退回純文字（仍經同一條安全管線）。
-                html = AiMarkdownRenderer.ToSafeHtml("（內容過大，已改以純文字顯示；請切回「純文字」或用「複製」取得原文。）");
-            }
+            // 渲染結果異常龐大（超過顯示上限）就不注入，退回說明文字（仍經同一條安全管線）。
+            var html = AiMarkdownRenderer.ToSafeHtmlWithinLimit(DisplayText(block))
+                ?? AiMarkdownRenderer.ToSafeHtml("（內容過大，已改以純文字顯示；請切回「純文字」或用「複製」取得原文。）");
 
             htmlCache[block.Key] = html;
             return html;

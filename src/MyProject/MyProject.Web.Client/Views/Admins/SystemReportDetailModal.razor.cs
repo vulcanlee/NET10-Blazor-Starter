@@ -14,13 +14,11 @@ namespace MyProject.Web.Client.Views.Admins;
 
 /// <summary>
 /// 系統巡檢報告的內容視窗（0.10.39 起）。資料走 <see cref="SystemReportApi"/>（只限管理員；看報告不寫稽核）。
-/// AI 說明是模型產出，一律經 <see cref="AiMarkdownRenderer.ToSafeHtml"/>，超過 <see cref="MaxRenderedHtmlLength"/> 就不顯示；
+/// AI 說明是模型產出，一律經 <see cref="AiMarkdownRenderer.ToSafeHtml"/>，超過 <see cref="AiMarkdownRenderer.MaxRenderedHtmlLength"/> 就不顯示；
 /// 其餘內容都是程式產生的純文字（Blazor 會自動編碼）。
 /// </summary>
 public partial class SystemReportDetailModal
 {
-    private const int MaxRenderedHtmlLength = 512 * 1024;
-
     private sealed record SummaryGroup(string Heading, IReadOnlyList<SystemReportFindingDto> Items);
 
     private bool visible;
@@ -66,8 +64,7 @@ public partial class SystemReportDetailModal
             var last = summary.PeriodEnd.AddDays(-1);
             var period = last.Date == summary.PeriodStart.Date ? $"{summary.PeriodStart:yyyy-MM-dd}" : $"{summary.PeriodStart:yyyy-MM-dd}～{last:yyyy-MM-dd}";
             title = $"系統巡檢{SystemReportFrequencies.DisplayName(summary.Frequency)}　{period}";
-            var html = loaded.Content?.Narrative is { } markdown ? AiMarkdownRenderer.ToSafeHtml(markdown) : null;
-            narrativeHtml = html is not null && html.Length <= MaxRenderedHtmlLength ? html : null;
+            narrativeHtml = loaded.Content?.Narrative is { } markdown ? AiMarkdownRenderer.ToSafeHtmlWithinLimit(markdown) : null;
             Logger.LogDebug("System report opened. ReportId={ReportId}", reportId);
         }
         finally

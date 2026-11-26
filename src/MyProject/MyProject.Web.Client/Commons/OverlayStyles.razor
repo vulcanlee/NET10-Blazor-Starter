@@ -813,32 +813,38 @@
         margin: 0 0 0.75rem;
     }
 
-    .exception-log-modal .exception-log-detail-list {
+    /* 例外明細與稽核明細共用的明細清單（0.10.45 起合併兩份相同的規則）。 */
+    .exception-log-modal .exception-log-detail-list,
+    .audit-log-modal .audit-log-detail-list {
         display: grid;
         gap: 0.5rem;
         margin: 0 0 1.25rem;
     }
 
-    .exception-log-modal .exception-log-detail-list > div {
+    .exception-log-modal .exception-log-detail-list > div,
+    .audit-log-modal .audit-log-detail-list > div {
         display: grid;
         gap: 0.25rem 1rem;
         grid-template-columns: 11rem 1fr;
     }
 
-    .exception-log-modal .exception-log-detail-list dt {
+    .exception-log-modal .exception-log-detail-list dt,
+    .audit-log-modal .audit-log-detail-list dt {
         color: var(--ov-muted);
         font-size: 0.85rem;
         font-weight: 600;
     }
 
-    .exception-log-modal .exception-log-detail-list dd {
+    .exception-log-modal .exception-log-detail-list dd,
+    .audit-log-modal .audit-log-detail-list dd {
         color: var(--ov-text);
         font-size: 0.9rem;
         margin: 0;
         word-break: break-word;
     }
 
-    .exception-log-modal .exception-log-detail-title {
+    .exception-log-modal .exception-log-detail-title,
+    .audit-log-modal .audit-log-detail-title {
         color: var(--ov-accent);
         font-size: 0.95rem;
         font-weight: 700;
@@ -901,38 +907,7 @@
        這些規則與 AntDesign 自己渲染的 .ant-modal-* 搭配使用，
        而那些元素不帶檢視的 scope 屬性，scoped CSS（含 ::deep）打不到。
     */
-    .audit-log-modal .audit-log-detail-list {
-        display: grid;
-        gap: 0.5rem;
-        margin: 0 0 1.25rem;
-    }
-
-    .audit-log-modal .audit-log-detail-list > div {
-        display: grid;
-        gap: 0.25rem 1rem;
-        grid-template-columns: 11rem 1fr;
-    }
-
-    .audit-log-modal .audit-log-detail-list dt {
-        color: var(--ov-muted);
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-
-    .audit-log-modal .audit-log-detail-list dd {
-        color: var(--ov-text);
-        font-size: 0.9rem;
-        margin: 0;
-        word-break: break-word;
-    }
-
-    .audit-log-modal .audit-log-detail-title {
-        color: var(--ov-accent);
-        font-size: 0.95rem;
-        font-weight: 700;
-        margin: 0 0 0.5rem;
-    }
-
+    /* 明細清單、清單列、dt／dd 與區塊標題與例外明細共用（見上方 .exception-log-detail-list）。 */
     .audit-log-modal .audit-log-detail-text {
         color: var(--ov-text);
         font-size: 0.85rem;
@@ -1203,6 +1178,86 @@
         top: 15vh !important;
         padding-bottom: 0 !important;
         margin: 0 auto !important;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       AI 報告內文 .ai-markdown（0.10.45 起，整併自日誌檢視、AI 例外分析、AI 對話紀錄明細三份相同的規則）
+
+       Markdown 經 AiMarkdownRenderer.ToSafeHtml 轉成 HTML、以 MarkupString 注入，不帶頁面的 scope 屬性，
+       原本三個頁面各用 ::deep 寫一份；三個窗都渲染在 AntContainer 底下，所以放這裡。
+       各頁只留自己不同的部分（文字顏色、第一個標題的上邊距、明細窗的捲動高度）。
+       ⚠️ 每一條 font-size 都要乘 var(--ai-font-scale, 1)，否則「一般／中／大」按鈕放大時這一段不會跟著變
+          （AiModalStyleConventionTests 守門）。
+       ══════════════════════════════════════════════════════════════════ */
+    .ai-markdown {
+        font-size: calc(14px * var(--ai-font-scale, 1));
+    }
+
+    .ai-markdown h1,
+    .ai-markdown h2 {
+        margin: 20px 0 8px;
+        padding-bottom: 4px;
+        font-size: calc(17px * var(--ai-font-scale, 1));
+        color: var(--app-text);
+        border-bottom: 1px solid var(--app-line);
+    }
+
+    .ai-markdown h3,
+    .ai-markdown h4 {
+        margin: 16px 0 6px;
+        font-size: calc(15px * var(--ai-font-scale, 1));
+        color: var(--app-text);
+    }
+
+    .ai-markdown p {
+        margin: 0 0 10px;
+        line-height: 1.8;
+    }
+
+    .ai-markdown ul,
+    .ai-markdown ol {
+        margin: 0 0 10px;
+        padding-left: 22px;
+    }
+
+    .ai-markdown li {
+        line-height: 1.8;
+    }
+
+    .ai-markdown blockquote {
+        margin: 0 0 10px;
+        padding: 2px 0 2px 12px;
+        color: var(--app-muted);
+        border-left: 3px solid var(--app-line);
+    }
+
+    .ai-markdown pre {
+        margin: 0 0 12px;
+        padding: 10px 12px;
+        font-size: calc(12px * var(--ai-font-scale, 1));
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-all;
+        overflow-x: auto;
+        background: var(--app-tint);
+        border: 1px solid var(--app-line);
+        border-radius: 4px;
+    }
+
+    .ai-markdown code {
+        font-size: calc(12px * var(--ai-font-scale, 1));
+        color: var(--app-error);
+    }
+
+    .ai-markdown pre code {
+        color: inherit;
+    }
+
+    /* 安全管線把危險 scheme 的 URL 清空後，不要讓它看起來還像可點的連結。 */
+    .ai-markdown a[href=""] {
+        color: inherit;
+        text-decoration: none;
+        cursor: default;
     }
 
 </style>

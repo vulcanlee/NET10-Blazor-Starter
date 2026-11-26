@@ -177,12 +177,7 @@ else
                 {
                     <div class="log-ai-actions">
                         <div class="log-ai-font-scale">
-                            @foreach (var option in FontScaleOptions)
-                            {
-                                <Button Size="@ButtonSize.Small"
-                                        Type="@(aiFontScalePercent == option.Percent ? ButtonType.Primary : ButtonType.Default)"
-                                        OnClick="@(() => aiFontScalePercent = option.Percent)">@option.Label</Button>
-                            }
+                            <AiFontScalePicker @bind-Percent="aiFontScalePercent" />
                         </div>
                         <div class="log-ai-actions-right">
                             @* 產生中不能複製或匯出：半份報告看起來會像完整的（0.9.141 起）。 *@
@@ -210,7 +205,7 @@ else
                         的安全管線（DisableHtml、連結 scheme 白名單、移除圖片）之後才能用 MarkupString。
                         ⚠️ 不要改成直接把模型回應丟進 MarkupString。
                     *@
-                    <div class="log-ai-report">
+                    <div class="ai-markdown log-ai-report">
                         @((MarkupString)aiHtml)
                     </div>
 

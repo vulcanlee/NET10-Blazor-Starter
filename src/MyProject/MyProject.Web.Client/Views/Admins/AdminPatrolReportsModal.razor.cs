@@ -11,13 +11,10 @@ namespace MyProject.Web.Client.Views.Admins;
 /// 0.10.39 起從「系統巡檢報告」頁打開，資料走 <see cref="SystemReportApi"/> 的 legacy 端點（只限管理員；看報告不寫稽核）。
 ///
 /// ⚠️ 只放在已做過管理員檢查的頁面裡（報告全體管理員共用）。
-/// 報告是 AI 產出，一律經 <see cref="AiMarkdownRenderer.ToSafeHtml"/>，超過 <see cref="MaxRenderedHtmlLength"/> 就不顯示（同系統管理助理頁）。
+/// 報告是 AI 產出，一律經 <see cref="AiMarkdownRenderer.ToSafeHtml"/>，超過 <see cref="AiMarkdownRenderer.MaxRenderedHtmlLength"/> 就不顯示（同系統管理助理頁）。
 /// </summary>
 public partial class AdminPatrolReportsModal
 {
-    /// <summary>AI 報告轉成 HTML 之後的顯示上限（同其他 AI 畫面）。</summary>
-    private const int MaxRenderedHtmlLength = 512 * 1024;
-
     private bool visible;
     private bool isLoading;
     private int retentionDays;
@@ -97,8 +94,7 @@ public partial class AdminPatrolReportsModal
 
         detail = AgentDtoMapper.ToModel(loaded);
         SelectedReportId = reportId;
-        var html = detail.Markdown is null ? null : AiMarkdownRenderer.ToSafeHtml(detail.Markdown);
-        detailHtml = html is not null && html.Length <= MaxRenderedHtmlLength ? html : null;
+        detailHtml = detail.Markdown is null ? null : AiMarkdownRenderer.ToSafeHtmlWithinLimit(detail.Markdown);
         return true;
     }
 

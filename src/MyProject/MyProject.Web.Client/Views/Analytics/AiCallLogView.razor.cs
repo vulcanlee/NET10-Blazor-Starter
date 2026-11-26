@@ -306,17 +306,7 @@ namespace MyProject.Web.Client.Views.Analytics
             _pageIndex = args.PageIndex;
             _pageSize = args.PageSize;
 
-            if (args.SortModel?.Any() == true)
-            {
-                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-                sortDirection = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                sortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
-            }
-            else
-            {
-                sortField = string.Empty;
-                sortDirection = "None";
-            }
+            (sortField, sortDirection) = TableSortHelper.ResolveSort(args.SortModel);
 
             await ReloadAsync();
         }
@@ -489,54 +479,34 @@ namespace MyProject.Web.Client.Views.Analytics
                 return;
             }
 
-            var confirmed = await ConfirmDialog.AskDestructiveAsync(
-                modalService,
-                "批次清除對話紀錄",
-                $"將刪除 {beforeDate:yyyy-MM-dd}（不含）之前的所有 AI 對話紀錄與內容檔。此動作無法復原。",
-                "清除");
-
-            if (confirmed == false)
-            {
-                return;
-            }
-
             // 伺服器清除並寫清除稽核；成功時的訊息就是畫面要顯示的那一句（「已清除 N 筆紀錄。」）。
-            var result = await Api.PurgeAsync(ClientCulture.Unzoned(beforeDate)!.Value);
-            if (result.Success)
+            if (await DestructiveAction.RunAsync(
+                    modalService,
+                    notificationService,
+                    "批次清除對話紀錄",
+                    $"將刪除 {beforeDate:yyyy-MM-dd}（不含）之前的所有 AI 對話紀錄與內容檔。此動作無法復原。",
+                    "清除",
+                    () => Api.PurgeAsync(ClientCulture.Unzoned(beforeDate)!.Value),
+                    result => DestructiveAction.ServerMessageOr(result, "清除完成")))
             {
-                ViewNotification.Warning(notificationService, string.IsNullOrWhiteSpace(result.Message) ? "清除完成" : result.Message);
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
-            }
-            else
-            {
-                ViewNotification.Error(notificationService, result.UserMessage());
             }
         }
 
         private async Task OnClearAllAsync()
         {
-            var confirmed = await ConfirmDialog.AskDestructiveAsync(
-                modalService,
-                "清空全部對話紀錄",
-                "將刪除所有 AI 對話紀錄與內容檔（Token 用量不受影響）。此動作無法復原。",
-                "清空");
-
-            if (confirmed == false)
+            if (await DestructiveAction.RunAsync(
+                    modalService,
+                    notificationService,
+                    "清空全部對話紀錄",
+                    "將刪除所有 AI 對話紀錄與內容檔（Token 用量不受影響）。此動作無法復原。",
+                    "清空",
+                    Api.ClearAllAsync,
+                    _ => "已清空全部對話紀錄。"))
             {
-                return;
-            }
-
-            var result = await Api.ClearAllAsync();
-            if (result.Success)
-            {
-                ViewNotification.Warning(notificationService, "已清空全部對話紀錄。");
                 await ReloadFilterOptionsAsync();
                 await ReloadAsync();
-            }
-            else
-            {
-                ViewNotification.Error(notificationService, result.UserMessage());
             }
         }
 
@@ -549,21 +519,14 @@ namespace MyProject.Web.Client.Views.Analytics
 
             // ⚠️ 只匯出中繼資料，不含內文：CSV 常被帶出系統，內文請在明細視窗逐筆下載（伺服器產生檔案並寫匯出稽核）。
             var outcome = await Api.ExportAsync(BuildRequest(1, MagicObjectHelper.PageSize));
-            if (!outcome.Success)
-            {
-                ViewNotification.Error(notificationService, $"匯出失敗：{outcome.Message}");
-                return;
-            }
-
-            try
-            {
-                await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
-                logger.LogInformation("AI call log export downloaded. Bytes={Bytes}", outcome.Content!.Length);
-            }
-            catch (Exception ex)
+            var download = await JSRuntime.SaveDownloadAsync(outcome, notificationService, "匯出失敗");
+            if (download.Error is { } ex)
             {
                 logger.LogError(ex, "AI call log export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
+            }
+            else if (download.Saved)
+            {
+                logger.LogInformation("AI call log export downloaded. Bytes={Bytes}", download.Bytes);
             }
         }
 

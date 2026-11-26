@@ -52,29 +52,14 @@ public partial class ProjectViewView
     private async Task OnExportExcelAsync()
     {
         var outcome = await Api.ExportAsync(BuildRequest());
-        if (!outcome.Success)
-        {
-            if (outcome.StatusCode == 400)
-            {
-                ViewNotification.Caution(NotificationService, outcome.Message);
-            }
-            else
-            {
-                ViewNotification.Error(NotificationService, $"匯出失敗：{outcome.Message}");
-            }
-
-            return;
-        }
-
-        try
-        {
-            await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
-            Logger.LogInformation("Project export downloaded. Bytes={Bytes}", outcome.Content!.Length);
-        }
-        catch (Exception ex)
+        var download = await JSRuntime.SaveDownloadAsync(outcome, NotificationService, "匯出失敗", cautionOnBadRequest: true);
+        if (download.Error is { } ex)
         {
             Logger.LogError(ex, "Project export failed.");
-            ViewNotification.UnexpectedError(NotificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
+        }
+        else if (download.Saved)
+        {
+            Logger.LogInformation("Project export downloaded. Bytes={Bytes}", download.Bytes);
         }
     }
 
@@ -286,17 +271,7 @@ public partial class ProjectViewView
     {
         _pageIndex = args.PageIndex;
 
-        if (args.SortModel?.Any() == true)
-        {
-            var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-            sortDirection = tableSortModel.SortDirection.ToString() ?? string.Empty;
-            sortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
-        }
-        else
-        {
-            sortField = string.Empty;
-            sortDirection = "None";
-        }
+        (sortField, sortDirection) = TableSortHelper.ResolveSort(args.SortModel);
 
         Logger.LogDebug("Project table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
         await ReloadAsync();

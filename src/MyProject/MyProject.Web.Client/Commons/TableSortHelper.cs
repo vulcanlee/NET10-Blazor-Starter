@@ -20,6 +20,21 @@ public static class TableSortHelper
             ?? sortModels.Last();
     }
 
+    /// <summary>
+    /// 表格換頁／排序事件的排序狀態 → 要送給伺服器的（欄位, 方向）（0.10.45 起，整併自各清單頁相同的寫法）。
+    /// 沒有排序模型時回 <c>("", "None")</c>；方向是 <see cref="SortDirection"/> 的文字（例如 <c>Ascending</c>）。
+    /// </summary>
+    public static (string Field, string Direction) ResolveSort(IEnumerable<ITableSortModel>? sortModels)
+    {
+        if (sortModels?.Any() != true)
+        {
+            return (string.Empty, "None");
+        }
+
+        var sortModel = GetCurrentSortModel(sortModels);
+        return (ResolveSortFieldName(sortModel), sortModel.SortDirection.ToString() ?? string.Empty);
+    }
+
     public static bool HasSortDirection(SortDirection sortDirection)
     {
         return sortDirection == SortDirection.Ascending || sortDirection == SortDirection.Descending;

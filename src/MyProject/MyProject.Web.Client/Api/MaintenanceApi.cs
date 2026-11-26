@@ -26,19 +26,9 @@ public sealed class BackupApi
     public async Task<VerifyRecordResult> DeleteAsync(string fileName)
         => (await api.DeleteAsync<object>($"{BaseUrl}/{Uri.EscapeDataString(fileName)}")).ToVerify();
 
-    /// <summary>下載：先申請一次性票證，再讓瀏覽器以 <c>&lt;a download&gt;</c> 原生下載（備份檔很大，不經過 WASM 記憶體）。</summary>
-    public async Task<VerifyRecordResult> DownloadAsync(string fileName)
-    {
-        var ticket = await api.PostAsync<DownloadTicketDto>($"{BaseUrl}/{Uri.EscapeDataString(fileName)}/ticket");
-        if (!ticket.Success || ticket.Data is null)
-        {
-            return ticket.ToVerify();
-        }
-
-        // 0.10.10 起：跨來源下載失敗時（票證失效、權限已失去）回伺服器的訊息，頁面留在原地。
-        var error = await files.DownloadAsync(ticket.Data.Url);
-        return error is null ? new VerifyRecordResult { Success = true } : new VerifyRecordResult { Success = false, Message = error };
-    }
+    /// <summary>下載：先申請一次性票證，再讓瀏覽器原生下載（備份檔很大，不經過 WASM 記憶體；見 <see cref="TicketDownload"/>）。</summary>
+    public Task<VerifyRecordResult> DownloadAsync(string fileName)
+        => api.DownloadByTicketAsync(files, $"{BaseUrl}/{Uri.EscapeDataString(fileName)}/ticket");
 }
 
 /// <summary>資料保留與清理頁的 API 用戶端（0.10.6 起，WASM 遷移 M7；只限管理員）。</summary>

@@ -199,17 +199,7 @@ namespace MyProject.Web.Client.Views.Admins
             _pageIndex = args.PageIndex;
             _pageSize = args.PageSize;
 
-            if (args.SortModel?.Any() == true)
-            {
-                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-                sortDirection = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                sortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
-            }
-            else
-            {
-                sortField = string.Empty;
-                sortDirection = "None";
-            }
+            (sortField, sortDirection) = TableSortHelper.ResolveSort(args.SortModel);
 
             await ReloadAsync();
         }
@@ -296,27 +286,17 @@ namespace MyProject.Web.Client.Views.Admins
 
         private async Task OnClearAllAsync()
         {
-            var confirmed = await ConfirmDialog.AskDestructiveAsync(
-                ModalService,
-                "清空全部稽核紀錄",
-                "將刪除所有稽核紀錄。此動作無法復原，且本次清空會另外留下一筆稽核紀錄；完整性驗證會從下一筆紀錄重新起算。",
-                "清空");
-
-            if (!confirmed)
+            if (await DestructiveAction.RunAsync(
+                    ModalService,
+                    NotificationService,
+                    "清空全部稽核紀錄",
+                    "將刪除所有稽核紀錄。此動作無法復原，且本次清空會另外留下一筆稽核紀錄；完整性驗證會從下一筆紀錄重新起算。",
+                    "清空",
+                    Api.ClearAllAsync,
+                    _ => "已清空全部稽核紀錄。"))
             {
-                return;
-            }
-
-            var result = await Api.ClearAllAsync();
-            if (result.Success)
-            {
-                ViewNotification.Warning(NotificationService, "已清空全部稽核紀錄。");
                 await ReloadActionOptionsAsync();
                 await ReloadAsync();
-            }
-            else
-            {
-                ViewNotification.Error(NotificationService, result.UserMessage());
             }
         }
 
@@ -356,21 +336,14 @@ namespace MyProject.Web.Client.Views.Admins
         {
             // 匯出目前查詢條件下的全部資料，而非只有當頁 —— 管理員要的是整份對照（伺服器產生檔案並寫匯出稽核）。
             var outcome = await Api.ExportAsync(BuildRequest(1, MagicObjectHelper.PageSize));
-            if (!outcome.Success)
-            {
-                ViewNotification.Error(NotificationService, $"匯出失敗：{outcome.Message}");
-                return;
-            }
-
-            try
-            {
-                await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
-                Logger.LogInformation("Audit log export downloaded. Bytes={Bytes}", outcome.Content!.Length);
-            }
-            catch (Exception ex)
+            var download = await JSRuntime.SaveDownloadAsync(outcome, NotificationService, "匯出失敗");
+            if (download.Error is { } ex)
             {
                 Logger.LogError(ex, "Audit log export failed.");
-                ViewNotification.UnexpectedError(NotificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
+            }
+            else if (download.Saved)
+            {
+                Logger.LogInformation("Audit log export downloaded. Bytes={Bytes}", download.Bytes);
             }
         }
 
