@@ -1,7 +1,7 @@
 // WASM 遷移 M1（0.10.0）的實機情境；0.10.8（M9b）起純 Token 登入：網頁登入的 Token 依「記住我」存放、不發 Cookie、
 // 刷新輪替與重用偵測、登出撤銷整次登入、強制改密碼期間擋 API、改密碼後這台維持登入而舊 Token 失效、登入 Token 清理排程，最後跑全部路由的煙霧測試。
 // 用法見同資料夾的 README.md。結果寫到 E2E_OUT_DIR/m01-results.json 與 smoke-results.json，截圖在 screenshots/。
-import { callApi, createRecorder, createUser, execute, launchBrowser, login, newContext, pageTokens, query, screenshot } from './common.mjs';
+import { auditCount, callApi, createRecorder, createUser, execute, launchBrowser, login, newContext, pageTokens, query, screenshot } from './common.mjs';
 import { runSmoke } from './smoke-routes.mjs';
 
 const recorder = createRecorder('m01-results.json');
@@ -10,10 +10,6 @@ const browser = await launchBrowser();
 
 async function refresh(page, refreshToken) {
   return callApi(page, '/api/v1/Auth/refresh', { method: 'POST', body: { refreshToken } });
-}
-
-function auditCount(action, since) {
-  return query('SELECT COUNT(*) AS n FROM AuditLog WHERE Action = ? AND OccurredAt >= ?', action, since)[0].n;
 }
 
 try {

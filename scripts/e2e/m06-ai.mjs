@@ -3,10 +3,8 @@
 // 停止產生保留部分內容、關窗取消並在 AI 對話紀錄看得到、日誌 AI 分析；另外是各頁的操作、匯出、稽核與非管理員 403。
 // 參數 quota：只跑「超過用量上限」情境（主機要以 AiQuotaSettings__PerUserDailyTwd=1 啟動，見 README）。
 // 結果寫到 E2E_OUT_DIR/m06-results.json（quota 模式為 m06-quota-results.json）。
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import {
-  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, query, screenshot, waitForPredicate } from './common.mjs';
+  apiAsPageUser, auditCount, check, createRecorder, createStep, createUser, download, execute, isWasmPage, launchBrowser, login, newContext, query, screenshot, utcNow, waitForPredicate } from './common.mjs';
 import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
 import { fillPicker, seedAiData, seedTag } from './m06-views.mjs';
 import { freezeTimes } from './m05-views.mjs';
@@ -19,18 +17,8 @@ const userPassword = 'User!E2e2026x';
 const aiModal = (page) => page.locator('.exception-ai-modal');
 const logAiModal = (page) => page.locator('.log-ai-modal');
 
-async function step(id, title, action) {
-  try {
-    const actual = await action();
-    recorder.add(id, title, true, actual ?? '通過');
-  } catch (error) {
-    // 失敗當下的畫面與「哪個元素擋住了點擊」（0.10.11 起），方便判斷是程式還是腳本的問題。
-    const message = String(error?.message ?? error);
-    const blocker = /<[^>]+> (?:from <[^>]+> subtree )?intercepts pointer events/.exec(message)?.[0] ?? '';
-    await currentPage?.screenshot({ path: join(outDir, 'screenshots', `${id}-失敗當下.png`) }).catch(() => {});
-    recorder.add(id, title, false, message.split('\n')[0] + (blocker ? `；擋住的元素：${blocker.slice(0, 200)}` : ''));
-  }
-}
+// 失敗當下另存畫面並標出擋住點擊的元素（0.10.11 起）。
+const step = createStep(recorder, { failurePage: () => currentPage });
 
 let currentPage = null;
 
@@ -48,21 +36,6 @@ async function closeModal(page, modal) {
   }
 
   await modal.locator('.ant-modal-close').click();
-}
-
-
-function check(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-function auditCount(action, since) {
-  return query('SELECT COUNT(*) AS N FROM AuditLog WHERE Action = ? AND OccurredAt >= ?', action, since)[0].N;
-}
-
-function utcNow() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
 
 /** 打開系統例外頁並篩出種子資料，再打開某一列的明細窗。 */
@@ -129,12 +102,6 @@ async function sendFollowUp(page, text) {
   await textarea.fill(text);
   await textarea.press('Tab');
   await aiModal(page).locator('.exception-ai-composer button', { hasText: '送' }).click();
-}
-
-async function download(page, trigger) {
-  const [file] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), trigger()]);
-  const path = await file.path();
-  return { name: file.suggestedFilename(), bytes: readFileSync(path) };
 }
 
 async function runAi(browser) {

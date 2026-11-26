@@ -142,6 +142,9 @@ try {
   await a.waitForTimeout(1000);
   const lateAnn = `${team}-F6`;
   await asB('/api/v1/Team', { method: 'POST', body: { id: 0, name: lateAnn, isEnabled: true } });
+  // 上一步按過對話窗右上角的關閉鈕，換頁後滑鼠還停在那裡 —— 正好是頂部的使用者選單（懸停就展開），會蓋住「新增」。
+  await a.mouse.move(1, 1);
+  await a.waitForTimeout(300);
   await clickToolbar(a, '新增');
   const annModal = a.locator('.ant-modal-content:visible').first();
   await annModal.waitFor({ timeout: 15000 });

@@ -1,9 +1,8 @@
 // WASM 遷移 M6（0.10.5）的操作情境（不呼叫 AI）：日誌等級套用與還原、提示詞存新版本與切回內建預設、系統例外排序／匯出／刪除、
 // AI 對話紀錄深連結與匯出、Token 用量匯出與明細窗連到 AI 對話紀錄、日誌匯出與快速區間、非管理員直打 M6 的 API 得 403，最後跑全部路由的煙霧測試。
 // 結果寫到 E2E_OUT_DIR/m06-ops-results.json 與 smoke-results.json。
-import { readFileSync } from 'node:fs';
 import {
-  apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, query, screenshot,
+  apiAsPageUser, audits, check, createRecorder, createStep, createUser, download, execute, isWasmPage, launchBrowser, login, newContext, query, screenshot, utcNow,
 } from './common.mjs';
 import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
 import { fillPicker, seedAiData, seedTag } from './m06-views.mjs';
@@ -29,33 +28,7 @@ const smoke = createRecorder('smoke-results.json');
 const userAccount = 'e2e-m6-user';
 const userPassword = 'User!E2e2026x';
 
-async function step(id, title, action) {
-  try {
-    const actual = await action();
-    recorder.add(id, title, true, actual ?? '通過');
-  } catch (error) {
-    recorder.add(id, title, false, String(error?.message ?? error).split('\n')[0]);
-  }
-}
-
-function check(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-function utcNow() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19);
-}
-
-function audits(action, since) {
-  return query('SELECT TargetId, Detail FROM AuditLog WHERE Action = ? AND OccurredAt >= ? ORDER BY Id', action, since);
-}
-
-async function download(page, trigger) {
-  const [file] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), trigger()]);
-  return { name: file.suggestedFilename(), bytes: readFileSync(await file.path()) };
-}
+const step = createStep(recorder);
 
 async function rows(page, css) {
   return page.locator(`${css} .ant-table-row`).allInnerTexts();

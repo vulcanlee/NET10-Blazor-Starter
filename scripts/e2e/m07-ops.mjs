@@ -2,8 +2,7 @@
 // 立即執行排程看進度自動更新、建立並以一次性票證下載備份、修改參數立即生效、公告在同一分頁立即出現與在另一分頁出現、首頁小工具依權限顯示、
 // 非管理員直打 M7 的 API 得 403、舊的 Cookie 備份下載網址已退役，最後跑全部路由的煙霧測試。
 // 結果寫到 E2E_OUT_DIR/m07-results.json 與 smoke-results.json。
-import { readFileSync } from 'node:fs';
-import { apiAsPageUser, apiJsonAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
+import { apiAsPageUser, apiJsonAsPageUser, audits, check, createRecorder, createStep, download, isWasmPage, launchBrowser, login, newContext, screenshot, utcNow, waitForPredicate } from './common.mjs';
 import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { seedOpsData, seedTag, userAccount, userPassword } from './m07-views.mjs';
@@ -12,35 +11,10 @@ import { runSmoke } from './smoke-routes.mjs';
 const recorder = createRecorder('m07-results.json');
 const smoke = createRecorder('smoke-results.json');
 
-async function step(id, title, action) {
-  try {
-    recorder.add(id, title, true, (await action()) ?? '通過');
-  } catch (error) {
-    recorder.add(id, title, false, String(error?.message ?? error).split('\n')[0]);
-  }
-}
-
-function check(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-function utcNow() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19);
-}
-
-function audits(action, since) {
-  return query('SELECT TargetId, Detail FROM AuditLog WHERE Action = ? AND OccurredAt >= ? ORDER BY Id', action, since);
-}
+const step = createStep(recorder);
 
 /** 以這個分頁登入的 Token 呼叫 API，回傳狀態碼與 JSON（0.10.8 起共用 common.mjs，不再以 Cookie 換 Token）。 */
 const apiJson = apiJsonAsPageUser;
-
-async function download(page, trigger) {
-  const [file] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), trigger()]);
-  return { name: file.suggestedFilename(), bytes: readFileSync(await file.path()) };
-}
 
 seedOpsData();
 

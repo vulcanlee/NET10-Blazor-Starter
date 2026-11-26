@@ -12,8 +12,7 @@ import {
   apiAsPageUser, createRecorder, createScopedUser, databaseFile, execute, isWasmPage, launchBrowser, login, newContext, outDir, query, screenshot,
 } from './common.mjs';
 import {
-  clickRowAction, clickToolbar, closeForm, closeToasts, confirm, confirmIfShown, deleteRecord, formField, openList, purgeRecord,
-  restoreRecord, rowTexts, submitForm, waitForToast, watchErrors,
+  clickRowAction, clickToolbar, closeForm, closeToasts, confirm, confirmIfShown, confirmSave, deleteRecord, formField, openList, purgeRecord, restoreRecord, rowTexts, submitForm, waitForToast, watchErrors,
 } from './crud-ui.mjs';
 import { readerAccount, readerPassword } from './m03-views.mjs';
 import { seedProjects } from './m04-views.mjs';
@@ -32,23 +31,6 @@ function makeFile(name, content) {
   const path = join(filesDir, name);
   writeFileSync(path, content);
   return path;
-}
-
-/**
- * 按確認窗的「儲存」；未指定團隊時緊接著會跳「確認團隊設定」，按「仍要儲存」。
- * 兩個確認窗前後緊接（專案頁沒有存檔前的伺服器檢查），不能用共用的 confirm() 等第一個關掉。
- */
-async function confirmSave(page) {
-  await page.locator('.ant-modal-confirm .ant-modal-confirm-btns button', { hasText: /^\s*儲\s*存\s*$/ }).last().click();
-  const team = page.locator('.ant-modal-confirm', { hasText: '確認團隊設定' });
-  try {
-    await team.waitFor({ state: 'visible', timeout: 2000 });
-  } catch {
-    return;
-  }
-
-  await team.locator('.ant-modal-confirm-btns button', { hasText: '仍要儲存' }).click();
-  await team.waitFor({ state: 'hidden', timeout: 15000 });
 }
 
 /** 某個專案目前的附件（檔名、大小、實體檔路徑）。 */

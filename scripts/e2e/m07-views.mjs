@@ -3,7 +3,7 @@
 // ⚠️ 系統健康、資料庫用量、排程作業的「下次執行」含即時數值（記憶體、檔案大小、時間），這幾張的差異集中在數值處，比對時另外說明。
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { createUser, databaseFile, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { createUser, databaseFile, execute, launchBrowser, login, newContext, query, screenshot, settle } from './common.mjs';
 import { freezeTimes } from './m05-views.mjs';
 
 export const seedTag = 'E2E種子';
@@ -35,15 +35,10 @@ export function seedOpsData() {
   announcement('排定中的公告', '這則還沒開始。', '2099-01-01 01:00:00', null);
 }
 
-async function settle(page) {
-  await page.mouse.move(1, 1);
-  await page.waitForTimeout(1200);
-}
-
 async function open(page, route, selector) {
   await page.goto(route);
   await page.waitForSelector(selector, { timeout: 60000 });
-  await settle(page);
+  await settle(page, 1200);
 }
 
 /** 拍下所有固定畫面，回傳檔名清單。 */

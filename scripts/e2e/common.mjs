@@ -1,8 +1,8 @@
 // 實機驗證的共用工具（0.10.0 起，WASM 遷移 M1）。用法見同資料夾的 README.md。
 // playwright-core 不放在 repo 裡：由環境變數 PLAYWRIGHT_CORE_DIR 指向已安裝的套件資料夾，瀏覽器用本機的 Chrome。
 import { pbkdf2Sync, randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -269,5 +269,127 @@ export async function waitForPredicate(page, predicate, arg = null, { timeout = 
     }
 
     await new Promise((resolve) => setTimeout(resolve, polling));
+  }
+}
+
+// ---- 各腳本共用的小工具（2026/11/26 第四批整併起（腳本不隨網站發佈、不升版）：原本各腳本各寫一份、內容相同；只差數值的改成參數） ----
+
+/** 條件不成立就丟出例外（情境的判定）。 */
+export function check(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+/** 現在的 UTC 時間（資料庫格式 yyyy-MM-dd HH:mm:ss），用來只看這次執行之後寫入的資料。 */
+export function utcNow() {
+  return new Date().toISOString().replace('T', ' ').slice(0, 19);
+}
+
+/**
+ * 情境步驟 step(id, title, action)：action 的回傳值（沒有時是「通過」）記為通過；丟出例外記為失敗，只留訊息第一行。
+ * 有給 failurePage（回傳目前頁面的函式）時，失敗當下另存畫面 `<id>-失敗當下.png`，並在訊息後面標出擋住點擊的元素
+ * （0.10.11 起 m06-ai 用），方便判斷是程式還是腳本的問題。
+ */
+export function createStep(recorder, { failurePage } = {}) {
+  return async (id, title, action) => {
+    try {
+      const actual = await action();
+      recorder.add(id, title, true, actual ?? '通過');
+    } catch (error) {
+      const message = String(error?.message ?? error);
+      if (!failurePage) {
+        recorder.add(id, title, false, message.split('\n')[0]);
+        return;
+      }
+
+      const blocker = /<[^>]+> (?:from <[^>]+> subtree )?intercepts pointer events/.exec(message)?.[0] ?? '';
+      await failurePage()?.screenshot({ path: join(outDir, 'screenshots', `${id}-失敗當下.png`) }).catch(() => {});
+      recorder.add(id, title, false, message.split('\n')[0] + (blocker ? `；擋住的元素：${blocker.slice(0, 200)}` : ''));
+    }
+  };
+}
+
+/** 執行 trigger 觸發下載，回傳建議檔名與內容。 */
+export async function download(page, trigger) {
+  const [file] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), trigger()]);
+  return { name: file.suggestedFilename(), bytes: readFileSync(await file.path()) };
+}
+
+/** since 之後寫入的某一種稽核（依寫入順序）。 */
+export function audits(action, since) {
+  return query('SELECT TargetId, Detail FROM AuditLog WHERE Action = ? AND OccurredAt >= ? ORDER BY Id', action, since);
+}
+
+/** since 之後寫入的某一種稽核有幾筆。 */
+export function auditCount(action, since) {
+  return query('SELECT COUNT(*) AS N FROM AuditLog WHERE Action = ? AND OccurredAt >= ?', action, since)[0].N;
+}
+
+/** 填登入表單（不等導頁），驗證碼答案在隱藏欄位。 */
+export async function fillLogin(page, account, password) {
+  await page.goto('/Auths/Login');
+  await page.waitForSelector('#account', { timeout: 60000 });
+  await page.fill('#account', account);
+  await page.fill('#password', password);
+  await page.fill('#captcha', await page.inputValue('input[name="Input.CaptchaCode"]'));
+}
+
+/**
+ * 截圖前讓畫面穩定：滑鼠移到左上角（避免提示框、懸停才展開的使用者選單蓋住畫面），再等 wait 毫秒讓動畫結束。
+ * 畫面腳本 m03～m06 等 800 ms，m07～m09 等 1200 ms。
+ */
+export async function settle(page, wait = 800) {
+  await page.mouse.move(1, 1);
+  await page.waitForTimeout(wait);
+}
+
+/** 等表格出現資料列（tableClass 是表格的 class），再 settle。 */
+export async function waitForRows(page, tableClass, { timeout = 30000 } = {}) {
+  await page.waitForSelector(`.${tableClass} .ant-table-row`, { timeout });
+  await settle(page);
+}
+
+/** 按右上角的關閉鈕關掉對話窗，等它消失（m03-views 用 Esc 關、m06-ai 先避開提示框，那兩支各自保留自己的寫法）。 */
+export async function closeModal(page) {
+  await page.locator('.ant-modal-close').last().click();
+  await page.waitForSelector('.ant-modal-content', { state: 'hidden', timeout: 15000 });
+}
+
+/** 按標籤「含有」title 的第一個工具列按鈕（畫面腳本用；m03-views 保留自己不加 .first() 的版本，符合的按鈕不只一個時會報錯；情境腳本用 crud-ui.mjs 的 clickToolbar，它先找標籤完全相符的）。 */
+export async function toolbar(page, title) {
+  await page.locator('button.toolbar-icon-button', { hasText: title }).first().click();
+}
+
+/** 隔離主機的應用程式日誌資料夾（E2E_LOG_DIR 可覆寫）。呼叫時才算：煙霧測試這類不讀資料庫的腳本也會載入本檔。 */
+function serverLogDir() {
+  return process.env.E2E_LOG_DIR ?? join(dirname(dirname(databaseFile)), 'logs', 'MyProject.Web');
+}
+
+/** 應用程式日誌全部的內容（不含 NLog 自己的 *-nlog-internal.log）；資料夾還不存在時是空字串。 */
+export function allLogText() {
+  const logDir = serverLogDir();
+  if (!existsSync(logDir)) {
+    return '';
+  }
+
+  return readdirSync(logDir).filter((x) => x.includes('-logfile-') && x.endsWith('.log')).sort()
+    .map((x) => readFileSync(join(logDir, x), 'utf8')).join('\n');
+}
+
+/** 每 interval 毫秒呼叫一次 check（同步函式），回傳第一個為真的值；逾時回 null（不丟例外，由呼叫端判定）。 */
+export async function waitForValue(check, timeout = 90000, interval = 500) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const value = check();
+    if (value) {
+      return value;
+    }
+
+    if (Date.now() > deadline) {
+      return null;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
 }

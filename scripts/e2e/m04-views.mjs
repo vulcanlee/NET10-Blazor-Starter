@@ -1,7 +1,7 @@
 // M4 外觀比對用的固定畫面（0.10.3 起，WASM 遷移 M4）：在隔離資料庫佈置固定的專案（含附件紀錄），
 // 依序拍下專案頁的各個狀態。改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。
 // 沿用 m03-views 的團隊、分類與唯讀角色，唯讀角色另加「專案項目:view」。資料只佈置一次，同一個資料庫可以重跑。
-import { execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { execute, launchBrowser, login, newContext, query, screenshot, settle, waitForRows } from './common.mjs';
 import { readerAccount, readerPassword, seedFixedData as seedM03 } from './m03-views.mjs';
 
 const fixedTime = '2026-11-01 09:00:00';
@@ -46,16 +46,6 @@ export function seedProjects() {
   execute('INSERT INTO RolePermissionMap (RoleViewId, PermissionId) VALUES (?, ?)', roleId, permissionId);
 }
 
-async function settle(page) {
-  await page.mouse.move(1, 1);
-  await page.waitForTimeout(800);
-}
-
-async function waitForRows(page) {
-  await page.waitForSelector('.project-view-table .ant-table-row', { timeout: 30000 });
-  await settle(page);
-}
-
 /** 拍下所有固定畫面，回傳檔名清單。前置：已佈置資料。 */
 export async function captureViews(browser, prefix) {
   const files = [];
@@ -64,7 +54,7 @@ export async function captureViews(browser, prefix) {
   await login(page);
 
   await page.goto('/projects');
-  await waitForRows(page);
+  await waitForRows(page, 'project-view-table');
   files.push(await screenshot(page, `${prefix}-01-專案清單`));
 
   await page.locator('.ant-table-row', { hasText: 'E2E 專案甲' }).first().locator('button.crud-action-button', { hasText: '修改' }).click();
@@ -87,7 +77,7 @@ export async function captureViews(browser, prefix) {
   const reader = await readerContext.newPage();
   await login(reader, { account: readerAccount, password: readerPassword });
   await reader.goto('/projects');
-  await waitForRows(reader);
+  await waitForRows(reader, 'project-view-table');
   files.push(await screenshot(reader, `${prefix}-05-唯讀專案清單`));
   await readerContext.close();
 

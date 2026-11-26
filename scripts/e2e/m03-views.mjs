@@ -1,7 +1,7 @@
 // M3 外觀比對用的固定畫面（0.10.2 起，WASM 遷移 M3）：在隔離資料庫佈置固定的分類、團隊與唯讀角色，
 // 依序拍下分類頁、團隊頁的各個狀態。改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。
 // 用法見 README.md；資料只佈置一次（以分類「E2E 硬體」是否存在判斷），同一個資料庫可以重跑。
-import { createUser, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { createUser, execute, launchBrowser, login, newContext, query, screenshot, settle, waitForRows } from './common.mjs';
 
 export const readerAccount = 'e2e-reader';
 export const readerPassword = 'Reader!E2e2026';
@@ -55,17 +55,6 @@ export function seedFixedData() {
   execute('UPDATE MyUser SET RoleViewId = ? WHERE Id = ?', roleId, readerId);
   execute('DELETE FROM UserRole WHERE MyUserId = ?', readerId);
   execute('INSERT INTO UserRole (MyUserId, RoleViewId) VALUES (?, ?)', readerId, roleId);
-}
-
-/** 等表格畫完（Server 版走電路、WASM 版走 API，兩邊都等到資料列出現）。 */
-async function waitForRows(page, tableClass) {
-  await page.waitForSelector(`.${tableClass} .ant-table-row`, { timeout: 30000 });
-  await settle(page);
-}
-
-async function settle(page) {
-  await page.mouse.move(1, 1);
-  await page.waitForTimeout(800);
 }
 
 async function openModal(page, rowText, title) {

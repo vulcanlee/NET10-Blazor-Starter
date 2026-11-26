@@ -3,7 +3,7 @@
 // 改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。資料只佈置一次，同一個資料庫可以重跑。
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { databaseFile, execute, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
+import { closeModal, databaseFile, execute, launchBrowser, login, newContext, query, screenshot, settle, toolbar, waitForPredicate } from './common.mjs';
 import { freezeTimes } from './m05-views.mjs';
 
 export const seedTag = 'E2E種子';
@@ -73,20 +73,6 @@ export function seedAiData() {
      VALUES ('LogAnalysis', ?, ?, ?, ?, ?, 'support')`, version, content, note, active ? 1 : 0, `${day} 0${version}:00:00`);
   prompt(1, false, '請依時間順序整理錯誤，指出最可能的原因。', `${seedTag} 第一版`);
   prompt(2, true, '請依時間順序整理錯誤，指出最可能的原因，並列出建議的處理步驟。', `${seedTag} 加上處理步驟`);
-}
-
-async function settle(page) {
-  await page.mouse.move(1, 1);
-  await page.waitForTimeout(800);
-}
-
-async function toolbar(page, title) {
-  await page.locator('button.toolbar-icon-button', { hasText: title }).first().click();
-}
-
-async function closeModal(page) {
-  await page.locator('.ant-modal-close').last().click();
-  await page.waitForSelector('.ant-modal-content', { state: 'hidden', timeout: 15000 });
 }
 
 async function rowCount(page, tableClass, count) {

@@ -104,7 +104,9 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 - ⚠️ **不要用 `page.waitForFunction`**：第一次判斷不成立、開始輪詢時要在頁面裡 eval，被前端的 CSP（M11 起沒有 `'unsafe-eval'`）擋下而偶發失敗。一律用 `common.mjs` 的 `waitForPredicate(page, predicate, arg, { timeout, polling })`（在 Node 端以 `page.evaluate` 輪詢，用法同 `waitForFunction`）。
 - ⚠️ **`m03-crud.mjs` 與 `m04-projects.mjs` 要分開以各自的主機執行**（每支各用一個新啟動的 `Start-E2EHost.ps1`）：同一個資料庫依序跑時，M3 會刪掉 M4 要用的測試團隊。
 - `crud-ui.mjs` 的 `confirm` 等「按下的那一個」確認窗關掉（接著跳出的下一個確認窗會變成新的 `.last()`，不可再等 `.last()`）。
-- `m06-ai.mjs` 失敗時截下當下畫面（`<情境>-失敗當下.png`），並在結果記下擋住點擊的元素，方便判斷是程式還是腳本的問題。
+- `m06-ai.mjs` 失敗時截下當下畫面（`<情境>-失敗當下.png`），並在結果記下擋住點擊的元素，方便判斷是程式還是腳本的問題（2026/11/26 第四批整併起（腳本不隨網站發佈、不升版）是 `common.mjs` 的 `createStep(recorder, { failurePage })`，其他腳本要的話一樣傳 `failurePage`）。
+- **各腳本共用的小工具放在 `common.mjs`／`crud-ui.mjs`（2026/11/26 第四批整併起（腳本不隨網站發佈、不升版））**：新腳本直接 import，不要再各寫一份；只差數值的（等待毫秒、逾時、輪詢間隔）用參數。行為不同的同名函式刻意各自保留，例如 `m03-views.mjs` 以 Esc 關窗的 `closeModal` 與不加 `.first()` 的 `toolbar`、`m06-ai.mjs` 先避開提示框的 `closeModal`、`m08-agents.mjs` 逾時丟例外的 `waitFor`、`m02-shell.mjs` 以 `dotnet.*.js` 判斷的 `isWasmPage`。
+- 截圖或點擊前，滑鼠不要停在頂部右側：使用者選單是懸停就展開（`.user-menu:hover`），會蓋住工具列按鈕。用 `settle`（滑鼠移到左上角）或 `page.mouse.move(1, 1)`。
 
 `Start-E2EHost.ps1` 0.10.8 起**信件一律存成 .eml 檔**到隔離資料夾的 `Mails`（`EmailSettings__Provider=Pickup`、`PickupDirectory`、`PublicBaseUrl=https://localhost:7144`）：開發機的 User Secrets 可能設了真的 SMTP，情境腳本不可以真的寄信出去。
 
@@ -118,10 +120,10 @@ pwsh ./scripts/Start-E2EHost.ps1 -SupportPassword '<暫時密碼>'
 
 | 檔案 | 內容 |
 |---|---|
-| `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs`；0.10.8 起 Token 從瀏覽器的 storage 讀（`pageTokens`、`pageAccessToken`，快到期先刷新），另有 `apiJsonAsPageUser`（回狀態碼與 JSON）。0.10.10 起有 `apiUrl`（`E2E_API_URL`），`/api/` 開頭的路徑打到 API 主機。⚠️ 不要用 `waitForLoadState('networkidle')`：WASM 頁面一直開著通知推播連線，網路永遠不閒置。0.10.12 起有 `waitForPredicate`，取代 `page.waitForFunction`（後者輪詢時要在頁面裡 eval，被前端的 CSP 擋下）——⚠️ 不要用 `page.waitForFunction` |
+| `common.mjs` | 共用：啟動瀏覽器、登入、在頁面內呼叫 API、唯讀查詢資料庫、截圖、記錄結果；0.10.3 起另有 `createScopedUser`（建一個指定權限與團隊的帳號）、`isWasmPage`（判斷目前頁面是不是 WASM）、`apiAsPageUser`（以頁面上那個人的 Token 呼叫 API），原本在 `m03-crud.mjs`；0.10.8 起 Token 從瀏覽器的 storage 讀（`pageTokens`、`pageAccessToken`，快到期先刷新），另有 `apiJsonAsPageUser`（回狀態碼與 JSON）。0.10.10 起有 `apiUrl`（`E2E_API_URL`），`/api/` 開頭的路徑打到 API 主機。⚠️ 不要用 `waitForLoadState('networkidle')`：WASM 頁面一直開著通知推播連線，網路永遠不閒置。0.10.12 起有 `waitForPredicate`，取代 `page.waitForFunction`（後者輪詢時要在頁面裡 eval，被前端的 CSP 擋下）——⚠️ 不要用 `page.waitForFunction`。2026/11/26 第四批整併起（腳本不隨網站發佈、不升版）另有各腳本共用的小工具：`check`、`utcNow`、`createStep`（情境步驟）、`download`、`audits`／`auditCount`（稽核）、`fillLogin`、`settle`、`waitForRows`、`closeModal`（按關閉鈕）、`toolbar`（標籤含有即可）、`allLogText`（隔離主機的應用程式日誌）、`waitForValue`（同步條件輪詢，逾時回 null） |
 | `smoke-routes.mjs` | 全部 36 個路由的煙霧測試（0.10.8 起移除 `/Auths/RefreshSession`；登入相關頁面在 WASM，等元素出現才截圖）：每頁開得起來、沒有錯誤列或無權限畫面、沒有頁面錯誤，並截圖；0.10.5 起登入後的頁面被丟回登入頁、或停在「請求過於頻繁」的限流提示，也算失敗 |
 | `m01-tokens.mjs` | M1 情境（0.10.8 起改為純 Token 登入）：記住我的 Token 存放（localStorage／sessionStorage、`web` 管道紀錄、不發登入 Cookie）、刷新輪替與重用偵測、登出撤銷整次登入、強制改密碼擋 API、改密碼後這台維持登入而舊 Token 失效、登入 Token 清理排程 |
-| `crud-ui.mjs` | 資料維護頁的共用操作：開清單、新增、修改、刪除、還原、永久刪除、確認窗、右下角通知（0.10.2 起）；`confirm` 等按下的那一個確認窗關掉（0.10.11 起） |
+| `crud-ui.mjs` | 資料維護頁的共用操作：開清單、新增、修改、刪除、還原、永久刪除、確認窗、右下角通知（0.10.2 起）；`confirm` 等按下的那一個確認窗關掉（0.10.11 起）；`confirmSave`（儲存後緊接著的「確認團隊設定」按「仍要儲存」，2026/11/26 第四批整併起（腳本不隨網站發佈、不升版）由 `m04-projects.mjs`、`m05-admin.mjs` 移來） |
 | `crud-generated.mjs` | CRUD 產生器產生的頁面實跑（`E2E_CRUD_ROUTES` 指定路由）；由 `scripts/Test-CrudGenerator.ps1` 在暫存 worktree 呼叫 |
 | `m03-views.mjs` | M3 外觀比對：佈置固定的分類、團隊、唯讀角色，拍分類頁與團隊頁的 8 個畫面（清單、修改窗、已刪除、部門樹、搜尋、唯讀） |
 | `m03-crud.mjs` | M3 情境：分類完整流程、重名、兩個分頁同時修改、匯出、異動歷程、團隊批次刪除、改名同步、資料保留頁「前往」、側邊選單換頁（全部在 WASM；0.10.8 以前是 Server／WASM 切換）、團隊範圍、唯讀角色、沒有權限開頁的稽核 |

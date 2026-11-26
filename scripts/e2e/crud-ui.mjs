@@ -166,3 +166,20 @@ export function watchErrors(page) {
   });
   return errors;
 }
+
+/**
+ * 按確認窗的「儲存」；未指定團隊時緊接著會跳「確認團隊設定」，按「仍要儲存」。
+ * 兩個確認窗前後緊接，不能用 confirm() 等第一個關掉。（2026/11/26 第四批整併起（腳本不隨網站發佈、不升版）由 m04-projects、m05-admin 移來）
+ */
+export async function confirmSave(page) {
+  await page.locator('.ant-modal-confirm .ant-modal-confirm-btns button', { hasText: /^\s*儲\s*存\s*$/ }).last().click();
+  const team = page.locator('.ant-modal-confirm', { hasText: '確認團隊設定' });
+  try {
+    await team.waitFor({ state: 'visible', timeout: 2000 });
+  } catch {
+    return;
+  }
+
+  await team.locator('.ant-modal-confirm-btns button', { hasText: '仍要儲存' }).click();
+  await team.waitFor({ state: 'hidden', timeout: 15000 });
+}
