@@ -3,7 +3,7 @@
 // 系統管理助理不可復原動作要輸入「確認」、
 // 系統巡檢報告連結（0.10.39 起）、推播 2 秒內到達，最後跑全部路由的煙霧測試。參數 nopush：只跑「關閉推播仍可輪詢」（主機要以 NotificationSettings__PushEnabled=false 啟動）。
 // 結果寫到 E2E_OUT_DIR/m08-results.json（nopush 模式為 m08-nopush-results.json）與 smoke-results.json。
-import { apiAsPageUser, createRecorder, isWasmPage, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
+import { apiAsPageUser, check, createRecorder, createStep, isWasmPage, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
 import { closeToasts, watchErrors } from './crud-ui.mjs';
 import { freezeTimes } from './m05-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -12,19 +12,7 @@ const noPush = process.argv[2] === 'nopush';
 const recorder = createRecorder(noPush ? 'm08-nopush-results.json' : 'm08-results.json');
 const smoke = createRecorder('smoke-results.json');
 
-async function step(id, title, action) {
-  try {
-    recorder.add(id, title, true, (await action()) ?? '通過');
-  } catch (error) {
-    recorder.add(id, title, false, String(error?.message ?? error).split('\n')[0]);
-  }
-}
-
-function check(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
+const step = createStep(recorder);
 
 async function waitFor(predicate, timeout, message) {
   const deadline = Date.now() + timeout;

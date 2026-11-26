@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   apiAsPageUser, createRecorder, createUser, execute, isWasmPage, launchBrowser, login, newContext, outDir, pageTokens, query, screenshot, waitForPredicate } from './common.mjs';
-import { clickRowAction, clickToolbar, closeToasts, confirm, openList, rowTexts, waitForToast, watchErrors } from './crud-ui.mjs';
+import { clickRowAction, clickToolbar, closeToasts, confirm, confirmSave, openList, rowTexts, waitForToast, watchErrors } from './crud-ui.mjs';
 import { readerAccount, readerPassword } from './m03-views.mjs';
 import { freezeTimes, seedAdminData, seedTag } from './m05-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -27,20 +27,6 @@ function seedUser(account, { admin = false } = {}) {
 
   execute('UPDATE MyUser SET IsAdmin = ?, Status = 1 WHERE Account = ?', admin ? 1 : 0, account);
   return query('SELECT Id FROM MyUser WHERE Account = ?', account)[0].Id;
-}
-
-/** 按確認窗的「儲存」；緊接著若跳「確認團隊設定」就按「仍要儲存」。 */
-async function confirmSave(page) {
-  await page.locator('.ant-modal-confirm .ant-modal-confirm-btns button', { hasText: /^\s*儲\s*存\s*$/ }).last().click();
-  const team = page.locator('.ant-modal-confirm', { hasText: '確認團隊設定' });
-  try {
-    await team.waitFor({ state: 'visible', timeout: 2000 });
-  } catch {
-    return;
-  }
-
-  await team.locator('.ant-modal-confirm-btns button', { hasText: '仍要儲存' }).click();
-  await team.waitFor({ state: 'hidden', timeout: 15000 });
 }
 
 /** 多選下拉加選一個選項（依下拉的標籤找）。 */

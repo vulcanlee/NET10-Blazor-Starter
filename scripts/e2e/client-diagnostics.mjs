@@ -7,42 +7,14 @@
 // D4 另一位使用者（support）的前端日誌不會送來
 // D5 管理員按「停止」：清單清空；那位使用者下一次呼叫 API 後提示列消失，之後的操作不再送來
 // D6 開啟與關閉各有一筆稽核
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { createRecorder, createUser, databaseFile, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
+import { allLogText, createRecorder, createUser, launchBrowser, login, newContext, query, screenshot, waitForPredicate, waitForValue } from './common.mjs';
 
 const recorder = createRecorder('client-diagnostics-results.json');
-const logDir = process.env.E2E_LOG_DIR ?? join(dirname(dirname(databaseFile)), 'logs', 'MyProject.Web');
 const account = `diag-${Date.now().toString(36)}`;
 const password = 'Diag-Pass-2026!';
 
-function allLogText() {
-  if (!existsSync(logDir)) {
-    return '';
-  }
-
-  return readdirSync(logDir).filter((x) => x.includes('-logfile-') && x.endsWith('.log')).sort()
-    .map((x) => readFileSync(join(logDir, x), 'utf8')).join('\n');
-}
-
 let logStart = allLogText().length;
 const logText = () => allLogText().slice(logStart);
-
-async function waitFor(check, timeout = 90000) {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    const value = check();
-    if (value) {
-      return value;
-    }
-
-    if (Date.now() > deadline) {
-      return null;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-}
 
 const browserLines = (text, who) => text.split('\n').filter((line) => line.includes('|MyProject.Browser.') && line.includes(`Account=${who},`));
 
@@ -78,7 +50,7 @@ try {
 
   // D3：換頁後，前端日誌（TRACE）寫進伺服器的日誌檔。
   await user.evaluate(() => window.Blazor.navigateTo('/Profile'));
-  const forwarded = await waitFor(() => {
+  const forwarded = await waitForValue(() => {
     const lines = browserLines(logText(), account);
     return lines.some((x) => x.includes('|TRACE|') && x.includes('Navigated. Path=/Profile'))
       && lines.some((x) => x.includes('|TRACE|') && x.includes('API call completed.')) ? lines : null;

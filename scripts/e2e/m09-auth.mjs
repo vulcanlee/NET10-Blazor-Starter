@@ -5,7 +5,7 @@
 import { createHmac } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { apiUrl, baseUrl, createRecorder, createUser, databaseFile, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { apiUrl, baseUrl, check, createRecorder, createStep, createUser, databaseFile, execute, fillLogin, launchBrowser, login, newContext, query, screenshot, utcNow } from './common.mjs';
 import { watchErrors } from './crud-ui.mjs';
 import { mustChangeAccount, seedAuthUsers, setupAccount, userPassword } from './m09-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
@@ -17,23 +17,7 @@ const resetAccount = 'e2e-m9-reset';
 const frontendRoot = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 const resetEmail = 'e2e-m9-reset@e2e.test';
 
-async function step(id, title, action) {
-  try {
-    recorder.add(id, title, true, (await action()) ?? '通過');
-  } catch (error) {
-    recorder.add(id, title, false, String(error?.message ?? error).split('\n')[0]);
-  }
-}
-
-function check(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-function utcNow() {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19);
-}
+const step = createStep(recorder);
 
 /** RFC 6238 TOTP（SHA1、6 碼、30 秒）。金鑰是 Base32（畫面上每 4 字空一格）。 */
 function totp(secret, offsetSteps = 0) {
@@ -73,14 +57,6 @@ async function isSignedIn(page, route = '/App') {
   await page.goto(route);
   await page.waitForTimeout(5000);
   return !new URL(page.url()).pathname.toLowerCase().startsWith('/auths/login');
-}
-
-async function fillLogin(page, account, password) {
-  await page.goto('/Auths/Login');
-  await page.waitForSelector('#account', { timeout: 60000 });
-  await page.fill('#account', account);
-  await page.fill('#password', password);
-  await page.fill('#captcha', await page.inputValue('input[name="Input.CaptchaCode"]'));
 }
 
 seedAuthUsers();

@@ -2,7 +2,7 @@
 // 強制改密碼、兩步驟驗證設定、找不到頁面、錯誤頁。改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。
 // ⚠️ 驗證碼數字與兩步驟驗證設定的 QR 碼每次不同，這兩處的差異比對時另外說明。
 // ⚠️ 不可用 waitForLoadState('networkidle')：M8 起 WASM 頁面一直開著通知推播連線，網路永遠不會閒置（會等到逾時）。一律等畫面元素出現。
-import { createUser, execute, launchBrowser, login, newContext, query, screenshot } from './common.mjs';
+import { createUser, execute, fillLogin, launchBrowser, login, newContext, query, screenshot, settle } from './common.mjs';
 
 export const userPassword = 'User!E2e2026x';
 export const mustChangeAccount = 'e2e-m9-change';
@@ -21,23 +21,9 @@ export function seedAuthUsers() {
   execute("UPDATE MyUser SET TwoFactorEnabled = 1, TwoFactorSecret = 'e2e-placeholder' WHERE Account = ?", twoFactorAccount);
 }
 
-async function settle(page) {
-  await page.mouse.move(1, 1);
-  await page.waitForTimeout(1200);
-}
-
 async function shot(page, name, files) {
-  await settle(page);
+  await settle(page, 1200);
   files.push(await screenshot(page, name));
-}
-
-/** 填登入表單（不等導頁），驗證碼答案在隱藏欄位。 */
-async function fillLogin(page, account, password) {
-  await page.goto('/Auths/Login');
-  await page.waitForSelector('#account', { timeout: 60000 });
-  await page.fill('#account', account);
-  await page.fill('#password', password);
-  await page.fill('#captcha', await page.inputValue('input[name="Input.CaptchaCode"]'));
 }
 
 export async function captureViews(browser, prefix) {

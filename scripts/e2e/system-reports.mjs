@@ -18,28 +18,15 @@
 // R15 超過 31 天的區間：不產生報告，助理轉述限制
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { apiJsonAsPageUser, createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot, waitForPredicate } from './common.mjs';
+import { apiJsonAsPageUser, createRecorder, databaseFile, launchBrowser, login, newContext, outDir, query, screenshot, waitForPredicate, waitForValue } from './common.mjs';
 
 const mailDir = process.env.E2E_MAIL_DIR ?? join(dirname(dirname(databaseFile)), 'Mails');
 const mailFiles = () => (existsSync(mailDir) ? readdirSync(mailDir).filter((x) => x.endsWith('.eml')) : []);
 
 const recorder = createRecorder('system-reports-results.json');
 
-async function waitFor(check, timeout = 180000) {
-  const deadline = Date.now() + timeout;
-  for (;;) {
-    const value = check();
-    if (value) {
-      return value;
-    }
-
-    if (Date.now() > deadline) {
-      return null;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-}
+// 巡檢報告與寄信較慢：預設等 3 分鐘、每秒看一次。
+const waitFor = (check, timeout = 180000) => waitForValue(check, timeout, 1000);
 
 /** 系統管理助理：在輸入框打字並送出（TextArea 失焦才回寫值），等到不在產生中。 */
 async function ask(page, text) {

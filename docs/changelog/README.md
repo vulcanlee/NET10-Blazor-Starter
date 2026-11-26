@@ -1,6 +1,6 @@
 ﻿# changelog — 變更紀錄
 
-- 文件版本：6.138
+- 文件版本：6.139
 - 文件狀態：維護中
 - 現行系統版本：0.10.45
 - 首次實作版本：0.4.23
@@ -10,6 +10,7 @@
 
 | 變更（版本）| 文件 |
 |------|------|
+| e2e 腳本重複整併（使用者 2026/11/26 要求整併重複程式碼，四批中的第四批）：`check`、`utcNow`、情境步驟 `createStep`、`download`、稽核查詢、`fillLogin`、`settle`、`waitForRows`、`closeModal`、`toolbar`、日誌讀取與輪詢搬到 `scripts/e2e/common.mjs`，`confirmSave` 搬到 `crud-ui.mjs`；`ux-data-freshness.mjs` 的 F6 不再被懸停展開的使用者選單擋住（只改腳本，不升版，0.10.45）| [2026-11-26-e2e腳本重複整併](2026-11-26-e2e腳本重複整併.md) |
 | 前端重複整併（使用者 2026/11/26 要求整併重複程式碼，四批中的第三批）：下載、複製、日誌頁清除、表格排序、AI 視窗的字級按鈕／串流計時／顯示上限與報告樣式 `.ai-markdown`、忙碌時才輪詢、票證下載、`ApiClient` 刷新與讀結果、排程狀態文字共用；`UserApi` 繼承 `CrudApi`；CRUD 產生器樣板同步。唯一刻意的外觀改變是日誌檢視 AI 報告的程式碼區塊改用主題色（0.10.45）| [2026-11-26-前端重複整併](2026-11-26-前端重複整併.md) |
 | 伺服器端重複整併（使用者 2026/11/26 要求整併重複程式碼，四批中的第二批）：七個檔案存放類別共用 `RootedFiles`（AI 對話紀錄、Token 用量原始檔、例外堆疊三個 store 補上根目錄檢查）；資料保留 `RetentionQueries`（11 個服務的統計、3 段「刪資料再刪檔」；例外紀錄因重複發生會更新時間，維持依主鍵刪）；時間換算 `LocalTime`（系統參數改走 `TimeProvider`）；Controller 的 6 個稽核包裝改用 `ViewAudit`；PDF 產生器共用字型檢查、表格與區段標題（20 份 PDF 前後逐位元組相同）；系統管理助理工具註冊 `AiToolDefinition.For`（64 個工具定義前後相同）；日誌清單排序、文字截斷、JSON 設定、下載檔名前綴、備份的磁碟空間與雜湊。評估後不整併的重複與理由寫在測試報告（0.10.44）| [2026-11-26-伺服器端重複整併](2026-11-26-伺服器端重複整併.md) |
 | 死碼清理（使用者 2026/11/26 要求檢查重複程式碼與沒被使用的程式碼，分四批，本批是第一批）：移除全專案沒人用的程式碼（五個 CRUD 服務的 `BeforeDeleteCheckAsync`、`RecordVm`、`SizeEstimateMethod`、`AuditLogQueryService.OlderThan` 等）、巡檢退場殘留、死設定 `SystemSettings:ConnectionStrings`、沒用到的 CSS；退場功能的殘留（舊版巡檢報告寫入路徑、舊端點 `client-errors` 與「前端錯誤回報因限流丟棄」計數）；沉睡的擴充點（依對話選推論等級、Agent 對話設定層 `AgentConversationProfile`／`AgentConversationApi`、沒有版本號的路由別名 `api/[controller]`，CRUD 樣板一起改）。只有測試在用但在保護正式功能的檢查掛鉤保留。測試報告記錄每一項的刪除前引用證據、API 介面比對、測試數量對帳與 e2e 前後比對（0.10.43）| [2026-11-26-死碼清理](2026-11-26-死碼清理.md) |

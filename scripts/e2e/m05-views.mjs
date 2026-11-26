@@ -1,7 +1,7 @@
 // M5 外觀比對用的固定畫面（0.10.4 起，WASM 遷移 M5）：在隔離資料庫佈置固定的使用者、角色、稽核紀錄與寄信紀錄，
 // 拍下使用者、角色、稽核紀錄、寄信紀錄頁的各個狀態。改版前（Server 版）與改版後（WASM 版）各跑一次，再逐像素比對。
 // 沿用 m03-views 的團隊與唯讀角色。資料只佈置一次，同一個資料庫可以重跑。
-import { createUser, execute, launchBrowser, login, newContext, query, screenshot, waitForPredicate } from './common.mjs';
+import { closeModal, createUser, execute, launchBrowser, login, newContext, query, screenshot, settle, toolbar, waitForPredicate, waitForRows } from './common.mjs';
 import { seedFixedData as seedM03 } from './m03-views.mjs';
 
 const fixedTime = '2026-11-01 09:00:00';
@@ -72,29 +72,10 @@ export function freezeTimes() {
   execute('UPDATE RoleView SET CreateAt = ?, UpdateAt = ?', fixedTime, fixedTime);
 }
 
-async function settle(page) {
-  await page.mouse.move(1, 1);
-  await page.waitForTimeout(800);
-}
-
-async function waitForRows(page, tableClass) {
-  await page.waitForSelector(`.${tableClass} .ant-table-row`, { timeout: 60000 });
-  await settle(page);
-}
-
 async function openRowModal(page, rowText, title) {
   await page.locator('.ant-table-row', { hasText: rowText }).first().locator('button.crud-action-button', { hasText: title }).click();
   await page.waitForSelector('.ant-modal-content', { state: 'visible', timeout: 15000 });
   await settle(page);
-}
-
-async function closeModal(page) {
-  await page.locator('.ant-modal-close').last().click();
-  await page.waitForSelector('.ant-modal-content', { state: 'hidden', timeout: 15000 });
-}
-
-async function toolbar(page, title) {
-  await page.locator('button.toolbar-icon-button', { hasText: title }).first().click();
 }
 
 /** 拍下所有固定畫面，回傳檔名清單。前置：已佈置資料。 */
@@ -106,7 +87,7 @@ export async function captureViews(browser, prefix) {
   freezeTimes();
 
   await page.goto('/myusers');
-  await waitForRows(page, 'my-user-table');
+  await waitForRows(page, 'my-user-table', { timeout: 60000 });
   files.push(await screenshot(page, `${prefix}-01-使用者清單`));
 
   await openRowModal(page, 'e2e-wang', '修改');
@@ -119,7 +100,7 @@ export async function captureViews(browser, prefix) {
   files.push(await screenshot(page, `${prefix}-03-使用者已刪除`));
 
   await page.goto('/roleviews');
-  await waitForRows(page, 'role-view-table');
+  await waitForRows(page, 'role-view-table', { timeout: 60000 });
   files.push(await screenshot(page, `${prefix}-04-角色清單`));
 
   await openRowModal(page, 'E2E 主管', '修改');
@@ -127,7 +108,7 @@ export async function captureViews(browser, prefix) {
   await closeModal(page);
 
   await page.goto('/audit-logs');
-  await waitForRows(page, 'audit-log-table');
+  await waitForRows(page, 'audit-log-table', { timeout: 60000 });
   await page.fill('.audit-log-search-input', seedTag);
   await toolbar(page, '查詢');
   await waitForPredicate(page, () => document.querySelectorAll('.audit-log-table .ant-table-row').length === 3, null, { timeout: 15000 });
