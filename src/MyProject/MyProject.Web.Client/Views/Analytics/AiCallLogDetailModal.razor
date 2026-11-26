@@ -24,12 +24,7 @@
         <div class="ai-call-log-body" style="--ai-font-scale: @FontScaleCss">
             <div class="ai-call-log-toolbar">
                 <div class="ai-call-log-font-scale">
-                    @foreach (var option in FontScaleOptions)
-                    {
-                        <Button Size="@ButtonSize.Small"
-                                Type="@(fontScalePercent == option.Percent ? ButtonType.Primary : ButtonType.Default)"
-                                OnClick="@(() => fontScalePercent = option.Percent)">@option.Label</Button>
-                    }
+                    <AiFontScalePicker @bind-Percent="fontScalePercent" />
                 </div>
                 <div class="ai-call-log-toolbar-right">
                     <ToolbarIconButton Title="下載完整紀錄（JSON）" Icon="file_download"
@@ -182,7 +177,7 @@
                         }
                         else if (renderMarkdown && block.AllowMarkdown)
                         {
-                            <div class="ai-call-log-markdown">@((MarkupString)RenderHtml(block))</div>
+                            <div class="ai-markdown ai-call-log-markdown">@((MarkupString)RenderHtml(block))</div>
                         }
                         else
                         {

@@ -1,0 +1,18 @@
+@namespace MyProject.Web.Components.Commons
+@using AntDesign
+@using MyProject.Web.Ai
+@* AI 視窗的「一般／中／大」三顆字級按鈕（0.10.45 起，整併自三個 AI 視窗）。外層的版型 div 由各頁自己放（樣式在各頁的 scoped CSS）。 *@
+@foreach (var option in AiFontScale.Options)
+{
+    <Button Size="@ButtonSize.Small"
+            Type="@(Percent == option.Percent ? ButtonType.Primary : ButtonType.Default)"
+            OnClick="@(() => PercentChanged.InvokeAsync(option.Percent))">@option.Label</Button>
+}
+
+@code {
+    [Parameter]
+    public int Percent { get; set; } = AiFontScale.DefaultPercent;
+
+    [Parameter]
+    public EventCallback<int> PercentChanged { get; set; }
+}

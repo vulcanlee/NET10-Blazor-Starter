@@ -6,6 +6,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Layout;
 using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Client.Views.Admins
@@ -20,6 +21,22 @@ namespace MyProject.Web.Client.Views.Admins
     {
         /// <summary>有清理作業在佇列或執行中時，每隔這麼久自動更新一次。</summary>
         private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromSeconds(5);
+
+        private readonly BusyAutoRefresh autoRefresh;
+
+        public DataRetentionView()
+        {
+            autoRefresh = new BusyAutoRefresh(
+                AutoRefreshInterval,
+                InvokeAsync,
+                async () =>
+                {
+                    await ReloadAsync(background: true);
+                    StateHasChanged();
+                },
+                () => Logger.LogDebug("Data retention auto refresh stopped."),
+                ex => Logger.LogWarning(ex, "Data retention auto refresh failed."));
+        }
 
         /// <summary>與伺服器的 <c>SoftDeletePurgeJob.JobName</c> 相同（Client 不參考 Web）。</summary>
         internal const string SoftDeletePurgeJobName = "SoftDeletePurge";
@@ -46,8 +63,6 @@ namespace MyProject.Web.Client.Views.Admins
         private bool isLoading;
         private string RoleMessage = string.Empty;
         private bool isAccessChecked;
-        private CancellationTokenSource? autoRefresh;
-        private bool disposed;
 
         // 自訂清除窗（0.9.134 起）。
         private const string KeepDaysMode = "keepDays";
@@ -323,66 +338,13 @@ namespace MyProject.Web.Client.Views.Admins
             _ => SizeFormatHelper.FormatBytes(folder.Bytes),
         };
 
-        private static string StatusText(string status) => status switch
-        {
-            JobRunStatuses.Running => "執行中",
-            JobRunStatuses.Succeeded => "成功",
-            JobRunStatuses.Failed => "失敗",
-            JobRunStatuses.Interrupted => "中斷",
-            JobRunStatuses.Skipped => "略過",
-            _ => status,
-        };
-
         /// <summary>有清理作業在佇列或執行中就每 5 秒自動更新；都結束了就停掉，不白白查資料庫。</summary>
         private void UpdateAutoRefresh()
         {
             var busy = overview?.Rows.Any(x => x.Job is { } job && (job.IsQueued || job.LastRun?.Status == JobRunStatuses.Running)) == true;
-            if (busy && autoRefresh is null && !disposed)
-            {
-                autoRefresh = new CancellationTokenSource();
-                _ = AutoRefreshAsync(autoRefresh.Token);
-            }
-            else if (!busy && autoRefresh is not null)
-            {
-                autoRefresh.Cancel();
-                autoRefresh = null;
-            }
+            autoRefresh.Update(busy);
         }
 
-        private async Task AutoRefreshAsync(CancellationToken cancellationToken)
-        {
-            using var timer = new PeriodicTimer(AutoRefreshInterval);
-            try
-            {
-                while (await timer.WaitForNextTickAsync(cancellationToken))
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        if (disposed || cancellationToken.IsCancellationRequested)
-                        {
-                            return;
-                        }
-
-                        await ReloadAsync(background: true);
-                        StateHasChanged();
-                    });
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Logger.LogDebug("Data retention auto refresh stopped.");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Data retention auto refresh failed.");
-            }
-        }
-
-        public void Dispose()
-        {
-            disposed = true;
-            autoRefresh?.Cancel();
-            autoRefresh = null;
-        }
+        public void Dispose() => autoRefresh.Dispose();
     }
 }

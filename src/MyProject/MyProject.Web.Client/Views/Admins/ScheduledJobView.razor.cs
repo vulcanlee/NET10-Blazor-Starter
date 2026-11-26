@@ -263,32 +263,6 @@ namespace MyProject.Web.Client.Views.Admins
         private static string DurationText(long milliseconds)
             => milliseconds < 1000 ? $"{milliseconds} ms" : $"{milliseconds / 1000d:0.#} 秒";
 
-        private static string StatusText(string status) => status switch
-        {
-            JobRunStatuses.Running => "執行中",
-            JobRunStatuses.Succeeded => "成功",
-            JobRunStatuses.Failed => "失敗",
-            JobRunStatuses.Interrupted => "中斷",
-            JobRunStatuses.Skipped => "略過",
-            _ => status,
-        };
-
-        private static StatusTone ToneOf(string status) => status switch
-        {
-            JobRunStatuses.Succeeded => StatusTone.Positive,
-            JobRunStatuses.Running => StatusTone.Accent,
-            JobRunStatuses.Failed or JobRunStatuses.Interrupted => StatusTone.Warning,
-            _ => StatusTone.Muted,
-        };
-
-        private static string TriggerText(string trigger) => trigger switch
-        {
-            JobRunTriggers.Schedule => "排程",
-            JobRunTriggers.CatchUp => "補跑",
-            JobRunTriggers.Manual => "手動",
-            _ => trigger,
-        };
-
         public async ValueTask DisposeAsync()
         {
             disposed = true;

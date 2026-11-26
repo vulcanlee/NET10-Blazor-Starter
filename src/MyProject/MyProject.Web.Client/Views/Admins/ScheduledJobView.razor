@@ -68,7 +68,7 @@ else
                         @if (context.LastRun is { } run)
                         {
                             <div class="scheduled-job-last-run">
-                                <StatusPill Text="@StatusText(run.Status)" Tone="@ToneOf(run.Status)" />
+                                <StatusPill Text="@JobRunText.Status(run.Status)" Tone="@JobRunText.Tone(run.Status)" />
                                 <span>@LocalText(run.StartedAtLocal)</span>
                                 @if (run.DurationMs is { } duration)
                                 {
@@ -125,10 +125,10 @@ else
                 <ColumnDefinitions Context="item">
                     <Column TData="string" Title="開始" Width="160">@LocalText(item.StartedAtLocal)</Column>
                     <Column TData="string" Title="結果" Width="90">
-                        <StatusPill Text="@StatusText(item.Status)" Tone="@ToneOf(item.Status)" />
+                        <StatusPill Text="@JobRunText.Status(item.Status)" Tone="@JobRunText.Tone(item.Status)" />
                     </Column>
                     <Column TData="string" Title="觸發" Width="120">
-                        @TriggerText(item.Trigger)@(item.TriggeredByAccount is { } account ? $"（{account}）" : string.Empty)
+                        @(JobRunText.Trigger(item.Trigger) ?? item.Trigger)@(item.TriggeredByAccount is { } account ? $"（{account}）" : string.Empty)
                     </Column>
                     <Column TData="string" Title="耗時" Width="90">@(item.DurationMs is { } d ? DurationText(d) : "—")</Column>
                     <Column TData="string" Title="訊息" Width="250">@(item.Message ?? "—")</Column>

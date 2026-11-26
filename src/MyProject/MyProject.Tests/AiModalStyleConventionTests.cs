@@ -27,7 +27,7 @@ public sealed class AiModalStyleConventionTests
         // 路徑相對於畫面根目錄（SourceTree.UiFile：0.10.9 起只有 WASM 的 MyProject.Web.Client）。
         {
             Path.Combine("Views", "Analytics", "LogViewerView.razor.css"),
-            [".log-ai-meta", ".log-ai-report"]
+            [".log-ai-meta"] // 0.10.45 起報告內文的規則在共用的 .ai-markdown（下面 OverlayStyles 那一列）
         },
         // 0.10.5 起在 WASM 專案（給完整路徑：Path.Combine 遇到完整路徑會直接用它）。
         {
@@ -38,6 +38,11 @@ public sealed class AiModalStyleConventionTests
         {
             Path.Combine("Views", "Analytics", "AiCallLogDetailModal.razor.css"),
             [".ai-call-log-"]
+        },
+        // 0.10.45 起三個窗共用的報告內文規則（整併自上面三個檔案）。
+        {
+            Path.Combine("Commons", "OverlayStyles.razor"),
+            [".ai-markdown"]
         },
     };
 
@@ -92,6 +97,24 @@ public sealed class AiModalStyleConventionTests
                 + "否則「一般／中／大」按鈕放大時這一段不會跟著變，而且不會有任何錯誤訊息。"
                 + Environment.NewLine
                 + string.Join(Environment.NewLine, violations));
+    }
+
+    /// <summary>
+    /// 0.10.45 起報告內文的樣式由共用的 <c>.ai-markdown</c> 提供：放報告的容器少了這個 class，
+    /// 標題、清單、程式碼區塊的樣式會整組消失，建置與其他測試都不會發現。
+    /// <c>ai-markdown</c> 要寫在前面：e2e（<c>scripts/e2e/m06-ai.mjs</c>）用 <c>[class$="-report"]</c> 找報告，
+    /// class 字串要以原本的報告 class 結尾。
+    /// </summary>
+    [Theory]
+    [InlineData("Analytics", "LogViewerView.razor", "log-ai-report", 1)]
+    [InlineData("Admins", "ExceptionAiAnalysisModal.razor", "exception-ai-report", 2)]
+    [InlineData("Analytics", "AiCallLogDetailModal.razor", "ai-call-log-markdown", 1)]
+    public void AiModalReportContainers_ShouldUseTheSharedMarkdownClass(string folder, string fileName, string reportClass, int expectedCount)
+    {
+        var content = File.ReadAllText(SourceTree.UiFile(Path.Combine("Views", folder, fileName)));
+
+        Assert.Equal(expectedCount, Regex.Matches(content, $"class=\"([^\"]* )?{reportClass}( [^\"]*)?\"").Count);
+        Assert.Equal(expectedCount, Regex.Matches(content, $"class=\"ai-markdown {reportClass}\"").Count);
     }
 
     /// <summary>對話窗尺寸的唯一真相來源是 OverlayStyles，不是 &lt;Modal Width&gt;。</summary>

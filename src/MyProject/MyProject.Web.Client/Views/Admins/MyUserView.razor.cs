@@ -51,29 +51,14 @@ namespace MyProject.Web.Client.Views.Admins
         private async Task OnExportExcelAsync()
         {
             var outcome = await Api.ExportAsync(BuildRequest());
-            if (!outcome.Success)
-            {
-                if (outcome.StatusCode == 400)
-                {
-                    ViewNotification.Caution(notificationService, outcome.Message);
-                }
-                else
-                {
-                    ViewNotification.Error(notificationService, $"匯出失敗：{outcome.Message}");
-                }
-
-                return;
-            }
-
-            try
-            {
-                await JSRuntime.DownloadFileAsync(outcome.FileName!, outcome.Content!, outcome.ContentType!);
-                logger.LogInformation("User export downloaded. Bytes={Bytes}", outcome.Content!.Length);
-            }
-            catch (Exception ex)
+            var download = await JSRuntime.SaveDownloadAsync(outcome, notificationService, "匯出失敗", cautionOnBadRequest: true);
+            if (download.Error is { } ex)
             {
                 logger.LogError(ex, "User export failed.");
-                ViewNotification.UnexpectedError(notificationService, $"匯出失敗：{ex.GetType().Name}。", ex);
+            }
+            else if (download.Saved)
+            {
+                logger.LogInformation("User export downloaded. Bytes={Bytes}", download.Bytes);
             }
         }
 
@@ -191,19 +176,7 @@ namespace MyProject.Web.Client.Views.Admins
         {
             _pageIndex = args.PageIndex;
 
-            if (args.SortModel?.Any() == true)
-            {
-                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-                string sortValue = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                string resolvedSortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
-                sortDirection = sortValue;
-                sortField = resolvedSortField;
-            }
-            else
-            {
-                sortField = string.Empty;
-                sortDirection = "None";
-            }
+            (sortField, sortDirection) = TableSortHelper.ResolveSort(args.SortModel);
 
             logger.LogDebug("User table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
             await ReloadAsync();

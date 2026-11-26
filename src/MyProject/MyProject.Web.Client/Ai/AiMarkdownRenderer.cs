@@ -43,6 +43,20 @@ public static class AiMarkdownRenderer
         .DisableHtml()
         .Build();
 
+    /// <summary>
+    /// 單則 AI 內容轉成 HTML 之後的顯示上限（0.10.45 起各 AI 畫面共用這一個值）。
+    /// MaxOutputTokens 預設不送（交給模型決定），所以這是防止異常龐大回應拖垮畫面的主要防線：
+    /// 異常龐大的 HTML 會讓單次 render diff 過肥、瀏覽器記憶體升高、對話窗開啟卡頓。
+    /// </summary>
+    public const int MaxRenderedHtmlLength = 512 * 1024;
+
+    /// <summary>轉成已消毒的 HTML；超過 <see cref="MaxRenderedHtmlLength"/> 回 null（呼叫端決定不顯示或改顯示說明）。</summary>
+    public static string? ToSafeHtmlWithinLimit(string? markdown)
+    {
+        var html = ToSafeHtml(markdown);
+        return html.Length <= MaxRenderedHtmlLength ? html : null;
+    }
+
     /// <summary>Markdown 轉成已消毒的 HTML。空輸入回空字串。</summary>
     public static string ToSafeHtml(string? markdown)
     {

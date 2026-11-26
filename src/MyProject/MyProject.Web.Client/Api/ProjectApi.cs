@@ -37,17 +37,6 @@ public sealed class ProjectApi : CrudApi<ProjectDto, ProjectSearchRequestDto>
         return (await Api.SendFormAsync<object>(url, token => files.SendAsync(method, url, token, data, ids, removed))).ToVerify();
     }
 
-    /// <summary>下載附件：先申請一次性票證，再讓瀏覽器原生下載（大檔不經過 WASM 記憶體）。</summary>
-    public async Task<VerifyRecordResult> DownloadFileAsync(int fileId)
-    {
-        var ticket = await Api.PostAsync<DownloadTicketDto>($"{BaseUrl}/files/{fileId}/ticket");
-        if (!ticket.Success || ticket.Data is null)
-        {
-            return ticket.ToVerify();
-        }
-
-        // 0.10.10 起：跨來源下載失敗時（票證失效、權限已失去）回伺服器的訊息，頁面留在原地。
-        var error = await files.DownloadAsync(ticket.Data.Url);
-        return error is null ? new VerifyRecordResult { Success = true } : new VerifyRecordResult { Success = false, Message = error };
-    }
+    /// <summary>下載附件：先申請一次性票證，再讓瀏覽器原生下載（大檔不經過 WASM 記憶體；見 <see cref="TicketDownload"/>）。</summary>
+    public Task<VerifyRecordResult> DownloadFileAsync(int fileId) => Api.DownloadByTicketAsync(files, $"{BaseUrl}/files/{fileId}/ticket");
 }

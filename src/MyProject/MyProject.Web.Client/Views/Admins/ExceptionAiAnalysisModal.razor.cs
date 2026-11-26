@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using AntDesign;
 using Microsoft.AspNetCore.Components;
@@ -50,33 +49,12 @@ namespace MyProject.Web.Client.Views.Admins
         /// <param name="Round">0 代表第一次分析報告；1 起為第 N 輪追問與其回覆。</param>
         private sealed record ChatEntry(EntryKind Kind, int Round, string Text, string Html);
 
-        private static readonly (int Percent, string Label)[] FontScaleOptions =
-        [
-            (100, "一般"),
-            (125, "中"),
-            (150, "大"),
-        ];
-
-        /// <summary>伺服器 <c>AiAnalysisFailureReason.Canceled</c> 的名稱（<see cref="AiResultDto.Reason"/>）。</summary>
-        private const string CanceledReason = "Canceled";
-
         /// <summary>對話角色（<see cref="AiChatMessageDto.Role"/>）。</summary>
         private const string UserRole = "user";
         private const string AssistantRole = "assistant";
 
-        /// <summary>
-        /// 單則 AI 回覆轉成 HTML 之後的顯示上限（同日誌檢視頁）。
-        /// MaxOutputTokens 預設不送，所以這裡是防止異常龐大回應拖垮畫面的主要防線。
-        /// </summary>
-        private const int MaxRenderedHtmlLength = 512 * 1024;
-
         /// <summary>單則追問的字數上限（伺服器也擋）。追問是給人打的問題，不是貼整份檔案的地方。</summary>
         private const int MaxFollowUpLength = ExceptionAiRequestDto.MaxQuestionLength;
-
-        private const int DefaultFontScalePercent = 100;
-
-        /// <summary>串流中重新轉 HTML 的節流，同日誌檢視頁。</summary>
-        private static readonly TimeSpan StreamRenderInterval = TimeSpan.FromMilliseconds(150);
 
         [Inject]
         public ExceptionLogApi Api { get; set; } = default!;
@@ -96,7 +74,7 @@ namespace MyProject.Web.Client.Views.Admins
         private bool isRunning;
         private bool isExporting;
         private int elapsedSeconds;
-        private int fontScalePercent = DefaultFontScalePercent;
+        private int fontScalePercent = AiFontScale.DefaultPercent;
         private string errorMessage = string.Empty;
         private string followUpText = string.Empty;
 
@@ -145,8 +123,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>元件已釋放（使用者導航離開）。之後不再更新畫面。</summary>
         private bool isDisposed;
 
-        private string FontScaleCss
-            => (fontScalePercent / 100.0).ToString("0.##", CultureInfo.InvariantCulture);
+        private string FontScaleCss => AiFontScale.ToCss(fontScalePercent);
 
         /// <summary>已成功送出的追問輪數（失敗的追問已從對話移除，不算）。</summary>
         private int FollowUpCount => conversation.Count(message => message.Role == UserRole);
@@ -263,7 +240,7 @@ namespace MyProject.Web.Client.Views.Admins
                     else if (frame.Kind == AiStreamFrameKinds.Delta && !string.IsNullOrEmpty(frame.Text))
                     {
                         streamed.Append(frame.Text);
-                        if (streamingHtml.Length == 0 || renderClock.Elapsed >= StreamRenderInterval)
+                        if (streamingHtml.Length == 0 || renderClock.Elapsed >= AiStreaming.RenderInterval)
                         {
                             ShowStreaming(streamed.ToString());
                             renderClock.Restart();
@@ -290,7 +267,7 @@ namespace MyProject.Web.Client.Views.Admins
                         // 依已收到的文字自己組出「已取消」的結果，與 Server 版服務回的相同。
                         result = new AiResultDto
                         {
-                            Reason = CanceledReason,
+                            Reason = AiStreaming.CanceledReason,
                             Markdown = streamed.ToString(),
                             IsInterrupted = streamed.Length > 0,
                             ElapsedMilliseconds = clock.ElapsedMilliseconds,
@@ -312,13 +289,13 @@ namespace MyProject.Web.Client.Views.Admins
                 if (stopRequested)
                 {
                     // 停止產生（0.9.141 起）：窗留著。剛好在按下的同時完成的，就當作正常完成往下走。
-                    if (result.Reason == CanceledReason)
+                    if (result.Reason == AiStreaming.CanceledReason)
                     {
                         ShowStopped(round, result);
                         return;
                     }
                 }
-                else if (result.Reason == CanceledReason || token.IsCancellationRequested)
+                else if (result.Reason == AiStreaming.CanceledReason || token.IsCancellationRequested)
                 {
                     // 使用者關窗放棄。即使回應恰好在取消的同時成功回來，也不能把它塞進已經清空的對話。
                     return;
@@ -336,7 +313,7 @@ namespace MyProject.Web.Client.Views.Admins
                 }
 
                 var html = AiMarkdownRenderer.ToSafeHtml(result.Markdown);
-                if (html.Length > MaxRenderedHtmlLength)
+                if (html.Length > AiMarkdownRenderer.MaxRenderedHtmlLength)
                 {
                     logger.LogWarning(
                         "AI exception analysis response was too large to render. Characters={Characters}", html.Length);
@@ -392,8 +369,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>產生中逐段顯示（0.9.141 起）。超過顯示上限時先停止更新，最後的完整結果仍會照常檢查。</summary>
         private void ShowStreaming(string markdown)
         {
-            var html = AiMarkdownRenderer.ToSafeHtml(markdown);
-            if (html.Length > MaxRenderedHtmlLength)
+            if (AiMarkdownRenderer.ToSafeHtmlWithinLimit(markdown) is not { } html)
             {
                 return;
             }
@@ -426,8 +402,7 @@ namespace MyProject.Web.Client.Views.Admins
             if (result.IsInterrupted)
             {
                 var annotated = AiInterruption.Annotate(result.Markdown);
-                var html = AiMarkdownRenderer.ToSafeHtml(annotated);
-                if (html.Length <= MaxRenderedHtmlLength)
+                if (AiMarkdownRenderer.ToSafeHtmlWithinLimit(annotated) is { } html)
                 {
                     // 送回給 AI 的脈絡保留模型原本的輸出；畫面、複製與 PDF 才加註記。
                     conversation.Add(new AiChatMessageDto { Role = AssistantRole, Content = result.Markdown, Interrupted = true });
@@ -498,23 +473,11 @@ namespace MyProject.Web.Client.Views.Admins
 
         private async Task OnCopyAsync()
         {
-            try
-            {
-                // 複製 Markdown 而非 HTML：使用者會貼進工單或通訊軟體，Markdown 才是有用的格式。
-                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", BuildConversationMarkdown());
-                if (copied)
-                {
-                    ViewNotification.Info(notificationService, "已複製整段對話。");
-                }
-                else
-                {
-                    ViewNotification.Warning(notificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
-                }
-            }
-            catch (Exception ex)
+            // 複製 Markdown 而非 HTML：使用者會貼進工單或通訊軟體，Markdown 才是有用的格式。
+            var copy = await JSRuntime.CopyTextAsync(BuildConversationMarkdown(), notificationService, "已複製整段對話。", "複製失敗，請手動選取複製。");
+            if (copy.Error is { } ex)
             {
                 logger.LogError(ex, "Failed to copy AI exception analysis to clipboard.");
-                ViewNotification.UnexpectedError(notificationService, "複製失敗，請手動選取複製。", ex);
             }
         }
 
@@ -618,7 +581,7 @@ namespace MyProject.Web.Client.Views.Admins
             totalElapsed = TimeSpan.Zero;
             errorMessage = string.Empty;
             followUpText = string.Empty;
-            fontScalePercent = DefaultFontScalePercent;
+            fontScalePercent = AiFontScale.DefaultPercent;
             elapsedSeconds = 0;
             scrollToLatestPending = false;
             stopRequested = false;
@@ -652,26 +615,12 @@ namespace MyProject.Web.Client.Views.Admins
         /// 等待中每秒更新一次「已等待 N 秒」。跳動的秒數才證明這次呼叫還在進行中。
         /// ⚠️ 一定要用 <c>InvokeAsync(StateHasChanged)</c>：計時器回呼不在 renderer 的同步內容上。
         /// </summary>
-        private async Task RunElapsedTickerAsync(CancellationToken token)
-        {
-            try
+        private Task RunElapsedTickerAsync(CancellationToken token)
+            => AiStreaming.RunElapsedTickerAsync(async () =>
             {
-                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-                while (await timer.WaitForNextTickAsync(token))
-                {
-                    elapsedSeconds++;
-                    await InvokeAsync(StateHasChanged);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // 呼叫結束或使用者放棄，正常收工。
-            }
-            catch (ObjectDisposedException)
-            {
-                // 元件已經釋放，沒有畫面可以更新了。
-            }
-        }
+                elapsedSeconds++;
+                await InvokeAsync(StateHasChanged);
+            }, token);
 
         /// <summary>
         /// 使用者在等待中直接離開頁面時，取消還在飛的請求（伺服器同步取消 AI 呼叫）。

@@ -156,19 +156,7 @@ namespace MyProject.Web.Client.Views.Admins
         {
             _pageIndex = args.PageIndex;
 
-            if (args.SortModel?.Any() == true)
-            {
-                var tableSortModel = TableSortHelper.GetCurrentSortModel(args.SortModel);
-                string sortValue = tableSortModel.SortDirection.ToString() ?? string.Empty;
-                string resolvedSortField = TableSortHelper.ResolveSortFieldName(tableSortModel);
-                sortDirection = sortValue;
-                sortField = resolvedSortField;
-            }
-            else
-            {
-                sortField = string.Empty;
-                sortDirection = "None";
-            }
+            (sortField, sortDirection) = TableSortHelper.ResolveSort(args.SortModel);
 
             logger.LogDebug("Role view table changed. PageIndex={PageIndex}, SortField={SortField}, SortDirection={SortDirection}", _pageIndex, sortField, sortDirection);
             await ReloadAsync();

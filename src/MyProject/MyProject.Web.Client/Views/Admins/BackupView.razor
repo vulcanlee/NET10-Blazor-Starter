@@ -48,7 +48,7 @@ else
                     <span class="backup-label">上次執行</span>
                     @if (job.LastRun is { } run)
                     {
-                        <StatusPill Text="@StatusText(run.Status)" Tone="@ToneOf(run.Status)" />
+                        <StatusPill Text="@JobRunText.Status(run.Status)" Tone="@JobRunText.Tone(run.Status)" />
                         <span>@run.StartedAtLocal.ToString("yyyy-MM-dd HH:mm:ss")</span>
                         @if (!string.IsNullOrWhiteSpace(run.Message))
                         {
@@ -85,7 +85,7 @@ else
                     <Column TData="string" Title="建立時間" Width="145">@context.CreatedAtLocal.ToString("yyyy-MM-dd HH:mm:ss")</Column>
                     <Column TData="string" Title="大小" Width="80">@SizeFormatHelper.FormatBytes(context.SizeBytes)</Column>
                     <Column TData="string" Title="系統版本" Width="155">@(context.Manifest?.SystemVersion ?? "—")</Column>
-                    <Column TData="string" Title="觸發" Width="65">@TriggerText(context.Manifest?.Trigger)</Column>
+                    <Column TData="string" Title="觸發" Width="65">@(JobRunText.Trigger(context.Manifest?.Trigger) ?? "—")</Column>
                     <Column TData="string" Title="內容" Width="120">
                         @if (context.Manifest is { } manifest)
                         {

@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using System.Text;
+﻿using System.Text;
 using AntDesign;
 using AntDesign.TableModels;
 using Microsoft.AspNetCore.Components;
@@ -43,16 +42,6 @@ namespace MyProject.Web.Client.Views.Analytics
             Failed,
         }
 
-        /// <summary>
-        /// 對話窗的字級選項。百分比同時是 CSS 倍率的來源與「哪一顆被選中」的識別值。
-        /// </summary>
-        private static readonly (int Percent, string Label)[] FontScaleOptions =
-        [
-            (100, "一般"),
-            (125, "中"),
-            (150, "大"),
-        ];
-
         private static readonly (string Key, string Label)[] LevelOptions =
         [
             ("", "不限"),
@@ -65,27 +54,10 @@ namespace MyProject.Web.Client.Views.Analytics
         ];
 
         /// <summary>
-        /// AI 回傳內容轉成 HTML 之後的顯示上限。
-        ///
-        /// 0.9.7 起 MaxOutputTokens 預設不送（交給模型決定），所以這裡是**主要**防線而非第二道：
-        /// 異常龐大的 HTML 會讓單次 render diff 過肥、瀏覽器記憶體升高、對話窗開啟卡頓。
-        /// </summary>
-        private const int MaxRenderedHtmlLength = 512 * 1024;
-
-        /// <summary>每次開窗都回到這一級。字級選擇刻意不跨工作階段保存，理由見功能文件。</summary>
-        private const int DefaultFontScalePercent = 100;
-
-        /// <summary>
         /// 「複製查詢結果」超過這個筆數先確認。上限 10,000 筆可能是數 MB 的文字，
         /// 貼上時目標程式會卡一下；這種量改用匯出比較合適，但仍讓使用者自己決定。
         /// </summary>
         private const int CopyAllConfirmThreshold = 1000;
-
-        /// <summary>伺服器 <c>AiAnalysisFailureReason.Canceled</c> 的名稱（串流結果的 <see cref="AiResultDto.Reason"/>）。</summary>
-        private const string CanceledReason = "Canceled";
-
-        /// <summary>串流中重新轉 HTML 的節流：太頻繁會讓長報告每一段都整份重轉、重送。</summary>
-        private static readonly TimeSpan AiStreamRenderInterval = TimeSpan.FromMilliseconds(150);
 
         // ⚠️ 本頁的提示一律走 ViewNotification（右下角卡片），不用 MessageService（頂部輕量 toast）。
         // AI 分析的階段提示與失敗原因都偏長，頂部那條會被截斷也容易被忽略。
@@ -157,7 +129,7 @@ namespace MyProject.Web.Client.Views.Analytics
         private string aiErrorMessage = string.Empty;
         private int aiSubmittedCount;
         private int aiElapsedSeconds;
-        private int aiFontScalePercent = DefaultFontScalePercent;
+        private int aiFontScalePercent = AiFontScale.DefaultPercent;
 
         /// <summary>
         /// 本次分析的取消來源。使用者在等待中關窗即取消（中斷請求，伺服器跟著取消 AI 呼叫），等待計時也綁在同一個 token 上。
@@ -195,14 +167,8 @@ namespace MyProject.Web.Client.Views.Analytics
             _ => "AI 日誌分析結果",
         };
 
-        /// <summary>
-        /// `--ai-font-scale` 的值。
-        ///
-        /// ⚠️ 一定要用 <see cref="CultureInfo.InvariantCulture"/>：若當下文化把小數點寫成逗號，
-        /// 產出的會是無效的 CSS 值 <c>1,25</c>，字級靜默失效 —— 開發機上永遠看不到。
-        /// </summary>
-        private string AiFontScaleCss
-            => (aiFontScalePercent / 100.0).ToString("0.##", CultureInfo.InvariantCulture);
+        /// <summary>`--ai-font-scale` 的值（規則與 InvariantCulture 的理由見 <see cref="AiFontScale.ToCss"/>）。</summary>
+        private string AiFontScaleCss => AiFontScale.ToCss(aiFontScalePercent);
 
         protected override async Task OnInitializedAsync()
         {
@@ -397,27 +363,18 @@ namespace MyProject.Web.Client.Views.Analytics
         }
 
         /// <summary>
-        /// 走 appClipboard.copyText：https 用 navigator.clipboard，http 內網退回 execCommand，兩種部署都能用。
+        /// 走 <see cref="ClipboardCopy"/>（https 與 http 內網兩種部署都能用）。
         /// </summary>
         private async Task CopyToClipboardAsync(string text, int rows)
         {
-            try
-            {
-                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", text);
-                if (copied)
-                {
-                    Logger.LogInformation("Log entries copied to clipboard. Rows={Rows}, Characters={Characters}", rows, text.Length);
-                    ViewNotification.Info(NotificationService, $"已複製 {rows:N0} 筆日誌到剪貼簿。");
-                }
-                else
-                {
-                    ViewNotification.Warning(NotificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
-                }
-            }
-            catch (Exception ex)
+            var copy = await JSRuntime.CopyTextAsync(text, NotificationService, $"已複製 {rows:N0} 筆日誌到剪貼簿。", "複製失敗，請手動選取複製。");
+            if (copy.Error is { } ex)
             {
                 Logger.LogError(ex, "Failed to copy log entries to clipboard. Rows={Rows}", rows);
-                ViewNotification.UnexpectedError(NotificationService, "複製失敗，請手動選取複製。", ex);
+            }
+            else if (copy.Copied)
+            {
+                Logger.LogInformation("Log entries copied to clipboard. Rows={Rows}, Characters={Characters}", rows, text.Length);
             }
         }
 
@@ -499,7 +456,7 @@ namespace MyProject.Web.Client.Views.Analytics
                         break;
                     case AiStreamFrameKinds.Delta:
                         streamed.Append(frame.Text);
-                        if (aiModalState == AiModalState.Running || renderClock.Elapsed >= AiStreamRenderInterval)
+                        if (aiModalState == AiModalState.Running || renderClock.Elapsed >= AiStreaming.RenderInterval)
                         {
                             ShowStreamingMarkdown(streamed.ToString());
                             renderClock.Restart();
@@ -540,7 +497,7 @@ namespace MyProject.Web.Client.Views.Analytics
                 return;
             }
 
-            if (result.Reason == CanceledReason)
+            if (result.Reason == AiStreaming.CanceledReason)
             {
                 // 伺服器在送出最後結果之前就收到取消（請求剛好中斷）：與 Server 版相同處理。
                 if (aiStopRequested)
@@ -562,7 +519,7 @@ namespace MyProject.Web.Client.Views.Analytics
             }
 
             var html = AiMarkdownRenderer.ToSafeHtml(result.Markdown);
-            if (html.Length > MaxRenderedHtmlLength)
+            if (html.Length > AiMarkdownRenderer.MaxRenderedHtmlLength)
             {
                 Logger.LogWarning(
                     "AI log analysis response was too large to render. Characters={Characters}", html.Length);
@@ -599,7 +556,7 @@ namespace MyProject.Web.Client.Views.Analytics
         private static AiResultDto StoppedResult(string markdown, AiStreamScopeDto? scope, TimeSpan elapsed) => new()
         {
             Success = false,
-            Reason = CanceledReason,
+            Reason = AiStreaming.CanceledReason,
             Markdown = markdown,
             IsInterrupted = markdown.Length > 0,
             ElapsedMilliseconds = (long)elapsed.TotalMilliseconds,
@@ -610,24 +567,12 @@ namespace MyProject.Web.Client.Views.Analytics
 
         private async Task OnAiCopyAsync()
         {
-            try
-            {
-                // 複製原始 Markdown 而非渲染後的 HTML：使用者會貼進工單或通訊軟體，
-                // Markdown 才是有用的格式。
-                var copied = await JSRuntime.InvokeAsync<bool>("appClipboard.copyText", aiMarkdown);
-                if (copied)
-                {
-                    ViewNotification.Info(NotificationService, "已複製分析結果。");
-                }
-                else
-                {
-                    ViewNotification.Warning(NotificationService, "瀏覽器拒絕存取剪貼簿，請手動選取複製。");
-                }
-            }
-            catch (Exception ex)
+            // 複製原始 Markdown 而非渲染後的 HTML：使用者會貼進工單或通訊軟體，
+            // Markdown 才是有用的格式。
+            var copy = await JSRuntime.CopyTextAsync(aiMarkdown, NotificationService, "已複製分析結果。", "複製失敗，請手動選取複製。");
+            if (copy.Error is { } ex)
             {
                 Logger.LogError(ex, "Failed to copy AI analysis result to clipboard.");
-                ViewNotification.UnexpectedError(NotificationService, "複製失敗，請手動選取複製。", ex);
             }
         }
 
@@ -695,8 +640,7 @@ namespace MyProject.Web.Client.Views.Analytics
         /// </summary>
         private void ShowStreamingMarkdown(string markdown)
         {
-            var html = AiMarkdownRenderer.ToSafeHtml(markdown);
-            if (html.Length > MaxRenderedHtmlLength)
+            if (AiMarkdownRenderer.ToSafeHtmlWithinLimit(markdown) is not { } html)
             {
                 return;
             }
@@ -732,8 +676,7 @@ namespace MyProject.Web.Client.Views.Analytics
             }
 
             var markdown = AiInterruption.Annotate(result.Markdown);
-            var html = AiMarkdownRenderer.ToSafeHtml(markdown);
-            if (html.Length > MaxRenderedHtmlLength)
+            if (AiMarkdownRenderer.ToSafeHtmlWithinLimit(markdown) is not { } html)
             {
                 ShowAiFailureAfterStop("AI 回傳內容異常龐大，已中止顯示。請縮小查詢範圍後再試。");
                 return;
@@ -784,7 +727,7 @@ namespace MyProject.Web.Client.Views.Analytics
             aiHtml = string.Empty;
             aiMetaItems = new();
             aiErrorMessage = string.Empty;
-            aiFontScalePercent = DefaultFontScalePercent;
+            aiFontScalePercent = AiFontScale.DefaultPercent;
             aiElapsedSeconds = 0;
             aiSubmittedCount = entriesAscending.Count;
         }
@@ -816,26 +759,12 @@ namespace MyProject.Web.Client.Views.Analytics
         /// 轉圈圈只證明瀏覽器還活著，跳動的秒數才證明**這次呼叫**還在進行中 ——
         /// 在最長可以等 10 分鐘的情境下，這是使用者願意繼續等下去的唯一依據。
         /// </summary>
-        private async Task RunAiElapsedTickerAsync(CancellationToken token)
-        {
-            try
+        private Task RunAiElapsedTickerAsync(CancellationToken token)
+            => AiStreaming.RunElapsedTickerAsync(async () =>
             {
-                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-                while (await timer.WaitForNextTickAsync(token))
-                {
-                    aiElapsedSeconds++;
-                    await InvokeAsync(StateHasChanged);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // 分析結束或使用者放棄，正常收工。
-            }
-            catch (ObjectDisposedException)
-            {
-                // 元件已經釋放，沒有畫面可以更新了。
-            }
-        }
+                aiElapsedSeconds++;
+                await InvokeAsync(StateHasChanged);
+            }, token);
 
         /// <summary>
         /// 使用者在等待中直接離開頁面時，取消還在飛的請求（伺服器跟著取消 AI 呼叫）。

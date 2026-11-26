@@ -6,6 +6,7 @@ using MyProject.Models.Systems;
 using MyProject.Share.Helpers;
 using MyProject.Web.Client.Api;
 using MyProject.Web.Client.Auth;
+using MyProject.Web.Client.Layout;
 using MyProject.Web.Components.Commons;
 
 namespace MyProject.Web.Client.Views.Admins
@@ -19,6 +20,22 @@ namespace MyProject.Web.Client.Views.Admins
     public partial class BackupView : IDisposable
     {
         private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromSeconds(5);
+
+        private readonly BusyAutoRefresh autoRefresh;
+
+        public BackupView()
+        {
+            autoRefresh = new BusyAutoRefresh(
+                AutoRefreshInterval,
+                InvokeAsync,
+                async () =>
+                {
+                    await ReloadAsync(background: true);
+                    StateHasChanged();
+                },
+                () => Logger.LogDebug("Backup auto refresh stopped."),
+                ex => Logger.LogWarning(ex, "Backup auto refresh failed."));
+        }
 
         [Inject]
         public BackupApi Api { get; set; } = default!;
@@ -43,8 +60,6 @@ namespace MyProject.Web.Client.Views.Admins
         private bool isLoading;
         private string RoleMessage = string.Empty;
         private bool isAccessChecked;
-        private CancellationTokenSource? autoRefresh;
-        private bool disposed;
 
         private bool IsBusy => job is not null && (job.IsQueued || job.LastRun?.Status == JobRunStatuses.Running);
 
@@ -229,45 +244,7 @@ namespace MyProject.Web.Client.Views.Admins
         /// <summary>備份在佇列或執行中就每 5 秒重新讀一次清單；結束了就停掉（同 Server 版的計時器）。</summary>
         private void UpdateAutoRefresh()
         {
-            if (IsBusy && autoRefresh is null && !disposed)
-            {
-                autoRefresh = new CancellationTokenSource();
-                _ = AutoRefreshAsync(autoRefresh.Token);
-            }
-            else if (!IsBusy && autoRefresh is not null)
-            {
-                autoRefresh.Cancel();
-                autoRefresh = null;
-            }
-        }
-
-        private async Task AutoRefreshAsync(CancellationToken cancellationToken)
-        {
-            using var timer = new PeriodicTimer(AutoRefreshInterval);
-            try
-            {
-                while (await timer.WaitForNextTickAsync(cancellationToken))
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        if (disposed || cancellationToken.IsCancellationRequested)
-                        {
-                            return;
-                        }
-
-                        await ReloadAsync(background: true);
-                        StateHasChanged();
-                    });
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Logger.LogDebug("Backup auto refresh stopped.");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Backup auto refresh failed.");
-            }
+            autoRefresh.Update(IsBusy);
         }
 
         private static string ContentText(BackupManifestDto manifest)
@@ -289,37 +266,6 @@ namespace MyProject.Web.Client.Views.Admins
             _ => settingKey,
         };
 
-        private static string TriggerText(string? trigger) => trigger switch
-        {
-            JobRunTriggers.Schedule => "排程",
-            JobRunTriggers.CatchUp => "補跑",
-            JobRunTriggers.Manual => "手動",
-            _ => "—",
-        };
-
-        private static string StatusText(string status) => status switch
-        {
-            JobRunStatuses.Running => "執行中",
-            JobRunStatuses.Succeeded => "成功",
-            JobRunStatuses.Failed => "失敗",
-            JobRunStatuses.Interrupted => "中斷",
-            JobRunStatuses.Skipped => "略過",
-            _ => status,
-        };
-
-        private static StatusTone ToneOf(string status) => status switch
-        {
-            JobRunStatuses.Succeeded => StatusTone.Positive,
-            JobRunStatuses.Running => StatusTone.Accent,
-            JobRunStatuses.Failed or JobRunStatuses.Interrupted => StatusTone.Warning,
-            _ => StatusTone.Muted,
-        };
-
-        public void Dispose()
-        {
-            disposed = true;
-            autoRefresh?.Cancel();
-            autoRefresh = null;
-        }
+        public void Dispose() => autoRefresh.Dispose();
     }
 }

@@ -209,20 +209,9 @@ public class ApiClient
             var raw = await send(await session.GetAccessTokenAsync());
             if (raw.Status == (int)HttpStatusCode.Unauthorized)
             {
-                if (!await session.RefreshAsync())
+                if (await RefreshOrFailAsync<T>() is { } refreshFailed)
                 {
-                    if (session.IsThrottled)
-                    {
-                        return ApiResult<T>.FailureResult(ClientSession.ThrottledMessage, (int)HttpStatusCode.TooManyRequests);
-                    }
-
-                    if (session.IsUnreachable)
-                    {
-                        return ApiResult<T>.FailureResult(UnreachableMessage, 0);
-                    }
-
-                    await session.SignInAgainAsync();
-                    return ApiResult<T>.UnauthorizedResult("登入已失效，請重新登入。");
+                    return refreshFailed;
                 }
 
                 raw = await send(await session.GetAccessTokenAsync());
@@ -259,20 +248,9 @@ public class ApiClient
             if (first.StatusCode == HttpStatusCode.Unauthorized)
             {
                 first.Dispose();
-                if (!await session.RefreshAsync())
+                if (await RefreshOrFailAsync<object>() is { } refreshFailed)
                 {
-                    if (session.IsThrottled)
-                    {
-                        return ApiResult<object>.FailureResult(ClientSession.ThrottledMessage, (int)HttpStatusCode.TooManyRequests);
-                    }
-
-                    if (session.IsUnreachable)
-                    {
-                        return ApiResult<object>.FailureResult(UnreachableMessage, 0);
-                    }
-
-                    await session.SignInAgainAsync();
-                    return ApiResult<object>.UnauthorizedResult("登入已失效，請重新登入。");
+                    return refreshFailed;
                 }
 
                 first = await SendStreamOnceAsync(url, body, cancellationToken);
@@ -282,14 +260,7 @@ public class ApiClient
 
             if (!response.IsSuccessStatusCode || response.Content.Headers.ContentType?.MediaType != "application/x-ndjson")
             {
-                var result = await ReadAsync<object>(response, url);
-                Remember(result);
-                if (response.StatusCode == HttpStatusCode.Forbidden)
-                {
-                    RedirectForForcedSetup(result.ErrorCode);
-                }
-
-                return result;
+                return await ReadResultAsync<object>(response, url);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -329,16 +300,7 @@ public class ApiClient
 
     private async Task<HttpResponseMessage> SendStreamOnceAsync(string url, object? body, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, url);
-        if (await session.GetAccessTokenAsync() is { } token)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body);
-        }
+        using var request = await CreateRequestAsync(HttpMethod.Post, url, body);
 
         // 讓瀏覽器的 fetch 邊收邊交給程式（不等整個回應收齊）。
         request.SetBrowserResponseStreamingEnabled(true);
@@ -373,14 +335,7 @@ public class ApiClient
                 return ApiResult<T>.UnauthorizedResult("登入已失效，請重新登入。");
             }
 
-            var result = await ReadAsync<T>(response, url);
-            Remember(result);
-            if (response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                RedirectForForcedSetup(result.ErrorCode);
-            }
-
-            return result;
+            return await ReadResultAsync<T>(response, url);
         }
         catch (Exception ex) when (cancellationToken.IsCancellationRequested && ex is OperationCanceledException or HttpRequestException)
         {
@@ -458,6 +413,63 @@ public class ApiClient
         return await SendOnceAsync(method, url, body, longRunning, cancellationToken);
     }
 
+    /// <summary>
+    /// 401 之後刷新 Token（0.10.45 起，表單與串流兩條路共用）：成功回 null（由呼叫端重送一次）；
+    /// 被限流或連不上伺服器不是登入失效，回帶訊息的失敗結果、不導頁；其餘導回登入頁並回「登入已失效」。
+    /// </summary>
+    private async Task<ApiResult<T>?> RefreshOrFailAsync<T>()
+    {
+        if (await session.RefreshAsync())
+        {
+            return null;
+        }
+
+        if (session.IsThrottled)
+        {
+            return ApiResult<T>.FailureResult(ClientSession.ThrottledMessage, (int)HttpStatusCode.TooManyRequests);
+        }
+
+        if (session.IsUnreachable)
+        {
+            return ApiResult<T>.FailureResult(UnreachableMessage, 0);
+        }
+
+        await session.SignInAgainAsync();
+        return ApiResult<T>.UnauthorizedResult("登入已失效，請重新登入。");
+    }
+
+    /// <summary>讀出 <see cref="ApiResult{T}"/>、記下失敗的追蹤碼；403 且被要求先改密碼或設定兩步驟驗證時整頁導過去（0.10.45 起共用）。</summary>
+    private async Task<ApiResult<T>> ReadResultAsync<T>(HttpResponseMessage response, string url)
+    {
+        var result = await ReadAsync<T>(response, url);
+        Remember(result);
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            RedirectForForcedSetup(result.ErrorCode);
+        }
+
+        return result;
+    }
+
+    /// <summary>帶目前存取 Token（有的話）與 JSON 內容的請求（0.10.45 起，一般與串流請求共用）。</summary>
+    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string url, object? body)
+    {
+        // 先取 Token 再建立請求：取 Token 失敗時沒有建好卻沒人釋放的請求（呼叫端的 using 拿不到它）。
+        var accessToken = await session.GetAccessTokenAsync();
+        var request = new HttpRequestMessage(method, url);
+        if (accessToken is { } token)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        return request;
+    }
+
     private static void Remember<T>(ApiResult<T> result)
     {
         if (!result.Success && !string.IsNullOrEmpty(result.TraceId))
@@ -468,17 +480,7 @@ public class ApiClient
 
     private async Task<HttpResponseMessage> SendOnceAsync(HttpMethod method, string url, object? body, bool longRunning = false, CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(method, url);
-        if (await session.GetAccessTokenAsync() is { } token)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-
-        if (body is not null)
-        {
-            request.Content = JsonContent.Create(body);
-        }
-
+        using var request = await CreateRequestAsync(method, url, body);
         if (!longRunning)
         {
             return await TrackAsync(request, () => http.SendAsync(request, cancellationToken), cancellationToken);

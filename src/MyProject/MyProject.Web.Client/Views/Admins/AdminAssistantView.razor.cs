@@ -28,16 +28,7 @@ public partial class AdminAssistantView : IDisposable
     /// <summary>單則訊息的字數上限（伺服器也擋）。</summary>
     private const int MaxInputLength = AgentConversationLimits.MaxMessageLength;
 
-    /// <summary>AI 回覆轉成 HTML 之後的顯示上限（同其他 AI 畫面）。</summary>
-    private const int MaxRenderedHtmlLength = 512 * 1024;
-
-    /// <summary>伺服器 <c>AiAnalysisFailureReason.Canceled</c> 的名稱（<see cref="AiResultDto.Reason"/>）。</summary>
-    private const string CanceledReason = "Canceled";
-
     private const string UnexpectedMessage = "系統管理助理發生未預期的錯誤，請稍後再試。";
-
-    /// <summary>串流中重新轉 HTML 的節流（同其他 AI 畫面）。</summary>
-    private static readonly TimeSpan StreamRenderInterval = TimeSpan.FromMilliseconds(150);
 
     /// <summary>空白對話時的範例問句。</summary>
     private static readonly IReadOnlyList<string> SamplePrompts =
@@ -457,10 +448,9 @@ public partial class AdminAssistantView : IDisposable
                     case AgentStreamFrameKinds.Delta when string.IsNullOrEmpty(frame.Text) == false:
                         hasUpdate = true;
                         streamed.Append(frame.Text);
-                        if (streamingHtml.Length == 0 || renderClock.Elapsed >= StreamRenderInterval)
+                        if (streamingHtml.Length == 0 || renderClock.Elapsed >= AiStreaming.RenderInterval)
                         {
-                            var html = AiMarkdownRenderer.ToSafeHtml(streamed.ToString());
-                            if (html.Length <= MaxRenderedHtmlLength)
+                            if (AiMarkdownRenderer.ToSafeHtmlWithinLimit(streamed.ToString()) is { } html)
                             {
                                 streamingHtml = html;
                             }
@@ -519,7 +509,7 @@ public partial class AdminAssistantView : IDisposable
                 return;
             }
 
-            if (result.Reason != CanceledReason)
+            if (result.Reason != AiStreaming.CanceledReason)
             {
                 ViewNotification.Error(NotificationService, result.ErrorMessage, result.ErrorDetail);
                 if (result.Reason is "Conflict" or "NotFound")
@@ -635,31 +625,18 @@ public partial class AdminAssistantView : IDisposable
             return cached;
         }
 
-        var html = AiMarkdownRenderer.ToSafeHtml(entry.Text);
-        var value = html.Length <= MaxRenderedHtmlLength ? html : null;
+        var value = AiMarkdownRenderer.ToSafeHtmlWithinLimit(entry.Text);
         htmlCache[entry] = value;
         return value;
     }
 
     /// <summary>每秒更新「已 N 秒」。⚠️ 計時器回呼不在 renderer 的同步內容上，一定要 InvokeAsync。</summary>
-    private async Task RunElapsedTickerAsync(CancellationToken token)
-    {
-        try
+    private Task RunElapsedTickerAsync(CancellationToken token)
+        => AiStreaming.RunElapsedTickerAsync(async () =>
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-            while (await timer.WaitForNextTickAsync(token))
-            {
-                elapsedSeconds++;
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-    }
+            elapsedSeconds++;
+            await InvokeAsync(StateHasChanged);
+        }, token);
 
     /// <summary>離開頁面時中斷還在跑的請求：伺服器取消這次執行（已收到文字的會記一筆「已停止」），對話照樣存檔。</summary>
     public void Dispose()

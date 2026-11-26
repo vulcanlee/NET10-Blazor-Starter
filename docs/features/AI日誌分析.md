@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.24
+- 文件版本：1.25
 - 文件狀態：已實作
-- 現行系統版本：0.10.22
+- 現行系統版本：0.10.45
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/26
 
 ## 文件目的
 
@@ -453,8 +453,9 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 ⚠️ 倍率字串必須以 `CultureInfo.InvariantCulture` 格式化。若當下文化把小數點寫成逗號，
 產出的會是無效的 CSS 值 `1,25`，字級**靜默失效** —— 開發機上永遠看不到這個 bug。
 
-守門測試 `AiModalStyleConventionTests` 會檢查 `.log-ai-meta*` 與 `.log-ai-report*`
-底下的每一條 `font-size` 都乘上了這個變數。漏掉一條的症狀是「按了放大只有這段沒變」，
+守門測試 `AiModalStyleConventionTests` 會檢查 `.log-ai-meta*` 與 `.log-ai-report*`，以及 0.10.45 起三個 AI 視窗共用的報告內文
+`.ai-markdown`（`OverlayStyles.razor`）底下的每一條 `font-size` 都乘上了這個變數，並確認報告容器都掛著 `ai-markdown`。
+三顆按鈕是共用元件 `AiFontScalePicker`，倍率與預設值在 `Ai/AiFontScale`。漏掉一條的症狀是「按了放大只有這段沒變」，
 不會壞、不會紅，只有實際去點才發現。
 
 等待畫面與失敗畫面用**固定**字級，不在守門範圍內：那兩個狀態下三顆按鈕根本不存在。
