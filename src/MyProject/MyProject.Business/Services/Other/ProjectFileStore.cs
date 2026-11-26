@@ -12,36 +12,24 @@ namespace MyProject.Business.Services.Other;
 /// 會照著刪掉附件目錄以外的檔案 —— 無人值守的排程作業尤其不能這樣。
 ///
 /// 相對路徑由 <c>ProjectService</c> 寫成「年/月/Guid.副檔名」；寫檔仍在 ProjectService（路徑是它自己產生的）。
+/// 路徑解析共用 <see cref="RootedFiles"/>（0.10.44 起）。
 /// </summary>
 public class ProjectFileStore
 {
-    private readonly IOptions<SystemSettings> systemSettingsOptions;
+    private readonly RootedFiles files;
     private readonly ILogger<ProjectFileStore> logger;
 
     public ProjectFileStore(IOptions<SystemSettings> systemSettingsOptions, ILogger<ProjectFileStore> logger)
     {
-        this.systemSettingsOptions = systemSettingsOptions;
+        files = new RootedFiles(() => systemSettingsOptions.Value.ExternalFileSystem.ProjectFilePath);
         this.logger = logger;
     }
-
-    private string RootPath => systemSettingsOptions.Value.ExternalFileSystem.ProjectFilePath;
 
     /// <summary>
     /// 把相對路徑解析成完整路徑；解析後**不在**附件根目錄之下（或根目錄未設定）時回 null。
     /// 根目錄未設定時一律拒絕：<c>Path.Combine("", x)</c> 會退化成相對於工作目錄的路徑。
     /// </summary>
-    public string? TryResolveFullPath(string? relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(RootPath) || string.IsNullOrWhiteSpace(relativePath))
-        {
-            return null;
-        }
-
-        var normalized = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(RootPath));
-        var fullPath = Path.GetFullPath(Path.Combine(root, normalized));
-        return fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
-    }
+    public string? TryResolveFullPath(string? relativePath) => files.TryResolve(relativePath);
 
     /// <summary>
     /// 刪除一個附件實體檔。檔案不存在視為成功；路徑跑出根目錄時拒絕並回 false；刪不掉也只記警告、回 false，不丟例外 ——

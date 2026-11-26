@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Ai.Agents;
 
@@ -90,4 +91,40 @@ public sealed record AiToolDefinition
     /// 通常是 <c>AIFunctionFactory.Create(sp.GetRequiredService&lt;某工具類別&gt;().方法, Name, Description)</c>。
     /// </summary>
     public required Func<IServiceProvider, AIFunction> Create { get; init; }
+
+    /// <summary>
+    /// 唯讀工具（0.10.44 起，整併自各工具類別重複的 <c>Define</c>）：執行時從當下的 scope 取 <typeparamref name="TTools"/>，
+    /// 呼叫 <paramref name="method"/> 選出的方法；權限動作是 <see cref="PermissionActions.View"/>。
+    /// </summary>
+    public static AiToolDefinition For<TTools>(
+        string name, string displayName, string permissionPage, string description, Func<TTools, Delegate> method)
+        where TTools : notnull
+        => new()
+        {
+            Name = name,
+            DisplayName = displayName,
+            Description = description,
+            PermissionPage = permissionPage,
+            PermissionAction = PermissionActions.View,
+            Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<TTools>()), name, description),
+        };
+
+    /// <summary>會異動資料的工具：執行前一律請使用者核准，<paramref name="approvalNote"/> 顯示在核准窗。</summary>
+    public static AiToolDefinition ForMutating<TTools>(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<TTools, Delegate> method)
+        where TTools : notnull
+        => For(name, displayName, permissionPage, description, method) with
+        {
+            PermissionAction = permissionAction,
+            IsMutating = true,
+            ApprovalNote = approvalNote,
+        };
+
+    /// <summary>不可復原的動作：同 <see cref="ForMutating{TTools}"/>，核准時另外要輸入「確認」。</summary>
+    public static AiToolDefinition ForIrreversible<TTools>(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<TTools, Delegate> method)
+        where TTools : notnull
+        => ForMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
 }

@@ -112,7 +112,7 @@ public static class AiCallLogPdfBuilder
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var systemName = string.IsNullOrWhiteSpace(request.SystemName) ? "MyProject" : request.SystemName;
+        var systemName = AiMarkdownPdfRenderer.SystemNameOrDefault(request.SystemName);
         var document = AiMarkdownPdfRenderer.CreateDocument(
             title: Title,
             subject: request.Item.Operation,
@@ -142,7 +142,7 @@ public static class AiCallLogPdfBuilder
             throw new ArgumentException($"合併匯出需要 1～{MaxMergedRecords} 筆，目前是 {request.Items.Count} 筆。", nameof(request));
         }
 
-        var systemName = string.IsNullOrWhiteSpace(request.SystemName) ? "MyProject" : request.SystemName;
+        var systemName = AiMarkdownPdfRenderer.SystemNameOrDefault(request.SystemName);
         var title = $"{Title}（共 {request.Items.Count} 筆）";
         var document = AiMarkdownPdfRenderer.CreateDocument(
             title: title,
@@ -155,7 +155,7 @@ public static class AiCallLogPdfBuilder
 
         AiMarkdownPdfRenderer.AddTitle(section, title);
         AiMarkdownPdfRenderer.AddMetadata(section, BuildMergedMetadataLines(request), Disclaimer);
-        AddSectionHeading(section, "索引");
+        AiMarkdownPdfRenderer.AddSectionHeading(section, "索引");
         foreach (var row in BuildIndexRows(request))
         {
             var paragraph = section.AddParagraph();
@@ -169,7 +169,7 @@ public static class AiCallLogPdfBuilder
         {
             number++;
             section.AddPageBreak();
-            AddSectionHeading(section, $"第 {number} 筆");
+            AiMarkdownPdfRenderer.AddSectionHeading(section, $"第 {number} 筆");
 
             // 系統、產生時間、匯出者已在開頭，每筆只列這筆自己的資料。
             foreach (var line in BuildMetadataLines(item).Where(x => x.Key is not ("系統" or "產生時間" or "匯出者")))
@@ -307,11 +307,11 @@ public static class AiCallLogPdfBuilder
         foreach (var message in request.Messages)
         {
             number++;
-            AddSectionHeading(section, $"#{number} {RoleLabel(message.Role)}．送出");
+            AiMarkdownPdfRenderer.AddSectionHeading(section, $"#{number} {RoleLabel(message.Role)}．送出");
             AddContent(section, message.Content, asMarkdown: message.Role == AiChatRoles.Assistant, budget);
         }
 
-        AddSectionHeading(section, "AI 回應（Assistant）．取得");
+        AiMarkdownPdfRenderer.AddSectionHeading(section, "AI 回應（Assistant）．取得");
 
         if (string.IsNullOrWhiteSpace(request.ResponseText))
         {
@@ -322,16 +322,6 @@ public static class AiCallLogPdfBuilder
         }
 
         AddContent(section, request.ResponseText, asMarkdown: true, budget);
-    }
-
-    /// <summary>
-    /// 報告的大章節用 Heading1：模型輸出的章節是 ## 與 ###（Heading2／3），
-    /// 用 Heading1 才分得出「這是報告的結構」還是「模型寫的內容」（同 <see cref="AiExceptionReportPdfBuilder"/>）。
-    /// </summary>
-    private static void AddSectionHeading(Section section, string text)
-    {
-        var heading = section.AddParagraph(text);
-        heading.Style = StyleNames.Heading1;
     }
 
     private static void AddContent(Section section, string content, bool asMarkdown, MergedContentBudget? budget)

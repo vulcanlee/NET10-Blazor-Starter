@@ -65,8 +65,8 @@ public class AnnouncementService
             Id = x.Id,
             Title = x.Title,
             Content = x.Content,
-            StartAt = ToLocal(x.StartAtUtc),
-            EndAt = x.EndAtUtc is { } end ? ToLocal(end) : null,
+            StartAt = timeProvider.ToLocal(x.StartAtUtc),
+            EndAt = x.EndAtUtc is { } end ? timeProvider.ToLocal(end) : null,
             TargetKind = x.TargetKind,
             TargetId = x.TargetId,
             TargetName = x.TargetKind switch
@@ -78,7 +78,7 @@ public class AnnouncementService
                 _ => "全體",
             },
             CreatedByAccount = x.CreatedByAccount,
-            UpdatedAt = ToLocal(x.UpdatedAtUtc),
+            UpdatedAt = timeProvider.ToLocal(x.UpdatedAtUtc),
             ConcurrencyStamp = x.ConcurrencyStamp,
         }).ToList();
     }
@@ -114,8 +114,8 @@ public class AnnouncementService
         {
             Title = model.Title.Trim(),
             Content = model.Content.Trim(),
-            StartAtUtc = ToUtc(model.StartAt),
-            EndAtUtc = model.EndAt is { } end ? ToUtc(end) : null,
+            StartAtUtc = timeProvider.ToUtc(model.StartAt),
+            EndAtUtc = model.EndAt is { } end ? timeProvider.ToUtc(end) : null,
             TargetKind = model.TargetKind,
             TargetId = model.TargetKind == AnnouncementTargetKinds.All ? null : model.TargetId,
             CreatedByAccount = account,
@@ -142,8 +142,8 @@ public class AnnouncementService
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var title = model.Title.Trim();
         var content = model.Content.Trim();
-        var start = ToUtc(model.StartAt);
-        DateTime? end = model.EndAt is { } e ? ToUtc(e) : null;
+        var start = timeProvider.ToUtc(model.StartAt);
+        DateTime? end = model.EndAt is { } e ? timeProvider.ToUtc(e) : null;
         var targetId = model.TargetKind == AnnouncementTargetKinds.All ? null : model.TargetId;
         var newStamp = ConcurrencyStampHelper.New();
         var affected = await context.Announcement
@@ -282,8 +282,4 @@ public class AnnouncementService
                 return "對象種類不正確。";
         }
     }
-
-    private DateTime ToUtc(DateTime local) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), timeProvider.LocalTimeZone);
-
-    private DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone);
 }

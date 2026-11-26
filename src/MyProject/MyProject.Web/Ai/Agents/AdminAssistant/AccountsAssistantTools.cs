@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
@@ -1206,20 +1205,17 @@ public sealed class AccountsAssistantTools
 
     private static AiToolDefinition Define(
         string name, string displayName, string permissionPage, string description, Func<AccountsAssistantTools, Delegate> method)
-        => new()
-        {
-            Name = name,
-            DisplayName = displayName,
-            Description = description,
-            PermissionPage = permissionPage,
-            PermissionAction = PermissionActions.View,
-            Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<AccountsAssistantTools>()), name, description),
-        };
+        => AiToolDefinition.For(name, displayName, permissionPage, description, method);
+
+    private static AiToolDefinition DefineMutating(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<AccountsAssistantTools, Delegate> method)
+        => AiToolDefinition.ForMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method);
 
     private static AiToolDefinition DefineIrreversible(
         string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
         Func<AccountsAssistantTools, Delegate> method)
-        => DefineMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
+        => AiToolDefinition.ForIrreversible(name, displayName, permissionPage, permissionAction, description, approvalNote, method);
 
     /// <summary>從已刪除清單精確找帳號（只差大小寫有多筆時不猜）。</summary>
     private async Task<MyUserAdapterModel?> FindDeletedUserAsync(string account)
@@ -1230,15 +1226,6 @@ public sealed class AccountsAssistantTools
         => PickByName((await roles.GetDeletedAsync(new DataRequest { Search = name, CurrentPage = 1, PageSize = DeletedSearchPageSize, Take = 1 })).Result,
             name, item => item.Name);
 
-    private static AiToolDefinition DefineMutating(
-        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
-        Func<AccountsAssistantTools, Delegate> method)
-        => Define(name, displayName, permissionPage, description, method) with
-        {
-            PermissionAction = permissionAction,
-            IsMutating = true,
-            ApprovalNote = approvalNote,
-        };
 }
 
 /// <summary>帳號安全快照（<see cref="AccountsAssistantTools.BuildAccountSecurity"/>）。</summary>

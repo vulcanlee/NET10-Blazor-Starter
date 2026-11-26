@@ -7,6 +7,8 @@ using MyProject.AccessDatas.Models;
 using MyProject.Business.Mappers;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -129,10 +131,7 @@ public class ScheduledJobRunService
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? cutoffUtc)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.JobRun.CountAsync();
-        var oldest = await context.JobRun.MinAsync(x => (DateTime?)x.StartedAtUtc);
-        int? expired = cutoffUtc is { } c ? await context.JobRun.CountAsync(Prunable(c)) : null;
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.JobRun, x => (DateTime?)x.StartedAtUtc, cutoffUtc is { } c ? Prunable(c) : null);
     }
 
     /// <summary>
@@ -200,6 +199,5 @@ public class ScheduledJobRunService
         return LogMappers.ToModels(runs).ToDictionary(x => x.JobName, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static string? Truncate(string? message)
-        => message is { Length: > MaxMessageLength } ? message[..MaxMessageLength] : message;
+    private static string? Truncate(string? message) => TextTruncate.Cut(message, MaxMessageLength);
 }

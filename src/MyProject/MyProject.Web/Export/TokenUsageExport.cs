@@ -35,13 +35,13 @@ public static class TokenUsageExport
     ];
 
     /// <summary>CSV 下載檔名（與 Server 版相同）。</summary>
-    public static string CsvFileName(DateTime now) => $"MyProject.Web-llm-usage-{now:yyyyMMdd-HHmmss}.csv";
+    public static string CsvFileName(DateTime now) => $"{TabularExport.FileNamePrefix}llm-usage-{now:yyyyMMdd-HHmmss}.csv";
 
     /// <summary>
     /// PDF 下載檔名（與 Server 版相同）：整份維持原本的檔名；單頁籤才加上頁籤代碼，免得一次匯好幾個頁籤時分不出誰是誰。
     /// </summary>
     public static string PdfFileName(string? tab, DateTime now)
-        => $"MyProject.Web-llm-usage-{(string.IsNullOrEmpty(tab) ? string.Empty : $"{tab}-")}{now:yyyyMMdd-HHmmss}.pdf";
+        => $"{TabularExport.FileNamePrefix}llm-usage-{(string.IsNullOrEmpty(tab) ? string.Empty : $"{tab}-")}{now:yyyyMMdd-HHmmss}.pdf";
 
     /// <summary>
     /// CSV 的金額欄。

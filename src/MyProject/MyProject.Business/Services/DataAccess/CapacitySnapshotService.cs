@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -108,10 +109,7 @@ public class CapacitySnapshotService
     {
         var threshold = ExpiryThreshold(nowLocal);
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.CapacitySnapshot.CountAsync();
-        var oldest = await context.CapacitySnapshot.MinAsync(x => (DateTime?)x.SnapshotDate);
-        var expired = await context.CapacitySnapshot.CountAsync(OlderThan(threshold));
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.CapacitySnapshot, x => (DateTime?)x.SnapshotDate, OlderThan(threshold));
     }
 
     /// <summary>清理條件：自動過期與統計共用（速查表 §6.29）。</summary>

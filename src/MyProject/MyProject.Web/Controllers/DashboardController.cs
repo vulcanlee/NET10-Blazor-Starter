@@ -87,11 +87,11 @@ public sealed class DashboardController : ControllerBase
 
         var dto = new DashboardAccountDto
         {
-            PreviousLoginLocal = previousLogin is null ? null : ToLocal(previousLogin.OccurredAtUtc),
+            PreviousLoginLocal = previousLogin is null ? null : timeProvider.ToLocalUnzoned(previousLogin.OccurredAtUtc),
             PreviousLoginMethod = previousLogin is null ? null : previousLogin.Action == AuditActions.Login.SsoSuccess ? "Google 登入" : "帳號密碼",
             PreviousLoginClientIp = previousLogin?.ClientIp,
             HasLocalPassword = profile?.HasLocalPassword == true,
-            PasswordExpiresAtLocal = profile?.PasswordExpiresAtUtc is { } expires ? ToLocal(expires) : null,
+            PasswordExpiresAtLocal = profile?.PasswordExpiresAtUtc is { } expires ? timeProvider.ToLocalUnzoned(expires) : null,
             PasswordExpiresSoon = profile?.PasswordExpiresAtUtc is { } expiresAt && expiresAt <= timeProvider.GetUtcNow().UtcDateTime.AddDays(7),
             TwoFactorEnabled = profile?.TwoFactorEnabled == true,
         };
@@ -113,7 +113,7 @@ public sealed class DashboardController : ControllerBase
                 Id = x.Id,
                 Title = x.Title,
                 Link = !string.IsNullOrWhiteSpace(x.Link) && ReturnUrlGuard.Sanitize(x.Link) == x.Link ? x.Link : null,
-                CreatedAtLocal = ToLocal(x.CreatedAtUtc),
+                CreatedAtLocal = timeProvider.ToLocalUnzoned(x.CreatedAtUtc),
                 IsRead = x.ReadAtUtc is not null,
             }).ToList(),
         };
@@ -139,8 +139,4 @@ public sealed class DashboardController : ControllerBase
         };
         return Ok(ApiResult<DashboardScheduledJobsDto>.SuccessResult(dto, "取得排程作業摘要成功"));
     }
-
-    /// <summary>UTC 換成伺服器本地時間，以不帶時差送出（帶了時差，WASM 會換成瀏覽器的時區）。</summary>
-    private DateTime ToLocal(DateTime utc)
-        => DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone), DateTimeKind.Unspecified);
 }

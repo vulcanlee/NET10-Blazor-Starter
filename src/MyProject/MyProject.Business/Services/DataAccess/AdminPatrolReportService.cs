@@ -6,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -70,18 +71,11 @@ public class AdminPatrolReportService
         try
         {
             await using var context = await contextFactory.CreateDbContextAsync();
-            var stale = context.AdminPatrolReport.Where(OlderThan(threshold));
-            var contentFiles = await stale.Select(x => x.ContentFile).ToListAsync();
-            if (contentFiles.Count == 0)
+            // 先刪資料列再刪檔（RetentionQueries.DeleteRowsThenFilesAsync）。
+            if (await RetentionQueries.DeleteRowsThenFilesAsync(
+                    context.AdminPatrolReport.Where(OlderThan(threshold)), x => x.ContentFile, fileStore.Delete) is not { } removed)
             {
                 return 0;
-            }
-
-            // 先刪資料列再刪檔：資料列刪失敗就整批不動，不會留下「有列卻沒檔」的狀態。
-            var removed = await stale.ExecuteDeleteAsync();
-            foreach (var contentFile in contentFiles)
-            {
-                fileStore.Delete(contentFile);
             }
 
             fileStore.DeleteEmptyMonthFolders();
@@ -103,10 +97,7 @@ public class AdminPatrolReportService
     {
         var threshold = ExpiryThreshold(nowLocal);
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.AdminPatrolReport.CountAsync();
-        var oldest = await context.AdminPatrolReport.MinAsync(x => (DateTime?)x.CreatedAt);
-        var expired = await context.AdminPatrolReport.CountAsync(OlderThan(threshold));
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.AdminPatrolReport, x => (DateTime?)x.CreatedAt, OlderThan(threshold));
     }
 
     /// <summary>清理條件：自動過期與統計共用，「下次會清掉幾筆」才會等於實際刪掉的筆數。</summary>

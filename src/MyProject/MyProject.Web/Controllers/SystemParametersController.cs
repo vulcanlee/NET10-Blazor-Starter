@@ -31,13 +31,16 @@ public class SystemParametersController : ControllerBase
     private readonly IAuditLogService auditLogService;
     private readonly CurrentUserService currentUserService;
     private readonly ILogger<SystemParametersController> logger;
+    private readonly TimeProvider timeProvider;
 
     public SystemParametersController(
         SystemParameterManager manager,
         IAuditLogService auditLogService,
         CurrentUserService currentUserService,
-        ILogger<SystemParametersController> logger)
+        ILogger<SystemParametersController> logger,
+        TimeProvider timeProvider)
     {
+        this.timeProvider = timeProvider;
         this.manager = manager;
         this.auditLogService = auditLogService;
         this.currentUserService = currentUserService;
@@ -65,7 +68,7 @@ public class SystemParametersController : ControllerBase
                         ConcurrencyStamp = row.ConcurrencyStamp,
                         UpdatedBy = row.UpdatedBy,
                         // 資料庫是 UTC；換成伺服器本地時間、不帶時差送出（WASM 才不會換成瀏覽器的時區）。
-                        UpdatedAt = DateTime.SpecifyKind(DateTime.SpecifyKind(row.UpdatedAtUtc, DateTimeKind.Utc).ToLocalTime(), DateTimeKind.Unspecified),
+                        UpdatedAt = timeProvider.ToLocalUnzoned(row.UpdatedAtUtc),
                     }
                     : null,
             }).ToList(),

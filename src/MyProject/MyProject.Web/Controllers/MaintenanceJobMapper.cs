@@ -1,5 +1,6 @@
 using MyProject.Dtos.Admins;
 using MyProject.Web.Scheduling;
+using static MyProject.Business.Helpers.LocalTime;
 
 namespace MyProject.Web.Controllers;
 
@@ -23,8 +24,4 @@ internal static class MaintenanceJobMapper
             Message = run.Message,
         } : null,
     };
-
-    public static DateTime Unzoned(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
-
-    public static DateTime? Unzoned(DateTime? value) => value is { } v ? Unzoned(v) : null;
 }

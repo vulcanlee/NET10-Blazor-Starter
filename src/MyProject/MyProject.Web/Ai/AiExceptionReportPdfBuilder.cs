@@ -46,7 +46,7 @@ public static class AiExceptionReportPdfBuilder
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var systemName = string.IsNullOrWhiteSpace(request.SystemName) ? "MyProject" : request.SystemName;
+        var systemName = AiMarkdownPdfRenderer.SystemNameOrDefault(request.SystemName);
         var exceptionType = request.DetailLines.FirstOrDefault(line => line.Key == "例外類型").Value ?? string.Empty;
         var document = AiMarkdownPdfRenderer.CreateDocument(
             title: Title,
@@ -109,7 +109,7 @@ public static class AiExceptionReportPdfBuilder
 
     private static void AddDetail(Section section, AiExceptionReportPdfRequest request)
     {
-        AddSectionHeading(section, "例外明細");
+        AiMarkdownPdfRenderer.AddSectionHeading(section, "例外明細");
 
         foreach (var line in request.DetailLines)
         {
@@ -130,7 +130,7 @@ public static class AiExceptionReportPdfBuilder
             if (message.Role == AiChatRoles.User)
             {
                 round++;
-                AddSectionHeading(section, $"追問 {round}");
+                AiMarkdownPdfRenderer.AddSectionHeading(section, $"追問 {round}");
 
                 // 使用者的提問是純文字，不走 Markdown 渲染，照打的原樣呈現。
                 var question = section.AddParagraph();
@@ -143,7 +143,7 @@ public static class AiExceptionReportPdfBuilder
 
             if (isFirstReply)
             {
-                AddSectionHeading(section, "分析報告");
+                AiMarkdownPdfRenderer.AddSectionHeading(section, "分析報告");
                 isFirstReply = false;
             }
 
@@ -164,15 +164,5 @@ public static class AiExceptionReportPdfBuilder
         }
 
         AiMarkdownPdfRenderer.AddCodeParagraph(section, request.StackTrace);
-    }
-
-    /// <summary>
-    /// 報告的大章節用 Heading1：模型輸出的章節是 ## 與 ###（Heading2／3），
-    /// 用 Heading1 才分得出「這是報告的結構」還是「模型寫的內容」。
-    /// </summary>
-    private static void AddSectionHeading(Section section, string text)
-    {
-        var heading = section.AddParagraph(text);
-        heading.Style = StyleNames.Heading1;
     }
 }

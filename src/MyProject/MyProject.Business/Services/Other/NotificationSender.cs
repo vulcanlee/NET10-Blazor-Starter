@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -223,6 +224,5 @@ public sealed class NotificationSender : INotificationSender
         return (await context.MyUser.Where(x => ids.Contains(x.Id) && x.Status).Select(x => x.Id).ToListAsync(cancellationToken)).ToHashSet();
     }
 
-    private static string? Truncate(string? value, int max)
-        => value is null ? null : value.Length <= max ? value : value[..max];
+    private static string? Truncate(string? value, int max) => TextTruncate.Cut(value, max);
 }

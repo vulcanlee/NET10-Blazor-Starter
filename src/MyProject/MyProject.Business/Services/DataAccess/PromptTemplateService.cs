@@ -53,7 +53,7 @@ public class PromptTemplateService
             .Where(x => x.TemplateKey == templateKey)
             .OrderByDescending(x => x.Version)
             .ToListAsync();
-        return rows.Select(x => new PromptTemplateVersion(x.Version, x.Content, x.IsActive, x.Note, x.CreatedByAccount, ToLocal(x.CreatedAtUtc))).ToList();
+        return rows.Select(x => new PromptTemplateVersion(x.Version, x.Content, x.IsActive, x.Note, x.CreatedByAccount, timeProvider.ToLocal(x.CreatedAtUtc))).ToList();
     }
 
     /// <summary>
@@ -156,6 +156,4 @@ public class PromptTemplateService
 
         return null;
     }
-
-    private DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone);
 }

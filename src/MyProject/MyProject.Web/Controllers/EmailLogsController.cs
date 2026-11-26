@@ -5,6 +5,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Dtos.Admins;
 using MyProject.Dtos.Commons;
 using MyProject.Web.Filters;
+using static MyProject.Business.Helpers.LocalTime;
 
 namespace MyProject.Web.Controllers;
 
@@ -59,6 +60,4 @@ public class EmailLogsController : ControllerBase
             TotalPages = (int)Math.Ceiling(total / (double)pageSize),
         }, "查詢寄信紀錄成功"));
     }
-
-    private static DateTime Unzoned(DateTime local) => DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
 }

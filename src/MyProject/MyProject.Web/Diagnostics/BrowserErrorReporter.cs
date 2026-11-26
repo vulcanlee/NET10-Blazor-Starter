@@ -3,6 +3,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Dtos.Shell;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Diagnostics;
 
@@ -128,6 +129,5 @@ public sealed class BrowserErrorReporter
         return Truncate(value, MaxPathLength);
     }
 
-    private static string Truncate(string? value, int maxLength)
-        => string.IsNullOrEmpty(value) ? string.Empty : value.Length <= maxLength ? value : value[..maxLength];
+    private static string Truncate(string? value, int maxLength) => TextTruncate.Cut(value, maxLength) ?? string.Empty;
 }

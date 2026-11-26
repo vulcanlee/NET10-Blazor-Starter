@@ -41,7 +41,7 @@ public static class BusinessExports
     public static ExportOutcome FromRows<T>(IReadOnlyList<T> rows, string sheetName, string fileKey, IReadOnlyList<ExportColumn<T>> columns)
         => rows.Count > MaxRows
             ? new ExportOutcome(null, null, rows.Count, TooManyMessage(rows.Count))
-            : new ExportOutcome(TabularExport.ToXlsx(sheetName, columns, rows), $"MyProject.Web-{fileKey}-{DateTime.Now:yyyyMMdd-HHmmss}.xlsx", rows.Count, null);
+            : new ExportOutcome(TabularExport.ToXlsx(sheetName, columns, rows), $"{TabularExport.FileNamePrefix}{fileKey}-{DateTime.Now:yyyyMMdd-HHmmss}.xlsx", rows.Count, null);
 
     /// <summary>寫匯出稽核（筆數，不記內容）。</summary>
     public static Task WriteAuditAsync(IAuditLogService auditLogService, CurrentUserService currentUserService, string action, string targetType, int rows, bool deleted)

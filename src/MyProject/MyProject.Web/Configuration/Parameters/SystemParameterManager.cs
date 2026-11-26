@@ -2,6 +2,7 @@ using MyProject.Business.Services.DataAccess;
 using MyProject.Dtos.Admins;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Configuration.Parameters;
 
@@ -217,11 +218,7 @@ public sealed class SystemParameterManager
     internal static string BuildAuditDetail(string key, string? oldValue, string oldSource, string? newValue, string newSource)
         => $"key={key}; old={Truncate(oldValue)}({oldSource}); new={Truncate(newValue)}({newSource})";
 
-    private static string Truncate(string? value)
-    {
-        var text = value ?? "（無）";
-        return text.Length <= MaxAuditValueLength ? text : text[..MaxAuditValueLength] + "…";
-    }
+    private static string Truncate(string? value) => TextTruncate.WithEllipsis(value ?? "（無）", MaxAuditValueLength);
 
     private Dictionary<string, string> SectionOverrides(string sectionName)
         => provider.Snapshot

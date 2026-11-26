@@ -1,6 +1,7 @@
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using MigraDoc.DocumentObjectModel;
+using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
 
 namespace MyProject.Web.Ai;
@@ -38,11 +39,7 @@ internal static class AiMarkdownPdfRenderer
     internal static Document CreateDocument(
         string title, string subject, string author, string headerText, DateTime generatedAt, string operatorAccount)
     {
-        EmbeddedFontResolver.EnsureRegistered();
-        if (EmbeddedFontResolver.IsFontAvailable() == false)
-        {
-            throw new InvalidOperationException("Embedded PDF font resource is missing.");
-        }
+        EnsureFont();
 
         var document = new Document();
         document.Info.Title = title;
@@ -96,6 +93,46 @@ internal static class AiMarkdownPdfRenderer
 
         AddHeaderAndFooter(section, headerText, generatedAt, operatorAccount);
         return document;
+    }
+
+    /// <summary>註冊內嵌中文字型並確認資源存在（各產生器在建立文件前呼叫）。</summary>
+    /// <exception cref="InvalidOperationException">內嵌中文字型資源缺失。</exception>
+    internal static void EnsureFont()
+    {
+        EmbeddedFontResolver.EnsureRegistered();
+        if (EmbeddedFontResolver.IsFontAvailable() == false)
+        {
+            throw new InvalidOperationException("Embedded PDF font resource is missing.");
+        }
+    }
+
+    /// <summary>頁首、文件作者用的系統名稱；沒設定時用 <c>MyProject</c>。</summary>
+    internal static string SystemNameOrDefault(string? systemName)
+        => string.IsNullOrWhiteSpace(systemName) ? "MyProject" : systemName;
+
+    /// <summary>
+    /// 報告的大章節（Heading1）：模型輸出的章節是 ## 與 ###（Heading2／3），
+    /// 用 Heading1 才分得出「這是報告的結構」還是「模型寫的內容」。
+    /// </summary>
+    internal static void AddSectionHeading(Section section, string text)
+    {
+        var heading = section.AddParagraph(text);
+        heading.Style = StyleNames.Heading1;
+    }
+
+    /// <summary>報表用的表格：細框線、指定字級與儲存格內距（單位 pt），段落不留下方間距。</summary>
+    internal static Table CreateTable(Section section, double fontSize, double verticalPadding, double horizontalPadding)
+    {
+        var table = section.AddTable();
+        table.Borders.Color = BorderColor;
+        table.Borders.Width = 0.5;
+        table.Format.Font.Size = Unit.FromPoint(fontSize);
+        table.Format.SpaceAfter = 0;
+        table.TopPadding = Unit.FromPoint(verticalPadding);
+        table.BottomPadding = Unit.FromPoint(verticalPadding);
+        table.LeftPadding = Unit.FromPoint(horizontalPadding);
+        table.RightPadding = Unit.FromPoint(horizontalPadding);
+        return table;
     }
 
     internal static byte[] Render(Document document)

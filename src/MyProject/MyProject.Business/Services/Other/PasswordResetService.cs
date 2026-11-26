@@ -360,6 +360,5 @@ public sealed class PasswordResetService
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
-    private static string TruncateForAudit(string value) =>
-        value.Length <= AuditIdentifierMaxLength ? value : value[..AuditIdentifierMaxLength];
+    private static string TruncateForAudit(string value) => TextTruncate.Cut(value, AuditIdentifierMaxLength);
 }

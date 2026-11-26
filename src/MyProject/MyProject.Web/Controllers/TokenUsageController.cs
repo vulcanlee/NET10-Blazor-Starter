@@ -253,7 +253,7 @@ public class TokenUsageController : ControllerBase
 
         logger.LogInformation("Usage PDF exported. Scope={Scope}, Bytes={Bytes}, Rows={Rows}", scope, bytes.Length, details.Count);
         await WriteAuditAsync(AuditActions.TokenUsage.Export, "*", $"format=pdf; scope={scope}; rows={details.Count}");
-        return File(bytes, "application/pdf", TokenUsageExport.PdfFileName(scope is TokenUsageReportScope.All ? null : request.Tab, now));
+        return File(bytes, TabularExport.PdfContentType, TokenUsageExport.PdfFileName(scope is TokenUsageReportScope.All ? null : request.Tab, now));
     }
 
     /// <summary>刪除一筆（連同原始明細檔）；成功寫一筆刪除稽核。「刪除選取」由頁面逐筆呼叫這裡，每筆一列稽核。</summary>

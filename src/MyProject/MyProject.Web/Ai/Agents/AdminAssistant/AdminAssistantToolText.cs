@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MyProject.Web.Auditing;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Ai.Agents.AdminAssistant;
 
@@ -101,8 +102,7 @@ public static class AdminAssistantToolText
     }
 
     /// <summary>超過 <paramref name="max"/> 字就截斷並加「…」；null 回空字串。</summary>
-    public static string Truncate(string? text, int max)
-        => text is null ? string.Empty : text.Length <= max ? text : string.Concat(text.AsSpan(0, max), "…");
+    public static string Truncate(string? text, int max) => TextTruncate.WithEllipsis(text, max) ?? string.Empty;
 
     /// <summary>回給模型的時間格式（本地時間）。</summary>
     public static string Format(DateTime time) => time.ToString("yyyy/MM/dd HH:mm:ss", CultureInfo.InvariantCulture);

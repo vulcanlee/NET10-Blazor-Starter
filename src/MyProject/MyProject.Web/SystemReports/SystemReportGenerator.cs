@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Dtos.Admins;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.SystemReports;
 
@@ -19,11 +20,8 @@ public sealed record SystemReportResult(SystemReportSummary? Summary, SystemRepo
 /// </summary>
 public sealed class SystemReportGenerator
 {
-    public static readonly JsonSerializerOptions ContentJsonOptions = new()
-    {
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        WriteIndented = true,
-    };
+    /// <summary>報告內容檔的序列化設定（縮排、中文不跳脫；見 <see cref="JsonFileOptions.IndentedRelaxed"/>）。</summary>
+    public static readonly JsonSerializerOptions ContentJsonOptions = JsonFileOptions.IndentedRelaxed;
 
     private readonly SystemReportCollector collector;
     private readonly SystemReportNarrator narrator;

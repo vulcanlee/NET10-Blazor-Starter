@@ -303,7 +303,7 @@ public class ExceptionLogsController : ControllerBase
         await WriteAiAuditAsync(AuditActions.ExceptionLog.AiExportPdf, item.Id, followUps, request.Messages.Count + 1,
             first.Length + request.Messages.Sum(message => (message.Content ?? string.Empty).Length), result: null);
 
-        return File(bytes, "application/pdf", $"MyProject.Web-ai-exception-report-{now:yyyyMMdd-HHmmss}.pdf");
+        return File(bytes, TabularExport.PdfContentType, $"{TabularExport.FileNamePrefix}ai-exception-report-{now:yyyyMMdd-HHmmss}.pdf");
     }
 
     private async IAsyncEnumerable<AiStreamFrameDto> AnalyzeFrames(
@@ -353,27 +353,13 @@ public class ExceptionLogsController : ControllerBase
 
     /// <summary>
     /// AI 分析、追問、匯出 PDF 的稽核（格式與 Server 版對話窗相同，見 <see cref="AiExceptionConversation.BuildAuditDetail"/>）。
-    /// 寫入失敗不推翻「分析已經完成」這個事實，只記錯誤。
+    /// 寫入失敗不推翻「分析已經完成」這個事實（<see cref="ViewAudit"/>）。
     /// </summary>
-    private async Task WriteAiAuditAsync(string action, int exceptionLogId, int round, int messageCount, int characterCount, AiAnalysisResult? result)
-    {
-        try
-        {
-            var user = currentUserService.CurrentUser;
-            await auditLogService.WriteAsync(
-                action,
-                success: result?.Success ?? true,
-                actorUserId: user.Id,
-                actorAccount: user.Account,
-                targetType: TargetType,
-                targetId: exceptionLogId.ToString(CultureInfo.InvariantCulture),
-                detail: AiExceptionConversation.BuildAuditDetail(round, messageCount, characterCount, result));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to write audit log for AI exception analysis. Action={Action}", action);
-        }
-    }
+    private Task WriteAiAuditAsync(string action, int exceptionLogId, int round, int messageCount, int characterCount, AiAnalysisResult? result)
+        => ViewAudit.WriteAsync(auditLogService, currentUserService, action, TargetType,
+            exceptionLogId.ToString(CultureInfo.InvariantCulture),
+            AiExceptionConversation.BuildAuditDetail(round, messageCount, characterCount, result),
+            success: result?.Success ?? true);
 
     /// <summary>例外紀錄的維護動作本身也要留稽核（LOG-14，與 Server 版相同）。</summary>
     private Task WriteAuditAsync(string action, string targetId, string detail)

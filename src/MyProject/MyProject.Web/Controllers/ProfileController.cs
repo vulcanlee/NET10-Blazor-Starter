@@ -55,14 +55,14 @@ public sealed class ProfileController : ControllerBase
             Roles = info.Roles.ToList(),
             Teams = info.Teams.ToList(),
             SubordinateTeams = info.SubordinateTeams?.ToList() ?? [],
-            PasswordChangedAtLocal = ToLocal(info.PasswordChangedAtUtc),
-            PasswordExpiresAtLocal = ToLocal(info.PasswordExpiresAtUtc),
+            PasswordChangedAtLocal = timeProvider.ToLocalUnzoned(info.PasswordChangedAtUtc),
+            PasswordExpiresAtLocal = timeProvider.ToLocalUnzoned(info.PasswordExpiresAtUtc),
             MustChangePassword = info.MustChangePassword,
             TwoFactorEnabled = info.TwoFactorEnabled,
             ConcurrencyStamp = info.ConcurrencyStamp,
             RecentLogins = logins.Select(x => new LoginRecordDto
             {
-                OccurredAtLocal = ToLocal(x.OccurredAtUtc)!.Value,
+                OccurredAtLocal = timeProvider.ToLocalUnzoned(x.OccurredAtUtc),
                 Action = DescribeLoginAction(x.Action),
                 Success = x.Success,
                 ClientIp = x.ClientIp,
@@ -99,10 +99,4 @@ public sealed class ProfileController : ControllerBase
         AuditActions.Logout => "登出",
         _ => action,
     };
-
-    /// <summary>UTC 換成伺服器本地時間，以不帶時差（Kind=Unspecified）送出（0.10.6 起修正，理由同 NotificationsController）。</summary>
-    private DateTime? ToLocal(DateTime? utc)
-        => utc is { } value
-            ? DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value, DateTimeKind.Utc), timeProvider.LocalTimeZone), DateTimeKind.Unspecified)
-            : null;
 }

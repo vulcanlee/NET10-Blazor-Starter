@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 
 namespace MyProject.Web.Backup;
@@ -53,7 +52,7 @@ public sealed class BackupVerifier
     }
 
     /// <summary>測試用：可用空間（預設讀磁碟；回 null 表示查不到，此時不檢查）。</summary>
-    internal Func<string, long?> FreeSpaceProbe { get; set; } = DefaultFreeSpace;
+    internal Func<string, long?> FreeSpaceProbe { get; set; } = BackupStore.FreeSpaceOf;
 
     public async Task<BackupVerificationResult> VerifyAsync(BackupFileInfo backup, CancellationToken cancellationToken)
     {
@@ -197,12 +196,7 @@ public sealed class BackupVerifier
 
     private static async Task CheckDatabaseAsync(string database, BackupManifest manifest, List<BackupVerificationCheck> checks, CancellationToken cancellationToken)
     {
-        string hash;
-        await using (var file = File.OpenRead(database))
-        {
-            hash = Convert.ToHexString(await SHA256.HashDataAsync(file, cancellationToken));
-        }
-
+        var hash = await BackupStore.Sha256Async(database, cancellationToken);
         var hashMatches = string.Equals(hash, manifest.DatabaseSha256, StringComparison.OrdinalIgnoreCase);
         checks.Add(new("資料庫雜湊相符", hashMatches, hashMatches ? "SHA-256 與備份時相同。" : "SHA-256 與備份時不同，資料庫檔在備份後被改過或損毀。"));
         if (!hashMatches)
@@ -246,29 +240,9 @@ public sealed class BackupVerifier
         }
     }
 
-    private static long? DefaultFreeSpace(string path)
-    {
-        try
-        {
-            var drive = Path.GetPathRoot(Path.GetFullPath(path));
-            return string.IsNullOrEmpty(drive) || drive.StartsWith(@"\\", StringComparison.Ordinal) ? null : new DriveInfo(drive).AvailableFreeSpace;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
     private void TryDeleteDirectory(string path)
     {
-        try
-        {
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        if (BackupStore.TryDeleteDirectory(path) is { } ex)
         {
             // 下一次備份開始時會清掉整個 .work。
             logger.LogWarning(ex, "Backup verification work directory could not be deleted; it will be removed by the next backup.");

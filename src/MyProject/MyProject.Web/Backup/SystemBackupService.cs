@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -62,7 +61,7 @@ public sealed class SystemBackupService
     /// <summary>
     /// 測試用：可用空間的判斷（預設讀磁碟）。回 null 表示查不到（例如 UNC 路徑），此時不檢查。
     /// </summary>
-    internal Func<string, long?> FreeSpaceProbe { get; set; } = DefaultFreeSpace;
+    internal Func<string, long?> FreeSpaceProbe { get; set; } = BackupStore.FreeSpaceOf;
 
     /// <summary>測試用：每加入一個 zip entry 之後呼叫（用來在打包途中取消）。</summary>
     internal Action<string>? EntryAdded { get; set; }
@@ -110,7 +109,7 @@ public sealed class SystemBackupService
             {
                 CreatedAtUtc = nowUtc,
                 SystemVersion = systemIdentity.Version,
-                DatabaseSha256 = await HashFileAsync(snapshot, cancellationToken),
+                DatabaseSha256 = await BackupStore.Sha256Async(snapshot, cancellationToken),
                 Trigger = trigger,
             };
             (manifest.LastMigration, manifest.MigrationCount) = await ReadMigrationsAsync(snapshot);
@@ -289,12 +288,6 @@ public sealed class SystemBackupService
         }
     }
 
-    private static async Task<string> HashFileAsync(string file, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(file);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
-    }
-
     private static long EstimateBytes(string databaseFile, IEnumerable<BackupFolder> folders)
     {
         long total = new FileInfo(databaseFile).Length;
@@ -313,29 +306,9 @@ public sealed class SystemBackupService
         return total * 2;
     }
 
-    private static long? DefaultFreeSpace(string path)
-    {
-        try
-        {
-            var drive = Path.GetPathRoot(Path.GetFullPath(path));
-            return string.IsNullOrEmpty(drive) || drive.StartsWith(@"\\", StringComparison.Ordinal) ? null : new DriveInfo(drive).AvailableFreeSpace;
-        }
-        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
     private void TryDeleteDirectory(string path)
     {
-        try
-        {
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        if (BackupStore.TryDeleteDirectory(path) is { } ex)
         {
             // 下一次備份開始時會再清一次。
             logger.LogWarning(ex, "Backup work directory could not be deleted; it will be removed by the next backup.");

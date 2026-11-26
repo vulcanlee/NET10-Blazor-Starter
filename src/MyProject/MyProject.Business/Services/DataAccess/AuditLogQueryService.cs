@@ -96,9 +96,10 @@ public class AuditLogQueryService
     public static DateTime ToUtc(DateTime local)
         => DateTime.SpecifyKind(local, DateTimeKind.Local).ToUniversalTime();
 
-    /// <summary>UTC → 本地時間。SQLite 讀回來的 Kind 是 Unspecified，先釘成 Utc 再換算。</summary>
-    public static DateTime ToLocal(DateTime utc)
-        => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime();
+    /// <summary>
+    /// UTC → 本地時間（伺服器的時區，同 <see cref="LocalTime.ToLocal"/>）。靜態方法有其他類別直接呼叫，所以用 <see cref="TimeProvider.System"/>。
+    /// </summary>
+    public static DateTime ToLocal(DateTime utc) => TimeProvider.System.ToLocal(utc);
 
     public async Task<DataRequestResult<AuditLogAdapterModel>> GetAsync(AuditLogQuery query)
     {
@@ -181,11 +182,7 @@ public class AuditLogQueryService
 
         if (query.SortField == nameof(AuditLogAdapterModel.OccurredAt))
         {
-            sorted = query.SortDescending == true
-                ? dataSource.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
-                : query.SortDescending == false
-                    ? dataSource.OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
-                    : null;
+            sorted = dataSource.SortWithIdTieBreak(x => x.OccurredAt, x => x.Id, query.SortDescending);
         }
 
         // Skip/Take 之前一定要有 OrderBy，否則 SQLite 不保證回傳順序，分頁會重複或漏資料。

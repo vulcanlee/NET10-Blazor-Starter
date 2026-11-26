@@ -173,7 +173,7 @@ public class DataRetentionController : ControllerBase
         Count = row.Count,
         CountUnit = row.CountUnit,
         Folder = row.Folder is { } folder ? new DataRetentionFolderDto { Status = folder.Status.ToString(), Bytes = folder.Bytes } : null,
-        OldestLocal = MaintenanceJobMapper.Unzoned(row.OldestLocal),
+        OldestLocal = LocalTime.Unzoned(row.OldestLocal),
         RuleText = row.RuleText,
         ParameterGroup = row.ParameterGroup,
         Expected = row.Expected,

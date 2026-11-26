@@ -10,6 +10,7 @@ using MyProject.Business.Factories;
 using MyProject.Business.Helpers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -315,10 +316,7 @@ public class AiAgentConversationService : IAiAgentConversationStore
     public async Task<RetentionStats> GetRetentionStatsBeforeAsync(DateTime threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.AiAgentConversation.CountAsync();
-        var oldest = await context.AiAgentConversation.MinAsync(x => (DateTime?)x.UpdatedAt);
-        var expired = await context.AiAgentConversation.CountAsync(OlderThan(threshold));
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.AiAgentConversation, x => (DateTime?)x.UpdatedAt, OlderThan(threshold));
     }
 
     /// <summary>清理條件：自動過期、自訂清除與統計共用，「下次會清掉幾筆」才會等於實際刪掉的筆數。</summary>
@@ -335,11 +333,7 @@ public class AiAgentConversationService : IAiAgentConversationStore
     private static AiAgentConversationSummary ToSummary(AiAgentConversation item)
         => new(item.ConversationId, item.AgentName, item.Title, item.CreatedAt, item.UpdatedAt, item.HasPendingApproval);
 
-    private static string Truncate(string title)
-    {
-        var trimmed = title.Trim();
-        return trimmed.Length <= MaxTitleLength ? trimmed : trimmed[..MaxTitleLength];
-    }
+    private static string Truncate(string title) => TextTruncate.Cut(title.Trim(), MaxTitleLength);
 
     private AiAgentConversationContent? Deserialize(string? json, Guid conversationId)
     {
