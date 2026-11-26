@@ -10,8 +10,8 @@ using MyProject.Models.Systems;
 namespace MyProject.Business.Services.DataAccess;
 
 /// <summary>
-/// 定時巡檢報告的資料存取（0.9.161 起）：存檔、清單、讀取與自動過期。
-/// 0.10.39 起巡檢由「系統巡檢報告」（<see cref="SystemReportService"/>）取代，不再產生新的報告；
+/// 定時巡檢報告的資料存取（0.9.161 起）：清單、讀取與自動過期。
+/// 0.10.39 起巡檢由「系統巡檢報告」（<see cref="SystemReportService"/>）取代，不再產生新的報告（0.10.43 起拿掉存檔方法）；
 /// 舊報告在「系統巡檢報告」頁的「舊版巡檢報告」頁籤看得到，保留天數沿用日報的 <see cref="SystemReportSettings.DailyRetentionDays"/>。
 ///
 /// 資料表只放固定用語的中繼資料，報告內文一律寫進 <see cref="AdminPatrolReportFileStore"/>（速查表 §6.7）。
@@ -42,48 +42,6 @@ public class AdminPatrolReportService
     }
 
     public int RetentionDays => settings.CurrentValue.DailyRetentionDays;
-
-    /// <summary>
-    /// 存一份報告：先寫內容檔再寫資料列；寫資料列失敗就刪掉剛寫的檔。
-    /// </summary>
-    /// <returns>存好的清單資料；任何一步失敗回 null（已記錯誤）。</returns>
-    public async Task<AdminPatrolReportSummary?> SaveAsync(AdminPatrolReportDraft draft)
-    {
-        var contentFile = await fileStore.WriteAsync(draft.CreatedAt, draft.ReportId, draft.Markdown);
-        if (contentFile is null)
-        {
-            logger.LogError("Failed to write admin patrol report content. ReportId={ReportId}", draft.ReportId);
-            return null;
-        }
-
-        var item = new AdminPatrolReport
-        {
-            ReportId = draft.ReportId,
-            CreatedAt = draft.CreatedAt,
-            Status = draft.Status,
-            AttentionSections = draft.AttentionSections,
-            Trigger = draft.Trigger,
-            TriggeredByAccount = draft.TriggeredByAccount,
-            JobRunId = draft.JobRunId,
-            ModelName = draft.ModelName,
-            IsTruncated = draft.IsTruncated,
-            ContentFile = contentFile,
-        };
-
-        try
-        {
-            await using var context = await contextFactory.CreateDbContextAsync();
-            context.AdminPatrolReport.Add(item);
-            await context.SaveChangesAsync();
-            return ToSummary(item);
-        }
-        catch (Exception ex)
-        {
-            fileStore.Delete(contentFile);
-            logger.LogError(ex, "Failed to save admin patrol report. ReportId={ReportId}", draft.ReportId);
-            return null;
-        }
-    }
 
     /// <summary>最新的 <see cref="MaxListCount"/> 份報告（不含內容）。</summary>
     public async Task<IReadOnlyList<AdminPatrolReportSummary>> ListAsync()

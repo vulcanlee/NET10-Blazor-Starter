@@ -52,7 +52,6 @@ public sealed class LoggingPipelineHealthTests
 
         monitor.RecordWriteFailure(now);
         monitor.RecordWriteFailure(now.AddMinutes(1));
-        monitor.RecordClientErrorDropped();
         monitor.RecordAlertQueueFailure();
         monitor.RecordAlertSendFailure();
         monitor.RecordNLogInternalError(now);
@@ -60,7 +59,6 @@ public sealed class LoggingPipelineHealthTests
         var snapshot = monitor.Snapshot();
         Assert.Equal(2, snapshot.WriteFailures);
         Assert.Equal(now.AddMinutes(1), snapshot.LastWriteFailureAt);
-        Assert.Equal(1, snapshot.ClientErrorsDropped);
         Assert.Equal(1, snapshot.AlertQueueFailures);
         Assert.Equal(1, snapshot.AlertSendFailures);
         Assert.Equal(1, snapshot.NLogInternalErrors);
@@ -73,15 +71,6 @@ public sealed class LoggingPipelineHealthTests
 
         Assert.Equal(SystemHealthStatus.Healthy, item.Status);
         Assert.Equal("日誌管線", item.Name);
-    }
-
-    [Fact]
-    public void Evaluate_ClientErrorDropsOnly_ShouldStayHealthy()
-    {
-        // 前端回報被限流擋下是照設計運作，不算管線出問題。
-        var item = SystemHealthService.EvaluateLoggingPipeline(Empty with { ClientErrorsDropped = 30 }, 0, 1000, 0, 50);
-
-        Assert.Equal(SystemHealthStatus.Healthy, item.Status);
     }
 
     [Theory]
@@ -114,5 +103,5 @@ public sealed class LoggingPipelineHealthTests
         Assert.Equal(SystemHealthStatus.Unhealthy, item.Status);
     }
 
-    private static LoggingPipelineSnapshot Empty => new(0, null, 0, 0, 0, 0, null);
+    private static LoggingPipelineSnapshot Empty => new(0, null, 0, 0, 0, null);
 }

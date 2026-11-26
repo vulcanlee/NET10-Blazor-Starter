@@ -510,18 +510,18 @@ public sealed class TwoFactorIntegrationTests : IClassFixture<ApiTestApplication
         var (user, secret) = await AddEnrolledUserAsync();
         using var client = factory.CreateClient();
 
-        var missing = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password });
+        var missing = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password });
         Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
         Assert.Equal("需要兩步驟驗證碼。", (await missing.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.ErrorMessage);
         Assert.Equal(0, await FailedCountAsync(user.Id));
 
-        var wrong = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password, TwoFactorCode = "bad-code" });
+        var wrong = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password, TwoFactorCode = "bad-code" });
         Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
         Assert.Equal(1, await FailedCountAsync(user.Id));
 
         // 啟用時用過現在這一步，登入用下一步（允許前後各一步的誤差）。
         var code = new TotpService().ComputeCode(secret, DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 30);
-        var ok = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password, TwoFactorCode = code });
+        var ok = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password, TwoFactorCode = code });
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
         Assert.False(string.IsNullOrEmpty((await ok.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.Data!.AccessToken));
         Assert.Equal(0, await FailedCountAsync(user.Id));
@@ -542,7 +542,7 @@ public sealed class TwoFactorIntegrationTests : IClassFixture<ApiTestApplication
 
         var user = await AddUserAsync(roleId);
         using var client = factory.CreateClient();
-        var response = await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password });
+        var response = await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = user.Account, Password = Password });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("請先在網頁完成兩步驟驗證設定。", (await response.Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>())!.ErrorMessage);

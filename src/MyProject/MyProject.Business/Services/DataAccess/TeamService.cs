@@ -605,12 +605,6 @@ public class TeamService
         return VerifyRecordResultFactory.Build(true);
     }
 
-    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(TeamAdapterModel paraObject)
-    {
-        Logger.LogDebug("Running pre-delete validation for team. TeamId={TeamId}, Name={TeamName}", paraObject.Id, paraObject.Name);
-        return Task.FromResult(VerifyRecordResultFactory.Build(true));
-    }
-
     /// <summary>名稱有變時同步更新引用；改成已刪除團隊用過的名稱會讓那個團隊留下的資料被這個部門看到，擋下。</summary>
     private async Task<(TeamRenameResult? Result, string? Error)> RenameReferencesAsync(BackendDBContext context, Team current, string newName)
     {

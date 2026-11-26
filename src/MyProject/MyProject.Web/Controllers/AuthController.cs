@@ -17,7 +17,6 @@ namespace MyProject.Web.Controllers;
 /// 登入、刷新、登出與目前工作階段（0.10.0 起刷新 Token 改存伺服器端，可輪替與撤銷，見 <see cref="IRefreshTokenStore"/>）。
 /// 這組 API 是 WASM 前端與日後 App 共用的登入入口；網頁專用的登入、兩步驟驗證、Google 兌換、新分頁取得 Token 在 <see cref="WebAuthController"/>（0.10.8 起）。
 /// </summary>
-[Route("api/[controller]")]
 [Route("api/v1/[controller]")]
 [ApiController]
 [ApiValidationFilter]

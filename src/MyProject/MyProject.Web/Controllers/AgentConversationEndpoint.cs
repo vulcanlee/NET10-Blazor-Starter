@@ -13,29 +13,8 @@ using MyProject.Web.Streaming;
 namespace MyProject.Web.Controllers;
 
 /// <summary>
-/// 一種 Agent 對話頁的設定（0.10.22 起只有系統管理助理）：怎麼開新對話、怎麼接續、能不能選推論等級、未預期錯誤的訊息。
-/// </summary>
-public sealed class AgentConversationProfile
-{
-    /// <summary>存檔的 AgentName（「我的對話」只列這個 Agent 的）。</summary>
-    public required string AgentName { get; init; }
-
-    /// <summary>開新對話（推論等級：null＝系統預設；不支援推論等級的 Agent 忽略）。</summary>
-    public required Func<string?, CancellationToken, Task<AiAgentChat>> StartAsync { get; init; }
-
-    /// <summary>接續一段對話；不存在、不是本人的、讀不懂時回 null。</summary>
-    public required Func<Guid, CancellationToken, Task<AiAgentChat?>> ResumeAsync { get; init; }
-
-    /// <summary>畫面可以替每段對話選推論等級（0.10.22 起 Agent 測試台移除後目前沒有頁面開啟；系統管理助理不開）。</summary>
-    public bool SupportsReasoningEffort { get; init; }
-
-    /// <summary>執行中發生未預期例外時給畫面的訊息（同 Server 版畫面外層的防護）。</summary>
-    public required string UnexpectedMessage { get; init; }
-}
-
-/// <summary>
-/// Agent 對話 API 的共用流程（0.10.7 起，WASM 遷移 M8；0.10.22 起只有 <see cref="AdminAssistantController"/>）：各 Agent 頁的 controller
-/// 的 action 只標授權、選 <see cref="AgentConversationProfile"/>，其餘都在這裡。
+/// 系統管理助理對話 API 的流程（0.10.7 起，WASM 遷移 M8）：<see cref="AdminAssistantController"/> 的 action 只標授權，其餘都在這裡。
+/// 0.10.22 起只剩系統管理助理；0.10.43 起拿掉給多個 Agent 頁共用的設定層（<c>AgentConversationProfile</c>），直接用系統管理助理的每輪規劃器。
 ///
 /// <para>
 /// <b>每個請求接續一次對話</b>：伺服器不把對話物件留在記憶體，送訊息與回覆核准都是「讀存檔 → 接續 → 執行 → 存檔」，
@@ -67,33 +46,42 @@ public sealed class AgentConversationEndpoint
     public const string AlreadyDecidedMessage = "這些操作已經處理過了，請重新開啟這段對話。";
     public const string ConfirmRequiredMessage = "請輸入「確認」以核准無法復原的動作。";
 
+    /// <summary>執行中發生未預期例外時給畫面的訊息。</summary>
+    private const string UnexpectedMessage = "系統管理助理發生未預期的錯誤，請稍後再試。";
+
+    /// <summary>存檔的 AgentName（「我的對話」只列這個 Agent 的）。</summary>
+    private const string AgentName = AdminAssistantAgent.Name;
+
     private readonly IAiAgentRunner runner;
+    private readonly AdminAssistantTurnPlanner planner;
     private readonly AiAgentConversationService conversations;
     private readonly AiAgentConversationLocks locks;
     private readonly ILogger<AgentConversationEndpoint> logger;
 
     public AgentConversationEndpoint(
         IAiAgentRunner runner,
+        AdminAssistantTurnPlanner planner,
         AiAgentConversationService conversations,
         AiAgentConversationLocks locks,
         ILogger<AgentConversationEndpoint> logger)
     {
         this.runner = runner;
+        this.planner = planner;
         this.conversations = conversations;
         this.locks = locks;
         this.logger = logger;
     }
 
     /// <summary>「我的對話」清單（依最後對話時間 desc）。時間以不帶時差送出。</summary>
-    public async Task<List<AgentConversationSummaryDto>> ListAsync(AgentConversationProfile profile)
-        => (await conversations.ListMineAsync(profile.AgentName)).Select(AgentDtoMapper.ToDto).ToList();
+    public async Task<List<AgentConversationSummaryDto>> ListAsync()
+        => (await conversations.ListMineAsync(AgentName)).Select(AgentDtoMapper.ToDto).ToList();
 
     /// <summary>
     /// 打開一段對話：完整的畫面紀錄與待核准（接續一次，不呼叫模型）。
     /// 正在執行時最多等 <see cref="OpenWaitLimit"/>：重新整理會中斷執行中的請求，伺服器取消、存檔只要一下子，等它存完才讀得到最後的內容；
     /// 另一個分頁還在跑很久的執行時不等，讀上次存下的內容。
     /// </summary>
-    public async Task<ActionResult<ApiResult<AgentConversationDto>>> GetAsync(ControllerBase controller, AgentConversationProfile profile, Guid conversationId)
+    public async Task<ActionResult<ApiResult<AgentConversationDto>>> GetAsync(ControllerBase controller, Guid conversationId)
     {
         if (runner.UnavailableReason is { } unavailable)
         {
@@ -111,12 +99,12 @@ public sealed class AgentConversationEndpoint
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested == false)
             {
-                logger.LogInformation("AI agent conversation is busy; reading the last saved state. Agent={Agent}, ConversationId={ConversationId}", profile.AgentName, conversationId);
+                logger.LogInformation("AI agent conversation is busy; reading the last saved state. Agent={Agent}, ConversationId={ConversationId}", AgentName, conversationId);
             }
         }
 
         using var held = lease;
-        var chat = await profile.ResumeAsync(conversationId, ct);
+        var chat = await runner.ResumeAsync(planner, conversationId, ct);
         if (chat is null)
         {
             return NotFound<AgentConversationDto>(controller, NotResumableMessage);
@@ -126,16 +114,15 @@ public sealed class AgentConversationEndpoint
         {
             ConversationId = chat.ConversationId,
             ModelName = chat.ModelName,
-            ReasoningEffort = chat.ReasoningEffort,
             Transcript = chat.Transcript.Select(AgentDtoMapper.ToDto).ToList(),
             PendingApprovals = chat.PendingApprovals.Select(AgentDtoMapper.ToDto).ToList(),
         }));
     }
 
     /// <summary>改標題（只能改自己的、這個 Agent 的）。不寫稽核（同 Server 版）。</summary>
-    public async Task<ActionResult<ApiResult>> RenameAsync(ControllerBase controller, AgentConversationProfile profile, Guid conversationId, string? title)
+    public async Task<ActionResult<ApiResult>> RenameAsync(ControllerBase controller, Guid conversationId, string? title)
     {
-        if (!await IsMineAsync(profile, conversationId))
+        if (!await IsMineAsync(conversationId))
         {
             return controller.FromVerify(Business.Factories.VerifyRecordResultFactory.NotFound("找不到這段對話。"), string.Empty);
         }
@@ -144,10 +131,10 @@ public sealed class AgentConversationEndpoint
     }
 
     /// <summary>刪除自己的一段對話（寫 <c>AiAgentConversation.Delete</c> 稽核）。執行中就等它做完再刪，否則執行結束的存檔會把它建回來。</summary>
-    public async Task<ActionResult<ApiResult>> DeleteAsync(ControllerBase controller, AgentConversationProfile profile, Guid conversationId)
+    public async Task<ActionResult<ApiResult>> DeleteAsync(ControllerBase controller, Guid conversationId)
     {
         using var lease = await locks.AcquireAsync(conversationId, controller.HttpContext.RequestAborted);
-        if (!await IsMineAsync(profile, conversationId))
+        if (!await IsMineAsync(conversationId))
         {
             return controller.FromVerify(Business.Factories.VerifyRecordResultFactory.NotFound("找不到這段對話。"), string.Empty);
         }
@@ -156,7 +143,7 @@ public sealed class AgentConversationEndpoint
     }
 
     /// <summary>送出一則訊息（開新對話或接續），回 NDJSON 串流。</summary>
-    public async Task<IActionResult> SendAsync(ControllerBase controller, AgentConversationProfile profile, AgentMessageRequestDto request)
+    public async Task<IActionResult> SendAsync(ControllerBase controller, AgentMessageRequestDto request)
     {
         var message = request.Message?.Trim() ?? string.Empty;
         if (message.Length == 0)
@@ -167,12 +154,6 @@ public sealed class AgentConversationEndpoint
         if ((request.Message ?? string.Empty).Length > AgentConversationLimits.MaxMessageLength)
         {
             return Invalid(controller, $"訊息最多 {AgentConversationLimits.MaxMessageLength} 個字。");
-        }
-
-        var effort = profile.SupportsReasoningEffort ? request.ReasoningEffort : null;
-        if (!AiAgentChat.IsValidReasoningEffort(effort))
-        {
-            return Invalid(controller, $"推論等級只接受 {string.Join("、", Configuration.AiSettings.AgentReasoningEffortValues)} 或系統預設。");
         }
 
         if (runner.UnavailableReason is { } unavailable)
@@ -187,24 +168,24 @@ public sealed class AgentConversationEndpoint
             AiAgentChat chat;
             try
             {
-                chat = await profile.StartAsync(AiAgentChat.Normalize(effort), ct);
+                chat = await runner.StartAsync(planner, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "Failed to start an AI agent conversation. Agent={Agent}", profile.AgentName);
+                logger.LogError(ex, "Failed to start an AI agent conversation. Agent={Agent}", AgentName);
                 return controller.ApiServerError("無法開始對話，請稍後再試。", ex);
             }
 
             var lease = locks.TryAcquire(chat.ConversationId)!;
             controller.HttpContext.Response.RegisterForDispose(lease);
-            return Stream(profile, chat.ConversationId, lease, new Prepared(chat, token => chat.SendAsync(message, token)), prepare: null, ct);
+            return Stream(chat.ConversationId, lease, new Prepared(chat, token => chat.SendAsync(message, token)), prepare: null, ct);
         }
 
-        return await StreamWithLockAsync(controller, profile, conversationId, token => PrepareSendAsync(profile, conversationId, message, effort, token));
+        return await StreamWithLockAsync(controller, conversationId, token => PrepareSendAsync(conversationId, message, token));
     }
 
     /// <summary>回覆待核准的工具：<see cref="AgentApprovalResponseRequestDto.ApprovedRequestIds"/> 核准，其餘拒絕；回 NDJSON 串流。</summary>
-    public async Task<IActionResult> RespondAsync(ControllerBase controller, AgentConversationProfile profile, Guid conversationId, AgentApprovalResponseRequestDto request)
+    public async Task<IActionResult> RespondAsync(ControllerBase controller, Guid conversationId, AgentApprovalResponseRequestDto request)
     {
         var approved = (request.ApprovedRequestIds ?? []).Distinct(StringComparer.Ordinal).ToList();
         var rejected = (request.RejectedRequestIds ?? []).Distinct(StringComparer.Ordinal).ToList();
@@ -223,21 +204,21 @@ public sealed class AgentConversationEndpoint
             return Conflict<object>(controller, unavailable);
         }
 
-        return await StreamWithLockAsync(controller, profile, conversationId,
-            token => PrepareRespondAsync(profile, conversationId, approved, rejected, request.ConfirmText, token));
+        return await StreamWithLockAsync(controller, conversationId,
+            token => PrepareRespondAsync(conversationId, approved, rejected, request.ConfirmText, token));
     }
 
     /// <summary>
     /// 鎖得到：先驗證（錯誤以狀態碼回），再開始串流。鎖不到（另一個請求正在用這段對話）：直接回串流，在串流裡排隊、輪到後驗證。
     /// </summary>
     private async Task<IActionResult> StreamWithLockAsync(
-        ControllerBase controller, AgentConversationProfile profile, Guid conversationId, Func<CancellationToken, Task<Prepared>> prepare)
+        ControllerBase controller, Guid conversationId, Func<CancellationToken, Task<Prepared>> prepare)
     {
         var lease = locks.TryAcquire(conversationId);
         if (lease is null)
         {
-            logger.LogInformation("AI agent conversation is busy; the request is queued. Agent={Agent}, ConversationId={ConversationId}", profile.AgentName, conversationId);
-            return Stream(profile, conversationId, lease: null, prepared: null, prepare, controller.HttpContext.RequestAborted);
+            logger.LogInformation("AI agent conversation is busy; the request is queued. Agent={Agent}, ConversationId={ConversationId}", AgentName, conversationId);
+            return Stream(conversationId, lease: null, prepared: null, prepare, controller.HttpContext.RequestAborted);
         }
 
         Prepared prepared;
@@ -261,12 +242,12 @@ public sealed class AgentConversationEndpoint
 
         // 保險：串流正常結束時背景工作就會釋放；萬一回應根本沒開始列舉，請求結束時也會釋放（重複釋放無妨）。
         controller.HttpContext.Response.RegisterForDispose(lease);
-        return Stream(profile, conversationId, lease, prepared, prepare: null, controller.HttpContext.RequestAborted);
+        return Stream(conversationId, lease, prepared, prepare: null, controller.HttpContext.RequestAborted);
     }
 
-    private async Task<Prepared> PrepareSendAsync(AgentConversationProfile profile, Guid conversationId, string message, string? effort, CancellationToken ct)
+    private async Task<Prepared> PrepareSendAsync(Guid conversationId, string message, CancellationToken ct)
     {
-        var chat = await profile.ResumeAsync(conversationId, ct);
+        var chat = await runner.ResumeAsync(planner, conversationId, ct);
         if (chat is null)
         {
             return Prepared.Fail(StatusCodes.Status404NotFound, "NotFound", NotResumableMessage);
@@ -277,27 +258,13 @@ public sealed class AgentConversationEndpoint
             return Prepared.Fail(StatusCodes.Status409Conflict, "Conflict", AwaitingApprovalMessage);
         }
 
-        // 推論等級（有開 SupportsReasoningEffort 的頁面）：畫面送的與存的不同時，從這則訊息起生效。
-        if (profile.SupportsReasoningEffort && AiAgentChat.Normalize(effort) != chat.ReasoningEffort)
-        {
-            try
-            {
-                chat.SetReasoningEffort(effort);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Failed to rebuild the agent for a new reasoning effort. Agent={Agent}, ConversationId={ConversationId}", profile.AgentName, conversationId);
-                return Prepared.Fail(StatusCodes.Status500InternalServerError, "Unexpected", "無法改推論等級，請稍後再試；這段對話維持原本的設定。");
-            }
-        }
-
         return new Prepared(chat, token => chat.SendAsync(message, token));
     }
 
     private async Task<Prepared> PrepareRespondAsync(
-        AgentConversationProfile profile, Guid conversationId, List<string> approved, List<string> rejected, string? confirmText, CancellationToken ct)
+        Guid conversationId, List<string> approved, List<string> rejected, string? confirmText, CancellationToken ct)
     {
-        var chat = await profile.ResumeAsync(conversationId, ct);
+        var chat = await runner.ResumeAsync(planner, conversationId, ct);
         if (chat is null)
         {
             return Prepared.Fail(StatusCodes.Status404NotFound, "NotFound", NotResumableMessage);
@@ -330,15 +297,14 @@ public sealed class AgentConversationEndpoint
         return new Prepared(chat, token => chat.RespondAsync(approved, token));
     }
 
-    private async Task<bool> IsMineAsync(AgentConversationProfile profile, Guid conversationId)
-        => (await conversations.LoadMineAsync(conversationId))?.Summary.AgentName == profile.AgentName;
+    private async Task<bool> IsMineAsync(Guid conversationId)
+        => (await conversations.LoadMineAsync(conversationId))?.Summary.AgentName == AgentName;
 
     /// <summary>
     /// 回串流。執行放在背景工作裡、寫進佇列：對話物件每加一則紀錄就立即送出（例如分派完成後使用者那一則），
     /// 不必等到下一筆更新。背景工作在 NdjsonResult 開始讀取時才啟動；序列讀到結束時執行一定已經結束（存檔、稽核、記帳都做完），鎖也已釋放。
     /// </summary>
     private IActionResult Stream(
-        AgentConversationProfile profile,
         Guid conversationId,
         IDisposable? lease,
         Prepared? prepared,
@@ -346,7 +312,7 @@ public sealed class AgentConversationEndpoint
         CancellationToken requestAborted)
     {
         var channel = Channel.CreateUnbounded<AgentStreamFrameDto>(new UnboundedChannelOptions { SingleReader = true });
-        Task Produce() => Task.Run(() => ProduceAsync(channel.Writer, profile, conversationId, lease, prepared, prepare, requestAborted), CancellationToken.None);
+        Task Produce() => Task.Run(() => ProduceAsync(channel.Writer, conversationId, lease, prepared, prepare, requestAborted), CancellationToken.None);
         return new NdjsonResult<AgentStreamFrameDto>(NdjsonHeartbeat.WithHeartbeat(
             FramesAsync(channel.Reader, Produce),
             HeartbeatInterval,
@@ -366,7 +332,6 @@ public sealed class AgentConversationEndpoint
 
     private async Task ProduceAsync(
         ChannelWriter<AgentStreamFrameDto> writer,
-        AgentConversationProfile profile,
         Guid conversationId,
         IDisposable? lease,
         Prepared? prepared,
@@ -406,7 +371,6 @@ public sealed class AgentConversationEndpoint
                 Kind = AgentStreamFrameKinds.Start,
                 ConversationId = chat.ConversationId,
                 ModelName = chat.ModelName,
-                ReasoningEffort = chat.ReasoningEffort,
             });
 
             // 「由誰回答」：每個請求至少送一次（0.10.7 獨立審查）—— 核准後的那一輪、接續後分派到同一領域的那一輪，
@@ -432,9 +396,9 @@ public sealed class AgentConversationEndpoint
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "AI agent conversation request failed unexpectedly. Agent={Agent}, ConversationId={ConversationId}", profile.AgentName, conversationId);
+            logger.LogError(ex, "AI agent conversation request failed unexpectedly. Agent={Agent}, ConversationId={ConversationId}", AgentName, conversationId);
             writer.TryWrite(ResultFrame(AiStreamFrames.ToDto(
-                AiAnalysisResult.Failure(AiAnalysisFailureReason.Unexpected, profile.UnexpectedMessage, detail: ex.ToString()))));
+                AiAnalysisResult.Failure(AiAnalysisFailureReason.Unexpected, UnexpectedMessage, detail: ex.ToString()))));
         }
         finally
         {

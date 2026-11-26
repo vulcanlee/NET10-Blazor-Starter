@@ -34,9 +34,6 @@ public sealed record AiReportPdfRequest
 /// </summary>
 public static class AiReportPdfBuilder
 {
-    /// <summary>模型只會用 ## 與 ###，仍夾住上限以防輸出超出預期。</summary>
-    private const int MaxHeadingLevel = 3;
-
     private const string Disclaimer = "本報告由 AI 依上述日誌生成，內容僅供參考，請以原始日誌為準。";
 
     /// <summary>產生 PDF 位元組。</summary>

@@ -12,67 +12,33 @@ using MyProject.Models.Systems;
 namespace MyProject.Tests;
 
 /// <summary>
-/// 定時巡檢報告的存放（0.9.161 起）。
+/// 舊版定時巡檢報告（0.9.161～0.10.38 產生；0.10.39 起不再產生，0.10.43 起拿掉寫入路徑，報告由 <see cref="LegacyPatrolReports"/> 佈置）。
 ///
 /// 重點：
-/// 1. 內容寫進 <c>{AiAgentConversationPath}/AdminPatrol/{yyyyMM}/{ReportId:N}.md</c>，資料表只放固定用語的中繼資料。
-/// 2. 寫資料列失敗就刪掉剛寫的檔，不留孤兒檔。
-/// 3. 清單不分使用者（全體管理員都看得到），最新的在前、最多 100 筆。
-/// 4. 「下次會清掉幾筆」等於實際清掉的筆數；清理不會動到 Agent 對話，Agent 對話的清理也不會動到巡檢報告。
+/// 1. 內容在 <c>{AiAgentConversationPath}/AdminPatrol/{yyyyMM}/{ReportId:N}.md</c>，資料表只放固定用語的中繼資料。
+/// 2. 清單不分使用者（全體管理員都看得到），最新的在前、最多 100 筆。
+/// 3. 「下次會清掉幾筆」等於實際清掉的筆數；清理不會動到 Agent 對話，Agent 對話的清理也不會動到巡檢報告。
 /// </summary>
 public sealed class AdminPatrolReportServiceTests
 {
     private static readonly DateTime Now = new(2026, 11, 8, 7, 30, 0);
 
     [Fact]
-    public async Task Save_WritesContentFileAndRow_ThenGetReadsBack()
+    public async Task Get_ReadsBackContentAndMetadata()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var service = fixture.CreateService();
-        var draft = Draft(Now, status: AdminPatrolStatuses.Abnormal, attention: "排程與備份", markdown: "## 總結\n有問題。");
+        var report = Report(Now) with { Status = AdminPatrolStatuses.Abnormal, AttentionSections = "排程與備份", Markdown = "## 總結\n有問題。" };
+        await fixture.SeedAsync(report);
 
-        var saved = await service.SaveAsync(draft);
+        var detail = await fixture.CreateService().GetAsync(report.ReportId);
 
-        Assert.NotNull(saved);
-        Assert.Equal(draft.ReportId, saved.ReportId);
-        var row = Assert.Single(await fixture.ListRowsAsync());
-        Assert.Equal($"202611/{draft.ReportId:N}.md", row.ContentFile);
-        Assert.Equal(AdminPatrolStatuses.Abnormal, row.Status);
-        Assert.Equal("排程與備份", row.AttentionSections);
-        Assert.Equal(JobRunTriggers.Manual, row.Trigger);
-        Assert.Equal("support", row.TriggeredByAccount);
-        Assert.Equal(42, row.JobRunId);
-        Assert.True(File.Exists(Path.Combine(fixture.RootPath, "AdminPatrol", "202611", $"{draft.ReportId:N}.md")));
-
-        var detail = await service.GetAsync(draft.ReportId);
         Assert.NotNull(detail);
         Assert.Equal("## 總結\n有問題。", detail.Markdown);
         Assert.Equal(AdminPatrolStatuses.Abnormal, detail.Summary.Status);
+        Assert.Equal("排程與備份", detail.Summary.AttentionSections);
+        Assert.Equal(JobRunTriggers.Manual, detail.Summary.Trigger);
+        Assert.Equal("support", detail.Summary.TriggeredByAccount);
         Assert.Equal("gpt-test", detail.Summary.ModelName);
-    }
-
-    [Fact]
-    public async Task Save_RowFails_DeletesWrittenFile_AndReturnsNull()
-    {
-        await using var fixture = await Fixture.CreateAsync();
-        await fixture.ExecuteAsync("DROP TABLE AdminPatrolReport");
-        var draft = Draft(Now);
-
-        var saved = await fixture.CreateService().SaveAsync(draft);
-
-        Assert.Null(saved);
-        Assert.False(File.Exists(Path.Combine(fixture.RootPath, "AdminPatrol", "202611", $"{draft.ReportId:N}.md")));
-    }
-
-    [Fact]
-    public async Task Save_FileFails_ReturnsNull_AndWritesNoRow()
-    {
-        await using var fixture = await Fixture.CreateAsync();
-
-        var saved = await fixture.CreateService(rootPath: string.Empty).SaveAsync(Draft(Now));
-
-        Assert.Null(saved);
-        Assert.Empty(await fixture.ListRowsAsync());
     }
 
     [Fact]
@@ -82,7 +48,7 @@ public sealed class AdminPatrolReportServiceTests
         var service = fixture.CreateService();
         for (var i = 0; i < AdminPatrolReportService.MaxListCount + 2; i++)
         {
-            await service.SaveAsync(Draft(Now.AddDays(-i)));
+            await fixture.SeedAsync(Report(Now.AddDays(-i)));
         }
 
         var list = await service.ListAsync();
@@ -97,8 +63,8 @@ public sealed class AdminPatrolReportServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var service = fixture.CreateService();
-        var draft = Draft(Now);
-        await service.SaveAsync(draft);
+        var draft = Report(Now);
+        await fixture.SeedAsync(draft);
         File.Delete(Path.Combine(fixture.RootPath, "AdminPatrol", "202611", $"{draft.ReportId:N}.md"));
 
         Assert.Null(await service.GetAsync(Guid.NewGuid()));
@@ -112,12 +78,12 @@ public sealed class AdminPatrolReportServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var service = fixture.CreateService(retentionDays: 30);
-        var old = Draft(new DateTime(2026, 9, 1, 7, 30, 0));
-        var edge = Draft(Now.Date.AddDays(-30));
-        var recent = Draft(Now.AddDays(-1));
+        var old = Report(new DateTime(2026, 9, 1, 7, 30, 0));
+        var edge = Report(Now.Date.AddDays(-30));
+        var recent = Report(Now.AddDays(-1));
         foreach (var draft in new[] { old, edge, recent })
         {
-            await service.SaveAsync(draft);
+            await fixture.SeedAsync(draft);
         }
 
         var stats = await service.GetRetentionStatsAsync(Now);
@@ -138,8 +104,8 @@ public sealed class AdminPatrolReportServiceTests
     public async Task AgentConversationPurge_DoesNotTouchPatrolReports()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var draft = Draft(new DateTime(2026, 1, 1, 7, 30, 0));
-        await fixture.CreateService().SaveAsync(draft);
+        var draft = Report(new DateTime(2026, 1, 1, 7, 30, 0));
+        await fixture.SeedAsync(draft);
         var conversations = new AiAgentConversationService(
             new TestDbContextFactory(fixture.Connection),
             new AiAgentConversationFileStore(Options.Create(fixture.Settings()), fixture.Logger<AiAgentConversationFileStore>()),
@@ -169,9 +135,7 @@ public sealed class AdminPatrolReportServiceTests
         Assert.Null(await store.ReadAsync(outside));
     }
 
-    private static AdminPatrolReportDraft Draft(
-        DateTime createdAt, string status = AdminPatrolStatuses.Normal, string attention = "", string markdown = "## 總結\n正常。")
-        => new(Guid.NewGuid(), createdAt, status, attention, JobRunTriggers.Manual, "support", 42, "gpt-test", false, markdown);
+    private static LegacyPatrolReport Report(DateTime createdAt) => new(Guid.NewGuid(), createdAt);
 
     private sealed class Fixture : IAsyncDisposable
     {
@@ -203,34 +167,29 @@ public sealed class AdminPatrolReportServiceTests
 
         public ILogger<T> Logger<T>() => loggerFactory.CreateLogger<T>();
 
-        public SystemSettings Settings(string? rootPath = null)
+        public SystemSettings Settings()
         {
             var settings = new SystemSettings();
-            settings.ExternalFileSystem.AiAgentConversationPath = rootPath ?? RootPath;
+            settings.ExternalFileSystem.AiAgentConversationPath = RootPath;
             return settings;
         }
 
-        public AdminPatrolReportFileStore CreateFileStore(string? rootPath = null)
-            => new(Options.Create(Settings(rootPath)), Logger<AdminPatrolReportFileStore>());
+        public AdminPatrolReportFileStore CreateFileStore()
+            => new(Options.Create(Settings()), Logger<AdminPatrolReportFileStore>());
 
-        public AdminPatrolReportService CreateService(int retentionDays = 90, string? rootPath = null)
+        public AdminPatrolReportService CreateService(int retentionDays = 90)
             => new(
                 new TestDbContextFactory(Connection),
-                CreateFileStore(rootPath),
+                CreateFileStore(),
                 new StaticOptionsMonitor<SystemReportSettings>(new SystemReportSettings { DailyRetentionDays = retentionDays }),
                 Logger<AdminPatrolReportService>());
+
+        public Task SeedAsync(LegacyPatrolReport report) => LegacyPatrolReports.SeedAsync(new TestDbContextFactory(Connection), RootPath, report);
 
         public async Task<List<AdminPatrolReport>> ListRowsAsync()
         {
             await using var context = new TestDbContextFactory(Connection).CreateDbContext();
             return await context.AdminPatrolReport.AsNoTracking().OrderBy(x => x.Id).ToListAsync();
-        }
-
-        public async Task ExecuteAsync(string sql)
-        {
-            await using var command = Connection.CreateCommand();
-            command.CommandText = sql;
-            await command.ExecuteNonQueryAsync();
         }
 
         public async ValueTask DisposeAsync()

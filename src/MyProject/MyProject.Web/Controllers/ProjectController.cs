@@ -31,7 +31,6 @@ namespace MyProject.Web.Controllers;
 /// 另帶 <c>files</c> 與 <c>removedFileIds</c>）。multipart 與 Server 版畫面走同一條路：資料與附件在同一次存檔裡處理。
 /// 附件下載先以 <c>POST files/{id}/ticket</c> 申請一次性票證，再由瀏覽器原生下載（<see cref="DownloadsController"/>）。
 /// </summary>
-[Route("api/[controller]")]
 [Route("api/v1/[controller]")]
 [ApiController]
 [ApiValidationFilter]
@@ -102,10 +101,9 @@ public class ProjectController : ControllerBase
     }
 
     /// <summary>單筆（含附件清單；WASM 頁開修改窗時呼叫，拿到最新的版本號）；寫一筆「查看」稽核。</summary>
-    /// <param name="includeRelatedData">0.10.3 之前的參數，保留相容；附件一律回傳。</param>
     [HttpGet("{id}")]
     [HasPermission(MagicObjectHelper.角色_專案項目, PermissionActions.View)]
-    public async Task<ActionResult<ApiResult<ProjectDto>>> GetById(int id, [FromQuery] bool includeRelatedData = false)
+    public async Task<ActionResult<ApiResult<ProjectDto>>> GetById(int id)
     {
         var item = await projectService.GetAsync(id);
         if (item.Id == 0)

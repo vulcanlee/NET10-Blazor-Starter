@@ -22,7 +22,6 @@ namespace MyProject.Web.Controllers;
 /// 每個端點以 [HasPermission] 做動作級授權。規則、並行衝突、軟刪除與稽核都在 <see cref="__Name__Service"/>（與畫面共用一份），
 /// 失敗依種類回 404／409／400／500（<see cref="ControllerVerifyResultExtensions.FromVerify(ControllerBase, VerifyRecordResult, string)"/>）。
 /// </summary>
-[Route("api/[controller]")]
 [Route("api/v1/[controller]")]
 [ApiController]
 [ApiValidationFilter]

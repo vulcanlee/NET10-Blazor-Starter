@@ -378,10 +378,6 @@ public class ExceptionLogService
     }
 
     /// <summary>
-    /// 刪除「最後發生」早於 <paramref name="threshold"/>（本地時間，與 LastOccurredAt 同一個時間基準）的紀錄與堆疊檔，
-    /// 回傳刪除筆數。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出，由呼叫端決定如何回報。
-    /// </summary>
-    /// <summary>
     /// 清理條件：<see cref="PurgeBeforeAsync"/> 與 <see cref="GetRetentionStatsAsync"/> 共用，
     /// 「資料保留與清理」頁的「下次會清掉幾筆」才會等於實際刪掉的筆數。
     /// </summary>
@@ -398,6 +394,10 @@ public class ExceptionLogService
         return new RetentionStats(total, oldest, expired);
     }
 
+    /// <summary>
+    /// 刪除「最後發生」早於 <paramref name="threshold"/>（本地時間，與 LastOccurredAt 同一個時間基準）的紀錄與堆疊檔，
+    /// 回傳刪除筆數。供頁面手動清除與自動保存期限（LOG-13）共用；失敗時拋出，由呼叫端決定如何回報。
+    /// </summary>
     public async Task<int> PurgeBeforeAsync(DateTime threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();

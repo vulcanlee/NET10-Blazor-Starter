@@ -594,19 +594,19 @@ public sealed class TeamTreeApiTests : IClassFixture<ApiTestApplicationFactory>
 
         factory.Services.GetRequiredService<ITeamTreeCache>().Invalidate();
         using var client = factory.CreateClient();
-        var login = await (await client.PostAsJsonAsync("/api/Auth/login", new LoginRequestDto { Account = account, Password = "Passw0rd-1" }))
+        var login = await (await client.PostAsJsonAsync("/api/v1/Auth/login", new LoginRequestDto { Account = account, Password = "Passw0rd-1" }))
             .Content.ReadFromJsonAsync<ApiResult<TokenResponseDto>>();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", login!.Data!.AccessToken);
 
-        var search = await (await client.PostAsJsonAsync("/api/Project/search", new ProjectSearchRequestDto { Keyword = suffix, PageIndex = 1, PageSize = 50 }))
+        var search = await (await client.PostAsJsonAsync("/api/v1/Project/search", new ProjectSearchRequestDto { Keyword = suffix, PageIndex = 1, PageSize = 50 }))
             .Content.ReadFromJsonAsync<ApiResult<PagedResult<ProjectDto>>>();
         Assert.Equal([$"研發一部案-{suffix}", $"研發案-{suffix}"], search!.Data!.Items.Select(x => x.Title).Order(StringComparer.Ordinal));
 
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/Project/{rd1Project}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/Project/{salesProject}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/Project/{salesProject}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/v1/Project/{rd1Project}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/v1/Project/{salesProject}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/v1/Project/{salesProject}")).StatusCode);
 
-        var outside = await client.PostAsJsonAsync("/api/Project", new ProjectCreateUpdateDto
+        var outside = await client.PostAsJsonAsync("/api/v1/Project", new ProjectCreateUpdateDto
         {
             Id = 0,
             Title = $"越權-{suffix}",

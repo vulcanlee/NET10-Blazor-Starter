@@ -7,7 +7,7 @@ using MyProject.Web.Configuration;
 namespace MyProject.Web.Diagnostics;
 
 /// <summary>
-/// 接收瀏覽器端錯誤（0.9.79 起，LOG-20）：WASM 的 <c>ClientErrorReporter</c> 送到 <c>api/v1/shell/client-errors</c>，由 <c>ShellController</c> 呼叫 <see cref="Report"/>。
+/// 接收瀏覽器端錯誤（0.9.79 起，LOG-20）：WASM 的 <c>ClientErrorReporter</c> 批次送到 <c>api/v1/shell/client-reports</c>（0.10.36 起；0.10.43 移除舊端點 <c>client-errors</c>），由 <c>ShellController</c> 呼叫 <see cref="Report"/>。
 ///
 /// Scoped（＝每個請求一份）。每人每分鐘的上限由 <c>ShellController</c> 控管（<c>PerUserRateLimiter</c>）；
 /// 0.10.9 以前這裡另有給 Blazor Server 連線用的 <c>[JSInvokable]</c> 與每個實例的計數，0.10.10 起移除。
@@ -47,11 +47,6 @@ public sealed class BrowserErrorReporter
     {
         "error", "unhandledrejection", "boundary", "unhandled", "caught", "sw-install", "boot",
     };
-
-    /// <summary>舊端點 <c>client-errors</c>（0.10.35 以前的前端）：只有種類、訊息、堆疊、來源、頁面。</summary>
-    /// <returns>是否記錄了（關閉回報時為 false）。</returns>
-    public bool Report(string? kind, string? message, string? stack, string? source, string? path)
-        => Write(kind is "unhandledrejection" ? "unhandledrejection" : "error", message, stack, source, path, traceCode: null, context: null, beforeSignIn: false);
 
     /// <summary>
     /// 0.10.36 起的批次回報（<c>client-reports</c>）的一筆錯誤：沿用瀏覽器產生的追蹤碼（格式正確時；畫面上已經顯示給使用者），

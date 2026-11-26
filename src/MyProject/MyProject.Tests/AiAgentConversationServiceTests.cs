@@ -24,17 +24,20 @@ namespace MyProject.Tests;
 /// </summary>
 public sealed class AiAgentConversationServiceTests
 {
-    /// <summary>0.9.170 起內容多了 ReasoningEffort（只加不改，SchemaVersion 不變）：舊檔讀得到，值為 null（系統預設）。</summary>
+    /// <summary>
+    /// 0.9.170～0.10.42 的內容檔可能帶 ReasoningEffort（依對話選的推論等級；0.10.43 起拿掉這個欄位）：
+    /// 舊檔照樣讀得到（不認得的欄位略過），SchemaVersion 不變。
+    /// </summary>
     [Fact]
-    public void Content_WithoutReasoningEffort_ShouldStillBeReadable()
+    public void Content_WithLegacyReasoningEffort_ShouldStillBeReadable()
     {
-        const string oldJson = """{"SchemaVersion":1,"Session":{},"Transcript":[],"PendingApprovals":[]}""";
+        const string oldJson = """{"SchemaVersion":1,"Session":{},"Transcript":[],"PendingApprovals":[],"ReasoningEffort":"high","TurnKey":"ops"}""";
 
         var content = System.Text.Json.JsonSerializer.Deserialize<AiAgentConversationContent>(oldJson, AiAgentConversationService.FileJsonOptions);
 
         Assert.NotNull(content);
         Assert.Equal(AiAgentConversationContent.CurrentSchemaVersion, content!.SchemaVersion);
-        Assert.Null(content.ReasoningEffort);
+        Assert.Equal("ops", content.TurnKey);
     }
 
     private const int Alice = 7;

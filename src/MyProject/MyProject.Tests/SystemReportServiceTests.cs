@@ -154,8 +154,8 @@ public sealed class SystemReportServiceTests : IAsyncLifetime
     {
         var audit = new RecordingAuditLogService();
         var legacy = LegacyService(retentionDays: 30);
-        await legacy.SaveAsync(new AdminPatrolReportDraft(
-            Guid.NewGuid(), Now.AddDays(-40), AdminPatrolStatuses.Normal, string.Empty, JobRunTriggers.Schedule, null, 1, null, false, "## 總結\n舊的。"));
+        await LegacyPatrolReports.SeedAsync(new TestDbContextFactory(connection), rootPath, new LegacyPatrolReport(
+            Guid.NewGuid(), Now.AddDays(-40), Trigger: JobRunTriggers.Schedule, TriggeredByAccount: null, JobRunId: 1, ModelName: null, Markdown: "## 總結\n舊的。"));
         await ReportService(retentionDays: 30).SaveAsync(Draft(Now.AddDays(-40), SystemReportLevels.Green));
         await SnapshotService(retentionDays: 30).SaveDayAsync(Now.Date.AddDays(-40), Now, [Row(Now.Date.AddDays(-40), "C:\\", 1)]);
         var job = RetentionJob(audit, legacy, retentionDays: 30);

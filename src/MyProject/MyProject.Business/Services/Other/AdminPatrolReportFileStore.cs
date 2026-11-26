@@ -6,7 +6,7 @@ using MyProject.Models.Systems;
 namespace MyProject.Business.Services.Other;
 
 /// <summary>
-/// 定時巡檢報告的內容檔存放（0.9.161 起）。
+/// 定時巡檢報告的內容檔存放（0.9.161 起；0.10.39 起不再產生舊版巡檢報告，0.10.43 起拿掉它的寫入方法，只剩讀取與清理）。
 ///
 /// ⚠️ <b>檔案生命週期的唯一入口。</b>寫入、讀取與刪除都必須經過這裡。作法同 <see cref="AiAgentConversationFileStore"/>（檢查根目錄，
 /// 不讓 <c>../</c> 這類值讀刪到根目錄以外的檔案）。
@@ -39,30 +39,6 @@ public class AdminPatrolReportFileStore
         => string.IsNullOrWhiteSpace(paths.AiAgentConversationPath) ? string.Empty : Path.Combine(paths.AiAgentConversationPath, FolderName);
 
     private string RootPath => RootOf(systemSettingsOptions.Value.ExternalFileSystem);
-
-    /// <summary>寫入內容檔。</summary>
-    /// <returns>成功時回傳相對路徑；失敗回 null。</returns>
-    public async Task<string?> WriteAsync(DateTime createdAt, Guid reportId, string markdown)
-    {
-        var relativePath = $"{createdAt:yyyyMM}/{reportId:N}.md";
-        var fullPath = TryResolveFullPath(relativePath);
-        if (fullPath is null || string.IsNullOrEmpty(markdown))
-        {
-            return null;
-        }
-
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            await File.WriteAllTextAsync(fullPath, markdown);
-            return relativePath;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to write admin patrol report file. Path={RelativePath}", relativePath);
-            return null;
-        }
-    }
 
     /// <summary>寫入系統巡檢報告的內容檔（0.10.39 起）。</summary>
     /// <param name="extension">副檔名（不含點），只能是英文小寫字母，例如 <c>json</c>。</param>

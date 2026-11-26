@@ -45,12 +45,11 @@ public interface IAiAgentFactory
 /// <summary>建好的 agent 與它的呼叫狀態（每次成功的模型呼叫結果都在 <see cref="State"/>）。</summary>
 public sealed record AiAgentHandle(AIAgent Agent, AiCallState State, AiSettings Settings);
 
-/// <summary>推論等級從哪裡來（0.9.170 起分三種）：設定檔的全域值、系統參數的功能值、這段對話選的。</summary>
+/// <summary>推論等級從哪裡來：設定檔的全域值、系統參數的功能值。</summary>
 internal enum AiReasoningEffortOrigin
 {
     Global,
     Feature,
-    Conversation,
 }
 
 /// <summary>這次送出的推論等級與它的設定來源（0.9.168 起），模型拒絕時錯誤訊息用來指出要改哪一個設定。</summary>
@@ -121,11 +120,9 @@ public sealed class AiAgentFactory : IAiAgentFactory
         // 各功能可在系統參數指定自己的模型（0.9.142 起）；沒設定就用 AiSettings.Model，
         // 呼叫端要求快速模型且 AiSettings:FastModel 有填時改用它（0.10.22 起）。
         var defaultModel = settings.DefaultModel(context.UseFastModel);
-        var model = string.IsNullOrWhiteSpace(context.ModelOverride)
-            ? modelOptions?.CurrentValue.Resolve(context.ModelKey, defaultModel) ?? defaultModel
-            : context.ModelOverride.Trim();
+        var model = modelOptions?.CurrentValue.Resolve(context.ModelKey, defaultModel) ?? defaultModel;
 
-        // 推論等級：這段對話選的（0.9.170 起）優先；其次是功能自己在系統參數設的（0.9.168 起）；都空白沿用 AiSettings:AgentReasoningEffort。
+        // 推論等級：功能自己在系統參數設的（0.9.168 起）優先；空白沿用 AiSettings:AgentReasoningEffort。
         // 記下來源，模型拒絕這個值時，錯誤訊息才指得出要改哪一個設定。
         var reasoning = ResolveReasoning(context, settings);
         var effort = reasoning.Effort;
@@ -181,11 +178,6 @@ public sealed class AiAgentFactory : IAiAgentFactory
 
     private AiReasoningEffortSource ResolveReasoning(AiCallContext context, AiSettings settings)
     {
-        if (string.IsNullOrWhiteSpace(context.ReasoningEffortOverride) == false)
-        {
-            return new AiReasoningEffortSource(context.ReasoningEffortOverride.Trim().ToLowerInvariant(), "這段對話選的推論等級", AiReasoningEffortOrigin.Conversation);
-        }
-
         var featureValue = reasoningOptions?.CurrentValue.GetOverride(context.ModelKey);
         if (featureValue is not null)
         {

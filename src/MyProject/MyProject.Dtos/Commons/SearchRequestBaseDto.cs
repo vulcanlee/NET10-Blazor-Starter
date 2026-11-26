@@ -45,9 +45,4 @@ public class SearchRequestBaseDto
     /// 是否降冪排序
     /// </summary>
     public bool SortDescending { get; set; } = false;
-
-    /// <summary>
-    /// 是否包含關聯資料
-    /// </summary>
-    public bool IncludeRelatedData { get; set; } = false;
 }

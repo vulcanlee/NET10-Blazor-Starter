@@ -1,16 +1,16 @@
 ﻿# Web API 端點目錄
 
-- 文件版本：1.28
+- 文件版本：1.29
 - 文件狀態：已實作
-- 現行系統版本：0.10.42
+- 現行系統版本：0.10.43
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/23
+- 最後核對日期：2026/11/26
 
 本文件彙整 `MyProject.Web/Controllers/` 下所有 Web API 端點的實際路由、HTTP 動詞、授權與回傳型別，作為《[Web API 設計慣例](Web%20API%20設計慣例.md)》（樣板與慣例）之外的**端點清單參照**。慣例細節（`ApiResult<T>`、`PagedResult<T>`、Search DTO、動作級授權）見設計慣例文件。
 
 ## 一、通則
 
-- 每個資源控制器同時掛 `api/[controller]` 與 `api/v1/[controller]` 兩條平行路由（見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之四節、第四之一節、第五之一節）都只有 `api/v1`。
+- 資源控制器只掛 `api/v1/[controller]`（0.10.43 起拿掉沒有版本號的 `api/[controller]` 舊路由，見《[API Versioning 策略](API%20Versioning%20策略.md)》）；`DownloadsController` 只有 `api/v1/downloads`（0.10.3 起）。WASM 遷移期間新增的控制器（第二之一～二之四節、第四之一節、第五之一節）都只有 `api/v1`。
 - 資源控制器類別層級套 `[ApiController]`、`[ApiValidationFilter]`、`[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`（API 用 JWT Bearer）。**例外是 `DownloadsController`：匿名、以一次性票證當憑證（第三節）。** 0.10.6 起已沒有以 Cookie 驗證的 API（專案附件 0.10.3、系統備份 0.10.6 改用下載票證）；0.10.8 起網頁也不再發登入 Cookie，預設驗證機制是 JWT（WASM 遷移 M9）；0.10.9 起 `HasPermissionAttribute` 與 `RequestActorResolver` 只認 JWT 身分（登入 Cookie 的 `Sid` 分支移除，Google 登入過程的 5 分鐘外部 Cookie 不經過它們），主機也不再有 Blazor Server 的 SignalR 端點 `/_blazor`（WASM 遷移 M10）；0.10.10 起（WASM 遷移 M11）主機沒有任何 Razor 元件或主機頁，只提供 API（同站台時另外提供前端的靜態檔，`ApiOnlyHostTests` 守門）。
 - **`/api` 底下找不到的路由**（0.10.10 起）：沒有本文的錯誤狀態碼（找不到路由 404、方法不符 405…）由 `UseApiStatusCodePages` 補上 `ApiResult`（找不到時訊息「找不到這個 API。」）；0.10.9 以前是重跑成 `/not-found` 頁。其他有本文的錯誤（JWT 的 401／403、`ApiExceptionFilter`、`ApiValidationFilter`、`HasPermissionAttribute`、限流）不受影響。
 - **跨來源（CORS，0.10.10 起）**：同站台（`ClientSettings:BaseUrl` 留空，預設）不開放、不回任何 CORS 標頭；雙站台時只允許 `ClientSettings:BaseUrl` 的來源加上 `Cors:AllowedOrigins`，只收 `Authorization`、`Content-Type` 標頭與 GET／POST／PUT／DELETE，公開 `Content-Disposition`（前端讀下載檔名），不帶憑證；預檢在驗證與限流之前回應（`DualSiteHostTests` 守門）。雙站台時主機不提供前端的檔案，頁面網址（`/`、`/projects`、`index.html`、`theme.css`…）一律 404；Google 登入（第五節）、`/health`、Swagger 照舊在主機上。
@@ -75,7 +75,7 @@
 
 | 動作 | 路由（相對 `api/` 與 `api/v1/`）| 權限（`PermissionActions`）| 回傳 |
 |------|------|------|------|
-| 取得單筆 | `GET Project/{id}` | View | `ApiResult<ProjectDto>`（查無或範圍外回 404）。0.10.3 起含附件清單 `Files`（`Id`、`OriginalFileName`、`ContentType`、`FileSize`、`CreatedAt`；伺服器上的存放路徑不回傳），寫一筆「查看」稽核 `Project.View`。`includeRelatedData` 參數保留相容、已不作用 |
+| 取得單筆 | `GET Project/{id}` | View | `ApiResult<ProjectDto>`（查無或範圍外回 404）。0.10.3 起含附件清單 `Files`（`Id`、`OriginalFileName`、`ContentType`、`FileSize`、`CreatedAt`；伺服器上的存放路徑不回傳），寫一筆「查看」稽核 `Project.View`。（0.10.3～0.10.42 保留相容、不作用的查詢參數 `includeRelatedData` 0.10.43 起移除；呼叫端多帶也會被忽略） |
 | 搜尋分頁 | `POST Project/search` | View | `ApiResult<PagedResult<ProjectDto>>`（清單不帶附件）。原有的 `Owner`、`Status`、`Priority`、`StartDateFrom`、`StartDateTo`、`CompletionPercentageMin`／`Max` 條件保留（`ProjectListFilter`）；0.10.3 起多 `Categories`、`Teams`（符合任一即可，與畫面的篩選相同）、`Deleted`（查「顯示已刪除」，**要有 Delete 權限**，沒有回 403；已刪除清單同樣套用 `Categories`／`Teams`，WASM 頁面在顯示已刪除時不送這兩個條件）、`RecordSearch`（true 時寫一筆搜尋稽核 `Project.Search`）；`SortBy` 不分大小寫，不認得的退回預設排序（更新時間新到舊）|
 | 表單選項 | `GET Project/options` | View | `ApiResult<ProjectFormOptionsDto>`：啟用中的分類與團隊名稱、`IsAdmin`、自己的團隊範圍（`MyTeams`）、新增時預設帶入的團隊（`DefaultTeams`：範圍裡最上層的團隊）、允許的附件副檔名（`AllowedExtensions`）、單一附件上限（`MaxUploadFileSize`，1 GB）|
 | 新增 | `POST Project` | Create | `ApiResult<ProjectDto>`（回傳含 `Id` 與 `ConcurrencyStamp`；標題重複回 409；指派範圍外的團隊回 400；客戶端傳來的 `Id` 一律忽略，0.9.94 起）。接受兩種內容，見下方「附件」|
@@ -349,20 +349,20 @@
 
 - **對話一律回 NDJSON 串流**（見《[Web API 設計慣例](Web%20API%20設計慣例.md)》「串流回應」）：閒置超過 **15 秒**插一筆 `ping`（`NdjsonHeartbeat`），工具或推論模型很久沒輸出時中間的代理伺服器才不會把連線切斷；畫面收到 `ping` 直接忽略。請求在進入串流之前就被拒絕時（400、403、404、409）回一般 `ApiResult`。
 - **稽核都在原本的服務裡**：工具的 `Ai.ToolInvoked`／`Ai.ToolDenied`／`Ai.ToolRejected` 由工具外殼寫，刪除對話的 `AiAgentConversation.Delete` 由對話服務寫；開啟、改名不寫。
-- DTO 在 `MyProject.Dtos/Ai`（`AgentDtos`、`AgentStreamDtos`）；WASM 端的呼叫在 `MyProject.Web.Client/Api/AgentConversationApi.cs`（共用基底 `AgentConversationApi`，現行只有 `AdminAssistantApi` 繼承），對應在 `AgentDtoMapper`。
+- DTO 在 `MyProject.Dtos/Ai`（`AgentDtos`、`AgentStreamDtos`）；WASM 端的呼叫在 `MyProject.Web.Client/Api/AdminAssistantApi.cs`（0.10.43 起併入原本的共用基底 `AgentConversationApi`），對應在 `AgentDtoMapper`。
 
 ### 2.20 系統管理助理（`AdminAssistantController`，`api/v1/admin-assistant`）
 
-控制器只標授權、選設定（`AgentConversationProfile`），流程寫在共用的 `Controllers/AgentConversationEndpoint.cs`，之後要加別的 Agent 頁可照樣套用。權限：每個 action `[AdminOnly]`。
+控制器只標授權，流程寫在 `Controllers/AgentConversationEndpoint.cs`（0.10.43 起直接用系統管理助理的每輪規劃器，拿掉給多個 Agent 頁共用的設定層 `AgentConversationProfile`）。權限：每個 action `[AdminOnly]`。
 
 | 動作 | 路由（`{頁}` 為 `admin-assistant`）| 回傳／說明 |
 |------|------|------|
-| 頁面資訊 | `GET {頁}/info` | `AgentPageInfoDto`：Agent 名稱、AI 不可用的原因、對話保存天數（推論等級選項只給開了 `SupportsReasoningEffort` 的頁面，系統管理助理沒開）|
+| 頁面資訊 | `GET {頁}/info` | `AgentPageInfoDto`：Agent 名稱、AI 不可用的原因、對話保存天數 |
 | 我的對話 | `GET {頁}/conversations` | 只列自己的、這個 Agent 的對話（最後對話時間新到舊），含「待核准」旗標 |
 | 打開對話 | `GET {頁}/conversations/{id}` | `AgentConversationDto`：完整的畫面紀錄與目前待核准（接續一次，不呼叫模型）。正在執行時最多等 3 秒讓它收尾再讀；不是自己的、內容不見或格式不相容 404「這段對話無法接續…」|
 | 改標題 | `PUT {頁}/conversations/{id}/title` | 不寫稽核 |
 | 刪除對話 | `DELETE {頁}/conversations/{id}` | 執行中就等它做完再刪（否則執行結束的存檔會把它建回來）；寫 `AiAgentConversation.Delete` |
-| 送出訊息 | `POST {頁}/messages` | body `AgentMessageRequestDto`（`ConversationId` 空＝開新對話，`Message`；`ReasoningEffort` 只在開了 `SupportsReasoningEffort` 的頁面採用，系統管理助理忽略）。回 NDJSON（見下）。空白或超過 **2,000 字** 400；推論等級不合法 400；等待核准時送新訊息 409；AI 不可用 409 |
+| 送出訊息 | `POST {頁}/messages` | body `AgentMessageRequestDto`（`ConversationId` 空＝開新對話，`Message`）。回 NDJSON（見下）。空白或超過 **2,000 字** 400；等待核准時送新訊息 409；AI 不可用 409 |
 | 回覆核准 | `POST {頁}/conversations/{id}/approvals` | body `ApprovedRequestIds`、`RejectedRequestIds`、`ConfirmText`。回 NDJSON。沒有待核准 409「沒有待核准的操作…」；編號不在目前待核准裡 409「這些操作已經處理過了…」（**所以同一個核准送兩次只執行一次**）；核准不可復原的動作沒輸入「確認」400 |
 
 - **每個請求接續一次對話**：伺服器不把對話物件留在記憶體，送訊息與回覆核准都是「讀存檔 → `IAiAgentRunner.ResumeAsync` 接續 → 執行 → 存檔」；每個請求用當下系統參數的模型。中斷連線就取消這次執行，已收到的內容照樣存檔。
@@ -471,7 +471,6 @@ DTO 在 `MyProject.Dtos/Admins/SystemReportDtos.cs`（舊版巡檢報告沿用 `
 | | 日期時間格式 | `GET shell/culture` | 0.10.2 起，**不需登入**（`[AllowAnonymous]`）。`DateTimeFormatDto`：伺服器（zh-TW）的日期時間格式；WASM 在啟動前讀一次（`ClientCulture`），讓清單的時間顯示與伺服器的格式一致。內容只有格式字串 |
 | | 瀏覽器回報批次（0.10.36 起） | `POST shell/client-reports` | `ClientReportBatchDto{Items,Dropped}` → `ClientReportBatchResultDto{DoneIds,RetryAfterSeconds}`；每批最多 20 筆、本體 256KB。錯誤交給 `BrowserErrorReporter`（Error、系統例外紀錄；瀏覽器產生的追蹤碼格式正確時沿用；登入前發生的另一個樣板），連線中斷、資源載入、CSP 交給 `BrowserEventReporter`（只寫日誌檔）。錯誤沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`、事件每分鐘 30 筆；被限流的不在 `DoneIds`，回 `RetryAfterSeconds=60`；回報關閉時全部當成完成、不記錄 |
 | | 前端診斷記錄的日誌（0.10.37 起） | `POST shell/diagnostic-logs` | `ClientLogBatchDto{Items,Dropped}` → `ClientLogBatchResultDto{Active}`；本體 512KB、每批 200 筆、每位使用者每分鐘 30 批。沒開著回 `Active=false` 不寫；開著時 `BrowserLogForwarder` 以原等級寫到 `MyProject.Browser.*`，不帶例外物件 |
-| | 瀏覽器錯誤回報（舊） | `POST shell/client-errors` | ⚠️ 0.10.35 以前的前端用，0.10.36 起只留給瀏覽器裡還在快取的舊前端，之後移除。 交給 `BrowserErrorReporter`（同一套截斷、開關與系統例外紀錄）。每位使用者每分鐘上限沿用 `ClientErrorReporting:MaxPerCircuitPerMinute`（`PerUserRateLimiter` 跨請求計數；鍵名沿用 Blazor 電路時代，0.10.9 起意思就是每位使用者每分鐘；0.10.10 起 `BrowserErrorReporter` 拿掉 `[JSInvokable]` 與每個實例的計數，只剩這裡計數），超過回 `accepted=false` |
 | `NotificationsController` | 摘要 | `GET notifications/summary` | 未讀數、最新 10 則、有沒有已讀的；連結只保留安全的站內網址（`ReturnUrlGuard`），否則為 null |
 | | 標為已讀／全部已讀 | `POST notifications/{id}/read`、`POST notifications/read-all` | |
 | | 刪除一則／清除已讀 | `DELETE notifications/{id}`、`DELETE notifications/read` | 不是自己的或找不到回 404 |

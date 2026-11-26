@@ -125,8 +125,7 @@ main {
     white-space: nowrap;
 }
 
-/* 管理員標記不是警示，是身分 —— 轉為重點色。
-   真正的警示色留給登出（.user-menu-item-danger）。 */
+/* 管理員標記不是警示，是身分 —— 轉為重點色。 */
 .user-menu-badge {
     background: rgba(var(--app-accent-rgb), 0.08);
     border: 1px solid rgba(var(--app-accent-rgb), 0.18);
@@ -172,8 +171,7 @@ main {
     background: none;
     border: none;
     border-radius: 12px;
-    /* 0.9.30 更正：這裡原本也是 #b91c1c，讓「變更密碼」「關於」全都長得像危險動作。
-       危險色由 .user-menu-item-danger 負責。 */
+    /* 0.9.30 更正：這裡原本也是 #b91c1c，讓「變更密碼」「關於」全都長得像危險動作。 */
     color: var(--app-text);
     cursor: pointer;
     display: block;
@@ -192,25 +190,13 @@ main {
     outline: none;
 }
 
-.user-menu-item-danger {
-    color: #b91c1c;
-}
-
-.user-menu-item-danger:hover,
-.user-menu-item-danger:focus-visible {
-    background: rgba(254, 226, 226, 0.72);
-    color: #991b1b;
-}
-
-.top-row ::deep a,
-.top-row ::deep .btn-link {
+.top-row ::deep a {
     color: var(--app-muted);
     text-decoration: none;
     white-space: nowrap;
 }
 
-.top-row ::deep a:hover,
-.top-row ::deep .btn-link:hover {
+.top-row ::deep a:hover {
     color: var(--app-accent);
 }
 
@@ -268,8 +254,7 @@ main {
         max-width: 9rem;
     }
 
-    .top-row ::deep a,
-    .top-row ::deep .btn-link {
+    .top-row ::deep a {
         margin-left: 0;
     }
 

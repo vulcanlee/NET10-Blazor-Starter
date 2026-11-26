@@ -22,7 +22,7 @@ public class AdminPatrolReport
     /// <summary>整體狀態：正常／注意／異常／無法判讀（AdminPatrolStatuses）。</summary>
     public string Status { get; set; } = string.Empty;
 
-    /// <summary>需要注意的段落：固定的段落名稱（AdminPatrolSections），以「、」串接；全部正常時為空字串。</summary>
+    /// <summary>需要注意的段落：固定的段落名稱（健康狀態、例外與錯誤、排程與備份、資源用量、帳號與安全、其他段落），以「、」串接；全部正常時為空字串。</summary>
     public string AttentionSections { get; set; } = string.Empty;
 
     /// <summary>觸發方式（JobRunTriggers：Schedule／CatchUp／Manual）。</summary>

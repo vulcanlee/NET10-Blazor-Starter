@@ -18,9 +18,6 @@ public class AgentStreamFrameDto
     /// <summary><see cref="AgentStreamFrameKinds.Start"/>：這次使用的模型。</summary>
     public string? ModelName { get; set; }
 
-    /// <summary><see cref="AgentStreamFrameKinds.Start"/>：這段對話的推論等級（null＝系統預設）。</summary>
-    public string? ReasoningEffort { get; set; }
-
     /// <summary><see cref="AgentStreamFrameKinds.Entry"/>：新增到畫面紀錄的一則。</summary>
     public AgentTranscriptEntryDto? Entry { get; set; }
 

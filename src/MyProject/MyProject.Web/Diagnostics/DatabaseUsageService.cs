@@ -87,7 +87,6 @@ public sealed class DatabaseUsageService : IDatabaseUsageService
     ///
     /// 路徑取自「已開啟連線」的 DataSource（即 sqlite3_db_filename 解析出的絕對路徑），
     /// 而非組態值 —— 這樣量到的必定是 EF 實際在用的那個檔案，設定漂移不可能發生。
-    /// （SystemSettings:ConnectionStrings:SQLiteDefaultConnection 是死設定，從未被讀取。）
     ///
     /// 在連線開著的時候讀檔案大小，避免中途被 checkpoint 掉而量到不一致的快照。
     /// </summary>

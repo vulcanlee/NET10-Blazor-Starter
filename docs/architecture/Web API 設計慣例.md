@@ -1,17 +1,17 @@
 ﻿# Web API 設計慣例
 
-- 文件版本：1.18
+- 文件版本：1.19
 - 文件狀態：已實作
-- 現行系統版本：0.10.23
+- 現行系統版本：0.10.43
 - 首次實作版本：0.1.61
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/26
 
 ## 目的
 本文件記錄腳手架 Web API 的固定設計規範，未來新增 API 時應遵守同一套 contract，讓前端與外部用戶端能用一致格式處理成功、失敗、驗證錯誤、授權錯誤與例外。
 
 ## Controller 規範
 - API Controller 放在 `src/MyProject/MyProject.Web/Controllers/`。
-- 新的 Controller 只用 `api/v1` 路由（例如 `[Route("api/v1/users")]`）；只有既有的 `Auth`、`Category`、`Project`、`Team` 四個 Controller 同時提供 `[Route("api/[controller]")]` 與 `[Route("api/v1/[controller]")]`。新用戶端優先使用 `/api/v1/...`。
+- 所有 Controller 只用 `api/v1` 路由（例如 `[Route("api/v1/users")]`）。0.10.43 起 `Auth`、`Category`、`Project`、`Team` 四個 Controller 原本另外提供的沒有版本號的 `[Route("api/[controller]")]` 已拿掉。
 - Controller 必須使用 `[ApiController]` 與 `[ApiValidationFilter]`。
 - 需要保護的 CRUD API 必須加上 `[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]`。
 - 除驗證身分外，受保護動作方法**必須**以 `[HasPermission("resource", "action")]` 標註做**功能級／動作級授權**（見「功能級／動作級授權」節）。
@@ -106,9 +106,6 @@ API 必須維持語意正確的 HTTP 狀態碼，Body 再包成 `ApiResult<T>`�
 Swagger 已設定 Bearer security definition。開發者可在 Swagger UI 透過 Authorize 輸入 JWT access token 後測試受保護 API。
 
 JWT access token 與 refresh token 由 `AuthController` 提供：
-- `POST /api/Auth/login`
-- `POST /api/Auth/refresh`
-- `GET /api/Auth/me`
 - `POST /api/v1/Auth/login`
 - `POST /api/v1/Auth/refresh`
 - `GET /api/v1/Auth/me`
@@ -172,4 +169,4 @@ JWT access token 與 refresh token 由 `AuthController` 提供：
 ## 待辦
 - [x] 補完整 integration tests，實際驗證 400、401、403、404、409、500 的 HTTP body。
 - [x] 正式環境預設隱藏 `Exception.StackTrace`。
-- [x] 已導入 `/api/v1/...` 平行路由，目前保留 `/api/...` 相容路由。
+- [x] 已導入 `/api/v1/...` 路由；0.10.43 起移除沒有版本號的 `/api/...` 相容路由。

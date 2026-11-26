@@ -22,7 +22,6 @@ namespace MyProject.Web.Controllers;
 /// 團隊範圍、名稱規則、並行衝突、軟刪除與稽核只有一份（服務寫稽核，操作者是存取 Token 的使用者）。
 /// 範圍外的資料一律當作不存在（404）。WASM 版分類頁只用這組端點。
 /// </summary>
-[Route("api/[controller]")]
 [Route("api/v1/[controller]")]
 [ApiController]
 [ApiValidationFilter]

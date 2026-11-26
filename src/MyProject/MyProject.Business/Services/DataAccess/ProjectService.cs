@@ -698,12 +698,6 @@ public class ProjectService
 
     private static string NormalizedTitle(string? title) => NameNormalizer.ToLowerAscii(NameNormalizer.Normalize(title));
 
-    public Task<VerifyRecordResult> BeforeDeleteCheckAsync(ProjectAdapterModel paraObject)
-    {
-        Logger.LogDebug("Running pre-delete validation for project. ProjectId={ProjectId}, Title={Title}", paraObject.Id, paraObject.Title);
-        return Task.FromResult(VerifyRecordResultFactory.Build(true));
-    }
-
     public async Task<ProjectFileDownloadResult?> GetFileDownloadAsync(int projectFileId)
     {
         await using var context = await contextFactory.CreateDbContextAsync();

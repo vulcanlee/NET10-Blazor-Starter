@@ -22,7 +22,6 @@ namespace MyProject.Web.Controllers;
 /// 上層規則、改名同步引用、有下屬不可刪、軟刪除與稽核只有一份（服務寫稽核，操作者是存取 Token 的使用者）。
 /// WASM 版團隊頁只用這組端點；部門樹在畫面上用 <c>GET all</c> 組成。
 /// </summary>
-[Route("api/[controller]")]
 [Route("api/v1/[controller]")]
 [ApiController]
 [ApiValidationFilter]

@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.19
+- 文件版本：3.20
 - 文件狀態：已實作
-- 現行系統版本：0.10.24
+- 現行系統版本：0.10.43
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/15
+- 最後核對日期：2026/11/26
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -324,7 +324,7 @@ public static string GetSQLiteConnectionString(string databasePath)
 
 目錄部分來自 `appsettings.json` 的 `SystemSettings:ExternalFileSystem:DatabasePath`，所以開發環境的實際檔案是 **`C:\temp\MyProject\DB\BackendDB.db`**。
 
-> ⚠️ **陷阱**：`appsettings.json` 還有一個 `SystemSettings:ConnectionStrings:SQLiteDefaultConnection`（值為 `Data Source=BackendDB.db`）。這是**死設定，執行期完全不會被讀取**，改它沒有任何作用。要換資料庫位置請改 `ExternalFileSystem:DatabasePath`。
+> 💡 資料庫位置只看 `ExternalFileSystem:DatabasePath`（檔名固定 `BackendDB.db`）。0.10.42 以前的 `appsettings.json` 另有一個從未被讀取的 `SystemSettings:ConnectionStrings:SQLiteDefaultConnection`，0.10.43 起已移除；舊的設定檔留著它也沒有影響。
 
 ### 6.2 啟動時自動套用 Migration
 

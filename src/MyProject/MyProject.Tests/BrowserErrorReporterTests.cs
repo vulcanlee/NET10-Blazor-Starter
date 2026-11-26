@@ -27,7 +27,7 @@ public sealed class BrowserErrorReporterTests : IDisposable
     {
         var reporter = CreateReporter();
 
-        Assert.True(reporter.Report("error", "x is not defined", "at foo (app.js:1:2)", "https://site/app.js:1:2", "/projects?token=secret#top"));
+        Assert.True(reporter.Report(Item("error", "x is not defined", "at foo (app.js:1:2)", "https://site/app.js:1:2", "/projects?token=secret#top"), beforeSignIn: false, context: null));
 
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Error, entry.Level);
@@ -46,7 +46,7 @@ public sealed class BrowserErrorReporterTests : IDisposable
     {
         var reporter = CreateReporter(new ClientErrorReportingSettings { Enabled = false });
 
-        Assert.False(reporter.Report("error", "boom", null, null, "/"));
+        Assert.False(reporter.Report(Item("error", "boom", null, null, "/"), beforeSignIn: false, context: null));
         Assert.Empty(logger.Entries);
     }
 
@@ -55,7 +55,7 @@ public sealed class BrowserErrorReporterTests : IDisposable
     {
         var reporter = CreateReporter();
 
-        reporter.Report("weird-kind", new string('m', 5000), new string('s', 9000), null, "/" + new string('p', 500));
+        reporter.Report(Item("weird-kind", new string('m', 5000), new string('s', 9000), null, "/" + new string('p', 500)), beforeSignIn: false, context: null);
 
         var entry = Assert.Single(logger.Entries);
         var exception = Assert.IsType<BrowserScriptException>(entry.Exception);
@@ -64,6 +64,10 @@ public sealed class BrowserErrorReporterTests : IDisposable
         Assert.Equal("error", exception.Kind);              // 不認得的種類一律當 error
         Assert.Equal(200, entry.Context!.Page!.Length);
     }
+
+    /// <summary>一筆錯誤回報（0.10.43 起舊端點 <c>client-errors</c> 的 5 個參數多載移除，改用批次回報的單筆）。</summary>
+    private static ClientReportDto Item(string kind, string message, string? stack, string? source, string path)
+        => new() { Kind = kind, Message = message, Stack = stack, Source = source, Path = path };
 
     [Theory]
     [InlineData(null, "/")]

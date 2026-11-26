@@ -2,7 +2,6 @@
 
 public class SystemSettings
 {
-    public ConnectionStrings ConnectionStrings { get; set; } = new();
     public SystemInformation SystemInformation { get; set; } = new();
     public ExternalFileSystem ExternalFileSystem { get; set; } = new();
     public UploadSettings Upload { get; set; } = new();
@@ -17,11 +16,6 @@ public class UploadSettings
     public string[] AllowedExtensions { get; set; } = [];
 }
 
-public class ConnectionStrings
-{
-    public string SQLiteDefaultConnection { get; set; } = string.Empty;
-
-}
 public class SystemInformation
 {
     public string SystemVersion { get; set; } = string.Empty;

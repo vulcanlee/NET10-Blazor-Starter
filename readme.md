@@ -261,7 +261,6 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 | `SessionSettings` | 網頁登入能維持多久（0.10.8 起，取代 `CookieSettings`；舊鍵仍相容、啟動時記警告）：`IdleTimeoutMinutes`（未勾「記住我」多久沒使用要重新登入，預設 480 分，關掉分頁也會登出）、`IdleTimeoutSliding`（預設 `true` 每次使用重新起算；`false` 為從登入起的絕對上限）、`RememberMeDays`（勾了「記住我」整個登入最長幾天，預設 30）、`AccessTokenMinutes`（網頁存取 Token 效期，預設 15 分）、`ValidationIntervalMinutes`（工作階段失效的重新檢查間隔，預設 5 分）。超出範圍啟動失敗。見 [日誌與設定檔說明](docs/operations/日誌與設定檔說明.md)。 |
 | `BootstrapSettings` | 預設 `support` 帳號種子設定：`SupportAccount` / `SupportName` / `SupportEmail` / `SupportPassword`（首次啟動建立，重啟時更新密碼）。 |
 | `GoogleOAuthSettings` | Google OAuth2 第三方登入：`Enabled`、`ClientId`、`ClientSecret`、`DefaultRoleName`（見 [Google OAuth2 第三方登入](docs/security/Google%20OAuth2%20第三方登入.md)）。 |
-| `SystemSettings.ConnectionStrings.SQLiteDefaultConnection` | SQLite 連線範本；實際連線字串由 `MagicObjectHelper.GetSQLiteConnectionString` 結合 `DatabasePath` 產生。 |
 | `SystemSettings.SystemInformation.SystemName` | 顯示用系統名稱。 |
 | `SystemSettings.SystemInformation.SystemDescription` | 顯示用系統描述。 |
 | **`SystemSettings.SystemInformation.SystemVersion`** | **唯一版本來源**，有建置內容的異動必須遞增（見第 8 節）。 |
@@ -355,7 +354,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 - [Web API 端點目錄](docs/architecture/Web%20API%20端點目錄.md) — 全部 controller 的實際路由、授權與回傳型別對照表。
 - [對話窗 UI 設計規範](docs/architecture/對話窗%20UI%20設計規範.md) — 表單窗的滿版 2 欄版型與未儲存保護、小型確認窗、通知與消息條的果凍視覺。
 - [介面視覺設計規範](docs/architecture/介面視覺設計規範.md) — 常駐介面的分層強度、全站色票單一來源、樣式歸屬判準、側邊欄與表格規格、狀態徽章。
-- [API Versioning 策略](docs/architecture/API%20Versioning%20策略.md) — `/api/...` 與 `/api/v1/...` 平行路由、Swagger v1 分組與後續導入策略。
+- [API Versioning 策略](docs/architecture/API%20Versioning%20策略.md) — 所有 API 掛在 `/api/v1/...`（0.10.43 起移除沒有版本號的相容路由）、Swagger v1 分組與後續導入策略。
 
 ### 認證與安全（security）
 

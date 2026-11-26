@@ -49,7 +49,6 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
 
     [Theory]
     [InlineData("POST", "/api/v1/shell/page-view")]
-    [InlineData("POST", "/api/v1/shell/client-errors")]
     [InlineData("POST", "/api/v1/shell/client-reports")]
     [InlineData("POST", "/api/v1/notifications/1/read")]
     [InlineData("POST", "/api/v1/notifications/read-all")]
@@ -171,38 +170,46 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
         Assert.Equal(ShellController.PageViewsPerMinute, await context.AuditLog.CountAsync(x => x.Action == AuditActions.Page.View && x.ActorUserId == user.Id));
     }
 
+    /// <summary>
+    /// 0.10.36 以前前端用的舊端點 <c>client-errors</c> 在 0.10.43 移除（前端改送 <c>client-reports</c>）：
+    /// 已登入送出也不會被處理，回應和一個從來不存在的網址相同。
+    /// </summary>
     [Fact]
-    public async Task ClientErrors_ShouldBeAccepted()
+    public async Task LegacyClientErrors_ShouldBeGone()
     {
         using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
+        var body = new { Kind = "error", Message = "boom", Path = "/Profile" };
 
-        var response = await client.PostAsJsonAsync("/api/v1/shell/client-errors", new ClientErrorReportDto { Kind = "error", Message = "boom", Path = "/Profile" });
+        var legacy = await client.PostAsJsonAsync("/api/v1/shell/client-errors", body);
+        var neverExisted = await client.PostAsJsonAsync("/api/v1/shell/no-such-endpoint", body);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(legacy.IsSuccessStatusCode);
+        Assert.Equal(neverExisted.StatusCode, legacy.StatusCode);
     }
 
+    /// <summary>
+    /// 錯誤的上限跨請求以使用者計算（每個 API 請求是不同的 scope；0.10.43 起由舊端點 <c>client-errors</c> 的測試改寫）：
+    /// 一筆一個請求送，超過上限的不算完成；另一位使用者不受影響。
+    /// </summary>
     [Fact]
-    public async Task ClientErrors_ShouldBeLimitedPerUser_AcrossRequests()
+    public async Task ClientReports_ErrorLimit_ShouldBePerUser_AcrossRequests()
     {
-        // 每個 API 請求是不同的 scope，上限必須跨請求以使用者計算（預設每分鐘 10 筆）。
-        var me = await AddUserAsync(isAdmin: false);
-        using var client = await SignedInClientAsync(me);
+        using var client = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
         var limit = factory.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<MyProject.Web.Configuration.ClientErrorReportingSettings>>().CurrentValue.MaxPerCircuitPerMinute;
 
-        var accepted = new List<bool>();
+        var done = new List<bool>();
         for (var i = 0; i < limit + 3; i++)
         {
-            var response = await client.PostAsJsonAsync("/api/v1/shell/client-errors", new ClientErrorReportDto { Kind = "error", Message = $"boom {i}", Path = "/Profile" });
-            accepted.Add((await response.Content.ReadFromJsonAsync<ApiResult<AcceptedDto>>())!.Data!.Accepted);
+            var result = await PostReportsAsync(client, [new ClientReportDto { Id = $"e{i}", Kind = "error", Message = $"boom {i}", Path = "/Profile" }]);
+            done.Add(result.DoneIds.Contains($"e{i}"));
         }
 
-        Assert.True(accepted.Take(limit).All(x => x));
-        Assert.True(accepted.Skip(limit).All(x => !x));
+        Assert.True(done.Take(limit).All(x => x));
+        Assert.True(done.Skip(limit).All(x => !x));
 
-        // 另一位使用者不受影響。
         using var other = await SignedInClientAsync(await AddUserAsync(isAdmin: false));
-        var otherResponse = await other.PostAsJsonAsync("/api/v1/shell/client-errors", new ClientErrorReportDto { Kind = "error", Message = "boom", Path = "/Profile" });
-        Assert.True((await otherResponse.Content.ReadFromJsonAsync<ApiResult<AcceptedDto>>())!.Data!.Accepted);
+        var otherResult = await PostReportsAsync(other, [new ClientReportDto { Id = "o1", Kind = "error", Message = "boom", Path = "/Profile" }]);
+        Assert.Equal(["o1"], otherResult.DoneIds);
     }
 
     /// <summary>瀏覽器端回報批次（0.10.36 起）：錯誤與事件都處理，回傳處理完的項目，前端才從暫存區移除。</summary>
@@ -222,7 +229,7 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
         Assert.Null(result.RetryAfterSeconds);
     }
 
-    /// <summary>錯誤每分鐘的上限沿用舊端點的設定；被限流的那筆與之後的都不算完成，請前端稍後再送（不會遺失）。事件另外計數。</summary>
+    /// <summary>錯誤每分鐘的上限用 <c>ClientErrorReporting:MaxPerCircuitPerMinute</c>；被限流的那筆與之後的都不算完成，請前端稍後再送（不會遺失）。事件另外計數。</summary>
     [Fact]
     public async Task ClientReports_ErrorsOverTheLimit_ShouldBeLeftForLater_WhileEventsHaveTheirOwnLimit()
     {
@@ -434,11 +441,6 @@ public sealed class ShellApiIntegrationTests : IClassFixture<ApiTestApplicationF
         var updated = await client.PutAsJsonAsync("/api/v1/profile/name", new UpdateProfileNameDto { Name = "新名字", ConcurrencyStamp = profile.ConcurrencyStamp });
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
         Assert.Equal("新名字", (await GetAsync<ProfileDto>(client, "/api/v1/profile")).Name);
-    }
-
-    private sealed class AcceptedDto
-    {
-        public bool Accepted { get; set; }
     }
 
     private static IEnumerable<MenuItemDto> Flatten(IEnumerable<MenuItemDto> items)

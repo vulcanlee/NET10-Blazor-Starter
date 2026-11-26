@@ -1,17 +1,5 @@
 namespace MyProject.Web.Diagnostics;
 
-/// <summary>
-/// 每張資料表的估算方式。
-/// </summary>
-public enum SizeEstimateMethod
-{
-    /// <summary>各欄位內容的位元組加總；不含索引、頁面碎片與閒置頁。</summary>
-    ColumnByteSum,
-
-    /// <summary>由 dbstat 虛擬表取得的真實頁數。</summary>
-    DbStat,
-}
-
 public sealed class TableUsage
 {
     public string TableName { get; set; } = string.Empty;
@@ -62,8 +50,6 @@ public sealed class DatabaseUsageReport
     public long ReclaimableBytes => FreelistCount * PageSize;
 
     public IReadOnlyList<TableUsage> Tables { get; set; } = [];
-
-    public SizeEstimateMethod EstimateMethod { get; set; } = SizeEstimateMethod.ColumnByteSum;
 
     /// <summary>非致命問題：檔案讀不到、個別資料表估算失敗等。</summary>
     public List<string> Warnings { get; set; } = [];
