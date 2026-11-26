@@ -1,6 +1,5 @@
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
-using MigraDoc.Rendering;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using MyProject.Models.AdapterModel;
@@ -62,10 +61,9 @@ public static class TokenUsageReportPdfBuilder
     /// <summary>長條最後一格的欄索引（第 0 欄是日期）。</summary>
     private const int BarColumnEnd = BarSegments;
 
-    private static readonly Color TextColor = Color.FromRgb(0x33, 0x41, 0x55);
-    private static readonly Color HeadingColor = Color.FromRgb(0x1E, 0x29, 0x3B);
-    private static readonly Color MutedColor = Color.FromRgb(0x64, 0x74, 0x8B);
-    private static readonly Color BorderColor = Color.FromRgb(0xE2, 0xE8, 0xF0);
+    private static readonly Color TextColor = AiMarkdownPdfRenderer.TextColor;
+    private static readonly Color HeadingColor = AiMarkdownPdfRenderer.HeadingColor;
+    private static readonly Color MutedColor = AiMarkdownPdfRenderer.MutedColor;
     private static readonly Color ShadingColor = Color.FromRgb(0xF1, 0xF5, 0xF9);
 
     /// <summary>每日趨勢長條的填色。報表自帶一組色，不與網頁端的 theme.css 色票共用。</summary>
@@ -76,11 +74,7 @@ public static class TokenUsageReportPdfBuilder
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        EmbeddedFontResolver.EnsureRegistered();
-        if (EmbeddedFontResolver.IsFontAvailable() == false)
-        {
-            throw new InvalidOperationException("Embedded PDF font resource is missing.");
-        }
+        AiMarkdownPdfRenderer.EnsureFont();
 
         var document = CreateDocument(request);
         var section = document.LastSection;
@@ -129,19 +123,14 @@ public static class TokenUsageReportPdfBuilder
         bool Include(TokenUsageReportScope one)
             => request.Scope is TokenUsageReportScope.All || request.Scope == one;
 
-        var renderer = new PdfDocumentRenderer { Document = document };
-        renderer.RenderDocument();
-
-        using var stream = new MemoryStream();
-        renderer.PdfDocument.Save(stream, closeStream: false);
-        return stream.ToArray();
+        return AiMarkdownPdfRenderer.Render(document);
     }
 
     private static Document CreateDocument(TokenUsageReportRequest request)
     {
         var document = new Document();
         document.Info.Title = "Token 用量報表";
-        document.Info.Author = string.IsNullOrWhiteSpace(request.SystemName) ? "MyProject" : request.SystemName;
+        document.Info.Author = AiMarkdownPdfRenderer.SystemNameOrDefault(request.SystemName);
 
         // ⚠️ 字型一定要設在 Normal 樣式上，其他樣式才會繼承到內嵌的中文字型。
         var normal = document.Styles[StyleNames.Normal]!;
@@ -578,19 +567,7 @@ public static class TokenUsageReportPdfBuilder
         }
     }
 
-    private static Table CreateTable(Section section)
-    {
-        var table = section.AddTable();
-        table.Borders.Color = BorderColor;
-        table.Borders.Width = 0.5;
-        table.Format.Font.Size = Unit.FromPoint(8.5);
-        table.Format.SpaceAfter = 0;
-        table.TopPadding = Unit.FromPoint(2);
-        table.BottomPadding = Unit.FromPoint(2);
-        table.LeftPadding = Unit.FromPoint(3);
-        table.RightPadding = Unit.FromPoint(3);
-        return table;
-    }
+    private static Table CreateTable(Section section) => AiMarkdownPdfRenderer.CreateTable(section, fontSize: 8.5, verticalPadding: 2, horizontalPadding: 3);
 
     private static void AddHeaderRow(Table table, string[] titles)
     {

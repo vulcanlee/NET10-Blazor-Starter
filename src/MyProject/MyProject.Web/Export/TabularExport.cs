@@ -23,6 +23,10 @@ public static class TabularExport
 {
     public const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     public const string CsvContentType = "text/csv";
+    public const string PdfContentType = "application/pdf";
+
+    /// <summary>下載檔名的前綴（0.10.44 起統一在這裡；複刻新專案時會跟著換成新的專案名稱）。</summary>
+    public const string FileNamePrefix = "MyProject.Web-";
     public const string DateTimeFormat = "yyyy-mm-dd hh:mm";
     public const string DateFormat = "yyyy-mm-dd";
 

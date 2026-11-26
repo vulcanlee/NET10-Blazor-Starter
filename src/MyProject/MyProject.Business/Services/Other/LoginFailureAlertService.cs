@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MyProject.AccessDatas;
 using MyProject.Business.Helpers;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -148,6 +149,5 @@ public sealed class LoginFailureAlertService : ILoginFailureAlert
         return top.Count == 0 ? "（無）" : string.Join("、", top);
     }
 
-    private static string Truncate(string text, int maxLength)
-        => text.Length <= maxLength ? text : text[..maxLength] + "…";
+    private static string Truncate(string text, int maxLength) => TextTruncate.WithEllipsis(text, maxLength);
 }

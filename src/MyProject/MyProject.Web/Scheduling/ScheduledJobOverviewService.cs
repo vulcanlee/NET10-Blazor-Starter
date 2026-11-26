@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using MyProject.Business.Services.DataAccess;
 using MyProject.Models.AdapterModel;
 using MyProject.Web.Configuration;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Scheduling;
 
@@ -112,7 +113,7 @@ public sealed class ScheduledJobOverviewService
     public bool TryTrigger(string jobName, string? account, int? userId = null, string? arguments = null)
         => triggerQueue.TryEnqueue(RequireDescriptor(jobName).Name, account, userId, arguments);
 
-    public DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(ScheduleCalculator.AsUtc(utc), timeProvider.LocalTimeZone);
+    public DateTime ToLocal(DateTime utc) => timeProvider.ToLocal(utc);
 
     private ScheduledJobDescriptor RequireDescriptor(string jobName)
         => descriptors.FirstOrDefault(x => string.Equals(x.Name, jobName, StringComparison.OrdinalIgnoreCase))

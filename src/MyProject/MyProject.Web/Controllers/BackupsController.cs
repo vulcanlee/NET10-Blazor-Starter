@@ -131,7 +131,7 @@ public class BackupsController : ControllerBase
     {
         FileName = item.FileName,
         SizeBytes = item.SizeBytes,
-        CreatedAtLocal = MaintenanceJobMapper.Unzoned(item.CreatedAtLocal),
+        CreatedAtLocal = LocalTime.Unzoned(item.CreatedAtLocal),
         Manifest = item.Manifest is { } manifest ? new BackupManifestDto
         {
             SystemVersion = manifest.SystemVersion,

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.DataAccess;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -445,10 +446,7 @@ public sealed class RefreshTokenStore : IRefreshTokenStore
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var total = await context.RefreshSession.CountAsync(cancellationToken);
-        var oldest = await context.RefreshSession.MinAsync(x => (DateTime?)x.CreatedAtUtc, cancellationToken);
-        var expired = await context.RefreshSession.CountAsync(x => x.ExpiresAtUtc < cutoffUtc, cancellationToken);
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.RefreshSession, x => (DateTime?)x.CreatedAtUtc, x => x.ExpiresAtUtc < cutoffUtc, cancellationToken);
     }
 
     /// <summary>已被換掉的 Token 又被用：寬限期內只回「已被取代」，超過就是重用、整串撤銷。</summary>

@@ -6,6 +6,7 @@ using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -195,10 +196,7 @@ public class SystemReportService
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime nowLocal)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.SystemReport.CountAsync();
-        var oldest = await context.SystemReport.MinAsync(x => (DateTime?)x.CreatedAt);
-        var expired = await context.SystemReport.CountAsync(Expired(nowLocal));
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.SystemReport, x => (DateTime?)x.CreatedAt, Expired(nowLocal));
     }
 
     /// <summary>

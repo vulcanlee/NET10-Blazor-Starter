@@ -422,6 +422,7 @@ public sealed class LoggingConventionTests
             "BrowserScriptException.cs",    // 例外型別，無行為
             "BrowserReportContext.cs",      // 純函式：把瀏覽器送來的欄位整理成文字（0.10.36 起）
             "RequestActorResolver.cs",      // 純函式：從 claims 取帳號與 UserId
+            "RootedFiles.cs",               // 檔案存放類別共用的檔案操作（0.10.44 起）：失敗一律丟給呼叫端，由各存放類別用自己的訊息記錄（例外堆疊不得記錄）
             "SystemHealthModels.cs",        // 健康監控的模型
             "SystemHealthScoreCalculator.cs", // 純算術：由各項狀態算分數與燈號
             "SystemStartupState.cs",        // 只持有啟動時間，無行為

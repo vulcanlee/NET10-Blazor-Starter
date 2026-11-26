@@ -10,6 +10,7 @@ using MyProject.Models.Systems;
 using MyProject.Web.Components.Auths;
 using MyProject.Web.Filters;
 using MyProject.Web.Streaming;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Controllers;
 
@@ -80,7 +81,7 @@ public sealed class NotificationsController : ControllerBase
                 Body = x.Body,
                 // 只保留安全的站內相對網址，跟 Server 版點擊時的檢查相同。
                 Link = !string.IsNullOrWhiteSpace(x.Link) && ReturnUrlGuard.Sanitize(x.Link) == x.Link ? x.Link : null,
-                CreatedAtLocal = ToLocal(x.CreatedAtUtc),
+                CreatedAtLocal = timeProvider.ToLocalUnzoned(x.CreatedAtUtc),
                 IsRead = x.ReadAtUtc is not null,
             }).ToList(),
         };
@@ -155,11 +156,4 @@ public sealed class NotificationsController : ControllerBase
     /// <summary>這個請求的存取 Token 何時到期（JWT 的 <c>exp</c>，Unix 秒）；讀不到時只靠連線最長時間。</summary>
     private DateTimeOffset? TokenExpiresAt()
         => long.TryParse(User.FindFirst("exp")?.Value, out var seconds) ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
-
-    /// <summary>
-    /// UTC 換成伺服器本地時間，並以不帶時差（Kind=Unspecified）送出（0.10.6 起修正）：換算結果的 Kind 是 Local，
-    /// 會序列化成 +08:00，WASM 再換成瀏覽器的時區，兩邊時區不同時時間就錯。
-    /// </summary>
-    private DateTime ToLocal(DateTime utc)
-        => DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone), DateTimeKind.Unspecified);
 }

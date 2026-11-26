@@ -318,20 +318,10 @@ public class AuditLogsController : ControllerBase
 
     /// <summary>
     /// 把「清除／清空／匯出／驗證稽核紀錄」這件事本身寫成一筆稽核（與 Server 版相同）。
-    /// ⚠️ 刻意的：稽核軌跡可被管理員一鍵抹除，會讓「誰抹除了稽核紀錄」成為系統裡唯一查不到的事。寫入失敗只記錯誤。
+    /// ⚠️ 刻意的：稽核軌跡可被管理員一鍵抹除，會讓「誰抹除了稽核紀錄」成為系統裡唯一查不到的事。寫入失敗不推翻已經完成的動作（<see cref="ViewAudit"/>）。
     /// </summary>
-    private async Task WriteSelfAuditAsync(string action, string detail)
-    {
-        try
-        {
-            var user = currentUserService.CurrentUser;
-            await auditLogService.WriteAsync(action, success: true, actorUserId: user.Id, actorAccount: user.Account, targetType: TargetType, targetId: "*", detail: detail);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to write audit log for audit maintenance. Action={Action}", action);
-        }
-    }
+    private Task WriteSelfAuditAsync(string action, string detail)
+        => ViewAudit.WriteAsync(auditLogService, currentUserService, action, TargetType, "*", detail);
 
     private static T Fill<T>(T dto, AuditLogAdapterModel item)
         where T : AuditHistoryItemDto

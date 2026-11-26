@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
@@ -180,6 +181,47 @@ public sealed partial class BackupStore
     {
         var match = FileNamePattern().Match(fileName);
         return (match.Groups["stamp"].Value, match.Groups["seq"].Success ? int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture) : 1);
+    }
+
+    /// <summary>
+    /// 路徑所在磁碟的可用空間（備份與備份驗證共用，0.10.44 起）；網路路徑（<c>\\server\share</c>）或讀不到時回 null（不檢查）。
+    /// </summary>
+    internal static long? FreeSpaceOf(string path)
+    {
+        try
+        {
+            var drive = Path.GetPathRoot(Path.GetFullPath(path));
+            return string.IsNullOrEmpty(drive) || drive.StartsWith(@"\\", StringComparison.Ordinal) ? null : new DriveInfo(drive).AvailableFreeSpace;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>檔案的 SHA-256（大寫十六進位；備份時寫進說明檔、驗證時比對，0.10.44 起共用）。</summary>
+    internal static async Task<string> Sha256Async(string file, CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(file);
+        return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
+    }
+
+    /// <summary>刪除暫存目錄（備份與備份驗證共用，0.10.44 起）；刪不掉時回傳原因，由呼叫端記錄（下一次備份開始時會清掉整個 <c>.work</c>）。</summary>
+    internal static Exception? TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return ex;
+        }
     }
 
     private static DateTime? ParseCreatedAt(string fileName)

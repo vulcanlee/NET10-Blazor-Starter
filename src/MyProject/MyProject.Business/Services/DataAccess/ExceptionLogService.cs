@@ -226,27 +226,15 @@ public class ExceptionLogService
         {
             if (query.SortField == nameof(ExceptionLogAdapterModel.OccurrenceCount))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.OccurrenceCount).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.OccurrenceCount).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.OccurrenceCount, x => x.Id, query.SortDescending);
             }
             else if (query.SortField == nameof(ExceptionLogAdapterModel.LastOccurredAt))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.LastOccurredAt).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.LastOccurredAt).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.LastOccurredAt, x => x.Id, query.SortDescending);
             }
             else if (query.SortField == nameof(ExceptionLogAdapterModel.FirstOccurredAt))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.FirstOccurredAt).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.FirstOccurredAt).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.FirstOccurredAt, x => x.Id, query.SortDescending);
             }
         }
 
@@ -388,10 +376,7 @@ public class ExceptionLogService
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.ExceptionLog.CountAsync();
-        var oldest = await context.ExceptionLog.MinAsync(x => (DateTime?)x.LastOccurredAt);
-        int? expired = threshold is { } t ? await context.ExceptionLog.CountAsync(OlderThan(t)) : null;
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.ExceptionLog, x => (DateTime?)x.LastOccurredAt, threshold is { } t ? OlderThan(t) : null);
     }
 
     /// <summary>
@@ -402,6 +387,8 @@ public class ExceptionLogService
     {
         await using var context = await contextFactory.CreateDbContextAsync();
 
+        // ⚠️ 依主鍵刪（載入後 RemoveRange），不用 RetentionQueries.DeleteRowsThenFilesAsync：同一個例外再發生時會更新 LastOccurredAt，
+        // 「先取檔案、再依時間條件刪」之間剛好又發生的那一列不會被刪，它的堆疊檔卻已刪掉（堆疊只在首次發生時寫，就永遠沒有了）。
         var stale = await context.ExceptionLog
             .Where(OlderThan(threshold))
             .ToListAsync();

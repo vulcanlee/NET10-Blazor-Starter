@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MyProject.Models.Systems;
@@ -9,31 +8,29 @@ namespace MyProject.Business.Services.Other;
 /// AI 對話紀錄的內容檔存放（0.9.72 起）。
 ///
 /// ⚠️ <b>檔案生命週期的唯一入口。</b>刪單筆、清除此日之前、清空全部與自動過期都必須經過這裡，
-/// 不可有人自己去 <c>File.Delete</c>。作法與 <see cref="TokenUsageRawStore"/> 一致。
+/// 不可有人自己去 <c>File.Delete</c>。檔案操作共用 <see cref="RootedFiles"/>（0.10.44 起，含根目錄檢查）。
 ///
 /// 相對路徑為 <c>{yyyyMM}/{CallId:N}.json</c>。全部方法<b>絕不拋出</b>：
 /// 記錄對話失敗不可以影響 AI 呼叫本身。日誌只記路徑，絕不記內容。
 /// </summary>
 public class AiCallLogFileStore
 {
-    private readonly IOptions<SystemSettings> systemSettingsOptions;
+    private readonly RootedFiles files;
     private readonly ILogger<AiCallLogFileStore> logger;
 
     public AiCallLogFileStore(
         IOptions<SystemSettings> systemSettingsOptions,
         ILogger<AiCallLogFileStore> logger)
     {
-        this.systemSettingsOptions = systemSettingsOptions;
+        files = new RootedFiles(() => systemSettingsOptions.Value.ExternalFileSystem.AiCallLogPath);
         this.logger = logger;
     }
-
-    private string RootPath => systemSettingsOptions.Value.ExternalFileSystem.AiCallLogPath;
 
     /// <summary>寫入內容檔。</summary>
     /// <returns>成功時回傳相對路徑；失敗回 null（<b>不得</b>讓資料列因此建不起來）。</returns>
     public async Task<string?> WriteAsync(DateTime occurredAt, Guid callId, string content)
     {
-        if (string.IsNullOrWhiteSpace(RootPath) || string.IsNullOrEmpty(content))
+        if (files.HasRoot == false || string.IsNullOrEmpty(content))
         {
             return null;
         }
@@ -42,15 +39,7 @@ public class AiCallLogFileStore
 
         try
         {
-            var fullPath = ToFullPath(relativePath);
-            var directory = Path.GetDirectoryName(fullPath);
-            if (string.IsNullOrEmpty(directory) == false)
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            await File.WriteAllTextAsync(fullPath, content);
-            return relativePath;
+            return await files.WriteTextAsync(relativePath, content) ? relativePath : null;
         }
         catch (Exception ex)
         {
@@ -59,18 +48,12 @@ public class AiCallLogFileStore
         }
     }
 
-    /// <summary>讀取內容檔。檔案不存在或讀取失敗一律回 null，由呼叫端顯示友善訊息。</summary>
+    /// <summary>讀取內容檔。檔案不存在、路徑不合法或讀取失敗一律回 null，由呼叫端顯示友善訊息。</summary>
     public async Task<string?> ReadAsync(string? relativePath)
     {
-        if (string.IsNullOrWhiteSpace(RootPath) || string.IsNullOrWhiteSpace(relativePath))
-        {
-            return null;
-        }
-
         try
         {
-            var fullPath = ToFullPath(relativePath);
-            return File.Exists(fullPath) == false ? null : await File.ReadAllTextAsync(fullPath);
+            return await files.ReadTextAsync(relativePath);
         }
         catch (Exception ex)
         {
@@ -79,21 +62,12 @@ public class AiCallLogFileStore
         }
     }
 
-    /// <summary>刪除單一檔案。檔案不存在視為成功。</summary>
+    /// <summary>刪除單一檔案。檔案不存在視為成功；路徑不在根目錄底下時不刪。</summary>
     public void Delete(string? relativePath)
     {
-        if (string.IsNullOrWhiteSpace(RootPath) || string.IsNullOrWhiteSpace(relativePath))
-        {
-            return;
-        }
-
         try
         {
-            var fullPath = ToFullPath(relativePath);
-            if (File.Exists(fullPath))
-            {
-                File.Delete(fullPath);
-            }
+            files.Delete(relativePath);
         }
         catch (Exception ex)
         {
@@ -101,28 +75,12 @@ public class AiCallLogFileStore
         }
     }
 
-    /// <summary>
-    /// 清空整個目錄（供「清空全部」使用）。
-    /// 刻意刪內容而非刪目錄本身，因為目錄由 Program.cs 啟動時建立，刪掉就不會再有人補。
-    /// </summary>
+    /// <summary>清空整個目錄（供「清空全部」使用；根目錄本身留著）。</summary>
     public void DeleteAll()
     {
-        if (string.IsNullOrWhiteSpace(RootPath) || Directory.Exists(RootPath) == false)
-        {
-            return;
-        }
-
         try
         {
-            foreach (var directory in Directory.EnumerateDirectories(RootPath))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-
-            foreach (var file in Directory.EnumerateFiles(RootPath))
-            {
-                File.Delete(file);
-            }
+            files.DeleteAll();
         }
         catch (Exception ex)
         {
@@ -131,38 +89,18 @@ public class AiCallLogFileStore
     }
 
     /// <summary>
-    /// 刪除早於 <paramref name="threshold"/> 所在月份的整個 <c>{yyyyMM}</c> 目錄。
-    ///
-    /// 用途是自動過期的收尾：逐筆刪檔之後剩下的空月份目錄，以及「檔已寫、資料列沒建起來」
-    /// （程序在兩者之間中止）留下的孤兒檔。門檻所在月份本身不動 —— 那個月可能還有未過期的紀錄。
+    /// 刪除早於 <paramref name="threshold"/> 所在月份的整個 <c>{yyyyMM}</c> 目錄（自動過期的收尾）。
+    /// 門檻所在月份本身不動 —— 那個月可能還有未過期的紀錄。
     /// </summary>
     public void DeleteMonthsBefore(DateTime threshold)
     {
-        if (string.IsNullOrWhiteSpace(RootPath) || Directory.Exists(RootPath) == false)
-        {
-            return;
-        }
-
-        var boundary = new DateTime(threshold.Year, threshold.Month, 1);
-
         try
         {
-            foreach (var directory in Directory.EnumerateDirectories(RootPath))
-            {
-                var name = Path.GetFileName(directory);
-                if (DateTime.TryParseExact(name, "yyyyMM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month)
-                    && month < boundary)
-                {
-                    Directory.Delete(directory, recursive: true);
-                }
-            }
+            files.DeleteMonthsBefore(threshold);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to remove expired AI call log folders.");
         }
     }
-
-    private string ToFullPath(string relativePath)
-        => Path.Combine(RootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
 }

@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Text.Json;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Ai;
 
@@ -101,10 +102,7 @@ public static class AiChatResponseParser
         }
     }
 
-    private static string Truncate(string value)
-        => value.Length <= AiUpstreamError.MaxMessageLength
-            ? value
-            : string.Concat(value.AsSpan(0, AiUpstreamError.MaxMessageLength), "…");
+    private static string Truncate(string value) => TextTruncate.WithEllipsis(value, AiUpstreamError.MaxMessageLength);
 
     /// <summary>
     /// 取出回應中 <c>usage</c> 子物件的原始 JSON 文字，供「Token 用量」頁保留完整明細

@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -11,6 +10,7 @@ using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -34,16 +34,8 @@ public class AiCallLogService : IAiCallLogRecorder
     /// <summary>關聯說明的長度上限（超過截斷）。</summary>
     public const int MaxRelatedInfoLength = 500;
 
-    /// <summary>
-    /// 內容檔的序列化設定。
-    /// ⚠️ 必須用 <see cref="JavaScriptEncoder.UnsafeRelaxedJsonEscaping"/>：預設編碼器會把中文跳脫成 \uXXXX，
-    /// 檔案膨脹數倍且無法直接閱讀。內容檔不會以 HTML 輸出，所以放寬跳脫是安全的。
-    /// </summary>
-    public static readonly JsonSerializerOptions FileJsonOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+    /// <summary>內容檔的序列化設定（縮排、中文不跳脫；見 <see cref="JsonFileOptions.IndentedRelaxed"/>）。</summary>
+    public static readonly JsonSerializerOptions FileJsonOptions = JsonFileOptions.IndentedRelaxed;
 
     private readonly IDbContextFactory<BackendDBContext> contextFactory;
     private readonly AiCallLogFileStore fileStore;
@@ -138,27 +130,15 @@ public class AiCallLogService : IAiCallLogRecorder
         {
             if (query.SortField == nameof(AiCallLogAdapterModel.OccurredAt))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.OccurredAt, x => x.Id, query.SortDescending);
             }
             else if (query.SortField == nameof(AiCallLogAdapterModel.ElapsedMilliseconds))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.ElapsedMilliseconds).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.ElapsedMilliseconds).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.ElapsedMilliseconds, x => x.Id, query.SortDescending);
             }
             else if (query.SortField == nameof(AiCallLogAdapterModel.RequestCharacters))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.RequestCharacters).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.RequestCharacters).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.RequestCharacters, x => x.Id, query.SortDescending);
             }
         }
 
@@ -459,10 +439,7 @@ public class AiCallLogService : IAiCallLogRecorder
     public async Task<RetentionStats> GetRetentionStatsBeforeAsync(DateTime threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.AiCallLog.CountAsync();
-        var oldest = await context.AiCallLog.MinAsync(x => (DateTime?)x.OccurredAt);
-        var expired = await context.AiCallLog.CountAsync(OlderThan(threshold));
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.AiCallLog, x => (DateTime?)x.OccurredAt, OlderThan(threshold));
     }
 
     private async Task<(bool Success, int Removed)> PurgeCoreAsync(DateTime threshold)
@@ -472,19 +449,11 @@ public class AiCallLogService : IAiCallLogRecorder
 
         try
         {
-            var stale = context.AiCallLog.Where(OlderThan(threshold));
-            var contentFiles = await stale.Select(x => x.ContentFile).ToListAsync();
-            if (contentFiles.Count == 0)
+            // 先刪資料列再刪檔（RetentionQueries.DeleteRowsThenFilesAsync）。
+            if (await RetentionQueries.DeleteRowsThenFilesAsync(
+                    context.AiCallLog.Where(OlderThan(threshold)), x => x.ContentFile, fileStore.Delete) is not { } removed)
             {
                 return (true, 0);
-            }
-
-            // 先刪資料列再刪檔：資料列刪失敗就整批不動，不會留下「有列卻沒檔」的狀態。
-            // 新寫入的紀錄不可能早於門檻，所以兩次查詢之間不會有漏網之魚。
-            var removed = await stale.ExecuteDeleteAsync();
-            foreach (var contentFile in contentFiles)
-            {
-                fileStore.Delete(contentFile);
             }
 
             Logger.LogInformation("Purged AI call logs. Rows={Rows}", removed);

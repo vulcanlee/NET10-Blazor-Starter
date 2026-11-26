@@ -8,6 +8,7 @@ using MyProject.Business.Mappers;
 using MyProject.Business.Services.Other;
 using MyProject.Models.AdapterModel;
 using MyProject.Models.Systems;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -142,29 +143,17 @@ public class TokenUsageLogService : ITokenUsageRecorder
         {
             if (query.SortField == nameof(TokenUsageLogAdapterModel.TotalCount))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.TotalCount).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.TotalCount).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.TotalCount, x => x.Id, query.SortDescending);
             }
             else if (query.SortField == nameof(TokenUsageLogAdapterModel.OccurredAt))
             {
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.OccurredAt, x => x.Id, query.SortDescending);
             }
             else if (query.SortField == nameof(TokenUsageLogAdapterModel.CostTwd))
             {
                 // 排序鍵用台幣而非美金，與畫面上顯示的欄位一致。
                 // 未定價（NULL）在 SQLite 升冪時排最前面，效果上等於把它們聚在一起。
-                sorted = query.SortDescending == true
-                    ? dataSource.OrderByDescending(x => x.CostTwd).ThenByDescending(x => x.Id)
-                    : query.SortDescending == false
-                        ? dataSource.OrderBy(x => x.CostTwd).ThenBy(x => x.Id)
-                        : null;
+                sorted = dataSource.SortWithIdTieBreak(x => x.CostTwd, x => x.Id, query.SortDescending);
             }
         }
 
@@ -373,10 +362,7 @@ public class TokenUsageLogService : ITokenUsageRecorder
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? threshold)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.TokenUsageLog.CountAsync();
-        var oldest = await context.TokenUsageLog.MinAsync(x => (DateTime?)x.OccurredAt);
-        int? expired = threshold is { } t ? await context.TokenUsageLog.CountAsync(OlderThan(t)) : null;
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.TokenUsageLog, x => (DateTime?)x.OccurredAt, threshold is { } t ? OlderThan(t) : null);
     }
 
     /// <summary>刪除指定日期（不含當日）之前的紀錄，連同原始檔一起。</summary>
@@ -388,27 +374,15 @@ public class TokenUsageLogService : ITokenUsageRecorder
 
         try
         {
-            var stale = await context.TokenUsageLog
-                .Where(OlderThan(threshold))
-                .ToListAsync();
-
-            if (stale.Count == 0)
+            // 先刪資料列再刪檔（RetentionQueries.DeleteRowsThenFilesAsync）。
+            if (await RetentionQueries.DeleteRowsThenFilesAsync(
+                    context.TokenUsageLog.Where(OlderThan(threshold)), x => x.RawUsageFile, rawStore.Delete) is not { } removed)
             {
                 return VerifyRecordResultFactory.Build(true, "沒有符合條件的紀錄。");
             }
 
-            // 先刪資料列再刪檔：資料列刪失敗就整批不動，不會留下「有列卻沒檔」的狀態。
-            var rawFiles = stale.Select(x => x.RawUsageFile).ToList();
-            context.TokenUsageLog.RemoveRange(stale);
-            await context.SaveChangesAsync();
-
-            foreach (var rawFile in rawFiles)
-            {
-                rawStore.Delete(rawFile);
-            }
-
-            Logger.LogInformation("Purged LLM usage records. Rows={Rows}", stale.Count);
-            return VerifyRecordResultFactory.Build(true, $"已清除 {stale.Count} 筆紀錄。");
+            Logger.LogInformation("Purged LLM usage records. Rows={Rows}", removed);
+            return VerifyRecordResultFactory.Build(true, $"已清除 {removed} 筆紀錄。");
         }
         catch (Exception ex)
         {

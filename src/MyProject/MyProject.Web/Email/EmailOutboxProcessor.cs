@@ -7,6 +7,7 @@ using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
 using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Email;
 
@@ -288,5 +289,5 @@ public sealed class EmailOutboxProcessor
         }
     }
 
-    private static string Truncate(string text, int max) => text.Length <= max ? text : text[..max];
+    private static string Truncate(string text, int max) => TextTruncate.Cut(text, max);
 }

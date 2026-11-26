@@ -8,6 +8,7 @@ using MyProject.Dtos.Admins;
 using MyProject.Dtos.Commons;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Filters;
+using MyProject.Web.Auditing;
 
 namespace MyProject.Web.Controllers;
 
@@ -149,25 +150,15 @@ public class LogLevelController : ControllerBase
         UserId = session.UserId,
         Account = session.Account,
         Level = session.Level == LogLevel.Trace ? "TRACE" : "DEBUG",
-        StartedAtLocal = DateTime.SpecifyKind(TimeZoneInfo.ConvertTime(session.StartedAt, timeProvider.LocalTimeZone).DateTime, DateTimeKind.Unspecified),
-        ExpiresAtLocal = DateTime.SpecifyKind(TimeZoneInfo.ConvertTime(session.ExpiresAt, timeProvider.LocalTimeZone).DateTime, DateTimeKind.Unspecified),
+        StartedAtLocal = timeProvider.ToLocalUnzoned(session.StartedAt),
+        ExpiresAtLocal = timeProvider.ToLocalUnzoned(session.ExpiresAt),
         EnabledByAccount = session.EnabledByAccount,
     };
 
-    /// <summary>稽核寫入失敗不應推翻「已經開啟／關閉」這個事實，因此只記錯誤。</summary>
-    private async Task WriteDiagnosticsAuditAsync(string action, int targetUserId, string detail)
-    {
-        try
-        {
-            var user = currentUserService.CurrentUser;
-            await auditLogService.WriteAsync(action, success: true, actorUserId: user.Id, actorAccount: user.Account,
-                targetType: "MyUser", targetId: targetUserId.ToString(System.Globalization.CultureInfo.InvariantCulture), detail: detail);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to write audit log for client diagnostics. Action={Action}", action);
-        }
-    }
+    /// <summary>稽核寫入失敗不應推翻「已經開啟／關閉」這個事實（<see cref="ViewAudit"/>）。</summary>
+    private Task WriteDiagnosticsAuditAsync(string action, int targetUserId, string detail)
+        => ViewAudit.WriteAsync(auditLogService, currentUserService, action, "MyUser",
+            targetUserId.ToString(System.Globalization.CultureInfo.InvariantCulture), detail);
 
     private LogLevelStateDto State() => new()
     {
@@ -177,25 +168,8 @@ public class LogLevelController : ControllerBase
         HasOverride = logLevelState.OverrideLevel is not null,
     };
 
-    /// <summary>稽核寫入失敗不應推翻「等級已經套用」這個事實，因此只記錯誤（與 Server 版相同）。</summary>
-    private async Task WriteAuditAsync(string action, LogLevelRank previous, LogLevelRank current)
-    {
-        try
-        {
-            var user = currentUserService.CurrentUser;
-            await auditLogService.WriteAsync(
-                action,
-                success: true,
-                actorUserId: user.Id,
-                actorAccount: user.Account,
-                targetType: "NLog",
-                targetId: "logger:*",
-                detail: $"日誌最低等級由 {LogLevelRankHelper.ToLevelText(previous)} "
-                    + $"調整為 {LogLevelRankHelper.ToLevelText(current)}（僅執行期有效）。");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to write audit log for log level change. Action={Action}", action);
-        }
-    }
+    /// <summary>稽核寫入失敗不應推翻「等級已經套用」這個事實（<see cref="ViewAudit"/>，與 Server 版相同）。</summary>
+    private Task WriteAuditAsync(string action, LogLevelRank previous, LogLevelRank current)
+        => ViewAudit.WriteAsync(auditLogService, currentUserService, action, "NLog", "logger:*",
+            $"日誌最低等級由 {LogLevelRankHelper.ToLevelText(previous)} 調整為 {LogLevelRankHelper.ToLevelText(current)}（僅執行期有效）。");
 }

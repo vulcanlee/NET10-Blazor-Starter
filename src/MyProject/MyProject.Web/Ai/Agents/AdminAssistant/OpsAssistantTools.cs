@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Globalization;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using MyProject.AccessDatas.Models;
 using MyProject.Business.Helpers;
@@ -1005,28 +1004,15 @@ public sealed class OpsAssistantTools
 
     private static AiToolDefinition Define(
         string name, string displayName, string description, Func<OpsAssistantTools, Delegate> method, string permissionPage = MagicObjectHelper.角色_排程作業)
-        => new()
-        {
-            Name = name,
-            DisplayName = displayName,
-            Description = description,
-            PermissionPage = permissionPage,
-            PermissionAction = PermissionActions.View,
-            Create = services => AIFunctionFactory.Create(method(services.GetRequiredService<OpsAssistantTools>()), name, description),
-        };
-
-    private static AiToolDefinition DefineIrreversible(
-        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
-        Func<OpsAssistantTools, Delegate> method)
-        => DefineMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method) with { IsIrreversible = true };
+        => AiToolDefinition.For(name, displayName, permissionPage, description, method);
 
     private static AiToolDefinition DefineMutating(
         string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
         Func<OpsAssistantTools, Delegate> method)
-        => Define(name, displayName, description, method, permissionPage) with
-        {
-            PermissionAction = permissionAction,
-            IsMutating = true,
-            ApprovalNote = approvalNote,
-        };
+        => AiToolDefinition.ForMutating(name, displayName, permissionPage, permissionAction, description, approvalNote, method);
+
+    private static AiToolDefinition DefineIrreversible(
+        string name, string displayName, string permissionPage, string permissionAction, string description, string approvalNote,
+        Func<OpsAssistantTools, Delegate> method)
+        => AiToolDefinition.ForIrreversible(name, displayName, permissionPage, permissionAction, description, approvalNote, method);
 }

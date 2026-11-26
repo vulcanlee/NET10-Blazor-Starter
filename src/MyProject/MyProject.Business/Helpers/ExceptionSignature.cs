@@ -1,5 +1,6 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Helpers;
 
@@ -44,15 +45,5 @@ public static class ExceptionSignature
     }
 
     /// <summary>把訊息截到資料庫欄位可接受的長度。</summary>
-    public static string TruncateMessage(string? message)
-    {
-        if (string.IsNullOrEmpty(message))
-        {
-            return string.Empty;
-        }
-
-        return message.Length <= MaxMessageLength
-            ? message
-            : message[..MaxMessageLength];
-    }
+    public static string TruncateMessage(string? message) => TextTruncate.Cut(message, MaxMessageLength) ?? string.Empty;
 }

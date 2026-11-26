@@ -5,11 +5,11 @@ using MyProject.Web.Auth;
 namespace MyProject.Web.Controllers;
 
 /// <summary>
-/// Web API 寫稽核（LOG-14）。
+/// Web API 寫稽核（LOG-14）：操作者由這個請求的 JWT 身分經 <see cref="RequestActorResolver"/> 解析。
 ///
-/// API 的 Controller 走 Repository 而不是 Blazor 用的 DataAccess 服務，<see cref="CurrentUserService"/> 在 API 情境是空的，
-/// 所以操作者一律由 JWT 身分經 <see cref="RequestActorResolver"/> 解析。
-/// 稽核寫入失敗不拋出（<see cref="AuditLogService"/> 本身即如此），不影響 API 回應。
+/// 已登入的請求，<see cref="CurrentUserService"/> 由 <c>ApiActorMiddleware</c> 載入，用 <c>Auditing.ViewAudit</c> 結果相同；
+/// 這個版本另外適用於登入這類匿名端點（沒有載入目前使用者，只看得到請求本身的身分）。
+/// 稽核寫入失敗不拋出（<see cref="AuditLogService"/> 本身即如此），不影響 API 回應，呼叫端不必再包 try/catch。
 /// </summary>
 public static class ControllerAuditExtensions
 {

@@ -42,7 +42,7 @@ public static class AiReportPdfBuilder
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var systemName = string.IsNullOrWhiteSpace(request.SystemName) ? "MyProject" : request.SystemName;
+        var systemName = AiMarkdownPdfRenderer.SystemNameOrDefault(request.SystemName);
         var document = AiMarkdownPdfRenderer.CreateDocument(
             title: "日誌 AI 分析報告",
             subject: $"{request.QueryStartTime:yyyy-MM-dd HH:mm} ～ {request.QueryEndTime:yyyy-MM-dd HH:mm}",

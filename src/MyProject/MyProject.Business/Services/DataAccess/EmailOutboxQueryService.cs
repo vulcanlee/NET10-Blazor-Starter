@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyProject.AccessDatas;
 using MyProject.AccessDatas.Models;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Business.Services.DataAccess;
 
@@ -54,13 +55,13 @@ public class EmailOutboxQueryService
         var source = context.EmailOutbox.AsNoTracking();
         if (query.FromLocal is { } from)
         {
-            var fromUtc = ToUtc(from);
+            var fromUtc = timeProvider.ToUtc(from);
             source = source.Where(x => x.CreatedAtUtc >= fromUtc);
         }
 
         if (query.ToLocal is { } to)
         {
-            var toUtc = ToUtc(to);
+            var toUtc = timeProvider.ToUtc(to);
             source = source.Where(x => x.CreatedAtUtc <= toUtc);
         }
 
@@ -92,9 +93,9 @@ public class EmailOutboxQueryService
 
         logger.LogDebug("Email log page loaded. Total={Total}, PageIndex={PageIndex}", total, pageIndex);
         return (rows.Select(x => new EmailLogItem(
-            x.Id, ToLocal(x.CreatedAtUtc), x.Kind, x.To, x.Subject, x.Status, x.Attempts,
-            x.NextAttemptAtUtc is { } next ? ToLocal(next) : null,
-            x.SentAtUtc is { } sent ? ToLocal(sent) : null,
+            x.Id, timeProvider.ToLocal(x.CreatedAtUtc), x.Kind, x.To, x.Subject, x.Status, x.Attempts,
+            x.NextAttemptAtUtc is { } next ? timeProvider.ToLocal(next) : null,
+            x.SentAtUtc is { } sent ? timeProvider.ToLocal(sent) : null,
             x.LastError)).ToList(), total);
     }
 
@@ -102,10 +103,7 @@ public class EmailOutboxQueryService
     public async Task<RetentionStats> GetRetentionStatsAsync(DateTime? cutoffUtc)
     {
         await using var context = await contextFactory.CreateDbContextAsync();
-        var total = await context.EmailOutbox.CountAsync();
-        var oldest = await context.EmailOutbox.MinAsync(x => (DateTime?)x.CreatedAtUtc);
-        int? expired = cutoffUtc is { } cutoff ? await context.EmailOutbox.CountAsync(Expired(cutoff)) : null;
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(context.EmailOutbox, x => (DateTime?)x.CreatedAtUtc, cutoffUtc is { } cutoff ? Expired(cutoff) : null);
     }
 
     /// <summary>刪除建立時間早於門檻、而且不是「待寄」的紀錄，分批進行，批次之間可取消。</summary>
@@ -134,8 +132,4 @@ public class EmailOutboxQueryService
     // 清理條件：清理與「資料保留與清理」頁的「下次會清掉幾筆」共用。
     private static Expression<Func<EmailOutbox, bool>> Expired(DateTime cutoffUtc)
         => x => x.CreatedAtUtc < cutoffUtc && x.Status != EmailOutboxStatus.Pending;
-
-    private DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeProvider.LocalTimeZone);
-
-    private DateTime ToUtc(DateTime local) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), timeProvider.LocalTimeZone);
 }

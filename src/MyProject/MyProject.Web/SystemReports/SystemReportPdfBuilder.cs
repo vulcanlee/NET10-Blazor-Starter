@@ -20,7 +20,7 @@ namespace MyProject.Web.SystemReports;
 /// </summary>
 public static class SystemReportPdfBuilder
 {
-    public const string ContentType = "application/pdf";
+    public const string ContentType = Export.TabularExport.PdfContentType;
 
     private static readonly Color BorderColor = AiMarkdownPdfRenderer.BorderColor;
     private static readonly Color HeaderShading = Color.FromRgb(0xF1, 0xF5, 0xF9);
@@ -384,19 +384,7 @@ public static class SystemReportPdfBuilder
 
     // ───────────── 共用 ─────────────
 
-    private static Table CreateTable(Section section)
-    {
-        var table = section.AddTable();
-        table.Borders.Color = BorderColor;
-        table.Borders.Width = 0.5;
-        table.Format.Font.Size = Unit.FromPoint(9);
-        table.Format.SpaceAfter = 0;
-        table.TopPadding = Unit.FromPoint(3);
-        table.BottomPadding = Unit.FromPoint(3);
-        table.LeftPadding = Unit.FromPoint(4);
-        table.RightPadding = Unit.FromPoint(4);
-        return table;
-    }
+    private static Table CreateTable(Section section) => AiMarkdownPdfRenderer.CreateTable(section, fontSize: 9, verticalPadding: 3, horizontalPadding: 4);
 
     private static void Header(Table table, string[] titles)
     {

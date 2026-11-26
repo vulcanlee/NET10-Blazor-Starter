@@ -180,10 +180,7 @@ public class SoftDeletePurgeService
         where TEntity : class, ISoftDeletable
     {
         var deleted = set.IgnoreQueryFilters([ISoftDeletable.FilterName]).Where(x => x.IsDeleted);
-        var total = await deleted.CountAsync();
-        var oldest = await deleted.MinAsync(x => x.DeletedAt);
-        int? expired = cutoffLocal is { } c ? await deleted.CountAsync(Expired<TEntity>(c)) : null;
-        return new RetentionStats(total, oldest, expired);
+        return await RetentionQueries.StatsAsync(deleted, x => x.DeletedAt, cutoffLocal is { } c ? Expired<TEntity>(c) : null);
     }
 
     private async Task PurgeTypeAsync<TEntity>(

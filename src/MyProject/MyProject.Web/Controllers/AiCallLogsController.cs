@@ -39,11 +39,7 @@ public class AiCallLogsController : ControllerBase
     private const string SourceConversation = "conversation";
     private const string SourceQuery = "query";
 
-    private static readonly JsonSerializerOptions PrettyJsonOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+    private static readonly JsonSerializerOptions PrettyJsonOptions = JsonFileOptions.IndentedRelaxed;
 
     private readonly AiCallLogService service;
     private readonly IAuditLogService auditLogService;
@@ -247,7 +243,7 @@ public class AiCallLogsController : ControllerBase
         }
 
         await WriteSelfAuditAsync(AuditActions.AiCallLog.Export, id.ToString(), $"匯出 AI 對話紀錄（json）：{item.Operation}");
-        return File(Encoding.UTF8.GetBytes(json), "application/octet-stream", $"MyProject.Web-ai-call-{item.CallId:N}.json");
+        return File(Encoding.UTF8.GetBytes(json), "application/octet-stream", $"{TabularExport.FileNamePrefix}ai-call-{item.CallId:N}.json");
     }
 
     /// <summary>單筆 PDF（中繼資料＋完整對話，不含原始 JSON），寫一筆匯出稽核。</summary>
@@ -295,7 +291,7 @@ public class AiCallLogsController : ControllerBase
 
         logger.LogInformation("AI call log PDF exported. CallLogId={CallLogId}, Bytes={Bytes}", id, bytes.Length);
         await WriteSelfAuditAsync(AuditActions.AiCallLog.Export, id.ToString(), $"匯出 AI 對話紀錄（pdf）：{detail.Item.Operation}");
-        return File(bytes, "application/pdf", $"MyProject.Web-ai-call-{id}-{now:yyyyMMdd-HHmmss}.pdf");
+        return File(bytes, TabularExport.PdfContentType, $"{TabularExport.FileNamePrefix}ai-call-{id}-{now:yyyyMMdd-HHmmss}.pdf");
     }
 
     /// <summary>
@@ -371,7 +367,7 @@ public class AiCallLogsController : ControllerBase
         logger.LogInformation("AI call logs merged PDF exported. Source={Source}, Rows={Rows}, Bytes={Bytes}", request.Source, exported.Count, bytes.Length);
         await WriteSelfAuditAsync(AuditActions.AiCallLog.Export, "*", $"format=pdf-merged; source={request.Source}; rows={exported.Count}",
             content: $"ids={string.Join(",", exported)}");
-        return File(bytes, "application/pdf", $"MyProject.Web-ai-calls-{items.Count}-{now:yyyyMMdd-HHmmss}.pdf");
+        return File(bytes, TabularExport.PdfContentType, $"{TabularExport.FileNamePrefix}ai-calls-{items.Count}-{now:yyyyMMdd-HHmmss}.pdf");
     }
 
     /// <summary>匯出目前查詢條件下的全部資料（CSV、UTF-8 含 BOM、不含內文，最多 <see cref="AiCallLogService.MaxExportRows"/> 筆，順序與畫面相同），寫一筆匯出稽核。</summary>
@@ -509,19 +505,8 @@ public class AiCallLogsController : ControllerBase
 
     /// <summary>
     /// 刪除、清除、清空、匯出對話紀錄本身留下一筆稽核（只記動作與筆數，絕不記內容；與 Server 版相同）。
-    /// 稽核寫入失敗不推翻已經完成的動作，只記錯誤。
+    /// 稽核寫入失敗不推翻已經完成的動作（<see cref="ViewAudit"/>）。
     /// </summary>
-    private async Task WriteSelfAuditAsync(string action, string targetId, string detail, string? content = null)
-    {
-        try
-        {
-            var user = currentUserService.CurrentUser;
-            await auditLogService.WriteAsync(action, success: true, actorUserId: user.Id, actorAccount: user.Account,
-                targetType: TargetType, targetId: targetId, detail: detail, content: content);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to write audit log for AI call log maintenance. Action={Action}", action);
-        }
-    }
+    private Task WriteSelfAuditAsync(string action, string targetId, string detail, string? content = null)
+        => ViewAudit.WriteAsync(auditLogService, currentUserService, action, TargetType, targetId, detail, content);
 }

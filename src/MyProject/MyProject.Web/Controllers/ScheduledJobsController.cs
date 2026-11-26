@@ -8,6 +8,7 @@ using MyProject.Dtos.Commons;
 using MyProject.Models.AdapterModel;
 using MyProject.Web.Filters;
 using MyProject.Web.Scheduling;
+using static MyProject.Business.Helpers.LocalTime;
 
 namespace MyProject.Web.Controllers;
 
@@ -132,7 +133,4 @@ public sealed class ScheduledJobsController : ControllerBase
         Message = run.Message,
         TraceId = run.TraceId,
     };
-
-    /// <summary>本地時間以「不帶時差」送出：帶了時差，WASM 會換成瀏覽器的時區。</summary>
-    private static DateTime Unzoned(DateTime local) => DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
 }

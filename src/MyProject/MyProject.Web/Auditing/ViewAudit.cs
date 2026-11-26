@@ -7,10 +7,10 @@ namespace MyProject.Web.Auditing;
 /// <summary>
 /// 檢視層寫稽核的共用樣板（LOG-14）：操作者一律取自 <see cref="CurrentUserService"/>。
 ///
-/// 只在動作<b>成功之後</b>呼叫。Detail 進資料庫，只放非敏感短摘要（筆數、天數、匯出格式、名稱），
+/// 只在動作<b>完成之後</b>呼叫（一般是成功之後；AI 分析這類連失敗也要留紀錄的，以 <c>success</c> 標明結果）。Detail 進資料庫，只放非敏感短摘要（筆數、天數、匯出格式、名稱），
 /// 不放查詢原文或匯出內容；長內容（完整查詢條件、修改差異）走 <c>content</c>，寫成詳細內容檔（0.9.131 起），
 /// 只在 /audit-logs 明細窗顯示、不進日誌。
-/// <see cref="IAuditLogService"/> 寫入失敗只記 Warning、不拋出 —— 不推翻「已經完成」的動作。
+/// <see cref="IAuditLogService"/> 寫入失敗由它自己記錄、不拋出 —— 不推翻「已經完成」的動作，呼叫端不必再包 try/catch。
 /// </summary>
 public static class ViewAudit
 {
@@ -21,12 +21,13 @@ public static class ViewAudit
         string targetType,
         string? targetId,
         string? detail,
-        string? content = null)
+        string? content = null,
+        bool success = true)
     {
         var user = currentUserService.CurrentUser;
         return auditLogService.WriteAsync(
             action,
-            success: true,
+            success: success,
             actorUserId: user.Id > 0 ? user.Id : null,
             actorAccount: user.Id > 0 ? user.Account : null,
             targetType: targetType,

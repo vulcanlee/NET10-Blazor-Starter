@@ -21,5 +21,5 @@ public static class AuditLogExport
     ];
 
     /// <summary>下載檔名（與 Server 版相同）。</summary>
-    public static string FileName(DateTime now) => $"MyProject.Web-audit-{now:yyyyMMdd-HHmmss}.csv";
+    public static string FileName(DateTime now) => $"{TabularExport.FileNamePrefix}audit-{now:yyyyMMdd-HHmmss}.csv";
 }

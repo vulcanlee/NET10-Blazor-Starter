@@ -16,6 +16,7 @@ using MyProject.Web.Configuration;
 using MyProject.Web.Diagnostics;
 using MyProject.Web.Filters;
 using MyProject.Web.Streaming;
+using static MyProject.Business.Helpers.LocalTime;
 
 namespace MyProject.Web.Controllers;
 
@@ -136,7 +137,7 @@ public class LogsController : ControllerBase
         logger.LogInformation("Log export downloaded. Rows={Rows}, Bytes={Bytes}", result.Entries.Count, bytes.Length);
         await ViewAudit.WriteAsync(auditLogService, currentUserService, AuditActions.LogViewer.Export, TargetType, null, $"format=log; rows={result.Entries.Count}");
 
-        return File(bytes, "text/plain", $"MyProject.Web-logs-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        return File(bytes, "text/plain", $"{TabularExport.FileNamePrefix}logs-{DateTime.Now:yyyyMMdd-HHmmss}.log");
     }
 
     /// <summary>
@@ -210,7 +211,7 @@ public class LogsController : ControllerBase
                 Elapsed = TimeSpan.FromMilliseconds(request.ElapsedMilliseconds),
             }, queried.AppliedStartTime, queried.AppliedEndTime);
 
-            return File(bytes, "application/pdf", $"MyProject.Web-ai-log-report-{DateTime.Now:yyyyMMdd-HHmmss}.pdf");
+            return File(bytes, TabularExport.PdfContentType, $"{TabularExport.FileNamePrefix}ai-log-report-{DateTime.Now:yyyyMMdd-HHmmss}.pdf");
         }
         catch (InvalidOperationException ex)
         {
@@ -272,28 +273,12 @@ public class LogsController : ControllerBase
     }
 
     /// <summary>
-    /// 稽核寫入失敗不應推翻「分析已經完成」這個事實，因此只記錯誤。
+    /// 稽核寫入失敗不應推翻「分析已經完成」這個事實（<see cref="ViewAudit"/>）。
     /// ⚠️ detail 只寫數量、模型、用量與耗時，<b>絕不</b>寫入任何日誌內容或 AI 輸出：AuditLog 的可視範圍比本頁更廣。
     /// </summary>
-    private async Task WriteAiAuditAsync(string action, AiAnalysisResult result, DateTime start, DateTime end)
-    {
-        try
-        {
-            var user = currentUserService.CurrentUser;
-            await auditLogService.WriteAsync(
-                action,
-                success: result.Success,
-                actorUserId: user.Id,
-                actorAccount: user.Account,
-                targetType: TargetType,
-                targetId: $"{start:yyyyMMddHHmmss}-{end:yyyyMMddHHmmss}",
-                detail: BuildAuditDetail(result));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to write audit log for AI log analysis. Action={Action}", action);
-        }
-    }
+    private Task WriteAiAuditAsync(string action, AiAnalysisResult result, DateTime start, DateTime end)
+        => ViewAudit.WriteAsync(auditLogService, currentUserService, action, TargetType,
+            $"{start:yyyyMMddHHmmss}-{end:yyyyMMddHHmmss}", BuildAuditDetail(result), success: result.Success);
 
     private static string BuildAuditDetail(AiAnalysisResult result)
     {
@@ -376,6 +361,4 @@ public class LogsController : ControllerBase
     /// <summary>讀日誌檔失敗（與 Server 版相同的訊息：例外類型＋錯誤追蹤碼）。</summary>
     private ObjectResult QueryFailed<T>(string prefix, Exception ex)
         => this.ApiServerError<T>($"{prefix}：{ex.GetType().Name}。" + TraceCode.Suffix(HttpContext.TraceIdentifier), ex);
-
-    private static DateTime Unzoned(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
 }

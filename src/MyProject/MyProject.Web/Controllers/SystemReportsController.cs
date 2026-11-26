@@ -13,6 +13,7 @@ using MyProject.Web.Filters;
 using MyProject.Web.Scheduling;
 using MyProject.Web.Scheduling.Jobs;
 using MyProject.Web.SystemReports;
+using static MyProject.Business.Helpers.LocalTime;
 
 namespace MyProject.Web.Controllers;
 
@@ -228,7 +229,4 @@ public sealed class SystemReportsController : ControllerBase
         ModelName = item.ModelName,
         DeliveryStatus = item.DeliveryStatus,
     };
-
-    /// <summary>本地時間以「不帶時差」送出：帶了時差，WASM 會換成瀏覽器的時區。</summary>
-    private static DateTime Unzoned(DateTime local) => DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
 }

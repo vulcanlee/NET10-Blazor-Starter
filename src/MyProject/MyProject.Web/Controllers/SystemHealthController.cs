@@ -11,6 +11,7 @@ using MyProject.Web.Diagnostics;
 using MyProject.Web.Email;
 using MyProject.Web.Filters;
 using MyProject.Web.Health;
+using MyProject.Business.Helpers;
 
 namespace MyProject.Web.Controllers;
 
@@ -65,7 +66,7 @@ public sealed class SystemHealthController : ControllerBase
         var dto = new SystemHealthReportDto
         {
             // Server 版顯示 CheckedAt.ToLocalTime()：換成伺服器本地時間、不帶時差送出。
-            CheckedAtLocal = DateTime.SpecifyKind(TimeZoneInfo.ConvertTime(report.CheckedAt, timeProvider.LocalTimeZone).DateTime, DateTimeKind.Unspecified),
+            CheckedAtLocal = timeProvider.ToLocalUnzoned(report.CheckedAt),
             Score = report.Score,
             Status = report.Status.ToString(),
             Light = report.Light.ToString(),
