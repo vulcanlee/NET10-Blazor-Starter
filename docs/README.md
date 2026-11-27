@@ -1,8 +1,8 @@
 ﻿# 文件目錄索引
 
-- 文件版本：7.31
+- 文件版本：7.32
 - 文件狀態：維護中
-- 現行系統版本：0.10.46
+- 現行系統版本：0.10.47
 - 首次實作版本：0.2.8
 - 最後核對日期：2026/11/27
 
@@ -339,6 +339,7 @@
 - [WASM 遷移 M2 外框與個人資料：第一個 WebAssembly 頁面、WASM 版外框、外框與個人資料 API（0.10.1）](changelog/2026-11-10-WASM遷移M2外框與個人資料.md)
 - [WASM 遷移 M3 分類、團隊與 CRUD 產生器：兩頁改用 WebAssembly、API 改走與畫面相同的服務、CRUD 產生器改產生 WASM 頁面（0.10.2）](changelog/2026-11-11-WASM遷移M3分類團隊與CRUD產生器.md)
 - [WASM 遷移 M4 專案、附件與下載票證：專案頁改用 WebAssembly、API 改走服務（不再有 Repository）、專案標題不能重複、附件改用一次性下載票證、IIS 請求上限放寬（0.10.3）](changelog/2026-11-11-WASM遷移M4專案附件與下載票證.md)
+- [整併隱患修正：`UserApi` 誤用防呆、根目錄檢查大小寫依作業系統、`m05-admin.mjs` 不再被分頁擠掉（0.10.47）](changelog/2026-11-27-整併隱患修正.md)
 - [`.ai-markdown` 權重還原：AI 報告內文的共用樣式選擇器寫成 `.ai-markdown.ai-markdown`，還原整併前的權重（0.10.46）](changelog/2026-11-27-ai-markdown權重還原.md)
 - [e2e 腳本重複整併：各腳本重複的小函式搬到 `common.mjs`／`crud-ui.mjs`、修正 `ux-data-freshness.mjs` 被使用者選單擋住（只改腳本，不升版）](changelog/2026-11-26-e2e腳本重複整併.md)
 - [前端重複整併：下載、複製、日誌頁清除、表格排序、AI 視窗字級／串流計時／顯示上限與共用報告樣式 `.ai-markdown`、忙碌時才輪詢、票證下載等共用元件；`UserApi` 繼承 `CrudApi`、CRUD 產生器樣板同步（0.10.45）](changelog/2026-11-26-前端重複整併.md)

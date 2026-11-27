@@ -46,6 +46,16 @@ public sealed class UserApi : CrudApi<UserDto, UserSearchRequestDto>
     /// <summary>修改；成功時 <c>Data.Tokens</c> 有值代表改到自己：存下新 Token 後整頁重新載入。</summary>
     public Task<ApiResult<UserSaveResultDto>> UpdateAsync(UserDto dto) => Api.PutAsync<UserSaveResultDto>($"{BaseUrl}/{dto.Id}", dto);
 
+    /// <summary>
+    /// 0.10.47 起遮蔽繼承的版本：它只回成功與否，會丟掉「管理員改到自己帳號」時伺服器回的新 Token（<c>ClientApiMisuseGuardTests</c> 守門）。
+    /// </summary>
+    [Obsolete("使用者的修改一律用 UpdateAsync(UserDto)：這個版本會丟掉改到自己帳號時伺服器回的新 Token。", error: true)]
+    public new Task<VerifyRecordResult> UpdateAsync(int id, object dto) => base.UpdateAsync(id, dto);
+
+    /// <summary>0.10.47 起遮蔽繼承的版本：它只認 409，使用者的帳號檢查還包含格式（<c>ClientApiMisuseGuardTests</c> 守門）。</summary>
+    [Obsolete("使用者的帳號檢查一律用 AccountConflictAsync：這個版本只認 409，不會回帳號格式不符的訊息。", error: true)]
+    public new Task<string?> NameConflictAsync(object dto) => base.NameConflictAsync(dto);
+
     public async Task<VerifyRecordResult> UnlockAsync(int id) => (await Api.PostAsync<object>($"{BaseUrl}/{id}/unlock")).ToVerify();
 
     public async Task<VerifyRecordResult> ForceLogoutAsync(int id) => (await Api.PostAsync<object>($"{BaseUrl}/{id}/force-logout")).ToVerify();

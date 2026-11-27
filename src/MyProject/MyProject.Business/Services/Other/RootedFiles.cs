@@ -1,4 +1,5 @@
 using System.Globalization;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Business.Services.Other;
 
@@ -46,7 +47,8 @@ public sealed class RootedFiles
         // 磁碟或檔案系統的根（D:\、/）去不掉結尾的分隔符號，不能再加一個，否則所有路徑都會被當成越界。
         var prefix = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
         var fullPath = Path.GetFullPath(Path.Combine(root, normalized));
-        return fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
+        // 大小寫依作業系統（0.10.47 起）：Linux 上只差大小寫的同層資料夾是另一個資料夾，不可當成在根目錄底下。
+        return fullPath.StartsWith(prefix, PathComparison.Current) ? fullPath : null;
     }
 
     /// <summary>寫入文字（UTF-8 無 BOM，同 <see cref="File.WriteAllTextAsync(string, string?, CancellationToken)"/>），需要時建立目錄。</summary>
