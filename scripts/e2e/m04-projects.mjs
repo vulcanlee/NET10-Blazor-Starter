@@ -12,7 +12,7 @@ import {
   apiAsPageUser, createRecorder, createScopedUser, databaseFile, execute, isWasmPage, launchBrowser, login, newContext, outDir, query, screenshot,
 } from './common.mjs';
 import {
-  clickRowAction, clickToolbar, closeForm, closeToasts, confirm, confirmIfShown, confirmSave, deleteRecord, formField, openList, purgeRecord, restoreRecord, rowTexts, submitForm, waitForToast, watchErrors,
+  clickRowAction, clickToolbar, closeForm, closeToasts, confirm, confirmSave, deleteRecord, formField, openList, purgeRecord, restoreRecord, rowTexts, submitForm, waitForToast, watchErrors,
 } from './crud-ui.mjs';
 import { readerAccount, readerPassword } from './m03-views.mjs';
 import { seedProjects } from './m04-views.mjs';
