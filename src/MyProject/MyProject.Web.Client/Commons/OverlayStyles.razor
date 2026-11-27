@@ -1186,15 +1186,18 @@
        Markdown 經 AiMarkdownRenderer.ToSafeHtml 轉成 HTML、以 MarkupString 注入，不帶頁面的 scope 屬性，
        原本三個頁面各用 ::deep 寫一份；三個窗都渲染在 AntContainer 底下，所以放這裡。
        各頁只留自己不同的部分（文字顏色、第一個標題的上邊距、明細窗的捲動高度）。
+       選擇器一律寫成 .ai-markdown.ai-markdown（0.10.46 起，同一個 class 寫兩次）：整併前這些規則在各頁的 scoped CSS，
+       編譯後是 .log-ai-report[b-xxxx] h1，權重 (0,2,1)；寫兩次正好還原這個權重，一般權重的全域規則才蓋不過報告內文。
+       不要「簡化」回一個（AiModalStyleConventionTests 守門）。各頁保留的 ::deep ...:first-child 是 (0,3,1)，仍然勝出。
        ⚠️ 每一條 font-size 都要乘 var(--ai-font-scale, 1)，否則「一般／中／大」按鈕放大時這一段不會跟著變
           （AiModalStyleConventionTests 守門）。
        ══════════════════════════════════════════════════════════════════ */
-    .ai-markdown {
+    .ai-markdown.ai-markdown {
         font-size: calc(14px * var(--ai-font-scale, 1));
     }
 
-    .ai-markdown h1,
-    .ai-markdown h2 {
+    .ai-markdown.ai-markdown h1,
+    .ai-markdown.ai-markdown h2 {
         margin: 20px 0 8px;
         padding-bottom: 4px;
         font-size: calc(17px * var(--ai-font-scale, 1));
@@ -1202,36 +1205,36 @@
         border-bottom: 1px solid var(--app-line);
     }
 
-    .ai-markdown h3,
-    .ai-markdown h4 {
+    .ai-markdown.ai-markdown h3,
+    .ai-markdown.ai-markdown h4 {
         margin: 16px 0 6px;
         font-size: calc(15px * var(--ai-font-scale, 1));
         color: var(--app-text);
     }
 
-    .ai-markdown p {
+    .ai-markdown.ai-markdown p {
         margin: 0 0 10px;
         line-height: 1.8;
     }
 
-    .ai-markdown ul,
-    .ai-markdown ol {
+    .ai-markdown.ai-markdown ul,
+    .ai-markdown.ai-markdown ol {
         margin: 0 0 10px;
         padding-left: 22px;
     }
 
-    .ai-markdown li {
+    .ai-markdown.ai-markdown li {
         line-height: 1.8;
     }
 
-    .ai-markdown blockquote {
+    .ai-markdown.ai-markdown blockquote {
         margin: 0 0 10px;
         padding: 2px 0 2px 12px;
         color: var(--app-muted);
         border-left: 3px solid var(--app-line);
     }
 
-    .ai-markdown pre {
+    .ai-markdown.ai-markdown pre {
         margin: 0 0 12px;
         padding: 10px 12px;
         font-size: calc(12px * var(--ai-font-scale, 1));
@@ -1244,17 +1247,17 @@
         border-radius: 4px;
     }
 
-    .ai-markdown code {
+    .ai-markdown.ai-markdown code {
         font-size: calc(12px * var(--ai-font-scale, 1));
         color: var(--app-error);
     }
 
-    .ai-markdown pre code {
+    .ai-markdown.ai-markdown pre code {
         color: inherit;
     }
 
     /* 安全管線把危險 scheme 的 URL 清空後，不要讓它看起來還像可點的連結。 */
-    .ai-markdown a[href=""] {
+    .ai-markdown.ai-markdown a[href=""] {
         color: inherit;
         text-decoration: none;
         cursor: default;

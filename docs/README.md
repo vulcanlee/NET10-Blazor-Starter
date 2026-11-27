@@ -1,10 +1,10 @@
 ﻿# 文件目錄索引
 
-- 文件版本：7.30
+- 文件版本：7.31
 - 文件狀態：維護中
-- 現行系統版本：0.10.45
+- 現行系統版本：0.10.46
 - 首次實作版本：0.2.8
-- 最後核對日期：2026/11/26
+- 最後核對日期：2026/11/27
 
 本目錄收錄 NET10-Blazor-Starter 的所有設計、規範與教學文件。文件依「特性」分類到下列子目錄；新增文件時請先依特性歸入既有分類，**若沒有任何分類適用，請自動新增一個語意明確的英文小寫分類目錄**，並同步更新本檔與主 [`readme.md`](../readme.md) 第 9 節「文件索引」。
 
@@ -339,6 +339,7 @@
 - [WASM 遷移 M2 外框與個人資料：第一個 WebAssembly 頁面、WASM 版外框、外框與個人資料 API（0.10.1）](changelog/2026-11-10-WASM遷移M2外框與個人資料.md)
 - [WASM 遷移 M3 分類、團隊與 CRUD 產生器：兩頁改用 WebAssembly、API 改走與畫面相同的服務、CRUD 產生器改產生 WASM 頁面（0.10.2）](changelog/2026-11-11-WASM遷移M3分類團隊與CRUD產生器.md)
 - [WASM 遷移 M4 專案、附件與下載票證：專案頁改用 WebAssembly、API 改走服務（不再有 Repository）、專案標題不能重複、附件改用一次性下載票證、IIS 請求上限放寬（0.10.3）](changelog/2026-11-11-WASM遷移M4專案附件與下載票證.md)
+- [`.ai-markdown` 權重還原：AI 報告內文的共用樣式選擇器寫成 `.ai-markdown.ai-markdown`，還原整併前的權重（0.10.46）](changelog/2026-11-27-ai-markdown權重還原.md)
 - [e2e 腳本重複整併：各腳本重複的小函式搬到 `common.mjs`／`crud-ui.mjs`、修正 `ux-data-freshness.mjs` 被使用者選單擋住（只改腳本，不升版）](changelog/2026-11-26-e2e腳本重複整併.md)
 - [前端重複整併：下載、複製、日誌頁清除、表格排序、AI 視窗字級／串流計時／顯示上限與共用報告樣式 `.ai-markdown`、忙碌時才輪詢、票證下載等共用元件；`UserApi` 繼承 `CrudApi`、CRUD 產生器樣板同步（0.10.45）](changelog/2026-11-26-前端重複整併.md)
 - [伺服器端重複整併：檔案存放共用 `RootedFiles`（三個原本沒有根目錄檢查的 store 補上檢查）、資料保留 `RetentionQueries`、時間換算 `LocalTime`、Controller 稽核包裝改用 `ViewAudit`、PDF 與 AI 工具註冊共用、排序與截斷等小元件；PDF 輸出與 64 個 AI 工具定義前後比對相同（0.10.44）](changelog/2026-11-26-伺服器端重複整併.md)

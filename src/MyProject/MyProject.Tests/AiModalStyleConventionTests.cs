@@ -117,6 +117,25 @@ public sealed class AiModalStyleConventionTests
         Assert.Equal(expectedCount, Regex.Matches(content, $"class=\"ai-markdown {reportClass}\"").Count);
     }
 
+    /// <summary>
+    /// 0.10.46 起 <c>.ai-markdown</c> 的選擇器一律寫成 <c>.ai-markdown.ai-markdown</c>（同一個 class 寫兩次）：
+    /// 整併前這些規則在各頁的 scoped CSS，編譯後是 <c>.log-ai-report[b-xxxx] h1</c>，權重 (0,2,1)；
+    /// 只寫一個 class 是 (0,1,1)，日後一般權重的全域規則（例如 <c>.ant-modal-body p</c>）就會蓋過報告內文的樣式。
+    /// 寫兩次正好還原整併前的權重；守門是為了不讓它被當成重複而「簡化」回一個。
+    /// </summary>
+    [Fact]
+    public void SharedMarkdownSelectors_ShouldKeepThePreConsolidationSpecificity()
+    {
+        var selectors = File.ReadAllLines(SourceTree.UiFile(Path.Combine("Commons", "OverlayStyles.razor")))
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith(".ai-markdown", StringComparison.Ordinal))
+            .ToList();
+
+        // 掃描路徑或區段若失效，測試會空跑綠燈，等於沒有守門。
+        Assert.NotEmpty(selectors);
+        Assert.All(selectors, selector => Assert.StartsWith(".ai-markdown.ai-markdown", selector, StringComparison.Ordinal));
+    }
+
     /// <summary>對話窗尺寸的唯一真相來源是 OverlayStyles，不是 &lt;Modal Width&gt;。</summary>
     [Theory]
     [InlineData("Analytics", "LogViewerView.razor")]
