@@ -1,10 +1,10 @@
 ﻿# VS Code 開發環境與新專案上手指南
 
-- 文件版本：3.20
+- 文件版本：3.21
 - 文件狀態：已實作
-- 現行系統版本：0.10.43
+- 現行系統版本：0.10.48
 - 首次實作版本：0.9.1
-- 最後核對日期：2026/11/26
+- 最後核對日期：2026/11/27
 
 > 本文是「拿到這個腳手架之後怎麼開始」的單一入口，涵蓋 **VS Code 環境啟動 → 機密設定檔（User Secrets）→ 品牌客製化 → 複製成新專案並更名 → 驗證**全程。
 >
@@ -37,7 +37,7 @@
 | 要換掉圖示、品牌圖片、產品名稱與說明 | 7 |
 | 要用本腳手架開一個**新系統** | 全部，重點在 7 → 8 |
 
-前置知識：基本的 .NET CLI 與 Git 操作。作業系統以 **Windows 10 / 11** 為準（外部目錄預設值 `C:\temp\...` 為 Windows 路徑）。
+前置知識：基本的 .NET CLI 與 Git 操作。作業系統以 **Windows 10 / 11** 為準（外部目錄預設值 `C:\Data\...` 為 Windows 路徑）。
 
 ---
 
@@ -99,15 +99,17 @@ dotnet run --project src/MyProject/MyProject.Web/MyProject.Web.csproj --launch-p
 
 | 路徑 | 內容 | 來源設定 |
 |------|------|----------|
-| `C:\temp\MyProject\DB\BackendDB.db` | SQLite 資料庫 | `SystemSettings:ExternalFileSystem:DatabasePath` |
-| `C:\temp\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
-| `C:\temp\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
-| `C:\temp\MyProject\AiAgentConversation` | 系統管理助理保存的對話與系統巡檢報告的內容檔（0.9.155 起；0.10.39 起巡檢報告是「系統巡檢報告」；0.10.22 前也包含 Agent 測試台的對話與 Agent 工作流程的執行紀錄） | 同上區段的 `AiAgentConversationPath` |
-| `C:\temp\MyProject\AuditContent` | 稽核紀錄的詳細內容檔（0.9.131 起） | 同上區段的 `AuditContentPath` |
-| `C:\temp\MyProject\Keys` | Data Protection 金鑰環（兩步驟驗證密鑰、記住裝置與登入票證靠它；刪掉後開了兩步驟驗證的人登入不了。0.10.7 以前登入 Cookie 也靠它） | 同上區段的 `DataProtectionKeyPath` |
-| `C:\temp\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
-| `C:\temp\MyProject\AuditKey` | 稽核紀錄防竄改金鑰 `audit-hmac.key`（0.9.175 起，第一次寫稽核時產生，例如第一次登入）與每天檢查的檢查點；刻意不進備份 | 同上區段的 `AuditKeyPath` |
-| `C:\temp\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
+| `C:\Data\MyProject\DB\BackendDB.db` | SQLite 資料庫 | `SystemSettings:ExternalFileSystem:DatabasePath` |
+| `C:\Data\MyProject\Download` / `Upload` / `ProjectFile` | 檔案上傳與下載目錄 | 同上區段的 `DownloadPath`／`UploadPath`／`ProjectFilePath` |
+| `C:\Data\MyProject\Exception` / `TokenUsage` / `AiCallLog` | 例外堆疊、LLM 原始用量、AI 對話紀錄的檔案 | 同上區段的 `ExceptionPath`／`TokenUsagePath`／`AiCallLogPath` |
+| `C:\Data\MyProject\AiAgentConversation` | 系統管理助理保存的對話與系統巡檢報告的內容檔（0.9.155 起；0.10.39 起巡檢報告是「系統巡檢報告」；0.10.22 前也包含 Agent 測試台的對話與 Agent 工作流程的執行紀錄） | 同上區段的 `AiAgentConversationPath` |
+| `C:\Data\MyProject\AuditContent` | 稽核紀錄的詳細內容檔（0.9.131 起） | 同上區段的 `AuditContentPath` |
+| `C:\Data\MyProject\Keys` | Data Protection 金鑰環（兩步驟驗證密鑰、記住裝置與登入票證靠它；刪掉後開了兩步驟驗證的人登入不了。0.10.7 以前登入 Cookie 也靠它） | 同上區段的 `DataProtectionKeyPath` |
+| `C:\Data\MyProject\Backup` | 系統備份 zip（0.9.99 起，含金鑰環） | 同上區段的 `BackupPath` |
+| `C:\Data\MyProject\AuditKey` | 稽核紀錄防竄改金鑰 `audit-hmac.key`（0.9.175 起，第一次寫稽核時產生，例如第一次登入）與每天檢查的檢查點；刻意不進備份 | 同上區段的 `AuditKeyPath` |
+| `C:\Data\Logs\MyProject.Web\` | NLog 日誌 | `NLog:BasePath` + 組件命名空間 |
+
+> 預設不放 `C:\temp`（0.10.48 起）：暫存區常被系統或人工清理，資料庫、金鑰、備份會被誤刪。
 
 `ExternalFileSystem` 的十二個目錄（0.9.99 起含 `BackupPath`、0.9.131 起含 `AuditContentPath`、0.9.143 起含 `AiAgentConversationPath`、0.9.175 起含 `AuditKeyPath`）若不存在，`Program.cs` 的「系統使用的目錄準備」區段會在啟動時自動建立。
 
@@ -322,7 +324,7 @@ public static string GetSQLiteConnectionString(string databasePath)
 }
 ```
 
-目錄部分來自 `appsettings.json` 的 `SystemSettings:ExternalFileSystem:DatabasePath`，所以開發環境的實際檔案是 **`C:\temp\MyProject\DB\BackendDB.db`**。
+目錄部分來自 `appsettings.json` 的 `SystemSettings:ExternalFileSystem:DatabasePath`，所以開發環境的實際檔案是 **`C:\Data\MyProject\DB\BackendDB.db`**。
 
 > 💡 資料庫位置只看 `ExternalFileSystem:DatabasePath`（檔名固定 `BackendDB.db`）。0.10.42 以前的 `appsettings.json` 另有一個從未被讀取的 `SystemSettings:ConnectionStrings:SQLiteDefaultConnection`，0.10.43 起已移除；舊的設定檔留著它也沒有影響。
 
@@ -335,7 +337,7 @@ public static string GetSQLiteConnectionString(string databasePath)
 ```powershell
 # 1. 停掉正在執行的程式（重要，SQLite 檔案會被鎖住）
 # 2. 刪除資料庫檔（0.9.91 起是 WAL 模式：連同 -wal、-shm 與鎖檔一起刪）
-Remove-Item "C:\temp\MyProject\DB\BackendDB.db*" -Force
+Remove-Item "C:\Data\MyProject\DB\BackendDB.db*" -Force
 # 3. 重新執行，會重新套用 Migration 並 Seed
 ```
 
@@ -566,7 +568,7 @@ pwsh ./scripts/New-StarterProject.ps1 `
 | 品牌圖檔 | `MyProject.Web.Client/wwwroot/images/brand-logo.png`、`MyProject.Web.Client/wwwroot/favicon.png`、PWA 圖示 `images/icon-192.png`／`icon-512.png`（0.10.11 起）是二進位檔，腳本不會動；`manifest.webmanifest` 的名稱也不會改 —— 規格與作法見 [§7 品牌客製化](#7-品牌客製化圖示圖片產品名稱與說明) |
 | 產品名稱與說明 | `appsettings.json` 的 `SystemSettings:SystemInformation`（`SystemName` / `SystemDescription`）—— 見 [§7.4](#74-更換產品名稱與簡短說明)。`SystemVersion` 腳本已重設為 `1.0.0`，不必再改 |
 | 文件內文 | `docs/**` 與 `readme.md` 裡描述舊系統的敘述句（不只是代號） |
-| 外部目錄路徑 | `ExternalFileSystem` 十二個路徑會被換成 `C:\temp\Acme.Erp\...`，確認是你要的位置 |
+| 外部目錄路徑 | `ExternalFileSystem` 十二個路徑會被換成 `C:\Data\Acme.Erp\...`，確認是你要的位置 |
 | 機密 | 用新的 `UserSecretsId` 重新設定一次 User Secrets（見 [§5](#5-機密設定檔user-secrets)） |
 
 即使用了腳本，仍**強烈建議**照 [§8.3 高風險清單](#83-高風險清單) 逐條核對，再跑 [§9 驗證清單](#9-更名後驗證清單)。
@@ -670,7 +672,7 @@ MyProject.slnx                                    → Acme.Erp.slnx
 | 鍵 | 建議值 |
 |----|--------|
 | `SystemSettings:SystemInformation:*` | 產品名稱、簡短說明與版本 —— 完整說明見 [§7.4](#74-更換產品名稱與簡短說明)；版本建議比照腳本重設為 `1.0.0 (當天日期)` |
-| `SystemSettings:ExternalFileSystem:*` | 十二個路徑，確認 `C:\temp\Acme.Erp\...` 是你要的 |
+| `SystemSettings:ExternalFileSystem:*` | 十二個路徑，確認 `C:\Data\Acme.Erp\...` 是你要的 |
 | `JwtSettings:Issuer` / `Audience` | `Acme.Erp` / `Acme.Erp.WebApi` |
 | `JwtSettings:SigningKey` | 換成你自己的值；建議直接搬進 User Secrets |
 | `BootstrapSettings:*` | 改掉預設的 `support` / `support` |
@@ -746,8 +748,8 @@ pwsh ./scripts/Invoke-QualityGate.ps1
 - [ ] **畫面樣式正常**（若整站沒有樣式，回頭查 `MyProject.Web.Client/wwwroot/index.html` 的 `styles.css` —— 見 [§8.3](#83-高風險清單)）
 - [ ] 能以 `BootstrapSettings` 設定的帳密登入
 - [ ] Swagger UI（`/swagger`）標題正確，且能用 Bearer token 呼叫受保護 API
-- [ ] `C:\temp\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,AiAgentConversation,AuditContent,Keys,Backup,AuditKey}` 已正確產生
-- [ ] `C:\temp\Logs\Acme.Erp.Web\` 有新日誌檔產生，且系統內的「日誌檢視」頁讀得到
+- [ ] `C:\Data\Acme.Erp\{DB,Download,Upload,ProjectFile,Exception,TokenUsage,AiCallLog,AiAgentConversation,AuditContent,Keys,Backup,AuditKey}` 已正確產生
+- [ ] `C:\Data\Logs\Acme.Erp.Web\` 有新日誌檔產生，且系統內的「日誌檢視」頁讀得到
 - [ ] 全文搜尋（排除 `bin`/`obj`）已無任何 `MyProject` 殘留
 - [ ] `git grep -i "DevelopmentOnly-ChangeThis"` 無殘留，或已改用 User Secrets
 - [ ] `Acme.Erp.Web.csproj` 的 `UserSecretsId` 是新產生的 GUID

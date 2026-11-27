@@ -141,7 +141,7 @@ public sealed class SystemSettingsValidator : IValidateOptions<SystemSettings>
         var key = $"SystemSettings:ExternalFileSystem:{field}";
         if (string.IsNullOrWhiteSpace(value))
         {
-            errors.Add(key, "不可留空。請填寫完整路徑，例如 C:\\temp\\MyProject\\DB。");
+            errors.Add(key, "不可留空。請填寫完整路徑，例如 C:\\Data\\MyProject\\DB。");
         }
         else if (!Path.IsPathFullyQualified(value))
         {

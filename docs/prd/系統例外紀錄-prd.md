@@ -1,10 +1,10 @@
 ﻿# 系統例外紀錄 PRD
 
-- 文件版本：1.16
+- 文件版本：1.17
 - 文件狀態：已實作
-- 現行系統版本：0.10.43
+- 現行系統版本：0.10.48
 - 首次實作版本：0.9.11
-- 最後核對日期：2026/11/26
+- 最後核對日期：2026/11/27
 
 ## 一、目標與範圍
 
@@ -164,7 +164,7 @@ logger.LogError(ex, "Failed to create category. Name={CategoryName}", name)   �
 
 ### 4.5 堆疊檔案
 
-- 路徑：`SystemSettings.ExternalFileSystem.ExceptionPath`（預設 `C:\temp\MyProject\Exception`）
+- 路徑：`SystemSettings.ExternalFileSystem.ExceptionPath`（預設 `C:\Data\MyProject\Exception`）
 - 檔名：`{yyyyMM}/{簽章前 16 碼}.txt`（年月目錄，比照專案附件慣例）
 - **只在首次建立資料列時寫一次**，重複發生不重寫 → 寫檔成本與發生次數無關
 - 寫檔失敗不影響資料列建立（`StackTraceFile` 留 `null`）

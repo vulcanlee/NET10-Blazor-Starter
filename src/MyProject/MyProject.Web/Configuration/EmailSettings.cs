@@ -38,7 +38,7 @@ public class EmailSettings
     public string FromName { get; set; } = string.Empty;
 
     /// <summary>Pickup 模式存放 .eml 的資料夾。第一次寫信時才建立。</summary>
-    public string PickupDirectory { get; set; } = @"C:\temp\MyProject\Mails";
+    public string PickupDirectory { get; set; } = @"C:\Data\MyProject\Mails";
 
     /// <summary>
     /// 對外公開網址（例如 <c>https://erp.example.com</c>），信中連結一律以它為準。

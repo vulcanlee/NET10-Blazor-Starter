@@ -1,10 +1,10 @@
 ﻿# 建立一個新 CRUD 操作網頁
 
-- 文件版本：3.3
+- 文件版本：3.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.27
+- 現行系統版本：0.10.48
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/15
+- 最後核對日期：2026/11/27
 
 > 0.9.110 起一行指令產生並登記完整的 CRUD 模組（路線圖 G-21）。不要再複製既有檢視 —— 0.4.27 的 emoji 回歸（六個檢視共 22 個按鈕）正是複製貼上造成的。
 > 慣例與踩雷點見[開發慣例與限制速查](../architecture/開發慣例與限制速查.md)（§6.27 是產生器本身）。
@@ -104,7 +104,7 @@ pwsh ./scripts/New-CrudModule.ps1 -Name Equipment -DisplayName 設備清單
 | `OptimisticConcurrencyTests`、`SoftDeleteUserRoleTests`、`SoftDeletePurgeTests` | 並行與軟刪除的實體清單、清理測試 |
 | `DataAccessServiceLifetimeTests`、`AdapterModelCloneTests`、`ApiIntegrationTests`、`MenuIconTests` | 服務生命週期、Clone、API DI 解析、選單圖示 |
 
-最後在隔離的暫存路徑執行 `dotnet build` 與 `dotnet ef migrations add Add<Name>`（不寫進 `C:\temp` 或正式路徑）。
+最後在隔離的暫存路徑執行 `dotnet build` 與 `dotnet ef migrations add Add<Name>`（不寫進 `C:\Data` 或正式路徑）。
 
 ## 5. 產生之後的檢查清單
 

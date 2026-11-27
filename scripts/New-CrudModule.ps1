@@ -534,7 +534,7 @@ if (-not $SkipMigration) {
     if ($existingMigration) {
         $migration = "略過（已存在 $($existingMigration[0].Name)）"
     } else {
-        # 設計階段會建立主機：所有外部路徑與日誌一律導到暫存目錄，不寫進開發機的 C:\temp 或正式路徑。
+        # 設計階段會建立主機：所有外部路徑與日誌一律導到暫存目錄，不寫進開發機的 C:\Data 或正式路徑。
         $isolated = Join-Path ([IO.Path]::GetTempPath()) ("crudgen-" + [guid]::NewGuid().ToString('N'))
         $environment = @{
             ASPNETCORE_ENVIRONMENT                               = 'Development'
