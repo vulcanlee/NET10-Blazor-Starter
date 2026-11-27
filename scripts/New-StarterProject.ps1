@@ -609,7 +609,7 @@ $migrationCommand = "dotnet ef migrations add Init --project `"$accessDatasCspro
 Write-Host "Creating initial migration: $migrationCommand"
 
 # dotnet ef 會執行 Program.cs 到 Build() 為止，途中依設定檔建立所有外部目錄並寫日誌：
-# 外部路徑與日誌一律導到暫存目錄，不在開發機的 C:\temp 建目錄（與 New-CrudModule.ps1 相同；
+# 外部路徑與日誌一律導到暫存目錄，不在開發機的 C:\Data 建目錄（與 New-CrudModule.ps1 相同；
 # 新增 ExternalFileSystem 路徑時兩邊都要加，ScriptIsolationConventionTests 守門）。
 $isolated = Join-Path ([IO.Path]::GetTempPath()) ("starter-ef-" + [guid]::NewGuid().ToString('N'))
 $environment = @{

@@ -1,10 +1,10 @@
 ﻿# EF Core 指令備忘
 
-- 文件版本：1.3
+- 文件版本：1.4
 - 文件狀態：已實作
-- 現行系統版本：0.10.18
+- 現行系統版本：0.10.48
 - 首次實作版本：—（未追溯，約 0.1.x 初始腳手架）
-- 最後核對日期：2026/11/14
+- 最後核對日期：2026/11/27
 
 > **前置說明**
 >
@@ -25,7 +25,7 @@ dotnet ef migrations add AddInvoiceNote
 
 - 名稱用 PascalCase 描述這次變更（例：`AddAuditLogClientIp`）；全小寫的類別名會觸發 CS8981，在 `TreatWarningsAsErrors` 下建置失敗。
 - 產出 `<時間戳>_<名稱>.cs`、`.Designer.cs`，並更新 `BackendDBContextModelSnapshot.cs`，三個檔都要提交。
-- `dotnet ef` 會在設計階段建立 Web 主機（讀 `appsettings.json` 的外部目錄與日誌路徑）。不想寫進開發機的 `C:\temp` 時，
+- `dotnet ef` 會在設計階段建立 Web 主機（讀 `appsettings.json` 的外部目錄與日誌路徑）。不想寫進開發機的 `C:\Data` 時，
   比照 `scripts/New-CrudModule.ps1` 的 migration 區段，先用環境變數把 `SystemSettings__ExternalFileSystem__*` 與 `NLog__BasePath` 導到暫存目錄。
 
 ## 2. 套用到資料庫（通常不用手動做）

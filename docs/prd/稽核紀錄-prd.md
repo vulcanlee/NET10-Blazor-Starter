@@ -1,10 +1,10 @@
 ﻿# 稽核紀錄 PRD
 
-- 文件版本：1.36
+- 文件版本：1.37
 - 文件狀態：已實作
-- 現行系統版本：0.10.42
+- 現行系統版本：0.10.48
 - 首次實作版本：0.9.42
-- 最後核對日期：2026/11/23
+- 最後核對日期：2026/11/27
 
 ## 一、目標與範圍
 
@@ -353,7 +353,7 @@ Debug 預設不寫進檔案，要到「日誌等級設定」調到 Debug 才看�
   - **不把竄改洗成正常**：鏈頭簽章不對、金鑰代號被改（而金鑰其實沒換）、或終點被改小時，鏈頭標記為不可信任；之後的寫入照常進行（終點被改小時從實際最後一筆接續），但不替它重新簽章，直到「清空全部」。
   - **金鑰真的換了才接受**：鏈頭的金鑰代號和目前不同時，只有「本行程剛產生新金鑰」或「資料庫以外的檢查點記的是另一把金鑰」才算換了金鑰，兩條鏈的鏈頭一起改用新金鑰。
 - **清除**：每批 5000 筆一個交易，**刪之前先驗**這一段（從鏈頭起點連續、前後筆接得上、目前金鑰簽的都驗得過）；驗不過或鏈頭不可信任時，這條鏈停在那裡不刪並記 Error —— 把紀錄的時間改舊，不能讓清除替攻擊者刪掉證據。
-- **金鑰**：第一次寫稽核時自動產生在 `SystemSettings:ExternalFileSystem:AuditKeyPath`（預設 `C:\temp\MyProject\AuditKey`）的 `audit-hmac.key`（32 個隨機位元組，base64）。同一個資料夾還有每天的檢查寫下的檢查點 `audit-chain-checkpoint.json`（資料庫以外的「上次看到鏈到哪裡」）。
+- **金鑰**：第一次寫稽核時自動產生在 `SystemSettings:ExternalFileSystem:AuditKeyPath`（預設 `C:\Data\MyProject\AuditKey`）的 `audit-hmac.key`（32 個隨機位元組，base64）。同一個資料夾還有每天的檢查寫下的檢查點 `audit-chain-checkpoint.json`（資料庫以外的「上次看到鏈到哪裡」）。
   - ⚠️ **金鑰刻意不進系統備份**（`SystemBackupService` 不打包）：金鑰和資料庫在同一份備份裡，拿到備份的人就能改紀錄再重算簽章。請另外離線保存一份（見 [系統備份與還原 PRD](系統備份與還原-prd.md)、備份與還原操作手冊）。
   - 啟動驗證（`SystemSettingsValidator`）擋下：沒填或不是絕對路徑；與任何其他資料目錄（`DatabasePath`、`DownloadPath`、`UploadPath`、`ProjectFilePath`、`ExceptionPath`、`TokenUsagePath`、`AiCallLogPath`、`AiAgentConversationPath`、`AuditContentPath`、`DataProtectionKeyPath`）或 `BackupPath` 重疊（相同、在其下或包含它）；在網站目錄底下。
   - 是 `ExternalFileSystem` 的第 12 個目錄；系統健康監控頁會檢查它（名稱 `AuditKey`）。

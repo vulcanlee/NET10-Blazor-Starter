@@ -10,7 +10,7 @@ namespace MyProject.Tests;
 /// 1. 會執行 <c>dotnet ef</c> 的腳本都要把外部路徑導到暫存資料夾（速查表 §6.6）。
 ///
 /// <c>dotnet ef</c> 會執行 <c>Program.cs</c> 到 <c>Build()</c> 為止，途中依設定檔建立 <see cref="ExternalFileSystem"/> 的每個目錄；
-/// 沒隔離的話，產生 CRUD 模組或新專案時會在開發機的 <c>C:\temp\…</c> 建目錄、寫日誌。
+/// 沒隔離的話，產生 CRUD 模組或新專案時會在開發機的 <c>C:\Data\…</c> 建目錄、寫日誌。
 /// 新增一個路徑時兩支腳本都要加，漏了不會壞、只會默默寫錯地方，所以由這裡守門（0.9.175 加 <c>AuditKeyPath</c> 時兩邊都要手動補）。
 /// 2. <c>New-StarterProject.ps1</c> 最後的殘留掃描必須是零命中：文件寫明「正常複刻不會印出任何警告」，
 ///    一條固定出現的假警報會讓人忽略真正沒換到的東西。

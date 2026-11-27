@@ -161,7 +161,7 @@ dotnet run --project MyProject.Web/MyProject.Web.csproj
 
 預設帳號 / 密碼由 `appsettings.json` 之 `BootstrapSettings`（`SupportAccount` / `SupportPassword`）定義，首次啟動會自動建立 `support` 管理員帳號；`MagicObjectHelper.開發者帳號` 則用於後續識別並保護該開發者帳號。
 
-外部目錄與資料庫檔位置由 `appsettings.json` 之 `SystemSettings.ExternalFileSystem` 控制，預設位於 `C:\temp\MyProject\…`，啟動時若不存在會自動建立。
+外部目錄與資料庫檔位置由 `appsettings.json` 之 `SystemSettings.ExternalFileSystem` 控制，預設位於 `C:\Data\MyProject\…`（0.10.48 起不放 `C:\Data`：暫存區常被清理，資料、金鑰、備份會被誤刪），啟動時若不存在會自動建立。
 
 關於 EF Core Migration 指令請見 [docs/guides/EFCore.md](docs/guides/EFCore.md)。
 

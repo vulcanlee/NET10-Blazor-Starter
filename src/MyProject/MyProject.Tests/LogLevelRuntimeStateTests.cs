@@ -63,7 +63,7 @@ public sealed class LogLevelRuntimeStateTests : IDisposable
         var applicationRule = new LoggingRule("*", applicationMinLevel, target);
         configuration.LoggingRules.Add(applicationRule);
 
-        configuration.Variables["BasePath"] = @"C:\temp\Logs\MyProject.Web";
+        configuration.Variables["BasePath"] = @"C:\Data\Logs\MyProject.Web";
         configuration.Variables["LogFilenamePrefix"] = "MyProject.Web-logfile";
 
         return configuration;

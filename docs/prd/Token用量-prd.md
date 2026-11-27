@@ -1,10 +1,10 @@
 ﻿# Token 用量 PRD
 
-- 文件版本：2.12
+- 文件版本：2.13
 - 文件狀態：已實作
-- 現行系統版本：0.10.42
+- 現行系統版本：0.10.48
 - 首次實作版本：0.9.14
-- 最後核對日期：2026/11/23
+- 最後核對日期：2026/11/27
 
 ## 一、目標與範圍
 
@@ -279,7 +279,7 @@ AI 例外分析共用）、`AiHealthProbe.ProbeAsync`、0.9.142 起的 `AiAgentR
 
 ### 4.4 原始 usage JSON
 
-- 路徑：`SystemSettings.ExternalFileSystem.TokenUsagePath`（預設 `C:\temp\MyProject\TokenUsage`）
+- 路徑：`SystemSettings.ExternalFileSystem.TokenUsagePath`（預設 `C:\Data\MyProject\TokenUsage`）
 - 檔名：`{yyyyMM}/{GUID}.json`（每次呼叫獨立一筆，不合併，所以用 GUID 而非雜湊）
 - 生命週期集中在 `TokenUsageRawStore`；刪單筆／批次清除／清空全部三條路徑都經過它
 - **價值**：供應商專有欄位（實測 Azure 會回 `latency_checkpoint`、`cache_write_tokens`）
