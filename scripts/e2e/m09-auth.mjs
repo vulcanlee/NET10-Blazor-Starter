@@ -6,7 +6,6 @@ import { createHmac } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { apiUrl, baseUrl, check, createRecorder, createStep, createUser, databaseFile, execute, fillLogin, launchBrowser, login, newContext, query, screenshot, utcNow } from './common.mjs';
-import { watchErrors } from './crud-ui.mjs';
 import { mustChangeAccount, seedAuthUsers, setupAccount, userPassword } from './m09-views.mjs';
 import { runSmoke } from './smoke-routes.mjs';
 

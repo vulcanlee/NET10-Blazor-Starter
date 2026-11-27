@@ -4,8 +4,8 @@
 // 參數 quota：只跑「超過用量上限」情境（主機要以 AiQuotaSettings__PerUserDailyTwd=1 啟動，見 README）。
 // 結果寫到 E2E_OUT_DIR/m06-results.json（quota 模式為 m06-quota-results.json）。
 import {
-  apiAsPageUser, auditCount, check, createRecorder, createStep, createUser, download, execute, isWasmPage, launchBrowser, login, newContext, query, screenshot, utcNow, waitForPredicate } from './common.mjs';
-import { clickToolbar, closeToasts, confirm, waitForToast, watchErrors } from './crud-ui.mjs';
+  auditCount, check, createRecorder, createStep, createUser, download, execute, isWasmPage, launchBrowser, login, newContext, query, screenshot, utcNow, waitForPredicate } from './common.mjs';
+import { clickToolbar, closeToasts, waitForToast, watchErrors } from './crud-ui.mjs';
 import { fillPicker, seedAiData, seedTag } from './m06-views.mjs';
 import { freezeTimes } from './m05-views.mjs';
 
