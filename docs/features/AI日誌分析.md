@@ -1,10 +1,10 @@
 ﻿# AI 日誌分析
 
-- 文件版本：1.25
+- 文件版本：1.26
 - 文件狀態：已實作
-- 現行系統版本：0.10.45
+- 現行系統版本：0.10.46
 - 首次實作版本：0.9.4
-- 最後核對日期：2026/11/26
+- 最後核對日期：2026/11/27
 
 ## 文件目的
 
@@ -454,7 +454,7 @@ inline style，`LogViewerView.razor.css` 裡每一條字級都是
 產出的會是無效的 CSS 值 `1,25`，字級**靜默失效** —— 開發機上永遠看不到這個 bug。
 
 守門測試 `AiModalStyleConventionTests` 會檢查 `.log-ai-meta*` 與 `.log-ai-report*`，以及 0.10.45 起三個 AI 視窗共用的報告內文
-`.ai-markdown`（`OverlayStyles.razor`）底下的每一條 `font-size` 都乘上了這個變數，並確認報告容器都掛著 `ai-markdown`。
+`.ai-markdown`（`OverlayStyles.razor`）底下的每一條 `font-size` 都乘上了這個變數，並確認報告容器都掛著 `ai-markdown`；0.10.46 起另確認共用規則的選擇器寫成 `.ai-markdown.ai-markdown`（還原整併前的權重）。
 三顆按鈕是共用元件 `AiFontScalePicker`，倍率與預設值在 `Ai/AiFontScale`。漏掉一條的症狀是「按了放大只有這段沒變」，
 不會壞、不會紅，只有實際去點才發現。
 
