@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Backup;
 
@@ -62,7 +63,7 @@ public sealed partial class BackupStore
 
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Root));
         var fullPath = Path.GetFullPath(Path.Combine(root, fileName));
-        return string.Equals(Path.GetDirectoryName(fullPath), root, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
+        return string.Equals(Path.GetDirectoryName(fullPath), root, PathComparison.Current) ? fullPath : null;
     }
 
     /// <summary>新到舊。</summary>

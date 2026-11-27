@@ -37,6 +37,19 @@ async function pickOption(page, label, option) {
   await modal(page).locator('.ant-modal-title').click();
 }
 
+/**
+ * 先搜尋帳號，等清單只剩含這個帳號的列（使用者清單依帳號排序、每頁 8 筆：接在其他腳本之後執行時，
+ * 前面建的帳號會把後面的帳號擠到第 2 頁，例如 explore-perm 的 e2e-perm-low、client-diagnostics 的 diag-*，e2e-wang 就找不到）。
+ */
+async function findUser(page, account) {
+  await page.fill('.my-user-search-input', account);
+  await page.press('.my-user-search-input', 'Enter');
+  await waitForPredicate(page, (text) => {
+    const rows = [...document.querySelectorAll('.my-user-table .ant-table-row')];
+    return rows.length > 0 && rows.every((row) => row.textContent.includes(text));
+  }, account, { timeout: 15000 });
+}
+
 /** 送出目前的表單對話窗（按「儲存」或「建立」）。 */
 async function submit(page, text = '儲存') {
   await modal(page).locator('.ant-modal-footer button', { hasText: text }).click();
@@ -68,6 +81,7 @@ try {
   await submit(page);
   await confirmSave(page);
   await waitForToast(page, '新增成功');
+  await findUser(page, account);
   await clickRowAction(page, account, '修改');
   await modal(page).waitFor();
   await field(page, '名稱').fill('實機新人改名');
@@ -109,6 +123,7 @@ try {
   await login(target, { account: 'e2e-target', password: userPassword });
   await target.goto('/Profile');
   await target.getByText('角色與團隊').first().waitFor({ timeout: 60000 });
+  await findUser(page, 'e2e-target');
   await clickRowAction(page, 'e2e-target', '修改');
   await modal(page).waitFor();
   await pickOption(page, '額外角色', 'E2E 主管');
@@ -126,6 +141,7 @@ try {
   const target2Ctx = await newContext(browser);
   const target2 = await target2Ctx.newPage();
   await login(target2, { account: 'e2e-target2', password: userPassword });
+  await findUser(page, 'e2e-target2');
   await page.locator('.ant-table-row', { hasText: 'e2e-target2' }).first().locator('button.status-pill-clickable').click();
   await confirm(page, '停用');
   await waitForToast(page, '已停用「e2e-target2」');
@@ -137,6 +153,7 @@ try {
   recorder.add('A3', '停用帳號後，對方被登出', disabledOut, `對方重新開 /Profile 後停在 ${new URL(target2.url()).pathname}`);
 
   // A4：解鎖被鎖定的帳號。
+  await findUser(page, 'e2e-locked');
   await clickRowAction(page, 'e2e-locked', '解鎖');
   await confirm(page, '解鎖');
   const unlocked = await waitForToast(page, '已解除「e2e-locked」的鎖定').then(() => true, () => false);
@@ -146,6 +163,7 @@ try {
 
   // A5：複製使用者：產生密碼、建立、交付窗列出登入資訊。
   const copyAccount = `e2e-copy${stamp}`;
+  await findUser(page, 'e2e-wang');
   await clickRowAction(page, 'e2e-wang', '複製');
   await modal(page).waitFor();
   await field(page, '帳號').fill(copyAccount);

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MyProject.Business.Services.Other;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Tests;
 
@@ -271,6 +272,39 @@ public sealed class FileStoreBehaviorTests : IDisposable
 
         Assert.Equal(Path.Combine(driveRoot, "202611", "a.json"), files.TryResolve("202611/a.json"));
         Assert.Null(new RootedFiles(() => string.Empty).TryResolve("202611/a.json"));
+    }
+
+    /// <summary>
+    /// 根目錄檢查的大小寫依作業系統決定（0.10.47 起 <see cref="PathComparison"/>，與 .NET 判斷路徑是否分大小寫的規則相同）：
+    /// Windows、macOS 的檔案系統預設不分大小寫；Linux 等分大小寫。
+    /// </summary>
+    [Fact]
+    public void PathComparison_ShouldIgnoreCaseOnlyOnCaseInsensitiveFileSystems()
+    {
+        Assert.Equal(StringComparison.OrdinalIgnoreCase, PathComparison.For(caseInsensitiveFileSystem: true));
+        Assert.Equal(StringComparison.Ordinal, PathComparison.For(caseInsensitiveFileSystem: false));
+        Assert.Equal(PathComparison.For(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()), PathComparison.Current);
+    }
+
+    /// <summary>
+    /// 只差大小寫的同層資料夾（根目錄 <c>Files</c>、路徑走到 <c>files</c>）：不分大小寫的檔案系統上就是同一個資料夾，照樣接受（Windows 上行為不變）；
+    /// 分大小寫的（Linux）是根目錄旁邊另一個資料夾，必須拒絕——0.10.46 以前一律不分大小寫，在 Linux 上會被當成在根目錄底下。
+    /// </summary>
+    [Fact]
+    public void RootedFiles_SiblingThatDiffersOnlyInCase_ShouldFollowTheFileSystem()
+    {
+        var files = new RootedFiles(() => Path.Combine(root, "Files"));
+
+        var resolved = files.TryResolve("../files/a.json");
+
+        if (PathComparison.Current == StringComparison.OrdinalIgnoreCase)
+        {
+            Assert.Equal(Path.Combine(root, "files", "a.json"), resolved);
+        }
+        else
+        {
+            Assert.Null(resolved);
+        }
     }
 
     private string Sub(string name)

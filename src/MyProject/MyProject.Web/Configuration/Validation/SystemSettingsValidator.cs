@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using MyProject.Models.Systems;
+using MyProject.Share.Helpers;
 
 namespace MyProject.Web.Configuration.Validation;
 
@@ -127,10 +128,13 @@ public sealed class SystemSettingsValidator : IValidateOptions<SystemSettings>
 
     private static string Normalize(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
-    /// <summary><paramref name="path"/> 等於 <paramref name="root"/> 或位於其下（以分隔字元判斷，<c>C:\a\Backup2</c> 不算在 <c>C:\a\Backup</c> 底下）。</summary>
+    /// <summary>
+    /// <paramref name="path"/> 等於 <paramref name="root"/> 或位於其下（以分隔字元判斷，<c>C:\a\Backup2</c> 不算在 <c>C:\a\Backup</c> 底下）；
+    /// 大小寫依作業系統（0.10.47 起 <see cref="PathComparison"/>）。
+    /// </summary>
     private static bool IsSameOrInside(string path, string root)
-        => string.Equals(path, root, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        => string.Equals(path, root, PathComparison.Current)
+            || path.StartsWith(root + Path.DirectorySeparatorChar, PathComparison.Current);
 
     private static void RequirePath(OptionsErrors errors, string field, string value)
     {
